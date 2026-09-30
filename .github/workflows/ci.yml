@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: ubuntu-latest
+            cc: clang
+          - os: macos-latest
+            cc: clang
+    env:
+      # used both to build kelvinc and as the backend for generated C
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show compiler
+        run: $CC --version
+
+      - name: Build
+        run: make CFLAGS="-std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -pedantic -Werror"
+
+      - name: Test
+        run: make test
+
+      - name: Run example
+        run: ./kelvinc --run examples/hello.k
+
+  sanitizers:
+    # check kelvinc itself for memory errors and undefined behavior
+    name: sanitizers
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+      # kelvinc frees nothing by design, since it exits right after compiling
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build kelvinc with sanitizers
+        run: make CFLAGS="-std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined"
+
+      - name: Test
+        run: make test

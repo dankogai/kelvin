@@ -1,10 +1,13 @@
-/* kelvin.h - shared declarations for the Kelvin bootstrap compiler */
+/* kelvin.h - shared declarations for kelvinc
+
+   Kelvin is C with a different surface syntax. kelvinc parses Kelvin and
+   prints the equivalent C; the C compiler does all type checking, so the
+   semantics and the ABI are C's by construction. */
 #ifndef KELVIN_H
 #define KELVIN_H
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 
 /* ---------- util.c ---------- */
@@ -34,7 +37,6 @@ void list_push(List *l, void *x);
 void buf_puts(Buf *b, const char *s);
 void buf_putn(Buf *b, const char *s, size_t n);
 void buf_printf(Buf *b, const char *fmt, ...);
-char *c_string_literal(const char *s, size_t n);
 
 void set_source(const char *file, const char *src);
 _Noreturn void fatal(const char *fmt, ...);
@@ -46,209 +48,132 @@ typedef enum {
     TK_EOF,
     TK_IDENT,
     TK_KEYWORD,
-    TK_INT,
-    TK_FLOAT,
-    TK_STR,
+    TK_NUMBER,  /* spelled exactly as in C, passed through verbatim */
+    TK_CHAR,    /* verbatim, including quotes */
+    TK_STRING,  /* verbatim, including quotes */
     TK_PUNCT,
+    TK_IMPORT,  /* #import <x.h> as C; text is the header name, e.g. "<x.h>" */
 } TokKind;
 
 typedef struct {
     TokKind kind;
     Pos pos;
-    char *text;     /* spelling of identifier, keyword or punctuator */
-    uint64_t ival;  /* integer and character literals */
-    double fval;    /* float literals */
-    char *sval;     /* decoded string literal bytes */
-    size_t slen;
+    char *text;
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);
 
-/* ---------- types.c ---------- */
+/* ---------- AST ---------- */
 
-typedef enum {
-    TY_VOID,
-    TY_BOOL,
-    TY_INT,
-    TY_FLOAT,
-    TY_PTR,
-    TY_ARRAY,
-    TY_SLICE,
-    TY_STRUCT,
-    TY_NULL,    /* type of a bare `null` before it meets a pointer */
-} TypeKind;
+/* Types are written postfix: `char const^[4]` is an array of four pointers
+   to const char. */
+typedef enum { T_BASE, T_PTR, T_ARRAY } TypeKind;
 
+typedef struct Expr Expr;
 typedef struct Type Type;
-typedef struct Decl Decl;
 
 struct Type {
     TypeKind kind;
-    int bits;          /* TY_INT, TY_FLOAT */
-    bool is_signed;    /* TY_INT */
-    Type *elem;        /* TY_PTR, TY_ARRAY, TY_SLICE */
-    uint64_t len;      /* TY_ARRAY */
-    Decl *decl;        /* TY_STRUCT */
-    char *name;        /* Kelvin spelling, for diagnostics */
-    char *cname;       /* C spelling */
-    char *mangle;      /* identifier-safe unique encoding */
-    bool emitted;      /* codegen bookkeeping */
-    int visit;         /* sema cycle detection */
-};
-
-extern Type *ty_void, *ty_bool, *ty_null;
-extern Type *ty_i8, *ty_i16, *ty_i32, *ty_i64, *ty_isize;
-extern Type *ty_u8, *ty_u16, *ty_u32, *ty_u64, *ty_usize;
-extern Type *ty_f32, *ty_f64;
-
-void types_init(void);
-Type *prim_type(const char *name);
-Type *ptr_to(Type *t);
-Type *array_of(Type *t, uint64_t len);
-Type *slice_of(Type *t);
-Type *struct_type(Decl *d, const char *cname);
-List *all_types(void);
-bool is_int(Type *t);
-bool is_float(Type *t);
-bool is_numeric(Type *t);
-bool is_value_aggregate(Type *t);
-
-/* ---------- ast ---------- */
-
-typedef enum { TE_NAME, TE_PTR, TE_ARRAY, TE_SLICE } TypeExprKind;
-
-typedef struct TypeExpr TypeExpr;
-struct TypeExpr {
-    TypeExprKind kind;
     Pos pos;
-    char *name;
-    TypeExpr *elem;
-    uint64_t len;
+    char *name;       /* T_BASE: "int", "unsigned long", "struct Point" */
+    bool is_const, is_volatile;
+    Type *elem;       /* T_PTR, T_ARRAY */
+    Expr *size;       /* T_ARRAY; NULL for [] */
 };
-
-typedef struct Sym {
-    char *name;
-    char *cname;
-    Type *type;
-    bool mut;
-} Sym;
 
 typedef enum {
-    E_INT,
-    E_FLOAT,
-    E_STR,
-    E_BOOL,
-    E_NULL,
+    E_LITERAL,   /* number or character constant, verbatim */
+    E_STRING,    /* one or more adjacent string literals */
     E_IDENT,
-    E_UNARY,
-    E_BINARY,
+    E_PREFIX,    /* op x: ++ -- & - + ! ~ */
+    E_POSTFIX,   /* x op: ++ -- */
+    E_DEREF,     /* x^ */
+    E_BINARY,    /* includes assignment and comma */
+    E_TERNARY,
     E_CALL,
     E_INDEX,
-    E_SLICE,
-    E_FIELD,
-    E_CAST,
-    E_STRUCTLIT,
-    E_ARRAYLIT,
-    E_SIZEOF,
+    E_FIELD,     /* x.name */
+    E_CAST,      /* (type)x */
+    E_COMPOUND,  /* (type){...} */
+    E_SIZEOF_TYPE,
+    E_SIZEOF_EXPR,
+    E_INIT,      /* { ... } initializer list */
 } ExprKind;
 
-typedef struct Expr Expr;
 struct Expr {
     ExprKind kind;
     Pos pos;
-    Type *type;
-    bool paren;         /* written inside parentheses */
-    const char *op;     /* E_UNARY, E_BINARY */
-    Expr *lhs, *rhs;    /* operands; E_INDEX lhs[rhs]; E_SLICE lhs[rhs..hi] */
-    Expr *hi;
-    List args;          /* E_CALL args, E_ARRAYLIT elems, E_STRUCTLIT values */
-    List names;         /* E_STRUCTLIT field names (char *) */
-    char *name;         /* E_IDENT, E_FIELD, E_CALL callee, E_STRUCTLIT type */
-    uint64_t ival;      /* E_INT magnitude, E_BOOL */
-    bool neg;           /* E_INT is negative */
-    double fval;
-    char *sval;
-    size_t slen;
-    TypeExpr *texpr;    /* E_CAST, E_SIZEOF */
-    Sym *sym;           /* E_IDENT */
-    Decl *fn;           /* E_CALL */
-    Type *target;       /* E_SIZEOF, E_CAST resolved type */
+    bool paren;       /* written inside parentheses */
+    const char *op;
+    Expr *a, *b, *c;  /* operands; E_TERNARY a ? b : c */
+    char *text;       /* E_LITERAL, E_IDENT, E_FIELD member name */
+    List items;       /* E_STRING pieces, E_CALL args, E_INIT values */
+    List designators; /* E_INIT: char * per item (NULL if none) */
+    Type *type;       /* E_CAST, E_COMPOUND, E_SIZEOF_TYPE */
 };
+
+typedef struct {
+    char *name;
+    Pos pos;
+    Type *type;
+    Expr *init;
+} Var;   /* also a parameter, struct member or enumerator */
 
 typedef enum {
     S_BLOCK,
-    S_LET,
-    S_ASSIGN,
+    S_VAR,
     S_EXPR,
+    S_EMPTY,
     S_IF,
     S_WHILE,
+    S_DO,
     S_FOR,
-    S_RETURN,
+    S_SWITCH,
+    S_CASE,
+    S_DEFAULT,
     S_BREAK,
     S_CONTINUE,
-    S_DEFER,
+    S_RETURN,
+    S_GOTO,
+    S_LABEL,
 } StmtKind;
 
 typedef struct Stmt Stmt;
 struct Stmt {
     StmtKind kind;
     Pos pos;
-    List stmts;             /* S_BLOCK */
-    char *name;             /* S_LET, S_FOR loop variable */
-    bool mut;               /* S_LET: var (true) or let (false) */
-    TypeExpr *texpr;        /* S_LET */
-    Expr *init;             /* S_LET */
-    const char *op;         /* S_ASSIGN: "=", "+=", ... */
-    Expr *lhs, *rhs;        /* S_ASSIGN */
-    Expr *expr;             /* S_EXPR, S_RETURN, S_IF/S_WHILE cond, S_FOR low */
-    Expr *hi;               /* S_FOR high */
-    Stmt *then, *els, *body;
-    Sym *sym;               /* S_LET, S_FOR */
+    List stmts;        /* S_BLOCK */
+    const char *storage;  /* S_VAR: NULL, "static", "extern" */
+    List vars;         /* S_VAR: Var * */
+    Expr *expr;        /* condition, value, case label */
+    Stmt *init;        /* S_FOR */
+    Expr *step;        /* S_FOR */
+    Stmt *body, *els;  /* loop body / if-then, else */
+    char *name;        /* S_GOTO, S_LABEL */
 };
 
+typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;
+
 typedef struct {
-    char *name;
-    char *cname;
-    Pos pos;
-    TypeExpr *texpr;
-    Type *type;
-    Sym *sym;
-} Param;   /* also used for struct fields */
-
-typedef enum { D_FN, D_STRUCT, D_VAR } DeclKind;
-
-struct Decl {
     DeclKind kind;
     Pos pos;
-    char *name;
-    char *cname;
-    /* D_FN */
-    bool is_extern, variadic;
-    List params;            /* Param * */
-    TypeExpr *ret_texpr;
-    Type *ret;
-    Stmt *body;
-    /* D_STRUCT */
-    List fields;            /* Param * */
-    Type *type;
-    /* D_VAR */
-    bool mut;
-    TypeExpr *texpr;
-    Expr *init;
-    Sym *sym;
-};
+    const char *storage;  /* NULL, "static", "extern" */
+    char *name;           /* D_IMPORT: the header name, e.g. "<stdio.h>" */
+    List params;          /* D_FN: Var * */
+    bool variadic;
+    Type *ret;            /* D_FN: NULL means void */
+    Stmt *body;           /* D_FN: NULL for a prototype */
+    List members;         /* D_STRUCT/D_UNION/D_ENUM: Var *; D_VAR: Var * */
+    bool has_body;        /* D_STRUCT/D_UNION/D_ENUM: false for `struct P;` */
+} Decl;
 
 typedef struct {
-    List decls;             /* Decl * */
+    List decls;
 } Program;
 
-/* ---------- parser.c / sema.c / codegen.c ---------- */
+/* ---------- parser.c / codegen.c ---------- */
 
 Program *parse(Token *toks, int ntoks);
-void check_program(Program *prog);
-char *gen_program(Program *prog);
-
-/* ---------- runtime.c ---------- */
-
-extern const char kelvin_runtime_c[];
+char *gen_program(Program *prog, bool line_directives);
 
 #endif

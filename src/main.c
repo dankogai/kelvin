@@ -1,4 +1,10 @@
 /* main.c - the kelvinc driver */
+/* expose mkdtemp, fork and waitpid under -std=c11 */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "kelvin.h"
 
 #include <stdlib.h>
@@ -6,7 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define KELVIN_VERSION "0.1.0"
+#define KELVIN_VERSION "0.0.1"
 
 static void usage(FILE *f) {
     fprintf(f,
@@ -19,11 +25,12 @@ static void usage(FILE *f) {
             "  -O          optimize (-O2)\n"
             "  -g          include debug info\n"
             "  -v          print the C compiler command\n"
+            "  --no-line   omit #line directives from the generated C\n"
             "  --version   print the version\n"
             "\n"
             "environment:\n"
             "  CC            C compiler to use (default: cc)\n"
-            "  KELVIN_ABORT  if set, traps call abort() instead of exiting with 134\n");
+            "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n");
 }
 
 static char *read_file(const char *path) {
@@ -86,6 +93,7 @@ static char *default_output(const char *src) {
 int main(int argc, char **argv) {
     const char *src_path = NULL, *out_path = NULL;
     bool emit_c = false, run_after = false, optimize = false, debug = false, verbose = false;
+    bool line_directives = true;
     int prog_argc = 0;
     char **prog_argv = NULL;
 
@@ -109,6 +117,8 @@ int main(int argc, char **argv) {
             debug = true;
         } else if (!strcmp(a, "-v")) {
             verbose = true;
+        } else if (!strcmp(a, "--no-line")) {
+            line_directives = false;
         } else if (!strcmp(a, "--version")) {
             printf("kelvinc %s\n", KELVIN_VERSION);
             return 0;
@@ -131,12 +141,10 @@ int main(int argc, char **argv) {
 
     char *src = read_file(src_path);
     set_source(src_path, src);
-    types_init();
     int ntoks;
     Token *toks = lex(src_path, src, &ntoks);
     Program *prog = parse(toks, ntoks);
-    check_program(prog);
-    char *c_code = gen_program(prog);
+    char *c_code = gen_program(prog, line_directives);
 
     if (emit_c) {
         if (out_path)
@@ -151,39 +159,43 @@ int main(int argc, char **argv) {
     if (!mkdtemp(dir))
         fatal("cannot create a temporary directory");
     char *c_path = strfmt("%s/program.c", dir);
-    char *rt_path = strfmt("%s/kelvin_rt.c", dir);
     write_file(c_path, c_code);
-    write_file(rt_path, kelvin_runtime_c);
 
     char *exe = out_path ? xstrdup(out_path) : run_after ? strfmt("%s/program", dir) : default_output(src_path);
     const char *cc = getenv("CC");
-    char *cc_argv[] = {
-        (char *)(cc && *cc ? cc : "cc"),
+    const char *base_args[] = {
+        cc && *cc ? cc : "cc",
         "-std=c11",
         optimize ? "-O2" : "-O0",
         debug ? "-g" : "-g0",
-        /* belt and braces: define what C leaves undefined even if a
-           check is ever missed */
-        "-fwrapv",
-        "-fno-strict-aliasing",
-        "-fno-delete-null-pointer-checks",
-        /* extern fn prototypes use Kelvin types (e.g. *u8 for char *) */
+        /* Kelvin's u8 is C's unsigned char, while string literals and libc
+           use plain char. They are ABI-identical, so silence C's
+           complaints about the mix. */
         "-Wno-unknown-warning-option",
+        "-Wno-pointer-sign",
         "-Wno-incompatible-library-redeclaration",
         "-Wno-builtin-declaration-mismatch",
-        "-o",
-        exe,
-        c_path,
-        rt_path,
-        "-lm",
-        NULL,
     };
+    List cc_args = {0};
+    for (size_t i = 0; i < sizeof base_args / sizeof base_args[0]; i++)
+        list_push(&cc_args, (void *)base_args[i]);
+    /* #import "x.h" as C looks next to the .k file, as #include would */
+    const char *slash = strrchr(src_path, '/');
+    list_push(&cc_args, !slash ? "-I." : slash == src_path ? "-I/" : strfmt("-I%.*s", (int)(slash - src_path), src_path));
+    /* extra flags, split on whitespace (e.g. -fsanitize=undefined) */
+    const char *extra = getenv("KELVIN_CFLAGS");
+    char *flags = xstrdup(extra ? extra : "");
+    for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
+        list_push(&cc_args, tok);
+    const char *tail_args[] = {"-o", exe, c_path, "-lm", NULL};
+    for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
+        list_push(&cc_args, (void *)tail_args[i]);
+    char **cc_argv = (char **)cc_args.data;
     int rc = run(cc_argv, verbose);
     unlink(c_path);
-    unlink(rt_path);
     if (rc != 0) {
         rmdir(dir);
-        fatal("C compiler failed (this is a kelvinc bug; rerun with --emit-c to inspect)");
+        return rc;
     }
 
     if (!run_after) {
