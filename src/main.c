@@ -1,4 +1,10 @@
 /* main.c - the kelvinc driver */
+/* expose mkdtemp, fork and waitpid under -std=c11 */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "kelvin.h"
 
 #include <stdlib.h>
@@ -23,6 +29,7 @@ static void usage(FILE *f) {
             "\n"
             "environment:\n"
             "  CC            C compiler to use (default: cc)\n"
+            "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n"
             "  KELVIN_ABORT  if set, traps call abort() instead of exiting with 134\n");
 }
 
@@ -157,8 +164,8 @@ int main(int argc, char **argv) {
 
     char *exe = out_path ? xstrdup(out_path) : run_after ? strfmt("%s/program", dir) : default_output(src_path);
     const char *cc = getenv("CC");
-    char *cc_argv[] = {
-        (char *)(cc && *cc ? cc : "cc"),
+    const char *base_args[] = {
+        cc && *cc ? cc : "cc",
         "-std=c11",
         optimize ? "-O2" : "-O0",
         debug ? "-g" : "-g0",
@@ -171,13 +178,19 @@ int main(int argc, char **argv) {
         "-Wno-unknown-warning-option",
         "-Wno-incompatible-library-redeclaration",
         "-Wno-builtin-declaration-mismatch",
-        "-o",
-        exe,
-        c_path,
-        rt_path,
-        "-lm",
-        NULL,
     };
+    List cc_args = {0};
+    for (size_t i = 0; i < sizeof base_args / sizeof base_args[0]; i++)
+        list_push(&cc_args, (void *)base_args[i]);
+    /* extra flags, split on whitespace (e.g. -fsanitize=undefined) */
+    const char *extra = getenv("KELVIN_CFLAGS");
+    char *flags = xstrdup(extra ? extra : "");
+    for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
+        list_push(&cc_args, tok);
+    const char *tail_args[] = {"-o", exe, c_path, rt_path, "-lm", NULL};
+    for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
+        list_push(&cc_args, (void *)tail_args[i]);
+    char **cc_argv = (char **)cc_args.data;
     int rc = run(cc_argv, verbose);
     unlink(c_path);
     unlink(rt_path);

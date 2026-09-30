@@ -1,5 +1,7 @@
 # kelvin
 
+[![CI](https://github.com/dankogai/kelvin/actions/workflows/ci.yml/badge.svg)](https://github.com/dankogai/kelvin/actions/workflows/ci.yml)
+
 Yet another attempt to improve C.
 
 C is also the symbol for Celsius, and Kelvin is its natural successor: the
