@@ -15,6 +15,9 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `int x = 0;` | `var x: i32 = 0;` |
 | `long n = 42;` | `var n = 42;` (inferred as `i64`) |
 | `double d = 1.5;` | `var d = 1.5;` (inferred as `f64`) |
+| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
+| `float f = 1.5f;` | `var f: f32 = 1.5;` |
+| `1UL << 40` | `(u64)1 << 40` |
 | `char *s;` | `var s: u8^;` |
 | `int *a[4];` | `var a: i32^[4];` *(provisional)* |
 | `int (*p)[4];` | `var p: i32[4]^;` *(provisional)* |
@@ -116,11 +119,29 @@ not parse yet (open question Q9).
 `var` without a type infers it from a literal initializer:
 
 - an integer literal is `i64`: `var i = 42;`, `var m = -1;`
-- a C double literal is `f64`: `var d = 1.5;`, `var e = 1e9;`
+- a floating literal is `f64`: `var d = 1.5;`, `var e = 1e9;`
 
-Anything else needs a written type, including `var y = x + 1;`, `1.5f`
-(C's float) and `1.5L` (C's long double). A written type is always what you
-get: `var b: u8 = 42;` is a `u8`.
+Anything else needs a written type, including `var y = x + 1;` and
+`var b = true;`. A written type is always what you get: `var b: u8 = 42;`
+is a `u8`.
+
+## Literals
+
+Literals carry no size or type hints. C's suffixes `u`, `l`, `ll` and `f`
+(`10UL`, `10u`, `1.5f`, `1.5L`) are errors. The type belongs on the
+declaration:
+
+| C | Kelvin |
+|---|--------|
+| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
+| `float f = 1.5f;` | `var f: f32 = 1.5;` |
+| `long long n = 10LL;` | `var n = 10;` (or `var n: i64 = 10;`) |
+
+Everything else about literals is C's: hex `0xff`, octal `017`, binary
+`0b101`, exponents `1e9`, hex floats `0x1p4`, character constants `'a'`,
+and adjacent strings. A literal inside an expression still has C's type, so
+a bare `1` is C's `int` (an `i32`). Where C would write `1UL << 40`, Kelvin
+writes `(u64)1 << 40`, or shifts a `u64` variable.
 
 ## Expressions
 
@@ -177,6 +198,7 @@ These are C features without a Kelvin spelling so far:
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - casts to C typedef names
+- literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
 
 ## Diagnostics

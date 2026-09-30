@@ -66,7 +66,7 @@ again:
 
     var u: union number;
     u.i = 0;
-    u.f = 1.0f;
+    u.f = 1.0;
     printf("%d\n", u.i != 0);
 
     var p: struct point = origin();

@@ -43,6 +43,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 10 | `bool` is built in | `_Bool` (or `bool` via `<stdbool.h>`) | `bool` | 2026-10-01 |
 | 11 | An inferred C double literal is `f64` | `double d = 1.5;` | `var d = 1.5;` | 2026-10-01 |
 | 12 | C headers are importable | `#include <stdio.h>` | `#import <stdio.h> as C` | 2026-10-01 |
+| 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `val: u64 = 10`, `f: f32 = 1.5` | 2026-10-01 |
 
 Notes:
 
@@ -66,11 +67,18 @@ Notes:
   `var` declarations: `var x = y + 1;` or `var f = 1.5;` still need a type.
 - (9, 10) `float`, `double` and `_Bool` are errors that suggest `f32`,
   `f64` and `bool`. The generated C includes `<stdbool.h>`.
-- (11) This extends #8. A literal with a `.` or an exponent and no suffix is
-  `f64`. `1.5f` (C's float) and `1.5L` (C's long double) are not inferred.
+- (11) This extends #8. A literal with a `.` or an exponent is `f64`.
+  `true`/`false` are not inferred: `var b = true;` needs `: bool` (Q8
+  answered no).
 - (12) `#import <x.h> as C` or `#import "x.h" as C` becomes `#include`.
   Everything the header declares is usable from Kelvin. It is the only
   directive, and the rest of the preprocessor is still TODO.
+- (13) C's suffixes `u`, `l`, `ll`, `f` and their combinations are errors
+  that suggest the typed declaration, e.g. `'10UL': literals have no
+  suffixes in Kelvin; put the type on the declaration, e.g. 'x: u64 = 10'`.
+  Hex digits `a`–`f` are of course not suffixes: `0xff` is fine. An
+  unsuffixed literal still has C's type (`1` is an `int`), so C's
+  `1UL << 40` is written `(u64)1 << 40`.
 
 ## Provisional decisions (made during implementation; please review)
 
@@ -90,7 +98,7 @@ all. None of them has been explicitly agreed yet.
 | P9 | Storage class goes in front | `static f(): i32`, `static var`, `extern var` | Kept from C |
 | P10 | Anonymous enums are allowed | `enum { LIMIT = 3 };` | The common C idiom for constants |
 | P11 | Kelvin reserves `var` and the sized type names | | C code that uses them as identifiers cannot be named from Kelvin yet |
-| P12 | Literals are passed through verbatim | `0x1f`, `10UL`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has |
+| P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
 | P13 | `u8` and C's `char` mix freely | `var s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
 | P14 | `true` and `false` are built in alongside `bool` | `var done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
 | P15 | Any identifier after `:` is a type name | `var f: FILE^ = stdout;`, `var n: size_t;` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` a type is certain, so this is unambiguous |
@@ -107,17 +115,16 @@ all. None of them has been explicitly agreed yet.
 - ~~**Q4: `_Bool`?**~~ Answered: built-in `bool` (change #10).
 - **Q5: `size_t`?** `sizeof`, `malloc` and `strlen` all use it. Should Kelvin
   have `usize`/`isize`, or should programs use `u64`/`i64`?
-- **Q6: Integer literal suffixes.** `10UL` and `10LL` still use C's
-  `long` words. Should they stay?
+- ~~**Q6: Integer literal suffixes.**~~ Answered: no suffixes at all (#13).
 - **Q7: Printing `i64`.** `int64_t` is `long long` on macOS but `long` on
   Linux, so no single `printf` format fits both. `#import <inttypes.h> as C`
   now provides `PRId64`, but `"%" PRId64 "\n"` (a string pasted to a macro)
   does not parse. With `<stdio.h>` imported, C checks formats again and
   warns about the mismatch. A hand-written `printf` prototype gets no
   checking.
-- **Q8: Infer more than integers?** Partly answered: C double literals
-  infer `f64` (#11). Still open: should `var b = true;` infer `bool`, and
-  `1.5f` infer `f32`?
+- ~~**Q8: Infer more than integers?**~~ Answered: no. Only integer (`i64`)
+  and floating (`f64`) literals are inferred (#8, #11), and `bool` must be
+  written.
 - **Q9: Casts to C typedef names.** `(size_t)x` or `(FILE^)p` does not parse.
   Inside parentheses, `size_t` could be a type or a variable, which is C's
   own typedef ambiguity. C solves it with a symbol table built from the

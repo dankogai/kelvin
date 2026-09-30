@@ -87,6 +87,45 @@ static void skip_space(Lexer *lx) {
     }
 }
 
+/* Kelvin literals carry no size or type hints: C's suffixes (10UL, 10u,
+   1.5f, 1.5L) are rejected, and the type goes on the declaration instead,
+   as in `x: u64 = 10`. */
+static void check_number(Pos pos, const char *s, const char *end) {
+    const char *p = s;
+    bool hex = p[0] == '0' && (p[1] == 'x' || p[1] == 'X');
+    bool bin = p[0] == '0' && (p[1] == 'b' || p[1] == 'B');
+    bool floating = false;
+    if (hex || bin)
+        p += 2;
+    while (p < end && (hex ? isxdigit((unsigned char)*p) : isdigit((unsigned char)*p)))
+        p++;
+    if (!bin && p < end && *p == '.') {
+        floating = true;
+        for (p++; p < end && (hex ? isxdigit((unsigned char)*p) : isdigit((unsigned char)*p)); p++)
+            ;
+    }
+    if (!bin && p < end && strchr(hex ? "pP" : "eE", *p)) {
+        floating = true;
+        p++;
+        if (p < end && (*p == '+' || *p == '-'))
+            p++;
+        while (p < end && isdigit((unsigned char)*p))
+            p++;
+    }
+    if (p == end)
+        return;
+    int n = (int)(end - s);
+    if (strspn(p, "uUlLfF") >= (size_t)(end - p)) {
+        /* suggest the Kelvin type closest to what the suffix meant */
+        bool has_f = memchr(p, 'f', (size_t)(end - p)) || memchr(p, 'F', (size_t)(end - p));
+        bool has_u = memchr(p, 'u', (size_t)(end - p)) || memchr(p, 'U', (size_t)(end - p));
+        const char *type = floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64";
+        error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x: %s = %.*s'",
+                 n, s, type, (int)(p - s), s);
+    }
+    error_at(pos, "malformed number '%.*s'", n, s);
+}
+
 /* A C "preprocessing number": digits, letters, underscores and dots, plus
    a sign directly after an exponent letter. */
 static void lex_number(Lexer *lx) {
@@ -102,6 +141,7 @@ static void lex_number(Lexer *lx) {
             break;
         }
     }
+    check_number(pos, start, lx->p);
     push(lx, TK_NUMBER, pos, start, lx->p);
 }
 

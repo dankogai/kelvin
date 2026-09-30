@@ -31,7 +31,7 @@ jobs:
       # used both to build kelvinc and as the backend for generated C
       CC: ${{ matrix.cc }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Show compiler
         run: $CC --version
@@ -55,7 +55,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=0
       UBSAN_OPTIONS: print_stacktrace=1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build kelvinc with sanitizers
         run: make CFLAGS="-std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined"

@@ -405,8 +405,8 @@ static Expr *parse_initializer(void) {
 /* ---------- declarations shared by statements and top level ---------- */
 
 /* The Kelvin type of an initializer that can be inferred: an integer
-   literal is i64 and a C double literal is f64 (optionally negated).
-   Returns NULL otherwise. */
+   literal is i64 and a floating literal is f64 (optionally negated).
+   Returns NULL otherwise; `true` and `false` are not inferred. */
 static const char *literal_type(Expr *e) {
     if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")))
         return literal_type(e->a);
@@ -415,12 +415,7 @@ static const char *literal_type(Expr *e) {
     const char *t = e->text;
     bool hex = t[0] == '0' && (t[1] == 'x' || t[1] == 'X');
     bool floating = hex ? strpbrk(t, "pP") != NULL : strpbrk(t, ".eE") != NULL;
-    if (!floating)
-        return "i64";
-    char last = t[strlen(t) - 1];
-    if (strchr("fFlL", last))
-        return NULL; /* 1.5f is C's float, 1.5L its long double */
-    return "f64";
+    return floating ? "f64" : "i64";
 }
 
 static Type *base_type(const char *name, Pos pos) {
@@ -442,7 +437,7 @@ static Var *parse_var(bool with_init) {
         v->init = parse_initializer();
         const char *inferred = literal_type(v->init);
         if (!inferred)
-            error_at(v->pos, "'%s' needs a type: only integer literals (i64) and double literals (f64) are inferred",
+            error_at(v->pos, "'%s' needs a type: only integer literals (i64) and floating literals (f64) are inferred",
                      v->name);
         v->type = base_type(inferred, v->pos);
         return v;

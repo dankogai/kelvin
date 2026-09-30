@@ -13,7 +13,7 @@ is_even(n: i64): bool
 
 main(): i32
 {
-    var s: struct sample = {true, 1.5f, 2.25};
+    var s: struct sample = {true, 1.5, 2.25};
     var done: bool = false;
     printf("%d %d %d\n", (i32)sizeof(f32), (i32)sizeof(f64), (i32)sizeof(bool));
     printf("%.2f %.2f\n", s.x * 2, s.y / 3);

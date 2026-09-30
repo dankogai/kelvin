@@ -163,3 +163,36 @@ casts to typedef names like `(size_t)x` do not parse. That is C's typedef
 ambiguity, and it would need either header reading or a different cast
 syntax. Q7 is updated: once `<stdio.h>` is imported, C's format checking
 shows that `%ld` versus `%lld` for `i64` differs between Linux and macOS.
+
+### 10. Merge to main
+
+> merge kelvin-v0.1 to main
+
+**Claude** committed the uncommitted bare-C rewrite onto `kelvin-v0.1`,
+merged the branch into `main` (non-fast-forward, since `main` held the #1
+merge commit) and pushed.
+
+### 11. First CI run
+
+> check the CI result
+
+All four jobs passed with 26/26 tests: Linux gcc, Linux clang, macOS clang,
+and sanitizers. GitHub warned that `actions/checkout@v4` runs on the
+deprecated Node 20.
+
+### 12. No literal suffixes; checkout@v5
+
+> for Q6 and Q8: No. no more size hint in the literal. val:u64 = 10
+> instead of val = 10UL, f:f32 = 1.5 instad of f = 1.5f. update `ci.yml`
+> to use `checkout@v5`.
+
+**Claude** implemented:
+
+- **#13:** C literal suffixes are errors. The message suggests the matching
+  typed declaration: `10UL` suggests `x: u64 = 10`, `10L` suggests
+  `x: i64 = 10` and `1.5f` suggests `x: f32 = 1.5`.
+- **Q8 answered no:** `var b = true;` needs `: bool`.
+- The workflow now uses `actions/checkout@v5`.
+
+versusC.md has a new "Literals" section, including the one gotcha: C's
+`1UL << 40` becomes `(u64)1 << 40`, because a bare `1` is still C's `int`.
