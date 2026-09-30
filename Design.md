@@ -44,6 +44,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 11 | An inferred C double literal is `f64` | `double d = 1.5;` | `var d = 1.5;` | 2026-10-01 |
 | 12 | C headers are importable | `#include <stdio.h>` | `#import <stdio.h> as C` | 2026-10-01 |
 | 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `val: u64 = 10`, `f: f32 = 1.5` | 2026-10-01 |
+| 14 | No `(T)v` casts: convert with `T(v)` or `v as T` | `(int)x`, `(int *)malloc(n)` | `i32(x)`, `malloc(n) as i32^` | 2026-10-01 |
 
 Notes:
 
@@ -78,7 +79,11 @@ Notes:
   suffixes in Kelvin; put the type on the declaration, e.g. 'x: u64 = 10'`.
   Hex digits `a`–`f` are of course not suffixes: `0xff` is fine. An
   unsuffixed literal still has C's type (`1` is an `int`), so C's
-  `1UL << 40` is written `(u64)1 << 40`.
+  `1UL << 40` is written `u64(1) << 40`.
+- (14) Both forms have exactly C's cast semantics: `i32(3.9)` is 3 and
+  `u8(300)` is 44. `(T)v` is an error that suggests the replacements, and
+  so is a parenthesized expression followed directly by a value, as in
+  C's `(size_t)n`. `T(v)` is emitted as `((T)(v))` and `v as T` as `(T)v`.
 
 ## Provisional decisions (made during implementation; please review)
 
@@ -101,8 +106,11 @@ all. None of them has been explicitly agreed yet.
 | P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
 | P13 | `u8` and C's `char` mix freely | `var s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
 | P14 | `true` and `false` are built in alongside `bool` | `var done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
-| P15 | Any identifier after `:` is a type name | `var f: FILE^ = stdout;`, `var n: size_t;` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` a type is certain, so this is unambiguous |
+| P15 | Any identifier after `:` or `as` is a type name | `var f: FILE^ = stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
+| P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
+| P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
+| P19 | Compound literals `(T){...}` stay | `(struct point){.y = 7}` | They are not casts, although they share C's syntax. A Kelvin spelling is an open question (Q10) |
 
 ## Open questions
 
@@ -125,19 +133,18 @@ all. None of them has been explicitly agreed yet.
 - ~~**Q8: Infer more than integers?**~~ Answered: no. Only integer (`i64`)
   and floating (`f64`) literals are inferred (#8, #11), and `bool` must be
   written.
-- **Q9: Casts to C typedef names.** `(size_t)x` or `(FILE^)p` does not parse.
-  Inside parentheses, `size_t` could be a type or a variable, which is C's
-  own typedef ambiguity. C solves it with a symbol table built from the
-  headers. Kelvin would need to read headers, or use a different cast
-  syntax.
+- ~~**Q9: Casts to C typedef names.**~~ Answered by #14: `n as size_t` and
+  `p as FILE^` parse, because a type is certain after `as`.
+- **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
+  cast-like syntax (P19). Should it get a Kelvin spelling, such as
+  `struct point{.y = 7}`?
 
 ## Unchanged from C (on purpose, for now)
 
 These are everything else: operator precedence (including `==` binding
 tighter than `&`), implicit conversions, integer promotion (to C's `int`,
 which is `i32` on every supported target), integer truthiness, assignment as an expression, `++`/`--`, the comma operator,
-`?:`, `if`/`while`/`do`/`for`/`switch`/`goto`, casts `(T)x` (with Kelvin
-type spelling), compound literals, designated initializers, arrays that
+`?:`, `if`/`while`/`do`/`for`/`switch`/`goto`, compound literals, designated initializers, arrays that
 decay to pointers, declare-before-use, `struct`/`union`/`enum` tags, and all
 undefined behavior.
 
@@ -171,7 +178,7 @@ individual proposal:
 
 | File | Role |
 |------|------|
-| `src/lexer.c` | C's lexical rules. Kelvin keywords `var`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
+| `src/lexer.c` | C's lexical rules. Kelvin keywords `var`, `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
 | `src/parser.c` | Recursive descent over C's grammar with the changes above |
 | `src/codegen.c` | Prints C: postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
 | `src/main.c` | Driver: writes the C, runs `$CC` with `-I<dir of .k>`, and optionally runs the program |

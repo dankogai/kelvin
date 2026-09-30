@@ -35,6 +35,7 @@ So far the changes from C are:
   `double` are gone, and `var i = 42` is an `i64`
 - `bool`, `true` and `false` are built in
 - C headers are imported with `#import <stdio.h> as C`
+- there are no C casts: convert with `i32(x)` or `malloc(n) as u8^`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

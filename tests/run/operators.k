@@ -17,7 +17,7 @@ main(): i32
     var k: i32 = ++i;
     printf("%d %d %d\n", j, k, -(-i));
     printf("%d\n", i > 3 ? 1 : 0);
-    printf("%ld\n", (i64)sizeof(i64) * 0 + 1);
+    printf("%ld\n", i64(sizeof(i64)) * 0 + 1);
 
     var x: i32 = 0;
     x = 1, x += 2;

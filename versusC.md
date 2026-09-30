@@ -17,7 +17,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `double d = 1.5;` | `var d = 1.5;` (inferred as `f64`) |
 | `unsigned long v = 10UL;` | `var v: u64 = 10;` |
 | `float f = 1.5f;` | `var f: f32 = 1.5;` |
-| `1UL << 40` | `(u64)1 << 40` |
+| `1UL << 40` | `u64(1) << 40` |
 | `char *s;` | `var s: u8^;` |
 | `int *a[4];` | `var a: i32^[4];` *(provisional)* |
 | `int (*p)[4];` | `var p: i32[4]^;` *(provisional)* |
@@ -32,7 +32,9 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `*p++` | `p++^` |
 | `p->m` | `p^.m` |
 | `a ^ b`, `a ^= b` | `a ~ b`, `a ~= b` |
-| `(unsigned char)c` | `(u8)c` |
+| `(unsigned char)c` | `u8(c)` or `c as u8` |
+| `(int *)malloc(n)` | `malloc(n) as i32^` |
+| `(size_t)n` | `n as size_t` |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 
@@ -111,8 +113,8 @@ and `u8^ const` is `uint8_t *const`.
 
 After a colon, any identifier is accepted as a type, so typedefs from
 imported headers work: `var f: FILE^ = stdout;` and
-`var n: size_t = strlen(s);`. Casts to typedef names such as `(size_t)x` do
-not parse yet (open question Q9).
+`var n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
+`p as FILE^`.
 
 ### Type inference
 
@@ -141,7 +143,7 @@ Everything else about literals is C's: hex `0xff`, octal `017`, binary
 `0b101`, exponents `1e9`, hex floats `0x1p4`, character constants `'a'`,
 and adjacent strings. A literal inside an expression still has C's type, so
 a bare `1` is C's `int` (an `i32`). Where C would write `1UL << 40`, Kelvin
-writes `(u64)1 << 40`, or shifts a `u64` variable.
+writes `u64(1) << 40`, or shifts a `u64` variable.
 
 ## Expressions
 
@@ -152,12 +154,40 @@ writes `(u64)1 << 40`, or shifts a `u64` variable.
 | `a ^ b` | `a ~ b` | `~` keeps its C precedence slot for XOR |
 | `a ^= b` | `a ~= b` | `p^ = x` is always an assignment through `p` |
 | `~a` | `~a` | Unary `~` is still bitwise NOT |
-| `(int)x` | `(i32)x` | Casts use Kelvin type spelling |
+| `(int)x` | `i32(x)` or `x as i32` | See Conversions below |
 
 Everything else is C's, including precedence, so `6 & 3 == 3` is still
 `6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
 truthiness, `?:`, `,`, `++`/`--`, compound literals and designated
 initializers.
+
+## Conversions (no C casts)
+
+C's `(T)v` does not exist in Kelvin. There are two ways to convert, and
+both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44):
+
+- **`T(v)`**, a converter, for built-in types: `i32(x)`, `u8(c)`,
+  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*.
+- **`v as T`**, for any type, including pointers and C typedef names:
+  `malloc(n) as i32^`, `p as void^`, `n as size_t`, `x as void` (C's
+  `(void)x`).
+
+`as` binds like C's cast. It is tighter than every binary operator and
+looser than prefix operators, and it chains left to right
+*(provisional P17)*:
+
+| Kelvin | Means | C |
+|--------|-------|---|
+| `-x as u8` | `(-x) as u8` | `(uint8_t)-x` |
+| `a * b as i64` | `a * (b as i64)` | `a * (int64_t)b` |
+| `x as i64 as i32` | `(x as i64) as i32` | `(int32_t)(int64_t)x` |
+| `(p as u8^)[0]` | index the converted pointer | `((uint8_t *)p)[0]` |
+
+Parenthesize to index or dereference the result of `as`. `p as u8^[0]`
+would read `u8^[0]` as a type. Writing a C cast, whether `(i64)x`,
+`(u8^)p` or `(size_t)n`, is an error that suggests `v as T` or `T(v)`.
+Compound literals such as `(struct point){.y = 7}` are not casts, and they
+work as in C *(provisional P19)*.
 
 ## Statements
 
@@ -181,7 +211,7 @@ Only declarations differ: they start with `var`, as does a declaration in
 
 ## Reserved words
 
-Kelvin reserves all of C's keywords, plus `var`, `i8` … `u128`, `f32`,
+Kelvin reserves all of C's keywords, plus `var`, `as`, `i8` … `u128`, `f32`,
 `f64`, `bool`, `true` and `false` *(provisional P11)*. `fn` is not reserved.
 
 ## Not available yet
@@ -197,7 +227,6 @@ These are C features without a Kelvin spelling so far:
 - `long double`
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
-- casts to C typedef names
 - literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
 
@@ -205,5 +234,5 @@ These are C features without a Kelvin spelling so far:
 
 The C compiler checks Kelvin programs, and `#line` directives make its
 errors and warnings point at your `.k` file and line. Kelvin's own syntax
-errors also carry hints for C habits, such as `*p`, `p->m`, `int x;` or
-`long`.
+errors also carry hints for C habits, such as `*p`, `p->m`, `int x;`,
+`long`, `10UL` or `(int)x`.

@@ -196,3 +196,31 @@ deprecated Node 20.
 
 versusC.md has a new "Literals" section, including the one gotcha: C's
 `1UL << 40` becomes `(u64)1 << 40`, because a bare `1` is still C's `int`.
+
+### 13. CI check, always
+
+> check the CI result. always do
+
+The run on `030c450` passed all four jobs with 33/33 tests, and the Node 20
+warning was gone after the `checkout@v5` bump. **Claude** now checks CI
+after every push without being asked.
+
+### 14. No C casts: `T(v)` or `v as T`
+
+> abolish typecast as `(type)v`. It must be either a "converter function"
+> as `type(v)` or `v as type`. The latter is appropriate for
+> `malloc(...) as type`.
+
+**Claude** implemented this as #14. `as` is a new reserved word, and both
+forms have C's cast semantics. Implementation choices, recorded as
+provisional:
+
+- **P17:** `as` binds like C's cast, tighter than binary operators and
+  looser than prefix ones.
+- **P18:** `T(v)` works only for built-in types, since `size_t(n)` would be
+  indistinguishable from a call.
+- **P19:** compound literals `(T){...}` stay.
+
+`v as T` resolves Q9 (`n as size_t`). New Q10 asks whether compound
+literals should get a Kelvin spelling. `(T)v`, and C-style casts to
+typedef names like `(size_t)n`, are errors with a hint.

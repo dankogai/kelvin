@@ -14,7 +14,14 @@ static Token *toks;
 static int cur;
 
 static Token *peek(void) { return &toks[cur]; }
-static Token *peek2(void) { return toks[cur].kind == TK_EOF ? &toks[cur] : &toks[cur + 1]; }
+static Token *peek_at(int k) {
+    int i = cur;
+    while (k-- > 0 && toks[i].kind != TK_EOF)
+        i++;
+    return &toks[i];
+}
+
+static Token *peek2(void) { return peek_at(1); }
 
 static Token *advance(void) {
     Token *t = &toks[cur];
@@ -78,6 +85,22 @@ static bool is_base_word(Token *t) {
         if (is_kw(t, base_words[i]))
             return true;
     return false;
+}
+
+/* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
+static bool is_converter(Token *t) {
+    return is_base_word(t) && !is_kw(t, "void") && !is_kw(t, "_Complex");
+}
+
+static bool starts_type(Token *t);
+
+/* Does `(` begin a parenthesized type, as in sizeof(T) or (T){...}?
+   `(i32(x) + 1)` does not: a type name directly followed by `(` is a
+   converter call. */
+static bool paren_type_ahead(void) {
+    if (!is_p(peek(), "(") || !starts_type(peek2()))
+        return false;
+    return !(is_converter(peek2()) && is_p(peek_at(2), "("));
 }
 
 static void reject_c_int_name(Token *t) {
@@ -174,6 +197,7 @@ static Type *parse_type(void) {
 static Expr *parse_expr(void);
 static Expr *parse_cast(void);
 static Expr *parse_initializer(void);
+static Type *base_type(const char *name, Pos pos);
 
 static Expr *new_expr(ExprKind kind, Pos pos) {
     Expr *e = xcalloc(1, sizeof *e);
@@ -239,10 +263,41 @@ static Expr *parse_primary(void) {
             list_push(&e->items, advance()->text);
         return e;
     }
+    reject_c_int_name(t);
+    if (is_converter(t)) {
+        /* T(v): a converter for a built-in type; emitted as ((T)(v)) */
+        if (!is_p(peek2(), "("))
+            error_at(t->pos, "'%s' is a type; convert a value with %s(v) or v as %s", t->text, t->text, t->text);
+        advance();
+        Expr *e = new_expr(E_CAST, t->pos);
+        e->type = base_type(t->text, t->pos);
+        e->paren = true;
+        advance();
+        e->a = parse_expr();
+        e->a->paren = true;
+        expect_p(")");
+        return e;
+    }
+    if (paren_type_ahead()) {
+        /* (T){...} is a compound literal; (T)v is C's cast, not Kelvin's */
+        advance();
+        Type *type = parse_type();
+        expect_p(")");
+        if (!is_p(peek(), "{"))
+            error_at(t->pos, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type");
+        Expr *e = new_expr(E_COMPOUND, t->pos);
+        e->type = type;
+        e->a = parse_initializer();
+        return e;
+    }
     if (accept_p("(")) {
         Expr *e = parse_expr();
         expect_p(")");
         e->paren = true;
+        /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
+        TokKind k = peek()->kind;
+        if (k == TK_IDENT || k == TK_NUMBER || k == TK_CHAR || k == TK_STRING)
+            error_at(t->pos, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type");
         return e;
     }
     error_at(t->pos, "expected an expression, found %s", desc(t));
@@ -255,13 +310,13 @@ static Expr *parse_unary(void) {
         advance();
         Expr *e = new_expr(E_PREFIX, t->pos);
         e->op = t->text;
-        e->a = (is_p(t, "++") || is_p(t, "--")) ? parse_unary() : parse_cast();
+        e->a = parse_unary();
         return e;
     }
     if (is_p(t, "*"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
     if (accept_kw("sizeof")) {
-        if (is_p(peek(), "(") && starts_type(peek2())) {
+        if (paren_type_ahead()) {
             advance();
             Expr *e = new_expr(E_SIZEOF_TYPE, t->pos);
             e->type = parse_type();
@@ -275,25 +330,22 @@ static Expr *parse_unary(void) {
     return parse_postfix_ops(parse_primary());
 }
 
-/* cast := '(' type ')' cast | '(' type ')' '{' ... '}' postfix-ops | unary */
+/* cast := unary { 'as' type }
+
+   `as` binds tighter than every binary operator and looser than the
+   prefix ones, which is where C's cast sits: `-x as u8` is `(-x) as u8`,
+   and `a * b as i64` is `a * (b as i64)`. Any identifier after `as` is a
+   type name, so C typedefs work: `n as size_t`, `p as FILE^`. */
 static Expr *parse_cast(void) {
-    Token *t = peek();
-    if (is_p(t, "(") && starts_type(peek2())) {
-        advance();
-        Type *type = parse_type();
-        expect_p(")");
-        if (is_p(peek(), "{")) {
-            Expr *e = new_expr(E_COMPOUND, t->pos);
-            e->type = type;
-            e->a = parse_initializer();
-            return parse_postfix_ops(e);
-        }
-        Expr *e = new_expr(E_CAST, t->pos);
-        e->type = type;
-        e->a = parse_cast();
-        return e;
+    Expr *e = parse_unary();
+    while (is_kw(peek(), "as")) {
+        Token *t = advance();
+        Expr *c = new_expr(E_CAST, t->pos);
+        c->a = e;
+        c->type = parse_type();
+        e = c;
     }
-    return parse_unary();
+    return e;
 }
 
 /* C's binary precedence levels; `~` takes XOR's place. */

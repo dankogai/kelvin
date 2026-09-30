@@ -12,9 +12,9 @@ main(): i32
     var b = 0b101;                  // i64
     var o = 017;                    // i64, octal as in C
     var one: u64 = 1;
-    printf("%d %.1f %d %d %d\n", (i32)val, f, big == 0xffffffffffffffff, (i32)mask, flag);
-    printf("%.0f %.0f %d %d\n", e, h, (i32)b, (i32)o);
-    printf("%d %d\n", (i32)sizeof f, (i32)((one << 40) >> 40));
+    printf("%d %.1f %d %d %d\n", i32(val), f, big == 0xffffffffffffffff, i32(mask), flag);
+    printf("%.0f %.0f %d %d\n", e, h, i32(b), i32(o));
+    printf("%d %d\n", i32(sizeof f), i32((one << 40) >> 40));
     return 0;
 }
 // out: 10 1.5 1 255 1

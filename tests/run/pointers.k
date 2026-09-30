@@ -46,7 +46,7 @@ main(argc: i32, argv: u8^^): i32
 
     var rows: i32[2][3] = {{1, 2, 3}, {4, 5, 6}};
     var row: i32[3]^ = &rows[1];     // pointer to array of 3 i32
-    printf("%d %d\n", row^[2], (i32)(sizeof rows / sizeof rows[0]));
+    printf("%d %d\n", row^[2], i32(sizeof rows / sizeof rows[0]));
 
     var names: const u8^[2] = {"alpha", "beta"};   // array of 2 pointers
     printf("%s %s\n", names[0], argv[0] ? "argv ok" : "no argv");
