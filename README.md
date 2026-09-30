@@ -2,59 +2,55 @@
 
 [![CI](https://github.com/dankogai/kelvin/actions/workflows/ci.yml/badge.svg)](https://github.com/dankogai/kelvin/actions/workflows/ci.yml)
 
-Yet another attempt to improve C.
+Yet another attempt to improve C: a quiet alternative that starts from bare
+C and changes it bit by bit, while staying 100% ABI compatible.
 
-C is also the symbol for Celsius, and Kelvin is its natural successor: the
+C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is identical, so everything you know about C carries over one to
-one, but it sits on an absolute scale where nothing goes below zero. Kelvin
-keeps C's data model, ABI and performance profile while removing the
-undefined-behavior basement. Every operation that C leaves undefined either
-fails to compile or traps with a source location.
+one.
 
 ```kelvin
-extern fn printf(fmt: *u8, ...) -> i32;
+#import <stdio.h> as C
 
-struct Point { x: i32, y: i32 }
+struct node {
+    value: i32;
+    next: struct node^;
+};
 
-fn main() -> i32 {
-    var xs = [5, 3, 8, 1];
-    for i in 0..xs.len {
-        printf("%d ", xs[i]);      // bounds-checked
-    }
-    let p = Point { x: 3, y: 4 };
-    printf("\n%d\n", p.x * p.x + p.y * p.y);  // overflow-checked
-    return 0;
+sum(n: struct node^): i32
+{
+    var total: i32 = 0;
+    for (; n; n = n^.next)      // C: n->next
+        total += n^.value;
+    return total;
 }
 ```
 
-Source files use the `.k` extension.
+So far the changes from C are:
+- every declaration is `name: type`, functions included
+- pointers are a postfix `^` (`i32^`, `p^`, `p^.m`)
+- XOR is `~`
+- numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
+  `i128`/`u128`, `f32`, `f64`), so `char`, `int`, `long`, `float` and
+  `double` are gone, and `var i = 42` is an `i64`
+- `bool`, `true` and `false` are built in
+- C headers are imported with `#import <stdio.h> as C`
 
-## Status
-
-This is an early bootstrap compiler, `kelvinc`, written in C11. It translates
-Kelvin to C and hands the result to the system C compiler, so interop with
-existing C libraries is direct: declare the function with `extern fn` and
-call it.
-
-See [docs/design.md](docs/design.md) for the language as it exists today,
-the safety guarantees, the known holes and the roadmap.
+Everything else is C. See [versusC.md](versusC.md) for all the differences,
+[Design.md](Design.md) for the design decisions, and
+[Dialogue.md](Dialogue.md) for how they were made.
 
 ## Build and use
 
-Requires a C11 compiler (clang or gcc) and make.
+Requires a C11 compiler and make.
 
 ```sh
-make            # builds ./kelvinc
-make test       # runs tests/run.sh
+make                        # builds ./kelvinc
+make test                   # runs tests/run.sh
+./kelvinc hello.k           # builds ./hello
+./kelvinc --run hello.k     # builds and runs
+./kelvinc --emit-c hello.k  # prints the generated C
 ```
-
-```sh
-./kelvinc hello.k            # builds ./hello
-./kelvinc --run hello.k      # builds into a temp dir and runs it
-./kelvinc --emit-c hello.k   # prints the generated C
-```
-
-`kelvinc --help` lists all options.
 
 ## License
 

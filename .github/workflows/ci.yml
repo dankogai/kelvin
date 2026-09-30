@@ -43,11 +43,10 @@ jobs:
         run: make test
 
       - name: Run example
-        run: ./kelvinc --run examples/tour.k
+        run: ./kelvinc --run examples/hello.k
 
   sanitizers:
-    # Kelvin claims generated code has no undefined behavior; check that
-    # claim with UBSan and ASan, and check kelvinc itself for memory errors.
+    # check kelvinc itself for memory errors and undefined behavior
     name: sanitizers
     runs-on: ubuntu-latest
     env:
@@ -61,7 +60,5 @@ jobs:
       - name: Build kelvinc with sanitizers
         run: make CFLAGS="-std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined"
 
-      - name: Test with sanitized generated code
-        env:
-          KELVIN_CFLAGS: -g -fsanitize=address,undefined -fno-sanitize-recover=undefined
+      - name: Test
         run: make test

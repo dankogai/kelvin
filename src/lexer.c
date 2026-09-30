@@ -1,27 +1,41 @@
-/* lexer.c - turn source text into tokens */
+/* lexer.c - C's lexical rules, with Kelvin's keywords and punctuators
+
+   Literals are kept verbatim so that C interprets them exactly as it
+   always has. */
 #include "kelvin.h"
 
 #include <ctype.h>
-#include <stdlib.h>
 #include <string.h>
 
+/* C11 keywords plus Kelvin's own: var, the sized types, bool, true and
+   false. C's numeric type names stay reserved so they can be rejected with
+   a hint. */
 static const char *keywords[] = {
-    "fn",     "extern", "struct", "let",   "var",   "if",    "else",
-    "while",  "for",    "in",     "return", "break", "continue", "defer",
-    "as",     "true",   "false",  "null",  "sizeof", NULL,
+    "var", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+    "f32", "f64", "bool", "true", "false",
+    "auto", "break", "case", "char", "const", "continue", "default", "do",
+    "double", "else", "enum", "extern", "float", "for", "goto", "if",
+    "inline", "int", "long", "register", "restrict", "return", "short",
+    "signed", "sizeof", "static", "struct", "switch", "typedef", "union",
+    "unsigned", "void", "volatile", "while", "_Alignas", "_Alignof",
+    "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary", "_Noreturn",
+    "_Static_assert", "_Thread_local", NULL,
 };
 
-/* Longest spellings first so that greedy matching works. */
+/* Longest first, for greedy matching. Differences from C:
+   `^=` is absent, because `p^ = x` assigns through a pointer; XOR-assign
+   is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`. */
 static const char *puncts[] = {
-    "...", "+%=", "-%=", "*%=", "<<=", ">>=",
-    "->", "..", "==", "!=", "<=", ">=", "&&", "||", "<<", ">>",
-    "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "+%", "-%", "*%",
+    "...", "<<=", ">>=",
+    "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||",
+    "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=",
     "+", "-", "*", "/", "%", "&", "|", "^", "~", "!", "<", ">", "=",
-    "(", ")", "{", "}", "[", "]", ",", ";", ":", ".", NULL,
+    "?", ":", ";", ",", ".", "(", ")", "[", "]", "{", "}", NULL,
 };
 
 typedef struct {
     const char *file;
+    const char *src;
     const char *p;
     int line, col;
     Token *toks;
@@ -40,242 +54,172 @@ static void step(Lexer *lx) {
     lx->p++;
 }
 
-static Token *push(Lexer *lx, TokKind kind, Pos pos) {
+static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char *end) {
     if (lx->len == lx->cap) {
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    Token *t = &lx->toks[lx->len++];
-    memset(t, 0, sizeof *t);
-    t->kind = kind;
-    t->pos = pos;
-    return t;
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start))};
 }
 
 static void skip_space(Lexer *lx) {
     for (;;) {
         char c = *lx->p;
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v') {
             step(lx);
         } else if (c == '/' && lx->p[1] == '/') {
             while (*lx->p && *lx->p != '\n')
                 step(lx);
         } else if (c == '/' && lx->p[1] == '*') {
-            /* block comments nest, so commenting out code always works */
             Pos start = here(lx);
-            int depth = 0;
-            do {
+            step(lx);
+            step(lx);
+            while (!(lx->p[0] == '*' && lx->p[1] == '/')) {
                 if (!*lx->p)
-                    error_at(start, "unterminated block comment");
-                if (lx->p[0] == '/' && lx->p[1] == '*') {
-                    depth++;
-                    step(lx);
-                } else if (lx->p[0] == '*' && lx->p[1] == '/') {
-                    depth--;
-                    step(lx);
-                }
+                    error_at(start, "unterminated comment");
                 step(lx);
-            } while (depth > 0);
+            }
+            step(lx);
+            step(lx);
         } else {
             return;
         }
     }
 }
 
-static int digit_value(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return 99;
-}
-
+/* A C "preprocessing number": digits, letters, underscores and dots, plus
+   a sign directly after an exponent letter. */
 static void lex_number(Lexer *lx) {
     Pos pos = here(lx);
     const char *start = lx->p;
-    int base = 10;
-    if (lx->p[0] == '0' && (lx->p[1] == 'x' || lx->p[1] == 'X')) base = 16;
-    if (lx->p[0] == '0' && (lx->p[1] == 'b' || lx->p[1] == 'B')) base = 2;
-    if (lx->p[0] == '0' && (lx->p[1] == 'o' || lx->p[1] == 'O')) base = 8;
-    if (base != 10) {
-        step(lx);
-        step(lx);
-    }
-
-    bool is_float = false;
-    if (base == 10) {
-        const char *q = lx->p;
-        while (isdigit((unsigned char)*q) || *q == '_')
-            q++;
-        /* "1..2" is a range, "1.5" is a float */
-        if (q[0] == '.' && isdigit((unsigned char)q[1]))
-            is_float = true;
-        else if (q[0] == 'e' || q[0] == 'E')
-            is_float = true;
-    }
-
-    if (is_float) {
-        Buf b = {0};
-        while (isdigit((unsigned char)*lx->p) || *lx->p == '_' || *lx->p == '.' ||
-               *lx->p == 'e' || *lx->p == 'E' ||
-               ((*lx->p == '+' || *lx->p == '-') && (lx->p[-1] == 'e' || lx->p[-1] == 'E'))) {
-            if (*lx->p != '_')
-                buf_putn(&b, lx->p, 1);
+    for (;;) {
+        char c = *lx->p;
+        if ((c == '+' || c == '-') && strchr("eEpP", lx->p[-1])) {
             step(lx);
-        }
-        char *end;
-        double v = strtod(b.buf, &end);
-        if (*end)
-            error_at(pos, "malformed float literal");
-        Token *t = push(lx, TK_FLOAT, pos);
-        t->fval = v;
-        t->text = xstrndup(start, (size_t)(lx->p - start));
-        free(b.buf);
-        return;
-    }
-
-    uint64_t v = 0;
-    int ndigits = 0;
-    while (isalnum((unsigned char)*lx->p) || *lx->p == '_') {
-        if (*lx->p == '_') {
+        } else if (isalnum((unsigned char)c) || c == '_' || c == '.') {
             step(lx);
-            continue;
-        }
-        int d = digit_value(*lx->p);
-        if (d >= base)
-            error_at(here(lx), "invalid digit '%c' in base-%d literal", *lx->p, base);
-        if (v > (UINT64_MAX - (uint64_t)d) / (uint64_t)base)
-            error_at(pos, "integer literal is too large for 64 bits");
-        v = v * (uint64_t)base + (uint64_t)d;
-        ndigits++;
-        step(lx);
-    }
-    if (ndigits == 0)
-        error_at(pos, "integer literal has no digits");
-    Token *t = push(lx, TK_INT, pos);
-    t->ival = v;
-    t->text = xstrndup(start, (size_t)(lx->p - start));
-}
-
-static int lex_escape(Lexer *lx) {
-    Pos pos = here(lx);
-    step(lx); /* backslash */
-    char c = *lx->p;
-    step(lx);
-    switch (c) {
-    case 'n': return '\n';
-    case 't': return '\t';
-    case 'r': return '\r';
-    case '0': return '\0';
-    case '\\': return '\\';
-    case '\'': return '\'';
-    case '"': return '"';
-    case 'x': {
-        int hi = digit_value(lx->p[0]), lo = digit_value(lx->p[1]);
-        if (hi > 15 || lo > 15)
-            error_at(pos, "\\x escape needs exactly two hex digits");
-        step(lx);
-        step(lx);
-        return hi * 16 + lo;
-    }
-    default:
-        error_at(pos, "unknown escape sequence '\\%c'", c);
-    }
-}
-
-static void lex_string(Lexer *lx) {
-    Pos pos = here(lx);
-    step(lx);
-    Buf b = {0};
-    buf_puts(&b, "");
-    while (*lx->p != '"') {
-        if (!*lx->p || *lx->p == '\n')
-            error_at(pos, "unterminated string literal");
-        if (*lx->p == '\\') {
-            char c = (char)lex_escape(lx);
-            buf_putn(&b, &c, 1);
         } else {
-            buf_putn(&b, lx->p, 1);
-            step(lx);
+            break;
         }
     }
-    step(lx);
-    Token *t = push(lx, TK_STR, pos);
-    t->sval = b.buf;
-    t->slen = b.len;
-    t->text = "string literal";
+    push(lx, TK_NUMBER, pos, start, lx->p);
 }
 
-static void lex_char(Lexer *lx) {
+static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
     Pos pos = here(lx);
+    const char *start = lx->p;
     step(lx);
-    int c;
-    if (*lx->p == '\\') {
-        c = lex_escape(lx);
-    } else {
-        if (!*lx->p || *lx->p == '\'' || *lx->p == '\n')
-            error_at(pos, "empty character literal");
-        if ((unsigned char)*lx->p >= 0x80)
-            error_at(pos, "character literals must be ASCII; use a string for UTF-8");
-        c = (unsigned char)*lx->p;
+    while (*lx->p != quote) {
+        if (!*lx->p || *lx->p == '\n')
+            error_at(pos, quote == '"' ? "unterminated string literal" : "unterminated character constant");
+        if (*lx->p == '\\')
+            step(lx);
         step(lx);
     }
-    if (*lx->p != '\'')
-        error_at(pos, "unterminated character literal");
     step(lx);
-    Token *t = push(lx, TK_INT, pos);
-    t->ival = (uint64_t)c;
-    t->text = "character literal";
+    push(lx, kind, pos, start, lx->p);
+}
+
+static void skip_blanks(Lexer *lx) {
+    while (*lx->p == ' ' || *lx->p == '\t')
+        step(lx);
+}
+
+static bool accept_word(Lexer *lx, const char *w) {
+    size_t n = strlen(w);
+    if (strncmp(lx->p, w, n) != 0 || isalnum((unsigned char)lx->p[n]) || lx->p[n] == '_')
+        return false;
+    for (size_t i = 0; i < n; i++)
+        step(lx);
+    return true;
+}
+
+/* The only directive so far:  #import <header.h> as C  (or "header.h").
+   It becomes #include in the generated C, so C's headers are usable. */
+static void lex_import(Lexer *lx) {
+    Pos pos = here(lx);
+    for (const char *q = lx->p; q > lx->src && q[-1] != '\n'; q--)
+        if (q[-1] != ' ' && q[-1] != '\t')
+            error_at(pos, "'#' must start a line");
+    step(lx);
+    skip_blanks(lx);
+    if (!accept_word(lx, "import"))
+        error_at(pos, "only '#import <header.h> as C' is supported; the rest of the preprocessor is TODO");
+    skip_blanks(lx);
+    char close = *lx->p == '<' ? '>' : *lx->p == '"' ? '"' : 0;
+    if (!close)
+        error_at(here(lx), "expected a header name like <stdio.h> or \"mylib.h\"");
+    const char *start = lx->p;
+    step(lx);
+    while (*lx->p != close) {
+        if (!*lx->p || *lx->p == '\n')
+            error_at(pos, "unterminated header name");
+        step(lx);
+    }
+    step(lx);
+    const char *end = lx->p;
+    skip_blanks(lx);
+    if (!accept_word(lx, "as"))
+        error_at(here(lx), "expected 'as C' after the header name");
+    skip_blanks(lx);
+    if (!accept_word(lx, "C"))
+        error_at(here(lx), "only 'as C' is supported");
+    skip_blanks(lx);
+    if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+        error_at(here(lx), "unexpected text after '#import ... as C'");
+    push(lx, TK_IMPORT, pos, start, end);
 }
 
 Token *lex(const char *file, const char *src, int *ntoks) {
-    Lexer lx = {.file = file, .p = src, .line = 1, .col = 1};
+    Lexer lx = {.file = file, .src = src, .p = src, .line = 1, .col = 1};
     for (;;) {
         skip_space(&lx);
         char c = *lx.p;
         Pos pos = here(&lx);
         if (!c) {
-            push(&lx, TK_EOF, pos)->text = "end of file";
+            static const char eof[] = "end of file";
+            push(&lx, TK_EOF, pos, eof, eof + sizeof eof - 1);
             break;
+        }
+        if (c == '#') {
+            lex_import(&lx);
+            continue;
         }
         if (isalpha((unsigned char)c) || c == '_') {
             const char *start = lx.p;
             while (isalnum((unsigned char)*lx.p) || *lx.p == '_')
                 step(&lx);
-            char *word = xstrndup(start, (size_t)(lx.p - start));
-            TokKind kind = TK_IDENT;
+            push(&lx, TK_IDENT, pos, start, lx.p);
+            Token *t = &lx.toks[lx.len - 1];
             for (int i = 0; keywords[i]; i++)
-                if (!strcmp(word, keywords[i]))
-                    kind = TK_KEYWORD;
-            if (kind == TK_IDENT && !strncmp(word, "kv_", 3))
-                error_at(pos, "identifiers beginning with 'kv_' are reserved");
-            push(&lx, kind, pos)->text = word;
+                if (!strcmp(t->text, keywords[i]))
+                    t->kind = TK_KEYWORD;
             continue;
         }
-        if (isdigit((unsigned char)c)) {
+        if (isdigit((unsigned char)c) || (c == '.' && isdigit((unsigned char)lx.p[1]))) {
             lex_number(&lx);
             continue;
         }
         if (c == '"') {
-            lex_string(&lx);
+            lex_quoted(&lx, '"', TK_STRING);
             continue;
         }
         if (c == '\'') {
-            lex_char(&lx);
+            lex_quoted(&lx, '\'', TK_CHAR);
             continue;
         }
         const char *match = NULL;
-        for (int i = 0; puncts[i]; i++) {
-            size_t n = strlen(puncts[i]);
-            if (!strncmp(lx.p, puncts[i], n)) {
+        for (int i = 0; puncts[i]; i++)
+            if (!strncmp(lx.p, puncts[i], strlen(puncts[i]))) {
                 match = puncts[i];
                 break;
             }
-        }
         if (!match)
             error_at(pos, "unexpected character '%c'", c);
+        const char *start = lx.p;
         for (size_t i = 0; i < strlen(match); i++)
             step(&lx);
-        push(&lx, TK_PUNCT, pos)->text = (char *)match;
+        push(&lx, TK_PUNCT, pos, start, lx.p);
     }
     *ntoks = lx.len;
     return lx.toks;

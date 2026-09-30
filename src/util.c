@@ -83,31 +83,6 @@ void buf_printf(Buf *b, const char *fmt, ...) {
     free(tmp);
 }
 
-/* Quote bytes as a C string literal. Octal escapes are always three digits
-   so a following digit can never extend them; '?' is escaped to defeat
-   trigraphs. */
-char *c_string_literal(const char *s, size_t n) {
-    Buf b = {0};
-    buf_puts(&b, "\"");
-    for (size_t i = 0; i < n; i++) {
-        unsigned char c = (unsigned char)s[i];
-        switch (c) {
-        case '"': buf_puts(&b, "\\\""); break;
-        case '\\': buf_puts(&b, "\\\\"); break;
-        case '?': buf_puts(&b, "\\?"); break;
-        case '\n': buf_puts(&b, "\\n"); break;
-        case '\t': buf_puts(&b, "\\t"); break;
-        default:
-            if (c >= 0x20 && c < 0x7f)
-                buf_putn(&b, (const char *)&c, 1);
-            else
-                buf_printf(&b, "\\%03o", c);
-        }
-    }
-    buf_puts(&b, "\"");
-    return b.buf;
-}
-
 void set_source(const char *file, const char *src) {
     src_file = file;
     src_text = src;
