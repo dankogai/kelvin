@@ -40,6 +40,8 @@ So far the changes from C are:
   `0xdead:u16`
 - `print()` and `println()` come from a small prelude in `libkelvin`, so
   `println("n = ", n)` works for any type with no import
+- every type has methods: `p.toString()` (derived for structs),
+  `pi.fmt("%a")`, and your own, such as `point.area(): f64 { ... }`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

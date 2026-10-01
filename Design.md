@@ -48,6 +48,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 15 | No `var`: `x: T = v` declares, and so does `x = v` when `x` is not declared yet | `int32_t x = 0; long i = 42;` | `x: i32 = 0; i = 42;` | 2026-10-01 |
 | 16 | `expr:T` annotates any expression; it means `expr as T` | `(uint16_t)0xdead`, `1UL << 40` | `0xdead:u16`, `1:u64 << 40` | 2026-10-01 |
 | 17 | A prelude with `print()` and `println()`, in `libkelvin.{a,so,dylib}` | `printf("%" PRId64 "\n", n)` | `println(n)` | 2026-10-01 |
+| 18 | Every type has methods; `toString()` is mandatory; `fmt()` a la Raku | `snprintf(buf, n, "%a", pi)` | `pi.fmt("%a")`, `p.toString()`, `point.area(): f64 { ... }` | 2026-10-01 |
 
 Notes:
 
@@ -177,6 +178,14 @@ Notes:
   `println(n)` prints an `i64` on every platform. The same library and
   header work from C (`#include <kelvin_prelude.h>`, link `-lkelvin`).
 
+- (18) Agreed details: methods are defined Swift-style as
+  `point.toString(): String { ... self ... }` with an implicit `self`.
+  `toString()` and `fmt()` return a `String`, a fixed inline buffer.
+  Every struct gets a derived `toString()` that can be overridden, and
+  `f64.toString()` is `fmt("%.17g")`, which is lossless. `print` keeps its
+  own formatting (P21). The user's example `pi.fmt("5a")` was read as
+  `pi.fmt("%a")` (Shift+5), which gives `"0x1.921fb54442d18p+1"`.
+
 ## Provisional decisions (made during implementation; please review)
 
 These follow from the agreed changes, or were needed to write any code at
@@ -203,6 +212,12 @@ all. None of them has been explicitly agreed yet.
 | P22 | Runtime layout and linking | `make` builds `libkelvin.a` plus `libkelvin.dylib` (macOS) or `libkelvin.so` (Linux); `make install` puts them in `$PREFIX/lib` and the header in `$PREFIX/include` | kelvinc links `libkelvin.a` statically, so programs need no runtime library at run time. It finds the runtime in `$KELVIN_HOME`, next to itself (source tree), or in `../include` and `../lib` (installed). The shared libraries are for use from C and other toolchains. Zero-argument `print()`/`println()` rely on `__VA_OPT__`, which gcc and clang accept in C11 mode |
 | P23 | `true` and `false` are `bool`s in the generated C | `println(true)` prints `true` | C's `true` is the `int` `1`. kelvinc emits `(bool)true`, so the prelude sees a `bool`. Arithmetic is unchanged (`true + 1` is 2) |
 | P24 | A decimal literal above `INT64_MAX` gets C's `U` in the generated C | `18446744073709551615:u64` | Without suffixes (#13), C has no signed type for it and warns, although it already treats it as unsigned. kelvinc writes the `U` |
+| P25 | `String` holds up to 255 bytes inline, plus a NUL | `t: String = p.toString(); println(t, t.bytes[0]);` | No allocation, no freeing, safe to copy, return and chain. Longer text is truncated. `bytes` is a `u8` array, so Kelvin sees no `char` |
+| P26 | Method dispatch | `p.toString()` becomes `_Generic((p), ..., struct point: point__toString, ...)(p)` | kelvinc has no type checker, so C11 `_Generic` picks the method. The rules that follow from this: (1) as in C, a method must be declared (defined or prototyped as `point.area(): f64;`) before a call; (2) `x.name(...)` is a method call when `name` is a method somewhere in the file or the prelude, and a call through a field otherwise; (3) enums cannot have methods, because C cannot tell an enum from its integer type; (4) the prelude's `toString`/`fmt` of built-in types cannot be redefined; (5) C typedef names (`size_t`) cannot be receivers; (6) `self` is passed by value; (7) `point.area` is the C function `point__area` |
+| P27 | `toString()` of built-in types | `0.1.toString()` is `0.10000000000000001`, `(0.1:f32).toString()` is `0.100000001` | Lossless, as agreed for `f64` (`%.17g`): `f32` uses `%.9g` and `long double` `%.21Lg`. Integers are decimal (including 128-bit), `bool` is `true`/`false`, `u8^` and string literals are their text (`(null)` for null), and other pointers are addresses |
+| P28 | The derived `toString()` | `{from: {x: 3, y: 4}, to: {x: 6, y: 8}, tag: edge}`, `[{x: 0, y: 0}, ...]` | Fields are written `name: value`, nested structs recurse, and arrays print as `[a, b]`. Text is unquoted, and pointers print as addresses (`u8^` as text). Fields of C types print through C's type (scalars) or as `{...}`. A union prints as `<union name>`, since its active member is unknown |
+| P29 | `fmt()` | `n.fmt("%5d")`, `255.fmt("%#x")`, `42.fmt("%.2f")` is `42.00`, `pi.fmt("pi = %8.4f")` | One conversion (`diouxXcfFeEgGaAsp`) with flags, width and precision, plus any text and `%%`. No length modifiers (#13: no size hints), since Kelvin adds them. The value is converted to the conversion's kind (a float to an integer only within range). Anything else gives `<invalid format>` |
+| P30 | A number ends before `.name` | `2.toString()`, `1.5.fmt("%e")` | So methods can be called on literals. `1.e5` and `0x1.p3` are still numbers |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -278,10 +293,11 @@ individual proposal:
 |------|------|
 | `src/lexer.c` | C's lexical rules. Kelvin keywords `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
 | `src/parser.c` | Recursive descent over C's grammar with the changes above, plus a table of declared names to tell `x = v` (declare) from an assignment |
-| `src/codegen.c` | Prints C: postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
+| `src/codegen.c` | Prints C: methods become `_Generic` dispatch and derived `toString()`s; postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
 | `src/main.c` | Driver: writes the C, finds the runtime, runs `$CC` with `-I<dir of .k>` and `libkelvin.a`, and optionally runs the program |
 | `runtime/kelvin_prelude.h` | The prelude: `print`/`println` as `_Generic` macros over `kv_print_*` |
-| `runtime/prelude.c` | The prelude's implementation, built into `libkelvin.{a,so,dylib}` |
+| `runtime/prelude.c` | `print`/`println`, built into `libkelvin.{a,so,dylib}` |
+| `runtime/string.c` | `String`, `toString()` and `fmt()` for the built-in types |
 | `tests/run.sh` | `tests/run/*.k` check output; `tests/error/*.k` check diagnostics; `tests/c/*.c` use libkelvin from C, linked statically and dynamically |
 
 The driver adds `$KELVIN_CFLAGS` to the C compiler command line, for

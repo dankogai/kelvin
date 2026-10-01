@@ -98,6 +98,7 @@ typedef enum {
     E_SIZEOF_TYPE,
     E_SIZEOF_EXPR,
     E_INIT,      /* { ... } initializer list */
+    E_METHOD,    /* a.text(items): a method call */
 } ExprKind;
 
 struct Expr {
@@ -165,6 +166,9 @@ typedef struct {
     Stmt *body;           /* D_FN: NULL for a prototype */
     List members;         /* D_STRUCT/D_UNION/D_ENUM: Var *; D_VAR: Var * */
     bool has_body;        /* D_STRUCT/D_UNION/D_ENUM: false for `struct P;` */
+    /* D_FN that is a method, e.g. point.toString(): String */
+    Type *recv;           /* the receiver's type: struct point, f64, ... */
+    char *recv_name;      /* as written before the dot: point, f64 */
 } Decl;
 
 typedef struct {

@@ -16,6 +16,17 @@
 
 static Buf out;
 static int indent;
+
+/* Method dispatch: every (method, receiver type) declared so far, so a
+   call `v.m()` becomes _Generic((v), <C type>: <function>, ...)(v). */
+typedef struct {
+    const char *method;
+    const char *ctype;
+    const char *fn;
+} Method;
+static List methods;        /* Method * */
+static List user_tostring;  /* receiver type names with a user toString */
+static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
 
@@ -65,6 +76,7 @@ static const char *c_type_name(const char *name) {
         {"i128", "__int128"}, {"u128", "unsigned __int128"},
         {"f32", "float"},     {"f64", "double"},
         {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
+        {"String", "kv_String"},
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -182,6 +194,28 @@ static char *expr_bare(Expr *e) {
         return strfmt("sizeof %s", expr(e->a));
     case E_INIT:
         return initializer(e);
+    case E_METHOD: {
+        /* `recv` appears twice, but _Generic's controlling expression is
+           not evaluated, so it is evaluated once */
+        char *recv = expr(e->a);
+        Buf assoc = {0};
+        buf_puts(&assoc, "");
+        if (!strcmp(e->text, "toString") || !strcmp(e->text, "fmt"))
+            buf_printf(&assoc, "KV_METHOD_%s ", e->text);
+        for (int i = 0; i < methods.len; i++) {
+            Method *m = methods.data[i];
+            if (!strcmp(m->method, e->text))
+                buf_printf(&assoc, "%s: %s, ", m->ctype, m->fn);
+        }
+        const char *fallback = !strcmp(e->text, "toString") ? "kv_toString_ptr"
+                               : !strcmp(e->text, "fmt")    ? "kv_fmt_ptr"
+                                                            : "kv_no_such_method";
+        Buf args = {0};
+        buf_puts(&args, "");
+        for (int i = 0; i < e->items.len; i++)
+            buf_printf(&args, ", %s", expr(e->items.data[i]));
+        return strfmt("_Generic((%s), %sdefault: %s)(%s%s)", recv, assoc.buf, fallback, recv, args.buf);
+    }
     }
     return NULL;
 }
@@ -347,20 +381,125 @@ static void stmt(Stmt *s) {
 
 /* ---------- declarations ---------- */
 
+/* point.toString is the C function point__toString, f64.half f64__half */
+static char *method_cname(Decl *d) { return strfmt("%s__%s", d->recv_name, d->name); }
+
+static void register_method(const char *method, Type *recv, const char *fn) {
+    char *ctype = decl(recv, "");
+    for (int i = 0; i < methods.len; i++) {
+        Method *m = methods.data[i];
+        if (!strcmp(m->method, method) && !strcmp(m->ctype, ctype))
+            return;
+    }
+    Method *m = xcalloc(1, sizeof *m);
+    m->method = method;
+    m->ctype = ctype;
+    m->fn = fn;
+    list_push(&methods, m);
+}
+
 static char *fn_head(Decl *d) {
     Buf params = {0};
+    if (d->recv)
+        buf_puts(&params, decl(d->recv, "self"));
     for (int i = 0; i < d->params.len; i++) {
         Var *p = d->params.data[i];
         /* C insists that main's argv is char **; Kelvin writes it u8^^ */
-        bool argv = !strcmp(d->name, "main") && i == 1;
-        buf_printf(&params, "%s%s", i ? ", " : "", argv ? strfmt("char **%s", p->name) : decl(p->type, p->name));
+        bool argv = !d->recv && !strcmp(d->name, "main") && i == 1;
+        buf_printf(&params, "%s%s", params.len ? ", " : "", argv ? strfmt("char **%s", p->name) : decl(p->type, p->name));
     }
     if (d->variadic)
         buf_puts(&params, ", ...");
     /* Kelvin's `()` means no parameters, which C spells `(void)` */
-    char *inner = strfmt("%s(%s)", d->name, params.len ? params.buf : "void");
+    char *inner = strfmt("%s(%s)", d->recv ? method_cname(d) : d->name, params.len ? params.buf : "void");
     char *head = d->ret ? decl(d->ret, inner) : strfmt("void %s", inner);
     return strfmt("%s%s%s", d->storage ? d->storage : "", d->storage ? " " : "", head);
+}
+
+/* Is `name` ("struct point") a struct or union with a body in this file? */
+static Decl *kelvin_record(const char *name) {
+    for (int i = 0; i < program->decls.len; i++) {
+        Decl *d = program->decls.data[i];
+        if ((d->kind == D_STRUCT || d->kind == D_UNION) && d->has_body &&
+            !strcmp(name, strfmt("%s %s", d->kind == D_STRUCT ? "struct" : "union", d->name)))
+            return d;
+    }
+    return NULL;
+}
+
+/* The C expression for the String form of `lv`, an lvalue of type t. */
+static char *to_string_expr(Type *t, const char *lv) {
+    if (t->kind == T_PTR) {
+        Type *e = t->elem;
+        if (e->kind == T_BASE && (!strcmp(e->name, "u8") || !strcmp(e->name, "i8")))
+            return strfmt("kv_toString_str((const char *)%s)", lv);
+        return strfmt("kv_toString_ptr((const void *)%s)", lv);
+    }
+    const char *n = t->name;
+    static const struct { const char *type, *fn; } direct[] = {
+        {"i8", "kv_toString_i64"},    {"i16", "kv_toString_i64"},  {"i32", "kv_toString_i64"},
+        {"i64", "kv_toString_i64"},   {"u8", "kv_toString_u64"},   {"u16", "kv_toString_u64"},
+        {"u32", "kv_toString_u64"},   {"u64", "kv_toString_u64"},  {"i128", "kv_toString_i128"},
+        {"u128", "kv_toString_u128"}, {"f32", "kv_toString_f32"},  {"f64", "kv_toString_f64"},
+        {"bool", "kv_toString_bool"}, {"String", "kv_toString_String"},
+    };
+    for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
+        if (!strcmp(n, direct[i].type))
+            return strfmt("%s(%s)", direct[i].fn, lv);
+    Decl *r = kelvin_record(n);
+    if (r)
+        return strfmt("%s__toString(%s)", r->name, lv);
+    /* a C typedef, a C struct, an enum: decided by the C compiler */
+    return strfmt("kv_toString_any(%s)", lv);
+}
+
+/* append the String form of `lv` (type t) to kv_s; arrays print as [a, b] */
+static void append_value(Type *t, const char *lv, int depth) {
+    if (t->kind != T_ARRAY) {
+        line("kv_string_append(&kv_s, %s.bytes);", to_string_expr(t, lv));
+        return;
+    }
+    char *i = strfmt("kv_i%d", depth);
+    line("kv_string_append(&kv_s, \"[\");");
+    line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
+    line("{");
+    indent++;
+    line("if (%s)", i);
+    line("    kv_string_append(&kv_s, \", \");");
+    append_value(t->elem, strfmt("%s[%s]", lv, i), depth + 1);
+    indent--;
+    line("}");
+    line("kv_string_append(&kv_s, \"]\");");
+}
+
+/* The derived toString of a struct, {x: 1, y: 2}; a union, whose active
+   member is unknown, prints as <union name>. */
+static void emit_derived_tostring(Decl *d, Type *recv) {
+    line("kv_String %s__toString(%s)", d->name, decl(recv, "self"));
+    line("{");
+    indent++;
+    line("kv_String kv_s = {{0}};");
+    if (d->kind == D_UNION) {
+        line("kv_string_append(&kv_s, \"<union %s>\");", d->name);
+    } else {
+        line("kv_string_append(&kv_s, \"{\");");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            line("kv_string_append(&kv_s, \"%s%s: \");", i ? ", " : "", m->name);
+            append_value(m->type, strfmt("self.%s", m->name), 0);
+        }
+        line("kv_string_append(&kv_s, \"}\");");
+    }
+    line("return kv_s;");
+    indent--;
+    line("}");
+}
+
+static bool in_list(List *l, const char *s) {
+    for (int i = 0; i < l->len; i++)
+        if (!strcmp(l->data[i], s))
+            return true;
+    return false;
 }
 
 static void emit_decl(Decl *d) {
@@ -370,12 +509,16 @@ static void emit_decl(Decl *d) {
         line("#include %s", d->name);
         break;
     case D_FN:
+        if (d->recv && !strcmp(d->name, "toString") && in_list(&user_tostring, d->recv->name) && !d->body)
+            break; /* already declared after the struct */
         if (!d->body) {
             line("%s;", fn_head(d));
-            break;
+        } else {
+            line("%s", fn_head(d));
+            stmt(d->body);
         }
-        line("%s", fn_head(d));
-        stmt(d->body);
+        if (d->recv)
+            register_method(d->name, d->recv, method_cname(d));
         break;
     case D_VAR:
         for (int i = 0; i < d->members.len; i++) {
@@ -406,6 +549,18 @@ static void emit_decl(Decl *d) {
         }
         indent--;
         line("};");
+        if (d->kind != D_ENUM && d->name) {
+            /* every struct and union has toString: the user's, or a derived one */
+            Type *recv = xcalloc(1, sizeof *recv);
+            recv->kind = T_BASE;
+            recv->name = strfmt("%s %s", kw, d->name);
+            line("%s", "");
+            if (in_list(&user_tostring, recv->name))
+                line("kv_String %s__toString(%s);", d->name, decl(recv, "self"));
+            else
+                emit_derived_tostring(d, recv);
+            register_method("toString", recv, strfmt("%s__toString", d->name));
+        }
         break;
     }
     }
@@ -419,6 +574,23 @@ char *gen_program(Program *prog, bool with_lines) {
     /* the prelude (print, println) comes from libkelvin */
     buf_puts(&out, "/* generated by kelvinc */\n#include <stdbool.h>\n#include <stdint.h>\n"
                    "#include <kelvin_prelude.h>\n");
+    program = prog;
+    methods = (List){0};
+    user_tostring = (List){0};
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        if (d->kind == D_FN && d->recv && !strcmp(d->name, "toString"))
+            list_push(&user_tostring, d->recv->name);
+    }
+    /* methods of built-in types are declared up front */
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        if (d->kind == D_FN && d->recv && !kelvin_record(d->recv->name) && strncmp(d->recv->name, "struct ", 7) &&
+            strncmp(d->recv->name, "union ", 6)) {
+            line("%s;", fn_head(d));
+            register_method(d->name, d->recv, method_cname(d));
+        }
+    }
     for (int i = 0; i < prog->decls.len; i++) {
         if (i)
             line("%s", "");

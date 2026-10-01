@@ -25,6 +25,20 @@ static bool stmt_is_body; /* the next statement is the body of if/while/for/do o
 static List scope_names;
 static List scope_marks;
 
+/* Method names: the prelude's plus every `type.name(...)` defined at the
+   top level, collected before parsing so a call may precede the
+   definition. `x.name(...)` with any other name is a field call. */
+static List method_names;
+/* struct, union and enum declarations so far, to resolve method receivers */
+static List records;
+
+static bool is_method_name(const char *name) {
+    for (int i = 0; i < method_names.len; i++)
+        if (!strcmp(method_names.data[i], name))
+            return true;
+    return false;
+}
+
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 static void close_scope(void) { scope_names.len = (int)(intptr_t)scope_marks.data[--scope_marks.len]; }
 static void declare_name(const char *name) { list_push(&scope_names, (void *)name); }
@@ -88,8 +102,8 @@ static char *expect_ident(const char *what) {
 
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
-static const char *base_words[] = {"i8",  "i16",  "i32", "i64", "i128", "u8",       "u16", "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "void", NULL};
+static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "void", "String", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -112,7 +126,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "void") && !is_kw(t, "_Complex");
+    return is_base_word(t) && !is_kw(t, "void") && !is_kw(t, "_Complex") && !is_kw(t, "String");
 }
 
 static bool starts_type(Token *t);
@@ -350,9 +364,29 @@ static Expr *parse_postfix_ops(Expr *e) {
             expect_p(")");
             e = x;
         } else if (accept_p(".")) {
+            Token *name = peek();
+            char *member = expect_ident("a member or method name");
+            if (is_p(peek(), "(") && is_method_name(member)) {
+                /* v.method(args) */
+                advance();
+                bool saved = ident_annotation_ok;
+                ident_annotation_ok = true;
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                while (!is_p(peek(), ")")) {
+                    list_push(&x->items, parse_assign());
+                    if (!accept_p(","))
+                        break;
+                }
+                ident_annotation_ok = saved;
+                expect_p(")");
+                e = x;
+                continue;
+            }
             Expr *x = new_expr(E_FIELD, t->pos);
             x->a = e;
-            x->text = expect_ident("a member name");
+            x->text = member;
             e = x;
         } else if (accept_p("^")) {
             Expr *x = new_expr(E_DEREF, t->pos);
@@ -1114,12 +1148,67 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     return d;
 }
 
+/* type.name(params): T { ... }, a method with an implicit `self`. The
+   receiver is a struct or union declared earlier, or a built-in type. */
+static Decl *parse_method(Pos pos, const char *storage) {
+    Token *recv = advance();
+    advance(); /* . */
+    Token *name = peek();
+    Decl *d = new_decl(D_FN, pos, storage);
+    d->name = expect_ident("a method name");
+    d->recv_name = recv->text;
+    if (recv->kind == TK_KEYWORD) {
+        if (is_kw(recv, "void") || is_kw(recv, "_Complex"))
+            error_at(recv->pos, "'%s' cannot have methods", recv->text);
+        if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
+            error_at(name->pos, "%s.%s() is part of the Kelvin prelude and cannot be redefined", recv->text, d->name);
+        d->recv = base_type(recv->text, recv->pos);
+    } else {
+        Decl *r = NULL;
+        for (int i = records.len - 1; i >= 0 && !r; i--) {
+            Decl *c = records.data[i];
+            if (c->name && !strcmp(c->name, recv->text))
+                r = c;
+        }
+        if (!r)
+            error_at(recv->pos, "'%s' is not a struct or union declared before this method", recv->text);
+        if (r->kind == D_ENUM)
+            error_at(recv->pos, "enums cannot have methods: C cannot tell an enum from its integer type");
+        d->recv = base_type(strfmt("%s %s", r->kind == D_STRUCT ? "struct" : "union", r->name), recv->pos);
+    }
+    open_scope();
+    declare_name("self");
+    expect_p("(");
+    while (!is_p(peek(), ")")) {
+        if (accept_p("...")) {
+            d->variadic = true;
+            break;
+        }
+        Var *p = parse_var(false);
+        declare_name(p->name);
+        list_push(&d->params, p);
+        if (!accept_p(","))
+            break;
+    }
+    expect_p(")");
+    if (accept_p(":"))
+        d->ret = parse_type();
+    if (!strcmp(d->name, "toString") &&
+        (d->params.len || d->variadic || !d->ret || d->ret->kind != T_BASE || strcmp(d->ret->name, "String")))
+        error_at(name->pos, "toString must be declared as '%s.toString(): String'", recv->text);
+    if (!accept_p(";"))
+        d->body = parse_block();
+    close_scope();
+    return d;
+}
+
 static Decl *parse_record(Pos pos, DeclKind kind) {
     Decl *d = new_decl(kind, pos, NULL);
     if (kind == D_ENUM && is_p(peek(), "{"))
         d->name = NULL; /* anonymous enum: a group of int constants */
     else
         d->name = expect_ident("a tag name");
+    list_push(&records, d);
     if (accept_p("{")) {
         d->has_body = true;
         while (!is_p(peek(), "}")) {
@@ -1152,6 +1241,19 @@ Program *parse(Token *tokens, int ntoks) {
     cur = 0;
     scope_names = (List){0};
     scope_marks = (List){0};
+    records = (List){0};
+    method_names = (List){0};
+    list_push(&method_names, "toString");
+    list_push(&method_names, "fmt");
+    for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "{"))
+            depth++;
+        else if (is_p(&toks[i], "}"))
+            depth--;
+        else if (depth == 0 && (toks[i].kind == TK_IDENT || is_base_word(&toks[i])) && is_p(&toks[i + 1], ".") &&
+                 toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], "("))
+            list_push(&method_names, toks[i + 2].text);
+    }
     Program *prog = xcalloc(1, sizeof *prog);
     while (peek()->kind != TK_EOF) {
         Token *t = peek();
@@ -1165,7 +1267,10 @@ Program *parse(Token *tokens, int ntoks) {
             error_at(t->pos, "Kelvin has no 'var': write '%s: T = ...', or '%s = ...' to infer the type",
                      peek2()->text, peek2()->text);
         const char *storage = parse_storage();
-        if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
+        if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
+            peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
+            list_push(&prog->decls, parse_method(t->pos, storage));
+        } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
             list_push(&prog->decls, parse_fn(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "="))) {
             /* at the top level, `name = ...` always declares */

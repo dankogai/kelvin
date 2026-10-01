@@ -452,3 +452,36 @@ on macOS:
 `_XOPEN_SOURCE 700`, and the prelude prints every NaN as `nan`. The
 prelude test now covers a negative NaN. CI is green on all four jobs with
 96/96 tests.
+
+### 24. Methods, `toString()` and `fmt()`
+
+> like Swift and many other lanugages, each type has methods.  and
+> `.toString()` is mandatory.  for `printf()` like formats, `.fmt()`a la
+> Raku is available e.g. `pi.fmt("5a")` is `"0x1.921fb54442d18p+1"`.  BTW,
+> `f64.toString()`defauts to `f64.fmt("%.17g") which is lossless.
+
+**Claude** asked four questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| How are methods defined? | `point.toString(): String` (Swift-like, implicit `self`) |
+| What do `toString`/`fmt` return? | A fixed inline buffer (`String`) |
+| What does "mandatory" require of structs? | An auto-derived default, which can be overridden |
+| Does `print` use `toString`? | No, `print` stays as it is |
+
+`pi.fmt("5a")` was read as `pi.fmt("%a")` (Shift+5).
+
+**Claude** implemented #18:
+
+- **Runtime.** `runtime/string.c` provides `String`, plus `toString()` and
+  `fmt()` for the built-in types.
+- **kelvinc:**
+  - parses method definitions and calls
+  - dispatches calls with C11 `_Generic`, since there is no type checker
+  - derives `toString()` for every struct and union
+  - ends a number before `.name`, so literals take methods
+
+The provisional choices are P25–P30: `String` size, dispatch rules,
+`toString` formats, the derived format, `fmt` rules, and literal method
+calls. There are 103 tests, which also pass with the runtime and the
+generated code under ASan/UBSan.

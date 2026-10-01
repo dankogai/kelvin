@@ -21,6 +21,8 @@ void kv_print_str(const char *v) { fputs(v ? v : "(null)", stdout); }
 
 void kv_print_ptr(const void *v) { printf("%p", v); }
 
+void kv_print_String(kv_String v) { fputs((const char *)v.bytes, stdout); }
+
 void kv_print_newline(void) { putchar('\n'); }
 
 /* Floats print in the shortest form that reads back as the same value,

@@ -39,6 +39,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
+| `snprintf(buf, sizeof buf, "%a", pi)` | `pi.fmt("%a")` (a `String`) |
+| `double area(struct shape s)` | `shape.area(): f64 { ... self ... }`, called as `s.area()` |
 
 ## Declarations
 
@@ -288,6 +290,57 @@ main(): i32
   *(provisional P22)*. The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`.
 
+## Methods, `toString()` and `fmt()`
+
+Every type has methods. You define them Swift-style on a struct or union,
+or on a built-in type, with an implicit `self` (passed by value):
+
+```kelvin
+struct point { x: i32; y: i32; };
+
+point.dist2(): i64 { return self.x * self.x + self.y * self.y; }
+f64.half(): f64 { return self / 2; }
+
+main(): i32
+{
+    p: struct point = {3, 4};
+    println(p.dist2(), " ", p.toString(), " ", 3.0.half());  // 25 {x: 3, y: 4} 1.5
+    return 0;
+}
+```
+
+- **`toString()`** exists for every type and returns a `String`:
+  - **Built-in types** are lossless. `f64` uses `%.17g`, so
+    `0.1.toString()` is `0.10000000000000001`. `print` keeps its shortest
+    form, `0.1`.
+  - **Structs** get a derived `toString()` (`{x: 3, y: 4}`), with nested
+    structs and arrays (`[a, b]`) *(provisional P28)*. Override it with
+    `point.toString(): String { ... }`.
+- **`fmt(format)`** formats one value printf-style, a la Raku:
+  - `pi.fmt("%a")` is `0x1.921fb54442d18p+1`, `n.fmt("%5d")` pads to 5
+    columns, and `255.fmt("%#x")` is `0xff`.
+  - Write no length modifiers (`%d`, not `%lld`), since Kelvin adds them.
+  - The value is converted to the conversion's kind, so `42.fmt("%.2f")`
+    is `42.00`.
+  - One conversion per call, with any text around it
+    (`pi.fmt("pi = %.3f")`) *(provisional P29)*.
+- **`String`** is a value type holding up to 255 bytes inline, with no
+  allocation and nothing to free. `print` prints it, and `s.bytes` is its
+  `u8` text for C functions *(provisional P25)*.
+- **Literals** take methods too: `2.toString()`, `1.5.fmt("%e")`
+  *(provisional P30)*. Annotated values need parentheses:
+  `(0.1:f32).toString()`.
+- **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
+  rules *(provisional P26)*:
+  - As in C, declare a method before calling it. A prototype is
+    `point.area(): f64;`.
+  - Enums cannot have methods.
+  - Built-in types' `toString`/`fmt` cannot be redefined.
+  - C typedef names cannot be receivers.
+  - `x.name(...)` is a method call only if some type in the file or the
+    prelude has a method `name`. Otherwise it calls through a field, as
+    in C.
+
 ## Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares
@@ -309,7 +362,9 @@ statement of its own.
 
 ## Reserved words
 
-`print` and `println` belong to the prelude and cannot be redefined.
+`print` and `println` belong to the prelude and cannot be redefined, and
+neither can built-in types' `toString` and `fmt`. `String` is a reserved
+type name.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
 also rejects C compiler keywords beyond C11, such as `__extension__`,

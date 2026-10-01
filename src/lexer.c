@@ -7,12 +7,12 @@
 #include <ctype.h>
 #include <string.h>
 
-/* C11 keywords plus Kelvin's own: as, the sized types, bool, true and
-   false. C's numeric type names stay reserved so they can be rejected with
+/* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false
+   and String. C's numeric type names stay reserved so they can be rejected with
    a hint. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
-    "f32", "f64", "bool", "true", "false",
+    "f32", "f64", "bool", "true", "false", "String",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -149,6 +149,10 @@ static void lex_number(Lexer *lx) {
         char c = *lx->p;
         if ((c == '+' || c == '-') && strchr("eEpP", lx->p[-1])) {
             step(lx);
+        } else if (c == '.' && (isalpha((unsigned char)lx->p[1]) || lx->p[1] == '_') &&
+                   !(strchr("eEpP", lx->p[1]) && (isdigit((unsigned char)lx->p[2]) || lx->p[2] == '+' ||
+                                                  lx->p[2] == '-'))) {
+            break; /* `2.toString()`: the number ends before a method name */
         } else if (isalnum((unsigned char)c) || c == '_' || c == '.') {
             step(lx);
         } else {
