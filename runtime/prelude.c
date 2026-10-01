@@ -24,7 +24,9 @@ void kv_print_ptr(const void *v) { printf("%p", v); }
 void kv_print_newline(void) { putchar('\n'); }
 
 /* Floats print in the shortest form that reads back as the same value,
-   with a decimal point so they are never mistaken for integers. */
+   with a decimal point so they are never mistaken for integers. A NaN
+   prints as "nan" whatever its sign bit (glibc would print "-nan" for
+   0.0 / 0.0 on x86). */
 static void print_float_text(char *buf) {
     if (!strpbrk(buf, ".eEn")) /* not 1e9, nan or inf */
         strcat(buf, ".0");
@@ -32,30 +34,42 @@ static void print_float_text(char *buf) {
 }
 
 void kv_print_f64(double v) {
+    if (isnan(v)) {
+        fputs("nan", stdout);
+        return;
+    }
     char buf[64];
     for (int p = 1; p <= 17; p++) {
         snprintf(buf, sizeof buf - 2, "%.*g", p, v);
-        if (isnan(v) || strtod(buf, NULL) == v)
+        if (strtod(buf, NULL) == v)
             break;
     }
     print_float_text(buf);
 }
 
 void kv_print_f32(float v) {
+    if (isnan(v)) {
+        fputs("nan", stdout);
+        return;
+    }
     char buf[64];
     for (int p = 1; p <= 9; p++) {
         snprintf(buf, sizeof buf - 2, "%.*g", p, (double)v);
-        if (isnan(v) || strtof(buf, NULL) == v)
+        if (strtof(buf, NULL) == v)
             break;
     }
     print_float_text(buf);
 }
 
 void kv_print_f80(long double v) {
+    if (isnan(v)) {
+        fputs("nan", stdout);
+        return;
+    }
     char buf[96];
     for (int p = 1; p <= 36; p++) {
         snprintf(buf, sizeof buf - 2, "%.*Lg", p, v);
-        if (isnan(v) || strtold(buf, NULL) == v)
+        if (strtold(buf, NULL) == v)
             break;
     }
     print_float_text(buf);

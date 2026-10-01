@@ -1,9 +1,10 @@
 /* main.c - the kelvinc driver */
-/* expose mkdtemp, fork and waitpid under -std=c11 */
+/* expose mkdtemp, fork, waitpid and realpath under -std=c11 (realpath
+   is an X/Open function, so glibc needs _XOPEN_SOURCE) */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
 #else
-#define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 #endif
 #include "kelvin.h"
 

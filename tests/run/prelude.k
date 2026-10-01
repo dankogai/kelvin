@@ -19,7 +19,7 @@ main(): i32
     println(1.0, " ", 0.1, " ", -0.5, " ", 1.0 / 3, " ", 1e300, " ", 2.5e-8);
     println(0.1:f32, " ", 16777216:f32, " ", 1.0:f32 / 3);
     zero: f64 = 0.0;
-    println(zero / zero, " ", 1 / zero, " ", -1 / zero);
+    println(zero / zero, " ", -(zero / zero), " ", 1 / zero, " ", -1 / zero);   // NaN's sign is not shown
 
     // bool, strings, null strings
     ok: bool = true;
@@ -47,7 +47,7 @@ main(): i32
 // out: -170141183460469231731687303715884105728
 // out: 1.0 0.1 -0.5 0.3333333333333333 1e+300 2.5e-08
 // out: 0.1 16777216.0 0.33333334
-// out: nan inf -inf
+// out: nan nan inf -inf
 // out: true false 0 bytes (null)
 // out: true false 2
 // out: 12345678910111213141516
