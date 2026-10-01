@@ -60,3 +60,6 @@ dkms.conf
 /libkelvin.a
 /libkelvin.so
 /libkelvin.dylib
+
+# personal scratch file
+/scratch.k
