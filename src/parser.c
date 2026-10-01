@@ -8,11 +8,33 @@
    Operator precedence is otherwise exactly C's. */
 #include "kelvin.h"
 
+#include <stdint.h>
 #include <string.h>
 
 static Token *toks;
 static int cur;
 static bool pragma_statement; /* parsing `_Pragma("...");` as a statement */
+/* In a ternary's middle operand and a case label, `: name` is the
+   separator, not a type annotation `expr:T` with a typedef name. */
+static bool ident_annotation_ok = true;
+static bool stmt_is_body; /* the next statement is the body of if/while/for/do or a label */
+
+/* Names declared so far, innermost scope last. kelvinc tracks them only
+   to tell `x = 42` (declare x) from an assignment to an existing x. Names
+   from C headers are not known. */
+static List scope_names;
+static List scope_marks;
+
+static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
+static void close_scope(void) { scope_names.len = (int)(intptr_t)scope_marks.data[--scope_marks.len]; }
+static void declare_name(const char *name) { list_push(&scope_names, (void *)name); }
+
+static bool is_declared(const char *name) {
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return true;
+    return false;
+}
 
 static Token *peek(void) { return &toks[cur]; }
 static Token *peek_at(int k) {
@@ -143,28 +165,35 @@ static int skip_group(int i) {
     return i;
 }
 
-/* Do the tokens between the `(` at index i and its `)` spell a type, such
-   as `size_t[2]` or `const div_t^`? Used to tell (T){...} from a missing
-   `;` before a block. */
-static bool paren_holds_type(int i) {
-    i++;
+/* If the tokens from index i spell a type, such as `size_t[2]`,
+   `const div_t^` or `struct pt^`, the index just past it; otherwise -1.
+   C's own type words are accepted so they reach the "not a Kelvin type"
+   hint. */
+static int type_shape_end(int i) {
     while (is_qualifier(&toks[i]))
         i++;
-    if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum"))
-        i++;
-    if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i]))
-        return false;
-    for (i++;; i++) {
-        if (kelvin_for_c_word(&toks[i]))
-            continue; /* unsigned long, long double: reported later */
-        if (is_qualifier(&toks[i]) || is_p(&toks[i], "^") || is_kw(&toks[i], "_Complex"))
-            continue;
-        if (is_p(&toks[i], "[")) {
-            i = skip_group(i) - 1;
-            continue;
-        }
-        return is_p(&toks[i], ")");
+    if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum")) {
+        if (toks[++i].kind != TK_IDENT)
+            return -1;
+    } else if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i])) {
+        return -1;
     }
+    for (i++;;) {
+        if (kelvin_for_c_word(&toks[i]) || is_qualifier(&toks[i]) || is_p(&toks[i], "^") ||
+            is_kw(&toks[i], "_Complex"))
+            i++;
+        else if (is_p(&toks[i], "["))
+            i = skip_group(i);
+        else
+            return i;
+    }
+}
+
+/* Do the tokens between the `(` at index i and its `)` spell a type?
+   Used to tell (T){...} from a missing `;` before a block. */
+static bool paren_holds_type(int i) {
+    int end = type_shape_end(i + 1);
+    return end >= 0 && is_p(&toks[end], ")");
 }
 
 /* the token after the `)` that matches the `(` at token index i, or NULL */
@@ -299,12 +328,17 @@ static Expr *parse_postfix_ops(Expr *e) {
     for (;;) {
         Token *t = peek();
         if (accept_p("[")) {
+            bool saved = ident_annotation_ok;
+            ident_annotation_ok = true;
             Expr *x = new_expr(E_INDEX, t->pos);
             x->a = e;
             x->b = parse_expr();
+            ident_annotation_ok = saved;
             expect_p("]");
             e = x;
         } else if (accept_p("(")) {
+            bool saved = ident_annotation_ok;
+            ident_annotation_ok = true;
             Expr *x = new_expr(E_CALL, t->pos);
             x->a = e;
             while (!is_p(peek(), ")")) {
@@ -312,6 +346,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (!accept_p(","))
                     break;
             }
+            ident_annotation_ok = saved;
             expect_p(")");
             e = x;
         } else if (accept_p(".")) {
@@ -448,7 +483,10 @@ static Expr *parse_primary(void) {
         }
     }
     if (accept_p("(")) {
+        bool saved = ident_annotation_ok;
+        ident_annotation_ok = true;
         Expr *e = parse_expr();
+        ident_annotation_ok = saved;
         expect_p(")");
         e->paren = true;
         /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
@@ -500,15 +538,26 @@ static Expr *parse_unary(void) {
     return parse_postfix_ops(parse_primary());
 }
 
-/* cast := unary { 'as' type }
+/* cast := unary { ('as' | ':') type }
 
    `as` binds tighter than every binary operator and looser than the
    prefix ones, which is where C's cast sits: `-x as u8` is `(-x) as u8`,
    and `a * b as i64` is `a * (b as i64)`. Any identifier after `as` is a
    type name, so C typedefs work: `n as size_t`, `p as FILE^`. */
+/* Is the `:` at the cursor a type annotation, as in `0xdead:u16`? */
+static bool annotation_ahead(void) {
+    Token *n = peek2();
+    if (is_converter(n) && is_p(peek_at(2), "("))
+        return false; /* c ? x : u8(y) */
+    if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
+        is_kw(n, "enum"))
+        return true;
+    return n->kind == TK_IDENT && ident_annotation_ok;
+}
+
 static Expr *parse_cast(void) {
     Expr *e = parse_unary();
-    while (is_kw(peek(), "as")) {
+    while (is_kw(peek(), "as") || (is_p(peek(), ":") && annotation_ahead())) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
@@ -556,7 +605,10 @@ static Expr *parse_conditional(void) {
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
     e->a = c;
+    bool saved = ident_annotation_ok;
+    ident_annotation_ok = false;
     e->b = parse_expr();
+    ident_annotation_ok = saved;
     expect_p(":");
     e->c = parse_conditional();
     return e;
@@ -648,8 +700,18 @@ static Type *base_type(const char *name, Pos pos) {
     return t;
 }
 
-/* name: type [= init], or (for variables) name = literal, where an
-   integer literal is an i64 and a double literal is an f64 */
+/* The type of an initializer when none is written: an integer literal is
+   an i64, a floating literal an f64, and `v:T`, `v as T` or `T(v)` is a
+   T. NULL otherwise. */
+static Type *inferred_type(Expr *e, Pos pos) {
+    if (e->kind == E_CAST)
+        return e->type;
+    const char *lit = literal_type(e);
+    return lit ? base_type(lit, pos) : NULL;
+}
+
+/* name: type [= init], or (for variables) name = init with the type
+   inferred from init */
 static Var *parse_var(bool with_init) {
     Var *v = xcalloc(1, sizeof *v);
     v->pos = peek()->pos;
@@ -657,11 +719,12 @@ static Var *parse_var(bool with_init) {
     if (with_init && is_p(peek(), "=")) {
         advance();
         v->init = parse_initializer();
-        const char *inferred = literal_type(v->init);
-        if (!inferred)
-            error_at(v->pos, "'%s' needs a type: only integer literals (i64) and floating literals (f64) are inferred",
-                     v->name);
-        v->type = base_type(inferred, v->pos);
+        v->type = inferred_type(v->init, v->pos);
+        if (!v->type)
+            error_at(v->pos,
+                     "'%s' needs a type: write '%s: T = ...'; only literals and values written 'v:T', "
+                     "'v as T' or 'T(v)' have a type Kelvin can infer",
+                     v->name, v->name);
         return v;
     }
     expect_p(":");
@@ -671,11 +734,13 @@ static Var *parse_var(bool with_init) {
     return v;
 }
 
-/* after `var`: name: type [= init] {, name: type [= init]} */
+/* name: type [= init] {, ...}; each name is in scope after its declarator */
 static void parse_var_list(List *out) {
-    do
-        list_push(out, parse_var(true));
-    while (accept_p(","));
+    do {
+        Var *v = parse_var(true);
+        declare_name(v->name);
+        list_push(out, v);
+    } while (accept_p(","));
 }
 
 static const char *parse_storage(void) {
@@ -786,14 +851,14 @@ static void reject_c_declaration(void) {
     const char *name = toks[name_at].text;
     if (block)
         error_at(pos, "'%s ~ %s' as a statement would be read by C as a block-pointer declaration; "
-                      "declarations start with 'var'", type, name);
+                      "declarations are written 'name: type'", type, name);
     char *quals = strfmt("%s%s", base_const ? "const " : "", base_volatile ? "volatile " : "");
     if (function_pointer)
         error_at(pos, "'%s' looks like a C function-pointer declaration; function pointer types are not "
                       "available in Kelvin yet", name);
     if (function)
         error_at(pos, "functions are declared at the top level as '%s(...): %s%s%s'", name, quals, type, suffix.buf);
-    error_at(pos, "declarations start with 'var', as in '%s%svar %s: %s%s%s%s'", storage ? storage : "",
+    error_at(pos, "declarations are written 'name: type', as in '%s%s%s: %s%s%s%s'", storage ? storage : "",
              storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
 }
 
@@ -807,12 +872,50 @@ static Stmt *new_stmt(StmtKind kind, Pos pos) {
 static Stmt *parse_block(void) {
     Token *t = expect_p("{");
     Stmt *s = new_stmt(S_BLOCK, t->pos);
+    open_scope();
     while (!is_p(peek(), "}")) {
         if (peek()->kind == TK_EOF)
             error_at(t->pos, "unterminated block");
         list_push(&s->stmts, parse_stmt());
     }
+    close_scope();
     advance();
+    return s;
+}
+
+/* the body of if/else/while/do/for or a label: a declaration is not
+   allowed there, as in C */
+static Stmt *parse_body(void) {
+    stmt_is_body = true;
+    return parse_stmt();
+}
+
+/* At token i: `[storage] name: type ...` or, when name is not declared
+   yet, `[storage] name = ...`. Returns the index of the name, or -1.
+   `name: T` is a declaration even where it could be a label (a typedef
+   T); write `label: ; stmt` to label such a statement. */
+static int declaration_ahead(int i) {
+    if (is_kw(&toks[i], "static") || is_kw(&toks[i], "extern"))
+        i++;
+    if (toks[i].kind != TK_IDENT)
+        return -1;
+    if (is_p(&toks[i + 1], ":")) {
+        int end = type_shape_end(i + 2);
+        /* a `*` after the type is C's pointer habit; parse_type reports it */
+        return end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ";") || is_p(&toks[end], ",") ||
+                            is_p(&toks[end], "*"))
+                   ? i
+                   : -1;
+    }
+    if (is_p(&toks[i + 1], "=") && !is_declared(toks[i].text))
+        return i;
+    return -1;
+}
+
+static Stmt *parse_declaration(void) {
+    Stmt *s = new_stmt(S_VAR, peek()->pos);
+    s->storage = parse_storage();
+    parse_var_list(&s->vars);
     return s;
 }
 
@@ -826,45 +929,50 @@ static Expr *parse_paren_expr(void) {
 static Stmt *parse_stmt(void) {
     Token *t = peek();
     Pos pos = t->pos;
+    bool as_body = stmt_is_body;
+    stmt_is_body = false;
 
     if (is_p(t, "{"))
         return parse_block();
     if (accept_p(";"))
         return new_stmt(S_EMPTY, pos);
-    if ((is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto")) &&
-        !is_kw(peek2(), "var"))
+    if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT)
+        error_at(pos, "Kelvin has no 'var': write '%s: T = ...', or '%s = ...' to infer the type", peek2()->text,
+                 peek2()->text);
+    int name_at = declaration_ahead(cur);
+    if (name_at >= 0) {
+        if (as_body) {
+            if (is_p(&toks[name_at + 1], "="))
+                error_at(toks[name_at].pos,
+                         "'%s' is not declared; a declaration cannot be the body of a statement or follow a label, "
+                         "so put it in a block",
+                         toks[name_at].text);
+            error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
+                          "or write 'label: ;' before it");
+        }
+        Stmt *s = parse_declaration();
+        expect_p(";");
+        return s;
+    }
+    if (is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto"))
         reject_c_declaration();
-    if ((is_kw(t, "static") || is_kw(t, "extern")) && is_kw(peek2(), "var")) {
-        Stmt *s = new_stmt(S_VAR, pos);
-        s->storage = parse_storage();
-        advance();
-        parse_var_list(&s->vars);
-        expect_p(";");
-        return s;
-    }
-    if (accept_kw("var")) {
-        Stmt *s = new_stmt(S_VAR, pos);
-        parse_var_list(&s->vars);
-        expect_p(";");
-        return s;
-    }
     if (accept_kw("if")) {
         Stmt *s = new_stmt(S_IF, pos);
         s->expr = parse_paren_expr();
-        s->body = parse_stmt();
+        s->body = parse_body();
         if (accept_kw("else"))
-            s->els = parse_stmt();
+            s->els = parse_body();
         return s;
     }
     if (accept_kw("while")) {
         Stmt *s = new_stmt(S_WHILE, pos);
         s->expr = parse_paren_expr();
-        s->body = parse_stmt();
+        s->body = parse_body();
         return s;
     }
     if (accept_kw("do")) {
         Stmt *s = new_stmt(S_DO, pos);
-        s->body = parse_stmt();
+        s->body = parse_body();
         if (!accept_kw("while"))
             error_at(peek()->pos, "expected 'while' after the body of 'do'");
         s->expr = parse_paren_expr();
@@ -874,9 +982,9 @@ static Stmt *parse_stmt(void) {
     if (accept_kw("for")) {
         Stmt *s = new_stmt(S_FOR, pos);
         expect_p("(");
-        if (is_kw(peek(), "var")) {
-            s->init = new_stmt(S_VAR, advance()->pos);
-            parse_var_list(&s->init->vars);
+        open_scope();
+        if (declaration_ahead(cur) >= 0 && !is_kw(peek(), "static") && !is_kw(peek(), "extern")) {
+            s->init = parse_declaration();
         } else if (!is_p(peek(), ";")) {
             reject_c_declaration();
             s->init = new_stmt(S_EXPR, peek()->pos);
@@ -889,18 +997,22 @@ static Stmt *parse_stmt(void) {
         if (!is_p(peek(), ")"))
             s->step = parse_expr();
         expect_p(")");
-        s->body = parse_stmt();
+        s->body = parse_body();
+        close_scope();
         return s;
     }
     if (accept_kw("switch")) {
         Stmt *s = new_stmt(S_SWITCH, pos);
         s->expr = parse_paren_expr();
-        s->body = parse_stmt();
+        s->body = parse_body();
         return s;
     }
     if (accept_kw("case")) {
         Stmt *s = new_stmt(S_CASE, pos);
+        bool saved = ident_annotation_ok;
+        ident_annotation_ok = false;
         s->expr = parse_conditional();
+        ident_annotation_ok = saved;
         expect_p(":");
         return s;
     }
@@ -933,7 +1045,7 @@ static Stmt *parse_stmt(void) {
         Stmt *s = new_stmt(S_LABEL, pos);
         s->name = advance()->text;
         advance();
-        s->body = parse_stmt();
+        s->body = parse_body();
         return s;
     }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && is_p(peek2(), "(") &&
@@ -953,7 +1065,7 @@ static Stmt *parse_stmt(void) {
             example = strfmt("%s %s", t->text, peek2()->text);
         else if (is_base_word(t) && !is_kw(t, "void"))
             example = t->text;
-        error_at(pos, "declarations start with 'var', as in 'var x: %s'", example);
+        error_at(pos, "declarations are written 'name: type', as in 'x: %s'", example);
     }
     Stmt *s = new_stmt(S_EXPR, pos);
     s->expr = parse_expr();
@@ -974,6 +1086,8 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     d->name = expect_ident("a function name");
+    declare_name(d->name);
+    open_scope();
     expect_p("(");
     while (!is_p(peek(), ")")) {
         if (accept_p("...")) {
@@ -982,7 +1096,9 @@ static Decl *parse_fn(Pos pos, const char *storage) {
             d->variadic = true;
             break;
         }
-        list_push(&d->params, parse_var(false));
+        Var *p = parse_var(false);
+        declare_name(p->name);
+        list_push(&d->params, p);
         if (!accept_p(","))
             break;
     }
@@ -991,6 +1107,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
         d->ret = parse_type();
     if (!accept_p(";"))
         d->body = parse_block();
+    close_scope();
     return d;
 }
 
@@ -1007,6 +1124,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 Var *v = xcalloc(1, sizeof *v);
                 v->pos = peek()->pos;
                 v->name = expect_ident("an enumerator");
+                declare_name(v->name);
                 if (accept_p("="))
                     v->init = parse_conditional();
                 list_push(&d->members, v);
@@ -1029,6 +1147,8 @@ Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     toks = tokens;
     cur = 0;
+    scope_names = (List){0};
+    scope_marks = (List){0};
     Program *prog = xcalloc(1, sizeof *prog);
     while (peek()->kind != TK_EOF) {
         Token *t = peek();
@@ -1038,10 +1158,14 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
+        if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT)
+            error_at(t->pos, "Kelvin has no 'var': write '%s: T = ...', or '%s = ...' to infer the type",
+                     peek2()->text, peek2()->text);
         const char *storage = parse_storage();
         if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
             list_push(&prog->decls, parse_fn(t->pos, storage));
-        } else if (accept_kw("var")) {
+        } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "="))) {
+            /* at the top level, `name = ...` always declares */
             Decl *d = new_decl(D_VAR, t->pos, storage);
             parse_var_list(&d->members);
             expect_p(";");
@@ -1053,7 +1177,7 @@ Program *parse(Token *tokens, int ntoks) {
         } else if (!storage && accept_kw("enum")) {
             list_push(&prog->decls, parse_record(t->pos, D_ENUM));
         } else {
-            error_at(peek()->pos, "expected a declaration (name(...): type, var, struct, union, enum), found %s", desc(peek()));
+            error_at(peek()->pos, "expected a declaration (name(...): type, name: type, struct, union, enum), found %s", desc(peek()));
         }
     }
     return prog;

@@ -19,7 +19,7 @@ struct node {
 
 sum(n: struct node^): i32
 {
-    var total: i32 = 0;
+    total: i32 = 0;
     for (; n; n = n^.next)      // C: n->next
         total += n^.value;
     return total;
@@ -27,15 +27,17 @@ sum(n: struct node^): i32
 ```
 
 So far the changes from C are:
-- every declaration is `name: type`, functions included
+- every declaration is `name: type`, functions included, with no keyword;
+  `i = 42` declares `i` (an `i64`) when `i` is not declared yet
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`)
 - XOR is `~`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
   `i128`/`u128`, `f32`, `f64`), so `char`, `int`, `long`, `float` and
-  `double` are gone, and `var i = 42` is an `i64`
+  `double` are gone, and `i = 42` is an `i64`
 - `bool`, `true` and `false` are built in
 - C headers are imported with `#import <stdio.h> as C`
-- there are no C casts: convert with `i32(x)` or `malloc(n) as u8^`
+- there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or
+  `0xdead:u16`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

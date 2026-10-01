@@ -1,4 +1,4 @@
-// error: declarations start with 'var', as in 'var x: i32'
+// error: declarations are written 'name: type', as in 'x: i32'
 f(p: i32^): i32
 {
     i32 x = 0;

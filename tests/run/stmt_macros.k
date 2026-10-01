@@ -5,7 +5,7 @@
 
 main(): i32
 {
-    var x: i32 = 1, y: i32 = 2;
+    x: i32 = 1, y: i32 = 2;
     SWAP(x, y);
     LOG(x);
     CHECK(x == 1);

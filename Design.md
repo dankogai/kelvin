@@ -31,20 +31,22 @@ compiler checks everything, so semantics and ABI are C's by construction.
 
 | # | Change | C | Kelvin | Agreed |
 |---|--------|---|--------|--------|
-| 1 | The type comes after the name | `int x = 0;` | `var x: i32 = 0;` | 2026-10-01 |
-| 2 | Postfix `^` for pointer types | `char *p;` | `var p: u8^;` | 2026-10-01 |
+| 1 | The type comes after the name | `int x = 0;` | `x: i32 = 0;` | 2026-10-01 |
+| 2 | Postfix `^` for pointer types | `char *p;` | `p: u8^;` | 2026-10-01 |
 | 3 | Postfix `^` to dereference | `*p`, `p->m` | `p^`, `p^.m` | 2026-10-01 |
 | 4 | XOR is binary `~` | `a ^ b`, `a ^= b` | `a ~ b`, `a ~= b` | 2026-10-01 |
 | 5 | Functions use `name: type` too, with no `fn` and no `->` | `long add(long a, long b)` | `add(a: i64, b: i64): i64` | 2026-10-01 |
 | 6 | Integer types always say their size, and are built in | `int32_t` (via `<stdint.h>`) | `i8 i16 i32 i64 u8 u16 u32 u64`, plus `i128 u128` where available | 2026-10-01 |
 | 7 | C's integer names are gone | `char`, `short`, `int`, `long`, `signed`, `unsigned` | `u8` (or `i8`), `i16`, `i32`, `i64`/`u64`, ... | 2026-10-01 |
-| 8 | An inferred integer is `i64`; a written type is always explicit | | `var i = 42;` is `var i: i64 = 42;` | 2026-10-01 |
+| 8 | An inferred integer is `i64`; a written type is always explicit | | `i = 42;` is `i: i64 = 42;` | 2026-10-01 |
 | 9 | Floating-point types say their size too | `float`, `double` | `f32`, `f64` | 2026-10-01 |
 | 10 | `bool` is built in | `_Bool` (or `bool` via `<stdbool.h>`) | `bool` | 2026-10-01 |
-| 11 | An inferred C double literal is `f64` | `double d = 1.5;` | `var d = 1.5;` | 2026-10-01 |
+| 11 | An inferred C double literal is `f64` | `double d = 1.5;` | `d = 1.5;` | 2026-10-01 |
 | 12 | C headers are importable | `#include <stdio.h>` | `#import <stdio.h> as C` | 2026-10-01 |
-| 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `var val: u64 = 10`, `var f: f32 = 1.5` | 2026-10-01 |
+| 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `val: u64 = 10`, `f: f32 = 1.5` | 2026-10-01 |
 | 14 | No `(T)v` casts: convert with `T(v)` or `v as T` | `(int)x`, `(int *)malloc(n)` | `i32(x)`, `malloc(n) as i32^` | 2026-10-01 |
+| 15 | No `var`: `x: T = v` declares, and so does `x = v` when `x` is not declared yet | `int32_t x = 0; long i = 42;` | `x: i32 = 0; i = 42;` | 2026-10-01 |
+| 16 | `expr:T` annotates any expression; it means `expr as T` | `(uint16_t)0xdead`, `1UL << 40` | `0xdead:u16`, `1:u64 << 40` | 2026-10-01 |
 
 Notes:
 
@@ -65,22 +67,22 @@ Notes:
   `'long' is not a Kelvin type; use i64 or u64 (or i128/u128)`. The words
   stay reserved, because they are still C keywords in the generated code.
 - (8) Only literals (optionally negated) are inferred, and only in `var`
-  declarations: `var x = y + 1;` still needs a type. #11 extends this to
+  declarations: `x = y + 1;` still needs a type. #11 extends this to
   floating literals.
 - (9, 10) `float`, `double` and `_Bool` are errors that suggest `f32`,
   `f64` and `bool`. The generated C includes `<stdbool.h>`.
 - (11) This extends #8. A literal with a `.` or an exponent is `f64`.
-  `true`/`false` are not inferred: `var b = true;` needs `: bool` (Q8
+  `true`/`false` are not inferred: `b = true;` needs `: bool` (Q8
   answered no).
 - (12) `#import <x.h> as C` or `#import "x.h" as C` becomes `#include`.
   Everything the header declares is usable from Kelvin. It is the only
   directive, and the rest of the preprocessor is still TODO.
 - (13) C's suffixes `u`, `l`, `ll`, `f` and their combinations are errors
   that suggest the typed declaration, e.g. `'10UL': literals have no
-  suffixes in Kelvin; put the type on the declaration, e.g. 'var x: u64 = 10'`.
+  suffixes in Kelvin; put the type on the declaration, e.g. 'x: u64 = 10'`.
   Hex digits `a`–`f` are of course not suffixes: `0xff` is fine. An
   unsuffixed literal still has C's type (`1` is an `int`), so C's
-  `1UL << 40` is written `u64(1) << 40`.
+  `1UL << 40` is written `1:u64 << 40` (#16).
 - (14) Both forms have exactly C's cast semantics: `i32(3.9)` is 3 and
   `u8(300)` is 44. `T(v)` takes exactly one value, and a statement may
   start with one (`u8(x) as void;`). `(T)v` is an error that suggests the
@@ -106,10 +108,10 @@ Notes:
     These are rejected with the Kelvin spelling as a hint. A shape counts
     only when its declarator ends with `;`, `,` or `=`, so
     `n * f(x) == 4 || g();` stays an expression. Examples:
-    - `i32 * r = &x;` suggests `var r: i32^`, and `const u8 *s` suggests
-      `var s: const u8^`.
-    - `size_t a[3];` suggests `var a: size_t[3]`, `static size_t m;`
-      suggests `static var m: size_t`, and `size_t * (p) = q;` and
+    - `i32 * r = &x;` suggests `r: i32^`, and `const u8 *s` suggests
+      `s: const u8^`.
+    - `size_t a[3];` suggests `a: size_t[3]`, `static size_t m;`
+      suggests `static m: size_t`, and `size_t * (p) = q;` and
       `size_t * p^ = &q;` are caught too.
     - `size_t f(void);` points to function syntax, and a C function-pointer
       declarator is reported as not available yet.
@@ -140,6 +142,32 @@ Notes:
   - `__asm__ __volatile__ (...)`, two names in a row, cannot be written
     in Kelvin. `__asm__(...)` can.
 
+- (15) The user's own example: "`i = 42` is inferred as `i:i64 = 42`.
+  `u = 0xdead:u16` is identical to ... `u = 0xdead as u16`." (The middle
+  form in the original message read `u:u64 = 0xdead`, which was taken as a
+  typo for `u16`.) Rules:
+  - `name: T [= v]` declares, at the top level, in blocks and in `for`
+    initializers. Several declarators are separated by commas:
+    `a: i32 = 1, b = 2;`.
+  - `name = v` declares `name` when no enclosing scope (block, function,
+    parameters, globals, functions, enum constants) has declared it.
+    Otherwise it assigns. At the top level it always declares. The type is
+    inferred from `v` (#8, #11): a literal, or a value written `v:T`,
+    `v as T` or `T(v)`. Anything else needs `name: T = v`.
+  - Declaration wins over a label: `again: n = 0;` declares `again` of
+    type `n`. Write `again: ; n = 0;` to label it.
+  - A declaration cannot be the body of `if`/`while`/`for`/`do` or follow
+    a label, as in C11. `if (c) x = 1;` with `x` undeclared is an error.
+  - `:=` is deliberately not used (yet).
+  - Hazard: kelvinc does not see names declared by C headers, so
+    assigning to a header global such as `optind` declares a new local.
+    Declare such globals first with `extern optind: i32;` (Q11).
+  - `var` is no longer reserved. `var x: ...` gets a hint.
+- (16) `expr:T` has the same precedence and meaning as `expr as T` (P17).
+  A bare name after `:` is not an annotation in the middle operand of
+  `?:` or in a `case` label, where `:` is the separator. A converter call
+  such as `c ? x : u8(y)` is not an annotation either.
+
 ## Provisional decisions (made during implementation; please review)
 
 These follow from the agreed changes, or were needed to write any code at
@@ -147,21 +175,21 @@ all. None of them has been explicitly agreed yet.
 
 | # | Decision | Example | Why |
 |---|----------|---------|-----|
-| P1 | Array brackets are postfix too | `var a: i32[4];` | Mixing postfix `^` with prefix `[4]` would make `[4]i32^` ambiguous |
+| P1 | Array brackets are postfix too | `a: i32[4];` | Mixing postfix `^` with prefix `[4]` would make `[4]i32^` ambiguous |
 | P2 | Type suffixes apply left to right, but a run of brackets reads in C order | `i32^[4]` is `int32_t *[4]`, `i32[4]^` is `int32_t (*)[4]`, `i32[2][3]` is `int32_t[2][3]` | So that `m: i32[2][3]` indexes as `m[1][2]`, exactly as in C |
-| P3 | Variable declarations start with `var` | `var x: i32;` | Carried over from v0.1. Change #5 removed `fn`; whether `var` should go too is an open question (see below) |
+| P3 | ~~Variable declarations start with `var`~~ | | Superseded by #15 |
 | P4 | `()` means no parameters | `f(): i32` is `int32_t f(void)` | C's `()` (unspecified parameters) is obsolescent |
 | P5 | No `: type` after a function means `void` | `f()` is `void f(void)` | Same as v0.1 |
 | P6 | Qualifiers bind to what is on their left; a leading qualifier binds to the base | `u8 const^` and `const u8^` are both `const uint8_t *`; `u8^ const` is `uint8_t *const` | This is C's rule, written postfix |
-| P7 | Several names per `var` | `var a: i32 = 1, b: u8^;` | Each name has its own full type, since C's `int a, *b` split is gone |
+| P7 | Several names per declaration | `a: i32 = 1, b: u8^;` | Each name has its own full type, since C's `int a, *b` split is gone |
 | P8 | Struct and union members end with `;` | `struct p { x: i32; y: i32; };` | Kept from C, as is the `;` after `}` |
-| P9 | Storage class goes in front | `static f(): i32`, `static var`, `extern var` | Kept from C |
+| P9 | Storage class goes in front | `static f(): i32`, `static n: i32`, `extern optind: i32` | Kept from C |
 | P10 | Anonymous enums are allowed | `enum { LIMIT = 3 };` | The common C idiom for constants |
-| P11 | Kelvin reserves `var` and the sized type names (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet |
+| P11 | Kelvin reserves the sized type names (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet. `var` is no longer reserved (#15) |
 | P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
-| P13 | `u8` and C's `char` mix freely | `var s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
-| P14 | `true` and `false` are built in alongside `bool` | `var done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
-| P15 | Any identifier after `:` or `as` is a type name | `var f: FILE^ = stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
+| P13 | `u8` and C's `char` mix freely | `s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
+| P14 | `true` and `false` are built in alongside `bool` | `done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
+| P15 | Any identifier after `:` or `as` is a type name | `f: FILE^ = stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -170,9 +198,7 @@ all. None of them has been explicitly agreed yet.
 
 ## Open questions
 
-- **Q1: Drop `var` as well?** Following change #5, `x: i32 = 0;` would
-  declare a variable. That is unambiguous because no Kelvin statement can
-  start with a type, so `x: i32` is never a goto label.
+- ~~**Q1: Drop `var` as well?**~~ Answered: yes (#15).
 - ~~**Q2: `i64`-style type names?**~~ Answered: yes, see changes #6–#8.
 - ~~**Q3: `float`/`double`?**~~ Answered: `f32`/`f64` (change #9).
   `long double` has no Kelvin spelling yet.
@@ -191,6 +217,9 @@ all. None of them has been explicitly agreed yet.
   written.
 - ~~**Q9: Casts to C typedef names.**~~ Answered by #14: `n as size_t` and
   `p as FILE^` parse, because a type is certain after `as`.
+- **Q11: C globals from headers.** `optind = 1;` declares a new local
+  unless `extern optind: i32;` comes first, because kelvinc cannot see
+  header declarations (#15). Is the `extern` workaround enough?
 - **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
   cast-like syntax (P19). Should it get a Kelvin spelling, such as
   `struct point{.y = 7}`?
@@ -238,8 +267,8 @@ individual proposal:
 
 | File | Role |
 |------|------|
-| `src/lexer.c` | C's lexical rules. Kelvin keywords `var`, `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
-| `src/parser.c` | Recursive descent over C's grammar with the changes above |
+| `src/lexer.c` | C's lexical rules. Kelvin keywords `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
+| `src/parser.c` | Recursive descent over C's grammar with the changes above, plus a table of declared names to tell `x = v` (declare) from an assignment |
 | `src/codegen.c` | Prints C: postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
 | `src/main.c` | Driver: writes the C, runs `$CC` with `-I<dir of .k>`, and optionally runs the program |
 | `tests/run.sh` | `tests/run/*.k` check output; `tests/error/*.k` check diagnostics |

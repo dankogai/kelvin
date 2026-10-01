@@ -10,21 +10,21 @@ cmp(x: const void^, y: const void^): i32
 
 main(): i32
 {
-    var pi = 3.14159;                       // inferred: f64
-    var n = 3;                              // inferred: i64
+    pi = 3.14159;                       // inferred: f64
+    n = 3;                              // inferred: i64
     printf("%.2f %d %d\n", pi * 2, i32(sizeof pi), i32(sizeof n));
 
-    var buf: u8[32];
+    buf: u8[32];
     snprintf(buf, sizeof buf, "%s-%d", "kelvin", 7);
     printf("%s %d\n", buf, i32(strlen(buf)));
 
-    var len: size_t = strlen("four");       // C typedef names work as types
+    len: size_t = strlen("four");       // C typedef names work as types
     printf("%d\n", i32(len + 1 as size_t) - 1);
 
-    var out: FILE^ = stdout;                // so does FILE, and macros like stdout
+    out: FILE^ = stdout;                // so does FILE, and macros like stdout
     fprintf(out, "%d\n", greet_answer());
 
-    var p: i32^ = malloc(4 * sizeof(i32)) as i32^;
+    p: i32^ = malloc(4 * sizeof(i32)) as i32^;
     if (p == NULL)
         return 1;
     p[0] = 3; p[1] = 1; p[2] = 4; p[3] = 2;

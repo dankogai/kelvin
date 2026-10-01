@@ -4,5 +4,5 @@
 struct pt { x: i32; y: i32; };
 f(x: i32, n: size_t, q: size_t^, r: u64)
 {
-    var v: size_t = _Pragma("") * q;
+    v: size_t = _Pragma("") * q;
 }

@@ -7,11 +7,11 @@
 #include <ctype.h>
 #include <string.h>
 
-/* C11 keywords plus Kelvin's own: var, as, the sized types, bool, true
-   and false. C's numeric type names stay reserved so they can be rejected with
+/* C11 keywords plus Kelvin's own: as, the sized types, bool, true and
+   false. C's numeric type names stay reserved so they can be rejected with
    a hint. */
 static const char *keywords[] = {
-    "var", "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+    "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
     "f32", "f64", "bool", "true", "false",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
@@ -134,7 +134,7 @@ static void check_number(Pos pos, const char *s, const char *end) {
         bool has_f = memchr(p, 'f', (size_t)(end - p)) || memchr(p, 'F', (size_t)(end - p));
         bool has_u = memchr(p, 'u', (size_t)(end - p)) || memchr(p, 'U', (size_t)(end - p));
         const char *type = floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64";
-        error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'var x: %s = %.*s'",
+        error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x: %s = %.*s'",
                  n, s, type, (int)(p - s), s);
     }
     error_at(pos, "malformed number '%.*s'", n, s);

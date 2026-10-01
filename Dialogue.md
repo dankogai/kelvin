@@ -380,3 +380,30 @@ guards minimal. There are 87 tests.
 
 The current guards stay, the residual cases remain documented
 limitations, and no further review rounds are run.
+
+### 21. Drop `var`; `0xdead:u16`
+
+> drop `var` too: `x: i32 = 0` declares a variable.  `0xdead:u16` also works
+
+**Claude** asked three questions: how inference is written without
+`var`, how far `expr:T` reaches, and how labels and `name: T`
+declarations are told apart. The answers:
+
+> `i = 42` is inferred as `i:i64 = 42`.  `u = 0xdead:u16` is identical to
+> `u:u64 = 0xdead`, also identical to `u = 0xdead as u16`.  Do not use `:=`
+> just yet.
+
+- `expr:T`: any expression.
+- Labels: declaration wins.
+
+**Claude** implemented:
+
+- **#15:** no `var`. `x: T = v` declares, and so does `x = v` when `x` is
+  not declared yet. kelvinc now keeps a table of declared names for this.
+- **#16:** `expr:T` is the same as `expr as T`.
+
+`u:u64` in the middle of the answer was taken as a typo for `u:u16`, and
+that is recorded in Design.md. Flagged as new open question Q11: kelvinc
+cannot see C globals from headers, so `optind = 1;` would declare a local.
+`extern optind: i32;` is the workaround. All tests, examples and docs are
+converted, with 92 tests in total.

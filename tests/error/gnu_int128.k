@@ -3,5 +3,5 @@
 #import "include_types.h" as C
 f(x: i32, n: size_t, p: i32^, np: size_t^, vp: void^, c: bool)
 {
-    var y: __int128 = 0;
+    y: __int128 = 0;
 }

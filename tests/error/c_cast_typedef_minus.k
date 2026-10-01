@@ -2,5 +2,5 @@
 #import <stdio.h> as C
 f(x: i32, n: size_t, p: i32^)
 {
-    var y: size_t = (size_t)-1;
+    y: size_t = (size_t)-1;
 }

@@ -12,16 +12,17 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 
 | C | Kelvin |
 |---|--------|
-| `int x = 0;` | `var x: i32 = 0;` |
-| `long n = 42;` | `var n = 42;` (inferred as `i64`) |
-| `double d = 1.5;` | `var d = 1.5;` (inferred as `f64`) |
-| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
-| `float f = 1.5f;` | `var f: f32 = 1.5;` |
-| `1UL << 40` | `u64(1) << 40` |
-| `char *s;` | `var s: u8^;` |
-| `int *a[4];` | `var a: i32^[4];` *(provisional)* |
-| `int (*p)[4];` | `var p: i32[4]^;` *(provisional)* |
-| `const char *const s;` | `var s: const u8^ const;` |
+| `int x = 0;` | `x: i32 = 0;` |
+| `long n = 42;` | `n = 42;` (inferred as `i64`) |
+| `double d = 1.5;` | `d = 1.5;` (inferred as `f64`) |
+| `unsigned long v = 10UL;` | `v: u64 = 10;` |
+| `float f = 1.5f;` | `f: f32 = 1.5;` |
+| `1UL << 40` | `1:u64 << 40` |
+| `uint16_t u = 0xdead;` | `u = 0xdead:u16;` (inferred as `u16`) |
+| `char *s;` | `s: u8^;` |
+| `int *a[4];` | `a: i32^[4];` *(provisional)* |
+| `int (*p)[4];` | `p: i32[4]^;` *(provisional)* |
+| `const char *const s;` | `s: const u8^ const;` |
 | `long add(long a, long b) { ... }` | `add(a: i64, b: i64): i64 { ... }` |
 | `void f(void);` | `f();` |
 | `static int g(void);` | `static g(): i32;` |
@@ -43,10 +44,18 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 Every declaration is written `name: type`, with the name first and the type
 after a colon.
 
-- **Variables** start with `var` *(provisional P3)*: `var x: i32;`, and
-  `var a: i32 = 1, b: u8^;` declares several at once *(provisional P7)*.
-  Each name has its own complete type, so C's `int a, *b` split cannot
-  happen.
+- **Variables** are written `x: i32;` or `x: i32 = 0;`. There is no
+  keyword. `a: i32 = 1, b: u8^;` declares several at once, each with its
+  own complete type, so C's `int a, *b` split cannot happen
+  *(provisional P7)*.
+- **Assigning to a name that is not declared yet declares it**, with the
+  type inferred from the value: `i = 42;` declares `i: i64`. If `i` is
+  already declared in this scope or an enclosing one, it is an ordinary
+  assignment, as in C. See "Type inference" below.
+- **`name: T` wins over a label.** `again: n = 0;` declares `again` with
+  type `n`, in case `n` is a C typedef. To label a statement like that,
+  write `again: ; n = 0;`. Labels before calls, `if`, `for` and so on
+  work as in C.
 - **Functions** have no keyword. The return type follows the parameter
   list after a colon: `add(a: i64, b: i64): i64 { ... }`.
   - A prototype ends with `;` instead of a body.
@@ -56,8 +65,8 @@ after a colon.
   available yet.
 - **Struct and union members** follow the same form and end with `;`:
   `struct p { x: i32; y: i32; };` *(provisional P8)*.
-- **Storage classes** go in front: `static f(): i32`, `static var n: i32`,
-  `extern var e: i32` *(provisional P9)*.
+- **Storage classes** go in front: `static f(): i32`, `static n: i32`,
+  `extern e: i32` *(provisional P9)*.
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see below).
 
@@ -88,7 +97,7 @@ Kelvin's built-in types need no header, and neither do `<stdint.h>` and
 
 C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
 is `unsigned char`, which has the same size, representation and ABI. So
-`var s: u8^ = "hi";` and passing a `u8^` to `strlen` just work. kelvinc
+`s: u8^ = "hi";` and passing a `u8^` to `strlen` just work. kelvinc
 silences C's pointer-sign warnings about the mix, and emits `main`'s `argv`
 as `char **`, because C requires that.
 
@@ -112,38 +121,51 @@ and `u8^ const` is `uint8_t *const`.
 ### C typedef names
 
 After a colon, any identifier is accepted as a type, so typedefs from
-imported headers work: `var f: FILE^ = stdout;` and
-`var n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
+imported headers work: `f: FILE^ = stdout;` and
+`n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
 `p as FILE^`.
 
 ### Type inference
 
-`var` without a type infers it from a literal initializer:
+A declaration without a type, `name = value`, infers the type from the
+value:
 
-- an integer literal is `i64`: `var i = 42;`, `var m = -1;`
-- a floating literal is `f64`: `var d = 1.5;`, `var e = 1e9;`
+- an integer literal is `i64`: `i = 42;`, `m = -1;`
+- a floating literal is `f64`: `d = 1.5;`, `e = 1e9;`
+- a value with a written type is that type: `u = 0xdead:u16;`,
+  `u = 0xdead as u16;` and `c = u8(300);` are all `u16`/`u8`
 
-Anything else needs a written type, including `var y = x + 1;` and
-`var b = true;`. A written type is always what you get: `var b: u8 = 42;`
+Anything else needs a written type, including `y = x + 1;`, `s = "hi";`
+and `b = true;`. A written type is always what you get: `b: u8 = 42;`
 is a `u8`.
+
+`for (i = 0; i < n; i++)` declares `i` for the loop when `i` is not
+declared yet. A declaration cannot be the body of `if`, `while`, `for` or
+`do`, or follow a label (as in C), so `if (c) x = 1;` with an undeclared
+`x` is an error.
+
+**Beware C globals from headers.** Kelvin does not see what a header
+declares, so `optind = 1;` would declare a new local `optind` instead of
+assigning the one from `<unistd.h>`. Tell Kelvin about such a global first,
+with `extern optind: i32;` at the top level.
 
 ## Literals
 
 Literals carry no size or type hints. C's suffixes `u`, `l`, `ll` and `f`
 (`10UL`, `10u`, `1.5f`, `1.5L`) are errors. The type belongs on the
-declaration:
+declaration, or on the value as an annotation (`10:u64`):
 
 | C | Kelvin |
 |---|--------|
-| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
-| `float f = 1.5f;` | `var f: f32 = 1.5;` |
-| `long long n = 10LL;` | `var n = 10;` (or `var n: i64 = 10;`) |
+| `unsigned long v = 10UL;` | `v: u64 = 10;` |
+| `float f = 1.5f;` | `f: f32 = 1.5;` |
+| `long long n = 10LL;` | `n = 10;` (or `n: i64 = 10;`) |
 
 Everything else about literals is C's: hex `0xff`, octal `017`, binary
 `0b101`, exponents `1e9`, hex floats `0x1p4`, character constants `'a'`,
 and adjacent strings. A literal inside an expression still has C's type, so
 a bare `1` is C's `int` (an `i32`). Where C would write `1UL << 40`, Kelvin
-writes `u64(1) << 40`, or shifts a `u64` variable.
+writes `1:u64 << 40`.
 
 ## Expressions
 
@@ -168,6 +190,10 @@ both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44):
 
 - **`T(v)`**, a converter, for built-in types: `i32(x)`, `u8(c)`,
   `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*.
+- **`v:T`**, a type annotation, means exactly `v as T`: `0xdead:u16`,
+  `1:u64 << 40`, `n:size_t`. In the middle of a ternary (`c ? a : b`)
+  and in a `case` label, a bare name after `:` is the separator, so
+  annotate with a typedef there by using parentheses or `as`.
 - **`v as T`**, for any type, including pointers and C typedef names:
   `malloc(n) as i32^`, `p as void^`, `n as size_t`, `x as void` (C's
   `(void)x`).
@@ -198,11 +224,11 @@ as a cast.
 C-style declarations at the start of a statement get the Kelvin spelling as
 a hint:
 
-- `size_t * p = &n;` suggests `var p: size_t^`, and `size_t n = 0;`
-  suggests `var n: size_t`.
-- `const u8 *s` suggests `var s: const u8^`, and `size_t a[3];` suggests
-  `var a: size_t[3]`.
-- `static size_t m;` suggests `static var m: size_t`, and
+- `size_t * p = &n;` suggests `p: size_t^`, and `size_t n = 0;`
+  suggests `n: size_t`.
+- `const u8 *s` suggests `s: const u8^`, and `size_t a[3];` suggests
+  `a: size_t[3]`.
+- `static size_t m;` suggests `static m: size_t`, and
   `size_t f(void);` points to function syntax.
 
 An expression that only looks similar, such as `n * f(x) == 4 || g();`, is
@@ -226,9 +252,9 @@ including typedef names with suffixes, and under `sizeof`:
 
 ## Statements
 
-Only declarations differ: they start with `var`, as does a declaration in
-`for (var i: i32 = 0; ...)`. `if`, `while`, `do`, `for`, `switch`, `case`,
-`goto` and labels are C's.
+Only declarations differ: `x: i32 = 0;` or `x = 0;` (see Declarations),
+also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`. `if`, `while`,
+`do`, `for`, `switch`, `case`, `goto` and labels are C's.
 
 ## Headers and the preprocessor
 
@@ -251,8 +277,8 @@ statement of its own.
 
 ## Reserved words
 
-Kelvin reserves all of C's keywords, plus `var`, `i8` … `u128`, `f32`,
-`f64`, `bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
+Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
+`bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators

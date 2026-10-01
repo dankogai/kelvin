@@ -1,5 +1,5 @@
-// error: 'y' needs a type: only integer literals (i64) and floating literals (f64) are inferred
+// error: 'y' needs a type: write
 f()
 {
-    var x = 1; var y = x + 1;
+    x = 1; y = x + 1;
 }

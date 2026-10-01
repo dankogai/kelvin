@@ -3,6 +3,6 @@
 struct pt { x: i32; y: i32; };
 f(x: i32, n: size_t, p: i32^, d: f64, vp: void^): i32
 {
-    var z: i32 = (int){1};
+    z: i32 = (int){1};
     return 0;
 }

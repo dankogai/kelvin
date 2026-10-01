@@ -1,4 +1,4 @@
-// error: declarations start with 'var', as in 'var b: size_t^[3]'
+// error: declarations are written 'name: type', as in 'b: size_t^[3]'
 #import <stdio.h> as C
 #import "include_types.h" as C
 struct pt { x: i32; y: i32; };

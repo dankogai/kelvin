@@ -2,5 +2,5 @@
 #import <stdio.h> as C
 f(x: i32, n: size_t, p: i32^)
 {
-    var q: u8^ = (u8 *)p;
+    q: u8^ = (u8 *)p;
 }
