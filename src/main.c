@@ -230,6 +230,9 @@ int main(int argc, char **argv) {
         "-Wno-pointer-sign",
         "-Wno-incompatible-library-redeclaration",
         "-Wno-builtin-declaration-mismatch",
+        /* gcc on x86-64 notes that passing a struct with a flexible array
+           member changed ABI in GCC 4.4, e.g. for a derived toString */
+        "-Wno-psabi",
     };
     List cc_args = {0};
     for (size_t i = 0; i < sizeof base_args / sizeof base_args[0]; i++)

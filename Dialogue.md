@@ -535,3 +535,11 @@ All are fixed in this change.
 - **Docs.** The stale passages are updated.
 
 There are 108 tests, plus 36 `fmt` checks from C.
+
+### 26. A gcc note on Linux
+
+`6b496ba` failed one test on Linux gcc. On x86-64, gcc notes that passing
+a struct with a flexible array member changed ABI in GCC 4.4
+(`-Wpsabi`), and a derived toString takes the struct by value. The note
+is informational, but the test runner treats any output as a diagnostic.
+kelvinc now passes `-Wno-psabi`.
