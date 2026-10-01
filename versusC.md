@@ -186,8 +186,43 @@ looser than prefix operators, and it chains left to right
 Parenthesize to index or dereference the result of `as`. `p as u8^[0]`
 would read `u8^[0]` as a type. Writing a C cast, whether `(i64)x`,
 `(u8^)p` or `(size_t)n`, is an error that suggests `v as T` or `T(v)`.
-Compound literals such as `(struct point){.y = 7}` are not casts, and they
-work as in C *(provisional P19)*.
+`as` binds tighter than `*` too, so `malloc(n as size_t * sizeof(i32))`
+means `malloc((n as size_t) * sizeof(i32))`.
+
+C casts to typedef names are caught as well. `(size_t)n` and `(FILE *)p`
+get the Kelvin hint. `(size_t)-1`, `(size_t)(n + 1)` and `(int32_t)*p` look
+like arithmetic or a call to Kelvin, so they reach the C compiler, which
+rejects them with "expected expression" at your line. They never compile
+as a cast.
+
+C-style declarations at the start of a statement get the Kelvin spelling as
+a hint:
+
+- `size_t * p = &n;` suggests `var p: size_t^`, and `size_t n = 0;`
+  suggests `var n: size_t`.
+- `const u8 *s` suggests `var s: const u8^`, and `size_t a[3];` suggests
+  `var a: size_t[3]`.
+- `static size_t m;` suggests `static var m: size_t`, and
+  `size_t f(void);` points to function syntax.
+
+An expression that only looks similar, such as `n * f(x) == 4 || g();`, is
+left alone.
+One shape cannot be caught, because Kelvin cannot see typedefs: a statement
+`name(x);` or `name(x) = v;` is a call or a function-like macro, but if
+`name` is a C typedef, C reads it as a declaration of `x`. To convert to a
+typedef type, write `x as size_t`, never `size_t(x)`.
+
+A converter takes exactly one value (`i32(a, b)` is an error), and a
+statement may start with one: `u8(x) as void;`.
+
+A converter groups its whole argument, so `i32(TOTAL)` is right even if a
+header defines `TOTAL` as `1.5 + 2.5` without parentheses. `TOTAL as i32`,
+like C's `(int)TOTAL`, converts only the `1.5`.
+
+Compound literals are not casts, and they work as in C for any type,
+including typedef names with suffixes, and under `sizeof`:
+`(struct point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`,
+`(size_t[2]){1, 2}`, `sizeof (i32[3]){1, 2, 3}` *(provisional P19)*.
 
 ## Statements
 
@@ -209,10 +244,20 @@ Only declarations differ: they start with `var`, as does a declaration in
   `printf(fmt: const u8^, ...): i32;`. Don't do both, because a
   hand-written prototype conflicts with the header's.
 
+A header macro that expands to nothing or to an operator can change how C
+reads the code around it. Kelvin cannot see macro definitions and treats
+every macro as an ordinary name. `_Pragma("...")` is allowed only as a
+statement of its own.
+
 ## Reserved words
 
-Kelvin reserves all of C's keywords, plus `var`, `as`, `i8` … `u128`, `f32`,
-`f64`, `bool`, `true` and `false` *(provisional P11)*. `fn` is not reserved.
+Kelvin reserves all of C's keywords, plus `var`, `i8` … `u128`, `f32`,
+`f64`, `bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
+also rejects C compiler keywords beyond C11, such as `__extension__`,
+`__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
+(use `i128`), because in C they can act as casts or prefix operators
+*(provisional P20)*. `__asm__(...)` and `__attribute__((...))` remain
+usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
 
 ## Not available yet
 
@@ -229,6 +274,14 @@ These are C features without a Kelvin spelling so far:
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
+- statements of the form `name(x);` where `name` is a C typedef: C reads
+  them as declarations, and Kelvin cannot tell (see Conversions)
+- `alignof` and `typeof` (reserved C compiler keywords, P20)
+- `__asm__ __volatile__ (...)` (two names in a row; `__asm__(...)` works)
+- function pointer types
+- `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
+  (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
+  work)
 
 ## Diagnostics
 

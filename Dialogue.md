@@ -224,3 +224,159 @@ provisional:
 `v as T` resolves Q9 (`n as size_t`). New Q10 asks whether compound
 literals should get a Kelvin spelling. `(T)v`, and C-style casts to
 typedef names like `(size_t)n`, are errors with a hint.
+
+### 15. Commit and push
+
+> commit and push to main
+
+**Claude** committed #14 as `cd53342` and pushed. CI passed all four jobs
+with 39/39 tests.
+
+### 16. Review findings for #14, and fixes
+
+Under ultracode, **Claude** ran an adversarial review in the background.
+Three reviewers (grammar, generated C, docs) each hunted for breakage by
+running kelvinc, and an independent verifier tried to reproduce every
+finding. There were 20 findings: 19 confirmed and 1 rejected, which come
+down to 8 distinct issues. All are fixed, and the repro for every
+confirmed finding was re-run against the new build.
+
+- **`x as i64 * 2` did not parse.** After `as`, `*` was taken for a C
+  pointer declarator. It is now multiplication.
+- **C casts to typedef names could slip through and change meaning.** With
+  an operand that starts with `-`, `(`, `&`, `*` or `+`, as in
+  `(size_t)-1` or `(int32_t)*p`, Kelvin parsed arithmetic but C read a
+  cast. A parenthesized lone name is now emitted as `((name))`, so C
+  rejects these at the `.k` line instead.
+- **Misleading errors:**
+  - `(int32_t)!x` and similar got a generic parse error; they now get the
+    C-cast hint.
+  - `(int)c` got two rounds of errors; it now gets one message.
+  - The `int^` pointer hint was not Kelvin; it now says `i32^`.
+- **Statements starting with a converter** were rejected as C
+  declarations.
+- **`i32(a, b)`** silently became a comma expression; it is now an error.
+- **Compound literals** with typedef names (`(div_t){...}`) and under
+  `sizeof` failed; both now work.
+- **Stale docs:**
+  - Design.md note (8) still said `var f = 1.5` needs a type.
+  - The #13 examples and the suffix hint omitted `var`.
+  - versusC.md filed `as` under P11.
+
+The rejected finding: `sizeof(FILE^)` cannot work, because Kelvin reads
+`FILE^` as a dereference. It predates #14 and is now documented as a
+limitation. Eight regression tests were added.
+
+### 17. Second review round
+
+A second adversarial round aimed at regressions from the fixes found 11
+problems. All 11 were confirmed, and all are fixed:
+
+- **A regression from round one.** `i32(x)` had stopped grouping its
+  argument, so `i32(TOTAL)` with `#define TOTAL 1.5 + 2.5` converted only
+  the `1.5`. Converters emit `((T)(v))` again.
+- **More casts that slipped through.** A parenthesized call or index could
+  also be a C type name, as in `(__typeof__(x))-1` or `(_BitInt(9))(x)`.
+  Double parentheses now cover calls and indexes too.
+- **C declarations that slipped through.** `size_t(n) = 7;` and
+  `size_t * p = &n;` compiled as C declarations. Such statements are now
+  parenthesized, at the cost of `(printf(...));` in the generated C, or get
+  the `var` hint.
+- **Typedef compound literals with suffixes** (`(size_t[2]){...}`,
+  `(div_t^){...}`) now work.
+- **Hints:**
+  - `v as T*` gets the pointer hint again.
+  - The C-declaration hint now names a real type, e.g. `var x: struct pt`.
+  - `(long double)x` no longer suggests `i64`.
+  - `u8^(p)` and `sizeof i32` get accurate hints.
+  - `(void)x` points to `v as void`.
+  - `(int){1}` is no longer called a cast.
+
+Every repro was re-run against the new build, and 11 regression tests
+were added (59 in total).
+
+### 18. Third review round
+
+A third round, aimed at the round-two changes, confirmed 13 findings and
+rejected 1.
+
+**Revert.** The round-two statement wrapping was a bad trade.
+`(timeradd(...));` broke every header macro that expands to a statement:
+do/while macros, `SLIST_INIT`, `static_assert`, `__asm__` and `_Pragma`.
+All of these had worked before. C has no construct that forces
+expression-statement parsing without breaking such macros, so **Claude**
+reverted it. Instead, Kelvin now rejects every C-declaration shape it can
+recognize at the start of a statement or `for` initializer:
+
+- `i32 * r = &x;` suggests `var r: i32^`
+- `size_t ** r` suggests `var r: size_t^^`
+- `size_t m = 3;` suggests `var m: size_t`
+- `struct pt *p;` suggests `var p: struct pt^`
+- `F ~ cb = 0;` is rejected too, since Apple's clang reads `F ^ cb` as a
+  block pointer
+
+The one shape that cannot be told apart, `typedefname(x);`, is documented
+as a limitation.
+
+**Other fixes:**
+
+- GNU and C23 keywords like `__extension__ * p` and `__real__(U8)(300)`
+  smuggled in C's prefix `*` and casts, so they are rejected (P20).
+- `sizeof (T * (U8))` compiled as the size of a C function type, so a
+  parenthesized sizeof operand now gets double parentheses.
+- Hints:
+  - `(uint8_t*)p` and `(FILE **)p` now get the cast hint.
+  - `v as u8* : q` and `v as u8* == q` get the pointer hint.
+  - `sizeof i32^` now suggests `sizeof(i32^)`.
+  - `(size_t)++x` gets the cast hint.
+- A missing `;` before a block is no longer misread as a compound literal.
+
+The generated C is clean again: `printf(...)` is emitted unwrapped. The 72
+tests pass with clang and gcc and under the sanitizers.
+
+### 19. Fourth review round
+
+The fourth round confirmed 15 findings and rejected none. Four were
+regressions caused by the round-two and round-three guards themselves:
+
+- Double parentheses broke `__attribute__((fallthrough))`. They are now
+  emitted only where an operand follows, which is the only place C could
+  read a cast.
+- The C-declaration detector rejected valid expressions such as
+  `n * sq(3) == 18 || puts(...)`. It now requires the declarator to end
+  in `;`, `,` or `=`.
+- Nested brackets like `[sizeof t / sizeof t[0]]` defeated the
+  compound-literal check.
+- `__asm__ __volatile__` got a bogus hint.
+
+The detector also missed `size_t * (p) = …` and `size_t * p^ = …`, and
+its hints dropped qualifiers, array sizes, storage classes and
+`_Complex`. All of this is fixed, along with:
+
+- `_Pragma` is now allowed only as a statement of its own, since
+  `_Pragma("") * p` smuggled in a dereference.
+- `__signed__` and `__complex__` are added to P20.
+- Function prototypes and function-pointer declarators get their own
+  messages.
+
+**A pattern worth noting.** Each round closes one way for C to read
+Kelvin text differently from Kelvin's parse, and the fixes add new edges
+of their own. The root cause is that kelvinc does not read C headers, so
+it cannot know which names are typedefs or macros. Two residual classes
+are documented: a `typedefname(x);` statement, and header macros that
+expand to nothing or to an operator. The remaining choice belongs to the
+user: keep heuristic guards, teach kelvinc to read headers, or keep the
+guards minimal. There are 87 tests.
+
+### 20. Strategy for C misreading Kelvin text
+
+**Claude** asked how far Kelvin should go:
+
+1. keep the heuristic guards
+2. read C headers with `cc -E` to learn typedef names
+3. keep only minimal guards
+
+> Keep the guards, stop here
+
+The current guards stay, the residual cases remain documented
+limitations, and no further review rounds are run.

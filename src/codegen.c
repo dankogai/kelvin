@@ -54,6 +54,7 @@ static void sync(Pos p) {
 /* ---------- types ---------- */
 
 static char *expr(Expr *e);
+static char *operand_before(Expr *e);
 
 /* Kelvin's sized integers are <stdint.h>'s; 128-bit ones exist where the
    C compiler provides __int128. bool, true and false are <stdbool.h>'s. */
@@ -130,12 +131,14 @@ static char *expr_bare(Expr *e) {
     case E_BINARY:
         if (!strcmp(e->op, ","))
             return strfmt("%s, %s", expr(e->a), expr(e->b));
+        if (strchr("-+*&", e->op[0]) && e->op[1] == '\0')
+            return strfmt("%s %s %s", operand_before(e->a), c_op(e->op), expr(e->b));
         return strfmt("%s %s %s", expr(e->a), c_op(e->op), expr(e->b));
     case E_TERNARY:
         return strfmt("%s ? %s : %s", expr(e->a), expr(e->b), expr(e->c));
     case E_CALL: {
         Buf b = {0};
-        buf_printf(&b, "%s(", expr(e->a));
+        buf_printf(&b, "%s(", operand_before(e->a));
         for (int i = 0; i < e->items.len; i++)
             buf_printf(&b, "%s%s", i ? ", " : "", expr(e->items.data[i]));
         buf_puts(&b, ")");
@@ -148,12 +151,21 @@ static char *expr_bare(Expr *e) {
             return strfmt("%s->%s", expr(e->a->a), e->text);
         return strfmt("%s.%s", e->a ? expr(e->a) : "", e->text);
     case E_CAST:
+        if (e->op && !strcmp(e->op, "converter"))
+            return strfmt("(%s)(%s)", decl(e->type, ""), expr_bare(e->a));
         return strfmt("(%s)%s", decl(e->type, ""), expr(e->a));
     case E_COMPOUND:
         return strfmt("(%s)%s", decl(e->type, ""), initializer(e->a));
     case E_SIZEOF_TYPE:
         return strfmt("sizeof(%s)", decl(e->type, ""));
     case E_SIZEOF_EXPR:
+        /* sizeof(name) may name a C typedef, so keep single parentheses.
+           Any other parenthesized operand gets double parentheses, so that
+           C cannot read e.g. `sizeof (T * (U8))` as a type name */
+        if (e->a->kind == E_IDENT && e->a->paren)
+            return strfmt("sizeof(%s)", e->a->text);
+        if (e->a->paren)
+            return strfmt("sizeof (%s)", expr(e->a));
         return strfmt("sizeof %s", expr(e->a));
     case E_INIT:
         return initializer(e);
@@ -164,6 +176,20 @@ static char *expr_bare(Expr *e) {
 static char *expr(Expr *e) {
     char *s = expr_bare(e);
     return e->paren ? strfmt("(%s)", s) : s;
+}
+
+/* C reads `( type-name )` followed by an operand as a cast. A
+   parenthesized name, call or index could be a C type name, as in
+   (size_t) or (size_t[2]), so where an operand follows it (a binary
+   - + * &, or a call's argument list) it is printed with double
+   parentheses, which C never reads as a type name: Kelvin's
+   `(size_t) - 1` becomes `((size_t)) - 1` and fails in C instead of
+   silently casting. Elsewhere, e.g. __attribute__((fallthrough)), the
+   parentheses are printed as written. */
+static char *operand_before(Expr *e) {
+    char *s = expr(e);
+    bool may_be_type = e->kind == E_IDENT || e->kind == E_CALL || e->kind == E_INDEX;
+    return e->paren && may_be_type ? strfmt("(%s)", s) : s;
 }
 
 static char *initializer(Expr *e) {

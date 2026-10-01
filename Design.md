@@ -43,7 +43,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 10 | `bool` is built in | `_Bool` (or `bool` via `<stdbool.h>`) | `bool` | 2026-10-01 |
 | 11 | An inferred C double literal is `f64` | `double d = 1.5;` | `var d = 1.5;` | 2026-10-01 |
 | 12 | C headers are importable | `#include <stdio.h>` | `#import <stdio.h> as C` | 2026-10-01 |
-| 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `val: u64 = 10`, `f: f32 = 1.5` | 2026-10-01 |
+| 13 | Literals carry no size hints; the declaration carries the type | `10UL`, `1.5f` | `var val: u64 = 10`, `var f: f32 = 1.5` | 2026-10-01 |
 | 14 | No `(T)v` casts: convert with `T(v)` or `v as T` | `(int)x`, `(int *)malloc(n)` | `i32(x)`, `malloc(n) as i32^` | 2026-10-01 |
 
 Notes:
@@ -64,8 +64,9 @@ Notes:
 - (7) Using a C integer name is an error that suggests the replacement, e.g.
   `'long' is not a Kelvin type; use i64 or u64 (or i128/u128)`. The words
   stay reserved, because they are still C keywords in the generated code.
-- (8) For now only integer literals (optionally negated) are inferred, in
-  `var` declarations: `var x = y + 1;` or `var f = 1.5;` still need a type.
+- (8) Only literals (optionally negated) are inferred, and only in `var`
+  declarations: `var x = y + 1;` still needs a type. #11 extends this to
+  floating literals.
 - (9, 10) `float`, `double` and `_Bool` are errors that suggest `f32`,
   `f64` and `bool`. The generated C includes `<stdbool.h>`.
 - (11) This extends #8. A literal with a `.` or an exponent is `f64`.
@@ -76,14 +77,68 @@ Notes:
   directive, and the rest of the preprocessor is still TODO.
 - (13) C's suffixes `u`, `l`, `ll`, `f` and their combinations are errors
   that suggest the typed declaration, e.g. `'10UL': literals have no
-  suffixes in Kelvin; put the type on the declaration, e.g. 'x: u64 = 10'`.
+  suffixes in Kelvin; put the type on the declaration, e.g. 'var x: u64 = 10'`.
   Hex digits `a`–`f` are of course not suffixes: `0xff` is fine. An
   unsuffixed literal still has C's type (`1` is an `int`), so C's
   `1UL << 40` is written `u64(1) << 40`.
 - (14) Both forms have exactly C's cast semantics: `i32(3.9)` is 3 and
-  `u8(300)` is 44. `(T)v` is an error that suggests the replacements, and
-  so is a parenthesized expression followed directly by a value, as in
-  C's `(size_t)n`. `T(v)` is emitted as `((T)(v))` and `v as T` as `(T)v`.
+  `u8(300)` is 44. `T(v)` takes exactly one value, and a statement may
+  start with one (`u8(x) as void;`). `(T)v` is an error that suggests the
+  replacements.
+
+  Kelvin cannot see C typedefs or macros, which leaves C room to read
+  Kelvin text differently from how Kelvin parsed it. These guards keep
+  that from happening silently:
+  - **Casts to typedef names.** `(size_t)n` is caught by the token after
+    `)`: a value, `!`, `sizeof`, `true`/`false`, a converter, or
+    `++`/`--` before a name. `(T *)p` and `(T const *)p` are caught by
+    their shape.
+  - **Parenthesized names before an operand.** In `(size_t)-1`,
+    `(size_t)(n)` or `(int32_t)*p`, Kelvin reads a subtraction, call or
+    multiplication. Where a parenthesized name, call or index is followed
+    by an operand (before a binary `-`, `+`, `*` or `&`, or as a callee),
+    it is emitted with double parentheses: `((size_t)) - 1`. C never reads
+    that as a cast, so it rejects the line instead. Elsewhere parentheses
+    are printed as written, so `__attribute__((fallthrough))` and macro
+    arguments are untouched. Under `sizeof`, a parenthesized operand other
+    than a lone name is also doubled.
+  - **C declarations at the start of a statement or `for` initializer.**
+    These are rejected with the Kelvin spelling as a hint. A shape counts
+    only when its declarator ends with `;`, `,` or `=`, so
+    `n * f(x) == 4 || g();` stays an expression. Examples:
+    - `i32 * r = &x;` suggests `var r: i32^`, and `const u8 *s` suggests
+      `var s: const u8^`.
+    - `size_t a[3];` suggests `var a: size_t[3]`, `static size_t m;`
+      suggests `static var m: size_t`, and `size_t * (p) = q;` and
+      `size_t * p^ = &q;` are caught too.
+    - `size_t f(void);` points to function syntax, and a C function-pointer
+      declarator is reported as not available yet.
+    - `F ~ cb = 0;` is rejected, because Apple's clang reads the emitted
+      `F ^ cb` as a block pointer.
+  - **C compiler keywords** that act as prefix operators or type
+    specifiers in C (`__extension__`, `__real__`, `typeof`, `_BitInt`,
+    `__signed__`, ...) are rejected (P20). `_Pragma("...")` is allowed
+    only as a statement of its own.
+  - **Emitted form.** `T(v)` becomes `((T)(v))`, which groups `v` even when
+    it is an unparenthesized macro such as `1.5 + 2.5`. `v as T` becomes
+    `(T)v`, which is exactly C's cast.
+
+  Known limitations, which follow from Kelvin not reading C headers. The
+  user decided to keep the current guards and accept these, rather than
+  read headers (Dialogue §20):
+  - A statement `name(x);` or `name(x) = v;` is a call or a function-like
+    macro (e.g. `ARR(i) = 5`), unless `name` is a typedef, in which case C
+    reads a declaration of `x`. Converting to a typedef type is written
+    `x as size_t`, never `size_t(x)`. Wrapping such statements in
+    parentheses was tried and reverted, because it breaks header macros
+    that expand to statements (`do { } while (0)`, `static_assert`,
+    `timeradd`, ...).
+  - A header macro that expands to nothing or to an operator can change
+    how C reads the tokens around it. For example, macOS's
+    `__BEGIN_DECLS * p` is C's `*p`. Kelvin treats every macro as an
+    ordinary name.
+  - `__asm__ __volatile__ (...)`, two names in a row, cannot be written
+    in Kelvin. `__asm__(...)` can.
 
 ## Provisional decisions (made during implementation; please review)
 
@@ -102,7 +157,7 @@ all. None of them has been explicitly agreed yet.
 | P8 | Struct and union members end with `;` | `struct p { x: i32; y: i32; };` | Kept from C, as is the `;` after `}` |
 | P9 | Storage class goes in front | `static f(): i32`, `static var`, `extern var` | Kept from C |
 | P10 | Anonymous enums are allowed | `enum { LIMIT = 3 };` | The common C idiom for constants |
-| P11 | Kelvin reserves `var` and the sized type names | | C code that uses them as identifiers cannot be named from Kelvin yet |
+| P11 | Kelvin reserves `var` and the sized type names (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet |
 | P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
 | P13 | `u8` and C's `char` mix freely | `var s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
 | P14 | `true` and `false` are built in alongside `bool` | `var done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
@@ -110,7 +165,8 @@ all. None of them has been explicitly agreed yet.
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
-| P19 | Compound literals `(T){...}` stay | `(struct point){.y = 7}` | They are not casts, although they share C's syntax. A Kelvin spelling is an open question (Q10) |
+| P19 | Compound literals `(T){...}` stay, for any type (including typedef names with suffixes or qualifiers) and under `sizeof` | `(struct point){.y = 7}`, `(size_t[2]){1, 2}`, `(div_t^){NULL}`, `sizeof (i32[3]){1, 2, 3}` | They are not casts, although they share C's syntax. A `(...)` followed by `{` can only be a compound literal, because an expression is never followed by `{`, so its contents are read as a type. A Kelvin spelling is an open question (Q10) |
+| P20 | C compiler keywords beyond C11 are rejected | `__extension__`, `__real__`, `__imag__`, `__alignof__`, `alignof`, `__typeof__`, `typeof`, `_BitInt`, `__int128` (use `i128`), `__signed__`, `__complex__`, `__auto_type`, `_Float16`, ... | In C they act as prefix operators or type specifiers, which would let a C cast or a prefix `*` dereference through (#14). `__asm__(...)` and `__attribute__((...))` stay usable, and `_Pragma("...")` is allowed as a statement of its own |
 
 ## Open questions
 
@@ -152,6 +208,10 @@ undefined behavior.
 
 - The rest of the preprocessor (`#define`, `#if`, ...). Headers are
   covered by `#import ... as C`.
+- `sizeof` of a type spelled from a C typedef plus a suffix, e.g.
+  `sizeof(FILE^)`. Kelvin reads it as dereferencing a variable named
+  `FILE`. `sizeof(size_t)` works, and so does `sizeof p` for a variable
+  `p: FILE^`.
 - `typedef`
 - Function pointer types
 - Bit-fields

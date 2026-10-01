@@ -22,6 +22,20 @@ static const char *keywords[] = {
     "_Static_assert", "_Thread_local", NULL,
 };
 
+/* C compiler keywords beyond C11 (GNU extensions and C23). In C they act
+   as prefix operators or type specifiers, so `__extension__ * p` would be
+   C's prefix dereference and `(typeof(x))-1` a cast. Kelvin rejects them. */
+static const struct { const char *word, *hint; } foreign_keywords[] = {
+    {"__extension__", NULL}, {"__real__", NULL}, {"__real", NULL}, {"__imag__", NULL},
+    {"__imag", NULL}, {"__alignof__", NULL}, {"__alignof", NULL}, {"alignof", NULL},
+    {"__typeof__", NULL}, {"__typeof", NULL}, {"typeof", NULL}, {"typeof_unqual", NULL},
+    {"__typeof_unqual__", NULL}, {"_BitInt", NULL}, {"__int128", "i128 or u128"},
+    {"__auto_type", NULL}, {"__label__", NULL}, {"_Float16", NULL}, {"_Float128", NULL},
+    {"__float128", NULL}, {"__fp16", NULL}, {"__bf16", NULL}, {"_Decimal32", NULL},
+    {"_Decimal64", NULL}, {"_Decimal128", NULL}, {"__signed__", NULL}, {"__signed", NULL},
+    {"__complex__", NULL}, {"__complex", NULL},
+};
+
 /* Longest first, for greedy matching. Differences from C:
    `^=` is absent, because `p^ = x` assigns through a pointer; XOR-assign
    is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`. */
@@ -120,7 +134,7 @@ static void check_number(Pos pos, const char *s, const char *end) {
         bool has_f = memchr(p, 'f', (size_t)(end - p)) || memchr(p, 'F', (size_t)(end - p));
         bool has_u = memchr(p, 'u', (size_t)(end - p)) || memchr(p, 'U', (size_t)(end - p));
         const char *type = floating ? (has_f ? "f32" : "f64") : has_u ? "u64" : "i64";
-        error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'x: %s = %.*s'",
+        error_at(pos, "'%.*s': literals have no suffixes in Kelvin; put the type on the declaration, e.g. 'var x: %s = %.*s'",
                  n, s, type, (int)(p - s), s);
     }
     error_at(pos, "malformed number '%.*s'", n, s);
@@ -234,6 +248,12 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             for (int i = 0; keywords[i]; i++)
                 if (!strcmp(t->text, keywords[i]))
                     t->kind = TK_KEYWORD;
+            for (size_t i = 0; i < sizeof foreign_keywords / sizeof foreign_keywords[0]; i++)
+                if (!strcmp(t->text, foreign_keywords[i].word)) {
+                    if (foreign_keywords[i].hint)
+                        error_at(pos, "'%s' is a C compiler keyword; use %s", t->text, foreign_keywords[i].hint);
+                    error_at(pos, "'%s' is a C compiler keyword, not available in Kelvin", t->text);
+                }
             continue;
         }
         if (isdigit((unsigned char)c) || (c == '.' && isdigit((unsigned char)lx.p[1]))) {

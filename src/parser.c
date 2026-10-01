@@ -12,6 +12,7 @@
 
 static Token *toks;
 static int cur;
+static bool pragma_statement; /* parsing `_Pragma("...");` as a statement */
 
 static Token *peek(void) { return &toks[cur]; }
 static Token *peek_at(int k) {
@@ -103,11 +104,82 @@ static bool paren_type_ahead(void) {
     return !(is_converter(peek2()) && is_p(peek_at(2), "("));
 }
 
-static void reject_c_int_name(Token *t) {
+/* the Kelvin replacement for a C type name, or NULL */
+static const char *kelvin_for_c_word(Token *t) {
+    if (is_kw(t, "long") && t[0].kind != TK_EOF && is_kw(&t[1], "double"))
+        return "f64 (long double has no Kelvin type yet)";
     for (size_t i = 0; i < sizeof dead_words / sizeof dead_words[0]; i++)
         if (is_kw(t, dead_words[i].c))
-            error_at(t->pos, "'%s' is not a Kelvin type; use %s", t->text, dead_words[i].kelvin);
+            return dead_words[i].kelvin;
+    return NULL;
 }
+
+static void reject_c_int_name(Token *t) {
+    const char *k = kelvin_for_c_word(t);
+    if (k)
+        error_at(t->pos, "'%s' is not a Kelvin type; use %s", t->text, k);
+}
+
+static bool is_qualifier(Token *t);
+static const char *kelvin_for_c_word(Token *t);
+
+/* can this token start an operand (a value or a prefix operator)? */
+static bool starts_operand(Token *n) {
+    return n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
+           is_p(n, "(") || is_p(n, "-") || is_p(n, "+") || is_p(n, "!") || is_p(n, "~") || is_p(n, "&") ||
+           is_p(n, "++") || is_p(n, "--") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") ||
+           is_converter(n);
+}
+
+/* the index just past the balanced (...) or [...] group starting at i */
+static int skip_group(int i) {
+    int depth = 0;
+    for (; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "["))
+            depth++;
+        else if ((is_p(&toks[i], ")") || is_p(&toks[i], "]")) && --depth == 0)
+            return i + 1;
+    }
+    return i;
+}
+
+/* Do the tokens between the `(` at index i and its `)` spell a type, such
+   as `size_t[2]` or `const div_t^`? Used to tell (T){...} from a missing
+   `;` before a block. */
+static bool paren_holds_type(int i) {
+    i++;
+    while (is_qualifier(&toks[i]))
+        i++;
+    if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum"))
+        i++;
+    if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i]))
+        return false;
+    for (i++;; i++) {
+        if (kelvin_for_c_word(&toks[i]))
+            continue; /* unsigned long, long double: reported later */
+        if (is_qualifier(&toks[i]) || is_p(&toks[i], "^") || is_kw(&toks[i], "_Complex"))
+            continue;
+        if (is_p(&toks[i], "[")) {
+            i = skip_group(i) - 1;
+            continue;
+        }
+        return is_p(&toks[i], ")");
+    }
+}
+
+/* the token after the `)` that matches the `(` at token index i, or NULL */
+static Token *after_matching_paren(int i) {
+    int depth = 0;
+    for (; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "("))
+            depth++;
+        else if (is_p(&toks[i], ")") && --depth == 0)
+            return &toks[i + 1];
+    }
+    return NULL;
+}
+
+#define CAST_HINT "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type"
 
 static bool is_qualifier(Token *t) { return is_kw(t, "const") || is_kw(t, "volatile"); }
 
@@ -134,7 +206,13 @@ static Expr *parse_assign(void);
    Suffixes apply left to right: `i32^[4]` is an array of four pointers to
    i32, and `i32[4]^` is a pointer to an array of four i32. Consecutive
    brackets read in C order, so `i32[2][3]` is C's `int32_t[2][3]`. */
-static Type *parse_type(void) {
+typedef enum {
+    TYPE_DECL,   /* after `:` or in sizeof(...) */
+    TYPE_AS,     /* after `as`: stop at `*`, which is multiplication */
+    TYPE_PAREN,  /* inside `(...)` in an expression: a C cast or compound literal */
+} TypeContext;
+
+static Type *parse_type_in(TypeContext ctx) {
     Type *base = xcalloc(1, sizeof *base);
     base->kind = T_BASE;
     base->pos = peek()->pos;
@@ -168,7 +246,16 @@ static Type *parse_type(void) {
             parse_qualifiers(p);
             t = p;
         } else if (is_p(tok, "*")) {
-            error_at(tok->pos, "pointer types are written with a postfix '^', as in 'int^'");
+            if (ctx == TYPE_AS) {
+                /* `x as T * y` multiplies; `x as T*` followed by nothing
+                   is C's pointer habit */
+                if (!starts_operand(&tok[1]))
+                    error_at(tok->pos, "pointer types are written with a postfix '^', as in 'i32^'");
+                return t;
+            }
+            if (ctx == TYPE_PAREN)
+                error_at(tok->pos, CAST_HINT "; pointer types are written with a postfix '^', as in 'i32^'");
+            error_at(tok->pos, "pointer types are written with a postfix '^', as in 'i32^'");
         } else if (is_p(tok, "[")) {
             List sizes = {0};
             List positions = {0};
@@ -191,6 +278,8 @@ static Type *parse_type(void) {
         }
     }
 }
+
+static Type *parse_type(void) { return parse_type_in(TYPE_DECL); }
 
 /* ---------- expressions ---------- */
 
@@ -250,6 +339,8 @@ static Expr *parse_postfix_ops(Expr *e) {
 
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
+        error_at(t->pos, "_Pragma(\"...\") is only allowed as a statement of its own");
     if (t->kind == TK_IDENT || t->kind == TK_NUMBER || t->kind == TK_CHAR || is_kw(t, "true") ||
         is_kw(t, "false")) {
         advance();
@@ -265,39 +356,108 @@ static Expr *parse_primary(void) {
     }
     reject_c_int_name(t);
     if (is_converter(t)) {
-        /* T(v): a converter for a built-in type; emitted as ((T)(v)) */
-        if (!is_p(peek2(), "("))
+        /* T(v): a converter for a built-in type. codegen emits ((T)(v)),
+           grouping v even when it is a header macro such as 1.5 + 2.5 */
+        if (!is_p(peek2(), "(")) {
+            if (cur > 0 && is_kw(&toks[cur - 1], "sizeof")) {
+                Buf type = {0};
+                buf_puts(&type, t->text);
+                for (int i = cur + 1;;) {
+                    if (is_qualifier(&toks[i]) || is_kw(&toks[i], "_Complex")) {
+                        buf_printf(&type, " %s", toks[i++].text);
+                    } else if (is_p(&toks[i], "^")) {
+                        buf_puts(&type, toks[i++].text);
+                    } else if (is_p(&toks[i], "[")) {
+                        for (int end = skip_group(i); i < end; i++)
+                            buf_puts(&type, toks[i].text);
+                    } else {
+                        break;
+                    }
+                }
+                error_at(t->pos, "sizeof a type needs parentheses: sizeof(%s)", type.buf);
+            }
+            if (is_p(peek2(), "^") || is_p(peek2(), "["))
+                error_at(t->pos, "converters are only for built-in types like %s(v); for other types write 'v as T'",
+                         t->text);
             error_at(t->pos, "'%s' is a type; convert a value with %s(v) or v as %s", t->text, t->text, t->text);
+        }
         advance();
         Expr *e = new_expr(E_CAST, t->pos);
+        e->op = "converter";
         e->type = base_type(t->text, t->pos);
         e->paren = true;
         advance();
-        e->a = parse_expr();
-        e->a->paren = true;
+        e->a = parse_assign();
+        if (is_p(peek(), ","))
+            error_at(peek()->pos, "a converter takes exactly one value: %s(v)", t->text);
         expect_p(")");
         return e;
     }
-    if (paren_type_ahead()) {
-        /* (T){...} is a compound literal; (T)v is C's cast, not Kelvin's */
-        advance();
-        Type *type = parse_type();
-        expect_p(")");
-        if (!is_p(peek(), "{"))
-            error_at(t->pos, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type");
-        Expr *e = new_expr(E_COMPOUND, t->pos);
-        e->type = type;
-        e->a = parse_initializer();
-        return e;
+    if (is_kw(t, "void"))
+        error_at(t->pos, "'void' is a type; discard a value with 'v as void'");
+    if (is_p(t, "(")) {
+        /* `(...)` followed by `{` is a compound literal; its type may be a C
+           typedef with suffixes, e.g. (size_t[2]){1, 2}, because an
+           expression is never followed by `{` */
+        Token *after = after_matching_paren(cur);
+        bool compound = after && is_p(after, "{") && paren_holds_type(cur);
+        Token *inner = peek2();
+        bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
+        if (kelvin_for_c_word(inner)) {
+            if (compound)
+                reject_c_int_name(inner);
+            error_at(t->pos, CAST_HINT "; '%s' is not a Kelvin type, use %s", inner->text, kelvin_for_c_word(inner));
+        }
+        if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
+            error_at(t->pos, "C casts are not Kelvin: discard a value with 'v as void'");
+        if (compound && !converter_call && (starts_type(inner) || inner->kind == TK_IDENT)) {
+            advance();
+            Type *type = parse_type_in(TYPE_DECL);
+            expect_p(")");
+            Expr *e = new_expr(E_COMPOUND, t->pos);
+            e->type = type;
+            e->a = parse_initializer();
+            return e;
+        }
+        {
+            /* (T *)p, (FILE **)p, (T const *)p, (T * const)p, (T *){...} */
+            int i = 1;
+            while (is_qualifier(peek_at(i)))
+                i++;
+            if (peek_at(i)->kind == TK_IDENT || is_base_word(peek_at(i))) {
+                i++;
+                while (is_qualifier(peek_at(i)))
+                    i++;
+                bool star = false;
+                while (is_p(peek_at(i), "*") || (star && is_qualifier(peek_at(i)))) {
+                    star = true;
+                    i++;
+                }
+                if (star && is_p(peek_at(i), ")")) {
+                    if (is_p(peek_at(i + 1), "{"))
+                        error_at(t->pos, "pointer types are written with a postfix '^', as in '(i32^){0}'");
+                    error_at(t->pos, CAST_HINT "; pointer types are written with a postfix '^', as in 'i32^'");
+                }
+            }
+        }
+        if (paren_type_ahead()) {
+            /* (T)v is C's cast, not Kelvin's */
+            advance();
+            parse_type_in(TYPE_PAREN);
+            error_at(t->pos, CAST_HINT);
+        }
     }
     if (accept_p("(")) {
         Expr *e = parse_expr();
         expect_p(")");
         e->paren = true;
         /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
-        TokKind k = peek()->kind;
-        if (k == TK_IDENT || k == TK_NUMBER || k == TK_CHAR || k == TK_STRING)
-            error_at(t->pos, "C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type");
+        Token *n = peek();
+        if (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
+            is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_converter(n) ||
+            ((is_p(n, "++") || is_p(n, "--")) &&
+             (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR)))
+            error_at(t->pos, CAST_HINT);
         return e;
     }
     error_at(t->pos, "expected an expression, found %s", desc(t));
@@ -317,10 +477,20 @@ static Expr *parse_unary(void) {
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
     if (accept_kw("sizeof")) {
         if (paren_type_ahead()) {
-            advance();
-            Expr *e = new_expr(E_SIZEOF_TYPE, t->pos);
-            e->type = parse_type();
+            Token *open = advance();
+            Type *type = parse_type();
             expect_p(")");
+            if (is_p(peek(), "{")) {
+                /* sizeof (T){...} is the size of a compound literal */
+                Expr *c = new_expr(E_COMPOUND, open->pos);
+                c->type = type;
+                c->a = parse_initializer();
+                Expr *e = new_expr(E_SIZEOF_EXPR, t->pos);
+                e->a = parse_postfix_ops(c);
+                return e;
+            }
+            Expr *e = new_expr(E_SIZEOF_TYPE, t->pos);
+            e->type = type;
             return e;
         }
         Expr *e = new_expr(E_SIZEOF_EXPR, t->pos);
@@ -342,7 +512,7 @@ static Expr *parse_cast(void) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
-        c->type = parse_type();
+        c->type = parse_type_in(TYPE_AS);
         e = c;
     }
     return e;
@@ -520,6 +690,113 @@ static const char *parse_storage(void) {
 
 static Stmt *parse_stmt(void);
 
+/* Report C-style declarations at the start of a statement or a `for`
+   initializer, with their Kelvin spelling:
+
+     i32 * r = &x;    struct pt *p;    size_t n = 0;    const u8 *s;
+     size_t a[3];     static size_t m;  size_t f(void);  FILE **pp;
+
+   As Kelvin these would be discarded multiplications or juxtaposed names,
+   but C reads the ones that start with a typedef name as declarations.
+   `T ~ b = 0` is caught too: Kelvin's `~` prints as `^`, which Apple's
+   clang reads as a block-pointer declarator. Only shapes that end the
+   statement (`;`, `,` or `=` after the declarator) are reported, so
+   `n * f(x) == 4 || g();` is still an expression. */
+static void reject_c_declaration(void) {
+    int i = cur;
+    Pos pos = toks[i].pos;
+    const char *storage = NULL;
+    if (is_kw(&toks[i], "static") || is_kw(&toks[i], "extern") || is_kw(&toks[i], "register") ||
+        is_kw(&toks[i], "auto"))
+        storage = toks[i++].text;
+    bool base_const = false, base_volatile = false;
+    for (; is_qualifier(&toks[i]); i++)
+        *(is_kw(&toks[i], "const") ? &base_const : &base_volatile) = true;
+    char *type;
+    if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum")) {
+        if (toks[i + 1].kind != TK_IDENT)
+            return;
+        type = strfmt("%s %s", toks[i].text, toks[i + 1].text);
+        i += 2;
+    } else if (toks[i].kind == TK_IDENT || (is_base_word(&toks[i]) && !is_kw(&toks[i], "_Complex"))) {
+        static const char *statement_words[] = {"__asm__", "__asm", "asm", "__attribute__", "_Pragma", NULL};
+        for (int k = 0; statement_words[k]; k++)
+            if (!strcmp(toks[i].text, statement_words[k]))
+                return;
+        if (is_converter(&toks[i]) && is_p(&toks[i + 1], "("))
+            return;
+        type = toks[i].text;
+        i++;
+        if (is_kw(&toks[i], "_Complex")) {
+            type = strfmt("%s _Complex", type);
+            i++;
+        }
+    } else {
+        return;
+    }
+    for (; is_qualifier(&toks[i]); i++)
+        *(is_kw(&toks[i], "const") ? &base_const : &base_volatile) = true;
+    Buf suffix = {0};
+    buf_puts(&suffix, "");
+    bool block = false;
+    while (is_p(&toks[i], "*")) {
+        buf_puts(&suffix, "^");
+        for (i++; is_qualifier(&toks[i]); i++)
+            buf_printf(&suffix, " %s", toks[i].text);
+    }
+    if (!suffix.len && is_p(&toks[i], "~")) {
+        block = true;
+        i++;
+    }
+    /* the declarator: a name, possibly parenthesized, then (...), [...]
+       or ^ suffixes */
+    int name_at = i;
+    if (is_p(&toks[i], "(") && (suffix.len || block)) {
+        /* `T * (p) = ...`; without a `*`, `name(x)` is a call (or the
+           documented typedef ambiguity) and is left alone */
+        int end = skip_group(i);
+        for (name_at = i; name_at < end && toks[name_at].kind != TK_IDENT; name_at++)
+            ;
+        if (name_at == end)
+            return;
+        i = end;
+    } else if (toks[i].kind == TK_IDENT) {
+        i++;
+    } else {
+        return;
+    }
+    bool function = false, function_pointer = false;
+    Buf dims = {0};
+    buf_puts(&dims, "");
+    while (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "^")) {
+        if (is_p(&toks[i], "^"))
+            buf_puts(&suffix, "^");
+        if (is_p(&toks[i], "(")) {
+            function_pointer = function_pointer || is_p(&toks[i - 1], "^");
+            function = true;
+        }
+        int end = is_p(&toks[i], "^") ? i + 1 : skip_group(i);
+        if (is_p(&toks[i], "["))
+            for (int k = i; k < end; k++)
+                buf_puts(&dims, toks[k].text);
+        i = end;
+    }
+    if (!is_p(&toks[i], ";") && !is_p(&toks[i], ",") && !is_p(&toks[i], "="))
+        return;
+    const char *name = toks[name_at].text;
+    if (block)
+        error_at(pos, "'%s ~ %s' as a statement would be read by C as a block-pointer declaration; "
+                      "declarations start with 'var'", type, name);
+    char *quals = strfmt("%s%s", base_const ? "const " : "", base_volatile ? "volatile " : "");
+    if (function_pointer)
+        error_at(pos, "'%s' looks like a C function-pointer declaration; function pointer types are not "
+                      "available in Kelvin yet", name);
+    if (function)
+        error_at(pos, "functions are declared at the top level as '%s(...): %s%s%s'", name, quals, type, suffix.buf);
+    error_at(pos, "declarations start with 'var', as in '%s%svar %s: %s%s%s%s'", storage ? storage : "",
+             storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
+}
+
 static Stmt *new_stmt(StmtKind kind, Pos pos) {
     Stmt *s = xcalloc(1, sizeof *s);
     s->kind = kind;
@@ -554,6 +831,9 @@ static Stmt *parse_stmt(void) {
         return parse_block();
     if (accept_p(";"))
         return new_stmt(S_EMPTY, pos);
+    if ((is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto")) &&
+        !is_kw(peek2(), "var"))
+        reject_c_declaration();
     if ((is_kw(t, "static") || is_kw(t, "extern")) && is_kw(peek2(), "var")) {
         Stmt *s = new_stmt(S_VAR, pos);
         s->storage = parse_storage();
@@ -598,6 +878,7 @@ static Stmt *parse_stmt(void) {
             s->init = new_stmt(S_VAR, advance()->pos);
             parse_var_list(&s->init->vars);
         } else if (!is_p(peek(), ";")) {
+            reject_c_declaration();
             s->init = new_stmt(S_EXPR, peek()->pos);
             s->init->expr = parse_expr();
         }
@@ -655,8 +936,25 @@ static Stmt *parse_stmt(void) {
         s->body = parse_stmt();
         return s;
     }
-    if (starts_type(t))
-        error_at(pos, "declarations start with 'var', as in 'var x: %s'", t->text);
+    if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && is_p(peek2(), "(") &&
+        peek_at(2)->kind == TK_STRING && is_p(peek_at(3), ")") && is_p(peek_at(4), ";")) {
+        pragma_statement = true;
+        Stmt *s = new_stmt(S_EXPR, pos);
+        s->expr = parse_expr();
+        pragma_statement = false;
+        expect_p(";");
+        return s;
+    }
+    reject_c_declaration();
+    bool call_like = (is_converter(t) || is_kw(t, "void")) && is_p(peek2(), "(");
+    if (!call_like && starts_type(t)) {
+        const char *example = "T";
+        if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)
+            example = strfmt("%s %s", t->text, peek2()->text);
+        else if (is_base_word(t) && !is_kw(t, "void"))
+            example = t->text;
+        error_at(pos, "declarations start with 'var', as in 'var x: %s'", example);
+    }
     Stmt *s = new_stmt(S_EXPR, pos);
     s->expr = parse_expr();
     expect_p(";");
