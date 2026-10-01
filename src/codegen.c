@@ -25,14 +25,20 @@ typedef struct {
     const char *fn;
 } Method;
 static List methods;        /* Method * */
-static List user_tostring;  /* receiver type names with a user toString */
+static int method_temps;    /* names the receiver temporaries */
 static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
 
 static void line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
+/* while set, every emitted line maps to this .k position (generated
+   code such as a derived toString) */
+static Pos pinned_line;
+
 static void line(const char *fmt, ...) {
+    if (line_directives && pinned_line.file)
+        buf_printf(&out, "#line %d \"%s\"\n", pinned_line.line, pinned_line.file);
     for (int i = 0; i < indent; i++)
         buf_puts(&out, "    ");
     va_list ap;
@@ -195,9 +201,11 @@ static char *expr_bare(Expr *e) {
     case E_INIT:
         return initializer(e);
     case E_METHOD: {
-        /* `recv` appears twice, but _Generic's controlling expression is
-           not evaluated, so it is evaluated once */
+        /* The receiver is evaluated once into a temporary, which also
+           keeps chains like a.b().c() linear in size (GNU statement
+           expression and __auto_type, both accepted by gcc and clang) */
         char *recv = expr(e->a);
+        char *tmp = strfmt("kv_self%d", ++method_temps);
         Buf assoc = {0};
         buf_puts(&assoc, "");
         if (!strcmp(e->text, "toString") || !strcmp(e->text, "fmt"))
@@ -214,7 +222,8 @@ static char *expr_bare(Expr *e) {
         buf_puts(&args, "");
         for (int i = 0; i < e->items.len; i++)
             buf_printf(&args, ", %s", expr(e->items.data[i]));
-        return strfmt("_Generic((%s), %sdefault: %s)(%s%s)", recv, assoc.buf, fallback, recv, args.buf);
+        return strfmt("({ __auto_type %s = %s; _Generic((%s), %sdefault: %s)(%s%s); })", tmp, recv, tmp, assoc.buf,
+                      fallback, tmp, args.buf);
     }
     }
     return NULL;
@@ -390,6 +399,9 @@ static void register_method(const char *method, Type *recv, const char *fn) {
         Method *m = methods.data[i];
         if (!strcmp(m->method, method) && !strcmp(m->ctype, ctype))
             return;
+        if (!strcmp(m->fn, fn))
+            error_at(recv->pos, "the method %s.%s() would have the same C name, %s, as another method", ctype, method,
+                     fn);
     }
     Method *m = xcalloc(1, sizeof *m);
     m->method = method;
@@ -442,6 +454,7 @@ static char *to_string_expr(Type *t, const char *lv) {
         {"u32", "kv_toString_u64"},   {"u64", "kv_toString_u64"},  {"i128", "kv_toString_i128"},
         {"u128", "kv_toString_u128"}, {"f32", "kv_toString_f32"},  {"f64", "kv_toString_f64"},
         {"bool", "kv_toString_bool"}, {"String", "kv_toString_String"},
+        {"f32 _Complex", "kv_toString_cf"}, {"f64 _Complex", "kv_toString_cd"},
     };
     for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
         if (!strcmp(n, direct[i].type))
@@ -449,6 +462,11 @@ static char *to_string_expr(Type *t, const char *lv) {
     Decl *r = kelvin_record(n);
     if (r)
         return strfmt("%s__toString(%s)", r->name, lv);
+    for (int i = 0; i < methods.len; i++) {
+        Method *m = methods.data[i];
+        if (!strcmp(m->method, "toString") && !strcmp(m->ctype, n))
+            return strfmt("%s(%s)", m->fn, lv); /* e.g. a toString for a header struct */
+    }
     /* a C typedef, a C struct, an enum: decided by the C compiler */
     return strfmt("kv_toString_any(%s)", lv);
 }
@@ -456,7 +474,11 @@ static char *to_string_expr(Type *t, const char *lv) {
 /* append the String form of `lv` (type t) to kv_s; arrays print as [a, b] */
 static void append_value(Type *t, const char *lv, int depth) {
     if (t->kind != T_ARRAY) {
-        line("kv_string_append(&kv_s, %s.bytes);", to_string_expr(t, lv));
+        line("kv_string_append(&kv_s, (const char *)%s.bytes);", to_string_expr(t, lv));
+        return;
+    }
+    if (!t->size) {
+        line("kv_string_append(&kv_s, \"[...]\");"); /* a flexible array member */
         return;
     }
     char *i = strfmt("kv_i%d", depth);
@@ -475,7 +497,8 @@ static void append_value(Type *t, const char *lv, int depth) {
 /* The derived toString of a struct, {x: 1, y: 2}; a union, whose active
    member is unknown, prints as <union name>. */
 static void emit_derived_tostring(Decl *d, Type *recv) {
-    line("kv_String %s__toString(%s)", d->name, decl(recv, "self"));
+    pinned_line = d->pos;
+    line("static inline kv_String %s__toString(%s)", d->name, decl(recv, "self"));
     line("{");
     indent++;
     line("kv_String kv_s = {{0}};");
@@ -493,13 +516,18 @@ static void emit_derived_tostring(Decl *d, Type *recv) {
     line("return kv_s;");
     indent--;
     line("}");
+    pinned_line.file = NULL;
+    mapped_line = -1;
 }
 
-static bool in_list(List *l, const char *s) {
-    for (int i = 0; i < l->len; i++)
-        if (!strcmp(l->data[i], s))
-            return true;
-    return false;
+/* the user's toString for a receiver type name, if any */
+static Decl *user_tostring_decl(const char *recv) {
+    for (int i = 0; i < program->decls.len; i++) {
+        Decl *d = program->decls.data[i];
+        if (d->kind == D_FN && d->recv && !strcmp(d->name, "toString") && !strcmp(d->recv->name, recv))
+            return d;
+    }
+    return NULL;
 }
 
 static void emit_decl(Decl *d) {
@@ -509,16 +537,17 @@ static void emit_decl(Decl *d) {
         line("#include %s", d->name);
         break;
     case D_FN:
-        if (d->recv && !strcmp(d->name, "toString") && in_list(&user_tostring, d->recv->name) && !d->body)
-            break; /* already declared after the struct */
+        if (d->recv && !strcmp(d->name, "toString") && kelvin_record(d->recv->name) && !d->body)
+            break; /* already declared right after the struct */
+        /* registered before the body, so a method can call itself */
+        if (d->recv)
+            register_method(d->name, d->recv, method_cname(d));
         if (!d->body) {
             line("%s;", fn_head(d));
         } else {
             line("%s", fn_head(d));
             stmt(d->body);
         }
-        if (d->recv)
-            register_method(d->name, d->recv, method_cname(d));
         break;
     case D_VAR:
         for (int i = 0; i < d->members.len; i++) {
@@ -553,10 +582,12 @@ static void emit_decl(Decl *d) {
             /* every struct and union has toString: the user's, or a derived one */
             Type *recv = xcalloc(1, sizeof *recv);
             recv->kind = T_BASE;
+            recv->pos = d->pos;
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
-            if (in_list(&user_tostring, recv->name))
-                line("kv_String %s__toString(%s);", d->name, decl(recv, "self"));
+            Decl *user = user_tostring_decl(recv->name);
+            if (user)
+                line("%s;", fn_head(user)); /* as the user declares it, e.g. static */
             else
                 emit_derived_tostring(d, recv);
             register_method("toString", recv, strfmt("%s__toString", d->name));
@@ -576,21 +607,8 @@ char *gen_program(Program *prog, bool with_lines) {
                    "#include <kelvin_prelude.h>\n");
     program = prog;
     methods = (List){0};
-    user_tostring = (List){0};
-    for (int i = 0; i < prog->decls.len; i++) {
-        Decl *d = prog->decls.data[i];
-        if (d->kind == D_FN && d->recv && !strcmp(d->name, "toString"))
-            list_push(&user_tostring, d->recv->name);
-    }
-    /* methods of built-in types are declared up front */
-    for (int i = 0; i < prog->decls.len; i++) {
-        Decl *d = prog->decls.data[i];
-        if (d->kind == D_FN && d->recv && !kelvin_record(d->recv->name) && strncmp(d->recv->name, "struct ", 7) &&
-            strncmp(d->recv->name, "union ", 6)) {
-            line("%s;", fn_head(d));
-            register_method(d->name, d->recv, method_cname(d));
-        }
-    }
+    method_temps = 0;
+    pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
         if (i)
             line("%s", "");

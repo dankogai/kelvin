@@ -8,6 +8,7 @@
    Operator precedence is otherwise exactly C's. */
 #include "kelvin.h"
 
+#include <ctype.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -384,6 +385,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            if (e->kind == E_LITERAL && !e->paren && isdigit((unsigned char)e->text[0]))
+                error_at(e->pos, "'%s.%s': literals have no suffixes in Kelvin, and '%s' is not a method", e->text,
+                         member, member);
             Expr *x = new_expr(E_FIELD, t->pos);
             x->a = e;
             x->text = member;

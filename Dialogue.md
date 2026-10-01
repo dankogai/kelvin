@@ -485,3 +485,53 @@ The provisional choices are P25–P30: `String` size, dispatch rules,
 `toString` formats, the derived format, `fmt` rules, and literal method
 calls. There are 103 tests, which also pass with the runtime and the
 generated code under ASan/UBSan.
+
+### 25. Commits, `scratch.k`, and the review of #18
+
+> commit and push to main
+
+**Claude** pushed #18 as `f90118b`, and CI passed with 103/103. The commit
+had also swept in a rename of the user's own root-level `hello.k` to
+`scratch.k`, through `git add -A`.
+
+> remove scratch.k from git and ignore it
+
+> push it
+
+`scratch.k` was untracked and ignored (`e118a64`). Claude now stages only
+the files it changed.
+
+**The review of #18** (one round) confirmed 33 findings and rejected 2.
+All are fixed in this change.
+
+- **`fmt()`.** Its core was rewritten so the caller's format is never
+  passed to `printf`. That fixed:
+  - negative `i8`/`i16`/`i32` with `%x`/`%o`/`%u` printing 64-bit two's
+    complement
+  - 128-bit values losing their sign, flags and precision
+  - formats over about 760 bytes being cut into undefined behavior, and
+    over 511 bytes being rejected
+  - stale stack bytes after the NUL
+  - flag combinations C leaves undefined
+  - huge widths giving empty Strings
+  - `bool` and float conversions
+- **kelvinc:**
+  - method prototypes of built-in types were hoisted above `#import`
+  - methods could not recurse
+  - flexible array members broke every struct's derived toString
+  - `static` toString overrides failed
+  - prototypes on header structs were dropped
+  - derived toStrings ignored user toStrings of header structs
+  - chained calls doubled the C at each link: 22 links made 260 MB, now
+    2.6 KB through a GNU statement expression (P31)
+  - derived toStrings clashed at link time (now `static inline`)
+  - mangled names could collide
+- **Lexer.** The P30 change had broken hex floats (`0x1.f4p+9`) and let
+  `1.f`/`1.L` back in. Both are fixed.
+- **Prelude:**
+  - `i8^` prints as text everywhere
+  - complex numbers have `toString` (`1+2i`)
+  - volatile fields no longer warn
+- **Docs.** The stale passages are updated.
+
+There are 108 tests, plus 36 `fmt` checks from C.

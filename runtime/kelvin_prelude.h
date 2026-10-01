@@ -47,15 +47,27 @@ kv_String kv_toString_f80(long double v);
 kv_String kv_toString_str(const char *v);
 kv_String kv_toString_ptr(const void *v);
 kv_String kv_toString_String(kv_String v);
+kv_String kv_toString_cf(float _Complex v);   /* re+imi */
+kv_String kv_toString_cd(double _Complex v);
+kv_String kv_toString_cld(long double _Complex v);
 
 /* ---------- fmt ---------- */
 
-/* fmt takes a printf format with exactly one conversion (and any %%).
-   Length modifiers are not written: Kelvin adds the right one for the
-   value's type. The value is converted to the conversion's kind, so
-   42.fmt("%.2f") is "42.00". An invalid format gives "<invalid format>". */
+/* fmt takes a printf format with exactly one conversion (and any %%):
+   flags, width and precision (each at most 4096), and one of
+   d i o u x X c f F e E g G a A s p. No length modifiers: the value's
+   own type decides. The value is converted to the conversion's kind, so
+   42.fmt("%.2f") is "42.00" and an unsigned conversion of a negative
+   value shows its bits in the value's own width. Flags C leaves
+   undefined for a conversion are ignored. Anything else gives
+   "<invalid format>". */
 kv_String kv_fmt_bool(bool v, const char *format);
 kv_String kv_fmt_char(char v, const char *format);
+/* one per signed width, so %x of a negative i32 is 8 hex digits */
+kv_String kv_fmt_i8(signed char v, const char *format);
+kv_String kv_fmt_i16(short v, const char *format);
+kv_String kv_fmt_i32(int v, const char *format);
+kv_String kv_fmt_long(long v, const char *format);
 kv_String kv_fmt_i64(long long v, const char *format);
 kv_String kv_fmt_u64(unsigned long long v, const char *format);
 kv_String kv_fmt_f32(float v, const char *format);
@@ -64,6 +76,9 @@ kv_String kv_fmt_f80(long double v, const char *format);
 kv_String kv_fmt_str(const char *v, const char *format);
 kv_String kv_fmt_ptr(const void *v, const char *format);
 kv_String kv_fmt_String(kv_String v, const char *format);
+kv_String kv_fmt_cf(float _Complex v, const char *format); /* %s only */
+kv_String kv_fmt_cd(double _Complex v, const char *format);
+kv_String kv_fmt_cld(long double _Complex v, const char *format);
 
 #ifdef __SIZEOF_INT128__
 kv_String kv_toString_i128(__int128 v);
@@ -90,19 +105,24 @@ kv_String kv_fmt_u128(unsigned __int128 v, const char *format);
     unsigned long: kv_toString_u64, unsigned long long: kv_toString_u64, \
     KV_INT128_toString \
     float: kv_toString_f32, double: kv_toString_f64, long double: kv_toString_f80, \
+    float _Complex: kv_toString_cf, double _Complex: kv_toString_cd, \
+    long double _Complex: kv_toString_cld, \
     char *: kv_toString_str, const char *: kv_toString_str, \
+    signed char *: kv_toString_str, const signed char *: kv_toString_str, \
     unsigned char *: kv_toString_str, const unsigned char *: kv_toString_str, \
     kv_String: kv_toString_String,
 
 #define KV_METHOD_fmt \
     bool: kv_fmt_bool, char: kv_fmt_char, \
-    signed char: kv_fmt_i64, short: kv_fmt_i64, int: kv_fmt_i64, \
-    long: kv_fmt_i64, long long: kv_fmt_i64, \
+    signed char: kv_fmt_i8, short: kv_fmt_i16, int: kv_fmt_i32, \
+    long: kv_fmt_long, long long: kv_fmt_i64, \
     unsigned char: kv_fmt_u64, unsigned short: kv_fmt_u64, unsigned: kv_fmt_u64, \
     unsigned long: kv_fmt_u64, unsigned long long: kv_fmt_u64, \
     KV_INT128_fmt \
     float: kv_fmt_f32, double: kv_fmt_f64, long double: kv_fmt_f80, \
+    float _Complex: kv_fmt_cf, double _Complex: kv_fmt_cd, long double _Complex: kv_fmt_cld, \
     char *: kv_fmt_str, const char *: kv_fmt_str, \
+    signed char *: kv_fmt_str, const signed char *: kv_fmt_str, \
     unsigned char *: kv_fmt_str, const unsigned char *: kv_fmt_str, \
     kv_String: kv_fmt_String,
 
@@ -124,7 +144,7 @@ kv_String kv_toString_kind(const void *p, int kind);
 #else
 #define KV_INT128_KIND
 #endif
-#define kv_toString_any(lv) kv_toString_kind(&(lv), _Generic((lv), \
+#define kv_toString_any(lv) kv_toString_kind((const void *)&(lv), _Generic((lv), \
     bool: KV_K_BOOL, char: KV_K_CHAR, signed char: KV_K_SCHAR, unsigned char: KV_K_UCHAR, \
     short: KV_K_SHORT, unsigned short: KV_K_USHORT, int: KV_K_INT, unsigned: KV_K_UINT, \
     long: KV_K_LONG, unsigned long: KV_K_ULONG, long long: KV_K_LLONG, \

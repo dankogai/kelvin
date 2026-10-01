@@ -1,9 +1,21 @@
-/* string.c - String, toString() and fmt() for the built-in types */
+/* string.c - String, toString() and fmt() for the built-in types
+
+   fmt() never hands the caller's format to snprintf. It parses the one
+   conversion into bounded fields, formats integers itself (so every
+   width and flag is defined, for every integer size), and builds a
+   fresh, minimal format for floating-point conversions. */
 #include "kelvin_prelude.h"
 
+#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef __SIZEOF_INT128__
+typedef unsigned __int128 umax;
+#else
+typedef unsigned long long umax;
+#endif
 
 void kv_string_append(kv_String *s, const char *text) {
     size_t used = strlen((char *)s->bytes);
@@ -21,6 +33,19 @@ static kv_String from_text(const char *text) {
     return s;
 }
 
+/* digits of v in base 8, 10 or 16 into out (at least 132 bytes) */
+static void digits(umax v, int base, bool upper, char *out) {
+    const char *set = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    char buf[132];
+    char *p = buf + sizeof buf;
+    *--p = '\0';
+    do {
+        *--p = set[(int)(v % (unsigned)base)];
+        v /= (unsigned)base;
+    } while (v);
+    strcpy(out, p);
+}
+
 /* ---------- toString ---------- */
 
 kv_String kv_toString_bool(bool v) { return from_text(v ? "true" : "false"); }
@@ -32,31 +57,31 @@ kv_String kv_toString_char(char v) {
 }
 
 kv_String kv_toString_i64(long long v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%lld", v);
     return s;
 }
 
 kv_String kv_toString_u64(unsigned long long v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%llu", v);
     return s;
 }
 
 kv_String kv_toString_f32(float v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%.9g", (double)v);
     return s;
 }
 
 kv_String kv_toString_f64(double v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%.17g", v);
     return s;
 }
 
 kv_String kv_toString_f80(long double v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%.21Lg", v);
     return s;
 }
@@ -64,56 +89,84 @@ kv_String kv_toString_f80(long double v) {
 kv_String kv_toString_str(const char *v) { return from_text(v ? v : "(null)"); }
 
 kv_String kv_toString_ptr(const void *v) {
-    kv_String s;
+    kv_String s = {{0}};
     snprintf((char *)s.bytes, sizeof s.bytes, "%p", v);
     return s;
 }
 
 kv_String kv_toString_String(kv_String v) { return v; }
 
-#ifdef __SIZEOF_INT128__
-/* digits of v in base 8, 10 or 16, without a sign */
-static void u128_digits(unsigned __int128 v, int base, bool upper, char *out, size_t size) {
-    const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    char buf[132];
-    char *p = buf + sizeof buf;
-    *--p = '\0';
-    do {
-        *--p = digits[(int)(v % (unsigned)base)];
-        v /= (unsigned)base;
-    } while (v);
-    snprintf(out, size, "%s", p);
+/* complex numbers print as re+imi, each part lossless */
+static kv_String complex_text(kv_String re, kv_String im) {
+    kv_String s = re;
+    if (im.bytes[0] != '-')
+        kv_string_append(&s, "+");
+    kv_string_append(&s, (const char *)im.bytes);
+    kv_string_append(&s, "i");
+    return s;
 }
 
+kv_String kv_toString_cf(float _Complex v) {
+    return complex_text(kv_toString_f32(crealf(v)), kv_toString_f32(cimagf(v)));
+}
+
+kv_String kv_toString_cd(double _Complex v) {
+    return complex_text(kv_toString_f64(creal(v)), kv_toString_f64(cimag(v)));
+}
+
+kv_String kv_toString_cld(long double _Complex v) {
+    return complex_text(kv_toString_f80(creall(v)), kv_toString_f80(cimagl(v)));
+}
+
+#ifdef __SIZEOF_INT128__
 kv_String kv_toString_u128(unsigned __int128 v) {
-    kv_String s;
-    u128_digits(v, 10, false, (char *)s.bytes, sizeof s.bytes);
+    kv_String s = {{0}};
+    char buf[132];
+    digits(v, 10, false, buf);
+    kv_string_append(&s, buf);
     return s;
 }
 
 kv_String kv_toString_i128(__int128 v) {
-    if (v >= 0)
-        return kv_toString_u128((unsigned __int128)v);
-    kv_String s = from_text("-");
-    char digits[64];
+    kv_String s = {{0}};
+    char buf[132];
     /* negate as unsigned so that the minimum value works too */
-    u128_digits((unsigned __int128)0 - (unsigned __int128)v, 10, false, digits, sizeof digits);
-    kv_string_append(&s, digits);
+    digits(v < 0 ? (umax)0 - (umax)v : (umax)v, 10, false, buf);
+    kv_string_append(&s, v < 0 ? "-" : "");
+    kv_string_append(&s, buf);
     return s;
 }
 #endif
 
-/* ---------- fmt ---------- */
+/* ---------- fmt: parsing ---------- */
 
-/* The single conversion of a fmt() format: `head` is everything before
-   the conversion character (leading text, '%', flags, width, precision),
-   `conv` the conversion character, `tail` the text after it. */
+/* Widths and precisions above this are rejected; a String holds 255
+   bytes anyway. */
+#define KV_FMT_MAX 4096
+
 typedef struct {
-    char head[KV_STRING_SIZE * 2];
+    const char *format;
+    size_t start; /* index of the conversion's '%' */
+    size_t end;   /* index of the conversion character */
     char conv;
-    const char *tail;
+    bool minus, plus, space, hash, zero;
+    int width; /* -1: none */
+    int prec;  /* -1: none */
 } Spec;
 
+static bool parse_number(const char **p, int *out) {
+    long n = 0;
+    while (**p >= '0' && **p <= '9') {
+        n = n * 10 + (**p - '0');
+        if (n > KV_FMT_MAX)
+            return false;
+        (*p)++;
+    }
+    *out = (int)n;
+    return true;
+}
+
+/* exactly one conversion (and any %%), with no length modifiers */
 static bool parse_spec(const char *format, Spec *sp) {
     if (!format)
         return false;
@@ -126,150 +179,220 @@ static bool parse_spec(const char *format, Spec *sp) {
             continue;
         }
         if (found)
-            return false; /* more than one conversion */
+            return false;
+        found = true;
+        *sp = (Spec){.format = format, .start = (size_t)(p - format), .width = -1, .prec = -1};
         const char *q = p + 1;
-        q += strspn(q, "-+ #0");
-        q += strspn(q, "0123456789");
+        for (;; q++) {
+            if (*q == '-')
+                sp->minus = true;
+            else if (*q == '+')
+                sp->plus = true;
+            else if (*q == ' ')
+                sp->space = true;
+            else if (*q == '#')
+                sp->hash = true;
+            else if (*q == '0')
+                sp->zero = true;
+            else
+                break;
+        }
+        if (*q >= '0' && *q <= '9' && !parse_number(&q, &sp->width))
+            return false;
         if (*q == '.') {
             q++;
-            q += strspn(q, "0123456789");
+            if (!parse_number(&q, &sp->prec))
+                return false;
         }
-        /* no length modifiers: Kelvin supplies them */
         if (!*q || !strchr("diouxXcfFeEgGaAsp", *q))
             return false;
-        size_t n = (size_t)(q - format);
-        if (n >= sizeof sp->head)
-            return false;
-        memcpy(sp->head, format, n);
-        sp->head[n] = '\0';
         sp->conv = *q;
-        sp->tail = q + 1;
-        found = true;
+        sp->end = (size_t)(q - format);
         p = q;
     }
     return found;
 }
 
 static bool is_int_conv(char c) { return strchr("diouxX", c) != NULL; }
-static bool is_signed_conv(char c) { return c == 'd' || c == 'i'; }
 static bool is_float_conv(char c) { return strchr("fFeEgGaA", c) != NULL; }
 
-/* the format with `mod` inserted before the conversion character, and
-   `conv` (or the original) as the conversion */
-static void build(char *out, size_t size, const Spec *sp, const char *mod, char conv) {
-    snprintf(out, size, "%s%s%c%s", sp->head, mod, conv ? conv : sp->conv, sp->tail);
+/* append format[from, to) with %% read as % */
+static void append_literal(kv_String *s, const char *format, size_t from, size_t to) {
+    char buf[2] = {0};
+    for (size_t i = from; i < to; i++) {
+        if (format[i] == '%' && i + 1 < to && format[i + 1] == '%')
+            i++;
+        buf[0] = format[i];
+        kv_string_append(s, buf);
+    }
+}
+
+/* the text around the conversion, with `field` in its place */
+static kv_String assemble(const Spec *sp, const char *field) {
+    kv_String s = {{0}};
+    append_literal(&s, sp->format, 0, sp->start);
+    kv_string_append(&s, field);
+    append_literal(&s, sp->format, sp->end + 1, strlen(sp->format));
+    return s;
 }
 
 static kv_String invalid(void) { return from_text("<invalid format>"); }
 
-/* `%s` with the spec's flags and width, for text that stands in for the
-   value (bool, toString). Precision means truncation for %s, which is
-   what it means in C. The '0', '+', ' ' and '#' flags are not valid for
-   %s and are dropped. */
+/* `prefix` (a sign or 0x) and `body` padded to the spec's width into out
+   (KV_FMT_MAX + room for prefix and body); zero padding goes between
+   prefix and body */
+static void pad(const Spec *sp, const char *prefix, const char *body, bool zero_pad, char *out) {
+    size_t lp = strlen(prefix), lb = strlen(body);
+    size_t w = sp->width > 0 ? (size_t)sp->width : 0;
+    size_t fill = w > lp + lb ? w - lp - lb : 0;
+    char *o = out;
+    if (!sp->minus && !zero_pad)
+        for (size_t i = 0; i < fill; i++)
+            *o++ = ' ';
+    memcpy(o, prefix, lp);
+    o += lp;
+    if (!sp->minus && zero_pad)
+        for (size_t i = 0; i < fill; i++)
+            *o++ = '0';
+    memcpy(o, body, lb);
+    o += lb;
+    if (sp->minus)
+        for (size_t i = 0; i < fill; i++)
+            *o++ = ' ';
+    *o = '\0';
+}
+
+/* text for %s (and the conversions that print text): precision
+   truncates, width pads, the other flags have no meaning */
 static kv_String fmt_text(const Spec *sp, const char *text) {
-    char head[sizeof sp->head];
-    const char *pct = strrchr(sp->head, '%'); /* the conversion's '%' */
-    size_t n = (size_t)(pct - sp->head) + 1;
-    memcpy(head, sp->head, n);
-    const char *q = pct + 1;
-    bool minus = false;
-    for (; *q && strchr("-+ #0", *q); q++)
-        minus = minus || *q == '-';
-    if (minus)
-        head[n++] = '-';
-    snprintf(head + n, sizeof head - n, "%s", q); /* width and precision */
-    char format[KV_STRING_SIZE * 3];
-    snprintf(format, sizeof format, "%ss%s", head, sp->tail);
-    kv_String s;
-    snprintf((char *)s.bytes, sizeof s.bytes, format, text);
-    return s;
+    char body[KV_STRING_SIZE];
+    char field[KV_FMT_MAX + KV_STRING_SIZE + 8];
+    size_t n = strlen(text);
+    if (n > sizeof body - 1)
+        n = sizeof body - 1;
+    if (sp->prec >= 0 && (size_t)sp->prec < n)
+        n = (size_t)sp->prec;
+    memcpy(body, text, n);
+    body[n] = '\0';
+    pad(sp, "", body, false, field);
+    return assemble(sp, field);
 }
 
-kv_String kv_fmt_i64(long long v, const char *format) {
-    Spec sp;
-    if (!parse_spec(format, &sp))
-        return invalid();
-    char f[KV_STRING_SIZE * 3];
-    kv_String s;
-    if (is_int_conv(sp.conv)) {
-        build(f, sizeof f, &sp, "ll", 0);
-        if (is_signed_conv(sp.conv))
-            snprintf((char *)s.bytes, sizeof s.bytes, f, v);
-        else
-            snprintf((char *)s.bytes, sizeof s.bytes, f, (unsigned long long)v);
-    } else if (is_float_conv(sp.conv)) {
-        build(f, sizeof f, &sp, "", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, (double)v);
-    } else if (sp.conv == 'c') {
-        build(f, sizeof f, &sp, "", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, (int)(unsigned char)v);
-    } else if (sp.conv == 's') {
-        return fmt_text(&sp, (const char *)kv_toString_i64(v).bytes);
-    } else {
-        return invalid();
+/* An integer conversion of a value with magnitude `mag`, negative if
+   `neg`, of `bits` width. An unsigned conversion of a negative value
+   uses its two's complement in that width, as C does for the type. */
+static kv_String fmt_int(const Spec *sp, bool neg, umax mag, int bits) {
+    char field[2 * KV_FMT_MAX + 160];
+    char conv = sp->conv;
+    if (conv == 'c') {
+        char body[2] = {(char)(neg ? (umax)0 - mag : mag), 0};
+        if (!body[0])
+            return assemble(sp, ""); /* a NUL character would end the String */
+        pad(sp, "", body, false, field);
+        return assemble(sp, field);
     }
-    return s;
-}
-
-kv_String kv_fmt_u64(unsigned long long v, const char *format) {
-    Spec sp;
-    if (!parse_spec(format, &sp))
-        return invalid();
-    char f[KV_STRING_SIZE * 3];
-    kv_String s;
-    if (is_int_conv(sp.conv)) {
-        /* an unsigned value prints unsigned, even with %d */
-        build(f, sizeof f, &sp, "ll", is_signed_conv(sp.conv) ? 'u' : 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, v);
-    } else if (is_float_conv(sp.conv)) {
-        build(f, sizeof f, &sp, "", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, (double)v);
-    } else if (sp.conv == 'c') {
-        build(f, sizeof f, &sp, "", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, (int)(unsigned char)v);
-    } else if (sp.conv == 's') {
-        return fmt_text(&sp, (const char *)kv_toString_u64(v).bytes);
-    } else {
-        return invalid();
+    bool is_signed = conv == 'd' || conv == 'i';
+    umax value = mag;
+    if (!is_signed && neg) {
+        umax mask = bits >= (int)(sizeof(umax) * 8) ? ~(umax)0 : (((umax)1 << bits) - 1);
+        value = ((umax)0 - mag) & mask;
+        neg = false;
     }
-    return s;
+    int base = conv == 'o' ? 8 : (conv == 'x' || conv == 'X') ? 16 : 10;
+    char num[140];
+    digits(value, base, conv == 'X', num);
+    if (sp->prec == 0 && value == 0)
+        num[0] = '\0';
+    /* precision is the minimum number of digits */
+    char body[KV_FMT_MAX + 160];
+    size_t nd = strlen(num);
+    size_t zeros = sp->prec > 0 && (size_t)sp->prec > nd ? (size_t)sp->prec - nd : 0;
+    if (conv == 'o' && sp->hash && zeros == 0 && num[0] != '0')
+        zeros = 1; /* # makes octal start with 0 */
+    memset(body, '0', zeros);
+    strcpy(body + zeros, num);
+    char prefix[4] = "";
+    if (is_signed && neg)
+        strcpy(prefix, "-");
+    else if (is_signed && sp->plus)
+        strcpy(prefix, "+");
+    else if (is_signed && sp->space)
+        strcpy(prefix, " ");
+    if ((conv == 'x' || conv == 'X') && sp->hash && value != 0)
+        strcat(prefix, conv == 'x' ? "0x" : "0X");
+    pad(sp, prefix, body, sp->zero && sp->prec < 0, field);
+    return assemble(sp, field);
 }
 
-static kv_String fmt_float(long double v, const char *format, bool is_long, const char *text) {
+/* A floating conversion, through a fresh format built from the parsed
+   fields (all of which C defines for floating conversions). Only a long
+   double is formatted as one: %La spells hex floats differently. */
+static kv_String fmt_floating(const Spec *sp, long double v, bool is_long) {
+    char field[3 * KV_FMT_MAX];
+    char f[64];
+    char *p = f;
+    *p++ = '%';
+    if (sp->minus)
+        *p++ = '-';
+    if (sp->plus)
+        *p++ = '+';
+    if (sp->space)
+        *p++ = ' ';
+    if (sp->hash)
+        *p++ = '#';
+    if (sp->zero)
+        *p++ = '0';
+    char *end = f + sizeof f;
+    if (sp->width >= 0)
+        p += snprintf(p, (size_t)(end - p), "%d", sp->width);
+    if (sp->prec >= 0)
+        p += snprintf(p, (size_t)(end - p), ".%d", sp->prec);
+    snprintf(p, (size_t)(end - p), "%s%c", is_long ? "L" : "", sp->conv);
+    int n = is_long ? snprintf(field, sizeof field, f, v) : snprintf(field, sizeof field, f, (double)v);
+    if (n < 0)
+        return invalid();
+    return assemble(sp, field);
+}
+
+/* ---------- fmt: one entry point per kind of value ---------- */
+
+static kv_String fmt_integer(bool neg, umax mag, int bits, const char *text, const char *format) {
     Spec sp;
     if (!parse_spec(format, &sp))
         return invalid();
-    char f[KV_STRING_SIZE * 3];
-    kv_String s;
-    if (is_float_conv(sp.conv)) {
-        build(f, sizeof f, &sp, is_long ? "L" : "", 0);
-        if (is_long)
-            snprintf((char *)s.bytes, sizeof s.bytes, f, v);
-        else
-            snprintf((char *)s.bytes, sizeof s.bytes, f, (double)v);
-    } else if (is_int_conv(sp.conv)) {
-        /* converting to an integer is only defined inside the range */
-        if (!(v > -9223372036854775809.0L && v < 9223372036854775808.0L))
-            return invalid();
-        return kv_fmt_i64((long long)v, format);
-    } else if (sp.conv == 's') {
+    if (is_int_conv(sp.conv) || sp.conv == 'c')
+        return fmt_int(&sp, neg, mag, bits);
+    if (is_float_conv(sp.conv))
+        return fmt_floating(&sp, neg ? -(long double)mag : (long double)mag, bits > 64);
+    if (sp.conv == 's')
         return fmt_text(&sp, text);
-    } else {
+    return invalid();
+}
+
+static kv_String fmt_signed(long long v, int bits, const char *format) {
+    /* the magnitude of v without overflowing on the minimum value */
+    umax mag = v < 0 ? (umax)(-(v + 1)) + 1 : (umax)v;
+    return fmt_integer(v < 0, mag, bits, (const char *)kv_toString_i64(v).bytes, format);
+}
+
+static kv_String fmt_unsigned(unsigned long long v, const char *format) {
+    return fmt_integer(false, v, 64, (const char *)kv_toString_u64(v).bytes, format);
+}
+
+kv_String kv_fmt_i8(signed char v, const char *format) { return fmt_signed(v, 8, format); }
+kv_String kv_fmt_i16(short v, const char *format) { return fmt_signed(v, (int)sizeof(short) * 8, format); }
+kv_String kv_fmt_i32(int v, const char *format) { return fmt_signed(v, (int)sizeof(int) * 8, format); }
+kv_String kv_fmt_long(long v, const char *format) { return fmt_signed(v, (int)sizeof(long) * 8, format); }
+kv_String kv_fmt_i64(long long v, const char *format) { return fmt_signed(v, 64, format); }
+kv_String kv_fmt_u64(unsigned long long v, const char *format) { return fmt_unsigned(v, format); }
+
+kv_String kv_fmt_char(char v, const char *format) {
+    Spec sp;
+    if (!parse_spec(format, &sp))
         return invalid();
-    }
-    return s;
-}
-
-kv_String kv_fmt_f32(float v, const char *format) {
-    return fmt_float(v, format, false, (const char *)kv_toString_f32(v).bytes);
-}
-
-kv_String kv_fmt_f64(double v, const char *format) {
-    return fmt_float(v, format, false, (const char *)kv_toString_f64(v).bytes);
-}
-
-kv_String kv_fmt_f80(long double v, const char *format) {
-    return fmt_float(v, format, true, (const char *)kv_toString_f80(v).bytes);
+    if (sp.conv == 's')
+        return fmt_text(&sp, (const char *)kv_toString_char(v).bytes);
+    return fmt_signed(v, 8, format);
 }
 
 kv_String kv_fmt_bool(bool v, const char *format) {
@@ -278,18 +401,59 @@ kv_String kv_fmt_bool(bool v, const char *format) {
         return invalid();
     if (sp.conv == 's')
         return fmt_text(&sp, v ? "true" : "false");
-    if (is_int_conv(sp.conv))
-        return kv_fmt_i64(v, format);
-    return invalid();
+    return fmt_unsigned(v, format); /* converted: 0 or 1 */
 }
 
-kv_String kv_fmt_char(char v, const char *format) {
+static kv_String fmt_real(long double v, bool is_long, const char *text, const char *format) {
     Spec sp;
     if (!parse_spec(format, &sp))
         return invalid();
+    if (is_float_conv(sp.conv))
+        return fmt_floating(&sp, v, is_long);
+    if (is_int_conv(sp.conv) || sp.conv == 'c') {
+        /* to an integer only inside the range, as C requires */
+        if (!(v >= -0x1p63L && v < 0x1p63L))
+            return invalid();
+        return fmt_signed((long long)v, 64, format);
+    }
     if (sp.conv == 's')
-        return fmt_text(&sp, (const char *)kv_toString_char(v).bytes);
-    return kv_fmt_i64(v, format);
+        return fmt_text(&sp, text);
+    return invalid();
+}
+
+kv_String kv_fmt_f32(float v, const char *format) {
+    return fmt_real(v, false, (const char *)kv_toString_f32(v).bytes, format);
+}
+
+kv_String kv_fmt_f64(double v, const char *format) {
+    return fmt_real(v, false, (const char *)kv_toString_f64(v).bytes, format);
+}
+
+kv_String kv_fmt_f80(long double v, const char *format) {
+    return fmt_real(v, true, (const char *)kv_toString_f80(v).bytes, format);
+}
+
+static kv_String fmt_only_text(kv_String text, const char *format) {
+    Spec sp;
+    if (!parse_spec(format, &sp) || sp.conv != 's')
+        return invalid();
+    return fmt_text(&sp, (const char *)text.bytes);
+}
+
+kv_String kv_fmt_cf(float _Complex v, const char *format) { return fmt_only_text(kv_toString_cf(v), format); }
+kv_String kv_fmt_cd(double _Complex v, const char *format) { return fmt_only_text(kv_toString_cd(v), format); }
+kv_String kv_fmt_cld(long double _Complex v, const char *format) { return fmt_only_text(kv_toString_cld(v), format); }
+kv_String kv_fmt_String(kv_String v, const char *format) { return fmt_only_text(v, format); }
+
+kv_String kv_fmt_ptr(const void *v, const char *format) {
+    Spec sp;
+    if (!parse_spec(format, &sp))
+        return invalid();
+    if (sp.conv == 'p' || sp.conv == 's')
+        return fmt_text(&sp, (const char *)kv_toString_ptr(v).bytes);
+    if (sp.conv == 'x' || sp.conv == 'X')
+        return fmt_int(&sp, false, (umax)(uintptr_t)v, (int)sizeof(void *) * 8);
+    return invalid();
 }
 
 kv_String kv_fmt_str(const char *v, const char *format) {
@@ -303,69 +467,14 @@ kv_String kv_fmt_str(const char *v, const char *format) {
     return invalid();
 }
 
-kv_String kv_fmt_ptr(const void *v, const char *format) {
-    Spec sp;
-    if (!parse_spec(format, &sp))
-        return invalid();
-    char f[KV_STRING_SIZE * 3];
-    kv_String s;
-    if (sp.conv == 'p') {
-        build(f, sizeof f, &sp, "", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, v);
-    } else if (sp.conv == 'x' || sp.conv == 'X') {
-        build(f, sizeof f, &sp, "ll", 0);
-        snprintf((char *)s.bytes, sizeof s.bytes, f, (unsigned long long)(uintptr_t)v);
-    } else if (sp.conv == 's') {
-        return fmt_text(&sp, (const char *)kv_toString_ptr(v).bytes);
-    } else {
-        return invalid();
-    }
-    return s;
-}
-
-kv_String kv_fmt_String(kv_String v, const char *format) {
-    Spec sp;
-    if (!parse_spec(format, &sp))
-        return invalid();
-    if (sp.conv == 's')
-        return fmt_text(&sp, (const char *)v.bytes);
-    return invalid();
-}
-
 #ifdef __SIZEOF_INT128__
-/* 128-bit values that fit in 64 bits format like 64-bit ones; larger
-   ones support d, i, u, o, x, X and s, with width and '-' only */
-static kv_String fmt_big(bool negative, unsigned __int128 mag, const char *format) {
-    Spec sp;
-    if (!parse_spec(format, &sp))
-        return invalid();
-    if (is_float_conv(sp.conv)) {
-        long double v = (long double)mag;
-        return kv_fmt_f80(negative ? -v : v, format);
-    }
-    if (!is_int_conv(sp.conv) && sp.conv != 's')
-        return invalid();
-    int base = (sp.conv == 'o') ? 8 : (sp.conv == 'x' || sp.conv == 'X') ? 16 : 10;
-    char text[160];
-    char *p = text;
-    if (negative && (sp.conv == 'd' || sp.conv == 'i' || sp.conv == 's'))
-        *p++ = '-';
-    u128_digits(mag, base, sp.conv == 'X', p, sizeof text - 1);
-    return fmt_text(&sp, text);
-}
-
 kv_String kv_fmt_u128(unsigned __int128 v, const char *format) {
-    if (v <= UINT64_MAX)
-        return kv_fmt_u64((unsigned long long)v, format);
-    return fmt_big(false, v, format);
+    return fmt_integer(false, v, 128, (const char *)kv_toString_u128(v).bytes, format);
 }
 
 kv_String kv_fmt_i128(__int128 v, const char *format) {
-    if (v >= INT64_MIN && v <= INT64_MAX)
-        return kv_fmt_i64((long long)v, format);
-    if (v >= 0)
-        return fmt_big(false, (unsigned __int128)v, format);
-    return fmt_big(true, (unsigned __int128)0 - (unsigned __int128)v, format);
+    return fmt_integer(v < 0, v < 0 ? (umax)0 - (umax)v : (umax)v, 128, (const char *)kv_toString_i128(v).bytes,
+                       format);
 }
 #endif
 

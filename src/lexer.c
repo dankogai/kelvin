@@ -140,6 +140,27 @@ static void check_number(Pos pos, const char *s, const char *end) {
     error_at(pos, "malformed number '%.*s'", n, s);
 }
 
+/* Does the '.' at `dot` start a method call on the number that began at
+   `start`, as in 2.toString() or 1.5.fmt("%e")? It does not when it
+   continues the number: 1.5, 1.e5, or a hex float such as 0x1.f4p+9
+   (whose fraction may start with a letter). */
+static bool method_after_number(const char *start, const char *dot) {
+    char next = dot[1];
+    if (!isalpha((unsigned char)next) && next != '_')
+        return false;
+    bool hex = start[0] == '0' && (start[1] == 'x' || start[1] == 'X');
+    if (hex) {
+        const char *q = dot + 1;
+        while (isxdigit((unsigned char)*q))
+            q++;
+        return !(*q == 'p' || *q == 'P');
+    }
+    /* 1.e5, 1.E+3 */
+    if ((next == 'e' || next == 'E') && (isdigit((unsigned char)dot[2]) || dot[2] == '+' || dot[2] == '-'))
+        return false;
+    return true;
+}
+
 /* A C "preprocessing number": digits, letters, underscores and dots, plus
    a sign directly after an exponent letter. */
 static void lex_number(Lexer *lx) {
@@ -149,9 +170,7 @@ static void lex_number(Lexer *lx) {
         char c = *lx->p;
         if ((c == '+' || c == '-') && strchr("eEpP", lx->p[-1])) {
             step(lx);
-        } else if (c == '.' && (isalpha((unsigned char)lx->p[1]) || lx->p[1] == '_') &&
-                   !(strchr("eEpP", lx->p[1]) && (isdigit((unsigned char)lx->p[2]) || lx->p[2] == '+' ||
-                                                  lx->p[2] == '-'))) {
+        } else if (c == '.' && method_after_number(start, lx->p)) {
             break; /* `2.toString()`: the number ends before a method name */
         } else if (isalnum((unsigned char)c) || c == '_' || c == '.') {
             step(lx);
