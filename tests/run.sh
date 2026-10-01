@@ -5,6 +5,9 @@
 #                    `// out: ...` comments (in order).
 #   tests/error/*.k  must fail to build (in kelvinc or in the C compiler),
 #                    with output containing the `// error: ...` text.
+#   tests/c/*.c      C programs using libkelvin; built against libkelvin.a
+#                    and against the shared library, each must print the
+#                    `// out: ...` lines.
 
 cd "$(dirname "$0")/.." || exit 1
 KELVINC=${KELVINC:-./kelvinc}
@@ -56,6 +59,29 @@ for f in tests/error/*.k; do
     else
         ok
     fi
+done
+
+CC=${CC:-cc}
+for f in tests/c/*.c; do
+    [ -e "$f" ] || continue
+    sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
+    for link in static shared; do
+        if [ "$link" = static ]; then
+            set -- libkelvin.a -lm
+        else
+            set -- -L. -lkelvin -Wl,-rpath,"$(pwd)" -lm
+        fi
+        if ! "$CC" -std=c11 -isystem runtime -o "$tmp/cprog" "$f" "$@" > "$tmp/log" 2>&1; then
+            bad "$f ($link)" "does not build"
+        elif ! "$tmp/cprog" > "$tmp/actual" 2> "$tmp/log"; then
+            bad "$f ($link)" "exited with status $?"
+        elif ! cmp -s "$tmp/expected" "$tmp/actual"; then
+            diff "$tmp/expected" "$tmp/actual" > "$tmp/log"
+            bad "$f ($link)" "output differs (expected < > actual)"
+        else
+            ok
+        fi
+    done
 done
 
 rm -f "$tmp/log"

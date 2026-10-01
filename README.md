@@ -38,6 +38,8 @@ So far the changes from C are:
 - C headers are imported with `#import <stdio.h> as C`
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or
   `0xdead:u16`
+- `print()` and `println()` come from a small prelude in `libkelvin`, so
+  `println("n = ", n)` works for any type with no import
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and
@@ -48,8 +50,9 @@ Everything else is C. See [versusC.md](versusC.md) for all the differences,
 Requires a C11 compiler and make.
 
 ```sh
-make                        # builds ./kelvinc
+make                        # builds ./kelvinc and libkelvin.{a,so|dylib}
 make test                   # runs tests/run.sh
+make install PREFIX=~/.local # bin/kelvinc, lib/libkelvin.*, include/
 ./kelvinc hello.k           # builds ./hello
 ./kelvinc --run hello.k     # builds and runs
 ./kelvinc --emit-c hello.k  # prints the generated C

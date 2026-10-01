@@ -407,3 +407,32 @@ that is recorded in Design.md. Flagged as new open question Q11: kelvinc
 cannot see C globals from headers, so `optind = 1;` would declare a local.
 `extern optind: i32;` is the workaround. All tests, examples and docs are
 converted, with 92 tests in total.
+
+### 22. The prelude: `print` and `println`
+
+> A7: implement `print()` and `println()` as a part of "prelude".  include
+> it in`libkelvin.{a,so,dylib}`.
+
+**Claude** implemented #17:
+
+- **Header.** `runtime/kelvin_prelude.h` defines `print`/`println` as C11
+  `_Generic` macros over the `kv_print_*` functions.
+  - C's own type names are used, because `int64_t` is `long` on Linux but
+    `long long` on macOS.
+  - `__VA_OPT__` allows zero values. GNU comma elision was tried, and it
+    fails in strict C11 mode.
+- **Library.** `runtime/prelude.c` is built into `libkelvin.a` and
+  `libkelvin.dylib`/`.so`. kelvinc includes the header and links the
+  static library, and it finds the runtime in `$KELVIN_HOME`, the source
+  tree or the install prefix.
+- **Provisional decisions:**
+  - P21: formatting
+  - P22: layout and linking
+  - P23: `true`/`false` are emitted as `bool`s, since C's `true` is an
+    `int` and would print `1`
+  - P24: decimal literals above `INT64_MAX` get C's `U`, because without
+    suffixes C warns about them
+- **Tests.** `tests/run/prelude.k` covers every type, and `tests/c/`
+  checks the library from C, linked both statically and dynamically.
+
+Q7 is closed, and there are 96 tests.

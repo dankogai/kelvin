@@ -1085,7 +1085,10 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
 
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
+    Token *name = peek();
     d->name = expect_ident("a function name");
+    if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
+        error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
     declare_name(d->name);
     open_scope();
     expect_p("(");

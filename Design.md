@@ -47,6 +47,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 14 | No `(T)v` casts: convert with `T(v)` or `v as T` | `(int)x`, `(int *)malloc(n)` | `i32(x)`, `malloc(n) as i32^` | 2026-10-01 |
 | 15 | No `var`: `x: T = v` declares, and so does `x = v` when `x` is not declared yet | `int32_t x = 0; long i = 42;` | `x: i32 = 0; i = 42;` | 2026-10-01 |
 | 16 | `expr:T` annotates any expression; it means `expr as T` | `(uint16_t)0xdead`, `1UL << 40` | `0xdead:u16`, `1:u64 << 40` | 2026-10-01 |
+| 17 | A prelude with `print()` and `println()`, in `libkelvin.{a,so,dylib}` | `printf("%" PRId64 "\n", n)` | `println(n)` | 2026-10-01 |
 
 Notes:
 
@@ -168,6 +169,14 @@ Notes:
   `?:` or in a `case` label, where `:` is the separator. A converter call
   such as `c ? x : u8(y)` is not an annotation either.
 
+- (17) The prelude is available in every Kelvin program without an
+  import. kelvinc includes `kelvin_prelude.h` in the generated C and links
+  `libkelvin.a`. `print(a, b, ...)` prints its values with no
+  separators, and `println(...)` adds a newline. Both take 0 to 16
+  values. `print` and `println` cannot be redefined. This answers Q7:
+  `println(n)` prints an `i64` on every platform. The same library and
+  header work from C (`#include <kelvin_prelude.h>`, link `-lkelvin`).
+
 ## Provisional decisions (made during implementation; please review)
 
 These follow from the agreed changes, or were needed to write any code at
@@ -188,8 +197,12 @@ all. None of them has been explicitly agreed yet.
 | P11 | Kelvin reserves the sized type names (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet. `var` is no longer reserved (#15) |
 | P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
 | P13 | `u8` and C's `char` mix freely | `s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
-| P14 | `true` and `false` are built in alongside `bool` | `done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words |
+| P14 | `true` and `false` are built in alongside `bool` | `done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words, and are `bool`s (P23) |
 | P15 | Any identifier after `:` or `as` is a type name | `f: FILE^ = stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
+| P21 | How `print` formats values | `println(1.0, " ", 0.1:f32, " ", 1e300)` prints `1.0 0.1 1e+300` | Integers print in decimal, including `i128`/`u128`. Floats print in the shortest text that reads back the same, always with a `.` or an exponent. `bool` prints `true`/`false`. `u8^` and string literals print as strings, with `(null)` for a null pointer. Other pointers print as addresses, and C's `char` as a character. Dispatch is by C type via `_Generic`, so `x == y` and `!b` (C `int`s) print `1`/`0`; use `bool(x == y)` |
+| P22 | Runtime layout and linking | `make` builds `libkelvin.a` plus `libkelvin.dylib` (macOS) or `libkelvin.so` (Linux); `make install` puts them in `$PREFIX/lib` and the header in `$PREFIX/include` | kelvinc links `libkelvin.a` statically, so programs need no runtime library at run time. It finds the runtime in `$KELVIN_HOME`, next to itself (source tree), or in `../include` and `../lib` (installed). The shared libraries are for use from C and other toolchains. Zero-argument `print()`/`println()` rely on `__VA_OPT__`, which gcc and clang accept in C11 mode |
+| P23 | `true` and `false` are `bool`s in the generated C | `println(true)` prints `true` | C's `true` is the `int` `1`. kelvinc emits `(bool)true`, so the prelude sees a `bool`. Arithmetic is unchanged (`true + 1` is 2) |
+| P24 | A decimal literal above `INT64_MAX` gets C's `U` in the generated C | `18446744073709551615:u64` | Without suffixes (#13), C has no signed type for it and warns, although it already treats it as unsigned. kelvinc writes the `U` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -206,12 +219,8 @@ all. None of them has been explicitly agreed yet.
 - **Q5: `size_t`?** `sizeof`, `malloc` and `strlen` all use it. Should Kelvin
   have `usize`/`isize`, or should programs use `u64`/`i64`?
 - ~~**Q6: Integer literal suffixes.**~~ Answered: no suffixes at all (#13).
-- **Q7: Printing `i64`.** `int64_t` is `long long` on macOS but `long` on
-  Linux, so no single `printf` format fits both. `#import <inttypes.h> as C`
-  now provides `PRId64`, but `"%" PRId64 "\n"` (a string pasted to a macro)
-  does not parse. With `<stdio.h>` imported, C checks formats again and
-  warns about the mismatch. A hand-written `printf` prototype gets no
-  checking.
+- ~~**Q7: Printing `i64`.**~~ Answered by #17: `print()` and `println()` in
+  the prelude.
 - ~~**Q8: Infer more than integers?**~~ Answered: no. Only integer (`i64`)
   and floating (`f64`) literals are inferred (#8, #11), and `bool` must be
   written.
@@ -270,8 +279,10 @@ individual proposal:
 | `src/lexer.c` | C's lexical rules. Kelvin keywords `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`; `~=`, no `^=` |
 | `src/parser.c` | Recursive descent over C's grammar with the changes above, plus a table of declared names to tell `x = v` (declare) from an assignment |
 | `src/codegen.c` | Prints C: postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
-| `src/main.c` | Driver: writes the C, runs `$CC` with `-I<dir of .k>`, and optionally runs the program |
-| `tests/run.sh` | `tests/run/*.k` check output; `tests/error/*.k` check diagnostics |
+| `src/main.c` | Driver: writes the C, finds the runtime, runs `$CC` with `-I<dir of .k>` and `libkelvin.a`, and optionally runs the program |
+| `runtime/kelvin_prelude.h` | The prelude: `print`/`println` as `_Generic` macros over `kv_print_*` |
+| `runtime/prelude.c` | The prelude's implementation, built into `libkelvin.{a,so,dylib}` |
+| `tests/run.sh` | `tests/run/*.k` check output; `tests/error/*.k` check diagnostics; `tests/c/*.c` use libkelvin from C, linked statically and dynamically |
 
 The driver adds `$KELVIN_CFLAGS` to the C compiler command line, for
 libraries (`-lcurl`) and other flags. `--emit-c --no-line` shows the

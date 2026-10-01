@@ -1,8 +1,8 @@
 // Kelvin: C with postfix types, postfix ^ pointers, and sized numbers.
-#import <stdio.h> as C
+// print() and println() come from the prelude; no import is needed.
 
 main(): i32
 {
-    printf("Hello, Kelvin!\n");
+    println("Hello, Kelvin!");
     return 0;
 }

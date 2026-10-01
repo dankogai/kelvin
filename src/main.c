@@ -30,7 +30,8 @@ static void usage(FILE *f) {
             "\n"
             "environment:\n"
             "  CC            C compiler to use (default: cc)\n"
-            "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n");
+            "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n"
+            "  KELVIN_HOME   where to find kelvin_prelude.h and libkelvin.a\n");
 }
 
 static char *read_file(const char *path) {
@@ -79,6 +80,57 @@ static int run(char **argv, bool verbose) {
     if (WIFEXITED(status))
         return WEXITSTATUS(status);
     return 128 + WTERMSIG(status);
+}
+
+/* The directory that holds the running kelvinc, or NULL. */
+static char *exe_dir(const char *argv0) {
+    char *path = NULL;
+    if (strchr(argv0, '/')) {
+        path = realpath(argv0, NULL);
+    } else {
+        const char *env = getenv("PATH");
+        char *dirs = xstrdup(env ? env : "");
+        for (char *d = strtok(dirs, ":"); d && !path; d = strtok(NULL, ":")) {
+            char *candidate = strfmt("%s/%s", *d ? d : ".", argv0);
+            if (access(candidate, X_OK) == 0)
+                path = realpath(candidate, NULL);
+        }
+    }
+    if (!path)
+        return NULL;
+    *strrchr(path, '/') = '\0';
+    return path;
+}
+
+static bool file_exists(const char *path) { return access(path, R_OK) == 0; }
+
+/* Find the prelude header and libkelvin.a under `home`, laid out either
+   as the source tree (runtime/, libkelvin.a) or as an installation
+   (include/, lib/). */
+static bool runtime_in(const char *home, char **inc, char **lib) {
+    if (!home)
+        return false;
+    const char *layouts[][2] = {{"runtime", "."}, {"include", "lib"}};
+    for (int i = 0; i < 2; i++) {
+        char *h = strfmt("%s/%s", home, layouts[i][0]);
+        char *l = strfmt("%s/%s/libkelvin.a", home, layouts[i][1]);
+        if (file_exists(strfmt("%s/kelvin_prelude.h", h)) && file_exists(l)) {
+            *inc = h;
+            *lib = l;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The runtime is looked for in $KELVIN_HOME, next to kelvinc (a build in
+   the source tree), and in kelvinc's parent directory (an installation). */
+static void find_runtime(const char *argv0, char **inc, char **lib) {
+    char *dir = exe_dir(argv0);
+    if (runtime_in(getenv("KELVIN_HOME"), inc, lib) || runtime_in(dir, inc, lib) ||
+        (dir && runtime_in(strfmt("%s/..", dir), inc, lib)))
+        return;
+    fatal("cannot find the Kelvin runtime (kelvin_prelude.h and libkelvin.a); run 'make', or set KELVIN_HOME");
 }
 
 static char *default_output(const char *src) {
@@ -161,6 +213,8 @@ int main(int argc, char **argv) {
     char *c_path = strfmt("%s/program.c", dir);
     write_file(c_path, c_code);
 
+    char *rt_inc, *rt_lib;
+    find_runtime(argv[0], &rt_inc, &rt_lib);
     char *exe = out_path ? xstrdup(out_path) : run_after ? strfmt("%s/program", dir) : default_output(src_path);
     const char *cc = getenv("CC");
     const char *base_args[] = {
@@ -182,12 +236,15 @@ int main(int argc, char **argv) {
     /* #import "x.h" as C looks next to the .k file, as #include would */
     const char *slash = strrchr(src_path, '/');
     list_push(&cc_args, !slash ? "-I." : slash == src_path ? "-I/" : strfmt("-I%.*s", (int)(slash - src_path), src_path));
+    /* the prelude header is a system header: its macros raise no warnings */
+    list_push(&cc_args, "-isystem");
+    list_push(&cc_args, rt_inc);
     /* extra flags, split on whitespace (e.g. -fsanitize=undefined) */
     const char *extra = getenv("KELVIN_CFLAGS");
     char *flags = xstrdup(extra ? extra : "");
     for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
         list_push(&cc_args, tok);
-    const char *tail_args[] = {"-o", exe, c_path, "-lm", NULL};
+    const char *tail_args[] = {"-o", exe, c_path, rt_lib, "-lm", NULL};
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);
     char **cc_argv = (char **)cc_args.data;

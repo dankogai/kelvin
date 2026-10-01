@@ -57,3 +57,6 @@ dkms.conf
 # kelvin build outputs
 /kelvinc
 /build/
+/libkelvin.a
+/libkelvin.so
+/libkelvin.dylib

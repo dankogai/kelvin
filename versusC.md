@@ -38,6 +38,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `(size_t)n` | `n as size_t` |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
+| `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 
 ## Declarations
 
@@ -256,6 +257,37 @@ Only declarations differ: `x: i32 = 0;` or `x = 0;` (see Declarations),
 also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`. `if`, `while`,
 `do`, `for`, `switch`, `case`, `goto` and labels are C's.
 
+## The prelude: `print` and `println`
+
+Every Kelvin program can use `print` and `println` without an import:
+
+```kelvin
+main(): i32
+{
+    n: i64 = -42;
+    println("n = ", n, ", half = ", n / 2.0);   // n = -42, half = -21.0
+    println();                                  // just a newline
+    return 0;
+}
+```
+
+- `print(a, b, ...)` prints up to 16 values with no separators, and
+  `println(...)` adds a newline.
+- Each value prints according to its C type *(provisional P21)*:
+  - integers of every size in decimal, so `i64` needs no `PRId64`
+  - floats in the shortest text that reads back the same, always with a
+    `.` or an exponent (`1.0`, `0.1`, `1e+300`)
+  - `bool` as `true`/`false`
+  - `u8^` and string literals as strings (`(null)` for a null pointer)
+  - other pointers as addresses
+- Comparisons and `!` produce C's `int`, so `println(a == b)` prints `1`
+  or `0`. Write `bool(a == b)` to print `true`/`false`. `true` and `false`
+  themselves are `bool`s *(provisional P23)*.
+- `print` and `println` cannot be redefined.
+- The prelude lives in `libkelvin`, which kelvinc links statically
+  *(provisional P22)*. The same library works from C:
+  `#include <kelvin_prelude.h>` and link `-lkelvin`.
+
 ## Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares
@@ -277,6 +309,7 @@ statement of its own.
 
 ## Reserved words
 
+`print` and `println` belong to the prelude and cannot be redefined.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
