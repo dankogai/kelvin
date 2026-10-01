@@ -436,3 +436,19 @@ converted, with 92 tests in total.
   checks the library from C, linked both statically and dynamically.
 
 Q7 is closed, and there are 96 tests.
+
+### 23. Commit, a red CI run, and a fix
+
+> commit and push to main
+
+`2182327` failed CI on Linux, although it had passed every local check
+on macOS:
+
+- glibc declares `realpath` only with `_XOPEN_SOURCE`, so the clang and
+  sanitizer builds failed.
+- glibc on x86 prints the NaN from `0.0 / 0.0` as `-nan`.
+
+**Claude** pushed a narrow fix as `f5fed5a`. `main.c` now uses
+`_XOPEN_SOURCE 700`, and the prelude prints every NaN as `nan`. The
+prelude test now covers a negative NaN. CI is green on all four jobs with
+96/96 tests.
