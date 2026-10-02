@@ -1,0 +1,7 @@
+// error: 'p' is a reference (u8^): assign it with ':=', not '='
+// cstr is u8^, so it is assigned with :=
+main(): i32
+{
+    p: cstr = "text";
+    return 0;
+}

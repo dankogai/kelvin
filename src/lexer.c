@@ -8,11 +8,12 @@
 #include <string.h>
 
 /* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false,
-   String, any (only as any^, C's void *) and nullptr. C's numeric type names stay reserved so they can be rejected with
-   a hint. */
+   any (only as any^, C's void *), nullptr, cstr (u8^) and String (shelved
+   until Kelvin has a true string type, #22). C's numeric type names stay
+   reserved so they can be rejected with a hint. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
-    "f32", "f64", "bool", "true", "false", "String", "any", "nullptr",
+    "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -142,7 +143,7 @@ static void check_number(Pos pos, const char *s, const char *end) {
 }
 
 /* Does the '.' at `dot` start a method call on the number that began at
-   `start`, as in 2.toString() or 1.5.fmt("%e")? It does not when it
+   `start`, as in 2.cstr or 1.5.hex? It does not when it
    continues the number: 1.5, 1.e5, or a hex float such as 0x1.f4p+9
    (whose fraction may start with a letter). */
 static bool method_after_number(const char *start, const char *dot) {
@@ -172,7 +173,7 @@ static void lex_number(Lexer *lx) {
         if ((c == '+' || c == '-') && strchr("eEpP", lx->p[-1])) {
             step(lx);
         } else if (c == '.' && method_after_number(start, lx->p)) {
-            break; /* `2.toString()`: the number ends before a method name */
+            break; /* `2.cstr`: the number ends before a property or method name */
         } else if (isalnum((unsigned char)c) || c == '_' || c == '.') {
             step(lx);
         } else {

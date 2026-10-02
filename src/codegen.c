@@ -24,7 +24,7 @@ typedef struct {
     const char *ctype;
     const char *fn;
 } Method;
-static List methods;        /* Method * */
+static List methods;        /* Method *; a struct's derived .cstr is "cstr" */
 static int method_temps;    /* names the receiver temporaries */
 /* The buffers that text properties (x.hex) in the innermost block
    write into, "kv_text1[36]" each; NULL outside function bodies */
@@ -37,7 +37,7 @@ static int mapped_line = -1;  /* .k line that the next C line corresponds to */
 static void line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* while set, every emitted line maps to this .k position (generated
-   code such as a derived toString) */
+   code such as a derived .cstr) */
 static Pos pinned_line;
 
 static void line(const char *fmt, ...) {
@@ -86,7 +86,6 @@ static const char *c_type_name(const char *name) {
         {"i128", "__int128"}, {"u128", "unsigned __int128"},
         {"f32", "float"},     {"f64", "double"},
         {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
-        {"String", "kv_String"},
         {"any", "void"}, /* any^ is void * */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
@@ -130,6 +129,19 @@ static char *c_op(const char *op) {
 }
 
 static char *initializer(Expr *e);
+static Decl *kelvin_record(const char *name);
+
+/* the _Generic associations `<C type>: <function>, ` for a method name */
+static char *dispatch(const char *method) {
+    Buf assoc = {0};
+    buf_puts(&assoc, "");
+    for (int i = 0; i < methods.len; i++) {
+        Method *m = methods.data[i];
+        if (!strcmp(m->method, method))
+            buf_printf(&assoc, "%s: %s, ", m->ctype, m->fn);
+    }
+    return assoc.buf;
+}
 
 /* Does e hold a method call or a property, whose C repeats its receiver? */
 static bool has_dispatch(Expr *e) {
@@ -225,33 +237,49 @@ static char *expr_bare(Expr *e) {
     case E_INIT:
         return initializer(e);
     case E_PROPERTY: {
-        /* x.size is sizeof(x). x.hex and friends write into a buffer on
-           the caller's stack and return it as u8^. The buffer is declared
-           at the top of the enclosing block (see S_BLOCK), so the text
-           lives until the block ends; its size is the longest text of any
-           type, -0x and 32 digits for .hex. The receiver is evaluated
-           once: sizeof and _Generic do not evaluate. */
+        /* x.size is sizeof(x). x.cstr, x.hex and friends write into a
+           buffer on the caller's stack and return it as u8^. The buffer
+           is declared at the top of the enclosing block (see S_BLOCK), so
+           the text lives until the block ends. Its size is the longest
+           text of any type, -0x and 32 digits for .hex; for .cstr, that
+           of the receiver's struct, or of one value. The receiver is
+           evaluated once: sizeof and _Generic do not evaluate. */
         char *recv = expr(e->a);
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
-        int size = !strcmp(e->text, "dec")   ? 41   /* -170141183460469231731687303715884105728 */
-                   : !strcmp(e->text, "hex") ? 36   /* -0x and 32 digits */
-                   : !strcmp(e->text, "oct") ? 47   /* -0o and 43 digits */
-                                             : 132; /* -0b and 128 digits */
+        bool cstr = !strcmp(e->text, "cstr");
+        Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
+        const char *size = r                          ? strfmt("%s__cstr_size", r->name)
+                           : cstr                     ? "KV_CSTR_SCALAR"
+                           : !strcmp(e->text, "dec")  ? "41"   /* -170141183460469231731687303715884105728 */
+                           : !strcmp(e->text, "hex")  ? "36"   /* -0x and 32 digits */
+                           : !strcmp(e->text, "oct")  ? "47"   /* -0o and 43 digits */
+                                                      : "132"; /* -0b and 128 digits */
         char *buf;
         if (text_bufs) {
             buf = strfmt("kv_text%d", ++text_temps);
-            list_push(text_bufs, strfmt("%s[%d]", buf, size));
+            list_push(text_bufs, strfmt("%s[%s]", buf, size));
         } else {
-            buf = strfmt("(uint8_t[%d]){0}", size); /* at file scope */
+            buf = strfmt("(uint8_t[%s]){0}", size); /* at file scope */
         }
+        if (r)
+            return strfmt("%s__cstr(%s, %s)", r->name, recv, buf); /* a struct kelvinc can see */
         /* a receiver that holds a property or method call, as in
            x.hex[2].hex, goes into a temporary like a method's receiver,
            so that nesting stays linear in size */
         char *tmp = has_dispatch(e->a) ? strfmt("kv_self%d", ++method_temps) : NULL;
         const char *self = tmp ? tmp : recv;
-        char *call = strfmt("_Generic((%s), KV_PROPERTY_%s default: kv_no_such_property)(%s, %s)", self, e->text,
-                            self, buf);
+        /* for .cstr, other pointers are addresses, and a Kelvin struct
+           kelvinc could not see has no buffer sized for it: a C error */
+        Buf structs = {0};
+        buf_puts(&structs, "");
+        for (int i = 0; cstr && e->op && i < methods.len; i++) {
+            Method *m = methods.data[i];
+            if (!strcmp(m->method, "cstr"))
+                buf_printf(&structs, "%s: kv_cstr_unseen_struct, ", m->ctype);
+        }
+        char *call = strfmt("_Generic((%s), KV_PROPERTY_%s %sdefault: %s)(%s, %s)", self, e->text, structs.buf,
+                            cstr ? "kv_cstr_ptr" : "kv_no_such_property", self, buf);
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
@@ -260,24 +288,12 @@ static char *expr_bare(Expr *e) {
            expression and __auto_type, both accepted by gcc and clang) */
         char *recv = expr(e->a);
         char *tmp = strfmt("kv_self%d", ++method_temps);
-        Buf assoc = {0};
-        buf_puts(&assoc, "");
-        if (!strcmp(e->text, "toString") || !strcmp(e->text, "fmt"))
-            buf_printf(&assoc, "KV_METHOD_%s ", e->text);
-        for (int i = 0; i < methods.len; i++) {
-            Method *m = methods.data[i];
-            if (!strcmp(m->method, e->text))
-                buf_printf(&assoc, "%s: %s, ", m->ctype, m->fn);
-        }
-        const char *fallback = !strcmp(e->text, "toString") ? "kv_toString_ptr"
-                               : !strcmp(e->text, "fmt")    ? "kv_fmt_ptr"
-                                                            : "kv_no_such_method";
         Buf args = {0};
         buf_puts(&args, "");
         for (int i = 0; i < e->items.len; i++)
             buf_printf(&args, ", %s", expr(e->items.data[i]));
-        return strfmt("({ __auto_type %s = %s; _Generic((%s), %sdefault: %s)(%s%s); })", tmp, recv, tmp, assoc.buf,
-                      fallback, tmp, args.buf);
+        return strfmt("({ __auto_type %s = %s; _Generic((%s), %sdefault: kv_no_such_method)(%s%s); })", tmp, recv,
+                      tmp, dispatch(e->text), tmp, args.buf);
     }
     }
     return NULL;
@@ -478,7 +494,7 @@ static void stmt(Stmt *s) {
 
 /* ---------- declarations ---------- */
 
-/* point.toString is the C function point__toString, f64.half f64__half */
+/* point.area is the C function point__area, f64.half f64__half */
 static char *method_cname(Decl *d) { return strfmt("%s__%s", d->recv_name, d->name); }
 
 static void register_method(const char *method, Type *recv, const char *fn) {
@@ -527,95 +543,130 @@ static Decl *kelvin_record(const char *name) {
     return NULL;
 }
 
-/* The C expression for the String form of `lv`, an lvalue of type t. */
-static char *to_string_expr(Type *t, const char *lv) {
-    if (t->kind == T_PTR) {
-        Type *e = t->elem;
-        if (e->kind == T_BASE && (!strcmp(e->name, "u8") || !strcmp(e->name, "i8")))
-            return strfmt("kv_toString_str((const char *)%s)", lv);
-        return strfmt("kv_toString_ptr((const void *)%s)", lv);
-    }
-    const char *n = t->name;
-    static const struct { const char *type, *fn; } direct[] = {
-        {"i8", "kv_toString_i64"},    {"i16", "kv_toString_i64"},  {"i32", "kv_toString_i64"},
-        {"i64", "kv_toString_i64"},   {"u8", "kv_toString_u64"},   {"u16", "kv_toString_u64"},
-        {"u32", "kv_toString_u64"},   {"u64", "kv_toString_u64"},  {"i128", "kv_toString_i128"},
-        {"u128", "kv_toString_u128"}, {"f32", "kv_toString_f32"},  {"f64", "kv_toString_f64"},
-        {"bool", "kv_toString_bool"}, {"String", "kv_toString_String"},
-        {"f32 _Complex", "kv_toString_cf"}, {"f64 _Complex", "kv_toString_cd"},
-    };
-    for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
-        if (!strcmp(n, direct[i].type))
-            return strfmt("%s(%s)", direct[i].fn, lv);
-    Decl *r = kelvin_record(n);
-    if (r)
-        return strfmt("%s__toString(%s)", r->name, lv);
-    for (int i = 0; i < methods.len; i++) {
-        Method *m = methods.data[i];
-        if (!strcmp(m->method, "toString") && !strcmp(m->ctype, n))
-            return strfmt("%s(%s)", m->fn, lv); /* e.g. a toString for a header struct */
-    }
-    /* a C typedef, a C struct, an enum: decided by the C compiler */
-    return strfmt("kv_toString_any(%s)", lv);
+/* ---------- the derived text of structs: x.cstr (#22) ---------- */
+
+/* u8^ and i8^ are text; a pointer to volatile bytes is an address, as
+   .cstr of one is (_Generic lists only plain and const strings) */
+static bool is_string_type(Type *t) {
+    Type *e = t->kind == T_PTR ? t->elem : NULL;
+    return e && e->kind == T_BASE && !e->is_volatile && (!strcmp(e->name, "u8") || !strcmp(e->name, "i8"));
 }
 
-/* append the String form of `lv` (type t) to kv_s; arrays print as [a, b] */
-static void append_value(Type *t, const char *lv, int depth) {
+/* the longest text of a value of type t, as a C constant expression; `lv`
+   names such a value inside sizeof, for the length of an array */
+static char *text_bound(Type *t, const char *lv) {
+    if (t->kind == T_PTR)
+        return is_string_type(t) ? "KV_CSTR_STR" : "(sizeof(void *) * 2 + 2)";
+    if (t->kind == T_ARRAY) {
+        if (!t->size)
+            return "5"; /* [...]: a flexible array member */
+        /* [a, b]: brackets, and each element with ", " */
+        return strfmt("(sizeof(%s) / sizeof((%s)[0]) * (%s + 2) + 2)", lv, lv,
+                      text_bound(t->elem, strfmt("(%s)[0]", lv)));
+    }
+    static const struct { const char *type, *bound; } scalars[] = {
+        {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
+        {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},
+        {"f32 _Complex", "31"},         {"f64 _Complex", "49"},
+    };
+    for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
+        if (!strcmp(t->name, scalars[i].type))
+            return (char *)scalars[i].bound;
+    Decl *r = kelvin_record(t->name);
+    if (r)
+        return strfmt("(%s__cstr_size - 1)", r->name);
+    return "(KV_CSTR_SCALAR - 1)"; /* a C typedef, a C struct, an enum: kv_cstr_any */
+}
+
+/* a C expression that writes the text of `lv` (type t, not an array) at p
+   and gives the end */
+static char *text_writer(Type *t, const char *lv) {
+    if (t->kind == T_PTR)
+        return is_string_type(t) ? strfmt("kv_cstr_put_str(p, (const char *)%s)", lv)
+                                 : strfmt("kv_cstr_end(kv_cstr_ptr((const void *)%s, p))", lv);
+    static const struct { const char *type, *fn; } direct[] = {
+        {"i8", "kv_cstr_i64"},    {"i16", "kv_cstr_i64"},  {"i32", "kv_cstr_i64"},  {"i64", "kv_cstr_i64"},
+        {"u8", "kv_cstr_u64"},    {"u16", "kv_cstr_u64"},  {"u32", "kv_cstr_u64"},  {"u64", "kv_cstr_u64"},
+        {"i128", "kv_cstr_i128"}, {"u128", "kv_cstr_u128"}, {"f32", "kv_cstr_f32"}, {"f64", "kv_cstr_f64"},
+        {"bool", "kv_cstr_bool"}, {"f32 _Complex", "kv_cstr_cf"}, {"f64 _Complex", "kv_cstr_cd"},
+    };
+    for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
+        if (!strcmp(t->name, direct[i].type))
+            return strfmt("kv_cstr_end(%s(%s, p))", direct[i].fn, lv);
+    Decl *r = kelvin_record(t->name);
+    if (r)
+        return strfmt("kv_cstr_end(%s__cstr(%s, p))", r->name, lv);
+    /* a C typedef, a C struct, an enum: decided by the C compiler */
+    return strfmt("kv_cstr_end(kv_cstr_any(%s, p))", lv);
+}
+
+/* write the text of `lv` (type t) at p; arrays are [a, b] */
+static void write_text(Type *t, const char *lv, int depth) {
     if (t->kind != T_ARRAY) {
-        line("kv_string_append(&kv_s, (const char *)%s.bytes);", to_string_expr(t, lv));
+        line("p = %s;", text_writer(t, lv));
         return;
     }
     if (!t->size) {
-        line("kv_string_append(&kv_s, \"[...]\");"); /* a flexible array member */
+        line("p = kv_cstr_put(p, \"[...]\");"); /* a flexible array member */
         return;
     }
     char *i = strfmt("kv_i%d", depth);
-    line("kv_string_append(&kv_s, \"[\");");
+    line("p = kv_cstr_put(p, \"[\");");
     line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
     line("{");
     indent++;
     line("if (%s)", i);
-    line("    kv_string_append(&kv_s, \", \");");
-    append_value(t->elem, strfmt("%s[%s]", lv, i), depth + 1);
+    line("    p = kv_cstr_put(p, \", \");");
+    write_text(t->elem, strfmt("%s[%s]", lv, i), depth + 1);
     indent--;
     line("}");
-    line("kv_string_append(&kv_s, \"]\");");
+    line("p = kv_cstr_put(p, \"]\");");
 }
 
-/* The derived toString of a struct, {x: 1, y: 2}; a union, whose active
-   member is unknown, prints as <union name>. */
-static void emit_derived_tostring(Decl *d, Type *recv) {
+/* The derived text of a struct, {x: 1, y: 2}, and its size: a union,
+   whose active member is unknown, is <union name>. */
+static void emit_derived_cstr(Decl *d, Type *recv) {
     pinned_line = d->pos;
-    line("static inline kv_String %s__toString(%s)", d->name, decl(recv, "self"));
-    line("{");
-    indent++;
-    line("kv_String kv_s = {{0}};");
+    char *ctype = decl(recv, "");
+    Buf size = {0};
     if (d->kind == D_UNION) {
-        line("kv_string_append(&kv_s, \"<union %s>\");", d->name);
+        buf_printf(&size, "%d", (int)strlen(d->name) + 9);
     } else {
-        line("kv_string_append(&kv_s, \"{\");");
+        int fixed = 3; /* {, } and the NUL */
         for (int i = 0; i < d->members.len; i++) {
             Var *m = d->members.data[i];
-            line("kv_string_append(&kv_s, \"%s%s: \");", i ? ", " : "", m->name);
-            append_value(m->type, strfmt("self.%s", m->name), 0);
+            fixed += (i ? 2 : 0) + (int)strlen(m->name) + 2;
         }
-        line("kv_string_append(&kv_s, \"}\");");
+        buf_printf(&size, "%d", fixed);
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            buf_printf(&size, " + %s", text_bound(m->type, strfmt("((%s *)0)->%s", ctype, m->name)));
+        }
     }
-    line("return kv_s;");
+    line("enum { %s__cstr_size = %s };", d->name, size.buf);
+    /* unused is a GNU attribute, like the statement expressions (P31) */
+    line("__attribute__((unused)) static inline uint8_t *%s__cstr(%s, uint8_t *buf)", d->name, decl(recv, "self"));
+    line("{");
+    indent++;
+    if (d->kind == D_UNION) {
+        line("(void)self;");
+        line("kv_cstr_put(buf, \"<union %s>\");", d->name);
+    } else {
+        line("uint8_t *p = buf;");
+        line("p = kv_cstr_put(p, \"{\");");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            line("p = kv_cstr_put(p, \"%s%s: \");", i ? ", " : "", m->name);
+            write_text(m->type, strfmt("self.%s", m->name), 0);
+        }
+        line("kv_cstr_put(p, \"}\");");
+    }
+    line("return buf;");
     indent--;
     line("}");
     pinned_line.file = NULL;
     mapped_line = -1;
-}
-
-/* the user's toString for a receiver type name, if any */
-static Decl *user_tostring_decl(const char *recv) {
-    for (int i = 0; i < program->decls.len; i++) {
-        Decl *d = program->decls.data[i];
-        if (d->kind == D_FN && d->recv && !strcmp(d->name, "toString") && !strcmp(d->recv->name, recv))
-            return d;
-    }
-    return NULL;
 }
 
 static void emit_decl(Decl *d) {
@@ -625,8 +676,6 @@ static void emit_decl(Decl *d) {
         line("#include %s", d->name);
         break;
     case D_FN:
-        if (d->recv && !strcmp(d->name, "toString") && kelvin_record(d->recv->name) && !d->body)
-            break; /* already declared right after the struct */
         /* registered before the body, so a method can call itself */
         if (d->recv)
             register_method(d->name, d->recv, method_cname(d));
@@ -667,18 +716,14 @@ static void emit_decl(Decl *d) {
         indent--;
         line("};");
         if (d->kind != D_ENUM && d->name) {
-            /* every struct and union has toString: the user's, or a derived one */
+            /* every struct and union has a derived .cstr */
             Type *recv = xcalloc(1, sizeof *recv);
             recv->kind = T_BASE;
             recv->pos = d->pos;
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
-            Decl *user = user_tostring_decl(recv->name);
-            if (user)
-                line("%s;", fn_head(user)); /* as the user declares it, e.g. static */
-            else
-                emit_derived_tostring(d, recv);
-            register_method("toString", recv, strfmt("%s__toString", d->name));
+            emit_derived_cstr(d, recv);
+            register_method("cstr", recv, strfmt("%s__cstr", d->name));
         }
         break;
     }

@@ -7,9 +7,8 @@
      print(v, ...)    prints each value according to its type
      println(v, ...)  the same, followed by a newline; println() prints
                       just a newline
-     String           a string value of up to 255 bytes, stored inline
-     v.toString()     every type's text form, as a String
-     v.fmt(format)    printf-style formatting of one value, as a String
+     v.cstr           every type's text, as cstr (u8^) on the stack
+     v.dec, v.hex     the text of a number (and v.oct, v.bin for integers)
 
    print: integers print in decimal (including 128-bit ones), floats in
    the shortest form that reads back to the same value, bool as
@@ -22,114 +21,77 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ---------- String ---------- */
+/* ---------- x.cstr (#22) ---------- */
 
-/* A String holds its text inline, so it is a plain value: it can be
-   returned, copied and passed without allocation or freeing. Longer
-   text is truncated. Its bytes are u8, NUL-terminated. */
-#define KV_STRING_SIZE 256
-
-typedef struct kv_String {
-    unsigned char bytes[KV_STRING_SIZE];
-} kv_String;
-
-void kv_string_append(kv_String *s, const char *text);
-
-/* ---------- toString ---------- */
-
-kv_String kv_toString_bool(bool v);
-kv_String kv_toString_char(char v);
-kv_String kv_toString_i64(long long v);
-kv_String kv_toString_u64(unsigned long long v);
-kv_String kv_toString_f32(float v);   /* "%.9g": lossless for f32 */
-kv_String kv_toString_f64(double v);  /* "%.17g": lossless for f64 */
-kv_String kv_toString_f80(long double v);
-kv_String kv_toString_str(const char *v);
-kv_String kv_toString_ptr(const void *v);
-kv_String kv_toString_String(kv_String v);
-kv_String kv_toString_cf(float _Complex v);   /* re+imi */
-kv_String kv_toString_cd(double _Complex v);
-kv_String kv_toString_cld(long double _Complex v);
-
-/* ---------- fmt ---------- */
-
-/* fmt takes a printf format with exactly one conversion (and any %%):
-   flags, width and precision (each at most 4096), and one of
-   d i o u x X c f F e E g G a A s p. No length modifiers: the value's
-   own type decides. The value is converted to the conversion's kind, so
-   42.fmt("%.2f") is "42.00" and an unsigned conversion of a negative
-   value shows its bits in the value's own width. Flags C leaves
-   undefined for a conversion are ignored. Anything else gives
-   "<invalid format>". */
-kv_String kv_fmt_bool(bool v, const char *format);
-kv_String kv_fmt_char(char v, const char *format);
-/* one per signed width, so %x of a negative i32 is 8 hex digits */
-kv_String kv_fmt_i8(signed char v, const char *format);
-kv_String kv_fmt_i16(short v, const char *format);
-kv_String kv_fmt_i32(int v, const char *format);
-kv_String kv_fmt_long(long v, const char *format);
-kv_String kv_fmt_i64(long long v, const char *format);
-kv_String kv_fmt_u64(unsigned long long v, const char *format);
-kv_String kv_fmt_f32(float v, const char *format);
-kv_String kv_fmt_f64(double v, const char *format);
-kv_String kv_fmt_f80(long double v, const char *format);
-kv_String kv_fmt_str(const char *v, const char *format);
-kv_String kv_fmt_ptr(const void *v, const char *format);
-kv_String kv_fmt_String(kv_String v, const char *format);
-kv_String kv_fmt_cf(float _Complex v, const char *format); /* %s only */
-kv_String kv_fmt_cd(double _Complex v, const char *format);
-kv_String kv_fmt_cld(long double _Complex v, const char *format);
-
+/* The text of a value, written into `buf` (a buffer on the caller's
+   stack that kelvinc declares at the top of the enclosing block) and
+   returned as u8^. Numbers are plain decimal ("42", "-7"), floats are
+   lossless (%.9g for f32, %.17g for f64) and a NaN is "nan", bool is
+   true/false, other pointers are addresses ("0x1f2e"), complex numbers
+   are re+imi. A string (u8^) is its own text: s.cstr is s itself, and
+   stays const if s is.
+   A Kelvin struct's text, {x: 3, y: 4}, is written by a function kelvinc
+   derives for it. A buffer for one value holds KV_CSTR_SCALAR bytes. */
+#define KV_CSTR_SCALAR 64
+uint8_t *kv_cstr_bool(bool v, uint8_t *buf);
+uint8_t *kv_cstr_char(char v, uint8_t *buf);
+uint8_t *kv_cstr_i64(long long v, uint8_t *buf);
+uint8_t *kv_cstr_u64(unsigned long long v, uint8_t *buf);
+uint8_t *kv_cstr_f32(float v, uint8_t *buf);
+uint8_t *kv_cstr_f64(double v, uint8_t *buf);
+uint8_t *kv_cstr_f80(long double v, uint8_t *buf);
+uint8_t *kv_cstr_cf(float _Complex v, uint8_t *buf);
+uint8_t *kv_cstr_cd(double _Complex v, uint8_t *buf);
+uint8_t *kv_cstr_cld(long double _Complex v, uint8_t *buf);
+uint8_t *kv_cstr_str(const char *v, uint8_t *buf);
+const uint8_t *kv_cstr_cstr(const char *v, uint8_t *buf);
+uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf);
 #ifdef __SIZEOF_INT128__
-kv_String kv_toString_i128(__int128 v);
-kv_String kv_toString_u128(unsigned __int128 v);
-kv_String kv_fmt_i128(__int128 v, const char *format);
-kv_String kv_fmt_u128(unsigned __int128 v, const char *format);
-#define KV_INT128_toString __int128: kv_toString_i128, unsigned __int128: kv_toString_u128,
-#define KV_INT128_fmt __int128: kv_fmt_i128, unsigned __int128: kv_fmt_u128,
+uint8_t *kv_cstr_i128(__int128 v, uint8_t *buf);
+uint8_t *kv_cstr_u128(unsigned __int128 v, uint8_t *buf);
+#define KV_INT128_cstr __int128: kv_cstr_i128, unsigned __int128: kv_cstr_u128,
 #else
-#define KV_INT128_toString
-#define KV_INT128_fmt
+#define KV_INT128_cstr
 #endif
 
-/* Method dispatch: kelvinc turns `v.toString()` into
-   _Generic((v), KV_METHOD_toString <user types> default: ...)(v).
+/* kelvinc turns `v.cstr` into
+   _Generic((v), KV_PROPERTY_cstr <Kelvin structs> default: kv_cstr_ptr)(v, buf).
    C's own type names are listed rather than int64_t and friends, because
    int64_t is `long` on some platforms and `long long` on others, and a
    _Generic list may not name the same type twice. */
-#define KV_METHOD_toString \
-    bool: kv_toString_bool, char: kv_toString_char, \
-    signed char: kv_toString_i64, short: kv_toString_i64, int: kv_toString_i64, \
-    long: kv_toString_i64, long long: kv_toString_i64, \
-    unsigned char: kv_toString_u64, unsigned short: kv_toString_u64, unsigned: kv_toString_u64, \
-    unsigned long: kv_toString_u64, unsigned long long: kv_toString_u64, \
-    KV_INT128_toString \
-    float: kv_toString_f32, double: kv_toString_f64, long double: kv_toString_f80, \
-    float _Complex: kv_toString_cf, double _Complex: kv_toString_cd, \
-    long double _Complex: kv_toString_cld, \
-    char *: kv_toString_str, const char *: kv_toString_str, \
-    signed char *: kv_toString_str, const signed char *: kv_toString_str, \
-    unsigned char *: kv_toString_str, const unsigned char *: kv_toString_str, \
-    kv_String: kv_toString_String,
+#define KV_PROPERTY_cstr \
+    bool: kv_cstr_bool, char: kv_cstr_char, \
+    signed char: kv_cstr_i64, short: kv_cstr_i64, int: kv_cstr_i64, \
+    long: kv_cstr_i64, long long: kv_cstr_i64, \
+    unsigned char: kv_cstr_u64, unsigned short: kv_cstr_u64, unsigned: kv_cstr_u64, \
+    unsigned long: kv_cstr_u64, unsigned long long: kv_cstr_u64, \
+    KV_INT128_cstr \
+    float: kv_cstr_f32, double: kv_cstr_f64, long double: kv_cstr_f80, \
+    float _Complex: kv_cstr_cf, double _Complex: kv_cstr_cd, \
+    long double _Complex: kv_cstr_cld, \
+    char *: kv_cstr_str, const char *: kv_cstr_cstr, \
+    signed char *: kv_cstr_str, const signed char *: kv_cstr_cstr, \
+    unsigned char *: kv_cstr_str, const unsigned char *: kv_cstr_cstr,
 
-#define KV_METHOD_fmt \
-    bool: kv_fmt_bool, char: kv_fmt_char, \
-    signed char: kv_fmt_i8, short: kv_fmt_i16, int: kv_fmt_i32, \
-    long: kv_fmt_long, long long: kv_fmt_i64, \
-    unsigned char: kv_fmt_u64, unsigned short: kv_fmt_u64, unsigned: kv_fmt_u64, \
-    unsigned long: kv_fmt_u64, unsigned long long: kv_fmt_u64, \
-    KV_INT128_fmt \
-    float: kv_fmt_f32, double: kv_fmt_f64, long double: kv_fmt_f80, \
-    float _Complex: kv_fmt_cf, double _Complex: kv_fmt_cd, long double _Complex: kv_fmt_cld, \
-    char *: kv_fmt_str, const char *: kv_fmt_str, \
-    signed char *: kv_fmt_str, const signed char *: kv_fmt_str, \
-    unsigned char *: kv_fmt_str, const unsigned char *: kv_fmt_str, \
-    kv_String: kv_fmt_String,
+/* Selected for a Kelvin struct where kelvinc could not see the value's
+   type, as in (c ? p : q).cstr, and so could not size the buffer for it;
+   any call is a C type error that names this function. Assign the value
+   to a variable first. */
+struct kv_cstr_unseen_struct { char unused; };
+uint8_t *kv_cstr_unseen_struct(struct kv_cstr_unseen_struct, uint8_t *);
+
+/* For the derived text of structs: each writes at p and returns the end.
+   A string inside a struct shows at most KV_CSTR_STR bytes; a longer one
+   is cut and ends in "...". */
+#define KV_CSTR_STR 60
+uint8_t *kv_cstr_end(uint8_t *s);
+uint8_t *kv_cstr_put(uint8_t *p, const char *text);
+uint8_t *kv_cstr_put_str(uint8_t *p, const char *s);
 
 /* ---------- properties: x.dec, x.hex, x.oct, x.bin (#21) ---------- */
 
 /* The text of a number, written into `buf` (a buffer on the caller's
-   stack that kelvinc sizes from sizeof) and returned as u8^. Signed
+   stack that kelvinc sizes for the longest text) and returned as u8^. Signed
    integers always carry a sign ("+42", "-0x2a"), which tells them from
    unsigned ones ("42", "0x2a"). Prefixes are 0x, 0o and 0b. f32/f64 have
    .dec (%.17g style) and .hex (%a), always signed. */
@@ -188,26 +150,34 @@ uint8_t *kv_no_such_property(struct kv_no_such_property, uint8_t *);
 struct kv_no_such_method { char unused; };
 void kv_no_such_method(struct kv_no_such_method);
 
-/* toString of a value whose type kelvinc cannot see, such as a field of a
-   C typedef type: scalars print as usual, anything else as "{...}". */
+/* The text of a struct member whose type kelvinc cannot see, such as a
+   C typedef: scalars as .cstr gives them, a char array (typedef char
+   name_t[16]) as the text in it, anything else "{...}". At most
+   KV_CSTR_SCALAR - 1 bytes. _Generic sees a char array as a char *, so
+   the type of &(lv) tells the two apart. */
 enum {
     KV_K_OPAQUE, KV_K_BOOL, KV_K_CHAR, KV_K_SCHAR, KV_K_UCHAR, KV_K_SHORT, KV_K_USHORT, KV_K_INT,
     KV_K_UINT, KV_K_LONG, KV_K_ULONG, KV_K_LLONG, KV_K_ULLONG, KV_K_I128, KV_K_U128, KV_K_FLOAT,
-    KV_K_DOUBLE, KV_K_LDOUBLE, KV_K_STR, KV_K_CSTR, KV_K_STRING,
+    KV_K_DOUBLE, KV_K_LDOUBLE, KV_K_STR, KV_K_CSTR, KV_K_CHARS,
 };
-kv_String kv_toString_kind(const void *p, int kind);
+uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf);
 #ifdef __SIZEOF_INT128__
 #define KV_INT128_KIND __int128: KV_K_I128, unsigned __int128: KV_K_U128,
 #else
 #define KV_INT128_KIND
 #endif
-#define kv_toString_any(lv) kv_toString_kind((const void *)&(lv), _Generic((lv), \
+#define kv_cstr_any(lv, buf) kv_cstr_kind((const void *)&(lv), _Generic((lv), \
     bool: KV_K_BOOL, char: KV_K_CHAR, signed char: KV_K_SCHAR, unsigned char: KV_K_UCHAR, \
     short: KV_K_SHORT, unsigned short: KV_K_USHORT, int: KV_K_INT, unsigned: KV_K_UINT, \
     long: KV_K_LONG, unsigned long: KV_K_ULONG, long long: KV_K_LLONG, \
     unsigned long long: KV_K_ULLONG, KV_INT128_KIND \
     float: KV_K_FLOAT, double: KV_K_DOUBLE, long double: KV_K_LDOUBLE, \
-    char *: KV_K_STR, const char *: KV_K_CSTR, kv_String: KV_K_STRING, default: KV_K_OPAQUE))
+    char *: _Generic(&(lv), char **: KV_K_STR, char *const *: KV_K_STR, char *volatile *: KV_K_STR, \
+                     char *const volatile *: KV_K_STR, default: KV_K_CHARS), \
+    const char *: _Generic(&(lv), const char **: KV_K_CSTR, const char *const *: KV_K_CSTR, \
+                           const char *volatile *: KV_K_CSTR, const char *const volatile *: KV_K_CSTR, \
+                           default: KV_K_CHARS), \
+    default: KV_K_OPAQUE), sizeof(lv), buf)
 
 /* ---------- print ---------- */
 
@@ -220,7 +190,6 @@ void kv_print_f80(long double v);
 void kv_print_bool(bool v);
 void kv_print_str(const char *v);
 void kv_print_ptr(const void *v);
-void kv_print_String(kv_String v);
 void kv_print_newline(void);
 #ifdef __SIZEOF_INT128__
 void kv_print_i128(__int128 v);
@@ -242,7 +211,6 @@ void kv_print_u128(unsigned __int128 v);
     char *: kv_print_str, const char *: kv_print_str, \
     signed char *: kv_print_str, const signed char *: kv_print_str, \
     unsigned char *: kv_print_str, const unsigned char *: kv_print_str, \
-    kv_String: kv_print_String, \
     default: kv_print_ptr)(v)
 
 #define KV_CAT_(a, b) a##b

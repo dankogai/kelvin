@@ -43,8 +43,10 @@ So far the changes from C are:
   `0xdead:u16`
 - `print()` and `println()` come from a small prelude in `libkelvin`, so
   `println("n = ", n)` works for any type with no import
-- every type has methods: `p.toString()` (derived for structs),
-  `pi.fmt("%a")`, and your own, such as `point.area(): f64 { ... }`
+- every type can have methods, such as `point.area(): f64 { ... }`
+- every number, bool, pointer and Kelvin struct has its text as `x.cstr`
+  (derived for structs, as `{x: 3, y: 4}`), where `cstr` is `u8^`;
+  `toString()` waits for a true string type
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
   `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
   (`(42:i32).hex` is `+0x2a`)

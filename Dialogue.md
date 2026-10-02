@@ -706,3 +706,64 @@ The 2 rejected findings:
   see.
 
 There are 144 tests.
+
+### 32. `.cstr` and `cstr`; `toString()` shelved
+
+> table `.toString()` till we implement a true `string` type (a la C++,
+> et al) and add `.cstr` which returns its default text representation in
+> `u8^`. and `typedef u8^ cstr`.
+
+**Claude** read "table" as "shelve until later" and asked three
+questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| What happens to `String` and `fmt()`, which `toString()` shares its `String` with? | Shelve all three |
+| What is `.cstr` of a struct or union? | Derived text, `{x: 3, y: 4}`, with a buffer kelvinc sizes from the member types; not overridable for now |
+| Is `typedef u8^ cstr` a built-in name or a new `typedef` declaration? | A built-in name |
+
+**Claude** implemented #22:
+
+- **Shelved.** `toString()`, `fmt()` and `String` are gone from the
+  prelude and the runtime. The names stay reserved, and using them is an
+  error that points at `.cstr`. A call through a C struct's field of that
+  name still works.
+- **`.cstr`.** Every type's text, as `.dec` writes it: into a buffer
+  declared at the top of the enclosing block, returned as `u8^`. Numbers
+  are plain decimal, floats lossless, a string is its own text, and other
+  pointers are addresses. Each struct gets a derived function and a size
+  constant that C computes from the member types; where kelvinc cannot
+  see the receiver, the buffer fits every struct so far.
+- **`cstr`.** A keyword the parser expands to `u8^`, so `:=` and the
+  other reference rules apply. `.cstr` can still name a C struct's field.
+
+Claude's own choices are provisional P35 (sizes, strings in structs,
+arrays) and P36 (how the shelved names and `cstr` read). The tests of
+`toString()` and `fmt()` became tests of `.cstr` and of the shelving
+errors.
+
+An adversarial review round (two lenses) confirmed 8 findings, 7 of them
+distinct, and rejected none. All are fixed:
+
+- **A char array behind a C typedef** (`typedef char label_t[16]`) as a
+  struct member crashed `.cstr`: its characters were read as a pointer.
+  It now shows the text in the array, never past its end.
+- **Receivers kelvinc could not see** got a buffer that fit every struct
+  declared so far, so one large struct (`u8[1048576]`) made
+  `abs(-1).cstr` overflow the stack. kelvinc now sees what Kelvin
+  functions and methods return, and anything still unseen gets one
+  value's 64 bytes; a Kelvin struct there is a C error naming
+  `kv_cstr_unseen_struct`.
+- **`const`.** `.cstr` of a `u8 const^` returned a writable `u8^`. It now
+  stays const, so C warns as it does for the plain assignment.
+- **Warnings.** clang `-Wall` flagged every unused derived function (as it
+  did for `toString()`), and `.cstr` of a `u8 volatile^` warned and
+  printed an address. Derived functions are now marked unused, and
+  volatile bytes are an address without warnings, as members too.
+- **`.cstr =` as a designator** for a C struct's field named `cstr` was
+  rejected.
+- **`String` in `v:String` and in a for-loop declaration** gave unrelated
+  errors instead of the shelving one.
+- **Docs.** They said every value has `.cstr`; C struct values do not.
+
+There are 150 tests.

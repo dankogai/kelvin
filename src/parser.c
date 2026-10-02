@@ -32,6 +32,8 @@ static List scope_marks;
 static List method_names;
 /* struct, union and enum declarations so far, to resolve method receivers */
 static List records;
+/* functions and methods declared so far, for the types of their results */
+static List functions;
 
 static bool is_method_name(const char *name) {
     for (int i = 0; i < method_names.len; i++)
@@ -60,6 +62,24 @@ static Type *lookup_type(const char *name) {
     for (int i = scope_names.len - 1; i >= 0; i--)
         if (!strcmp(scope_names.data[i], name))
             return scope_types.data[i];
+    return NULL;
+}
+
+/* the function `name` names here, unless a local name hides it */
+static Decl *function_named(const char *name) {
+    int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+    for (int i = scope_names.len - 1; i >= 0; i--) {
+        if (strcmp(scope_names.data[i], name))
+            continue;
+        if (i >= global_end)
+            return NULL;
+        for (int j = 0; j < functions.len; j++) {
+            Decl *d = functions.data[j];
+            if (!d->recv && !strcmp(d->name, name))
+                return d;
+        }
+        return NULL;
+    }
     return NULL;
 }
 
@@ -123,7 +143,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "String", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -147,8 +167,11 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "String");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr");
 }
+
+/* toString(), fmt() and String wait for a true string type (#22) */
+#define SHELVED_HINT "is shelved until Kelvin has a true string type; text is cstr (u8^), as in 'x.cstr'"
 
 static bool starts_type(Token *t);
 
@@ -210,8 +233,9 @@ static int type_shape_end(int i) {
     if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum")) {
         if (toks[++i].kind != TK_IDENT)
             return -1;
-    } else if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i])) {
-        return -1;
+    } else if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i]) &&
+               !is_kw(&toks[i], "String")) {
+        return -1; /* String is shelved (#22), but read as a type to say so */
     }
     for (i++;;) {
         if (kelvin_for_c_word(&toks[i]) || is_qualifier(&toks[i]) || is_p(&toks[i], "^") ||
@@ -276,6 +300,8 @@ typedef enum {
     TYPE_PAREN,  /* inside `(...)` in an expression: a C cast or compound literal */
 } TypeContext;
 
+static Type *parse_type_suffixes(Type *t, TypeContext ctx);
+
 static Type *parse_type_in(TypeContext ctx) {
     Type *base = xcalloc(1, sizeof *base);
     base->kind = T_BASE;
@@ -289,9 +315,24 @@ static Type *parse_type_in(TypeContext ctx) {
            size_t from an imported header; f32 and f64 may be _Complex */
         reject_c_int_name(peek());
         Token *name = peek();
+        if (is_kw(name, "String"))
+            error_at(name->pos, "String " SHELVED_HINT);
         if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
             error_at(name->pos, "expected a type, found %s", desc(name));
         advance();
+        if (is_kw(name, "cstr")) {
+            /* cstr is u8^ (#22); qualifiers apply to the pointer */
+            base->name = "u8";
+            Type *p = xcalloc(1, sizeof *p);
+            p->kind = T_PTR;
+            p->pos = name->pos;
+            p->elem = base;
+            p->is_const = base->is_const;
+            p->is_volatile = base->is_volatile;
+            base->is_const = base->is_volatile = false;
+            parse_qualifiers(p);
+            return parse_type_suffixes(p, ctx);
+        }
         base->name = name->text;
         parse_qualifiers(base);
         if (is_kw(name, "any") && !is_p(peek(), "^"))
@@ -300,8 +341,11 @@ static Type *parse_type_in(TypeContext ctx) {
             base->name = strfmt("%s _Complex", name->text);
     }
     parse_qualifiers(base);
+    return parse_type_suffixes(base, ctx);
+}
 
-    Type *t = base;
+/* the ^, [n] and qualifiers after a base type */
+static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
     for (;;) {
         Token *tok = peek();
         if (accept_p("^")) {
@@ -356,6 +400,8 @@ static Type *base_type(const char *name, Pos pos);
 static const char *literal_type(Expr *e);
 static Type *target_type(Expr *e);
 static Expr *property(Expr *e, Token *name, char *member);
+static char expr_class(Expr *e, Decl **record);
+static bool record_has_field(Decl *r, const char *name);
 
 static Expr *new_expr(ExprKind kind, Pos pos) {
     Expr *e = xcalloc(1, sizeof *e);
@@ -391,7 +437,18 @@ static Expr *parse_postfix_ops(Expr *e) {
             e = x;
         } else if (accept_p(".")) {
             Token *name = peek();
-            char *member = expect_ident("a member or method name");
+            /* cstr is a keyword, but also the .cstr property and possibly
+               a field of a C struct */
+            char *member = is_kw(name, "cstr") ? advance()->text : expect_ident("a member or method name");
+            if (is_p(peek(), "(") && (!strcmp(member, "toString") || !strcmp(member, "fmt")) &&
+                !is_method_name(member)) {
+                /* a field of that name that kelvinc can see, or one of a
+                   struct it cannot see, is called as in C */
+                Decl *record;
+                char c = expr_class(e, &record);
+                if (c != 'c' && c != 'u' && !(c == 's' && record_has_field(record, member)))
+                    error_at(name->pos, "%s() " SHELVED_HINT, member);
+            }
             if (is_p(peek(), "(") && is_method_name(member)) {
                 /* v.method(args) */
                 advance();
@@ -573,6 +630,10 @@ static Expr *parse_primary(void) {
             error_at(t->pos, CAST_HINT);
         return e;
     }
+    if (is_kw(t, "String"))
+        error_at(t->pos, "String " SHELVED_HINT);
+    if (is_kw(t, "cstr") && is_p(peek2(), "("))
+        error_at(t->pos, "cstr is u8^: convert with 'v as cstr'");
     error_at(t->pos, "expected an expression, found %s", desc(t));
 }
 
@@ -625,7 +686,7 @@ static bool annotation_ahead(void) {
     if (is_converter(n) && is_p(peek_at(2), "("))
         return false; /* c ? x : u8(y) */
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
-        is_kw(n, "enum"))
+        is_kw(n, "enum") || is_kw(n, "String"))
         return true;
     return n->kind == TK_IDENT && ident_annotation_ok;
 }
@@ -776,7 +837,7 @@ static Type *target_type(Expr *e) {
 
 /* What kelvinc can see of an expression's type, for properties:
    'i' integer, 'f' f32/f64, 's' Kelvin struct or union, 'c' C struct or
-   union, 'n' something else it knows (pointer, array, bool, String, ...),
+   union, 'n' something else it knows (pointer, array, bool, complex),
    'u' unknown (a C typedef, a call result, an expression). */
 static char type_class(Type *t, Decl **record) {
     *record = NULL;
@@ -806,8 +867,38 @@ static char type_class(Type *t, Decl **record) {
     }
     if (is_base_word(&(Token){.kind = TK_KEYWORD, .text = (char *)n}) || !strcmp(n, "f32 _Complex") ||
         !strcmp(n, "f64 _Complex"))
-        return 'n'; /* bool, String, complex */
+        return 'n'; /* bool, complex */
     return 'u';     /* a C typedef name */
+}
+
+/* The type of an expression's value, as far as kelvinc can see it: what
+   target_type sees, plus `v as T`, compound literals and the results of
+   Kelvin functions and methods (a method only when every method of that
+   name returns the same type). NULL otherwise. */
+static Type *value_type(Expr *e) {
+    switch (e->kind) {
+    case E_CAST:
+    case E_COMPOUND:
+        return e->type;
+    case E_CALL: {
+        Decl *f = e->a->kind == E_IDENT && !e->a->paren ? function_named(e->a->text) : NULL;
+        return f ? f->ret : NULL;
+    }
+    case E_METHOD: {
+        Type *ret = NULL;
+        for (int i = 0; i < functions.len; i++) {
+            Decl *d = functions.data[i];
+            if (!d->recv || strcmp(d->name, e->text))
+                continue;
+            if (!d->ret || (ret && strcmp(kelvin_type(ret), kelvin_type(d->ret))))
+                return NULL;
+            ret = d->ret;
+        }
+        return ret;
+    }
+    default:
+        return target_type(e);
+    }
 }
 
 static char expr_class(Expr *e, Decl **record) {
@@ -821,12 +912,10 @@ static char expr_class(Expr *e, Decl **record) {
         return !strcmp(literal_type(e), "f64") ? 'f' : 'i';
     case E_STRING:
         return 'n';
-    case E_CAST:
-        return type_class(e->type, record);
     case E_PROPERTY:
         return !strcmp(e->text, "size") ? 'i' : 'n';
     default:
-        return type_class(target_type(e), record);
+        return type_class(value_type(e), record);
     }
 }
 
@@ -837,14 +926,16 @@ static bool record_has_field(Decl *r, const char *name) {
     return false;
 }
 
-/* `x.size` is sizeof(x); `x.dec`, `.hex`, `.oct`, `.bin` are its text.
-   Returns NULL when `.name` is a field access instead: always when a
-   Kelvin struct has that field, and for `.size` whenever kelvinc cannot
-   see that the receiver is not a C struct (the field wins when unsure). */
+/* `x.size` is sizeof(x); `x.cstr` is its text (#22), and `x.dec`, `.hex`,
+   `.oct`, `.bin` the text of a number. Returns NULL when `.name` is a
+   field access instead: always when a Kelvin struct has that field, and
+   for `.size` whenever kelvinc cannot see that the receiver is not a C
+   struct (the field wins when unsure). */
 static Expr *property(Expr *e, Token *name, char *member) {
     bool is_size = !strcmp(member, "size");
+    bool is_cstr = !strcmp(member, "cstr");
     bool is_text = !strcmp(member, "dec") || !strcmp(member, "hex") || !strcmp(member, "oct") || !strcmp(member, "bin");
-    if (!is_size && !is_text)
+    if (!is_size && !is_text && !is_cstr)
         return NULL;
     Decl *record;
     char c = expr_class(e, &record);
@@ -854,6 +945,18 @@ static Expr *property(Expr *e, Token *name, char *member) {
         return NULL;
     if (is_size && c == 'u')
         return NULL;
+    if (is_cstr) {
+        /* the receiver's type, when kelvinc can see it, sizes the buffer */
+        Type *t = value_type(e);
+        if (t && t->kind == T_ARRAY)
+            error_at(name->pos, "'.cstr' of an array: C arrays are not values; index it, or put it in a struct");
+        Expr *x = new_expr(E_PROPERTY, name->pos);
+        x->a = e;
+        x->text = member;
+        x->type = c == 's' ? t : NULL;
+        x->op = c == 'u' ? "unknown" : NULL;
+        return x;
+    }
     if (is_text && (c == 'n' || c == 's'))
         error_at(name->pos, "'.%s' is a property of integers%s", member,
                  !strcmp(member, "dec") || !strcmp(member, "hex") ? " and of f32/f64" : "");
@@ -927,7 +1030,8 @@ static Expr *parse_initializer(void) {
             Expr *x = new_expr(is_p(dt, ".") ? E_FIELD : E_INDEX, dt->pos);
             x->a = d;
             if (x->kind == E_FIELD) {
-                x->text = expect_ident("a member name");
+                /* cstr is a keyword, but may be a C struct's field */
+                x->text = is_kw(peek(), "cstr") ? advance()->text : expect_ident("a member name");
             } else {
                 x->b = parse_conditional();
                 expect_p("]");
@@ -1409,6 +1513,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     expect_p(")");
     if (accept_p(":"))
         d->ret = parse_type();
+    list_push(&functions, d);
     if (!accept_p(";"))
         d->body = parse_block();
     close_scope();
@@ -1424,11 +1529,11 @@ static Decl *parse_method(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     d->name = expect_ident("a method name");
     d->recv_name = recv->text;
+    if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
+        error_at(name->pos, "%s() " SHELVED_HINT, d->name);
     if (recv->kind == TK_KEYWORD) {
-        if (is_kw(recv, "any") || is_kw(recv, "_Complex"))
+        if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have methods", recv->text);
-        if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
-            error_at(name->pos, "%s.%s() is part of the Kelvin prelude and cannot be redefined", recv->text, d->name);
         d->recv = base_type(recv->text, recv->pos);
     } else {
         Decl *r = NULL;
@@ -1460,9 +1565,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
     expect_p(")");
     if (accept_p(":"))
         d->ret = parse_type();
-    if (!strcmp(d->name, "toString") &&
-        (d->params.len || d->variadic || !d->ret || d->ret->kind != T_BASE || strcmp(d->ret->name, "String")))
-        error_at(name->pos, "toString must be declared as '%s.toString(): String'", recv->text);
+    list_push(&functions, d);
     if (!accept_p(";"))
         d->body = parse_block();
     close_scope();
@@ -1510,9 +1613,8 @@ Program *parse(Token *tokens, int ntoks) {
     scope_types = (List){0};
     scope_marks = (List){0};
     records = (List){0};
+    functions = (List){0};
     method_names = (List){0};
-    list_push(&method_names, "toString");
-    list_push(&method_names, "fmt");
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
         if (is_p(&toks[i], "{"))
             depth++;

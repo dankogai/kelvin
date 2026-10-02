@@ -21,7 +21,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `float f = 1.5f;` | `f: f32 = 1.5;` |
 | `1UL << 40` | `1:u64 << 40` |
 | `uint16_t u = 0xdead;` | `u = 0xdead:u16;` (inferred as `u16`) |
-| `char *s;` | `s: u8^;` |
+| `char *s;` | `s: u8^;` or `s: cstr;` |
 | `int *a[4];` | `a: i32^[4];` *(provisional)* |
 | `int (*p)[4];` | `p: i32[4]^;` *(provisional)* |
 | `const char *const s;` | `s: const u8^ const;` |
@@ -43,7 +43,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
-| `snprintf(buf, sizeof buf, "%a", pi)` | `pi.fmt("%a")` (a `String`) |
+| `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
 | `sizeof x` | `x.size` |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
 | `double area(struct shape s)` | `shape.area(): f64 { ... self ... }`, called as `s.area()` |
@@ -342,10 +342,10 @@ main(): i32
   *(provisional P22)*. The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`.
 
-## Methods, `toString()` and `fmt()`
+## Methods
 
-Every type has methods. You define them Swift-style on a struct or union,
-or on a built-in type, with an implicit `self` (passed by value):
+Every type can have methods. You define them Swift-style on a struct or
+union, or on a built-in type, with an implicit `self` (passed by value):
 
 ```kelvin
 struct point { x: i32; y: i32; };
@@ -356,82 +356,84 @@ f64.half(): f64 { return self / 2; }
 main(): i32
 {
     p: struct point = {3, 4};
-    println(p.dist2(), " ", p.toString(), " ", 3.0.half());  // 25 {x: 3, y: 4} 1.5
+    println(p.dist2(), " ", p.cstr, " ", 3.0.half());  // 25 {x: 3, y: 4} 1.5
     return 0;
 }
 ```
 
-- **`toString()`** exists for every type and returns a `String`:
-  - **Built-in types** are lossless. `f64` uses `%.17g`, so
-    `0.1.toString()` is `0.10000000000000001`. `print` keeps its shortest
-    form, `0.1`.
-  - **Structs** get a derived `toString()` (`{x: 3, y: 4}`), with nested
-    structs and arrays (`[a, b]`) *(provisional P28)*. Override it with
-    `point.toString(): String { ... }`.
-  - **Complex numbers** print as `1+2i`.
-  - **C structs** from headers have none until you write one, e.g.
-    `tm.toString(): String { ... }`.
-- **`fmt(format)`** formats one value printf-style, a la Raku:
-  - `pi.fmt("%a")` is `0x1.921fb54442d18p+1`, `n.fmt("%5d")` pads to 5
-    columns, and `255.fmt("%#x")` is `0xff`.
-  - Write no length modifiers (`%d`, not `%lld`): the value's own type
-    decides, so `(-1:i32).fmt("%x")` is `ffffffff` and an `i64` gets 16
-    digits.
-  - The value is converted to the conversion's kind, so `42.fmt("%.2f")`
-    is `42.00`.
-  - One conversion per call, with any text around it
-    (`pi.fmt("pi = %.3f")`). Widths and precisions go up to 4096. Flags
-    that C leaves undefined for a conversion (`%05c`) are ignored, and
-    anything invalid gives `<invalid format>` *(provisional P29)*.
-- **`String`** is a value type holding up to 255 bytes inline, with no
-  allocation and nothing to free. `print` prints it, and `s.bytes` is its
-  `u8` text for C functions *(provisional P25)*.
-- **Literals** take methods too: `2.toString()`, `1.5.fmt("%e")`,
-  `0xff.fmt("%#x")` *(provisional P30)*. Hex floats like `0x1.f4p+9` are
-  still numbers. Annotated values need parentheses:
-  `(0.1:f32).toString()`.
+- **Literals** take methods and properties too: `2.cstr`, `1.5.hex`,
+  `(7:i64).inc()` *(provisional P30)*. Hex floats like `0x1.f4p+9` are
+  still numbers. Annotated values need parentheses: `(0.1:f32).cstr`.
+- **`toString()`, `fmt()` and `String` are shelved** until Kelvin has a
+  true string type (#22). Calling or defining them, or naming `String`,
+  is an error that points at `.cstr` *(provisional P36)*.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
   - As in C, declare a method before calling it. A prototype is
     `point.area(): f64;`. A method may call itself.
   - A method call cannot appear in a global initializer.
   - Enums cannot have methods.
-  - Built-in types' `toString`/`fmt` cannot be redefined.
-  - C typedef names cannot be receivers.
-  - `x.name(...)` is a method call only if some type in the file or the
-    prelude has a method `name`. Otherwise it calls through a field, as
-    in C.
+  - C typedef names cannot be receivers, and neither can `cstr` or `any`.
+  - `x.name(...)` is a method call only if some type in the file has a
+    method `name`. Otherwise it calls through a field, as in C.
 
-## Properties: `.size`, `.dec`, `.hex`, `.oct`, `.bin`
+## Properties: `.size`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`
 
 Properties are written without parentheses:
 
 ```kelvin
 c: i32 = 42;
 b: u8 = 255;
-println(c.size, " ", c.dec, " ", c.hex, " ", c.bin);  // 4 +42 +0x2a +0b101010
+p: struct point = {3, 4};
+println(c.size, " ", c.cstr, " ", p.cstr);          // 4 42 {x: 3, y: 4}
+println(c.dec, " ", c.hex, " ", c.bin);              // +42 +0x2a +0b101010
 println(b.dec, " ", b.hex, " ", b.oct);              // 255 0xff 0o377
 println(3.141592653589793.hex);                      // +0x1.921fb54442d18p+1
 ```
 
 - **`x.size`** is `sizeof(x)`.
+- **`x.cstr`** is the text of any value, as `cstr` (#22):
+  - **Numbers** are plain decimal (`42`, `-7`), including 128-bit ones.
+    Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
+    `%.9g` for `f32`), while `print` keeps the shortest form, `0.1`.
+  - **`bool`** is `true` or `false`. **Complex numbers** are `1+2i`.
+  - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
+    `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
+    addresses (`0x0` for null).
+  - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs and
+    arrays (`[a, b]`); a string field shows at most 60 bytes, and a longer
+    one is cut with `...` *(provisional P35)*. A union is `<union name>`.
+    It cannot be overridden for now.
+  - **Arrays** have no `.cstr` (C arrays are not values); index them, or
+    put them in a struct.
+  - **C structs and unions** from headers have no `.cstr` of their own.
+    Inside a Kelvin struct they show as `{...}`.
+  - **Where kelvinc cannot see that a value is a struct**, as in
+    `(c ? p : q).cstr`, the C compiler reports `kv_cstr_unseen_struct`;
+    assign the value to a variable first. kelvinc does see variables,
+    fields, `v as T`, and what Kelvin functions and methods return
+    *(provisional P35)*.
+- **`cstr`** is a built-in name for `u8^` (C's `uint8_t *`), as if declared
+  `typedef u8^ cstr`. It is a reference, so assign it with `:=`, and
+  `cstr const` is a constant pointer *(provisional P36)*.
 - **Integers** have `.dec`, `.hex`, `.oct` and `.bin`. Each returns `u8^`
   text with a prefix of `0x`, `0o` or `0b`. Signed integers always carry a
   sign (`+42`, `-0x2a`) and unsigned ones never do, so the text tells
   `i32` from `u32`.
-- **`f32`/`f64`** have `.dec` (lossless, like `toString()`) and `.hex`
+- **`f32`/`f64`** have `.dec` (lossless, like `.cstr`) and `.hex`
   (C's `%a`), always signed.
-- **The text lives on the caller's stack**, in a buffer sized in advance
-  to fit the text of any type: at most 132 bytes, for `.bin`. There is no
-  heap and nothing to free. The text lasts until the enclosing block
+- **The text lives on the caller's stack**, in a buffer sized in advance:
+  for `.dec` and friends, to fit the text of any type (at most 132 bytes,
+  for `.bin`); for `.cstr`, from the receiver's struct, or 64 bytes for
+  one value. There is no heap and nothing to free. The text lasts until the enclosing block
   ends, also when it was made in a brace-less `if` or `for` body or among
   a method call's arguments. Do not return it from a function
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and
   in a C struct from a header. When kelvinc cannot see whether the
   receiver is a struct, `.size` is a field (write `sizeof(x)` there), while
-  `.dec`/`.hex`/`.oct`/`.bin` are properties.
-- **Errors.** `.hex` on a pointer, bool, String or struct, and `.oct` or
+  `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are properties.
+- **Errors.** `.hex` on a pointer, bool or struct, and `.oct` or
   `.bin` on a float, are errors. Where kelvinc cannot see the type, as in
   `getenv("HOME").hex`, the C compiler reports it, naming
   `kv_no_such_property`.
@@ -463,11 +465,12 @@ statement of its own.
 
 ## Reserved words
 
-`print` and `println` belong to the prelude and cannot be redefined, and
-neither can built-in types' `toString` and `fmt`. `String` is a reserved
-type name.
+`print` and `println` belong to the prelude and cannot be redefined.
+`toString`, `fmt` and the type name `String` are shelved until Kelvin has
+a true string type, and stay reserved (#22).
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true`, `false`, `String`, `any` and `nullptr` *(provisional P11)*, and `as` (#14). It
+`bool`, `true`, `false`, `String`, `any`, `nullptr` and `cstr`
+*(provisional P11)*, and `as` (#14). It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators
