@@ -3,7 +3,7 @@
 #import <string.h> as C
 #import "include/greet.h" as C     // found next to this file
 
-cmp(x: const void^, y: const void^): i32
+cmp(x: const any^, y: const any^): i32
 {
     return (x as const i32^)^ - (y as const i32^)^;
 }
@@ -21,10 +21,10 @@ main(): i32
     len: size_t = strlen("four");       // C typedef names work as types
     printf("%d\n", i32(len + 1 as size_t) - 1);
 
-    out: FILE^ = stdout;                // so does FILE, and macros like stdout
+    out: FILE^ := stdout;                // so does FILE, and macros like stdout
     fprintf(out, "%d\n", greet_answer());
 
-    p: i32^ = malloc(4 * sizeof(i32)) as i32^;
+    p: i32^ := malloc(4 * sizeof(i32)) as i32^;
     if (p == NULL)
         return 1;
     p[0] = 3; p[1] = 1; p[2] = 4; p[3] = 2;

@@ -40,9 +40,28 @@ static bool is_method_name(const char *name) {
     return false;
 }
 
+static List scope_types; /* Type * (or NULL) for each name in scope_names */
+
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
-static void close_scope(void) { scope_names.len = (int)(intptr_t)scope_marks.data[--scope_marks.len]; }
-static void declare_name(const char *name) { list_push(&scope_names, (void *)name); }
+
+static void close_scope(void) {
+    scope_names.len = scope_types.len = (int)(intptr_t)scope_marks.data[--scope_marks.len];
+}
+
+static void declare_typed(const char *name, Type *type) {
+    list_push(&scope_names, (void *)name);
+    list_push(&scope_types, type);
+}
+
+static void declare_name(const char *name) { declare_typed(name, NULL); }
+
+/* the declared type of a name in scope, or NULL if unknown */
+static Type *lookup_type(const char *name) {
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return scope_types.data[i];
+    return NULL;
+}
 
 static bool is_declared(const char *name) {
     for (int i = scope_names.len - 1; i >= 0; i--)
@@ -104,7 +123,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "void", "String", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "String", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -116,6 +135,7 @@ static const struct { const char *c, *kelvin; } dead_words[] = {
     {"float", "f32"},
     {"double", "f64"},
     {"_Bool", "bool"},
+    {"void", "any^ for C's void *; a function without a result omits ': type'"},
 };
 
 static bool is_base_word(Token *t) {
@@ -127,7 +147,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "void") && !is_kw(t, "_Complex") && !is_kw(t, "String");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "String");
 }
 
 static bool starts_type(Token *t);
@@ -165,7 +185,7 @@ static bool starts_operand(Token *n) {
     return n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
            is_p(n, "(") || is_p(n, "-") || is_p(n, "+") || is_p(n, "!") || is_p(n, "~") || is_p(n, "&") ||
            is_p(n, "++") || is_p(n, "--") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") ||
-           is_converter(n);
+           is_kw(n, "nullptr") || is_converter(n);
 }
 
 /* the index just past the balanced (...) or [...] group starting at i */
@@ -274,6 +294,8 @@ static Type *parse_type_in(TypeContext ctx) {
         advance();
         base->name = name->text;
         parse_qualifiers(base);
+        if (is_kw(name, "any") && !is_p(peek(), "^"))
+            error_at(name->pos, "'any' exists only as 'any^', C's void *");
         if ((is_kw(name, "f32") || is_kw(name, "f64")) && accept_kw("_Complex"))
             base->name = strfmt("%s _Complex", name->text);
     }
@@ -466,8 +488,12 @@ static Expr *parse_primary(void) {
         expect_p(")");
         return e;
     }
-    if (is_kw(t, "void"))
-        error_at(t->pos, "'void' is a type; discard a value with 'v as void'");
+    if (accept_kw("nullptr")) {
+        /* C's (void *)0, typed any^ */
+        Expr *e = new_expr(E_LITERAL, t->pos);
+        e->text = "nullptr";
+        return e;
+    }
     if (is_p(t, "(")) {
         /* `(...)` followed by `{` is a compound literal; its type may be a C
            typedef with suffixes, e.g. (size_t[2]){1, 2}, because an
@@ -476,13 +502,13 @@ static Expr *parse_primary(void) {
         bool compound = after && is_p(after, "{") && paren_holds_type(cur);
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
+        if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
+            error_at(t->pos, "C casts are not Kelvin: to discard a value, write it as a statement of its own");
         if (kelvin_for_c_word(inner)) {
             if (compound)
                 reject_c_int_name(inner);
             error_at(t->pos, CAST_HINT "; '%s' is not a Kelvin type, use %s", inner->text, kelvin_for_c_word(inner));
         }
-        if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
-            error_at(t->pos, "C casts are not Kelvin: discard a value with 'v as void'");
         if (compound && !converter_call && (starts_type(inner) || inner->kind == TK_IDENT)) {
             advance();
             Type *type = parse_type_in(TYPE_DECL);
@@ -530,7 +556,8 @@ static Expr *parse_primary(void) {
         /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
         Token *n = peek();
         if (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
-            is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_converter(n) ||
+            is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_kw(n, "nullptr") ||
+            is_converter(n) ||
             ((is_p(n, "++") || is_p(n, "--")) &&
              (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR)))
             error_at(t->pos, CAST_HINT);
@@ -652,7 +679,105 @@ static Expr *parse_conditional(void) {
     return e;
 }
 
-static const char *assign_ops[] = {"=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
+/* ---------- references (`:=`) and values (`=`) ---------- */
+
+/* A parameter declared as an array is a pointer to its element, as C
+   adjusts it, so reassigning it is a reference assignment. */
+static Type *param_type(Type *t) {
+    if (t->kind != T_ARRAY)
+        return t;
+    Type *p = xcalloc(1, sizeof *p);
+    p->kind = T_PTR;
+    p->pos = t->pos;
+    p->elem = t->elem;
+    return p;
+}
+
+/* the Kelvin spelling of a type, for messages */
+static char *kelvin_type(Type *t) {
+    const char *q = t->is_const && t->is_volatile ? "const volatile" : t->is_const ? "const" : t->is_volatile ? "volatile" : "";
+    switch (t->kind) {
+    case T_BASE: return strfmt("%s%s%s", q, *q ? " " : "", t->name);
+    case T_PTR: return strfmt("%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
+    case T_ARRAY:
+        return strfmt("%s[%s]", kelvin_type(t->elem),
+                      !t->size ? "" : t->size->kind == E_LITERAL ? t->size->text : "...");
+    }
+    return "?";
+}
+
+/* 1 for a reference (a pointer), 0 for a value, -1 when kelvinc cannot
+   tell (a C typedef name, or an unknown type) */
+static int ref_kind(Type *t) {
+    if (!t)
+        return -1;
+    if (t->kind == T_PTR)
+        return 1;
+    if (t->kind == T_ARRAY)
+        return 0;
+    const char *n = t->name;
+    if (!strncmp(n, "struct ", 7) || !strncmp(n, "union ", 6) || !strncmp(n, "enum ", 5))
+        return 0;
+    for (int i = 0; base_words[i]; i++)
+        if (!strcmp(n, base_words[i]) || (!strncmp(n, base_words[i], strlen(base_words[i])) &&
+                                           !strcmp(n + strlen(base_words[i]), " _Complex")))
+            return 0;
+    return -1;
+}
+
+/* The type of an assignment target, as far as kelvinc can see it: names,
+   p^, a[i] and fields of Kelvin structs. NULL otherwise. */
+static Type *target_type(Expr *e) {
+    switch (e->kind) {
+    case E_IDENT:
+        return lookup_type(e->text);
+    case E_DEREF: {
+        Type *t = target_type(e->a);
+        return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
+    }
+    case E_INDEX: {
+        Type *t = target_type(e->a);
+        return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
+    }
+    case E_FIELD: {
+        Type *t = e->a ? target_type(e->a) : NULL;
+        if (!t || t->kind != T_BASE)
+            return NULL;
+        for (int i = records.len - 1; i >= 0; i--) {
+            Decl *r = records.data[i];
+            const char *kw = r->kind == D_STRUCT ? "struct" : r->kind == D_UNION ? "union" : "enum";
+            if (!r->name || !r->has_body || strcmp(t->name, strfmt("%s %s", kw, r->name)))
+                continue; /* `struct T;` declares no fields */
+            for (int j = 0; j < r->members.len; j++) {
+                Var *m = r->members.data[j];
+                if (!strcmp(m->name, e->text))
+                    return m->type;
+            }
+            return NULL;
+        }
+        return NULL;
+    }
+    default:
+        return NULL;
+    }
+}
+
+/* `=` assigns values and `:=` references (best effort: only where the
+   target's type is known) */
+static void check_assign_op(const char *op, Type *t, const char *what, Pos pos, Expr *init) {
+    int k = ref_kind(t);
+    if (!strcmp(op, "=") && k == 1)
+        error_at(pos, "%s is a reference (%s): assign it with ':=', not '='", what, kelvin_type(t));
+    if (!strcmp(op, ":=") && k == 0) {
+        /* `buffer := malloc(n):i64` most likely meant :i64^ */
+        if (init && init->kind == E_CAST && !init->op)
+            error_at(pos, "%s would be a value (%s): use '=' for a value, or annotate a reference such as '%s^'",
+                     what, kelvin_type(t), kelvin_type(t));
+        error_at(pos, "%s is a value (%s): assign it with '=', not ':='", what, kelvin_type(t));
+    }
+}
+
+static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
 
 static Expr *parse_assign(void) {
     Expr *lhs = parse_conditional();
@@ -660,6 +785,9 @@ static Expr *parse_assign(void) {
     for (int i = 0; assign_ops[i]; i++)
         if (is_p(t, assign_ops[i])) {
             advance();
+            if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
+                check_assign_op(t->text, target_type(lhs),
+                                lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);
             Expr *e = new_expr(E_BINARY, t->pos);
             e->op = t->text;
             e->a = lhs;
@@ -744,6 +872,13 @@ static Type *base_type(const char *name, Pos pos) {
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_CAST)
         return e->type;
+    if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
+        Type *t = xcalloc(1, sizeof *t);
+        t->kind = T_PTR;
+        t->pos = pos;
+        t->elem = base_type("any", pos);
+        return t;
+    }
     const char *lit = literal_type(e);
     return lit ? base_type(lit, pos) : NULL;
 }
@@ -754,29 +889,52 @@ static Var *parse_var(bool with_init) {
     Var *v = xcalloc(1, sizeof *v);
     v->pos = peek()->pos;
     v->name = expect_ident("a name");
-    if (with_init && is_p(peek(), "=")) {
-        advance();
+    char *what = strfmt("'%s'", v->name);
+    if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
+        Token *op = advance();
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
         if (!v->type)
             error_at(v->pos,
-                     "'%s' needs a type: write '%s: T = ...'; only literals and values written 'v:T', "
-                     "'v as T' or 'T(v)' have a type Kelvin can infer",
-                     v->name, v->name);
+                     "'%s' needs a type: write '%s: T = ...' (or '%s: T := ...' for a reference); only literals "
+                     "and values written 'v:T', 'v as T' or 'T(v)' have a type Kelvin can infer",
+                     v->name, v->name, v->name);
+        check_assign_op(op->text, v->type, what, op->pos, v->init);
         return v;
     }
     expect_p(":");
     v->type = parse_type();
-    if (with_init && accept_p("="))
+    if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
+        Token *op = advance();
+        check_assign_op(op->text, v->type, what, op->pos, NULL);
         v->init = parse_initializer();
+    }
     return v;
 }
 
-/* name: type [= init] {, ...}; each name is in scope after its declarator */
-static void parse_var_list(List *out) {
+/* name: type [= or := init] {, ...}; each name is in scope after its
+   declarator. Inside a function, a later `name = v` or `name := v` whose
+   name is already declared assigns it (#15), as in `for (i = 0, n = 0;`. */
+static void parse_var_list(List *out, bool allow_assign) {
+    bool first = true;
     do {
+        Token *t = peek();
+        if (!first && allow_assign && t->kind == TK_IDENT && (is_p(peek2(), "=") || is_p(peek2(), ":=")) &&
+            is_declared(t->text)) {
+            Var *v = xcalloc(1, sizeof *v);
+            v->pos = t->pos;
+            v->name = advance()->text;
+            Token *op = advance();
+            v->assign = true;
+            v->op = op->text;
+            check_assign_op(op->text, lookup_type(v->name), strfmt("'%s'", v->name), op->pos, NULL);
+            v->init = parse_assign();
+            list_push(out, v);
+            continue;
+        }
+        first = false;
         Var *v = parse_var(true);
-        declare_name(v->name);
+        declare_typed(v->name, v->type);
         list_push(out, v);
     } while (accept_p(","));
 }
@@ -940,12 +1098,12 @@ static int declaration_ahead(int i) {
     if (is_p(&toks[i + 1], ":")) {
         int end = type_shape_end(i + 2);
         /* a `*` after the type is C's pointer habit; parse_type reports it */
-        return end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ";") || is_p(&toks[end], ",") ||
-                            is_p(&toks[end], "*"))
+        return end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
+                            is_p(&toks[end], ",") || is_p(&toks[end], "*"))
                    ? i
                    : -1;
     }
-    if (is_p(&toks[i + 1], "=") && !is_declared(toks[i].text))
+    if ((is_p(&toks[i + 1], "=") || is_p(&toks[i + 1], ":=")) && !is_declared(toks[i].text))
         return i;
     return -1;
 }
@@ -953,7 +1111,7 @@ static int declaration_ahead(int i) {
 static Stmt *parse_declaration(void) {
     Stmt *s = new_stmt(S_VAR, peek()->pos);
     s->storage = parse_storage();
-    parse_var_list(&s->vars);
+    parse_var_list(&s->vars, true);
     return s;
 }
 
@@ -974,13 +1132,15 @@ static Stmt *parse_stmt(void) {
         return parse_block();
     if (accept_p(";"))
         return new_stmt(S_EMPTY, pos);
-    if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT)
-        error_at(pos, "Kelvin has no 'var': write '%s: T = ...', or '%s = ...' to infer the type", peek2()->text,
-                 peek2()->text);
+    if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT) {
+        const char *op = is_p(peek_at(2), ":=") ? ":=" : "=";
+        error_at(pos, "Kelvin has no 'var': write '%s: T %s ...', or '%s %s ...' to infer the type", peek2()->text,
+                 op, peek2()->text, op);
+    }
     int name_at = declaration_ahead(cur);
     if (name_at >= 0) {
         if (as_body) {
-            if (is_p(&toks[name_at + 1], "="))
+            if (is_p(&toks[name_at + 1], "=") || is_p(&toks[name_at + 1], ":="))
                 error_at(toks[name_at].pos,
                          "'%s' is not declared; a declaration cannot be the body of a statement or follow a label, "
                          "so put it in a block",
@@ -1096,12 +1256,12 @@ static Stmt *parse_stmt(void) {
         return s;
     }
     reject_c_declaration();
-    bool call_like = (is_converter(t) || is_kw(t, "void")) && is_p(peek2(), "(");
+    bool call_like = is_converter(t) && is_p(peek2(), "(");
     if (!call_like && starts_type(t)) {
         const char *example = "T";
         if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)
             example = strfmt("%s %s", t->text, peek2()->text);
-        else if (is_base_word(t) && !is_kw(t, "void"))
+        else if (is_base_word(t) && !is_kw(t, "any"))
             example = t->text;
         error_at(pos, "declarations are written 'name: type', as in 'x: %s'", example);
     }
@@ -1138,7 +1298,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
             break;
         }
         Var *p = parse_var(false);
-        declare_name(p->name);
+        declare_typed(p->name, param_type(p->type));
         list_push(&d->params, p);
         if (!accept_p(","))
             break;
@@ -1162,7 +1322,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
     d->name = expect_ident("a method name");
     d->recv_name = recv->text;
     if (recv->kind == TK_KEYWORD) {
-        if (is_kw(recv, "void") || is_kw(recv, "_Complex"))
+        if (is_kw(recv, "any") || is_kw(recv, "_Complex"))
             error_at(recv->pos, "'%s' cannot have methods", recv->text);
         if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
             error_at(name->pos, "%s.%s() is part of the Kelvin prelude and cannot be redefined", recv->text, d->name);
@@ -1181,7 +1341,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
         d->recv = base_type(strfmt("%s %s", r->kind == D_STRUCT ? "struct" : "union", r->name), recv->pos);
     }
     open_scope();
-    declare_name("self");
+    declare_typed("self", d->recv);
     expect_p("(");
     while (!is_p(peek(), ")")) {
         if (accept_p("...")) {
@@ -1189,7 +1349,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
             break;
         }
         Var *p = parse_var(false);
-        declare_name(p->name);
+        declare_typed(p->name, param_type(p->type));
         list_push(&d->params, p);
         if (!accept_p(","))
             break;
@@ -1244,6 +1404,7 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     scope_names = (List){0};
+    scope_types = (List){0};
     scope_marks = (List){0};
     records = (List){0};
     method_names = (List){0};
@@ -1267,19 +1428,21 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
-        if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT)
-            error_at(t->pos, "Kelvin has no 'var': write '%s: T = ...', or '%s = ...' to infer the type",
-                     peek2()->text, peek2()->text);
+        if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT) {
+            const char *op = is_p(peek_at(2), ":=") ? ":=" : "=";
+            error_at(t->pos, "Kelvin has no 'var': write '%s: T %s ...', or '%s %s ...' to infer the type",
+                     peek2()->text, op, peek2()->text, op);
+        }
         const char *storage = parse_storage();
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
             list_push(&prog->decls, parse_method(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
             list_push(&prog->decls, parse_fn(t->pos, storage));
-        } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "="))) {
-            /* at the top level, `name = ...` always declares */
+        } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "=") || is_p(peek2(), ":="))) {
+            /* at the top level, `name = ...` and `name := ...` always declare */
             Decl *d = new_decl(D_VAR, t->pos, storage);
-            parse_var_list(&d->members);
+            parse_var_list(&d->members, false);
             expect_p(";");
             list_push(&prog->decls, d);
         } else if (!storage && accept_kw("struct")) {

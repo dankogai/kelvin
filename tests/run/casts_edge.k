@@ -11,13 +11,13 @@ main(): i32
 
     // `*` after the type of `as` is multiplication
     printf("%d\n", x as i64 * 2 == 6);
-    r: i32^ = malloc(n as size_t * sizeof(i32)) as i32^;
+    r: i32^ := malloc(n as size_t * sizeof(i32)) as i32^;
     r[1] = 7;
     printf("%d\n", r[1]);
-    free(r as void^);
+    free(r as any^);
 
     // statements may start with a converter
-    u8(x) as void;
+    u8(x) == 0 ? println("zero") : println("not zero");
 
     // compound literals: built-in types, typedef names, and under sizeof
     d: div_t = (div_t){.quot = 3, .rem = 1};
@@ -32,6 +32,7 @@ main(): i32
 }
 // out: 1
 // out: 7
+// out: not zero
 // out: 3 1
 // out: 12
 // out: 6

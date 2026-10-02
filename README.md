@@ -20,7 +20,7 @@ struct node {
 sum(n: struct node^): i32
 {
     total: i32 = 0;
-    for (; n; n = n^.next)      // C: n->next
+    for (; n; n := n^.next)     // C: n->next
         total += n^.value;
     return total;
 }
@@ -29,8 +29,11 @@ sum(n: struct node^): i32
 So far the changes from C are:
 - every declaration is `name: type`, functions included, with no keyword;
   `i = 42` declares `i` (an `i64`) when `i` is not declared yet
-- pointers are a postfix `^` (`i32^`, `p^`, `p^.m`)
+- pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
+  with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
 - XOR is `~`
+- there is no `void`: `any^` is C's `void *` and `nullptr` its null, and a
+  reference declared without a value is `nullptr`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
   `i128`/`u128`, `f32`, `f64`), so `char`, `int`, `long`, `float` and
   `double` are gone, and `i = 42` is an `i64`

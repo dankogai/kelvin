@@ -56,7 +56,7 @@ main(): i32
     println(p.dist2(), " ", q.toString(), " ", pi.half());
     m: struct money = {1234};
     println(m.toString());
-    pp: struct point^ = &p;
+    pp: struct point^ := &p;
     println(pp^.toString());
 
     // a String is a value: copy it, pass it, read its bytes

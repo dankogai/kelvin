@@ -7,11 +7,11 @@ main(): i32
     printf("%d %d %.1f %d\n", i32(3.9), u8(300), f64(7) / 2, bool(5));
 
     // v as T for any type; malloc(...) as T is the typical use
-    p: i32^ = malloc(3 * sizeof(i32)) as i32^;
+    p: i32^ := malloc(3 * sizeof(i32)) as i32^;
     p[0] = 10; p[1] = 20; p[2] = 30;
-    bytes: u8^ = p as u8^;
+    bytes: u8^ := p as u8^;
     printf("%d %d\n", (p as i32^)[2], i32(bytes[0] == 10 || bytes[3] == 10));
-    free(p as void^);
+    free(p as any^);
 
     // `as` binds tighter than binary operators, looser than prefix ones
     x: i32 = 1;
@@ -26,8 +26,6 @@ main(): i32
 
     // converters nest inside parentheses and sizeof
     printf("%d %d\n", (i32(2.5) + 1), i32(sizeof(i64(x))));
-
-    x as void;                                 // C's (void)x
     return 0;
 }
 // out: 3 44 3.5 1

@@ -49,6 +49,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 16 | `expr:T` annotates any expression; it means `expr as T` | `(uint16_t)0xdead`, `1UL << 40` | `0xdead:u16`, `1:u64 << 40` | 2026-10-01 |
 | 17 | A prelude with `print()` and `println()`, in `libkelvin.{a,so,dylib}` | `printf("%" PRId64 "\n", n)` | `println(n)` | 2026-10-01 |
 | 18 | Every type has methods; `toString()` is mandatory; `fmt()` a la Raku | `snprintf(buf, n, "%a", pi)` | `pi.fmt("%a")`, `p.toString()`, `point.area(): f64 { ... }` | 2026-10-01 |
+| 19 | `:=` assigns references (pointers); `=` assigns values | `int64_t *buffer = malloc(8 * 1024); p = q;` | `buffer := malloc(8 * 1024):i64^; p := q;` | 2026-10-01 |
+| 20 | No `void`: `any^` is C's `void *`, `nullptr` is `(void *)0`, and `ptr: any^;` means `ptr := nullptr` | `void *p = NULL;` | `p: any^;` | 2026-10-02 |
 
 Notes:
 
@@ -87,7 +89,7 @@ Notes:
   `1UL << 40` is written `1:u64 << 40` (#16).
 - (14) Both forms have exactly C's cast semantics: `i32(3.9)` is 3 and
   `u8(300)` is 44. `T(v)` takes exactly one value, and a statement may
-  start with one (`u8(x) as void;`). `(T)v` is an error that suggests the
+  start with one. `(T)v` is an error that suggests the
   replacements.
 
   Kelvin cannot see C typedefs or macros, which leaves C room to read
@@ -148,19 +150,27 @@ Notes:
   `u = 0xdead:u16` is identical to ... `u = 0xdead as u16`." (The middle
   form in the original message read `u:u64 = 0xdead`, which was taken as a
   typo for `u16`.) Rules:
-  - `name: T [= v]` declares, at the top level, in blocks and in `for`
-    initializers. Several declarators are separated by commas:
-    `a: i32 = 1, b = 2;`.
-  - `name = v` declares `name` when no enclosing scope (block, function,
-    parameters, globals, functions, enum constants) has declared it.
+  - `name: T [= v]` declares (or `name: T [:= v]` for a reference, #19),
+    at the top level, in blocks and in `for` initializers. Several
+    declarators are separated by commas: `a: i32 = 1, b = 2;`.
+  - `name = v` (or `name := v` for a reference) declares `name` when no
+    enclosing scope (block, function, parameters, globals, functions, enum
+    constants) has declared it.
     Otherwise it assigns. At the top level it always declares. The type is
     inferred from `v` (#8, #11): a literal, or a value written `v:T`,
-    `v as T` or `T(v)`. Anything else needs `name: T = v`.
+    `v as T` or `T(v)`. Anything else needs `name: T = v`, or
+    `name: T := v` for a reference.
+  - In a declaration list inside a function, a later `name = v` or
+    `name := v` whose name is already declared assigns it instead of
+    redeclaring it. So `for (i = 0, n = 0; ...)` declares `i` and resets
+    an existing `n`, and `k = 1, n = 40;` declares `k` and assigns `n`. At
+    the top level every name in the list is declared.
   - Declaration wins over a label: `again: n = 0;` declares `again` of
     type `n`. Write `again: ; n = 0;` to label it.
   - A declaration cannot be the body of `if`/`while`/`for`/`do` or follow
     a label, as in C11. `if (c) x = 1;` with `x` undeclared is an error.
-  - `:=` is deliberately not used (yet).
+  - `:=` was deliberately left unused here. It is now the reference
+    assignment (#19).
   - Hazard: kelvinc does not see names declared by C headers, so
     assigning to a header global such as `optind` declares a new local.
     Declare such globals first with `extern optind: i32;` (Q11).
@@ -186,6 +196,28 @@ Notes:
   own formatting (P21). The user's example `pi.fmt("5a")` was read as
   `pi.fmt("%a")` (Shift+5), which gives `"0x1.921fb54442d18p+1"`.
 
+- (19) Agreed details: the user's example `buffer := malloc(8 * 1024):i64`
+  was a typo for `:i64^`, and `v:T` keeps meaning `v as T`.
+  - Declarations of references use `:=` too (`p: i32^ := &x`, or
+    `buffer := ...:i64^`, which infers `i64^`).
+  - Pointer arithmetic (`p += 1`, `p++`) stays as in C.
+  - Enforcement is best effort. kelvinc checks a target whose type it can
+    see: a variable, parameter or `self`, a field of a Kelvin struct,
+    `p^`, `a[i]`, and combinations of these. `=` on a reference and `:=`
+    on a value are errors. Targets of unknown type, such as C typedef
+    types, fields of C structs and call results, are not checked.
+  - `:=` is an assignment operator like `=`, usable in expressions
+    (`for (n: struct node^ := list; n; n := n^.next)`), and is emitted as
+    C's `=`. Like `=`, it declares a name that is not declared yet.
+
+- (20) The user's words: "abolish type `void`. to mean C's `void *`,
+  introduce `any^`", then "not `any`. it must be `any^`. Introduce
+  `nullptr` to mean `(void *)0`. `ptr:any^;` means `ptr := nullptr`".
+  - `any` is valid only behind `^`. `void` is rejected with a hint
+    everywhere.
+  - `nullptr` is a keyword, emitted as `((void *)0)`, and infers `any^`.
+  - A function without a result still omits `: type`.
+
 ## Provisional decisions (made during implementation; please review)
 
 These follow from the agreed changes, or were needed to write any code at
@@ -197,17 +229,17 @@ all. None of them has been explicitly agreed yet.
 | P2 | Type suffixes apply left to right, but a run of brackets reads in C order | `i32^[4]` is `int32_t *[4]`, `i32[4]^` is `int32_t (*)[4]`, `i32[2][3]` is `int32_t[2][3]` | So that `m: i32[2][3]` indexes as `m[1][2]`, exactly as in C |
 | P3 | ~~Variable declarations start with `var`~~ | | Superseded by #15 |
 | P4 | `()` means no parameters | `f(): i32` is `int32_t f(void)` | C's `()` (unspecified parameters) is obsolescent |
-| P5 | No `: type` after a function means `void` | `f()` is `void f(void)` | Same as v0.1 |
+| P5 | No `: type` after a function means it returns nothing | `f()` is `void f(void)` | Same as v0.1. Kelvin itself has no `void` (#20) |
 | P6 | Qualifiers bind to what is on their left; a leading qualifier binds to the base | `u8 const^` and `const u8^` are both `const uint8_t *`; `u8^ const` is `uint8_t *const` | This is C's rule, written postfix |
 | P7 | Several names per declaration | `a: i32 = 1, b: u8^;` | Each name has its own full type, since C's `int a, *b` split is gone |
 | P8 | Struct and union members end with `;` | `struct p { x: i32; y: i32; };` | Kept from C, as is the `;` after `}` |
 | P9 | Storage class goes in front | `static f(): i32`, `static n: i32`, `extern optind: i32` | Kept from C |
 | P10 | Anonymous enums are allowed | `enum { LIMIT = 3 };` | The common C idiom for constants |
-| P11 | Kelvin reserves the sized type names and `String` (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet. `var` is no longer reserved (#15) |
+| P11 | Kelvin reserves the sized type names, `String`, `any` and `nullptr` (`as` is reserved by #14) | | C code that uses them as identifiers cannot be named from Kelvin yet. `var` is no longer reserved (#15) |
 | P12 | Literals are passed through verbatim (minus suffixes, #13) | `0x1f`, `017`, `0b101`, `'\n'`, `"a" "b"` | So C interprets them exactly as it always has. Octal `017` and C23's `0b` stay |
-| P13 | `u8` and C's `char` mix freely | `s: u8^ = "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
+| P13 | `u8` and C's `char` mix freely | `s: u8^ := "hi";`, `printf(fmt: const u8^, ...): i32;`, `main(argc: i32, argv: u8^^): i32` | Follows from #7. String literals and libc use `char`, while `u8` is `unsigned char`. They are ABI-identical, so kelvinc silences C's pointer-sign and library-redeclaration warnings, and emits `main`'s `argv` as `char **`, which C requires |
 | P14 | `true` and `false` are built in alongside `bool` | `done: bool = false;` | `<stdbool.h>` provides all three together, and a `bool` without them would be half a feature. They are reserved words, and are `bool`s (P23) |
-| P15 | Any identifier after `:` or `as` is a type name | `f: FILE^ = stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
+| P15 | Any identifier after `:` or `as` is a type name | `f: FILE^ := stdout;`, `n as size_t` | Needed for #12: headers define typedef names that Kelvin cannot know without reading them. After `:` or `as` a type is certain, so this is unambiguous |
 | P21 | How `print` formats values | `println(1.0, " ", 0.1:f32, " ", 1e300)` prints `1.0 0.1 1e+300` | Integers print in decimal, including `i128`/`u128`. Floats print in the shortest text that reads back the same, always with a `.` or an exponent; every NaN prints `nan`, whatever its sign bit. `bool` prints `true`/`false`. `u8^`, `i8^` and string literals print as strings, with `(null)` for a null pointer, and a `String` prints as its text. Other pointers print as addresses, and C's `char` as a character. Dispatch is by C type via `_Generic`, so `x == y` and `!b` (C `int`s) print `1`/`0`; use `bool(x == y)` |
 | P22 | Runtime layout and linking | `make` builds `libkelvin.a` plus `libkelvin.dylib` (macOS) or `libkelvin.so` (Linux); `make install` puts them in `$PREFIX/lib` and the header in `$PREFIX/include` | kelvinc links `libkelvin.a` statically, so programs need no runtime library at run time. It finds the runtime in `$KELVIN_HOME`, next to itself (source tree), or in `../include` and `../lib` (installed). The shared libraries are for use from C and other toolchains. Zero-argument `print()`/`println()` rely on `__VA_OPT__`, which gcc and clang accept in C11 mode |
 | P23 | `true` and `false` are `bool`s in the generated C | `println(true)` prints `true` | C's `true` is the `int` `1`. kelvinc emits `(bool)true`, so the prelude sees a `bool`. Arithmetic is unchanged (`true + 1` is 2) |
@@ -219,6 +251,8 @@ all. None of them has been explicitly agreed yet.
 | P29 | `fmt()` | `n.fmt("%5d")`, `255.fmt("%#x")`, `42.fmt("%.2f")` is `42.00`, `(-1:i32).fmt("%x")` is `ffffffff` | One conversion (`diouxXcfFeEgGaAsp`) with flags, width and precision (each at most 4096), plus any text and `%%`. No length modifiers (#13: no size hints), since the value's own type decides. The value is converted to the conversion's kind (a float to an integer only within range), and an unsigned conversion of a negative value shows its bits in the value's own width. Integers, including 128-bit ones, are formatted by Kelvin with every flag defined; flags C leaves undefined for a conversion (`%05c`, `%#d`) are ignored. The format is never passed to C's printf. Anything else gives `<invalid format>` |
 | P30 | A number ends before `.name` | `2.toString()`, `1.5.fmt("%e")`, `0xff.fmt("%#x")` | So methods can be called on literals. `1.e5` and hex floats such as `0x1.f4p+9` are still numbers. `1.f` or `1.L` (a C suffix spelled as a field) is an error |
 | P31 | Method calls use two GNU C extensions in the generated C | `({ __auto_type kv_self1 = recv; ...; })` | A statement expression and `__auto_type` evaluate the receiver once and keep chained calls (`x.a().b().c()`) linear in size; without them the receiver had to be printed twice per call, doubling the C at each link of a chain. gcc and clang accept both in C11 mode. The ABI is unaffected |
+| P32 | What counts as a reference for `:=` | `p: i32^` (a reference), `a: i32^[2]` (a value), `t: pthread_t` (unknown) | A pointer type is a reference. Built-in types, structs, unions, enums and arrays (even of pointers) are values, except that an array parameter is a pointer, as C adjusts it (`argv: u8^[]`, so `argv := argv + 1`). A C typedef name is unknown, so both `=` and `:=` are accepted. Initializer lists and function arguments are not assignments |
+| P33 | Two readings of #20 | `q: i32^;` is `int32_t *q = 0;`; discarding is `x;` | (1) The user's example `ptr: any^;` is applied to every reference: a pointer declared without a value is `nullptr`, local or global, except an `extern` declaration. (2) The discard idiom `x as void` went with `void`, and the user did not pick a replacement, so a value is discarded by writing it as a statement (C may warn about an unused value). Also, comparisons are C `int`s, so `println(p == nullptr)` prints `1` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -245,6 +279,10 @@ all. None of them has been explicitly agreed yet.
 - **Q11: C globals from headers.** `optind = 1;` declares a new local
   unless `extern optind: i32;` comes first, because kelvinc cannot see
   header declarations (#15). Is the `extern` workaround enough?
+- **Q12: Infer from typed variables?** kelvinc now knows the declared type
+  of every variable in scope (#19). Should `n := list` infer `n`'s type
+  from `list`, as `n: struct node^ := list` currently spells it? Today
+  only literals and annotated values are inferred (#8, #11, #15).
 - **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
   cast-like syntax (P19). Should it get a Kelvin spelling, such as
   `struct point{.y = 7}`?
@@ -292,8 +330,8 @@ individual proposal:
 
 | File | Role |
 |------|------|
-| `src/lexer.c` | C's lexical rules. Kelvin keywords `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`, `String`; `~=`, no `^=`; a number ends before `.name` (P30) |
-| `src/parser.c` | Recursive descent over C's grammar with the changes above, plus a table of declared names to tell `x = v` (declare) from an assignment |
+| `src/lexer.c` | C's lexical rules. Kelvin keywords `as`, `i8`…`u128`, `f32`, `f64`, `bool`, `true`, `false`, `String`, `any`, `nullptr`; `~=`, no `^=`; a number ends before `.name` (P30) |
+| `src/parser.c` | Recursive descent over C's grammar with the changes above, plus a table of declared names and types: it tells `x = v` (declare) from an assignment, and `=` from `:=` (#19) |
 | `src/codegen.c` | Prints C: methods become `_Generic` dispatch and derived `toString()`s; postfix types become C declarators, `i32` becomes `int32_t` and `f64` becomes `double`, `p^` becomes `(*p)`, `~` becomes `^` |
 | `src/main.c` | Driver: writes the C, finds the runtime, runs `$CC` with `-I<dir of .k>` and `libkelvin.a`, and optionally runs the program |
 | `runtime/kelvin_prelude.h` | The prelude: `String`, `print`/`println` as `_Generic` macros, and the dispatch tables for built-in `toString`/`fmt` |

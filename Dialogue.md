@@ -543,3 +543,89 @@ a struct with a flexible array member changed ABI in GCC 4.4
 (`-Wpsabi`), and a derived toString takes the struct by value. The note
 is informational, but the test runner treats any output as a diagnostic.
 kelvinc now passes `-Wno-psabi`.
+
+### 27. `:=` assigns references
+
+> let `:=` be an reference-assignment operator.  e.g. `buffer := malloc(8 *
+> 1024):i64`.  Pointer assignments must use it. `=` is restricted to value
+> assignments.
+
+**Claude** asked four questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| What type is `buffer` in the example? | A typo for `:i64^` (`:T` keeps meaning `as T`) |
+| Do pointer declarations use `:=`? | Yes: `p: i32^ := &x` |
+| Is `p += 1`/`p++` a pointer assignment? | No, allowed as is |
+| How strict is enforcement? | Best effort, where kelvinc can see the type |
+
+**Claude** implemented #19:
+
+- `:=` is a token and an assignment operator, emitted as C's `=`.
+- kelvinc's scope table now records types, and it works out the type of
+  an assignment target from variables, parameters, `self`, Kelvin struct
+  fields, `p^` and `a[i]` (P32).
+- 27 pointer assignments across 18 tests, and 5 in the docs, moved to
+  `:=`.
+
+New open question Q12: should `n := list` infer `n`'s type from the typed
+variable `list`? There are 117 tests.
+
+The review of #19 (one round) confirmed 7 findings, all of which are
+fixed. The semantics reviewer stalled and was rerun separately.
+
+- An array parameter (`argv: u8^[]`, `a: i32[4]`) is a pointer in C, but
+  it was treated as a value. The rule was reversed for it.
+- The hints for a missing type and for `var` suggested `=` even for
+  references.
+- The user's original typo `:= ...:i64` got a hint toward a wrong
+  program. It now suggests `:i64^`.
+- Type names in messages dropped `volatile` and array sizes.
+- Design.md note (15) still said `:=` was unused, and the #19 table row
+  and the count above were off.
+
+### 28. The rerun semantics review of #19
+
+Split into two narrower lenses, the rerun confirmed 6 findings and
+rejected 1. All are fixed:
+
+- **Top-level `:=`.** `g := 0 as i32^;` at the top level was rejected,
+  while the error for `g = ...` pointed to `:=`.
+- **Declaration lists.** A later name that already exists, as in
+  `for (i = 0, n = 0; ...)` or `k = 1, n = 40;`, was silently redeclared
+  as a new, shadowing variable instead of being assigned. This predated
+  #19 and broke the #15 rule. Such names are now assigned. With `:=`, the
+  same bug had surfaced as a misleading "needs a type".
+- **Forward declarations.** A redundant `struct T;` after T's definition
+  switched off the `=`/`:=` check for T's fields.
+- **`a^` on an array.** It was not checked, while `a[0]` was.
+- **`a = x as void`.** The rejected finding, guarded anyway, declared a
+  `void` variable. It now asks for a type.
+
+There are 128 tests.
+
+### 29. No `void`: `any^` and `nullptr`
+
+> abolish type `void`.  to mean C's `void *`, introduce `any^`
+
+**Claude** asked how to discard a value, now that `x as void` would go.
+The answer:
+
+> not `any`.  it must be `any^`.  Introduce `nullptr` to mean `(void *)0`.
+> `ptr:any^;` means `ptr := nullptr`
+
+**Claude** implemented #20:
+
+- `any` is valid only as `any^` (C's `void *`), and `void` is rejected
+  with a hint everywhere.
+- `nullptr` is a keyword meaning `(void *)0`, and it infers `any^`.
+- A reference declared without a value is `nullptr`.
+
+Two readings are recorded as provisional P33:
+
+- The null default is applied to every pointer declaration, not just
+  `any^`.
+- With `as void` gone and no replacement chosen, a value is discarded by
+  writing it as a statement.
+
+The tests' `void^` became `any^`. There are 134 tests.

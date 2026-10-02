@@ -38,7 +38,7 @@ main(): i32
 
     p: struct point = {1, 2};
     println(p.toString(), " ", p.fact(10));
-    q: struct buf^ = malloc(sizeof(struct buf) + 4 * sizeof(i32));
+    q: struct buf^ := malloc(sizeof(struct buf) + 4 * sizeof(i32));
     q^.n = 3;
     println(q^.toString());
     free(q);

@@ -7,12 +7,12 @@
 #include <ctype.h>
 #include <string.h>
 
-/* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false
-   and String. C's numeric type names stay reserved so they can be rejected with
+/* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false,
+   String, any (only as any^, C's void *) and nullptr. C's numeric type names stay reserved so they can be rejected with
    a hint. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
-    "f32", "f64", "bool", "true", "false", "String",
+    "f32", "f64", "bool", "true", "false", "String", "any", "nullptr",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -38,11 +38,12 @@ static const struct { const char *word, *hint; } foreign_keywords[] = {
 
 /* Longest first, for greedy matching. Differences from C:
    `^=` is absent, because `p^ = x` assigns through a pointer; XOR-assign
-   is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`. */
+   is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`.
+   `:=` assigns references (pointers); `=` assigns values. */
 static const char *puncts[] = {
     "...", "<<=", ">>=",
     "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||",
-    "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=",
+    "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", ":=",
     "+", "-", "*", "/", "%", "&", "|", "^", "~", "!", "<", ">", "=",
     "?", ":", ";", ",", ".", "(", ")", "[", "]", "{", "}", NULL,
 };

@@ -1,0 +1,9 @@
+// error: this target is a reference (i32^): assign it with ':=', not '='
+x: i32 = 1;
+struct inner { p: i32^; v: i32; };
+struct inner;
+main(): i32
+{
+    s: struct inner; s.p = &x;
+    return 0;
+}

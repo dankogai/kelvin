@@ -18,7 +18,7 @@ main(): i32
     w = w << 100;
     printf("%d %d\n", i32(sizeof(u128)), i32(w >> 99));
 
-    s: u8^ = "bytes";       // string literals are u8 arrays in Kelvin
+    s: u8^ := "bytes";       // string literals are u8 arrays in Kelvin
     printf("%s %c\n", s, s[1]);
     return 0;
 }

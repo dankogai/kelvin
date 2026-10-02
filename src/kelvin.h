@@ -118,6 +118,10 @@ typedef struct {
     Pos pos;
     Type *type;
     Expr *init;
+    /* in a declaration list such as `i = 0, n = 0`, a later name that is
+       already declared is assigned, not redeclared */
+    bool assign;
+    const char *op;   /* "=" or ":=" when assign */
 } Var;   /* also a parameter, struct member or enumerator */
 
 typedef enum {

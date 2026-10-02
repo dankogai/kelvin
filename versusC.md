@@ -14,6 +14,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 |---|--------|
 | `int x = 0;` | `x: i32 = 0;` |
 | `long n = 42;` | `n = 42;` (inferred as `i64`) |
+| `long *buf = malloc(n);` | `buf := malloc(n):i64^;` (`:=` for references) |
+| `p = q;` (pointers) | `p := q;` |
 | `double d = 1.5;` | `d = 1.5;` (inferred as `f64`) |
 | `unsigned long v = 10UL;` | `v: u64 = 10;` |
 | `float f = 1.5f;` | `f: f32 = 1.5;` |
@@ -25,6 +27,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `const char *const s;` | `s: const u8^ const;` |
 | `long add(long a, long b) { ... }` | `add(a: i64, b: i64): i64 { ... }` |
 | `void f(void);` | `f();` |
+| `void *p = NULL;` | `p: any^;` (a reference is `nullptr` until assigned) |
+| `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static g(): i32;` |
 | `int main(int argc, char **argv)` | `main(argc: i32, argv: u8^^): i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32; };` |
@@ -62,7 +66,8 @@ after a colon.
 - **Functions** have no keyword. The return type follows the parameter
   list after a colon: `add(a: i64, b: i64): i64 { ... }`.
   - A prototype ends with `;` instead of a body.
-  - With no `: type`, the function returns `void` *(provisional P5)*.
+  - With no `: type`, the function returns nothing (C's `void`)
+    *(provisional P5)*.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
 - **Parameters** must be named: `f(n: i32)`. C's unnamed `f(int)` is not
   available yet.
@@ -100,7 +105,7 @@ Kelvin's built-in types need no header, and neither do `<stdint.h>` and
 
 C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
 is `unsigned char`, which has the same size, representation and ABI. So
-`s: u8^ = "hi";` and passing a `u8^` to `strlen` just work. kelvinc
+`s: u8^ := "hi";` and passing a `u8^` to `strlen` just work. kelvinc
 silences C's pointer-sign warnings about the mix, and emits `main`'s `argv`
 as `char **`, because C requires that.
 
@@ -124,7 +129,7 @@ and `u8^ const` is `uint8_t *const`.
 ### C typedef names
 
 After a colon, any identifier is accepted as a type, so typedefs from
-imported headers work: `f: FILE^ = stdout;` and
+imported headers work: `f: FILE^ := stdout;` and
 `n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
 `p as FILE^`.
 
@@ -143,7 +148,8 @@ and `b = true;`. A written type is always what you get: `b: u8 = 42;`
 is a `u8`.
 
 `for (i = 0; i < n; i++)` declares `i` for the loop when `i` is not
-declared yet. A declaration cannot be the body of `if`, `while`, `for` or
+declared yet. In a list such as `for (i = 0, n = 0; ...)`, each name that
+already exists is assigned rather than redeclared. A declaration cannot be the body of `if`, `while`, `for` or
 `do`, or follow a label (as in C), so `if (c) x = 1;` with an undeclared
 `x` is an error.
 
@@ -169,6 +175,50 @@ Everything else about literals is C's: hex `0xff`, octal `017`, binary
 and adjacent strings. A literal inside an expression still has C's type, so
 a bare `1` is C's `int` (an `i32`). Where C would write `1UL << 40`, Kelvin
 writes `1:u64 << 40`.
+
+## References: `:=` and `=`
+
+Assigning a pointer (a reference) uses `:=`, and `=` is for values:
+
+```kelvin
+buffer := malloc(8 * 1024):i64^;    // declares buffer: i64^
+buffer[0] = 42;                     // a value, through the reference
+p: i32^ := &x;                      // typed declarations too
+p := &y;                            // reassigning the reference
+p^ = 7;                             // assigning the value it refers to
+for (n: struct node^ := list; n; n := n^.next) { ... }
+```
+
+- `=` on a reference and `:=` on a value are errors, wherever kelvinc can
+  see the target's type: variables, parameters, `self`, fields of Kelvin
+  structs, `p^` and `a[i]`. Targets it cannot see, such as C typedef
+  types, fields of C structs and call results, are not checked
+  *(provisional P32)*.
+- Pointer arithmetic is unchanged: `p += 1`, `p++`.
+- An array is a value, even an array of pointers: `refs: i32^[2] = {p, q};`.
+  An array parameter, though, is a pointer, as in C: in `f(a: i32[4])`,
+  write `a := a + 1`.
+- `:=` is an ordinary assignment operator (C's `=`), so it works inside
+  expressions, and like `=` it declares a name that is not declared yet.
+
+## No `void`: `any^` and `nullptr`
+
+Kelvin has no `void` type:
+
+- **`any^` is C's `void *`.** `any` exists only behind `^`, so `any^`,
+  `any^^` and `const any^` are fine, but `p: any` is an error.
+- **`nullptr` is C's `(void *)0`**, typed `any^`: `p := nullptr`, and
+  `r := nullptr` infers `any^`.
+- **A reference declared without a value is `nullptr`**, so `p: any^;`
+  means `p := nullptr`. This applies to every pointer declaration
+  (`q: i32^;`), local or global, but not to `extern` ones
+  *(provisional P33)*.
+- **A function without a result** omits `: type`, as before.
+- **To discard a value**, write it as a statement. There is no `(void)x`,
+  and C may warn about an unused value *(provisional P33)*.
+
+`void` is rejected with a hint wherever it is written: `f(): void`,
+`p: void^`, `(void)x`, `x as void`.
 
 ## Expressions
 
@@ -198,8 +248,7 @@ both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44):
   and in a `case` label, a bare name after `:` is the separator, so
   annotate with a typedef there by using parentheses or `as`.
 - **`v as T`**, for any type, including pointers and C typedef names:
-  `malloc(n) as i32^`, `p as void^`, `n as size_t`, `x as void` (C's
-  `(void)x`).
+  `malloc(n) as i32^`, `p as any^`, `n as size_t`.
 
 `as` binds like C's cast. It is tighter than every binary operator and
 looser than prefix operators, and it chains left to right
@@ -242,7 +291,7 @@ One shape cannot be caught, because Kelvin cannot see typedefs: a statement
 typedef type, write `x as size_t`, never `size_t(x)`.
 
 A converter takes exactly one value (`i32(a, b)` is an error), and a
-statement may start with one: `u8(x) as void;`.
+statement may start with one.
 
 A converter groups its whole argument, so `i32(TOTAL)` is right even if a
 header defines `TOTAL` as `1.5 + 2.5` without parentheses. `TOTAL as i32`,
@@ -255,8 +304,9 @@ including typedef names with suffixes, and under `sizeof`:
 
 ## Statements
 
-Only declarations differ: `x: i32 = 0;` or `x = 0;` (see Declarations),
-also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`. `if`, `while`,
+Only declarations and assignments differ: `x: i32 = 0;` or `x = 0;` (see
+Declarations), also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`, and
+references take `:=` (see References). `if`, `while`,
 `do`, `for`, `switch`, `case`, `goto` and labels are C's.
 
 ## The prelude: `print` and `println`
@@ -375,7 +425,7 @@ statement of its own.
 neither can built-in types' `toString` and `fmt`. `String` is a reserved
 type name.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true` and `false` *(provisional P11)*, and `as` (#14). It
+`bool`, `true`, `false`, `String`, `any` and `nullptr` *(provisional P11)*, and `as` (#14). It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators

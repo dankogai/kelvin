@@ -23,8 +23,8 @@ main(): i32
 
     // bool, strings, null strings
     ok: bool = true;
-    s: u8^ = "bytes";
-    none: u8^ = 0 as u8^;
+    s: u8^ := "bytes";
+    none: u8^ := 0 as u8^;
     println(ok, " ", bool(!ok), " ", !ok, " ", s, " ", none);   // !ok is C's int
     println(true, " ", false, " ", true + 1);                   // true is a bool
 
@@ -33,7 +33,7 @@ main(): i32
 
     // other pointers print as addresses
     x = 42;
-    p: i64^ = &x;
+    p: i64^ := &x;
     println(p != 0 as i64^);
     return 0;
 }

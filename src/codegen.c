@@ -83,6 +83,7 @@ static const char *c_type_name(const char *name) {
         {"f32", "float"},     {"f64", "double"},
         {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
         {"String", "kv_String"},
+        {"any", "void"}, /* any^ is void * */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -115,6 +116,8 @@ static char *decl(Type *t, const char *name) { return declarator(t, name, false)
 /* ---------- expressions ---------- */
 
 static char *c_op(const char *op) {
+    if (!strcmp(op, ":="))
+        return "="; /* a reference assignment is C's = */
     if (!strcmp(op, "~"))
         return "^";
     if (!strcmp(op, "~="))
@@ -131,6 +134,8 @@ static char *expr_bare(Expr *e) {
            it as unsigned anyway but warns. Kelvin has no suffixes, so say
            it in the C. */
         const char *t = e->text;
+        if (!strcmp(t, "nullptr"))
+            return "((void *)0)";
         /* Kelvin's true and false are bools; C's are the int 1 and 0 */
         if (!strcmp(t, "true") || !strcmp(t, "false"))
             return strfmt("(bool)%s", t);
@@ -267,9 +272,14 @@ static char *initializer(Expr *e) {
 static void stmt(Stmt *s);
 
 static char *var_decl(const char *storage, Var *v) {
+    if (v->assign)
+        return strfmt("%s = %s", v->name, expr(v->init));
     char *d = decl(v->type, v->name);
-    return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d,
-                  v->init ? strfmt(" = %s", initializer(v->init)) : "");
+    /* a reference declared without a value is nullptr (#20) */
+    const char *init = v->init                                                         ? initializer(v->init)
+                       : v->type->kind == T_PTR && !(storage && !strcmp(storage, "extern")) ? "0"
+                                                                                       : NULL;
+    return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d, init ? strfmt(" = %s", init) : "");
 }
 
 static void body(Stmt *s) {

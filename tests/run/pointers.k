@@ -10,7 +10,7 @@ sum(n: struct node^): i32
     total: i32 = 0;
     while (n) {
         total += n^.value;      // C: n->value
-        n = n^.next;
+        n := n^.next;
     }
     return total;
 }
@@ -33,19 +33,19 @@ main(argc: i32, argv: u8^^): i32
     swap(&x, &y);
     printf("%d %d\n", x, y);
 
-    p: i32^ = &x;
-    pp: i32^^ = &p;
+    p: i32^ := &x;
+    pp: i32^^ := &p;
     pp^^ = 42;                  // C: **pp
     printf("%d\n", x);
 
     arr: i32[3] = {10, 20, 30};
-    q: i32^ = arr;
+    q: i32^ := arr;
     printf("%d %d\n", q[1], (q + 2)^);
     printf("%d\n", q++^);       // C: *q++
     printf("%d\n", q^);
 
     rows: i32[2][3] = {{1, 2, 3}, {4, 5, 6}};
-    row: i32[3]^ = &rows[1];     // pointer to array of 3 i32
+    row: i32[3]^ := &rows[1];     // pointer to array of 3 i32
     printf("%d %d\n", row^[2], i32(sizeof rows / sizeof rows[0]));
 
     names: const u8^[2] = {"alpha", "beta"};   // array of 2 pointers

@@ -17,7 +17,7 @@ main(): i32
     printf("best %d\n", best);
 
     // array sizes with subscripts inside compound literals
-    z: i32^ = (i32[sizeof table / sizeof table[0]]){0, 0, 0, 42};
+    z: i32^ := (i32[sizeof table / sizeof table[0]]){0, 0, 0, 42};
     printf("%d\n", z[3]);
 
     // attributes and pragmas pass through as written
