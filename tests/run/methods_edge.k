@@ -12,7 +12,7 @@ point.fact(n: i64): i64                       // recursion needs no prototype
     return n * self.fact(n - 1);
 }
 
-i64.write(f: FILE^): i32 { return fprintf(f, "%lld\n", self as i64); }   // header type in a signature
+i64.write(f: FILE^): i32 { fputs(self.cstr, f); return fputs("\n", f); }   // header type in a signature
 i64.inc(): i64 { return self + 1; }
 
 struct timespec;                              // a method on a header struct
