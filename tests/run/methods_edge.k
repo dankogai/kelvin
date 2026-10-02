@@ -21,12 +21,12 @@ timespec.ms(): i64 { return self.tv_sec * 1000 + self.tv_nsec / 1000000; }
 
 main(): i32
 {
-    p: struct point = {1, 2};
+    var p: struct point = {1, 2};
     println(p.sum(), " ", p.fact(10));
     (42:i64).write(stdout);
-    x: i64 = 0;
+    var x: i64 = 0;
     println(x.inc().inc().inc().inc().inc().inc().inc().inc());   // receivers evaluated once
-    t: struct timespec = {2, 500000000};
+    var t: struct timespec = {2, 500000000};
     println(t.ms());
 
     // hex floats, properties and methods on literals

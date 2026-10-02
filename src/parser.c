@@ -51,16 +51,30 @@ static bool is_method_name(const char *name) {
 }
 
 static List scope_types; /* Type * (or NULL) for each name in scope_names */
+/* for each name: 0 for a var, else what kind of let (#27) */
+enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE };
+static List scope_lets;
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 
 static void close_scope(void) {
-    scope_names.len = scope_types.len = (int)(intptr_t)scope_marks.data[--scope_marks.len];
+    scope_names.len = scope_types.len = scope_lets.len = (int)(intptr_t)scope_marks.data[--scope_marks.len];
 }
 
-static void declare_typed(const char *name, Type *type) {
+static void declare_binding(const char *name, Type *type, int let) {
     list_push(&scope_names, (void *)name);
     list_push(&scope_types, type);
+    list_push(&scope_lets, (void *)(intptr_t)let);
+}
+
+static void declare_typed(const char *name, Type *type) { declare_binding(name, type, LET_NONE); }
+
+/* What kind of let `name` is here (#27), or LET_NONE */
+static int let_kind(const char *name) {
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return (int)(intptr_t)scope_lets.data[i];
+    return LET_NONE;
 }
 
 static void declare_name(const char *name) { declare_typed(name, NULL); }
@@ -89,13 +103,6 @@ static Decl *function_named(const char *name) {
         return NULL;
     }
     return NULL;
-}
-
-static bool is_declared(const char *name) {
-    for (int i = scope_names.len - 1; i >= 0; i--)
-        if (!strcmp(scope_names.data[i], name))
-            return true;
-    return false;
 }
 
 static Token *peek(void) { return &toks[cur]; }
@@ -422,7 +429,7 @@ static Type *target_type(Expr *e);
 static Expr *property(Expr *e, Token *name, char *member);
 static void require_bool(Expr *e);
 _Noreturn static void reject_step(Token *t);
-static int declaration_ahead(int i);
+static bool binding_ahead(int i);
 static bool seen_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
@@ -1147,6 +1154,24 @@ static void check_assign_op(const char *op, Type *t, const char *what, Pos pos, 
 
 static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
 
+/* The let that assigning to e would change (#27): a let name, its fields,
+   and the elements of a let array. Assigning through a pointer, p^ or
+   p[i], changes what p points to, which a let pointer does not fix. */
+static const char *let_target(Expr *e) {
+    switch (e->kind) {
+    case E_IDENT:
+        return let_kind(e->text) ? e->text : NULL;
+    case E_FIELD:
+        return e->a ? let_target(e->a) : NULL;
+    case E_INDEX: {
+        Type *t = value_type(e->a);
+        return t && t->kind == T_ARRAY ? let_target(e->a) : NULL;
+    }
+    default:
+        return NULL;
+    }
+}
+
 /* Assignment is a statement (#26): `=`, `:=` and `+=` and friends appear
    only at the top of an expression statement or of a for clause, where a
    comma list such as `i += 1, j -= 1` runs left to right. Anywhere else,
@@ -1163,6 +1188,15 @@ static Expr *parse_assign(void) {
             if (!ok)
                 error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
+            const char *let = let_target(lhs);
+            if (let && let_kind(let) == LET_RANGE)
+                error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
+                                 "'var k: %s = %s;'", let, kelvin_type(lookup_type(let)), let);
+            if (let && let_kind(let) == LET_PARAM)
+                error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
+                         let, let);
+            if (let)
+                error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
                                 lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);
@@ -1304,35 +1338,17 @@ static Var *parse_var(bool with_init) {
     return v;
 }
 
-/* name: type [= or := init] {, ...}; each name is in scope after its
-   declarator. Inside a function, a later `name = v` or `name := v` whose
-   name is already declared assigns it (#15), as in `for (i = 0, n = 0;`. */
-static void parse_var_list(List *out, bool allow_assign) {
+/* let|var name[: type] [= or := init] {, ...} (#27): each name is in
+   scope after its declarator. A let is C's const, so it needs a value,
+   except in an extern declaration. */
+static void parse_var_list(List *out, bool is_let, const char *storage) {
     do {
-        Token *t = peek();
-        if (allow_assign && declaration_ahead(cur) < 0) {
-            /* an item that declares nothing assigns, as a statement of
-               its own would: `n = 0`, `n += 1`, `p^ = x` (#26) */
-            assign_ok = true;
-            Expr *e = parse_assign();
-            assign_ok = false;
-            bool assigns = false;
-            for (int i = 0; e->kind == E_BINARY && assign_ops[i]; i++)
-                assigns = assigns || !strcmp(e->op, assign_ops[i]);
-            if (!assigns)
-                error_at(t->pos, "expected a declaration or an assignment in this list");
-            Var *v = xcalloc(1, sizeof *v);
-            v->pos = t->pos;
-            v->assign = true;
-            v->target = e->a;
-            v->name = e->a->kind == E_IDENT ? e->a->text : "";
-            v->op = e->op;
-            v->init = e->b;
-            list_push(out, v);
-            continue;
-        }
         Var *v = parse_var(true);
-        declare_typed(v->name, v->type);
+        v->is_let = is_let;
+        if (is_let && !v->init && !(storage && !strcmp(storage, "extern")))
+            error_at(v->pos, "a let needs a value: write 'let %s = ...', or 'var %s' if it changes later", v->name,
+                     v->name);
+        declare_binding(v->name, v->type, is_let ? LET_VALUE : LET_NONE);
         list_push(out, v);
     } while (accept_p(","));
 }
@@ -1445,14 +1461,14 @@ static void reject_c_declaration(void) {
     const char *name = toks[name_at].text;
     if (block)
         error_at(pos, "'%s ~ %s' as a statement would be read by C as a block-pointer declaration; "
-                      "declarations are written 'name: type'", type, name);
+                      "declarations are written 'var name: type'", type, name);
     char *quals = strfmt("%s%s", base_const ? "const " : "", base_volatile ? "volatile " : "");
     if (function_pointer)
         error_at(pos, "'%s' looks like a C function-pointer declaration; function pointer types are not "
                       "available in Kelvin yet", name);
     if (function)
         error_at(pos, "functions are declared at the top level as '%s(...): %s%s%s'", name, quals, type, suffix.buf);
-    error_at(pos, "declarations are written 'name: type', as in '%s%s%s: %s%s%s%s'", storage ? storage : "",
+    error_at(pos, "declarations are written 'var name: type', as in '%s%svar %s: %s%s%s%s'", storage ? storage : "",
              storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
 }
 
@@ -1484,51 +1500,40 @@ static Stmt *parse_body(void) {
     return parse_stmt();
 }
 
-/* At token i: `[storage] name: type ...` or, when name is not declared
-   yet, `[storage] name = ...`. Returns the index of the name, or -1.
-   `name: T` is a declaration even where it could be a label (a typedef
-   T); write `label: ; stmt` to label such a statement. */
-static int declaration_ahead(int i) {
+/* Does a declaration start at token i: `[static|extern] let` or `var`
+   (#27)? */
+static bool binding_ahead(int i) {
     if (is_kw(&toks[i], "static") || is_kw(&toks[i], "extern"))
         i++;
-    if (toks[i].kind != TK_IDENT)
-        return -1;
-    if (is_p(&toks[i + 1], ":")) {
-        int end = type_shape_end(i + 2);
-        /* a `*` after the type is C's pointer habit; parse_type reports it */
-        return end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
-                            is_p(&toks[end], ",") || is_p(&toks[end], "*"))
-                   ? i
-                   : -1;
-    }
-    if ((is_p(&toks[i + 1], "=") || is_p(&toks[i + 1], ":=")) && !is_declared(toks[i].text))
-        return i;
-    return -1;
+    return is_kw(&toks[i], "let") || is_kw(&toks[i], "var");
 }
 
-/* Does the statement or for clause at token i declare a name in any of
-   its comma-separated items, as `a = 1, b = 2;` does when only `a`
-   exists? Then it is a declaration list, whose other items assign. */
-static bool list_declares(int i) {
-    for (;;) {
-        if (declaration_ahead(i) >= 0)
-            return true;
-        while (!is_p(&toks[i], ",") && !is_p(&toks[i], ";") && !is_p(&toks[i], ")") && toks[i].kind != TK_EOF) {
-            if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
-                i = skip_nested(i);
-            else
-                i++;
-        }
-        if (!is_p(&toks[i], ","))
-            return false;
+/* C-era Kelvin's `name: i32 = 0;` without let or var (#27): a name, `:`,
+   and a type that starts with a type word, such as `i32`, `u8 const^`
+   or `struct p`. `again: n = 0;` stays a label before a statement. */
+static void reject_bare_declaration(int i) {
+    if (is_kw(&toks[i], "static") || is_kw(&toks[i], "extern"))
         i++;
-    }
+    if (toks[i].kind != TK_IDENT || !is_p(&toks[i + 1], ":"))
+        return;
+    Token *t = &toks[i + 2];
+    if (!is_base_word(t) && !is_qualifier(t) && !is_kw(t, "struct") && !is_kw(t, "union") && !is_kw(t, "enum"))
+        return;
+    int end = type_shape_end(i + 2);
+    if (end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
+                     is_p(&toks[end], ",")))
+        error_at(toks[i].pos, "declarations start with let or var: write 'var %s: ...', or 'let %s: ...' if it "
+                              "never changes",
+                 toks[i].text, toks[i].text);
 }
 
 static Stmt *parse_declaration(void) {
     Stmt *s = new_stmt(S_VAR, peek()->pos);
     s->storage = parse_storage();
-    parse_var_list(&s->vars, true);
+    bool is_let = accept_kw("let");
+    if (!is_let && !accept_kw("var"))
+        error_at(peek()->pos, "expected 'let' or 'var'");
+    parse_var_list(&s->vars, is_let, s->storage);
     return s;
 }
 
@@ -1567,6 +1572,70 @@ static Stmt *parse_block_body(const char *what) {
     return parse_block();
 }
 
+/* an integer, an enum, or a C typedef name kelvinc cannot see */
+static bool is_integer_type(Type *t) {
+    Decl *record;
+    char c = type_class(t, &record);
+    return c == 'i' || c == 'u';
+}
+
+/* for i in a..<b { } and for i in a...b { } (#28): i runs from a up to
+   b, without b or with it, and is a let in the body. Both bounds are
+   evaluated once. A bound is an expression down to the shifts, so
+   `0..<n - 1` ends before n - 1. i's type is written (`for i: u8 in`) or
+   comes from the bounds: the upper one's type if kelvinc sees it, else the
+   lower one's, else i64 for literals. `for _ in 0..<n` names no variable. */
+static Stmt *parse_for_in(Pos pos) {
+    Stmt *s = new_stmt(S_FOR_IN, pos);
+    Token *name = peek();
+    s->name = advance()->text;
+    Type *written = accept_p(":") ? parse_type() : NULL;
+    if (peek()->kind != TK_IDENT || strcmp(peek()->text, "in"))
+        error_at(peek()->pos, "expected 'in', as in 'for %s in 0..<n { ... }', or 'for (...)'", s->name);
+    advance();
+    int prec = binary_prec(&(Token){.kind = TK_PUNCT, .text = "<<"});
+    s->expr = parse_binary(prec);
+    if (accept_p("..."))
+        s->closed = true;
+    else if (!accept_p("..<"))
+        error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
+    bool saved = brace_ends_condition;
+    brace_ends_condition = true;
+    s->step = parse_binary(prec);
+    brace_ends_condition = saved;
+    /* both bounds, and a written type, must be integers */
+    if (written && !is_integer_type(written))
+        error_at(written->pos, "a range is of integers, not %s", kelvin_type(written));
+    Type *t = written;
+    for (int i = 0; i < 2; i++) {
+        Expr *bound = i == 0 ? s->step : s->expr;
+        Type *seen = value_type(bound);
+        const char *lit = literal_type(bound);
+        if (seen && !is_integer_type(seen))
+            error_at(bound->pos, "a range is of integers, not %s", kelvin_type(seen));
+        if (lit && strcmp(lit, "i64"))
+            error_at(bound->pos, "a range is of integers, not %s", lit);
+        if (!t && seen)
+            t = seen;
+    }
+    if (!t)
+        t = base_type("i64", name->pos);
+    /* the counter must change: drop const and volatile from the bound's type */
+    Type *plain = xcalloc(1, sizeof *plain);
+    *plain = *t;
+    plain->is_const = plain->is_volatile = false;
+    t = plain;
+    s->type = t;
+    open_scope();
+    if (strcmp(s->name, "_"))
+        declare_binding(s->name, t, LET_RANGE);
+    if (!is_p(peek(), "{"))
+        error_at(peek()->pos, "expected '{': the body of 'for' is a block, as in 'for %s in a..<b { ... }'", s->name);
+    s->body = parse_block();
+    close_scope();
+    return s;
+}
+
 static Stmt *parse_stmt(void) {
     Token *t = peek();
     Pos pos = t->pos;
@@ -1577,28 +1646,15 @@ static Stmt *parse_stmt(void) {
         return parse_block();
     if (accept_p(";"))
         return new_stmt(S_EMPTY, pos);
-    if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT) {
-        const char *op = is_p(peek_at(2), ":=") ? ":=" : "=";
-        error_at(pos, "Kelvin has no 'var': write '%s: T %s ...', or '%s %s ...' to infer the type", peek2()->text,
-                 op, peek2()->text, op);
-    }
-    int name_at = declaration_ahead(cur);
-    if (name_at < 0 && list_declares(cur))
-        name_at = cur; /* `a = 1, b = 2;` with only a declared */
-    if (name_at >= 0) {
-        if (as_body) {
-            if (is_p(&toks[name_at + 1], "=") || is_p(&toks[name_at + 1], ":="))
-                error_at(toks[name_at].pos,
-                         "'%s' is not declared; a declaration cannot be the body of a statement or follow a label, "
-                         "so put it in a block",
-                         toks[name_at].text);
+    if (binding_ahead(cur)) {
+        if (as_body)
             error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
                           "or write 'label: ;' before it");
-        }
         Stmt *s = parse_declaration();
         expect_p(";");
         return s;
     }
+    reject_bare_declaration(cur);
     if (is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto"))
         reject_c_declaration();
     if (accept_kw("if")) {
@@ -1628,13 +1684,15 @@ static Stmt *parse_stmt(void) {
         return s;
     }
     if (accept_kw("for")) {
+        if (peek()->kind == TK_IDENT)
+            return parse_for_in(pos);
         Stmt *s = new_stmt(S_FOR, pos);
         expect_p("(");
         open_scope();
-        if ((declaration_ahead(cur) >= 0 || list_declares(cur)) && !is_kw(peek(), "static") &&
-            !is_kw(peek(), "extern")) {
+        if (binding_ahead(cur) && !is_kw(peek(), "static") && !is_kw(peek(), "extern")) {
             s->init = parse_declaration();
         } else if (!is_p(peek(), ";")) {
+            reject_bare_declaration(cur);
             reject_c_declaration();
             s->init = new_stmt(S_EXPR, peek()->pos);
             s->init->expr = parse_assignments();
@@ -1716,7 +1774,7 @@ static Stmt *parse_stmt(void) {
             example = strfmt("%s %s", t->text, peek2()->text);
         else if (is_base_word(t) && !is_kw(t, "any"))
             example = t->text;
-        error_at(pos, "declarations are written 'name: type', as in 'x: %s'", example);
+        error_at(pos, "declarations are written 'var name: type', as in 'var x: %s'", example);
     }
     Stmt *s = new_stmt(S_EXPR, pos);
     s->expr = parse_assignments();
@@ -1750,8 +1808,10 @@ static Decl *parse_fn(Pos pos, const char *storage) {
             d->variadic = true;
             break;
         }
+        bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
         Var *p = parse_var(false);
-        declare_typed(p->name, param_type(p->type));
+        p->is_let = !mutable;
+        declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
             break;
@@ -1802,8 +1862,10 @@ static Decl *parse_method(Pos pos, const char *storage) {
             d->variadic = true;
             break;
         }
+        bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
         Var *p = parse_var(false);
-        declare_typed(p->name, param_type(p->type));
+        p->is_let = !mutable;
+        declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
             break;
@@ -1857,6 +1919,7 @@ Program *parse(Token *tokens, int ntoks) {
     cur = 0;
     scope_names = (List){0};
     scope_types = (List){0};
+    scope_lets = (List){0};
     scope_marks = (List){0};
     records = (List){0};
     functions = (List){0};
@@ -1879,23 +1942,22 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
-        if (t->kind == TK_IDENT && !strcmp(t->text, "var") && peek2()->kind == TK_IDENT) {
-            const char *op = is_p(peek_at(2), ":=") ? ":=" : "=";
-            error_at(t->pos, "Kelvin has no 'var': write '%s: T %s ...', or '%s %s ...' to infer the type",
-                     peek2()->text, op, peek2()->text, op);
-        }
         const char *storage = parse_storage();
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
             list_push(&prog->decls, parse_method(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
             list_push(&prog->decls, parse_fn(t->pos, storage));
-        } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "=") || is_p(peek2(), ":="))) {
-            /* at the top level, `name = ...` and `name := ...` always declare */
+        } else if (is_kw(peek(), "let") || is_kw(peek(), "var")) {
             Decl *d = new_decl(D_VAR, t->pos, storage);
-            parse_var_list(&d->members, false);
+            bool is_let = is_kw(advance(), "let");
+            parse_var_list(&d->members, is_let, storage);
             expect_p(";");
             list_push(&prog->decls, d);
+        } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "=") || is_p(peek2(), ":="))) {
+            error_at(peek()->pos, "declarations start with let or var: write 'var %s ...', or 'let %s ...' if it "
+                                  "never changes",
+                     peek()->text, peek()->text);
         } else if (!storage && accept_kw("struct")) {
             list_push(&prog->decls, parse_record(t->pos, D_STRUCT));
         } else if (!storage && accept_kw("union")) {
@@ -1903,7 +1965,7 @@ Program *parse(Token *tokens, int ntoks) {
         } else if (!storage && accept_kw("enum")) {
             list_push(&prog->decls, parse_record(t->pos, D_ENUM));
         } else {
-            error_at(peek()->pos, "expected a declaration (name(...): type, name: type, struct, union, enum), found %s", desc(peek()));
+            error_at(peek()->pos, "expected a declaration (name(...): type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
     return prog;

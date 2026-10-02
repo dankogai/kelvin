@@ -1,6 +1,7 @@
-// error: Kelvin has no 'var': write 'x: T = ...', or 'x = ...' to infer the type
+// error: declarations start with let or var: write 'var x: ...', or 'let x: ...' if it never changes
+// C-era Kelvin's declaration without let or var (#27)
 f(c: bool): i32
 {
-    var x: i32 = 0;
+    x: i32 = 0;
     return 0;
 }

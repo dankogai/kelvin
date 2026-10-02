@@ -4,9 +4,9 @@
 struct point { x: i32; y: i32; };
 main(): i32
 {
-    p: struct point = {1, 2};
-    q: struct point = {3, 4};
-    c: bool = true;
+    var p: struct point = {1, 2};
+    var q: struct point = {3, 4};
+    var c: bool = true;
     println((c ? p : q).cstr);
     return 0;
 }

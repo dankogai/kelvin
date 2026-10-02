@@ -914,3 +914,78 @@ rejected none. All are fixed:
   said `:=` works inside expressions.
 
 There are 169 tests.
+
+### 38. `let` and `var`; ranges
+
+> I now remember why it had `var`. I wanted mark mutability of the
+> variable and `var` is obviously mutable. Which one is sounds better,
+> `let` or `val`? `let mut` for `var` is way too ugly.
+
+**Claude** recommended `let`: `val` and `var` differ by one letter, while
+`let`/`var` is Swift's pair, which Kelvin already follows elsewhere.
+
+> I agree and as a Swift programmer I am used to it. go for `let`.
+>
+> * let i = 42; i+= 1 is error.
+> * function parameters are `let` unless you explicitly say `var`. var
+>   f(p:i32^){ p := p.next } is error.
+> * `for(var i = 0; ...)` should be discouraged. Let's introduce range.
+>   `..<` and `...` and `for i in 0..<count {}` where `i` is immutable
+>   within `{}`.
+
+**Claude** asked four questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| How are declarations written? | Always `let` or `var`, as in Swift; a plain `x = 0;` assigns |
+| The type of `i` in `for i in a..<b`? | From the bounds; `for i: u8 in` writes it |
+| How far do ranges go? | Only in `for ... in` for now |
+| A mutable parameter, and `self`? | `f(var p: i32^)`; `self` is a mutable copy |
+
+**Claude** implemented #27 and #28:
+
+- **#27.** `let` and `var` start every local and global declaration
+  (`let k = 42;`, `var n: i32 = 0;`, `static var calls: i32;`). A `let`
+  is C's `const`: assigning to one kelvinc sees is an error, and C
+  enforces the rest. A let pointer is fixed, while what it points to is
+  not. Parameters are lets unless written `var`, and are `const` where
+  the function is defined. `x: i32 = 0;` without a keyword gets a hint,
+  and `again: n = 0;` is a label, as in C.
+- **#28.** `for i in a..<b { }` and `for i in a...b { }` evaluate the
+  bounds once and give the body a `const` copy of the counter. A closed
+  range up to a type's maximum ends rather than wrapping. `for _ in`
+  needs no variable.
+
+Claude's own choices are provisional P39 and P40. All the tests were
+converted with the previous compiler's own record of where each
+declaration starts; a few that tested the old rules were rewritten. The
+README's first example is now a test too. There are 180 tests.
+
+### 39. The review of #27 and #28
+
+> check the review results
+
+The round confirmed 8 findings, 6 of them distinct, and rejected none.
+All are fixed:
+
+- **A let parameter of a C typedef that is an array**, such as `jmp_buf`
+  (or `va_list` on x86-64), became `const jmp_buf`, which C turns into a
+  pointer to const elements, so the definition no longer matched its
+  prototype. kelvinc now leaves such parameters without `const` and
+  checks assignments to them itself.
+- **A range up to a const bound** made the hidden counter const, which C
+  rejected naming a variable nobody wrote. The counter now drops `const`
+  and `volatile`; only the loop variable is const.
+- **Non-integer ranges** got through when only the lower bound was a
+  float or the type was written (`for y: f64 in`). Both bounds and a
+  written type are checked now.
+- **Hints.** Assigning to a range variable suggested `var`, which a
+  range variable cannot take; it now suggests a copy, `var k: i64 = i;`,
+  and a let parameter suggests `var p` in the parameter list. A
+  brace-less range body got an example that is not Kelvin, and `0..n`
+  was reported as member access.
+- **Docs.** Two versusC.md samples declared variables whose type cannot
+  be inferred, and Design.md still described #15's rules in P11, Q11,
+  note (19) and the implementation table. Q11 is answered by #27.
+
+There are 185 tests.

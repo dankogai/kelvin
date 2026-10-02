@@ -17,18 +17,22 @@ struct node {
     next: struct node^;
 };
 
-sum(n: struct node^): i32
+sum(var n: struct node^): i32       // n may move; parameters are lets otherwise
 {
-    total: i32 = 0;
-    for (; n != nullptr; n := n^.next)     // C: n->next
-        total += n^.value;
+    var total: i32 = 0;
+    while n != nullptr {
+        total += n^.value;              // C: n->value
+        n := n^.next;
+    }
     return total;
 }
 ```
 
 So far the changes from C are:
-- every declaration is `name: type`, functions included, with no keyword;
-  `i = 42` declares `i` (an `i64`) when `i` is not declared yet
+- variables are declared with `let`, which never changes (C's `const`), or
+  `var`: `let k = 42;`, `var n: i32 = 0;`; the type follows the name, and
+  functions are `add(a: i64, b: i64): i64`, whose parameters are lets
+  unless written `var`
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
 - XOR is `~`
@@ -36,7 +40,7 @@ So far the changes from C are:
   reference declared without a value is `nullptr`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
   `i128`/`u128`, `f32`, `f64`), so `char`, `int`, `long`, `float` and
-  `double` are gone, and `i = 42` is an `i64`
+  `double` are gone, and `let i = 42` is an `i64`
 - `bool`, `true` and `false` are built in
 - C headers are imported with `#import <stdio.h> as C`
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or
@@ -52,10 +56,12 @@ So far the changes from C are:
   (`(42:i32).hex` is `+0x2a`)
 - conditions are `bool`, with no parentheses and block bodies:
   `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
-  `bool`, so `println(a == b)` prints `true`, and `ok = a < b;` declares
-  one
+  `bool`, so `println(a == b)` prints `true`, and `let ok = a < b;`
+  declares one
 - assignment is a statement, and there is no `++` or `--`: write
   `i += 1;`, and step a pointer with `p := p.next;`
+- counting loops use ranges: `for i in 0..<n { ... }` and
+  `for i in 1...n { ... }`, where `i` is a `let`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

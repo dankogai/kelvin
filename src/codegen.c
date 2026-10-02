@@ -34,6 +34,7 @@ static List cstr_used;
    write into, "kv_text1[36]" each; NULL outside function bodies */
 static List *text_bufs;
 static int text_temps;
+static int range_temps;     /* names the counters of for-in loops */
 static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
@@ -438,10 +439,20 @@ static char *initializer(Expr *e) {
 
 static void stmt(Stmt *s);
 
+/* t as C's const, for a let (#27): a let pointer is a const pointer (what
+   it points to may change), and a let array has const elements */
+static Type *const_type(Type *t) {
+    Type *c = xcalloc(1, sizeof *c);
+    *c = *t;
+    if (t->kind == T_ARRAY)
+        c->elem = const_type(t->elem);
+    else
+        c->is_const = true;
+    return c;
+}
+
 static char *var_decl(const char *storage, Var *v) {
-    if (v->assign)
-        return strfmt("%s %s %s", expr(v->target), c_op(v->op), expr(v->init));
-    char *d = decl(v->type, v->name);
+    char *d = decl(v->is_let ? const_type(v->type) : v->type, v->name);
     /* a reference declared without a value is nullptr (#20) */
     const char *init = v->init                                                         ? initializer(v->init)
                        : v->type->kind == T_PTR && !(storage && !strcmp(storage, "extern")) ? "0"
@@ -563,6 +574,27 @@ static void stmt(Stmt *s) {
         }
         break;
     }
+    case S_FOR_IN: {
+        /* for i in a..<b: the bounds are evaluated once, and i is a const
+           copy of the counter. a...b stops at b without stepping past
+           it, so 0...255 as a u8 ends (#28). */
+        int n = ++range_temps;
+        char *i = strfmt("kv_i%d", n), *end = strfmt("kv_end%d", n), *go = strfmt("kv_go%d", n);
+        char *lo = expr(s->expr), *hi = expr(s->step);
+        if (s->closed)
+            line("for (%s = %s, %s = %s, %s = %s <= %s; %s; %s = %s != %s, %s += %s)", decl(s->type, i), lo, end,
+                 hi, go, i, end, go, go, i, end, i, go);
+        else
+            line("for (%s = %s, %s = %s; %s < %s; %s++)", decl(s->type, i), lo, end, hi, i, end, i);
+        line("{");
+        indent++;
+        if (strcmp(s->name, "_")) /* for _ in 0..<n names no variable */
+            line("%s = %s;", decl(const_type(s->type), s->name), i);
+        stmt(s->body);
+        indent--;
+        line("}");
+        break;
+    }
     case S_SWITCH:
         line("switch (%s)", expr(s->expr));
         body(s->body);
@@ -629,9 +661,27 @@ static char *fn_head(Decl *d) {
         buf_puts(&params, decl(d->recv, "self"));
     for (int i = 0; i < d->params.len; i++) {
         Var *p = d->params.data[i];
+        /* a let parameter is const where the function is defined (#27),
+           and an array parameter is the pointer C makes of it */
+        Type *t = p->type;
+        /* a C typedef kelvinc cannot see may be an array, such as jmp_buf,
+           whose const would reach its elements: kelvinc checks those lets */
+        bool hidden = t->kind == T_BASE && !strcmp(c_type_name(t->name), t->name) && strcmp(t->name, "bool") &&
+                      strncmp(t->name, "struct ", 7) && strncmp(t->name, "union ", 6) && strncmp(t->name, "enum ", 5);
+        if (p->is_let && d->body && !hidden) {
+            if (t->kind == T_ARRAY) {
+                Type *ptr = xcalloc(1, sizeof *ptr);
+                ptr->kind = T_PTR;
+                ptr->pos = t->pos;
+                ptr->elem = t->elem;
+                t = ptr;
+            }
+            t = const_type(t);
+        }
         /* C insists that main's argv is char **; Kelvin writes it u8^^ */
         bool argv = !d->recv && !strcmp(d->name, "main") && i == 1;
-        buf_printf(&params, "%s%s", params.len ? ", " : "", argv ? strfmt("char **%s", p->name) : decl(p->type, p->name));
+        const char *argv_c = p->is_let && d->body ? "char **const %s" : "char **%s";
+        buf_printf(&params, "%s%s", params.len ? ", " : "", argv ? strfmt(argv_c, p->name) : decl(t, p->name));
     }
     if (d->variadic)
         buf_puts(&params, ", ...");
@@ -926,6 +976,7 @@ char *gen_program(Program *prog, bool with_lines) {
     }
     text_bufs = NULL;
     text_temps = 0;
+    range_temps = 0;
     pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
         if (i)

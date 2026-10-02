@@ -4,12 +4,12 @@
 
 sq(x: i32): i32 { return x * x; }
 say(s: cstr): bool { puts(s); return true; }
-table: i32[4] = {1, 2, 3, 4};
+var table: i32[4] = {1, 2, 3, 4};
 
 main(): i32
 {
-    n: i32 = 2, best: i32 = 0, flag: i32 = 1;
-    a: i32[3] = {1, 2, 3};
+    var n: i32 = 2, best: i32 = 0, flag: i32 = 1;
+    var a: i32[3] = {1, 2, 3};
 
     // products whose values are used are expressions, not C declarations
     // (an XOR is converted, since || takes bools, #23)
@@ -22,7 +22,7 @@ main(): i32
     printf("best %d\n", best);
 
     // array sizes with subscripts inside compound literals
-    z: i32^ := (i32[sizeof table / sizeof table[0]]){0, 0, 0, 42};
+    var z: i32^ := (i32[sizeof table / sizeof table[0]]){0, 0, 0, 42};
     printf("%d\n", z[3]);
 
     // attributes and pragmas pass through as written

@@ -6,19 +6,19 @@ isodd(n: i32): bool { return n % 2 == 1; }
 main(): i32
 {
     // ?: between two bools kelvinc sees is a bool, not C's int
-    c = true;
-    x = true;
-    y = false;
+    var c = true;
+    var x = true;
+    var y = false;
     println(c ? x : y, " ", (c ? x : y).cstr, " ", c ? isodd(3) : isodd(4));
     if c ? x : y {
         println("ternary condition");
     }
-    b = c ? x : y;
-    z = c && (c ? x : y) && !(c ? y : x);
+    var b = c ? x : y;
+    var z = c && (c ? x : y) && !(c ? y : x);
     println(b, " ", z);
 
     // sizeof(T) and a compound literal before a condition's {
-    n: u64 = 16;
+    var n: u64 = 16;
     if n > sizeof(i64) {
         println("big");
     }
@@ -30,24 +30,26 @@ main(): i32
     {
         println("a block of its own");
     }
-    p: struct point = {1, 2};
+    var p: struct point = {1, 2};
     if p.x == (struct point){1, 2}.x {
         println("compound literal");
     }
 
     // a comma expression as a condition
-    i = 0;
-    ok = true;
+    var i = 0;
+    var ok = true;
     if f(), ok {
         println("comma");
     }
     for (; f(), i < 4; i += 1) { }
 
-    // each item of a list declares or assigns on its own
-    a = 0;
-    a = 1, d = 2;
-    k = 1, a += 1;
-    for (i = 0, j = 10; i < j; i += 1, j -= 1) { }
+    // a list either declares (let or var) or assigns (#27)
+    var a = 0;
+    a = 1;
+    var d = 2, k = 1;
+    a += 1;
+    var j = 10;
+    for (i = 0; i < j; i += 1, j -= 1) { }
     println(n, " ", a, " ", d, " ", k, " ", i);
     return 0;
 }

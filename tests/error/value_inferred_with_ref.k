@@ -3,5 +3,5 @@
 struct node { value: i32; next: struct node^; };
 f(x: i32, p: i32^, n: struct node^)
 {
-    k := 42;
+    var k := 42;
 }

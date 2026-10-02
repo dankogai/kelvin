@@ -3,7 +3,7 @@
 #import "include_types.h" as C
 f(x: i32, n: size_t, p: i32^, np: size_t^, vp: any^, c: bool)
 {
-    t: i32 = (x + 1)
+    var t: i32 = (x + 1)
     {
         x = 3;
     }

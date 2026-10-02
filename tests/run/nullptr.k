@@ -5,7 +5,7 @@
 
 struct node { value: i32; next: struct node^; };
 
-g: i32^;                                // a global reference: nullptr
+var g: i32^;                                // a global reference: nullptr
 
 fill(p: any^, n: u64): any^
 {
@@ -14,19 +14,19 @@ fill(p: any^, n: u64): any^
 
 main(): i32
 {
-    p: any^;                            // means p := nullptr
-    q: i32^;
-    n: struct node^;
+    var p: any^;                            // means p := nullptr
+    var q: i32^;
+    var n: struct node^;
     println(p == nullptr, " ", q == nullptr, " ", n == nullptr, " ", g == nullptr);
 
-    r := nullptr;                       // inferred: any^
-    buf := malloc(16):any^;
+    var r := nullptr;                       // inferred: any^
+    var buf := malloc(16):any^;
     r := buf;
-    bytes: u8^ := fill(r, 16) as u8^;
+    var bytes: u8^ := fill(r, 16) as u8^;
     println(bytes[0], " ", bytes[15], " ", r != nullptr);
     free(buf);
 
-    x: i32 = 5;
+    var x: i32 = 5;
     q := &x;
     q := nullptr;
     println(q == nullptr, " ", sizeof(any^) == sizeof(i32^));

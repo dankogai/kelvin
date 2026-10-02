@@ -3,7 +3,7 @@
 #import <stdio.h> as C
 main(): i32
 {
-    c: i32 = 0;
+    var c: i32 = 0;
     while (c = getchar()) != EOF {
         putchar(c);
     }

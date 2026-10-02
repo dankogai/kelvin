@@ -1,4 +1,4 @@
-// error: declarations are written 'name: type', as in 's: const u8^'
+// error: declarations are written 'var name: type', as in 'var s: const u8^'
 #import <stdio.h> as C
 #import "include_types.h" as C
 struct pt { x: i32; y: i32; };

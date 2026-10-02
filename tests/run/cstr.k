@@ -14,7 +14,7 @@ struct cnames { name: xmlChar^; u: uint8_t^; h: handle_t; r: rstr_t; z: dc_t; b:
 struct seg { a: struct point; b: struct point; };
 struct msg { len: u32; text: flex_t; };    // never printed, so it needs no .cstr
 seg.cstr_size(): i32 { return 2; }         // no clash with kelvinc's size constant
-pts: struct point[2] = {{1, 2}, {3, 4}};
+var pts: struct point[2] = {{1, 2}, {3, 4}};
 first(): struct point^ { return &pts[0]; }
 segment(): struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
@@ -24,28 +24,28 @@ point.moved(): struct point { return (struct point){self.x + 1, self.y}; }
 main(): i32
 {
     // numbers: plain decimal; floats lossless; bool; a string is itself
-    pi = 3.141592653589793;
+    var pi = 3.141592653589793;
     println(pi.cstr, " ", 0.1.cstr, " ", (0.1:f32).cstr, " ", 1.0.cstr);
     println(42.cstr, " ", (-7:i8).cstr, " ", (255:u8).cstr, " ", (~(0:u128)).cstr);
     println(true.cstr, " ", "text".cstr, " ", nullptr.cstr);
 
     // structs: derived text, nested, with arrays; unions by name
-    p: struct point = {3, 4};
-    s: struct segment = {p, {7, 8}, "edge"};
+    var p: struct point = {3, 4};
+    var s: struct segment = {p, {7, 8}, "edge"};
     println(p.cstr, " ", s.cstr);
-    poly: struct poly = {"tri", {{0, 0}, {1, 0}, {0, 1}}, {{1, 2}, {3, 4}}, 1.5};
+    var poly: struct poly = {"tri", {{0, 0}, {1, 0}, {0, 1}}, {{1, 2}, {3, 4}}, 1.5};
     println(poly.cstr);
-    u: union number = {.i = 1};
+    var u: union number = {.i = 1};
     println(u.cstr, " ", get().cstr);
-    b: struct buf = {3};
+    var b: struct buf = {3};
     println(b.cstr);
 
     // members of types kelvinc cannot see; long strings are cut
-    m: struct mixed = {7, "c", make_opaque(), 1.0, true, nullptr};
+    var m: struct mixed = {7, "c", make_opaque(), 1.0, true, nullptr};
     println(m.cstr);
-    n: struct named = {"hi" as i8^, "0123456789012345678901234567890123456789012345678901234567890123456789"};
+    var n: struct named = {"hi" as i8^, "0123456789012345678901234567890123456789012345678901234567890123456789"};
     println(n.cstr);
-    l: struct labeled = {"hello, world", {'a', 'b', 'c', 'd'}, 9};
+    var l: struct labeled = {"hello, world", {'a', 'b', 'c', 'd'}, 9};
     println(l.cstr, " ", l.label.cstr);
 
     // results of Kelvin functions and methods are seen; a scalar's buffer
@@ -54,26 +54,26 @@ main(): i32
     println(segment().a.cstr, " ", first()^.cstr, " ", (get)().cstr, " ", segment().cstr_size());
 
     // members whose types are spelled in C
-    cn: struct cnames = {"title" as xmlChar^, "u8" as uint8_t^, nullptr, "hello" as rstr_t, 1.0, {1, 2, 3, 4}};
+    var cn: struct cnames = {"title" as xmlChar^, "u8" as uint8_t^, nullptr, "hello" as rstr_t, 1.0, {1, 2, 3, 4}};
     println(cn.cstr, " ", sizeof(struct msg));
 
     // a C struct's field named cstr wins, also as a designator
-    c: struct cs = {.cstr = "field", .size = 1};
+    var c: struct cs = {.cstr = "field", .size = 1};
     println(c.cstr);
 
     // a pointer to volatile bytes is an address
-    v: u8 volatile^ := "text";
+    var v: u8 volatile^ := "text";
     println(v.cstr[0] == '0');
 
     // cstr is u8^
-    name: cstr := "kelvin";
-    q: cstr const := name;
-    names: cstr[2] = {"a", "b"};
+    var name: cstr := "kelvin";
+    var q: cstr const := name;
+    var names: cstr[2] = {"a", "b"};
     println(name.cstr, " ", q, " ", names[1].cstr, " ", name.size == (8 as size_t));
 
     // the text lives until the enclosing block ends
-    t: cstr;
-    for (k: i32 = 0; k < 1; k += 1)
+    var t: cstr;
+    for (var k: i32 = 0; k < 1; k += 1)
         t := p.cstr;
     println(t);
     return 0;

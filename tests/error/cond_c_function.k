@@ -3,7 +3,7 @@
 #import <stdio.h> as C
 main(): i32
 {
-    line: u8[80];
+    var line: u8[80];
     while fgets(line, 80, stdin) {
         print(line);
     }

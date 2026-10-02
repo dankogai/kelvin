@@ -1,6 +1,6 @@
 // error: 's' needs a type: write 's: T = ...'
 f(c: bool): i32
 {
-    s = "hi";
+    var s = "hi";
     return 0;
 }

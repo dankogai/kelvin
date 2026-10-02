@@ -4,34 +4,34 @@ struct sized { size: u64; hex: i32; };       // fields win over properties
 
 main(): i32
 {
-    a: i8 = -1;
-    b: u8 = 255;
-    c: i32 = 42;
-    d: u64 = 18446744073709551615;
-    big: u128 = ~(0:u128);
-    e: i128 = -((big >> 1) as i128) - 1;      // i128's minimum
+    var a: i8 = -1;
+    var b: u8 = 255;
+    var c: i32 = 42;
+    var d: u64 = 18446744073709551615;
+    var big: u128 = ~(0:u128);
+    var e: i128 = -((big >> 1) as i128) - 1;      // i128's minimum
     println(a.dec, " ", a.hex, " ", a.oct, " ", a.bin);
     println(b.dec, " ", b.hex, " ", b.oct, " ", b.bin);
     println(c.dec, " ", c.hex, " ", (0:i32).dec, " ", (-c).hex);
     println(d.hex, " ", e.dec);
     println(42.hex, " ", 0xff.bin, " ", (7:u16).oct, " ", (c + 1).dec);
 
-    pi = 3.141592653589793;
-    f: f32 = 0.1;
+    var pi = 3.141592653589793;
+    var f: f32 = 0.1;
     println(pi.dec, " ", pi.hex, " ", (-pi).hex, " ", f.dec, " ", f.hex);
 
     // .size is sizeof
-    p: struct point = {1, 2};
-    arr: i32[10];
-    ptr: i32^;
+    var p: struct point = {1, 2};
+    var arr: i32[10];
+    var ptr: i32^;
     println(a.size, " ", c.size, " ", e.size, " ", pi.size, " ", p.size, " ", arr.size, " ", ptr.size, " ", c.size.dec);
 
     // a Kelvin struct's own fields named size or hex are fields
-    s: struct sized = {7, 9};
+    var s: struct sized = {7, 9};
     println(s.size, " ", s.hex, " ", s.size.hex);
 
     // the text lives on the caller's stack for the rest of the block
-    t: u8^ := c.bin;
+    var t: u8^ := c.bin;
     println(t);
     return 0;
 }

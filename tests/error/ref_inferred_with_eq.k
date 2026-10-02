@@ -3,5 +3,5 @@
 struct node { value: i32; next: struct node^; };
 f(x: i32, p: i32^, n: struct node^)
 {
-    b = malloc(8):i64^;
+    var b = malloc(8):i64^;
 }

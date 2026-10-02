@@ -10,21 +10,21 @@ main(): i32
     println(i8(-128), " ", u8(255), " ", i16(-32768), " ", u16(65535));
     println(-2147483648:i32, " ", 4294967295:u32);
     println(-9223372036854775807:i64 - 1, " ", 18446744073709551615:u64);
-    big: u128 = ~(0:u128);
-    small: i128 = -(big >> 1) - 1;
+    var big: u128 = ~(0:u128);
+    var small: i128 = -(big >> 1) - 1;
     println(big);
     println(small);
 
     // floats: the shortest text that reads back the same, with a point
     println(1.0, " ", 0.1, " ", -0.5, " ", 1.0 / 3, " ", 1e300, " ", 2.5e-8);
     println(0.1:f32, " ", 16777216:f32, " ", 1.0:f32 / 3);
-    zero: f64 = 0.0;
+    var zero: f64 = 0.0;
     println(zero / zero, " ", -(zero / zero), " ", 1 / zero, " ", -1 / zero);   // NaN's sign is not shown
 
     // bool, strings, null strings
-    ok: bool = true;
-    s: u8^ := "bytes";
-    none: u8^ := 0 as u8^;
+    var ok: bool = true;
+    var s: u8^ := "bytes";
+    var none: u8^ := 0 as u8^;
     println(ok, " ", bool(!ok), " ", !ok, " ", s, " ", none);   // !ok is a bool (#23)
     println(true, " ", false, " ", true + 1);                   // true is a bool
 
@@ -32,8 +32,8 @@ main(): i32
     println(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
 
     // other pointers print as addresses
-    x = 42;
-    p: i64^ := &x;
+    var x = 42;
+    var p: i64^ := &x;
     println(p != 0 as i64^);
     return 0;
 }

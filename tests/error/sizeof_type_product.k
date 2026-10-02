@@ -3,5 +3,5 @@
 #import "include_types.h" as C
 f(x: i32, n: size_t, p: i32^, np: size_t^, vp: any^, c: bool)
 {
-    z: u64 = sizeof (T * (U8));
+    var z: u64 = sizeof (T * (U8));
 }

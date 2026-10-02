@@ -120,11 +120,7 @@ typedef struct {
     Pos pos;
     Type *type;
     Expr *init;
-    /* in a list such as `i = 0, n = 0`, an item that declares nothing
-       assigns: a name already declared, `p^ = x`, `n += 1` (#26) */
-    bool assign;
-    const char *op;   /* when assign: "=", ":=", "+=", ... */
-    Expr *target;     /* when assign: what is assigned */
+    bool is_let;      /* a let (#27): C's const */
 } Var;   /* also a parameter, struct member or enumerator */
 
 typedef enum {
@@ -136,6 +132,7 @@ typedef enum {
     S_WHILE,
     S_DO,
     S_FOR,
+    S_FOR_IN,    /* for i in a..<b { } and for i in a...b { } (#28) */
     S_SWITCH,
     S_CASE,
     S_DEFAULT,
@@ -155,9 +152,11 @@ struct Stmt {
     List vars;         /* S_VAR: Var * */
     Expr *expr;        /* condition, value, case label */
     Stmt *init;        /* S_FOR */
-    Expr *step;        /* S_FOR */
+    Expr *step;        /* S_FOR; S_FOR_IN: the upper bound */
+    Type *type;        /* S_FOR_IN: the loop variable's */
+    bool closed;       /* S_FOR_IN: a...b, not a..<b */
     Stmt *body, *els;  /* loop body / if-then, else */
-    char *name;        /* S_GOTO, S_LABEL */
+    char *name;        /* S_GOTO, S_LABEL, S_FOR_IN */
 };
 
 typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;

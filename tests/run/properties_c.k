@@ -4,7 +4,7 @@
 
 main(): i32
 {
-    b: struct blob = make_blob();
+    var b: struct blob = make_blob();
     println(b.size, " ", b.hex, " ", b.size.dec);
     b.size = 9;
     println(make_blob().size, " ", b.size);

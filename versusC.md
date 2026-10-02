@@ -12,22 +12,23 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 
 | C | Kelvin |
 |---|--------|
-| `int x = 0;` | `x: i32 = 0;` |
-| `long n = 42;` | `n = 42;` (inferred as `i64`) |
-| `long *buf = malloc(n);` | `buf := malloc(n):i64^;` (`:=` for references) |
+| `int x = 0;` | `var x: i32 = 0;` |
+| `const int k = 42;` | `let k: i32 = 42;` (#27) |
+| `long n = 42;` | `var n = 42;` (inferred as `i64`) |
+| `long *buf = malloc(n);` | `var buf := malloc(n):i64^;` (`:=` for references) |
 | `p = q;` (pointers) | `p := q;` |
-| `double d = 1.5;` | `d = 1.5;` (inferred as `f64`) |
-| `unsigned long v = 10UL;` | `v: u64 = 10;` |
-| `float f = 1.5f;` | `f: f32 = 1.5;` |
+| `double d = 1.5;` | `let d = 1.5;` (inferred as `f64`) |
+| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
+| `float f = 1.5f;` | `var f: f32 = 1.5;` |
 | `1UL << 40` | `1:u64 << 40` |
-| `uint16_t u = 0xdead;` | `u = 0xdead:u16;` (inferred as `u16`) |
-| `char *s;` | `s: u8^;` or `s: cstr;` |
-| `int *a[4];` | `a: i32^[4];` *(provisional)* |
-| `int (*p)[4];` | `p: i32[4]^;` *(provisional)* |
-| `const char *const s;` | `s: const u8^ const;` |
-| `long add(long a, long b) { ... }` | `add(a: i64, b: i64): i64 { ... }` |
+| `uint16_t u = 0xdead;` | `var u = 0xdead:u16;` (inferred as `u16`) |
+| `char *s;` | `var s: u8^;` or `var s: cstr;` |
+| `int *a[4];` | `var a: i32^[4];` *(provisional)* |
+| `int (*p)[4];` | `var p: i32[4]^;` *(provisional)* |
+| `const char *const s = t;` | `let s: const u8^ := t;` |
+| `long add(long a, long b) { ... }` | `add(a: i64, b: i64): i64 { ... }` (parameters are lets) |
 | `void f(void);` | `f();` |
-| `void *p = NULL;` | `p: any^;` (a reference is `nullptr` until assigned) |
+| `void *p = NULL;` | `var p: any^;` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static g(): i32;` |
 | `int main(int argc, char **argv)` | `main(argc: i32, argv: u8^^): i32` |
@@ -36,6 +37,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next;` (no `++`, #26) |
 | `i++`, `--n` | `i += 1;`, `n -= 1;` (statements) |
+| `for (int i = 0; i < n; i++)` | `for i in 0..<n { ... }` (#28) |
+| `for (int i = 1; i <= n; i++)` | `for i in 1...n { ... }` |
 | `p->m` | `p^.m` |
 | `a ^ b`, `a ^= b` | `a ~ b`, `a ~= b` |
 | `(unsigned char)c` | `u8(c)` or `c as u8` |
@@ -51,33 +54,43 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 
 ## Declarations
 
-Every declaration is written `name: type`, with the name first and the type
-after a colon.
+A variable is declared with `let` or `var`, and the type follows the name
+after a colon (#27):
 
-- **Variables** are written `x: i32;` or `x: i32 = 0;`. There is no
-  keyword. `a: i32 = 1, b: u8^;` declares several at once, each with its
-  own complete type, so C's `int a, *b` split cannot happen
-  *(provisional P7)*.
-- **Assigning to a name that is not declared yet declares it**, with the
-  type inferred from the value: `i = 42;` declares `i: i64`. If `i` is
-  already declared in this scope or an enclosing one, it is an ordinary
-  assignment, as in C. See "Type inference" below.
-- **`name: T` wins over a label.** `again: n = 0;` declares `again` with
-  type `n`, in case `n` is a C typedef. To label a statement like that,
-  write `again: ; n = 0;`. Labels before calls, `if`, `for` and so on
-  work as in C.
+```kelvin
+let k = 42;                 // a let never changes: C's const
+var n: i32 = 0;             // a var may change
+var buf := malloc(n):u8^;   // := for references (see References)
+let a: i32 = 1, b: u8^ := p;
+static var calls: i32;
+```
+
+- **`let` never changes.** `let i = 42; i += 1;` is an error, and in the
+  generated C a `let` is `const`. A let pointer is fixed, but what it
+  points to may change: `let p: i32^ := &x; p^ = 7;` is fine. A let array
+  or struct cannot change its elements or fields. A `let` needs a value,
+  except in an `extern` declaration.
+- **`var` may change.** `var p: any^;` without a value is `nullptr` (#20).
+- **A list** shares the keyword: `let a: i32 = 1, b: u8^ := p;` declares
+  both, each with its own complete type, so C's `int a, *b` split cannot
+  happen *(provisional P7)*.
+- **A plain `x = 0;` assigns**, and never declares. `x: i32 = 0;` without
+  `let` or `var` is an error that suggests them, and `again: n = 0;` is a
+  label before a statement, as in C.
 - **Functions** have no keyword. The return type follows the parameter
   list after a colon: `add(a: i64, b: i64): i64 { ... }`.
   - A prototype ends with `;` instead of a body.
   - With no `: type`, the function returns nothing (C's `void`)
     *(provisional P5)*.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
-- **Parameters** must be named: `f(n: i32)`. C's unnamed `f(int)` is not
-  available yet.
-- **Struct and union members** follow the same form and end with `;`:
-  `struct p { x: i32; y: i32; };` *(provisional P8)*.
-- **Storage classes** go in front: `static f(): i32`, `static n: i32`,
-  `extern e: i32` *(provisional P9)*.
+- **Parameters** are lets unless written `var`: in `f(p: u8^)`, `p` cannot
+  change, while `f(var p: u8^) { p := p.next; }` may move `p`. A method's
+  `self` is a mutable copy. Parameters must be named: C's unnamed
+  `f(int)` is not available yet.
+- **Struct and union members** are written `name: type;`, with no
+  keyword: `struct p { x: i32; y: i32; };` *(provisional P8)*.
+- **Storage classes** go in front: `static f(): i32`, `static var n: i32`,
+  `extern var e: i32` *(provisional P9)*.
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see below).
 
@@ -108,7 +121,7 @@ Kelvin's built-in types need no header, and neither do `<stdint.h>` and
 
 C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
 is `unsigned char`, which has the same size, representation and ABI. So
-`s: u8^ := "hi";` and passing a `u8^` to `strlen` just work. kelvinc
+`let s: u8^ := "hi";` and passing a `u8^` to `strlen` just work. kelvinc
 silences C's pointer-sign warnings about the mix, and emits `main`'s `argv`
 as `char **`, because C requires that.
 
@@ -132,38 +145,32 @@ and `u8^ const` is `uint8_t *const`.
 ### C typedef names
 
 After a colon, any identifier is accepted as a type, so typedefs from
-imported headers work: `f: FILE^ := stdout;` and
-`n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
+imported headers work: `let f: FILE^ := stdout;` and
+`let n: size_t = strlen(s);`. The same holds after `as`: `n as size_t`,
 `p as FILE^`.
 
 ### Type inference
 
-A declaration without a type, `name = value`, infers the type from the
-value:
+A declaration without a type, `let name = value` or `var name = value`,
+infers the type from the value:
 
-- an integer literal is `i64`: `i = 42;`, `m = -1;`
-- a floating literal is `f64`: `d = 1.5;`, `e = 1e9;`
-- a `bool` is `bool`: `done = false;`, `ok = a < b;`, `both = ok && f(x);`
-  (#24, #25), as is a `bool` variable or the `bool` result of a Kelvin
-  function or method
-- a value with a written type is that type: `u = 0xdead:u16;`,
-  `u = 0xdead as u16;` and `c = u8(300);` are all `u16`/`u8`
+- an integer literal is `i64`: `let i = 42;`, `var m = -1;`
+- a floating literal is `f64`: `let d = 1.5;`, `let e = 1e9;`
+- a `bool` is `bool`: `var done = false;`, `let ok = a < b;`,
+  `let both = ok && f(x);` (#24, #25), as is a `bool` variable or the
+  `bool` result of a Kelvin function or method
+- a value with a written type is that type: `let u = 0xdead:u16;`,
+  `let u = 0xdead as u16;` and `let c = u8(300);` are all `u16`/`u8`
 
-Anything else needs a written type, including `y = x + 1;`, `s = "hi";`
-and a `bool` from a C function, which kelvinc cannot see
-(`ok: bool = isdigit(c) != 0;` is fine, `ok = is_even(4);` from a header
-is not). A written type is always what you get: `b: u8 = 42;` is a `u8`.
+Anything else needs a written type, including `let y = x + 1;`,
+`let s = "hi";` and a `bool` from a C function, which kelvinc cannot see
+(`let ok: bool = isdigit(c) != 0;` is fine, `let ok = is_even(4);` from a
+header is not). A written type is always what you get: `let b: u8 = 42;`
+is a `u8`.
 
-`for (i = 0; i < n; i += 1)` declares `i` for the loop when `i` is not
-declared yet. In a list such as `for (i = 0, n = 0; ...)`, each name that
-already exists is assigned rather than redeclared. A declaration cannot be the body of `if`, `while`, `for` or
-`do`, or follow a label (as in C), so `for (;;) x = 1;` with an
-undeclared `x` is an error.
-
-**Beware C globals from headers.** Kelvin does not see what a header
-declares, so `optind = 1;` would declare a new local `optind` instead of
-assigning the one from `<unistd.h>`. Tell Kelvin about such a global first,
-with `extern optind: i32;` at the top level.
+A declaration cannot be the body of a `for` or follow a label (as in C),
+so `for (;;) var x = 1;` is an error. Names from C headers, such as
+`optind`, are assigned with a plain `optind = 1;`, as in C.
 
 ## Literals
 
@@ -173,9 +180,9 @@ declaration, or on the value as an annotation (`10:u64`):
 
 | C | Kelvin |
 |---|--------|
-| `unsigned long v = 10UL;` | `v: u64 = 10;` |
-| `float f = 1.5f;` | `f: f32 = 1.5;` |
-| `long long n = 10LL;` | `n = 10;` (or `n: i64 = 10;`) |
+| `unsigned long v = 10UL;` | `var v: u64 = 10;` |
+| `float f = 1.5f;` | `var f: f32 = 1.5;` |
+| `long long n = 10LL;` | `var n = 10;` (or `var n: i64 = 10;`) |
 
 Everything else about literals is C's: hex `0xff`, octal `017`, binary
 `0b101`, exponents `1e9`, hex floats `0x1p4`, character constants `'a'`,
@@ -188,12 +195,12 @@ writes `1:u64 << 40`.
 Assigning a pointer (a reference) uses `:=`, and `=` is for values:
 
 ```kelvin
-buffer := malloc(8 * 1024):i64^;    // declares buffer: i64^
-buffer[0] = 42;                     // a value, through the reference
-p: i32^ := &x;                      // typed declarations too
-p := &y;                            // reassigning the reference
+var buffer := malloc(8 * 1024):i64^;    // declares buffer: i64^
+buffer[0] = 42;                         // a value, through the reference
+var p: i32^ := &x;                      // typed declarations too
+p := &y;                                // reassigning the reference
 p^ = 7;                             // assigning the value it refers to
-for (n: struct node^ := list; n != nullptr; n := n^.next) { ... }
+for (var n: struct node^ := list; n != nullptr; n := n^.next) { ... }
 ```
 
 - `=` on a reference and `:=` on a value are errors, wherever kelvinc can
@@ -203,30 +210,30 @@ for (n: struct node^ := list; n != nullptr; n := n^.next) { ... }
   *(provisional P32)*.
 - Pointer arithmetic is unchanged (`p + 1`, `p += 1`, `p - q`), and a
   pointer steps by one element with `p.next` and `p.prev` (#26).
-- An array is a value, even an array of pointers: `refs: i32^[2] = {p, q};`.
-  An array parameter, though, is a pointer, as in C: in `f(a: i32[4])`,
-  write `a := a + 1`.
+- An array is a value, even an array of pointers:
+  `let refs: i32^[2] = {p, q};`. An array parameter, though, is a pointer,
+  as in C: in `f(var a: i32[4])`, write `a := a + 1`.
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
-  in a `for` clause, and it declares a name that is not declared yet.
+  in a `for` clause and after `let` or `var`.
 
 ## No `void`: `any^` and `nullptr`
 
 Kelvin has no `void` type:
 
 - **`any^` is C's `void *`.** `any` exists only behind `^`, so `any^`,
-  `any^^` and `const any^` are fine, but `p: any` is an error.
+  `any^^` and `const any^` are fine, but `var p: any` is an error.
 - **`nullptr` is C's `(void *)0`**, typed `any^`: `p := nullptr`, and
-  `r := nullptr` infers `any^`.
-- **A reference declared without a value is `nullptr`**, so `p: any^;`
-  means `p := nullptr`. This applies to every pointer declaration
-  (`q: i32^;`), local or global, but not to `extern` ones
+  `var r := nullptr` infers `any^`.
+- **A reference declared without a value is `nullptr`**, so `var p: any^;`
+  means `var p: any^ := nullptr`. This applies to every pointer
+  declaration (`var q: i32^;`), local or global, but not to `extern` ones
   *(provisional P33)*.
 - **A function without a result** omits `: type`, as before.
 - **To discard a value**, write it as a statement. There is no `(void)x`,
   and C may warn about an unused value *(provisional P33)*.
 
 `void` is rejected with a hint wherever it is written: `f(): void`,
-`p: void^`, `(void)x`, `x as void`.
+`var p: void^`, `(void)x`, `x as void`.
 
 ## Expressions
 
@@ -285,11 +292,11 @@ as a cast.
 C-style declarations at the start of a statement get the Kelvin spelling as
 a hint:
 
-- `size_t * p = &n;` suggests `p: size_t^`, and `size_t n = 0;`
-  suggests `n: size_t`.
-- `const u8 *s` suggests `s: const u8^`, and `size_t a[3];` suggests
-  `a: size_t[3]`.
-- `static size_t m;` suggests `static m: size_t`, and
+- `size_t * p = &n;` suggests `var p: size_t^`, and `size_t n = 0;`
+  suggests `var n: size_t`.
+- `const u8 *s` suggests `var s: const u8^`, and `size_t a[3];` suggests
+  `var a: size_t[3]`.
+- `static size_t m;` suggests `static var m: size_t`, and
   `size_t f(void);` points to function syntax.
 
 An expression that only looks similar, such as `n * f(x) == 4 || g();`, is
@@ -313,9 +320,8 @@ including typedef names with suffixes, and under `sizeof`:
 
 ## Statements
 
-Declarations and assignments differ: `x: i32 = 0;` or `x = 0;` (see
-Declarations), also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`, and
-references take `:=` (see References).
+Declarations start with `let` or `var` (see Declarations), also in
+`for (var i = 0; ...)`, and references take `:=` (see References).
 
 `if`, `while` and `do` take their condition without parentheses, and
 their bodies are blocks (#23):
@@ -339,9 +345,34 @@ do {
 - Parentheses around a condition are only grouping now: `if (n > 0) { ... }`
   still works, while C's `if (n > 0) n = 0;` is an error, since the body
   must be a block. `else` is followed by a block or by `if`.
-- `for (...)` and `switch (...)` keep C's parentheses for now, and a `for`
-  body may still be a single statement *(provisional P37)*.
+- `switch (...)` keeps C's parentheses for now, and so does C's `for`,
+  whose body may still be a single statement *(provisional P37)*. To
+  count, prefer a range (see Ranges).
 - `case`, `goto` and labels are C's.
+
+## Ranges: `for i in a..<b`
+
+`for i in a..<b { ... }` counts from `a` up to `b`, without `b`, and
+`for i in a...b { ... }` up to and with `b` (#28):
+
+```kelvin
+for i in 0..<count {          // C: for (int i = 0; i < count; i++)
+    println(i);
+}
+for i in 1...n { ... }        // C: for (int i = 1; i <= n; i++)
+for _ in 0..<3 { ... }        // a loop that needs no counter
+for b: u8 in 250...255 { }    // ends, where C's b <= 255 never would
+```
+
+- `i` is a `let` in the body, and `a` and `b` are evaluated once.
+- `i`'s type is written, as in `for i: u8 in`, or comes from the bounds:
+  the upper bound's type if kelvinc sees it (`0..<n` with `n: i32` gives
+  `i32`), else the lower one's, else `i64` for literals. A range is of
+  integers *(provisional P40)*.
+- A bound is an expression down to the shifts, so `0..<n - 1` stops before
+  `n - 1`. `continue` and `break` work as in any loop.
+- Ranges exist only in `for` for now: there are no range values, and no
+  reversed or stepped ranges yet.
 
 ## Assignment is a statement
 
@@ -353,13 +384,14 @@ in Swift:
 | `i++;`, `--n;` | `i += 1;`, `n -= 1;` |
 | `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next;` |
 | `a = b = 0;` | `a = 0; b = 0;` or `a = 0, b = 0;` |
-| `while ((c = getchar()) != EOF) { ... }` | `c = getchar(); while c != EOF { ...; c = getchar(); }` |
+| `while ((c = getchar()) != EOF) { ... }` | `var c: i32 = getchar(); while c != EOF { ...; c = getchar(); }` |
 | `a[i++] = x;` | `a[i] = x; i += 1;` |
 
 - `=`, `:=` and the compound assignments (`+=`, `~=`, ...) appear only as
   a statement of their own, or in a `for` clause. Both take a comma list,
-  run left to right: `for (i = 0, j = n; i < j; i += 1, j -= 1)`,
-  `x = 1, y = 2;` *(provisional P38)*.
+  run left to right: `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`,
+  `x = 1, y = 2;` *(provisional P38)*. A list either declares, after
+  `let` or `var`, or assigns.
 - So nothing can be changed inside `[...]`, a condition or an argument,
   except by a function call.
 - `p.next` is `p + 1` and `p.prev` is `p - 1`, for a pointer kelvinc can
@@ -397,7 +429,7 @@ Every Kelvin program can use `print` and `println` without an import:
 ```kelvin
 main(): i32
 {
-    n: i64 = -42;
+    let n: i64 = -42;
     println("n = ", n, ", half = ", n / 2.0);   // n = -42, half = -21.0
     println();                                  // just a newline
     return 0;
@@ -434,7 +466,7 @@ f64.half(): f64 { return self / 2; }
 
 main(): i32
 {
-    p: struct point = {3, 4};
+    let p: struct point = {3, 4};
     println(p.dist2(), " ", p.cstr, " ", 3.0.half());  // 25 {x: 3, y: 4} 1.5
     return 0;
 }
@@ -464,9 +496,9 @@ main(): i32
 Properties are written without parentheses:
 
 ```kelvin
-c: i32 = 42;
-b: u8 = 255;
-p: struct point = {3, 4};
+let c: i32 = 42;
+let b: u8 = 255;
+let p: struct point = {3, 4};
 println(c.size, " ", c.cstr, " ", p.cstr);          // 4 42 {x: 3, y: 4}
 println(c.dec, " ", c.hex, " ", c.bin);              // +42 +0x2a +0b101010
 println(b.dec, " ", b.hex, " ", b.oct);              // 255 0xff 0o377
@@ -556,7 +588,8 @@ The type name `String` is shelved until Kelvin has a true string type,
 and stays reserved, as do the method names `toString` and `fmt` (#22).
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true`, `false`, `String`, `any`, `nullptr` and `cstr`
-*(provisional P11)*, and `as` (#14). It
+*(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
+keyword only in `for i in ...`, so C names called `in` still work. It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators

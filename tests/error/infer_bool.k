@@ -4,8 +4,8 @@
 #import <ctype.h> as C
 main(): i32
 {
-    t = true;
-    b = 1 < 2;
-    ok = isdigit(48);
+    var t = true;
+    var b = 1 < 2;
+    var ok = isdigit(48);
     return 0;
 }

@@ -3,6 +3,6 @@
 struct pt { x: i32; y: i32; };
 f(x: i32, n: size_t, p: i32^, d: f64, vp: any^): i32
 {
-    s: u8^ := u8^(vp);
+    var s: u8^ := u8^(vp);
     return 0;
 }

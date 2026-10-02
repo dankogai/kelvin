@@ -10,11 +10,11 @@ union number {
 
 struct point { x: i32; y: i32; };
 
-static counter: i32 = 0;
+static var counter: i32 = 0;
 
 static bump(): i32
 {
-    static calls: i32;
+    static var calls: i32;
     calls += 1;
     counter += 1;
     return counter + calls * 0;
@@ -42,21 +42,21 @@ main(): i32
 {
     printf("%s %s %s %d\n", name(RED), name(GREEN), name(BLUE), BLUE);
 
-    for (i: i32 = 0; i < LIMIT; i += 1)
+    for (var i: i32 = 0; i < LIMIT; i += 1)
         printf("%d", i);
     printf("\n");
 
-    for (i: i32 = 0, j: i64 = 10; i < 2; i += 1, j -= 1)
+    for (var i: i32 = 0, j: i64 = 10; i < 2; i += 1, j -= 1)
         printf("%d:%ld ", i, j);
     printf("\n");
 
-    n: i32 = 0;
+    var n: i32 = 0;
     do {
         n += 2;
     } while n < 5;
     printf("%d\n", n);
 
-    k: i32 = 0;
+    var k: i32 = 0;
 again:
     k += 1;
     if k < 3 {
@@ -67,14 +67,14 @@ again:
     bump();
     printf("%d\n", bump());
 
-    u: union number;
+    var u: union number;
     u.i = 0;
     u.f = 1.0;
     printf("%d\n", u.i != 0);
 
-    p: struct point = origin();
-    q: struct point = {.x = 1, .y = 2};
-    pts: struct point[2] = {[1] = {.x = 9}};
+    var p: struct point = origin();
+    var q: struct point = {.x = 1, .y = 2};
+    var pts: struct point[2] = {[1] = {.x = 9}};
     printf("%d %d %d %d\n", p.x, p.y, q.x + q.y, pts[1].x);
 
     if n == 6 { printf("six\n"); } else { printf("not six\n"); }

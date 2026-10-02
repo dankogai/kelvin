@@ -2,6 +2,6 @@
 // cstr is u8^, so it is assigned with :=
 main(): i32
 {
-    p: cstr = "text";
+    var p: cstr = "text";
     return 0;
 }

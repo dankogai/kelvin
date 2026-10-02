@@ -2,7 +2,7 @@
 // the operands of &&, || and ! are bool, too
 main(): i32
 {
-    n: i32 = 1;
-    ok: bool = true && !n;
+    var n: i32 = 1;
+    var ok: bool = true && !n;
     return 0;
 }

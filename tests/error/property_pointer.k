@@ -2,6 +2,6 @@
 struct point { x: i32; };
 main(): i32
 {
-    p: i32^; println(p.hex);
+    var p: i32^; println(p.hex);
     return 0;
 }

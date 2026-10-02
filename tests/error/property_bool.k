@@ -2,6 +2,6 @@
 struct point { x: i32; };
 main(): i32
 {
-    b: bool = true; println(b.bin);
+    var b: bool = true; println(b.bin);
     return 0;
 }
