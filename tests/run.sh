@@ -2,7 +2,8 @@
 # Kelvin test runner.
 #
 #   tests/run/*.k    must compile, exit 0, and print the lines given by
-#                    `// out: ...` comments (in order).
+#   examples/*.k     `// out: ...` comments (in order); an example with no
+#                    such lines only has to build and run.
 #   tests/error/*.k  must fail to build (in kelvinc or in the C compiler),
 #                    with output containing the `// error: ...` text.
 #   tests/c/*.c      C programs using libkelvin; built against libkelvin.a
@@ -39,8 +40,8 @@ for f in tests/run/*.k examples/*.k; do
         bad "$f" "exited with status $?"
         continue
     fi
-    # examples/ carry no expectations; they only have to build and run
-    case "$f" in examples/*) ok; continue ;; esac
+    # an example without `// out:` lines only has to build and run
+    case "$f" in examples/*) [ -s "$tmp/expected" ] || { ok; continue; } ;; esac
     if cmp -s "$tmp/expected" "$tmp/actual"; then
         ok
     else

@@ -989,3 +989,22 @@ All are fixed:
   note (19) and the implementation table. Q11 is answered by #27.
 
 There are 185 tests.
+
+### 40. More examples
+
+> add more examples. how about `linkedlist.k`that demos linked lists?
+
+**Claude** added five examples next to `hello.k`:
+
+- `linkedlist.k`: a list of `malloc`ed nodes, changed through a pointer
+  by `push`, `pop`, `reverse` and `clear`, and read by the methods `sum`,
+  `contains` and `show`. A node's `next` is a field, read as `n^.next`.
+- `fizzbuzz.k`: a range, `bool` conditions and `else if`.
+- `primes.k`: the sieve of Eratosthenes, with nested ranges.
+- `strings.k`: `cstr`, pointers stepping with `.next` and `.prev`,
+  `<string.h>` and `<ctype.h>`, and `.hex` and friends.
+- `shapes.k`: structs with methods, derived `.cstr` text, and `<math.h>`.
+
+Each ends with `// out:` lines, and `tests/run.sh` now checks an
+example's output when it has them. The README lists the examples. There
+are 190 tests.

@@ -67,6 +67,19 @@ Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and
 [Dialogue.md](Dialogue.md) for how they were made.
 
+## Examples
+
+Each one ends with the output it prints, which `make test` checks.
+
+| File | Shows |
+|------|-------|
+| [examples/hello.k](examples/hello.k) | the smallest program |
+| [examples/fizzbuzz.k](examples/fizzbuzz.k) | ranges, `bool` conditions, `else if` |
+| [examples/primes.k](examples/primes.k) | a `bool` array, nested ranges, `continue` |
+| [examples/strings.k](examples/strings.k) | `cstr`, stepping with `.next`/`.prev`, C's string functions, `.hex` and friends |
+| [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
+| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer |
+
 ## Build and use
 
 Requires a C11 compiler and make.
