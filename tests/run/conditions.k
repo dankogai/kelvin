@@ -27,11 +27,11 @@ main(): i32
     n: i32 = 3;
     steps = 0;
     while n > 0 {
-        n--;
-        steps++;
+        n -= 1;
+        steps += 1;
     }
     do {
-        n++;
+        n += 1;
     } while n < 2;
     println(steps, " ", n);
 
@@ -39,7 +39,7 @@ main(): i32
     while !done {
         done = true;
     }
-    for (i: i32 = 0; i < 3 && !done; i++) println("never");
+    for (i: i32 = 0; i < 3 && !done; i += 1) println("never");
 
     // C functions: a bool result is a condition, an int result is compared
     if is_even(4) && count_of(2) != 0 && strlen("abc") == 3 {

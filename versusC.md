@@ -34,7 +34,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32; };` |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
-| `*p++` | `p++^` |
+| `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next;` (no `++`, #26) |
+| `i++`, `--n` | `i += 1;`, `n -= 1;` (statements) |
 | `p->m` | `p^.m` |
 | `a ^ b`, `a ^= b` | `a ~ b`, `a ~= b` |
 | `(unsigned char)c` | `u8(c)` or `c as u8` |
@@ -142,15 +143,18 @@ value:
 
 - an integer literal is `i64`: `i = 42;`, `m = -1;`
 - a floating literal is `f64`: `d = 1.5;`, `e = 1e9;`
-- `true` and `false` are `bool`: `done = false;` (#24)
+- a `bool` is `bool`: `done = false;`, `ok = a < b;`, `both = ok && f(x);`
+  (#24, #25), as is a `bool` variable or the `bool` result of a Kelvin
+  function or method
 - a value with a written type is that type: `u = 0xdead:u16;`,
   `u = 0xdead as u16;` and `c = u8(300);` are all `u16`/`u8`
 
 Anything else needs a written type, including `y = x + 1;`, `s = "hi";`
-and `ok = a < b;`. A written type is always what you get: `b: u8 = 42;`
-is a `u8`.
+and a `bool` from a C function, which kelvinc cannot see
+(`ok: bool = isdigit(c) != 0;` is fine, `ok = is_even(4);` from a header
+is not). A written type is always what you get: `b: u8 = 42;` is a `u8`.
 
-`for (i = 0; i < n; i++)` declares `i` for the loop when `i` is not
+`for (i = 0; i < n; i += 1)` declares `i` for the loop when `i` is not
 declared yet. In a list such as `for (i = 0, n = 0; ...)`, each name that
 already exists is assigned rather than redeclared. A declaration cannot be the body of `if`, `while`, `for` or
 `do`, or follow a label (as in C), so `for (;;) x = 1;` with an
@@ -189,7 +193,7 @@ buffer[0] = 42;                     // a value, through the reference
 p: i32^ := &x;                      // typed declarations too
 p := &y;                            // reassigning the reference
 p^ = 7;                             // assigning the value it refers to
-for (n: struct node^ := list; n; n := n^.next) { ... }
+for (n: struct node^ := list; n != nullptr; n := n^.next) { ... }
 ```
 
 - `=` on a reference and `:=` on a value are errors, wherever kelvinc can
@@ -197,12 +201,13 @@ for (n: struct node^ := list; n; n := n^.next) { ... }
   structs, `p^` and `a[i]`. Targets it cannot see, such as C typedef
   types, fields of C structs and call results, are not checked
   *(provisional P32)*.
-- Pointer arithmetic is unchanged: `p += 1`, `p++`.
+- Pointer arithmetic is unchanged (`p + 1`, `p += 1`, `p - q`), and a
+  pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers: `refs: i32^[2] = {p, q};`.
   An array parameter, though, is a pointer, as in C: in `f(a: i32[4])`,
   write `a := a + 1`.
-- `:=` is an ordinary assignment operator (C's `=`), so it works inside
-  expressions, and like `=` it declares a name that is not declared yet.
+- `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
+  in a `for` clause, and it declares a name that is not declared yet.
 
 ## No `void`: `any^` and `nullptr`
 
@@ -236,8 +241,9 @@ Kelvin has no `void` type:
 
 Everything else is C's, including precedence, so `6 & 3 == 3` is still
 `6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
-`?:`, `,`, `++`/`--`, compound literals and designated initializers,
-except that conditions are `bool` (see Conditions).
+`?:`, `,`, compound literals and designated initializers, except that
+conditions are `bool` (see Conditions), assignment is a statement and
+there is no `++` or `--` (see Assignment).
 
 ## Conversions (no C casts)
 
@@ -326,7 +332,7 @@ while fgets(line, line.size, stdin) != nullptr {
     print(line);
 }
 do {
-    n--;
+    n -= 1;
 } while n > 0;
 ```
 
@@ -336,6 +342,29 @@ do {
 - `for (...)` and `switch (...)` keep C's parentheses for now, and a `for`
   body may still be a single statement *(provisional P37)*.
 - `case`, `goto` and labels are C's.
+
+## Assignment is a statement
+
+Assignment has no value in Kelvin, and `++` and `--` are gone (#26), as
+in Swift:
+
+| C | Kelvin |
+|---|--------|
+| `i++;`, `--n;` | `i += 1;`, `n -= 1;` |
+| `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next;` |
+| `a = b = 0;` | `a = 0; b = 0;` or `a = 0, b = 0;` |
+| `while ((c = getchar()) != EOF) { ... }` | `c = getchar(); while c != EOF { ...; c = getchar(); }` |
+| `a[i++] = x;` | `a[i] = x; i += 1;` |
+
+- `=`, `:=` and the compound assignments (`+=`, `~=`, ...) appear only as
+  a statement of their own, or in a `for` clause. Both take a comma list,
+  run left to right: `for (i = 0, j = n; i < j; i += 1, j -= 1)`,
+  `x = 1, y = 2;` *(provisional P38)*.
+- So nothing can be changed inside `[...]`, a condition or an argument,
+  except by a function call.
+- `p.next` is `p + 1` and `p.prev` is `p - 1`, for a pointer kelvinc can
+  see; `any^` has neither. On anything else, `.next` is a field, so a list
+  still walks with `n := n^.next`.
 
 ## Conditions are `bool`
 

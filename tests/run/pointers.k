@@ -41,7 +41,8 @@ main(argc: i32, argv: u8^^): i32
     arr: i32[3] = {10, 20, 30};
     q: i32^ := arr;
     printf("%d %d\n", q[1], (q + 2)^);
-    printf("%d\n", q++^);       // C: *q++
+    printf("%d\n", q^);         // C: *q++ is two statements (#26)
+    q := q.next;
     printf("%d\n", q^);
 
     rows: i32[2][3] = {{1, 2, 3}, {4, 5, 6}};

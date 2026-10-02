@@ -15,8 +15,9 @@ static counter: i32 = 0;
 static bump(): i32
 {
     static calls: i32;
-    calls++;
-    return ++counter + calls * 0;
+    calls += 1;
+    counter += 1;
+    return counter + calls * 0;
 }
 
 name(c: enum color): const u8^
@@ -41,11 +42,11 @@ main(): i32
 {
     printf("%s %s %s %d\n", name(RED), name(GREEN), name(BLUE), BLUE);
 
-    for (i: i32 = 0; i < LIMIT; i++)
+    for (i: i32 = 0; i < LIMIT; i += 1)
         printf("%d", i);
     printf("\n");
 
-    for (i: i32 = 0, j: i64 = 10; i < 2; i++, j--)
+    for (i: i32 = 0, j: i64 = 10; i < 2; i += 1, j -= 1)
         printf("%d:%ld ", i, j);
     printf("\n");
 
@@ -57,7 +58,8 @@ main(): i32
 
     k: i32 = 0;
 again:
-    if ++k < 3 {
+    k += 1;
+    if k < 3 {
         goto again;
     }
     printf("%d\n", k);

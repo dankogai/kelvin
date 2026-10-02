@@ -11,10 +11,10 @@ main(): i32
     v: u8^ := a.pass(b.dec);
     w: u8^ := a.pass(c.hex);
     t: u8^;
-    for (k: i32 = 0; k < 1; k++)
+    for (k: i32 = 0; k < 1; k += 1)
         t := b.hex;
     u: u8^;
-    for (i: i32 = 0; i < 3; i++)
+    for (i: i32 = 0; i < 3; i += 1)
         u := i.bin;
     println(v, " ", w, " ", t, " ", u);
 

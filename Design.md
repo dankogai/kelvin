@@ -55,11 +55,14 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 22 | `toString()`, `fmt()` and `String` are shelved until Kelvin has a true string type. Every type has `.cstr`, its text as `cstr` on the stack, and `cstr` is a built-in name for `u8^` | `snprintf(buf, n, "%lld", x)`; `char *s` | `x.cstr`; `s: cstr` | 2026-10-02 |
 | 23 | `if`, `while` and `do` take a condition without parentheses and a block body; every condition, and every operand of `&&`, `||` and `!`, is a `bool`; comparisons and logical operators give a `bool` | `if (n) x = 1;`, `while (fgets(b, n, f))` | `if n != 0 { x = 1; }`, `while fgets(b, n, f) != nullptr { ... }` | 2026-10-03 |
 | 24 | `true` and `false` infer `bool` | `bool t = true;` | `t = true;` | 2026-10-03 |
+| 25 | A `bool` expression infers `bool` | `bool ok = a < b;` | `ok = a < b;` | 2026-10-03 |
+| 26 | Assignment is a statement; `++` and `--` are gone; pointers step with `.next` and `.prev` | `*p++ = *q++;`, `a = b = 0;` | `p^ = q^; p := p.next; q := q.next;`, `a = 0, b = 0;` | 2026-10-03 |
 
 Notes:
 
-- (2, 3) `*` means only multiplication. `p^^` is `**p`, and `p++^` is
-  `*p++`. Postfix operators apply left to right, so `p^[i]` is `(*p)[i]`.
+- (2, 3) `*` means only multiplication. `p^^` is `**p` (and `p++^` was
+  `*p++` until #26 removed `++`). Postfix operators apply left to right,
+  so `p^[i]` is `(*p)[i]`.
 - (4) Unary `~` is still bitwise NOT, in the same way that `-` is both unary
   and binary. Since `^` never means XOR, `p^ = x` is always an assignment
   through `p`, which is why `^=` is not a token.
@@ -222,21 +225,36 @@ Notes:
 
 - (24) `t = true;` declares a `bool`: `true` is a `bool` literal, so its
   type is as obvious as `42`'s or `1.5`'s. This reverses the note on #11.
-  Other `bool` values, such as `ok = a < b;`, still need `: bool`.
+  Other `bool` values, such as `ok = a < b;`, still needed `: bool`
+  until #25.
+
+- (25) Agreed details: every `bool` expression infers `bool`, with one
+  exception the user accepted: a `bool` kelvinc cannot see, such as the
+  result of a C function from a header, still needs `: bool`. The user
+  asked whether `ok = a < b` could be read as `(ok = a) < b`: it cannot,
+  since assignment has the lowest precedence, as in C.
+
+- (26) Agreed details: assignment (`=`, `:=`, `+=`, ...) is a statement
+  with no value, and `++` and `--` are gone, as in Swift. Pointers get
+  `.next` and `.prev` instead. Index expressions must not change
+  anything, which follows: nothing inside `[...]` can assign. "The good
+  old days of `*p++ = *q++;` are gone." A `for` init or step takes a
+  comma list of assignments.
 
 - (19) Agreed details: the user's example `buffer := malloc(8 * 1024):i64`
   was a typo for `:i64^`, and `v:T` keeps meaning `v as T`.
   - Declarations of references use `:=` too (`p: i32^ := &x`, or
     `buffer := ...:i64^`, which infers `i64^`).
-  - Pointer arithmetic (`p += 1`, `p++`) stays as in C.
+  - Pointer arithmetic (`p += 1`) stays as in C (`p++` went with #26).
   - Enforcement is best effort. kelvinc checks a target whose type it can
     see: a variable, parameter or `self`, a field of a Kelvin struct,
     `p^`, `a[i]`, and combinations of these. `=` on a reference and `:=`
     on a value are errors. Targets of unknown type, such as C typedef
     types, fields of C structs and call results, are not checked.
-  - `:=` is an assignment operator like `=`, usable in expressions
-    (`for (n: struct node^ := list; n; n := n^.next)`), and is emitted as
-    C's `=`. Like `=`, it declares a name that is not declared yet.
+  - `:=` is an assignment like `=`, emitted as C's `=`, and usable in a
+    `for` clause (`for (n: struct node^ := list; n != nullptr;
+    n := n^.next)`). Like `=`, it declares a name that is not declared
+    yet, and since #26 it is a statement, not a value.
 
 - (20) The user's words: "abolish type `void`. to mean C's `void *`,
   introduce `any^`", then "not `any`. it must be `any^`. Introduce
@@ -297,7 +315,8 @@ all. None of them has been explicitly agreed yet.
 | P34 | Property details | `(-5:i32).hex` is `-0x5`; `x.hex` emits `_Generic((x), ...)(x, kv_text1)`, with `uint8_t kv_text1[36];` at the top of the enclosing block | Integers are sign and magnitude (not two's complement), with lowercase digits and no padding. A NaN is `nan`, unsigned. The buffer is declared at the top of the enclosing block and fits the text of any type (41, 36, 47 and 132 bytes for `.dec`, `.hex`, `.oct` and `.bin`), so the text lives until that block ends, also when made in a brace-less `if`/`for` body or among a method call's arguments: storing `t: u8^ := x.hex` is fine inside the block, but returning it is not (as with any C local). An enum's sign follows its C type, and a C bit-field must be converted first (gcc's `_Generic` does not match it). `.dec`/`.hex`/`.oct`/`.bin` stay properties on receivers kelvinc cannot see (`(a + b).hex`), because such fields are rare; since #22 it also sees the results of Kelvin functions and methods (P35), so `get().hex` reads a field `hex` of the struct `get()` returns. A Kelvin struct's own field of that name still wins, and a C struct's too |
 | P35 | `.cstr` details | `s.cstr` is `s` itself for a `cstr`; `p.cstr` is `point__cstr(p, kv_text1)` with `uint8_t kv_text1[point__cstr_size]` | A string (`u8^`, `i8^`, a literal) is its own text, not a copy (`(null)` for null), and stays `const` if it was; a pointer to `volatile` bytes is an address. One value's buffer is 64 bytes. A struct's derived function comes with a size constant, `kv_cstr_size_point`, which C computes from the member types, so the buffer is exact; both are emitted only for structs whose `.cstr` is used, directly or as a member. Inside a struct, a string member shows at most 60 bytes and a longer one is cut with `...`; a pointer to a C typedef (`xmlChar^`, `uint8_t^`) is text or an address as C's type says; a member of a C typedef type shows numbers, bool, complex numbers, byte strings and `void *` as `.cstr` would, a char array as the text in it (never past its end), and anything else as `{...}` (C structs, other arrays, other pointer typedefs). A flexible array member behind a C typedef leaves the struct without `.cstr` (C's `sizeof` fails). kelvinc sees the type of names, `v as T`, compound literals and the results of Kelvin functions, and of methods when every method of that name returns the same type, and of `p^`, `a[i]` and fields of all of these. Anything else, such as `(c ? p : q).cstr`, gets one value's buffer, and if C finds a Kelvin struct there, it is a C error naming `kv_cstr_unseen_struct` (assign it to a variable first), never an overflow. C struct and union values have no `.cstr` (inside a Kelvin struct they show as `{...}`). `.cstr` of an array kelvinc can see is an error (C arrays are not values). A Kelvin struct cannot have a field named `cstr` (a keyword); a C struct's field `cstr` wins, also as a designator. Derived functions are marked `__attribute__((unused))` |
 | P36 | How the shelving reads | `x.toString()`, `point.fmt(): cstr {...}` and `s: String` are errors that point at `.cstr`; `cstr const` is `uint8_t *const`; `cstr(v)` is an error | `String` stays a reserved word, and `toString` and `fmt` stay reserved as method names, so a later true string type can take them back without breaking code. Plain functions, variables and parameters named `toString` or `fmt` are fine (`printf(fmt: const u8^, ...)`). A call through a field of that name still works where the field is visible, or where kelvinc cannot see the receiver (a C struct). `cstr` behaves as `u8^` written out: qualifiers after it apply to the pointer, as with a C typedef, and `:=` assigns it (#19). It is not a converter (P18): write `v as cstr` |
-| P37 | Details of #23 | `if (n > 0) { ... }` still works; `for (i = 0; i < n; i++) x += i;` keeps a single-statement body; `x: i32 = a < b;` is 1 | Parentheses around a condition are grouping, so a `(...)` before the body's `{` is never a compound literal there. C's `if (c) x = 1;` and `else x = 1;` are errors that ask for a block, and `do`'s body is a block too, like `while`'s. `for` and `switch` keep C's syntax, including a statement body for `for`, until decided. A `bool` converts to numbers as in C. A condition kelvinc cannot see is wrapped as `_Generic((c), bool: kv_bool, default: kv_condition_is_not_bool)(c)`; one it sees is printed as written. In a value position a comparison or logical operator is `((bool)(...))`, and `?:` between two `bool`s is a `bool` (C would promote it to `int`); a discarded `a && f();` statement keeps C's form, which clang does not call unused. Since a `?:` or `&&` needs `bool` operands, statements like `flag ~ f() || g();` need `bool(...)` |
+| P37 | Details of #23 | `if (n > 0) { ... }` still works; `for (i = 0; i < n; i += 1) x += i;` keeps a single-statement body; `x: i32 = a < b;` is 1 | Parentheses around a condition are grouping, so a `(...)` before the body's `{` is never a compound literal there; in a condition, `(T){...}` and `sizeof (T){...}` are compound literals only when the expression goes on after the `}` (`(struct point){1, 2}.x == n`), so `if n == sizeof(i32) {} {` has an empty body. C's `if (c) x = 1;` and `else x = 1;` are errors that ask for a block, and `do`'s body is a block too, like `while`'s. `for` and `switch` keep C's syntax, including a statement body for `for`, until decided. A `bool` converts to numbers as in C. A condition kelvinc cannot see is wrapped as `_Generic((c), bool: kv_bool, default: kv_condition_is_not_bool)(c)`; one it sees is printed as written. In a value position a comparison or logical operator is `((bool)(...))`, and `?:` between two `bool`s is a `bool` (C would promote it to `int`); a discarded `a && f();` statement keeps C's form, which clang does not call unused. Since a `?:` or `&&` needs `bool` operands, statements like `flag ~ f() || g();` need `bool(...)` |
+| P38 | Details of #26 | `x = 1, y = 2;`, `for (...; ...; i += 1, p := p.next)`, `n := n^.next` | A comma list of assignments is allowed at the top of any expression statement, not just in a `for` clause, and runs left to right; each item declares or assigns on its own, so `a = 1, b = 2;` assigns an existing `a` and declares a new `b`, and `k = 1, a += 1;` mixes both. `p.next` is `(p + 1)` and `p.prev` is `(p - 1)` for a pointer whose type kelvinc sees, including results of Kelvin functions; `.next` of an array is an error that suggests `&a[1]`, and `any^` has no `.next`. On anything else `.next` is a field (a struct, a C type kelvinc cannot see). `p += 1` stays. The comma operator stays for expressions that do not assign. A statement such as `a || f();` is still allowed, and gcc `-Wall` calls its value unused |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -337,7 +356,7 @@ all. None of them has been explicitly agreed yet.
 
 These are everything else: operator precedence (including `==` binding
 tighter than `&`), implicit conversions, integer promotion (to C's `int`,
-which is `i32` on every supported target), assignment as an expression, `++`/`--`, the comma operator,
+which is `i32` on every supported target), the comma operator,
 `?:` (with a `bool` condition, #23), `for`/`switch`/`goto`, compound literals, designated initializers, arrays that
 decay to pointers, declare-before-use, `struct`/`union`/`enum` tags, and all
 undefined behavior.

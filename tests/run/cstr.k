@@ -73,7 +73,7 @@ main(): i32
 
     // the text lives until the enclosing block ends
     t: cstr;
-    for (k: i32 = 0; k < 1; k++)
+    for (k: i32 = 0; k < 1; k += 1)
         t := p.cstr;
     println(t);
     return 0;

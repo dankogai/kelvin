@@ -14,7 +14,10 @@ main(): i32
     // products whose values are used are expressions, not C declarations
     // (an XOR is converted, since || takes bools, #23)
     n * sq(3) == 18 || say("never");
-    n * a[2] > best ? (best = n * a[2]) : 0;
+    n * a[2] > best || say("never");
+    if n * a[2] > best {
+        best = n * a[2];
+    }
     bool(flag ~ sq(1)) || say("xor");
     printf("best %d\n", best);
 

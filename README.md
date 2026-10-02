@@ -20,7 +20,7 @@ struct node {
 sum(n: struct node^): i32
 {
     total: i32 = 0;
-    for (; n; n := n^.next)     // C: n->next
+    for (; n != nullptr; n := n^.next)     // C: n->next
         total += n^.value;
     return total;
 }
@@ -52,7 +52,10 @@ So far the changes from C are:
   (`(42:i32).hex` is `+0x2a`)
 - conditions are `bool`, with no parentheses and block bodies:
   `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
-  `bool`, so `println(a == b)` prints `true`
+  `bool`, so `println(a == b)` prints `true`, and `ok = a < b;` declares
+  one
+- assignment is a statement, and there is no `++` or `--`: write
+  `i += 1;`, and step a pointer with `p := p.next;`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

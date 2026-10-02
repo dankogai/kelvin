@@ -208,11 +208,11 @@ static char *cond(Expr *e) {
         return expr(e);
     else if (has_condition(e)) { /* a temporary keeps nested checks linear in size */
         char *tmp = strfmt("kv_self%d", ++method_temps);
-        return strfmt("({ __auto_type %s = %s; _Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s); })",
+        return strfmt("({ __auto_type %s = (%s); _Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s); })",
                       tmp, expr(e), tmp, tmp);
-    } else {
+    } else { /* parenthesized, so that a comma stays one argument */
         char *x = expr(e);
-        return strfmt("_Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s)", x, x);
+        return strfmt("_Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)((%s))", x, x);
     }
     return e->paren ? strfmt("(%s)", s) : s;
 }
@@ -338,6 +338,8 @@ static char *expr_bare(Expr *e) {
         char *recv = expr(e->a);
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
+        if (!strcmp(e->text, "next") || !strcmp(e->text, "prev")) /* #26 */
+            return strfmt("(%s %s 1)", recv, e->text[0] == 'n' ? "+" : "-");
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
         const char *size = r                          ? strfmt("kv_cstr_size_%s", r->name)
@@ -438,7 +440,7 @@ static void stmt(Stmt *s);
 
 static char *var_decl(const char *storage, Var *v) {
     if (v->assign)
-        return strfmt("%s = %s", v->name, expr(v->init));
+        return strfmt("%s %s %s", expr(v->target), c_op(v->op), expr(v->init));
     char *d = decl(v->type, v->name);
     /* a reference declared without a value is nullptr (#20) */
     const char *init = v->init                                                         ? initializer(v->init)

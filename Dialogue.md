@@ -853,3 +853,64 @@ are 160 tests.
 reverses it. `true` and `false` now infer `bool`, like `42` infers `i64`.
 Only the literals do: `ok = a < b;` still needs `: bool`. There are 160
 tests.
+
+### 36. Every `bool` infers; assignment is a statement
+
+> `ok = a < b;` should be okay. `println(0 < 1)` works as expected. All
+> bool expressions yields an assignable value. Should there be no
+> exception. If there should, tell me. (there is a chance `ok = a < b`
+> may be parsed as `(ok = a) < b`? Oh, I think we should abondon lvalue
+> assignment as well).
+
+**Claude** answered that `ok = a < b` is always `ok = (a < b)`, since
+assignment has the lowest precedence, and that the one exception is a
+`bool` kelvinc cannot see, such as a C function's result. It asked three
+questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| Does assignment become a statement, and what about `++`/`--`? | "`++` and `--` should be trashed as well as Swift have done that. as for pointers, add `.next` and `.prev` attributes. Forbid index value mutation within `[]`. good old days of `*p++ = *q++;` are gone." |
+| May `for` clauses hold comma lists of assignments? | Yes |
+| A `bool` kelvinc cannot see? | Keep the exception: it needs `: bool` |
+
+**Claude** implemented #25 and #26:
+
+- **#25.** A comparison, `&&`, `||`, `!`, `true`/`false`, `bool(x)`,
+  `x as bool`, and any `bool` value kelvinc sees (variables, fields,
+  Kelvin functions' results) infer `bool`.
+- **#26.** `=`, `:=` and `+=` and friends appear only at the top of a
+  statement or a `for` clause, where they take a comma list. `++` and
+  `--` are errors that suggest `x += 1` or `p := p.next`. `p.next` and
+  `p.prev` are `p + 1` and `p - 1` for a pointer kelvinc sees; elsewhere
+  `.next` is a field, so `n := n^.next` still walks a list. With no
+  assignment inside expressions, nothing can change inside `[...]`.
+
+Claude's own choices are provisional P38: comma lists of assignments are
+allowed in any statement, `.next` of an array is an error, `any^` has no
+`.next`, and `p += 1` stays. Tests that used `++` or `--` now use
+`+= 1`, `-= 1` or `.next`. There are 168 tests.
+
+### 37. The review of #23-#26
+
+**Claude** ran one adversarial round, with two lenses, on #23-#26
+before the commit. It confirmed 8 findings, 5 of them distinct, and
+rejected none. All are fixed:
+
+- **`?:` between two `bool`s kelvinc sees.** `c ? x : y` with `bool`
+  variables stayed C's `int`: it printed `1`, failed as a condition, and
+  did not infer. It is now a `bool` whenever both branches are.
+- **`sizeof(T)` before the body's `{`.** `if n > sizeof(i64) {` read the
+  body as a compound literal, and `if n == sizeof(i32) {} { ... }` even
+  made the second block the body without a word. A compound literal in a
+  condition now needs the expression to go on after its `}`, as in
+  `(struct point){1, 2}.x == n`, which also stopped calling that a C cast.
+- **A comma expression as a condition**, `if f(), ok {`, split into two
+  arguments of the C check.
+- **Comma lists.** Whether `a = 1, b = 2;` declared or assigned was
+  decided by its first name, so `b` stayed undeclared, and
+  `k = 1, a += 1;` was rejected. Each item now decides on its own.
+- **Docs.** The README's first example, a loop in versusC.md and one in
+  Design.md used a pointer as a `for` condition, and two places still
+  said `:=` works inside expressions.
+
+There are 169 tests.

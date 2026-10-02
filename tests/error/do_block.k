@@ -2,6 +2,6 @@
 main(): i32
 {
     n: i32 = 1;
-    do n++; while n < 3;
+    do n += 1; while n < 3;
     return 0;
 }

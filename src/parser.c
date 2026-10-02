@@ -21,6 +21,11 @@ static bool ident_annotation_ok = true;
 /* parsing the condition of if or while, which a `{` ends: there `(x) {`
    is a parenthesized condition, not a compound literal (#23) */
 static bool brace_ends_condition;
+
+static int skip_nested(int i);
+static int binary_prec(Token *t);
+
+static bool brace_is_compound(int i);
 static bool stmt_is_body; /* the next statement is the body of if/while/for/do or a label */
 
 /* Names declared so far, innermost scope last. kelvinc tracks them only
@@ -226,6 +231,18 @@ static int skip_group(int i) {
     return i;
 }
 
+/* the index just past the (...), [...] or {...} group that starts at i */
+static int skip_nested(int i) {
+    int depth = 0;
+    for (; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
+            depth++;
+        else if ((is_p(&toks[i], ")") || is_p(&toks[i], "]") || is_p(&toks[i], "}")) && --depth == 0)
+            return i + 1;
+    }
+    return i;
+}
+
 /* If the tokens from index i spell a type, such as `size_t[2]`,
    `const div_t^` or `struct pt^`, the index just past it; otherwise -1.
    C's own type words are accepted so they reach the "not a Kelvin type"
@@ -404,8 +421,23 @@ static const char *literal_type(Expr *e);
 static Type *target_type(Expr *e);
 static Expr *property(Expr *e, Token *name, char *member);
 static void require_bool(Expr *e);
+_Noreturn static void reject_step(Token *t);
+static int declaration_ahead(int i);
+static bool seen_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
+
+/* Is the `{` at token i the initializer of a compound literal `(T){...}`
+   rather than a body? Always outside a condition. In a condition, only
+   when the expression goes on after its `}`, as in
+   `if p.x == (struct point){1, 2}.x {`: in `if n == sizeof(i32) {} {`
+   the first `{}` is the body */
+static bool brace_is_compound(int i) {
+    if (!brace_ends_condition)
+        return true;
+    Token *n = &toks[skip_nested(i)];
+    return is_p(n, ".") || is_p(n, "[") || is_p(n, "^") || is_p(n, "?") || is_kw(n, "as") || binary_prec(n) > 0;
+}
 
 static Expr *new_expr(ExprKind kind, Pos pos) {
     Expr *e = xcalloc(1, sizeof *e);
@@ -499,11 +531,7 @@ static Expr *parse_postfix_ops(Expr *e) {
             x->a = e;
             e = x;
         } else if (is_p(t, "++") || is_p(t, "--")) {
-            advance();
-            Expr *x = new_expr(E_POSTFIX, t->pos);
-            x->op = t->text;
-            x->a = e;
-            e = x;
+            reject_step(t);
         } else if (is_p(t, "->")) {
             error_at(t->pos, "write 'p^.member' instead of 'p->member'");
         } else {
@@ -579,7 +607,7 @@ static Expr *parse_primary(void) {
            typedef with suffixes, e.g. (size_t[2]){1, 2}, because an
            expression is never followed by `{` */
         Token *after = after_matching_paren(cur);
-        bool compound = after && is_p(after, "{") && paren_holds_type(cur) && !brace_ends_condition;
+        bool compound = after && is_p(after, "{") && paren_holds_type(cur) && brace_is_compound((int)(after - toks));
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
         if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
@@ -653,10 +681,17 @@ static Expr *parse_primary(void) {
     error_at(t->pos, "expected an expression, found %s", desc(t));
 }
 
+/* Kelvin has no ++ and -- (#26) */
+_Noreturn static void reject_step(Token *t) {
+    error_at(t->pos, "Kelvin has no '%s': write 'x %s= 1' as a statement, or 'p := p.%s' for a pointer", t->text,
+             t->text[0] == '+' ? "+" : "-", t->text[0] == '+' ? "next" : "prev");
+}
+
 static Expr *parse_unary(void) {
     Token *t = peek();
-    if (is_p(t, "++") || is_p(t, "--") || is_p(t, "&") || is_p(t, "-") || is_p(t, "+") || is_p(t, "!") ||
-        is_p(t, "~")) {
+    if (is_p(t, "++") || is_p(t, "--"))
+        reject_step(t);
+    if (is_p(t, "&") || is_p(t, "-") || is_p(t, "+") || is_p(t, "!") || is_p(t, "~")) {
         advance();
         Expr *e = new_expr(E_PREFIX, t->pos);
         e->op = t->text;
@@ -672,7 +707,7 @@ static Expr *parse_unary(void) {
             Token *open = advance();
             Type *type = parse_type();
             expect_p(")");
-            if (is_p(peek(), "{")) {
+            if (is_p(peek(), "{") && brace_is_compound(cur)) {
                 /* sizeof (T){...} is the size of a compound literal */
                 Expr *c = new_expr(E_COMPOUND, open->pos);
                 c->type = type;
@@ -770,6 +805,7 @@ static Expr *parse_conditional(void) {
     ident_annotation_ok = saved;
     expect_p(":");
     e->c = parse_conditional();
+    e->is_bool = seen_bool(e); /* C would promote two bools to int */
     return e;
 }
 
@@ -924,6 +960,8 @@ static Type *value_type(Expr *e) {
         }
         return ret;
     }
+    case E_PROPERTY: /* p.next and p.prev have p's type */
+        return !strcmp(e->text, "next") || !strcmp(e->text, "prev") ? value_type(e->a) : NULL;
     default:
         return type_through(e, value_type);
     }
@@ -937,7 +975,7 @@ static bool is_comparison(const char *op) {
 }
 
 /* Does e have type bool by its shape: a comparison, &&, ||, !, true,
-   false, bool(x), x as bool, or ?: between two of these? */
+   false, bool(x), x as bool, or ?: between two bools? */
 static bool bool_shape(Expr *e) {
     switch (e->kind) {
     case E_BINARY:
@@ -949,10 +987,19 @@ static bool bool_shape(Expr *e) {
     case E_CAST:
         return e->type->kind == T_BASE && !strcmp(e->type->name, "bool");
     case E_TERNARY:
-        return (e->b->is_bool || bool_shape(e->b)) && (e->c->is_bool || bool_shape(e->c));
+        return seen_bool(e->b) && seen_bool(e->c);
     default:
         return false;
     }
+}
+
+/* Is e a bool by its shape, or a bool value kelvinc sees (a variable, a
+   field, a Kelvin function's result)? */
+static bool seen_bool(Expr *e) {
+    if (e->is_bool || bool_shape(e))
+        return true;
+    Type *t = value_type(e);
+    return t && t->kind == T_BASE && !strcmp(t->name, "bool");
 }
 
 /* A condition, and an operand of &&, || or !, is a bool. Where kelvinc
@@ -1031,6 +1078,22 @@ static bool record_has_field(Decl *r, const char *name) {
    for `.size` whenever kelvinc cannot see that the receiver is not a C
    struct (the field wins when unsure). */
 static Expr *property(Expr *e, Token *name, char *member) {
+    if (!strcmp(member, "next") || !strcmp(member, "prev")) {
+        /* p.next is p + 1 and p.prev is p - 1, on a pointer kelvinc can
+           see (#26); on anything else `.next` is a field, as in n^.next */
+        Type *t = value_type(e);
+        if (t && t->kind == T_ARRAY)
+            error_at(name->pos, "'.%s' is a property of pointers: for an array, write '&a[%s]'", member,
+                     member[0] == 'n' ? "1" : "-1");
+        if (!t || t->kind != T_PTR)
+            return NULL;
+        if (t->elem->kind == T_BASE && !strcmp(t->elem->name, "any"))
+            error_at(name->pos, "an any^ has no '.%s': its element has no size", member);
+        Expr *x = new_expr(E_PROPERTY, name->pos);
+        x->a = e;
+        x->text = member;
+        return x;
+    }
     bool is_size = !strcmp(member, "size");
     bool is_cstr = !strcmp(member, "cstr");
     bool is_text = !strcmp(member, "dec") || !strcmp(member, "hex") || !strcmp(member, "oct") || !strcmp(member, "bin");
@@ -1084,11 +1147,21 @@ static void check_assign_op(const char *op, Type *t, const char *what, Pos pos, 
 
 static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
 
+/* Assignment is a statement (#26): `=`, `:=` and `+=` and friends appear
+   only at the top of an expression statement or of a for clause, where a
+   comma list such as `i += 1, j -= 1` runs left to right. Anywhere else,
+   as in `a = b = c` or `if (x = f()) != nullptr`, it is an error. */
+static bool assign_ok;
+
 static Expr *parse_assign(void) {
+    bool ok = assign_ok;
+    assign_ok = false; /* nothing inside may assign */
     Expr *lhs = parse_conditional();
     Token *t = peek();
     for (int i = 0; assign_ops[i]; i++)
         if (is_p(t, assign_ops[i])) {
+            if (!ok)
+                error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
@@ -1097,9 +1170,19 @@ static Expr *parse_assign(void) {
             e->op = t->text;
             e->a = lhs;
             e->b = parse_assign();
+            assign_ok = ok;
             return e;
         }
+    assign_ok = ok;
     return lhs;
+}
+
+/* an expression statement or a for clause, which may assign */
+static Expr *parse_assignments(void) {
+    assign_ok = true;
+    Expr *e = parse_expr();
+    assign_ok = false;
+    return e;
 }
 
 static Expr *parse_expr(void) {
@@ -1172,13 +1255,14 @@ static Type *base_type(const char *name, Pos pos) {
 }
 
 /* The type of an initializer when none is written: an integer literal is
-   an i64, a floating literal an f64, `true` and `false` are bools (#24),
-   nullptr is an any^, and `v:T`, `v as T` or `T(v)` is a T. NULL
-   otherwise. */
+   an i64, a floating literal an f64, nullptr is an any^, and `v:T`,
+   `v as T` or `T(v)` is a T. A bool is a bool (#24, #25): `true`, a
+   comparison, &&, || and !, and any value kelvinc sees is a bool, such as
+   a bool variable or a Kelvin function's bool result. NULL otherwise. */
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_CAST)
         return e->type;
-    if (e->kind == E_LITERAL && (!strcmp(e->text, "true") || !strcmp(e->text, "false")))
+    if (seen_bool(e))
         return base_type("bool", pos);
     if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
         Type *t = xcalloc(1, sizeof *t);
@@ -1204,8 +1288,8 @@ static Var *parse_var(bool with_init) {
         v->type = inferred_type(v->init, v->pos);
         if (!v->type)
             error_at(v->pos,
-                     "'%s' needs a type: write '%s: T = ...' (or '%s: T := ...' for a reference); only literals "
-                     "and values written 'v:T', 'v as T' or 'T(v)' have a type Kelvin can infer",
+                     "'%s' needs a type: write '%s: T = ...' (or '%s: T := ...' for a reference); only literals, "
+                     "bools and values written 'v:T', 'v as T' or 'T(v)' have a type Kelvin can infer",
                      v->name, v->name, v->name);
         check_assign_op(op->text, v->type, what, op->pos, v->init);
         return v;
@@ -1224,23 +1308,29 @@ static Var *parse_var(bool with_init) {
    declarator. Inside a function, a later `name = v` or `name := v` whose
    name is already declared assigns it (#15), as in `for (i = 0, n = 0;`. */
 static void parse_var_list(List *out, bool allow_assign) {
-    bool first = true;
     do {
         Token *t = peek();
-        if (!first && allow_assign && t->kind == TK_IDENT && (is_p(peek2(), "=") || is_p(peek2(), ":=")) &&
-            is_declared(t->text)) {
+        if (allow_assign && declaration_ahead(cur) < 0) {
+            /* an item that declares nothing assigns, as a statement of
+               its own would: `n = 0`, `n += 1`, `p^ = x` (#26) */
+            assign_ok = true;
+            Expr *e = parse_assign();
+            assign_ok = false;
+            bool assigns = false;
+            for (int i = 0; e->kind == E_BINARY && assign_ops[i]; i++)
+                assigns = assigns || !strcmp(e->op, assign_ops[i]);
+            if (!assigns)
+                error_at(t->pos, "expected a declaration or an assignment in this list");
             Var *v = xcalloc(1, sizeof *v);
             v->pos = t->pos;
-            v->name = advance()->text;
-            Token *op = advance();
             v->assign = true;
-            v->op = op->text;
-            check_assign_op(op->text, lookup_type(v->name), strfmt("'%s'", v->name), op->pos, NULL);
-            v->init = parse_assign();
+            v->target = e->a;
+            v->name = e->a->kind == E_IDENT ? e->a->text : "";
+            v->op = e->op;
+            v->init = e->b;
             list_push(out, v);
             continue;
         }
-        first = false;
         Var *v = parse_var(true);
         declare_typed(v->name, v->type);
         list_push(out, v);
@@ -1416,6 +1506,25 @@ static int declaration_ahead(int i) {
     return -1;
 }
 
+/* Does the statement or for clause at token i declare a name in any of
+   its comma-separated items, as `a = 1, b = 2;` does when only `a`
+   exists? Then it is a declaration list, whose other items assign. */
+static bool list_declares(int i) {
+    for (;;) {
+        if (declaration_ahead(i) >= 0)
+            return true;
+        while (!is_p(&toks[i], ",") && !is_p(&toks[i], ";") && !is_p(&toks[i], ")") && toks[i].kind != TK_EOF) {
+            if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
+                i = skip_nested(i);
+            else
+                i++;
+        }
+        if (!is_p(&toks[i], ","))
+            return false;
+        i++;
+    }
+}
+
 static Stmt *parse_declaration(void) {
     Stmt *s = new_stmt(S_VAR, peek()->pos);
     s->storage = parse_storage();
@@ -1474,6 +1583,8 @@ static Stmt *parse_stmt(void) {
                  op, peek2()->text, op);
     }
     int name_at = declaration_ahead(cur);
+    if (name_at < 0 && list_declares(cur))
+        name_at = cur; /* `a = 1, b = 2;` with only a declared */
     if (name_at >= 0) {
         if (as_body) {
             if (is_p(&toks[name_at + 1], "=") || is_p(&toks[name_at + 1], ":="))
@@ -1520,12 +1631,13 @@ static Stmt *parse_stmt(void) {
         Stmt *s = new_stmt(S_FOR, pos);
         expect_p("(");
         open_scope();
-        if (declaration_ahead(cur) >= 0 && !is_kw(peek(), "static") && !is_kw(peek(), "extern")) {
+        if ((declaration_ahead(cur) >= 0 || list_declares(cur)) && !is_kw(peek(), "static") &&
+            !is_kw(peek(), "extern")) {
             s->init = parse_declaration();
         } else if (!is_p(peek(), ";")) {
             reject_c_declaration();
             s->init = new_stmt(S_EXPR, peek()->pos);
-            s->init->expr = parse_expr();
+            s->init->expr = parse_assignments();
         }
         expect_p(";");
         if (!is_p(peek(), ";")) {
@@ -1534,7 +1646,7 @@ static Stmt *parse_stmt(void) {
         }
         expect_p(";");
         if (!is_p(peek(), ")"))
-            s->step = parse_expr();
+            s->step = parse_assignments();
         expect_p(")");
         s->body = parse_body();
         close_scope();
@@ -1591,7 +1703,7 @@ static Stmt *parse_stmt(void) {
         peek_at(2)->kind == TK_STRING && is_p(peek_at(3), ")") && is_p(peek_at(4), ";")) {
         pragma_statement = true;
         Stmt *s = new_stmt(S_EXPR, pos);
-        s->expr = parse_expr();
+        s->expr = parse_assignments();
         pragma_statement = false;
         expect_p(";");
         return s;
@@ -1607,7 +1719,7 @@ static Stmt *parse_stmt(void) {
         error_at(pos, "declarations are written 'name: type', as in 'x: %s'", example);
     }
     Stmt *s = new_stmt(S_EXPR, pos);
-    s->expr = parse_expr();
+    s->expr = parse_assignments();
     expect_p(";");
     return s;
 }

@@ -28,7 +28,7 @@ main(): i32
     }
     printf("%d %d\n", i32(i), i32(total));
 
-    for (k = 0; k < 3; k++)     // k is declared for the loop only
+    for (k = 0; k < 3; k += 1)  // k is declared for the loop only
         total += k;
     k = 10;                     // so this declares a new k
     printf("%d %d\n", i32(total), i32(k));

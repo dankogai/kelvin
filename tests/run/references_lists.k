@@ -11,7 +11,7 @@ main(): i32
     p: i32^ := &y;
     n: i32 = 7;
     // i is new and declared; p and n exist, so they are assigned
-    for (i = 0, p := &x, n = 0; i < 3; i++)
+    for (i = 0, p := &x, n = 0; i < 3; i += 1)
         n = n + 1;
     println(g^, " ", h^, " ", p^, " ", n);
     k = 1, n = 40;                  // k is new, n is assigned

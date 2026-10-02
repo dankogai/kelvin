@@ -13,8 +13,9 @@ main(): i32
     printf("%d\n", (6 & 3) == 2);
 
     i: i32 = 5;
-    j: i32 = i++;
-    k: i32 = ++i;
+    j: i32 = i;                 // no ++ or -- (#26)
+    i += 2;
+    k: i32 = i;
     printf("%d %d %d\n", j, k, -(-i));
     printf("%d\n", i > 3 ? 1 : 0);
     printf("%ld\n", i64(sizeof(i64)) * 0 + 1);

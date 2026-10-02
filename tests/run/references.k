@@ -43,8 +43,8 @@ main(): i32
     println(p^);
 
     q += 0;                                 // pointer arithmetic stays as in C
-    q++;
-    q--;
+    q := q.next;                            // C: q++ (#26)
+    q := q.prev;
     return 0;
 }
 // out: 43
