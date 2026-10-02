@@ -365,8 +365,11 @@ main(): i32
   `(7:i64).inc()` *(provisional P30)*. Hex floats like `0x1.f4p+9` are
   still numbers. Annotated values need parentheses: `(0.1:f32).cstr`.
 - **`toString()`, `fmt()` and `String` are shelved** until Kelvin has a
-  true string type (#22). Calling or defining them, or naming `String`,
-  is an error that points at `.cstr` *(provisional P36)*.
+  true string type (#22). Calling or defining the methods `x.toString()`
+  and `x.fmt(...)`, or naming the type `String`, is an error that points
+  at `.cstr` *(provisional P36)*. Plain functions, variables and
+  parameters may still be named `toString` or `fmt`, as in
+  `printf(fmt: const u8^, ...): i32;`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
   - As in C, declare a method before calling it. A prototype is
@@ -407,7 +410,11 @@ println(3.141592653589793.hex);                      // +0x1.921fb54442d18p+1
   - **Arrays** have no `.cstr` (C arrays are not values); index them, or
     put them in a struct.
   - **C structs and unions** from headers have no `.cstr` of their own.
-    Inside a Kelvin struct they show as `{...}`.
+    Inside a Kelvin struct they show as `{...}`, as do other C types
+    kelvinc cannot print: arrays other than `char` text, and pointers
+    behind a typedef other than byte strings and `void *` (a function
+    pointer, `pthread_t` on macOS). A struct whose flexible array member
+    is declared through a C typedef has no `.cstr`.
   - **Where kelvinc cannot see that a value is a struct**, as in
     `(c ? p : q).cstr`, the C compiler reports `kv_cstr_unseen_struct`;
     assign the value to a variable first. kelvinc does see variables,
@@ -466,8 +473,8 @@ statement of its own.
 ## Reserved words
 
 `print` and `println` belong to the prelude and cannot be redefined.
-`toString`, `fmt` and the type name `String` are shelved until Kelvin has
-a true string type, and stay reserved (#22).
+The type name `String` is shelved until Kelvin has a true string type,
+and stays reserved, as do the method names `toString` and `fmt` (#22).
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true`, `false`, `String`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, and `as` (#14). It

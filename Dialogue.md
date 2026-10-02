@@ -767,3 +767,36 @@ distinct, and rejected none. All are fixed:
 - **Docs.** They said every value has `.cstr`; C struct values do not.
 
 There are 150 tests.
+
+### 33. The second review of #22
+
+> run the review of #22 again
+
+The second round, with the same two lenses on the committed code,
+confirmed 6 findings, 5 of them distinct, and rejected 1. All are fixed:
+
+- **Members spelled in C.** Inside a struct, a pointer to a C typedef
+  (`xmlChar^`, `uint8_t^`) printed an address instead of its text, a
+  `void *` or complex typedef printed `{...}`, and a `char *restrict`
+  typedef printed the pointer's own bytes as text. A char array is now
+  recognised by its exact type, byte strings and `void *` by name, and
+  anything else kelvinc cannot print shows as `{...}`.
+- **Seeing through results.** kelvinc saw `get().cstr` but not
+  `get().a.cstr`, `first()^.cstr` or `(v as T^)^.cstr`, which failed in
+  C; through a call, `.cstr` of an array also slipped past the array
+  check. kelvinc now sees through `^`, `[i]` and fields of call, method,
+  `as` and compound-literal results.
+- **Code for structs never printed.** Every struct got a derived `.cstr`,
+  so a method named `cstr_size` clashed with the size constant, and a
+  flexible array member behind a C typedef broke `sizeof` in programs
+  that never used `.cstr`. The constant is now `kv_cstr_size_point`, and
+  only structs whose `.cstr` is used get the derived code.
+- **Docs.** They said `toString` and `fmt` stay reserved, but plain
+  functions and variables may use those names (`printf(fmt: ...)`). Only
+  the method names and the type name `String` are reserved. Three code
+  comments still mentioned `toString()`.
+
+The rejected finding: defining `point.cstr()` gives the parser's generic
+error, as any keyword used as a method name does.
+
+There are 151 tests.

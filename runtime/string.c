@@ -160,6 +160,10 @@ static uint8_t *put_chars(uint8_t *p, const char *s, size_t limit) {
 
 uint8_t *kv_cstr_put_str(uint8_t *p, const char *s) { return s ? put_chars(p, s, SIZE_MAX) : kv_cstr_put(p, "(null)"); }
 
+uint8_t *kv_cstr_put_text(uint8_t *p, const void *s) { return kv_cstr_put_str(p, (const char *)s); }
+
+uint8_t *kv_cstr_put_address(uint8_t *p, const volatile void *v) { return kv_cstr_end(kv_cstr_ptr(v, p)); }
+
 /* ---------- properties: .dec, .hex, .oct, .bin (#21) ---------- */
 
 /* sign (signed types always have one), prefix, digits */
@@ -243,9 +247,12 @@ uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf) {
     case KV_K_FLOAT: return kv_cstr_f32(*(const float *)p, buf);
     case KV_K_DOUBLE: return kv_cstr_f64(*(const double *)p, buf);
     case KV_K_LDOUBLE: return kv_cstr_f80(*(const long double *)p, buf);
-    case KV_K_STR: kv_cstr_put_str(buf, *(char *const *)p); return buf;
-    case KV_K_CSTR: kv_cstr_put_str(buf, *(const char *const *)p); return buf;
+    case KV_K_STR: kv_cstr_put_str(buf, *(const char *const *)p); return buf;
     case KV_K_CHARS: put_chars(buf, (const char *)p, size); return buf;
+    case KV_K_PTR: return kv_cstr_ptr(*(const void *const *)p, buf);
+    case KV_K_CF: return kv_cstr_cf(*(const float _Complex *)p, buf);
+    case KV_K_CD: return kv_cstr_cd(*(const double _Complex *)p, buf);
+    case KV_K_CLD: return kv_cstr_cld(*(const long double _Complex *)p, buf);
     default: return put(buf, "{...}");
     }
 }

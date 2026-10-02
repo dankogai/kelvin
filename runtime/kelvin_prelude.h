@@ -7,7 +7,7 @@
      print(v, ...)    prints each value according to its type
      println(v, ...)  the same, followed by a newline; println() prints
                       just a newline
-     v.cstr           every type's text, as cstr (u8^) on the stack
+     v.cstr           the text of a value, as cstr (u8^) on the stack
      v.dec, v.hex     the text of a number (and v.oct, v.bin for integers)
 
    print: integers print in decimal (including 128-bit ones), floats in
@@ -87,6 +87,16 @@ uint8_t *kv_cstr_unseen_struct(struct kv_cstr_unseen_struct, uint8_t *);
 uint8_t *kv_cstr_end(uint8_t *s);
 uint8_t *kv_cstr_put(uint8_t *p, const char *text);
 uint8_t *kv_cstr_put_str(uint8_t *p, const char *s);
+uint8_t *kv_cstr_put_text(uint8_t *p, const void *s);
+uint8_t *kv_cstr_put_address(uint8_t *p, const volatile void *v);
+
+/* A pointer member whose type kelvinc cannot tell is text, such as
+   xmlChar^ or uint8_t^: byte strings are text, other pointers addresses */
+#define kv_cstr_put_pointer(p, lv) _Generic((lv), \
+    char *: kv_cstr_put_text, const char *: kv_cstr_put_text, \
+    signed char *: kv_cstr_put_text, const signed char *: kv_cstr_put_text, \
+    unsigned char *: kv_cstr_put_text, const unsigned char *: kv_cstr_put_text, \
+    default: kv_cstr_put_address)(p, lv)
 
 /* ---------- properties: x.dec, x.hex, x.oct, x.bin (#21) ---------- */
 
@@ -151,14 +161,16 @@ struct kv_no_such_method { char unused; };
 void kv_no_such_method(struct kv_no_such_method);
 
 /* The text of a struct member whose type kelvinc cannot see, such as a
-   C typedef: scalars as .cstr gives them, a char array (typedef char
-   name_t[16]) as the text in it, anything else "{...}". At most
-   KV_CSTR_SCALAR - 1 bytes. _Generic sees a char array as a char *, so
-   the type of &(lv) tells the two apart. */
+   C typedef: numbers, bool and complex numbers as .cstr gives them, byte
+   strings as text, a char array (typedef char name_t[16]) as the text
+   in it, void * as an address, anything else "{...}" (a struct, an array
+   of other things, a pointer to anything else). At most
+   KV_CSTR_SCALAR - 1 bytes. _Generic sees an array as a pointer, so
+   the type of &(lv) tells a char array from a char *. */
 enum {
     KV_K_OPAQUE, KV_K_BOOL, KV_K_CHAR, KV_K_SCHAR, KV_K_UCHAR, KV_K_SHORT, KV_K_USHORT, KV_K_INT,
     KV_K_UINT, KV_K_LONG, KV_K_ULONG, KV_K_LLONG, KV_K_ULLONG, KV_K_I128, KV_K_U128, KV_K_FLOAT,
-    KV_K_DOUBLE, KV_K_LDOUBLE, KV_K_STR, KV_K_CSTR, KV_K_CHARS,
+    KV_K_DOUBLE, KV_K_LDOUBLE, KV_K_STR, KV_K_CHARS, KV_K_PTR, KV_K_CF, KV_K_CD, KV_K_CLD,
 };
 uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf);
 #ifdef __SIZEOF_INT128__
@@ -172,11 +184,14 @@ uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf);
     long: KV_K_LONG, unsigned long: KV_K_ULONG, long long: KV_K_LLONG, \
     unsigned long long: KV_K_ULLONG, KV_INT128_KIND \
     float: KV_K_FLOAT, double: KV_K_DOUBLE, long double: KV_K_LDOUBLE, \
-    char *: _Generic(&(lv), char **: KV_K_STR, char *const *: KV_K_STR, char *volatile *: KV_K_STR, \
-                     char *const volatile *: KV_K_STR, default: KV_K_CHARS), \
-    const char *: _Generic(&(lv), const char **: KV_K_CSTR, const char *const *: KV_K_CSTR, \
-                           const char *volatile *: KV_K_CSTR, const char *const volatile *: KV_K_CSTR, \
-                           default: KV_K_CHARS), \
+    float _Complex: KV_K_CF, double _Complex: KV_K_CD, long double _Complex: KV_K_CLD, \
+    char *: _Generic(&(lv), char (*)[sizeof(lv)]: KV_K_CHARS, default: KV_K_STR), \
+    const char *: _Generic(&(lv), const char (*)[sizeof(lv)]: KV_K_CHARS, default: KV_K_STR), \
+    signed char *: _Generic(&(lv), signed char (*)[sizeof(lv)]: KV_K_OPAQUE, default: KV_K_STR), \
+    const signed char *: _Generic(&(lv), const signed char (*)[sizeof(lv)]: KV_K_OPAQUE, default: KV_K_STR), \
+    unsigned char *: _Generic(&(lv), unsigned char (*)[sizeof(lv)]: KV_K_OPAQUE, default: KV_K_STR), \
+    const unsigned char *: _Generic(&(lv), const unsigned char (*)[sizeof(lv)]: KV_K_OPAQUE, default: KV_K_STR), \
+    void *: KV_K_PTR, const void *: KV_K_PTR, \
     default: KV_K_OPAQUE), sizeof(lv), buf)
 
 /* ---------- print ---------- */

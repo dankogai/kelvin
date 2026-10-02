@@ -10,6 +10,13 @@ struct mixed { t: ticks_t; who: name_t; o: struct opaque; z: f64 _Complex; on: b
 struct named { si: i8^; text: cstr; };
 struct labeled { label: label_t; full: full_t; n: i32; };
 struct image { w: i32; h: i32; px: u8[1048576]; };   // its text would be megabytes
+struct cnames { name: xmlChar^; u: uint8_t^; h: handle_t; r: rstr_t; z: dc_t; b: bytes_t; };
+struct seg { a: struct point; b: struct point; };
+struct msg { len: u32; text: flex_t; };    // never printed, so it needs no .cstr
+seg.cstr_size(): i32 { return 2; }         // no clash with kelvinc's size constant
+pts: struct point[2] = {{1, 2}, {3, 4}};
+first(): struct point^ { return &pts[0]; }
+segment(): struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
 get(): struct point { return (struct point){5, 6}; }
 point.moved(): struct point { return (struct point){self.x + 1, self.y}; }
@@ -34,7 +41,7 @@ main(): i32
     println(b.cstr);
 
     // members of types kelvinc cannot see; long strings are cut
-    m: struct mixed = {7, "c", make_opaque(), 1.0, true};
+    m: struct mixed = {7, "c", make_opaque(), 1.0, true, nullptr};
     println(m.cstr);
     n: struct named = {"hi" as i8^, "0123456789012345678901234567890123456789012345678901234567890123456789"};
     println(n.cstr);
@@ -44,6 +51,11 @@ main(): i32
     // results of Kelvin functions and methods are seen; a scalar's buffer
     // stays small however large some struct is
     println(get().moved().cstr, " ", (get().x * 2).cstr, " ", (-1:i32).cstr.size);
+    println(segment().a.cstr, " ", first()^.cstr, " ", (get)().cstr, " ", segment().cstr_size());
+
+    // members whose types are spelled in C
+    cn: struct cnames = {"title" as xmlChar^, "u8" as uint8_t^, nullptr, "hello" as rstr_t, 1.0, {1, 2, 3, 4}};
+    println(cn.cstr, " ", sizeof(struct msg));
 
     // a C struct's field named cstr wins, also as a designator
     c: struct cs = {.cstr = "field", .size = 1};
@@ -77,6 +89,8 @@ main(): i32
 // out: {si: hi, text: 012345678901234567890123456789012345678901234567890123456...}
 // out: {label: hello, world, full: abcd, n: 9} hello, world
 // out: {x: 6, y: 6} 10 8
+// out: {x: 1, y: 2} {x: 1, y: 2} {x: 5, y: 6} 2
+// out: {name: title, u: u8, h: 0x0, r: hello, z: 1+0i, b: {...}} 4
 // out: field
 // out: 1
 // out: kelvin kelvin b 1

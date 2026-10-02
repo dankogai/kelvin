@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
         "-Wno-incompatible-library-redeclaration",
         "-Wno-builtin-declaration-mismatch",
         /* gcc on x86-64 notes that passing a struct with a flexible array
-           member changed ABI in GCC 4.4, e.g. for a derived toString */
+           member changed ABI in GCC 4.4, e.g. for a derived .cstr */
         "-Wno-psabi",
     };
     List cc_args = {0};

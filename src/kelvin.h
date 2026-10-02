@@ -171,7 +171,7 @@ typedef struct {
     Stmt *body;           /* D_FN: NULL for a prototype */
     List members;         /* D_STRUCT/D_UNION/D_ENUM: Var *; D_VAR: Var * */
     bool has_body;        /* D_STRUCT/D_UNION/D_ENUM: false for `struct P;` */
-    /* D_FN that is a method, e.g. point.toString(): String */
+    /* D_FN that is a method, e.g. point.area(): f64 */
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
 } Decl;

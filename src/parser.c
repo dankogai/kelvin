@@ -796,22 +796,23 @@ static int ref_kind(Type *t) {
     return -1;
 }
 
-/* The type of an assignment target, as far as kelvinc can see it: names,
-   p^, a[i] and fields of Kelvin structs. NULL otherwise. */
-static Type *target_type(Expr *e) {
+/* The type of names, p^, a[i] and fields of Kelvin structs, as far as
+   kelvinc can see it, where `base` gives the type of the operand of ^, []
+   and `.`. NULL otherwise. */
+static Type *type_through(Expr *e, Type *(*base)(Expr *)) {
     switch (e->kind) {
     case E_IDENT:
         return lookup_type(e->text);
     case E_DEREF: {
-        Type *t = target_type(e->a);
+        Type *t = base(e->a);
         return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
     }
     case E_INDEX: {
-        Type *t = target_type(e->a);
+        Type *t = base(e->a);
         return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
     }
     case E_FIELD: {
-        Type *t = e->a ? target_type(e->a) : NULL;
+        Type *t = e->a ? base(e->a) : NULL;
         if (!t || t->kind != T_BASE)
             return NULL;
         for (int i = records.len - 1; i >= 0; i--) {
@@ -832,6 +833,10 @@ static Type *target_type(Expr *e) {
         return NULL;
     }
 }
+
+/* The type of an assignment target: names, p^, a[i] and fields, down to
+   a name (#19 checks `=` and `:=` only there) */
+static Type *target_type(Expr *e) { return type_through(e, target_type); }
 
 /* ---------- properties: .size, .dec, .hex, .oct, .bin (#21) ---------- */
 
@@ -871,17 +876,17 @@ static char type_class(Type *t, Decl **record) {
     return 'u';     /* a C typedef name */
 }
 
-/* The type of an expression's value, as far as kelvinc can see it: what
-   target_type sees, plus `v as T`, compound literals and the results of
-   Kelvin functions and methods (a method only when every method of that
-   name returns the same type). NULL otherwise. */
+/* The type of an expression's value, as far as kelvinc can see it: names,
+   `v as T`, compound literals and the results of Kelvin functions and
+   methods (a method only when every method of that name returns the same
+   type), and p^, a[i] and fields of all these. NULL otherwise. */
 static Type *value_type(Expr *e) {
     switch (e->kind) {
     case E_CAST:
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
-        Decl *f = e->a->kind == E_IDENT && !e->a->paren ? function_named(e->a->text) : NULL;
+        Decl *f = e->a->kind == E_IDENT ? function_named(e->a->text) : NULL;
         return f ? f->ret : NULL;
     }
     case E_METHOD: {
@@ -897,7 +902,7 @@ static Type *value_type(Expr *e) {
         return ret;
     }
     default:
-        return target_type(e);
+        return type_through(e, value_type);
     }
 }
 

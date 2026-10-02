@@ -26,6 +26,10 @@ typedef struct {
 } Method;
 static List methods;        /* Method *; a struct's derived .cstr is "cstr" */
 static int method_temps;    /* names the receiver temporaries */
+/* the structs and unions whose .cstr is used, directly or as a member of
+   another: only they get a derived .cstr, so a program that prints no
+   struct gets none (char *, the record's name) */
+static List cstr_used;
 /* The buffers that text properties (x.hex) in the innermost block
    write into, "kv_text1[36]" each; NULL outside function bodies */
 static List *text_bufs;
@@ -249,7 +253,7 @@ static char *expr_bare(Expr *e) {
             return strfmt("sizeof(%s)", recv);
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
-        const char *size = r                          ? strfmt("%s__cstr_size", r->name)
+        const char *size = r                          ? strfmt("kv_cstr_size_%s", r->name)
                            : cstr                     ? "KV_CSTR_SCALAR"
                            : !strcmp(e->text, "dec")  ? "41"   /* -170141183460469231731687303715884105728 */
                            : !strcmp(e->text, "hex")  ? "36"   /* -0x and 32 digits */
@@ -545,18 +549,28 @@ static Decl *kelvin_record(const char *name) {
 
 /* ---------- the derived text of structs: x.cstr (#22) ---------- */
 
-/* u8^ and i8^ are text; a pointer to volatile bytes is an address, as
-   .cstr of one is (_Generic lists only plain and const strings) */
-static bool is_string_type(Type *t) {
-    Type *e = t->kind == T_PTR ? t->elem : NULL;
-    return e && e->kind == T_BASE && !e->is_volatile && (!strcmp(e->name, "u8") || !strcmp(e->name, "i8"));
+/* How a pointer member is written: 's' u8^ and i8^ are text; 'a' other
+   pointers kelvinc knows are addresses, as is a pointer to volatile
+   bytes, as .cstr of one is (_Generic lists only plain and const
+   strings); '?' a pointer to a C typedef (xmlChar^, uint8_t^) is text or
+   an address as C decides */
+static char pointer_kind(Type *t) {
+    Type *e = t->elem;
+    if (e->kind != T_BASE || e->is_volatile)
+        return 'a';
+    const char *n = e->name;
+    if (!strcmp(n, "u8") || !strcmp(n, "i8"))
+        return 's';
+    bool kelvin = strcmp(c_type_name(n), n) || !strcmp(n, "bool") || !strncmp(n, "struct ", 7) ||
+                  !strncmp(n, "union ", 6) || !strncmp(n, "enum ", 5);
+    return kelvin ? 'a' : '?';
 }
 
 /* the longest text of a value of type t, as a C constant expression; `lv`
    names such a value inside sizeof, for the length of an array */
 static char *text_bound(Type *t, const char *lv) {
     if (t->kind == T_PTR)
-        return is_string_type(t) ? "KV_CSTR_STR" : "(sizeof(void *) * 2 + 2)";
+        return pointer_kind(t) == 'a' ? "(sizeof(void *) * 2 + 2)" : "KV_CSTR_STR";
     if (t->kind == T_ARRAY) {
         if (!t->size)
             return "5"; /* [...]: a flexible array member */
@@ -575,16 +589,19 @@ static char *text_bound(Type *t, const char *lv) {
             return (char *)scalars[i].bound;
     Decl *r = kelvin_record(t->name);
     if (r)
-        return strfmt("(%s__cstr_size - 1)", r->name);
+        return strfmt("(kv_cstr_size_%s - 1)", r->name);
     return "(KV_CSTR_SCALAR - 1)"; /* a C typedef, a C struct, an enum: kv_cstr_any */
 }
 
 /* a C expression that writes the text of `lv` (type t, not an array) at p
    and gives the end */
 static char *text_writer(Type *t, const char *lv) {
-    if (t->kind == T_PTR)
-        return is_string_type(t) ? strfmt("kv_cstr_put_str(p, (const char *)%s)", lv)
-                                 : strfmt("kv_cstr_end(kv_cstr_ptr((const void *)%s, p))", lv);
+    if (t->kind == T_PTR) {
+        char k = pointer_kind(t);
+        return k == 's'   ? strfmt("kv_cstr_put_str(p, (const char *)%s)", lv)
+               : k == 'a' ? strfmt("kv_cstr_put_address(p, %s)", lv)
+                          : strfmt("kv_cstr_put_pointer(p, %s)", lv);
+    }
     static const struct { const char *type, *fn; } direct[] = {
         {"i8", "kv_cstr_i64"},    {"i16", "kv_cstr_i64"},  {"i32", "kv_cstr_i64"},  {"i64", "kv_cstr_i64"},
         {"u8", "kv_cstr_u64"},    {"u16", "kv_cstr_u64"},  {"u32", "kv_cstr_u64"},  {"u64", "kv_cstr_u64"},
@@ -624,6 +641,58 @@ static void write_text(Type *t, const char *lv, int depth) {
     line("p = kv_cstr_put(p, \"]\");");
 }
 
+/* ---------- which structs need a derived .cstr ---------- */
+
+static bool is_cstr_used(const char *name) {
+    for (int i = 0; i < cstr_used.len; i++)
+        if (!strcmp(cstr_used.data[i], name))
+            return true;
+    return false;
+}
+
+/* mark a record, and the records among its members, arrays included */
+static void use_cstr(Decl *r) {
+    if (!r || is_cstr_used(r->name))
+        return;
+    list_push(&cstr_used, r->name);
+    for (int i = 0; r->kind == D_STRUCT && i < r->members.len; i++) {
+        Type *t = ((Var *)r->members.data[i])->type;
+        while (t->kind == T_ARRAY)
+            t = t->elem;
+        if (t->kind == T_BASE)
+            use_cstr(kelvin_record(t->name));
+    }
+}
+
+static void find_cstr_stmt(Stmt *s);
+
+static void find_cstr_expr(Expr *e) {
+    if (!e)
+        return;
+    if (e->kind == E_PROPERTY && !strcmp(e->text, "cstr") && e->type)
+        use_cstr(kelvin_record(e->type->name));
+    find_cstr_expr(e->a);
+    find_cstr_expr(e->b);
+    find_cstr_expr(e->c);
+    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT)
+        for (int i = 0; i < e->items.len; i++)
+            find_cstr_expr(e->items.data[i]);
+}
+
+static void find_cstr_stmt(Stmt *s) {
+    if (!s)
+        return;
+    for (int i = 0; i < s->stmts.len; i++)
+        find_cstr_stmt(s->stmts.data[i]);
+    for (int i = 0; i < s->vars.len; i++)
+        find_cstr_expr(((Var *)s->vars.data[i])->init);
+    find_cstr_expr(s->expr);
+    find_cstr_expr(s->step);
+    find_cstr_stmt(s->init);
+    find_cstr_stmt(s->body);
+    find_cstr_stmt(s->els);
+}
+
 /* The derived text of a struct, {x: 1, y: 2}, and its size: a union,
    whose active member is unknown, is <union name>. */
 static void emit_derived_cstr(Decl *d, Type *recv) {
@@ -644,7 +713,7 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
             buf_printf(&size, " + %s", text_bound(m->type, strfmt("((%s *)0)->%s", ctype, m->name)));
         }
     }
-    line("enum { %s__cstr_size = %s };", d->name, size.buf);
+    line("enum { kv_cstr_size_%s = %s };", d->name, size.buf);
     /* unused is a GNU attribute, like the statement expressions (P31) */
     line("__attribute__((unused)) static inline uint8_t *%s__cstr(%s, uint8_t *buf)", d->name, decl(recv, "self"));
     line("{");
@@ -722,7 +791,9 @@ static void emit_decl(Decl *d) {
             recv->pos = d->pos;
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
-            emit_derived_cstr(d, recv);
+            if (is_cstr_used(d->name))
+                emit_derived_cstr(d, recv);
+            /* registered either way, for receivers kelvinc cannot see */
             register_method("cstr", recv, strfmt("%s__cstr", d->name));
         }
         break;
@@ -741,6 +812,13 @@ char *gen_program(Program *prog, bool with_lines) {
     program = prog;
     methods = (List){0};
     method_temps = 0;
+    cstr_used = (List){0};
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        find_cstr_stmt(d->body);
+        for (int j = 0; d->kind == D_VAR && j < d->members.len; j++)
+            find_cstr_expr(((Var *)d->members.data[j])->init);
+    }
     text_bufs = NULL;
     text_temps = 0;
     pinned_line.file = NULL;
