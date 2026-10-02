@@ -26,6 +26,10 @@ typedef struct {
 } Method;
 static List methods;        /* Method * */
 static int method_temps;    /* names the receiver temporaries */
+/* The buffers that text properties (x.hex) in the innermost block
+   write into, "kv_text1[36]" each; NULL outside function bodies */
+static List *text_bufs;
+static int text_temps;
 static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
@@ -127,6 +131,21 @@ static char *c_op(const char *op) {
 
 static char *initializer(Expr *e);
 
+/* Does e hold a method call or a property, whose C repeats its receiver? */
+static bool has_dispatch(Expr *e) {
+    if (!e)
+        return false;
+    if (e->kind == E_METHOD || e->kind == E_PROPERTY)
+        return true;
+    if (has_dispatch(e->a) || has_dispatch(e->b) || has_dispatch(e->c))
+        return true;
+    if (e->kind == E_CALL || e->kind == E_INIT)
+        for (int i = 0; i < e->items.len; i++)
+            if (has_dispatch(e->items.data[i]))
+                return true;
+    return false;
+}
+
 static char *expr_bare(Expr *e) {
     switch (e->kind) {
     case E_LITERAL: {
@@ -207,18 +226,33 @@ static char *expr_bare(Expr *e) {
         return initializer(e);
     case E_PROPERTY: {
         /* x.size is sizeof(x). x.hex and friends write into a buffer on
-           the caller's stack, a compound literal sized from sizeof(x), and
-           return it as u8^; it lives until the enclosing block ends. The
-           receiver is evaluated once: sizeof and _Generic do not evaluate. */
+           the caller's stack and return it as u8^. The buffer is declared
+           at the top of the enclosing block (see S_BLOCK), so the text
+           lives until the block ends; its size is the longest text of any
+           type, -0x and 32 digits for .hex. The receiver is evaluated
+           once: sizeof and _Generic do not evaluate. */
         char *recv = expr(e->a);
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
-        const char *size = !strcmp(e->text, "dec")   ? "sizeof(%s) * 3 + 24"
-                           : !strcmp(e->text, "hex") ? "sizeof(%s) * 2 + 28"
-                           : !strcmp(e->text, "oct") ? "sizeof(%s) * 3 + 4"
-                                                     : "sizeof(%s) * 8 + 4";
-        return strfmt("_Generic((%s), KV_PROPERTY_%s default: kv_no_such_property)(%s, (uint8_t[%s]){0})", recv,
-                      e->text, recv, strfmt(size, recv));
+        int size = !strcmp(e->text, "dec")   ? 41   /* -170141183460469231731687303715884105728 */
+                   : !strcmp(e->text, "hex") ? 36   /* -0x and 32 digits */
+                   : !strcmp(e->text, "oct") ? 47   /* -0o and 43 digits */
+                                             : 132; /* -0b and 128 digits */
+        char *buf;
+        if (text_bufs) {
+            buf = strfmt("kv_text%d", ++text_temps);
+            list_push(text_bufs, strfmt("%s[%d]", buf, size));
+        } else {
+            buf = strfmt("(uint8_t[%d]){0}", size); /* at file scope */
+        }
+        /* a receiver that holds a property or method call, as in
+           x.hex[2].hex, goes into a temporary like a method's receiver,
+           so that nesting stays linear in size */
+        char *tmp = has_dispatch(e->a) ? strfmt("kv_self%d", ++method_temps) : NULL;
+        const char *self = tmp ? tmp : recv;
+        char *call = strfmt("_Generic((%s), KV_PROPERTY_%s default: kv_no_such_property)(%s, %s)", self, e->text,
+                            self, buf);
+        return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
         /* The receiver is evaluated once into a temporary, which also
@@ -311,15 +345,44 @@ static void stmt(Stmt *s) {
     if (s->kind != S_BLOCK)
         sync(s->pos);
     switch (s->kind) {
-    case S_BLOCK:
+    case S_BLOCK: {
         sync(s->pos);
         line("{");
         indent++;
+        /* The statements are printed aside first, to collect the buffers
+           of their text properties, which are then declared at the top of
+           the block: the text lives until the block ends, like any local,
+           also when it was made in a brace-less if or for body, or among
+           a method call's arguments (a GNU statement expression) */
+        List bufs = {0}, *outer_bufs = text_bufs;
+        Buf outer = out;
+        int top = mapped_line;
+        text_bufs = &bufs;
+        out = (Buf){0};
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
+        Buf items = out;
+        out = outer;
+        text_bufs = outer_bufs;
+        if (bufs.len) {
+            Buf names = {0};
+            for (int i = 0; i < bufs.len; i++)
+                buf_printf(&names, "%s%s", i ? ", " : "", (char *)bufs.data[i]);
+            int end = mapped_line;
+            mapped_line = top;
+            line("uint8_t %s;", names.buf);
+            if (top >= 0) { /* the statements were printed to start at line top */
+                mapped_line = -1;
+                sync((Pos){s->pos.file, top, 0});
+            }
+            mapped_line = end;
+        }
+        if (items.len)
+            buf_putn(&out, items.buf, items.len);
         indent--;
         line("}");
         break;
+    }
     case S_VAR:
         for (int i = 0; i < s->vars.len; i++) {
             Var *v = s->vars.data[i];
@@ -633,6 +696,8 @@ char *gen_program(Program *prog, bool with_lines) {
     program = prog;
     methods = (List){0};
     method_temps = 0;
+    text_bufs = NULL;
+    text_temps = 0;
     pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
         if (i)

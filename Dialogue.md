@@ -662,3 +662,47 @@ The tests' `void^` became `any^`. There are 134 tests.
 The details are recorded as provisional P34: sign and magnitude, no
 padding, buffer lifetime, and properties on receivers kelvinc cannot see.
 There are 141 tests.
+
+### 31. The review of #21
+
+> check the review results
+
+One adversarial round, with a text lens and a resolution lens, confirmed
+8 findings and rejected 2. All are fixed:
+
+- **Text dying early.** Text made among a method call's arguments, as in
+  `v := a.pass(b.dec)`, lived only inside the GNU statement expression
+  that the call becomes, so `v` dangled. Text made in a brace-less `if`
+  or `for` body died with that body. **Claude** changed the buffers from
+  compound literals at the use site to arrays declared at the top of the
+  enclosing block, so the text now lasts until that block ends in both
+  cases.
+- **Buffer size.** The buffers were sized from `sizeof(x)`, which fails on
+  a C bit-field and repeated the receiver a third time. Each buffer now
+  fits the text of any type (at most 132 bytes, for `.bin`). It is still
+  sized in advance and on the stack. The size had to stop naming the
+  receiver anyway, because the declaration now sits at the top of the
+  block, where the receiver may not be in scope.
+- **Nesting.** Each property repeated its receiver, so `x.hex[2].hex...`
+  grew exponentially in C. A receiver that holds a property or a method
+  call now goes into a temporary, as a method's receiver does.
+- **Pointers kelvinc cannot see.** `getenv("HOME").hex` was only a C
+  warning, then a link error. `kv_no_such_property` and
+  `kv_no_such_method` now take a struct of their own by value, so any call
+  is a C error naming them, with both gcc and clang.
+- **Docs.** The README said floats have `.oct` and `.bin`. The
+  `snprintf("%#x")` pairing in versusC.md and Design.md differed for zero
+  and for signed values, and now reads `"0x%x"` for an unsigned `n`.
+  versusC.md now says how enums and C bit-fields behave: gcc's `_Generic`
+  does not match a bit-field's type, so one is converted first.
+
+The 2 rejected findings:
+
+- An enum's sign depending on its C type. Both lenses found it; this
+  verifier called it C's rule, and the other confirmed it as a
+  documentation gap, which is now filled.
+- `get().hex` on a call returning a struct with a `hex` field reads the
+  property. That is P34's documented rule for receivers kelvinc cannot
+  see.
+
+There are 144 tests.

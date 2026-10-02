@@ -489,7 +489,7 @@ static uint8_t *number_text(bool is_signed, bool neg, umax mag, int base, uint8_
     strcat(text, is_signed ? (neg ? "-" : "+") : "");
     strcat(text, prefix);
     strcat(text, num);
-    strcpy((char *)buf, text); /* buf is sized for the type by kelvinc */
+    strcpy((char *)buf, text); /* kelvinc sizes buf for the longest text */
     return buf;
 }
 
@@ -530,7 +530,7 @@ static uint8_t *float_text(double v, const char *format, uint8_t *buf) {
     char text[64] = "nan";
     if (!isnan(v))
         snprintf(text, sizeof text, format, v);
-    strcpy((char *)buf, text); /* buf is sized for the type by kelvinc */
+    strcpy((char *)buf, text); /* kelvinc sizes buf for the longest text */
     return buf;
 }
 

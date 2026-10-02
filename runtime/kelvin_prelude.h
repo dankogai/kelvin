@@ -176,15 +176,17 @@ uint8_t *kv_bin_u128(unsigned __int128 v, uint8_t *buf);
 #define KV_PROPERTY_oct KV_INT_PROPERTY(oct)
 #define KV_PROPERTY_bin KV_INT_PROPERTY(bin)
 
-/* Selected when a type has no such property; calling it is a C type
-   error that names this function. */
-struct kv_no_such_property;
-uint8_t *kv_no_such_property(struct kv_no_such_property *, uint8_t *);
+/* Selected when a type has no such property. Its parameter is a struct
+   that nothing else has, taken by value, so any call is a C type error
+   that names this function, also with a pointer, which a pointer
+   parameter would only warn about. */
+struct kv_no_such_property { char unused; };
+uint8_t *kv_no_such_property(struct kv_no_such_property, uint8_t *);
 
-/* Selected when a type has no such method; calling it is a C type error
-   that names this function. */
-struct kv_no_such_method;
-void kv_no_such_method(struct kv_no_such_method *);
+/* Selected when a type has no such method; any call is a C type error
+   that names this function, as above. */
+struct kv_no_such_method { char unused; };
+void kv_no_such_method(struct kv_no_such_method);
 
 /* toString of a value whose type kelvinc cannot see, such as a field of a
    C typedef type: scalars print as usual, anything else as "{...}". */

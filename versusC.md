@@ -45,7 +45,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%a", pi)` | `pi.fmt("%a")` (a `String`) |
 | `sizeof x` | `x.size` |
-| `snprintf(buf, sizeof buf, "%#x", n)` | `n.hex` (`u8^` text on the stack) |
+| `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
 | `double area(struct shape s)` | `shape.area(): f64 { ... self ... }`, called as `s.area()` |
 
 ## Declarations
@@ -422,15 +422,25 @@ println(3.141592653589793.hex);                      // +0x1.921fb54442d18p+1
 - **`f32`/`f64`** have `.dec` (lossless, like `toString()`) and `.hex`
   (C's `%a`), always signed.
 - **The text lives on the caller's stack**, in a buffer sized in advance
-  from the type. There is no heap and nothing to free. It lasts until the
-  enclosing block ends, so do not return it from a function
+  to fit the text of any type: at most 132 bytes, for `.bin`. There is no
+  heap and nothing to free. The text lasts until the enclosing block
+  ends, also when it was made in a brace-less `if` or `for` body or among
+  a method call's arguments. Do not return it from a function
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and
   in a C struct from a header. When kelvinc cannot see whether the
   receiver is a struct, `.size` is a field (write `sizeof(x)` there), while
   `.dec`/`.hex`/`.oct`/`.bin` are properties.
 - **Errors.** `.hex` on a pointer, bool, String or struct, and `.oct` or
-  `.bin` on a float, are errors.
+  `.bin` on a float, are errors. Where kelvinc cannot see the type, as in
+  `getenv("HOME").hex`, the C compiler reports it, naming
+  `kv_no_such_property`.
+- **Enums** follow C's types. An enumerator such as `BLUE` is an `int`,
+  so `BLUE.dec` is `+2`. A variable of an enum type has the integer type
+  the C compiler picks, `unsigned int` on gcc and clang when no
+  enumerator is negative, so its `.dec` is `2`.
+- **C bit-fields** from a header are converted first, as in
+  `u32(b.flags).hex`: gcc's `_Generic` does not match a bit-field's type.
 
 ## Headers and the preprocessor
 
