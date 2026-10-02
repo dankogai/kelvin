@@ -25,8 +25,9 @@ main(): i32
     fprintf(out, "%d\n", greet_answer());
 
     p: i32^ := malloc(4 * sizeof(i32)) as i32^;
-    if (p == NULL)
+    if p == NULL {
         return 1;
+    }
     p[0] = 3; p[1] = 1; p[2] = 4; p[3] = 2;
     qsort(p, 4, sizeof(i32), cmp);          // a Kelvin function passed to C
     printf("%d%d%d%d\n", p[0], p[1], p[2], p[3]);

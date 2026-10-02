@@ -7,8 +7,9 @@ static point.sum(): i32 { return self.x + self.y; }   // a static method
 
 point.fact(n: i64): i64                       // recursion needs no prototype
 {
-    if (n <= 1)
+    if n <= 1 {
         return 1;
+    }
     return n * self.fact(n - 1);
 }
 

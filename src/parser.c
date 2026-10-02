@@ -18,6 +18,9 @@ static bool pragma_statement; /* parsing `_Pragma("...");` as a statement */
 /* In a ternary's middle operand and a case label, `: name` is the
    separator, not a type annotation `expr:T` with a typedef name. */
 static bool ident_annotation_ok = true;
+/* parsing the condition of if or while, which a `{` ends: there `(x) {`
+   is a parenthesized condition, not a compound literal (#23) */
+static bool brace_ends_condition;
 static bool stmt_is_body; /* the next statement is the body of if/while/for/do or a label */
 
 /* Names declared so far, innermost scope last. kelvinc tracks them only
@@ -400,6 +403,7 @@ static Type *base_type(const char *name, Pos pos);
 static const char *literal_type(Expr *e);
 static Type *target_type(Expr *e);
 static Expr *property(Expr *e, Token *name, char *member);
+static void require_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
 
@@ -415,16 +419,21 @@ static Expr *parse_postfix_ops(Expr *e) {
         Token *t = peek();
         if (accept_p("[")) {
             bool saved = ident_annotation_ok;
+            bool saved_brace = brace_ends_condition;
             ident_annotation_ok = true;
+            brace_ends_condition = false;
             Expr *x = new_expr(E_INDEX, t->pos);
             x->a = e;
             x->b = parse_expr();
             ident_annotation_ok = saved;
+            brace_ends_condition = saved_brace;
             expect_p("]");
             e = x;
         } else if (accept_p("(")) {
             bool saved = ident_annotation_ok;
+            bool saved_brace = brace_ends_condition;
             ident_annotation_ok = true;
+            brace_ends_condition = false;
             Expr *x = new_expr(E_CALL, t->pos);
             x->a = e;
             while (!is_p(peek(), ")")) {
@@ -433,6 +442,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     break;
             }
             ident_annotation_ok = saved;
+            brace_ends_condition = saved_brace;
             expect_p(")");
             e = x;
         } else if (accept_p(".")) {
@@ -453,7 +463,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                 /* v.method(args) */
                 advance();
                 bool saved = ident_annotation_ok;
+                bool saved_brace = brace_ends_condition;
                 ident_annotation_ok = true;
+                brace_ends_condition = false;
                 Expr *x = new_expr(E_METHOD, name->pos);
                 x->a = e;
                 x->text = member;
@@ -463,6 +475,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                         break;
                 }
                 ident_annotation_ok = saved;
+                brace_ends_condition = saved_brace;
                 expect_p(")");
                 e = x;
                 continue;
@@ -566,7 +579,7 @@ static Expr *parse_primary(void) {
            typedef with suffixes, e.g. (size_t[2]){1, 2}, because an
            expression is never followed by `{` */
         Token *after = after_matching_paren(cur);
-        bool compound = after && is_p(after, "{") && paren_holds_type(cur);
+        bool compound = after && is_p(after, "{") && paren_holds_type(cur) && !brace_ends_condition;
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
         if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
@@ -615,9 +628,12 @@ static Expr *parse_primary(void) {
     }
     if (accept_p("(")) {
         bool saved = ident_annotation_ok;
+        bool saved_brace = brace_ends_condition;
         ident_annotation_ok = true;
+        brace_ends_condition = false;
         Expr *e = parse_expr();
         ident_annotation_ok = saved;
+        brace_ends_condition = saved_brace;
         expect_p(")");
         e->paren = true;
         /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
@@ -645,6 +661,8 @@ static Expr *parse_unary(void) {
         Expr *e = new_expr(E_PREFIX, t->pos);
         e->op = t->text;
         e->a = parse_unary();
+        if (!strcmp(e->op, "!"))
+            require_bool(e->a);
         return e;
     }
     if (is_p(t, "*"))
@@ -730,6 +748,10 @@ static Expr *parse_binary(int min_prec) {
         e->op = t->text;
         e->a = lhs;
         e->b = parse_binary(prec + 1);
+        if (!strcmp(e->op, "&&") || !strcmp(e->op, "||")) {
+            require_bool(e->a);
+            require_bool(e->b);
+        }
         lhs = e;
     }
 }
@@ -740,6 +762,7 @@ static Expr *parse_conditional(void) {
     if (!accept_p("?"))
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
+    require_bool(c);
     e->a = c;
     bool saved = ident_annotation_ok;
     ident_annotation_ok = false;
@@ -906,6 +929,77 @@ static Type *value_type(Expr *e) {
     }
 }
 
+/* ---------- conditions are bool (#23) ---------- */
+
+static bool is_comparison(const char *op) {
+    return !strcmp(op, "==") || !strcmp(op, "!=") || !strcmp(op, "<") || !strcmp(op, ">") || !strcmp(op, "<=") ||
+           !strcmp(op, ">=");
+}
+
+/* Does e have type bool by its shape: a comparison, &&, ||, !, true,
+   false, bool(x), x as bool, or ?: between two of these? */
+static bool bool_shape(Expr *e) {
+    switch (e->kind) {
+    case E_BINARY:
+        return is_comparison(e->op) || !strcmp(e->op, "&&") || !strcmp(e->op, "||");
+    case E_PREFIX:
+        return !strcmp(e->op, "!");
+    case E_LITERAL:
+        return !strcmp(e->text, "true") || !strcmp(e->text, "false");
+    case E_CAST:
+        return e->type->kind == T_BASE && !strcmp(e->type->name, "bool");
+    case E_TERNARY:
+        return (e->b->is_bool || bool_shape(e->b)) && (e->c->is_bool || bool_shape(e->c));
+    default:
+        return false;
+    }
+}
+
+/* A condition, and an operand of &&, || or !, is a bool. Where kelvinc
+   sees the type it checks it here; elsewhere (a C function, a macro)
+   codegen has the C compiler check it. */
+static void require_bool(Expr *e) {
+    if (e->is_bool || bool_shape(e)) {
+        e->is_bool = true;
+        return;
+    }
+    const char *hint = NULL, *what = NULL;
+    if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
+        what = "any^", hint = "p != nullptr";
+    } else if (e->kind == E_LITERAL) {
+        if (e->text[0] != '\'' && !strcmp(literal_type(e), "i64"))
+            error_at(e->pos, "a condition must be a bool, not a number: write 'true' or 'false'");
+        what = "a number", hint = e->text[0] == '\'' ? "c != 0" : "x != 0.0";
+    } else if (e->kind == E_STRING) {
+        what = "a string", hint = "s != nullptr";
+    } else if (e->kind == E_PROPERTY) {
+        what = !strcmp(e->text, "size") ? "size_t" : "u8^";
+        hint = !strcmp(e->text, "size") ? "x.size != 0" : "x != nullptr";
+    } else {
+        Type *t = value_type(e);
+        if (!t)
+            return; /* the C compiler checks it */
+        what = kelvin_type(t);
+        Decl *record;
+        char c = type_class(t, &record);
+        if (t->kind == T_BASE && !strcmp(t->name, "bool")) {
+            e->is_bool = true;
+            return;
+        }
+        if (t->kind == T_PTR || t->kind == T_ARRAY)
+            hint = "p != nullptr";
+        else if (c == 'i')
+            hint = "x != 0";
+        else if (c == 'f')
+            hint = "x != 0.0";
+        else if (c == 'u' || c == 'c')
+            return; /* a C typedef or C struct: the C compiler checks it */
+    }
+    if (hint)
+        error_at(e->pos, "a condition must be a bool, not %s: compare it, as in '%s'", what, hint);
+    error_at(e->pos, "a condition must be a bool, not %s", what);
+}
+
 static char expr_class(Expr *e, Decl **record) {
     *record = NULL;
     switch (e->kind) {
@@ -1056,9 +1150,8 @@ static Expr *parse_initializer(void) {
 
 /* ---------- declarations shared by statements and top level ---------- */
 
-/* The Kelvin type of an initializer that can be inferred: an integer
-   literal is i64 and a floating literal is f64 (optionally negated).
-   Returns NULL otherwise; `true` and `false` are not inferred. */
+/* The Kelvin type of a number literal: an integer literal is i64 and a
+   floating literal is f64 (optionally negated). NULL otherwise. */
 static const char *literal_type(Expr *e) {
     if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")))
         return literal_type(e->a);
@@ -1079,11 +1172,14 @@ static Type *base_type(const char *name, Pos pos) {
 }
 
 /* The type of an initializer when none is written: an integer literal is
-   an i64, a floating literal an f64, and `v:T`, `v as T` or `T(v)` is a
-   T. NULL otherwise. */
+   an i64, a floating literal an f64, `true` and `false` are bools (#24),
+   nullptr is an any^, and `v:T`, `v as T` or `T(v)` is a T. NULL
+   otherwise. */
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_CAST)
         return e->type;
+    if (e->kind == E_LITERAL && (!strcmp(e->text, "true") || !strcmp(e->text, "false")))
+        return base_type("bool", pos);
     if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
         Type *t = xcalloc(1, sizeof *t);
         t->kind = T_PTR;
@@ -1334,6 +1430,34 @@ static Expr *parse_paren_expr(void) {
     return e;
 }
 
+/* The condition of if, while or do (#23): a bool, with no parentheses
+   needed, as in `if n > 0 { ... }` */
+static Expr *parse_condition(const char *what) {
+    if (is_p(peek(), "(")) {
+        /* C's `if (x) y = 1;`: the body must be a block */
+        Token *after = after_matching_paren(cur);
+        if (after && (after->kind == TK_IDENT || after->kind == TK_NUMBER || after->kind == TK_STRING ||
+                      is_kw(after, "return") || is_kw(after, "break") || is_kw(after, "continue") ||
+                      is_kw(after, "goto") || is_kw(after, "if") || is_kw(after, "while") || is_kw(after, "for") ||
+                      is_kw(after, "do") || is_kw(after, "switch") || (is_p(after, ";") && strcmp(what, "do"))))
+            error_at(after->pos, "the body of '%s' is a block: write '%s cond { ... }'", what, what);
+    }
+    bool saved = brace_ends_condition;
+    brace_ends_condition = strcmp(what, "do") != 0;
+    Expr *e = parse_expr();
+    brace_ends_condition = saved;
+    require_bool(e);
+    return e;
+}
+
+/* the body of if, else, while or do: a block (#23) */
+static Stmt *parse_block_body(const char *what) {
+    if (!is_p(peek(), "{"))
+        error_at(peek()->pos, "expected '{': the body of '%s' is a block, as in '%s cond { ... }'", what,
+                 strcmp(what, "do") ? what : "while");
+    return parse_block();
+}
+
 static Stmt *parse_stmt(void) {
     Token *t = peek();
     Pos pos = t->pos;
@@ -1368,24 +1492,27 @@ static Stmt *parse_stmt(void) {
         reject_c_declaration();
     if (accept_kw("if")) {
         Stmt *s = new_stmt(S_IF, pos);
-        s->expr = parse_paren_expr();
-        s->body = parse_body();
-        if (accept_kw("else"))
-            s->els = parse_body();
+        s->expr = parse_condition("if");
+        s->body = parse_block_body("if");
+        if (accept_kw("else")) {
+            if (!is_kw(peek(), "if") && !is_p(peek(), "{"))
+                error_at(peek()->pos, "expected '{' or 'if' after 'else': the body of 'else' is a block");
+            s->els = is_p(peek(), "{") ? parse_block() : parse_stmt();
+        }
         return s;
     }
     if (accept_kw("while")) {
         Stmt *s = new_stmt(S_WHILE, pos);
-        s->expr = parse_paren_expr();
-        s->body = parse_body();
+        s->expr = parse_condition("while");
+        s->body = parse_block_body("while");
         return s;
     }
     if (accept_kw("do")) {
         Stmt *s = new_stmt(S_DO, pos);
-        s->body = parse_body();
+        s->body = parse_block_body("do");
         if (!accept_kw("while"))
             error_at(peek()->pos, "expected 'while' after the body of 'do'");
-        s->expr = parse_paren_expr();
+        s->expr = parse_condition("do");
         expect_p(";");
         return s;
     }
@@ -1401,8 +1528,10 @@ static Stmt *parse_stmt(void) {
             s->init->expr = parse_expr();
         }
         expect_p(";");
-        if (!is_p(peek(), ";"))
+        if (!is_p(peek(), ";")) {
             s->expr = parse_expr();
+            require_bool(s->expr);
+        }
         expect_p(";");
         if (!is_p(peek(), ")"))
             s->step = parse_expr();

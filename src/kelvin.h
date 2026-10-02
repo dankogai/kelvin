@@ -106,6 +106,7 @@ struct Expr {
     ExprKind kind;
     Pos pos;
     bool paren;       /* written inside parentheses */
+    bool is_bool;     /* kelvinc saw that it is a bool (#23) */
     const char *op;
     Expr *a, *b, *c;  /* operands; E_TERNARY a ? b : c */
     char *text;       /* E_LITERAL, E_IDENT, E_FIELD member name */

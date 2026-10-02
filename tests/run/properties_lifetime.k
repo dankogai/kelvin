@@ -1,5 +1,5 @@
 // text from a property lives until the enclosing block ends (#21):
-// also in a brace-less body and among a method call's arguments
+// also in a brace-less for body and among a method call's arguments
 i32.pass(p: u8^): u8^ { return p; }
 i32.same(): i32 { return self; }
 
@@ -11,7 +11,7 @@ main(): i32
     v: u8^ := a.pass(b.dec);
     w: u8^ := a.pass(c.hex);
     t: u8^;
-    if (b > 0)
+    for (k: i32 = 0; k < 1; k++)
         t := b.hex;
     u: u8^;
     for (i: i32 = 0; i < 3; i++)

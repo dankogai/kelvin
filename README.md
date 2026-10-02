@@ -50,6 +50,9 @@ So far the changes from C are:
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
   `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
   (`(42:i32).hex` is `+0x2a`)
+- conditions are `bool`, with no parentheses and block bodies:
+  `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
+  `bool`, so `println(a == b)` prints `true`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

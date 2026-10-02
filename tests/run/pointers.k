@@ -8,7 +8,7 @@ struct node {
 sum(n: struct node^): i32
 {
     total: i32 = 0;
-    while (n) {
+    while n != nullptr {
         total += n^.value;      // C: n->value
         n := n^.next;
     }
@@ -49,7 +49,7 @@ main(argc: i32, argv: u8^^): i32
     printf("%d %d\n", row^[2], i32(sizeof rows / sizeof rows[0]));
 
     names: const u8^[2] = {"alpha", "beta"};   // array of 2 pointers
-    printf("%s %s\n", names[0], argv[0] ? "argv ok" : "no argv");
+    printf("%s %s\n", names[0], argv[0] != nullptr ? "argv ok" : "no argv");
     return 0;
 }
 // out: 6

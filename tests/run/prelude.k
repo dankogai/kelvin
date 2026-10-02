@@ -25,7 +25,7 @@ main(): i32
     ok: bool = true;
     s: u8^ := "bytes";
     none: u8^ := 0 as u8^;
-    println(ok, " ", bool(!ok), " ", !ok, " ", s, " ", none);   // !ok is C's int
+    println(ok, " ", bool(!ok), " ", !ok, " ", s, " ", none);   // !ok is a bool (#23)
     println(true, " ", false, " ", true + 1);                   // true is a bool
 
     // sixteen values in one call
@@ -48,7 +48,7 @@ main(): i32
 // out: 1.0 0.1 -0.5 0.3333333333333333 1e+300 2.5e-08
 // out: 0.1 16777216.0 0.33333334
 // out: nan nan inf -inf
-// out: true false 0 bytes (null)
+// out: true false false bytes (null)
 // out: true false 2
 // out: 12345678910111213141516
-// out: 1
+// out: true

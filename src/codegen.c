@@ -147,6 +147,88 @@ static char *dispatch(const char *method) {
     return assoc.buf;
 }
 
+/* ---------- conditions are bool (#23) ---------- */
+
+static bool is_comparison(const char *op) {
+    return !strcmp(op, "==") || !strcmp(op, "!=") || !strcmp(op, "<") || !strcmp(op, ">") || !strcmp(op, "<=") ||
+           !strcmp(op, ">=");
+}
+
+static bool is_logic(Expr *e) {
+    return (e->kind == E_BINARY && (!strcmp(e->op, "&&") || !strcmp(e->op, "||"))) ||
+           (e->kind == E_PREFIX && !strcmp(e->op, "!"));
+}
+
+/* Is e a bool by its shape, or did the parser see that it is one? */
+static bool known_bool(Expr *e) {
+    if (e->is_bool || is_logic(e) || (e->kind == E_BINARY && is_comparison(e->op)))
+        return true;
+    if (e->kind == E_LITERAL)
+        return !strcmp(e->text, "true") || !strcmp(e->text, "false");
+    if (e->kind == E_CAST)
+        return e->type->kind == T_BASE && !strcmp(e->type->name, "bool");
+    if (e->kind == E_TERNARY)
+        return known_bool(e->b) && known_bool(e->c);
+    return false;
+}
+
+static char *binary_text(Expr *e);
+static char *cond(Expr *e);
+
+/* Does e hold a condition that cond() checks with _Generic? */
+static bool has_condition(Expr *e) {
+    if (!e)
+        return false;
+    if (is_logic(e) || e->kind == E_TERNARY)
+        return true;
+    if (has_condition(e->a) || has_condition(e->b) || has_condition(e->c))
+        return true;
+    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT)
+        for (int i = 0; i < e->items.len; i++)
+            if (has_condition(e->items.data[i]))
+                return true;
+    return false;
+}
+
+/* The C for e where C wants a condition (if, while, do, for, ?:, and the
+   operands of &&, || and !). Comparisons, &&, || and ! are printed as
+   written, since C reads them as 0 or 1, and so is a value the parser saw
+   is a bool. Anything else, such as the result of a C function, goes
+   through a _Generic that only a bool passes: C reports any other type
+   as an argument for kv_condition_is_not_bool. */
+static char *cond(Expr *e) {
+    char *s;
+    if (e->kind == E_BINARY && (!strcmp(e->op, "&&") || !strcmp(e->op, "||")))
+        s = strfmt("%s %s %s", cond(e->a), e->op, cond(e->b));
+    else if (e->kind == E_PREFIX && !strcmp(e->op, "!"))
+        s = strfmt("!%s", cond(e->a));
+    else if (e->kind == E_BINARY && is_comparison(e->op))
+        s = binary_text(e);
+    else if (known_bool(e))
+        return expr(e);
+    else if (has_condition(e)) { /* a temporary keeps nested checks linear in size */
+        char *tmp = strfmt("kv_self%d", ++method_temps);
+        return strfmt("({ __auto_type %s = %s; _Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s); })",
+                      tmp, expr(e), tmp, tmp);
+    } else {
+        char *x = expr(e);
+        return strfmt("_Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s)", x, x);
+    }
+    return e->paren ? strfmt("(%s)", s) : s;
+}
+
+/* The condition of a statement, which C wraps in its own parentheses: a
+   parenthesized comparison loses its now doubled parentheses, which
+   clang warns about, while an assignment keeps them, as C asks */
+static char *stmt_cond(Expr *e) {
+    if (!e->paren || e->kind != E_BINARY || !is_comparison(e->op))
+        return cond(e);
+    e->paren = false;
+    char *s = cond(e);
+    e->paren = true;
+    return s;
+}
+
 /* Does e hold a method call or a property, whose C repeats its receiver? */
 static bool has_dispatch(Expr *e) {
     if (!e)
@@ -189,6 +271,8 @@ static char *expr_bare(Expr *e) {
         return b.buf;
     }
     case E_PREFIX: {
+        if (!strcmp(e->op, "!"))
+            return strfmt("((bool)!%s)", cond(e->a)); /* C's ! gives an int */
         char *a = expr(e->a);
         char last = e->op[strlen(e->op) - 1];
         /* keep `- -x` from becoming `--x` */
@@ -200,13 +284,16 @@ static char *expr_bare(Expr *e) {
     case E_DEREF:
         return strfmt("(*%s)", expr(e->a));
     case E_BINARY:
-        if (!strcmp(e->op, ","))
-            return strfmt("%s, %s", expr(e->a), expr(e->b));
-        if (strchr("-+*&", e->op[0]) && e->op[1] == '\0')
-            return strfmt("%s %s %s", operand_before(e->a), c_op(e->op), expr(e->b));
-        return strfmt("%s %s %s", expr(e->a), c_op(e->op), expr(e->b));
-    case E_TERNARY:
-        return strfmt("%s ? %s : %s", expr(e->a), expr(e->b), expr(e->c));
+        /* C's comparisons, && and || give an int; Kelvin's give a bool */
+        if (!strcmp(e->op, "&&") || !strcmp(e->op, "||"))
+            return strfmt("((bool)(%s %s %s))", cond(e->a), e->op, cond(e->b));
+        if (is_comparison(e->op))
+            return strfmt("((bool)(%s))", binary_text(e));
+        return binary_text(e);
+    case E_TERNARY: {
+        char *s = strfmt("%s ? %s : %s", cond(e->a), expr(e->b), expr(e->c));
+        return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
+    }
     case E_CALL: {
         Buf b = {0};
         buf_printf(&b, "%s(", operand_before(e->a));
@@ -306,6 +393,15 @@ static char *expr_bare(Expr *e) {
 static char *expr(Expr *e) {
     char *s = expr_bare(e);
     return e->paren ? strfmt("(%s)", s) : s;
+}
+
+/* a binary operator other than && and ||, as C writes it */
+static char *binary_text(Expr *e) {
+    if (!strcmp(e->op, ","))
+        return strfmt("%s, %s", expr(e->a), expr(e->b));
+    if (strchr("-+*&", e->op[0]) && e->op[1] == '\0')
+        return strfmt("%s %s %s", operand_before(e->a), c_op(e->op), expr(e->b));
+    return strfmt("%s %s %s", expr(e->a), c_op(e->op), expr(e->b));
 }
 
 /* C reads `( type-name )` followed by an operand as a cast. A
@@ -411,13 +507,20 @@ static void stmt(Stmt *s) {
         }
         break;
     case S_EXPR:
-        line("%s;", expr(s->expr));
+        /* a && f(); or c ? f() : g(); as a statement: its value is
+           discarded, so it needs no bool, which clang would call unused */
+        if (s->expr->kind == E_BINARY && (!strcmp(s->expr->op, "&&") || !strcmp(s->expr->op, "||")))
+            line("%s;", cond(s->expr));
+        else if (s->expr->kind == E_TERNARY && !s->expr->paren)
+            line("%s ? %s : %s;", cond(s->expr->a), expr(s->expr->b), expr(s->expr->c));
+        else
+            line("%s;", expr(s->expr));
         break;
     case S_EMPTY:
         line(";");
         break;
     case S_IF:
-        line("if (%s)", expr(s->expr));
+        line("if (%s)", stmt_cond(s->expr));
         body(s->body);
         if (s->els) {
             sync(s->els->pos);
@@ -426,13 +529,13 @@ static void stmt(Stmt *s) {
         }
         break;
     case S_WHILE:
-        line("while (%s)", expr(s->expr));
+        line("while (%s)", stmt_cond(s->expr));
         body(s->body);
         break;
     case S_DO:
         line("do");
         body(s->body);
-        line("while (%s);", expr(s->expr));
+        line("while (%s);", stmt_cond(s->expr));
         break;
     case S_FOR: {
         char *init = "";
@@ -450,7 +553,7 @@ static void stmt(Stmt *s) {
             for (int i = 0; i < s->init->vars.len; i++)
                 line("%s;", var_decl(NULL, s->init->vars.data[i]));
         }
-        line("for (%s; %s; %s)", init, s->expr ? expr(s->expr) : "", s->step ? expr(s->step) : "");
+        line("for (%s; %s; %s)", init, s->expr ? stmt_cond(s->expr) : "", s->step ? expr(s->step) : "");
         body(s->body);
         if (wrap) {
             indent--;

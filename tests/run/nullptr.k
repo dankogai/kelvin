@@ -32,6 +32,6 @@ main(): i32
     println(q == nullptr, " ", sizeof(any^) == sizeof(i32^));
     return 0;
 }
-// out: 1 1 1 1
-// out: 7 7 1
-// out: 1 1
+// out: true true true true
+// out: 7 7 true
+// out: true true

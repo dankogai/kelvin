@@ -6,7 +6,7 @@ struct node { value: i32; next: struct node^; };
 sum(list: struct node^): i64
 {
     total = 0;
-    for (n: struct node^ := list; n; n := n^.next)   // := also works inside expressions
+    for (n: struct node^ := list; n != nullptr; n := n^.next)   // := also works inside expressions
         total += n^.value;
     return total;
 }

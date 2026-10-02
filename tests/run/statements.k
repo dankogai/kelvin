@@ -52,13 +52,14 @@ main(): i32
     n: i32 = 0;
     do {
         n += 2;
-    } while (n < 5);
+    } while n < 5;
     printf("%d\n", n);
 
     k: i32 = 0;
 again:
-    if (++k < 3)
+    if ++k < 3 {
         goto again;
+    }
     printf("%d\n", k);
 
     bump();
@@ -74,8 +75,11 @@ again:
     pts: struct point[2] = {[1] = {.x = 9}};
     printf("%d %d %d %d\n", p.x, p.y, q.x + q.y, pts[1].x);
 
-    if (n == 6) printf("six\n"); else printf("not six\n");
-    while (0) ;
+    if n == 6 { printf("six\n"); } else { printf("not six\n"); }
+    while false {}
+    if (n == 6) {           // parentheses are just grouping now
+        printf("still six\n");
+    }
     return 0;
 }
 // out: red green other 6
@@ -87,3 +91,4 @@ again:
 // out: 1
 // out: 0 7 3 9
 // out: six
+// out: still six

@@ -155,6 +155,14 @@ uint8_t *kv_bin_u128(unsigned __int128 v, uint8_t *buf);
 struct kv_no_such_property { char unused; };
 uint8_t *kv_no_such_property(struct kv_no_such_property, uint8_t *);
 
+/* Conditions are bool (#23). Where kelvinc cannot see a condition's
+   type, it emits _Generic((c), bool: kv_bool, default:
+   kv_condition_is_not_bool)(c): a bool passes through, and anything else
+   is a C type error that names kv_condition_is_not_bool. */
+static inline bool kv_bool(bool b) { return b; }
+struct kv_condition_is_not_bool { char unused; };
+bool kv_condition_is_not_bool(struct kv_condition_is_not_bool);
+
 /* Selected when a type has no such method; any call is a C type error
    that names this function, as above. */
 struct kv_no_such_method { char unused; };

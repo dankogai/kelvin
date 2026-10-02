@@ -3,6 +3,7 @@
 #import <stdlib.h> as C
 
 sq(x: i32): i32 { return x * x; }
+say(s: cstr): bool { puts(s); return true; }
 table: i32[4] = {1, 2, 3, 4};
 
 main(): i32
@@ -10,10 +11,11 @@ main(): i32
     n: i32 = 2, best: i32 = 0, flag: i32 = 1;
     a: i32[3] = {1, 2, 3};
 
-    // products and XORs whose values are used are expressions, not C declarations
-    n * sq(3) == 18 || puts("never");
+    // products whose values are used are expressions, not C declarations
+    // (an XOR is converted, since || takes bools, #23)
+    n * sq(3) == 18 || say("never");
     n * a[2] > best ? (best = n * a[2]) : 0;
-    flag ~ sq(1) || puts("xor");
+    bool(flag ~ sq(1)) || say("xor");
     printf("best %d\n", best);
 
     // array sizes with subscripts inside compound literals

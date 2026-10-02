@@ -20,9 +20,18 @@ main(): i32
     printf("%d %d %d\n", s.ok, done, is_even(10) && !is_even(7));
     third: f64 = 1.0 / 3;
     printf("%.4f\n", f32(third));
+
+    // true and false infer bool (#24), so `flag` is a condition as it is
+    flag = true;
+    off = false;
+    while flag {
+        flag = off;
+    }
+    println(flag, " ", sizeof(flag), " ", true.cstr);
     return 0;
 }
 // out: 4 8 1
 // out: 3.00 0.75
 // out: 1 0 1
 // out: 0.3333
+// out: false 1 true

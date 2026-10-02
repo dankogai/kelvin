@@ -73,7 +73,7 @@ main(): i32
 
     // the text lives until the enclosing block ends
     t: cstr;
-    if (p.x > 0)
+    for (k: i32 = 0; k < 1; k++)
         t := p.cstr;
     println(t);
     return 0;
@@ -92,6 +92,6 @@ main(): i32
 // out: {x: 1, y: 2} {x: 1, y: 2} {x: 5, y: 6} 2
 // out: {name: title, u: u8, h: 0x0, r: hello, z: 1+0i, b: {...}} 4
 // out: field
-// out: 1
-// out: kelvin kelvin b 1
+// out: true
+// out: kelvin kelvin b true
 // out: {x: 3, y: 4}

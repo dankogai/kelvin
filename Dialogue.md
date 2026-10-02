@@ -800,3 +800,56 @@ The rejected finding: defining `point.cstr()` gives the parser's generic
 error, as any keyword used as a method name does.
 
 There are 151 tests.
+
+### 34. Conditions are `bool`
+
+> add `bool`type in core. `b.cstr()` is `true` or `false`.  `if (cond)
+> {...}`and `while (cond)` are now `if cond {...}`and `while cond {...}`
+> and `cond` must be strictly `bool`.  `while (fgets(...)){...}` is no
+> longer allowed.  you have to write `while fgets(...) != nullptr {...}`
+
+**Claude** noted that `bool` was already built in (#10) and that `b.cstr`
+already gives `true`/`false`, and that without parentheses a body has to
+be a block. It asked four questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| Which conditions must be strictly `bool`? | All: `if`, `while`, `do`, `for`, `?:`, and the operands of `&&`, `||` and `!` |
+| Which statements drop their parentheses? | `if`, `while` and `do-while`; `for (...)` and `switch (...)` keep them for now |
+| How is "strictly `bool`" enforced where kelvinc cannot see a type? | The C compiler checks it, and comparisons and logical operators give a real `bool` |
+| `b.cstr()` or `b.cstr`? | Keep the property, `b.cstr` |
+
+**Claude** implemented #23:
+
+- **Syntax.** `if cond { ... } else if cond { ... } else { ... }`,
+  `while cond { ... }` and `do { ... } while cond;`. Parentheses around a
+  condition are grouping; C's `if (c) x = 1;` is an error asking for a
+  block.
+- **Checking.** kelvinc rejects conditions it can see are not `bool`,
+  with a hint (`'x != 0'`, `'p != nullptr'`). Elsewhere a condition goes
+  through `_Generic((c), bool: kv_bool, default:
+  kv_condition_is_not_bool)(c)`, so `while fgets(...)` is a C error
+  naming `kv_condition_is_not_bool`.
+- **`bool` values.** Comparisons, `&&`, `||` and `!` are `(bool)` in
+  value positions, so `println(a == b)` prints `true` and
+  `sizeof(a < b)` is 1.
+
+Claude's own choices are provisional P37: `do`'s body is a block too,
+`for` keeps a statement body, a `(...)` before a condition's `{` is never
+a compound literal, `?:` between two `bool`s is a `bool`, and a
+discarded `a && f();` keeps C's form. The tests moved to the new syntax;
+two lost a brace-less `if` body, which now only a `for` can have. There
+are 160 tests.
+
+### 35. `t = true` infers `bool`
+
+> The following should not be an error since `true` is a bool literal so
+> the type is obviously inferrable.
+>
+>     scratch.k:8:5: error: 't' needs a type: write 't: T = ...' ...
+>           t = true;
+
+**Claude** agreed: the note on #11 had `b = true;` need `: bool`, and #24
+reverses it. `true` and `false` now infer `bool`, like `42` infers `i64`.
+Only the literals do: `ok = a < b;` still needs `: bool`. There are 160
+tests.

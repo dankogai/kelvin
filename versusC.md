@@ -142,18 +142,19 @@ value:
 
 - an integer literal is `i64`: `i = 42;`, `m = -1;`
 - a floating literal is `f64`: `d = 1.5;`, `e = 1e9;`
+- `true` and `false` are `bool`: `done = false;` (#24)
 - a value with a written type is that type: `u = 0xdead:u16;`,
   `u = 0xdead as u16;` and `c = u8(300);` are all `u16`/`u8`
 
 Anything else needs a written type, including `y = x + 1;`, `s = "hi";`
-and `b = true;`. A written type is always what you get: `b: u8 = 42;`
+and `ok = a < b;`. A written type is always what you get: `b: u8 = 42;`
 is a `u8`.
 
 `for (i = 0; i < n; i++)` declares `i` for the loop when `i` is not
 declared yet. In a list such as `for (i = 0, n = 0; ...)`, each name that
 already exists is assigned rather than redeclared. A declaration cannot be the body of `if`, `while`, `for` or
-`do`, or follow a label (as in C), so `if (c) x = 1;` with an undeclared
-`x` is an error.
+`do`, or follow a label (as in C), so `for (;;) x = 1;` with an
+undeclared `x` is an error.
 
 **Beware C globals from headers.** Kelvin does not see what a header
 declares, so `optind = 1;` would declare a new local `optind` instead of
@@ -235,8 +236,8 @@ Kelvin has no `void` type:
 
 Everything else is C's, including precedence, so `6 & 3 == 3` is still
 `6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
-truthiness, `?:`, `,`, `++`/`--`, compound literals and designated
-initializers.
+`?:`, `,`, `++`/`--`, compound literals and designated initializers,
+except that conditions are `bool` (see Conditions).
 
 ## Conversions (no C casts)
 
@@ -306,10 +307,59 @@ including typedef names with suffixes, and under `sizeof`:
 
 ## Statements
 
-Only declarations and assignments differ: `x: i32 = 0;` or `x = 0;` (see
+Declarations and assignments differ: `x: i32 = 0;` or `x = 0;` (see
 Declarations), also in `for (i: i32 = 0; ...)` and `for (i = 0; ...)`, and
-references take `:=` (see References). `if`, `while`,
-`do`, `for`, `switch`, `case`, `goto` and labels are C's.
+references take `:=` (see References).
+
+`if`, `while` and `do` take their condition without parentheses, and
+their bodies are blocks (#23):
+
+```kelvin
+if n > 0 {
+    println("positive");
+} else if n == 0 {
+    println("zero");
+} else {
+    println("negative");
+}
+while fgets(line, line.size, stdin) != nullptr {
+    print(line);
+}
+do {
+    n--;
+} while n > 0;
+```
+
+- Parentheses around a condition are only grouping now: `if (n > 0) { ... }`
+  still works, while C's `if (n > 0) n = 0;` is an error, since the body
+  must be a block. `else` is followed by a block or by `if`.
+- `for (...)` and `switch (...)` keep C's parentheses for now, and a `for`
+  body may still be a single statement *(provisional P37)*.
+- `case`, `goto` and labels are C's.
+
+## Conditions are `bool`
+
+Every condition is a `bool`: those of `if`, `while`, `do` and `for`, the
+condition of `?:`, and the operands of `&&`, `||` and `!` (#23). There is
+no truthiness, so compare instead:
+
+| C | Kelvin |
+|---|--------|
+| `if (n)` | `if n != 0` |
+| `while (p)` | `while p != nullptr` |
+| `if (!p)` | `if p == nullptr` |
+| `while (fgets(buf, n, f))` | `while fgets(buf, n, f) != nullptr` |
+| `while (1)` | `while true` |
+
+- Comparisons, `&&`, `||` and `!` give a `bool`, not C's `int`, so
+  `println(a == b)` prints `true` and `sizeof(a < b)` is 1.
+- A `bool` variable, field or function result is a condition as it is, as
+  is `bool(x)` or `x as bool`.
+- kelvinc reports a non-`bool` condition it can see, with a hint
+  (`'x != 0'`, `'p != nullptr'`). Where it cannot see the type, as for C
+  functions and macros, the C compiler reports it, naming
+  `kv_condition_is_not_bool`: `while fgets(...)` fails that way, and so
+  does `if isdigit(c)` (an `int`), which needs `!= 0`.
 
 ## The prelude: `print` and `println`
 
@@ -334,9 +384,9 @@ main(): i32
   - `bool` as `true`/`false`
   - `u8^` and string literals as strings (`(null)` for a null pointer)
   - other pointers as addresses
-- Comparisons and `!` produce C's `int`, so `println(a == b)` prints `1`
-  or `0`. Write `bool(a == b)` to print `true`/`false`. `true` and `false`
-  themselves are `bool`s *(provisional P23)*.
+- Comparisons, `&&`, `||` and `!` produce a `bool` (#23), so
+  `println(a == b)` prints `true` or `false`, as do `true` and `false`
+  themselves *(provisional P23)*.
 - `print` and `println` cannot be redefined.
 - The prelude lives in `libkelvin`, which kelvinc links statically
   *(provisional P22)*. The same library works from C:
@@ -433,7 +483,7 @@ println(3.141592653589793.hex);                      // +0x1.921fb54442d18p+1
   for `.dec` and friends, to fit the text of any type (at most 132 bytes,
   for `.bin`); for `.cstr`, from the receiver's struct, or 64 bytes for
   one value. There is no heap and nothing to free. The text lasts until the enclosing block
-  ends, also when it was made in a brace-less `if` or `for` body or among
+  ends, also when it was made in a brace-less `for` body or among
   a method call's arguments. Do not return it from a function
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and

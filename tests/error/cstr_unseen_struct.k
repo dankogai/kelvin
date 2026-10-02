@@ -6,7 +6,7 @@ main(): i32
 {
     p: struct point = {1, 2};
     q: struct point = {3, 4};
-    c = 1;
+    c: bool = true;
     println((c ? p : q).cstr);
     return 0;
 }
