@@ -99,6 +99,7 @@ typedef enum {
     E_SIZEOF_EXPR,
     E_INIT,      /* { ... } initializer list */
     E_METHOD,    /* a.text(items): a method call */
+    E_PROPERTY,  /* a.text: size, dec, hex, oct, bin */
 } ExprKind;
 
 struct Expr {

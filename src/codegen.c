@@ -205,6 +205,21 @@ static char *expr_bare(Expr *e) {
         return strfmt("sizeof %s", expr(e->a));
     case E_INIT:
         return initializer(e);
+    case E_PROPERTY: {
+        /* x.size is sizeof(x). x.hex and friends write into a buffer on
+           the caller's stack, a compound literal sized from sizeof(x), and
+           return it as u8^; it lives until the enclosing block ends. The
+           receiver is evaluated once: sizeof and _Generic do not evaluate. */
+        char *recv = expr(e->a);
+        if (!strcmp(e->text, "size"))
+            return strfmt("sizeof(%s)", recv);
+        const char *size = !strcmp(e->text, "dec")   ? "sizeof(%s) * 3 + 24"
+                           : !strcmp(e->text, "hex") ? "sizeof(%s) * 2 + 28"
+                           : !strcmp(e->text, "oct") ? "sizeof(%s) * 3 + 4"
+                                                     : "sizeof(%s) * 8 + 4";
+        return strfmt("_Generic((%s), KV_PROPERTY_%s default: kv_no_such_property)(%s, (uint8_t[%s]){0})", recv,
+                      e->text, recv, strfmt(size, recv));
+    }
     case E_METHOD: {
         /* The receiver is evaluated once into a temporary, which also
            keeps chains like a.b().c() linear in size (GNU statement

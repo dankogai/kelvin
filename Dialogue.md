@@ -629,3 +629,36 @@ Two readings are recorded as provisional P33:
   writing it as a statement.
 
 The tests' `void^` became `any^`. There are 134 tests.
+
+### 30. Properties: `.size`, `.dec`, `.hex`, `.oct`, `.bin`
+
+> * each variable has `.size` property that returns `sizeof()`.
+> * each integer variable {i,u}{8,16,32,64,...} has `.dec, .hex, .oct, and
+>   .bin` attributes that return its text representation in `u8^`.
+>    * buffer is allocated in stack, not heap we can precalculate the size
+>      of the buffer needed.
+>    * `.hex, .oct and .bin` prepend `0x, 0o and 0b`
+>    * do not omit sign for `i{8,16,32,64...}`.  That is the differentiator
+>      from `u{...}`.
+> * and give `f{32,64}``.dec` and `.hex`.
+
+**Claude** asked two questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| What is `.size` on a struct with a `size` field kelvinc cannot see? | The field wins when unsure |
+| What do float `.dec`/`.hex` produce? | `%.17g` / `%a`, always signed |
+
+**Claude** implemented #21:
+
+- **Dispatch.** A property is chosen by `_Generic`. Its text is written
+  into a compound literal on the caller's stack, sized from
+  `sizeof(x)`, and returned as `u8^`.
+- **Fields win.** A field with the property's name wins in Kelvin and C
+  structs.
+- **Errors.** kelvinc reports misuse it can see, such as `.hex` on a
+  pointer or `.oct` on a float.
+
+The details are recorded as provisional P34: sign and magnitude, no
+padding, buffer lifetime, and properties on receivers kelvinc cannot see.
+There are 141 tests.

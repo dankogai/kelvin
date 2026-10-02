@@ -44,6 +44,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%a", pi)` | `pi.fmt("%a")` (a `String`) |
+| `sizeof x` | `x.size` |
+| `snprintf(buf, sizeof buf, "%#x", n)` | `n.hex` (`u8^` text on the stack) |
 | `double area(struct shape s)` | `shape.area(): f64 { ... self ... }`, called as `s.area()` |
 
 ## Declarations
@@ -399,6 +401,36 @@ main(): i32
   - `x.name(...)` is a method call only if some type in the file or the
     prelude has a method `name`. Otherwise it calls through a field, as
     in C.
+
+## Properties: `.size`, `.dec`, `.hex`, `.oct`, `.bin`
+
+Properties are written without parentheses:
+
+```kelvin
+c: i32 = 42;
+b: u8 = 255;
+println(c.size, " ", c.dec, " ", c.hex, " ", c.bin);  // 4 +42 +0x2a +0b101010
+println(b.dec, " ", b.hex, " ", b.oct);              // 255 0xff 0o377
+println(3.141592653589793.hex);                      // +0x1.921fb54442d18p+1
+```
+
+- **`x.size`** is `sizeof(x)`.
+- **Integers** have `.dec`, `.hex`, `.oct` and `.bin`. Each returns `u8^`
+  text with a prefix of `0x`, `0o` or `0b`. Signed integers always carry a
+  sign (`+42`, `-0x2a`) and unsigned ones never do, so the text tells
+  `i32` from `u32`.
+- **`f32`/`f64`** have `.dec` (lossless, like `toString()`) and `.hex`
+  (C's `%a`), always signed.
+- **The text lives on the caller's stack**, in a buffer sized in advance
+  from the type. There is no heap and nothing to free. It lasts until the
+  enclosing block ends, so do not return it from a function
+  *(provisional P34)*.
+- **Fields win.** A field with the same name wins, in a Kelvin struct and
+  in a C struct from a header. When kelvinc cannot see whether the
+  receiver is a struct, `.size` is a field (write `sizeof(x)` there), while
+  `.dec`/`.hex`/`.oct`/`.bin` are properties.
+- **Errors.** `.hex` on a pointer, bool, String or struct, and `.oct` or
+  `.bin` on a float, are errors.
 
 ## Headers and the preprocessor
 

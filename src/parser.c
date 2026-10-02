@@ -353,6 +353,9 @@ static Expr *parse_expr(void);
 static Expr *parse_cast(void);
 static Expr *parse_initializer(void);
 static Type *base_type(const char *name, Pos pos);
+static const char *literal_type(Expr *e);
+static Type *target_type(Expr *e);
+static Expr *property(Expr *e, Token *name, char *member);
 
 static Expr *new_expr(ExprKind kind, Pos pos) {
     Expr *e = xcalloc(1, sizeof *e);
@@ -406,6 +409,13 @@ static Expr *parse_postfix_ops(Expr *e) {
                 expect_p(")");
                 e = x;
                 continue;
+            }
+            if (!is_p(peek(), "(")) {
+                Expr *x = property(e, name, member);
+                if (x) {
+                    e = x;
+                    continue;
+                }
             }
             if (e->kind == E_LITERAL && !e->paren && isdigit((unsigned char)e->text[0]))
                 error_at(e->pos, "'%s.%s': literals have no suffixes in Kelvin, and '%s' is not a method", e->text,
@@ -760,6 +770,99 @@ static Type *target_type(Expr *e) {
     default:
         return NULL;
     }
+}
+
+/* ---------- properties: .size, .dec, .hex, .oct, .bin (#21) ---------- */
+
+/* What kelvinc can see of an expression's type, for properties:
+   'i' integer, 'f' f32/f64, 's' Kelvin struct or union, 'c' C struct or
+   union, 'n' something else it knows (pointer, array, bool, String, ...),
+   'u' unknown (a C typedef, a call result, an expression). */
+static char type_class(Type *t, Decl **record) {
+    *record = NULL;
+    if (!t)
+        return 'u';
+    if (t->kind != T_BASE)
+        return 'n';
+    const char *n = t->name;
+    static const char *ints[] = {"i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", NULL};
+    for (int i = 0; ints[i]; i++)
+        if (!strcmp(n, ints[i]))
+            return 'i';
+    if (!strcmp(n, "f32") || !strcmp(n, "f64"))
+        return 'f';
+    if (!strncmp(n, "enum ", 5))
+        return 'i';
+    if (!strncmp(n, "struct ", 7) || !strncmp(n, "union ", 6)) {
+        for (int i = records.len - 1; i >= 0; i--) {
+            Decl *r = records.data[i];
+            const char *kw = r->kind == D_STRUCT ? "struct" : "union";
+            if (r->kind != D_ENUM && r->name && r->has_body && !strcmp(n, strfmt("%s %s", kw, r->name))) {
+                *record = r;
+                return 's';
+            }
+        }
+        return 'c';
+    }
+    if (is_base_word(&(Token){.kind = TK_KEYWORD, .text = (char *)n}) || !strcmp(n, "f32 _Complex") ||
+        !strcmp(n, "f64 _Complex"))
+        return 'n'; /* bool, String, complex */
+    return 'u';     /* a C typedef name */
+}
+
+static char expr_class(Expr *e, Decl **record) {
+    *record = NULL;
+    switch (e->kind) {
+    case E_LITERAL:
+        if (!strcmp(e->text, "true") || !strcmp(e->text, "false") || !strcmp(e->text, "nullptr"))
+            return 'n';
+        if (e->text[0] == '\'')
+            return 'i';
+        return !strcmp(literal_type(e), "f64") ? 'f' : 'i';
+    case E_STRING:
+        return 'n';
+    case E_CAST:
+        return type_class(e->type, record);
+    case E_PROPERTY:
+        return !strcmp(e->text, "size") ? 'i' : 'n';
+    default:
+        return type_class(target_type(e), record);
+    }
+}
+
+static bool record_has_field(Decl *r, const char *name) {
+    for (int i = 0; r && i < r->members.len; i++)
+        if (!strcmp(((Var *)r->members.data[i])->name, name))
+            return true;
+    return false;
+}
+
+/* `x.size` is sizeof(x); `x.dec`, `.hex`, `.oct`, `.bin` are its text.
+   Returns NULL when `.name` is a field access instead: always when a
+   Kelvin struct has that field, and for `.size` whenever kelvinc cannot
+   see that the receiver is not a C struct (the field wins when unsure). */
+static Expr *property(Expr *e, Token *name, char *member) {
+    bool is_size = !strcmp(member, "size");
+    bool is_text = !strcmp(member, "dec") || !strcmp(member, "hex") || !strcmp(member, "oct") || !strcmp(member, "bin");
+    if (!is_size && !is_text)
+        return NULL;
+    Decl *record;
+    char c = expr_class(e, &record);
+    if (c == 's' && record_has_field(record, member))
+        return NULL;
+    if (c == 'c')
+        return NULL;
+    if (is_size && c == 'u')
+        return NULL;
+    if (is_text && (c == 'n' || c == 's'))
+        error_at(name->pos, "'.%s' is a property of integers%s", member,
+                 !strcmp(member, "dec") || !strcmp(member, "hex") ? " and of f32/f64" : "");
+    if (is_text && c == 'f' && (!strcmp(member, "oct") || !strcmp(member, "bin")))
+        error_at(name->pos, "'.%s' is a property of integers; f32 and f64 have .dec and .hex", member);
+    Expr *x = new_expr(E_PROPERTY, name->pos);
+    x->a = e;
+    x->text = member;
+    return x;
 }
 
 /* `=` assigns values and `:=` references (best effort: only where the

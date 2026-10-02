@@ -7,6 +7,7 @@
 #include "kelvin_prelude.h"
 
 #include <complex.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -33,7 +34,7 @@ static kv_String from_text(const char *text) {
     return s;
 }
 
-/* digits of v in base 8, 10 or 16 into out (at least 132 bytes) */
+/* digits of v in base 2, 8, 10 or 16 into out (at least 132 bytes) */
 static void digits(umax v, int base, bool upper, char *out) {
     const char *set = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     char buf[132];
@@ -477,6 +478,66 @@ kv_String kv_fmt_i128(__int128 v, const char *format) {
                        format);
 }
 #endif
+
+/* ---------- properties: .dec, .hex, .oct, .bin (#21) ---------- */
+
+/* sign (signed types always have one), prefix, digits */
+static uint8_t *number_text(bool is_signed, bool neg, umax mag, int base, uint8_t *buf) {
+    const char *prefix = base == 16 ? "0x" : base == 8 ? "0o" : base == 2 ? "0b" : "";
+    char num[132], text[140] = "";
+    digits(mag, base, false, num);
+    strcat(text, is_signed ? (neg ? "-" : "+") : "");
+    strcat(text, prefix);
+    strcat(text, num);
+    strcpy((char *)buf, text); /* buf is sized for the type by kelvinc */
+    return buf;
+}
+
+/* the magnitude of v without overflowing on the minimum value */
+static umax magnitude(long long v) { return v < 0 ? (umax)(-(v + 1)) + 1 : (umax)v; }
+
+#define KV_INT_PROPERTIES(name, base) \
+    uint8_t *kv_##name##_signed(long long v, uint8_t *buf) { \
+        return number_text(true, v < 0, magnitude(v), base, buf); \
+    } \
+    uint8_t *kv_##name##_unsigned(unsigned long long v, uint8_t *buf) { \
+        return number_text(false, false, v, base, buf); \
+    } \
+    uint8_t *kv_##name##_char(char v, uint8_t *buf) { /* C's char may be either */ \
+        return CHAR_MIN < 0 ? kv_##name##_signed(v, buf) : kv_##name##_unsigned((unsigned char)v, buf); \
+    }
+KV_INT_PROPERTIES(dec, 10)
+KV_INT_PROPERTIES(hex, 16)
+KV_INT_PROPERTIES(oct, 8)
+KV_INT_PROPERTIES(bin, 2)
+
+#ifdef __SIZEOF_INT128__
+#define KV_INT128_PROPERTIES(name, base) \
+    uint8_t *kv_##name##_i128(__int128 v, uint8_t *buf) { \
+        return number_text(true, v < 0, v < 0 ? (umax)0 - (umax)v : (umax)v, base, buf); \
+    } \
+    uint8_t *kv_##name##_u128(unsigned __int128 v, uint8_t *buf) { \
+        return number_text(false, false, v, base, buf); \
+    }
+KV_INT128_PROPERTIES(dec, 10)
+KV_INT128_PROPERTIES(hex, 16)
+KV_INT128_PROPERTIES(oct, 8)
+KV_INT128_PROPERTIES(bin, 2)
+#endif
+
+/* floats: always signed; a NaN has no meaningful sign and is "nan" */
+static uint8_t *float_text(double v, const char *format, uint8_t *buf) {
+    char text[64] = "nan";
+    if (!isnan(v))
+        snprintf(text, sizeof text, format, v);
+    strcpy((char *)buf, text); /* buf is sized for the type by kelvinc */
+    return buf;
+}
+
+uint8_t *kv_dec_f32(float v, uint8_t *buf) { return float_text(v, "%+.9g", buf); }
+uint8_t *kv_dec_f64(double v, uint8_t *buf) { return float_text(v, "%+.17g", buf); }
+uint8_t *kv_hex_f32(float v, uint8_t *buf) { return float_text(v, "%+a", buf); }
+uint8_t *kv_hex_f64(double v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 
 /* ---------- values of types kelvinc cannot see ---------- */
 

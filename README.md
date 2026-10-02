@@ -45,6 +45,8 @@ So far the changes from C are:
   `println("n = ", n)` works for any type with no import
 - every type has methods: `p.toString()` (derived for structs),
   `pi.fmt("%a")`, and your own, such as `point.area(): f64 { ... }`
+- properties: `x.size` is `sizeof(x)`, and numbers have `.dec`, `.hex`,
+  `.oct` and `.bin` text (`(42:i32).hex` is `+0x2a`)
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions, and

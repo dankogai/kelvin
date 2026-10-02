@@ -126,6 +126,61 @@ kv_String kv_fmt_u128(unsigned __int128 v, const char *format);
     unsigned char *: kv_fmt_str, const unsigned char *: kv_fmt_str, \
     kv_String: kv_fmt_String,
 
+/* ---------- properties: x.dec, x.hex, x.oct, x.bin (#21) ---------- */
+
+/* The text of a number, written into `buf` (a buffer on the caller's
+   stack that kelvinc sizes from sizeof) and returned as u8^. Signed
+   integers always carry a sign ("+42", "-0x2a"), which tells them from
+   unsigned ones ("42", "0x2a"). Prefixes are 0x, 0o and 0b. f32/f64 have
+   .dec (%.17g style) and .hex (%a), always signed. */
+uint8_t *kv_dec_signed(long long v, uint8_t *buf);
+uint8_t *kv_dec_unsigned(unsigned long long v, uint8_t *buf);
+uint8_t *kv_dec_char(char v, uint8_t *buf);
+uint8_t *kv_dec_f32(float v, uint8_t *buf);
+uint8_t *kv_dec_f64(double v, uint8_t *buf);
+uint8_t *kv_hex_signed(long long v, uint8_t *buf);
+uint8_t *kv_hex_unsigned(unsigned long long v, uint8_t *buf);
+uint8_t *kv_hex_char(char v, uint8_t *buf);
+uint8_t *kv_hex_f32(float v, uint8_t *buf);
+uint8_t *kv_hex_f64(double v, uint8_t *buf);
+uint8_t *kv_oct_signed(long long v, uint8_t *buf);
+uint8_t *kv_oct_unsigned(unsigned long long v, uint8_t *buf);
+uint8_t *kv_oct_char(char v, uint8_t *buf);
+uint8_t *kv_bin_signed(long long v, uint8_t *buf);
+uint8_t *kv_bin_unsigned(unsigned long long v, uint8_t *buf);
+uint8_t *kv_bin_char(char v, uint8_t *buf);
+#ifdef __SIZEOF_INT128__
+uint8_t *kv_dec_i128(__int128 v, uint8_t *buf);
+uint8_t *kv_dec_u128(unsigned __int128 v, uint8_t *buf);
+uint8_t *kv_hex_i128(__int128 v, uint8_t *buf);
+uint8_t *kv_hex_u128(unsigned __int128 v, uint8_t *buf);
+uint8_t *kv_oct_i128(__int128 v, uint8_t *buf);
+uint8_t *kv_oct_u128(unsigned __int128 v, uint8_t *buf);
+uint8_t *kv_bin_i128(__int128 v, uint8_t *buf);
+uint8_t *kv_bin_u128(unsigned __int128 v, uint8_t *buf);
+#define KV_INT128_PROPERTY(p) __int128: kv_##p##_i128, unsigned __int128: kv_##p##_u128,
+#else
+#define KV_INT128_PROPERTY(p)
+#endif
+
+#define KV_INT_PROPERTY(p) \
+    char: kv_##p##_char, \
+    signed char: kv_##p##_signed, short: kv_##p##_signed, int: kv_##p##_signed, \
+    long: kv_##p##_signed, long long: kv_##p##_signed, \
+    unsigned char: kv_##p##_unsigned, unsigned short: kv_##p##_unsigned, unsigned: kv_##p##_unsigned, \
+    unsigned long: kv_##p##_unsigned, unsigned long long: kv_##p##_unsigned, \
+    KV_INT128_PROPERTY(p)
+
+#define KV_PROPERTY_dec KV_INT_PROPERTY(dec) float: kv_dec_f32, double: kv_dec_f64,
+#define KV_PROPERTY_hex KV_INT_PROPERTY(hex) float: kv_hex_f32, double: kv_hex_f64,
+#define KV_PROPERTY_oct KV_INT_PROPERTY(oct)
+#define KV_PROPERTY_bin KV_INT_PROPERTY(bin)
+
+/* Selected when a type has no such property; calling it is a C type
+   error that names this function. */
+struct kv_no_such_property;
+uint8_t *kv_no_such_property(struct kv_no_such_property *, uint8_t *);
+
 /* Selected when a type has no such method; calling it is a C type error
    that names this function. */
 struct kv_no_such_method;
