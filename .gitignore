@@ -63,3 +63,5 @@ dkms.conf
 
 # personal scratch file
 /scratch.k
+/hello
+/scratch
