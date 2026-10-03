@@ -1,10 +1,10 @@
 // regressions from the review of #29: where a tag's bare name could also
 // be an expression
 #import <stdlib.h> as C
-#import <time.h> as C
+#import "include/tag_clash.h" as C
 struct node { value: i64; next: node^; };
 struct big { a: i64; b: i64; c: i64; next: big^; };
-struct timezone;                             // a C struct; <time.h> also has a variable timezone
+struct gauge;                                // a C struct; the header also has a variable gauge
 
 node(v: i64): node^                          // a constructor named like its struct
 {
@@ -24,10 +24,11 @@ main(): i32
     println(n^.value, " ", sizeof(node), " ", point, " ", size, " ", big^.c);
 
     // a struct only declared in Kelvin leaves its name to C in expressions
-    println(sizeof(timezone) == sizeof(i64), " ", timezone == timezone);
+    var g: gauge = {3};
+    println(sizeof(gauge) == sizeof(i32), " ", gauge, " ", g.level);
     free(n);
     free(big);
     return 0;
 }
 // out: 4 16 16 2 42
-// out: true true
+// out: true 7 3
