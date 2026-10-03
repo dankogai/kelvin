@@ -1,6 +1,6 @@
 // Linked lists: structs named without `struct`, references (^ and :=),
 // malloc and free from C, functions that change a list through a pointer,
-// and methods that read it.
+// and methods that read it with for n in head.
 #import <stdlib.h> as C
 
 struct node {
@@ -55,21 +55,20 @@ clear(l:list^) {
     }
 }
 
+// for n in head walks the nodes along next, up to nullptr
 list.sum():i64 {
     var total = 0;
-    for (var n:node^ := self.head; n != nullptr; n := n^.next) {
+    for n in self.head {
         total += n^.value;
     }
     return total;
 }
 
 list.contains(value:i64):bool {
-    var n:node^ := self.head;
-    while n != nullptr {
+    for n in self.head {
         if n^.value == value {
             return true;
         }
-        n := n^.next;
     }
     return false;
 }
@@ -77,13 +76,11 @@ list.contains(value:i64):bool {
 // print the values as [1 -> 4 -> 9]
 list.show() {
     print("[");
-    var n:node^ := self.head;
-    while n != nullptr {
+    for n in self.head {
         print(n^.value);
         if n^.next != nullptr {
             print(" -> ");
         }
-        n := n^.next;
     }
     println("] (", self.length, " values)");
 }

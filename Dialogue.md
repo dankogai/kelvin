@@ -1102,3 +1102,72 @@ suggest code in the same style (`var x:i32`), and the samples in the
 README, versusC.md and Design.md follow it too. This file keeps the
 earlier entries as they were written. There are 195 tests.
 
+### 44. `for x in s`
+
+> the following types of loops are frequent enough to...
+>
+>     while s^ != 0 {
+>             if strchr("aeiouAEIOU", s^) != nullptr {
+>                 n += 1;
+>             }
+>             s := s.next;
+>         }
+>
+> make iterators available as:
+>
+>     for c in s  {
+>             if strchr("aeiouAEIOU", c) != nullptr {
+>                 n += 1;
+>             }
+>         }
+>
+> can you handle this pattern? The same logic also applies to linked list
+> anything the sequence is terminated by a terminator value (usually
+> '\0' or `nullptr`
+
+**Claude** proposed choosing the walk by `s`'s type and asked three
+questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| What is the loop variable of a list, and how is the link found? | Each node's pointer, through the `next` field |
+| An array of known length? | "up to the number of elements it is known but break early on terminator value" |
+| A `nullptr` string? | Empty |
+
+**Claude** implemented #30: a pointer to numbers or pointers walks to the
+first 0 or `nullptr`, a pointer to a struct with `next` walks the list,
+an array walks up to its length or the terminator (all of an array of
+structs, which has none), and a pointer kelvinc cannot see is walked like
+a pointer. Its choices are provisional P42. `vowels()` in strings.k and
+the list walks in linkedlist.k now use it. There are 202 tests.
+
+### 45. The review of #30
+
+**Claude** ran a review round of #30 before reporting it. The round
+confirmed 8 findings, 6 of them distinct, and rejected none. All are
+fixed:
+
+- **`for x:T in s` read the sequence as `T`.** The hidden pointer took
+  the written type, so `for b:u8 in xs` with `xs:i32[3]` read each `i32`
+  as bytes, past the array's end. The pointer now reads the elements as
+  what they are, and only `x` converts each one. A list's loop variable
+  must be the node's pointer.
+- **A row of a variable length array was evaluated twice**, once more
+  by `sizeof`, so `for x in m[row()]` called `row()` twice. An array is
+  now reached through a pointer to it, taken once.
+- **An array in a value that a call returns**, as in
+  `for x in make().xs`, was read after C had discarded the value. It is
+  an error now, which suggests copying the value into a let first.
+- **An array parameter**, which C passes as a pointer, was walked past
+  its declared length, up to a terminator. A let array parameter now has
+  its declared length, when that length is made of numbers, lets and C's
+  constants, and is an error otherwise. A var one may have moved, so it
+  is walked as a pointer.
+- **`for arg in argv`** in `main`, whose `argv` C types `char **`, warned
+  in clang and failed in gcc. The hidden pointer now converts it.
+- **Compound literals in the head**, such as `(i64){1}..<3` and
+  `(i32[3]){1, 2, 3}` before the body, were taken for the body. This also
+  broke ranges that #28 accepted. Both work again.
+
+The hidden lines of a loop now map to the `for`'s line, where C's
+warnings about them belong. There are 207 tests.

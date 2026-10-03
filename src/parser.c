@@ -52,7 +52,7 @@ static bool is_method_name(const char *name) {
 
 static List scope_types; /* Type * (or NULL) for each name in scope_names */
 /* for each name: 0 for a var, else what kind of let (#27) */
-enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE };
+enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH };
 static List scope_lets;
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
@@ -108,6 +108,33 @@ static bool in_scope(const char *name) {
         if (!strcmp(scope_names.data[i], name))
             return true;
     return false;
+}
+
+/* where the innermost binding of `name` sits in scope_names, or -1 */
+static int binding_index(const char *name) {
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return i;
+    return -1;
+}
+
+/* the function or method being parsed, and where its parameters sit in
+   scope_names */
+static Decl *parsing_fn;
+static int params_start, params_end;
+
+/* the parameter of the function being parsed that `name` names here,
+   unless a local name hides it */
+static Var *param_named(const char *name) {
+    int i = binding_index(name);
+    if (!parsing_fn || i < params_start || i >= params_end)
+        return NULL;
+    for (int k = 0; k < parsing_fn->params.len; k++) {
+        Var *p = parsing_fn->params.data[k];
+        if (!strcmp(p->name, name))
+            return p;
+    }
+    return NULL;
 }
 
 static Decl *function_named(const char *name);
@@ -486,6 +513,9 @@ static bool seen_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
 
+/* set while parsing the head of `for x in ...`, where a `{` ends it too */
+static bool brace_in_for;
+
 /* Is the `{` at token i the initializer of a compound literal `(T){...}`
    rather than a body? Always outside a condition. In a condition, only
    when the expression goes on after its `}`, as in
@@ -495,6 +525,8 @@ static bool brace_is_compound(int i) {
     if (!brace_ends_condition)
         return true;
     Token *n = &toks[skip_nested(i)];
+    if (brace_in_for && (is_p(n, "..<") || is_p(n, "...")))
+        return true; /* for i in (i64){1}..<3 { */
     return is_p(n, ".") || is_p(n, "[") || is_p(n, "^") || is_p(n, "?") || is_kw(n, "as") || binary_prec(n) > 0;
 }
 
@@ -666,7 +698,11 @@ static Expr *parse_primary(void) {
            typedef with suffixes, e.g. (size_t[2]){1, 2}, because an
            expression is never followed by `{` */
         Token *after = after_matching_paren(cur);
-        bool compound = after && is_p(after, "{") && paren_holds_type(cur) && brace_is_compound((int)(after - toks));
+        /* in `for x in (i32[3]){1, 2, 3} {`, an array's or a pointer's
+           type cannot be a parenthesized name, as in `for c in (s) {` */
+        bool compound = after && is_p(after, "{") && paren_holds_type(cur) &&
+                        (brace_is_compound((int)(after - toks)) ||
+                         (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))));
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
         if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
@@ -1023,6 +1059,16 @@ static Type *value_type(Expr *e) {
     }
     case E_PROPERTY: /* p.next and p.prev have p's type */
         return !strcmp(e->text, "next") || !strcmp(e->text, "prev") ? value_type(e->a) : NULL;
+    case E_PREFIX: { /* &x is a pointer to x's type */
+        Type *t = !strcmp(e->op, "&") ? value_type(e->a) : NULL;
+        if (!t)
+            return NULL;
+        Type *p = xcalloc(1, sizeof *p);
+        p->kind = T_PTR;
+        p->pos = e->pos;
+        p->elem = t;
+        return p;
+    }
     default:
         return type_through(e, value_type);
     }
@@ -1246,6 +1292,10 @@ static Expr *parse_assign(void) {
             if (let && let_kind(let) == LET_RANGE)
                 error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
                                  "'var k:%s = %s;'", let, kelvin_type(lookup_type(let)), let);
+            if (let && let_kind(let) == LET_EACH)
+                error_at(t->pos, "'%s' is each element in turn and cannot change; copy it into a var under "
+                                 "another name",
+                         let);
             if (let && let_kind(let) == LET_PARAM)
                 error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                          let, let);
@@ -1645,6 +1695,163 @@ static bool is_integer_type(Type *t) {
    `0..<n - 1` ends before n - 1. i's type is written (`for i: u8 in`) or
    comes from the bounds: the upper one's type if kelvinc sees it, else the
    lower one's, else i64 for literals. `for _ in 0..<n` names no variable. */
+/* Does the declared length of an array parameter, evaluated again in the
+   body, still give what it gave at the call? It does when it is made of
+   numbers, lets and C's constants (BUFSIZ), with no call, no var and no
+   name that a local hides (#30). */
+static bool length_holds(Expr *e) {
+    switch (e->kind) {
+    case E_LITERAL:
+    case E_SIZEOF_TYPE:
+        return true;
+    case E_IDENT: {
+        int i = binding_index(e->text);
+        if (i < 0)
+            return true; /* a C constant */
+        if (i >= params_end)
+            return false; /* a local hides it */
+        /* a let, or a function or enumerator (no type); not a var */
+        return (int)(intptr_t)scope_lets.data[i] != LET_NONE || !scope_types.data[i];
+    }
+    case E_BINARY:
+        return length_holds(e->a) && length_holds(e->b);
+    case E_PREFIX:
+        return strcmp(e->op, "&") && length_holds(e->a);
+    case E_TERNARY:
+        return length_holds(e->a) && length_holds(e->b) && length_holds(e->c);
+    case E_CAST:
+    case E_SIZEOF_EXPR:
+        return length_holds(e->a);
+    case E_PROPERTY:
+        return !strcmp(e->text, "size") && length_holds(e->a);
+    default:
+        return false;
+    }
+}
+
+/* Is e part of a value that C discards at the end of the statement that
+   makes it, a field of what a call or ?: returns? An array there is gone
+   before the loop runs. A row of an array that kelvinc cannot see is
+   taken to be one too. */
+static bool in_temporary(Expr *e) {
+    if (e->kind == E_INDEX) {
+        Type *t = value_type(e->a);
+        return (!t || t->kind == T_ARRAY) && in_temporary(e->a);
+    }
+    if (e->kind != E_FIELD || !e->a)
+        return false;
+    Expr *b = e->a;
+    return b->kind == E_CALL || b->kind == E_METHOD || b->kind == E_TERNARY || in_temporary(b);
+}
+
+/* Is e main's argv, or a step from it along .next or .prev? Kelvin writes
+   it u8^^, and C insists on char ** (P13). */
+static bool from_main_argv(Expr *e) {
+    if (e->kind == E_PROPERTY && (!strcmp(e->text, "next") || !strcmp(e->text, "prev")))
+        return from_main_argv(e->a);
+    if (e->kind != E_IDENT || !parsing_fn || parsing_fn->recv || strcmp(parsing_fn->name, "main") ||
+        parsing_fn->params.len < 2)
+        return false;
+    return param_named(e->text) == parsing_fn->params.data[1];
+}
+
+/* for x in s { } (#30): each element of a sequence that ends at a
+   terminator, chosen by s's type. A pointer to numbers or pointers gives
+   s^, s.next^, ... up to the first 0 or nullptr, and a nullptr s is
+   empty; a pointer to a struct with a `next` field gives each node's
+   pointer along next, up to nullptr; an array of known length gives its
+   elements, stopping early at a 0 or nullptr (an array of structs gives
+   all of them). A let array parameter has the length it was declared
+   with; a var one may have moved, so it is a pointer. A pointer kelvinc
+   cannot see, such as getenv()'s, is walked like a pointer. x is a let,
+   of the element's type unless written `for x:T in s`, and s is
+   evaluated once. */
+static Stmt *parse_for_each(Stmt *s, Type *written) {
+    s->kind = S_FOR_EACH;
+    Expr *seq = s->expr;
+    Type *t = value_type(seq);
+    Var *param = seq->kind == E_IDENT ? param_named(seq->text) : NULL;
+    if (param && param->is_let && param->type->kind == T_ARRAY && param->type->size) {
+        if (!length_holds(param->type->size))
+            error_at(seq->pos,
+                     "for over %s: its declared length uses a call, a var or a name that a local hides, so it "
+                     "may not be what it was at the call; index it, as in 'for i in 0..<n'",
+                     param->name);
+        t = param->type;
+        s->step = t->size;
+    }
+    if ((!t || t->kind == T_ARRAY) && in_temporary(seq))
+        error_at(seq->pos, "for over an array in a value that a call or '?:' returns: C discards the value before "
+                           "the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'");
+    Type *elem = NULL;
+    Decl *record = NULL;
+    if (!t) {
+        s->each = EACH_UNSEEN;
+    } else if (t->kind == T_ARRAY) {
+        if (!t->size)
+            error_at(seq->pos, "a flexible array member has no length to walk: index it");
+        elem = t->elem;
+        if (elem->kind == T_ARRAY)
+            error_at(seq->pos, "for over an array of arrays: index it, as in 'for x in a[0]'");
+        char c = elem->kind == T_BASE ? type_class(elem, &record) : 'n';
+        s->each = c == 's' || c == 'c' ? EACH_RECORDS : EACH_ARRAY;
+    } else if (t->kind == T_PTR) {
+        elem = t->elem;
+        char c = elem->kind == T_BASE ? type_class(elem, &record) : 'n';
+        if (elem->kind == T_BASE && !strcmp(elem->name, "any"))
+            error_at(seq->pos, "an any^ has no elements to walk: convert it first, as in 'p as u8^'");
+        if (c == 'c')
+            error_at(seq->pos, "for over %s: kelvinc cannot see its fields, so it cannot follow a next field",
+                     kelvin_type(t));
+        if (c == 's') {
+            Var *next = NULL;
+            for (int i = 0; i < record->members.len; i++) {
+                Var *m = record->members.data[i];
+                if (!strcmp(m->name, "next"))
+                    next = m;
+            }
+            if (!next || next->type->kind != T_PTR)
+                error_at(seq->pos, "for over %s: a list is followed through a pointer field named next, and %s "
+                                   "has none",
+                         kelvin_type(t), kelvin_type(elem));
+            s->each = EACH_LIST;
+            elem = t; /* the loop variable is the node's pointer */
+            if (written && written->kind != T_PTR)
+                error_at(written->pos, "the loop variable of a list is each node's pointer, %s, not %s",
+                         kelvin_type(t), kelvin_type(written));
+        } else {
+            s->each = EACH_POINTER;
+            s->from_argv = elem->kind == T_PTR && from_main_argv(seq);
+        }
+    } else {
+        Decl *r;
+        if (type_class(t, &r) != 'u')
+            error_at(seq->pos, "for x in s walks a pointer, a list or an array, and this is %s; for a count, "
+                               "write 'for i in 0..<n'",
+                     kelvin_type(t));
+        s->each = EACH_UNSEEN; /* a C typedef, such as a char pointer */
+    }
+    /* the hidden pointer reads s's elements; only x takes a written type */
+    s->elem = elem;
+    Type *x = written ? written : elem;
+    /* x is a copy, so it drops the element's qualifiers */
+    if (x) {
+        Type *plain = xcalloc(1, sizeof *plain);
+        *plain = *x;
+        plain->is_const = plain->is_volatile = false;
+        x = plain;
+    }
+    s->type = x;
+    open_scope();
+    if (strcmp(s->name, "_"))
+        declare_binding(s->name, x, LET_EACH);
+    if (!is_p(peek(), "{"))
+        error_at(peek()->pos, "expected '{': the body of 'for' is a block, as in 'for %s in s { ... }'", s->name);
+    s->body = parse_block();
+    close_scope();
+    return s;
+}
+
 static Stmt *parse_for_in(Pos pos) {
     Stmt *s = new_stmt(S_FOR_IN, pos);
     Token *name = peek();
@@ -1654,15 +1861,25 @@ static Stmt *parse_for_in(Pos pos) {
         error_at(peek()->pos, "expected 'in', as in 'for %s in 0..<n { ... }', or 'for (...)'", s->name);
     advance();
     int prec = binary_prec(&(Token){.kind = TK_PUNCT, .text = "<<"});
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = true; /* `for c in s {` */
     s->expr = parse_binary(prec);
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    if (is_p(peek(), ".."))
+        error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
+    if (!is_p(peek(), "...") && !is_p(peek(), "..<"))
+        return parse_for_each(s, written);
     if (accept_p("..."))
         s->closed = true;
     else if (!accept_p("..<"))
         error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
     bool saved = brace_ends_condition;
-    brace_ends_condition = true;
+    saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = true;
     s->step = parse_binary(prec);
     brace_ends_condition = saved;
+    brace_in_for = saved_for;
     /* both bounds, and a written type, must be integers */
     if (written && !is_integer_type(written))
         error_at(written->pos, "a range is of integers, not %s", kelvin_type(written));
@@ -1860,6 +2077,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
     declare_name(d->name);
     open_scope();
+    params_start = scope_names.len;
     expect_p("(");
     while (!is_p(peek(), ")")) {
         if (accept_p("...")) {
@@ -1877,11 +2095,15 @@ static Decl *parse_fn(Pos pos, const char *storage) {
             break;
     }
     expect_p(")");
+    params_end = scope_names.len;
     if (accept_p(":"))
         d->ret = parse_type();
     list_push(&functions, d);
-    if (!accept_p(";"))
+    if (!accept_p(";")) {
+        parsing_fn = d;
         d->body = parse_block();
+        parsing_fn = NULL;
+    }
     close_scope();
     return d;
 }
@@ -1915,6 +2137,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
         d->recv = base_type(strfmt("%s %s", r->kind == D_STRUCT ? "struct" : "union", r->name), recv->pos);
     }
     open_scope();
+    params_start = scope_names.len;
     declare_typed("self", d->recv);
     expect_p("(");
     while (!is_p(peek(), ")")) {
@@ -1931,11 +2154,15 @@ static Decl *parse_method(Pos pos, const char *storage) {
             break;
     }
     expect_p(")");
+    params_end = scope_names.len;
     if (accept_p(":"))
         d->ret = parse_type();
     list_push(&functions, d);
-    if (!accept_p(";"))
+    if (!accept_p(";")) {
+        parsing_fn = d;
         d->body = parse_block();
+        parsing_fn = NULL;
+    }
     close_scope();
     return d;
 }

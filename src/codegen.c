@@ -595,6 +595,82 @@ static void stmt(Stmt *s) {
         line("}");
         break;
     }
+    case S_FOR_EACH: {
+        /* for x in s (#30): s is evaluated once, into a hidden pointer that
+           only reads; x is a const copy of each element, or for a list a
+           const copy of each node's pointer, taken before the body runs so
+           that the body may free the node. The hidden lines map to the
+           for's line, where C's warnings about them belong. */
+        int n = ++range_temps;
+        char *p = strfmt("kv_p%d", n), *end = strfmt("kv_end%d", n), *arr = strfmt("kv_a%d", n);
+        char *seq = expr(s->expr);
+        Type *reader = NULL; /* const E^, for the elements; NULL: unseen */
+        if (s->elem && s->each != EACH_LIST) {
+            reader = xcalloc(1, sizeof *reader);
+            reader->kind = T_PTR;
+            reader->pos = s->elem->pos;
+            reader->elem = const_type(s->elem);
+        }
+        if (s->from_argv) /* char ** in C, u8^^ in Kelvin */
+            seq = strfmt("(%s)(%s)", decl(reader, ""), seq);
+        bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
+        if (s->each == EACH_LIST) {
+            Type *node = xcalloc(1, sizeof *node);
+            *node = *s->elem;
+            node->is_const = false;
+            line("for (%s = %s; %s != 0; )", decl(node, p), seq, p);
+        } else if (!reader) {
+            line("for (__auto_type %s = %s; %s != 0 && *%s != 0; %s++)", p, seq, p, p, p);
+        } else if (s->each == EACH_POINTER) {
+            line("for (%s = %s; %s != 0 && *%s != 0; %s++)", decl(reader, p), seq, p, p, p);
+        } else {
+            /* an array: its length is known; elements up to it */
+            line("{");
+            indent++;
+            if (s->step) { /* a let array parameter: a pointer in C */
+                sync(s->pos);
+                line("%s = %s;", decl(reader, p), seq);
+                sync(s->pos);
+                line("%s = %s + (%s);", decl(const_type(reader), end), p, expr(s->step));
+            } else {
+                /* through a pointer to the array, so that s is evaluated
+                   once even when sizeof would evaluate it again, as for a
+                   row of a variable length array */
+                sync(s->pos);
+                line("__auto_type %s = &(%s);", arr, seq);
+                sync(s->pos);
+                line("%s = *%s;", decl(reader, p), arr);
+                sync(s->pos);
+                line("%s = %s + sizeof(*%s) / sizeof((*%s)[0]);", decl(const_type(reader), end), p, arr, arr);
+            }
+            sync(s->pos);
+            line("for (; %s < %s%s; %s++)", p, end, s->each == EACH_ARRAY ? strfmt(" && *%s != 0", p) : "", p);
+        }
+        sync(s->pos);
+        line("{");
+        indent++;
+        sync(s->pos);
+        if (!strcmp(s->name, "_"))
+            ; /* for _ in s names no variable */
+        else if (s->each == EACH_LIST)
+            line("%s = %s;", decl(const_type(s->type), s->name), p);
+        else if (s->type)
+            line("%s = *%s;", decl(const_type(s->type), s->name), p);
+        else
+            line("const __typeof__(*%s) %s = *%s;", p, s->name, p);
+        if (s->each == EACH_LIST) {
+            sync(s->pos);
+            line("%s = %s->next;", p, p);
+        }
+        stmt(s->body);
+        indent--;
+        line("}");
+        if (wrap) {
+            indent--;
+            line("}");
+        }
+        break;
+    }
     case S_SWITCH:
         line("switch (%s)", expr(s->expr));
         body(s->body);

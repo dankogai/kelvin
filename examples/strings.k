@@ -1,16 +1,16 @@
-// C strings: cstr is u8^, a pointer steps with .next and .prev, C's
-// <string.h> and <ctype.h> just work, and numbers have text properties.
+// C strings: cstr is u8^, for c in s walks one, a pointer steps with .next
+// and .prev, C's <string.h> and <ctype.h> just work, and numbers have text
+// properties.
 #import <ctype.h> as C
 #import <string.h> as C
 
-// count the vowels by walking the string
-vowels(var s:cstr):i64 {        // var: this copy of the pointer moves
+// count the vowels: for c in s walks the string up to its NUL
+vowels(s:cstr):i64 {
     var n = 0;
-    while s^ != 0 {
-        if strchr("aeiouAEIOU", s^) != nullptr {
+    for c in s {
+        if strchr("aeiouAEIOU", c) != nullptr {
             n += 1;
         }
-        s := s.next;
     }
     return n;
 }

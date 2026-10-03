@@ -63,6 +63,8 @@ So far the changes from C are:
   `i += 1;`, and step a pointer with `p := p.next;`
 - counting loops use ranges: `for i in 0..<n { ... }` and
   `for i in 1...n { ... }`, where `i` is a `let`
+- `for c in s { ... }` walks a string up to its NUL, and
+  `for n in head { ... }` a list along `next`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions,
@@ -79,9 +81,9 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/hello.k](examples/hello.k) | the smallest program |
 | [examples/fizzbuzz.k](examples/fizzbuzz.k) | ranges, `bool` conditions, `else if` |
 | [examples/primes.k](examples/primes.k) | a `bool` array, nested ranges, `continue` |
-| [examples/strings.k](examples/strings.k) | `cstr`, stepping with `.next`/`.prev`, C's string functions, `.hex` and friends |
+| [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, stepping with `.next`/`.prev`, C's string functions, `.hex` and friends |
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
-| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer |
+| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 
 ## Build and use
 

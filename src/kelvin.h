@@ -133,6 +133,7 @@ typedef enum {
     S_DO,
     S_FOR,
     S_FOR_IN,    /* for i in a..<b { } and for i in a...b { } (#28) */
+    S_FOR_EACH,  /* for x in s { }: each element of a sequence (#30) */
     S_SWITCH,
     S_CASE,
     S_DEFAULT,
@@ -143,6 +144,15 @@ typedef enum {
     S_LABEL,
 } StmtKind;
 
+/* what `for x in s` walks (#30) */
+enum {
+    EACH_POINTER,  /* s^, s.next^, ... up to 0 or nullptr; a nullptr s is empty */
+    EACH_LIST,     /* node pointers along next, up to nullptr */
+    EACH_ARRAY,    /* the elements, stopping early at 0 or nullptr */
+    EACH_RECORDS,  /* the elements of an array of structs, all of them */
+    EACH_UNSEEN,   /* a pointer whose type kelvinc cannot see, as EACH_POINTER */
+};
+
 typedef struct Stmt Stmt;
 struct Stmt {
     StmtKind kind;
@@ -152,9 +162,14 @@ struct Stmt {
     List vars;         /* S_VAR: Var * */
     Expr *expr;        /* condition, value, case label */
     Stmt *init;        /* S_FOR */
-    Expr *step;        /* S_FOR; S_FOR_IN: the upper bound */
-    Type *type;        /* S_FOR_IN: the loop variable's */
+    Expr *step;        /* S_FOR; S_FOR_IN: the upper bound; S_FOR_EACH: a
+                          let array parameter's declared length */
+    Type *type;        /* S_FOR_IN, S_FOR_EACH: the loop variable's (NULL: unseen) */
+    Type *elem;        /* S_FOR_EACH: what s holds (NULL: unseen); for a
+                          list, the node's pointer */
     bool closed;       /* S_FOR_IN: a...b, not a..<b */
+    bool from_argv;    /* S_FOR_EACH: s is main's argv, which C types char ** */
+    int each;          /* S_FOR_EACH: EACH_* above */
     Stmt *body, *els;  /* loop body / if-then, else */
     char *name;        /* S_GOTO, S_LABEL, S_FOR_IN */
 };

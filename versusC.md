@@ -40,6 +40,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `i++`, `--n` | `i += 1;`, `n -= 1;` (statements) |
 | `for (int i = 0; i < n; i++)` | `for i in 0..<n { ... }` (#28) |
 | `for (int i = 1; i <= n; i++)` | `for i in 1...n { ... }` |
+| `for (p = s; *p; p++) { c = *p; ... }` | `for c in s { ... }` (#30) |
+| `for (n = head; n; n = n->next)` | `for n in head { ... }` |
 | `p->m` | `p^.m` |
 | `a ^ b`, `a ^= b` | `a ~ b`, `a ~= b` |
 | `(unsigned char)c` | `u8(c)` or `c as u8` |
@@ -386,6 +388,37 @@ for b:u8 in 250...255 { }  // ends, where C's b <= 255 never would
   `n - 1`. `continue` and `break` work as in any loop.
 - Ranges exist only in `for` for now: there are no range values, and no
   reversed or stepped ranges yet.
+
+## Sequences: `for x in s`
+
+`for x in s { ... }` walks a sequence that ends at a terminator, as C's
+strings and lists do (#30). What `x` is depends on `s`'s type:
+
+```kelvin
+for c in s { ... }          // s:cstr: each byte, up to the NUL
+for arg in argv { ... }     // argv:u8^^: each string, up to nullptr
+for n in list.head { ... }  // n:node^: each node along next, up to nullptr
+for x in xs { ... }         // xs:i32[8]: up to 8 elements, or the first 0
+```
+
+- **A pointer to numbers or pointers** gives `s^`, `s.next^`, ... up to
+  the first 0 or `nullptr`. A `nullptr` `s` is empty.
+- **A pointer to a struct with a `next` field** is a list: `x` is each
+  node's pointer, so `x^.value` reads it and may change it. The next
+  pointer is read before the body runs, so the body may `free(x)`.
+- **An array of known length** gives its elements, stopping early at a 0
+  or `nullptr`; an array of structs gives all of them.
+- **An array parameter** is a pointer in C. A let one, `xs:i32[4]`, is
+  walked up to its declared length; a `var` one may have moved, so it is
+  walked like a pointer.
+- **A pointer kelvinc cannot see**, such as `getenv("PATH")`'s, is walked
+  like a pointer.
+- `x` is a `let`, `s` is evaluated once and does not move, and
+  `for _ in s` names no variable. `for b:u8 in xs` converts each element
+  for `b`. A number, `any^`, an array of arrays, a C struct whose fields
+  kelvinc cannot see, or an array in a value that a call returns
+  (`make().xs`, which C discards before the loop runs) is an error
+  *(provisional P42)*.
 
 ## Assignment is a statement
 
