@@ -87,6 +87,46 @@ static Type *lookup_type(const char *name) {
     return NULL;
 }
 
+/* the struct, union or enum tag `name` declared so far, if any: its bare
+   name is a type, as in C++ (#29) */
+static Decl *record_named(const char *name) {
+    for (int i = records.len - 1; i >= 0; i--) {
+        Decl *r = records.data[i];
+        if (r->name && !strcmp(r->name, name))
+            return r;
+    }
+    return NULL;
+}
+
+static char *tag_type_name(Decl *r) {
+    return strfmt("%s %s", r->kind == D_STRUCT ? "struct" : r->kind == D_UNION ? "union" : "enum", r->name);
+}
+
+/* Is `name` declared here as a variable, a parameter or a function? */
+static bool in_scope(const char *name) {
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return true;
+    return false;
+}
+
+static Decl *function_named(const char *name);
+
+/* Is the token a tag's bare name (#29) where an expression could stand
+   too, as in sizeof(point) or (point^)p? Only for a tag defined in Kelvin:
+   C headers often give a C struct's name to a function or variable too
+   (stat, timezone), which kelvinc cannot see, so there the C compiler
+   decides. A Kelvin variable of that name wins, and so does a Kelvin
+   function, except in sizeof, where a function's size is never meant. */
+static bool tag_name_ahead(Token *t, bool in_sizeof) {
+    Decl *r = t->kind == TK_IDENT ? record_named(t->text) : NULL;
+    if (!r || !r->has_body)
+        return false;
+    if (!in_scope(t->text))
+        return true;
+    return in_sizeof && function_named(t->text);
+}
+
 /* the function `name` names here, unless a local name hides it */
 static Decl *function_named(const char *name) {
     int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
@@ -193,8 +233,17 @@ static bool starts_type(Token *t);
 /* Does `(` begin a parenthesized type, as in sizeof(T) or (T){...}?
    `(i32(x) + 1)` does not: a type name directly followed by `(` is a
    converter call. */
-static bool paren_type_ahead(void) {
-    if (!is_p(peek(), "(") || !starts_type(peek2()))
+static bool is_qualifier(Token *t);
+
+static bool paren_type_ahead(bool in_sizeof) {
+    if (!is_p(peek(), "("))
+        return false;
+    if (tag_name_ahead(peek2(), in_sizeof)) {
+        /* sizeof(point), (point^)p: a tag's bare name, then the type's end */
+        Token *n = peek_at(2);
+        return is_p(n, ")") || is_p(n, "^") || is_p(n, "[") || is_qualifier(n);
+    }
+    if (!starts_type(peek2()))
         return false;
     return !(is_converter(peek2()) && is_p(peek_at(2), "("));
 }
@@ -361,6 +410,9 @@ static Type *parse_type_in(TypeContext ctx) {
             return parse_type_suffixes(p, ctx);
         }
         base->name = name->text;
+        Decl *tag = name->kind == TK_IDENT ? record_named(name->text) : NULL;
+        if (tag)
+            base->name = tag_type_name(tag); /* point is struct point (#29) */
         parse_qualifiers(base);
         if (is_kw(name, "any") && !is_p(peek(), "^"))
             error_at(name->pos, "'any' exists only as 'any^', C's void *");
@@ -654,7 +706,7 @@ static Expr *parse_primary(void) {
                 }
             }
         }
-        if (paren_type_ahead()) {
+        if (paren_type_ahead(false)) {
             /* (T)v is C's cast, not Kelvin's */
             advance();
             parse_type_in(TYPE_PAREN);
@@ -710,7 +762,9 @@ static Expr *parse_unary(void) {
     if (is_p(t, "*"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
     if (accept_kw("sizeof")) {
-        if (paren_type_ahead()) {
+        if (tag_name_ahead(peek(), true))
+            error_at(peek()->pos, "sizeof a type needs parentheses: sizeof(%s)", peek()->text);
+        if (paren_type_ahead(true)) {
             Token *open = advance();
             Type *type = parse_type();
             expect_p(")");
@@ -1311,15 +1365,19 @@ static Type *inferred_type(Expr *e, Pos pos) {
 
 /* name: type [= init], or (for variables) name = init with the type
    inferred from init */
-static Var *parse_var(bool with_init) {
+static Var *parse_var(bool with_init, int let) {
     Var *v = xcalloc(1, sizeof *v);
     v->pos = peek()->pos;
     v->name = expect_ident("a name");
     char *what = strfmt("'%s'", v->name);
     if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
         Token *op = advance();
+        /* in scope from here, as in C, so the initializer sees it, as in
+           `let point: i16 = sizeof(point)`; its type is filled in below */
+        declare_binding(v->name, NULL, let);
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
+        scope_types.data[scope_types.len - 1] = v->type;
         if (!v->type)
             error_at(v->pos,
                      "'%s' needs a type: write '%s: T = ...' (or '%s: T := ...' for a reference); only literals, "
@@ -1330,6 +1388,8 @@ static Var *parse_var(bool with_init) {
     }
     expect_p(":");
     v->type = parse_type();
+    if (with_init) /* a declaration: in scope before its initializer */
+        declare_binding(v->name, v->type, let);
     if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
         Token *op = advance();
         check_assign_op(op->text, v->type, what, op->pos, NULL);
@@ -1343,12 +1403,11 @@ static Var *parse_var(bool with_init) {
    except in an extern declaration. */
 static void parse_var_list(List *out, bool is_let, const char *storage) {
     do {
-        Var *v = parse_var(true);
+        Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it */
         v->is_let = is_let;
         if (is_let && !v->init && !(storage && !strcmp(storage, "extern")))
             error_at(v->pos, "a let needs a value: write 'let %s = ...', or 'var %s' if it changes later", v->name,
                      v->name);
-        declare_binding(v->name, v->type, is_let ? LET_VALUE : LET_NONE);
         list_push(out, v);
     } while (accept_p(","));
 }
@@ -1517,7 +1576,8 @@ static void reject_bare_declaration(int i) {
     if (toks[i].kind != TK_IDENT || !is_p(&toks[i + 1], ":"))
         return;
     Token *t = &toks[i + 2];
-    if (!is_base_word(t) && !is_qualifier(t) && !is_kw(t, "struct") && !is_kw(t, "union") && !is_kw(t, "enum"))
+    if (!is_base_word(t) && !is_qualifier(t) && !is_kw(t, "struct") && !is_kw(t, "union") && !is_kw(t, "enum") &&
+        !tag_name_ahead(t, false))
         return;
     int end = type_shape_end(i + 2);
     if (end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
@@ -1768,11 +1828,11 @@ static Stmt *parse_stmt(void) {
     }
     reject_c_declaration();
     bool call_like = is_converter(t) && is_p(peek2(), "(");
-    if (!call_like && starts_type(t)) {
+    if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";
         if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)
             example = strfmt("%s %s", t->text, peek2()->text);
-        else if (is_base_word(t) && !is_kw(t, "any"))
+        else if ((is_base_word(t) && !is_kw(t, "any")) || t->kind == TK_IDENT)
             example = t->text;
         error_at(pos, "declarations are written 'var name: type', as in 'var x: %s'", example);
     }
@@ -1809,7 +1869,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
             break;
         }
         bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
-        Var *p = parse_var(false);
+        Var *p = parse_var(false, LET_NONE);
         p->is_let = !mutable;
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
@@ -1863,7 +1923,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
             break;
         }
         bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
-        Var *p = parse_var(false);
+        Var *p = parse_var(false, LET_NONE);
         p->is_let = !mutable;
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
@@ -1902,7 +1962,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                     break;
             } else {
                 do
-                    list_push(&d->members, parse_var(false));
+                    list_push(&d->members, parse_var(false, LET_NONE));
                 while (accept_p(","));
                 expect_p(";");
             }

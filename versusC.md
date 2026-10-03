@@ -33,6 +33,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `static int g(void);` | `static g(): i32;` |
 | `int main(int argc, char **argv)` | `main(argc: i32, argv: u8^^): i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32; };` |
+| `struct p q;`, `typedef struct p p;` | `var q: p;` (a tag is a type by its bare name, #29) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next;` (no `++`, #26) |
@@ -89,6 +90,18 @@ static var calls: i32;
   `f(int)` is not available yet.
 - **Struct and union members** are written `name: type;`, with no
   keyword: `struct p { x: i32; y: i32; };` *(provisional P8)*.
+- **A struct, union or enum is a type by its bare name** (#29), as if C
+  had `typedef struct point point;`: `var p: point;`, `next: node^` inside
+  `struct node`, `sizeof(point)`, `(point){1, 2}`, `c: color` for
+  `enum color`. `struct point` still works too. kelvinc resolves the name
+  itself and writes `struct point` in the C, so a variable or function
+  may share the name; in an expression the name is that variable, from
+  its own declarator on, as in C. In `sizeof(name)`, a function of the
+  same name does not count (`sizeof(node)` inside a constructor `node()`
+  is the struct's size). A struct from a C header has a bare name once
+  Kelvin declares it, as in `struct timespec;`, but in `sizeof` write
+  `sizeof(struct timespec)`, since headers give such names to functions
+  and variables too (`stat`, `timezone`) *(provisional P41)*.
 - **Storage classes** go in front: `static f(): i32`, `static var n: i32`,
   `extern var e: i32` *(provisional P9)*.
 - There is no C-style declaration. `int x;` is an error, and so is `int`
@@ -200,7 +213,7 @@ buffer[0] = 42;                         // a value, through the reference
 var p: i32^ := &x;                      // typed declarations too
 p := &y;                                // reassigning the reference
 p^ = 7;                             // assigning the value it refers to
-for (var n: struct node^ := list; n != nullptr; n := n^.next) { ... }
+for (var n: node^ := list; n != nullptr; n := n^.next) { ... }
 ```
 
 - `=` on a reference and `:=` on a value are errors, wherever kelvinc can
@@ -315,7 +328,7 @@ like C's `(int)TOTAL`, converts only the `1.5`.
 
 Compound literals are not casts, and they work as in C for any type,
 including typedef names with suffixes, and under `sizeof`:
-`(struct point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`,
+`(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`,
 `(size_t[2]){1, 2}`, `sizeof (i32[3]){1, 2, 3}` *(provisional P19)*.
 
 ## Statements
@@ -466,7 +479,7 @@ f64.half(): f64 { return self / 2; }
 
 main(): i32
 {
-    let p: struct point = {3, 4};
+    let p: point = {3, 4};
     println(p.dist2(), " ", p.cstr, " ", 3.0.half());  // 25 {x: 3, y: 4} 1.5
     return 0;
 }
@@ -498,7 +511,7 @@ Properties are written without parentheses:
 ```kelvin
 let c: i32 = 42;
 let b: u8 = 255;
-let p: struct point = {3, 4};
+let p: point = {3, 4};
 println(c.size, " ", c.cstr, " ", p.cstr);          // 4 42 {x: 3, y: 4}
 println(c.dec, " ", c.hex, " ", c.bin);              // +42 +0x2a +0b101010
 println(b.dec, " ", b.hex, " ", b.oct);              // 255 0xff 0o377

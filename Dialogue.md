@@ -1034,3 +1034,42 @@ README, and are fixed:
 The 2 rejected: the runner ignores stderr, as its header says, and
 `primes.k`'s expected line ends in a space, as several older tests do.
 There are 190 tests.
+
+### 42. Struct, union and enum names without the keyword
+
+> struct st and union un are auto-typedef'd so you don't have to add
+> structand unionwhen you use them
+
+**Claude** asked two questions. The answers:
+
+| Question | Answer |
+|----------|--------|
+| Enums too? | Yes, as in C++ |
+| May `struct point` still be written? | Yes, both forms |
+
+**Claude** implemented #29: kelvinc reads a bare tag name as the tag
+wherever a type is read, including inside the struct itself
+(`next: node^`), in `sizeof(point)` and in `(point){1, 2}`, and writes
+`struct point` in the C. No C typedef is emitted, so a variable or
+function may share the name. Its choices are provisional P41. The
+examples, the README's first example and versusC.md's samples now use
+the bare names. There are 192 tests.
+
+The review of #29 confirmed 6 findings, 5 of them distinct, and
+rejected none. All were about a bare name where an expression could
+stand too, and are fixed:
+
+- **A constructor named like its struct.** With `node(v: i64): node^`,
+  `sizeof(node)` meant the function, which C sizes as 1 byte, so
+  `malloc(sizeof(node))` under-allocated. In `sizeof`, a function of the
+  tag's name no longer counts.
+- **Header names.** After `struct timezone;`, the header's variable
+  `timezone` became the struct in `(timezone)` and `sizeof(timezone)`.
+  A struct only declared in Kelvin now leaves its name to C there.
+- **A variable's own initializer.** `let point: i16 = sizeof(point)` read
+  the tag, and `let p: node^ := malloc(sizeof(p^))` allocated a pointer's
+  size. A variable is now in scope from its declarator, as in C.
+- **Hints.** `point^ p;` and `sizeof point` lost Kelvin's hints, and
+  Design.md still listed tags as unchanged from C.
+
+There are 195 tests.

@@ -59,6 +59,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 26 | Assignment is a statement; `++` and `--` are gone; pointers step with `.next` and `.prev` | `*p++ = *q++;`, `a = b = 0;` | `p^ = q^; p := p.next; q := q.next;`, `a = 0, b = 0;` | 2026-10-03 |
 | 27 | `let` and `var` declare, with the type after the name: a `let` never changes (C's `const`); parameters are lets unless written `var`; a plain `x = v` only assigns | `const int k = 42; int n = 0;` | `let k = 42; var n: i32 = 0;`, `f(var p: u8^)` | 2026-10-03 |
 | 28 | Ranges: `for i in a..<b { }` and `for i in a...b { }`, with `i` a `let` | `for (int i = 0; i < n; i++)` | `for i in 0..<n { ... }` | 2026-10-03 |
+| 29 | A `struct`, `union` or `enum` is a type by its bare name, as if typedef'd | `typedef struct point point;`, `struct point p;` | `var p: point;` | 2026-10-03 |
 
 Notes:
 
@@ -264,6 +265,10 @@ Notes:
   bounds (or is written, `for i: u8 in ...`), and ranges exist only in
   `for` for now. C's `for (...)` stays, written `for (var i = 0; ...)`.
 
+- (29) Agreed details: `struct st` and `union un` are "auto-typedef'd", so
+  `st` and `un` are types without the keyword; the user chose to include
+  enums, as C++ does, and to keep `struct point` working as well.
+
 - (19) Agreed details: the user's example `buffer := malloc(8 * 1024):i64`
   was a typo for `:i64^`, and `v:T` keeps meaning `v as T`.
   - Declarations of references use `:=` too (`p: i32^ := &x`, or
@@ -342,6 +347,7 @@ all. None of them has been explicitly agreed yet.
 | P38 | Details of #26 | `x = 1, y = 2;`, `for (...; ...; i += 1, p := p.next)`, `n := n^.next` | A comma list of assignments is allowed at the top of any expression statement, not just in a `for` clause, and runs left to right. (Before #27 each item could declare or assign on its own; since #27 a list either declares, after `let` or `var`, or assigns.) `p.next` is `(p + 1)` and `p.prev` is `(p - 1)` for a pointer whose type kelvinc sees, including results of Kelvin functions; `.next` of an array is an error that suggests `&a[1]`, and `any^` has no `.next`. On anything else `.next` is a field (a struct, a C type kelvinc cannot see). `p += 1` stays. The comma operator stays for expressions that do not assign. A statement such as `a || f();` is still allowed, and gcc `-Wall` calls its value unused |
 | P39 | Details of #27 | `let p: i32^ := &x;` is `int32_t *const p`; `let a: i32[2] = {1, 2};` is `const int32_t a[2]`; `f(n: i32)` is `void f(const int32_t n)` where defined | A let names a value that cannot change through it: a let struct's fields and a let array's elements cannot be assigned, while a let pointer's target can. kelvinc reports assignments to lets it can see (names, their fields, elements of let arrays), and the C compiler enforces the rest through `const`. A let needs a value except in an `extern` declaration. Let parameters are `const` only in a function's definition (C ignores top-level `const` in prototypes), and an array parameter becomes the `const` pointer C makes of it; a parameter of a C typedef kelvinc cannot see gets no `const`, since the typedef may be an array (`jmp_buf`), and kelvinc alone checks it. Taking `&` of a let gives a `const` pointer, so storing it in a plain pointer is a C warning (discarded qualifiers). `x: i32 = 0;` without `let` or `var`, when the type starts with a type word, is an error with a hint; `again: n = 0;` is a label, as in C. C-style declarations get `var name: type` as their hint |
 | P40 | Details of #28 | `for i in 0..<n { }` is `for (int64_t kv_i1 = 0, kv_end1 = n; kv_i1 < kv_end1; kv_i1++) { const int64_t i = kv_i1; ... }` | The bounds are evaluated once, before the loop. A closed range steps with a flag, so `for b: u8 in 250...255` ends instead of wrapping, and `continue` works in both. A bound is parsed down to the shifts (`0..<n - 1` is `0..<(n - 1)`). The loop variable's type is written, or is the upper bound's type if kelvinc sees it, else the lower one's, else `i64`, without `const` or `volatile` (the counter must change); both bounds and a written type must be integers. `for _ in ...` declares no variable, since C warns about an unused one. `in` is a keyword only after `for name`, so C names called `in` still work |
+| P41 | Details of #29 | `var p: point;` is `struct point p;`; `sizeof(point)`; `var point: point;` | kelvinc resolves a bare tag name to `struct point` (or `union`/`enum`) wherever a type is read (after `:`, `as`, in compound literals), and writes the long form in the C: no C typedef is emitted, so a variable or function of the same name is fine. A tag declared so far counts, so a struct's members may name it (`next: node^`), as may a C struct that Kelvin declares (`struct timespec;`); a Kelvin tag hides a C typedef of the same name from a header. Where an expression could stand too, in `sizeof(name)` and `(name)...`: a Kelvin variable of that name wins (`sizeof(point)` after `var point: point` is the variable's size), from its own declarator on, as in C (`let p: node^ := malloc(sizeof(p^))`); a Kelvin function of that name wins too, except in `sizeof`, where a function's size is never meant (`node(v)` as a constructor and `sizeof(node)`); and a struct only declared in Kelvin (`struct timezone;`) is left to C there, because headers give such names to functions and variables too (`stat`, `timezone`), so `sizeof(struct timezone)` names the struct. C habits get the usual hints: `p: point = ...` (no `let`/`var`), `point^ p;`, `sizeof point` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -382,7 +388,8 @@ These are everything else: operator precedence (including `==` binding
 tighter than `&`), implicit conversions, integer promotion (to C's `int`,
 which is `i32` on every supported target), the comma operator,
 `?:` (with a `bool` condition, #23), `for`/`switch`/`goto`, compound literals, designated initializers, arrays that
-decay to pointers, declare-before-use, `struct`/`union`/`enum` tags, and all
+decay to pointers, declare-before-use, `struct`/`union`/`enum` tags (also
+types by their bare name since #29), and all
 undefined behavior.
 
 ## TODO (C features not yet expressible in Kelvin)

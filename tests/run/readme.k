@@ -3,14 +3,14 @@
 
 struct node {
     value: i32;
-    next: struct node^;
+    next: node^;
 };
 
-sum(var n: struct node^): i32       // n may move; parameters are lets otherwise
+sum(var n: node^): i32      // n may move; parameters are lets otherwise
 {
     var total: i32 = 0;
     while n != nullptr {
-        total += n^.value;              // C: n->value
+        total += n^.value;      // C: n->value
         n := n^.next;
     }
     return total;
@@ -18,9 +18,9 @@ sum(var n: struct node^): i32       // n may move; parameters are lets otherwise
 
 main(): i32
 {
-    var c: struct node = {3, nullptr};
-    var b: struct node = {2, &c};
-    var a: struct node = {1, &b};
+    var c: node = {3, nullptr};
+    var b: node = {2, &c};
+    var a: node = {1, &b};
     println(sum(&a));
     return 0;
 }

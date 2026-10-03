@@ -5,20 +5,20 @@
 let PI = 3.141592653589793;
 
 struct point { x: f64; y: f64; };
-struct circle { center: struct point; radius: f64; };
-struct rect { corner: struct point; width: f64; height: f64; };
+struct circle { center: point; radius: f64; };
+struct rect { corner: point; width: f64; height: f64; };
 
-point.distance(to: struct point): f64
+point.distance(to: point): f64
 {
     return hypot(to.x - self.x, to.y - self.y);
 }
 
 circle.area(): f64 { return PI * self.radius * self.radius; }
-circle.contains(p: struct point): bool { return self.center.distance(p) <= self.radius; }
+circle.contains(p: point): bool { return self.center.distance(p) <= self.radius; }
 rect.area(): f64 { return self.width * self.height; }
 
 // self is a mutable copy: moving it here leaves the caller's rect alone
-rect.moved(dx: f64, dy: f64): struct rect
+rect.moved(dx: f64, dy: f64): rect
 {
     self.corner.x += dx;
     self.corner.y += dy;
@@ -27,13 +27,13 @@ rect.moved(dx: f64, dy: f64): struct rect
 
 main(): i32
 {
-    let origin: struct point = {0, 0};
-    let c: struct circle = {origin, 2};
-    let r: struct rect = {{1, 1}, 3, 4};
+    let origin: point = {0, 0};
+    let c: circle = {origin, 2};
+    let r: rect = {{1, 1}, 3, 4};
     println(c.cstr);
     println(r.cstr, " moved: ", r.moved(2, 0).cstr);
     println("areas ", c.area(), " and ", r.area());
-    let p: struct point = {1, 1.5};
+    let p: point = {1, 1.5};
     println(p.cstr, " is ", origin.distance(p), " from the origin, inside: ", c.contains(p));
     return 0;
 }

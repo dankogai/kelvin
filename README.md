@@ -14,14 +14,14 @@ one.
 
 struct node {
     value: i32;
-    next: struct node^;
+    next: node^;
 };
 
-sum(var n: struct node^): i32       // n may move; parameters are lets otherwise
+sum(var n: node^): i32      // n may move; parameters are lets otherwise
 {
     var total: i32 = 0;
     while n != nullptr {
-        total += n^.value;              // C: n->value
+        total += n^.value;      // C: n->value
         n := n^.next;
     }
     return total;
@@ -29,6 +29,8 @@ sum(var n: struct node^): i32       // n may move; parameters are lets otherwise
 ```
 
 So far the changes from C are:
+- structs, unions and enums are types by their bare name: `var p: point;`
+  for `struct point`
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42;`, `var n: i32 = 0;`; the type follows the name, and
   functions are `add(a: i64, b: i64): i64`, whose parameters are lets
