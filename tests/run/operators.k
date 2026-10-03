@@ -1,8 +1,7 @@
-printf(fmt: const u8^, ...): i32;
+printf(fmt:const u8^, ...):i32;
 
-main(): i32
-{
-    var a: u32 = 12, b: u32 = 10;
+main():i32 {
+    var a:u32 = 12, b:u32 = 10;
     printf("%u %u %u\n", a & b, a | b, a ~ b);   // ~ is XOR
     printf("%u\n", ~a & 0xff);                    // unary ~ is still NOT
     a ~= b;                                        // XOR-assign
@@ -12,15 +11,15 @@ main(): i32
     printf("%d\n", 6 & (3 == 3));  // what `6 & 3 == 3` means in C and Kelvin
     printf("%d\n", (6 & 3) == 2);
 
-    var i: i32 = 5;
-    var j: i32 = i;                 // no ++ or -- (#26)
+    var i:i32 = 5;
+    var j:i32 = i;                 // no ++ or -- (#26)
     i += 2;
-    var k: i32 = i;
+    var k:i32 = i;
     printf("%d %d %d\n", j, k, -(-i));
     printf("%d\n", i > 3 ? 1 : 0);
     printf("%ld\n", i64(sizeof(i64)) * 0 + 1);
 
-    var x: i32 = 0;
+    var x:i32 = 0;
     x = 1, x += 2;
     printf("%d\n", x);
     printf("%d %d\n", 7 / 2, 7 % 3);

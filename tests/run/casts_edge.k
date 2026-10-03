@@ -2,16 +2,15 @@
 #import <stdio.h> as C
 #import <stdlib.h> as C
 
-twice(v: i32): i32 { return v * 2; }
+twice(v:i32):i32 { return v * 2; }
 
-main(): i32
-{
-    var x: i32 = 3;
-    var n: size_t = 2;
+main():i32 {
+    var x:i32 = 3;
+    var n:size_t = 2;
 
     // `*` after the type of `as` is multiplication
     printf("%d\n", x as i64 * 2 == 6);
-    var r: i32^ := malloc(n as size_t * sizeof(i32)) as i32^;
+    var r:i32^ := malloc(n as size_t * sizeof(i32)) as i32^;
     r[1] = 7;
     printf("%d\n", r[1]);
     free(r as any^);
@@ -20,7 +19,7 @@ main(): i32
     u8(x) == 0 ? println("zero") : println("not zero");
 
     // compound literals: built-in types, typedef names, and under sizeof
-    var d: div_t = (div_t){.quot = 3, .rem = 1};
+    var d:div_t = (div_t){.quot = 3, .rem = 1};
     printf("%d %d\n", d.quot, d.rem);
     printf("%d\n", i32(sizeof (i32[3]){1, 2, 3}));
     printf("%d\n", (i32[2]){5, 6}[1]);

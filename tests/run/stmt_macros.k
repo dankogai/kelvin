@@ -3,9 +3,8 @@
 #import <assert.h> as C
 #import "include/stmt_macros.h" as C
 
-main(): i32
-{
-    var x: i32 = 1, y: i32 = 2;
+main():i32 {
+    var x:i32 = 1, y:i32 = 2;
     SWAP(x, y);
     LOG(x);
     CHECK(x == 1);

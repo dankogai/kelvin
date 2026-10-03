@@ -1,2 +1,2 @@
 // error: 'void' is not a Kelvin type; use any^ for C's void *; a function without a result omits ': type'
-f(): void {}
+f():void {}

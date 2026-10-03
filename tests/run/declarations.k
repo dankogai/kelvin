@@ -3,13 +3,12 @@
 #import <stddef.h> as C
 #import <unistd.h> as C
 
-extern var optind: i32;             // a C global, declared so Kelvin knows it
+extern var optind:i32;             // a C global, declared so Kelvin knows it
 
 var total = 0;                      // a global, inferred i64
 
-main(): i32
-{
-    var x: i32 = 5;                 // explicit type
+main():i32 {
+    var x:i32 = 5;                 // explicit type
     var i = 42;                     // not declared yet: declares i: i64
     var u = 0xdead:u16;             // u: u16
     var w = 0xdead as u16;          // the same
@@ -33,10 +32,10 @@ main(): i32
     var k = 10;                     // so this declares a new k
     printf("%d %d\n", i32(total), i32(k));
 
-    var a: i32 = 1, b = 2;          // b is inferred
-    var big: u64 = 1:u64 << 40;     // a typed literal instead of 1UL
-    var flag: bool = true;
-    var t: u8 = flag ? 1:u8 : 2:u8; // annotations inside a ternary
+    var a:i32 = 1, b = 2;          // b is inferred
+    var big:u64 = 1:u64 << 40;     // a typed literal instead of 1UL
+    var flag:bool = true;
+    var t:u8 = flag ? 1:u8 : 2:u8; // annotations inside a ternary
     printf("%d %d %d %d\n", a, i32(b), i32(big >> 40), t);
 
     optind = 1;                 // assigns the C global

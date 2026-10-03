@@ -1,5 +1,4 @@
 // error: malformed number '12ab'
-f()
-{
+f() {
     x = 12ab;
 }

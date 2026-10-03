@@ -4,8 +4,7 @@
 #import <string.h> as C
 
 // count the vowels by walking the string
-vowels(var s: cstr): i64        // var: this copy of the pointer moves
-{
+vowels(var s:cstr):i64 {        // var: this copy of the pointer moves
     var n = 0;
     while s^ != 0 {
         if strchr("aeiouAEIOU", s^) != nullptr {
@@ -17,15 +16,14 @@ vowels(var s: cstr): i64        // var: this copy of the pointer moves
 }
 
 // reverse in place: two pointers meet in the middle
-reverse(s: cstr)
-{
+reverse(s:cstr) {
     if strlen(s) == 0 {
         return;
     }
-    var lo: cstr := s;
-    var hi: cstr := s + strlen(s) - 1;
+    var lo:cstr := s;
+    var hi:cstr := s + strlen(s) - 1;
     while lo < hi {
-        let c: u8 = lo^;
+        let c:u8 = lo^;
         lo^ = hi^;
         hi^ = c;
         lo := lo.next;
@@ -33,9 +31,8 @@ reverse(s: cstr)
     }
 }
 
-main(): i32
-{
-    var buf: u8[32];
+main():i32 {
+    var buf:u8[32];
     strcpy(buf, "Hello, Kelvin");
     println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels");
     reverse(buf);
@@ -45,7 +42,7 @@ main(): i32
     }
     println(buf);
 
-    let answer: i32 = 42;
+    let answer:i32 = 42;
     println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:u8).oct);
     return 0;
 }

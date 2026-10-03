@@ -2,9 +2,8 @@
 #import "include/blob.h" as C
 #import "include/bits.h" as C
 
-main(): i32
-{
-    var b: struct blob = make_blob();
+main():i32 {
+    var b:struct blob = make_blob();
     println(b.size, " ", b.hex, " ", b.size.dec);
     b.size = 9;
     println(make_blob().size, " ", b.size);

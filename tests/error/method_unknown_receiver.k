@@ -1,2 +1,2 @@
 // error: 'shape' is not a struct or union declared before this method
-shape.area(): f64 { return 0.0; }
+shape.area():f64 { return 0.0; }

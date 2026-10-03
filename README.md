@@ -13,13 +13,12 @@ one.
 #import <stdio.h> as C
 
 struct node {
-    value: i32;
-    next: node^;
+    value:i32;
+    next:node^;
 };
 
-sum(var n: node^): i32      // n may move; parameters are lets otherwise
-{
-    var total: i32 = 0;
+sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
+    var total:i32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
         n := n^.next;
@@ -29,11 +28,11 @@ sum(var n: node^): i32      // n may move; parameters are lets otherwise
 ```
 
 So far the changes from C are:
-- structs, unions and enums are types by their bare name: `var p: point;`
+- structs, unions and enums are types by their bare name: `var p:point;`
   for `struct point`
 - variables are declared with `let`, which never changes (C's `const`), or
-  `var`: `let k = 42;`, `var n: i32 = 0;`; the type follows the name, and
-  functions are `add(a: i64, b: i64): i64`, whose parameters are lets
+  `var`: `let k = 42;`, `var n:i32 = 0;`; the type follows the name, and
+  functions are `add(a:i64, b:i64):i64`, whose parameters are lets
   unless written `var`
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
@@ -49,7 +48,7 @@ So far the changes from C are:
   `0xdead:u16`
 - `print()` and `println()` come from a small prelude in `libkelvin`, so
   `println("n = ", n)` works for any type with no import
-- every type can have methods, such as `point.area(): f64 { ... }`
+- every type can have methods, such as `point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
   (derived for structs, as `{x: 3, y: 4}`), where `cstr` is `u8^`;
   `toString()` waits for a true string type
@@ -66,8 +65,9 @@ So far the changes from C are:
   `for i in 1...n { ... }`, where `i` is a `let`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
-[Design.md](Design.md) for the design decisions, and
-[Dialogue.md](Dialogue.md) for how they were made.
+[Design.md](Design.md) for the design decisions,
+[Dialogue.md](Dialogue.md) for how they were made, and
+[Style.md](Style.md) for how Kelvin code is written.
 
 ## Examples
 

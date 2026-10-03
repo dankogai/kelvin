@@ -4,18 +4,17 @@
 #import <stdlib.h> as C
 
 struct node {
-    value: i64;
-    next: node^;        // a field, read as n^.next (n.next would be n + 1)
+    value:i64;
+    next:node^;        // a field, read as n^.next (n.next would be n + 1)
 };
 
 struct list {
-    head: node^;
-    length: i64;
+    head:node^;
+    length:i64;
 };
 
 // add a value at the front
-push(l: list^, value: i64)
-{
+push(l:list^, value:i64) {
     let n := malloc(sizeof(node)) as node^;
     if n == nullptr {
         exit(1);
@@ -27,10 +26,9 @@ push(l: list^, value: i64)
 }
 
 // remove the front value; the list must not be empty
-pop(l: list^): i64
-{
-    let first: node^ := l^.head;
-    let value: i64 = first^.value;
+pop(l:list^):i64 {
+    let first:node^ := l^.head;
+    let value:i64 = first^.value;
     l^.head := first^.next;
     l^.length -= 1;
     free(first);
@@ -38,12 +36,11 @@ pop(l: list^): i64
 }
 
 // reverse the list in place by turning each link around
-reverse(l: list^)
-{
-    var done: node^;    // a reference starts as nullptr
-    var rest: node^ := l^.head;
+reverse(l:list^) {
+    var done:node^;    // a reference starts as nullptr
+    var rest:node^ := l^.head;
     while rest != nullptr {
-        let next: node^ := rest^.next;
+        let next:node^ := rest^.next;
         rest^.next := done;
         done := rest;
         rest := next;
@@ -52,25 +49,22 @@ reverse(l: list^)
 }
 
 // free every node
-clear(l: list^)
-{
+clear(l:list^) {
     while l^.head != nullptr {
         pop(l);
     }
 }
 
-list.sum(): i64
-{
+list.sum():i64 {
     var total = 0;
-    for (var n: node^ := self.head; n != nullptr; n := n^.next) {
+    for (var n:node^ := self.head; n != nullptr; n := n^.next) {
         total += n^.value;
     }
     return total;
 }
 
-list.contains(value: i64): bool
-{
-    var n: node^ := self.head;
+list.contains(value:i64):bool {
+    var n:node^ := self.head;
     while n != nullptr {
         if n^.value == value {
             return true;
@@ -81,10 +75,9 @@ list.contains(value: i64): bool
 }
 
 // print the values as [1 -> 4 -> 9]
-list.show()
-{
+list.show() {
     print("[");
-    var n: node^ := self.head;
+    var n:node^ := self.head;
     while n != nullptr {
         print(n^.value);
         if n^.next != nullptr {
@@ -95,9 +88,8 @@ list.show()
     println("] (", self.length, " values)");
 }
 
-main(): i32
-{
-    var squares: list = {nullptr, 0};
+main():i32 {
+    var squares:list = {nullptr, 0};
     for i in 1...5 {
         push(&squares, i * i);
     }

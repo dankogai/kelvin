@@ -3,10 +3,9 @@
 #import <string.h> as C
 
 var evaluations = 0;
-limit(n: i64): i64 { evaluations += 1; return n; }
+limit(n:i64):i64 { evaluations += 1; return n; }
 
-main(): i32
-{
+main():i32 {
     for i in 0..<3 {
         print(i, " ");
     }
@@ -23,7 +22,7 @@ main(): i32
     for i in 0..<limit(4) {
         sum += i;
     }
-    let s: cstr := "kelvin";
+    let s:cstr := "kelvin";
     var count = 0;
     for _ in 0..<strlen(s) {
         count += 1;
@@ -31,9 +30,9 @@ main(): i32
     println(sum, " ", evaluations, " ", count);
 
     // a closed range up to the type's maximum ends
-    var last: u8 = 0;
+    var last:u8 = 0;
     var steps = 0;
-    for b: u8 in 250...255 {
+    for b:u8 in 250...255 {
         last = b;
         steps += 1;
     }

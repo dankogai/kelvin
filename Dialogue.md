@@ -1073,3 +1073,32 @@ stand too, and are fixed:
   Design.md still listed tags as unchanged from C.
 
 There are 195 tests.
+
+### 43. A style guide
+
+> style guide. functions should be
+>
+>     f(...):T {
+>       ...
+>     }
+>
+> like other blocks.
+
+**Claude** asked about two details of the snippet that differed from
+the code in the repository. The answers:
+
+| Question | Answer |
+|----------|--------|
+| Indent by 2 spaces, as in the snippet, or 4, as now? | 4 spaces |
+| `f(...):T` without a space after the colon, or `f(...): T` as now? | No space |
+
+**Claude** wrote `Style.md` and applied it everywhere Kelvin code
+appears: a function's `{` on its header line, and no space after a type's
+colon (`x:i32`, `f(a:i64):i64 {`). The tests and examples were
+reformatted with kelvinc itself reporting where each type's colon is, so
+labels, `case`, `?:`, strings and expected output kept their spaces; six
+error tests that name a line moved up by one. kelvinc's hints now
+suggest code in the same style (`var x:i32`), and the samples in the
+README, versusC.md and Design.md follow it too. This file keeps the
+earlier entries as they were written. There are 195 tests.
+

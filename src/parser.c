@@ -1245,7 +1245,7 @@ static Expr *parse_assign(void) {
             const char *let = let_target(lhs);
             if (let && let_kind(let) == LET_RANGE)
                 error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
-                                 "'var k: %s = %s;'", let, kelvin_type(lookup_type(let)), let);
+                                 "'var k:%s = %s;'", let, kelvin_type(lookup_type(let)), let);
             if (let && let_kind(let) == LET_PARAM)
                 error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                          let, let);
@@ -1380,7 +1380,7 @@ static Var *parse_var(bool with_init, int let) {
         scope_types.data[scope_types.len - 1] = v->type;
         if (!v->type)
             error_at(v->pos,
-                     "'%s' needs a type: write '%s: T = ...' (or '%s: T := ...' for a reference); only literals, "
+                     "'%s' needs a type: write '%s:T = ...' (or '%s:T := ...' for a reference); only literals, "
                      "bools and values written 'v:T', 'v as T' or 'T(v)' have a type Kelvin can infer",
                      v->name, v->name, v->name);
         check_assign_op(op->text, v->type, what, op->pos, v->init);
@@ -1520,14 +1520,14 @@ static void reject_c_declaration(void) {
     const char *name = toks[name_at].text;
     if (block)
         error_at(pos, "'%s ~ %s' as a statement would be read by C as a block-pointer declaration; "
-                      "declarations are written 'var name: type'", type, name);
+                      "declarations are written 'var name:type'", type, name);
     char *quals = strfmt("%s%s", base_const ? "const " : "", base_volatile ? "volatile " : "");
     if (function_pointer)
         error_at(pos, "'%s' looks like a C function-pointer declaration; function pointer types are not "
                       "available in Kelvin yet", name);
     if (function)
-        error_at(pos, "functions are declared at the top level as '%s(...): %s%s%s'", name, quals, type, suffix.buf);
-    error_at(pos, "declarations are written 'var name: type', as in '%s%svar %s: %s%s%s%s'", storage ? storage : "",
+        error_at(pos, "functions are declared at the top level as '%s(...):%s%s%s'", name, quals, type, suffix.buf);
+    error_at(pos, "declarations are written 'var name:type', as in '%s%svar %s:%s%s%s%s'", storage ? storage : "",
              storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
 }
 
@@ -1582,7 +1582,7 @@ static void reject_bare_declaration(int i) {
     int end = type_shape_end(i + 2);
     if (end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
                      is_p(&toks[end], ",")))
-        error_at(toks[i].pos, "declarations start with let or var: write 'var %s: ...', or 'let %s: ...' if it "
+        error_at(toks[i].pos, "declarations start with let or var: write 'var %s:...', or 'let %s:...' if it "
                               "never changes",
                  toks[i].text, toks[i].text);
 }
@@ -1834,7 +1834,7 @@ static Stmt *parse_stmt(void) {
             example = strfmt("%s %s", t->text, peek2()->text);
         else if ((is_base_word(t) && !is_kw(t, "any")) || t->kind == TK_IDENT)
             example = t->text;
-        error_at(pos, "declarations are written 'var name: type', as in 'var x: %s'", example);
+        error_at(pos, "declarations are written 'var name:type', as in 'var x:%s'", example);
     }
     Stmt *s = new_stmt(S_EXPR, pos);
     s->expr = parse_assignments();
@@ -2025,7 +2025,7 @@ Program *parse(Token *tokens, int ntoks) {
         } else if (!storage && accept_kw("enum")) {
             list_push(&prog->decls, parse_record(t->pos, D_ENUM));
         } else {
-            error_at(peek()->pos, "expected a declaration (name(...): type, let or var name, struct, union, enum), found %s", desc(peek()));
+            error_at(peek()->pos, "expected a declaration (name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
     return prog;

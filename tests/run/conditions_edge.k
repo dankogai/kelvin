@@ -1,10 +1,9 @@
 // regressions from the review of #23-#26
-struct point { x: i32; y: i32; };
-f(): i32 { return 1; }
-isodd(n: i32): bool { return n % 2 == 1; }
+struct point { x:i32; y:i32; };
+f():i32 { return 1; }
+isodd(n:i32):bool { return n % 2 == 1; }
 
-main(): i32
-{
+main():i32 {
     // ?: between two bools kelvinc sees is a bool, not C's int
     var c = true;
     var x = true;
@@ -18,7 +17,7 @@ main(): i32
     println(b, " ", z);
 
     // sizeof(T) and a compound literal before a condition's {
-    var n: u64 = 16;
+    var n:u64 = 16;
     if n > sizeof(i64) {
         println("big");
     }
@@ -30,7 +29,7 @@ main(): i32
     {
         println("a block of its own");
     }
-    var p: struct point = {1, 2};
+    var p:struct point = {1, 2};
     if p.x == (struct point){1, 2}.x {
         println("compound literal");
     }
