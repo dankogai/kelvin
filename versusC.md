@@ -54,6 +54,8 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `sizeof x` | `x.size` |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
 | `double area(struct shape s)` | `shape.area():f64 { ... self ... }`, called as `s.area()` |
+| `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32;` (#31) |
+| a `static` function written only to be passed | `sort(xs, n) { $0 < $1 }` (an anonymous function, #32) |
 
 ## Declarations
 
@@ -176,6 +178,8 @@ infers the type from the value:
   `bool` result of a Kelvin function or method
 - a value with a written type is that type: `let u = 0xdead:u16;`,
   `let u = 0xdead as u16;` and `let c = u8(300);` are all `u16`/`u8`
+- an anonymous function that writes its parameters is its function type:
+  `let mul := { (a:i64, b:i64):i64 in a * b };` (#32)
 
 Anything else needs a written type, including `let y = x + 1;`,
 `let s = "hi";` and a `bool` from a C function, which kelvinc cannot see
@@ -498,6 +502,100 @@ main():i32 {
   *(provisional P22)*. The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`.
 
+## Function types: `(T, U):R`
+
+A function type is written as a function's head without names (#31), as
+Swift writes `(T, U) -> R`. In C it is a pointer to a function:
+
+```kelvin
+fold(xs:i64^, n:size_t, f:(i64, i64):i64):i64 { ... f(acc, xs[i]) ... }
+pick(product:bool):(i64, i64):i64 { ... }   // returns a function
+
+var f:(i64, i64):i64;      // C: int64_t (*f)(int64_t, int64_t) = 0;
+f := add;                  // a reference: assigned with :=
+let t:() := tick;          // no parameters, no result
+```
+
+- `(T)` has no result, as a function without `:R` has none, and `...`
+  ends a variadic one: `(i32, ...):i64`. The parameters are types
+  without names.
+- A function type is a reference (P32): it is assigned with `:=`, is
+  `nullptr` until assigned, and is compared with `nullptr`
+  (`if f != nullptr`). A `let` one is a `const` pointer.
+- The result takes every suffix after it, so `(i64):i64^` returns a
+  pointer; an array of functions, or a pointer to a function type, has no
+  spelling yet, and kelvinc says so.
+- A Kelvin function's name has its function type, so `let g:(i64):i64 := f;`
+  works, `if f {` asks for a comparison, and `f.size` is a pointer's size.
+  `?:` between functions is a function too.
+- Where kelvinc sees a function, its `.cstr`, `.next` and `.prev`, and
+  `print` or `println` of it (or of `&f`), are errors. In a struct's
+  derived text, a function member is its address.
+- A C function with `char` parameters does not match a Kelvin function
+  type with `u8^` ones: C's `char` and `unsigned char` make incompatible
+  function types, so `let p:(const u8^, ...):i32 := printf;` fails. Wrap
+  it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) };`
+  *(provisional P43)*.
+
+## Anonymous functions: `{ ... }`
+
+An anonymous function is `{ ... }` (#32). It encloses nothing, since C has
+no closures: kelvinc makes it a `static` function of its own, declared
+before the declaration around it and defined after it.
+
+```kelvin
+sort(xs, 8) { $0 < $1 }                 // the last argument, after the call
+sort(xs, 8, { $[0] > $[1] });           // or inside the parentheses
+each(xs, 3) { total += $0 }             // no result: one assignment is fine
+let inc:(i64):i64 := { $0 + 1 };
+qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
+    return strcmp((a as const cstr^)^, (b as const cstr^)^);
+}
+```
+
+- **Its parameters** are `$0`, `$1`, ..., also written `$[0]`, `$[1]`,
+  where kelvinc sees their types: from the parameter of a Kelvin function,
+  method or function value it is passed to, a declared variable, a
+  member of a struct in an initializer list (`{ $0 - $1 }` for a member
+  `sub:(i64, i64):i64`), an assignment's target, or the result of the
+  function it is returned from. Elsewhere, such as for C's `qsort`,
+  whose types kelvinc cannot see, it writes them:
+  `{ (a:T, b:U):R in ... }`. Without either, it has none, as for
+  `atexit() { println("bye") }`. `$[k]` takes a number, and `$` works
+  only in an anonymous function.
+- **In a declaration without a type**, `{` starts an initializer list, so
+  an anonymous function there writes its parameters, even none:
+  `let hi := { () in println("hi") };`. One that writes them may stand
+  anywhere a value may, as in `c ? { (x:i64):i64 in x + 1 } : dec`.
+  In an initializer list, kelvinc follows the members in order and
+  designators of one member; after C's brace elision or `.a.b = ...`, an
+  anonymous function writes its parameters.
+- **A body of one expression** is the result: `{ $0 < $1 }`. Without a
+  result, it may be one assignment. Any other body is statements, with
+  `return`. The text of `.hex` and friends lives in the function's own
+  buffer, so a body that would return it, such as `{ $0.hex }`, is an
+  error.
+- **It encloses nothing:** using a local, a parameter or `self` of the
+  function around it is an error, also in its parameter types; globals,
+  functions and C's names are fine, as are the global it initializes and
+  the ones before it. It may call the function around it. A parameter
+  type that comes from elsewhere keeps its array lengths when they are
+  made of numbers and globals. A length that names another function's
+  local or parameter means something else here: the outer array becomes
+  a pointer, as C makes it, and such a length anywhere else is an error
+  that asks for written parameters.
+- **Trailing:** after a call's `)`, `{ ... }` is the last argument. A
+  statement or declaration that ends with it needs no `;` at the end of a
+  line or before a `}`; another statement on the same line needs one.
+  As in Swift, an operator or `.member` on the next line goes on with
+  the expression, while a `(` there starts the next statement. In the
+  head of `if`, `while` or `for`, where a body follows, a `{` after a call
+  starts the body, so pass the function inside the parentheses there:
+  `if some(xs, { $0 > 3 }) {`. Inside any parentheses, an initializer
+  list, or the condition of `do ... while`, it stays an argument.
+- Written parameters let a declaration infer its type:
+  `let mul := { (a:i64, b:i64):i64 in a * b };` *(provisional P44)*.
+
 ## Methods
 
 Every type can have methods. You define them Swift-style on a struct or
@@ -633,11 +731,13 @@ and stays reserved, as do the method names `toString` and `fmt` (#22).
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true`, `false`, `String`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
-keyword only in `for i in ...`, so C names called `in` still work. It
+keyword only in `for i in ...` and in an anonymous function's
+`{ (a:T) in ... }`, so C names called `in` still work. It
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators
-*(provisional P20)*. `__asm__(...)` and `__attribute__((...))` remain
+*(provisional P20)*. Names starting with `kv_` belong to the C that kelvinc
+writes, so Kelvin cannot declare them *(provisional P44)*. `__asm__(...)` and `__attribute__((...))` remain
 usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
 
 ## Not available yet
@@ -645,8 +745,8 @@ usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
 These are C features without a Kelvin spelling so far:
 
 - `typedef`
-- function pointer types (a Kelvin function can still be passed to C, as in
-  `qsort(p, n, sizeof(i32), cmp)`)
+- an array of functions, or a pointer to a function type: `(i64):i64[4]`
+  is a function returning an array, which C rejects
 - bit-fields
 - unnamed parameters
 - nested or local struct/union/enum definitions
@@ -659,7 +759,6 @@ These are C features without a Kelvin spelling so far:
   them as declarations, and Kelvin cannot tell (see Conversions)
 - `alignof` and `typeof` (reserved C compiler keywords, P20)
 - `__asm__ __volatile__ (...)` (two names in a row; `__asm__(...)` works)
-- function pointer types
 - `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
   (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
   work)

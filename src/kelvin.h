@@ -66,8 +66,9 @@ Token *lex(const char *file, const char *src, int *ntoks);
 /* ---------- AST ---------- */
 
 /* Types are written postfix: `char const^[4]` is an array of four pointers
-   to const char. */
-typedef enum { T_BASE, T_PTR, T_ARRAY } TypeKind;
+   to const char. A function type `(i64, i64):bool` is C's pointer to a
+   function (#31). */
+typedef enum { T_BASE, T_PTR, T_ARRAY, T_FUNC } TypeKind;
 
 typedef struct Expr Expr;
 typedef struct Type Type;
@@ -77,8 +78,11 @@ struct Type {
     Pos pos;
     char *name;       /* T_BASE: "int", "unsigned long", "struct Point" */
     bool is_const, is_volatile;
-    Type *elem;       /* T_PTR, T_ARRAY */
+    Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none) */
     Expr *size;       /* T_ARRAY; NULL for [] */
+    List params;      /* T_FUNC: Type * per parameter */
+    bool variadic;    /* T_FUNC: ends with ... */
+    bool size_local;  /* T_ARRAY: the length names a local or a parameter */
 };
 
 typedef enum {
@@ -100,6 +104,8 @@ typedef enum {
     E_INIT,      /* { ... } initializer list */
     E_METHOD,    /* a.text(items): a method call */
     E_PROPERTY,  /* a.text: size, dec, hex, oct, bin */
+    E_FUNC,      /* an anonymous function (#32): text is the C function
+                    it becomes, type its function type */
 } ExprKind;
 
 struct Expr {
@@ -112,7 +118,7 @@ struct Expr {
     char *text;       /* E_LITERAL, E_IDENT, E_FIELD member name */
     List items;       /* E_STRING pieces, E_CALL args, E_INIT values */
     List designators; /* E_INIT: char * per item (NULL if none) */
-    Type *type;       /* E_CAST, E_COMPOUND, E_SIZEOF_TYPE */
+    Type *type;       /* E_CAST, E_COMPOUND, E_SIZEOF_TYPE, E_FUNC */
 };
 
 typedef struct {
@@ -190,6 +196,7 @@ typedef struct {
     /* D_FN that is a method, e.g. point.area(): f64 */
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
+    bool anon;            /* D_FN: an anonymous function (#32) */
 } Decl;
 
 typedef struct {

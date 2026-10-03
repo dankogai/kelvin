@@ -65,6 +65,10 @@ So far the changes from C are:
   `for i in 1...n { ... }`, where `i` is a `let`
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
+- function types are `(T, U):R`, as in `before:(i64, i64):bool`
+- anonymous functions enclose nothing, and may follow a call as its last
+  argument: `sort(xs, n) { $0 < $1 }`, where `$0` and `$1` are the
+  parameters
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions,
@@ -84,6 +88,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, stepping with `.next`/`.prev`, C's string functions, `.hex` and friends |
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
+| [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
 
 ## Build and use
 

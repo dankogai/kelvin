@@ -296,6 +296,16 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             lex_quoted(&lx, '\'', TK_CHAR);
             continue;
         }
+        if (c == '$') {
+            /* $0, $1, ... and $ (for $[k]): the parameters of an
+               anonymous function (#32) */
+            const char *start = lx.p;
+            step(&lx);
+            while (isdigit((unsigned char)*lx.p))
+                step(&lx);
+            push(&lx, TK_PUNCT, pos, start, lx.p);
+            continue;
+        }
         const char *match = NULL;
         for (int i = 0; puncts[i]; i++)
             if (!strncmp(lx.p, puncts[i], strlen(puncts[i]))) {

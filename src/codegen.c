@@ -99,6 +99,8 @@ static const char *c_type_name(const char *name) {
     return name;
 }
 
+static char *decl(Type *t, const char *name);
+
 static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
     switch (t->kind) {
     case T_BASE:
@@ -114,12 +116,37 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
         char *s = inner_is_ptr ? strfmt("(%s)", inner) : xstrdup(inner);
         return declarator(t->elem, strfmt("%s[%s]", s, t->size ? expr(t->size) : ""), false);
     }
+    case T_FUNC: {
+        /* (T, U):R is C's R (*inner)(T, U) (#31). An array parameter is
+           the pointer C makes of it, so that no length is needed here */
+        Buf params = {0};
+        for (int i = 0; i < t->params.len; i++) {
+            Type *p = t->params.data[i];
+            if (p->kind == T_ARRAY) {
+                Type *ptr = xcalloc(1, sizeof *ptr);
+                ptr->kind = T_PTR;
+                ptr->pos = p->pos;
+                ptr->elem = p->elem;
+                p = ptr;
+            }
+            buf_printf(&params, "%s%s", i ? ", " : "", decl(p, ""));
+        }
+        if (t->variadic)
+            buf_puts(&params, ", ...");
+        char *q = strfmt("%s%s", t->is_const ? "const" : "",
+                         t->is_volatile ? (t->is_const ? " volatile" : "volatile") : "");
+        char *s = strfmt("(*%s%s%s)(%s)", q, *q && *inner ? " " : "", inner, params.len ? params.buf : "void");
+        return t->elem ? declarator(t->elem, s, false) : strfmt("void %s", s);
+    }
     }
     return NULL;
 }
 
 /* `x: T` as a C declaration, or the bare type name when name is "" */
 static char *decl(Type *t, const char *name) { return declarator(t, name, false); }
+
+/* the C name of a Kelvin name: an anonymous function's $0 is kv_arg0 (#32) */
+static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("kv_arg%s", name + 1) : name; }
 
 /* ---------- expressions ---------- */
 
@@ -264,6 +291,8 @@ static char *expr_bare(Expr *e) {
         return e->text;
     }
     case E_IDENT:
+        return (char *)c_name(e->text);
+    case E_FUNC: /* the static function it became (#32) */
         return e->text;
     case E_STRING: {
         Buf b = {0};
@@ -322,7 +351,7 @@ static char *expr_bare(Expr *e) {
            Any other parenthesized operand gets double parentheses, so that
            C cannot read e.g. `sizeof (T * (U8))` as a type name */
         if (e->a->kind == E_IDENT && e->a->paren)
-            return strfmt("sizeof(%s)", e->a->text);
+            return strfmt("sizeof(%s)", c_name(e->a->text));
         if (e->a->paren)
             return strfmt("sizeof (%s)", expr(e->a));
         return strfmt("sizeof %s", expr(e->a));
@@ -455,7 +484,7 @@ static char *var_decl(const char *storage, Var *v) {
     char *d = decl(v->is_let ? const_type(v->type) : v->type, v->name);
     /* a reference declared without a value is nullptr (#20) */
     const char *init = v->init                                                         ? initializer(v->init)
-                       : v->type->kind == T_PTR && !(storage && !strcmp(storage, "extern")) ? "0"
+                       : (v->type->kind == T_PTR || v->type->kind == T_FUNC) && !(storage && !strcmp(storage, "extern")) ? "0"
                                                                                        : NULL;
     return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d, init ? strfmt(" = %s", init) : "");
 }
@@ -744,7 +773,10 @@ static char *fn_head(Decl *d) {
            whose const would reach its elements: kelvinc checks those lets */
         bool hidden = t->kind == T_BASE && !strcmp(c_type_name(t->name), t->name) && strcmp(t->name, "bool") &&
                       strncmp(t->name, "struct ", 7) && strncmp(t->name, "union ", 6) && strncmp(t->name, "enum ", 5);
-        if (p->is_let && d->body && !hidden) {
+        bool let = p->is_let && d->body && !hidden;
+        /* an anonymous function's prototype says the same as its
+           definition, with no length that would need a name (#32) */
+        if (let || (d->anon && t->kind == T_ARRAY)) {
             if (t->kind == T_ARRAY) {
                 Type *ptr = xcalloc(1, sizeof *ptr);
                 ptr->kind = T_PTR;
@@ -752,19 +784,26 @@ static char *fn_head(Decl *d) {
                 ptr->elem = t->elem;
                 t = ptr;
             }
-            t = const_type(t);
+            if (let)
+                t = const_type(t);
         }
         /* C insists that main's argv is char **; Kelvin writes it u8^^ */
         bool argv = !d->recv && !strcmp(d->name, "main") && i == 1;
         const char *argv_c = p->is_let && d->body ? "char **const %s" : "char **%s";
-        buf_printf(&params, "%s%s", params.len ? ", " : "", argv ? strfmt(argv_c, p->name) : decl(t, p->name));
+        /* $0, $1, ... (#32): the body need not use each one */
+        const char *unused = p->name[0] == '$' ? "__attribute__((unused)) " : "";
+        buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused,
+                   argv ? strfmt(argv_c, p->name) : decl(t, c_name(p->name)));
     }
     if (d->variadic)
         buf_puts(&params, ", ...");
     /* Kelvin's `()` means no parameters, which C spells `(void)` */
     char *inner = strfmt("%s(%s)", d->recv ? method_cname(d) : d->name, params.len ? params.buf : "void");
     char *head = d->ret ? decl(d->ret, inner) : strfmt("void %s", inner);
-    return strfmt("%s%s%s", d->storage ? d->storage : "", d->storage ? " " : "", head);
+    /* an anonymous function used only where C does not evaluate, as in
+       sizeof, is never emitted, which C need not mention (#32) */
+    return strfmt("%s%s%s%s", d->anon ? "__attribute__((unused)) " : "", d->storage ? d->storage : "",
+                  d->storage ? " " : "", head);
 }
 
 /* Is `name` ("struct point") a struct or union with a body in this file? */
@@ -800,6 +839,8 @@ static char pointer_kind(Type *t) {
 /* the longest text of a value of type t, as a C constant expression; `lv`
    names such a value inside sizeof, for the length of an array */
 static char *text_bound(Type *t, const char *lv) {
+    if (t->kind == T_FUNC)
+        return "(sizeof(void *) * 2 + 2)";
     if (t->kind == T_PTR)
         return pointer_kind(t) == 'a' ? "(sizeof(void *) * 2 + 2)" : "KV_CSTR_STR";
     if (t->kind == T_ARRAY) {
@@ -827,6 +868,10 @@ static char *text_bound(Type *t, const char *lv) {
 /* a C expression that writes the text of `lv` (type t, not an array) at p
    and gives the end */
 static char *text_writer(Type *t, const char *lv) {
+    /* a function's address: ISO C converts it to an integer, not to a
+       data pointer */
+    if (t->kind == T_FUNC)
+        return strfmt("kv_cstr_put_address(p, (const void *)(uintptr_t)%s)", lv);
     if (t->kind == T_PTR) {
         char k = pointer_kind(t);
         return k == 's'   ? strfmt("kv_cstr_put_str(p, (const char *)%s)", lv)

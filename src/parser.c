@@ -10,6 +10,7 @@
 
 #include <ctype.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 static Token *toks;
@@ -122,6 +123,25 @@ static int binding_index(const char *name) {
    scope_names */
 static Decl *parsing_fn;
 static int params_start, params_end;
+
+/* Anonymous functions (#32): those finished, which go before the
+   top-level declaration around them; where the innermost one's bindings
+   start in scope_names (-1 outside one); how its parameters were given;
+   and the token just past a trailing `{ }`, which ends a statement */
+static List anon_fns;
+static int anon_count;
+static int anon_start = -1;
+enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
+static int anon_kind;
+static int trailing_end = -1;
+/* for $'s hints: the `{` of a body that follows a call in a condition, how
+   deep in initializer lists the parser is, and whether it is reading an
+   anonymous function's written parameters */
+static int body_after_call = -1;
+static int init_depth;
+static bool in_signature;
+/* for $'s hint in a function whose parameter kelvinc could not see */
+static const char *pending_note, *anon_note;
 
 /* the parameter of the function being parsed that `name` names here,
    unless a local name hides it */
@@ -404,8 +424,87 @@ typedef enum {
 } TypeContext;
 
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
+static Type *parse_type_in(TypeContext ctx);
+static Type *parse_type(void);
+
+/* Does e name a local or a parameter, which means something else, or
+   nothing, in another scope? (#32) */
+static bool names_local(Expr *e) {
+    if (!e)
+        return false;
+    if (e->kind == E_IDENT) {
+        int locals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        return binding_index(e->text) >= locals;
+    }
+    for (int i = 0; i < e->items.len && e->kind == E_CALL; i++)
+        if (names_local(e->items.data[i]))
+            return true;
+    return names_local(e->a) || names_local(e->b) || names_local(e->c);
+}
+
+/* Does t have an array length that names a local or a parameter? */
+static bool has_local_size(Type *t) {
+    if (!t)
+        return false;
+    switch (t->kind) {
+    case T_ARRAY:
+        return t->size_local || has_local_size(t->elem);
+    case T_PTR:
+        return has_local_size(t->elem);
+    case T_FUNC:
+        for (int i = 0; i < t->params.len; i++)
+            if (has_local_size(t->params.data[i]))
+                return true;
+        return has_local_size(t->elem);
+    default:
+        return false;
+    }
+}
+
+/* (T, U):R, a function type (#31): C's pointer to a function, as
+   `bool (*)(int64_t, int64_t)` for (i64, i64):bool. (T) has no result, as
+   a function without `:R` has none. The result takes every suffix after
+   it: (i64):i64^ returns a pointer. */
+static Type *parse_fn_type(TypeContext ctx) {
+    Token *open = expect_p("(");
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_FUNC;
+    t->pos = open->pos;
+    while (!is_p(peek(), ")")) {
+        if (accept_p("...")) {
+            if (!t->params.len)
+                error_at(open->pos, "a variadic function type needs a parameter before '...', as in '(i32, ...)'");
+            t->variadic = true;
+            break;
+        }
+        if (peek()->kind == TK_IDENT && is_p(peek2(), ":"))
+            error_at(peek()->pos, "a function type lists its parameters' types without names, as in "
+                                  "'(i64, i64):bool'");
+        list_push(&t->params, parse_type());
+        if (!accept_p(","))
+            break;
+    }
+    expect_p(")");
+    /* in `c ? f as (i64) : g` or `: nullptr`, the `:` is the ?:'s: there a
+       result must start with a type word, as an annotation must */
+    Token *n = peek2();
+    bool result = is_p(peek(), ":") &&
+                  (ident_annotation_ok || ((is_base_word(n) && !(is_converter(n) && is_p(peek_at(2), "("))) ||
+                                           is_qualifier(n) || is_kw(n, "struct") || is_kw(n, "union") ||
+                                           is_kw(n, "enum")));
+    if (result) {
+        advance();
+        t->elem = parse_type_in(ctx);
+    } else if (is_p(peek(), "^") || is_p(peek(), "[")) {
+        error_at(peek()->pos, "a pointer to a function type, or an array of functions, has no spelling yet (#31): "
+                              "a function type is already a pointer, and several can go in a struct");
+    }
+    return t;
+}
 
 static Type *parse_type_in(TypeContext ctx) {
+    if (is_p(peek(), "("))
+        return parse_fn_type(ctx);
     Type *base = xcalloc(1, sizeof *base);
     base->kind = T_BASE;
     base->pos = peek()->pos;
@@ -487,6 +586,7 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
                 a->pos = *(Pos *)positions.data[i];
                 a->elem = t;
                 a->size = sizes.data[i];
+                a->size_local = a->size && names_local(a->size);
                 t = a;
             }
         } else {
@@ -512,9 +612,54 @@ static bool binding_ahead(int i);
 static bool seen_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
+static Expr *parse_anon_fn(Type *ctx);
+static Expr *anon_arg(Type *param, int arity, int k, Expr *call);
+static bool signature_ahead(int i);
+static Type *call_param_type(Expr *callee, int k);
+static int call_arity(Expr *callee);
+static Decl *method_named(Expr *recv, const char *name);
+static Expr *parse_dollar(void);
+static Expr *parse_initializer_for(Type *t);
+static void check_print_args(Expr *call);
 
 /* set while parsing the head of `for x in ...`, where a `{` ends it too */
 static bool brace_in_for;
+
+/* the first token of the statement being parsed, for trailing `{ }` */
+static int stmt_start;
+
+/* After a trailing `{ }` at the top level of a statement, a `(` on a new
+   line starts the next statement, as in Swift, rather than calling the
+   result; operators and `.member` there go on with the expression (#32) */
+static bool trailing_line_end(void) {
+    return cur == trailing_end && is_p(peek(), "(") && peek()->pos.line > toks[cur - 1].pos.line;
+}
+
+/* Is the `{ }` that just ended at token cur at the top level of its
+   statement, not inside parentheses, brackets or an initializer list? */
+static bool at_statement_level(void) {
+    int depth = 0;
+    for (int i = stmt_start; i < cur; i++) {
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
+            depth++;
+        else if (is_p(&toks[i], ")") || is_p(&toks[i], "]") || is_p(&toks[i], "}"))
+            depth--;
+    }
+    return depth == 0;
+}
+
+static int binary_prec(Token *t);
+
+/* Can token t go on with an expression before it, as an operator, a
+   postfix or a separator does? */
+static bool continues_expression(Token *t) {
+    static const char *ops[] = {"(", "[", ".", "^", "?", ":", ",", ")", "]", "..<", "...", "=", ":=", "+=", "-=",
+                                "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
+    for (int i = 0; ops[i]; i++)
+        if (is_p(t, ops[i]))
+            return true;
+    return binary_prec(t) > 0 || is_kw(t, "as");
+}
 
 /* Is the `{` at token i the initializer of a compound literal `(T){...}`
    rather than a body? Always outside a condition. In a condition, only
@@ -539,6 +684,8 @@ static Expr *new_expr(ExprKind kind, Pos pos) {
 
 static Expr *parse_postfix_ops(Expr *e) {
     for (;;) {
+        if (trailing_line_end())
+            return e;
         Token *t = peek();
         if (accept_p("[")) {
             bool saved = ident_annotation_ok;
@@ -560,13 +707,25 @@ static Expr *parse_postfix_ops(Expr *e) {
             Expr *x = new_expr(E_CALL, t->pos);
             x->a = e;
             while (!is_p(peek(), ")")) {
-                list_push(&x->items, parse_assign());
+                list_push(&x->items, is_p(peek(), "{") ? anon_arg(call_param_type(e, x->items.len), call_arity(e),
+                                                                  x->items.len, e)
+                                                       : parse_assign());
                 if (!accept_p(","))
                     break;
             }
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p(")");
+            /* f(x) { ... }: a trailing anonymous function is the last
+               argument (#32), except where `{` starts a body */
+            if (is_p(peek(), "{") && !brace_ends_condition) {
+                list_push(&x->items, anon_arg(call_param_type(e, x->items.len), call_arity(e), x->items.len, e));
+                if (at_statement_level())
+                    trailing_end = cur;
+            } else if (is_p(peek(), "{")) {
+                body_after_call = cur;
+            }
+            check_print_args(x);
             e = x;
         } else if (accept_p(".")) {
             Token *name = peek();
@@ -592,14 +751,29 @@ static Expr *parse_postfix_ops(Expr *e) {
                 Expr *x = new_expr(E_METHOD, name->pos);
                 x->a = e;
                 x->text = member;
+                Decl *m = method_named(e, member);
+                int arity = m && !m->variadic ? m->params.len : -1;
                 while (!is_p(peek(), ")")) {
-                    list_push(&x->items, parse_assign());
+                    int k = x->items.len;
+                    list_push(&x->items,
+                              is_p(peek(), "{")
+                                  ? anon_arg(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL, arity, k, x)
+                                  : parse_assign());
                     if (!accept_p(","))
                         break;
                 }
                 ident_annotation_ok = saved;
                 brace_ends_condition = saved_brace;
                 expect_p(")");
+                if (is_p(peek(), "{") && !brace_ends_condition) {
+                    int k = x->items.len;
+                    list_push(&x->items,
+                              anon_arg(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL, arity, k, x));
+                    if (at_statement_level())
+                        trailing_end = cur;
+                } else if (is_p(peek(), "{")) {
+                    body_after_call = cur;
+                }
                 e = x;
                 continue;
             }
@@ -635,6 +809,17 @@ static Expr *parse_primary(void) {
     Token *t = peek();
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
         error_at(t->pos, "_Pragma(\"...\") is only allowed as a statement of its own");
+    if (t->kind == TK_PUNCT && t->text[0] == '$')
+        return parse_dollar();
+    if (t->kind == TK_IDENT && anon_start >= 0) {
+        /* a local of the function around an anonymous function (#32) */
+        int i = binding_index(t->text);
+        int locals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (i >= locals && i < anon_start)
+            error_at(t->pos, "an anonymous function cannot use '%s' of the function around it: C has no "
+                             "closures, so pass it as an argument, or make it a global",
+                     t->text);
+    }
     if (t->kind == TK_IDENT || t->kind == TK_NUMBER || t->kind == TK_CHAR || is_kw(t, "true") ||
         is_kw(t, "false")) {
         advance();
@@ -681,7 +866,11 @@ static Expr *parse_primary(void) {
         e->type = base_type(t->text, t->pos);
         e->paren = true;
         advance();
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
         e->a = parse_assign();
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
         if (is_p(peek(), ","))
             error_at(peek()->pos, "a converter takes exactly one value: %s(v)", t->text);
         expect_p(")");
@@ -718,7 +907,7 @@ static Expr *parse_primary(void) {
             expect_p(")");
             Expr *e = new_expr(E_COMPOUND, t->pos);
             e->type = type;
-            e->a = parse_initializer();
+            e->a = parse_initializer_for(type);
             return e;
         }
         {
@@ -773,6 +962,13 @@ static Expr *parse_primary(void) {
         error_at(t->pos, "String " SHELVED_HINT);
     if (is_kw(t, "cstr") && is_p(peek2(), "("))
         error_at(t->pos, "cstr is u8^: convert with 'v as cstr'");
+    if (is_p(t, "{")) {
+        if (signature_ahead(cur))
+            return parse_anon_fn(NULL); /* c ? { (a:i64) in ... } : ... (#32) */
+        error_at(t->pos, "an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'; "
+                         "'{ ... }' alone is an argument, an initializer, or a value assigned with ':=' or "
+                         "returned, where kelvinc sees its type");
+    }
     error_at(t->pos, "expected an expression, found %s", desc(t));
 }
 
@@ -808,7 +1004,7 @@ static Expr *parse_unary(void) {
                 /* sizeof (T){...} is the size of a compound literal */
                 Expr *c = new_expr(E_COMPOUND, open->pos);
                 c->type = type;
-                c->a = parse_initializer();
+                c->a = parse_initializer_for(type);
                 Expr *e = new_expr(E_SIZEOF_EXPR, t->pos);
                 e->a = parse_postfix_ops(c);
                 return e;
@@ -843,7 +1039,7 @@ static bool annotation_ahead(void) {
 
 static Expr *parse_cast(void) {
     Expr *e = parse_unary();
-    while (is_kw(peek(), "as") || (is_p(peek(), ":") && annotation_ahead())) {
+    while (!trailing_line_end() && (is_kw(peek(), "as") || (is_p(peek(), ":") && annotation_ahead()))) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
@@ -873,7 +1069,7 @@ static Expr *parse_binary(int min_prec) {
     for (;;) {
         Token *t = peek();
         int prec = binary_prec(t);
-        if (prec < min_prec)
+        if (prec < min_prec || trailing_line_end())
             return lhs;
         advance();
         Expr *e = new_expr(E_BINARY, t->pos);
@@ -891,7 +1087,7 @@ static Expr *parse_binary(int min_prec) {
 static Expr *parse_conditional(void) {
     Expr *c = parse_binary(1);
     Token *t = peek();
-    if (!accept_p("?"))
+    if (trailing_line_end() || !accept_p("?"))
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
     require_bool(c);
@@ -926,9 +1122,25 @@ static char *kelvin_type(Type *t) {
     switch (t->kind) {
     case T_BASE: return strfmt("%s%s%s", q, *q ? " " : "", t->name);
     case T_PTR: return strfmt("%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
-    case T_ARRAY:
-        return strfmt("%s[%s]", kelvin_type(t->elem),
-                      !t->size ? "" : t->size->kind == E_LITERAL ? t->size->text : "...");
+    case T_ARRAY: {
+        /* a run of brackets reads in C order (P2): i64[2][3] */
+        Buf dims = {0};
+        for (; t->kind == T_ARRAY; t = t->elem)
+            buf_printf(&dims, "[%s]", !t->size ? "" : t->size->kind == E_LITERAL ? t->size->text : "...");
+        return strfmt("%s%s", kelvin_type(t), dims.buf);
+    }
+    case T_FUNC: {
+        Buf b = {0};
+        buf_puts(&b, "(");
+        for (int i = 0; i < t->params.len; i++)
+            buf_printf(&b, "%s%s", i ? ", " : "", kelvin_type(t->params.data[i]));
+        if (t->variadic)
+            buf_puts(&b, ", ...");
+        buf_puts(&b, ")");
+        if (t->elem)
+            buf_printf(&b, ":%s", kelvin_type(t->elem));
+        return b.buf;
+    }
     }
     return "?";
 }
@@ -938,8 +1150,8 @@ static char *kelvin_type(Type *t) {
 static int ref_kind(Type *t) {
     if (!t)
         return -1;
-    if (t->kind == T_PTR)
-        return 1;
+    if (t->kind == T_PTR || t->kind == T_FUNC)
+        return 1; /* a function is C's pointer to one (#31) */
     if (t->kind == T_ARRAY)
         return 0;
     const char *n = t->name;
@@ -1036,14 +1248,43 @@ static char type_class(Type *t, Decl **record) {
    `v as T`, compound literals and the results of Kelvin functions and
    methods (a method only when every method of that name returns the same
    type), and p^, a[i] and fields of all these. NULL otherwise. */
+/* the function type of a function or an anonymous function (#31) */
+static Type *fn_type_of(Decl *d) {
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_FUNC;
+    t->pos = d->pos;
+    for (int k = 0; k < d->params.len; k++) {
+        /* a length that names a parameter is lost with the names: the
+           array is the pointer C makes of it */
+        Type *pt = ((Var *)d->params.data[k])->type;
+        list_push(&t->params, pt->kind == T_ARRAY && pt->size_local ? param_type(pt) : pt);
+    }
+    t->elem = d->ret;
+    t->variadic = d->variadic;
+    return t;
+}
+
 static Type *value_type(Expr *e) {
     switch (e->kind) {
+    case E_IDENT: { /* a Kelvin function's name is a function value (#31) */
+        Decl *f = lookup_type(e->text) ? NULL : function_named(e->text);
+        return f ? fn_type_of(f) : type_through(e, value_type);
+    }
     case E_CAST:
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
         Decl *f = e->a->kind == E_IDENT ? function_named(e->a->text) : NULL;
-        return f ? f->ret : NULL;
+        if (f)
+            return f->ret;
+        Type *t = value_type(e->a); /* a function value (#31) */
+        return t && t->kind == T_FUNC ? t->elem : NULL;
+    }
+    case E_FUNC:
+        return e->type;
+    case E_TERNARY: { /* a choice between functions is a function (#31) */
+        Type *b = value_type(e->b), *c = value_type(e->c);
+        return b && b->kind == T_FUNC ? b : c && c->kind == T_FUNC ? c : NULL;
     }
     case E_METHOD: {
         Type *ret = NULL;
@@ -1142,6 +1383,8 @@ static void require_bool(Expr *e) {
         }
         if (t->kind == T_PTR || t->kind == T_ARRAY)
             hint = "p != nullptr";
+        else if (t->kind == T_FUNC)
+            hint = "f != nullptr";
         else if (c == 'i')
             hint = "x != 0";
         else if (c == 'f')
@@ -1192,6 +1435,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
         if (t && t->kind == T_ARRAY)
             error_at(name->pos, "'.%s' is a property of pointers: for an array, write '&a[%s]'", member,
                      member[0] == 'n' ? "1" : "-1");
+        if (t && (t->kind == T_FUNC || (t->kind == T_PTR && t->elem->kind == T_FUNC)))
+            error_at(name->pos, "'.%s' is a property of pointers to data, and %s is a function", member,
+                     kelvin_type(t->kind == T_FUNC ? t : t->elem));
         if (!t || t->kind != T_PTR)
             return NULL;
         if (t->elem->kind == T_BASE && !strcmp(t->elem->name, "any"))
@@ -1219,6 +1465,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Type *t = value_type(e);
         if (t && t->kind == T_ARRAY)
             error_at(name->pos, "'.cstr' of an array: C arrays are not values; index it, or put it in a struct");
+        if (t && (t->kind == T_FUNC || (t->kind == T_PTR && t->elem->kind == T_FUNC)))
+            error_at(name->pos, "'.cstr' of a function: a function has no text");
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
@@ -1234,6 +1482,14 @@ static Expr *property(Expr *e, Token *name, char *member) {
     Expr *x = new_expr(E_PROPERTY, name->pos);
     x->a = e;
     x->text = member;
+    if (is_size && e->kind == E_IDENT && !lookup_type(e->text) && function_named(e->text)) {
+        /* a function's name is a function value (#31): its size is a
+           pointer's, sizeof(&f), not C's sizeof of a function */
+        Expr *a = new_expr(E_PREFIX, e->pos);
+        a->op = "&";
+        a->a = e;
+        x->a = a;
+    }
     return x;
 }
 
@@ -1296,6 +1552,8 @@ static Expr *parse_assign(void) {
                 error_at(t->pos, "'%s' is each element in turn and cannot change; copy it into a var under "
                                  "another name",
                          let);
+            if (let && let[0] == '$')
+                error_at(t->pos, "'%s' is a parameter and cannot change; copy it into a var", let);
             if (let && let_kind(let) == LET_PARAM)
                 error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                          let, let);
@@ -1307,7 +1565,10 @@ static Expr *parse_assign(void) {
             Expr *e = new_expr(E_BINARY, t->pos);
             e->op = t->text;
             e->a = lhs;
-            e->b = parse_assign();
+            Type *target = value_type(lhs); /* also through a cast or a call */
+            if (target && target->kind != T_FUNC)
+                target = NULL;
+            e->b = is_p(peek(), "{") && (target || signature_ahead(cur)) ? parse_anon_fn(target) : parse_assign();
             assign_ok = ok;
             return e;
         }
@@ -1338,36 +1599,90 @@ static Expr *parse_expr(void) {
 
 /* initializer := assign | '{' [designator '='] initializer, ... '}'
    A designator is stored as a member/index chain with a NULL root. */
-static Expr *parse_initializer(void) {
-    Token *t = peek();
+/* An initializer, for a value of type t when kelvinc sees it (NULL
+   otherwise). A list's items take the types of an array's elements or of
+   a Kelvin struct's members, so that `{ $0 < $1 }` for a member of a
+   function type is an anonymous function of that type (#32). */
+static Expr *parse_initializer_for(Type *t) {
+    Token *open = peek();
+    if (is_p(open, "{") && t && t->kind == T_FUNC)
+        return parse_anon_fn(t);
+    if (signature_ahead(cur))
+        return parse_anon_fn(NULL); /* { (a:i32):i32 in ... } (#32) */
     if (!accept_p("{"))
         return parse_assign();
-    Expr *e = new_expr(E_INIT, t->pos);
+    Decl *record = NULL;
+    if (t && t->kind == T_BASE && type_class(t, &record) != 's')
+        record = NULL;
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = false; /* a `{` inside is never a body */
+    init_depth++;
+    Expr *e = new_expr(E_INIT, open->pos);
+    int next = 0;      /* the member of the next item without a designator */
+    bool lost = false; /* C's current object is inside a member, which kelvinc does not follow */
     while (!is_p(peek(), "}")) {
         Expr *d = NULL;
+        Type *dt = t; /* the type that the designators reach */
+        int links = 0;
         while (is_p(peek(), ".") || is_p(peek(), "[")) {
-            Token *dt = advance();
-            Expr *x = new_expr(is_p(dt, ".") ? E_FIELD : E_INDEX, dt->pos);
+            links++;
+            Token *tok = advance();
+            Expr *x = new_expr(is_p(tok, ".") ? E_FIELD : E_INDEX, tok->pos);
             x->a = d;
             if (x->kind == E_FIELD) {
                 /* cstr is a keyword, but may be a C struct's field */
                 x->text = is_kw(peek(), "cstr") ? advance()->text : expect_ident("a member name");
+                Decl *r = NULL;
+                Type *member = NULL;
+                if (dt && dt->kind == T_BASE && type_class(dt, &r) == 's') {
+                    for (int i = 0; i < r->members.len; i++) {
+                        Var *m = r->members.data[i];
+                        if (!strcmp(m->name, x->text)) {
+                            member = m->type;
+                            if (!d && r == record)
+                                next = i;
+                        }
+                    }
+                }
+                dt = member;
             } else {
                 x->b = parse_conditional();
                 expect_p("]");
+                dt = dt && dt->kind == T_ARRAY ? dt->elem : NULL;
             }
             d = x;
         }
+        if (links == 1)
+            lost = false; /* a designator of a member of t starts over */
+        Type *item = d                                ? dt
+                     : lost                           ? NULL
+                     : t && t->kind == T_ARRAY        ? t->elem
+                     : record && next < record->members.len ? ((Var *)record->members.data[next])->type
+                                                      : NULL;
         if (d)
             expect_p("=");
+        /* after `.a.f = ...`, or a member that is an aggregate given
+           without braces, C goes on inside that member */
+        Decl *r;
+        bool aggregate = item && (item->kind == T_ARRAY || (item->kind == T_BASE && type_class(item, &r) != 'i' &&
+                                                            type_class(item, &r) != 'f' &&
+                                                            type_class(item, &r) != 'n'));
+        if (links > 1 || (aggregate && !is_p(peek(), "{")))
+            lost = true;
         list_push(&e->designators, d);
-        list_push(&e->items, parse_initializer());
+        list_push(&e->items, parse_initializer_for(item));
+        next++;
         if (!accept_p(","))
             break;
     }
+    init_depth--;
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
     expect_p("}");
     return e;
 }
+
+static Expr *parse_initializer(void) { return parse_initializer_for(NULL); }
 
 /* ---------- declarations shared by statements and top level ---------- */
 
@@ -1398,7 +1713,9 @@ static Type *base_type(const char *name, Pos pos) {
    comparison, &&, || and !, and any value kelvinc sees is a bool, such as
    a bool variable or a Kelvin function's bool result. NULL otherwise. */
 static Type *inferred_type(Expr *e, Pos pos) {
-    if (e->kind == E_CAST)
+    if (e->kind == E_FUNC && has_local_size(e->type))
+        return NULL; /* a length that names a parameter needs a written type */
+    if (e->kind == E_CAST || e->kind == E_FUNC)
         return e->type;
     if (seen_bool(e))
         return base_type("bool", pos);
@@ -1415,9 +1732,16 @@ static Type *inferred_type(Expr *e, Pos pos) {
 
 /* name: type [= init], or (for variables) name = init with the type
    inferred from init */
+/* names starting with kv_ are kelvinc's, in the C it writes (#32) */
+static void reject_kv_name(Token *t) {
+    if (t->kind == TK_IDENT && !strncmp(t->text, "kv_", 3))
+        error_at(t->pos, "names starting with kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
+}
+
 static Var *parse_var(bool with_init, int let) {
     Var *v = xcalloc(1, sizeof *v);
     v->pos = peek()->pos;
+    reject_kv_name(peek());
     v->name = expect_ident("a name");
     char *what = strfmt("'%s'", v->name);
     if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
@@ -1431,7 +1755,8 @@ static Var *parse_var(bool with_init, int let) {
         if (!v->type)
             error_at(v->pos,
                      "'%s' needs a type: write '%s:T = ...' (or '%s:T := ...' for a reference); only literals, "
-                     "bools and values written 'v:T', 'v as T' or 'T(v)' have a type Kelvin can infer",
+                     "bools, values written 'v:T', 'v as T' or 'T(v)', and anonymous functions that write their "
+                     "parameters have a type Kelvin can infer",
                      v->name, v->name, v->name);
         check_assign_op(op->text, v->type, what, op->pos, v->init);
         return v;
@@ -1443,7 +1768,8 @@ static Var *parse_var(bool with_init, int let) {
     if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
         Token *op = advance();
         check_assign_op(op->text, v->type, what, op->pos, NULL);
-        v->init = parse_initializer();
+        /* a function type types an anonymous function (#32) */
+        v->init = parse_initializer_for(v->type);
     }
     return v;
 }
@@ -1451,15 +1777,19 @@ static Var *parse_var(bool with_init, int let) {
 /* let|var name[: type] [= or := init] {, ...} (#27): each name is in
    scope after its declarator. A let is C's const, so it needs a value,
    except in an extern declaration. */
+static void parse_var_one(List *out, bool is_let, const char *storage) {
+    Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it */
+    v->is_let = is_let;
+    if (is_let && !v->init && !(storage && !strcmp(storage, "extern")))
+        error_at(v->pos, "a let needs a value: write 'let %s = ...', or 'var %s' if it changes later", v->name,
+                 v->name);
+    list_push(out, v);
+}
+
 static void parse_var_list(List *out, bool is_let, const char *storage) {
-    do {
-        Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it */
-        v->is_let = is_let;
-        if (is_let && !v->init && !(storage && !strcmp(storage, "extern")))
-            error_at(v->pos, "a let needs a value: write 'let %s = ...', or 'var %s' if it changes later", v->name,
-                     v->name);
-        list_push(out, v);
-    } while (accept_p(","));
+    do
+        parse_var_one(out, is_let, storage);
+    while (accept_p(","));
 }
 
 static const char *parse_storage(void) {
@@ -1535,6 +1865,15 @@ static void reject_c_declaration(void) {
     /* the declarator: a name, possibly parenthesized, then (...), [...]
        or ^ suffixes */
     int name_at = i;
+    /* T (*f)(...) and T *(*f)(...): a pointer to a function (#31) */
+    if (is_p(&toks[i], "(") && is_p(&toks[i + 1], "*") && toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], ")") &&
+        is_p(&toks[i + 4], "(")) {
+        int end = skip_group(i + 4);
+        if (is_p(&toks[end], ";") || is_p(&toks[end], ",") || is_p(&toks[end], "="))
+            error_at(pos, "'%s' looks like a C function-pointer declaration: write 'var %s:(...):%s%s%s%s' (#31)",
+                     toks[i + 2].text, toks[i + 2].text, base_const ? "const " : "", base_volatile ? "volatile " : "",
+                     type, suffix.buf);
+    }
     if (is_p(&toks[i], "(") && (suffix.len || block)) {
         /* `T * (p) = ...`; without a `*`, `name(x)` is a call (or the
            documented typedef ambiguity) and is left alone */
@@ -1573,8 +1912,8 @@ static void reject_c_declaration(void) {
                       "declarations are written 'var name:type'", type, name);
     char *quals = strfmt("%s%s", base_const ? "const " : "", base_volatile ? "volatile " : "");
     if (function_pointer)
-        error_at(pos, "'%s' looks like a C function-pointer declaration; function pointer types are not "
-                      "available in Kelvin yet", name);
+        error_at(pos, "'%s' looks like a C function-pointer declaration: write 'var %s:(...):%s%s' (#31)", name,
+                 name, quals, type);
     if (function)
         error_at(pos, "functions are declared at the top level as '%s(...):%s%s%s'", name, quals, type, suffix.buf);
     error_at(pos, "declarations are written 'var name:type', as in '%s%svar %s:%s%s%s%s'", storage ? storage : "",
@@ -1588,8 +1927,8 @@ static Stmt *new_stmt(StmtKind kind, Pos pos) {
     return s;
 }
 
-static Stmt *parse_block(void) {
-    Token *t = expect_p("{");
+/* the statements of a block whose `{` (t) has been read, and its `}` */
+static Stmt *parse_block_rest(Token *t) {
     Stmt *s = new_stmt(S_BLOCK, t->pos);
     open_scope();
     while (!is_p(peek(), "}")) {
@@ -1600,6 +1939,399 @@ static Stmt *parse_block(void) {
     close_scope();
     advance();
     return s;
+}
+
+static Stmt *parse_block(void) { return parse_block_rest(expect_p("{")); }
+
+/* the `;` that ends a statement, which a trailing `{ }` at the end of a
+   line, or before a `}`, makes optional, as in `sort(xs, n) { $0 < $1 }`
+   (#32) */
+static void end_statement(void) {
+    if (cur != trailing_end) {
+        expect_p(";");
+        return;
+    }
+    if (accept_p(";") || is_p(peek(), "}") || peek()->kind == TK_EOF || peek()->pos.line > toks[cur - 1].pos.line)
+        return;
+    error_at(peek()->pos, "expected ';' or a new line after the trailing function, before what follows");
+}
+
+/* ---------- anonymous functions (#32) ---------- */
+
+static Decl *new_decl(DeclKind kind, Pos pos, const char *storage);
+
+static bool is_in(Token *t) { return t->kind == TK_IDENT && !strcmp(t->text, "in"); }
+
+/* the index just past the type that starts at token i, a function type
+   included, or -1 */
+static int any_type_end(int i) {
+    if (!is_p(&toks[i], "("))
+        return type_shape_end(i);
+    int j = skip_group(i);
+    return is_p(&toks[j], ":") ? any_type_end(j + 1) : j;
+}
+
+/* Does the `{` at token i open an anonymous function that writes its
+   parameters, as in `{ (a:i32, b:i32):bool in ... }`? It does when `in`
+   follows the parameters and the result type. Without the `in`, the
+   shapes (a:T), (var a:T) and () still say so, unless an expression can
+   go on there, as in the initializer items `(n:u8):i64,` (n annotated
+   twice) and `(n:i64) * 2`. */
+static bool signature_ahead(int i) {
+    if (!is_p(&toks[i], "{") || !is_p(&toks[i + 1], "("))
+        return false;
+    int j = skip_group(i + 1);
+    if (is_p(&toks[j], ":"))
+        j = any_type_end(j + 1);
+    if (j < 0)
+        return false;
+    if (is_in(&toks[j]))
+        return true;
+    Token *f = &toks[i + 2];
+    bool shape = is_p(f, ")") || is_kw(f, "var") || (f->kind == TK_IDENT && is_p(&toks[i + 3], ":"));
+    return shape && !continues_expression(&toks[j]) && !is_p(&toks[j], "}") && !is_p(&toks[j], ";");
+}
+
+/* Does the `{` at token i follow a call's `)`, as a trailing function
+   does, rather than a compound literal's `(T)`? */
+static bool after_call(int i) {
+    if (!is_p(&toks[i - 1], ")"))
+        return false;
+    int depth = 0, k = i - 1;
+    for (; k > 0; k--) {
+        if (is_p(&toks[k], ")"))
+            depth++;
+        else if (is_p(&toks[k], "(") && --depth == 0)
+            break;
+    }
+    Token *callee = &toks[k - 1];
+    return (callee->kind == TK_IDENT && !is_converter(callee)) || is_p(callee, ")") || is_p(callee, "]");
+}
+
+/* Is the body from token i to its `}` one expression, as in
+   `{ $0 < $1 }`? Statements have a `;`, or start with a keyword or a
+   block, or follow a trailing `{ }` that nothing goes on from. */
+static bool expression_body(int i) {
+    static const char *starts[] = {"if",   "while", "do",     "for",    "switch", "case", "default", "return",
+                                   "break", "continue", "goto", "let", "var", "static", "extern", NULL};
+    if (is_p(&toks[i], "}") || is_p(&toks[i], "{"))
+        return false;
+    for (int k = 0; starts[k]; k++)
+        if (is_kw(&toks[i], starts[k]) || (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, starts[k])))
+            return false;
+    bool trailing = false; /* the { } at the top level follows a call */
+    for (int depth = 0; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "{") && depth == 0)
+            trailing = after_call(i);
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{")) {
+            depth++;
+        } else if (is_p(&toks[i], ")") || is_p(&toks[i], "]")) {
+            depth--;
+        } else if (is_p(&toks[i], "}")) {
+            if (depth-- == 0)
+                return true;
+            Token *n = &toks[i + 1];
+            bool new_line = n->pos.line > toks[i].pos.line;
+            if (depth == 0 && trailing && !is_p(n, "}") &&
+                (is_p(n, "(") ? new_line : !continues_expression(n)))
+                return false; /* another statement follows */
+        } else if (is_p(&toks[i], ";") && depth == 0) {
+            return false;
+        }
+    }
+    return false;
+}
+
+/* the type that argument k of a call to `callee` takes, where kelvinc
+   can see it: a Kelvin function's parameter, or a function value's */
+static Type *call_param_type(Expr *callee, int k) {
+    if (callee->kind == E_IDENT) {
+        Decl *f = function_named(callee->text);
+        if (f)
+            return k < f->params.len ? ((Var *)f->params.data[k])->type : NULL;
+    }
+    Type *t = value_type(callee);
+    return t && t->kind == T_FUNC && k < t->params.len ? t->params.data[k] : NULL;
+}
+
+/* how many arguments a call to callee takes, where kelvinc sees a
+   function that is not variadic; -1 otherwise */
+static int call_arity(Expr *callee) {
+    if (callee->kind == E_IDENT) {
+        Decl *f = function_named(callee->text);
+        if (f)
+            return f->variadic ? -1 : f->params.len;
+    }
+    Type *t = value_type(callee);
+    return t && t->kind == T_FUNC && !t->variadic ? t->params.len : -1;
+}
+
+/* the method that recv.name(...) calls: the one of recv's type, or when
+   kelvinc cannot see that type, the only method so named */
+static Decl *method_named(Expr *recv, const char *name) {
+    Type *rt = value_type(recv);
+    bool seen = rt && rt->kind == T_BASE;
+    Decl *found = NULL;
+    int n = 0;
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (!d->recv || strcmp(d->name, name) || (seen && strcmp(d->recv->name, rt->name)))
+            continue;
+        if (!found || strcmp(found->recv->name, d->recv->name))
+            n++; /* a prototype and its definition are one method */
+        found = d;
+    }
+    return n == 1 ? found : NULL;
+}
+
+/* print and println cannot show a function (#31) */
+static void check_print_args(Expr *call) {
+    if (call->a->kind != E_IDENT || (strcmp(call->a->text, "print") && strcmp(call->a->text, "println")))
+        return;
+    for (int i = 0; i < call->items.len; i++) {
+        Expr *x = call->items.data[i];
+        Type *t = value_type(x);
+        if (t && (t->kind == T_FUNC || (t->kind == T_PTR && t->elem->kind == T_FUNC)))
+            error_at(x->pos, "%s cannot show a function: a function has no text", call->a->text);
+    }
+}
+
+/* An anonymous function as argument k of call, taking its types from
+   the parameter it is passed to when kelvinc can see it; arity is how
+   many arguments the call takes, or -1 */
+static Expr *anon_arg(Type *param, int arity, int k, Expr *call) {
+    if (arity >= 0 && k >= arity) {
+        const char *who = call->kind == E_METHOD ? strfmt("'.%s()'", call->text)
+                          : call->kind == E_IDENT ? strfmt("'%s'", call->text)
+                          : call->kind == E_FIELD && call->a && call->a->kind == E_IDENT
+                              ? strfmt("'%s.%s'", call->a->text, call->text)
+                              : "this function";
+        error_at(peek()->pos, "%s takes %d argument%s, and this anonymous function would be argument %d", who, arity,
+                 arity == 1 ? "" : "s", k + 1);
+    }
+    if (param && param->kind != T_FUNC) {
+        Decl *r;
+        if (param->kind != T_BASE || type_class(param, &r) != 'u')
+            error_at(peek()->pos, "an anonymous function cannot be passed here: the parameter is %s, not a function",
+                     kelvin_type(param));
+        /* a C typedef, which may name a function type */
+        pending_note = strfmt("; it is argument %d, whose parameter is %s: is an argument missing?", k + 1,
+                              kelvin_type(param));
+        param = NULL;
+    }
+    return parse_anon_fn(param);
+}
+
+/* The property in e whose text is in a buffer of the block that makes
+   it, as .hex's is (#21), looking through `as`, ?: and the comma; NULL if
+   none. .cstr of a string kelvinc sees is the string itself (P34). */
+static Expr *text_in_buffer(Expr *e) {
+    switch (e->kind) {
+    case E_CAST:
+        return text_in_buffer(e->a);
+    case E_TERNARY: {
+        Expr *b = text_in_buffer(e->b);
+        return b ? b : text_in_buffer(e->c);
+    }
+    case E_BINARY:
+        return !strcmp(e->op, ",") ? text_in_buffer(e->b) : NULL;
+    case E_PROPERTY: {
+        if (!strcmp(e->text, "size"))
+            return NULL;
+        if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
+            return text_in_buffer(e->a);
+        if (strcmp(e->text, "cstr") || e->a->kind == E_STRING)
+            return strcmp(e->text, "cstr") ? e : NULL;
+        Type *t = value_type(e->a);
+        bool string = t && t->kind == T_PTR && t->elem->kind == T_BASE &&
+                      (!strcmp(t->elem->name, "u8") || !strcmp(t->elem->name, "i8"));
+        return string ? NULL : e;
+    }
+    default:
+        return NULL;
+    }
+}
+
+/* An anonymous function, from its `{` to its `}`: a static function of
+   its own in C, declared before the top-level declaration around it and
+   defined after it. It encloses nothing, as C has no closures: it may
+   use globals and functions, not the locals of the function around it.
+   Its parameters are written, as in `{ (a:i32, b:i32):bool in ... }`,
+   or come from ctx, the function type it is passed or assigned as, and
+   are then $0, $1, ...; with neither, it has none. A body that is one
+   expression is the result, as in `{ $0 < $1 }`, or without a result,
+   may be one assignment, as in `{ total += $0 }`. */
+static Expr *parse_anon_fn(Type *ctx) {
+    Token *open = peek();
+    bool written = signature_ahead(cur);
+    Decl *d = new_decl(D_FN, open->pos, "static");
+    d->name = strfmt("kv_fn%d", ++anon_count);
+    Decl *saved_fn = parsing_fn;
+    int saved_start = params_start, saved_end = params_end, saved_anon = anon_start, saved_kind = anon_kind,
+        saved_init = init_depth;
+    const char *saved_note = anon_note;
+    anon_note = pending_note;
+    pending_note = NULL;
+    d->anon = true;
+    bool saved_assign = assign_ok, saved_brace = brace_ends_condition, saved_for = brace_in_for,
+         saved_annotation = ident_annotation_ok, saved_body = stmt_is_body;
+    assign_ok = brace_ends_condition = brace_in_for = stmt_is_body = false;
+    ident_annotation_ok = true;
+    init_depth = 0;
+    open_scope();
+    params_start = params_end = anon_start = scope_names.len;
+    parsing_fn = d; /* from here, the names in its types are checked as in its body */
+    if (written) {
+        anon_kind = ANON_WRITTEN;
+        in_signature = true;
+        advance();
+        expect_p("(");
+        while (!is_p(peek(), ")")) {
+            if (accept_p("...")) {
+                if (d->params.len == 0)
+                    error_at(open->pos, "a variadic function needs at least one named parameter");
+                d->variadic = true;
+                break;
+            }
+            bool mutable = accept_kw("var");
+            Var *p = parse_var(false, LET_NONE);
+            p->is_let = !mutable;
+            declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
+            list_push(&d->params, p);
+            if (!accept_p(","))
+                break;
+        }
+        expect_p(")");
+        d->ret = accept_p(":") ? parse_type() : ctx ? ctx->elem : NULL;
+        if (!is_in(peek()))
+            error_at(peek()->pos, "expected 'in' after the parameters, as in '{ (a:i32):i32 in a * 2 }'");
+        advance();
+        in_signature = false;
+    } else if (ctx) {
+        for (int k = 0; k < ctx->params.len; k++) {
+            Var *p = xcalloc(1, sizeof *p);
+            p->name = strfmt("$%d", k);
+            p->pos = open->pos;
+            /* an array length that names a local or a parameter was written
+               in another scope, where it means something else: the outer
+               array becomes the pointer C makes of it, and a length
+               anywhere else cannot be carried over */
+            Type *pt = ctx->params.data[k];
+            if (pt->kind == T_ARRAY && (!pt->size || pt->size_local))
+                pt = param_type(pt);
+            if (has_local_size(pt))
+                error_at(open->pos, "the type of $%d, %s, has an array length written in another scope, which "
+                                    "kelvinc cannot carry into this function: write its parameters, as in "
+                                    "'{ (a:T):R in ... }'",
+                         k, kelvin_type(pt));
+            p->type = pt;
+            p->is_let = true;
+            declare_binding(p->name, param_type(p->type), LET_PARAM);
+            list_push(&d->params, p);
+        }
+        d->ret = ctx->elem;
+        if (has_local_size(d->ret))
+            error_at(open->pos, "the result type, %s, has an array length written in another scope, which kelvinc "
+                                "cannot carry into this function: write its parameters and result",
+                     kelvin_type(d->ret));
+        d->variadic = ctx->variadic;
+        anon_kind = ANON_CONTEXT;
+    } else {
+        anon_kind = ANON_BARE;
+    }
+    params_end = scope_names.len;
+    int body = written ? cur : cur + 1;
+    if (expression_body(body)) {
+        if (!written)
+            advance();
+        Stmt *b = new_stmt(S_BLOCK, open->pos);
+        Stmt *r = new_stmt(d->ret ? S_RETURN : S_EXPR, toks[body].pos);
+        /* without a result, it may be one assignment: { total += $0 } */
+        r->expr = d->ret ? parse_expr() : parse_assignments();
+        Expr *text = d->ret ? text_in_buffer(r->expr) : NULL;
+        if (text)
+            error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
+                                "the caller takes the text itself, as in '{ println($0.%s) }'",
+                     text->text, text->text);
+        list_push(&b->stmts, r);
+        expect_p("}");
+        d->body = b;
+    } else {
+        d->body = parse_block_rest(written ? open : expect_p("{"));
+    }
+    close_scope();
+    parsing_fn = saved_fn;
+    params_start = saved_start;
+    params_end = saved_end;
+    anon_start = saved_anon;
+    anon_kind = saved_kind;
+    init_depth = saved_init;
+    anon_note = saved_note;
+    assign_ok = saved_assign;
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    ident_annotation_ok = saved_annotation;
+    stmt_is_body = saved_body;
+    list_push(&anon_fns, d);
+    Expr *e = new_expr(E_FUNC, open->pos);
+    e->text = d->name;
+    e->type = fn_type_of(d);
+    return e;
+}
+
+/* $k, or $[k] with a number k: parameter k of the innermost anonymous
+   function (#32) */
+static Expr *parse_dollar(void) {
+    Token *t = advance();
+    const char *digits = t->text + 1;
+    bool bracket = !*digits;
+    if (bracket) {
+        if (!accept_p("["))
+            error_at(t->pos, "'$' alone is not a value: its parameters are $[0], $[1], ..., or $0, $1, ...");
+        Token *n = peek();
+        if (n->kind != TK_NUMBER || strspn(n->text, "0123456789") != strlen(n->text))
+            error_at(n->pos, "$[...] takes a number, as in $[0]: each parameter may have a type of its own");
+        advance();
+        expect_p("]");
+        digits = n->text;
+    }
+    /* the spelling as written, for messages */
+    char *name = bracket ? strfmt("$[%s]", digits) : t->text;
+    if (digits[0] == '0' && digits[1]) {
+        const char *rest = digits + strspn(digits, "0");
+        error_at(t->pos, "'%s' has a leading zero: write %s", name,
+                 strfmt(bracket ? "$[%s]" : "$%s", *rest ? rest : "0"));
+    }
+    /* more digits than a parameter count has is out of range, without
+       converting them */
+    int k = strlen(digits) > 6 ? 1000000 : atoi(digits);
+    if (anon_start < 0) {
+        int at = (int)(t - toks);
+        const char *hint =
+            init_depth ? "; there, '{' starts an initializer list, so an anonymous function writes its parameters, "
+                         "as in '{ (a:i64):i64 in a + 1 }'"
+            : body_after_call >= 0 && at > body_after_call && at < skip_nested(body_after_call)
+                ? "; in the head of if, while or for, a '{' after a call starts the body, so pass the function "
+                  "inside the parentheses"
+                : "";
+        error_at(t->pos, "'%s' is a parameter of an anonymous function, and this is not in one%s", name, hint);
+    }
+    if (in_signature)
+        error_at(t->pos, "'%s' cannot be used in the parameters or result of the function it names", name);
+    if (anon_kind == ANON_BARE)
+        error_at(t->pos, "kelvinc cannot see this anonymous function's parameters, so '%s' has no type: write "
+                         "them, as in '{ (a:i32, b:i32):bool in ... }'%s",
+                 name, anon_note ? anon_note : "");
+    if (k < 0 || k >= parsing_fn->params.len)
+        error_at(t->pos, "'%s': this anonymous function has %d parameter%s", name, parsing_fn->params.len,
+                 parsing_fn->params.len == 1 ? "" : "s");
+    Var *p = parsing_fn->params.data[k];
+    int i = binding_index(p->name);
+    if (i < params_start || i >= params_end)
+        error_at(t->pos, "'%s' is '%s', which a local name hides here", name, p->name);
+    Expr *e = new_expr(E_IDENT, t->pos);
+    e->text = p->name;
+    return e;
 }
 
 /* the body of if/else/while/do/for or a label: a declaration is not
@@ -1627,9 +2359,16 @@ static void reject_bare_declaration(int i) {
         return;
     Token *t = &toks[i + 2];
     if (!is_base_word(t) && !is_qualifier(t) && !is_kw(t, "struct") && !is_kw(t, "union") && !is_kw(t, "enum") &&
-        !tag_name_ahead(t, false))
+        !tag_name_ahead(t, false) && !is_p(t, "("))
         return;
-    int end = type_shape_end(i + 2);
+    if (is_p(t, "(")) {
+        Token *in = &toks[i + 3];
+        bool typed = is_p(in, ")") || is_base_word(in) || is_qualifier(in) || is_kw(in, "struct") ||
+                     is_kw(in, "union") || is_kw(in, "enum") || is_p(&toks[skip_group(i + 2)], ":");
+        if (!typed)
+            return; /* again: (x) = 1; is a label */
+    }
+    int end = is_p(t, "(") ? any_type_end(i + 2) : type_shape_end(i + 2);
     if (end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
                      is_p(&toks[end], ",")))
         error_at(toks[i].pos, "declarations start with let or var: write 'var %s:...', or 'let %s:...' if it "
@@ -1855,6 +2594,7 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
 static Stmt *parse_for_in(Pos pos) {
     Stmt *s = new_stmt(S_FOR_IN, pos);
     Token *name = peek();
+    reject_kv_name(name);
     s->name = advance()->text;
     Type *written = accept_p(":") ? parse_type() : NULL;
     if (peek()->kind != TK_IDENT || strcmp(peek()->text, "in"))
@@ -1913,7 +2653,17 @@ static Stmt *parse_for_in(Pos pos) {
     return s;
 }
 
+static Stmt *parse_stmt_here(void);
+
 static Stmt *parse_stmt(void) {
+    int saved = stmt_start;
+    stmt_start = cur;
+    Stmt *s = parse_stmt_here();
+    stmt_start = saved;
+    return s;
+}
+
+static Stmt *parse_stmt_here(void) {
     Token *t = peek();
     Pos pos = t->pos;
     bool as_body = stmt_is_body;
@@ -1928,7 +2678,7 @@ static Stmt *parse_stmt(void) {
             error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
                           "or write 'label: ;' before it");
         Stmt *s = parse_declaration();
-        expect_p(";");
+        end_statement();
         return s;
     }
     reject_bare_declaration(cur);
@@ -1957,7 +2707,7 @@ static Stmt *parse_stmt(void) {
         if (!accept_kw("while"))
             error_at(peek()->pos, "expected 'while' after the body of 'do'");
         s->expr = parse_condition("do");
-        expect_p(";");
+        end_statement();
         return s;
     }
     if (accept_kw("for")) {
@@ -2016,9 +2766,13 @@ static Stmt *parse_stmt(void) {
     }
     if (accept_kw("return")) {
         Stmt *s = new_stmt(S_RETURN, pos);
-        if (!is_p(peek(), ";"))
+        /* a function type types an anonymous function (#32) */
+        Type *ret = parsing_fn && parsing_fn->ret && parsing_fn->ret->kind == T_FUNC ? parsing_fn->ret : NULL;
+        if (is_p(peek(), "{") && (ret || signature_ahead(cur)))
+            s->expr = parse_anon_fn(ret);
+        else if (!is_p(peek(), ";"))
             s->expr = parse_expr();
-        expect_p(";");
+        end_statement();
         return s;
     }
     if (accept_kw("goto")) {
@@ -2029,6 +2783,7 @@ static Stmt *parse_stmt(void) {
     }
     if (t->kind == TK_IDENT && is_p(peek2(), ":")) {
         Stmt *s = new_stmt(S_LABEL, pos);
+        reject_kv_name(peek());
         s->name = advance()->text;
         advance();
         s->body = parse_body();
@@ -2055,7 +2810,7 @@ static Stmt *parse_stmt(void) {
     }
     Stmt *s = new_stmt(S_EXPR, pos);
     s->expr = parse_assignments();
-    expect_p(";");
+    end_statement();
     return s;
 }
 
@@ -2072,6 +2827,7 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     Token *name = peek();
+    reject_kv_name(name);
     d->name = expect_ident("a function name");
     if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
@@ -2115,6 +2871,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
     advance(); /* . */
     Token *name = peek();
     Decl *d = new_decl(D_FN, pos, storage);
+    reject_kv_name(name);
     d->name = expect_ident("a method name");
     d->recv_name = recv->text;
     if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
@@ -2171,8 +2928,10 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
     Decl *d = new_decl(kind, pos, NULL);
     if (kind == D_ENUM && is_p(peek(), "{"))
         d->name = NULL; /* anonymous enum: a group of int constants */
-    else
+    else {
+        reject_kv_name(peek());
         d->name = expect_ident("a tag name");
+    }
     list_push(&records, d);
     if (accept_p("{")) {
         d->has_body = true;
@@ -2180,6 +2939,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
             if (kind == D_ENUM) {
                 Var *v = xcalloc(1, sizeof *v);
                 v->pos = peek()->pos;
+                reject_kv_name(peek());
                 v->name = expect_ident("an enumerator");
                 declare_name(v->name);
                 if (accept_p("="))
@@ -2200,10 +2960,35 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
     return d;
 }
 
+/* A top-level declaration and the anonymous functions in it (#32):
+   declared before it, so that it may use them, and defined after it, so
+   that they may use it and everything it declares */
+static void add_top_decl(Program *prog, Decl *d) {
+    for (int i = 0; i < anon_fns.len; i++) {
+        Decl *proto = xcalloc(1, sizeof *proto);
+        *proto = *(Decl *)anon_fns.data[i];
+        proto->body = NULL;
+        list_push(&prog->decls, proto);
+    }
+    list_push(&prog->decls, d);
+    for (int i = 0; i < anon_fns.len; i++)
+        list_push(&prog->decls, anon_fns.data[i]);
+    anon_fns.len = 0;
+}
+
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     toks = tokens;
     cur = 0;
+    anon_fns = (List){0};
+    anon_count = 0;
+    anon_start = -1;
+    trailing_end = -1;
+    stmt_start = 0;
+    pending_note = anon_note = NULL;
+    body_after_call = -1;
+    init_depth = 0;
+    in_signature = false;
     scope_names = (List){0};
     scope_types = (List){0};
     scope_lets = (List){0};
@@ -2229,28 +3014,34 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
+        stmt_start = cur;
         const char *storage = parse_storage();
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
-            list_push(&prog->decls, parse_method(t->pos, storage));
+            add_top_decl(prog, parse_method(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
-            list_push(&prog->decls, parse_fn(t->pos, storage));
+            add_top_decl(prog, parse_fn(t->pos, storage));
         } else if (is_kw(peek(), "let") || is_kw(peek(), "var")) {
-            Decl *d = new_decl(D_VAR, t->pos, storage);
+            /* one declaration per global, each after the anonymous
+               functions' prototypes in its initializer (#32), so that
+               those may use the globals before it */
             bool is_let = is_kw(advance(), "let");
-            parse_var_list(&d->members, is_let, storage);
-            expect_p(";");
-            list_push(&prog->decls, d);
+            do {
+                Decl *d = new_decl(D_VAR, t->pos, storage);
+                parse_var_one(&d->members, is_let, storage);
+                add_top_decl(prog, d);
+            } while (accept_p(","));
+            end_statement();
         } else if (peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), "=") || is_p(peek2(), ":="))) {
             error_at(peek()->pos, "declarations start with let or var: write 'var %s ...', or 'let %s ...' if it "
                                   "never changes",
                      peek()->text, peek()->text);
         } else if (!storage && accept_kw("struct")) {
-            list_push(&prog->decls, parse_record(t->pos, D_STRUCT));
+            add_top_decl(prog, parse_record(t->pos, D_STRUCT));
         } else if (!storage && accept_kw("union")) {
-            list_push(&prog->decls, parse_record(t->pos, D_UNION));
+            add_top_decl(prog, parse_record(t->pos, D_UNION));
         } else if (!storage && accept_kw("enum")) {
-            list_push(&prog->decls, parse_record(t->pos, D_ENUM));
+            add_top_decl(prog, parse_record(t->pos, D_ENUM));
         } else {
             error_at(peek()->pos, "expected a declaration (name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }

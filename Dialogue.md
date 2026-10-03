@@ -1171,3 +1171,162 @@ fixed:
 
 The hidden lines of a loop now map to the `for`'s line, where C's
 warnings about them belong. There are 207 tests.
+
+### 46. Function types and anonymous functions
+
+> let us support anonymous functions. True closures are too much for
+> normal C (ignore GNU extensions) but ordinary functions which does not
+> enclose any external variables should be okay. Like Swift, the last
+> function can be an anonymous function defined as `{...}`.
+>
+> * `$` means entire argument stack where each argument can be accessed
+>   `$[idx]`.
+> * `$0` is `$[0]`.
+> * add `examples/sort.k` this anon functions are in action
+
+**Claude** noted that `$0` needs a type, and Kelvin had no function types,
+while kelvinc cannot see a C function's parameter types (such as
+`qsort`'s comparator). It asked four questions. The user took each
+recommendation:
+
+| Question | Answer |
+|----------|--------|
+| How is a function type written? | `(T, U):R`, a function's head without names |
+| Where no type is in sight, how does an anonymous function write its parameters? | `{ (a:T, b:U):R in ... }`, as in Swift |
+| May one expression be the body, without `return`? | Yes: `{ $0 < $1 }` |
+| What may index `$`, and where? | A number only, and only in anonymous functions |
+
+**Claude** implemented function types as #31 and anonymous functions as
+#32. Its choices are provisional P43 and P44. These are:
+
+- An anonymous function becomes a static C function placed before the
+  declaration around it.
+- Using a local of the function around it is an error.
+- A trailing `{ }` ends a statement without `;`.
+- In the head of `if`, `while` or `for`, a `{` after a call starts the
+  body, as in Swift.
+- A body without a result may be one assignment, as in
+  `each(xs, n) { total += $0 }`.
+
+A C function with `char` parameters cannot be stored in a function type
+with `u8` ones, since C sees two different function types; an anonymous
+function wraps it. `examples/sort.k` sorts with a Kelvin insertion sort
+that takes the order as a function, and with C's `qsort`. There are 227
+tests.
+
+### 47. The review of #31 and #32
+
+**Claude** ran a review round of #31 and #32 before reporting them. The
+round confirmed 38 findings, about 20 of them distinct, and rejected 6.
+All are fixed:
+
+- **A statement after a trailing function could be glued on.** Without a
+  `;`, a next line starting with `(`, as in `(p as i64^)^ = 42;`, was read
+  as a call of the previous call's result. That could write to the wrong
+  place without a warning. As in Swift, a new line after the trailing `}`
+  now ends the expression. Two such statements in one body are
+  statements now, not one broken expression.
+- **Names in parameter types escaped the no-closure check.** An array
+  length in a written parameter, `(a:i64[k])`, could name a local of the
+  function around it, which C then read as a global of the same name.
+  That is an error now. An array parameter whose type comes from
+  elsewhere keeps its length only when it is a number, and is otherwise
+  a pointer, as C makes it.
+- **`$4294967296` meant `$0`, and `$[2147483648]` crashed kelvinc.** Large
+  indexes are out of range now, and `$00` asks for `$0`.
+- **Globals.** An anonymous function in a global's initializer could not
+  use that global, or one declared before it in the same `let`. Each is
+  now declared before its declaration and defined after it, which also
+  ends doubled C diagnostics about the head of the function around it.
+- **Initializer lists.** `{ (n:u8):i64, 2 }`, valid before, was taken for
+  an anonymous function. A list now types its items from the struct's
+  members or the array's elements, so `{ $0 - $1 }` works for a member of
+  a function type.
+- **Smaller fixes.**
+  - `sizeof($0)` wrote `$0` into the C.
+  - A trailing function inside a converter's parentheses or a compound
+    literal in a condition was taken for the body.
+  - `c ? f as (i64) : g` took the `?:`'s `:` for a result type.
+  - A function's name had no function type, so `add.cstr` printed an
+    address.
+  - `print(f)` converted a function to a data pointer.
+  - `{ $0.hex }` returned a dead buffer, and is now an error.
+  - Unused `$k` parameters warned under `-Wextra`.
+- **Messages.** Too many arguments before a trailing function now say
+  so. The hint about conditions appears only in a condition. Pointers to
+  function types and bare `f:(T):R` declarations say what is wrong.
+- **Docs.** The docs cover all of the above, and P43, P44, Q12 and
+  versusC.md's type inference list are updated. The style for anonymous
+  functions is marked provisional. Names starting with `kv_`, which the C
+  kelvinc writes uses, are reserved.
+
+The rejected 6 were these:
+- A struct member called like a method follows the documented P26
+  dispatch rule.
+- `break` out of an anonymous function is checked by C, as in any
+  function.
+- `sizeof(point)` naming a local of the function around it follows the
+  no-closure rule.
+- `{ $0 + 1; }` without a result matches named functions.
+- One example comment was accurate.
+- One finding repeated another.
+
+There are 244 tests.
+
+### 48. The review of #31 and #32, again
+
+> run the review of #31 and #32 again
+
+The second round confirmed 48 findings, about 25 of them distinct, and
+rejected 2. Several came from the first round's own fixes. All are fixed:
+
+- **The new-line rule went too far.** The first round ended an expression
+  at any new line after a trailing `}`. A continuation such as `- apply(4)
+  { ... }` on the next line was then silently dropped as a statement of
+  its own. Now, as in Swift, only a `(` on the next line starts a new
+  statement, and only at the top level of one. An operator or `.member`
+  goes on with the expression. Another statement on the same line needs
+  a `;`, in a block and in an anonymous function's body alike.
+- **Initializer lists, again.** `{ (n:i64) * 2, 3 }` and `{(p:i64^)^, 1}`
+  were taken for anonymous functions. The `(a:T)` shape now counts only
+  where no expression can go on after it.
+- **Lengths from another scope, again.** The first round decayed only a
+  parameter's outer array. Now kelvinc records, where a type is written,
+  whether an array length names a local or a parameter. In a type taken
+  from elsewhere, such a length makes the outer array a pointer, and is
+  an error anywhere else (`(i64[2][n])`, `(i64[k]^)`). Lengths of numbers
+  and globals are kept, so `(i64[N])` with a global `N` walks `N`
+  elements, as in a named function.
+- **The dead-buffer check** looks through `as`, `?:` and the comma, and
+  treats `.cstr` of a value kelvinc cannot see as text in a buffer.
+- **`kv_` names** are now rejected as loop variables, tags, methods and
+  labels too. `for kv_i1 in ...` had read garbage.
+- **Placement.** A global of a `let`/`var` list is now its own C
+  declaration, after its anonymous functions' prototypes. A struct, union
+  or enum gets its anonymous functions placed too. Their prototypes print
+  array parameters as pointers, as the definitions do.
+- **Smaller fixes.**
+  - `c ? f as (i64) : nullptr` misread the `:`.
+  - `add.size` was 1, and is now a pointer's size.
+  - `println(&add)` and `?:` between functions printed addresses.
+  - A method with a prototype lost its context type.
+  - `:=` through a cast or a call gave no context.
+  - After C's brace elision or `.a.b = ...`, items got the wrong
+    member's type.
+  - A compound literal ending a line in a one-expression body made it a
+    block.
+  - `again: (x) = 1;` was called a declaration.
+  - An anonymous function that writes its parameters may now stand
+    anywhere a value may, such as in `?:`.
+- **Messages.** C's `T (*f)(...)` gets the `(...):T` spelling. Messages
+  spell `$[k]` as written. A dropped C typedef parameter asks whether an
+  argument is missing, and too many arguments name the right callee.
+  `i64[2][3]` prints in order.
+
+The rejected 2:
+- A literal receiver, such as `3.times()`, is a C `int` that P30
+  documents.
+- Struct members and C prototypes named `kv_` can clash with the
+  runtime's own names.
+
+There are 258 tests.

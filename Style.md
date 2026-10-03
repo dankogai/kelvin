@@ -25,6 +25,21 @@ sum(var n:node^):i64 {
 does, `else` follows the closing brace (`} else {`), and a short body may
 stay on one line: `positive(n:i32):bool { return n > 0; }`.
 
+## Anonymous functions *(provisional, Dialogue.md entry 46)*
+
+A short one stays on one line, with a space inside each brace:
+`sort(xs, n) { $0 < $1 }`. A longer one opens on the call's line, with
+its written parameters, if any, before `in`:
+
+```kelvin
+qsort(names, n, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
+    return strcmp((a as const cstr^)^, (b as const cstr^)^);
+}
+```
+
+A statement that ends with a trailing function has no `;`, and is the
+last on its line.
+
 ## Indentation
 
 Four spaces.
