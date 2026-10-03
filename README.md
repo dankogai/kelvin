@@ -69,7 +69,8 @@ Everything else is C. See [versusC.md](versusC.md) for all the differences,
 
 ## Examples
 
-Each one ends with the output it prints, which `make test` checks.
+Each one ends with the output it prints, as `// out:` lines, which
+`make test` checks.
 
 | File | Shows |
 |------|-------|

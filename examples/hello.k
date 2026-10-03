@@ -6,3 +6,4 @@ main(): i32
     println("Hello, Kelvin!");
     return 0;
 }
+// out: Hello, Kelvin!

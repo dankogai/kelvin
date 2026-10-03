@@ -1,9 +1,8 @@
 #!/bin/sh
 # Kelvin test runner.
 #
-#   tests/run/*.k    must compile, exit 0, and print the lines given by
-#   examples/*.k     `// out: ...` comments (in order); an example with no
-#                    such lines only has to build and run.
+#   tests/run/*.k    must compile, exit 0, and print exactly the lines
+#   examples/*.k     given by `// out: ...` comments (in order).
 #   tests/error/*.k  must fail to build (in kelvinc or in the C compiler),
 #                    with output containing the `// error: ...` text.
 #   tests/c/*.c      C programs using libkelvin; built against libkelvin.a
@@ -36,12 +35,13 @@ for f in tests/run/*.k examples/*.k; do
         bad "$f" "compiles with diagnostics"
         continue
     fi
-    if ! "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"; then
-        bad "$f" "exited with status $?"
+    # after `if ! cmd`, $? would be the 0 of the negation: save it first
+    "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        bad "$f" "exited with status $status"
         continue
     fi
-    # an example without `// out:` lines only has to build and run
-    case "$f" in examples/*) [ -s "$tmp/expected" ] || { ok; continue; } ;; esac
     if cmp -s "$tmp/expected" "$tmp/actual"; then
         ok
     else
@@ -74,8 +74,12 @@ for f in tests/c/*.c; do
         fi
         if ! "$CC" -std=c11 -isystem runtime -o "$tmp/cprog" "$f" "$@" > "$tmp/log" 2>&1; then
             bad "$f ($link)" "does not build"
-        elif ! "$tmp/cprog" > "$tmp/actual" 2> "$tmp/log"; then
-            bad "$f ($link)" "exited with status $?"
+            continue
+        fi
+        "$tmp/cprog" > "$tmp/actual" 2> "$tmp/log"
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            bad "$f ($link)" "exited with status $status"
         elif ! cmp -s "$tmp/expected" "$tmp/actual"; then
             diff "$tmp/expected" "$tmp/actual" > "$tmp/log"
             bad "$f ($link)" "output differs (expected < > actual)"

@@ -1008,3 +1008,29 @@ There are 185 tests.
 Each ends with `// out:` lines, and `tests/run.sh` now checks an
 example's output when it has them. The README lists the examples. There
 are 190 tests.
+
+### 41. The review of the examples
+
+> run the review of the examples
+
+One round, with a correctness lens and a teaching lens, confirmed 5
+findings, 3 of them distinct, and rejected 2. The examples themselves
+were sound: their output, memory use (ASan, UBSan and `leaks`) and
+comments all held. All three findings were in the test runner and the
+README, and are fixed:
+
+- **`hello.k` was not checked.** It had no `// out:` line, so the README's
+  "each one ends with the output it prints" was false for it. It now has
+  one.
+- **Missing markers turned the check off.** An example without `// out:`
+  lines was only built and run, so deleting or mistyping every marker
+  silently stopped checking its output. Examples are now compared
+  exactly like the tests in `tests/run`.
+- **"exited with status 0".** After `if ! cmd`, `$?` is the status of the
+  negation, so every crash or non-zero exit was reported as status 0,
+  since the first commit. The runner now saves the status first, also
+  for `tests/c`.
+
+The 2 rejected: the runner ignores stderr, as its header says, and
+`primes.k`'s expected line ends in a space, as several older tests do.
+There are 190 tests.
