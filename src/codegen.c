@@ -116,6 +116,10 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
         char *s = inner_is_ptr ? strfmt("(%s)", inner) : xstrdup(inner);
         return declarator(t->elem, strfmt("%s[%s]", s, t->size ? expr(t->size) : ""), false);
     }
+    case T_TYPEOF: /* v.type that kelvinc cannot see (#34); unqualified as a value is */
+        return strfmt(t->unqual ? "%s%s__typeof__((void)0, (%s))%s%s" : "%s%s__typeof__(%s)%s%s",
+                      t->is_const ? "const " : "", t->is_volatile ? "volatile " : "", expr(t->of), *inner ? " " : "",
+                      inner);
     case T_FUNC: {
         /* (T, U):R is C's R (*inner)(T, U) (#31). An array parameter is
            the pointer C makes of it, so that no length is needed here */
@@ -368,6 +372,8 @@ static char *expr_bare(Expr *e) {
         char *recv = expr(e->a);
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
+        if (!strcmp(e->text, "typename")) /* a type kelvinc cannot see (#34) */
+            return strfmt("kv_typename(%s)", recv);
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev")) /* #26 */
             return strfmt("(%s %s 1)", recv, e->text[0] == 'n' ? "+" : "-");
         bool cstr = !strcmp(e->text, "cstr");
@@ -483,8 +489,10 @@ static Type *const_type(Type *t) {
 static char *var_decl(const char *storage, Var *v) {
     char *d = decl(v->is_let ? const_type(v->type) : v->type, v->name);
     /* a reference declared without a value is nullptr (#20) */
+    /* a v.type that C writes as __typeof__ is the type kelvinc saw (#34) */
+    Type *seen = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
     const char *init = v->init                                                         ? initializer(v->init)
-                       : (v->type->kind == T_PTR || v->type->kind == T_FUNC) && !(storage && !strcmp(storage, "extern")) ? "0"
+                       : (seen->kind == T_PTR || seen->kind == T_FUNC) && !(storage && !strcmp(storage, "extern")) ? "0"
                                                                                        : NULL;
     return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d, init ? strfmt(" = %s", init) : "");
 }
@@ -771,8 +779,10 @@ static char *fn_head(Decl *d) {
         Type *t = p->type;
         /* a C typedef kelvinc cannot see may be an array, such as jmp_buf,
            whose const would reach its elements: kelvinc checks those lets */
-        bool hidden = t->kind == T_BASE && !strcmp(c_type_name(t->name), t->name) && strcmp(t->name, "bool") &&
-                      strncmp(t->name, "struct ", 7) && strncmp(t->name, "union ", 6) && strncmp(t->name, "enum ", 5);
+        bool hidden = (t->kind == T_BASE && !strcmp(c_type_name(t->name), t->name) && strcmp(t->name, "bool") &&
+                       strncmp(t->name, "struct ", 7) && strncmp(t->name, "union ", 6) &&
+                       strncmp(t->name, "enum ", 5)) ||
+                      t->kind == T_TYPEOF;
         bool let = p->is_let && d->body && !hidden;
         /* an anonymous function's prototype says the same as its
            definition, with no length that would need a name (#32) */

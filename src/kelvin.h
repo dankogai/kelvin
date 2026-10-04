@@ -67,8 +67,9 @@ Token *lex(const char *file, const char *src, int *ntoks);
 
 /* Types are written postfix: `char const^[4]` is an array of four pointers
    to const char. A function type `(i64, i64):bool` is C's pointer to a
-   function (#31). */
-typedef enum { T_BASE, T_PTR, T_ARRAY, T_FUNC } TypeKind;
+   function (#31). `v.type` is v's type (#34), a T_TYPEOF where kelvinc
+   cannot see it. */
+typedef enum { T_BASE, T_PTR, T_ARRAY, T_FUNC, T_TYPEOF } TypeKind;
 
 typedef struct Expr Expr;
 typedef struct Type Type;
@@ -76,13 +77,18 @@ typedef struct Type Type;
 struct Type {
     TypeKind kind;
     Pos pos;
-    char *name;       /* T_BASE: "int", "unsigned long", "struct Point" */
+    char *name;       /* T_BASE: "int", "unsigned long", "struct Point";
+                         T_TYPEOF: the value as written, for messages */
     bool is_const, is_volatile;
-    Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none) */
+    Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
+                         T_TYPEOF: the type kelvinc sees, if any */
     Expr *size;       /* T_ARRAY; NULL for [] */
     List params;      /* T_FUNC: Type * per parameter */
     bool variadic;    /* T_FUNC: ends with ... */
-    bool size_local;  /* T_ARRAY: the length names a local or a parameter */
+    bool size_local;  /* T_ARRAY: the length names a local or a parameter;
+                         T_TYPEOF: so does the value */
+    Expr *of;         /* T_TYPEOF: the value whose type it is */
+    bool unqual;      /* T_TYPEOF: without its qualifiers, as a value has */
 };
 
 typedef enum {

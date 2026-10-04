@@ -46,6 +46,32 @@ uint8_t *kv_cstr_cld(long double _Complex v, uint8_t *buf);
 uint8_t *kv_cstr_str(const char *v, uint8_t *buf);
 const uint8_t *kv_cstr_cstr(const char *v, uint8_t *buf);
 uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf);
+/* v.typename (#34) for a type kelvinc cannot see: the Kelvin name of a
+   built-in type, or "?". C's long is i64 or i32 by its size, which the
+   compiler says without <limits.h> and its names. */
+#if __SIZEOF_LONG__ == 8
+#define KV_TYPENAME_LONG "i64"
+#define KV_TYPENAME_ULONG "u64"
+#else
+#define KV_TYPENAME_LONG "i32"
+#define KV_TYPENAME_ULONG "u32"
+#endif
+#ifdef __SIZEOF_INT128__
+#define KV_TYPENAME_INT128 __int128: "i128", unsigned __int128: "u128",
+#else
+#define KV_TYPENAME_INT128
+#endif
+#define kv_typename(v) _Generic((v), \
+    bool: "bool", char: "u8", signed char: "i8", short: "i16", int: "i32", \
+    long: KV_TYPENAME_LONG, long long: "i64", \
+    unsigned char: "u8", unsigned short: "u16", unsigned: "u32", \
+    unsigned long: KV_TYPENAME_ULONG, unsigned long long: "u64", \
+    KV_TYPENAME_INT128 \
+    float: "f32", double: "f64", float _Complex: "f32 _Complex", double _Complex: "f64 _Complex", \
+    char *: "u8^", const char *: "const u8^", unsigned char *: "u8^", const unsigned char *: "const u8^", \
+    signed char *: "i8^", const signed char *: "const i8^", void *: "any^", const void *: "const any^", \
+    default: "?")
+
 #ifdef __SIZEOF_INT128__
 uint8_t *kv_cstr_i128(__int128 v, uint8_t *buf);
 uint8_t *kv_cstr_u128(unsigned __int128 v, uint8_t *buf);

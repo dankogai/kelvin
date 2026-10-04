@@ -52,6 +52,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
 | `sizeof x` | `x.size` |
+| `__typeof__(x) y;` | `var y:x.type;` (#34) |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
 | `double area(struct shape s)` | `shape.area():f64 { ... self ... }`, called as `s.area()` |
 | `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32;` (#31) |
@@ -643,7 +644,7 @@ main():i32 {
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.
 
-## Properties: `.size`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`
+## Properties: `.size`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`
 
 Properties are written without parentheses:
 
@@ -659,6 +660,38 @@ println(3.141592653589793.hex);             // +0x1.921fb54442d18p+1
 
 - **`x.size`** is `sizeof(x)`. A function's `.size`, and its `sizeof`,
   are a pointer's size, since its name is a function value (#31).
+- **`v.type`** is `v`'s type, written where a type goes (#34): after `:`
+  and `as`, in `sizeof(...)`, in compound literals and in function types.
+  `v` is a variable or `$k`, possibly followed by `.member`, `^` and
+  `[i]`, as in `var w:k.type = 4;`, `let p := &w as w.type^;` or
+  `pp^.y.type`.
+  - It is the type kelvinc sees `v` declared with, so a `let`'s own
+    `const` does not come along (`var w:k.type` can change). A `const`
+    written before it, as in `const xs.type`, applies to an array's
+    elements, as in C.
+  - Where kelvinc cannot see the type (a name from a C header), or the
+    type holds something C would evaluate again (a length that is not a
+    number, as in a variable length array), it is C's `__typeof__(v)`,
+    which keeps `v`'s own length and also a `let`'s `const`. For a C
+    function, that is C's function type; `f.type^` is its pointer.
+  - In `sizeof(x.type)` and `(x.type)`, where an expression could stand
+    too, `.type` is a field when `x` has one, is a C struct, or has a type
+    kelvinc cannot see; write `x.type` after `:` or `as` there. In other
+    expressions, `x.type` is a field if `x` may have one, and otherwise an
+    error, as a type is not a value.
+  - A result type cannot name a parameter (C writes the result first),
+    and `point.type` of a type or `i64.type` asks for the type itself.
+  - A variable used only for its `.type` or `.typename` is unused as far
+    as C sees (`-Wunused-variable` under `-Wall`) *(provisional P45)*.
+- **`v.typename`** is the text of `v`'s type as Kelvin writes it, a `cstr`:
+  `"i64"`, `"point"`, `"u8^"`, `"i32[4]"`, `"(i64):i64"`,
+  `"((i64):i64)^"`. Where kelvinc cannot see the type, or it holds a
+  `__typeof__`, C's `_Generic` gives the Kelvin name of a built-in type
+  (`getenv("X").typename` is `"u8^"`), and anything else is `"?"`. A
+  literal is C's: `42.typename` is `"i32"`, as `42.size` is 4, and
+  `nullptr.typename` is `"any^"`. Through `_Generic`, an array is a
+  pointer, an enum its integer type, and a bit-field may differ between
+  compilers. `v` is not evaluated, as for `sizeof`.
 - **`x.cstr`** is the text of any value, as `cstr` (#22):
   - **Numbers** are plain decimal (`42`, `-7`), including 128-bit ones.
     Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
@@ -680,10 +713,10 @@ println(3.141592653589793.hex);             // +0x1.921fb54442d18p+1
     pointer, `pthread_t` on macOS). A struct whose flexible array member
     is declared through a C typedef has no `.cstr`.
   - **Where kelvinc cannot see that a value is a struct**, as in
-    `(c ? p : q).cstr`, the C compiler reports `kv_cstr_unseen_struct`;
+    `(q, p).cstr`, the C compiler reports `kv_cstr_unseen_struct`;
     assign the value to a variable first. kelvinc does see variables,
-    fields, `v as T`, and what Kelvin functions and methods return
-    *(provisional P35)*.
+    fields, `v as T`, what Kelvin functions and methods return, and a
+    `?:` between two values of one type (#34) *(provisional P35)*.
 - **`cstr`** is a built-in name for `u8^` (C's `uint8_t *`), as if declared
   `typedef u8^ cstr`. It is a reference, so assign it with `:=`, and
   `cstr const` is a constant pointer *(provisional P36)*.
@@ -702,8 +735,10 @@ println(3.141592653589793.hex);             // +0x1.921fb54442d18p+1
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and
   in a C struct from a header. When kelvinc cannot see whether the
-  receiver is a struct, `.size` is a field (write `sizeof(x)` there), while
-  `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are properties.
+  receiver is a struct, `.size` and `.type` are fields (write `sizeof(x)`
+  or `var y:x.type` there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are
+  properties. `.typename` is a property also of a C struct, since C++
+  reserves the word and C headers rarely name a field so (#34).
 - **Errors.** `.hex` on a pointer, bool or struct, and `.oct` or
   `.bin` on a float, are errors. Where kelvinc cannot see the type, as in
   `getenv("HOME").hex`, the C compiler reports it, naming
@@ -768,7 +803,8 @@ These are C features without a Kelvin spelling so far:
 - the preprocessor beyond `#import`
 - statements of the form `name(x);` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see Conversions)
-- `alignof` and `typeof` (reserved C compiler keywords, P20)
+- `alignof` and `typeof` (reserved C compiler keywords, P20; `v.type` is
+  Kelvin's `typeof`, #34)
 - `__asm__ __volatile__ (...)` (two names in a row; `__asm__(...)` works)
 - `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
   (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`

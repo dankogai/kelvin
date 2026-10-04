@@ -1397,3 +1397,90 @@ With `kelvinc -O`, clang folds the comparators of `examples/sort.k`
 into the Kelvin `sort` that calls them, and keeps only the one that
 `qsort` needs. Inlining does not change what a program prints, so the
 tests show only that the C compiles cleanly. There are 275 tests.
+
+### 51. `.type` and `.typename`
+
+> every variable has an attribute `v.size` == `sizeof(v)`. And pointers
+> have `(p0 - p1).diff` which returns `ptrdiff_t`
+
+**Claude** was about to ask how this related to the existing `x.size`
+and how to read `.diff`. The user declined the questions and wrote
+instead:
+
+> every variable has `.type` where `v.type == typeof(v).` if possible,
+> add `.typename` which returns a `cstr`.
+
+**Claude** asked four questions. The user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| Where may `v.type` stand? | Where a type goes; in an expression, `x.type` stays a field |
+| What does it become in C? | The type kelvinc sees (without a let's own const), else `__typeof__(v)` |
+| What text does `.typename` give? | The Kelvin spelling, else `_Generic`'s name of a built-in type, else `"?"` |
+| `(p0 - p1).diff`? | Later, as a change of its own (Q13) |
+
+**Claude** implemented #34. Its choices are provisional P45:
+
+- `v` is a name or `$k` with `.member`, `^` and `[i]` steps.
+- In `sizeof(x.type)` and `(x.type)`, a field wins where there may be
+  one.
+- `point.type` of a tag is an error.
+- `kv_typename` in the prelude covers C's built-in types and pointers to
+  characters and `void`.
+
+There are 280 tests.
+
+### 52. The review of #34
+
+**Claude** ran a review round of #34 before reporting it. The round
+confirmed 56 findings, about 30 of them distinct, and rejected 5. All
+are fixed:
+
+- **The prelude included `<limits.h>`** only to spell C's `long`, which
+  broke Kelvin names such as `INT_MAX` or `LINE_MAX`. The prelude now
+  asks the compiler with `__SIZEOF_LONG__`.
+- **Copied types re-evaluated their expressions.** `var b:a.type` for a
+  variable length `a` printed `a`'s length again where `b` is declared.
+  There it could name another variable, take a changed value, or call
+  a function twice. Where the type holds such an expression, it is now
+  C's `__typeof__(a)`, and kelvinc keeps the type it saw for its own
+  checks. The same goes for a parameter whose declared type kelvinc
+  cannot see (`jmp_buf`), and for a function, whose fallback is a
+  function value.
+- **Qualifiers.** `const xs.type` dropped its `const` on an array; it is
+  now on the elements, as in C. A `for` counter typed by a `__typeof__`
+  no longer keeps the bound's `const`.
+- **Result types** that name a parameter through `__typeof__` are an
+  error, since C writes the result first.
+- **More places.**
+  - `$0.type` works in compound literals and annotations.
+  - `(errno.type){5}` and `(const errno.type){5}` work.
+  - So do a `for` head over `(xs.type){...}` and a written result
+    `{ (x:i64):x.type in ... }`.
+  - `sizeof(inc.type)` and `sizeof(red.type)` work.
+  - An anonymous function may be passed to a `.type` parameter.
+- **`.typename`.**
+  - A literal is C's (`42` is `i32`, as `42.size` is 4), and `nullptr`
+    is `any^`.
+  - A type holding a `__typeof__` asks `_Generic`; it was the source
+    text, as `"errno.type^"`.
+  - A pointer to a function type reads `((i64):i64)^`, and the text is
+    escaped for C.
+  - A C struct is spelled `struct cpt`, and a `?:` between two values
+    of one type is that type, which also lets `(c ? p : q).cstr` work.
+- **Messages.** `(k.type)` as a value, `point.type` and `i64.type`,
+  `p^.type` of an `any^`, and `.type` arrays of functions get Kelvin's
+  own errors.
+- **Docs and tests.** The docs now spell out the fallback, the field
+  rules, and `_Generic`'s limits (arrays decay, enums, bit-fields). The
+  error test that did not test #34 is replaced.
+
+The rejected 5:
+- `argv.type` is the documented `u8^^` (P13).
+- `point.x.type` gets C's error, as `point.x` already did.
+- `abs.type` is C's function type, the agreed fallback (now
+  documented, with `f.type^`).
+- `(k.type)` was an error either way, and now names `.type`.
+- The implementation table is a summary.
+
+There are 285 tests.

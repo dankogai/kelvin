@@ -286,9 +286,16 @@ static bool starts_type(Token *t);
    converter call. */
 static bool is_qualifier(Token *t);
 
+static int typeof_at(int i);
+static int type_suffix_end(int i);
+static bool type_is_field(int i, int dot);
+
 static bool paren_type_ahead(bool in_sizeof) {
     if (!is_p(peek(), "("))
         return false;
+    int dot = typeof_at(cur + 1);
+    if (dot >= 0) /* sizeof(v.type), unless .type is a field there (#34) */
+        return !type_is_field(cur + 1, dot) && is_p(&toks[type_suffix_end(dot + 2)], ")");
     if (tag_name_ahead(peek2(), in_sizeof)) {
         /* sizeof(point), (point^)p: a tag's bare name, then the type's end */
         Token *n = peek_at(2);
@@ -355,9 +362,135 @@ static int skip_nested(int i) {
    `const div_t^` or `struct pt^`, the index just past it; otherwise -1.
    C's own type words are accepted so they reach the "not a Kelvin type"
    hint. */
+static char type_class(Type *t, Decl **record);
+static bool record_has_field(Decl *r, const char *name);
+static Type *param_type(Type *t);
+
+/* If the tokens from i spell a value's type, `v.type` (#34): a name or
+   $k, then .member, ^ or [...] steps, then .type, the index of the `.`
+   of the last .type; otherwise -1 */
+static int typeof_at(int i) {
+    bool dollar = toks[i].kind == TK_PUNCT && toks[i].text[0] == '$';
+    if (toks[i].kind != TK_IDENT && !dollar)
+        return -1;
+    int j = i + 1, dot = -1;
+    if (dollar && !toks[i].text[1]) { /* $[k] */
+        if (!is_p(&toks[j], "["))
+            return -1;
+        j = skip_group(j);
+    }
+    for (;;) {
+        if (is_p(&toks[j], ".") && toks[j + 1].kind == TK_IDENT) {
+            if (!strcmp(toks[j + 1].text, "type"))
+                dot = j;
+            j += 2;
+        } else if (is_p(&toks[j], "^")) {
+            j++;
+        } else if (is_p(&toks[j], "[")) {
+            j = skip_group(j);
+        } else {
+            return dot;
+        }
+    }
+}
+
+/* the index just past the ^, [...] and qualifiers after a type ending at i */
+static int type_suffix_end(int i) {
+    for (;;) {
+        if (is_p(&toks[i], "^") || is_kw(&toks[i], "const") || is_kw(&toks[i], "volatile"))
+            i++;
+        else if (is_p(&toks[i], "["))
+            i = skip_group(i);
+        else
+            return i;
+    }
+}
+
+static Type *fn_type_of(Decl *d);
+static Type *base_type(const char *name, Pos pos);
+
+/* Is name a Kelvin enumerator that no local hides? */
+static bool enumerator_named(const char *name) {
+    int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+    int i = binding_index(name);
+    if (i < 0 || i >= global_end)
+        return false;
+    for (int k = 0; k < records.len; k++) {
+        Decl *r = records.data[k];
+        for (int m = 0; r->kind == D_ENUM && m < r->members.len; m++)
+            if (!strcmp(((Var *)r->members.data[m])->name, name))
+                return true;
+    }
+    return false;
+}
+
+/* the type kelvinc sees for the value that the tokens from i to end
+   spell (a name or $k, then .member, ^ and [...] steps), or NULL */
+static Type *chain_type(int i, int end) {
+    Type *t = NULL;
+    int j = i + 1;
+    if (toks[i].kind == TK_IDENT) {
+        t = lookup_type(toks[i].text);
+        if (t && t->kind == T_TYPEOF)
+            t = t->elem;
+        Decl *f = t ? NULL : function_named(toks[i].text);
+        if (f)
+            t = fn_type_of(f);
+        if (!t && enumerator_named(toks[i].text))
+            t = base_type("i32", toks[i].pos); /* C's int */
+    } else if (anon_start >= 0 && parsing_fn) { /* $k, $[k] */
+        const char *digits = toks[i].text + 1;
+        if (!*digits) {
+            digits = toks[i + 2].text;
+            j = skip_group(i + 1);
+        }
+        int k = strlen(digits) > 6 ? -1 : atoi(digits);
+        if (k >= 0 && k < parsing_fn->params.len)
+            t = lookup_type(((Var *)parsing_fn->params.data[k])->name);
+        if (t && t->kind == T_TYPEOF)
+            t = t->elem;
+    }
+    while (t && j < end) {
+        if (is_p(&toks[j], ".")) {
+            const char *m = toks[j + 1].text;
+            Decl *r = NULL;
+            Type *f = NULL;
+            if (t->kind == T_BASE && type_class(t, &r) == 's') {
+                for (int k = 0; k < r->members.len; k++)
+                    if (!strcmp(((Var *)r->members.data[k])->name, m))
+                        f = ((Var *)r->members.data[k])->type;
+            } else if (t->kind == T_PTR && (!strcmp(m, "next") || !strcmp(m, "prev"))) {
+                f = t;
+            }
+            t = f && f->kind == T_TYPEOF ? f->elem : f;
+            j += 2;
+        } else if (is_p(&toks[j], "^") || is_p(&toks[j], "[")) {
+            t = t->kind == T_PTR || t->kind == T_ARRAY ? t->elem : NULL;
+            j = is_p(&toks[j], "^") ? j + 1 : skip_group(j);
+        } else {
+            break;
+        }
+    }
+    return t;
+}
+
+/* Where a value could stand too, as in `sizeof(ev.type)` or `(ev.type)`,
+   is the `.type` at dot a field, as it is for a struct with such a field,
+   a C struct, and a value kelvinc cannot see? (#34) */
+static bool type_is_field(int i, int dot) {
+    Type *t = chain_type(i, dot);
+    Decl *r;
+    char c = type_class(t, &r);
+    return !t || c == 'c' || c == 'u' || (c == 's' && record_has_field(r, "type"));
+}
+
 static int type_shape_end(int i) {
+    int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    int dot = typeof_at(i);
+    if (dot >= 0) /* after a qualifier, only a type can follow */
+        return i == start && type_is_field(i, dot) ? -1 : type_suffix_end(dot + 2);
     if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum")) {
         if (toks[++i].kind != TK_IDENT)
             return -1;
@@ -431,6 +564,7 @@ typedef enum {
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
 static Type *parse_type(void);
+static Type *parse_typeof(int dot);
 
 /* Does e name a local or a parameter, which means something else, or
    nothing, in another scope? (#32) */
@@ -466,6 +600,8 @@ static bool type_names_local(Type *t) {
         return t->size_local || names_local(t->size) || type_names_local(t->elem);
     case T_PTR:
         return type_names_local(t->elem);
+    case T_TYPEOF:
+        return names_local(t->of);
     case T_FUNC:
         for (int i = 0; i < t->params.len; i++)
             if (type_names_local(t->params.data[i]))
@@ -485,6 +621,8 @@ static bool has_local_size(Type *t) {
         return t->size_local || has_local_size(t->elem);
     case T_PTR:
         return has_local_size(t->elem);
+    case T_TYPEOF:
+        return t->size_local;
     case T_FUNC:
         /* a parameter's outer array is printed as a pointer, without its
            length */
@@ -547,6 +685,34 @@ static Type *parse_type_in(TypeContext ctx) {
     base->kind = T_BASE;
     base->pos = peek()->pos;
     parse_qualifiers(base);
+    int dot = typeof_at(cur);
+    if (dot >= 0) { /* v.type (#34) */
+        Type *t = parse_typeof(dot);
+        Type q = {0};
+        q.is_const = base->is_const;
+        q.is_volatile = base->is_volatile;
+        parse_qualifiers(&q);
+        if (q.is_const || q.is_volatile) {
+            /* as C has it, a qualifier on an array is on its elements */
+            Type *at = t;
+            while (at->kind == T_ARRAY) {
+                Type *e = xcalloc(1, sizeof *e);
+                *e = *at->elem; /* the elements are shared with v's type */
+                at->elem = e;
+                at = e;
+            }
+            at->is_const |= q.is_const;
+            at->is_volatile |= q.is_volatile;
+        }
+        if (t->kind == T_FUNC && (is_p(peek(), "^") || is_p(peek(), "[")))
+            error_at(peek()->pos, "a pointer to a function type, or an array of functions, has no spelling yet "
+                                  "(#31): a function type is already a pointer, and several can go in a struct");
+        return parse_type_suffixes(t, ctx);
+    }
+    if (is_base_word(peek()) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
+        !strcmp(peek_at(2)->text, "type"))
+        error_at(peek()->pos, "'%s' is a type already: write '%s', not '%s.type'", peek()->text, peek()->text,
+                 peek()->text);
     if (is_kw(peek(), "struct") || is_kw(peek(), "union") || is_kw(peek(), "enum")) {
         char *kw = advance()->text;
         base->name = strfmt("%s %s", kw, expect_ident("a tag name"));
@@ -721,9 +887,12 @@ static Expr *new_expr(ExprKind kind, Pos pos) {
     return e;
 }
 
+/* the token where parse_postfix_ops stops, as before the .type of v.type */
+static int postfix_stop = -1;
+
 static Expr *parse_postfix_ops(Expr *e) {
     for (;;) {
-        if (trailing_line_end())
+        if (trailing_line_end() || cur == postfix_stop)
             return e;
         Token *t = peek();
         if (accept_p("[")) {
@@ -931,9 +1100,17 @@ static Expr *parse_primary(void) {
         Token *after = after_matching_paren(cur);
         /* in `for x in (i32[3]){1, 2, 3} {`, an array's or a pointer's
            type cannot be a parenthesized name, as in `for c in (s) {` */
-        bool compound = after && is_p(after, "{") && paren_holds_type(cur) &&
+        /* (v.type){...} is a compound literal also where .type could be a
+           field, since a field is never followed by `{` (#34); in a for
+           head, it must be an array's or a pointer's type */
+        int dot = typeof_at(cur + 1);
+        bool typeof_paren = dot >= 0 && is_p(&toks[type_suffix_end(dot + 2)], ")");
+        Type *chain = typeof_paren ? chain_type(cur + 1, dot) : NULL;
+        bool compound = after && is_p(after, "{") && (paren_holds_type(cur) || typeof_paren) &&
                         (brace_is_compound((int)(after - toks)) ||
-                         (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))));
+                         (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))) ||
+                         (brace_in_for && chain && (chain->kind == T_ARRAY || chain->kind == T_PTR)) ||
+                         (typeof_paren && !brace_ends_condition));
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
         if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
@@ -943,7 +1120,7 @@ static Expr *parse_primary(void) {
                 reject_c_int_name(inner);
             error_at(t->pos, CAST_HINT "; '%s' is not a Kelvin type, use %s", inner->text, kelvin_for_c_word(inner));
         }
-        if (compound && !converter_call && (starts_type(inner) || inner->kind == TK_IDENT)) {
+        if (compound && !converter_call && (starts_type(inner) || inner->kind == TK_IDENT || typeof_paren)) {
             advance();
             Type *type = parse_type_in(TYPE_DECL);
             expect_p(")");
@@ -973,6 +1150,11 @@ static Expr *parse_primary(void) {
                 }
             }
         }
+        int tdot = typeof_at(cur + 1);
+        if (tdot >= 0 && is_p(&toks[type_suffix_end(tdot + 2)], ")") && !starts_operand(&toks[type_suffix_end(tdot + 2) + 1]) &&
+            paren_type_ahead(false))
+            error_at(t->pos, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or "
+                             "'x as v.type'");
         if (paren_type_ahead(false)) {
             /* (T)v is C's cast, not Kelvin's */
             advance();
@@ -1087,6 +1269,8 @@ static bool annotation_ahead(void) {
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
         is_kw(n, "enum") || is_kw(n, "String"))
         return true;
+    if (n->kind == TK_PUNCT && n->text[0] == '$' && typeof_at(cur + 1) >= 0)
+        return ident_annotation_ok; /* 5:$0.type (#34) */
     return n->kind == TK_IDENT && ident_annotation_ok;
 }
 
@@ -1169,18 +1353,33 @@ static Type *param_type(Type *t) {
     return p;
 }
 
+/* while set, kelvin_type writes Kelvin tags by their bare names */
+static bool bare_tags;
+
 /* the Kelvin spelling of a type, for messages */
 static char *kelvin_type(Type *t) {
     const char *q = t->is_const && t->is_volatile ? "const volatile" : t->is_const ? "const" : t->is_volatile ? "volatile" : "";
     switch (t->kind) {
-    case T_BASE: return strfmt("%s%s%s", q, *q ? " " : "", t->name);
-    case T_PTR: return strfmt("%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
+    case T_BASE: {
+        /* .typename (#34) spells a Kelvin tag by its bare name (#29) */
+        const char *n = t->name;
+        for (int k = 0; bare_tags && k < 3; k++) {
+            const char *kw = k == 0 ? "struct " : k == 1 ? "union " : "enum ";
+            if (!strncmp(n, kw, strlen(kw)) && record_named(n + strlen(kw)))
+                n += strlen(kw);
+        }
+        return strfmt("%s%s%s", q, *q ? " " : "", n);
+    }
+    case T_TYPEOF:
+        return strfmt("%s%s%s.type", q, *q ? " " : "", t->name);
+    case T_PTR: /* a function type under ^ in parentheses, as its result takes the ^ */
+        return strfmt(t->elem->kind == T_FUNC ? "(%s)^%s%s" : "%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
     case T_ARRAY: {
         /* a run of brackets reads in C order (P2): i64[2][3] */
         Buf dims = {0};
         for (; t->kind == T_ARRAY; t = t->elem)
             buf_printf(&dims, "[%s]", !t->size ? "" : t->size->kind == E_LITERAL ? t->size->text : "...");
-        return strfmt("%s%s", kelvin_type(t), dims.buf);
+        return strfmt(t->kind == T_FUNC ? "(%s)%s" : "%s%s", kelvin_type(t), dims.buf);
     }
     case T_FUNC: {
         Buf b = {0};
@@ -1207,6 +1406,8 @@ static int ref_kind(Type *t) {
         return 1; /* a function is C's pointer to one (#31) */
     if (t->kind == T_ARRAY)
         return 0;
+    if (t->kind == T_TYPEOF)
+        return ref_kind(t->elem);
     const char *n = t->name;
     if (!strncmp(n, "struct ", 7) || !strncmp(n, "union ", 6) || !strncmp(n, "enum ", 5))
         return 0;
@@ -1267,6 +1468,8 @@ static Type *target_type(Expr *e) { return type_through(e, target_type); }
    'u' unknown (a C typedef, a call result, an expression). */
 static char type_class(Type *t, Decl **record) {
     *record = NULL;
+    if (t && t->kind == T_TYPEOF)
+        return type_class(t->elem, record);
     if (!t)
         return 'u';
     if (t->kind != T_BASE)
@@ -1307,6 +1510,104 @@ static bool is_function_designator(Expr *e) {
     return e->kind == E_FUNC || (e->kind == E_IDENT && !lookup_type(e->text) && function_named(e->text));
 }
 
+static Type *value_type(Expr *e);
+
+/* v.type (#34), with the `.` of its .type at token dot: the type that
+   kelvinc sees v has (a let's own const is not part of it), or else C's
+   __typeof__(v) */
+/* Does t have a .type that kelvinc cannot see and that names a local or
+   a parameter? */
+static bool typeof_names_local(Type *t) {
+    if (!t)
+        return false;
+    switch (t->kind) {
+    case T_TYPEOF:
+        return t->size_local;
+    case T_ARRAY:
+    case T_PTR:
+        return typeof_names_local(t->elem);
+    case T_FUNC:
+        for (int i = 0; i < t->params.len; i++)
+            if (typeof_names_local(t->params.data[i]))
+                return true;
+        return typeof_names_local(t->elem);
+    default:
+        return false;
+    }
+}
+
+/* Does t hold an expression that C would evaluate again where the type
+   is written: a length that is not a number, or a .type kelvinc could
+   not see? */
+static bool type_has_expr(Type *t) {
+    if (!t)
+        return false;
+    switch (t->kind) {
+    case T_TYPEOF:
+        return true;
+    case T_ARRAY:
+        return (t->size && t->size->kind != E_LITERAL) || type_has_expr(t->elem);
+    case T_PTR:
+        return type_has_expr(t->elem);
+    case T_FUNC:
+        for (int i = 0; i < t->params.len; i++)
+            if (type_has_expr(t->params.data[i]))
+                return true;
+        return type_has_expr(t->elem);
+    default:
+        return false;
+    }
+}
+
+static Type *parse_typeof(int dot) {
+    Token *head = peek();
+    Decl *tag = head->kind == TK_IDENT ? record_named(head->text) : NULL;
+    if (tag && tag->has_body && !in_scope(head->text) && dot == cur + 1)
+        error_at(head->pos, "'%s' is a type already: write '%s', not '%s.type'", head->text, head->text,
+                 head->text);
+    Buf text = {0};
+    for (int i = cur; i < dot; i++)
+        buf_puts(&text, toks[i].text);
+    int saved_stop = postfix_stop;
+    postfix_stop = dot;
+    Expr *v = parse_postfix_ops(parse_primary());
+    postfix_stop = saved_stop;
+    if (cur != dot)
+        error_at(peek()->pos, "expected '.type', as in 'var w:v.type'");
+    advance();
+    advance();
+    Type *seen = value_type(v);
+    /* A parameter whose declared type kelvinc cannot see may be an array,
+       which C makes a pointer: C knows its type (jmp_buf) */
+    Var *param = v->kind == E_IDENT ? param_named(v->text) : NULL;
+    Decl *r;
+    bool unseen_param = param && (param->type->kind == T_TYPEOF ||
+                                  (param->type->kind == T_BASE && type_class(param->type, &r) == 'u'));
+    Type *t = xcalloc(1, sizeof *t);
+    if (seen && !type_has_expr(seen) && !unseen_param) {
+        *t = *seen; /* a copy, which qualifiers and suffixes may change */
+        t->pos = head->pos;
+        if (t->kind == T_BASE && !strcmp(t->name, "any") && !is_p(peek(), "^"))
+            error_at(head->pos, "'%s.type' is any, which exists only as 'any^', C's void *", text.buf);
+        return t;
+    }
+    /* C's own __typeof__, which keeps what it saw: a variable length, the
+       value a .type had, and a let's const. A function is a value. */
+    if (is_function_designator(v)) {
+        Expr *a = new_expr(E_PREFIX, v->pos);
+        a->op = "&";
+        a->a = v;
+        v = a;
+    }
+    t->kind = T_TYPEOF;
+    t->pos = head->pos;
+    t->name = text.buf;
+    t->of = v;
+    t->elem = seen; /* for kelvinc's own checks */
+    t->size_local = names_local(v);
+    return t;
+}
+
 /* the function type of a function or an anonymous function (#31) */
 static Type *fn_type_of(Decl *d) {
     Type *t = xcalloc(1, sizeof *t);
@@ -1323,7 +1624,16 @@ static Type *fn_type_of(Decl *d) {
     return t;
 }
 
+static Type *value_type_of(Expr *e);
+
+/* The type of e as far as kelvinc can see it, or NULL. A v.type that
+   C writes as __typeof__(v) is the type kelvinc saw for v (#34). */
 static Type *value_type(Expr *e) {
+    Type *t = value_type_of(e);
+    return t && t->kind == T_TYPEOF && t->elem ? t->elem : t;
+}
+
+static Type *value_type_of(Expr *e) {
     switch (e->kind) {
     case E_IDENT: { /* a Kelvin function's name is a function value (#31) */
         Decl *f = lookup_type(e->text) ? NULL : function_named(e->text);
@@ -1343,7 +1653,12 @@ static Type *value_type(Expr *e) {
         return e->type;
     case E_TERNARY: { /* a choice between functions is a function (#31) */
         Type *b = value_type(e->b), *c = value_type(e->c);
-        return b && b->kind == T_FUNC ? b : c && c->kind == T_FUNC ? c : NULL;
+        if (b && b->kind == T_FUNC)
+            return b;
+        if (c && c->kind == T_FUNC)
+            return c;
+        /* a choice between two values of one type kelvinc sees (#34) */
+        return b && c && b->kind == T_BASE && c->kind == T_BASE && !strcmp(kelvin_type(b), kelvin_type(c)) ? b : NULL;
     }
     case E_METHOD: {
         Type *ret = NULL;
@@ -1506,6 +1821,47 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
+        return x;
+    }
+    if (!strcmp(member, "type") || !strcmp(member, "typename")) {
+        /* v.type is a type (#34), which an expression cannot hold: there
+           .type is a field, if any; v.typename is the type's Kelvin text */
+        Decl *record;
+        char c = expr_class(e, &record);
+        if (c == 's' && record_has_field(record, member))
+            return NULL;
+        if (!member[4]) {
+            if (c == 'c' || c == 'u')
+                return NULL;
+            error_at(name->pos, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or "
+                                "'x as v.type'");
+        }
+        /* .typename is a property also of a C struct, or of what kelvinc
+           cannot see: C++ reserves the word, so C headers rarely name a
+           field so. A literal is C's: 42 is an int, as 42.size says. */
+        Type *t = value_type(e);
+        if (!t && seen_bool(e))
+            t = base_type("bool", e->pos);
+        Expr *x;
+        if (t && !type_has_expr(t)) {
+            bare_tags = true;
+            char *text = kelvin_type(t);
+            bare_tags = false;
+            Buf lit = {0}; /* a C string literal */
+            buf_puts(&lit, "\"");
+            for (const char *ch = text; *ch; ch++) {
+                if (*ch == '"' || *ch == '\\')
+                    buf_puts(&lit, "\\");
+                buf_putn(&lit, ch, 1);
+            }
+            buf_puts(&lit, "\"");
+            x = new_expr(E_STRING, name->pos);
+            list_push(&x->items, lit.buf);
+        } else { /* C's _Generic names a built-in type */
+            x = new_expr(E_PROPERTY, name->pos);
+            x->a = e;
+            x->text = member;
+        }
         return x;
     }
     bool is_size = !strcmp(member, "size");
@@ -2068,6 +2424,9 @@ static bool is_in(Token *t) { return t->kind == TK_IDENT && !strcmp(t->text, "in
 /* the index just past the type that starts at token i, a function type
    included, or -1 */
 static int any_type_end(int i) {
+    int dot = typeof_at(i);
+    if (dot >= 0)
+        return type_suffix_end(dot + 2); /* after ':', v.type is the type (#34) */
     if (!is_p(&toks[i], "("))
         return type_shape_end(i);
     int j = skip_group(i);
@@ -2222,7 +2581,7 @@ static Expr *anon_arg(Type *param, int arity, int k, Expr *call, bool trailing) 
             error_at(peek()->pos, "a list is not a value here: the parameter is %s, so write a compound literal, as "
                                   "in '(%s){...}'",
                      kelvin_type(param), kelvin_type(param));
-        if (param->kind != T_BASE || type_class(param, &r) != 'u')
+        if (param->kind != T_TYPEOF && (param->kind != T_BASE || type_class(param, &r) != 'u'))
             error_at(peek()->pos, "an anonymous function cannot be passed here: the parameter is %s, not a function",
                      kelvin_type(param));
         /* a C typedef, which may name a function type */
@@ -2355,7 +2714,7 @@ static Expr *parse_anon_fn(Type *ctx) {
         bool result = accept_p(":");
         d->ret = result ? parse_type() : ctx ? ctx->elem : NULL;
         if (!result && has_local_size(d->ret))
-            error_at(open->pos, "the result type, %s, has an array length written in another scope, which kelvinc "
+            error_at(open->pos, "the result type, %s, has an array length or a .type written in another scope, which kelvinc "
                                 "cannot carry into this function: write the result",
                      kelvin_type(d->ret));
         if (!is_in(peek()))
@@ -2375,7 +2734,7 @@ static Expr *parse_anon_fn(Type *ctx) {
             if (pt->kind == T_ARRAY && (!pt->size || pt->size_local))
                 pt = param_type(pt);
             if (has_local_size(pt))
-                error_at(open->pos, "the type of $%d, %s, has an array length written in another scope, which "
+                error_at(open->pos, "the type of $%d, %s, has an array length or a .type written in another scope, which "
                                     "kelvinc cannot carry into this function: write its parameters, as in "
                                     "'{ (a:T):R in ... }'",
                          k, kelvin_type(pt));
@@ -2386,7 +2745,7 @@ static Expr *parse_anon_fn(Type *ctx) {
         }
         d->ret = ctx->elem;
         if (has_local_size(d->ret))
-            error_at(open->pos, "the result type, %s, has an array length written in another scope, which kelvinc "
+            error_at(open->pos, "the result type, %s, has an array length or a .type written in another scope, which kelvinc "
                                 "cannot carry into this function: write its parameters and result",
                      kelvin_type(d->ret));
         d->variadic = ctx->variadic;
@@ -2821,6 +3180,7 @@ static Stmt *parse_for_in(Pos pos) {
     Type *plain = xcalloc(1, sizeof *plain);
     *plain = *t;
     plain->is_const = plain->is_volatile = false;
+    plain->unqual = plain->kind == T_TYPEOF; /* also those __typeof__ keeps (#34) */
     t = plain;
     s->type = t;
     open_scope();
@@ -3042,8 +3402,13 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     }
     expect_p(")");
     params_end = scope_names.len;
-    if (accept_p(":"))
+    if (accept_p(":")) {
         d->ret = parse_type();
+        if (typeof_names_local(d->ret))
+            error_at(d->ret->pos, "the result type, %s, names a parameter, which C has not seen where it writes the "
+                                  "result: write the type itself",
+                     kelvin_type(d->ret));
+    }
     list_push(&functions, d);
     if (!accept_p(";")) {
         parsing_fn = d;
@@ -3103,8 +3468,13 @@ static Decl *parse_method(Pos pos, const char *storage) {
     }
     expect_p(")");
     params_end = scope_names.len;
-    if (accept_p(":"))
+    if (accept_p(":")) {
         d->ret = parse_type();
+        if (typeof_names_local(d->ret))
+            error_at(d->ret->pos, "the result type, %s, names a parameter, which C has not seen where it writes the "
+                                  "result: write the type itself",
+                     kelvin_type(d->ret));
+    }
     list_push(&functions, d);
     if (!accept_p(";")) {
         parsing_fn = d;
