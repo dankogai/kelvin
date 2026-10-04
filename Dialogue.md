@@ -1484,3 +1484,77 @@ The rejected 5:
 - The implementation table is a summary.
 
 There are 285 tests.
+
+### 53. Optional `;` and implicit `return`
+
+> like many modern languages, `;` can be omitted if the statement ends in
+> line and `return` is not necessary for expressions.
+
+**Claude** asked three questions. The user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| When may `;` be left out? | At the end of a line, Swift-like: an operator, `.member`, `[`, `?`, `:` or `as` on the next line goes on; a `(` or `{` starts the next statement |
+| Where is `return` not needed? | Where a body is one expression, as in Swift and in anonymous functions |
+| Should the repository drop its `;`s? | `;` stays valid; Style.md, the examples and the docs leave it out, and the tests keep both forms |
+
+**Claude** implemented #35. Its choices are provisional P46:
+
+- The rule also covers declarations, struct members, structs and
+  prototypes.
+- `return`, `break`, `continue` and `goto` end at their line, so a bare
+  `return` returns nothing, as in Go.
+- A trailing function starts on the line of its call's `)`.
+- Bodies are parsed as statements, so the one-expression rule is the
+  same for named and anonymous functions.
+- `count:i32` and `size_t n` at the end of a line still get their
+  hints.
+
+The one test that checked a missing `;` before a block on the next line
+now checks the same code written on one line, which is still an error.
+
+The examples and the Kelvin samples in the README, versusC.md and
+Style.md lost their line-final `;`s, and one-line bodies such as
+`descending(a:i64, b:i64):bool { a > b }` lost their `return`. There are
+290 tests.
+
+### 54. The review of #35
+
+**Claude** ran an adversarial review in four lenses: regressions of code
+with `;`, code without it, implicit `return`, and the docs. Skeptics
+confirmed 40 of the 49 findings. Two were questions for the user:
+
+| Question | Answer |
+|----------|--------|
+| `main():i32 { printf("hi\n"); }` exited 0 before #35 and now exits 3, and `main():i32 { println("hello") }` is a C error. How far does the one-expression rule reach? | It returns unless kelvinc sees the expression has no value (`println`, a function with no result, `_Pragma`), and `main` keeps C's rule that its end returns 0 |
+| `return` at the end of a line: Swift takes the next line, and #35 had followed Go | Swift's, in a function with a result; in one with no result it ends at its line, and kelvinc reports a statement after it in the same block |
+
+**Claude** fixed the rest; the details are in P46 and P44:
+
+- Many C-habit checks ignored line breaks. `(a + b)`, `n.hex`, `7:i64`,
+  `sizeof(T)` and `(n)` at the end of a line misread the next line as a
+  C cast, a method call, a conversion or a compound literal, and so did
+  `do { } while (n > 0)`.
+- A trailing `{ }` on the next line inside brackets had become an error.
+  The new-line rule now applies only at the top level of a statement,
+  and `$0` in such a block says why.
+- The C-declaration hints fired on `w * h` broken before `+ 1` and on
+  `{ x * x; }`. They missed `FILE *fp` before a `}`, which reached C as
+  a declaration. A shape now counts at a line end only when the next line
+  cannot go on, and also before a `}`. `a * b` is left alone where `a` is
+  a name kelvinc sees, or where it is the expression the body returns.
+- A body starting with an annotation, `{ (n:i32):i64 in n:i64 * 2 }`,
+  had become a label. It is an annotation again, and so is
+  `widen(n:i32):i64 { n:i64 }`.
+- An assignment or a no-value call as the one expression is an error
+  in named functions too. So is a body of more statements that ends in a
+  dropped value, as in Rust's `let y = x * 2; y`. Explicit `return x.hex`
+  is now caught in named functions as well.
+- `*p = 1` at the start of a line keeps its hint. `.typename` is no
+  longer taken for buffer text. Hints for anonymous functions name `$0`
+  again.
+- Docs: stale prose about `;`, inline samples that still ended with `;`,
+  and Style.md's "any layout".
+
+New tests cover each rule the review's mutants showed untested. There
+are 302 tests.

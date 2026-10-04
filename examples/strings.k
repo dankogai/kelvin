@@ -6,45 +6,45 @@
 
 // count the vowels: for c in s walks the string up to its NUL
 vowels(s:cstr):i64 {
-    var n = 0;
+    var n = 0
     for c in s {
         if strchr("aeiouAEIOU", c) != nullptr {
-            n += 1;
+            n += 1
         }
     }
-    return n;
+    return n
 }
 
 // reverse in place: two pointers meet in the middle
 reverse(s:cstr) {
     if strlen(s) == 0 {
-        return;
+        return
     }
-    var lo:cstr := s;
-    var hi:cstr := s + strlen(s) - 1;
+    var lo:cstr := s
+    var hi:cstr := s + strlen(s) - 1
     while lo < hi {
-        let c:u8 = lo^;
-        lo^ = hi^;
-        hi^ = c;
-        lo := lo.next;
-        hi := hi.prev;
+        let c:u8 = lo^
+        lo^ = hi^
+        hi^ = c
+        lo := lo.next
+        hi := hi.prev
     }
 }
 
 main():i32 {
-    var buf:u8[32];
-    strcpy(buf, "Hello, Kelvin");
-    println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels");
-    reverse(buf);
-    println(buf);
+    var buf:u8[32]
+    strcpy(buf, "Hello, Kelvin")
+    println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels")
+    reverse(buf)
+    println(buf)
     for i in 0..<strlen(buf) {
-        buf[i] = toupper(buf[i]) as u8;
+        buf[i] = toupper(buf[i]) as u8
     }
-    println(buf);
+    println(buf)
 
-    let answer:i32 = 42;
-    println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:u8).oct);
-    return 0;
+    let answer:i32 = 42
+    println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:u8).oct)
+    return 0
 }
 // out: Hello, Kelvin: 13 bytes, 4 vowels
 // out: nivleK ,olleH

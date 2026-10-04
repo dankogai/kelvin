@@ -6,55 +6,55 @@
 // insertion sort: stable, ordered by `before`
 sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     for i in 1..<n {
-        var j:size_t = i;
+        var j:size_t = i
         while j > 0 && before(xs[j], xs[j - 1]) {
-            let t:i64 = xs[j];
-            xs[j] = xs[j - 1];
-            xs[j - 1] = t;
-            j -= 1;
+            let t:i64 = xs[j]
+            xs[j] = xs[j - 1]
+            xs[j - 1] = t
+            j -= 1
         }
     }
 }
 
 show(xs:i64^, n:size_t) {
     for i in 0..<n {
-        print(i == 0 ? "" : " ", xs[i]);
+        print(i == 0 ? "" : " ", xs[i])
     }
-    println();
+    println()
 }
 
-descending(a:i64, b:i64):bool { return a > b; }
+descending(a:i64, b:i64):bool { a > b }
 
 // an anonymous function encloses nothing, so what it shares is global
-let target = 5;
-distance(x:i64):i64 { return x > target ? x - target : target - x; }
+let target = 5
+distance(x:i64):i64 { x > target ? x - target : target - x }
 
 main():i32 {
-    var xs:i64[8] = {5, 3, 8, 1, 9, 2, 7, 4};
+    var xs:i64[8] = {5, 3, 8, 1, 9, 2, 7, 4}
     sort(xs, 8) { $0 < $1 }                     // the last argument, after the call
-    show(xs, 8);
-    sort(xs, 8, descending);                    // a named function works too
-    show(xs, 8);
+    show(xs, 8)
+    sort(xs, 8, descending)                     // a named function works too
+    show(xs, 8)
     sort(xs, 8) { $0 % 2 < $1 % 2 }             // evens first, in the order they were
-    show(xs, 8);
+    show(xs, 8)
     sort(xs, 8) { distance($[0]) < distance($[1]) }
-    show(xs, 8);
+    show(xs, 8)
 
-    let by_last_digit:(i64, i64):bool := { $0 % 10 < $1 % 10 };
-    var ys:i64[4] = {31, 12, 43, 20};
-    sort(ys, 4, by_last_digit);
-    show(ys, 4);
+    let by_last_digit:(i64, i64):bool := { $0 % 10 < $1 % 10 }
+    var ys:i64[4] = {31, 12, 43, 20}
+    sort(ys, 4, by_last_digit)
+    show(ys, 4)
 
     // kelvinc cannot see qsort's comparator type, which is C's, so the
     // function writes its parameters and result
-    var names:cstr[4] = {"kelvin", "celsius", "rankine", "fahrenheit"};
+    var names:cstr[4] = {"kelvin", "celsius", "rankine", "fahrenheit"}
     qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
-        return strcmp((a as const cstr^)^, (b as const cstr^)^);
+        return strcmp((a as const cstr^)^, (b as const cstr^)^)
     }
     for name in names {
-        println(name);
+        println(name)
     }
-    return 0;
+    return 0
 }
 // out: 1 2 3 4 5 7 8 9
 // out: 9 8 7 5 4 3 2 1

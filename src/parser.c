@@ -123,6 +123,21 @@ static int binding_index(const char *name) {
    scope_names */
 static Decl *parsing_fn;
 static int params_start, params_end;
+/* the first token of that function's body and its closing `}`, where
+   one expression is what the body returns (#35) */
+static int body_first = -1, body_end = -1;
+
+/* main keeps C's rule that its end returns 0 (#35) */
+static bool is_main(Decl *d) { return !d->anon && !d->recv && !strcmp(d->name, "main"); }
+
+/* Is the statement from token first, ending before token end (a `;` or
+   what follows it), the one expression that the body being parsed
+   returns, as in `{ x * x }` (#35)? */
+static bool returned_statement(int first, int end) {
+    if (!parsing_fn || !parsing_fn->ret || is_main(parsing_fn) || first != body_first)
+        return false;
+    return (toks[end].kind == TK_PUNCT && !strcmp(toks[end].text, ";") ? end + 1 : end) == body_end;
+}
 
 /* Anonymous functions (#32): those finished, which go before the
    top-level declaration around them; where the innermost one's bindings
@@ -134,10 +149,12 @@ static int anon_start = -1;
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
 static int anon_kind;
 static int trailing_end = -1;
-/* for $'s hints: the `{` of a body that follows a call in a condition, how
-   deep in initializer lists the parser is, and whether it is reading an
+/* for $'s hints: the `{` of a body that follows a call in a condition,
+   the `{` of a block on the line after a call (#35), how deep in
+   initializer lists the parser is, and whether it is reading an
    anonymous function's written parameters */
 static int body_after_call = -1;
+static int block_after_call = -1;
 static int init_depth;
 static bool in_signature;
 /* for $'s hint in a function whose parameter kelvinc could not see */
@@ -833,12 +850,20 @@ static bool brace_in_for;
 /* the first token of the statement being parsed, for trailing `{ }` */
 static int stmt_start;
 
-/* After a trailing `{ }` at the top level of a statement, a `(` on a new
-   line starts the next statement, as in Swift, rather than calling the
-   result; operators and `.member` there go on with the expression (#32) */
-static bool trailing_line_end(void) {
-    return cur == trailing_end && is_p(peek(), "(") && peek()->pos.line > toks[cur - 1].pos.line;
-}
+/* Is the next token on a new line? */
+static bool newline_before(void) { return cur > 0 && peek()->pos.line > toks[cur - 1].pos.line; }
+
+static bool at_statement_level(void);
+
+/* At the top level of a statement, a `(` on a new line starts the next
+   statement, as in Swift, rather than calling what went before (#35);
+   an operator, `.member` or `[` there goes on with the expression */
+static bool line_ends_expression(void) { return is_p(peek(), "(") && newline_before() && at_statement_level(); }
+
+/* Does the token at the cursor start the next statement, being on a new
+   line at the top level of a statement (#35)? There a `{` starts a block,
+   and `(x)` before it is no cast or compound literal */
+static bool line_starts_statement(void) { return newline_before() && at_statement_level(); }
 
 /* Is the `{ }` that just ended at token cur at the top level of its
    statement, not inside parentheses, brackets or an initializer list? */
@@ -892,7 +917,7 @@ static int postfix_stop = -1;
 
 static Expr *parse_postfix_ops(Expr *e) {
     for (;;) {
-        if (trailing_line_end() || cur == postfix_stop)
+        if (line_ends_expression() || cur == postfix_stop)
             return e;
         Token *t = peek();
         if (accept_p("[")) {
@@ -925,14 +950,15 @@ static Expr *parse_postfix_ops(Expr *e) {
             brace_ends_condition = saved_brace;
             expect_p(")");
             /* f(x) { ... }: a trailing anonymous function is the last
-               argument (#32), except where `{` starts a body */
-            if (is_p(peek(), "{") && !brace_ends_condition) {
+               argument (#32), except where `{` starts a body, as it does
+               on the next line at the top level of a statement (#35) */
+            if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
                 list_push(&x->items,
                           anon_arg(call_param_type(e, x->items.len), call_arity(e), x->items.len, e, true));
                 if (at_statement_level())
                     trailing_end = cur;
             } else if (is_p(peek(), "{")) {
-                body_after_call = cur;
+                *(brace_ends_condition ? &body_after_call : &block_after_call) = cur;
             }
             check_print_args(x);
             e = x;
@@ -941,8 +967,9 @@ static Expr *parse_postfix_ops(Expr *e) {
             /* cstr is a keyword, but also the .cstr property and possibly
                a field of a C struct */
             char *member = is_kw(name, "cstr") ? advance()->text : expect_ident("a member or method name");
-            if (is_p(peek(), "(") && (!strcmp(member, "toString") || !strcmp(member, "fmt")) &&
-                !is_method_name(member)) {
+            /* a `(` on the next line starts the next statement (#35) */
+            bool call = is_p(peek(), "(") && !line_ends_expression();
+            if (call && (!strcmp(member, "toString") || !strcmp(member, "fmt")) && !is_method_name(member)) {
                 /* a field of that name that kelvinc can see, or one of a
                    struct it cannot see, is called as in C */
                 Decl *record;
@@ -950,7 +977,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (c != 'c' && c != 'u' && !(c == 's' && record_has_field(record, member)))
                     error_at(name->pos, "%s() " SHELVED_HINT, member);
             }
-            if (is_p(peek(), "(") && is_method_name(member)) {
+            if (call && is_method_name(member)) {
                 /* v.method(args) */
                 advance();
                 bool saved = ident_annotation_ok;
@@ -975,7 +1002,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 ident_annotation_ok = saved;
                 brace_ends_condition = saved_brace;
                 expect_p(")");
-                if (is_p(peek(), "{") && !brace_ends_condition) {
+                if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
                     int k = x->items.len;
                     list_push(&x->items,
                               anon_arg(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL, arity, k, x,
@@ -983,12 +1010,12 @@ static Expr *parse_postfix_ops(Expr *e) {
                     if (at_statement_level())
                         trailing_end = cur;
                 } else if (is_p(peek(), "{")) {
-                    body_after_call = cur;
+                    *(brace_ends_condition ? &body_after_call : &block_after_call) = cur;
                 }
                 e = x;
                 continue;
             }
-            if (!is_p(peek(), "(")) {
+            if (!call) {
                 Expr *x = property(e, name, member);
                 if (x) {
                     e = x;
@@ -1106,7 +1133,10 @@ static Expr *parse_primary(void) {
         int dot = typeof_at(cur + 1);
         bool typeof_paren = dot >= 0 && is_p(&toks[type_suffix_end(dot + 2)], ")");
         Type *chain = typeof_paren ? chain_type(cur + 1, dot) : NULL;
-        bool compound = after && is_p(after, "{") && (paren_holds_type(cur) || typeof_paren) &&
+        /* on the next line at the top level of a statement, `{` starts a
+           block (#35) */
+        bool next_line = after && after->pos.line > after[-1].pos.line && at_statement_level();
+        bool compound = after && is_p(after, "{") && !next_line && (paren_holds_type(cur) || typeof_paren) &&
                         (brace_is_compound((int)(after - toks)) ||
                          (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))) ||
                          (brace_in_for && chain && (chain->kind == T_ARRAY || chain->kind == T_PTR)) ||
@@ -1172,13 +1202,14 @@ static Expr *parse_primary(void) {
         brace_ends_condition = saved_brace;
         expect_p(")");
         e->paren = true;
-        /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g. (size_t)n */
+        /* `(x) y` is never Kelvin; it is a C cast to a typedef, e.g.
+           (size_t)n, unless y starts the next statement on a new line (#35) */
         Token *n = peek();
-        if (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
+        if (!line_starts_statement() && (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
             (n->kind == TK_PUNCT && n->text[0] == '$') || is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_kw(n, "nullptr") ||
             is_converter(n) ||
             ((is_p(n, "++") || is_p(n, "--")) &&
-             (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR)))
+             (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR))))
             error_at(t->pos, CAST_HINT);
         return e;
     }
@@ -1227,7 +1258,7 @@ static Expr *parse_unary(void) {
             Token *open = advance();
             Type *type = parse_type();
             expect_p(")");
-            if (is_p(peek(), "{") && brace_is_compound(cur)) {
+            if (is_p(peek(), "{") && brace_is_compound(cur) && !line_starts_statement()) {
                 /* sizeof (T){...} is the size of a compound literal */
                 Expr *c = new_expr(E_COMPOUND, open->pos);
                 c->type = type;
@@ -1264,8 +1295,8 @@ static Expr *parse_unary(void) {
 /* Is the `:` at the cursor a type annotation, as in `0xdead:u16`? */
 static bool annotation_ahead(void) {
     Token *n = peek2();
-    if (is_converter(n) && is_p(peek_at(2), "("))
-        return false; /* c ? x : u8(y) */
+    if (is_converter(n) && is_p(peek_at(2), "(") && !(peek_at(2)->pos.line > n->pos.line && at_statement_level()))
+        return false; /* c ? x : u8(y), but not 7:i64 before a `(` line (#35) */
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
         is_kw(n, "enum") || is_kw(n, "String"))
         return true;
@@ -1276,7 +1307,7 @@ static bool annotation_ahead(void) {
 
 static Expr *parse_cast(void) {
     Expr *e = parse_unary();
-    while (!trailing_line_end() && (is_kw(peek(), "as") || (is_p(peek(), ":") && annotation_ahead()))) {
+    while (is_kw(peek(), "as") || (is_p(peek(), ":") && annotation_ahead())) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
@@ -1306,8 +1337,13 @@ static Expr *parse_binary(int min_prec) {
     for (;;) {
         Token *t = peek();
         int prec = binary_prec(t);
-        if (prec < min_prec || trailing_line_end())
+        if (prec < min_prec)
             return lhs;
+        /* `*p = 1` on a line of its own is C's dereference, not a product
+           going on from the line above (#35) */
+        if (is_p(t, "*") && newline_before() && at_statement_level() && toks[cur + 1].pos.line == t->pos.line &&
+            toks[cur + 1].pos.col == t->pos.col + 1 && (toks[cur + 1].kind == TK_IDENT || is_p(&toks[cur + 1], "(")))
+            error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
         advance();
         Expr *e = new_expr(E_BINARY, t->pos);
         e->op = t->text;
@@ -1324,7 +1360,7 @@ static Expr *parse_binary(int min_prec) {
 static Expr *parse_conditional(void) {
     Expr *c = parse_binary(1);
     Token *t = peek();
-    if (trailing_line_end() || !accept_p("?"))
+    if (!accept_p("?"))
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
     require_bool(c);
@@ -1964,7 +2000,7 @@ static Expr *parse_assign(void) {
             const char *let = let_target(lhs);
             if (let && let_kind(let) == LET_RANGE)
                 error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
-                                 "'var k:%s = %s;'", let, kelvin_type(lookup_type(let)), let);
+                                 "'var k:%s = %s'", let, kelvin_type(lookup_type(let)), let);
             if (let && let_kind(let) == LET_EACH)
                 error_at(t->pos, "'%s' is each element in turn and cannot change; copy it into a var under "
                                  "another name",
@@ -2274,6 +2310,15 @@ static void reject_c_fn_pointer(int i, const char *how) {
                  toks[k + 2].text, how, toks[k + 2].text, type, stars.buf);
 }
 
+/* Does a statement end before token i, which is on a new line and cannot
+   go on with it, or is a `}` or the end of the file (#35)? */
+static bool statement_ends_at(int i) {
+    Token *t = &toks[i];
+    if (is_p(t, "}") || t->kind == TK_EOF)
+        return true;
+    return t->pos.line > t[-1].pos.line && (!continues_expression(t) || (is_p(t, "(") && at_statement_level()));
+}
+
 static void reject_c_declaration(void) {
     reject_c_fn_pointer(cur, "var ");
     int i = cur;
@@ -2363,7 +2408,13 @@ static void reject_c_declaration(void) {
                 buf_puts(&dims, toks[k].text);
         i = end;
     }
-    if (!is_p(&toks[i], ";") && !is_p(&toks[i], ",") && !is_p(&toks[i], "="))
+    /* also `size_t n` at the end of a line or before a `}` (#35) */
+    if (!is_p(&toks[i], ";") && !is_p(&toks[i], ",") && !is_p(&toks[i], "=") && !statement_ends_at(i))
+        return;
+    /* `a * b` and `a ~ b` are expressions where C sees a is no type: a
+       Kelvin variable or function, or the one expression a body returns */
+    if ((suffix.len || block) && !storage && !base_const && !base_volatile && !strchr(type, ' ') &&
+        (binding_index(type) >= 0 || returned_statement(cur, i)))
         return;
     const char *name = toks[name_at].text;
     if (block)
@@ -2402,17 +2453,14 @@ static Stmt *parse_block_rest(Token *t) {
 
 static Stmt *parse_block(void) { return parse_block_rest(expect_p("{")); }
 
-/* the `;` that ends a statement, which a trailing `{ }` at the end of a
-   line, or before a `}`, makes optional, as in `sort(xs, n) { $0 < $1 }`
-   (#32) */
+/* The end of a statement or a declaration: a `;`, or a new line, a `}`
+   or the end of the file after it, as in Swift (#35) */
 static void end_statement(void) {
-    if (cur != trailing_end) {
-        expect_p(";");
+    if (accept_p(";") || is_p(peek(), "}") || peek()->kind == TK_EOF || newline_before())
         return;
-    }
-    if (accept_p(";") || is_p(peek(), "}") || peek()->kind == TK_EOF || peek()->pos.line > toks[cur - 1].pos.line)
-        return;
-    error_at(peek()->pos, "expected ';' or a new line after the trailing function, before what follows");
+    if (cur == trailing_end)
+        error_at(peek()->pos, "expected ';' or a new line after the trailing function, before what follows");
+    error_at(peek()->pos, "expected ';' or a new line before %s", desc(peek()));
 }
 
 /* ---------- anonymous functions (#32) ---------- */
@@ -2452,56 +2500,6 @@ static bool signature_ahead(int i) {
     Token *f = &toks[i + 2];
     bool shape = is_p(f, ")") || is_kw(f, "var") || (f->kind == TK_IDENT && is_p(&toks[i + 3], ":"));
     return shape && !continues_expression(&toks[j]) && !is_p(&toks[j], "}") && !is_p(&toks[j], ";");
-}
-
-/* Does the `{` at token i follow a call's `)`, as a trailing function
-   does, rather than a compound literal's `(T)`? */
-static bool after_call(int i) {
-    if (!is_p(&toks[i - 1], ")"))
-        return false;
-    int depth = 0, k = i - 1;
-    for (; k > 0; k--) {
-        if (is_p(&toks[k], ")"))
-            depth++;
-        else if (is_p(&toks[k], "(") && --depth == 0)
-            break;
-    }
-    Token *callee = &toks[k - 1];
-    return (callee->kind == TK_IDENT && !is_converter(callee)) || is_p(callee, ")") || is_p(callee, "]");
-}
-
-/* Is the body from token i to its `}` one expression, as in
-   `{ $0 < $1 }`? Statements have a `;`, or start with a keyword or a
-   block, or follow a trailing `{ }` that nothing goes on from. */
-static bool expression_body(int i) {
-    static const char *starts[] = {"if",   "while", "do",     "for",    "switch", "case", "default", "return",
-                                   "break", "continue", "goto", "let", "var", "static", "extern", NULL};
-    if (is_p(&toks[i], "}") || is_p(&toks[i], "{"))
-        return false;
-    for (int k = 0; starts[k]; k++)
-        if (is_kw(&toks[i], starts[k]) || (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, starts[k])))
-            return false;
-    bool trailing = false; /* the { } at the top level follows a call */
-    for (int depth = 0; toks[i].kind != TK_EOF; i++) {
-        if (is_p(&toks[i], "{") && depth == 0)
-            trailing = after_call(i);
-        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{")) {
-            depth++;
-        } else if (is_p(&toks[i], ")") || is_p(&toks[i], "]")) {
-            depth--;
-        } else if (is_p(&toks[i], "}")) {
-            if (depth-- == 0)
-                return true;
-            Token *n = &toks[i + 1];
-            bool new_line = n->pos.line > toks[i].pos.line;
-            if (depth == 0 && trailing && !is_p(n, "}") &&
-                (is_p(n, "(") ? new_line : !continues_expression(n)))
-                return false; /* another statement follows */
-        } else if (is_p(&toks[i], ";") && depth == 0) {
-            return false;
-        }
-    }
-    return false;
 }
 
 /* the type that argument k of a call to `callee` takes, where kelvinc
@@ -2597,6 +2595,92 @@ static Expr *anon_arg(Type *param, int arity, int k, Expr *call, bool trailing) 
 }
 
 static Expr *text_in_buffer(Expr *e);
+static bool has_effect(Expr *e);
+
+/* Is e an assignment, or a comma list with one? */
+static bool is_assignment(Expr *e) {
+    if (e->kind != E_BINARY)
+        return false;
+    if (!strcmp(e->op, ","))
+        return is_assignment(e->a) || is_assignment(e->b);
+    for (int i = 0; assign_ops[i]; i++)
+        if (!strcmp(e->op, assign_ops[i]))
+            return true;
+    return false;
+}
+
+/* Returning text in the function's own buffer (#21) is an error */
+static void reject_returned_text(Expr *e, bool anon) {
+    Expr *text = text_in_buffer(e);
+    if (text && anon)
+        error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
+                            "the caller takes the text itself, as in '{ println($0.%s) }'",
+                 text->text, text->text);
+    if (text)
+        error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
+                            "the caller takes the text itself, as in 'println(x.%s)'",
+                 text->text, text->text);
+}
+
+/* Does kelvinc see that e has no value: a call of print or println, of a
+   Kelvin function, method or function value with no result, or of
+   _Pragma or asm, or a comma or ?: with one? */
+static bool no_value(Expr *e) {
+    switch (e->kind) {
+    case E_CALL: {
+        static const char *words[] = {"print", "println", "_Pragma", "__asm__", "__asm", "asm", NULL};
+        if (e->a->kind == E_IDENT && binding_index(e->a->text) < 0)
+            for (int i = 0; words[i]; i++)
+                if (!strcmp(e->a->text, words[i]))
+                    return true;
+        Type *t = value_type(e->a);
+        return t && t->kind == T_FUNC && !t->elem;
+    }
+    case E_METHOD: {
+        Decl *m = method_named(e->a, e->text);
+        return m && !m->ret;
+    }
+    case E_BINARY:
+        return !strcmp(e->op, ",") && no_value(e->b);
+    case E_TERNARY:
+        return no_value(e->b) || no_value(e->c);
+    default:
+        return false;
+    }
+}
+
+/* A function with a result whose body is one expression returns it, as
+   in `square(x:i64):i64 { x * x }` (#35), anonymous ones too (#32). main
+   keeps C's rule that its end returns 0. One assignment or one call
+   kelvinc sees has no value is an error there, as is a body of more
+   statements that ends in a value it drops. */
+static void implicit_return(Decl *d) {
+    if (!d->ret || !d->body || !d->body->stmts.len)
+        return;
+    List *stmts = &d->body->stmts;
+    Stmt *last = stmts->data[stmts->len - 1];
+    if (last->kind != S_EXPR)
+        return;
+    if (stmts->len == 1 && !is_main(d)) {
+        if (is_assignment(last->expr))
+            error_at(last->expr->pos, "an assignment has no value (#26), but this function has a result, of type "
+                                      "%s: assign, then 'return' a value",
+                     kelvin_type(d->ret));
+        if (no_value(last->expr))
+            error_at(last->expr->pos, "this has no value, but this function has a result, of type %s: write "
+                                      "'return' with a value after it",
+                     kelvin_type(d->ret));
+        last->kind = S_RETURN;
+        reject_returned_text(last->expr, d->anon);
+        return;
+    }
+    if (!has_effect(last->expr))
+        error_at(last->expr->pos, is_main(d) && stmts->len == 1
+                                      ? "main's end returns 0, as in C, so it does not return this value: write "
+                                        "'return' before it"
+                                      : "a body returns its value without 'return' only when it is one expression: "
+                                        "write 'return' before this value");
+}
 
 /* Does e do something as a statement: an assignment, a call, or a
    comma or ?: of those? */
@@ -2642,7 +2726,8 @@ static Expr *text_in_buffer(Expr *e) {
     case E_PREFIX: /* &text[i] */
         return !strcmp(e->op, "&") && e->a->kind == E_INDEX ? text_in_buffer(e->a->a) : NULL;
     case E_PROPERTY: {
-        if (!strcmp(e->text, "size"))
+        /* .typename is a string literal C chooses (#34) */
+        if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type"))
             return NULL;
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
@@ -2656,6 +2741,17 @@ static Expr *text_in_buffer(Expr *e) {
     default:
         return NULL;
     }
+}
+
+/* a function's body, whose `{` (open) has been read */
+static Stmt *parse_fn_body(Token *open) {
+    int saved_first = body_first, saved_end = body_end;
+    body_first = cur;
+    body_end = skip_nested((int)(open - toks)) - 1;
+    Stmt *s = parse_block_rest(open);
+    body_first = saved_first;
+    body_end = saved_end;
+    return s;
 }
 
 /* An anonymous function, from its `{` to its `}`: a static inline
@@ -2754,34 +2850,23 @@ static Expr *parse_anon_fn(Type *ctx) {
         anon_kind = ANON_BARE;
     }
     params_end = scope_names.len;
-    int body = written ? cur : cur + 1;
-    if (expression_body(body)) {
-        if (!written)
-            advance();
-        Stmt *b = new_stmt(S_BLOCK, open->pos);
-        Stmt *r = new_stmt(d->ret ? S_RETURN : S_EXPR, toks[body].pos);
-        /* without a result, it may be one assignment: { total += $0 } */
-        r->expr = d->ret ? parse_expr() : parse_assignments();
-        if (!d->ret && !has_effect(r->expr)) {
-            if (anon_kind == ANON_BARE)
-                error_at(r->expr->pos, "a list is not a value here: write a compound literal, as in "
-                                       "'(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this "
-                                       "would do nothing");
-            error_at(r->expr->pos, "this function, of type %s, has no result, so its body would discard this "
-                                   "value: write a call or an assignment, or give the type a result",
-                     kelvin_type(fn_type_of(d)));
-        }
-        Expr *text = d->ret ? text_in_buffer(r->expr) : NULL;
-        if (text)
-            error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
-                                "the caller takes the text itself, as in '{ println($0.%s) }'",
-                     text->text, text->text);
-        list_push(&b->stmts, r);
-        expect_p("}");
-        d->body = b;
-    } else {
-        d->body = parse_block_rest(written ? open : expect_p("{"));
+    d->body = parse_fn_body(written ? open : expect_p("{"));
+    /* one expression is the result, as in { $0 < $1 } (#32, #35); without
+       a result, it must do something, as { total += $0 } does: `{x: 1}`
+       is a label in a body, and a list where C's argument is meant */
+    Stmt *only = d->body->stmts.len == 1 ? d->body->stmts.data[0] : NULL;
+    while (only && only->kind == S_LABEL)
+        only = only->body;
+    if (only && only->kind == S_EXPR && !d->ret && !has_effect(only->expr)) {
+        if (anon_kind == ANON_BARE)
+            error_at(only->expr->pos, "a list is not a value here: write a compound literal, as in "
+                                      "'(i32[3]){1, 2, 3}'; as a function with no parameters and no result, this "
+                                      "would do nothing");
+        error_at(only->expr->pos, "this function, of type %s, has no result, so its body would discard this "
+                                  "value: write a call or an assignment, or give the type a result",
+                 kelvin_type(fn_type_of(d)));
     }
+    implicit_return(d);
     close_scope();
     parsing_fn = saved_fn;
     params_start = saved_start;
@@ -2837,6 +2922,9 @@ static Expr *parse_dollar(void) {
             : body_after_call >= 0 && at > body_after_call && at < skip_nested(body_after_call)
                 ? "; in the head of if, while or for, a '{' after a call starts the body, so pass the function "
                   "inside the parentheses"
+            : block_after_call >= 0 && at > block_after_call && at < skip_nested(block_after_call)
+                ? "; a trailing function starts on the line of the call's ')', and on the next line '{' starts a "
+                  "block"
                 : "";
         error_at(t->pos, "'%s' is a parameter of an anonymous function, and this is not in one%s", name, hint);
     }
@@ -2875,16 +2963,20 @@ static bool binding_ahead(int i) {
 
 /* C-era Kelvin's `name: i32 = 0;` without let or var (#27): a name, `:`,
    and a type that starts with a type word, such as `i32`, `u8 const^`
-   or `struct p`. `again: n = 0;` stays a label before a statement. */
-static void reject_bare_declaration(int i) {
+   or `struct p`. `again: n = 0;` stays a label before a statement.
+   Returns whether it is instead an annotation that is the statement's
+   expression (#35): one an operator follows, as in `n:i64 * 2`, or of a
+   name kelvinc sees, or the one a body returns, as in `{ n:i64 }`. */
+static bool reject_bare_declaration(int i) {
+    int first = i;
     if (is_kw(&toks[i], "static") || is_kw(&toks[i], "extern"))
         i++;
     if (toks[i].kind != TK_IDENT || !is_p(&toks[i + 1], ":"))
-        return;
+        return false;
     Token *t = &toks[i + 2];
     if (!is_base_word(t) && !is_qualifier(t) && !is_kw(t, "struct") && !is_kw(t, "union") && !is_kw(t, "enum") &&
         !tag_name_ahead(t, false) && !is_p(t, "("))
-        return;
+        return false;
     if (is_p(t, "(")) {
         /* `again: (x) = 1;` and `out: (i64(n));` are labels */
         Token *in = &toks[i + 3];
@@ -2892,14 +2984,23 @@ static void reject_bare_declaration(int i) {
                      is_kw(in, "struct") || is_kw(in, "union") || is_kw(in, "enum") ||
                      is_p(&toks[skip_group(i + 2)], ":");
         if (!typed)
-            return;
+            return false;
     }
     int end = is_p(t, "(") ? any_type_end(i + 2) : type_shape_end(i + 2);
-    if (end >= 0 && (is_p(&toks[end], "=") || is_p(&toks[end], ":=") || is_p(&toks[end], ";") ||
-                     is_p(&toks[end], ",")))
+    if (end < 0)
+        return false;
+    Token *e = &toks[end];
+    if (first == i && !is_p(t, "(") && (binary_prec(e) > 0 || is_kw(e, "as") || is_p(e, "?")))
+        return true;
+    /* `n:i32` at the end of a line or before a `}` too (#35) */
+    bool ends = is_p(e, ";") || statement_ends_at(end);
+    if (first == i && !is_p(t, "(") && ends && (binding_index(toks[i].text) >= 0 || returned_statement(i, end)))
+        return true;
+    if (is_p(e, "=") || is_p(e, ":=") || is_p(e, ",") || ends)
         error_at(toks[i].pos, "declarations start with let or var: write 'var %s:...', or 'let %s:...' if it "
                               "never changes",
                  toks[i].text, toks[i].text);
+    return false;
 }
 
 static Stmt *parse_declaration(void) {
@@ -2925,6 +3026,9 @@ static Expr *parse_condition(const char *what) {
     if (is_p(peek(), "(")) {
         /* C's `if (x) y = 1;`: the body must be a block */
         Token *after = after_matching_paren(cur);
+        /* after `do { } while (n > 0)`, the next line is the next statement (#35) */
+        if (!strcmp(what, "do") && after && after->pos.line > after[-1].pos.line)
+            after = NULL;
         if (after && (after->kind == TK_IDENT || after->kind == TK_NUMBER || after->kind == TK_STRING ||
                       is_kw(after, "return") || is_kw(after, "break") || is_kw(after, "continue") ||
                       is_kw(after, "goto") || is_kw(after, "if") || is_kw(after, "while") || is_kw(after, "for") ||
@@ -3221,7 +3325,7 @@ static Stmt *parse_stmt_here(void) {
         end_statement();
         return s;
     }
-    reject_bare_declaration(cur);
+    bool annotation = reject_bare_declaration(cur);
     if (is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "register") || is_kw(t, "auto"))
         reject_c_declaration();
     if (accept_kw("if")) {
@@ -3297,11 +3401,11 @@ static Stmt *parse_stmt_here(void) {
         return new_stmt(S_DEFAULT, pos);
     }
     if (accept_kw("break")) {
-        expect_p(";");
+        end_statement();
         return new_stmt(S_BREAK, pos);
     }
     if (accept_kw("continue")) {
-        expect_p(";");
+        end_statement();
         return new_stmt(S_CONTINUE, pos);
     }
     if (accept_kw("return")) {
@@ -3312,25 +3416,31 @@ static Stmt *parse_stmt_here(void) {
             fn_at = cur;
             fn_type = ret;
         }
-        if (!is_p(peek(), ";"))
+        /* `return` at the end of a line takes the value on the next line
+           in a function with a result, as in Swift, and in one without, has
+           nothing to return (#35) */
+        bool result = parsing_fn && parsing_fn->ret;
+        if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && (result || !newline_before()))
             s->expr = parse_expr();
-        /* an anonymous function's own buffers are gone once it returns
-           (#32); a named function's are P34's */
-        Expr *text = s->expr && parsing_fn && parsing_fn->anon && parsing_fn->ret ? text_in_buffer(s->expr) : NULL;
-        if (text)
-            error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
-                                "the caller takes the text itself, as in '{ println($0.%s) }'",
-                     text->text, text->text);
+        /* the function's own buffers are gone once it returns (#32, #35) */
+        if (s->expr && result)
+            reject_returned_text(s->expr, parsing_fn->anon);
+        bool semicolon = is_p(peek(), ";");
         end_statement();
+        Token *n = peek();
+        if (!s->expr && !semicolon && !is_p(n, "}") && n->kind != TK_EOF && !is_kw(n, "case") &&
+            !is_kw(n, "default") && !(n->kind == TK_IDENT && is_p(n + 1, ":")))
+            error_at(n->pos, "this never runs: in a function with no result, 'return' ends at the end of its line, "
+                             "and this follows it in the same block");
         return s;
     }
     if (accept_kw("goto")) {
         Stmt *s = new_stmt(S_GOTO, pos);
         s->name = expect_ident("a label");
-        expect_p(";");
+        end_statement();
         return s;
     }
-    if (t->kind == TK_IDENT && is_p(peek2(), ":")) {
+    if (t->kind == TK_IDENT && is_p(peek2(), ":") && !annotation) {
         Stmt *s = new_stmt(S_LABEL, pos);
         reject_kv_name(peek());
         s->name = advance()->text;
@@ -3339,12 +3449,14 @@ static Stmt *parse_stmt_here(void) {
         return s;
     }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && is_p(peek2(), "(") &&
-        peek_at(2)->kind == TK_STRING && is_p(peek_at(3), ")") && is_p(peek_at(4), ";")) {
+        peek_at(2)->kind == TK_STRING && is_p(peek_at(3), ")") &&
+        (is_p(peek_at(4), ";") || is_p(peek_at(4), "}") || peek_at(4)->kind == TK_EOF ||
+         peek_at(4)->pos.line > peek_at(3)->pos.line)) {
         pragma_statement = true;
         Stmt *s = new_stmt(S_EXPR, pos);
         s->expr = parse_assignments();
         pragma_statement = false;
-        expect_p(";");
+        end_statement();
         return s;
     }
     reject_c_declaration();
@@ -3358,7 +3470,10 @@ static Stmt *parse_stmt_here(void) {
         error_at(pos, "declarations are written 'var name:type', as in 'var x:%s'", example);
     }
     Stmt *s = new_stmt(S_EXPR, pos);
+    bool saved = ident_annotation_ok;
+    ident_annotation_ok = ident_annotation_ok || annotation; /* n:point */
     s->expr = parse_assignments();
+    ident_annotation_ok = saved;
     end_statement();
     return s;
 }
@@ -3410,10 +3525,12 @@ static Decl *parse_fn(Pos pos, const char *storage) {
                      kelvin_type(d->ret));
     }
     list_push(&functions, d);
-    if (!accept_p(";")) {
+    /* a prototype ends with `;` or a new line (#35); a body is a block */
+    if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
         parsing_fn = d;
-        d->body = parse_block();
+        d->body = parse_fn_body(expect_p("{"));
         parsing_fn = NULL;
+        implicit_return(d);
     }
     close_scope();
     return d;
@@ -3476,10 +3593,12 @@ static Decl *parse_method(Pos pos, const char *storage) {
                      kelvin_type(d->ret));
     }
     list_push(&functions, d);
-    if (!accept_p(";")) {
+    /* a prototype ends with `;` or a new line (#35); a body is a block */
+    if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
         parsing_fn = d;
-        d->body = parse_block();
+        d->body = parse_fn_body(expect_p("{"));
         parsing_fn = NULL;
+        implicit_return(d);
     }
     close_scope();
     return d;
@@ -3513,12 +3632,12 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                     reject_c_fn_pointer(cur, "");
                     list_push(&d->members, parse_var(false, LET_NONE));
                 } while (accept_p(","));
-                expect_p(";");
+                end_statement();
             }
         }
         expect_p("}");
     }
-    expect_p(";");
+    end_statement();
     return d;
 }
 
@@ -3556,7 +3675,8 @@ Program *parse(Token *tokens, int ntoks) {
     trailing_end = -1;
     stmt_start = 0;
     pending_note = anon_note = NULL;
-    body_after_call = -1;
+    body_after_call = block_after_call = -1;
+    body_first = body_end = -1;
     init_depth = 0;
     in_signature = false;
     scope_names = (List){0};

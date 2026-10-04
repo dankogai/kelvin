@@ -2,7 +2,7 @@
 // print() and println() come from the prelude; no import is needed.
 
 main():i32 {
-    println("Hello, Kelvin!");
-    return 0;
+    println("Hello, Kelvin!")
+    return 0
 }
 // out: Hello, Kelvin!

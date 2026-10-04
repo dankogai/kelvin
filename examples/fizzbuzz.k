@@ -1,19 +1,19 @@
 // FizzBuzz: a range, bool conditions without parentheses, and else if.
 main():i32 {
     for i in 1...15 {
-        let fizz = i % 3 == 0;      // a comparison is a bool
-        let buzz = i % 5 == 0;
+        let fizz = i % 3 == 0       // a comparison is a bool
+        let buzz = i % 5 == 0
         if fizz && buzz {
-            println("FizzBuzz");
+            println("FizzBuzz")
         } else if fizz {
-            println("Fizz");
+            println("Fizz")
         } else if buzz {
-            println("Buzz");
+            println("Buzz")
         } else {
-            println(i);
+            println(i)
         }
     }
-    return 0;
+    return 0
 }
 // out: 1
 // out: 2

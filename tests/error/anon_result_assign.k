@@ -1,4 +1,4 @@
-// error: assignment is a statement in Kelvin, not a value
+// error: an assignment has no value (#26), but this function has a result
 apply(x:i64, f:(i64):i64):i64 { return f(x); }
 var total:i64 = 0;
 main():i32 {

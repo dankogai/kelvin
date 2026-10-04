@@ -13,25 +13,25 @@ one.
 #import <stdio.h> as C
 
 struct node {
-    value:i32;
-    next:node^;
-};
+    value:i32
+    next:node^
+}
 
 sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
-    var total:i32 = 0;
+    var total:i32 = 0
     while n != nullptr {
-        total += n^.value;      // C: n->value
-        n := n^.next;
+        total += n^.value       // C: n->value
+        n := n^.next
     }
-    return total;
+    return total
 }
 ```
 
 So far the changes from C are:
-- structs, unions and enums are types by their bare name: `var p:point;`
+- structs, unions and enums are types by their bare name: `var p:point`
   for `struct point`
 - variables are declared with `let`, which never changes (C's `const`), or
-  `var`: `let k = 42;`, `var n:i32 = 0;`; the type follows the name, and
+  `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
   functions are `add(a:i64, b:i64):i64`, whose parameters are lets
   unless written `var`
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
@@ -55,17 +55,19 @@ So far the changes from C are:
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
   `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
   (`(42:i32).hex` is `+0x2a`); `x.type` is `x`'s type where a type goes,
-  as in `var y:x.type;`, and `x.typename` its name, as in `"i64"`
+  as in `var y:x.type`, and `x.typename` its name, as in `"i64"`
 - conditions are `bool`, with no parentheses and block bodies:
   `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
-  `bool`, so `println(a == b)` prints `true`, and `let ok = a < b;`
+  `bool`, so `println(a == b)` prints `true`, and `let ok = a < b`
   declares one
 - assignment is a statement, and there is no `++` or `--`: write
-  `i += 1;`, and step a pointer with `p := p.next;`
+  `i += 1`, and step a pointer with `p := p.next`
 - counting loops use ranges: `for i in 0..<n { ... }` and
   `for i in 1...n { ... }`, where `i` is a `let`
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
+- a `;` may be left out at the end of a line, and a function whose body is
+  one expression returns it: `square(x:i64):i64 { x * x }`
 - function types are `(T, U):R`, as in `before:(i64, i64):bool`
 - anonymous functions enclose nothing, are inline (C's `static inline`),
   and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
