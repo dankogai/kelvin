@@ -4,7 +4,6 @@
 #import <stdio.h> as C
 #import <stdint.h> as C
 #import <stdlib.h> as C
-#import <math.h> as C
 
 struct box { n:i64 }
 box.show() { println("box ", self.n) }
@@ -78,9 +77,10 @@ count_down(n:i64):i64 {
 
 // a `*` at the start of a line goes on with a product, unless what it
 // touches is assigned
+let PI = 3.141592653589793
 sphere(r:f64):f64 {
     return 4.0 / 3.0
-        *M_PI*r*r*r
+        *PI*r*r*r
 }
 
 main():i32 {
