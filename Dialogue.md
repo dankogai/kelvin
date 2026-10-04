@@ -1378,3 +1378,22 @@ findings, about 20 of them distinct. All are fixed:
   documented behaviors without tests have tests now.
 
 There are 275 tests.
+
+### 50. Inline anonymous functions
+
+> anonymous function are inlined by default.
+
+**Claude** asked two questions. The user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| What does "inlined" mean in the C that kelvinc writes? | `static inline`, C11's own hint, not GNU's `always_inline`, and not kelvinc specializing the callee |
+| A way to opt out? | Not yet; it may come with a Kelvin `inline` for named functions |
+
+**Claude** made every anonymous function, its prototype included,
+`static inline` (#33). They keep `__attribute__((unused))`, since clang
+still warns about an unused `static inline` function in a `.c` file.
+With `kelvinc -O`, clang folds the comparators of `examples/sort.k`
+into the Kelvin `sort` that calls them, and keeps only the one that
+`qsort` needs. Inlining does not change what a program prints, so the
+tests show only that the C compiles cleanly. There are 275 tests.

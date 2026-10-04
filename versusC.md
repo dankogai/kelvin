@@ -540,8 +540,11 @@ let t:() := tick;          // no parameters, no result
 ## Anonymous functions: `{ ... }`
 
 An anonymous function is `{ ... }` (#32). It encloses nothing, since C has
-no closures: kelvinc makes it a `static` function of its own, declared
-before the declaration around it and defined after it.
+no closures: kelvinc makes it a `static inline` function of its own
+(#33), declared before the declaration around it and defined after it.
+With `kelvinc -O`, the C compiler may then inline it where it is called,
+as in a Kelvin `sort` that calls its `before`; one passed to a C
+function such as `qsort` stays a function, whose address C needs.
 
 ```kelvin
 sort(xs, 8) { $0 < $1 }                 // the last argument, after the call

@@ -2299,9 +2299,9 @@ static Expr *text_in_buffer(Expr *e) {
     }
 }
 
-/* An anonymous function, from its `{` to its `}`: a static function of
-   its own in C, declared before the top-level declaration around it and
-   defined after it. It encloses nothing, as C has no closures: it may
+/* An anonymous function, from its `{` to its `}`: a static inline
+   function of its own in C (#33), declared before the top-level
+   declaration around it and defined after it. It encloses nothing, as C has no closures: it may
    use globals and functions, not the locals of the function around it.
    Its parameters are written, as in `{ (a:i32, b:i32):bool in ... }`,
    or come from ctx, the function type it is passed or assigned as, and
@@ -2311,7 +2311,7 @@ static Expr *text_in_buffer(Expr *e) {
 static Expr *parse_anon_fn(Type *ctx) {
     Token *open = peek();
     bool written = signature_ahead(cur);
-    Decl *d = new_decl(D_FN, open->pos, "static");
+    Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = strfmt("kv_fn%d", ++anon_count);
     Decl *saved_fn = parsing_fn;
     int saved_start = params_start, saved_end = params_end, saved_anon = anon_start, saved_kind = anon_kind,

@@ -66,9 +66,9 @@ So far the changes from C are:
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
 - function types are `(T, U):R`, as in `before:(i64, i64):bool`
-- anonymous functions enclose nothing, and may follow a call as its last
-  argument: `sort(xs, n) { $0 < $1 }`, where `$0` and `$1` are the
-  parameters
+- anonymous functions enclose nothing, are inline (C's `static inline`),
+  and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
+  where `$0` and `$1` are the parameters
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions,
