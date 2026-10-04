@@ -1599,3 +1599,90 @@ rules whose mutants survived. **Claude** mutated each of 36 new rules in
 turn, and every mutant now fails a test. That run found one more case:
 `size_t n` before a line starting with `(` had read the next line as the
 parameters of a C function declaration. There are 320 tests.
+
+### 56. Struct members in the style guide
+
+> style guide.
+>
+>     var v:T;  // no space between : and T
+>     struct node {
+>       value: f64. // spaces between : and type.  preferably pretty indent.
+>       next:  node^
+>     }
+
+**Claude** asked where else the spaced colon goes. The user chose struct
+and union members only, also on one line
+(`struct point { x: i32; y: i32 }`). On lines of their own, the types
+line up one space after the longest name's colon. Variables, parameters,
+results and annotations keep `x:i32`. The snippet's two-space indent and
+the `.` after `f64` read as a sketch: indentation stays at four spaces.
+
+Style.md, the examples, the README, versusC.md and Design.md follow the
+new layout. The tests keep the layout they were written in, and no hint
+of kelvinc suggests member syntax.
+
+### 57. Numbers from text
+
+> add numerical string to numerical value converters as `i64("42")`,
+> `"42".i64` and such. You can add base as `i32("755",8)`. You can use
+> C's `strtol`(and friends) and `strtod`.
+
+**Claude** asked three questions. The user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| `i64(p)` of a pointer converted its address. Which arguments are read as text? | Strings: a literal, `cstr`, `u8^`/`i8^`, C's `char *` through `_Generic`. Numbers and other pointers convert as before |
+| What do `i64("abc")`, `i64("42abc")` and `i8("300")` give? | As `strtol` reads them: the longest number, else 0; out of range clamps to the type's limits (`i8("300")` is 127) |
+| The base without one? | 10, as in Swift; with a base, Kelvin's `0x`, `0o` and `0b` are accepted, so `i64(x.oct, 8)` reads `.oct` back |
+
+**Claude** implemented #36. Its choices are provisional P47:
+
+- `v.T` is `T(v)` for every converter type, numbers too (`300.u8` is
+  44). A field of that name in a Kelvin struct or a C struct wins.
+- A clamp sets `errno` to `ERANGE`. An unsigned type's lowest value is
+  0, so `u8("-1")` is 0, where C's `strtoul` would wrap.
+- A NULL text, or a bad base at run time, gives 0. A written base
+  outside 2 to 36 is an error.
+- `bool`, `i128` and `u128` read no text yet.
+- Text properties such as `n.hex` count as text, and a number read from
+  text may be returned from the function that read it.
+
+Where kelvinc cannot see whether a value is text, macros in the prelude
+let `_Generic` choose. They evaluate the value once and stay constant
+expressions for numbers, so `let big = u64(UINT32_MAX)` still
+initializes a global.
+
+### 58. The review of #36
+
+**Claude** ran an adversarial review in four lenses: the runtime, the
+parser and codegen, regressions, and the docs and tests. Skeptics
+confirmed 29 of the 33 findings. None needed the user's decision. The
+fixes, now in P47:
+
+- A converter of a value kelvinc cannot see pasted it into C ten times.
+  Each C diagnostic inside it came out ten times, and nested converters
+  grew tenfold per level (six levels: 75 MB of C, seconds to compile).
+  Inside a function, the value now goes into a temporary first, and
+  plain arithmetic on numbers kelvinc sees (`i64(x + 1)`) converts as
+  before.
+- A base after a number kelvinc could not see was silently dropped
+  (`i32(atoi(s), 8)`); C now rejects it, naming `kv_base_needs_text`. A
+  written base is checked in any radix, negated, or as a float. A
+  run-time base is taken as 64 bits, not narrowed to `int`.
+- "A field named like a type wins" held only for C structs kelvinc sees.
+  Now it follows #21's rule for `.size`, that a field wins when kelvinc
+  is unsure, so msgpack-style `o.via.i64` is the field, and designators
+  take such names too.
+- Pointers to C char typedefs (`xmlChar^`, `gchar^`) are left to
+  `_Generic` and read. A `?:` of texts is text. A volatile `u8^`
+  converts as before.
+- `bool(p)` of a `cstr` is the `nullptr` test again; only a string
+  literal or a text property is an error. `i128` and `u128` now read text
+  too, so every integer converter does.
+- `s.i64(16)` gets a kelvinc error, and a union is no longer called a
+  struct.
+- Docs: the float rules apart from the integer ones, "exactly one value",
+  "exactly C's cast", and the last member samples written `name:type`.
+
+Tests cover the runtime rules whose mutants had survived, C's text types
+through header functions, and each new check. There are 336 tests.

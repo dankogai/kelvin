@@ -80,6 +80,7 @@ static void sync(Pos p) {
 /* ---------- types ---------- */
 
 static char *expr(Expr *e);
+static char *text_number(Expr *e);
 static char *operand_before(Expr *e);
 
 /* Kelvin's sized integers are <stdint.h>'s; 128-bit ones exist where the
@@ -345,6 +346,8 @@ static char *expr_bare(Expr *e) {
     case E_CAST:
         if (e->op && !strcmp(e->op, "converter"))
             return strfmt("(%s)(%s)", decl(e->type, ""), expr_bare(e->a));
+        if (e->op && !strncmp(e->op, "text", 4))
+            return text_number(e);
         return strfmt("(%s)%s", decl(e->type, ""), expr(e->a));
     case E_COMPOUND:
         return strfmt("(%s)%s", decl(e->type, ""), initializer(e->a));
@@ -426,6 +429,51 @@ static char *expr_bare(Expr *e) {
     }
     }
     return NULL;
+}
+
+/* Text for the runtime's readers: a ?: whose arms are texts of C types
+   that differ, such as main's char * argv[1] and a cstr, gets const
+   void * arms (#36) */
+static char *text_arg(Expr *e) {
+    if (e->kind == E_TERNARY)
+        return strfmt("(%s ? (const void *)%s : (const void *)%s)", cond(e->a), text_arg(e->b), text_arg(e->c));
+    return strfmt("(%s)", expr_bare(e));
+}
+
+/* i32("42"), i32(text, 8) and "42".i32 (#36): the number read from text
+   by the runtime's kv_text_int and friends, clamped to the type's limits
+   (base 10 when none is given). Where kelvinc cannot see whether the
+   value is text, KV_TEXT lets _Generic choose between reading and
+   converting it, and with a base, only text compiles. Inside a function
+   the value goes into a temporary first, so that it is evaluated and
+   written once; at file scope, KV_TEXT of a number stays a constant. */
+static char *text_number(Expr *e) {
+    const char *name = e->type->name, *type = decl(e->type, ""), *bits = name + 1;
+    char *base = e->b ? strfmt("(%s)", expr_bare(e->b)) : "10";
+    char *read, *rest;
+    if (!strcmp(name, "f32") || !strcmp(name, "f64")) {
+        read = strfmt("kv_text_%s", name);
+        rest = "";
+    } else if (!strcmp(name, "i128") || !strcmp(name, "u128")) {
+        read = strfmt("kv_text_%s", name);
+        rest = strfmt(", %s", base);
+    } else if (name[0] == 'u') {
+        read = "kv_text_uint";
+        rest = strfmt(", %s, UINT%s_MAX", base, bits);
+    } else {
+        read = "kv_text_int";
+        rest = strfmt(", %s, INT%s_MIN, INT%s_MAX", base, bits, bits);
+    }
+    if (!strcmp(e->op, "text"))
+        return strfmt("(%s)%s(%s%s)", type, read, text_arg(e->a), rest);
+    char *v = strfmt("(%s)", expr_bare(e->a)), *x = v, *tmp = NULL;
+    if (text_bufs)
+        x = tmp = strfmt("kv_self%d", ++method_temps);
+    char *c = e->b ? strfmt("(%s)_Generic(KV_TEXT_TAG(%s), kv_text_tag *: %s, default: kv_base_needs_text)(KV_TEXT_PTR(%s)%s)",
+                            type, x, read, x, rest)
+                   : strfmt("KV_TEXT(%s, %s, %s(KV_TEXT_PTR(%s)%s))", type, x, read, x, rest);
+    /* (void)0, v: a bit-field cannot initialize __auto_type */
+    return tmp ? strfmt("({ __auto_type %s = ((void)0, %s); %s; })", tmp, v, c) : c;
 }
 
 static char *expr(Expr *e) {

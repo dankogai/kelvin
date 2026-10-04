@@ -64,8 +64,21 @@ Four spaces.
 ## Types
 
 No space after a type's colon: `x:i32`, `let s:cstr := "hi"`,
-`f(a:i64, b:i64):i64 {`, `struct point { x:i32; y:i32 }`,
-`for b:u8 in 250...255 {`. It is the same colon as in an annotation,
-`0xdead:u16`. Other colons keep their spaces: `c ? a : b`, labels
-(`again: n = 0`) and `case 1:`. The text that `.cstr` derives for a
-struct, `{x: 3, y: 4}`, is output, not code.
+`f(a:i64, b:i64):i64 {`, `for b:u8 in 250...255 {`. It is the same colon
+as in an annotation, `0xdead:u16`.
+
+Struct and union members are the exception *(Dialogue.md entry 56)*:
+one space after the colon, `name: type`, also on one line, as in
+`struct point { x: i32; y: i32 }`. On lines of their own, the types line
+up one space after the longest name's colon:
+
+```kelvin
+struct node {
+    value: f64
+    next:  node^
+}
+```
+
+Other colons keep their spaces: `c ? a : b`, labels (`again: n = 0`) and
+`case 1:`. The text that `.cstr` derives for a struct, `{x: 3, y: 4}`,
+is output, not code. The tests keep the layout they were written in.

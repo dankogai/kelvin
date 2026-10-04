@@ -4,13 +4,13 @@
 #import <stdlib.h> as C
 
 struct node {
-    value:i64
-    next:node^         // a field, read as n^.next (n.next would be n + 1)
+    value: i64
+    next:  node^       // a field, read as n^.next (n.next would be n + 1)
 }
 
 struct list {
-    head:node^
-    length:i64
+    head:   node^
+    length: i64
 }
 
 // add a value at the front

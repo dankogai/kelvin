@@ -4,9 +4,9 @@
 
 let PI = 3.141592653589793
 
-struct point { x:f64; y:f64 }
-struct circle { center:point; radius:f64 }
-struct rect { corner:point; width:f64; height:f64 }
+struct point { x: f64; y: f64 }
+struct circle { center: point; radius: f64 }
+struct rect { corner: point; width: f64; height: f64 }
 
 point.distance(to:point):f64 {
     hypot(to.x - self.x, to.y - self.y)

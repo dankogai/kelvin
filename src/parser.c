@@ -832,6 +832,8 @@ static Type *base_type(const char *name, Pos pos);
 static const char *literal_type(Expr *e);
 static Type *target_type(Expr *e);
 static Expr *property(Expr *e, Token *name, char *member);
+static Expr *convert(Token *t, const char *name, Expr *v, Expr *base);
+static bool converter_is_field(Expr *v, const char *member);
 static void require_bool(Expr *e);
 _Noreturn static void reject_step(Token *t);
 static bool binding_ahead(int i);
@@ -984,9 +986,13 @@ static Expr *parse_postfix_ops(Expr *e) {
             Token *name = peek();
             /* cstr is a keyword, but also the .cstr property and possibly
                a field of a C struct */
-            char *member = is_kw(name, "cstr") ? advance()->text : expect_ident("a member or method name");
+            char *member = is_kw(name, "cstr") || is_converter(name) ? advance()->text
+                                                                      : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
+            if (call && is_converter(name) && !converter_is_field(e, member))
+                error_at(name->pos, "'.%s' takes no arguments: read text in a base with %s(text, base)", member,
+                         member);
             if (call && (!strcmp(member, "toString") || !strcmp(member, "fmt")) && !is_method_name(member)) {
                 /* a field of that name that kelvinc can see, or one of a
                    struct it cannot see, is called as in C */
@@ -1121,20 +1127,20 @@ static Expr *parse_primary(void) {
             error_at(t->pos, "'%s' is a type; convert a value with %s(v) or v as %s", t->text, t->text, t->text);
         }
         advance();
-        Expr *e = new_expr(E_CAST, t->pos);
-        e->op = "converter";
-        e->type = base_type(t->text, t->pos);
-        e->paren = true;
         advance();
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
-        e->a = parse_assign();
+        Expr *v = parse_assign(), *base = NULL;
+        if (accept_p(","))
+            base = parse_assign(); /* i32("755", 8) (#36) */
         brace_ends_condition = saved_brace;
         brace_in_for = saved_for;
         if (is_p(peek(), ","))
-            error_at(peek()->pos, "a converter takes exactly one value: %s(v)", t->text);
+            error_at(peek()->pos, "a converter takes one value, and an integer type a base for text after it: "
+                                  "%s(v) or %s(text, base)",
+                     t->text, t->text);
         expect_p(")");
-        return e;
+        return convert(t, t->text, v, base);
     }
     if (accept_kw("nullptr")) {
         /* C's (void *)0, typed any^ */
@@ -1863,12 +1869,137 @@ static bool record_has_field(Decl *r, const char *name) {
     return false;
 }
 
+/* Is t text: u8^ or i8^ (cstr), or an array of u8 or i8? A volatile
+   one is not: it converts as before, as C's volatile char * does */
+static bool is_text_type(Type *t) {
+    return t && (t->kind == T_PTR || t->kind == T_ARRAY) && t->elem && t->elem->kind == T_BASE &&
+           !t->elem->is_volatile && (!strcmp(t->elem->name, "u8") || !strcmp(t->elem->name, "i8"));
+}
+
+/* Is e text kelvinc can see: a string, a text type, a text property
+   (i64(n.hex, 16)), or a ?: of those (c ? argv[1] : "8")? */
+static bool is_text_expr(Expr *e) {
+    static const char *texts[] = {"dec", "hex", "oct", "bin", "cstr", "typename", NULL};
+    if (e->kind == E_STRING || is_text_type(value_type(e)))
+        return true;
+    for (int i = 0; e->kind == E_PROPERTY && texts[i]; i++)
+        if (!strcmp(e->text, texts[i]))
+            return true;
+    if (e->kind == E_TERNARY)
+        return (is_text_expr(e->b) || (e->b->kind == E_LITERAL && !strcmp(e->b->text, "nullptr"))) &&
+               (is_text_expr(e->c) || (e->c->kind == E_LITERAL && !strcmp(e->c->text, "nullptr")));
+    return false;
+}
+
+/* Does kelvinc see that e is a number, or a bool: a literal, sizeof,
+   arithmetic (+ and - only of numbers, as a pointer steps with them),
+   a prefix operator, a comparison, or a ?: of numbers? */
+static bool number_expr(Expr *e) {
+    Decl *record;
+    char c = expr_class(e, &record);
+    if (c == 'i' || c == 'f' || seen_bool(e))
+        return true;
+    switch (e->kind) {
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+        return true;
+    case E_PREFIX:
+        return strcmp(e->op, "&") != 0;
+    case E_BINARY:
+        if (!strcmp(e->op, "+") || !strcmp(e->op, "-"))
+            return number_expr(e->a) && number_expr(e->b);
+        return strcmp(e->op, ",") ? binary_prec(&(Token){.kind = TK_PUNCT, .text = (char *)e->op}) > 0 : number_expr(e->b);
+    case E_TERNARY:
+        return number_expr(e->b) && number_expr(e->c);
+    default:
+        return false;
+    }
+}
+
+/* Is e, a written base, outside 2 to 36: a literal of any radix, a
+   negated one, or a float? */
+static void check_base(Expr *base) {
+    Expr *lit = base->kind == E_PREFIX && !strcmp(base->op, "-") ? base->a : base;
+    Decl *record;
+    if (expr_class(base, &record) == 'f')
+        error_at(base->pos, "a base is an integer from 2 to 36");
+    if (lit->kind != E_LITERAL || !isdigit((unsigned char)lit->text[0]))
+        return;
+    const char *t = lit->text;
+    bool binary = t[0] == '0' && (t[1] == 'b' || t[1] == 'B');
+    unsigned long long v = strtoull(binary ? t + 2 : t, NULL, binary ? 2 : 0);
+    if (lit != base || v < 2 || v > 36)
+        error_at(base->pos, "a base is 2 to 36, not %s%s", lit != base ? "-" : "", t);
+}
+
+/* T(v), T(text, base) and v.T (#36): v converted as C's cast converts
+   it, or where v is text, the number read from it as C's strtol and
+   strtod read it (op "text"); where kelvinc cannot see whether v is text,
+   C's _Generic chooses (op "text?"). bool reads no text. */
+static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
+    Expr *e = new_expr(E_CAST, t->pos);
+    e->type = base_type(name, t->pos);
+    e->paren = true;
+    e->a = v;
+    e->b = base;
+    bool text = is_text_expr(v);
+    bool is_bool = !strcmp(name, "bool");
+    bool floating = !strcmp(name, "f32") || !strcmp(name, "f64");
+    if (is_bool && text && !is_text_type(value_type(v)))
+        error_at(t->pos, "bool(...) reads no text, and this text is never nullptr, so it would always be true");
+    if (base && (floating || is_bool))
+        error_at(base->pos, "a base is for reading an integer from text; %s",
+                 floating ? strfmt("%s(text) reads decimal, or C's hex floats as in \"0x1.8p1\"", name)
+                          : "bool(...) takes one value");
+    /* a pointer whose element kelvinc cannot see may be C's char text,
+       as xmlChar^ and gchar^ are */
+    Type *vt = value_type(v);
+    Decl *record;
+    bool unseen_elem = vt && (vt->kind == T_PTR || vt->kind == T_ARRAY) && vt->elem &&
+                       type_class(vt->elem, &record) == 'u' && !vt->elem->is_volatile;
+    char c = expr_class(v, &record);
+    e->op = is_bool ? "converter"
+            : text  ? "text"
+            : (c == 'u' && !number_expr(v)) || unseen_elem ? "text?"
+                                                           : "converter";
+    if (base && !strcmp(e->op, "converter"))
+        error_at(base->pos, "a base is for reading text, as in %s(\"755\", 8); %s converts a number", name, name);
+    if (base)
+        check_base(base);
+    return e;
+}
+
+/* Is v.i64 (any converter name) a field of v: one of a Kelvin struct
+   that has it, of a C struct, or of what kelvinc cannot see is no struct?
+   (#36) */
+static bool converter_is_field(Expr *v, const char *member) {
+    Decl *record;
+    char c = expr_class(v, &record);
+    return c == 'c' || (c == 's' && record_has_field(record, member)) || (c == 'u' && !number_expr(v) && !is_text_expr(v));
+}
+
 /* `x.size` is sizeof(x); `x.cstr` is its text (#22), and `x.dec`, `.hex`,
    `.oct`, `.bin` the text of a number. Returns NULL when `.name` is a
    field access instead: always when a Kelvin struct has that field, and
    for `.size` whenever kelvinc cannot see that the receiver is not a C
    struct (the field wins when unsure). */
 static Expr *property(Expr *e, Token *name, char *member) {
+    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member})) {
+        /* v.i64 is i64(v), so "42".i64 reads text (#36). A field of that
+           name wins: a Kelvin struct's, a C struct's, and, as for .size,
+           whenever kelvinc cannot see that v is no struct (o.via.i64) */
+        if (converter_is_field(e, member))
+            return NULL;
+        Decl *record;
+        if (expr_class(e, &record) == 's') {
+            bare_tags = true;
+            char *type = kelvin_type(value_type(e));
+            bare_tags = false;
+            error_at(name->pos, "'.%s' converts a number or reads text, and %s is a %s with no field '%s'", member,
+                     type, record->kind == D_UNION ? "union" : "struct", member);
+        }
+        return convert(name, member, e, NULL);
+    }
     if (!strcmp(member, "next") || !strcmp(member, "prev")) {
         /* p.next is p + 1 and p.prev is p - 1, on a pointer kelvinc can
            see (#26); on anything else `.next` is a field, as in n^.next */
@@ -2141,8 +2272,9 @@ static Expr *parse_initializer_for(Type *t) {
             Expr *x = new_expr(is_p(tok, ".") ? E_FIELD : E_INDEX, tok->pos);
             x->a = d;
             if (x->kind == E_FIELD) {
-                /* cstr is a keyword, but may be a C struct's field */
-                x->text = is_kw(peek(), "cstr") ? advance()->text : expect_ident("a member name");
+                /* cstr and the converters' names are keywords, but may be a
+                   C struct's fields (#36) */
+                x->text = is_kw(peek(), "cstr") || is_converter(peek()) ? advance()->text : expect_ident("a member name");
                 Decl *r = NULL;
                 Type *member = NULL;
                 if (dt && dt->kind == T_BASE && type_class(dt, &r) == 's') {
@@ -2825,8 +2957,8 @@ static bool has_effect(Expr *e) {
    none. .cstr of a string kelvinc sees is the string itself (P34). */
 static Expr *text_in_buffer(Expr *e) {
     switch (e->kind) {
-    case E_CAST:
-        return text_in_buffer(e->a);
+    case E_CAST: /* i64(x.hex) is a number (#36) */
+        return e->op && !strncmp(e->op, "text", 4) ? NULL : text_in_buffer(e->a);
     case E_TERNARY: {
         Expr *b = text_in_buffer(e->b);
         return b ? b : text_in_buffer(e->c);

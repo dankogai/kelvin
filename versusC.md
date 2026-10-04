@@ -32,7 +32,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static g():i32` |
 | `int main(int argc, char **argv)` | `main(argc:i32, argv:u8^^):i32` |
-| `struct p { int x, y; };` | `struct p { x:i32, y:i32 }` |
+| `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
@@ -49,6 +49,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `(unsigned char)c` | `u8(c)` or `c as u8` |
 | `(int *)malloc(n)` | `malloc(n) as i32^` |
 | `(size_t)n` | `n as size_t` |
+| `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
@@ -95,11 +96,11 @@ static var calls:i32
   change, while `f(var p:u8^) { p := p.next }` may move `p`. A method's
   `self` is a mutable copy. Parameters must be named: C's unnamed
   `f(int)` is not available yet.
-- **Struct and union members** are written `name:type`, ended by `;` or a
-  new line, with no keyword: `struct p { x:i32; y:i32 }` *(provisional
-  P8)*.
+- **Struct and union members** are written `name: type`, ended by `;` or
+  a new line, with no keyword: `struct p { x: i32; y: i32 }`
+  *(provisional P8)*.
 - **A struct, union or enum is a type by its bare name** (#29), as if C
-  had `typedef struct point point;`: `var p:point`, `next:node^` inside
+  had `typedef struct point point;`: `var p:point`, `next: node^` inside
   `struct node`, `sizeof(point)`, `(point){1, 2}`, `c:color` for
   `enum color`. `struct point` still works too. kelvinc resolves the name
   itself and writes `struct point` in the C, so a variable or function
@@ -278,16 +279,59 @@ there is no `++` or `--` (see Assignment).
 ## Conversions (no C casts)
 
 C's `(T)v` does not exist in Kelvin. There are two ways to convert, and
-both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44):
+both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44),
+except that a converter of text reads the number in it (#36), while
+`s as i64` and `s:i64` stay C's cast:
 
 - **`T(v)`**, a converter, for built-in types: `i32(x)`, `u8(c)`,
-  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*.
+  `f64(n) / 2`, `bool(flags & 4)` *(provisional P18)*. Of text, it reads
+  the number (#36, below).
 - **`v:T`**, a type annotation, means exactly `v as T`: `0xdead:u16`,
   `1:u64 << 40`, `n:size_t`. In the middle of a ternary (`c ? a : b`)
   and in a `case` label, a bare name after `:` is the separator, so
   annotate with a typedef there by using parentheses or `as`.
 - **`v as T`**, for any type, including pointers and C typedef names:
   `malloc(n) as i32^`, `p as any^`, `n as size_t`.
+
+### Numbers from text
+
+A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
+and with a base from 2 to 36 for an integer type, `i32("755", 8)`. The
+property form is the same converter: `"42".i64` is `i64("42")`, and
+`n.u8` is `u8(n)` for a number. Text is a string, `cstr`, `u8^`, `i8^`,
+an array of `u8` or `i8`, the text of a property such as `n.hex`, or C's
+`char *`. Every other value converts as before. Where kelvinc cannot
+see the type, C's `_Generic` makes the choice.
+
+The text is read as C's `strtol` and `strtod` read it *(provisional
+P47)*:
+
+| Kelvin | Value | Why |
+|--------|-------|-----|
+| `i64("  +12")` | 12 | leading spaces and a sign |
+| `i64("42abc")` | 42 | the longest number is taken |
+| `i64("abc")`, `i64("")` | 0 | no number |
+| `i64("0755")` | 755 | base 10 unless one is given |
+| `i64("ff", 16)`, `i64("0xff", 16)` | 255 | |
+| `i64(n.oct, 8)`, `i64(n.bin, 2)` | `n` | Kelvin's `0o` and `0b` too |
+| `i8("300")`, `u8("-1")` | 127, 0 | clamped to the type's limits, with `errno` set to `ERANGE` |
+| `f64("0x1.8p1")` | 3.0 | `strtod`'s hex floats, so `f64(x.hex)` is `x` |
+
+Every integer type reads text, `i128` and `u128` too. `bool` reads
+none: `bool(p)` of a pointer tells it from `nullptr`, as in C, and of a
+string, which is never `nullptr`, it is an error. A base is for text
+only: after a number it is an error, from kelvinc where it sees the
+number and from C (naming `kv_base_needs_text`) where only `_Generic`
+does. A `?:` of texts is text (`i32(argc > 1 ? argv[1] : "8")`).
+
+Floats are `strtod`'s and `strtof`'s own: out of range is an infinity,
+`errno` is `ERANGE` also when the result is tiny, and the decimal point
+is the one of the C locale in use.
+
+As for `.size`, a field named like a type wins over the property where
+kelvinc cannot see that the value is no struct, so `o.via.i64` of a C
+struct is its field: there, `i64(v)` converts. `.i64` takes no base:
+write `i64(s, 16)`.
 
 `as` binds like C's cast. It is tighter than every binary operator and
 looser than prefix operators, and it chains left to right
@@ -329,8 +373,9 @@ One shape cannot be caught, because Kelvin cannot see typedefs: a statement
 `name` is a C typedef, C reads it as a declaration of `x`. To convert to a
 typedef type, write `x as size_t`, never `size_t(x)`.
 
-A converter takes exactly one value (`i32(a, b)` is an error), and a
-statement may start with one.
+A converter takes one value, and for text, a base after it
+(`i32("755", 8)`); a base after a number is an error. A statement may
+start with a converter.
 
 A converter groups its whole argument, so `i32(TOTAL)` is right even if a
 header defines `TOTAL` as `1.5 + 2.5` without parentheses. `TOTAL as i32`,
@@ -660,7 +705,7 @@ Every type can have methods. You define them Swift-style on a struct or
 union, or on a built-in type, with an implicit `self` (passed by value):
 
 ```kelvin
-struct point { x:i32; y:i32 }
+struct point { x: i32; y: i32 }
 
 point.dist2():i64 { self.x * self.x + self.y * self.y }
 f64.half():f64 { self / 2 }
@@ -782,8 +827,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and
   in a C struct from a header. When kelvinc cannot see whether the
-  receiver is a struct, `.size` and `.type` are fields (write `sizeof(x)`
-  or `var y:x.type` there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are
+  receiver is a struct, `.size`, `.type` and the converters such as
+  `.i64` are fields (write `sizeof(x)`, `var y:x.type` or `i64(x)`
+  there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are
   properties. `.typename` is a property also of a C struct, since C++
   reserves the word and C headers rarely name a field so (#34).
 - **Errors.** `.hex` on a pointer, bool or struct, and `.oct` or

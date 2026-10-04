@@ -262,6 +262,45 @@ void kv_print_u128(unsigned __int128 v);
     unsigned char *: kv_print_str, const unsigned char *: kv_print_str, \
     default: kv_print_ptr)(v)
 
+/* ---------- numbers from text: i64("42"), "42".i64 (#36) ---------- */
+
+/* The integer at the start of text, read as C's strtol reads it: leading
+   spaces, a sign, then digits in base 2 to 36 (Kelvin's 0x, 0o and 0b may
+   come first in base 16, 8 and 2). No number is 0, and so is a NULL text
+   or a base outside 2 to 36. A number out of the type's range is clamped
+   to its limits (an unsigned type's lowest is 0), and errno is then
+   ERANGE; otherwise errno is left alone. Floats are strtod's and strtof's
+   own: out of range is an infinity, and errno is ERANGE also when the
+   result is tiny, as C sets it. */
+int64_t kv_text_int(const void *text, long long base, int64_t min, int64_t max);
+uint64_t kv_text_uint(const void *text, long long base, uint64_t max);
+double kv_text_f64(const void *text);
+float kv_text_f32(const void *text);
+#ifdef __SIZEOF_INT128__
+__int128 kv_text_i128(const void *text, long long base);
+unsigned __int128 kv_text_u128(const void *text, long long base);
+#endif
+
+/* Where kelvinc cannot see whether a value is text, _Generic tells:
+   char *, signed char * and unsigned char * (u8^, i8^), const or not, are
+   read, and anything else is converted as C's cast converts it.
+   KV_TEXT(T, v, read) is read, an expression that reads KV_TEXT_PTR(v),
+   for text, and v converted to T otherwise. Inside a function, kelvinc
+   puts v in a temporary first, so that v is evaluated and written once;
+   at file scope, KV_TEXT stays a constant expression for numbers. With a
+   base, the text is required: anything else is a C type error that names
+   kv_base_needs_text. */
+typedef struct kv_text_tag kv_text_tag;
+#define KV_TEXT_TAG(v)                                                                                        \
+    _Generic((v), char *: (kv_text_tag *)0, const char *: (kv_text_tag *)0, signed char *: (kv_text_tag *)0, \
+             const signed char *: (kv_text_tag *)0, unsigned char *: (kv_text_tag *)0,                       \
+             const unsigned char *: (kv_text_tag *)0, default: 0)
+#define KV_TEXT_PTR(v) _Generic(KV_TEXT_TAG(v), kv_text_tag *: (v), default: (const void *)0)
+#define KV_NOT_TEXT(v) _Generic(KV_TEXT_TAG(v), kv_text_tag *: 0, default: (v))
+#define KV_TEXT(T, v, read) _Generic(KV_TEXT_TAG(v), kv_text_tag *: (T)(read), default: (T)(KV_NOT_TEXT(v)))
+struct kv_base_needs_text { char unused; };
+void kv_base_needs_text(struct kv_base_needs_text, ...);
+
 #define KV_CAT_(a, b) a##b
 #define KV_CAT(a, b) KV_CAT_(a, b)
 /* __VA_OPT__ (C23, accepted by gcc and clang in C11 mode as well) lets

@@ -7,10 +7,13 @@
 #include "kelvin_prelude.h"
 
 #include <complex.h>
+#include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef __SIZEOF_INT128__
@@ -223,6 +226,138 @@ uint8_t *kv_dec_f32(float v, uint8_t *buf) { return float_text(v, "%+.9g", buf);
 uint8_t *kv_dec_f64(double v, uint8_t *buf) { return float_text(v, "%+.17g", buf); }
 uint8_t *kv_hex_f32(float v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 uint8_t *kv_hex_f64(double v, uint8_t *buf) { return float_text(v, "%+a", buf); }
+
+/* ---------- numbers from text (#36) ---------- */
+
+/* The text after leading spaces and a sign, which *neg tells, past
+   Kelvin's own 0o and 0b in base 8 and 2 (strtoull skips 0x in base 16
+   itself); NULL when no digit can follow */
+static const char *digits_of(const void *text, long long base, bool *neg) {
+    const char *s = text;
+    *neg = false;
+    if (!s || base < 2 || base > 36)
+        return NULL;
+    while (isspace((unsigned char)*s))
+        s++;
+    if (*s == '+' || *s == '-')
+        *neg = *s++ == '-';
+    if (s[0] == '0' && ((base == 8 && (s[1] == 'o' || s[1] == 'O')) || (base == 2 && (s[1] == 'b' || s[1] == 'B'))))
+        s += 2;
+    return isalnum((unsigned char)*s) ? s : NULL; /* no second sign or space, as in strtol */
+}
+
+/* The magnitude of the integer at the start of text, as strtoull reads
+   it; *over tells that it did not fit */
+static unsigned long long magnitude_of(const void *text, long long base, bool *neg, bool *over) {
+    const char *s = digits_of(text, base, neg);
+    *over = false;
+    if (!s)
+        return 0;
+    int saved = errno;
+    errno = 0;
+    char *end;
+    unsigned long long m = strtoull(s, &end, (int)base);
+    *over = errno == ERANGE;
+    errno = saved;
+    return end == s ? 0 : m;
+}
+
+int64_t kv_text_int(const void *text, long long base, int64_t min, int64_t max) {
+    bool neg, over;
+    unsigned long long m = magnitude_of(text, base, &neg, &over);
+    unsigned long long lowest = (unsigned long long)-(min + 1) + 1; /* -min, without overflow */
+    if (neg && (over || m > lowest)) {
+        errno = ERANGE;
+        return min;
+    }
+    if (neg)
+        return m == lowest ? min : -(int64_t)m;
+    if (over || m > (unsigned long long)max) {
+        errno = ERANGE;
+        return max;
+    }
+    return (int64_t)m;
+}
+
+uint64_t kv_text_uint(const void *text, long long base, uint64_t max) {
+    bool neg, over;
+    unsigned long long m = magnitude_of(text, base, &neg, &over);
+    if (neg && m) { /* below 0, the lowest an unsigned type has */
+        errno = ERANGE;
+        return 0;
+    }
+    if (over || m > max) {
+        errno = ERANGE;
+        return max;
+    }
+    return m;
+}
+
+double kv_text_f64(const void *text) { return text ? strtod(text, NULL) : 0; }
+float kv_text_f32(const void *text) { return text ? strtof(text, NULL) : 0; }
+
+#ifdef __SIZEOF_INT128__
+static int digit_value(char c) {
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 10;
+    if (c >= 'A' && c <= 'Z')
+        return c - 'A' + 10;
+    return 99;
+}
+
+/* The same for i128 and u128, which strtoull is too narrow for: digits
+   are read one by one, with 0x skipped in base 16 as strtoull skips it */
+static unsigned __int128 magnitude128(const void *text, long long base, bool *neg, bool *over) {
+    const char *s = digits_of(text, base, neg);
+    *over = false;
+    if (!s)
+        return 0;
+    if (base == 16 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') && digit_value(s[2]) < 16)
+        s += 2;
+    unsigned __int128 m = 0, all = ~(unsigned __int128)0;
+    for (int d; (d = digit_value(*s)) < base; s++) {
+        if (m > (all - (unsigned)d) / (unsigned)base)
+            *over = true;
+        else
+            m = m * (unsigned)base + (unsigned)d;
+    }
+    return m;
+}
+
+__int128 kv_text_i128(const void *text, long long base) {
+    bool neg, over;
+    unsigned __int128 m = magnitude128(text, base, &neg, &over);
+    unsigned __int128 lowest = (unsigned __int128)1 << 127; /* -min */
+    __int128 max = (__int128)(lowest - 1), min = -max - 1;
+    if (neg && (over || m > lowest)) {
+        errno = ERANGE;
+        return min;
+    }
+    if (neg)
+        return m == lowest ? min : -(__int128)m;
+    if (over || m > (unsigned __int128)max) {
+        errno = ERANGE;
+        return max;
+    }
+    return (__int128)m;
+}
+
+unsigned __int128 kv_text_u128(const void *text, long long base) {
+    bool neg, over;
+    unsigned __int128 m = magnitude128(text, base, &neg, &over);
+    if (neg && m) {
+        errno = ERANGE;
+        return 0;
+    }
+    if (over) {
+        errno = ERANGE;
+        return ~(unsigned __int128)0;
+    }
+    return m;
+}
+#endif
 
 /* ---------- values of types kelvinc cannot see ---------- */
 
