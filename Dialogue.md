@@ -1558,3 +1558,44 @@ confirmed 40 of the 49 findings. Two were questions for the user:
 
 New tests cover each rule the review's mutants showed untested. There
 are 302 tests.
+
+### 55. The review of #35, a second time
+
+> run the review of #35 again
+
+**Claude** ran the same four lenses on 34568ff. Skeptics confirmed 27 of
+the 29 findings. None needed the user's decision. **Claude** fixed them
+within the agreed rules, and the details are in P46:
+
+- A value dropped at the end of a branch went unreported, and the
+  function fell off its end. Examples are `if x < 0 { -1 } else { 1 }`,
+  a case's `"zero"` and a block's `{x, y}`. gcc gave no diagnostic.
+  kelvinc now follows every path to the end of a body with a result. It
+  also reports a final call that it sees has a result, as in Rust's
+  `let y = x + 1` followed by `compute(y)`. In `main` it reports only a
+  value with no effect.
+- `{ (n:i64):size_t in n:size_t }`, with any C typedef, had become a label
+  and returned garbage. It is an annotation again.
+- `count:i32` became a no-op annotation when a global was named `count`,
+  so a C-era declaration silently wrote the global. Only the expression a
+  body returns is an annotation now.
+- The `*p` check rejected products broken before a touching `*`, as in
+  `*M_PI*r` and `*(1.0 + rate)`. It now fires only when the operand is
+  assigned, as in `*p = 1`.
+- The never-runs check fired after a `return` that was a `for`'s body,
+  and before a block that holds a `goto` label.
+- Hints: an Allman trailing function that writes its parameters or fills
+  a missing function argument, an Allman `(point)` compound literal, the
+  constructor-named `node *head = node(1)`, and `BUFSIZ * count` now get
+  hints that fit. Messages point at the statement, and `main` always gets
+  its own message.
+- Docs: versusC's rules for no-value calls, the never-runs exemptions and
+  `*p`, the last Kelvin samples with `;`, and four one-expression bodies
+  in samples that still wrote `return`.
+
+Tests now cover returned_statement, the never-runs exemptions, `break`
+and `goto` at a line end, the `?` and `as` annotations, and the other
+rules whose mutants survived. **Claude** mutated each of 36 new rules in
+turn, and every mutant now fails a test. That run found one more case:
+`size_t n` before a line starting with `(` had read the next line as the
+parameters of a C function declaration. There are 320 tests.

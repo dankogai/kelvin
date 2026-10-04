@@ -33,8 +33,9 @@ written only between statements on one line, as in `a += 1; b += 1`, and
 inside `for (...; ...; ...)`. A function whose body is one expression
 leaves out `return`: `square(x:i64):i64 { x * x }`. A body of more
 statements keeps it, and so does `main`, whose end returns 0 as in C
-(Dialogue.md entry 54). A long expression breaks before an operator, so
-the next line goes on with it:
+(Dialogue.md entry 54). The tests keep both forms, to check that `;`
+stays valid. A long expression breaks before an operator, written with
+a space after it as everywhere, so the next line goes on with it:
 
 ```kelvin
 let total:i64 = price
@@ -49,7 +50,7 @@ its written parameters, if any, before `in`:
 
 ```kelvin
 qsort(names, n, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
-    return strcmp((a as const cstr^)^, (b as const cstr^)^)
+    strcmp((a as const cstr^)^, (b as const cstr^)^)
 }
 ```
 

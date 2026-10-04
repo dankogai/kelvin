@@ -49,7 +49,7 @@ main():i32 {
     // function writes its parameters and result
     var names:cstr[4] = {"kelvin", "celsius", "rankine", "fahrenheit"}
     qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
-        return strcmp((a as const cstr^)^, (b as const cstr^)^)
+        strcmp((a as const cstr^)^, (b as const cstr^)^)
     }
     for name in names {
         println(name)

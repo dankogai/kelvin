@@ -9,7 +9,7 @@ struct circle { center:point; radius:f64 }
 struct rect { corner:point; width:f64; height:f64 }
 
 point.distance(to:point):f64 {
-    return hypot(to.x - self.x, to.y - self.y)
+    hypot(to.x - self.x, to.y - self.y)
 }
 
 circle.area():f64 { PI * self.radius * self.radius }

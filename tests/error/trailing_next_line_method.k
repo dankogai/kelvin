@@ -1,14 +1,11 @@
 // error: a trailing function starts on the line of the call's ')': on the next line, '{' starts a block
-var total:i64 = 0
-each(n:i64, f:(i64)) {
-    for i in 0..<n {
-        f(i)
-    }
-}
+struct box { n:i64 }
+box.each(f:(i64)) { f(self.n) }
 main():i32 {
-    each(3)
+    let b:box = {1}
+    b.each()
     {
-        total += $0
+        println("x")
     }
     return 0
 }

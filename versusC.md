@@ -325,7 +325,7 @@ a hint:
 An expression that only looks similar, such as `n * f(x) == 4 || g()`, is
 left alone.
 One shape cannot be caught, because Kelvin cannot see typedefs: a statement
-`name(x);` or `name(x) = v;` is a call or a function-like macro, but if
+`name(x)` or `name(x) = v` is a call or a function-like macro, but if
 `name` is a C typedef, C reads it as a declaration of `x`. To convert to a
 typedef type, write `x as size_t`, never `size_t(x)`.
 
@@ -391,21 +391,29 @@ square(x:i64):i64 { x * x }
   `[`, `?`, `:` or `as` at the start of the next line goes on with it,
   and so does any line after one that ends with an operator or a `,`. At
   the top level of a statement, a `(` or `{` at the start of a line
-  starts the next statement; inside brackets, lines do not matter.
+  starts the next statement; inside brackets, lines do not matter. A
+  line that starts with `*p =` (a `*` touching what it assigns) is C's
+  dereference, an error; `* x` goes on with a product.
 - After the head of a function, a method, `if`, `while`, `for` or a
   struct, a `{` on the next line is still its body.
 - A `;` still ends a statement anywhere, and separates statements on one
   line, where it is needed; `for (...; ...; ...)` keeps its own.
 - A function or method whose body is one expression returns it, as an
-  anonymous function does: `square(x:i64):i64 { x * x }`. A body with
-  more than that uses `return`, and kelvinc reports one that ends in a
-  value it drops. A call kelvinc sees has no value, such as `println`,
-  is not returned, and `main`'s end returns 0 as in C, so
-  `main():i32 { printf("hi\n") }` exits 0.
+  anonymous function does: `square(x:i64):i64 { x * x }`. There, an
+  assignment, or a call kelvinc sees has no value such as `println`, is
+  an error. `main` is the exception: its end returns 0 as in C, so its
+  one expression is a statement, and `main():i32 { printf("hi\n") }`
+  exits 0.
+- A body with more than that uses `return`. kelvinc reports one that
+  ends, on any path, in a value it drops: one with no effect, as in
+  `if x < 0 { -1 } else { 1 }`, or a call it sees has a result (in
+  `main`, only the first kind).
 - In a function with a result, `return` at the end of a line takes the
   expression on the next line, as in Swift. In one without a result
   there is nothing to return, so `return` ends at its line, and a
-  statement after it in the same block is an error.
+  statement after it in the same block is an error, unless it is a
+  `case`, a `default` or a label, or a block holding one, which `goto`
+  may reach. `return;` is C's and is not checked.
 
 ## Ranges: `for i in a..<b`
 
@@ -472,7 +480,7 @@ in Swift:
 | `i++;`, `--n;` | `i += 1`, `n -= 1` |
 | `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next` |
 | `a = b = 0;` | `a = 0; b = 0` or `a = 0, b = 0` |
-| `while ((c = getchar()) != EOF) { ... }` | `var c:i32 = getchar(); while c != EOF { ...; c = getchar(); }` |
+| `while ((c = getchar()) != EOF) { ... }` | `var c:i32 = getchar(); while c != EOF { ...; c = getchar() }` |
 | `a[i++] = x;` | `a[i] = x; i += 1` |
 
 - `=`, `:=` and the compound assignments (`+=`, `~=`, ...) appear only as
@@ -590,7 +598,7 @@ sort(xs, 8, { $[0] > $[1] })            // or inside the parentheses
 each(xs, 3) { total += $0 }             // no result: one assignment is fine
 let inc:(i64):i64 := { $0 + 1 }
 qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
-    return strcmp((a as const cstr^)^, (b as const cstr^)^)
+    strcmp((a as const cstr^)^, (b as const cstr^)^)
 }
 ```
 
@@ -840,7 +848,7 @@ These are C features without a Kelvin spelling so far:
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
-- statements of the form `name(x);` where `name` is a C typedef: C reads
+- statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see Conversions)
 - `alignof` and `typeof` (reserved C compiler keywords, P20; `v.type` is
   Kelvin's `typeof`, #34)
