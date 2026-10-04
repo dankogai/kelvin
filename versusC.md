@@ -561,20 +561,27 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   function it is returned from. Elsewhere, such as for C's `qsort`,
   whose types kelvinc cannot see, it writes them:
   `{ (a:T, b:U):R in ... }`. Without either, it has none, as for
-  `atexit() { println("bye") }`. `$[k]` takes a number, and `$` works
-  only in an anonymous function.
+  `atexit() { println("bye") }`. `$[k]` takes a decimal number, and `$`
+  works only in an anonymous function.
 - **In a declaration without a type**, `{` starts an initializer list, so
   an anonymous function there writes its parameters, even none:
   `let hi := { () in println("hi") };`. One that writes them may stand
-  anywhere a value may, as in `c ? { (x:i64):i64 in x + 1 } : dec`.
+  anywhere a value may, and be called there:
+  `c ? { (x:i64):i64 in x + 1 } : dec`, `{ (a:i64):i64 in a * 2 }(3)`.
   In an initializer list, kelvinc follows the members in order and
-  designators of one member; after C's brace elision or `.a.b = ...`, an
-  anonymous function writes its parameters.
+  designators of one member. A string fills an array member and a value
+  of a struct's type fills a struct member; after C's brace elision or
+  `.a.b = ...`, an anonymous function writes its parameters.
+- **A list is not a value:** where C expects a value, as for
+  `memcpy(buf, {'a', 'b'}, 2)` or `show({1, 2})`, write a compound
+  literal, `(u8[2]){'a', 'b'}`. kelvinc says so, rather than taking the
+  list for a function.
 - **A body of one expression** is the result: `{ $0 < $1 }`. Without a
-  result, it may be one assignment. Any other body is statements, with
-  `return`. The text of `.hex` and friends lives in the function's own
-  buffer, so a body that would return it, such as `{ $0.hex }`, is an
-  error.
+  result, it must do something: a call or an assignment, as in
+  `{ total += $0 }`. Any other body is statements, with `return`. The
+  text of `.hex` and friends lives in the function's own buffer, so
+  returning it, as in `{ $0.hex }`, `{ $0.hex + 2 }` or
+  `{ return $0.hex; }`, is an error.
 - **It encloses nothing:** using a local, a parameter or `self` of the
   function around it is an error, also in its parameter types; globals,
   functions and C's names are fine, as are the global it initializes and
@@ -647,7 +654,8 @@ println(b.dec, " ", b.hex, " ", b.oct);     // 255 0xff 0o377
 println(3.141592653589793.hex);             // +0x1.921fb54442d18p+1
 ```
 
-- **`x.size`** is `sizeof(x)`.
+- **`x.size`** is `sizeof(x)`. A function's `.size`, and its `sizeof`,
+  are a pointer's size, since its name is a function value (#31).
 - **`x.cstr`** is the text of any value, as `cstr` (#22):
   - **Numbers** are plain decimal (`42`, `-7`), including 128-bit ones.
     Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
@@ -655,7 +663,7 @@ println(3.141592653589793.hex);             // +0x1.921fb54442d18p+1
   - **`bool`** is `true` or `false`. **Complex numbers** are `1+2i`.
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
-    addresses (`0x0` for null).
+    addresses (`0x0` for null), but a function has no text (#31).
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs and
     arrays (`[a, b]`); a string field shows at most 60 bytes, and a longer
     one is cut with `...` *(provisional P35)*. A union is `<union name>`.

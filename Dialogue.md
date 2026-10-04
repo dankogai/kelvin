@@ -1330,3 +1330,51 @@ The rejected 2:
   runtime's own names.
 
 There are 258 tests.
+
+### 49. The review of #31 and #32, a third time
+
+> run the review of #31 and #32 again
+
+The third round reviewed the commit. It confirmed all 35 of its
+findings, about 20 of them distinct. All are fixed:
+
+- **A list passed to a C function compiled silently.**
+  `memcpy(buf, {'a', 'b'}, 2)` became a function with no parameters, and
+  its address was copied as data. Before #32 this was an error. A
+  function without a result must now do something (a call or an
+  assignment). A list where a value is meant, also for a struct
+  parameter, an assignment or `println`, asks for a compound literal.
+- **Tables.** In `{"inc", { $0 + 1 }}`, a string for an array member
+  (or a value of a struct's type for a struct member) was taken for
+  brace elision, so the next member's function lost its type. Now only
+  real brace elision does that, and a C typedef member is taken as a
+  scalar.
+- **Lengths from another scope, a third time.** A local inside
+  `sizeof(i64[k])`, a conversion or a compound literal in a length was
+  missed, and so was a written signature that takes the context's result.
+  Lengths that C never sees, inside a function type's parameter, no
+  longer count. `for x in $0` checks a kept length against the names C
+  will see.
+- **Dead buffers** are now caught through `+`/`-` and `&x[i]`, and in
+  `return` statements of an anonymous function.
+- **Values.** Where a `{` may start a function, it is now parsed as an
+  expression. So `{ (a:i64):i64 in a * 2 }(3)` and `!= nullptr` work as
+  an argument, an initializer, an assigned value and a return value.
+- **Smaller fixes.**
+  - `$0 as i64 * $1` was taken for a C pointer type.
+  - `&fp` of a function-pointer variable was taken for a function.
+  - `.size` and `sizeof` of an anonymous function, and `sizeof(f)` of a
+    named one, gave 1; they are now a pointer's size.
+  - `out: (i64(n));` was called a declaration again.
+  - A struct naming itself in an anonymous function inside a member's
+    length failed in C, and now gets a `struct s;` first.
+  - `$` inside an anonymous function nested in a written signature was
+    rejected.
+- **Messages.** C's `T (*f)(...)` gets the `(...):T` hint also for
+  Kelvin type names, at the top level, as a member and as a parameter.
+  Inferring a type with a parameter-named length says why it cannot.
+- **Docs and tests.** The docs note that `main` is not a
+  `(i32, u8^^):i32` value, since C types its `argv` as `char **`. The
+  documented behaviors without tests have tests now.
+
+There are 275 tests.
