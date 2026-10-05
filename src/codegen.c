@@ -11,6 +11,7 @@
    `#line` directives map C compiler diagnostics back to the .k source. */
 #include "kelvin.h"
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
@@ -45,6 +46,7 @@ static List hidden_names;
 static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
+static const char *mapped_file; /* and its file */
 
 static void line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
@@ -72,8 +74,10 @@ static void line(const char *fmt, ...) {
 }
 
 static void sync(Pos p) {
-    if (!line_directives || mapped_line == p.line)
+    /* an imported Kelvin file's lines are its own (#40) */
+    if (!line_directives || (mapped_line == p.line && mapped_file && !strcmp(mapped_file, p.file)))
         return;
+    mapped_file = p.file;
     Buf name = {0};
     for (const char *c = p.file; *c; c++) {
         if (*c == '"' || *c == '\\')
@@ -88,6 +92,7 @@ static void sync(Pos p) {
 
 static char *expr(Expr *e);
 static char *text_number(Expr *e);
+static char *dispatch_call(Expr *e);
 static char *operand_before(Expr *e);
 
 /* Kelvin's sized integers are <stdint.h>'s; 128-bit ones exist where the
@@ -341,7 +346,12 @@ static char *expr_bare(Expr *e) {
             return strfmt("%sU", t);
         return e->text;
     }
-    case E_IDENT:
+    case E_IDENT: /* a function's name is its C name (#41) */
+        if (e->target)
+            return e->target->cname ? e->target->cname : e->target->name;
+        if (e->cands.len)
+            error_at(e->pos, "'%s' names %d functions: say which by its type, as in 'let f:(T):R := %s'", e->text,
+                     e->cands.len, e->text);
         return (char *)c_name(e->text);
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
@@ -404,8 +414,15 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->cands.len)
+            return dispatch_call(e);
         Buf b = {0};
-        buf_printf(&b, "%s(", operand_before(e->a));
+        const char *callee = e->target ? (e->target->cname ? e->target->cname : e->target->name)
+                             : e->op && !strcmp(e->op, "c") ? e->a->text /* C's own function (#41) */
+                                                            : operand_before(e->a);
+        if ((e->target || (e->op && !strcmp(e->op, "c"))) && e->a->paren)
+            callee = strfmt("((%s))", callee); /* (f)(x) calls the function, not a macro of its name */
+        buf_printf(&b, "%s(", callee);
         for (int i = 0; i < e->items.len; i++)
             buf_printf(&b, "%s%s", i ? ", " : "", expr(e->items.data[i]));
         buf_puts(&b, ")");
@@ -511,6 +528,158 @@ static char *expr_bare(Expr *e) {
     }
     }
     return NULL;
+}
+
+/* KV_NUMBER's code for a parameter of one of Kelvin's number types, or
+   NULL (#41) */
+static const char *number_code(Type *t) {
+    static const char *names[][2] = {
+        {"bool", "KV_N_BOOL"}, {"i8", "KV_N_I8"},     {"u8", "KV_N_U8"},     {"i16", "KV_N_I16"}, {"u16", "KV_N_U16"},
+        {"i32", "KV_N_I32"},   {"u32", "KV_N_U32"},   {"i64", "KV_N_I64"},   {"u64", "KV_N_U64"}, {"i128", "KV_N_I128"},
+        {"u128", "KV_N_U128"}, {"f32", "KV_N_F32"},   {"f64", "KV_N_F64"}};
+    if (t->kind != T_BASE)
+        return NULL;
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+        if (!strcmp(t->name, names[i][0]))
+            return names[i][1];
+    return NULL;
+}
+
+/* Parameter k's type as C passes it: unqualified, an array a pointer */
+static Type *passed_type(Decl *d, int k) {
+    Type *u = xcalloc(1, sizeof *u);
+    *u = *((Var *)d->params.data[k])->type;
+    u->is_const = u->is_volatile = false;
+    if (u->kind == T_ARRAY) {
+        u->kind = T_PTR;
+        u->size = NULL;
+    }
+    return u;
+}
+
+/* f(args) where only C's _Generic can tell which overload fits (#41):
+   the arguments go into temporaries (inside a function), then, over each
+   argument kelvinc cannot see the type of, a choice among the overloads
+   that may fit. Structs, pointers, enums and C typedefs are matched by
+   their C types, each in a _Generic of its own, so that two types that
+   are the same in C cannot clash; numbers by KV_NUMBER, as the Kelvin type
+   they are, so long and long long are both i64. A number of another type
+   goes to the one overload that takes a number there, which C converts
+   it to, and a pointer to the one that takes a pointer; with none, to C's
+   own function of the name where the program calls it (c_too), and
+   otherwise, as with several, to kv_no_such_overload, a C error. An
+   operator (#42) has no C function. One overload left with nothing else
+   to choose is called, and C converts or reports the arguments. */
+static char *generic_tree(List *cands, Expr *call, char **args, int k) {
+    bool op = !isalpha((unsigned char)call->a->text[0]) && call->a->text[0] != '_';
+    char *none = op ? "kv_no_such_operator" : "kv_no_such_overload";
+    char *c_fn = !op && call->c_too ? call->a->text : none;
+    if (cands->len == 1 && c_fn == none)
+        return ((Decl *)cands->data[0])->cname;
+    while (k < call->items.len) {
+        if (call->unseen && !call->unseen[k]) { /* kelvinc saw it fits every overload left */
+            k++;
+            continue;
+        }
+        if (c_fn != none)
+            break; /* what fits no overload left goes to C's function */
+        bool differ = false;
+        for (int i = 1; i < cands->len && !differ; i++) {
+            Decl *a = cands->data[0], *b = cands->data[i];
+            differ = k >= a->params.len || k >= b->params.len ||
+                     strcmp(decl(passed_type(a, k), ""), decl(passed_type(b, k), ""));
+        }
+        if (differ || cands->len == 1)
+            break;
+        k++;
+    }
+    if (k >= call->items.len)
+        return cands->len == 1 ? ((Decl *)cands->data[0])->cname : none; /* more than one fits equally */
+    /* the overloads left, grouped by their parameter k's C type */
+    List types = {0}, groups = {0}, va = {0};
+    for (int i = 0; i < cands->len; i++) {
+        Decl *d = cands->data[i];
+        if (k >= d->params.len) {
+            if (d->variadic) /* takes anything there, in its ... */
+                list_push(&va, d);
+            continue;
+        }
+        char *ct = decl(passed_type(d, k), "");
+        int g = -1;
+        for (int j = 0; j < types.len && g < 0; j++)
+            if (!strcmp(decl(types.data[j], ""), ct))
+                g = j;
+        if (g < 0) {
+            list_push(&types, passed_type(d, k));
+            List *same = xcalloc(1, sizeof *same);
+            list_push(&groups, same);
+            g = types.len - 1;
+        }
+        list_push(groups.data[g], d);
+    }
+    /* what a number, a pointer and anything else of another type go to */
+    int numbers = -1, pointers = -1, nn = 0, np = 0;
+    for (int g = 0; g < types.len; g++) {
+        Decl *d = ((List *)groups.data[g])->data[0];
+        Var *p = d->params.data[k];
+        Type *t = types.data[g];
+        if (p->number)
+            numbers = g, nn++;
+        if (t->kind == T_PTR || t->kind == T_FUNC)
+            pointers = g, np++;
+    }
+    /* where no overload takes the value there, the one whose ... takes it */
+    char *other = va.len == 1 ? generic_tree(&va, call, args, k + 1) : va.len ? none : c_fn;
+    char *number = nn == 1 ? generic_tree(groups.data[numbers], call, args, k + 1) : nn ? none : other;
+    char *pointer = np == 1 ? generic_tree(groups.data[pointers], call, args, k + 1) : np ? none : other;
+    char *rest = !strcmp(pointer, other) ? other
+                 : strfmt("__builtin_choose_expr(KV_POINTER(%s), %s, %s)", args[k], pointer, other);
+    rest = !strcmp(number, rest) ? rest : strfmt("__builtin_choose_expr(KV_NUMBER(%s) != 0, %s, %s)", args[k], number, rest);
+    /* an enum by its C type, which C cannot tell from its integer type, so
+       after the numbers; the numbers by their Kelvin type; structs,
+       pointers and C typedefs by their C type, first */
+    for (int g = types.len - 1; g >= 0; g--) {
+        Type *t = types.data[g];
+        if (t->kind == T_BASE && !strncmp(t->name, "enum ", 5))
+            rest = strfmt("_Generic((%s), %s: %s, default: %s)", args[k], decl(t, ""),
+                          generic_tree(groups.data[g], call, args, k + 1), rest);
+    }
+    for (int g = types.len - 1; g >= 0; g--) {
+        const char *code = number_code(types.data[g]);
+        if (code)
+            rest = strfmt("__builtin_choose_expr(KV_NUMBER(%s) == %s, %s, %s)", args[k], code,
+                          generic_tree(groups.data[g], call, args, k + 1), rest);
+    }
+    for (int g = types.len - 1; g >= 0; g--) {
+        Type *t = types.data[g];
+        if (!number_code(t) && !(t->kind == T_BASE && !strncmp(t->name, "enum ", 5)))
+            rest = strfmt("_Generic((%s), %s: %s, default: %s)", args[k], decl(t, ""),
+                          generic_tree(groups.data[g], call, args, k + 1), rest);
+    }
+    return rest;
+}
+
+static char *dispatch_call(Expr *e) {
+    int n = e->items.len;
+    char **args = xcalloc((size_t)n + 1, sizeof *args);
+    Buf temps = {0};
+    buf_puts(&temps, "");
+    for (int i = 0; i < n; i++) {
+        Expr *x = e->items.data[i];
+        if (text_bufs) {
+            /* (void)0, x: a bit-field cannot initialize __auto_type */
+            args[i] = hidden(source_of(x), "self");
+            buf_printf(&temps, "__auto_type %s = ((void)0, (%s)); ", args[i], expr_bare(x));
+        } else {
+            args[i] = strfmt("(%s)", expr_bare(x));
+        }
+    }
+    Buf b = {0};
+    buf_printf(&b, "%s(", generic_tree(&e->cands, e, args, 0));
+    for (int i = 0; i < n; i++)
+        buf_printf(&b, "%s%s", i ? ", " : "", args[i]);
+    buf_puts(&b, ")");
+    return text_bufs ? strfmt("({ %s%s; })", temps.buf, b.buf) : b.buf;
 }
 
 /* Text for the runtime's readers: a ?: whose arms are texts of C types
@@ -949,11 +1118,15 @@ static char *fn_head(Decl *d) {
     if (d->variadic)
         buf_puts(&params, ", ...");
     /* Kelvin's `()` means no parameters, which C spells `(void)` */
-    char *inner = strfmt("%s(%s)", d->recv ? method_cname(d) : d->name, params.len ? params.buf : "void");
+    char *inner = strfmt("%s(%s)", d->recv ? method_cname(d) : d->cname ? d->cname : d->name,
+                         params.len ? params.buf : "void");
     char *head = d->ret ? decl(d->ret, inner) : strfmt("void %s", inner);
     /* an anonymous function used only where C does not evaluate, as in
        sizeof, is never emitted, which C need not mention (#32) */
-    return strfmt("%s%s%s%s", d->anon ? "__attribute__((unused)) " : "", d->storage ? d->storage : "",
+    /* an operator's value is what it is for, so C warns where a statement
+       drops it, as it does for `n == 2;` (#42) */
+    return strfmt("%s%s%s%s%s", d->anon ? "__attribute__((unused)) " : "",
+                  d->op ? "__attribute__((warn_unused_result)) " : "", d->storage ? d->storage : "",
                   d->storage ? " " : "", head);
 }
 

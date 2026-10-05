@@ -82,7 +82,7 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false};
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false};
 }
 
 static void skip_space(Lexer *lx) {
@@ -198,7 +198,7 @@ static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
     while (*lx->p != quote) {
         if (!*lx->p || *lx->p == '\n')
             error_at(pos, quote == '"' ? "unterminated string literal" : "unterminated character constant");
-        if (*lx->p == '\\')
+        if (*lx->p == '\\' && lx->p[1]) /* not past the end of the text */
             step(lx);
         step(lx);
     }
@@ -282,7 +282,9 @@ static bool accept_word(Lexer *lx, const char *w) {
 }
 
 /* The only directive so far:  #import <header.h> as C  (or "header.h").
-   It becomes #include in the generated C, so C's headers are usable. */
+   It becomes #include in the generated C, so C's headers are usable.
+   #import <lib/x.k> or "x.k", without `as C`, brings in a Kelvin file
+   (#40). */
 static void lex_import(Lexer *lx) {
     Pos pos = here(lx);
     for (const char *q = lx->p; q > lx->src && q[-1] != '\n'; q--)
@@ -306,13 +308,25 @@ static void lex_import(Lexer *lx) {
     step(lx);
     const char *end = lx->p;
     skip_blanks(lx);
+    bool kelvin = end - start > 4 && !strncmp(end - 3, ".k", 2);
+    if (kelvin) {
+        if (accept_word(lx, "as"))
+            error_at(pos, "a Kelvin file is imported as it is: write '#import %.*s' without 'as C'",
+                     (int)(end - start), start);
+        if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '\r' && lx->p[1] == '\n') &&
+            !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+            error_at(here(lx), "unexpected text after '#import %.*s'", (int)(end - start), start);
+        push(lx, TK_IMPORT_K, pos, start, end);
+        return;
+    }
     if (!accept_word(lx, "as"))
         error_at(here(lx), "expected 'as C' after the header name");
     skip_blanks(lx);
     if (!accept_word(lx, "C"))
         error_at(here(lx), "only 'as C' is supported");
     skip_blanks(lx);
-    if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+    if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '\r' && lx->p[1] == '\n') &&
+        !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
         error_at(here(lx), "unexpected text after '#import ... as C'");
     push(lx, TK_IMPORT, pos, start, end);
 }

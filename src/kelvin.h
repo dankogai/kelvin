@@ -38,7 +38,7 @@ void buf_puts(Buf *b, const char *s);
 void buf_putn(Buf *b, const char *s, size_t n);
 void buf_printf(Buf *b, const char *fmt, ...);
 
-void set_source(const char *file, const char *src);
+void set_source(const char *file, const char *src); /* each file's text, for messages */
 _Noreturn void fatal(const char *fmt, ...);
 _Noreturn void error_at(Pos p, const char *fmt, ...);
 
@@ -59,6 +59,9 @@ typedef enum {
     TK_TPL_TAIL,
     TK_PUNCT,
     TK_IMPORT,  /* #import <x.h> as C; text is the header name, e.g. "<x.h>" */
+    TK_IMPORT_K, /* #import <lib/x.k> (#40): a Kelvin file, whose tokens main.c
+                    puts after it before parsing */
+    TK_FILE_END, /* the end of an imported Kelvin file (#40); text is its path */
 } TokKind;
 
 typedef struct {
@@ -67,6 +70,7 @@ typedef struct {
     char *text;
     int end_line;  /* the line the token ends on, after a multi-line template (#39) */
     bool tpl;      /* a template literal without ${...}, lexed as a TK_STRING */
+    bool imported; /* from a Kelvin file that #import brought in (#40) */
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);
@@ -81,6 +85,7 @@ typedef enum { T_BASE, T_PTR, T_ARRAY, T_FUNC, T_TYPEOF } TypeKind;
 
 typedef struct Expr Expr;
 typedef struct Type Type;
+typedef struct Decl Decl;
 
 struct Type {
     TypeKind kind;
@@ -134,6 +139,15 @@ struct Expr {
     List items;       /* E_STRING pieces, E_CALL args, E_INIT values */
     List designators; /* E_INIT: char * per item (NULL if none) */
     Type *type;       /* E_CAST, E_COMPOUND, E_SIZEOF_TYPE, E_FUNC */
+    /* E_CALL of an overloaded name (#41) or an operator (#42), E_IDENT of
+       an overloaded function as a value: the function chosen, or the ones
+       C's _Generic chooses from (with C's own function of that name as
+       the default) */
+    Decl *target;
+    List cands;       /* Decl * */
+    bool *unseen;     /* with cands: per argument, whether only C sees its type */
+    bool c_too;       /* with cands: C's own function of the name is known, the
+                         default for what no overload takes */
 };
 
 typedef struct {
@@ -142,6 +156,8 @@ typedef struct {
     Type *type;
     Expr *init;
     bool is_let;      /* a let (#27): C's const */
+    bool number;      /* a function's parameter that takes a number, to
+                         which _Generic converts others (#41) */
 } Var;   /* also a parameter, struct member or enumerator */
 
 typedef enum {
@@ -197,7 +213,7 @@ struct Stmt {
 
 typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;
 
-typedef struct {
+struct Decl {
     DeclKind kind;
     Pos pos;
     const char *storage;  /* NULL, "static", "extern" */
@@ -212,7 +228,11 @@ typedef struct {
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
     bool anon;            /* D_FN: an anonymous function (#32) */
-} Decl;
+    bool imported;        /* from a Kelvin file that #import brought in (#40) */
+    const char *op;       /* D_FN: the operator it defines, as "+" (#42) */
+    char *cname;          /* D_FN: its name in C, by its parameter types when
+                             overloaded or imported (#41), as sin__complex64 */
+};
 
 typedef struct {
     List decls;

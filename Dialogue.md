@@ -1915,3 +1915,162 @@ There are 364 tests, and all pass with clang and with gcc 15.
 - The test file's line, cast and comment are fixed.
 
 There are 366 tests, and all pass with clang and with gcc 15.
+
+### 67. Complex numbers, imports, overloading and operators
+
+> * add `lib/complex.k`  That implements complex arithmetics including
+>   elementary functions.
+>    * DO NO USE C99's Complex.  `struct complex { real:f64; imag:f64 }`.
+>    * `exp(z) = exp(z.real)*{cos(z.imag), sin(z.imag) }`, for instance.
+>    * you can `#import <lib/complex.k>`
+>    * ensure that kelvin is multi-dispatch.  `sin(r:f64):f64` is
+>      distinct from `sin(z:complex):complex`.
+>    * maybe `complex` should be named `complex64` with corresponding
+>      implementation of `complex32`.
+>    * we are yet to go for generics (even I am tempted to).
+
+**Claude** split the request into four changes, #40 to #43, and asked
+five questions:
+
+| Question | Answer |
+|----------|--------|
+| How does `#import <lib/complex.k>` work? | Include its source, once per program (recommended), rather than compiling it separately |
+| What C names do Kelvin functions get? | Only overloaded and imported functions are named by their types, as `sin__complex64` (recommended); not every function, as C++ does |
+| How is complex arithmetic written? | Operators, `z + w`, which Kelvin code defines (recommended); not functions or methods |
+| What are the types named? Claude recommended `complex128` and `complex64`, by total size, as Go and NumPy name them | "complex{32,64,128} where f{32,64,128} are available. the last one might not be available for some platforms. complex128 iff f128 is available on the platform." |
+| `complex128` needs an `f128`, which Kelvin does not have yet | `complex32` and `complex64` now, and `f128` and `complex128` later (recommended) |
+
+**Claude** implemented the four changes. The details are provisional
+P51 to P54:
+
+- #40: `#import "x.k"` and `#import <lib/x.k>` put the file's tokens in
+  place of the import, once per program. `<...>` is found in Kelvin's
+  home, as the runtime is, and `make install` installs `lib/`.
+- #41: Calls are resolved by the argument types kelvinc sees, and by C's
+  `_Generic` over the arguments only C sees. That `_Generic` falls back
+  as a number kelvinc sees would: to the one overload that takes a
+  number there; to C's own function of the name where none does; and
+  to a C error, `kv_no_such_overload`, where several do. A tie between
+  conversions is an error, and open question Q14 asks whether a number
+  should prefer its own kind.
+- #42: `+ - * / % == != < <= > >=` and unary `-` may be defined for
+  structs and unions, and `x op= y` is `x = x op y`.
+- #43: `lib/complex.k` has the arithmetic, `conj`, `abs`, `arg`,
+  `norm`, `polar`, `exp`, `log`, `sqrt`, `pow`, and the six
+  trigonometric and hyperbolic functions with their inverses. Checked
+  against C's `<complex.h>` on 39 values, including signed zeros on the
+  branch cuts, they agree to 1e-13. The exceptions are four special
+  values where macOS's libm departs from Annex G. The inverses use
+  Kahan's formulas and `log1p`, so they keep their accuracy near 0 and
+  ±1 and do not overflow for large arguments.
+
+While testing, Claude noticed that `println(10.0)` printed `1e+01`, a
+bug in the runtime's float text that predated these changes; a separate
+session fixed it (entries 65 and 66). There are 386 tests, and
+`examples/complex.k` shows the library.
+
+### 68. The review of #40 to #43
+
+**Claude** ran five lenses: imports, overloading, operators, the
+numerics of lib/complex.k against C's `<complex.h>` and Python's
+`cmath`, and the docs and tests. Skeptics confirmed 66 of 69 findings.
+None needed the user's decision, though the dispatch where only C sees a
+type was redone. The fixes, now in P51 to P55:
+
+- Imports: kelvinc compared line numbers across the boundary of an
+  imported file, so whether a program compiled depended on how many
+  comment lines came before a declaration. An unfinished declaration at
+  the end of an imported file was reported in the importing file, an
+  import inside a function was spliced into it, a `"header.h"` next to
+  an imported file was not found, and a directory named `x.k` imported
+  nothing. Each import and the end of each imported file are now marked
+  for the parser. C functions declared by hand in an imported file keep
+  their C names.
+- Overloading where only C sees a type: `_Generic` matched exact C
+  types, so `char *` missed a `u8^` overload, `long` and `long long`
+  went different ways on macOS and Linux, two typedefs of one type
+  clashed, and C's own function was named as the default even where it
+  did not exist, which broke calls that matched. Numbers are now chosen
+  by their Kelvin type (`KV_NUMBER`), other types by C's, each in a
+  `_Generic` of its own; a number or pointer of another type goes to
+  the one overload that takes one; and C's function is the default only
+  where the program calls it.
+- Overloading where kelvinc sees types: arithmetic, negated literals,
+  bools, enumerators and `nullptr` now have their types, so
+  `fact(n - 1)`, `twice(-3)` and `count(nullptr)` choose by them. An
+  exact fit on the arguments kelvinc sees wins also when another
+  argument is unseen, a pointer may not lose `const`, a parameter's own
+  `const` makes no other overload, an overloaded function given to an
+  overloaded function chooses by its type, anonymous functions are
+  typed only where the overloads agree, and C's function of an
+  overloaded name can be used as a value. Function types get distinct
+  C names, and two functions with one C name are an error. A struct
+  given where a function takes none is reported by C, not taken for
+  C's own function of the name.
+- Operators: a definition after a global's value or a prototype was read
+  as part of it, variadic operators were accepted, an operator for a
+  struct declared without its body was refused, a struct that a
+  dispatched call returns got C's operator, and `m == a;` was silently
+  dropped (C now warns). The tests had overwritten tests/run/operators.k,
+  the only test of `~` and `~=`; it is back, and the struct operators
+  are in tests/run/struct_operators.k.
+- lib/complex.k: `sqrt` of an infinite part recursed until the stack
+  overflowed, which also crashed `asin`, `acos`, `asinh` and `acosh`.
+  Subnormal arguments, a tiny imaginary part next to ±1 for `atanh`,
+  `exp`, `sinh` and `cosh` near overflow, parts near `DBL_MAX`, the sign
+  of zero far out, and `pow(0, -1)` are handled. clang fused `a * b + c`
+  into `fma()`, so `z * w` differed from `w * z`; kelvinc now compiles
+  with `-ffp-contract=off` (P55).
+- Tests cover each rule the mutants showed untested: import paths and
+  boundaries, the ranking, the dispatch defaults, compound assignment,
+  every guard in lib/complex.k and the rest of complex32. There are
+  402 tests.
+
+### 69. The review of #40 to #43, a second time
+
+**Claude** ran the review again on the fixes, with four lenses, and
+skeptics confirmed all 53 findings. None needed the user's decision. The
+fixes, now in P51 to P55:
+
+- Overloading: with lib/complex.k imported, `tanh(atof(s))`, `asin`,
+  `atan`, `acosh`, `atanh`, `pow` and `abs` of a number only C sees did
+  not compile unless the program called that C function elsewhere.
+  lib/complex.k now declares C's functions of the names it overloads,
+  and a declared C function is one of the overloads. A program's one
+  function given a value only C sees no longer takes its name for C's,
+  which renamed it and broke `area(FIRST(shapes))`; an imported function
+  of one overload is treated as one in the main file; and C's function
+  is a value wherever no Kelvin overload has the type wanted.
+- The choice: an enum overload took any `int` only C saw, so numbers
+  now come before enums. A seen `i64` given to a `time_t` or `size_t`
+  overload chose differently on macOS and glibc, so a seen number fits
+  a C typedef by conversion. Two exact fits are a tie; a candidate beats
+  another only where both take the same type at the arguments only C
+  sees; a literal in arithmetic has C's type, a character is a `u8`, and
+  a literal given to a call C chooses is cast to its Kelvin type;
+  `&` of a `let` points to `const`; and a pointer loses no qualifier
+  below the first level either. A variadic overload takes what no other
+  takes in its `...`, and where C's function is known every argument
+  only C sees is checked. Function types compare with their array
+  parameters as pointers.
+- Imports: a hard link, a symlinked header, a CRLF after `#import`, a
+  `"` in a directory's name, and a string ending in a backslash at the
+  end of a file are handled, and the message about two functions with
+  one C name names the other's file.
+- Operators: an annotated value such as `(width:f64)` going on to the
+  next line was taken for an operator's definition, which is now told by
+  its whole head, `op(a:T, ...):R`.
+- lib/complex.k: division by a value with an infinite part recursed
+  until the stack overflowed; it now gives C's zeros. `acos` beyond
+  1e300 lost its real part, `sqrt` beyond 1e300 its small part, `sqrt`
+  turned a NaN beside an infinity into 0, `pow(0, NaN)` was infinite, and
+  Smith's division lost bits where the ratio of the divisor's parts was
+  subnormal.
+- Docs: P55 names `-ffp-contract=on`, which brings fusion back without
+  `-O`, and says that clang may combine `sin` and `cos` under `-O`;
+  versusC's table has rows for #40 to #43; and the claims that entry 68
+  made for the tests now hold: the ranking, the result types of calls C
+  chooses, each C type's Kelvin number type, every guard in
+  lib/complex.k and every complex32 function have tests. With the float
+  text of entries 65 and 66, there are 410 tests.
+

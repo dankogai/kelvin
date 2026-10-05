@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char *src_file, *src_text;
+/* the text of each source file, for showing the line of a message */
+static List src_files, src_texts;
 
 void *xmalloc(size_t n) {
     void *p = malloc(n ? n : 1);
@@ -84,8 +85,8 @@ void buf_printf(Buf *b, const char *fmt, ...) {
 }
 
 void set_source(const char *file, const char *src) {
-    src_file = file;
-    src_text = src;
+    list_push(&src_files, (void *)file);
+    list_push(&src_texts, (void *)src);
 }
 
 _Noreturn void fatal(const char *fmt, ...) {
@@ -99,7 +100,11 @@ _Noreturn void fatal(const char *fmt, ...) {
 }
 
 static void show_line(Pos p) {
-    if (!src_text || !p.file || !src_file || strcmp(p.file, src_file) != 0)
+    const char *src_text = NULL;
+    for (int i = 0; p.file && i < src_files.len; i++)
+        if (!strcmp(p.file, src_files.data[i]))
+            src_text = src_texts.data[i];
+    if (!src_text)
         return;
     const char *s = src_text;
     for (int line = 1; line < p.line && *s; s++)

@@ -185,6 +185,7 @@ static Var *param_named(const char *name) {
 }
 
 static Decl *function_named(const char *name);
+static bool starts_operator_definition(void);
 
 /* Is the token a tag's bare name (#29) where an expression could stand
    too, as in sizeof(point) or (point^)p? Only for a tag defined in Kelvin:
@@ -258,6 +259,8 @@ static const char *desc(Token *t) {
         return "a template literal";
     if (t->kind == TK_TPL_MIDDLE || t->kind == TK_TPL_TAIL)
         return "'}', the end of ${...}";
+    if (t->kind == TK_FILE_END)
+        return strfmt("the end of %s", t->text);
     return t->kind == TK_EOF ? "end of file" : strfmt("'%s'", t->text);
 }
 
@@ -795,6 +798,8 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
             parse_qualifiers(p);
             t = p;
         } else if (is_p(tok, "*")) {
+            if (starts_operator_definition())
+                return t; /* *(a:T, k:i64):T on the next line (#42) */
             if (ctx == TYPE_AS) {
                 /* `x as T * y` multiplies; `x as T*` followed by nothing
                    is C's pointer habit */
@@ -855,6 +860,13 @@ static Type *call_param_type(Expr *callee, int k);
 static int call_arity(Expr *callee);
 static Decl *method_named(Expr *recv, const char *name);
 static Expr *parse_dollar(void);
+static bool overloadable_op(Token *t);
+static void resolve_call(Expr *call);
+static void pick_overload(Expr *v, Type *want);
+static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
+static bool repeatable(Expr *e);
+static bool reaches_c(List *cands, Expr *call, int k);
+static List overloads_of(const char *name, const char *op);
 static Expr *parse_initializer_for(Type *t);
 static void check_print_args(Expr *call);
 static bool is_function_designator(Expr *e);
@@ -866,7 +878,35 @@ static bool brace_in_for;
 static int stmt_start;
 
 /* Is the next token on a new line? */
-static bool newline_before(void) { return cur > 0 && peek()->pos.line > toks[cur - 1].end_line; }
+/* Does token b start on a later line than token a ends? Where an
+   imported file begins or ends (#40), it does, whatever the lines' numbers. */
+static bool line_break(Token *a, Token *b) {
+    return a->kind == TK_IMPORT_K || a->kind == TK_FILE_END || b->kind == TK_FILE_END || a->pos.file != b->pos.file ||
+           b->pos.line > a->end_line;
+}
+
+static bool newline_before(void) { return cur > 0 && line_break(&toks[cur - 1], peek()); }
+
+static bool overloadable_op(Token *t);
+
+/* Does an operator's definition (#42) start here, at the top level of the
+   file, on a new line: +(a:T, ...):R or +(var a:T, ...):R? Then what goes
+   before it ends there. */
+static bool starts_operator_definition(void) {
+    Token *t = peek();
+    if (parsing_fn || !newline_before() || !overloadable_op(t) || !is_p(&t[1], "(") ||
+        !((t[2].kind == TK_IDENT && is_p(&t[3], ":")) || is_kw(&t[2], "var")))
+        return false;
+    /* +(a:T, b:U):R, as `(x:f64)` that only annotates is followed by no `:` */
+    int depth = 0;
+    for (Token *u = &t[1]; u->kind != TK_EOF && u->kind != TK_FILE_END; u++) {
+        if (is_p(u, "(") || is_p(u, "[") || is_p(u, "{"))
+            depth++;
+        else if ((is_p(u, ")") || is_p(u, "]") || is_p(u, "}")) && --depth == 0)
+            return is_p(&u[1], ":");
+    }
+    return false;
+}
 
 static bool at_statement_level(void);
 
@@ -991,6 +1031,11 @@ static Expr *parse_postfix_ops(Expr *e) {
                 block_after_call = cur;
             }
             check_print_args(x);
+            resolve_call(x);
+            for (int k = 0; k < x->items.len; k++) /* an overloaded function passed by name (#41) */
+                pick_overload(x->items.data[k], x->target && k < x->target->params.len
+                                                    ? ((Var *)x->target->params.data[k])->type
+                                                    : call_param_type(e, k));
             e = x;
         } else if (accept_p(".")) {
             Token *name = peek();
@@ -1147,6 +1192,14 @@ static Expr *parse_primary(void) {
         advance();
         Expr *e = new_expr(t->kind == TK_IDENT ? E_IDENT : E_LITERAL, t->pos);
         e->text = t->text;
+        /* a Kelvin function's name, which overloads may share (#41) */
+        if (t->kind == TK_IDENT && !lookup_type(t->text) && function_named(t->text)) {
+            List cands = overloads_of(t->text, NULL);
+            if (cands.len == 1)
+                e->target = cands.data[0];
+            else
+                e->cands = cands;
+        }
         return e;
     }
     if (t->kind == TK_TPL_HEAD)
@@ -1221,7 +1274,7 @@ static Expr *parse_primary(void) {
         Type *chain = typeof_paren ? chain_type(cur + 1, dot) : NULL;
         /* on the next line at the top level of a statement, `{` starts a
            block (#35) */
-        bool next_line = after && after->pos.line > after[-1].pos.line && at_statement_level();
+        bool next_line = after && line_break(after - 1, after) && at_statement_level();
         bool compound = after && is_p(after, "{") && !next_line && (paren_holds_type(cur) || typeof_paren) &&
                         (brace_is_compound((int)(after - toks)) ||
                          (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))) ||
@@ -1338,7 +1391,7 @@ static Expr *parse_unary(void) {
         e->a = parse_unary();
         if (!strcmp(e->op, "!"))
             require_bool(e->a);
-        return e;
+        return !strcmp(e->op, "-") ? resolve_operator(e, "-", e->a, NULL) : e; /* -z (#42) */
     }
     if (is_p(t, "*"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
@@ -1386,7 +1439,7 @@ static Expr *parse_unary(void) {
 /* Is the `:` at the cursor a type annotation, as in `0xdead:u16`? */
 static bool annotation_ahead(void) {
     Token *n = peek2();
-    if (is_converter(n) && is_p(peek_at(2), "(") && !(peek_at(2)->pos.line > n->pos.line && at_statement_level()))
+    if (is_converter(n) && is_p(peek_at(2), "(") && !(line_break(n, peek_at(2)) && at_statement_level()))
         return false; /* c ? x : u8(y), but not 7:i64 before a `(` line (#35) */
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
         is_kw(n, "enum") || is_kw(n, "String"))
@@ -1430,11 +1483,11 @@ static Expr *parse_binary(int min_prec) {
     for (;;) {
         Token *t = peek();
         int prec = binary_prec(t);
-        if (prec < min_prec)
+        if (prec < min_prec || starts_operator_definition())
             return lhs;
         /* `*p = 1` on a line of its own is C's dereference, not a product
            going on from the line above, which could not be assigned (#35) */
-        if (is_p(t, "*") && newline_before() && at_statement_level() && toks[cur + 1].pos.line == t->pos.line &&
+        if (is_p(t, "*") && newline_before() && at_statement_level() && !line_break(t, &toks[cur + 1]) &&
             toks[cur + 1].pos.col == t->pos.col + 1 && (toks[cur + 1].kind == TK_IDENT || is_p(&toks[cur + 1], "(")) &&
             assigned_after(cur + 1))
             error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
@@ -1447,7 +1500,7 @@ static Expr *parse_binary(int min_prec) {
             require_bool(e->a);
             require_bool(e->b);
         }
-        lhs = e;
+        lhs = overloadable_op(t) ? resolve_operator(e, e->op, e->a, e->b) : e; /* (#42) */
     }
 }
 
@@ -1632,8 +1685,9 @@ static char type_class(Type *t, Decl **record) {
 
 /* The type of an expression's value, as far as kelvinc can see it: names,
    `v as T`, compound literals and the results of Kelvin functions and
-   methods (a method only when every method of that name returns the same
-   type), and p^, a[i] and fields of all these. NULL otherwise. */
+   methods (the method of the receiver's type where kelvinc sees it,
+   otherwise when every method of that name returns the same type), and
+   p^, a[i] and fields of all these. NULL otherwise. */
 /* Does e designate a function itself, a Kelvin function's name or an
    anonymous function, rather than a value of a function type? (#31) */
 static bool is_function_designator(Expr *e) {
@@ -1766,13 +1820,33 @@ static Type *value_type(Expr *e) {
 static Type *value_type_of(Expr *e) {
     switch (e->kind) {
     case E_IDENT: { /* a Kelvin function's name is a function value (#31) */
+        if (e->op && !strcmp(e->op, "c")) /* C's own function of the name (#41) */
+            return NULL;
         Decl *f = lookup_type(e->text) ? NULL : function_named(e->text);
+        if (f && (e->target || e->cands.len)) /* one overload, or several (#41) */
+            return e->target ? fn_type_of(e->target) : NULL;
         return f ? fn_type_of(f) : type_through(e, value_type);
     }
     case E_CAST:
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
+        /* the overload chosen, or the result all that C may choose have,
+           or C's own function's (unseen) (#41, #42) */
+        if (e->target)
+            return e->target->ret;
+        if (e->op && !strcmp(e->op, "c"))
+            return NULL;
+        if (e->cands.len) {
+            if (!((Decl *)e->cands.data[0])->op && reaches_c(&e->cands, e, 0))
+                return NULL;
+            Type *ret = ((Decl *)e->cands.data[0])->ret;
+            for (int i = 1; i < e->cands.len && ret; i++) {
+                Type *r = ((Decl *)e->cands.data[i])->ret;
+                ret = r && !strcmp(kelvin_type(r), kelvin_type(ret)) ? ret : NULL;
+            }
+            return ret;
+        }
         Decl *f = e->a->kind == E_IDENT ? function_named(e->a->text) : NULL;
         if (f)
             return f->ret;
@@ -1791,6 +1865,10 @@ static Type *value_type_of(Expr *e) {
         return b && c && b->kind == T_BASE && c->kind == T_BASE && !strcmp(kelvin_type(b), kelvin_type(c)) ? b : NULL;
     }
     case E_METHOD: {
+        Type *rt = value_type(e->a);
+        Decl *m = rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
+        if (m) /* the method of the receiver's type */
+            return m->ret;
         Type *ret = NULL;
         for (int i = 0; i < functions.len; i++) {
             Decl *d = functions.data[i];
@@ -2063,6 +2141,706 @@ static bool pointer_expr(Expr *e) {
     }
 }
 
+/* ---------- overloading (#41) and operators (#42) ---------- */
+
+/* the names called as C's own functions, which a Kelvin function of the
+   same name then overloads */
+static List c_called;
+
+/* the calls whose overload C's _Generic chooses (#41) */
+static List dispatched;
+
+static bool called_as_c(const char *name) {
+    for (int i = 0; i < c_called.len; i++)
+        if (!strcmp(c_called.data[i], name))
+            return true;
+    return false;
+}
+
+/* A type without its own qualifiers, as an argument's value has it */
+static Type *unqualified(Type *t) {
+    t = param_type(t);
+    if (!t->is_const && !t->is_volatile)
+        return t;
+    Type *u = xcalloc(1, sizeof *u);
+    *u = *t;
+    u->is_const = u->is_volatile = false;
+    return u;
+}
+
+/* t without its own qualifiers, an array staying an array */
+static Type *own_unqualified(Type *t) {
+    if (!t->is_const && !t->is_volatile)
+        return t;
+    Type *u = xcalloc(1, sizeof *u);
+    *u = *t;
+    u->is_const = u->is_volatile = false;
+    return u;
+}
+
+/* A type as C compares it in a function type: a function type's array
+   parameters are pointers, without their own qualifiers */
+static char *fn_key(Type *t) {
+    if (t->kind != T_FUNC)
+        return kelvin_type(t);
+    Type *u = xcalloc(1, sizeof *u);
+    *u = *t;
+    u->params = (List){0};
+    for (int i = 0; i < t->params.len; i++)
+        list_push(&u->params, unqualified(t->params.data[i]));
+    return kelvin_type(u);
+}
+
+/* A function's parameter types as Kelvin writes them, without a
+   parameter's own qualifiers: "complex64,f64" */
+static char *signature(Decl *d) {
+    Buf b = {0};
+    buf_puts(&b, "");
+    bare_tags = true;
+    for (int i = 0; i < d->params.len; i++)
+        buf_printf(&b, "%s%s", i ? "," : "", kelvin_type(unqualified(((Var *)d->params.data[i])->type)));
+    bare_tags = false;
+    if (d->variadic)
+        buf_puts(&b, ",...");
+    return b.buf;
+}
+
+/* The Kelvin functions (not methods) named so, or the operators so
+   written, one per signature, in the order declared */
+static List overloads_of(const char *name, const char *op) {
+    List out = {0};
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (d->recv || (op ? !d->op || strcmp(d->op, op) : d->op || strcmp(d->name, name)))
+            continue;
+        bool same = false;
+        for (int j = 0; j < out.len && !same; j++)
+            same = !strcmp(signature(out.data[j]), signature(d));
+        if (!same)
+            list_push(&out, d);
+    }
+    return out;
+}
+
+/* The same pointer types but for qualifiers that the target of a gains
+   in b, as C converts a pointer implicitly; below that, the same types */
+static bool gains_qualifiers(Type *a, Type *b) {
+    if (a->kind != T_PTR || b->kind != T_PTR || (a->elem->is_const && !b->elem->is_const) ||
+        (a->elem->is_volatile && !b->elem->is_volatile))
+        return false;
+    bare_tags = true;
+    bool same = !strcmp(fn_key(own_unqualified(a->elem)), fn_key(own_unqualified(b->elem)));
+    bare_tags = false;
+    return same;
+}
+
+static bool numeric_type(Type *t) {
+    Decl *r;
+    char c = type_class(t, &r);
+    return c == 'i' || c == 'f' || (t->kind == T_BASE && !strcmp(t->name, "bool"));
+}
+
+/* Is t a Kelvin struct or union, also one declared without its body yet */
+static bool kelvin_record(Type *t) {
+    t = unqualified(t);
+    if (t->kind != T_BASE)
+        return false;
+    for (int i = 0; i < records.len; i++) {
+        Decl *r = records.data[i];
+        if (r->kind != D_ENUM && r->name &&
+            !strcmp(t->name, strfmt("%s %s", r->kind == D_STRUCT ? "struct" : "union", r->name)))
+            return true;
+    }
+    return false;
+}
+
+/* The Kelvin enum that declares the enumerator name, or NULL */
+static Decl *enum_of(const char *name) {
+    if (!enumerator_named(name))
+        return NULL;
+    for (int k = 0; k < records.len; k++) {
+        Decl *r = records.data[k];
+        for (int m = 0; r->kind == D_ENUM && m < r->members.len; m++)
+            if (!strcmp(((Var *)r->members.data[m])->name, name))
+                return r;
+    }
+    return NULL;
+}
+
+/* C's integer promotion and usual arithmetic conversions, for Kelvin's
+   number types (and bool): the type of a op b, or of op a with b NULL */
+static const char *arith_result(const char *a, const char *b) {
+    static const char *names[] = {"bool", "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "i128", "u128",
+                                  "f32", "f64", NULL};
+    static const int ranks[] = {1, 8, 8, 16, 16, 32, 32, 64, 64, 128, 128, 1000, 2000};
+    const char *ts[2] = {a, b ? b : a};
+    int rank[2];
+    for (int i = 0; i < 2; i++) {
+        rank[i] = -1;
+        for (int k = 0; names[k]; k++)
+            if (!strcmp(ts[i], names[k]))
+                rank[i] = ranks[k];
+        if (rank[i] < 0)
+            return NULL;
+        if (rank[i] < 32) /* promoted to int */
+            ts[i] = "i32", rank[i] = 32;
+    }
+    if (rank[0] >= 1000 || rank[1] >= 1000)
+        return rank[0] > rank[1] ? ts[0] : ts[1];
+    bool u0 = ts[0][0] == 'u', u1 = ts[1][0] == 'u';
+    if (u0 == u1)
+        return rank[0] >= rank[1] ? ts[0] : ts[1];
+    const char *un = u0 ? ts[0] : ts[1], *sg = u0 ? ts[1] : ts[0];
+    int ru = u0 ? rank[0] : rank[1], rs = u0 ? rank[1] : rank[0];
+    return ru >= rs ? un : sg;
+}
+
+/* Is e a let's array, which decays to a pointer to its const elements, or
+   &x of a let or of a field or element of one, a pointer to const? */
+static bool const_target(Expr *e) {
+    Expr *x = e;
+    bool addr = e->kind == E_PREFIX && !strcmp(e->op, "&");
+    if (addr)
+        x = e->a;
+    while (x->kind == E_FIELD || x->kind == E_INDEX) {
+        Type *t = x->a ? value_type(x->a) : NULL;
+        if (!x->a || !t || (x->kind == E_INDEX ? t->kind != T_ARRAY : t->kind == T_PTR))
+            return false;
+        x = x->a;
+    }
+    if (x->kind != E_IDENT)
+        return false;
+    int let = let_kind(x->text);
+    Type *t = value_type(x);
+    if (!t || !(let == LET_VALUE || (let == LET_PARAM && t->kind != T_ARRAY && t->kind != T_PTR)))
+        return false;
+    return addr || (e == x && t->kind == T_ARRAY);
+}
+
+/* An operand's type in C's arithmetic: a literal has C's type there, an
+   int where it fits, as `small * 4` is an i32; otherwise as arg_type */
+static Type *arg_type(Expr *e);
+static Type *operand_type(Expr *e) {
+    Expr *lit = e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")) ? e->a : e;
+    if (lit->kind == E_LITERAL && lit->text[0] == '\'')
+        return base_type("i32", e->pos);
+    const char *t = literal_type(e);
+    if (!t)
+        return arg_type(e);
+    if (!strcmp(t, "f64"))
+        return base_type("f64", e->pos);
+    bool hex = lit->text[0] == '0' && lit->text[1] && strchr("xXoObB01234567", lit->text[1]);
+    unsigned long long v = strtoull(lit->text, NULL, 0);
+    const char *c = v <= 2147483647ULL ? "i32" : hex && v <= 4294967295ULL ? "u32" : v <= 9223372036854775807ULL ? "i64" : "u64";
+    return base_type(c, e->pos);
+}
+
+/* The type of an argument as far as overloading sees it (#41): the type
+   of its value, a literal's own, also negated (#24), bool by its shape, an
+   enumerator's enum, size_t for sizeof, and the type C's arithmetic gives
+   numbers kelvinc sees; NULL otherwise */
+static Type *arg_type(Expr *e) {
+    Type *t = value_type(e);
+    if (t && const_target(e)) {
+        /* a let is const in C (#27): its array's elements, and what &x of
+           it (or of its field) points to */
+        Type *p = xcalloc(1, sizeof *p);
+        p->kind = T_PTR;
+        p->pos = e->pos;
+        p->elem = xcalloc(1, sizeof *p->elem);
+        *p->elem = *t->elem;
+        p->elem->is_const = true;
+        return p;
+    }
+    if (t || (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")))
+        return t;
+    if (seen_bool(e))
+        return base_type("bool", e->pos);
+    const char *lit = literal_type(e);
+    if (lit)
+        return base_type(lit, e->pos);
+    if (e->kind == E_LITERAL && e->text[0] == '\'') /* a character is a u8 (P13) */
+        return base_type("u8", e->pos);
+    Decl *en = e->kind == E_IDENT ? enum_of(e->text) : NULL;
+    if (en && en->name)
+        return base_type(strfmt("enum %s", en->name), e->pos);
+    const char *r = NULL;
+    switch (e->kind) {
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+        return base_type("size_t", e->pos);
+    case E_BINARY: {
+        if (!strcmp(e->op, ","))
+            return arg_type(e->b);
+        static const char *ariths[] = {"+", "-", "*", "/", "%", "&", "|", "~", "<<", ">>", NULL};
+        bool arith = false;
+        for (int i = 0; ariths[i]; i++)
+            arith = arith || !strcmp(e->op, ariths[i]);
+        Type *a = arith ? operand_type(e->a) : NULL, *b = arith ? operand_type(e->b) : NULL;
+        if (a && b && a->kind == T_BASE && b->kind == T_BASE)
+            r = !strcmp(e->op, "<<") || !strcmp(e->op, ">>") ? arith_result(a->name, NULL)
+                                                               : arith_result(a->name, b->name);
+        break;
+    }
+    case E_PREFIX: {
+        Type *a = !strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~") ? operand_type(e->a) : NULL;
+        if (a && a->kind == T_BASE)
+            r = arith_result(a->name, NULL);
+        break;
+    }
+    case E_TERNARY: {
+        Type *b = operand_type(e->b), *c = operand_type(e->c);
+        if (b && c && b->kind == T_BASE && c->kind == T_BASE)
+            r = arith_result(b->name, c->name);
+        break;
+    }
+    default:
+        break;
+    }
+    return r ? base_type(r, e->pos) : NULL;
+}
+
+/* How an argument meets a parameter: 2 exactly, 1 by C's conversions (a
+   number to a number, a pointer to one whose target gains qualifiers, or
+   to or from any^, nullptr to a pointer), 0 not at all, -1 only C can
+   tell, as kelvinc cannot see the argument's type or the parameter's (a C
+   typedef) */
+static int fit(Expr *arg, Type *param) {
+    Type *p = unqualified(param);
+    Decl *r;
+    char pc = type_class(p, &r);
+    if (arg->kind == E_LITERAL && !strcmp(arg->text, "nullptr"))
+        return p->kind == T_PTR || p->kind == T_FUNC ? 1 : pc == 'u' ? -1 : 0;
+    if (arg->kind == E_IDENT && arg->cands.len) { /* an overloaded function: the one of that type */
+        if (p->kind != T_FUNC)
+            return pc == 'u' ? -1 : 0;
+        for (int i = 0; i < arg->cands.len; i++)
+            if (!strcmp(fn_key(fn_type_of(arg->cands.data[i])), fn_key(p)))
+                return 2;
+        return 0;
+    }
+    Type *a = arg_type(arg);
+    if (a) {
+        a = unqualified(a);
+        bare_tags = true;
+        bool same = !strcmp(fn_key(a), fn_key(p));
+        bare_tags = false;
+        if (same)
+            return 2;
+        if (numeric_type(a) && (numeric_type(p) || (pc == 'u' && p->kind == T_BASE)))
+            return 1; /* also to a C typedef, which kelvinc cannot tell from a number */
+        if (gains_qualifiers(a, p))
+            return 1; /* u8^ to const u8^ */
+        if (a->kind == T_PTR && p->kind == T_PTR && !(a->elem->is_const && !p->elem->is_const) &&
+            ((p->elem->kind == T_BASE && !strcmp(p->elem->name, "any")) ||
+             (a->elem->kind == T_BASE && !strcmp(a->elem->name, "any"))))
+            return 1;
+        Decl *ar;
+        return type_class(a, &ar) == 'u' || pc == 'u' ? -1 : 0;
+    }
+    if (number_expr(arg))
+        return numeric_type(p) || pc == 'u' ? -1 : 0;
+    if (arg->kind == E_STRING || is_text_expr(arg))
+        return p->kind == T_PTR && p->elem->kind == T_BASE &&
+                       (!strcmp(p->elem->name, "u8") || !strcmp(p->elem->name, "i8") || !strcmp(p->elem->name, "any"))
+                   ? 1
+               : pc == 'u' ? -1
+                           : 0;
+    return -1;
+}
+
+/* Does arg, which is no struct where param is one, show that C's own
+   function of the name is meant, as sin(z.real) is in sin(z:complex64)?
+   A struct passed where no struct is taken is a mistake C reports. */
+static bool record_mismatch(Expr *arg, Type *param) {
+    Type *a = arg_type(arg);
+    Decl *ra, *rp;
+    char pc = type_class(unqualified(param), &rp);
+    char ac = a ? type_class(unqualified(a), &ra) : number_expr(arg) ? 'i' : 'u';
+    return pc == 's' && ac != 's' && ac != 'u';
+}
+
+/* Is e a value of some Kelvin struct, which kelvinc cannot tell: a call
+   that C's _Generic chooses among overloads that all give one? */
+static bool may_be_record(Expr *e) {
+    if (e->kind != E_CALL || !e->cands.len ||
+        (!((Decl *)e->cands.data[0])->op && reaches_c(&e->cands, e, 0)))
+        return false;
+    for (int i = 0; i < e->cands.len; i++) {
+        Decl *d = e->cands.data[i];
+        if (!d->ret || !kelvin_record(d->ret))
+            return false;
+    }
+    return true;
+}
+
+/* Does overload da, with fit vector a, beat db: as good on every argument
+   kelvinc sees for both, better on one, and the same parameter type where
+   only C can tell? */
+static char *param_key(Decl *d, int k);
+static bool dominates(Decl *da, int *a, Decl *db, int *b, int n) {
+    bool better = false;
+    for (int k = 0; k < n; k++) {
+        if (a[k] < 0 || b[k] < 0) { /* where only C can tell, b may fit where a does not */
+            if (strcmp(param_key(da, k), param_key(db, k)))
+                return false;
+            continue;
+        }
+        if (a[k] < b[k])
+            return false;
+        better = better || a[k] > b[k];
+    }
+    return better;
+}
+
+/* The overload, among cands, that args call: the one that all of them fit
+   exactly, or the one that fits best, as good as every other on each
+   argument kelvinc sees and better on one. *maybe lists the overloads
+   left where only C's _Generic can tell, as an argument's type is unseen;
+   with neither, C's own function of the name is called (NULL, empty). A
+   tie is an error at pos. */
+static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what) {
+    *maybe = (List){0};
+    List fitting = {0}, fits = {0}, exacts = {0};
+    for (int i = 0; i < cands->len; i++) {
+        Decl *d = cands->data[i];
+        if (nargs < d->params.len || (nargs > d->params.len && !d->variadic))
+            continue;
+        int *f = xcalloc((size_t)d->params.len + 1, sizeof *f);
+        bool ok = true, exact = d->params.len == nargs;
+        for (int k = 0; k < d->params.len && ok; k++) {
+            f[k] = fit(args[k], ((Var *)d->params.data[k])->type);
+            ok = f[k] != 0;
+            exact = exact && f[k] == 2;
+        }
+        if (!ok)
+            continue;
+        if (exact) {
+            list_push(&exacts, d); /* an exact fit is the one, whatever C could tell */
+            continue;
+        }
+        list_push(&fitting, d);
+        list_push(&fits, f);
+    }
+    if (exacts.len > 1)
+        error_at(pos, "%s fits more than one of its overloads equally: convert an argument, as in 'x as f64'", what);
+    if (exacts.len)
+        return exacts.data[0];
+    List best = {0};
+    bool unknown = false;
+    for (int i = 0; i < fitting.len; i++) {
+        Decl *d = fitting.data[i];
+        bool beaten = false;
+        for (int j = 0; j < fitting.len && !beaten; j++) {
+            Decl *e = fitting.data[j];
+            int n = d->params.len < e->params.len ? d->params.len : e->params.len;
+            beaten = j != i && dominates(e, fits.data[j], d, fits.data[i], n);
+        }
+        if (beaten)
+            continue;
+        list_push(&best, d);
+        for (int k = 0; k < d->params.len; k++)
+            unknown = unknown || ((int *)fits.data[i])[k] < 0;
+    }
+    if (unknown) {
+        *maybe = best;
+        return NULL;
+    }
+    if (best.len > 1)
+        error_at(pos, "%s fits more than one of its overloads equally: convert an argument, as in 'x as f64'", what);
+    return best.len ? best.data[0] : NULL;
+}
+
+/* A dispatched call's literal arguments, cast to their Kelvin types, so
+   that C's choice sees 4 as an i64, as kelvinc does, not as an int */
+static void typed_literals(Expr *call) {
+    for (int k = 0; k < call->items.len; k++) {
+        Expr *x = call->items.data[k];
+        const char *t = literal_type(x);
+        if (!t && x->kind == E_LITERAL)
+            t = x->text[0] == '\'' ? "u8" : !strcmp(x->text, "true") || !strcmp(x->text, "false") ? "bool" : NULL;
+        if (!t)
+            continue;
+        Expr *c = new_expr(E_CAST, x->pos);
+        c->op = "converter";
+        c->type = base_type(t, x->pos);
+        c->a = x;
+        call->items.data[k] = c;
+    }
+}
+
+/* Per argument, whether only C can tell which of cands it fits */
+static bool *unseen_args(List *cands, Expr **args, int nargs) {
+    bool *unseen = xcalloc((size_t)nargs + 1, sizeof *unseen);
+    for (int i = 0; i < cands->len; i++) {
+        Decl *d = cands->data[i];
+        for (int k = 0; k < nargs && k < d->params.len; k++)
+            unseen[k] = unseen[k] || fit(args[k], ((Var *)d->params.data[k])->type) < 0;
+    }
+    return unseen;
+}
+
+/* Parameter k of d as _Generic tells it from another overload's */
+static char *param_key(Decl *d, int k) {
+    bare_tags = true;
+    char *key = kelvin_type(unqualified(((Var *)d->params.data[k])->type));
+    bare_tags = false;
+    return key;
+}
+
+/* Can the choice of call's overload among cands, from argument k on, give
+   a number to C's own function of the name? It may where no overload left
+   takes a number there. This follows generic_tree in codegen.c, which
+   writes the choice, as if the program called C's function (c_too). */
+static bool reaches_c(List *cands, Expr *call, int k) {
+    int n = call->items.len;
+    while (k < n && call->unseen && !call->unseen[k])
+        k++;
+    if (k >= n)
+        return false;
+    int numbers = 0;
+    for (int i = 0; i < cands->len; i++) {
+        Decl *d = cands->data[i];
+        numbers += k < d->params.len && ((Var *)d->params.data[k])->number;
+    }
+    if (!numbers)
+        return true;
+    for (int i = 0; i < cands->len; i++) {
+        Decl *d = cands->data[i];
+        if (k >= d->params.len)
+            continue;
+        List same = {0};
+        for (int j = 0; j < cands->len; j++) {
+            Decl *e = cands->data[j];
+            if (k < e->params.len && !strcmp(param_key(e, k), param_key(d, k)))
+                list_push(&same, e);
+        }
+        if (reaches_c(&same, call, k + 1))
+            return true;
+    }
+    return false;
+}
+
+/* A function's name used as a value (#41): the overload of the function
+   type that want is; with none of that type, C's own function of the
+   name, as sqrt is beside sqrt(v:vec) */
+static void pick_overload(Expr *v, Type *want) {
+    if (!v || v->kind != E_IDENT || (!v->cands.len && !v->target) || !want || want->kind != T_FUNC)
+        return;
+    if (v->target && !strcmp(fn_key(fn_type_of(v->target)), fn_key(want)))
+        return;
+    for (int i = 0; i < v->cands.len; i++) {
+        Decl *d = v->cands.data[i];
+        if (!strcmp(fn_key(fn_type_of(d)), fn_key(want))) {
+            v->target = d;
+            v->cands.len = 0;
+            return;
+        }
+    }
+    v->target = NULL;
+    v->cands.len = 0;
+    v->op = "c";
+    list_push(&c_called, v->text);
+}
+
+/* f(args) where f names Kelvin functions (#41): the overload chosen, or
+   C's _Generic among those that may fit, or C's own function of the
+   name for other arguments. A single function of the program's own keeps
+   its C name and is called as C calls it, unless what is passed where it
+   takes a struct is a number or a value only C sees, which is for C's
+   function of the name. */
+static void resolve_call(Expr *call) {
+    Expr *callee = call->a;
+    if (callee->kind != E_IDENT || lookup_type(callee->text))
+        return;
+    if (!function_named(callee->text)) { /* C's function, which a Kelvin one may overload later */
+        list_push(&c_called, callee->text);
+        return;
+    }
+    List cands = overloads_of(callee->text, NULL);
+    Decl *only = cands.len == 1 ? cands.data[0] : NULL;
+    if (only) {
+        bool other = false, unseen = false;
+        for (int k = 0; k < call->items.len && k < only->params.len; k++) {
+            Expr *x = call->items.data[k];
+            Type *t = ((Var *)only->params.data[k])->type;
+            Decl *r;
+            other = other || record_mismatch(x, t);
+            unseen = unseen || (type_class(unqualified(t), &r) == 's' && fit(x, t) < 0 && !may_be_record(x));
+        }
+        if (!other && unseen) { /* _Generic chooses between it and C's function, where C has one */
+            list_push(&call->cands, only);
+            call->unseen = unseen_args(&call->cands, (Expr **)call->items.data, call->items.len);
+            typed_literals(call);
+            list_push(&dispatched, call);
+            return;
+        }
+        if (!other) {
+            call->target = only;
+            return;
+        }
+    } else {
+        call->target = choose(&cands, (Expr **)call->items.data, call->items.len, &call->cands, call->pos,
+                              strfmt("%s(...)", callee->text));
+        if (call->cands.len) {
+            call->unseen = unseen_args(&call->cands, (Expr **)call->items.data, call->items.len);
+            typed_literals(call);
+            list_push(&dispatched, call);
+        }
+        if (call->target || call->cands.len)
+            return;
+    }
+    /* with no Kelvin overload to call, C's own function is; the Kelvin
+       ones then overload it, and are named by their types in C */
+    call->op = "c";
+    list_push(&c_called, callee->text);
+}
+
+/* How an operand shows in a message about operators */
+static char *operand_text(Expr *x, Type *t) {
+    if (x->kind == E_LITERAL && !strcmp(x->text, "nullptr"))
+        return "nullptr";
+    if (x->kind == E_STRING || is_text_expr(x))
+        return "text";
+    if (!t)
+        return NULL;
+    bare_tags = true;
+    char *s = kelvin_type(t);
+    bare_tags = false;
+    return s;
+}
+
+/* a op b and op a, with an operator a Kelvin struct defines (#42): a call
+   of the operator chosen, or e as C's own operator */
+static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
+    Decl *r;
+    Type *ta = arg_type(a), *tb = b ? arg_type(b) : NULL;
+    bool record = (ta && type_class(ta, &r) == 's') || (tb && type_class(tb, &r) == 's') || may_be_record(a) ||
+                  (b && may_be_record(b));
+    List cands = overloads_of(NULL, op);
+    if (!cands.len && !record)
+        return e;
+    Expr *args[2] = {a, b};
+    List maybe = {0};
+    Decl *d = cands.len ? choose(&cands, args, b ? 2 : 1, &maybe, e->pos, strfmt("'%s'", op)) : NULL;
+    if (!d && (!record || !maybe.len)) {
+        if (record) {
+            char *sa = operand_text(a, ta), *sb = b ? operand_text(b, tb) : NULL;
+            char *pa = sa && strcmp(sa, "text") && strcmp(sa, "nullptr") ? sa : sa ? "u8^" : "T";
+            char *pb = sb && strcmp(sb, "text") && strcmp(sb, "nullptr") ? sb : sb ? "u8^" : "T";
+            sa = sa ? sa : "a value kelvinc cannot see";
+            sb = b && !sb ? "a value kelvinc cannot see" : sb;
+            if (b)
+                error_at(e->pos, "no operator %s takes %s and %s: define one, as in '%s(a:%s, b:%s):... { ... }'", op,
+                         sa, sb, op, pa, pb);
+            error_at(e->pos, "no operator %s takes %s: define one, as in '%s(a:%s):... { ... }'", op, sa, op, pa);
+        }
+        return e; /* C's own operator */
+    }
+    Expr *call = new_expr(E_CALL, e->pos);
+    call->a = new_expr(E_IDENT, e->pos);
+    call->a->text = (char *)op;
+    call->target = d;
+    call->paren = e->paren;
+    list_push(&call->items, a);
+    if (b)
+        list_push(&call->items, b);
+    if (!d) { /* a struct and a value only C sees: C's _Generic chooses */
+        call->cands = maybe;
+        call->unseen = unseen_args(&maybe, args, b ? 2 : 1);
+        typed_literals(call);
+    }
+    return call;
+}
+
+/* A C name made from a type, as complex64, u8p for u8^, a3 for [3], and
+   F...E around a function type's parameters, its result after the E */
+static char *mangled_type(Type *t) {
+    bare_tags = true;
+    char *k = kelvin_type(unqualified(t));
+    bare_tags = false;
+    Buf b = {0};
+    buf_puts(&b, "");
+    for (const char *c = k; *c; c++) {
+        if (isalnum((unsigned char)*c) || *c == '_')
+            buf_putn(&b, c, 1);
+        else if (*c == '^')
+            buf_puts(&b, "p");
+        else if (*c == '[')
+            buf_puts(&b, "a");
+        else if (*c == '(')
+            buf_puts(&b, "F");
+        else if (*c == ')')
+            buf_puts(&b, "E");
+        else if (*c == ',' || (*c == ' ' && c[-1] != ','))
+            buf_puts(&b, "_");
+    }
+    return b.buf;
+}
+
+/* The C names of functions and operators (#41, #42): an overloaded
+   function, one an imported Kelvin file defines, and one that shares its
+   name with a C function the program calls, is named by its parameter
+   types, as sin__complex64 (f__void with none); a function the program
+   declares but never defines is C's, and keeps its name; an operator is
+   _kv_add_op__... Two that would get the same C name are an error. */
+static void name_functions(void) {
+    for (int i = 0; i < dispatched.len; i++) {
+        Expr *call = dispatched.data[i];
+        call->c_too = called_as_c(call->a->text);
+    }
+    static const struct { const char *op, *word; } words[] = {
+        {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"},
+        {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}};
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (d->recv)
+            continue;
+        Buf types = {0};
+        buf_puts(&types, "");
+        for (int k = 0; k < d->params.len; k++)
+            buf_printf(&types, "__%s", mangled_type(((Var *)d->params.data[k])->type));
+        if (d->variadic)
+            buf_puts(&types, "__va");
+        if (!types.len)
+            buf_puts(&types, "__void");
+        if (d->op) {
+            const char *w = d->params.len == 1 && !strcmp(d->op, "-") ? "neg" : "op";
+            for (size_t k = 0; k < sizeof words / sizeof words[0]; k++)
+                if (!strcmp(words[k].op, d->op) && strcmp(w, "neg"))
+                    w = words[k].word;
+            d->cname = strfmt("_kv_%s_op%s", w, types.buf);
+            continue;
+        }
+        bool defined = false, imported = false;
+        for (int k = 0; k < functions.len; k++) {
+            Decl *e = functions.data[k];
+            if (e->recv || e->op || strcmp(e->name, d->name))
+                continue;
+            imported = imported || e->imported;
+            defined = defined || (e->body && !strcmp(signature(e), signature(d)));
+        }
+        bool by_types = overloads_of(d->name, NULL).len > 1 || imported || called_as_c(d->name);
+        if (!defined || !strcmp(d->name, "main"))
+            by_types = false;
+        d->cname = by_types ? strfmt("%s%s", d->name, types.buf) : d->name;
+    }
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        char *name = d->recv ? strfmt("%s__%s", d->recv_name, d->name) : d->cname;
+        for (int j = 0; j < i; j++) {
+            Decl *e = functions.data[j];
+            char *other = e->recv ? strfmt("%s__%s", e->recv_name, e->name) : e->cname;
+            bool same_fn = !d->recv == !e->recv && (d->recv ? !strcmp(d->recv_name, e->recv_name) : 1) &&
+                           !strcmp(d->name, e->name) && !strcmp(signature(d), signature(e));
+            if (!same_fn && !(d->recv && e->recv) && !strcmp(name, other)) /* methods are checked as declared (P26) */
+                error_at(d->pos, "this function and the one at %s%sline %d would both be named %s in C: rename one",
+                         strcmp(e->pos.file, d->pos.file) ? e->pos.file : "",
+                         strcmp(e->pos.file, d->pos.file) ? ", " : "", e->pos.line, name);
+        }
+    }
+}
+
 /* Is v.i64 (any converter name) a field of v: one of a Kelvin struct
    that has it, of a C struct, or of what kelvinc cannot see is no struct?
    (#36) */
@@ -2259,6 +3037,39 @@ static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
 
 static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
 
+/* Is e the same value, or the same place, when evaluated twice: no
+   call or assignment in it? */
+static bool repeatable(Expr *e) {
+    if (!e)
+        return true;
+    switch (e->kind) {
+    case E_LITERAL:
+    case E_STRING:
+    case E_IDENT:
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+        return true;
+    case E_FIELD:
+    case E_DEREF:
+    case E_CAST:
+    case E_PROPERTY:
+        return repeatable(e->a);
+    case E_PREFIX:
+        return strcmp(e->op, "++") && strcmp(e->op, "--") && repeatable(e->a);
+    case E_INDEX:
+        return repeatable(e->a) && repeatable(e->b);
+    case E_TERNARY:
+        return repeatable(e->a) && repeatable(e->b) && repeatable(e->c);
+    case E_BINARY:
+        for (int i = 0; assign_ops[i]; i++)
+            if (!strcmp(e->op, assign_ops[i]))
+                return false;
+        return repeatable(e->a) && repeatable(e->b);
+    default:
+        return false;
+    }
+}
+
 /* Is the operand at token j, with its postfixes, assigned to, as in
    `*p = 1`, `*p.x += 2` or `*(p + 1) = 3`? */
 static bool assigned_after(int j) {
@@ -2345,7 +3156,24 @@ static Expr *parse_assign(void) {
             }
             e->b = parse_assign();
             assign_ok = ok;
+            pick_overload(e->b, target_type(lhs));
             reject_template_escape(lhs, e->b, t->pos);
+            /* z += w with an operator a struct defines is z = z + w (#42) */
+            if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {
+                Expr *bin = new_expr(E_BINARY, t->pos);
+                bin->op = strfmt("%c", e->op[0]);
+                bin->a = lhs;
+                bin->b = e->b;
+                Expr *call = resolve_operator(bin, bin->op, lhs, e->b);
+                if (call != bin) {
+                    if (!repeatable(lhs))
+                        error_at(lhs->pos, "with an operator a struct defines, 'x %s y' is 'x = x %s y', which evaluates "
+                                           "x twice, so x may not hold a call",
+                                 e->op, bin->op);
+                    e->op = "=";
+                    e->b = call;
+                }
+            }
             return e;
         }
     assign_ok = ok;
@@ -2477,7 +3305,8 @@ static Expr *parse_initializer(void) { return parse_initializer_for(NULL); }
 static const char *literal_type(Expr *e) {
     if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")))
         return literal_type(e->a);
-    if (e->kind != E_LITERAL || e->text[0] == '\'' || !strcmp(e->text, "true") || !strcmp(e->text, "false"))
+    if (e->kind != E_LITERAL || e->text[0] == '\'' || !strcmp(e->text, "true") || !strcmp(e->text, "false") ||
+        !strcmp(e->text, "nullptr"))
         return NULL;
     const char *t = e->text;
     bool hex = t[0] == '0' && (t[1] == 'x' || t[1] == 'X');
@@ -2564,6 +3393,7 @@ static Var *parse_var(bool with_init, int let) {
         check_assign_op(op->text, v->type, what, op->pos, NULL);
         /* a function type types an anonymous function (#32) */
         v->init = parse_initializer_for(v->type);
+        pick_overload(v->init, v->type);
     }
     return v;
 }
@@ -2636,9 +3466,9 @@ static void reject_c_fn_pointer(int i, const char *how) {
    go on with it, or is a `}` or the end of the file (#35)? */
 static bool statement_ends_at(int i) {
     Token *t = &toks[i];
-    if (is_p(t, "}") || t->kind == TK_EOF)
+    if (is_p(t, "}") || t->kind == TK_EOF || t->kind == TK_FILE_END)
         return true;
-    return t->pos.line > t[-1].pos.line && (!continues_expression(t) || (is_p(t, "(") && at_statement_level()));
+    return line_break(t - 1, t) && (!continues_expression(t) || (is_p(t, "(") && at_statement_level()));
 }
 
 static void reject_c_declaration(void) {
@@ -2718,7 +3548,7 @@ static void reject_c_declaration(void) {
     Buf dims = {0};
     buf_puts(&dims, "");
     /* a `(` on the next line starts the next statement (#35) */
-    while ((is_p(&toks[i], "(") && toks[i].pos.line == toks[i - 1].pos.line) || is_p(&toks[i], "[") ||
+    while ((is_p(&toks[i], "(") && !line_break(&toks[i - 1], &toks[i])) || is_p(&toks[i], "[") ||
            is_p(&toks[i], "^")) {
         if (is_p(&toks[i], "^"))
             buf_puts(&suffix, "^");
@@ -2764,13 +3594,20 @@ static Stmt *new_stmt(StmtKind kind, Pos pos) {
     return s;
 }
 
+/* #import, of a C header or a Kelvin file (#40), is for the top level */
+static void reject_inner_import(void) {
+    if (peek()->kind == TK_IMPORT || peek()->kind == TK_IMPORT_K)
+        error_at(peek()->pos, "#import is for the top level of a file, outside functions, structs and blocks");
+}
+
 /* the statements of a block whose `{` (t) has been read, and its `}` */
 static Stmt *parse_block_rest(Token *t) {
     Stmt *s = new_stmt(S_BLOCK, t->pos);
     open_scope();
     while (!is_p(peek(), "}")) {
-        if (peek()->kind == TK_EOF)
+        if (peek()->kind == TK_EOF || peek()->kind == TK_FILE_END)
             error_at(t->pos, "unterminated block");
+        reject_inner_import();
         list_push(&s->stmts, parse_stmt());
     }
     close_scope();
@@ -2783,7 +3620,7 @@ static Stmt *parse_block(void) { return parse_block_rest(expect_p("{")); }
 /* The end of a statement or a declaration: a `;`, or a new line, a `}`
    or the end of the file after it, as in Swift (#35) */
 static void end_statement(void) {
-    if (accept_p(";") || is_p(peek(), "}") || peek()->kind == TK_EOF || newline_before())
+    if (accept_p(";") || is_p(peek(), "}") || peek()->kind == TK_EOF || peek()->kind == TK_FILE_END || newline_before())
         return;
     if (cur == trailing_end)
         error_at(peek()->pos, "expected ';' or a new line after the trailing function, before what follows");
@@ -2832,10 +3669,20 @@ static bool signature_ahead(int i) {
 /* the type that argument k of a call to `callee` takes, where kelvinc
    can see it: a Kelvin function's parameter, or a function value's */
 static Type *call_param_type(Expr *callee, int k) {
-    if (callee->kind == E_IDENT) {
-        Decl *f = function_named(callee->text);
-        if (f)
-            return k < f->params.len ? ((Var *)f->params.data[k])->type : NULL;
+    if (callee->kind == E_IDENT && !lookup_type(callee->text) && function_named(callee->text)) {
+        /* the type all the overloads that have parameter k agree on (#41) */
+        List all = overloads_of(callee->text, NULL);
+        Type *t = NULL;
+        for (int i = 0; i < all.len; i++) {
+            Decl *f = all.data[i];
+            if (k >= f->params.len)
+                continue;
+            Type *u = ((Var *)f->params.data[k])->type;
+            if (t && strcmp(kelvin_type(unqualified(t)), kelvin_type(unqualified(u))))
+                return NULL;
+            t = u;
+        }
+        return t;
     }
     Type *t = value_type(callee);
     return t && t->kind == T_FUNC && k < t->params.len ? t->params.data[k] : NULL;
@@ -2844,10 +3691,17 @@ static Type *call_param_type(Expr *callee, int k) {
 /* how many arguments a call to callee takes, where kelvinc sees a
    function that is not variadic; -1 otherwise */
 static int call_arity(Expr *callee) {
-    if (callee->kind == E_IDENT) {
-        Decl *f = function_named(callee->text);
-        if (f)
-            return f->variadic ? -1 : f->params.len;
+    if (callee->kind == E_IDENT && !lookup_type(callee->text) && function_named(callee->text)) {
+        /* the most any overload takes (#41) */
+        List all = overloads_of(callee->text, NULL);
+        int n = 0;
+        for (int i = 0; i < all.len; i++) {
+            Decl *f = all.data[i];
+            if (f->variadic)
+                return -1;
+            n = f->params.len > n ? f->params.len : n;
+        }
+        return n;
     }
     Type *t = value_type(callee);
     return t && t->kind == T_FUNC && !t->variadic ? t->params.len : -1;
@@ -3063,6 +3917,7 @@ static void implicit_return(Decl *d) {
                                 "with a value after it",
                      kelvin_type(d->ret));
         last->kind = S_RETURN;
+        pick_overload(last->expr, d->ret);
         reject_returned_text(last->expr, d->anon);
         return;
     }
@@ -3458,7 +4313,7 @@ static Expr *parse_condition(const char *what) {
         /* C's `if (x) y = 1;`: the body must be a block */
         Token *after = after_matching_paren(cur);
         /* after `do { } while (n > 0)`, the next line is the next statement (#35) */
-        if (!strcmp(what, "do") && after && after->pos.line > after[-1].pos.line)
+        if (!strcmp(what, "do") && after && line_break(after - 1, after))
             after = NULL;
         if (after && (after->kind == TK_IDENT || after->kind == TK_NUMBER || after->kind == TK_STRING ||
                       after->kind == TK_TPL_HEAD ||
@@ -3739,7 +4594,7 @@ static bool holds_label(int i) {
     for (int k = i + 1; k < end; k++)
         if (toks[k].kind == TK_IDENT && is_p(&toks[k + 1], ":") &&
             (is_p(&toks[k - 1], "{") || is_p(&toks[k - 1], "}") || is_p(&toks[k - 1], ";") ||
-             toks[k].pos.line > toks[k - 1].pos.line))
+             line_break(&toks[k - 1], &toks[k])))
             return true;
     return false;
 }
@@ -3865,15 +4720,19 @@ static Stmt *parse_stmt_here(void) {
            in a function with a result, as in Swift, and in one without, has
            nothing to return (#35) */
         bool result = parsing_fn && parsing_fn->ret;
-        if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && (result || !newline_before()))
+        if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && peek()->kind != TK_FILE_END &&
+            (result || !newline_before())) {
             s->expr = parse_expr();
+            pick_overload(s->expr, result ? parsing_fn->ret : NULL);
+        }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result)
             reject_returned_text(s->expr, parsing_fn->anon);
         bool semicolon = is_p(peek(), ";");
         end_statement();
         Token *n = peek();
-        if (!s->expr && !semicolon && !as_body && !is_p(n, "}") && n->kind != TK_EOF && !is_kw(n, "case") &&
+        if (!s->expr && !semicolon && !as_body && !is_p(n, "}") && n->kind != TK_EOF && n->kind != TK_FILE_END &&
+            !is_kw(n, "case") &&
             !is_kw(n, "default") && !(n->kind == TK_IDENT && is_p(n + 1, ":")) && !holds_label((int)(n - toks)))
             error_at(n->pos, "this never runs: in a function with no result, 'return' ends at the end of its line, "
                              "and this follows it in the same block");
@@ -3895,8 +4754,8 @@ static Stmt *parse_stmt_here(void) {
     }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && is_p(peek2(), "(") &&
         peek_at(2)->kind == TK_STRING && is_p(peek_at(3), ")") &&
-        (is_p(peek_at(4), ";") || is_p(peek_at(4), "}") || peek_at(4)->kind == TK_EOF ||
-         peek_at(4)->pos.line > peek_at(3)->pos.line)) {
+        (is_p(peek_at(4), ";") || is_p(peek_at(4), "}") || peek_at(4)->kind == TK_EOF || peek_at(4)->kind == TK_FILE_END ||
+         line_break(peek_at(3), peek_at(4)))) {
         pragma_statement = true;
         Stmt *s = new_stmt(S_EXPR, pos);
         s->expr = parse_assignments();
@@ -3933,14 +4792,32 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
     return d;
 }
 
+/* the operators a Kelvin struct may define (#42) */
+static bool overloadable_op(Token *t) {
+    static const char *ops[] = {"+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", NULL};
+    for (int i = 0; ops[i]; i++)
+        if (is_p(t, ops[i]))
+            return true;
+    return false;
+}
+
+static void check_overload(Decl *d, Token *name);
+
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     Token *name = peek();
-    reject_kv_name(name);
-    d->name = expect_ident("a function name");
+    d->imported = name->imported;
+    if (name->kind == TK_PUNCT) { /* +(a:T, b:U):R, an operator (#42) */
+        d->op = advance()->text;
+        d->name = strfmt("operator%s", d->op);
+    } else {
+        reject_kv_name(name);
+        d->name = expect_ident("a function name");
+    }
     if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
-    declare_name(d->name);
+    if (!d->op)
+        declare_name(d->name);
     open_scope();
     params_start = scope_names.len;
     expect_p("(");
@@ -3955,6 +4832,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
         reject_c_fn_pointer(cur, "");
         Var *p = parse_var(false, LET_NONE);
         p->is_let = !mutable;
+        p->number = numeric_type(param_type(p->type));
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
@@ -3969,6 +4847,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
                                   "result: write the type itself",
                      kelvin_type(d->ret));
     }
+    check_overload(d, name);
     list_push(&functions, d);
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
@@ -3979,6 +4858,38 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     }
     close_scope();
     return d;
+}
+
+/* A function's overloads (#41) differ in their parameter types; one of
+   the same types is its prototype or definition, with the same result.
+   main has one form. An operator (#42) takes one or two values, at least
+   one of a Kelvin struct or union, and has a result. */
+static void check_overload(Decl *d, Token *name) {
+    if (d->op) {
+        int n = d->params.len;
+        if ((n != 2 && !(n == 1 && !strcmp(d->op, "-"))) || d->variadic)
+            error_at(name->pos, "operator %s takes %s", d->op, !strcmp(d->op, "-") ? "one or two values" : "two values");
+        bool record = false;
+        for (int k = 0; k < n; k++)
+            record = record || kelvin_record(((Var *)d->params.data[k])->type);
+        if (!record)
+            error_at(name->pos, "an operator is for a Kelvin struct or union: at least one of its values must be one");
+        if (!d->ret)
+            error_at(name->pos, "operator %s has no result: write its type, as in '%s(...):T'", d->op, d->op);
+    }
+    for (int i = 0; i < functions.len; i++) {
+        Decl *e = functions.data[i];
+        if (e->recv || (d->op ? !e->op || strcmp(e->op, d->op) : e->op || strcmp(e->name, d->name)))
+            continue;
+        if (!strcmp(d->name, "main") && strcmp(signature(e), signature(d)))
+            error_at(name->pos, "main cannot be overloaded: it is C's main, with one form");
+        if (strcmp(signature(e), signature(d)))
+            continue;
+        if ((!e->ret) != (!d->ret) || (e->ret && strcmp(kelvin_type(e->ret), kelvin_type(d->ret))))
+            error_at(name->pos, "'%s' is declared with these parameter types already, with another result: "
+                                "overloads differ in their parameter types",
+                     d->op ? d->op : d->name);
+    }
 }
 
 /* type.name(params): T { ... }, a method with an implicit `self`. The
@@ -4023,6 +4934,7 @@ static Decl *parse_method(Pos pos, const char *storage) {
         reject_c_fn_pointer(cur, "");
         Var *p = parse_var(false, LET_NONE);
         p->is_let = !mutable;
+        p->number = numeric_type(param_type(p->type));
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
@@ -4061,6 +4973,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
     if (accept_p("{")) {
         d->has_body = true;
         while (!is_p(peek(), "}")) {
+            reject_inner_import();
             if (kind == D_ENUM) {
                 Var *v = xcalloc(1, sizeof *v);
                 v->pos = peek()->pos;
@@ -4111,6 +5024,7 @@ static void add_top_decl(Program *prog, Decl *d) {
 
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
+    c_called = (List){0};
     toks = tokens;
     cur = 0;
     anon_fns = (List){0};
@@ -4144,6 +5058,10 @@ Program *parse(Token *tokens, int ntoks) {
     Program *prog = xcalloc(1, sizeof *prog);
     while (peek()->kind != TK_EOF) {
         Token *t = peek();
+        if (t->kind == TK_IMPORT_K || t->kind == TK_FILE_END) { /* where an imported file begins and ends (#40) */
+            advance();
+            continue;
+        }
         if (t->kind == TK_IMPORT) {
             Decl *d = new_decl(D_IMPORT, t->pos, NULL);
             d->name = advance()->text;
@@ -4161,6 +5079,12 @@ Program *parse(Token *tokens, int ntoks) {
             reject_c_fn_pointer(cur, "var ");
             top_name = peek()->text;
             add_top_decl(prog, parse_fn(t->pos, storage));
+        } else if (overloadable_op(peek()) && is_p(peek2(), "(")) {
+            add_top_decl(prog, parse_fn(t->pos, storage)); /* +(a:T, b:U):R { ... } (#42) */
+        } else if (peek()->kind == TK_PUNCT && is_p(peek2(), "(") && !is_p(peek(), "(") && !is_p(peek(), ";")) {
+            error_at(peek()->pos, "'%s' cannot be defined: an operator a struct defines is one of + - * / %% == != "
+                                  "< <= > >=, or unary -, and 'x op= y' is 'x = x op y'",
+                     peek()->text);
         } else if (is_kw(peek(), "let") || is_kw(peek(), "var")) {
             /* one declaration per global, each after the anonymous
                functions' prototypes in its initializer (#32), so that
@@ -4190,5 +5114,6 @@ Program *parse(Token *tokens, int ntoks) {
             error_at(peek()->pos, "expected a declaration (name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
+    name_functions();
     return prog;
 }

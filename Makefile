@@ -48,6 +48,7 @@ install: all
 	install -m 644 libkelvin.a $(PREFIX)/lib/libkelvin.a
 	install -m 755 $(SHLIB) $(PREFIX)/lib/$(SHLIB)
 	install -m 644 runtime/kelvin_prelude.h $(PREFIX)/include/kelvin_prelude.h
+	install -m 644 lib/*.k $(PREFIX)/lib/
 
 clean:
 	rm -rf build kelvinc libkelvin.a libkelvin.so libkelvin.dylib
