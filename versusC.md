@@ -52,6 +52,10 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
 | `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
+| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <lib/complex.k>` (#40) |
+| `csin(z)` beside `sin(x)` | `sin(z:complex64):complex64 { ... }` beside C's `sin` (#41) |
+| `cadd(a, b)` | `a + b`, given `+(a:complex64, b:complex64):complex64 { ... }` (#42) |
+| `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (lib/complex.k, #43) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
@@ -742,6 +746,111 @@ main():i32 {
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.
 
+## Overloading: functions of one name
+
+Functions of one name may take different parameter types, and each call
+gets the one its arguments' types fit (#41). A Kelvin function of a C
+function's name overloads C's, which still takes the numbers:
+
+```kelvin
+#import <math.h> as C
+
+struct vec { x: f64; y: f64 }
+
+twice(n:i64):i64 { n * 2 }
+twice(x:f64):f64 { x * 2.0 }
+sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
+
+main():i32 {
+    let v:vec = {3.0, 4.0}
+    println(twice(4), " ", twice(1.5), " ", sqrt(v), " ", sqrt(2.0))   // 8 3.0 5.0 1.4142135623730951
+    return 0
+}
+```
+
+- **The choice** is the overload that every argument fits exactly, or
+  else the one that fits at least as well as every other on each
+  argument and better on one, where a number converts to any number and
+  a pointer may gain `const`, as C converts arguments. An argument's
+  type is its value's: a literal has its own, also negated (`4` and
+  `-4` are `i64`, `0.5` an `f64`, `'a'` a `u8`), a comparison is a
+  `bool`, an enumerator its enum, and `n * 2` the type C gives it (a
+  literal in arithmetic is C's `int`, so `small * 4` is an `i32`). A tie is an
+  error, as for an `i32` given to `twice` above: convert it,
+  `twice(n as i64)`. Where no overload fits, C's own function of the
+  name is called *(provisional P52)*.
+- **Where only C sees a type**, as for what a C function returns, C
+  chooses: structs, pointers and C typedefs by their type, numbers by
+  their Kelvin type, and enums after the numbers, so
+  `twice(atan2(y, x))` calls `twice(x:f64)`, and
+  `twice(strtol(s, nullptr, 10))` `twice(n:i64)` wherever `long` has 64
+  bits, as C's `long` and `long long` are both `i64` there. A number of
+  a type no overload takes goes to the one that takes a number there,
+  and a pointer to the one that takes a pointer (`char *` to a `u8^`);
+  where none does, to C's own function of the name where the program
+  calls it, as in `sqrt(fabs(x))`; where several do, C reports
+  `kv_no_such_overload` *(provisional P52)*. A library that overloads a
+  C function declares it, `tanh(x:f64):f64`, so that it takes such
+  numbers whether or not the program calls it. gcc gives a bit-field of
+  a C header no type C can choose by, and a C macro like `isnan` cannot
+  take such a value beside an overload of its name.
+- **Overloads differ in their parameter types**, not only in their
+  results, nor in a parameter's own `const`. A prototype and its
+  definition are one overload. `main` has one form, and methods are
+  chosen by their receiver instead.
+- **A function's name as a value** is the overload of the function type
+  wanted: `let f:(i64):i64 := twice`, a parameter of that type, or a
+  function's result. Where no Kelvin overload has that type, it is C's
+  own function: `let g:(f64):f64 := sqrt`. An anonymous function given
+  to an overloaded function writes its parameters' types where the
+  overloads differ in them.
+- **In C**, a function with overloads, one from an imported file, and
+  one that shares a name with a C function the program calls are named
+  by their parameter types, as `twice__i64` and `sqrt__vec`; the
+  program's other functions keep their names, and so does a function
+  it declares but never defines, which is C's. A Kelvin function of a C
+  function's name that the program neither calls as C's nor declares
+  keeps its name, which conflicts with the C header's, as in C. Two
+  functions that would have one C name are an error.
+- **As in C**, a call sees only the overloads declared before it.
+
+## Operators: `+(a:T, b:T):T`
+
+A struct or union may define `+ - * / % == != < <= > >=` and unary `-`,
+as functions named by the operator, overloaded by their types as other
+functions are (#42):
+
+```kelvin
+struct money { cents: i64 }
+
++(a:money, b:money):money { (money){a.cents + b.cents} }
+*(a:money, k:i64):money { (money){a.cents * k} }
+-(a:money):money { (money){-a.cents} }
+<(a:money, b:money):bool { a.cents < b.cents }
+
+main():i32 {
+    let a:money = {150}
+    var b:money = {275}
+    b += a                                                // b = b + a
+    println((a + b * 2).cents, " ", (-a).cents, " ", a < b)   // 1000 -150 true
+    return 0
+}
+```
+
+- An operator takes two values, or one for `-`, of which at least one
+  is a Kelvin struct or union, and has a result. Other operators (`<<`,
+  `!`, `+=`) cannot be defined. Precedence is C's. A definition starts
+  a line at the top level with its head, `+(a:T, b:U):R`.
+- `a op b` with a struct operand calls the operator its types fit, and
+  is an error showing how to define one where none does. Numbers keep
+  C's operators. C warns where a statement drops an operator's value,
+  as in `m == a` (gcc not where C chooses the operator).
+- `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
+  a call *(provisional P53)*.
+- Where only C sees an operand's type, C chooses as for functions, and
+  a number of another type converts to the one operator that takes a
+  number there (C reports `kv_no_such_operator` otherwise).
+
 ## Properties: `.size`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`
 
 Properties are written without parentheses:
@@ -794,7 +903,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - **Numbers** are plain decimal (`42`, `-7`), including 128-bit ones.
     Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
     `%.9g` for `f32`), while `print` keeps the shortest form, `0.1`.
-  - **`bool`** is `true` or `false`. **Complex numbers** are `1+2i`.
+  - **`bool`** is `true` or `false`. **C's `_Complex` numbers** are
+    `1+2i`; `complex64` and `complex32` of lib/complex.k are structs,
+    `{real: 1, imag: 2}`.
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
     addresses (`0x0` for null), but a function has no text (#31).
@@ -813,7 +924,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - **Where kelvinc cannot see that a value is a struct**, as in
     `(q, p).cstr`, the C compiler reports `kv_cstr_unseen_struct`;
     assign the value to a variable first. kelvinc does see variables,
-    fields, `v as T`, what Kelvin functions and methods return, and a
+    fields, `v as T`, what Kelvin functions and methods return (not a
+    call that C chooses among overloads with different results), and a
     `?:` between two values of one type (#34) *(provisional P35)*.
 - **`cstr`** is a built-in name for `u8^` (C's `uint8_t *`), as if declared
   `typedef u8^ cstr`. It is a reference, so assign it with `:=`, and
@@ -892,7 +1004,9 @@ let card:cstr := `name: ${name}
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text
   (`(null)` for `nullptr`), other pointers as addresses. A struct
   kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), which `print`
-  itself does not; a function has no text. A value may be any
+  itself does not; one it cannot see, as a call that C chooses among
+  overloads with different results, is a C error, so assign it to a
+  variable first. A function has no text. A value may be any
   expression, a template too.
 - **Escapes** are C's, plus `` \` `` for a backquote, `\$`, `\{` and
   `\}` for `$`, `{` and `}` (so `\${x}` stays as written), and a
@@ -905,14 +1019,69 @@ let card:cstr := `name: ${name}
   global or a `static` cannot be initialized with it *(provisional
   P50)*.
 
+## Kelvin files: `#import <lib/complex.k>`
+
+`#import` of a `.k` file, without `as C`, brings in its source: its
+declarations are compiled with the program as if written where the
+import is (#40), which is at the top level. `"x.k"` is found next to
+the importing file, and `<lib/x.k>` in Kelvin's home, where kelvinc
+finds its runtime: the source tree, or the `$PREFIX` of `make install`,
+which installs `lib/`. A file is brought in once, however often it is
+imported, also through other files or other paths. A declaration ends
+where a file does, and errors in a file, also an unfinished one at its
+end, name its own lines. A C header it imports as `"x.h"` is the one
+next to it. Its functions are named by their parameter types in C
+(#41), so that they never clash with C's, except the C functions it
+declares by hand, which keep their names.
+
+## Complex numbers: `lib/complex.k`
+
+`#import <lib/complex.k>` brings in `complex64`, whose parts are `f64`,
+and `complex32`, whose parts are `f32`, without C's `_Complex` (#43):
+
+```kelvin
+#import <lib/complex.k>
+
+main():i32 {
+    let i:complex64 = complex64(0.0, 1.0)
+    let z:complex64 = complex64(1.0, 2.0)
+    let w:complex64 = exp(z) * z + 1.0          // operators, and exp of a complex64
+    println(`${w} ${abs(w)} ${sin(0.5)}`)       // sin of an f64 is C's
+    println(abs(exp(i * 3.141592653589793) + 1.0) < 1e-15)   // true
+    return 0
+}
+```
+
+- **Making one**: `complex64(re, im)`, `complex64(re)`, `polar(r, theta)`,
+  `(complex64){re, im}`, and `complex64(z)` of a `complex32` (or
+  `complex32(z)` of a `complex64`).
+- **Arithmetic**: `+ - * /` between two of one kind, or one and a real
+  number of its parts' type (either way round), unary `-`, `==` and
+  `!=`. `complex32` and `complex64` do not mix: convert one.
+- **Functions**: `conj`, `abs`, `arg`, `norm` (`abs` squared), `exp`,
+  `log`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh` and
+  their inverses, which take their principal values, with C99's branch
+  cuts and its signs of zero on them. They keep their accuracy near 0
+  and ±1, and no step overflows where the result does not. C's own
+  functions of these names still take numbers, also ones only C sees,
+  as `tanh(atof(s))`: the file declares them.
+- **The text** of one is its derived `.cstr`, as in
+  `{real: 1, imag: 2}`, also in a template; `print` takes no struct.
+- `complex128` waits for `f128`. C99's special values for infinities and
+  NaNs are not attempted, except for `sqrt` and division by an
+  infinity *(provisional P54)*.
+- kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
+  c` with two roundings, as gcc does, and the results are the same with
+  both *(provisional P55)*.
+
 ## Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares
   can be used: functions, typedef names, macros like `stdout`, `NULL` or
   `EOF`, and enums.
 - `#import "mylib.h" as C` is looked up next to the `.k` file first.
-- `as C` is required. It leaves room for importing other kinds of files
-  later.
+- `as C` is required for a C header. A Kelvin file is imported without
+  it (see Kelvin files above).
 - Every other directive (`#include`, `#define`, `#if`, ...) is an error.
   The rest of the preprocessor is TODO.
 - Without an import you can still declare C functions by hand:
@@ -959,6 +1128,8 @@ These are C features without a Kelvin spelling so far:
 - `long double`
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
+- generics: a function over several types is written once per type, as
+  `lib/complex.k` does for `complex32` and `complex64`
 - literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
 - statements of the form `name(x)` where `name` is a C typedef: C reads

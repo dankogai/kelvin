@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -32,7 +33,8 @@ static void usage(FILE *f) {
             "environment:\n"
             "  CC            C compiler to use (default: cc)\n"
             "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n"
-            "  KELVIN_HOME   where to find kelvin_prelude.h and libkelvin.a\n");
+            "  KELVIN_HOME   where to find kelvin_prelude.h, libkelvin.a and the Kelvin files\n"
+            "                of #import <lib/x.k>\n");
 }
 
 static char *read_file(const char *path) {
@@ -105,6 +107,12 @@ static char *exe_dir(const char *argv0) {
 
 static bool file_exists(const char *path) { return access(path, R_OK) == 0; }
 
+/* A Kelvin file to import is a readable file, not a directory (#40) */
+static bool kelvin_file(const char *path) {
+    struct stat st;
+    return file_exists(path) && stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 /* Find the prelude header and libkelvin.a under `home`, laid out either
    as the source tree (runtime/, libkelvin.a) or as an installation
    (include/, lib/). */
@@ -132,6 +140,100 @@ static void find_runtime(const char *argv0, char **inc, char **lib) {
         (dir && runtime_in(strfmt("%s/..", dir), inc, lib)))
         return;
     fatal("cannot find the Kelvin runtime (kelvin_prelude.h and libkelvin.a); run 'make', or set KELVIN_HOME");
+}
+
+/* ---------- #import of Kelvin files (#40) ---------- */
+
+/* The Kelvin files already brought in, by their device and inode, so that
+   another path to one, a hard link too, is the same file */
+static List imported;
+
+static bool imported_already(const char *path) {
+    struct stat st;
+    if (stat(path, &st) != 0)
+        return false;
+    char *id = strfmt("%lld:%lld", (long long)st.st_dev, (long long)st.st_ino);
+    for (int j = 0; j < imported.len; j++)
+        if (!strcmp(imported.data[j], id))
+            return true;
+    list_push(&imported, id);
+    return false;
+}
+
+/* The file that #import <name> or "name" means: "name" next to the
+   importing file, <name> under Kelvin's home ($KELVIN_HOME, kelvinc's
+   directory, or its parent), as <lib/complex.k> is the source tree's
+   lib/complex.k */
+static char *import_path(Token *t, const char *argv0) {
+    char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
+    if (t->text[0] == '"') {
+        const char *slash = strrchr(t->pos.file, '/');
+        char *path = slash && name[0] != '/' ? strfmt("%.*s/%s", (int)(slash - t->pos.file), t->pos.file, name)
+                                             : name;
+        if (!kelvin_file(path))
+            error_at(t->pos, "cannot find %s next to the file that imports it", t->text);
+        return path;
+    }
+    char *dir = exe_dir(argv0);
+    const char *homes[] = {getenv("KELVIN_HOME"), dir, dir ? strfmt("%s/..", dir) : NULL};
+    for (int i = 0; i < 3; i++)
+        if (homes[i] && kelvin_file(strfmt("%s/%s", homes[i], name)))
+            return strfmt("%s/%s", homes[i], name);
+    error_at(t->pos, "cannot find %s in Kelvin's home (KELVIN_HOME, or next to kelvinc)", t->text);
+}
+
+/* The tokens with each #import of a Kelvin file followed by that file's
+   tokens, once per program, so that its declarations are compiled as if
+   written there. The import stays, and a TK_FILE_END follows the file, so
+   that the parser sees where each file begins and ends: a declaration
+   there ends, an unfinished one is an error in its own file, and an
+   import inside a body is an error at the import. A "header.h" that an
+   imported file imports as C is looked for next to that file, as C's
+   #include "..." does, so it is written with its full path. */
+static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
+    List out = {0};
+    for (int i = 0; i < n; i++) {
+        Token *t = xmalloc(sizeof *t);
+        *t = toks[i];
+        list_push(&out, t);
+        if (t->imported && t->kind == TK_IMPORT && t->text[0] == '"' && t->text[1] != '/') {
+            /* the importing file's directory, made absolute, and the name
+               as written, so that a header that is a symlink keeps its own
+               directory for its own #include "..." */
+            const char *slash = strrchr(t->pos.file, '/');
+            char *dir = realpath(slash ? strfmt("%.*s", (int)(slash - t->pos.file), t->pos.file) : ".", NULL);
+            char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
+            char *path = dir ? strfmt("%s/%s", dir, name) : NULL;
+            if (path && file_exists(path) && !strpbrk(path, "\"\n"))
+                t->text = strfmt("\"%s\"", path);
+        }
+        if (toks[i].kind != TK_IMPORT_K)
+            continue;
+        char *path = import_path(&toks[i], argv0);
+        if (imported_already(path))
+            continue;
+        char *src = read_file(path);
+        set_source(path, src);
+        int m, k;
+        Token *more = lex(path, src, &m);
+        for (int j = 0; j < m; j++)
+            more[j].imported = true;
+        Pos eof = more[m - 1].pos;
+        more = with_imports(more, m - 1, &k, argv0); /* without its end of file */
+        for (int j = 0; j < k; j++) {
+            Token *u = xmalloc(sizeof *u);
+            *u = more[j];
+            list_push(&out, u);
+        }
+        Token *end = xmalloc(sizeof *end);
+        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true};
+        list_push(&out, end);
+    }
+    Token *all = xmalloc(sizeof(Token) * (size_t)(out.len + 1));
+    for (int i = 0; i < out.len; i++)
+        all[i] = *(Token *)out.data[i];
+    *out_n = out.len;
+    return all;
 }
 
 static char *default_output(const char *src) {
@@ -196,6 +298,8 @@ int main(int argc, char **argv) {
     set_source(src_path, src);
     int ntoks;
     Token *toks = lex(src_path, src, &ntoks);
+    imported_already(src_path); /* the main file is brought in already */
+    toks = with_imports(toks, ntoks, &ntoks, argv[0]);
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);
 
@@ -233,6 +337,10 @@ int main(int argc, char **argv) {
         /* gcc on x86-64 notes that passing a struct with a flexible array
            member changed ABI in GCC 4.4, e.g. for a derived .cstr */
         "-Wno-psabi",
+        /* a * b + c is rounded twice, as gcc does in ISO C mode, where
+           clang would fuse it into one fma(): the same results from both,
+           and z * w == w * z in lib/complex.k (#43) */
+        "-ffp-contract=off",
     };
     List cc_args = {0};
     for (size_t i = 0; i < sizeof base_args / sizeof base_args[0]; i++)

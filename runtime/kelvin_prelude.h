@@ -208,6 +208,36 @@ bool kv_condition_is_not_bool(struct kv_condition_is_not_bool);
 struct kv_no_such_method { char unused; };
 void kv_no_such_method(struct kv_no_such_method);
 
+/* The Kelvin number type of a value whose type only C sees, for choosing
+   an overload (#41): long and long long are both i64 where they have 64
+   bits, char is u8, an enum is its integer type, and anything else 0.
+   An integer constant, as _Generic does not evaluate v. */
+enum {
+    KV_N_BOOL = 1, KV_N_I8, KV_N_U8, KV_N_I16, KV_N_U16, KV_N_I32, KV_N_U32, KV_N_I64, KV_N_U64,
+    KV_N_I128, KV_N_U128, KV_N_F32, KV_N_F64, KV_N_F80,
+};
+#ifdef __SIZEOF_INT128__
+#define KV_INT128_NUMBER __int128: KV_N_I128, unsigned __int128: KV_N_U128,
+#else
+#define KV_INT128_NUMBER
+#endif
+#define KV_NUMBER(v) _Generic((v), \
+    bool: KV_N_BOOL, char: KV_N_U8, signed char: KV_N_I8, unsigned char: KV_N_U8, \
+    short: KV_N_I16, unsigned short: KV_N_U16, int: KV_N_I32, unsigned int: KV_N_U32, \
+    long: (sizeof(long) == 8 ? KV_N_I64 : KV_N_I32), unsigned long: (sizeof(long) == 8 ? KV_N_U64 : KV_N_U32), \
+    long long: KV_N_I64, unsigned long long: KV_N_U64, KV_INT128_NUMBER \
+    float: KV_N_F32, double: KV_N_F64, long double: KV_N_F80, default: 0)
+#define KV_POINTER(v) (__builtin_classify_type(v) == 5)
+
+/* Selected when a value whose type only C sees is a number of a type
+   that no overload takes (#41) while several take other numbers, or
+   when no operator a struct defines takes it (#42); any use is a C type
+   error that names it, as above. */
+struct kv_no_such_overload { char unused; };
+void kv_no_such_overload(struct kv_no_such_overload, ...);
+struct kv_no_such_operator { char unused; };
+void kv_no_such_operator(struct kv_no_such_operator, ...);
+
 /* The text of a struct member whose type kelvinc cannot see, such as a
    C typedef: numbers, bool and complex numbers as .cstr gives them, byte
    strings as text, a char array (typedef char name_t[16]) as the text

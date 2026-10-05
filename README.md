@@ -78,6 +78,14 @@ So far the changes from C are:
   `${x}` is `x`'s text as `print` shows it
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
+- functions overload by their parameter types, also C's own: with
+  `sin(z:complex64):complex64` defined, `sin(z)` is Kelvin's and
+  `sin(0.5)` C's
+- structs and unions may define operators:
+  `+(a:money, b:money):money { ... }`, then `a + b`
+- `#import <lib/complex.k>` brings in a Kelvin file's source, here
+  `complex64` and `complex32` with their arithmetic and elementary
+  functions
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions,
@@ -98,6 +106,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
+| [examples/complex.k](examples/complex.k) | `#import <lib/complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 
 ## Build and use
 
@@ -106,7 +115,7 @@ Requires a C11 compiler and make.
 ```sh
 make                        # builds ./kelvinc and libkelvin.{a,so|dylib}
 make test                   # runs tests/run.sh
-make install PREFIX=~/.local # bin/kelvinc, lib/libkelvin.*, include/
+make install PREFIX=~/.local # bin/kelvinc, lib/libkelvin.*, lib/*.k, include/
 ./kelvinc hello.k           # builds ./hello
 ./kelvinc --run hello.k     # builds and runs
 ./kelvinc --emit-c hello.k  # prints the generated C
