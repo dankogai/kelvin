@@ -181,6 +181,16 @@ uint8_t *kv_bin_u128(unsigned __int128 v, uint8_t *buf);
 struct kv_no_such_property { char unused; };
 uint8_t *kv_no_such_property(struct kv_no_such_property, uint8_t *);
 
+/* p.hex of a pointer or a function (#37): 0x and all the digits of its
+   address, 16 on a 64-bit target, as in 0x000000016ee86888. Where
+   kelvinc cannot see that a value is a pointer, KV_HEX_DEFAULT picks
+   kv_hex_ptr for any pointer, by GCC's and clang's
+   __builtin_classify_type (5 is a pointer), and kv_no_such_property for
+   anything else. */
+uint8_t *kv_hex_addr(uintptr_t v, uint8_t *buf);
+uint8_t *kv_hex_ptr(const volatile void *p, uint8_t *buf);
+#define KV_HEX_DEFAULT(v) __builtin_choose_expr(__builtin_classify_type(v) == 5, kv_hex_ptr, kv_no_such_property)
+
 /* Conditions are bool (#23). Where kelvinc cannot see a condition's
    type, it emits _Generic((c), bool: kv_bool, default:
    kv_condition_is_not_bool)(c): a bool passes through, and anything else

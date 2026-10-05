@@ -50,6 +50,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `(int *)malloc(n)` | `malloc(n) as i32^` |
 | `(size_t)n` | `n as size_t` |
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
+| `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
@@ -736,7 +737,7 @@ main():i32 {
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.
 
-## Properties: `.size`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`
+## Properties: `.size`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`
 
 Properties are written without parentheses:
 
@@ -818,6 +819,22 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   `i32` from `u32`.
 - **`f32`/`f64`** have `.dec` (lossless, like `.cstr`) and `.hex`
   (C's `%a`), always signed.
+- **Pointers and functions** have `.addr` and `.hex` (#37). `p.addr` is
+  the address as a number, a `uintptr_t` (C's unsigned integer as wide
+  as a pointer), and `p.hex` its text: `0x` and all the digits, 16 on a
+  64-bit target (`0x000000016ee86888`), with no sign, so every address
+  has the same width and `u64(p.hex, 16)` is `p.addr`. This covers
+  every `T^`, `any^`, `cstr`, string literal, `nullptr` and function
+  value, `&x`, the text of a property (`n.hex.addr`), a pointer stepped
+  with `+` or `-`, and a `?:` of pointers. Where only C's `_Generic`
+  sees that a value is a pointer (`getenv("X")`), `.hex` still works,
+  but `.addr` is a field there, as `.size` is: write `x as uintptr_t`.
+  An array is no pointer: write `(&a[0]).addr`. Through `_Generic`,
+  though, an array kelvinc cannot see (a C struct's `char` array field)
+  is a pointer, so its `.hex` is its first element's address. Pointers
+  have no `.dec`, `.oct` or `.bin`, and `.cstr` is as before: a string's
+  own text, another pointer's `%p`-like text (`0x16ee86888`), and none
+  for a function *(provisional P48)*.
 - **The text lives on the caller's stack**, in a buffer sized in advance:
   for `.dec` and friends, to fit the text of any type (at most 132 bytes,
   for `.bin`); for `.cstr`, from the receiver's struct, or 64 bytes for
@@ -827,15 +844,15 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   *(provisional P34)*.
 - **Fields win.** A field with the same name wins, in a Kelvin struct and
   in a C struct from a header. When kelvinc cannot see whether the
-  receiver is a struct, `.size`, `.type` and the converters such as
-  `.i64` are fields (write `sizeof(x)`, `var y:x.type` or `i64(x)`
-  there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are
+  receiver is a struct, `.size`, `.type`, `.addr` and the converters
+  such as `.i64` are fields (write `sizeof(x)`, `var y:x.type`,
+  `x as uintptr_t` or `i64(x)` there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are
   properties. `.typename` is a property also of a C struct, since C++
   reserves the word and C headers rarely name a field so (#34).
-- **Errors.** `.hex` on a pointer, bool or struct, and `.oct` or
-  `.bin` on a float, are errors. Where kelvinc cannot see the type, as in
-  `getenv("HOME").hex`, the C compiler reports it, naming
-  `kv_no_such_property`.
+- **Errors.** `.hex` on a bool or struct, `.dec`, `.oct` or `.bin` on a
+  pointer, and `.oct` or `.bin` on a float, are errors. Where kelvinc
+  cannot see the type, as in `getenv("HOME").oct` or `div(7, 2).hex`,
+  the C compiler reports it, naming `kv_no_such_property`.
 - **Enums** follow C's types. An enumerator such as `BLUE` is an `int`,
   so `BLUE.dec` is `+2`. A variable of an enum type has the integer type
   the C compiler picks, `unsigned int` on gcc and clang when no

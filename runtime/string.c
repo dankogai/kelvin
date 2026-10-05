@@ -227,6 +227,22 @@ uint8_t *kv_dec_f64(double v, uint8_t *buf) { return float_text(v, "%+.17g", buf
 uint8_t *kv_hex_f32(float v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 uint8_t *kv_hex_f64(double v, uint8_t *buf) { return float_text(v, "%+a", buf); }
 
+/* ---------- p.hex (#37) ---------- */
+
+uint8_t *kv_hex_addr(uintptr_t v, uint8_t *buf) {
+    char digits_buf[132];
+    digits(v, 16, false, digits_buf);
+    size_t width = 2 * sizeof v, n = strlen(digits_buf);
+    char *out = (char *)buf;
+    out[0] = '0';
+    out[1] = 'x';
+    memset(out + 2, '0', width - n);
+    strcpy(out + 2 + width - n, digits_buf);
+    return buf;
+}
+
+uint8_t *kv_hex_ptr(const volatile void *p, uint8_t *buf) { return kv_hex_addr((uintptr_t)p, buf); }
+
 /* ---------- numbers from text (#36) ---------- */
 
 /* The text after leading spaces and a sign, which *neg tells, past

@@ -376,9 +376,11 @@ static char *expr_bare(Expr *e) {
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
         if (!strcmp(e->text, "typename")) /* a type kelvinc cannot see (#34) */
-            return strfmt("kv_typename(%s)", recv);
+            return strfmt("kv_typename((%s))", recv);
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev")) /* #26 */
             return strfmt("(%s %s 1)", recv, e->text[0] == 'n' ? "+" : "-");
+        if (!strcmp(e->text, "addr")) /* #37 */
+            return strfmt("((uintptr_t)(%s))", recv);
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
         const char *size = r                          ? strfmt("kv_cstr_size_%s", r->name)
@@ -396,6 +398,8 @@ static char *expr_bare(Expr *e) {
         }
         if (r)
             return strfmt("%s__cstr(%s, %s)", r->name, recv, buf); /* a struct kelvinc can see */
+        if (e->op && !strcmp(e->op, "pointer")) /* p.hex of a pointer or a function (#37) */
+            return strfmt("kv_hex_addr((uintptr_t)(%s), %s)", recv, buf);
         /* a receiver that holds a property or method call, as in
            x.hex[2].hex, goes into a temporary like a method's receiver,
            so that nesting stays linear in size */
@@ -410,8 +414,12 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(m->method, "cstr"))
                 buf_printf(&structs, "%s: kv_cstr_unseen_struct, ", m->ctype);
         }
-        char *call = strfmt("_Generic((%s), KV_PROPERTY_%s %sdefault: %s)(%s, %s)", self, e->text, structs.buf,
-                            cstr ? "kv_cstr_ptr" : "kv_no_such_property", self, buf);
+        /* .hex of what kelvinc cannot see may be of a pointer (#37) */
+        const char *other = cstr                        ? "kv_cstr_ptr"
+                            : !strcmp(e->text, "hex") ? strfmt("KV_HEX_DEFAULT((%s))", self)
+                                                      : "kv_no_such_property";
+        char *call = strfmt("_Generic((%s), KV_PROPERTY_%s %sdefault: %s)(%s, %s)", self, e->text, structs.buf, other,
+                            self, buf);
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {

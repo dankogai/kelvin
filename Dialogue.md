@@ -1694,3 +1694,61 @@ through header functions, and each new check. There are 336 tests.
 Q13, the difference of two pointers as a `.diff` property (a
 `ptrdiff_t`), is set aside and no longer pending. `p0 - p1` remains C's
 `ptrdiff_t` subtraction.
+
+### 60. `.addr` and `.hex` of pointers
+
+> Add `p.addr` to pointer types which always returns its own numerical
+> value. `p.hex` returns its stringified value in a printf format
+> `%016p` or `%08p` depending on the size of the pointer. cf:
+> (a claude.ai conversation)
+
+The linked conversation needs a claude.ai sign-in, so **Claude** did not
+read it. It checked C: `%016p` counts the `0x` in its width
+(`0x0000016ee86888` on both compilers here), and the `0` flag with `%p`
+is undefined. **Claude** asked three questions, and the user took each
+recommendation:
+
+| Question | Answer |
+|----------|--------|
+| The type of `p.addr` | `uintptr_t`, as wide as a pointer on any target |
+| The text of `p.hex` | `0x` and all the digits: `0x000000016ee86888`, 8 digits on a 32-bit target |
+| Which values have them | every pointer and function value; an array is an error, pointers keep no `.dec`, `.oct` or `.bin`, and `.cstr` stays as it is |
+
+**Claude** implemented #37. Its choices are provisional P48:
+
+- Where kelvinc cannot see the receiver, `.addr` is a field, as `.size`
+  is, since C structs often have one.
+- `.hex` there reaches every pointer through GCC's and clang's
+  `__builtin_classify_type`.
+- `.addr` needs a written type in a declaration.
+
+Two error tests that had pointers without `.hex` now use `.dec` and
+`.oct`, which pointers still lack. A third, about a struct, got the new
+message. There are 343 tests.
+
+### 61. The review of #37
+
+**Claude** ran an adversarial review in four lenses: the runtime, the
+parser, regressions, and the docs and tests. Skeptics confirmed 30 of
+the 32 findings. None needed the user's decision. The fixes:
+
+- `.hex` of a compound literal's member, as in `(div_t){.quot = 3,
+  .rem = 1}.quot.hex`, had stopped compiling. The new macro's argument
+  was not parenthesized, so the literal's comma split it. The older
+  `kv_typename` macro had the same flaw. Both are parenthesized now.
+- `.addr` treated `&x` of a C name, and text properties such as
+  `n.hex`, as unknown values, so it took them for fields. kelvinc now
+  sees these as pointers, along with a pointer stepped with `+` or `-`
+  and a `?:` of pointers.
+- Docs: `.addr` of a pointer only C sees is a field, and is written
+  `x as uintptr_t` there. An array only C sees decays in `_Generic`, so
+  its `.hex` is an address, as its `.typename` and `.cstr` are. Other
+  fixes: the Errors bullet, the `.cstr` sentence, the C column of row
+  #37, a quick-table row, and this file's own count of changed tests.
+- Tests pin that `.addr` is unsigned, that `.hex` has lowercase digits,
+  string literals, `p.addr.hex`, returning `p.addr`, the compound
+  literals, and `.hex` of an unseen C struct. There are 344 tests.
+
+Not changed: a method on `u64` does not reach `p.addr` where
+`uintptr_t` is `unsigned long`, which `.size` already shares (noted in
+P48).

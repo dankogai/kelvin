@@ -1,7 +1,8 @@
 // error: kv_no_such_property
-// a pointer kelvinc cannot see is a C type error, not just a warning
+// a pointer kelvinc cannot see has no .oct: a C type error, not just a
+// warning (its .hex is its address, #37)
 #import <stdlib.h> as C
 main():i32 {
-    println(getenv("HOME").hex);
+    println(getenv("HOME").oct);
     return 0;
 }

@@ -1815,8 +1815,9 @@ static void require_bool(Expr *e) {
     } else if (e->kind == E_STRING) {
         what = "a string", hint = "s != nullptr";
     } else if (e->kind == E_PROPERTY) {
-        what = !strcmp(e->text, "size") ? "size_t" : "u8^";
-        hint = !strcmp(e->text, "size") ? "x.size != 0" : "x != nullptr";
+        bool number = !strcmp(e->text, "size") || !strcmp(e->text, "addr");
+        what = !strcmp(e->text, "size") ? "size_t" : number ? "uintptr_t" : "u8^";
+        hint = number ? strfmt("x.%s != 0", e->text) : "x != nullptr";
     } else {
         Type *t = value_type(e);
         if (!t)
@@ -1856,7 +1857,7 @@ static char expr_class(Expr *e, Decl **record) {
     case E_STRING:
         return 'n';
     case E_PROPERTY:
-        return !strcmp(e->text, "size") ? 'i' : 'n';
+        return !strcmp(e->text, "size") || !strcmp(e->text, "addr") ? 'i' : 'n';
     default:
         return type_class(value_type(e), record);
     }
@@ -1969,6 +1970,33 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     return e;
 }
 
+/* Does kelvinc see that e is a pointer or a function (#37): one of
+   their types, a function's name, a string, nullptr, &x, a text property
+   (u8^), a pointer stepped with + or -, or a ?: or comma of pointers? */
+static bool pointer_expr(Expr *e) {
+    static const char *texts[] = {"dec", "hex", "oct", "bin", "cstr", "typename", NULL};
+    Type *t = value_type(e);
+    if ((t && (t->kind == T_PTR || t->kind == T_FUNC)) || e->kind == E_STRING || e->kind == E_FUNC ||
+        is_function_designator(e) || (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")))
+        return true;
+    for (int i = 0; e->kind == E_PROPERTY && texts[i]; i++)
+        if (!strcmp(e->text, texts[i]))
+            return true;
+    switch (e->kind) {
+    case E_PREFIX:
+        return !strcmp(e->op, "&");
+    case E_BINARY:
+        if (!strcmp(e->op, ","))
+            return pointer_expr(e->b);
+        return (!strcmp(e->op, "+") && ((pointer_expr(e->a) && number_expr(e->b)) || (number_expr(e->a) && pointer_expr(e->b)))) ||
+               (!strcmp(e->op, "-") && pointer_expr(e->a) && number_expr(e->b));
+    case E_TERNARY:
+        return pointer_expr(e->b) && pointer_expr(e->c);
+    default:
+        return false;
+    }
+}
+
 /* Is v.i64 (any converter name) a field of v: one of a Kelvin struct
    that has it, of a C struct, or of what kelvinc cannot see is no struct?
    (#36) */
@@ -2060,6 +2088,28 @@ static Expr *property(Expr *e, Token *name, char *member) {
         }
         return x;
     }
+    if (!strcmp(member, "addr") || !strcmp(member, "hex")) {
+        /* p.addr is a pointer's or a function's address as a uintptr_t,
+           and p.hex its text, 0x and all the digits (#37) */
+        Decl *record;
+        char c = expr_class(e, &record);
+        Type *t = value_type(e);
+        if (t && t->kind == T_ARRAY)
+            error_at(name->pos, "'.%s' of an array: an array is no pointer; write '(&a[0]).%s'", member, member);
+        if (pointer_expr(e)) {
+            Expr *x = new_expr(E_PROPERTY, name->pos);
+            x->a = e;
+            x->text = member;
+            x->op = "pointer";
+            return x;
+        }
+        if (!strcmp(member, "addr")) {
+            /* as for .size, a field wins where kelvinc is unsure */
+            if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
+                return NULL;
+            error_at(name->pos, "'.addr' is a property of pointers and functions");
+        }
+    }
     bool is_size = !strcmp(member, "size");
     bool is_cstr = !strcmp(member, "cstr");
     bool is_text = !strcmp(member, "dec") || !strcmp(member, "hex") || !strcmp(member, "oct") || !strcmp(member, "bin");
@@ -2089,7 +2139,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
     }
     if (is_text && (c == 'n' || c == 's'))
         error_at(name->pos, "'.%s' is a property of integers%s", member,
-                 !strcmp(member, "dec") || !strcmp(member, "hex") ? " and of f32/f64" : "");
+                 !strcmp(member, "hex") ? ", of f32/f64, and of pointers and functions"
+                 : !strcmp(member, "dec") ? " and of f32/f64"
+                                          : "");
     if (is_text && c == 'f' && (!strcmp(member, "oct") || !strcmp(member, "bin")))
         error_at(name->pos, "'.%s' is a property of integers; f32 and f64 have .dec and .hex", member);
     Expr *x = new_expr(E_PROPERTY, name->pos);
@@ -2975,8 +3027,9 @@ static Expr *text_in_buffer(Expr *e) {
     case E_PREFIX: /* &text[i] */
         return !strcmp(e->op, "&") && e->a->kind == E_INDEX ? text_in_buffer(e->a->a) : NULL;
     case E_PROPERTY: {
-        /* .typename is a string literal C chooses (#34) */
-        if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type"))
+        /* .typename is a string literal C chooses (#34), .addr a number (#37) */
+        if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
+            !strcmp(e->text, "addr"))
             return NULL;
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
