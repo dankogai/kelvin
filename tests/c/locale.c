@@ -12,10 +12,10 @@ int main(void)
         if (setlocale(LC_NUMERIC, names[i]) && strcmp(localeconv()->decimal_point, ".") != 0)
             break;
     println(1.5, " ", -1.5e16, " ", 0.0015, " ", 2.5e-8, " ", 1.5e30f, " ", -0.25f, " ", 1.5e300L);
-    kv_template t = {0};
-    KV_TEMPLATE_VALUE(&t, 1.5e16);
-    println((const char *)t.text);
-    kv_template_free(&t);
+    char t[32];
+    KV_TEMPLATE_BUILD(b, t);
+    KV_TEMPLATE_VALUE(b, 24, 1.5e16);
+    println(KV_TEMPLATE_TAKE(t, b));
     return 0;
 }
 // out: 1.5 -1.5e+16 0.0015 2.5e-08 1.5e+30 -0.25 1.5e+300

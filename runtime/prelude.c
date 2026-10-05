@@ -1,5 +1,6 @@
 /* prelude.c - the Kelvin prelude: print() and println(), and the text of
-   template literals (#39), which shows each value as print does
+   template literals (#39), which shows each value as print does, written
+   into storage the caller gives: nothing here allocates
 
    Built into libkelvin.a and libkelvin.so / libkelvin.dylib. Output goes
    through stdio, so it interleaves correctly with printf. */
@@ -166,89 +167,98 @@ void kv_print_i128(__int128 v) {
 
 /* ---------- template literals (#39) ---------- */
 
-/* Appends n bytes of s, keeping the text NUL-terminated */
-static void append(kv_template *t, const char *s, size_t n) {
-    if (t->len + n + 1 > t->cap) {
-        size_t cap = t->cap ? t->cap : 64;
-        while (cap < t->len + n + 1)
-            cap *= 2;
-        uint8_t *text = realloc(t->text, cap);
-        if (!text) {
-            fputs("kelvin: out of memory for a template literal\n", stderr);
-            abort();
-        }
-        t->text = text;
-        t->cap = cap;
-    }
-    memcpy(t->text + t->len, s, n);
-    t->len += n;
-    t->text[t->len] = '\0';
+/* Puts at most max bytes of the n bytes at s, and returns the end. The
+   writers of numbers, bools and pointers never need the cut: kelvinc
+   makes room for their longest text, which C checks (KV_TEMPLATE_VALUE) */
+static char *put(char *p, size_t max, const char *s, size_t n) {
+    n = n < max ? n : max;
+    memcpy(p, s, n);
+    return p + n;
 }
 
-void kv_template_free(kv_template *t) {
-    free(t->text);
-    *t = (kv_template){0};
+char *kv_template_part(char *p, const char *s, size_t n) {
+    memcpy(p, s, n);
+    return p + n;
 }
 
-/* The built text replaces the earlier one in the template's storage */
-char *kv_template_take(kv_template *storage, kv_template *built) {
-    if (!built->text)
-        append(built, "", 0);
-    free(storage->text);
-    *storage = *built;
-    *built = (kv_template){0};
-    return (char *)storage->text;
+char *kv_template_copy(char *storage, const char *built, const char *end) {
+    size_t n = (size_t)(end - built);
+    memcpy(storage, built, n);
+    storage[n] = '\0';
+    return storage;
 }
 
-void kv_template_part(kv_template *t, const char *s, size_t n) { append(t, s, n); }
+char *kv_template_char(char *p, size_t max, char v) { return put(p, max, &v, 1); }
 
-void kv_template_char(kv_template *t, char v) { append(t, &v, 1); }
-
-void kv_template_i64(kv_template *t, long long v) {
+char *kv_template_i64(char *p, size_t max, long long v) {
     char buf[32];
-    append(t, buf, (size_t)snprintf(buf, sizeof buf, "%lld", v));
+    return put(p, max, buf, (size_t)snprintf(buf, sizeof buf, "%lld", v));
 }
 
-void kv_template_u64(kv_template *t, unsigned long long v) {
+char *kv_template_u64(char *p, size_t max, unsigned long long v) {
     char buf[32];
-    append(t, buf, (size_t)snprintf(buf, sizeof buf, "%llu", v));
+    return put(p, max, buf, (size_t)snprintf(buf, sizeof buf, "%llu", v));
 }
 
-void kv_template_bool(kv_template *t, bool v) { kv_template_str(t, v ? "true" : "false"); }
+char *kv_template_bool(char *p, size_t max, bool v) { return v ? put(p, max, "true", 4) : put(p, max, "false", 5); }
 
-void kv_template_str(kv_template *t, const char *v) {
-    v = v ? v : "(null)";
-    append(t, v, strlen(v));
+/* a string longer than max shows its first max - 3 bytes and "..."; it
+   is read no further than max + 1 bytes */
+char *kv_template_str(char *p, size_t max, const char *v) {
+    if (!v)
+        return put(p, max, "(null)", 6);
+    size_t n = 0;
+    while (n <= max && v[n])
+        n++;
+    if (n <= max)
+        return put(p, max, v, n);
+    size_t keep = max > 3 ? max - 3 : 0; /* a byte array's text may be short */
+    p = put(p, keep, v, keep);
+    return put(p, max - keep, "...", 3);
 }
 
-void kv_template_ptr(kv_template *t, const void *v) {
+char *kv_template_bytes(char *p, size_t n, const void *v) {
+    const char *s = v;
+    size_t len = 0;
+    while (len < n && s[len])
+        len++;
+    return put(p, n, s, len);
+}
+
+char *kv_template_ptr(char *p, size_t max, const void *v) {
     char buf[40];
-    append(t, buf, (size_t)snprintf(buf, sizeof buf, "%p", v));
+    int n = snprintf(buf, sizeof buf, "%p", v);
+    return put(p, max, buf, n < (int)sizeof buf ? (size_t)n : sizeof buf - 1);
 }
 
-void kv_template_f64(kv_template *t, double v) {
+char *kv_template_f64(char *p, size_t max, double v) {
     char buf[96];
-    kv_template_str(t, f64_text(v, buf));
+    const char *t = f64_text(v, buf);
+    return put(p, max, t, strlen(t));
 }
 
-void kv_template_f32(kv_template *t, float v) {
+char *kv_template_f32(char *p, size_t max, float v) {
     char buf[96];
-    kv_template_str(t, f32_text(v, buf));
+    const char *t = f32_text(v, buf);
+    return put(p, max, t, strlen(t));
 }
 
-void kv_template_f80(kv_template *t, long double v) {
+char *kv_template_f80(char *p, size_t max, long double v) {
     char buf[96];
-    kv_template_str(t, f80_text(v, buf));
+    const char *t = f80_text(v, buf);
+    return put(p, max, t, strlen(t));
 }
 
 #ifdef __SIZEOF_INT128__
-void kv_template_u128(kv_template *t, unsigned __int128 v) {
+char *kv_template_u128(char *p, size_t max, unsigned __int128 v) {
     char buf[48];
-    kv_template_str(t, u128_text(v, buf));
+    const char *t = u128_text(v, buf);
+    return put(p, max, t, strlen(t));
 }
 
-void kv_template_i128(kv_template *t, __int128 v) {
+char *kv_template_i128(char *p, size_t max, __int128 v) {
     char buf[48];
-    kv_template_str(t, i128_text(v, buf));
+    const char *t = i128_text(v, buf);
+    return put(p, max, t, strlen(t));
 }
 #endif

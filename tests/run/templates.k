@@ -135,4 +135,6 @@ again:
 // out: abbb 1000 3 1000 items none
 // out: 0.1 18446744073709551615 -170141183460469231731687303715884105728 hi (null) 65 true
 // out: 20 6 43 {42}
-// c: __attribute__((cleanup(kv_template_free))) kv_template _kv_template0 = {0};
+// c: char _kv_template0[sizeof "n is " + 20];
+// c: char _kv_template0[sizeof "small " ", " + 20], _kv_template1[sizeof "done " + 20];
+// c: KV_TEMPLATE_VALUE(_kv_build7, KV_TEMPLATE_STR, _kv_value20); KV_TEMPLATE_PART(_kv_build7, "b"); KV_TEMPLATE_TAKE(_kv_template7, _kv_build7); })

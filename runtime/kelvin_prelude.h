@@ -347,38 +347,71 @@ void kv_base_needs_text(struct kv_base_needs_text, ...);
 
 /* ---------- template literals (#39) ---------- */
 
-/* `a${x}b` builds its text in a fresh kv_template, from the literal parts
-   and each value as print shows it (KV_TEMPLATE_VALUE), then
-   kv_template_take moves it into the template's storage, which kelvinc
-   declares at the top of the enclosing block (of the function, where a
-   switch or goto may jump into the block) with
-   __attribute__((cleanup(kv_template_free))). The text lives until the
-   block ends, as .cstr text does, and is freed then, also on return,
-   break or goto; the next evaluation frees the earlier text. */
-typedef struct {
-    uint8_t *text;
-    size_t len, cap;
-} kv_template;
-void kv_template_free(kv_template *t);
-char *kv_template_take(kv_template *storage, kv_template *built);
-void kv_template_part(kv_template *t, const char *s, size_t n);
-void kv_template_char(kv_template *t, char v);
-void kv_template_i64(kv_template *t, long long v);
-void kv_template_u64(kv_template *t, unsigned long long v);
-void kv_template_bool(kv_template *t, bool v);
-void kv_template_str(kv_template *t, const char *v);
-void kv_template_ptr(kv_template *t, const void *v);
-void kv_template_f64(kv_template *t, double v);
-void kv_template_f32(kv_template *t, float v);
-void kv_template_f80(kv_template *t, long double v);
+/* `a${x}b` has storage that kelvinc declares at the top of the enclosing
+   block, `char _kv_template0[N];`, as it does a text property's buffer:
+   no heap, no cleanup, and a switch or goto may jump past it. N is a
+   constant that C computes: the literal parts, a NUL, and the longest
+   text of each value (by the type kelvinc sees, or KV_TEMPLATE_STR). The
+   text lives until the block ends.
+
+   Each evaluation builds the text in a buffer of its own statement
+   expression (KV_TEMPLATE_BUILD), from the parts and each value in turn,
+   as before, then copies it into the storage (KV_TEMPLATE_TAKE), so a
+   value may read the earlier text, as in s := `${s}b`.
+
+   A string value shows at most KV_TEMPLATE_STR bytes; a longer one is
+   cut and ends in "...". A program may change it with
+   KELVIN_CFLAGS=-DKV_TEMPLATE_STR=n; libkelvin needs no rebuild, since
+   kelvinc passes each value's limit to the writers. */
+#ifndef KV_TEMPLATE_STR
+#define KV_TEMPLATE_STR 256
+#endif
+#if KV_TEMPLATE_STR < 64
+#error "KV_TEMPLATE_STR must be at least 64, the longest text of any value but a string"
+#endif
+
+/* each writer puts at most max bytes at p and returns the end */
+char *kv_template_part(char *p, const char *s, size_t n);
+char *kv_template_char(char *p, size_t max, char v);
+char *kv_template_i64(char *p, size_t max, long long v);
+char *kv_template_u64(char *p, size_t max, unsigned long long v);
+char *kv_template_bool(char *p, size_t max, bool v);
+char *kv_template_str(char *p, size_t max, const char *v);
+char *kv_template_bytes(char *p, size_t n, const void *v);
+char *kv_template_ptr(char *p, size_t max, const void *v);
+char *kv_template_f64(char *p, size_t max, double v);
+char *kv_template_f32(char *p, size_t max, float v);
+char *kv_template_f80(char *p, size_t max, long double v);
+/* copies the text built in another buffer into the storage, ends it
+   with a NUL and returns it */
+char *kv_template_copy(char *storage, const char *built, const char *end);
 #ifdef __SIZEOF_INT128__
-void kv_template_u128(kv_template *t, unsigned __int128 v);
-void kv_template_i128(kv_template *t, __int128 v);
+char *kv_template_u128(char *p, size_t max, unsigned __int128 v);
+char *kv_template_i128(char *p, size_t max, __int128 v);
 #define KV_TEMPLATE_INT128 __int128: kv_template_i128, unsigned __int128: kv_template_u128,
+#define KV_TEMPLATE_INT128_BOUND __int128: 40, unsigned __int128: 39,
 #else
 #define KV_TEMPLATE_INT128
+#define KV_TEMPLATE_INT128_BOUND
 #endif
-#define KV_TEMPLATE_VALUE(t, v) _Generic((v), \
+/* The longest text of a value of v's type, as print shows it; 0 for a
+   string, which is cut at the limit given. long double is 44 at most
+   (36 digits and a 4-digit exponent, IEEE quad); a pointer is 0x and
+   its digits ("(nil)" on glibc is shorter). */
+#define KV_TEMPLATE_BOUND(v) _Generic((v), \
+    bool: 5, char: 1, \
+    signed char: 4, short: 6, int: 11, long: 20, long long: 20, \
+    unsigned char: 3, unsigned short: 5, unsigned: 10, unsigned long: 20, unsigned long long: 20, \
+    KV_TEMPLATE_INT128_BOUND \
+    float: 15, double: 24, long double: 44, \
+    char *: 0, const char *: 0, signed char *: 0, const signed char *: 0, \
+    unsigned char *: 0, const unsigned char *: 0, \
+    default: sizeof(void *) * 2 + 2)
+/* `p = writer(p, max, v);` after checking, at compile time, that the
+   value's type has no longer text than the max kelvinc gave it */
+#define KV_TEMPLATE_VALUE(b, max, v) \
+    _Static_assert(KV_TEMPLATE_BOUND(v) <= (max), "kelvinc left too little room for a template's value"); \
+    (b).at = _Generic((v), \
     bool: kv_template_bool, \
     char: kv_template_char, \
     signed char: kv_template_i64, short: kv_template_i64, int: kv_template_i64, \
@@ -390,7 +423,15 @@ void kv_template_i128(kv_template *t, __int128 v);
     char *: kv_template_str, const char *: kv_template_str, \
     signed char *: kv_template_str, const signed char *: kv_template_str, \
     unsigned char *: kv_template_str, const unsigned char *: kv_template_str, \
-    default: kv_template_ptr)(t, v)
+    default: kv_template_ptr)((b).at, (max), (v))
+/* a buffer the size of the storage, and where the text built in it ends */
+#define KV_TEMPLATE_BUILD(b, storage) \
+    struct { char *at, text[sizeof (storage)]; } b; \
+    (b).at = (b).text
+#define KV_TEMPLATE_PART(b, s) ((b).at = kv_template_part((b).at, s, sizeof s - 1))
+/* a byte array of n bytes: the text up to a NUL or its end */
+#define KV_TEMPLATE_BYTES(b, n, v) ((b).at = kv_template_bytes((b).at, (n), (v)))
+#define KV_TEMPLATE_TAKE(storage, b) kv_template_copy((storage), (b).text, (b).at)
 
 #define KV_CAT_(a, b) a##b
 #define KV_CAT(a, b) KV_CAT_(a, b)

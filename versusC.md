@@ -992,13 +992,24 @@ let card:cstr := `name: ${name}
 ```
 
 - **The text** is a `cstr`, typed as a string literal is, so
-  `` c ? `${n} items` : `none` `` works. It lives until the enclosing
-  block ends, as `.cstr` text does, and is freed then, also on `return`,
-  `break` or `goto` (it is on the heap, so it may be of any length).
-  Returning it is an error, and so is keeping it in a variable of an
-  outer block or a global: make it in that variable's block, or copy it
-  (`strdup`). Each evaluation makes the text again and frees the earlier
-  one, which its values may still read, as in ``s := `${s}b` ``.
+  `` c ? `${n} items` : `none` `` works. It is kept without the heap, in
+  a buffer at the top of the enclosing block, as `.cstr` text is, and
+  lives until the block ends (#44). Returning it is an error, and so is
+  keeping it in a variable of an outer block or a global: make it in that
+  variable's block, or copy it (`strdup`). Each evaluation makes the text
+  again in the same buffer, and its values may still read the earlier
+  text, as in ``s := `${s}b` ``; a pointer kept from an earlier
+  evaluation shows the newest text.
+- **Room** for each value's longest text is made in advance, so
+  numbers, bools, addresses, a struct's text, properties, string
+  literals, nested templates and byte arrays of known length (`u8[16]`:
+  its bytes up to a NUL or its end) are shown whole. Other strings, and
+  values only C sees, show at most 256 bytes: a longer one shows its
+  first 253 and `...`, and ``s := `${s}b` `` stops growing there
+  *(provisional P56)*. `KELVIN_CFLAGS=-DKV_TEMPLATE_STR=4096` raises the
+  limit (it is at least 64); for longer text, use `print` or C's
+  `snprintf`. Each such value takes that much stack, twice while its
+  text is built.
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text

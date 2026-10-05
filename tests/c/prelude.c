@@ -17,14 +17,10 @@ int main(void)
        arm64), 113 for IEEE quad (as on arm64 Linux) */
     println(10.0L, " ", 1500.0L, " ", 1e15L, " ", 0.0001L, " ", 1e-5L, " ", 1e300L);
     println(-1500.25L, " ", 0.0015L, " ", -0.0015L, " ", -1.25e-300L);
-    kv_template top = {0}, above = {0};
-    kv_template_f80(&top, ldexpl(1, LDBL_MANT_DIG));
-    kv_template_f80(&above, nextafterl(ldexpl(1, LDBL_MANT_DIG), INFINITY));
-    const char *t = (const char *)top.text;
-    println((bool)(!strchr(t, 'e') && !strcmp(t + strlen(t) - 2, ".0")), " ",
-            (bool)strchr((const char *)above.text, 'e'));
-    kv_template_free(&top);
-    kv_template_free(&above);
+    char top[48], above[48];
+    *kv_template_f80(top, 44, ldexpl(1, LDBL_MANT_DIG)) = '\0';
+    *kv_template_f80(above, 44, nextafterl(ldexpl(1, LDBL_MANT_DIG), INFINITY)) = '\0';
+    println((bool)(!strchr(top, 'e') && !strcmp(top + strlen(top) - 2, ".0")), " ", (bool)strchr(above, 'e'));
     return 0;
 }
 // out: from C: -42 2.5 200 true 1

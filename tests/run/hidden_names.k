@@ -45,5 +45,5 @@ main():i32 {
 // c: _kv_holder_fn
 // c: static inline uint8_t *_kv_point_cstr(struct point self, uint8_t *_kv_buf)
 // c: __auto_type _kv_p_self
-// c: __attribute__((cleanup(kv_template_free))) kv_template _kv_template0 = {0};
-// c: kv_template _kv_build0 = {0}; __auto_type _kv_value0 = ((void)0, (n));
+// c: char _kv_template0[sizeof "" + 20];
+// c: KV_TEMPLATE_BUILD(_kv_build0, _kv_template0); __auto_type _kv_value0 = ((void)0, (n));

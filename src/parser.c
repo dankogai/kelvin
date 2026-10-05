@@ -1128,6 +1128,110 @@ static Expr *parse_postfix_ops(Expr *e) {
 
 static Type *value_type(Expr *e);
 
+static bool is_comparison(const char *op);
+
+/* the kind of number of type t, as C's arithmetic makes it: "i64" (any
+   integer up to 64 bits, a bool, an enum), "i128" or "f64" (f32 or f64);
+   NULL for anything else */
+static const char *number_kind(Type *t) {
+    if (!t || t->kind != T_BASE)
+        return NULL;
+    static const char *ints[] = {"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "bool", NULL};
+    for (int i = 0; ints[i]; i++)
+        if (!strcmp(t->name, ints[i]))
+            return "i64";
+    if (!strncmp(t->name, "enum ", 5))
+        return "i64";
+    if (!strcmp(t->name, "i128") || !strcmp(t->name, "u128"))
+        return "i128";
+    if (!strcmp(t->name, "f32") || !strcmp(t->name, "f64"))
+        return "f64";
+    return NULL;
+}
+
+/* A type of the same longest text as a template's value (#39): the type
+   kelvinc sees, or for arithmetic on numbers whose kinds it sees, i64
+   (any integer up to 64 bits), i128 or f64 (f32 and f64); bool for
+   comparisons, ! and the logic operators. NULL otherwise: C's own
+   functions, macros and typedefs, pointer arithmetic */
+static Type *shown_type(Expr *e) {
+    if (e->kind == E_TERNARY) {
+        /* C converts both i8s of c ? a : b to int, as it does a + b */
+        Type *b = shown_type(e->b), *c = shown_type(e->c);
+        if (!b || !c || b->kind != T_BASE || c->kind != T_BASE)
+            return NULL;
+        Expr sum = {.kind = E_BINARY, .op = "+", .a = e->b, .b = e->c};
+        return shown_type(&sum);
+    }
+    Type *t = value_type(e);
+    if (t)
+        return t && t->kind == T_TYPEOF ? NULL : t;
+    const char *kind = NULL;
+    switch (e->kind) {
+    case E_LITERAL: {
+        const char *s = e->text;
+        size_t n = strlen(s);
+        if (!strcmp(s, "true") || !strcmp(s, "false"))
+            kind = "bool";
+        else if (s[0] == '\'' || (s[0] >= '0' && s[0] <= '9') || s[0] == '.') {
+            bool hex = s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
+            bool flt = strchr(s, '.') || (!hex && strpbrk(s, "eE")) || (hex && strpbrk(s, "pP"));
+            if (s[0] == '\'')
+                kind = "i64";
+            else if (!flt)
+                kind = "i64";
+            else if (strchr("lL", s[n - 1]))
+                kind = NULL; /* long double: C's */
+            else
+                kind = "f64";
+        }
+        break;
+    }
+    case E_BINARY: {
+        if (is_comparison(e->op) || !strcmp(e->op, "&&") || !strcmp(e->op, "||")) {
+            kind = "bool";
+            break;
+        }
+        if (!strcmp(e->op, ","))
+            return shown_type(e->b);
+        if (strchr(e->op, '=')) /* an assignment has its target's type */
+            return value_type(e->a);
+        Type *a = shown_type(e->a), *b = shown_type(e->b);
+        if (!a || !b || a->kind != T_BASE || b->kind != T_BASE)
+            return NULL;
+        kind = "i64";
+        for (int i = 0; i < 2 && kind; i++) {
+            const char *k = number_kind(i ? b : a);
+            if (!k)
+                return NULL;
+            if (!strcmp(k, "f64") || (!strcmp(k, "i128") && strcmp(kind, "f64")))
+                kind = k;
+        }
+        break;
+    }
+    case E_PREFIX:
+        if (!strcmp(e->op, "!"))
+            kind = "bool";
+        else if (!strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~")) {
+            /* -x of a u8 is C's int, and may be -255 */
+            kind = number_kind(shown_type(e->a));
+            if (kind && !strcmp(kind, "f64"))
+                return shown_type(e->a);
+        } else
+            return shown_type(e->a); /* ++x, --x */
+        break;
+    case E_POSTFIX:
+        return shown_type(e->a);
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+        kind = "u64";
+        break;
+    default:
+        break;
+    }
+    return kind ? base_type(kind, e->pos) : NULL;
+}
+
 /* set while parsing a static local's initializer, which C needs constant */
 static bool static_init;
 
@@ -1164,6 +1268,7 @@ static Expr *parse_template(void) {
         Decl *record;
         if (expr_class(v, &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        v->shown = shown_type(v);
         list_push(&e->items, v);
         part = peek();
         if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
@@ -3019,8 +3124,8 @@ static void check_assign_op(const char *op, Type *t, const char *what, Pos pos, 
 
 static Expr *text_in_buffer(Expr *e);
 
-/* A template's text is freed when its block ends (#39), so a variable of
-   an outer block, or a global, would keep it after it is gone; the
+/* A template's text is stored in its block (#39), so a variable of an
+   outer block, or a global, would keep it after it is gone; the
    function's own parameters end with its body */
 static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
     Expr *text = target->kind == E_IDENT ? text_in_buffer(value) : NULL;
@@ -3030,7 +3135,7 @@ static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
     int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
     if (i >= here || (i >= params_start && i < params_end && here == params_end))
         return;
-    error_at(pos, "a template's text is freed when this block ends, and '%s' outlives it: make the text in the "
+    error_at(pos, "a template's text lives until this block ends, and '%s' outlives it: make the text in the "
                   "block of '%s', or copy it, as in '%s := strdup(...)'",
              target->text, target->text, target->text);
 }

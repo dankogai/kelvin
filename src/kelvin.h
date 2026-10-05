@@ -148,6 +148,9 @@ struct Expr {
     bool *unseen;     /* with cands: per argument, whether only C sees its type */
     bool c_too;       /* with cands: C's own function of the name is known, the
                          default for what no overload takes */
+    /* a template's value (#39): the type by which kelvinc reckons the
+       length of its text, NULL where it cannot see one */
+    Type *shown;
 };
 
 typedef struct {

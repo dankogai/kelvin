@@ -34,12 +34,11 @@ static List cstr_used;
 /* The buffers that text properties (x.hex) in the innermost block
    write into, "_kv_n_text[36]" each; NULL outside function bodies */
 static List *text_bufs;
-/* the template literals' storage in the innermost block (#39), and in
-   the function's body, where a block that a switch or goto jumps into
-   puts its own: C cannot jump past a cleanup variable's initializer */
-static List *template_vars, *fn_template_vars;
-static Stmt *fn_body, *switch_body;
-static bool jumped_into(Stmt *s, bool owned);
+/* the template literals' storage in the innermost block (#39),
+   "_kv_template0[size]" each */
+static List *template_vars;
+static const char *template_bound(Expr *x);
+static const char *byte_array(Expr *x);
 /* the stems of the hidden names written in the function being written,
    each followed by the number its next repeat takes (#38) */
 static List hidden_names;
@@ -356,31 +355,41 @@ static char *expr_bare(Expr *e) {
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
     case E_TEMPLATE: {
-        /* `a${x}b` (#39): built in a fresh kv_template from the literal
-           parts and each value, evaluated once into a temporary and shown
-           as print shows it, in order; then it replaces the text in the
-           template's storage, which the enclosing block declares and frees
-           when it ends. A value may read the earlier text, which is freed
-           only then. The text is a char *, as a string literal is. */
+        /* `a${x}b` (#39): built in a buffer inside the statement
+           expression, from the literal parts and each value, evaluated
+           once into a temporary and shown as print shows it, in order; the
+           text is then copied into the template's storage, which the
+           enclosing block declares with room for the parts, a NUL and each
+           value's longest text. A value may read the earlier text, which is
+           replaced only then. The text is a char *, as a string literal is. */
         char *t = hidden(NULL, "template"), *build = hidden(NULL, "build");
-        list_push(template_vars, t);
-        Buf b = {0};
-        buf_printf(&b, "({ kv_template %s = {0}; ", build);
+        Buf b = {0}, lits = {0}, bounds = {0};
+        buf_puts(&lits, "");
+        buf_puts(&bounds, "");
+        buf_printf(&b, "({ KV_TEMPLATE_BUILD(%s, %s); ", build, t);
         for (int i = 0; i < e->items.len; i++) {
             Expr *x = e->items.data[i];
             if (x->kind == E_STRING) {
                 for (int j = 0; j < x->items.len; j++)
-                    if (strcmp(x->items.data[j], "\"\""))
-                        buf_printf(&b, "kv_template_part(&%s, %s, sizeof %s - 1); ", build, (char *)x->items.data[j],
-                                   (char *)x->items.data[j]);
+                    if (strcmp(x->items.data[j], "\"\"")) {
+                        buf_printf(&b, "KV_TEMPLATE_PART(%s, %s); ", build, (char *)x->items.data[j]);
+                        buf_printf(&lits, " %s", (char *)x->items.data[j]);
+                    }
             } else {
                 /* (void)0, v: a bit-field cannot initialize __auto_type */
                 char *v = hidden(NULL, "value");
-                buf_printf(&b, "__auto_type %s = ((void)0, (%s)); KV_TEMPLATE_VALUE(&%s, %s); ", v, expr_bare(x), build,
-                           v);
+                char *value = expr_bare(x); /* a nested template names its storage */
+                const char *bound = template_bound(x);
+                buf_printf(&b, "__auto_type %s = ((void)0, (%s)); KV_TEMPLATE_%s(%s, %s, %s); ", v, value,
+                           byte_array(x) ? "BYTES" : "VALUE", build, bound, v);
+                buf_printf(&bounds, " + %s", bound);
             }
         }
-        buf_printf(&b, "kv_template_take(&%s, &%s); })", t, build);
+        buf_printf(&b, "KV_TEMPLATE_TAKE(%s, %s); })", t, build);
+        /* the parts with one NUL, and each value's text; declared after
+           the templates in its values, whose sizes it uses */
+        list_push(template_vars, strfmt("%s[sizeof%s%s]", t, lits.len ? lits.buf : " \"\"", bounds.buf));
+        e->text = t;
         return b.buf;
     }
     case E_STRING: {
@@ -823,9 +832,7 @@ static void stmt(Stmt *s) {
         Buf outer = out;
         int top = mapped_line;
         text_bufs = &bufs;
-        if (s == fn_body)
-            fn_template_vars = &tmpls;
-        template_vars = (s == switch_body || jumped_into(s, false)) && fn_template_vars ? fn_template_vars : &tmpls;
+        template_vars = &tmpls;
         out = (Buf){0};
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
@@ -841,9 +848,13 @@ static void stmt(Stmt *s) {
             mapped_line = top;
             if (bufs.len)
                 line("uint8_t %s;", names.buf);
-            /* a template's text is freed when the block ends (#39) */
+            /* templates' storage (#39): no initializer, so a switch or
+               goto may jump past it */
+            Buf tnames = {0};
             for (int i = 0; i < tmpls.len; i++)
-                line("__attribute__((cleanup(kv_template_free))) kv_template %s = {0};", (char *)tmpls.data[i]);
+                buf_printf(&tnames, "%s%s", i ? ", " : "", (char *)tmpls.data[i]);
+            if (tmpls.len)
+                line("char %s;", tnames.buf);
             if (top >= 0) { /* the statements were printed to start at line top */
                 mapped_line = -1;
                 sync((Pos){s->pos.file, top, 0});
@@ -1018,7 +1029,6 @@ static void stmt(Stmt *s) {
         break;
     }
     case S_SWITCH:
-        switch_body = s->body;
         line("switch (%s)", expr(s->expr));
         body(s->body);
         break;
@@ -1189,6 +1199,75 @@ static char *text_bound(Type *t, const char *lv) {
     return "(KV_CSTR_SCALAR - 1)"; /* a C typedef, a C struct, an enum: kv_cstr_any */
 }
 
+/* the length of a template's value x when it is a byte array whose
+   length is a number, u8[16]: its text is the bytes up to a NUL or its
+   end, never past it, as a char array member's in .cstr (P35) */
+static const char *byte_array(Expr *x) {
+    Type *t = x->shown;
+    if (t && t->kind == T_ARRAY && pointer_kind(t) == 's' && t->size && t->size->kind == E_LITERAL && !t->size_local)
+        return t->size->text;
+    return NULL;
+}
+
+/* The longest text of a template's value x, as print shows it (#39, #44),
+   a C constant: a nested template's storage, a struct's text size, a
+   property's buffer, or by the type kelvinc reckons it by (x->shown);
+   KV_TEMPLATE_STR, at least 64 and so longer than any number's text, for
+   strings and for what kelvinc cannot see. KV_TEMPLATE_VALUE checks it
+   against the type C sees. */
+static const char *template_bound(Expr *x) {
+    if (x->kind == E_TEMPLATE)
+        return strfmt("(sizeof %s - 1)", x->text);
+    if (x->kind == E_STRING) {
+        Buf b = {0};
+        for (int i = 0; i < x->items.len; i++)
+            buf_printf(&b, " %s", (char *)x->items.data[i]);
+        return strfmt("(sizeof%s - 1)", b.buf);
+    }
+    if (x->kind == E_TERNARY && !x->shown) { /* the longer of two texts */
+        const char *b = template_bound(x->b), *c = template_bound(x->c);
+        return strcmp(b, c) ? strfmt("(%s > %s ? %s : %s)", b, c, b, c) : b;
+    }
+    if (x->kind == E_PROPERTY) {
+        const char *p = x->text;
+        Decl *r = !strcmp(p, "cstr") && x->type ? kelvin_record(x->type->name) : NULL;
+        if (r)
+            return strfmt("(_kv_%s_cstr_size - 1)", r->name);
+        if (!strcmp(p, "dec"))
+            return "40";
+        if (!strcmp(p, "hex"))
+            return "35";
+        if (!strcmp(p, "oct"))
+            return "46";
+        if (!strcmp(p, "bin"))
+            return "131";
+        if (!strcmp(p, "size") || !strcmp(p, "addr"))
+            return "20";
+        /* .cstr of a string is the string; .typename */
+        if (strcmp(p, "next") && strcmp(p, "prev"))
+            return "KV_TEMPLATE_STR";
+    }
+    Type *t = x->shown;
+    if (!t)
+        return "KV_TEMPLATE_STR";
+    if (byte_array(x))
+        return byte_array(x);
+    if (t->kind == T_PTR || t->kind == T_ARRAY)
+        return pointer_kind(t) == 'a' ? "(sizeof(void *) * 2 + 2)" : "KV_TEMPLATE_STR";
+    if (t->kind != T_BASE)
+        return "KV_TEMPLATE_STR";
+    static const struct { const char *type, *bound; } numbers[] = {
+        {"i8", "4"},   {"u8", "3"},   {"i16", "6"},   {"u16", "5"},    {"i32", "11"}, {"u32", "10"}, {"i64", "20"},
+        {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"},
+    };
+    for (size_t i = 0; i < sizeof numbers / sizeof numbers[0]; i++)
+        if (!strcmp(t->name, numbers[i].type))
+            return numbers[i].bound;
+    if (!strncmp(t->name, "enum ", 5))
+        return "20";
+    return "KV_TEMPLATE_STR";
+}
+
 /* a C expression that writes the text of `lv` (type t, not an array) at p
    and gives the end */
 static char *text_writer(Type *t, const char *lv) {
@@ -1338,28 +1417,9 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     mapped_line = -1;
 }
 
-/* Can a goto or a switch jump into block s past its start, where a
-   template's storage would be declared: does s hold a label, or a case
-   that no switch inside s owns? (#39) */
-static bool jumped_into(Stmt *s, bool owned) {
-    if (!s)
-        return false;
-    if (s->kind == S_LABEL || ((s->kind == S_CASE || s->kind == S_DEFAULT) && !owned))
-        return true;
-    owned = owned || s->kind == S_SWITCH;
-    if (jumped_into(s->body, owned) || jumped_into(s->els, owned) || jumped_into(s->init, owned))
-        return true;
-    for (int i = 0; i < s->stmts.len; i++)
-        if (jumped_into(s->stmts.data[i], owned))
-            return true;
-    return false;
-}
-
 static void emit_decl(Decl *d) {
     sync(d->pos);
     hidden_names.len = 0;
-    fn_body = d->kind == D_FN ? d->body : NULL;
-    fn_template_vars = NULL;
     switch (d->kind) {
     case D_IMPORT:
         line("#include %s", d->name);

@@ -2074,3 +2074,42 @@ fixes, now in P51 to P55:
   lib/complex.k and every complex32 function have tests. With the float
   text of entries 65 and 66, there are 410 tests.
 
+### 70. Template literals without the heap
+
+> let's make template literals heap-free. so far as I know that is the
+> only feature of kelvin which implicitly use heap.
+
+**Claude** ran a design workflow. An audit confirmed the claim: kelvinc's
+C, the prelude and libkelvin called `malloc`, `realloc` and `free` only
+for templates (a counter showed 3001 allocations for 1000 evaluations,
+and 1, libc's stdout buffer, for everything else). libc's own stdout
+buffer and macOS's small cache for formatting floats remain, as they do
+for C's `printf`. Three designers proposed a bounded buffer, exact
+lengths, and an explicit capacity; two judges chose the bounded one,
+which alone kept today's behavior apart from a cut for long strings
+(exact lengths printed the wrong text after a `goto` and changed the
+order of evaluation; a 60-byte cap cut ordinary paths). **Claude** asked
+four questions, and the user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| How long may a string value be before it is cut? | 256 bytes, with `...`, as P35 cuts a string member; `-DKV_TEMPLATE_STR=n` changes it |
+| How does each evaluation write its text? | In a buffer of its own, then copied, as today, so the order and ``s := `${s}b` `` stay |
+| The check that text does not outlive its block misses fields, elements and `p^`, as for `.hex` and `.cstr` | Leave it, reword its message; close it later for all block text |
+| What is there for longer text? | The macro for now; writing a template into a byte array, later, as its own change |
+
+**Claude** implemented #44. The details are provisional P56:
+
+- A template's storage is a `char` array at the top of its block, with
+  room for the literal parts and each value's longest text, which C
+  computes and checks with a static assertion. It has no initializer
+  and no cleanup attribute, so the switch and goto hoisting is gone.
+- Numbers, bools, addresses, a struct's text, properties, string
+  literals, nested templates and byte arrays of known length are shown
+  whole; other strings are cut at 256 bytes with `...`.
+- libkelvin's writers take a place and a limit; `kv_template`,
+  `kv_template_take`, `kv_template_free` and libkelvin's only `malloc`,
+  `realloc` and `free` are gone.
+
+There are 411 tests, and all pass with clang and with gcc 15.
+
