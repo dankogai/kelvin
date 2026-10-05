@@ -12,6 +12,7 @@
 #include "kelvin.h"
 
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 
 static Buf out;
