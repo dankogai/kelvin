@@ -38,7 +38,16 @@ static List *text_bufs;
    "_kv_template0[size]" each */
 static List *template_vars;
 static const char *template_bound(Expr *x);
-static const char *byte_array(Expr *x);
+static bool byte_array(Expr *x);
+
+/* The size of the buffer that .dec, .hex, .oct or .bin of a number writes
+   into, its NUL included: the longest is an i128's */
+static const char *number_text_size(const char *property) {
+    return !strcmp(property, "dec")   ? "41"   /* -170141183460469231731687303715884105728 */
+           : !strcmp(property, "hex") ? "36"   /* -0x and 32 digits */
+           : !strcmp(property, "oct") ? "47"   /* -0o and 43 digits */
+                                      : "132"; /* -0b and 128 digits */
+}
 /* the stems of the hidden names written in the function being written,
    each followed by the number its next repeat takes (#38) */
 static List hidden_names;
@@ -362,6 +371,8 @@ static char *expr_bare(Expr *e) {
            enclosing block declares with room for the parts, a NUL and each
            value's longest text. A value may read the earlier text, which is
            replaced only then. The text is a char *, as a string literal is. */
+        if (!template_vars) /* a type outside any block: an anonymous function's head */
+            error_at(e->pos, "a template literal with ${...} is made at run time, so it cannot be part of a type");
         char *t = hidden(NULL, "template"), *build = hidden(NULL, "build");
         Buf b = {0}, lits = {0}, bounds = {0};
         buf_puts(&lits, "");
@@ -375,13 +386,22 @@ static char *expr_bare(Expr *e) {
                         buf_printf(&b, "KV_TEMPLATE_PART(%s, %s); ", build, (char *)x->items.data[j]);
                         buf_printf(&lits, " %s", (char *)x->items.data[j]);
                     }
+            } else if (byte_array(x)) {
+                /* a byte array, read no further than its own size, which
+                   sizeof gives without evaluating it again; written in the
+                   same expression, as an array in a temporary struct
+                   (mk().tag) lives no longer */
+                char *value = expr_bare(x);
+                const char *bound = template_bound(x);
+                buf_printf(&b, "KV_TEMPLATE_BYTES(%s, %s, sizeof (%s), (%s)); ", build, bound, value, value);
+                buf_printf(&bounds, " + %s", bound);
             } else {
                 /* (void)0, v: a bit-field cannot initialize __auto_type */
                 char *v = hidden(NULL, "value");
                 char *value = expr_bare(x); /* a nested template names its storage */
                 const char *bound = template_bound(x);
-                buf_printf(&b, "__auto_type %s = ((void)0, (%s)); KV_TEMPLATE_%s(%s, %s, %s); ", v, value,
-                           byte_array(x) ? "BYTES" : "VALUE", build, bound, v);
+                buf_printf(&b, "__auto_type %s = ((void)0, (%s)); KV_TEMPLATE_VALUE(%s, %s, %s); ", v, value, build,
+                           bound, v);
                 buf_printf(&bounds, " + %s", bound);
             }
         }
@@ -483,12 +503,7 @@ static char *expr_bare(Expr *e) {
             return strfmt("((uintptr_t)(%s))", recv);
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
-        const char *size = r                          ? strfmt("_kv_%s_cstr_size", r->name)
-                           : cstr                     ? "KV_CSTR_SCALAR"
-                           : !strcmp(e->text, "dec")  ? "41"   /* -170141183460469231731687303715884105728 */
-                           : !strcmp(e->text, "hex")  ? "36"   /* -0x and 32 digits */
-                           : !strcmp(e->text, "oct")  ? "47"   /* -0o and 43 digits */
-                                                      : "132"; /* -0b and 128 digits */
+        const char *size = r ? strfmt("_kv_%s_cstr_size", r->name) : cstr ? "KV_CSTR_SCALAR" : number_text_size(e->text);
         char *buf;
         if (text_bufs) {
             buf = hidden(source_of(e->a), "text");
@@ -848,13 +863,14 @@ static void stmt(Stmt *s) {
             mapped_line = top;
             if (bufs.len)
                 line("uint8_t %s;", names.buf);
-            /* templates' storage (#39): no initializer, so a switch or
-               goto may jump past it */
+            /* templates' storage (#39, #44): no initializer, so a switch
+               or goto may jump past it; unused where a macro drops the
+               template, as assert does under NDEBUG */
             Buf tnames = {0};
             for (int i = 0; i < tmpls.len; i++)
                 buf_printf(&tnames, "%s%s", i ? ", " : "", (char *)tmpls.data[i]);
             if (tmpls.len)
-                line("char %s;", tnames.buf);
+                line("__attribute__((unused)) char %s;", tnames.buf);
             if (top >= 0) { /* the statements were printed to start at line top */
                 mapped_line = -1;
                 sync((Pos){s->pos.file, top, 0});
@@ -1199,22 +1215,21 @@ static char *text_bound(Type *t, const char *lv) {
     return "(KV_CSTR_SCALAR - 1)"; /* a C typedef, a C struct, an enum: kv_cstr_any */
 }
 
-/* the length of a template's value x when it is a byte array whose
-   length is a number, u8[16]: its text is the bytes up to a NUL or its
-   end, never past it, as a char array member's in .cstr (P35) */
-static const char *byte_array(Expr *x) {
+/* Is a template's value x a byte array, u8[16] or i8[n]: its text is the
+   bytes up to a NUL or its end, never past it, as a char array member's in
+   .cstr (P35) */
+static bool byte_array(Expr *x) {
     Type *t = x->shown;
-    if (t && t->kind == T_ARRAY && pointer_kind(t) == 's' && t->size && t->size->kind == E_LITERAL && !t->size_local)
-        return t->size->text;
-    return NULL;
+    return t && t->kind == T_ARRAY && pointer_kind(t) == 's';
 }
 
 /* The longest text of a template's value x, as print shows it (#39, #44),
    a C constant: a nested template's storage, a struct's text size, a
-   property's buffer, or by the type kelvinc reckons it by (x->shown);
-   KV_TEMPLATE_STR, at least 64 and so longer than any number's text, for
-   strings and for what kelvinc cannot see. KV_TEMPLATE_VALUE checks it
-   against the type C sees. */
+   property's buffer, a byte array's length up to KV_TEMPLATE_STR, or by
+   the type kelvinc reckons it by (x->shown); KV_TEMPLATE_STR, at least
+   64 and so longer than any number's text, for strings and for what
+   kelvinc cannot see. For numbers, KV_TEMPLATE_VALUE checks it against
+   the type C sees. */
 static const char *template_bound(Expr *x) {
     if (x->kind == E_TEMPLATE)
         return strfmt("(sizeof %s - 1)", x->text);
@@ -1224,23 +1239,19 @@ static const char *template_bound(Expr *x) {
             buf_printf(&b, " %s", (char *)x->items.data[i]);
         return strfmt("(sizeof%s - 1)", b.buf);
     }
-    if (x->kind == E_TERNARY && !x->shown) { /* the longer of two texts */
+    if (x->kind == E_TERNARY && !x->shown) {
+        /* the longer of two texts, each named once, so that a chain of ?:
+           stays as long as it is written */
         const char *b = template_bound(x->b), *c = template_bound(x->c);
-        return strcmp(b, c) ? strfmt("(%s > %s ? %s : %s)", b, c, b, c) : b;
+        return strcmp(b, c) ? strfmt("(sizeof (union { char a[%s + 1]; char b[%s + 1]; }) - 1)", b, c) : b;
     }
     if (x->kind == E_PROPERTY) {
         const char *p = x->text;
         Decl *r = !strcmp(p, "cstr") && x->type ? kelvin_record(x->type->name) : NULL;
         if (r)
             return strfmt("(_kv_%s_cstr_size - 1)", r->name);
-        if (!strcmp(p, "dec"))
-            return "40";
-        if (!strcmp(p, "hex"))
-            return "35";
-        if (!strcmp(p, "oct"))
-            return "46";
-        if (!strcmp(p, "bin"))
-            return "131";
+        if (!strcmp(p, "dec") || !strcmp(p, "hex") || !strcmp(p, "oct") || !strcmp(p, "bin"))
+            return strfmt("(%s - 1)", number_text_size(p));
         if (!strcmp(p, "size") || !strcmp(p, "addr"))
             return "20";
         /* .cstr of a string is the string; .typename */
@@ -1250,8 +1261,10 @@ static const char *template_bound(Expr *x) {
     Type *t = x->shown;
     if (!t)
         return "KV_TEMPLATE_STR";
-    if (byte_array(x))
-        return byte_array(x);
+    if (byte_array(x)) /* a longer one is cut as a string is */
+        return t->size && t->size->kind == E_LITERAL
+                   ? strfmt("(%s < KV_TEMPLATE_STR ? %s : KV_TEMPLATE_STR)", t->size->text, t->size->text)
+                   : "KV_TEMPLATE_STR";
     if (t->kind == T_PTR || t->kind == T_ARRAY)
         return pointer_kind(t) == 'a' ? "(sizeof(void *) * 2 + 2)" : "KV_TEMPLATE_STR";
     if (t->kind != T_BASE)
@@ -1263,8 +1276,8 @@ static const char *template_bound(Expr *x) {
     for (size_t i = 0; i < sizeof numbers / sizeof numbers[0]; i++)
         if (!strcmp(t->name, numbers[i].type))
             return numbers[i].bound;
-    if (!strncmp(t->name, "enum ", 5))
-        return "20";
+    if (!strncmp(t->name, "enum ", 5)) /* gcc gives an enum beyond 64 bits an __int128 type */
+        return "40";
     return "KV_TEMPLATE_STR";
 }
 

@@ -3,6 +3,8 @@
 // (256) bytes
 #import <string.h> as C
 struct rec { id: i64; name: cstr }
+struct tagged { id: i64; tag: u8[8] }
+mk():tagged { (tagged){1, {'t', 'a', 'g', 's', 'a', 'n', 'd', 's'}} }
 main():i32 {
     var text:u8[400]
     for i in 0..<399 {
@@ -12,7 +14,7 @@ main():i32 {
     let s:cstr := &text[0]
     // a longer string is cut, and ends in ...
     let cut:cstr := `<${s}>`
-    println(strlen(cut), " ", &cut[250])
+    println(strlen(cut), " ", &cut[strlen(cut) - 8])
     // a nested template keeps its whole text
     println(strlen(`[${`${s}|${s}`}]`))
     // a value that reads the template's earlier text
@@ -24,7 +26,7 @@ again:
     if rounds < 300 {
         goto again
     }
-    println(strlen(g), " ", &g[250])
+    println(strlen(g), " ", &g[strlen(g) - 7])
     // numbers at their longest, also where C converts them to int
     let a:i8 = -128
     let u:u8 = 200
@@ -36,19 +38,44 @@ again:
     // a string of 256 bytes is whole, and one of 257 is cut
     text[256] = 0
     let whole:cstr := `${s}`
-    println(strlen(whole), " ", &whole[253])
+    println(strlen(whole), " ", &whole[strlen(whole) - 3])
     text[256] = 'w'
     text[257] = 0
     let longer:cstr := `${s}`
-    println(strlen(longer), " ", &longer[250])
-    // a byte array of known length is shown whole, up to a NUL or its end
+    println(strlen(longer), " ", &longer[strlen(longer) - 6])
+    // a byte array is read up to a NUL or its end, never past it, and shown
+    // whole up to 256 bytes; a longer one is cut as a string is
     var big:u8[600]
     for i in 0..<500 {
         big[i] = 'b'
     }
     big[500] = 0
+    var mid:u8[200]
+    for i in 0..<199 {
+        mid[i] = 'm'
+    }
+    mid[199] = 0
     var four:u8[4] = {'a', 'b', 'c', 'd'}
-    println(strlen(`${big}`), " [", `${four}`, "]")
+    let N = 8
+    var eight:u8[N]
+    for i in 0..<N {
+        eight[i] = 'e'
+    }
+    println(strlen(`${big}`), " ", strlen(`${mid}`), " [", `${four}`, "] [", `${eight}`, "] [", `${mk().tag}`, "]")
+    // every evaluation of a template writes into its one storage
+    var first:cstr := "none"
+    var made:cstr := "none"
+    var round = 0
+next:
+    made := `v${round}`
+    if round == 0 {
+        first := made
+    }
+    round += 1
+    if round < 3 {
+        goto next
+    }
+    println(first, " ", made, " ", first == made)
     return 0
 }
 // out: 258 pqrs...>
@@ -58,6 +85,7 @@ again:
 // out: 75
 // out: 256 tuv
 // out: 256 qrs...
-// out: 500 [abcd]
+// out: 256 199 [abcd] [eeeeeeee] [tagsands]
+// out: v2 v2 true
 // c: char _kv_template0[sizeof "<" ">" + KV_TEMPLATE_STR]
 // c: KV_TEMPLATE_BYTES(_kv_build

@@ -1001,15 +1001,17 @@ let card:cstr := `name: ${name}
   text, as in ``s := `${s}b` ``; a pointer kept from an earlier
   evaluation shows the newest text.
 - **Room** for each value's longest text is made in advance, so
-  numbers, bools, addresses, a struct's text, properties, string
-  literals, nested templates and byte arrays of known length (`u8[16]`:
-  its bytes up to a NUL or its end) are shown whole. Other strings, and
-  values only C sees, show at most 256 bytes: a longer one shows its
-  first 253 and `...`, and ``s := `${s}b` `` stops growing there
-  *(provisional P56)*. `KELVIN_CFLAGS=-DKV_TEMPLATE_STR=4096` raises the
-  limit (it is at least 64); for longer text, use `print` or C's
-  `snprintf`. Each such value takes that much stack, twice while its
-  text is built.
+  numbers, bools, addresses, a struct's text, the number properties
+  (`.dec`, `.hex`, `.oct`, `.bin`, `.size`, `.addr`), string literals and
+  nested templates are shown whole. A byte array (`u8[16]`) is read up
+  to a NUL or its end, never past it, and shown whole up to 256 bytes.
+  Other strings (`.cstr` of a string too), and values only C sees, show
+  at most 256 bytes: a longer one shows its first 253 and `...`, and
+  ``s := `${s}b` `` stops growing at 257 *(provisional P56)*.
+  `KELVIN_CFLAGS=-DKV_TEMPLATE_STR=4096` raises the limit (it is at
+  least 64); for longer text, use `print` or C's `snprintf`. Each such
+  value takes that much stack, twice while its text is built, which
+  counts in a deep recursion; a struct's text, three times.
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text

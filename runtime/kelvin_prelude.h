@@ -377,7 +377,7 @@ char *kv_template_i64(char *p, size_t max, long long v);
 char *kv_template_u64(char *p, size_t max, unsigned long long v);
 char *kv_template_bool(char *p, size_t max, bool v);
 char *kv_template_str(char *p, size_t max, const char *v);
-char *kv_template_bytes(char *p, size_t n, const void *v);
+char *kv_template_bytes(char *p, size_t max, size_t n, const void *v);
 char *kv_template_ptr(char *p, size_t max, const void *v);
 char *kv_template_f64(char *p, size_t max, double v);
 char *kv_template_f32(char *p, size_t max, float v);
@@ -429,8 +429,9 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
     struct { char *at, text[sizeof (storage)]; } b; \
     (b).at = (b).text
 #define KV_TEMPLATE_PART(b, s) ((b).at = kv_template_part((b).at, s, sizeof s - 1))
-/* a byte array of n bytes: the text up to a NUL or its end */
-#define KV_TEMPLATE_BYTES(b, n, v) ((b).at = kv_template_bytes((b).at, (n), (v)))
+/* a byte array of n bytes: the text up to a NUL or its end, cut at max
+   as a string is */
+#define KV_TEMPLATE_BYTES(b, max, n, v) ((b).at = kv_template_bytes((b).at, (max), (n), (v)))
 #define KV_TEMPLATE_TAKE(storage, b) kv_template_copy((storage), (b).text, (b).at)
 
 #define KV_CAT_(a, b) a##b

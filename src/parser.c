@@ -1131,8 +1131,8 @@ static Type *value_type(Expr *e);
 static bool is_comparison(const char *op);
 
 /* the kind of number of type t, as C's arithmetic makes it: "i64" (any
-   integer up to 64 bits, a bool, an enum), "i128" or "f64" (f32 or f64);
-   NULL for anything else */
+   integer up to 64 bits, a bool), "i128" (also an enum, which gcc may
+   make one) or "f64" (f32 or f64); NULL for anything else */
 static const char *number_kind(Type *t) {
     if (!t || t->kind != T_BASE)
         return NULL;
@@ -1141,7 +1141,7 @@ static const char *number_kind(Type *t) {
         if (!strcmp(t->name, ints[i]))
             return "i64";
     if (!strncmp(t->name, "enum ", 5))
-        return "i64";
+        return "i128";
     if (!strcmp(t->name, "i128") || !strcmp(t->name, "u128"))
         return "i128";
     if (!strcmp(t->name, "f32") || !strcmp(t->name, "f64"))
@@ -1155,50 +1155,33 @@ static const char *number_kind(Type *t) {
    comparisons, ! and the logic operators. NULL otherwise: C's own
    functions, macros and typedefs, pointer arithmetic */
 static Type *shown_type(Expr *e) {
-    if (e->kind == E_TERNARY) {
-        /* C converts both i8s of c ? a : b to int, as it does a + b */
-        Type *b = shown_type(e->b), *c = shown_type(e->c);
-        if (!b || !c || b->kind != T_BASE || c->kind != T_BASE)
-            return NULL;
-        Expr sum = {.kind = E_BINARY, .op = "+", .a = e->b, .b = e->c};
-        return shown_type(&sum);
-    }
-    Type *t = value_type(e);
+    Type *t = e->kind == E_TERNARY ? NULL : value_type(e); /* C promotes the arms of ?: */
     if (t)
-        return t && t->kind == T_TYPEOF ? NULL : t;
+        return t->kind == T_TYPEOF ? NULL : t;
     const char *kind = NULL;
     switch (e->kind) {
     case E_LITERAL: {
         const char *s = e->text;
-        size_t n = strlen(s);
         if (!strcmp(s, "true") || !strcmp(s, "false"))
             kind = "bool";
-        else if (s[0] == '\'' || (s[0] >= '0' && s[0] <= '9') || s[0] == '.') {
+        else if (s[0] == '\'')
+            kind = "i64";
+        else if ((s[0] >= '0' && s[0] <= '9') || s[0] == '.') {
             bool hex = s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
             bool flt = strchr(s, '.') || (!hex && strpbrk(s, "eE")) || (hex && strpbrk(s, "pP"));
-            if (s[0] == '\'')
-                kind = "i64";
-            else if (!flt)
-                kind = "i64";
-            else if (strchr("lL", s[n - 1]))
-                kind = NULL; /* long double: C's */
-            else
-                kind = "f64";
+            kind = flt ? "f64" : "i64";
         }
         break;
     }
+    case E_TERNARY:   /* C converts both arms of c ? a : b, as it does a + b */
     case E_BINARY: {
-        if (is_comparison(e->op) || !strcmp(e->op, "&&") || !strcmp(e->op, "||")) {
+        if (e->kind == E_BINARY && (is_comparison(e->op) || !strcmp(e->op, "&&") || !strcmp(e->op, "||"))) {
             kind = "bool";
             break;
         }
-        if (!strcmp(e->op, ","))
+        if (e->kind == E_BINARY && !strcmp(e->op, ","))
             return shown_type(e->b);
-        if (strchr(e->op, '=')) /* an assignment has its target's type */
-            return value_type(e->a);
-        Type *a = shown_type(e->a), *b = shown_type(e->b);
-        if (!a || !b || a->kind != T_BASE || b->kind != T_BASE)
-            return NULL;
+        Type *a = shown_type(e->kind == E_TERNARY ? e->b : e->a), *b = shown_type(e->kind == E_TERNARY ? e->c : e->b);
         kind = "i64";
         for (int i = 0; i < 2 && kind; i++) {
             const char *k = number_kind(i ? b : a);
@@ -1214,14 +1197,12 @@ static Type *shown_type(Expr *e) {
             kind = "bool";
         else if (!strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~")) {
             /* -x of a u8 is C's int, and may be -255 */
-            kind = number_kind(shown_type(e->a));
+            Type *a = shown_type(e->a);
+            kind = number_kind(a);
             if (kind && !strcmp(kind, "f64"))
-                return shown_type(e->a);
-        } else
-            return shown_type(e->a); /* ++x, --x */
+                return a;
+        }
         break;
-    case E_POSTFIX:
-        return shown_type(e->a);
     case E_SIZEOF_TYPE:
     case E_SIZEOF_EXPR:
         kind = "u64";

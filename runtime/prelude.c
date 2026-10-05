@@ -202,28 +202,25 @@ char *kv_template_u64(char *p, size_t max, unsigned long long v) {
 
 char *kv_template_bool(char *p, size_t max, bool v) { return v ? put(p, max, "true", 4) : put(p, max, "false", 5); }
 
-/* a string longer than max shows its first max - 3 bytes and "..."; it
-   is read no further than max + 1 bytes */
-char *kv_template_str(char *p, size_t max, const char *v) {
-    if (!v)
-        return put(p, max, "(null)", 6);
-    size_t n = 0;
-    while (n <= max && v[n])
-        n++;
-    if (n <= max)
-        return put(p, max, v, n);
-    size_t keep = max > 3 ? max - 3 : 0; /* a byte array's text may be short */
+/* At most max bytes of the text at v, which ends at a NUL or after n
+   bytes: a longer one shows its first max - 3 bytes and "...". It is
+   read no further than max + 1 or n bytes. */
+static char *cut(char *p, size_t max, const char *v, size_t n) {
+    size_t len = 0;
+    while (len <= max && len < n && v[len])
+        len++;
+    if (len <= max)
+        return put(p, max, v, len);
+    size_t keep = max > 3 ? max - 3 : 0; /* a caller from C may give a max below 3 */
     p = put(p, keep, v, keep);
     return put(p, max - keep, "...", 3);
 }
 
-char *kv_template_bytes(char *p, size_t n, const void *v) {
-    const char *s = v;
-    size_t len = 0;
-    while (len < n && s[len])
-        len++;
-    return put(p, n, s, len);
+char *kv_template_str(char *p, size_t max, const char *v) {
+    return v ? cut(p, max, v, (size_t)-1) : put(p, max, "(null)", 6);
 }
+
+char *kv_template_bytes(char *p, size_t max, size_t n, const void *v) { return cut(p, max, v, n); }
 
 char *kv_template_ptr(char *p, size_t max, const void *v) {
     char buf[40];

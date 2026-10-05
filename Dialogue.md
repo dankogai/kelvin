@@ -2104,12 +2104,46 @@ four questions, and the user took each recommendation:
   room for the literal parts and each value's longest text, which C
   computes and checks with a static assertion. It has no initializer
   and no cleanup attribute, so the switch and goto hoisting is gone.
-- Numbers, bools, addresses, a struct's text, properties, string
-  literals, nested templates and byte arrays of known length are shown
-  whole; other strings are cut at 256 bytes with `...`.
+- Numbers, bools, addresses, a struct's text, the number properties,
+  string literals, nested templates and byte arrays of known length are
+  shown whole; other strings are cut at 256 bytes with `...`.
 - libkelvin's writers take a place and a limit; `kv_template`,
   `kv_template_take`, `kv_template_free` and libkelvin's only `malloc`,
   `realloc` and `free` are gone.
 
 There are 411 tests, and all pass with clang and with gcc 15.
+
+### 71. The review of #44
+
+The user asked to commit #44 before its review finished, so da8e26e
+went out first. **Claude** ran three lenses: the runtime's bounds, the
+code kelvinc writes, and the docs and tests. Skeptics confirmed 22 of
+23 findings, all fixed, none needing the user's decision; P56 has the
+details:
+
+- A chain of `?:` between texts made C that doubled with each arm (a
+  16-arm chain of month names gave 10 MB of C, and 20 arms more than
+  clang could take), and a chain of numbers made kelvinc's own time
+  double. The longer arm is now taken through a `union`, and each arm
+  is looked at once.
+- A byte array whose length was not a literal (`u8[N]`, `u8[2 * 4]`)
+  was read past its end; now every byte array is read no further than
+  `sizeof` of it tells, and written without a temporary, so the array of
+  a struct a function returns (`mk().tag`) is still alive. A byte array
+  longer than 256 bytes reserved its whole length twice on the stack
+  and crashed where the heap had coped; it is now cut as a string is.
+- gcc gives an enum beyond 64 bits an `__int128` type, which the static
+  assertion rejected; an enum now has an `i128`'s room. The storage is
+  marked unused, as `assert` under `NDEBUG` drops a template, and a
+  template in an anonymous function's written parameter types is an
+  error, where kelvinc crashed (also before #44).
+- The bounds of `.dec`, `.hex`, `.oct` and `.bin` now come from the
+  constants their buffers use. A C test checks `KV_TEMPLATE_BOUND`
+  against the longest text of each type, and new run tests cover every
+  bound, the `?:` bound, byte arrays, storage per call and kept
+  pointers, which the mutants showed untested. The docs no longer call
+  `.cstr` of a string a property shown whole, and say what growth and
+  the stack cost.
+
+There are 415 tests, and all pass with clang and with gcc 15.
 
