@@ -586,7 +586,8 @@ main():i32 {
     `.` or an exponent. As in Swift, they are plain from 0.0001 up to
     2^53 (2^24 for `f32`), where every integer is exact (`10.0`, `0.1`,
     `9007199254740992.0`), and have an exponent otherwise (`1e+16`,
-    `1e-05`, `1e+300`)
+    `1e-05`, `1e+300`). The point is `.` whatever the C locale's, which
+    `printf` would follow
   - `bool` as `true`/`false`
   - `u8^` and string literals as strings (`(null)` for a null pointer)
   - other pointers as addresses

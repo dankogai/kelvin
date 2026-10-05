@@ -18,25 +18,35 @@
    Swift, a float is plain decimal from 0.0001 up to 2 to the power of
    its type's mantissa bits (2^53 for f64, 2^24 for f32), where every
    integer is exact, and has an exponent otherwise: 10.0, 0.0001,
-   9007199254740992.0, but 1e-05 and 1e+16. A NaN is "nan" whatever its
-   sign bit (glibc would print "-nan" for 0.0 / 0.0 on x86).
+   9007199254740992.0, but 1e-05 and 1e+16. The point is always '.',
+   whatever the C locale's is. A NaN is "nan" whatever its sign bit
+   (glibc would print "-nan" for 0.0 / 0.0 on x86).
 
    buf holds at least 96 bytes and comes in as the shortest "%.*e" text
-   (or "inf"); plain says whether the value is within 2^mantissa bits. */
+   (or "inf"), written with the locale's point; plain says whether the
+   value is within 2^mantissa bits. */
 static char *float_text(char *buf, bool plain) {
     char *e = strchr(buf, 'e');
-    if (!e || !plain)
+    if (!e)
         return buf;
     int x = atoi(e + 1);
-    if (x < -4)
-        return buf;
-    /* "-1.5e+03" becomes "-1500.0", and "1.5e-03" "0.0015" */
     char digits[48];
     int n = 0;
     for (char *s = buf; s < e; s++)
         if (*s >= '0' && *s <= '9')
             digits[n++] = *s;
     char *p = buf + (buf[0] == '-');
+    if (!plain || x < -4) {
+        /* "1,5e+16" in a German locale becomes "1.5e+16" */
+        for (int i = 0; i < n; i++) {
+            *p++ = digits[i];
+            if (i == 0 && n > 1)
+                *p++ = '.';
+        }
+        snprintf(p, 8, "e%+03d", x);
+        return buf;
+    }
+    /* "-1.5e+03" becomes "-1500.0", and "1.5e-03" "0.0015" */
     if (x < 0) {
         *p++ = '0';
         *p++ = '.';

@@ -1878,3 +1878,40 @@ values and asked which rule to follow. The user took the recommendation:
   templates, and tests/c/prelude.c covers `long double`.
 
 There are 364 tests, and all pass with clang and with gcc 15.
+
+### 66. The review of the float text
+
+**Claude** reviewed b7a3a5a and found seven things:
+
+- Under a C locale with `,` as its decimal point (a C program calling
+  `setlocale`), plain text used `.` but exponent text kept the
+  locale's `,`: `1.5 1,5e+16`. The old code printed `1,5.0`.
+- No test had a negative number below 1 in plain form, or a long double
+  fraction.
+- `kelvin_prelude.h` did not say when a float has an exponent.
+- P21 said "the user's choice" in a table headed "None of them has been
+  explicitly agreed yet".
+- In tests/c/prelude.c, an `// out: ` line had lost its trailing space,
+  a `(bool)!!` had a needless `!!`, and a comment overstated which
+  platforms have which long double.
+
+> fix them all, use . in exponent form too
+
+**Claude** fixed them:
+
+- The exponent form is now rebuilt from the digits as the plain form
+  is, so both use `.` whatever the locale. The new tests/c/locale.c
+  checks this under a `de_DE` or `fr_FR` locale when one exists (macOS
+  has them; a bare Linux image may not, and then it checks the C
+  locale). Against the old runtime, it prints `-1,5e+16`. The output
+  still matched Swift's for all 1,199,639 values, in the German locale
+  too, with clang and with gcc 15.
+- tests/run/float_text.k now has negative numbers in both forms and the
+  extremes (`5e-324`, `1.7976931348623157e+308`, f32's `1e-45` and
+  `3.4028235e+38`), and tests/c/prelude.c has long double fractions.
+- `kelvin_prelude.h` describes the rule. The provisional table's header
+  now allows rows that say "as agreed", as P21 and P27 do. versusC.md
+  notes that the point does not follow the locale, as `printf`'s would.
+- The test file's line, cast and comment are fixed.
+
+There are 366 tests, and all pass with clang and with gcc 15.

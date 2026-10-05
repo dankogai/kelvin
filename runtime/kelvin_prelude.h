@@ -13,7 +13,11 @@
    print: integers print in decimal (including 128-bit ones), floats in
    the shortest form that reads back to the same value, bool as
    true/false, byte pointers (u8^, string literals) as strings and other
-   pointers as addresses. Up to 16 values per call. */
+   pointers as addresses. Up to 16 values per call. As in Swift, a float
+   is plain decimal from 0.0001 up to 2 to the power of its type's
+   mantissa bits (2^53 for double, 2^24 for float, LDBL_MANT_DIG bits for
+   long double) and has an exponent otherwise (10.0, 1e+16, 1e-05),
+   always with '.', whatever the C locale's decimal point. */
 #ifndef KELVIN_PRELUDE_H
 #define KELVIN_PRELUDE_H
 
