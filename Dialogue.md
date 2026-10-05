@@ -1840,3 +1840,41 @@ None needed the user's decision. The fixes, now in P49 and P50:
   lines). That pins the #38 names and the cleanup attribute. More values,
   switch and goto cases, re-evaluation, the reserved names and the new
   errors have tests. There are 363 tests.
+
+### 65. Floats print in plain decimal
+
+> `println(10.0)` prints `1e+01`, `println(100.0)` prints `1e+02` and
+> `println(1500.0)` prints `1.5e+03`, while `println(123456.0)` prints
+> `123456.0`. [...] 10.0 should print as `10.0`.
+
+The cause: print tried `%.*g` at precision 1, 2, ... and took the first
+text that read back as the same value. `%.1g` of 10.0 is `1e+01`, which
+reads back exactly, and an exponent got no `.0`. Template literals share
+the text, so `${10.0}` was `1e+01` too.
+
+**Claude** compared how Swift, Python and JavaScript print the same
+values and asked which rule to follow. The user took the recommendation:
+
+| Question | Answer |
+|----------|--------|
+| When is a float plain decimal? | Swift's rule: from 0.0001 up to 2 to the power of the type's mantissa bits (2^53 for `f64`, 2^24 for `f32`), where every integer is exact; an exponent otherwise. Python's repr (below 1e16 for every type) and JavaScript's (from 1e-7 to below 1e21, with padded zeros such as `72057594037927940` for 2^56) were the other choices |
+
+**Claude** changed the runtime, recorded in P21:
+
+- The digits are still the shortest that read back the same. Plain text
+  pads them with zeros or puts `0.` and zeros in front, and always has a
+  `.`: `10.0`, `1500.0`, `9007199254740992.0`, `0.0001`.
+- Above the range, and below 0.0001 as written, the text keeps C's
+  exponent form: `1e+16`, `9.5e+15`, `1e-05`, `1e+300`. `nan`, `inf` and
+  `-inf` are unchanged.
+- C's `long double` uses its own `LDBL_MANT_DIG` (64 on x86, 53 on
+  Apple's arm64).
+- The output matched Swift's `print` for all 1,199,639 `Double` and
+  `Float` values tried (random bit patterns, powers of 2 and 10 and
+  their neighbours, integers around 2^54 and 2^26), with clang and with
+  gcc 15.
+- Two tests that expected `1e+03` and `1e+05` now expect `1000.0` and
+  `100000.0`. The new tests/run/float_text.k covers the edges and
+  templates, and tests/c/prelude.c covers `long double`.
+
+There are 364 tests, and all pass with clang and with gcc 15.

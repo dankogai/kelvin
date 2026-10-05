@@ -5,6 +5,7 @@
    through stdio, so it interleaves correctly with printf. */
 #include "kelvin_prelude.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,12 +14,46 @@
 /* ---------- the text of a value, as print shows it ---------- */
 
 /* Floats show in the shortest form that reads back as the same value,
-   with a decimal point so they are never mistaken for integers. A NaN
-   is "nan" whatever its sign bit (glibc would print "-nan" for
-   0.0 / 0.0 on x86). buf holds at least 96 bytes. */
-static char *float_text(char *buf) {
-    if (!strpbrk(buf, ".eEn")) /* not 1e9, nan or inf */
-        strcat(buf, ".0");
+   with a decimal point so they are never mistaken for integers. As in
+   Swift, a float is plain decimal from 0.0001 up to 2 to the power of
+   its type's mantissa bits (2^53 for f64, 2^24 for f32), where every
+   integer is exact, and has an exponent otherwise: 10.0, 0.0001,
+   9007199254740992.0, but 1e-05 and 1e+16. A NaN is "nan" whatever its
+   sign bit (glibc would print "-nan" for 0.0 / 0.0 on x86).
+
+   buf holds at least 96 bytes and comes in as the shortest "%.*e" text
+   (or "inf"); plain says whether the value is within 2^mantissa bits. */
+static char *float_text(char *buf, bool plain) {
+    char *e = strchr(buf, 'e');
+    if (!e || !plain)
+        return buf;
+    int x = atoi(e + 1);
+    if (x < -4)
+        return buf;
+    /* "-1.5e+03" becomes "-1500.0", and "1.5e-03" "0.0015" */
+    char digits[48];
+    int n = 0;
+    for (char *s = buf; s < e; s++)
+        if (*s >= '0' && *s <= '9')
+            digits[n++] = *s;
+    char *p = buf + (buf[0] == '-');
+    if (x < 0) {
+        *p++ = '0';
+        *p++ = '.';
+        for (int i = -1; i > x; i--)
+            *p++ = '0';
+        for (int i = 0; i < n; i++)
+            *p++ = digits[i];
+    } else {
+        for (int i = 0; i <= x; i++)
+            *p++ = i < n ? digits[i] : '0';
+        *p++ = '.';
+        if (n <= x + 1)
+            *p++ = '0';
+        for (int i = x + 1; i < n; i++)
+            *p++ = digits[i];
+    }
+    *p = '\0';
     return buf;
 }
 
@@ -26,33 +61,33 @@ static char *f64_text(double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 17; p++) {
-        snprintf(buf, 62, "%.*g", p, v);
+        snprintf(buf, 62, "%.*e", p - 1, v);
         if (strtod(buf, NULL) == v)
             break;
     }
-    return float_text(buf);
+    return float_text(buf, fabs(v) <= ldexp(1, DBL_MANT_DIG));
 }
 
 static char *f32_text(float v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 9; p++) {
-        snprintf(buf, 62, "%.*g", p, (double)v);
+        snprintf(buf, 62, "%.*e", p - 1, (double)v);
         if (strtof(buf, NULL) == v)
             break;
     }
-    return float_text(buf);
+    return float_text(buf, fabsf(v) <= ldexpf(1, FLT_MANT_DIG));
 }
 
 static char *f80_text(long double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 36; p++) {
-        snprintf(buf, 94, "%.*Lg", p, v);
+        snprintf(buf, 94, "%.*Le", p - 1, v);
         if (strtold(buf, NULL) == v)
             break;
     }
-    return float_text(buf);
+    return float_text(buf, fabsl(v) <= ldexpl(1, LDBL_MANT_DIG));
 }
 
 #ifdef __SIZEOF_INT128__

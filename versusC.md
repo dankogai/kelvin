@@ -583,7 +583,10 @@ main():i32 {
 - Each value prints according to its C type *(provisional P21)*:
   - integers of every size in decimal, so `i64` needs no `PRId64`
   - floats in the shortest text that reads back the same, always with a
-    `.` or an exponent (`1.0`, `0.1`, `1e+300`)
+    `.` or an exponent. As in Swift, they are plain from 0.0001 up to
+    2^53 (2^24 for `f32`), where every integer is exact (`10.0`, `0.1`,
+    `9007199254740992.0`), and have an exponent otherwise (`1e+16`,
+    `1e-05`, `1e+300`)
   - `bool` as `true`/`false`
   - `u8^` and string literals as strings (`(null)` for a null pointer)
   - other pointers as addresses
