@@ -1686,3 +1686,11 @@ fixes, now in P47:
 
 Tests cover the runtime rules whose mutants had survived, C's text types
 through header functions, and each new check. There are 336 tests.
+
+### 59. `.diff` set aside
+
+> Forget about `(p0 - p1).diff` for now.
+
+Q13, the difference of two pointers as a `.diff` property (a
+`ptrdiff_t`), is set aside and no longer pending. `p0 - p1` remains C's
+`ptrdiff_t` subtraction.

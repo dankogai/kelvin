@@ -317,8 +317,8 @@ Notes:
   expression `x.type` stays a field (C structs often have one); it is
   the type kelvinc sees, else `__typeof__`; `.typename` is the Kelvin
   spelling, else `_Generic`'s name of a built-in type, else `"?"`. The
-  user's earlier `(p0 - p1).diff`, a `ptrdiff_t`, waits for a change of
-  its own (Q13).
+  user's earlier `(p0 - p1).diff`, a `ptrdiff_t`, was to wait for a
+  change of its own (Q13), and was later set aside.
 
 - (35) Agreed details: "like many modern languages, `;` can be omitted
   if the statement ends in line and `return` is not necessary for
@@ -464,9 +464,9 @@ all. None of them has been explicitly agreed yet.
   Today only literals, `bool`s (#24, #25), annotated values (#8, #11,
   #15) and anonymous functions that write their parameters (#32) are
   inferred.
-- **Q13: `(p0 - p1).diff`.** The user asked for the difference of two
-  pointers as a `.diff` property, a `ptrdiff_t`, and chose to take it up
-  as a change of its own after #34.
+- ~~**Q13: `(p0 - p1).diff`.**~~ Set aside by the user (Dialogue.md
+  entry 59): the difference of two pointers as a `.diff` property, a
+  `ptrdiff_t`, is not planned for now.
 - **Q10: Compound literals.** `(struct point){.y = 7}` keeps C's
   cast-like syntax (P19). Should it get a Kelvin spelling, such as
   `struct point{.y = 7}`?
