@@ -254,7 +254,7 @@ static bool accept_kw(const char *s) {
 }
 
 static const char *desc(Token *t) {
-    if (t->kind == TK_TPL_HEAD)
+    if (t->kind == TK_TPL_HEAD || t->tpl)
         return "a template literal";
     if (t->kind == TK_TPL_MIDDLE || t->kind == TK_TPL_TAIL)
         return "'}', the end of ${...}";
@@ -866,7 +866,7 @@ static bool brace_in_for;
 static int stmt_start;
 
 /* Is the next token on a new line? */
-static bool newline_before(void) { return cur > 0 && peek()->pos.line > toks[cur - 1].pos.line; }
+static bool newline_before(void) { return cur > 0 && peek()->pos.line > toks[cur - 1].end_line; }
 
 static bool at_statement_level(void);
 
@@ -1083,15 +1083,19 @@ static Expr *parse_postfix_ops(Expr *e) {
 
 static Type *value_type(Expr *e);
 
+/* set while parsing a static local's initializer, which C needs constant */
+static bool static_init;
+
 /* `a${x}b` (#39): the template's literal parts and its values in turn.
    A value is any expression, shown as print shows it; a struct kelvinc
    sees shows its .cstr text. The text is made at run time, in storage of
    the enclosing block, so a global cannot be initialized with one. */
 static Expr *parse_template(void) {
     Token *head = advance();
-    if (!parsing_fn)
-        error_at(head->pos, "a template literal with ${...} is made at run time, and a global's initializer must be "
-                            "constant: make it in a function");
+    if (!parsing_fn || static_init)
+        error_at(head->pos, "a template literal with ${...} is made at run time, and a %s initializer must be "
+                            "constant: make it in a function",
+                 parsing_fn ? "static's" : "global's");
     Expr *e = new_expr(E_TEMPLATE, head->pos);
     Token *part = head;
     for (;;) {
@@ -2235,6 +2239,24 @@ static void check_assign_op(const char *op, Type *t, const char *what, Pos pos, 
     }
 }
 
+static Expr *text_in_buffer(Expr *e);
+
+/* A template's text is freed when its block ends (#39), so a variable of
+   an outer block, or a global, would keep it after it is gone; the
+   function's own parameters end with its body */
+static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
+    Expr *text = target->kind == E_IDENT ? text_in_buffer(value) : NULL;
+    if (!text || text->kind != E_TEMPLATE)
+        return;
+    int i = binding_index(target->text);
+    int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
+    if (i >= here || (i >= params_start && i < params_end && here == params_end))
+        return;
+    error_at(pos, "a template's text is freed when this block ends, and '%s' outlives it: make the text in the "
+                  "block of '%s', or copy it, as in '%s := strdup(...)'",
+             target->text, target->text, target->text);
+}
+
 static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
 
 /* Is the operand at token j, with its postfixes, assigned to, as in
@@ -2323,6 +2345,7 @@ static Expr *parse_assign(void) {
             }
             e->b = parse_assign();
             assign_ok = ok;
+            reject_template_escape(lhs, e->b, t->pos);
             return e;
         }
     assign_ok = ok;
@@ -2500,8 +2523,9 @@ static Type *inferred_type(Expr *e, Pos pos) {
 static void reject_kv_name(Token *t) {
     if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4))
         error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
-    if (t->kind == TK_IDENT && !strncmp(t->text, "kv_", 3))
-        error_at(t->pos, "names starting with kv_ are kelvinc's runtime's: rename '%s'", t->text);
+    if (t->kind == TK_IDENT && (!strncmp(t->text, "kv_", 3) || !strncmp(t->text, "KV_", 3) ||
+                                !strcmp(t->text, "KELVIN_PRELUDE_H")))
+        error_at(t->pos, "names starting with kv_ or KV_ are kelvinc's runtime's: rename '%s'", t->text);
 }
 
 static Var *parse_var(bool with_init, int let) {
@@ -3105,6 +3129,9 @@ static Expr *text_in_buffer(Expr *e) {
             return text_in_buffer(e->a);
         if (strcmp(e->text, "cstr") || e->a->kind == E_STRING)
             return strcmp(e->text, "cstr") ? e : NULL;
+        Expr *inner = text_in_buffer(e->a); /* `...`.cstr is the template's text (#39) */
+        if (inner)
+            return inner;
         Type *t = value_type(e->a);
         bool string = t && t->kind == T_PTR && t->elem->kind == T_BASE &&
                       (!strcmp(t->elem->name, "u8") || !strcmp(t->elem->name, "i8"));
@@ -3410,7 +3437,10 @@ static Stmt *parse_declaration(void) {
     bool is_let = accept_kw("let");
     if (!is_let && !accept_kw("var"))
         error_at(peek()->pos, "expected 'let' or 'var'");
+    bool saved = static_init;
+    static_init = s->storage && !strcmp(s->storage, "static");
     parse_var_list(&s->vars, is_let, s->storage);
+    static_init = saved;
     return s;
 }
 
@@ -4121,6 +4151,7 @@ Program *parse(Token *tokens, int ntoks) {
             continue;
         }
         stmt_start = cur;
+        top_name = NULL;
         const char *storage = parse_storage();
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
@@ -4147,10 +4178,13 @@ Program *parse(Token *tokens, int ntoks) {
                                   "never changes",
                      peek()->text, peek()->text);
         } else if (!storage && accept_kw("struct")) {
+            top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
             add_top_decl(prog, parse_record(t->pos, D_STRUCT));
         } else if (!storage && accept_kw("union")) {
+            top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
             add_top_decl(prog, parse_record(t->pos, D_UNION));
         } else if (!storage && accept_kw("enum")) {
+            top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
             add_top_decl(prog, parse_record(t->pos, D_ENUM));
         } else {
             error_at(peek()->pos, "expected a declaration (name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));

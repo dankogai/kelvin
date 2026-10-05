@@ -65,6 +65,8 @@ typedef struct {
     TokKind kind;
     Pos pos;
     char *text;
+    int end_line;  /* the line the token ends on, after a multi-line template (#39) */
+    bool tpl;      /* a template literal without ${...}, lexed as a TK_STRING */
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);

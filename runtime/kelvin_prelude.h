@@ -313,18 +313,20 @@ void kv_base_needs_text(struct kv_base_needs_text, ...);
 
 /* ---------- template literals (#39) ---------- */
 
-/* `a${x}b` builds its text in a kv_template that kelvinc declares at the
-   top of the enclosing block, __attribute__((cleanup(kv_template_free))),
-   so that the text lives until the block ends, as .cstr text does, and is
-   freed then, also on return, break or goto. Each evaluation starts it
-   again with kv_template_reset; the parts are the literal text and each
-   value as print shows it (KV_TEMPLATE_VALUE). */
+/* `a${x}b` builds its text in a fresh kv_template, from the literal parts
+   and each value as print shows it (KV_TEMPLATE_VALUE), then
+   kv_template_take moves it into the template's storage, which kelvinc
+   declares at the top of the enclosing block (of the function, where a
+   switch or goto may jump into the block) with
+   __attribute__((cleanup(kv_template_free))). The text lives until the
+   block ends, as .cstr text does, and is freed then, also on return,
+   break or goto; the next evaluation frees the earlier text. */
 typedef struct {
     uint8_t *text;
     size_t len, cap;
 } kv_template;
 void kv_template_free(kv_template *t);
-void kv_template_reset(kv_template *t);
+char *kv_template_take(kv_template *storage, kv_template *built);
 void kv_template_part(kv_template *t, const char *s, size_t n);
 void kv_template_char(kv_template *t, char v);
 void kv_template_i64(kv_template *t, long long v);

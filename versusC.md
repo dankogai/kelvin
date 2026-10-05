@@ -50,6 +50,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `(int *)malloc(n)` | `malloc(n) as i32^` |
 | `(size_t)n` | `n as size_t` |
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
+| `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
@@ -874,11 +875,14 @@ let card:cstr := `name: ${name}
   answer: ${n}`
 ```
 
-- **The text** is a `cstr`. It lives until the enclosing block ends, as
-  `.cstr` text does, and is freed then, also on `return`, `break` or
-  `goto` (it is on the heap, so it may be of any length). Store it
-  elsewhere to keep it longer; returning it is an error. Each evaluation
-  makes the text again, in the same storage.
+- **The text** is a `cstr`, typed as a string literal is, so
+  `` c ? `${n} items` : `none` `` works. It lives until the enclosing
+  block ends, as `.cstr` text does, and is freed then, also on `return`,
+  `break` or `goto` (it is on the heap, so it may be of any length).
+  Returning it is an error, and so is keeping it in a variable of an
+  outer block or a global: make it in that variable's block, or copy it
+  (`strdup`). Each evaluation makes the text again and frees the earlier
+  one, which its values may still read, as in ``s := `${s}b` ``.
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text
@@ -886,13 +890,16 @@ let card:cstr := `name: ${name}
   kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), which `print`
   itself does not; a function has no text. A value may be any
   expression, a template too.
-- **Escapes** are C's, plus `` \` `` for a backquote, `\$` and `\{` for
-  `$` and `{` (so `\${x}` stays as written), and a backslash at the end
-  of a line, which joins the lines. A new line in the template is a new
-  line in the text, and `"` needs no escape.
+- **Escapes** are C's, plus `` \` `` for a backquote, `\$`, `\{` and
+  `\}` for `$`, `{` and `}` (so `\${x}` stays as written), and a
+  backslash at the end of a line, which joins the lines. A new line in
+  the template is a new line in the text, also in a file with CRLF line
+  ends, and `"` needs no escape; text such as `??!` is taken as written,
+  never as a C trigraph.
 - **Without `${...}`** a template is a plain string literal, so it also
   works where C needs a constant. With one, it is made at run time, so a
-  global cannot be initialized with it *(provisional P50)*.
+  global or a `static` cannot be initialized with it *(provisional
+  P50)*.
 
 ## Headers and the preprocessor
 
@@ -927,8 +934,8 @@ also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators
 *(provisional P20)*. Names starting with `_kv_` belong to the C that
-kelvinc writes, and `kv_` ones to its runtime, so Kelvin cannot declare
-them *(provisional P44)*. kelvinc names what it writes after the source,
+kelvinc writes, and `kv_` and `KV_` ones to its runtime, so Kelvin cannot
+declare them *(provisional P44)*. kelvinc names what it writes after the source,
 as in `_kv_n_text` for the text buffer of `n.hex`, `_kv_i_count` for the
 counter of `for i in`, and `_kv_main_fn` for an anonymous function in
 `main`; a repeat gets 1, 2, ..., and with no name to derive from, a

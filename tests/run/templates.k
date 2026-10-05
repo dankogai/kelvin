@@ -4,6 +4,28 @@
 
 struct point { x: i32; y: i32 }
 
+// a template in a switch case, and in a block that a goto jumps into
+describe(n:i64) {
+    switch (n) {
+    case 0:
+        println("zero")
+        break
+    default:
+        println(`n is ${n}`)
+    }
+}
+jump(n:i64) {
+    if n > 5 {
+        goto big
+    }
+    {
+        print(`small ${n}, `)
+    big:
+        println(`done ${n}`)
+    }
+}
+apply(x:i64, f:(i64):i64):i64 { f(x) }
+
 var calls:i64 = 0
 next():i64 {
     calls += 1
@@ -57,6 +79,44 @@ nine\tten`
 
     // values are evaluated once each, left to right
     println(`${next()} ${next()} ${next()}`)
+
+    describe(0)
+    describe(7)
+    jump(1)
+    jump(9)
+
+    // each evaluation replaces the text, and a value may read the
+    // earlier text of the same template
+    var s:cstr := "a"
+again:
+    s := `${s}b`
+    if strlen(s) < 4 {
+        goto again
+    }
+    var m:i64 = 1
+    var rounds = 0
+    while strlen(`${m}`) < 4 {
+        m *= 10
+        rounds += 1
+    }
+    println(s, " ", m, " ", rounds, " ", m > 5 ? `${m} items` : `none`, " ", m < 5 ? `${m} items` : `none`)
+
+    // values of more types, as print shows them
+    let tiny:f32 = 0.1
+    let big:u64 = 18446744073709551615
+    let low:i128 = i128("-170141183460469231731687303715884105728")
+    var letters:i8[3] = {'h', 'i', 0}
+    let ip:i8^ := &letters[0]
+    let none:cstr := nullptr
+    var z:i32 = 1
+    let pz:i32^ := &z
+    let c:u8 = 'A'
+    println(`${tiny} ${big} ${low} ${ip} ${none} ${c} ${strcmp(`${pz}`, pz.cstr) == 0}`)
+
+    // braces, an anonymous function and a new line inside ${...}, and
+    // escaped braces
+    println(`${apply(2) { $0 * 10 }} ${(point){5, 6}.y} ${n +
+        1} \{${n}\}`)
     return 0
 }
 // out: Hello, Kelvin!
@@ -68,3 +128,11 @@ nine\tten`
 // out: plain 4 4243 5
 // out: <0:0><1:1><2:4>
 // out: 1 2 3
+// out: zero
+// out: n is 7
+// out: small 1, done 1
+// out: done 9
+// out: abbb 1000 3 1000 items none
+// out: 0.1 18446744073709551615 -170141183460469231731687303715884105728 hi (null) 65 true
+// out: 20 6 43 {42}
+// c: __attribute__((cleanup(kv_template_free))) kv_template _kv_template0 = {0};

@@ -1804,3 +1804,39 @@ P48).
   global with one.
 
 There are 354 tests.
+
+### 64. The review of #38 and #39
+
+The user asked to commit before the review finished, so b311a9c went
+out first and the review's fixes follow it. **Claude** ran four lenses:
+hidden names, the template lexer and parser, template codegen and the
+runtime, and the docs and tests. Skeptics confirmed all 37 findings.
+None needed the user's decision. The fixes, now in P49 and P50:
+
+- A template in a switch case, or in a block that a goto jumps into,
+  failed with clang and aborted with gcc. C cannot jump past a cleanup
+  variable's initializer, so such a block now keeps its templates in
+  storage at the top of the function.
+- `` c ? `${n} items` : `none` `` printed an address with clang and did
+  not compile with gcc 15. A template's text is now a `char *`, as a
+  string literal is.
+- Re-evaluating a template that reads its own earlier text was a heap
+  use-after-free. Each evaluation now builds new text and frees the old
+  text only after that. Values go through temporaries, which keeps
+  nested templates linear in size.
+- `.cstr` of a template slipped past the check against returning its
+  text, and assigning a template to a variable of an outer block, or to
+  a global, kept freed text. Both are errors now, and so is a `static`
+  initialized with one.
+- CRLF files, C trigraphs (`??!`), `\}`, the end line of a multi-line
+  template, and the positions of unterminated templates are handled.
+- Hidden names: an anonymous function in a struct is named after the
+  struct. The runtime's `KV_` macros are reserved. The struct text
+  helper's own variables are `_kv_buf` and `_kv_p`. Each name stem keeps
+  its own count, since searching all names made kelvinc cubic on a
+  template with thousands of values. A loop takes only the names it
+  uses.
+- Tests: the runner now also checks text in the generated C (`// c:`
+  lines). That pins the #38 names and the cleanup attribute. More values,
+  switch and goto cases, re-evaluation, the reserved names and the new
+  errors have tests. There are 363 tests.

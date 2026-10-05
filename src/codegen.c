@@ -30,11 +30,16 @@ static List methods;        /* Method *; a struct's derived .cstr is "cstr" */
    struct gets none (char *, the record's name) */
 static List cstr_used;
 /* The buffers that text properties (x.hex) in the innermost block
-   write into, "kv_text1[36]" each; NULL outside function bodies */
+   write into, "_kv_n_text[36]" each; NULL outside function bodies */
 static List *text_bufs;
-/* the template literals' storage in the innermost block (#39) */
-static List *template_vars;
-/* the hidden names written in the function being written (#38) */
+/* the template literals' storage in the innermost block (#39), and in
+   the function's body, where a block that a switch or goto jumps into
+   puts its own: C cannot jump past a cleanup variable's initializer */
+static List *template_vars, *fn_template_vars;
+static Stmt *fn_body, *switch_body;
+static bool jumped_into(Stmt *s, bool owned);
+/* the stems of the hidden names written in the function being written,
+   each followed by the number its next repeat takes (#38) */
 static List hidden_names;
 static Program *program;
 static bool line_directives;
@@ -157,19 +162,20 @@ static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("_k
 /* A hidden name that kelvinc writes (#38): _kv_ and the name of what it
    comes from, then its kind, as _kv_n_text for n.hex's buffer, numbered
    1, 2, ... when it repeats in a function; or, when nothing names it,
-   _kv_text0, _kv_text1, ... counted from 0 */
+   _kv_text0, _kv_text1, ... counted from 0. Each stem keeps its own
+   count, and no two stems can make the same name, since a kind is one
+   word after the source's last '_' */
 static char *hidden(const char *source, const char *kind) {
-    for (int n = source ? -1 : 0;; n++) {
-        char *name = source ? (n < 0 ? strfmt("_kv_%s_%s", source, kind) : strfmt("_kv_%s_%s%d", source, kind, n + 1))
-                            : strfmt("_kv_%s%d", kind, n);
-        bool used = false;
-        for (int i = 0; i < hidden_names.len && !used; i++)
-            used = !strcmp(hidden_names.data[i], name);
-        if (!used) {
-            list_push(&hidden_names, name);
-            return name;
+    char *stem = source ? strfmt("_kv_%s_%s", source, kind) : strfmt("_kv_%s", kind);
+    for (int i = 0; i < hidden_names.len; i += 2)
+        if (!strcmp(hidden_names.data[i], stem)) {
+            intptr_t n = (intptr_t)hidden_names.data[i + 1];
+            hidden_names.data[i + 1] = (void *)(n + 1);
+            return strfmt("%s%d", stem, (int)n);
         }
-    }
+    list_push(&hidden_names, stem);
+    list_push(&hidden_names, (void *)(intptr_t)1);
+    return source ? stem : strfmt("%s0", stem);
 }
 
 /* The name that a hidden name for e comes from: a variable, a parameter
@@ -339,25 +345,31 @@ static char *expr_bare(Expr *e) {
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
     case E_TEMPLATE: {
-        /* `a${x}b` (#39): built in a kv_template at the top of the
-           enclosing block, from its literal parts and each value as print
-           shows it, in order; its text lives until the block ends */
-        char *t = hidden(NULL, "template");
+        /* `a${x}b` (#39): built in a fresh kv_template from the literal
+           parts and each value, evaluated once into a temporary and shown
+           as print shows it, in order; then it replaces the text in the
+           template's storage, which the enclosing block declares and frees
+           when it ends. A value may read the earlier text, which is freed
+           only then. The text is a char *, as a string literal is. */
+        char *t = hidden(NULL, "template"), *build = hidden(NULL, "build");
         list_push(template_vars, t);
         Buf b = {0};
-        buf_printf(&b, "(kv_template_reset(&%s)", t);
+        buf_printf(&b, "({ kv_template %s = {0}; ", build);
         for (int i = 0; i < e->items.len; i++) {
             Expr *x = e->items.data[i];
             if (x->kind == E_STRING) {
                 for (int j = 0; j < x->items.len; j++)
                     if (strcmp(x->items.data[j], "\"\""))
-                        buf_printf(&b, ", kv_template_part(&%s, %s, sizeof %s - 1)", t, (char *)x->items.data[j],
+                        buf_printf(&b, "kv_template_part(&%s, %s, sizeof %s - 1); ", build, (char *)x->items.data[j],
                                    (char *)x->items.data[j]);
             } else {
-                buf_printf(&b, ", KV_TEMPLATE_VALUE(&%s, (%s))", t, expr_bare(x));
+                /* (void)0, v: a bit-field cannot initialize __auto_type */
+                char *v = hidden(NULL, "value");
+                buf_printf(&b, "__auto_type %s = ((void)0, (%s)); KV_TEMPLATE_VALUE(&%s, %s); ", v, expr_bare(x), build,
+                           v);
             }
         }
-        buf_printf(&b, ", %s.text)", t);
+        buf_printf(&b, "kv_template_take(&%s, &%s); })", t, build);
         return b.buf;
     }
     case E_STRING: {
@@ -641,7 +653,9 @@ static void stmt(Stmt *s) {
         Buf outer = out;
         int top = mapped_line;
         text_bufs = &bufs;
-        template_vars = &tmpls;
+        if (s == fn_body)
+            fn_template_vars = &tmpls;
+        template_vars = (s == switch_body || jumped_into(s, false)) && fn_template_vars ? fn_template_vars : &tmpls;
         out = (Buf){0};
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
@@ -739,7 +753,7 @@ static void stmt(Stmt *s) {
            copy of the counter. a...b stops at b without stepping past
            it, so 0...255 as a u8 ends (#28). */
         const char *v = strcmp(s->name, "_") ? s->name : NULL;
-        char *i = hidden(v, "count"), *end = hidden(v, "end"), *go = hidden(v, "go");
+        char *i = hidden(v, "count"), *end = hidden(v, "end"), *go = s->closed ? hidden(v, "go") : NULL;
         char *lo = expr(s->expr), *hi = expr(s->step);
         if (s->closed)
             line("for (%s = %s, %s = %s, %s = %s <= %s; %s; %s = %s != %s, %s += %s)", decl(s->type, i), lo, end,
@@ -762,7 +776,7 @@ static void stmt(Stmt *s) {
            that the body may free the node. The hidden lines map to the
            for's line, where C's warnings about them belong. */
         const char *v = strcmp(s->name, "_") ? s->name : NULL;
-        char *p = hidden(v, "ptr"), *end = hidden(v, "end"), *arr = hidden(v, "array");
+        char *p = hidden(v, "ptr"), *end = NULL, *arr = NULL; /* end and arr name only what an array uses */
         char *seq = expr(s->expr);
         Type *reader = NULL; /* const E^, for the elements; NULL: unseen */
         if (s->elem && s->each != EACH_LIST) {
@@ -785,6 +799,7 @@ static void stmt(Stmt *s) {
             line("for (%s = %s; %s != 0 && *%s != 0; %s++)", decl(reader, p), seq, p, p, p);
         } else {
             /* an array: its length is known; elements up to it */
+            end = hidden(v, "end");
             line("{");
             indent++;
             if (s->step) { /* a let array parameter: a pointer in C */
@@ -796,6 +811,7 @@ static void stmt(Stmt *s) {
                 /* through a pointer to the array, so that s is evaluated
                    once even when sizeof would evaluate it again, as for a
                    row of a variable length array */
+                arr = hidden(v, "array");
                 sync(s->pos);
                 line("__auto_type %s = &(%s);", arr, seq);
                 sync(s->pos);
@@ -832,6 +848,7 @@ static void stmt(Stmt *s) {
         break;
     }
     case S_SWITCH:
+        switch_body = s->body;
         line("switch (%s)", expr(s->expr));
         body(s->body);
         break;
@@ -1004,12 +1021,12 @@ static char *text_writer(Type *t, const char *lv) {
     /* a function's address: ISO C converts it to an integer, not to a
        data pointer */
     if (t->kind == T_FUNC)
-        return strfmt("kv_cstr_put_address(p, (const void *)(uintptr_t)%s)", lv);
+        return strfmt("kv_cstr_put_address(_kv_p, (const void *)(uintptr_t)%s)", lv);
     if (t->kind == T_PTR) {
         char k = pointer_kind(t);
-        return k == 's'   ? strfmt("kv_cstr_put_str(p, (const char *)%s)", lv)
-               : k == 'a' ? strfmt("kv_cstr_put_address(p, %s)", lv)
-                          : strfmt("kv_cstr_put_pointer(p, %s)", lv);
+        return k == 's'   ? strfmt("kv_cstr_put_str(_kv_p, (const char *)%s)", lv)
+               : k == 'a' ? strfmt("kv_cstr_put_address(_kv_p, %s)", lv)
+                          : strfmt("kv_cstr_put_pointer(_kv_p, %s)", lv);
     }
     static const struct { const char *type, *fn; } direct[] = {
         {"i8", "kv_cstr_i64"},    {"i16", "kv_cstr_i64"},  {"i32", "kv_cstr_i64"},  {"i64", "kv_cstr_i64"},
@@ -1019,35 +1036,35 @@ static char *text_writer(Type *t, const char *lv) {
     };
     for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
         if (!strcmp(t->name, direct[i].type))
-            return strfmt("kv_cstr_end(%s(%s, p))", direct[i].fn, lv);
+            return strfmt("kv_cstr_end(%s(%s, _kv_p))", direct[i].fn, lv);
     Decl *r = kelvin_record(t->name);
     if (r)
-        return strfmt("kv_cstr_end(_kv_%s_cstr(%s, p))", r->name, lv);
+        return strfmt("kv_cstr_end(_kv_%s_cstr(%s, _kv_p))", r->name, lv);
     /* a C typedef, a C struct, an enum: decided by the C compiler */
-    return strfmt("kv_cstr_end(kv_cstr_any(%s, p))", lv);
+    return strfmt("kv_cstr_end(kv_cstr_any(%s, _kv_p))", lv);
 }
 
 /* write the text of `lv` (type t) at p; arrays are [a, b] */
 static void write_text(Type *t, const char *lv, int depth) {
     if (t->kind != T_ARRAY) {
-        line("p = %s;", text_writer(t, lv));
+        line("_kv_p = %s;", text_writer(t, lv));
         return;
     }
     if (!t->size) {
-        line("p = kv_cstr_put(p, \"[...]\");"); /* a flexible array member */
+        line("_kv_p = kv_cstr_put(_kv_p, \"[...]\");"); /* a flexible array member */
         return;
     }
     char *i = strfmt("_kv_i%d", depth);
-    line("p = kv_cstr_put(p, \"[\");");
+    line("_kv_p = kv_cstr_put(_kv_p, \"[\");");
     line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
     line("{");
     indent++;
     line("if (%s)", i);
-    line("    p = kv_cstr_put(p, \", \");");
+    line("    _kv_p = kv_cstr_put(_kv_p, \", \");");
     write_text(t->elem, strfmt("%s[%s]", lv, i), depth + 1);
     indent--;
     line("}");
-    line("p = kv_cstr_put(p, \"]\");");
+    line("_kv_p = kv_cstr_put(_kv_p, \"]\");");
 }
 
 /* ---------- which structs need a derived .cstr ---------- */
@@ -1124,32 +1141,51 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     }
     line("enum { _kv_%s_cstr_size = %s };", d->name, size.buf);
     /* unused is a GNU attribute, like the statement expressions (P31) */
-    line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *buf)", d->name, decl(recv, "self"));
+    line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf)", d->name, decl(recv, "self"));
     line("{");
     indent++;
     if (d->kind == D_UNION) {
         line("(void)self;");
-        line("kv_cstr_put(buf, \"<union %s>\");", d->name);
+        line("kv_cstr_put(_kv_buf, \"<union %s>\");", d->name);
     } else {
-        line("uint8_t *p = buf;");
-        line("p = kv_cstr_put(p, \"{\");");
+        line("uint8_t *_kv_p = _kv_buf;");
+        line("_kv_p = kv_cstr_put(_kv_p, \"{\");");
         for (int i = 0; i < d->members.len; i++) {
             Var *m = d->members.data[i];
-            line("p = kv_cstr_put(p, \"%s%s: \");", i ? ", " : "", m->name);
+            line("_kv_p = kv_cstr_put(_kv_p, \"%s%s: \");", i ? ", " : "", m->name);
             write_text(m->type, strfmt("self.%s", m->name), 0);
         }
-        line("kv_cstr_put(p, \"}\");");
+        line("kv_cstr_put(_kv_p, \"}\");");
     }
-    line("return buf;");
+    line("return _kv_buf;");
     indent--;
     line("}");
     pinned_line.file = NULL;
     mapped_line = -1;
 }
 
+/* Can a goto or a switch jump into block s past its start, where a
+   template's storage would be declared: does s hold a label, or a case
+   that no switch inside s owns? (#39) */
+static bool jumped_into(Stmt *s, bool owned) {
+    if (!s)
+        return false;
+    if (s->kind == S_LABEL || ((s->kind == S_CASE || s->kind == S_DEFAULT) && !owned))
+        return true;
+    owned = owned || s->kind == S_SWITCH;
+    if (jumped_into(s->body, owned) || jumped_into(s->els, owned) || jumped_into(s->init, owned))
+        return true;
+    for (int i = 0; i < s->stmts.len; i++)
+        if (jumped_into(s->stmts.data[i], owned))
+            return true;
+    return false;
+}
+
 static void emit_decl(Decl *d) {
     sync(d->pos);
     hidden_names.len = 0;
+    fn_body = d->kind == D_FN ? d->body : NULL;
+    fn_template_vars = NULL;
     switch (d->kind) {
     case D_IMPORT:
         line("#include %s", d->name);

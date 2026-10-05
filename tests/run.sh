@@ -2,7 +2,9 @@
 # Kelvin test runner.
 #
 #   tests/run/*.k    must compile, exit 0, and print exactly the lines
-#   examples/*.k     given by `// out: ...` comments (in order).
+#   examples/*.k     given by `// out: ...` comments (in order); the C
+#                    that kelvinc writes (--emit-c --no-line) must hold
+#                    the text of each `// c: ...` comment.
 #   tests/error/*.k  must fail to build (in kelvinc or in the C compiler),
 #                    with output containing the `// error: ...` text.
 #   tests/c/*.c      C programs using libkelvin; built against libkelvin.a
@@ -42,12 +44,23 @@ for f in tests/run/*.k examples/*.k; do
         bad "$f" "exited with status $status"
         continue
     fi
-    if cmp -s "$tmp/expected" "$tmp/actual"; then
-        ok
-    else
+    if ! cmp -s "$tmp/expected" "$tmp/actual"; then
         diff "$tmp/expected" "$tmp/actual" > "$tmp/log"
         bad "$f" "output differs (expected < > actual)"
+        continue
     fi
+    if grep -q '^[[:space:]]*// c: ' "$f"; then
+        "$KELVINC" --emit-c --no-line "$f" > "$tmp/c" 2> "$tmp/log"
+        missing=$(sed -n 's|^[[:space:]]*// c: ||p' "$f" | while IFS= read -r want; do
+            grep -qF -- "$want" "$tmp/c" || printf '%s\n' "$want"
+        done)
+        if [ -n "$missing" ]; then
+            printf '%s\n' "$missing" > "$tmp/log"
+            bad "$f" "the C lacks (// c:)"
+            continue
+        fi
+    fi
+    ok
 done
 
 for f in tests/error/*.k; do

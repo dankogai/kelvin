@@ -145,9 +145,14 @@ void kv_template_free(kv_template *t) {
     *t = (kv_template){0};
 }
 
-void kv_template_reset(kv_template *t) {
-    t->len = 0;
-    append(t, "", 0);
+/* The built text replaces the earlier one in the template's storage */
+char *kv_template_take(kv_template *storage, kv_template *built) {
+    if (!built->text)
+        append(built, "", 0);
+    free(storage->text);
+    *storage = *built;
+    *built = (kv_template){0};
+    return (char *)storage->text;
 }
 
 void kv_template_part(kv_template *t, const char *s, size_t n) { append(t, s, n); }

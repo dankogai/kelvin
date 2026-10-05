@@ -60,8 +60,9 @@ typedef struct {
     Token *toks;
     int len, cap;
     /* template literals (#39): the brace depth at each open ${, innermost
-       last, and the depth now */
+       last, where each ${ and its template began, and the depth now */
     int tpl_braces[64], tpl_top, braces;
+    Pos tpl_open[64], tpl_start[64];
 } Lexer;
 
 static Pos here(Lexer *lx) { return (Pos){lx->file, lx->line, lx->col}; }
@@ -81,7 +82,7 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start))};
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false};
 }
 
 static void skip_space(Lexer *lx) {
@@ -210,14 +211,14 @@ static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
    ${, as a C string literal: a new line is \n, \` is a backquote and \$
    a dollar sign, a backslash before a new line joins the lines, and other
    escapes are C's (#39). A template with no ${ is a string literal. */
-static void lex_template(Lexer *lx, Pos pos, bool head) {
+static void lex_template(Lexer *lx, Pos pos, Pos start, bool head) {
     Buf lit = {0};
     buf_puts(&lit, "\"");
     TokKind kind;
     for (;;) {
         char c = *lx->p;
         if (!c)
-            error_at(pos, "unterminated template literal: it ends with a backquote");
+            error_at(start, "unterminated template literal: it ends with a backquote");
         if (c == '`') {
             step(lx);
             kind = head ? TK_STRING : TK_TPL_TAIL;
@@ -228,14 +229,19 @@ static void lex_template(Lexer *lx, Pos pos, bool head) {
             step(lx);
             if (lx->tpl_top == (int)(sizeof lx->tpl_braces / sizeof lx->tpl_braces[0]))
                 error_at(pos, "template literals are nested too deeply");
+            lx->tpl_open[lx->tpl_top] = (Pos){lx->file, lx->line, lx->col - 2};
+            lx->tpl_start[lx->tpl_top] = start;
             lx->tpl_braces[lx->tpl_top++] = lx->braces;
             kind = head ? TK_TPL_HEAD : TK_TPL_MIDDLE;
             break;
         }
-        if (c == '\\' && (lx->p[1] == '`' || lx->p[1] == '$' || lx->p[1] == '{')) {
+        if (c == '\\' && (lx->p[1] == '`' || lx->p[1] == '$' || lx->p[1] == '{' || lx->p[1] == '}')) {
             buf_putn(&lit, lx->p + 1, 1);
             step(lx);
         } else if (c == '\\' && lx->p[1] == '\n') {
+            step(lx);
+        } else if (c == '\\' && lx->p[1] == '\r' && lx->p[2] == '\n') {
+            step(lx);
             step(lx);
         } else if (c == '\\' && lx->p[1]) {
             buf_putn(&lit, lx->p, 2);
@@ -244,6 +250,13 @@ static void lex_template(Lexer *lx, Pos pos, bool head) {
             buf_puts(&lit, "\\\"");
         } else if (c == '\n') {
             buf_puts(&lit, "\\n");
+        } else if (c == '\r' && lx->p[1] == '\n') { /* a CRLF line end is a new line */
+            buf_puts(&lit, "\\n");
+            step(lx);
+        } else if (c == '\r') {
+            buf_puts(&lit, "\\r");
+        } else if (c == '?') { /* never a C trigraph */
+            buf_puts(&lit, "\\?");
         } else {
             buf_putn(&lit, lx->p, 1);
         }
@@ -251,6 +264,7 @@ static void lex_template(Lexer *lx, Pos pos, bool head) {
     }
     buf_puts(&lit, "\"");
     push(lx, kind, pos, lit.buf, lit.buf + lit.len);
+    lx->toks[lx->len - 1].tpl = kind == TK_STRING;
 }
 
 static void skip_blanks(Lexer *lx) {
@@ -349,7 +363,7 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         }
         if (c == '`') {
             step(&lx);
-            lex_template(&lx, pos, true);
+            lex_template(&lx, pos, pos, true);
             continue;
         }
         if (c == '$') {
@@ -376,14 +390,14 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         /* the } that ends a template's ${...} goes on with its text */
         if (!strcmp(match, "}") && lx.tpl_top && lx.braces == lx.tpl_braces[lx.tpl_top - 1]) {
             lx.tpl_top--;
-            lex_template(&lx, pos, false);
+            lex_template(&lx, pos, lx.tpl_start[lx.tpl_top], false);
             continue;
         }
         lx.braces += !strcmp(match, "{") - !strcmp(match, "}");
         push(&lx, TK_PUNCT, pos, start, lx.p);
     }
     if (lx.tpl_top)
-        error_at(lx.toks[lx.len - 1].pos, "unterminated ${...} in a template literal: it ends with '}'");
+        error_at(lx.tpl_open[lx.tpl_top - 1], "unterminated ${...} in a template literal: it ends with '}'");
     *ntoks = lx.len;
     return lx.toks;
 }
