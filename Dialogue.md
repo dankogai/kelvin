@@ -1752,3 +1752,55 @@ the 32 findings. None needed the user's decision. The fixes:
 Not changed: a method on `u64` does not reach `p.addr` where
 `uintptr_t` is `unsigned long`, which `.size` already shares (noted in
 P48).
+
+### 62. Hidden names
+
+> When you add hidden variables when translating to C, `kv_` doesn't look
+> automatic enough. use `_kv_` instead and trailing word should be the
+> one the variable is derived. `_kv_varname_text[36]` instead of
+> `kv_text3[36]` or when you resort the the latter style, count the
+> prefix number from `0` instead of `1`
+
+**Claude** asked two questions, and the user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| Which hidden names? (C reserves file-scope names starting with `_`, which gcc and clang accept) | Everything kelvinc writes, file-scope names included; the runtime's API keeps `kv_` |
+| Numbering | A repeat in a function gets 1, 2, ...; with no source, a number from 0 |
+
+**Claude** implemented #38. The details are provisional P49:
+
+- Each name is `_kv_`, its source and its kind: `_kv_n_text`,
+  `_kv_p_self`, `_kv_i_count`, `_kv_x_ptr`, `_kv_main_fn`, `_kv_arg0` and
+  `_kv_point_cstr`.
+- Names are unique within each C function, so nothing shadows.
+- Methods keep `point__area`, since the program named them.
+- Kelvin may declare neither `_kv_` nor `kv_` names. Two of the
+  reserved-name tests now use `_kv_` names.
+
+### 63. Template literals
+
+> implement the template literal a la JS.
+> * backquote up to backquote. multi-line
+> * `${expression}` is substituted with the string representation of
+>   `expression`
+
+**Claude** asked two questions, and the user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| A template's text can be of any length, so where does it live? | On the heap, freed automatically when the enclosing block ends (GCC's and clang's `cleanup` attribute), with the lifetime `.cstr` text has |
+| Which text is `${x}`? | As `print` shows it, so `println(`${x}`)` prints what `println(x)` does |
+
+**Claude** implemented #39. The details are provisional P50:
+
+- The lexer reads the text between backquotes as C string literals,
+  with each `${...}`'s tokens in between, so values may nest.
+- Escapes are C's plus `` \` ``, `\$`, `\{` and line joining.
+- A template without `${...}` is a plain string literal.
+- `print`'s text functions are shared with the templates, and a struct
+  shows its `.cstr` text.
+- Returning a template's text is an error, and so is initializing a
+  global with one.
+
+There are 354 tests.

@@ -74,6 +74,8 @@ So far the changes from C are:
 - anonymous functions enclose nothing, are inline (C's `static inline`),
   and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
   where `$0` and `$1` are the parameters
+- template literals: `` `Hello, ${name}!` `` may span lines, and
+  `${x}` is `x`'s text as `print` shows it
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
 

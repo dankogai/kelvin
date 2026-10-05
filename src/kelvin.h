@@ -50,7 +50,13 @@ typedef enum {
     TK_KEYWORD,
     TK_NUMBER,  /* spelled exactly as in C, passed through verbatim */
     TK_CHAR,    /* verbatim, including quotes */
-    TK_STRING,  /* verbatim, including quotes */
+    TK_STRING,  /* verbatim, including quotes; also a template with no ${} */
+    /* a template literal with ${...} (#39): its text before the first ${,
+       between } and the next ${, and after the last }, each as a C string
+       literal; the expressions' tokens come in between */
+    TK_TPL_HEAD,
+    TK_TPL_MIDDLE,
+    TK_TPL_TAIL,
     TK_PUNCT,
     TK_IMPORT,  /* #import <x.h> as C; text is the header name, e.g. "<x.h>" */
 } TokKind;
@@ -94,6 +100,7 @@ struct Type {
 typedef enum {
     E_LITERAL,   /* number or character constant, verbatim */
     E_STRING,    /* one or more adjacent string literals */
+    E_TEMPLATE,  /* `a${x}b` (#39): items are E_STRING parts and values in turn */
     E_IDENT,
     E_PREFIX,    /* op x: ++ -- & - + ! ~ */
     E_POSTFIX,   /* x op: ++ -- */

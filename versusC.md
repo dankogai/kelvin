@@ -860,6 +860,40 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **C bit-fields** from a header are converted first, as in
   `u32(b.flags).hex`: gcc's `_Generic` does not match a bit-field's type.
 
+## Template literals: `` `a${x}b` ``
+
+A template literal, between backquotes, may span lines, and each
+`${expression}` in it becomes the expression's text, as `print` shows it
+(#39):
+
+```kelvin
+let name:cstr := "Kelvin"
+let n:i64 = 42
+println(`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`)   // Hello, Kelvin! 42 / 4.0 = 10.5
+let card:cstr := `name: ${name}
+  answer: ${n}`
+```
+
+- **The text** is a `cstr`. It lives until the enclosing block ends, as
+  `.cstr` text does, and is freed then, also on `return`, `break` or
+  `goto` (it is on the heap, so it may be of any length). Store it
+  elsewhere to keep it longer; returning it is an error. Each evaluation
+  makes the text again, in the same storage.
+- **Values** are evaluated once each, left to right, and shown as
+  `print` shows them: numbers as `println(n)` does, floats in their
+  shortest form (`0.1`), `bool` as `true`/`false`, strings as their text
+  (`(null)` for `nullptr`), other pointers as addresses. A struct
+  kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), which `print`
+  itself does not; a function has no text. A value may be any
+  expression, a template too.
+- **Escapes** are C's, plus `` \` `` for a backquote, `\$` and `\{` for
+  `$` and `{` (so `\${x}` stays as written), and a backslash at the end
+  of a line, which joins the lines. A new line in the template is a new
+  line in the text, and `"` needs no escape.
+- **Without `${...}`** a template is a plain string literal, so it also
+  works where C needs a constant. With one, it is made at run time, so a
+  global cannot be initialized with it *(provisional P50)*.
+
 ## Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares
@@ -892,8 +926,13 @@ keyword only in `for i in ...` and in an anonymous function's
 also rejects C compiler keywords beyond C11, such as `__extension__`,
 `__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
 (use `i128`), because in C they can act as casts or prefix operators
-*(provisional P20)*. Names starting with `kv_` belong to the C that kelvinc
-writes, so Kelvin cannot declare them *(provisional P44)*. `__asm__(...)` and `__attribute__((...))` remain
+*(provisional P20)*. Names starting with `_kv_` belong to the C that
+kelvinc writes, and `kv_` ones to its runtime, so Kelvin cannot declare
+them *(provisional P44)*. kelvinc names what it writes after the source,
+as in `_kv_n_text` for the text buffer of `n.hex`, `_kv_i_count` for the
+counter of `for i in`, and `_kv_main_fn` for an anonymous function in
+`main`; a repeat gets 1, 2, ..., and with no name to derive from, a
+number from 0, as in `_kv_text0` (#38). `__asm__(...)` and `__attribute__((...))` remain
 usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
 
 ## Not available yet

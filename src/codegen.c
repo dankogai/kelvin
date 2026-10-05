@@ -25,7 +25,6 @@ typedef struct {
     const char *fn;
 } Method;
 static List methods;        /* Method *; a struct's derived .cstr is "cstr" */
-static int method_temps;    /* names the receiver temporaries */
 /* the structs and unions whose .cstr is used, directly or as a member of
    another: only they get a derived .cstr, so a program that prints no
    struct gets none (char *, the record's name) */
@@ -33,8 +32,10 @@ static List cstr_used;
 /* The buffers that text properties (x.hex) in the innermost block
    write into, "kv_text1[36]" each; NULL outside function bodies */
 static List *text_bufs;
-static int text_temps;
-static int range_temps;     /* names the counters of for-in loops */
+/* the template literals' storage in the innermost block (#39) */
+static List *template_vars;
+/* the hidden names written in the function being written (#38) */
+static List hidden_names;
 static Program *program;
 static bool line_directives;
 static int mapped_line = -1;  /* .k line that the next C line corresponds to */
@@ -151,7 +152,45 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
 static char *decl(Type *t, const char *name) { return declarator(t, name, false); }
 
 /* the C name of a Kelvin name: an anonymous function's $0 is kv_arg0 (#32) */
-static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("kv_arg%s", name + 1) : name; }
+static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("_kv_arg%s", name + 1) : name; }
+
+/* A hidden name that kelvinc writes (#38): _kv_ and the name of what it
+   comes from, then its kind, as _kv_n_text for n.hex's buffer, numbered
+   1, 2, ... when it repeats in a function; or, when nothing names it,
+   _kv_text0, _kv_text1, ... counted from 0 */
+static char *hidden(const char *source, const char *kind) {
+    for (int n = source ? -1 : 0;; n++) {
+        char *name = source ? (n < 0 ? strfmt("_kv_%s_%s", source, kind) : strfmt("_kv_%s_%s%d", source, kind, n + 1))
+                            : strfmt("_kv_%s%d", kind, n);
+        bool used = false;
+        for (int i = 0; i < hidden_names.len && !used; i++)
+            used = !strcmp(hidden_names.data[i], name);
+        if (!used) {
+            list_push(&hidden_names, name);
+            return name;
+        }
+    }
+}
+
+/* The name that a hidden name for e comes from: a variable, a parameter
+   ($0 is arg0), or a member of one, as in p_x for p^.x; NULL otherwise */
+static const char *source_of(Expr *e) {
+    switch (e->kind) {
+    case E_IDENT:
+        return e->text[0] == '$' ? strfmt("arg%s", e->text + 1) : e->text;
+    case E_FIELD: {
+        const char *a = e->a ? source_of(e->a) : NULL;
+        return a ? strfmt("%s_%s", a, e->text) : NULL;
+    }
+    case E_DEREF:
+    case E_INDEX:
+        return source_of(e->a);
+    case E_PROPERTY:
+        return !strcmp(e->text, "next") || !strcmp(e->text, "prev") ? source_of(e->a) : NULL;
+    default:
+        return NULL;
+    }
+}
 
 /* ---------- expressions ---------- */
 
@@ -216,7 +255,7 @@ static bool has_condition(Expr *e) {
         return true;
     if (has_condition(e->a) || has_condition(e->b) || has_condition(e->c))
         return true;
-    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT)
+    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT || e->kind == E_TEMPLATE)
         for (int i = 0; i < e->items.len; i++)
             if (has_condition(e->items.data[i]))
                 return true;
@@ -240,7 +279,7 @@ static char *cond(Expr *e) {
     else if (known_bool(e))
         return expr(e);
     else if (has_condition(e)) { /* a temporary keeps nested checks linear in size */
-        char *tmp = strfmt("kv_self%d", ++method_temps);
+        char *tmp = hidden(source_of(e), "self");
         return strfmt("({ __auto_type %s = (%s); _Generic((%s), bool: kv_bool, default: kv_condition_is_not_bool)(%s); })",
                       tmp, expr(e), tmp, tmp);
     } else { /* parenthesized, so that a comma stays one argument */
@@ -270,7 +309,7 @@ static bool has_dispatch(Expr *e) {
         return true;
     if (has_dispatch(e->a) || has_dispatch(e->b) || has_dispatch(e->c))
         return true;
-    if (e->kind == E_CALL || e->kind == E_INIT)
+    if (e->kind == E_CALL || e->kind == E_INIT || e->kind == E_TEMPLATE)
         for (int i = 0; i < e->items.len; i++)
             if (has_dispatch(e->items.data[i]))
                 return true;
@@ -299,6 +338,28 @@ static char *expr_bare(Expr *e) {
         return (char *)c_name(e->text);
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
+    case E_TEMPLATE: {
+        /* `a${x}b` (#39): built in a kv_template at the top of the
+           enclosing block, from its literal parts and each value as print
+           shows it, in order; its text lives until the block ends */
+        char *t = hidden(NULL, "template");
+        list_push(template_vars, t);
+        Buf b = {0};
+        buf_printf(&b, "(kv_template_reset(&%s)", t);
+        for (int i = 0; i < e->items.len; i++) {
+            Expr *x = e->items.data[i];
+            if (x->kind == E_STRING) {
+                for (int j = 0; j < x->items.len; j++)
+                    if (strcmp(x->items.data[j], "\"\""))
+                        buf_printf(&b, ", kv_template_part(&%s, %s, sizeof %s - 1)", t, (char *)x->items.data[j],
+                                   (char *)x->items.data[j]);
+            } else {
+                buf_printf(&b, ", KV_TEMPLATE_VALUE(&%s, (%s))", t, expr_bare(x));
+            }
+        }
+        buf_printf(&b, ", %s.text)", t);
+        return b.buf;
+    }
     case E_STRING: {
         Buf b = {0};
         for (int i = 0; i < e->items.len; i++)
@@ -383,7 +444,7 @@ static char *expr_bare(Expr *e) {
             return strfmt("((uintptr_t)(%s))", recv);
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
-        const char *size = r                          ? strfmt("kv_cstr_size_%s", r->name)
+        const char *size = r                          ? strfmt("_kv_%s_cstr_size", r->name)
                            : cstr                     ? "KV_CSTR_SCALAR"
                            : !strcmp(e->text, "dec")  ? "41"   /* -170141183460469231731687303715884105728 */
                            : !strcmp(e->text, "hex")  ? "36"   /* -0x and 32 digits */
@@ -391,19 +452,19 @@ static char *expr_bare(Expr *e) {
                                                       : "132"; /* -0b and 128 digits */
         char *buf;
         if (text_bufs) {
-            buf = strfmt("kv_text%d", ++text_temps);
+            buf = hidden(source_of(e->a), "text");
             list_push(text_bufs, strfmt("%s[%s]", buf, size));
         } else {
             buf = strfmt("(uint8_t[%s]){0}", size); /* at file scope */
         }
         if (r)
-            return strfmt("%s__cstr(%s, %s)", r->name, recv, buf); /* a struct kelvinc can see */
+            return strfmt("_kv_%s_cstr(%s, %s)", r->name, recv, buf); /* a struct kelvinc can see */
         if (e->op && !strcmp(e->op, "pointer")) /* p.hex of a pointer or a function (#37) */
             return strfmt("kv_hex_addr((uintptr_t)(%s), %s)", recv, buf);
         /* a receiver that holds a property or method call, as in
            x.hex[2].hex, goes into a temporary like a method's receiver,
            so that nesting stays linear in size */
-        char *tmp = has_dispatch(e->a) ? strfmt("kv_self%d", ++method_temps) : NULL;
+        char *tmp = has_dispatch(e->a) ? hidden(source_of(e->a), "self") : NULL;
         const char *self = tmp ? tmp : recv;
         /* for .cstr, other pointers are addresses, and a Kelvin struct
            kelvinc could not see has no buffer sized for it: a C error */
@@ -427,7 +488,7 @@ static char *expr_bare(Expr *e) {
            keeps chains like a.b().c() linear in size (GNU statement
            expression and __auto_type, both accepted by gcc and clang) */
         char *recv = expr(e->a);
-        char *tmp = strfmt("kv_self%d", ++method_temps);
+        char *tmp = hidden(source_of(e->a), "self");
         Buf args = {0};
         buf_puts(&args, "");
         for (int i = 0; i < e->items.len; i++)
@@ -476,7 +537,7 @@ static char *text_number(Expr *e) {
         return strfmt("(%s)%s(%s%s)", type, read, text_arg(e->a), rest);
     char *v = strfmt("(%s)", expr_bare(e->a)), *x = v, *tmp = NULL;
     if (text_bufs)
-        x = tmp = strfmt("kv_self%d", ++method_temps);
+        x = tmp = hidden(source_of(e->a), "self");
     char *c = e->b ? strfmt("(%s)_Generic(KV_TEXT_TAG(%s), kv_text_tag *: %s, default: kv_base_needs_text)(KV_TEXT_PTR(%s)%s)",
                             type, x, read, x, rest)
                    : strfmt("KV_TEXT(%s, %s, %s(KV_TEXT_PTR(%s)%s))", type, x, read, x, rest);
@@ -576,23 +637,29 @@ static void stmt(Stmt *s) {
            the block: the text lives until the block ends, like any local,
            also when it was made in a brace-less if or for body, or among
            a method call's arguments (a GNU statement expression) */
-        List bufs = {0}, *outer_bufs = text_bufs;
+        List bufs = {0}, *outer_bufs = text_bufs, tmpls = {0}, *outer_tmpls = template_vars;
         Buf outer = out;
         int top = mapped_line;
         text_bufs = &bufs;
+        template_vars = &tmpls;
         out = (Buf){0};
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
         Buf items = out;
         out = outer;
         text_bufs = outer_bufs;
-        if (bufs.len) {
+        template_vars = outer_tmpls;
+        if (bufs.len || tmpls.len) {
             Buf names = {0};
             for (int i = 0; i < bufs.len; i++)
                 buf_printf(&names, "%s%s", i ? ", " : "", (char *)bufs.data[i]);
             int end = mapped_line;
             mapped_line = top;
-            line("uint8_t %s;", names.buf);
+            if (bufs.len)
+                line("uint8_t %s;", names.buf);
+            /* a template's text is freed when the block ends (#39) */
+            for (int i = 0; i < tmpls.len; i++)
+                line("__attribute__((cleanup(kv_template_free))) kv_template %s = {0};", (char *)tmpls.data[i]);
             if (top >= 0) { /* the statements were printed to start at line top */
                 mapped_line = -1;
                 sync((Pos){s->pos.file, top, 0});
@@ -671,8 +738,8 @@ static void stmt(Stmt *s) {
         /* for i in a..<b: the bounds are evaluated once, and i is a const
            copy of the counter. a...b stops at b without stepping past
            it, so 0...255 as a u8 ends (#28). */
-        int n = ++range_temps;
-        char *i = strfmt("kv_i%d", n), *end = strfmt("kv_end%d", n), *go = strfmt("kv_go%d", n);
+        const char *v = strcmp(s->name, "_") ? s->name : NULL;
+        char *i = hidden(v, "count"), *end = hidden(v, "end"), *go = hidden(v, "go");
         char *lo = expr(s->expr), *hi = expr(s->step);
         if (s->closed)
             line("for (%s = %s, %s = %s, %s = %s <= %s; %s; %s = %s != %s, %s += %s)", decl(s->type, i), lo, end,
@@ -694,8 +761,8 @@ static void stmt(Stmt *s) {
            const copy of each node's pointer, taken before the body runs so
            that the body may free the node. The hidden lines map to the
            for's line, where C's warnings about them belong. */
-        int n = ++range_temps;
-        char *p = strfmt("kv_p%d", n), *end = strfmt("kv_end%d", n), *arr = strfmt("kv_a%d", n);
+        const char *v = strcmp(s->name, "_") ? s->name : NULL;
+        char *p = hidden(v, "ptr"), *end = hidden(v, "end"), *arr = hidden(v, "array");
         char *seq = expr(s->expr);
         Type *reader = NULL; /* const E^, for the elements; NULL: unseen */
         if (s->elem && s->each != EACH_LIST) {
@@ -927,7 +994,7 @@ static char *text_bound(Type *t, const char *lv) {
             return (char *)scalars[i].bound;
     Decl *r = kelvin_record(t->name);
     if (r)
-        return strfmt("(kv_cstr_size_%s - 1)", r->name);
+        return strfmt("(_kv_%s_cstr_size - 1)", r->name);
     return "(KV_CSTR_SCALAR - 1)"; /* a C typedef, a C struct, an enum: kv_cstr_any */
 }
 
@@ -955,7 +1022,7 @@ static char *text_writer(Type *t, const char *lv) {
             return strfmt("kv_cstr_end(%s(%s, p))", direct[i].fn, lv);
     Decl *r = kelvin_record(t->name);
     if (r)
-        return strfmt("kv_cstr_end(%s__cstr(%s, p))", r->name, lv);
+        return strfmt("kv_cstr_end(_kv_%s_cstr(%s, p))", r->name, lv);
     /* a C typedef, a C struct, an enum: decided by the C compiler */
     return strfmt("kv_cstr_end(kv_cstr_any(%s, p))", lv);
 }
@@ -970,7 +1037,7 @@ static void write_text(Type *t, const char *lv, int depth) {
         line("p = kv_cstr_put(p, \"[...]\");"); /* a flexible array member */
         return;
     }
-    char *i = strfmt("kv_i%d", depth);
+    char *i = strfmt("_kv_i%d", depth);
     line("p = kv_cstr_put(p, \"[\");");
     line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
     line("{");
@@ -1016,7 +1083,7 @@ static void find_cstr_expr(Expr *e) {
     find_cstr_expr(e->a);
     find_cstr_expr(e->b);
     find_cstr_expr(e->c);
-    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT)
+    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT || e->kind == E_TEMPLATE)
         for (int i = 0; i < e->items.len; i++)
             find_cstr_expr(e->items.data[i]);
 }
@@ -1055,9 +1122,9 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
             buf_printf(&size, " + %s", text_bound(m->type, strfmt("((%s *)0)->%s", ctype, m->name)));
         }
     }
-    line("enum { kv_cstr_size_%s = %s };", d->name, size.buf);
+    line("enum { _kv_%s_cstr_size = %s };", d->name, size.buf);
     /* unused is a GNU attribute, like the statement expressions (P31) */
-    line("__attribute__((unused)) static inline uint8_t *%s__cstr(%s, uint8_t *buf)", d->name, decl(recv, "self"));
+    line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *buf)", d->name, decl(recv, "self"));
     line("{");
     indent++;
     if (d->kind == D_UNION) {
@@ -1082,6 +1149,7 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
 
 static void emit_decl(Decl *d) {
     sync(d->pos);
+    hidden_names.len = 0;
     switch (d->kind) {
     case D_IMPORT:
         line("#include %s", d->name);
@@ -1136,7 +1204,7 @@ static void emit_decl(Decl *d) {
             if (is_cstr_used(d->name))
                 emit_derived_cstr(d, recv);
             /* registered either way, for receivers kelvinc cannot see */
-            register_method("cstr", recv, strfmt("%s__cstr", d->name));
+            register_method("cstr", recv, strfmt("_kv_%s_cstr", d->name));
         }
         break;
     }
@@ -1153,7 +1221,6 @@ char *gen_program(Program *prog, bool with_lines) {
                    "#include <kelvin_prelude.h>\n");
     program = prog;
     methods = (List){0};
-    method_temps = 0;
     cstr_used = (List){0};
     for (int i = 0; i < prog->decls.len; i++) {
         Decl *d = prog->decls.data[i];
@@ -1162,8 +1229,7 @@ char *gen_program(Program *prog, bool with_lines) {
             find_cstr_expr(((Var *)d->members.data[j])->init);
     }
     text_bufs = NULL;
-    text_temps = 0;
-    range_temps = 0;
+    hidden_names = (List){0};
     pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
         if (i)

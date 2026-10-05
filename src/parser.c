@@ -149,7 +149,8 @@ static bool returned_statement(int first, int end) {
    start in scope_names (-1 outside one); how its parameters were given;
    and the token just past a trailing `{ }`, which ends a statement */
 static List anon_fns;
-static int anon_count;
+static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
+static const char *top_name; /* the top-level declaration being parsed */
 static int anon_start = -1;
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
 static int anon_kind;
@@ -252,7 +253,13 @@ static bool accept_kw(const char *s) {
     return true;
 }
 
-static const char *desc(Token *t) { return t->kind == TK_EOF ? "end of file" : strfmt("'%s'", t->text); }
+static const char *desc(Token *t) {
+    if (t->kind == TK_TPL_HEAD)
+        return "a template literal";
+    if (t->kind == TK_TPL_MIDDLE || t->kind == TK_TPL_TAIL)
+        return "'}', the end of ${...}";
+    return t->kind == TK_EOF ? "end of file" : strfmt("'%s'", t->text);
+}
 
 static Token *expect_p(const char *s) {
     if (!is_p(peek(), s))
@@ -350,6 +357,7 @@ static const char *kelvin_for_c_word(Token *t);
 /* can this token start an operand (a value or a prefix operator)? */
 static bool starts_operand(Token *n) {
     return n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
+           n->kind == TK_TPL_HEAD ||
            (n->kind == TK_PUNCT && n->text[0] == '$') ||
            is_p(n, "(") || is_p(n, "-") || is_p(n, "+") || is_p(n, "!") || is_p(n, "~") || is_p(n, "&") ||
            is_p(n, "++") || is_p(n, "--") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") ||
@@ -601,7 +609,7 @@ static bool names_local(Expr *e) {
     }
     /* call and method arguments, initializer items, and types written in
        sizeof, conversions and compound literals */
-    bool items = e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT;
+    bool items = e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT || e->kind == E_TEMPLATE;
     for (int i = 0; items && i < e->items.len; i++)
         if (names_local(e->items.data[i]))
             return true;
@@ -877,8 +885,10 @@ static bool line_starts_statement(void) { return newline_before() && at_statemen
 static bool at_statement_level(void) {
     int depth = 0;
     for (int i = stmt_start; i < cur; i++) {
-        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{") || toks[i].kind == TK_TPL_HEAD)
             depth++;
+        else if (toks[i].kind == TK_TPL_TAIL)
+            depth--;
         else if (is_p(&toks[i], ")") || is_p(&toks[i], "]") || is_p(&toks[i], "}"))
             depth--;
     }
@@ -1071,6 +1081,48 @@ static Expr *parse_postfix_ops(Expr *e) {
     }
 }
 
+static Type *value_type(Expr *e);
+
+/* `a${x}b` (#39): the template's literal parts and its values in turn.
+   A value is any expression, shown as print shows it; a struct kelvinc
+   sees shows its .cstr text. The text is made at run time, in storage of
+   the enclosing block, so a global cannot be initialized with one. */
+static Expr *parse_template(void) {
+    Token *head = advance();
+    if (!parsing_fn)
+        error_at(head->pos, "a template literal with ${...} is made at run time, and a global's initializer must be "
+                            "constant: make it in a function");
+    Expr *e = new_expr(E_TEMPLATE, head->pos);
+    Token *part = head;
+    for (;;) {
+        Expr *lit = new_expr(E_STRING, part->pos);
+        list_push(&lit->items, part->text);
+        list_push(&e->items, lit);
+        if (part->kind == TK_TPL_TAIL)
+            return e;
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for, saved_annotation = ident_annotation_ok;
+        brace_ends_condition = brace_in_for = false;
+        ident_annotation_ok = true;
+        if (peek()->kind == TK_TPL_MIDDLE || peek()->kind == TK_TPL_TAIL)
+            error_at(peek()->pos, "${} is empty: write an expression in it, as in ${x}");
+        Expr *v = parse_expr();
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        ident_annotation_ok = saved_annotation;
+        Type *vt = value_type(v);
+        if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
+            error_at(v->pos, "a template cannot show a function: a function has no text");
+        Decl *record;
+        if (expr_class(v, &record) == 's')
+            v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        list_push(&e->items, v);
+        part = peek();
+        if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
+            error_at(part->pos, "expected '}' to end ${...} in the template literal, found %s", desc(part));
+        advance();
+    }
+}
+
 static Expr *parse_primary(void) {
     Token *t = peek();
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
@@ -1093,6 +1145,8 @@ static Expr *parse_primary(void) {
         e->text = t->text;
         return e;
     }
+    if (t->kind == TK_TPL_HEAD)
+        return parse_template();
     if (t->kind == TK_STRING) {
         Expr *e = new_expr(E_STRING, t->pos);
         while (peek()->kind == TK_STRING)
@@ -1238,6 +1292,7 @@ static Expr *parse_primary(void) {
            (size_t)n, unless y starts the next statement on a new line (#35) */
         Token *n = peek();
         if (!line_starts_statement() && (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
+            n->kind == TK_TPL_HEAD ||
             (n->kind == TK_PUNCT && n->text[0] == '$') || is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_kw(n, "nullptr") ||
             is_converter(n) ||
             ((is_p(n, "++") || is_p(n, "--")) &&
@@ -1742,6 +1797,13 @@ static Type *value_type_of(Expr *e) {
             ret = d->ret;
         }
         return ret;
+    }
+    case E_TEMPLATE: { /* its text is a u8^ (#39) */
+        Type *t = xcalloc(1, sizeof *t);
+        t->kind = T_PTR;
+        t->pos = e->pos;
+        t->elem = base_type("u8", e->pos);
+        return t;
     }
     case E_PROPERTY: /* p.next and p.prev have p's type */
         return !strcmp(e->text, "next") || !strcmp(e->text, "prev") ? value_type(e->a) : NULL;
@@ -2433,10 +2495,13 @@ static Type *inferred_type(Expr *e, Pos pos) {
 
 /* name: type [= init], or (for variables) name = init with the type
    inferred from init */
-/* names starting with kv_ are kelvinc's, in the C it writes (#32) */
+/* names starting with _kv_ are kelvinc's, in the C it writes (#32, #38),
+   and kv_ ones its runtime's */
 static void reject_kv_name(Token *t) {
+    if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4))
+        error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
     if (t->kind == TK_IDENT && !strncmp(t->text, "kv_", 3))
-        error_at(t->pos, "names starting with kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
+        error_at(t->pos, "names starting with kv_ are kelvinc's runtime's: rename '%s'", t->text);
 }
 
 static Var *parse_var(bool with_init, int let) {
@@ -2850,6 +2915,9 @@ static bool is_assignment(Expr *e) {
 /* Returning text in the function's own buffer (#21) is an error */
 static void reject_returned_text(Expr *e, bool anon) {
     Expr *text = text_in_buffer(e);
+    if (text && text->kind == E_TEMPLATE)
+        error_at(text->pos, "a template's text lives in this function's block, which is gone once it returns: "
+                            "the caller makes the text itself, as in 'println(`...`)'");
     if (text && anon)
         error_at(text->pos, "'.%s' text lives in a buffer of this function, which is gone once it returns: "
                             "the caller takes the text itself, as in '{ println($0.%s) }'",
@@ -3009,6 +3077,8 @@ static bool has_effect(Expr *e) {
    none. .cstr of a string kelvinc sees is the string itself (P34). */
 static Expr *text_in_buffer(Expr *e) {
     switch (e->kind) {
+    case E_TEMPLATE: /* (#39) */
+        return e;
     case E_CAST: /* i64(x.hex) is a number (#36) */
         return e->op && !strncmp(e->op, "text", 4) ? NULL : text_in_buffer(e->a);
     case E_TERNARY: {
@@ -3056,6 +3126,24 @@ static Stmt *parse_fn_body(Token *open) {
     return s;
 }
 
+/* An anonymous function's C name (#38): _kv_, the top-level declaration
+   it is written in, and fn, numbered 1, 2, ... when it repeats, as in
+   _kv_main_fn and _kv_main_fn1 */
+static char *anon_name(void) {
+    for (int n = top_name ? -1 : 0;; n++) {
+        char *name = !top_name ? strfmt("_kv_fn%d", n)
+                     : n < 0   ? strfmt("_kv_%s_fn", top_name)
+                               : strfmt("_kv_%s_fn%d", top_name, n + 1);
+        bool used = false;
+        for (int i = 0; i < anon_names.len && !used; i++)
+            used = !strcmp(anon_names.data[i], name);
+        if (!used) {
+            list_push(&anon_names, name);
+            return name;
+        }
+    }
+}
+
 /* An anonymous function, from its `{` to its `}`: a static inline
    function of its own in C (#33), declared before the top-level
    declaration around it and defined after it. It encloses nothing, as C has no closures: it may
@@ -3069,7 +3157,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     Token *open = peek();
     bool written = signature_ahead(cur);
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
-    d->name = strfmt("kv_fn%d", ++anon_count);
+    d->name = anon_name();
     Decl *saved_fn = parsing_fn;
     int saved_start = params_start, saved_end = params_end, saved_anon = anon_start, saved_kind = anon_kind,
         saved_init = init_depth;
@@ -3343,6 +3431,7 @@ static Expr *parse_condition(const char *what) {
         if (!strcmp(what, "do") && after && after->pos.line > after[-1].pos.line)
             after = NULL;
         if (after && (after->kind == TK_IDENT || after->kind == TK_NUMBER || after->kind == TK_STRING ||
+                      after->kind == TK_TPL_HEAD ||
                       is_kw(after, "return") || is_kw(after, "break") || is_kw(after, "continue") ||
                       is_kw(after, "goto") || is_kw(after, "if") || is_kw(after, "while") || is_kw(after, "for") ||
                       is_kw(after, "do") || is_kw(after, "switch") || (is_p(after, ";") && strcmp(what, "do"))))
@@ -3995,7 +4084,8 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     anon_fns = (List){0};
-    anon_count = 0;
+    anon_names = (List){0};
+    top_name = NULL;
     anon_start = -1;
     fn_at = -1;
     trailing_end = -1;
@@ -4034,9 +4124,11 @@ Program *parse(Token *tokens, int ntoks) {
         const char *storage = parse_storage();
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
+            top_name = strfmt("%s_%s", peek()->text, peek_at(2)->text);
             add_top_decl(prog, parse_method(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {
             reject_c_fn_pointer(cur, "var ");
+            top_name = peek()->text;
             add_top_decl(prog, parse_fn(t->pos, storage));
         } else if (is_kw(peek(), "let") || is_kw(peek(), "var")) {
             /* one declaration per global, each after the anonymous
@@ -4045,6 +4137,7 @@ Program *parse(Token *tokens, int ntoks) {
             bool is_let = is_kw(advance(), "let");
             do {
                 Decl *d = new_decl(D_VAR, t->pos, storage);
+                top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
                 parse_var_one(&d->members, is_let, storage);
                 add_top_decl(prog, d);
             } while (accept_p(","));

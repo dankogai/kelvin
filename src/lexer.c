@@ -59,6 +59,9 @@ typedef struct {
     int line, col;
     Token *toks;
     int len, cap;
+    /* template literals (#39): the brace depth at each open ${, innermost
+       last, and the depth now */
+    int tpl_braces[64], tpl_top, braces;
 } Lexer;
 
 static Pos here(Lexer *lx) { return (Pos){lx->file, lx->line, lx->col}; }
@@ -202,6 +205,54 @@ static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
     push(lx, kind, pos, start, lx->p);
 }
 
+/* A template literal's text from the cursor (after its backquote, or
+   after the } that ends a ${...}) up to its closing backquote or the next
+   ${, as a C string literal: a new line is \n, \` is a backquote and \$
+   a dollar sign, a backslash before a new line joins the lines, and other
+   escapes are C's (#39). A template with no ${ is a string literal. */
+static void lex_template(Lexer *lx, Pos pos, bool head) {
+    Buf lit = {0};
+    buf_puts(&lit, "\"");
+    TokKind kind;
+    for (;;) {
+        char c = *lx->p;
+        if (!c)
+            error_at(pos, "unterminated template literal: it ends with a backquote");
+        if (c == '`') {
+            step(lx);
+            kind = head ? TK_STRING : TK_TPL_TAIL;
+            break;
+        }
+        if (c == '$' && lx->p[1] == '{') {
+            step(lx);
+            step(lx);
+            if (lx->tpl_top == (int)(sizeof lx->tpl_braces / sizeof lx->tpl_braces[0]))
+                error_at(pos, "template literals are nested too deeply");
+            lx->tpl_braces[lx->tpl_top++] = lx->braces;
+            kind = head ? TK_TPL_HEAD : TK_TPL_MIDDLE;
+            break;
+        }
+        if (c == '\\' && (lx->p[1] == '`' || lx->p[1] == '$' || lx->p[1] == '{')) {
+            buf_putn(&lit, lx->p + 1, 1);
+            step(lx);
+        } else if (c == '\\' && lx->p[1] == '\n') {
+            step(lx);
+        } else if (c == '\\' && lx->p[1]) {
+            buf_putn(&lit, lx->p, 2);
+            step(lx);
+        } else if (c == '"') {
+            buf_puts(&lit, "\\\"");
+        } else if (c == '\n') {
+            buf_puts(&lit, "\\n");
+        } else {
+            buf_putn(&lit, lx->p, 1);
+        }
+        step(lx);
+    }
+    buf_puts(&lit, "\"");
+    push(lx, kind, pos, lit.buf, lit.buf + lit.len);
+}
+
 static void skip_blanks(Lexer *lx) {
     while (*lx->p == ' ' || *lx->p == '\t')
         step(lx);
@@ -296,6 +347,11 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             lex_quoted(&lx, '\'', TK_CHAR);
             continue;
         }
+        if (c == '`') {
+            step(&lx);
+            lex_template(&lx, pos, true);
+            continue;
+        }
         if (c == '$') {
             /* $0, $1, ... and $ (for $[k]): the parameters of an
                anonymous function (#32) */
@@ -317,8 +373,17 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         const char *start = lx.p;
         for (size_t i = 0; i < strlen(match); i++)
             step(&lx);
+        /* the } that ends a template's ${...} goes on with its text */
+        if (!strcmp(match, "}") && lx.tpl_top && lx.braces == lx.tpl_braces[lx.tpl_top - 1]) {
+            lx.tpl_top--;
+            lex_template(&lx, pos, false);
+            continue;
+        }
+        lx.braces += !strcmp(match, "{") - !strcmp(match, "}");
         push(&lx, TK_PUNCT, pos, start, lx.p);
     }
+    if (lx.tpl_top)
+        error_at(lx.toks[lx.len - 1].pos, "unterminated ${...} in a template literal: it ends with '}'");
     *ntoks = lx.len;
     return lx.toks;
 }

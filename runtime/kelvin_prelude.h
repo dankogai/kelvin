@@ -311,6 +311,51 @@ typedef struct kv_text_tag kv_text_tag;
 struct kv_base_needs_text { char unused; };
 void kv_base_needs_text(struct kv_base_needs_text, ...);
 
+/* ---------- template literals (#39) ---------- */
+
+/* `a${x}b` builds its text in a kv_template that kelvinc declares at the
+   top of the enclosing block, __attribute__((cleanup(kv_template_free))),
+   so that the text lives until the block ends, as .cstr text does, and is
+   freed then, also on return, break or goto. Each evaluation starts it
+   again with kv_template_reset; the parts are the literal text and each
+   value as print shows it (KV_TEMPLATE_VALUE). */
+typedef struct {
+    uint8_t *text;
+    size_t len, cap;
+} kv_template;
+void kv_template_free(kv_template *t);
+void kv_template_reset(kv_template *t);
+void kv_template_part(kv_template *t, const char *s, size_t n);
+void kv_template_char(kv_template *t, char v);
+void kv_template_i64(kv_template *t, long long v);
+void kv_template_u64(kv_template *t, unsigned long long v);
+void kv_template_bool(kv_template *t, bool v);
+void kv_template_str(kv_template *t, const char *v);
+void kv_template_ptr(kv_template *t, const void *v);
+void kv_template_f64(kv_template *t, double v);
+void kv_template_f32(kv_template *t, float v);
+void kv_template_f80(kv_template *t, long double v);
+#ifdef __SIZEOF_INT128__
+void kv_template_u128(kv_template *t, unsigned __int128 v);
+void kv_template_i128(kv_template *t, __int128 v);
+#define KV_TEMPLATE_INT128 __int128: kv_template_i128, unsigned __int128: kv_template_u128,
+#else
+#define KV_TEMPLATE_INT128
+#endif
+#define KV_TEMPLATE_VALUE(t, v) _Generic((v), \
+    bool: kv_template_bool, \
+    char: kv_template_char, \
+    signed char: kv_template_i64, short: kv_template_i64, int: kv_template_i64, \
+    long: kv_template_i64, long long: kv_template_i64, \
+    unsigned char: kv_template_u64, unsigned short: kv_template_u64, unsigned: kv_template_u64, \
+    unsigned long: kv_template_u64, unsigned long long: kv_template_u64, \
+    KV_TEMPLATE_INT128 \
+    float: kv_template_f32, double: kv_template_f64, long double: kv_template_f80, \
+    char *: kv_template_str, const char *: kv_template_str, \
+    signed char *: kv_template_str, const signed char *: kv_template_str, \
+    unsigned char *: kv_template_str, const unsigned char *: kv_template_str, \
+    default: kv_template_ptr)(t, v)
+
 #define KV_CAT_(a, b) a##b
 #define KV_CAT(a, b) KV_CAT_(a, b)
 /* __VA_OPT__ (C23, accepted by gcc and clang in C11 mode as well) lets
