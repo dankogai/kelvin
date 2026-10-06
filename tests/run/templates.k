@@ -105,7 +105,7 @@ again:
     let tiny:f32 = 0.1
     let big:u64 = 18446744073709551615
     let low:i128 = i128("-170141183460469231731687303715884105728")
-    var letters:i8[3] = ['h', 'i', 0]
+    var letters:[i8](3) = ['h', 'i', 0]
     let ip:i8^ := &letters[0]
     let none:cstr := nullptr
     var z:i32 = 1

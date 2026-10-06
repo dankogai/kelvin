@@ -7,7 +7,7 @@ struct point { x: i64; y: i64 }
 enum color { RED, GREEN }
 let mk(x:i64):point { (point){x, x * 2} }
 let point.norm():i64 { self.x * self.x + self.y * self.y }
-let main(argc:i32, argv:cstr[]):i32 {
+let main(argc:i32, argv:[u8^]):i32 {
     var i = complex64(0.0, 1.0)
     let p = mk(3)
     var q = p
@@ -16,7 +16,7 @@ let main(argc:i32, argv:cstr[]):i32 {
     let r := &q
     var y = r^.y
     var ref := &q.y
-    let arr:i32[3] = [1, 2, 3]
+    let arr:[i32](3) = [1, 2, 3]
     let a0 = arr[1]
     let ap := arr                     // an array is not copied: a pointer, to const for a let
     var k = i * 2.0                   // a struct's operator is a call, not C's arithmetic

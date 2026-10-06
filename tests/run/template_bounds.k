@@ -3,7 +3,7 @@
 #import <string.h> as C
 enum color { RED, GREEN }
 struct wide { a: i128; b: i128; c: i128; d: i128; e: i128; f: i128; g: i128 }
-struct box { four: u8[4]; more: u8[4] }
+struct box { four: [u8](4); more: [u8](4) }
 let down(n:i64) {
     let t:cstr := `n=${n}`
     if n > 0 {
@@ -27,10 +27,10 @@ let main():i32 {
     memset(&bx, 'x', sizeof(bx))
     bx.four[0] = 'a'
     bx.four[1] = 0
-    var xs:i32[3] = [1, 2, 3]
+    var xs:[i32](3) = [1, 2, 3]
     println(`[${bx.four}] ${strcmp(`${xs}`, `${&xs[0]}`) == 0}`)
     let w:wide = {h, h, h, h, h, h, h}
-    var text:u8[400]
+    var text:[u8](400)
     memset(&text[0], 'z', 399)
     text[399] = 0
     let s:cstr := &text[0]

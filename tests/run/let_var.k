@@ -27,7 +27,7 @@ let main():i32 {
     let k = 42;
     let ok = k > LIMIT;
     let origin:struct point = {1, 2};
-    let primes:i32[3] = [2, 3, 5];
+    let primes:[i32](3) = [2, 3, 5];
     var total = 0;
     total += k;
     calls += 1;

@@ -27,6 +27,10 @@ static int skip_nested(int i);
 static int binary_prec(Token *t);
 
 static bool brace_is_compound(int i);
+static bool line_break(Token *a, Token *b);
+static bool newline_before(void);
+static char *kelvin_type(Type *t);
+static char *source_text(int i, int end);
 static bool stmt_is_body; /* the next statement is the body of if/while/for/do or a label */
 
 /* Names declared so far, innermost scope last. kelvinc tracks them only
@@ -520,6 +524,15 @@ static int type_shape_end(int i) {
     int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    if (is_p(&toks[i], "[")) { /* [T] or [T](N), an array (#49) */
+        int e = type_shape_end(i + 1);
+        if (e < 0 || !is_p(&toks[e], "]"))
+            return -1;
+        i = e + 1;
+        if (is_p(&toks[i], "(") && !line_break(&toks[i - 1], &toks[i]))
+            i = skip_group(i);
+        return type_suffix_end(i);
+    }
     int dot = typeof_at(i);
     if (dot >= 0) /* after a qualifier, only a type can follow */
         return i == start && type_is_field(i, dot) ? -1 : type_suffix_end(dot + 2);
@@ -566,7 +579,8 @@ static bool is_qualifier(Token *t) { return is_kw(t, "const") || is_kw(t, "volat
 
 static bool starts_type(Token *t) {
     reject_c_int_name(t);
-    return is_base_word(t) || is_qualifier(t) || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum");
+    return is_base_word(t) || is_qualifier(t) || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum") ||
+           is_p(t, "["); /* [T], an array (#49) */
 }
 
 static void parse_qualifiers(Type *t) {
@@ -710,13 +724,41 @@ static Type *parse_fn_type(TypeContext ctx) {
     return t;
 }
 
+/* the first token of the type being parsed, for the hint that rewrites
+   C-order T[N] as [T](N) (#49) */
+static int type_start;
+
 static Type *parse_type_in(TypeContext ctx) {
+    type_start = cur;
     if (is_p(peek(), "("))
         return parse_fn_type(ctx);
     Type *base = xcalloc(1, sizeof *base);
     base->kind = T_BASE;
     base->pos = peek()->pos;
     parse_qualifiers(base);
+    if (is_p(peek(), "[")) {
+        /* [T] is an array of T, [T](N) one of N elements (#49); a
+           qualifier is the elements', inside the brackets */
+        if (base->is_const || base->is_volatile)
+            error_at(base->pos, "a qualifier of an array is its elements': write it inside the brackets, as in "
+                                "'[const u8]'");
+        Token *open = advance();
+        Type *elem = parse_type_in(TYPE_DECL);
+        expect_p("]");
+        Type *a = xcalloc(1, sizeof *a);
+        a->kind = T_ARRAY;
+        a->pos = open->pos;
+        a->elem = elem;
+        /* a `(` on the next line starts a statement (#35) */
+        if (is_p(peek(), "(") && !newline_before()) {
+            advance();
+            a->size = parse_assign();
+            a->size_local = names_local(a->size);
+            expect_p(")");
+        }
+        type_start = cur;
+        return parse_type_suffixes(a, ctx);
+    }
     int dot = typeof_at(cur);
     if (dot >= 0) { /* v.type (#34) */
         Type *t = parse_typeof(dot);
@@ -808,23 +850,27 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
                 error_at(tok->pos, CAST_HINT "; pointer types are written with a postfix '^', as in 'i32^'");
             error_at(tok->pos, "pointer types are written with a postfix '^', as in 'i32^'");
         } else if (is_p(tok, "[")) {
-            List sizes = {0};
-            List positions = {0};
+            /* C's T[N] after a type, read as it was (P2) for the hint that
+               spells it as [T](N) (#49) */
+            int from = type_start;
+            char *spelled = source_text(from, cur); /* the type before the brackets */
+            List dims = {0};                        /* each count as written */
             while (is_p(peek(), "[")) {
-                list_push(&positions, &peek()->pos);
                 advance();
-                list_push(&sizes, is_p(peek(), "]") ? NULL : parse_assign());
+                int at = cur;
+                if (!is_p(peek(), "]"))
+                    parse_assign();
+                list_push(&dims, source_text(at, cur));
                 expect_p("]");
             }
-            for (int i = sizes.len - 1; i >= 0; i--) {
-                Type *a = xcalloc(1, sizeof *a);
-                a->kind = T_ARRAY;
-                a->pos = *(Pos *)positions.data[i];
-                a->elem = t;
-                a->size = sizes.data[i];
-                a->size_local = a->size && names_local(a->size);
-                t = a;
-            }
+            for (int i = dims.len - 1; i >= 0; i--)
+                spelled = strfmt("[%s]%s%s%s", spelled, *(char *)dims.data[i] ? "(" : "", (char *)dims.data[i],
+                                 *(char *)dims.data[i] ? ")" : "");
+            int rest = cur;
+            while (is_p(peek(), "^") || is_qualifier(peek())) /* T[N]^, a pointer to the array */
+                advance();
+            error_at(toks[from].pos, "an array type is written '[T]', or '[T](N)' with its count (#49): write '%s%s' for '%s'",
+                     spelled, cur > rest ? source_text(rest, cur) : "", source_text(from, cur));
         } else {
             return t;
         }
@@ -886,6 +932,20 @@ static bool line_break(Token *a, Token *b) {
 }
 
 static bool newline_before(void) { return cur > 0 && line_break(&toks[cur - 1], peek()); }
+
+/* the tokens from i to the one before end, as written: a space where the
+   source has one between two tokens */
+static char *source_text(int i, int end) {
+    Buf b = {0};
+    buf_puts(&b, "");
+    for (int k = i; k < end; k++) {
+        if (k > i && (toks[k].pos.line != toks[k - 1].pos.line ||
+                      toks[k].pos.col > toks[k - 1].pos.col + (int)strlen(toks[k - 1].text)))
+            buf_puts(&b, " ");
+        buf_puts(&b, toks[k].text);
+    }
+    return b.buf;
+}
 
 
 static bool at_statement_level(void);
@@ -1238,8 +1298,23 @@ static Expr *parse_template(void) {
     }
 }
 
+/* Does [T](n), an array of n zero-filled elements (#49), start at i? */
+static bool zero_array_ahead(int i) {
+    if (!is_p(&toks[i], "["))
+        return false;
+    int e = type_shape_end(i + 1);
+    return e >= 0 && is_p(&toks[e], "]") && is_p(&toks[e + 1], "(");
+}
+
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (zero_array_ahead(cur)) {
+        Expr *e = new_expr(E_COMPOUND, t->pos);
+        e->type = parse_type_in(TYPE_DECL);
+        if (!e->type->size)
+            error_at(t->pos, "'[T](n)' makes an array of n zero-filled elements: write the count");
+        return e; /* a NULL initializer: zero-filled */
+    }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
         error_at(t->pos, "_Pragma(\"...\") is only allowed as a statement of its own");
     if (t->kind == TK_PUNCT && t->text[0] == '$')
@@ -1346,10 +1421,12 @@ static Expr *parse_primary(void) {
                          (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))) ||
                          (brace_in_for && chain && (chain->kind == T_ARRAY || chain->kind == T_PTR)) ||
                          (typeof_paren && !brace_ends_condition));
-        /* (i32[])[1, 2, 3], an array's compound literal (#48): the type ends
-           with `]`, or is a v.type kelvinc sees as an array; (p)[0] indexes */
+        /* ([i32])[1, 2, 3], an array's compound literal (#48, #49): the type
+           starts with `[`, or is a v.type kelvinc sees as an array, or is
+           C-order (i32[3]) for the hint; (p)[0] and (m[1])[0] index */
         compound = compound || (after && is_p(after, "[") &&
-                                ((paren_holds_type(cur) && is_p(after - 2, "]")) ||
+                                ((paren_holds_type(cur) &&
+                                  (is_p(peek2(), "[") || (is_p(after - 2, "]") && peek2()->kind != TK_IDENT))) ||
                                  (typeof_paren && chain && chain->kind == T_ARRAY)));
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
@@ -1441,11 +1518,11 @@ static Expr *parse_primary(void) {
         if (signature_ahead(cur))
             return parse_anon_fn(NULL); /* c ? { (a:i64) in ... } : ... (#32) */
         error_at(t->pos, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or "
-                         "'(i32[])[1, 2, 3]'; an anonymous function here writes its parameters, as in "
+                         "'([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in "
                          "'{ (a:i64):i64 in a + 1 }'");
     }
     if (is_p(t, "["))
-        error_at(t->pos, "an array is not a value here: write a compound literal, as in '(i32[])[1, 2, 3]' (#48)");
+        error_at(t->pos, "an array is not a value here: write a compound literal, as in '([i32])[1, 2, 3]' (#48)");
     error_at(t->pos, "expected an expression, found %s", desc(t));
 }
 
@@ -1634,13 +1711,10 @@ static char *kelvin_type(Type *t) {
         return strfmt("%s%s%s.type", q, *q ? " " : "", t->name);
     case T_PTR: /* a function type under ^ in parentheses, as its result takes the ^ */
         return strfmt(t->elem->kind == T_FUNC ? "(%s)^%s%s" : "%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
-    case T_ARRAY: {
-        /* a run of brackets reads in C order (P2): i64[2][3] */
-        Buf dims = {0};
-        for (; t->kind == T_ARRAY; t = t->elem)
-            buf_printf(&dims, "[%s]", !t->size ? "" : t->size->kind == E_LITERAL ? t->size->text : "...");
-        return strfmt(t->kind == T_FUNC ? "(%s)%s" : "%s%s", kelvin_type(t), dims.buf);
-    }
+    case T_ARRAY: /* [T], or [T](N) with its count (#49) */
+        return strfmt("[%s]%s%s%s", kelvin_type(t->elem),
+                      !t->size ? "" : strfmt("(%s)", t->size->kind == E_LITERAL || t->size->kind == E_IDENT ? t->size->text : "..."),
+                      *q ? " " : "", q);
     case T_FUNC: {
         Buf b = {0};
         buf_puts(&b, "(");
@@ -2978,6 +3052,26 @@ static Expr *property(Expr *e, Token *name, char *member) {
         x->text = member;
         return x;
     }
+    if (!strcmp(member, "count")) {
+        /* a.count is an array's number of elements (#49), sizeof(a) /
+           sizeof a[0], also of a VLA; a field wins where kelvinc is unsure */
+        Decl *record;
+        char c = expr_class(e, &record);
+        if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
+            return NULL;
+        Type *t = value_type(e);
+        if (!t || t->kind != T_ARRAY) {
+            if (t && t->kind == T_PTR)
+                error_at(name->pos, "'.count' is a property of arrays, and this is %s, a pointer: an array passed to "
+                                    "a function is one, so its count is passed beside it",
+                         kelvin_type(t));
+            error_at(name->pos, "'.count' is a property of arrays%s%s", t ? ", and this is " : "", t ? kelvin_type(t) : "");
+        }
+        Expr *x = new_expr(E_PROPERTY, name->pos);
+        x->a = e;
+        x->text = member;
+        return x;
+    }
     if (!strcmp(member, "type") || !strcmp(member, "typename")) {
         /* v.type is a type (#34), which an expression cannot hold: there
            .type is a field, if any; v.typename is the type's Kelvin text */
@@ -3303,7 +3397,7 @@ static Expr *parse_initializer_for(Type *t) {
     }
     if (signature_ahead(cur))
         return parse_assign(); /* { (a:i32):i32 in ... } (#32) */
-    bool bracket = is_p(open, "[");
+    bool bracket = is_p(open, "[") && !zero_array_ahead(cur);
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
     /* an array is initialized with [...], a struct or union with {...}
@@ -3497,6 +3591,8 @@ static Type *inferred_type(Expr *e, Pos pos) {
        is a u8, an enumerator its enum, sizeof a size_t; a ?: only between
        two values of one type */
     Type *t = e->kind == E_TERNARY ? value_type(e) : arg_type(e);
+    if (t && t->kind == T_ARRAY && e->kind == E_COMPOUND)
+        return t; /* ([i32])[1, 2, 3] and [T](n) declare the array itself (#49) */
     if (t && t->kind == T_ARRAY) { /* an array is not copied: the pointer C makes of it */
         Type *p = xcalloc(1, sizeof *p);
         p->kind = T_PTR;
@@ -3519,6 +3615,16 @@ static void reject_kv_name(Token *t) {
         error_at(t->pos, "names starting with kv_ or KV_ are kelvinc's runtime's: rename '%s'", t->text);
 }
 
+/* [T](n) of a count C computes at run time is a VLA that is zero-filled
+   after its declaration, which a let, const in C, cannot be (#49) */
+static void reject_let_vla(Var *v, int let) {
+    Expr *z = v->init;
+    if (let && z && z->kind == E_COMPOUND && !z->a && v->type && v->type->kind == T_ARRAY && v->type->size &&
+        v->type->size->kind != E_LITERAL)
+        error_at(v->pos, "'%s' is a let of a count computed at run time, which C cannot fill: write 'var %s'", v->name,
+                 v->name);
+}
+
 static Var *parse_var(bool with_init, int let) {
     Var *v = xcalloc(1, sizeof *v);
     v->pos = peek()->pos;
@@ -3532,6 +3638,7 @@ static Var *parse_var(bool with_init, int let) {
         declare_binding(v->name, NULL, let);
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
+        reject_let_vla(v, let);
         scope_types.data[scope_types.len - 1] = v->type;
         if (!v->type && v->init->kind == E_FUNC)
             error_at(v->pos, "'%s' needs a type: in %s, an array length names a parameter, which a function type "
@@ -3556,6 +3663,7 @@ static Var *parse_var(bool with_init, int let) {
         /* a function type types an anonymous function (#32) */
         v->init = parse_initializer_for(v->type);
         count_items(v->type, v->init);
+        reject_let_vla(v, let);
         pick_overload(v->init, v->type);
     }
     return v;
@@ -3708,8 +3816,7 @@ static void reject_c_declaration(void) {
         return;
     }
     bool function = false, function_pointer = false;
-    Buf dims = {0};
-    buf_puts(&dims, "");
+    List dims = {0}; /* each [N] of a C array, as written, for the hint (#49) */
     /* a `(` on the next line starts the next statement (#35) */
     while ((is_p(&toks[i], "(") && !line_break(&toks[i - 1], &toks[i])) || is_p(&toks[i], "[") ||
            is_p(&toks[i], "^")) {
@@ -3721,8 +3828,7 @@ static void reject_c_declaration(void) {
         }
         int end = is_p(&toks[i], "^") ? i + 1 : skip_group(i);
         if (is_p(&toks[i], "["))
-            for (int k = i; k < end; k++)
-                buf_puts(&dims, toks[k].text);
+            list_push(&dims, source_text(i + 1, end - 1));
         i = end;
     }
     /* also `size_t n` at the end of a line or before a `}` (#35) */
@@ -3746,8 +3852,12 @@ static void reject_c_declaration(void) {
                  name, quals, type);
     if (function)
         error_at(pos, "functions are declared at the top level as 'let %s(...):%s%s%s'", name, quals, type, suffix.buf);
-    error_at(pos, "declarations are written 'var name:type', as in '%s%svar %s:%s%s%s%s'", storage ? storage : "",
-             storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
+    char *spelled = strfmt("%s%s%s", quals, type, suffix.buf);
+    for (int k = dims.len - 1; k >= 0; k--) /* int a[2][3] is [[i32](3)](2) (#49) */
+        spelled = strfmt("[%s]%s%s%s", spelled, *(char *)dims.data[k] ? "(" : "", (char *)dims.data[k],
+                         *(char *)dims.data[k] ? ")" : "");
+    error_at(pos, "declarations are written 'var name:type', as in '%s%svar %s:%s'", storage ? storage : "",
+             storage ? " " : "", name, spelled);
 }
 
 static Stmt *new_stmt(StmtKind kind, Pos pos) {

@@ -3,18 +3,18 @@
 
 struct point { x:i32; y:i32; };
 struct segment { from:struct point; to:struct point; tag:cstr; };
-struct poly { name:u8^; corners:struct point[3]; grid:u8[2][2]; scale:f64; };
+struct poly { name:u8^; corners:[struct point](3); grid:[[u8](2)](2); scale:f64; };
 union number { i:i32; f:f32; };
-struct buf { n:i32; a:i32[]; };            // flexible array member
+struct buf { n:i32; a:[i32]; };            // flexible array member
 struct mixed { t:ticks_t; who:name_t; o:struct opaque; z:f64 _Complex; on:bool; next:struct mixed^; };
 struct named { si:i8^; text:cstr; };
 struct labeled { label:label_t; full:full_t; n:i32; };
-struct image { w:i32; h:i32; px:u8[1048576]; };   // its text would be megabytes
+struct image { w:i32; h:i32; px:[u8](1048576); };   // its text would be megabytes
 struct cnames { name:xmlChar^; u:uint8_t^; h:handle_t; r:rstr_t; z:dc_t; b:bytes_t; };
 struct seg { a:struct point; b:struct point; };
 struct msg { len:u32; text:flex_t; };    // never printed, so it needs no .cstr
 let seg.cstr_size():i32 { return 2; }         // no clash with kelvinc's size constant
-var pts:struct point[2] = [{1, 2}, {3, 4}];
+var pts:[struct point](2) = [{1, 2}, {3, 4}];
 let first():struct point^ { return &pts[0]; }
 let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
@@ -67,7 +67,7 @@ let main():i32 {
     // cstr is u8^
     var name:cstr := "kelvin";
     var q:cstr const := name;
-    var names:cstr[2] = ["a", "b"];
+    var names:[u8^](2) = ["a", "b"];
     println(name.cstr, " ", q, " ", names[1].cstr, " ", name.size == (8 as size_t));
 
     // the text lives until the enclosing block ends

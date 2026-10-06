@@ -12,7 +12,7 @@ let main():i32 {
     var n = 3;                              // inferred: i64
     printf("%.2f %d %d\n", pi * 2, i32(sizeof pi), i32(sizeof n));
 
-    var buf:u8[32];
+    var buf:[u8](32);
     snprintf(buf, sizeof buf, "%s-%d", "kelvin", 7);
     printf("%s %d\n", buf, i32(strlen(buf)));
 

@@ -21,8 +21,8 @@ let main():i32 {
     // compound literals: built-in types, typedef names, and under sizeof
     var d:div_t = (div_t){.quot = 3, .rem = 1};
     printf("%d %d\n", d.quot, d.rem);
-    printf("%d\n", i32(sizeof (i32[3])[1, 2, 3]));
-    printf("%d\n", (i32[2])[5, 6][1]);
+    printf("%d\n", i32(sizeof ([i32](3))[1, 2, 3]));
+    printf("%d\n", ([i32](2))[5, 6][1]);
 
     // parenthesized names still behave as expressions
     printf("%d %d\n", (x) - 1, (twice)(x));

@@ -30,7 +30,7 @@ let target = 5
 let distance(x:i64):i64 { x > target ? x - target : target - x }
 
 let main():i32 {
-    var xs:i64[8] = [5, 3, 8, 1, 9, 2, 7, 4]
+    var xs:[i64](8) = [5, 3, 8, 1, 9, 2, 7, 4]
     sort(xs, 8) { $0 < $1 }                     // the last argument, after the call
     show(xs, 8)
     sort(xs, 8, descending)                     // a named function works too
@@ -41,13 +41,13 @@ let main():i32 {
     show(xs, 8)
 
     let by_last_digit:(i64, i64):bool := { $0 % 10 < $1 % 10 }
-    var ys:i64[4] = [31, 12, 43, 20]
+    var ys:[i64](4) = [31, 12, 43, 20]
     sort(ys, 4, by_last_digit)
     show(ys, 4)
 
     // kelvinc cannot see qsort's comparator type, which is C's, so the
     // function writes its parameters and result
-    var names:cstr[4] = ["kelvin", "celsius", "rankine", "fahrenheit"]
+    var names:[u8^](4) = ["kelvin", "celsius", "rankine", "fahrenheit"]
     qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
         strcmp((a as const cstr^)^, (b as const cstr^)^)
     }

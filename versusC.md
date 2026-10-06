@@ -23,8 +23,9 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `1UL << 40` | `1:u64 << 40` |
 | `uint16_t u = 0xdead;` | `var u = 0xdead:u16` (inferred as `u16`) |
 | `char *s;` | `var s:u8^` or `var s:cstr` |
-| `int *a[4];` | `var a:i32^[4]` *(provisional)* |
-| `int (*p)[4];` | `var p:i32[4]^` *(provisional)* |
+| `int a[4];` | `var a:[i32](4)`, or `var a = [i32](4)`, zero-filled (#49) |
+| `int *a[4];` | `var a:[i32^](4)` |
+| `int (*p)[4];` | `var p:[i32](4)^` |
 | `const char *const s = t;` | `let s:const u8^ := t` |
 | `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
 | `void f(void);` | `let f()` |
@@ -161,12 +162,19 @@ as `char **`, because C requires that.
 ### Pointers and arrays are postfix
 
 - `T^` is a pointer to `T`. `*` only means multiplication.
-- `T[N]` is an array of N `T` *(provisional P1)*. Suffixes read left to
-  right: `i32^[4]` is an array of four pointers, and `i32[4]^` is a pointer
-  to an array. A run of brackets keeps C's order, so `i32[2][3]` indexes as
-  `m[1][2]` *(provisional P2)*.
+- `[T]` is an array of `T`, as Swift writes it, and `[T](N)` one of N
+  elements (#49): `[i32^](4)` is an array of four pointers, `[i32](4)^` a
+  pointer to an array of four, and `[[i32](3)](2)` C's `int32_t m[2][3]`,
+  indexed as `m[1][2]`. A declaration with a value needs no count:
+  `let a:[i32] = [1, 2, 3]`, or just `let a = [1, 2, 3]`, has three;
+  `[T](n)` is a value too, n zero-filled elements, with a count C computes
+  at run time if need be (C's VLA, in a `var`). A count never changes:
+  `.count` is it, and `.size` the bytes, `count * sizeof(T)`. A `var`
+  array's elements may change, a `let` array's may not. An array passed
+  to a function is a pointer, as in C, so `.count` there is an error:
+  pass the count beside it *(provisional P61)*.
 - C's hardest declarators become readable. A function returning a pointer to
-  an array of four ints, `int (*f(void))[4]`, is `let f():i32[4]^`.
+  an array of four ints, `int (*f(void))[4]`, is `let f():[i32](4)^`.
 
 ### Qualifiers
 
@@ -197,9 +205,10 @@ infers the type from the value:
 - an anonymous function that writes its parameters is its function type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
 - an array literal whose items are all of one inferred type is an array
-  of them (#48): `let a = [1, 2, 3]` is `i64[3]`, `[1.5, 2.0]` is
-  `f64[2]`, `[[1, 2], [3, 4]]` is `i64[2][2]`, and `[p, q]` of two
-  points is `point[2]`
+  of them (#48): `let a = [1, 2, 3]` is `[i64](3)`, `[1.5, 2.0]` is
+  `[f64](2)`, `[[1, 2], [3, 4]]` is `[[i64](2)](2)`, and `[p, q]` of two
+  points is `[point](2)`; so is `[T](n)`, and an array's compound literal
+  declares the array itself (#49)
 - any other value whose type kelvinc sees is that type (#47): a Kelvin
   function's or method's result (`var z = complex64(0.0, 1.0)`,
   `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
@@ -261,7 +270,7 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
   pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers:
   `let refs:i32^[2] = [p, q]`. An array parameter, though, is a pointer,
-  as in C: in `let f(var a:i32[4])`, write `a := a + 1`.
+  as in C: in `let f(var a:[i32])`, write `a := a + 1`.
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
 
@@ -387,7 +396,7 @@ a hint:
 - `size_t * p = &n;` suggests `var p:size_t^`, and `size_t n = 0;`
   suggests `var n:size_t`.
 - `const u8 *s` suggests `var s:const u8^`, and `size_t a[3];` suggests
-  `var a:size_t[3]`.
+  `var a:[size_t](3)`.
 - `static size_t m;` suggests `static var m:size_t`, and
   `size_t f(void);` points to function syntax.
 
@@ -409,8 +418,8 @@ like C's `(int)TOTAL`, converts only the `1.5`.
 Compound literals are not casts, and they work as in C for any type,
 including typedef names with suffixes, and under `sizeof`:
 `(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`. An array's takes
-`[...]` (#48), and `T[]` counts its items: `(size_t[])[1, 2]`,
-`sizeof (i32[])[1, 2, 3]` is 12, `for x in (i32[])[5, 6, 7] { }`
+`[...]` (#48), and `[T]` counts its items: `([size_t])[1, 2]`,
+`sizeof ([i32])[1, 2, 3]` is 12, `for x in ([i32])[5, 6, 7] { }`
 *(provisional P19, P60)*.
 
 ## Statements
@@ -520,7 +529,7 @@ strings and lists do (#30). What `x` is depends on `s`'s type:
 for c in s { ... }          // s:cstr: each byte, up to the NUL
 for arg in argv { ... }     // argv:u8^^: each string, up to nullptr
 for n in list.head { ... }  // n:node^: each node along next, up to nullptr
-for x in xs { ... }         // xs:i32[8]: up to 8 elements, or the first 0
+for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 ```
 
 - **A pointer to numbers or pointers** gives `s^`, `s.next^`, ... up to
@@ -530,7 +539,7 @@ for x in xs { ... }         // xs:i32[8]: up to 8 elements, or the first 0
   pointer is read before the body runs, so the body may `free(x)`.
 - **An array of known length** gives its elements, stopping early at a 0
   or `nullptr`; an array of structs gives all of them.
-- **An array parameter** is a pointer in C. A let one, `xs:i32[4]`, is
+- **An array parameter** is a pointer in C. A let one, `xs:[i32](4)`, is
   walked up to its declared length; a `var` one may have moved, so it is
   walked like a pointer.
 - **A pointer kelvinc cannot see**, such as `getenv("PATH")`'s, is walked
@@ -700,7 +709,7 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   `.a.b = ...`, an anonymous function writes its parameters.
 - **A list is not a value:** where C expects a value, as for
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
-  literal, `(u8[])['a', 'b']`. kelvinc says so, rather than taking the
+  literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the
   list for a function.
 - **A body of one expression** is the result: `{ $0 < $1 }`. Without a
   result, it must do something: a call or an assignment, as in
@@ -913,7 +922,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - A variable used only for its `.type` or `.typename` is unused as far
     as C sees (`-Wunused-variable` under `-Wall`) *(provisional P45)*.
 - **`v.typename`** is the text of `v`'s type as Kelvin writes it, a `cstr`:
-  `"i64"`, `"point"`, `"u8^"`, `"i32[4]"`, `"(i64):i64"`,
+  `"i64"`, `"point"`, `"u8^"`, `"[i32](4)"`, `"(i64):i64"`,
   `"((i64):i64)^"`. Where kelvinc cannot see the type, or it holds a
   `__typeof__`, C's `_Generic` gives the Kelvin name of a built-in type
   (`getenv("X").typename` is `"u8^"`), and anything else is `"?"`. A
@@ -1025,7 +1034,7 @@ let card:cstr := `name: ${name}
 - **Room** for each value's longest text is made in advance, so
   numbers, bools, addresses, a struct's text, the number properties
   (`.dec`, `.hex`, `.oct`, `.bin`, `.size`, `.addr`), string literals and
-  nested templates are shown whole. A byte array (`u8[16]`) is read up
+  nested templates are shown whole. A byte array (`[u8](16)`) is read up
   to a NUL or its end, never past it, and shown whole up to 256 bytes.
   Other strings (`.cstr` of a string too), and values only C sees, show
   at most 256 bytes: a longer one shows its first 253 and `...`, and
@@ -1161,8 +1170,8 @@ usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
 These are C features without a Kelvin spelling so far:
 
 - `typedef`
-- an array of functions, or a pointer to a function type: `(i64):i64[4]`
-  is a function returning an array, which C rejects
+- an array of functions, or a pointer to a function type: `[(i64):i64](4)`
+  has no spelling yet
 - bit-fields
 - unnamed parameters
 - nested or local struct/union/enum definitions

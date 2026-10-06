@@ -3,10 +3,10 @@
 // (256) bytes
 #import <string.h> as C
 struct rec { id: i64; name: cstr }
-struct tagged { id: i64; tag: u8[8] }
+struct tagged { id: i64; tag: [u8](8) }
 let mk():tagged { (tagged){1, ['t', 'a', 'g', 's', 'a', 'n', 'd', 's']} }
 let main():i32 {
-    var text:u8[400]
+    var text:[u8](400)
     for i in 0..<399 {
         text[i] = 'a' + (i % 26)
     }
@@ -45,19 +45,19 @@ again:
     println(strlen(longer), " ", &longer[strlen(longer) - 6])
     // a byte array is read up to a NUL or its end, never past it, and shown
     // whole up to 256 bytes; a longer one is cut as a string is
-    var big:u8[600]
+    var big:[u8](600)
     for i in 0..<500 {
         big[i] = 'b'
     }
     big[500] = 0
-    var mid:u8[200]
+    var mid:[u8](200)
     for i in 0..<199 {
         mid[i] = 'm'
     }
     mid[199] = 0
-    var four:u8[4] = ['a', 'b', 'c', 'd']
+    var four:[u8](4) = ['a', 'b', 'c', 'd']
     let N = 8
-    var eight:u8[N]
+    var eight:[u8](N)
     for i in 0..<N {
         eight[i] = 'e'
     }

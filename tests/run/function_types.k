@@ -34,7 +34,7 @@ let sum(n:i32, ...):i64 { return n; }
 let second(p:i64^):i64^ { return p.next; }
 
 let main():i32 {
-    var xs:i64[4] = [1, 2, 3, 4];
+    var xs:[i64](4) = [1, 2, 3, 4];
     println(fold(xs, 4, 0, add), " ", fold(xs, 4, 1, mul), " ", fold(xs, 4, 1, pick(true)));
 
     // a function value is a reference: assigned with :=, nullptr by default

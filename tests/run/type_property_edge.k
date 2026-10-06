@@ -5,7 +5,7 @@
 
 enum { len = 3 };
 enum color { red, green };
-struct box { xs:i32[len]; };
+struct box { xs:[i32](len); };
 struct point { x:i32; y:i32; };
 
 // a prelude without <limits.h> leaves its names free
@@ -38,15 +38,15 @@ let main():i32 {
     let len = 10;
     var c:bx.xs.type;
     var n:i64 = 3;
-    var a:i32[n];
+    var a:[i32](n);
     n = 10;
     var b:a.type;
-    var d:i32[next_len()];
+    var d:[i32](next_len());
     var e:d.type;
     println(c.size, " ", b.size, " ", sizeof(a.type), " ", e.size, " ", calls, " ", len);
 
     // const on an array's type is on its elements; a counter has none
-    var xs:i32[3] = [1, 2, 3];
+    var xs:[i32](3) = [1, 2, 3];
     var ys:const xs.type = [4, 5, 6];
     for i:limit.type in 0..<limit {
         print(i);
@@ -85,7 +85,7 @@ let main():i32 {
 }
 
 // out: 12 12 12 12 1 10
-// out: 012301 const i32[3]
+// out: 012301 [const i32](3)
 // out: 3 4 true 8 4 2 18 15
 // out: 789 6 7 5 107
 // out: any^ i32 point struct cpt ((i64):i64)^ ? {x: 1, y: 2}

@@ -2,7 +2,7 @@
 enum { LIMIT = 100 }
 
 let main():i32 {
-    var composite:bool[LIMIT + 1] = [false]
+    var composite:[bool](LIMIT + 1) = [false]
     var count = 0
     for n in 2...LIMIT {
         if composite[n] {

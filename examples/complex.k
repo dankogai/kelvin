@@ -38,7 +38,7 @@ let main():i32 {
     show(sum); printf("\n")
 
     // a discrete Fourier transform of 1, 2, 3, 4
-    let x:f64[4] = [1.0, 2.0, 3.0, 4.0]
+    let x:[f64](4) = [1.0, 2.0, 3.0, 4.0]
     for k in 0..<4 {
         var X:complex64 = complex64(0.0)
         for n in 0..<4 {

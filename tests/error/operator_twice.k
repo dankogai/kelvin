@@ -4,7 +4,7 @@ let +(a:vec, b:vec):vec { (vec){a.x + b.x, a.y + b.y} }
 var at:i64 = 0
 let next():i64 { at += 1; return at - 1 }
 let main():i32 {
-    var vs:vec[2] = [{1.0, 2.0}, {3.0, 4.0}]
+    var vs:[struct vec](2) = [{1.0, 2.0}, {3.0, 4.0}]
     vs[next()] += vs[1]
     return 0
 }

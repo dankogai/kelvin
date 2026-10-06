@@ -48,7 +48,7 @@ let run(a:(i64), b:(i64):i64):i64 { b(1) }
 let run(g:(i64, (i64):i64)):i64 { 2 }
 let total(n:i64, ...):i64 { n }
 let total(s:const u8^):i64 { -1 }
-let first(a:i64[3]):i64 { a[0] }
+let first(a:[i64](3)):i64 { a[0] }
 let first(x:f64):i64 { 0 }
 
 // C's sqrt and fabs still take numbers
@@ -96,7 +96,7 @@ let main():i32 {
     // overload that takes it
     println(scale(v, small).x, " ", scale(quarter, v).y, " ", twice(small as i64), " ", mix(n, 2.0), " ", mix(x, 2.0))
     let cs:const u8^ := "hello"
-    var three:i64[3] = [7, 8, 9]
+    var three:[i64](3) = [7, 8, 9]
     println(put(name), " ", put(cs), " ", run({ (k:i64) in nothing(k) }, once), " ", total(1, 2, 3), " ", first(three))
     println(sqrt(v), " ", sqrt(16.0), " ", fabs(v).y, " ", fabs(-2.5), " ", scale(2.0, v).x, " ", (once)(5))
 

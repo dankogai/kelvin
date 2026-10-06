@@ -2290,3 +2290,44 @@ recommendation, writing the third answer in full:
 
 There are 439 tests, and all pass with clang and with gcc 15.
 
+### 76. Array types in brackets, with a count
+
+> * change array type from `T[]` to `[T]` like swift.
+> * `[T]` has an attribute `.count` that is set during initialization
+> * `var a = [0,1,2,3]` is a type `[i64]` and `a.count` is 4. The size
+>   never changes. Variable-sized array like python, swift, etc is to do.
+> * to make an empty array, you go `[T](count)`. You get `count` number
+>   of zero-filled elements.
+> * an array also has `.size` attribute which is simply
+>   `a.count * sizeof(T)`.
+> * `var` arrays don't expand or shrink but its elements are mutable.
+>   `let` arrays locks its elements as well.
+> * kelvin promotes array logic rather than pointers. We use pointers
+>   only when it is necessary.
+> * yet `var p := a` still works. `p^`is now `a[0]`.
+
+**Claude** asked three questions, and the user took each
+recommendation:
+
+| Question | Answer |
+|----------|--------|
+| A member or an uninitialized global needs a count in its type: how? | `[T](N)`, the same spelling as the value |
+| May `[T](n)` take a count computed at run time? | Yes, as C's VLA, in a local `var` |
+| A parameter `a:[i64]` is a pointer in C: `.count` there? | Allowed; `.count` is an error that says to pass the count |
+
+**Claude** implemented #49. The details are provisional P61:
+
+- `[T]` and `[T](N)` replace `T[]` and `T[N]`, suffixes as before:
+  `[i32^](4)`, `[i32](4)^`, `[[i32](3)](2)`. `[const u8]` carries the
+  elements' qualifier.
+- `[T](n)` is a value of n zero-filled elements; a local `var` of a
+  count C computes is a VLA, declared and then zeroed with `memset`.
+- `.count` is `sizeof(a) / sizeof a[0]`, so it holds for a VLA; on a
+  pointer it is an error that says to pass the count.
+- A compound literal `([i32])[10, 20, 30]` now declares the array
+  itself; `let q := ...` of it still makes a pointer.
+- `T[N]` is an error whose hint spells the type the new way from the
+  source as written; a script driven by those hints rewrote every array
+  type in the repository.
+
+There are 444 tests, and all pass with clang and with gcc 15.

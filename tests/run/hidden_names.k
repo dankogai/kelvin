@@ -10,12 +10,12 @@ let point.scaled(k:i64):point {
 
 let apply(x:i64, f:(i64):i64):i64 { f(x) }
 let twice:(i64):i64 := { $0 * 2 }
-struct holder { a: u8[sizeof(apply(1) { $0 + 1 })] }
+struct holder { a: [u8](sizeof(apply(1) { $0 + 1 })) }
 
 let main():i32 {
     let n:i64 = 255
     let p:point = {1, 2}
-    var xs:i64[3] = [1, 2, 3]
+    var xs:[i64](3) = [1, 2, 3]
     print(n.hex, " ", n.dec, " ", (n + 1).hex, " ", p.cstr, " ", p.scaled(2).x)
     for i in 0..<2 {
         print(" ", i)

@@ -3,7 +3,7 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 
-struct counter { hits:i64[3]; };
+struct counter { hits:[i64](3); };
 
 var total:i64 = 0;
 let step = 10;
@@ -36,7 +36,7 @@ let shout:(cstr) := { println($0, "!") };
 let main():i32 {
     // the last argument, written after the call: no ';' needed
     println(apply(20) { $0 + 1 }, " ", apply(20, { $[0] - 1 }));
-    var xs:i64[3] = [1, 2, 3];
+    var xs:[i64](3) = [1, 2, 3];
     each(xs, 3) { total += $0 * step }      // globals are fine
     println(total);
 
@@ -48,7 +48,7 @@ let main():i32 {
     });
 
     // written parameters, where kelvinc sees no type: C's qsort
-    var ys:i32[4] = [3, 1, 4, 2];
+    var ys:[i32](4) = [3, 1, 4, 2];
     qsort(ys, 4, sizeof(i32)) { (a:const any^, b:const any^):i32 in
         let x:i32 = (a as const i32^)^;
         let y:i32 = (b as const i32^)^;

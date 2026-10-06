@@ -32,7 +32,7 @@ let reverse(s:cstr) {
 }
 
 let main():i32 {
-    var buf:u8[32]
+    var buf:[u8](32)
     strcpy(buf, "Hello, Kelvin")
     println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels")
     reverse(buf)

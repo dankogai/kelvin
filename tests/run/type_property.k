@@ -22,7 +22,7 @@ let main():i32 {
     let p := &w as w.type^;
     var pt:point = {1, 2};
     var q:pt.type = {3, 4};
-    var xs:i32[4] = [1, 2, 3, 4];
+    var xs:[i32](4) = [1, 2, 3, 4];
     var ys:xs.type = [5, 6, 7, 8];
     let r:pt.x.type = 7;
     var pp:point^ := &pt;
@@ -55,7 +55,7 @@ let main():i32 {
 }
 // out: 5 5 3 8 4 9 3
 // out: 8 8 6 6
-// out: i64 point i64^ i32[4] (i64):i64 point
+// out: i64 point i64^ [i32](4) (i64):i64 point
 // out: i32 u64 u8^ i32 bool f64
 // out: 2 4 3 4 3 i64
 // out: 5 i32 20

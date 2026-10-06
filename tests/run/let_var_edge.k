@@ -28,7 +28,7 @@ let main():i32 {
     if setjmp(env) == 0 {
         jump(env);
     }
-    let lens:i32[3] = [1, 2, 3];
+    let lens:[i32](3) = [1, 2, 3];
     println("back ", total(lens, 3), " ", count(4));
     return 0;
 }

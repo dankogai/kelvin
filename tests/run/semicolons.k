@@ -34,7 +34,7 @@ let main():i32 {
         count
     var p:point = {3, 4}
     println(t, " ", u, " ", square(4), " ", p.dist2(), " ", proto(1))
-    var xs:i32[3] = [3, 1, 2]
+    var xs:[i32](3) = [3, 1, 2]
     var q:any^ := &xs[0]
     (q as i32^)^ = 9
     println(xs[0])

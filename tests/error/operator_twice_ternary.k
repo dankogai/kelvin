@@ -7,7 +7,7 @@ let next():i64 {
     return n
 }
 let main():i32 {
-    var vs:vec[3] = [{1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}]
+    var vs:[struct vec](3) = [{1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}]
     vs[n > 0 ? next() : 0] *= 2.0
     return 0
 }

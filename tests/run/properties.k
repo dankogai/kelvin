@@ -21,7 +21,7 @@ let main():i32 {
 
     // .size is sizeof
     var p:struct point = {1, 2};
-    var arr:i32[10];
+    var arr:[i32](10);
     var ptr:i32^;
     println(a.size, " ", c.size, " ", e.size, " ", pi.size, " ", p.size, " ", arr.size, " ", ptr.size, " ", c.size.dec);
 

@@ -5,7 +5,7 @@ struct op {
     g:(i64):i64;
 };
 struct box { v:i64; };
-struct bag { xs:i64[3]; };
+struct bag { xs:[i64](3); };
 struct point { x:i32; y:i32; };
 
 let apply(x:i64, f:(i64):i64):i64 { return f(x); }
@@ -20,10 +20,10 @@ let below(n:i64, f:(i64):bool):bool { return f(n); }
 let tick(n:i64) { print(n, " "); }
 
 // a function in a member's length, and globals of one declaration
-struct holder { buf:u8[sizeof(apply(1) { $0 })]; };
-var buf:u8[16], fill := { (a:u8[sizeof(buf)]) in a[0] = 1 };
+struct holder { buf:[u8](sizeof(apply(1) { $0 })); };
+var buf:[u8](16), fill := { (a:[u8](sizeof(buf))) in a[0] = 1 };
 let N:i64 = 3;
-let total(xs:i64^, f:(i64[N]):i64):i64 { return f(xs); }
+let total(xs:i64^, f:([i64](N)):i64):i64 { return f(xs); }
 
 let main():i32 {
     // an operator or .member on the next line goes on with the expression
@@ -39,9 +39,9 @@ let main():i32 {
 
     // initializer items that start with an annotation stay values
     let n:i32 = 4;
-    let xs:i64[2] = [ (n:i64) * 2, 3 ];
-    let ys:i64[2] = [ (n:u8):i64, 2 ];
-    let ops:op[2] = [{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}];
+    let xs:[i64](2) = [ (n:i64) * 2, 3 ];
+    let ys:[i64](2) = [ (n:u8):i64, 2 ];
+    let ops:[op](2) = [{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}];
     println(xs[0], " ", ys[0], " ", ops[1].f(5), " ", ops[0].g(5));
 
     // ?: picks functions, also nullptr; a compound literal ends a line
@@ -71,7 +71,7 @@ let main():i32 {
     // placement, sizes, and a length of global names, which is kept
     var h:holder;
     fill(buf);
-    var six:i64[6] = [1, 2, 3, 4, 5, 0];
+    var six:[i64](6) = [1, 2, 3, 4, 5, 0];
     println(h.size, " ", buf[0], " ", apply.size == sizeof(any^), " ", total(six) {
         var s:i64 = 0;
         for x in $0 {
