@@ -5,7 +5,7 @@
 #import "lib/units.k"
 #import "lib/shapes.k"
 
-main():i32 {
+let main():i32 {
     let s:square = {2.0}
     println(area(s), " ", area((circle){1.0}) == PI, " ", twice(1.5))
     describe(s)

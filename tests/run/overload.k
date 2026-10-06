@@ -12,74 +12,74 @@ struct vec { x: f64; y: f64 }
 struct node { v: i64; next: node^ }
 enum color { RED, GREEN, BLUE }
 
-twice(n:i64):i64 { n * 2 }
-twice(x:f64):f64 { x * 2.0 }
-twice(s:const u8^):i64 { i64(strlen(s)) * 2 }
-twice(v:vec):vec { (vec){v.x * 2.0, v.y * 2.0} }
+let twice(n:i64):i64 { n * 2 }
+let twice(x:f64):f64 { x * 2.0 }
+let twice(s:const u8^):i64 { i64(strlen(s)) * 2 }
+let twice(v:vec):vec { (vec){v.x * 2.0, v.y * 2.0} }
 
 // a prototype and its definition are one overload, also with a const
 // on a parameter itself
-scale(v:vec, k:f64):vec
-scale(v:const vec, k:f64):vec { (vec){v.x * k, v.y * k} }
-scale(k:f64, v:vec):vec { scale(v, k) }
+let scale(v:vec, k:f64):vec
+let scale(v:const vec, k:f64):vec { (vec){v.x * k, v.y * k} }
+let scale(k:f64, v:vec):vec { scale(v, k) }
 
 // recursion through arithmetic, which has the type C gives it
-fact(n:i64):i64 { n <= 1 ? 1 : n * fact(n - 1) }
-fact(x:f64):f64 { x <= 1.0 ? 1.0 : x * fact(x - 1.0) }
+let fact(n:i64):i64 { n <= 1 ? 1 : n * fact(n - 1) }
+let fact(x:f64):f64 { x <= 1.0 ? 1.0 : x * fact(x - 1.0) }
 
-pick(b:bool):i64 { 1 }
-pick(n:i64):i64 { 2 }
-count(p:node^):i64 { p == nullptr ? 0 : 1 + count(p^.next) }
-count(n:i64):i64 { n }
-show(c:color):i64 { 100 + i64(c) }
-show(n:i64):i64 { n }
+let pick(b:bool):i64 { 1 }
+let pick(n:i64):i64 { 2 }
+let count(p:node^):i64 { p == nullptr ? 0 : 1 + count(p^.next) }
+let count(n:i64):i64 { n }
+let show(c:color):i64 { 100 + i64(c) }
+let show(n:i64):i64 { n }
 
 // the overload every argument kelvinc sees fits best
-mix(a:i64, b:f64):i64 { 1 }
-mix(a:f64, b:f64):i64 { 2 }
+let mix(a:i64, b:f64):i64 { 1 }
+let mix(a:f64, b:f64):i64 { 2 }
 
 // a pointer may gain const, never lose it
-put(p:u8^):i64 { 1 }
-put(p:const any^):i64 { 2 }
+let put(p:u8^):i64 { 1 }
+let put(p:const any^):i64 { 2 }
 
 // function types and variadic functions have names of their own in C, and an
 // array parameter is a pointer
-run(a:(i64), b:(i64):i64):i64 { b(1) }
-run(g:(i64, (i64):i64)):i64 { 2 }
-total(n:i64, ...):i64 { n }
-total(s:const u8^):i64 { -1 }
-first(a:i64[3]):i64 { a[0] }
-first(x:f64):i64 { 0 }
+let run(a:(i64), b:(i64):i64):i64 { b(1) }
+let run(g:(i64, (i64):i64)):i64 { 2 }
+let total(n:i64, ...):i64 { n }
+let total(s:const u8^):i64 { -1 }
+let first(a:i64[3]):i64 { a[0] }
+let first(x:f64):i64 { 0 }
 
 // C's sqrt and fabs still take numbers
-sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }
-fabs(v:vec):vec { (vec){fabs(v.x), fabs(v.y)} }
+let sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }
+let fabs(v:vec):vec { (vec){fabs(v.x), fabs(v.y)} }
 
 // C's abs, declared by hand, keeps its name beside an overload, and so does
 // C's sin, called before Kelvin overloads it
-abs(n:i32):i32
-abs(v:vec):f64 { sqrt(v) }
-half_sin(x:f64):f64 { sin(x) / 2.0 }
-sin(v:vec):vec { (vec){sin(v.x), sin(v.y)} }
+let abs(n:i32):i32
+let abs(v:vec):f64 { sqrt(v) }
+let half_sin(x:f64):f64 { sin(x) / 2.0 }
+let sin(v:vec):vec { (vec){sin(v.x), sin(v.y)} }
 
 // anonymous functions take the parameter types the overloads agree on
-each(n:i64, f:(i64):i64):i64 { f(n) }
-each(s:const u8^, f:(i64):i64):i64 { f(i64(strlen(s))) }
-zero():i64 { 0 }
-zero(n:i64):i64 { n - n }
+let each(n:i64, f:(i64):i64):i64 { f(n) }
+let each(s:const u8^, f:(i64):i64):i64 { f(i64(strlen(s))) }
+let zero():i64 { 0 }
+let zero(n:i64):i64 { n - n }
 
 // an overloaded name as a value: the overload of the type wanted, and
 // an overloaded function given one: the one taking that type
-apply(f:(i64):i64, n:i64):i64 { f(n) }
-apply(f:(f64):f64, x:f64):f64 { f(x) }
-halver():(f64):f64 { twice }
-doubler():(i64):i64 {
+let apply(f:(i64):i64, n:i64):i64 { f(n) }
+let apply(f:(f64):f64, x:f64):f64 { f(x) }
+let halver():(f64):f64 { twice }
+let doubler():(i64):i64 {
     return twice
 }
-nothing(n:i64) { }
-once(n:i64):i64 { n }
+let nothing(n:i64) { }
+let once(n:i64):i64 { n }
 
-main():i32 {
+let main():i32 {
     let v:vec = {3.0, -4.0}
     let small:i32 = 21
     let quarter:f32 = 0.25

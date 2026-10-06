@@ -5,7 +5,7 @@
 struct point { x: i32; y: i32 }
 
 // a template in a switch case, and in a block that a goto jumps into
-describe(n:i64) {
+let describe(n:i64) {
     switch (n) {
     case 0:
         println("zero")
@@ -14,7 +14,7 @@ describe(n:i64) {
         println(`n is ${n}`)
     }
 }
-jump(n:i64) {
+let jump(n:i64) {
     if n > 5 {
         goto big
     }
@@ -24,21 +24,21 @@ jump(n:i64) {
         println(`done ${n}`)
     }
 }
-apply(x:i64, f:(i64):i64):i64 { f(x) }
+let apply(x:i64, f:(i64):i64):i64 { f(x) }
 
 var calls:i64 = 0
-next():i64 {
+let next():i64 {
     calls += 1
     return calls
 }
 
-greet(name:cstr) {
+let greet(name:cstr) {
     println(`Hello, ${name}!`)
 }
 
 // the text lives until its block ends, also when the function returns
 // early or a loop breaks
-count_up(n:i64):i64 {
+let count_up(n:i64):i64 {
     var total:i64 = 0
     for i in 0..<10 {
         let text:cstr := `${i}`
@@ -53,7 +53,7 @@ count_up(n:i64):i64 {
     return total
 }
 
-main():i32 {
+let main():i32 {
     let n:i64 = 42
     let x:f64 = 0.1
     let p:point = {3, 4}

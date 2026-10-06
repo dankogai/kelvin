@@ -1,7 +1,7 @@
 // how print and ${x} show floats: the shortest text that reads back the
 // same, as in Swift. Plain decimal from 0.0001 up to 2^53 for f64 and
 // 2^24 for f32, where every integer is exact, and an exponent otherwise
-main():i32 {
+let main():i32 {
     // whole numbers keep their digits and get a .0
     println(10.0, " ", 100.0, " ", 1500.0, " ", 123456.0, " ", -2500.0)
     println(0.0, " ", -0.0, " ", 1e15, " ", 1.5e15)

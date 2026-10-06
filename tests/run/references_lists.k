@@ -5,7 +5,7 @@ var y:i32 = 1;
 var g := 0 as i32^;                     // a global reference, inferred
 static var h := 0 as i32^;
 
-main():i32 {
+let main():i32 {
     g := &x;
     h := g;
     var p:i32^ := &y;

@@ -1,4 +1,4 @@
 // error: malformed number '12ab'
-f() {
+let f() {
     x = 12ab;
 }

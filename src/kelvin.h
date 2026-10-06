@@ -59,7 +59,7 @@ typedef enum {
     TK_TPL_TAIL,
     TK_PUNCT,
     TK_IMPORT,  /* #import <x.h> as C; text is the header name, e.g. "<x.h>" */
-    TK_IMPORT_K, /* #import <lib/x.k> (#40): a Kelvin file, whose tokens main.c
+    TK_IMPORT_K, /* #import <x.k> (#40): a Kelvin file, whose tokens main.c
                     puts after it before parsing */
     TK_FILE_END, /* the end of an imported Kelvin file (#40); text is its path */
 } TokKind;

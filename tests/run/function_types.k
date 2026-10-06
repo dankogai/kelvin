@@ -7,10 +7,10 @@ struct ops {
     name:cstr;
 };
 
-add(a:i64, b:i64):i64 { return a + b; }
-mul(a:i64, b:i64):i64 { return a * b; }
+let add(a:i64, b:i64):i64 { return a + b; }
+let mul(a:i64, b:i64):i64 { return a * b; }
 
-fold(xs:i64^, n:size_t, start:i64, f:(i64, i64):i64):i64 {
+let fold(xs:i64^, n:size_t, start:i64, f:(i64, i64):i64):i64 {
     var acc:i64 = start;
     for i in 0..<n {
         acc = f(acc, xs[i]);
@@ -19,7 +19,7 @@ fold(xs:i64^, n:size_t, start:i64, f:(i64, i64):i64):i64 {
 }
 
 // a function may return a function
-pick(product:bool):(i64, i64):i64 {
+let pick(product:bool):(i64, i64):i64 {
     if product {
         return mul;
     }
@@ -27,13 +27,13 @@ pick(product:bool):(i64, i64):i64 {
 }
 
 var count:i32 = 0;
-tick() { count += 1; }
+let tick() { count += 1; }
 
-sum(n:i32, ...):i64 { return n; }
+let sum(n:i32, ...):i64 { return n; }
 
-second(p:i64^):i64^ { return p.next; }
+let second(p:i64^):i64^ { return p.next; }
 
-main():i32 {
+let main():i32 {
     var xs:i64[4] = {1, 2, 3, 4};
     println(fold(xs, 4, 0, add), " ", fold(xs, 4, 1, mul), " ", fold(xs, 4, 1, pick(true)));
 

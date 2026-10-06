@@ -10,6 +10,8 @@ OBJS := $(SRCS:src/%.c=build/%.o)
 RT_SRCS := $(wildcard runtime/*.c)
 RT_OBJS := $(RT_SRCS:runtime/%.c=build/runtime/%.o)
 
+# modules/ holds what a Kelvin program uses: the prelude header, libkelvin
+# and the Kelvin files of #import <x.k> (#46)
 ifeq ($(shell uname -s),Darwin)
 SHLIB := libkelvin.dylib
 SHLIB_FLAGS := -dynamiclib -install_name @rpath/libkelvin.dylib
@@ -18,7 +20,7 @@ SHLIB := libkelvin.so
 SHLIB_FLAGS := -shared -Wl,-soname,libkelvin.so
 endif
 
-all: kelvinc libkelvin.a $(SHLIB)
+all: kelvinc modules/libkelvin.a modules/$(SHLIB)
 
 kelvinc: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS)
@@ -26,14 +28,14 @@ kelvinc: $(OBJS)
 build/%.o: src/%.c src/kelvin.h | build
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-build/runtime/%.o: runtime/%.c runtime/kelvin_prelude.h | build/runtime
-	$(CC) $(RT_CFLAGS) -c -o $@ $<
+build/runtime/%.o: runtime/%.c modules/kelvin_prelude.h | build/runtime
+	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
 
-libkelvin.a: $(RT_OBJS)
+modules/libkelvin.a: $(RT_OBJS)
 	rm -f $@
 	ar rcs $@ $(RT_OBJS)
 
-$(SHLIB): $(RT_OBJS)
+modules/$(SHLIB): $(RT_OBJS)
 	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) -lm
 
 build build/runtime:
@@ -43,14 +45,12 @@ test: all
 	./tests/run.sh
 
 install: all
-	install -d $(PREFIX)/bin $(PREFIX)/lib $(PREFIX)/include
+	install -d $(PREFIX)/bin $(PREFIX)/lib/kelvin/modules
 	install -m 755 kelvinc $(PREFIX)/bin/kelvinc
-	install -m 644 libkelvin.a $(PREFIX)/lib/libkelvin.a
-	install -m 755 $(SHLIB) $(PREFIX)/lib/$(SHLIB)
-	install -m 644 runtime/kelvin_prelude.h $(PREFIX)/include/kelvin_prelude.h
-	install -m 644 lib/*.k $(PREFIX)/lib/
+	install -m 644 modules/kelvin_prelude.h modules/libkelvin.a modules/*.k $(PREFIX)/lib/kelvin/modules/
+	install -m 755 modules/$(SHLIB) $(PREFIX)/lib/kelvin/modules/$(SHLIB)
 
 clean:
-	rm -rf build kelvinc libkelvin.a libkelvin.so libkelvin.dylib
+	rm -rf build kelvinc modules/libkelvin.a modules/libkelvin.so modules/libkelvin.dylib
 
 .PHONY: all test install clean

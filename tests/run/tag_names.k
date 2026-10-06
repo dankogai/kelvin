@@ -7,11 +7,11 @@ union number { i:i32; f:f32; };
 enum color { RED, GREEN, BLUE };
 struct timespec;                               // a C struct, declared in Kelvin
 
-origin():point { return (point){0, 0}; }
-point.moved(dx:i32):point { self.x += dx; return self; }
-name(c:color):cstr { return c == RED ? "red" : "other"; }
+let origin():point { return (point){0, 0}; }
+let point.moved(dx:i32):point { self.x += dx; return self; }
+let name(c:color):cstr { return c == RED ? "red" : "other"; }
 
-main():i32 {
+let main():i32 {
     var p:point = {1, 2};
     let q:struct point = p.moved(3);          // the long form still works
     let n := malloc(sizeof(node)) as node^;

@@ -7,7 +7,7 @@ extern var optind:i32;             // a C global, declared so Kelvin knows it
 
 var total = 0;                      // a global, inferred i64
 
-main():i32 {
+let main():i32 {
     var x:i32 = 5;                 // explicit type
     var i = 42;                     // not declared yet: declares i: i64
     var u = 0xdead:u16;             // u: u16

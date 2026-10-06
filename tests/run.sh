@@ -5,11 +5,13 @@
 #   examples/*.k     given by `// out: ...` comments (in order); the C
 #                    that kelvinc writes (--emit-c --no-line) must hold
 #                    the text of each `// c: ...` comment.
+#   tests/project/*.k  likewise, built from inside tests/project, whose
+#                    modules/ #import <x.k> and C look in first (#46).
 #   tests/error/*.k  must fail to build (in kelvinc or in the C compiler),
 #                    with output containing the `// error: ...` text.
-#   tests/c/*.c      C programs using libkelvin; built against libkelvin.a
-#                    and against the shared library, each must print the
-#                    `// out: ...` lines.
+#   tests/c/*.c      C programs using libkelvin; built against
+#                    modules/libkelvin.a and against the shared library,
+#                    each must print the `// out: ...` lines.
 
 cd "$(dirname "$0")/.." || exit 1
 KELVINC=${KELVINC:-./kelvinc}
@@ -63,6 +65,29 @@ for f in tests/run/*.k examples/*.k; do
     ok
 done
 
+# kelvinc by a path that holds from inside tests/project too
+case $KELVINC in
+/*) kelvinc_path=$KELVINC ;;
+*/*) kelvinc_path=$(pwd)/$KELVINC ;;
+*) kelvinc_path=$KELVINC ;;
+esac
+for f in tests/project/*.k; do
+    [ -e "$f" ] || continue
+    sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
+    if ! (cd tests/project && "$kelvinc_path" -o "$tmp/prog" "${f##*/}") > "$tmp/log" 2>&1; then
+        bad "$f" "does not compile"
+    elif [ -s "$tmp/log" ]; then
+        bad "$f" "compiles with diagnostics"
+    elif ! "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"; then
+        bad "$f" "exits with a failure"
+    elif ! cmp -s "$tmp/expected" "$tmp/actual"; then
+        diff "$tmp/expected" "$tmp/actual" > "$tmp/log"
+        bad "$f" "output differs (expected < > actual)"
+    else
+        ok
+    fi
+done
+
 for f in tests/error/*.k; do
     [ -e "$f" ] || continue
     want=$(sed -n 's|^[[:space:]]*// error: ||p' "$f" | head -1)
@@ -81,11 +106,11 @@ for f in tests/c/*.c; do
     sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
     for link in static shared; do
         if [ "$link" = static ]; then
-            set -- libkelvin.a -lm
+            set -- modules/libkelvin.a -lm
         else
-            set -- -L. -lkelvin -Wl,-rpath,"$(pwd)" -lm
+            set -- -Lmodules -lkelvin -Wl,-rpath,"$(pwd)/modules" -lm
         fi
-        if ! "$CC" -std=c11 -isystem runtime -o "$tmp/cprog" "$f" "$@" > "$tmp/log" 2>&1; then
+        if ! "$CC" -std=c11 -isystem modules -o "$tmp/cprog" "$f" "$@" > "$tmp/log" 2>&1; then
             bad "$f ($link)" "does not build"
             continue
         fi

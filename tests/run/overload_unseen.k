@@ -11,53 +11,53 @@
 
 struct vec { x: f64; y: f64 }
 
-kind(n:i64):cstr { "i64" }
-kind(n:i32):cstr { "i32" }
-kind(x:f64):cstr { "f64" }
-kind(x:f32):cstr { "f32" }
-kind(n:u8):cstr { "u8" }
-kind(s:const u8^):cstr { "text" }
-kind(v:vec):cstr { "vec" }
+let kind(n:i64):cstr { "i64" }
+let kind(n:i32):cstr { "i32" }
+let kind(x:f64):cstr { "f64" }
+let kind(x:f32):cstr { "f32" }
+let kind(n:u8):cstr { "u8" }
+let kind(s:const u8^):cstr { "text" }
+let kind(v:vec):cstr { "vec" }
 
-len(s:const u8^):i64 { i64(strlen(s)) }
-len(n:i64):i64 { n }
+let len(s:const u8^):i64 { i64(strlen(s)) }
+let len(n:i64):i64 { n }
 
-out(f:FILE^, n:i64) { fprintf(f, "%s\n", n.cstr) }
-out(f:FILE^, s:const u8^) { fprintf(f, "%s\n", s) }
+let out(f:FILE^, n:i64) { fprintf(f, "%s\n", n.cstr) }
+let out(f:FILE^, s:const u8^) { fprintf(f, "%s\n", s) }
 
-release(p:any^):cstr {
+let release(p:any^):cstr {
     free(p)
     return "freed"
 }
-release(n:i64):cstr { "number" }
+let release(n:i64):cstr { "number" }
 
-measure(n:i64):i64 { n }
-measure(n:size_t):i64 { i64(n) * 10 }
+let measure(n:i64):i64 { n }
+let measure(n:size_t):i64 { i64(n) * 10 }
 
 // C's sqrt, declared so that a number only C sees reaches it
-sqrt(x:f64):f64
-sqrt(v:vec):f64 { hypot(v.x, v.y) }
+let sqrt(x:f64):f64
+let sqrt(v:vec):f64 { hypot(v.x, v.y) }
 
 // C's abs and hypot, which the program calls, take what no overload does,
 // and their results have C's types
 struct vec2 { x: i64; y: i64 }
-abs(v:vec):i64 { i64(hypot(v.x, v.y)) }
-abs(w:vec2):i64 { w.x * w.x + w.y * w.y }
-hypot(v:vec, w:vec):f64 { hypot(v.x - w.x, v.y - w.y) }
-hypot(v:vec, k:f64):f64 { hypot(v.x, v.y) * k }
-half(n:i64):i64 { n / 2 }
-half(x:f64):f64 { x / 2.0 }
+let abs(v:vec):i64 { i64(hypot(v.x, v.y)) }
+let abs(w:vec2):i64 { w.x * w.x + w.y * w.y }
+let hypot(v:vec, w:vec):f64 { hypot(v.x - w.x, v.y - w.y) }
+let hypot(v:vec, k:f64):f64 { hypot(v.x, v.y) * k }
+let half(n:i64):i64 { n / 2 }
+let half(x:f64):f64 { x / 2.0 }
 
 // the overload kelvinc sees fits best, C choosing where only it sees
-pair(a:i64, b:size_t):cstr { "i64" }
-pair(a:f64, b:size_t):cstr { "f64" }
-total(n:i64, ...):cstr { "va" }
-total(n:i64, x:f64):cstr { "f64" }
+let pair(a:i64, b:size_t):cstr { "i64" }
+let pair(a:f64, b:size_t):cstr { "f64" }
+let total(n:i64, ...):cstr { "va" }
+let total(n:i64, x:f64):cstr { "f64" }
 enum sign { NEGATIVE = -1, ZERO, POSITIVE }
-describe(s:sign):cstr { "sign" }
-describe(n:i32):cstr { "i32" }
+let describe(s:sign):cstr { "sign" }
+let describe(n:i32):cstr { "i32" }
 
-main():i32 {
+let main():i32 {
     println(kind(strtol("1", nullptr, 10)), " ", kind(strtoll("1", nullptr, 10)), " ", kind(atan2(1.0, 1.0)), " ",
             kind(floorf(1.5:f32)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
     println(len(strchr("hello", 'l')), " ", len(strtol("7", nullptr, 10)), " ", len(strtoll("8", nullptr, 10)), " ",

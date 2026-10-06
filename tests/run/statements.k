@@ -1,4 +1,4 @@
-printf(fmt:const u8^, ...):i32;
+let printf(fmt:const u8^, ...):i32;
 
 enum color { RED, GREEN = 5, BLUE };
 enum { LIMIT = 3 };
@@ -12,14 +12,14 @@ struct point { x:i32; y:i32; };
 
 static var counter:i32 = 0;
 
-static bump():i32 {
+static let bump():i32 {
     static var calls:i32;
     calls += 1;
     counter += 1;
     return counter + calls * 0;
 }
 
-name(c:enum color):const u8^ {
+let name(c:enum color):const u8^ {
     switch (c) {
     case RED:
         return "red";
@@ -31,11 +31,11 @@ name(c:enum color):const u8^ {
     return "other";
 }
 
-origin():struct point {
+let origin():struct point {
     return (struct point){.y = 7};
 }
 
-main():i32 {
+let main():i32 {
     printf("%s %s %s %d\n", name(RED), name(GREEN), name(BLUE), BLUE);
 
     for (var i:i32 = 0; i < LIMIT; i += 1)

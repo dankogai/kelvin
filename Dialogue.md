@@ -2147,3 +2147,45 @@ details:
 
 There are 415 tests, and all pass with clang and with gcc 15.
 
+### 72. `let` for functions, and `modules/`
+
+> cosmetic changes:
+>
+> * make `let` mandatory for toplevel functions. Kelvin allows anonymous
+>   functions meaning internal functions are available like
+>   `var idi64:(x:i64):i64 = { x }` possible. mandating `let` makes the
+>   language a little more consistent.
+> * move `lib/` to `modules/` and move `libkelvin.{a,dylib,*.so}`
+>   therein. add `./modules/` default search directories of the
+>   language. Both "include" files and compiled libraries can reside.
+
+**Claude** asked four questions, and the user took each recommendation:
+
+| Question | Answer |
+|----------|--------|
+| Where does `#import <x.k>` look? | `./modules` of the directory kelvinc runs in, then Kelvin's own `modules/`; `<lib/complex.k>` becomes `<complex.k>` |
+| Is a `modules/` a C search directory too? | Yes, `-I` and `-L`; kelvinc still links only libkelvin |
+| Where do the prelude header and an installation go? | The header moves to `modules/` too; `make install` copies `modules/` to `$PREFIX/lib/kelvin/modules` |
+| Does `let f(...) { }` declare a function inside a function? | No, functions stay at the top level; there it is an error that shows the anonymous function a let holds |
+
+**Claude** implemented #45 and #46. The details are provisional P57 and
+P58:
+
+- A function, a method and an operator are declared with `let`, after
+  `static` or `extern`: `let main():i32`, `let point.norm():f64`,
+  `let +(a:vec, b:vec):vec`. Without it, or with `var`, each is an
+  error that shows where `let` goes. Every Kelvin file in the repository
+  now says `let`. Since an operator's definition starts with a keyword,
+  the rule that its head on a new line ended the value before it (#42)
+  is gone.
+- `lib/complex.k` and `runtime/kelvin_prelude.h` are in `modules/`, and
+  `make` builds libkelvin there. kelvinc finds Kelvin's `modules/` as it
+  found the runtime, also under `lib/kelvin/modules` after
+  `make install`, and gives C `-I` and `-L` of it and of `./modules`.
+- So that a library in `./modules` links on Linux too, `KELVIN_CFLAGS`
+  now come after the program's C file.
+
+There are 422 tests, and all pass with clang and with gcc 15. A new
+`tests/project/` is built from inside itself, so that its `modules/` is
+`./modules`.
+

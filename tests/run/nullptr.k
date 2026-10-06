@@ -7,11 +7,11 @@ struct node { value:i32; next:struct node^; };
 
 var g:i32^;                                // a global reference: nullptr
 
-fill(p:any^, n:u64):any^ {
+let fill(p:any^, n:u64):any^ {
     return memset(p, 7, n);
 }
 
-main():i32 {
+let main():i32 {
     var p:any^;                            // means p := nullptr
     var q:i32^;
     var n:struct node^;

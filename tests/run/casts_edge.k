@@ -2,9 +2,9 @@
 #import <stdio.h> as C
 #import <stdlib.h> as C
 
-twice(v:i32):i32 { return v * 2; }
+let twice(v:i32):i32 { return v * 2; }
 
-main():i32 {
+let main():i32 {
     var x:i32 = 3;
     var n:size_t = 2;
 

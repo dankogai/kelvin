@@ -1,7 +1,7 @@
 // The sieve of Eratosthenes: a bool array, nested ranges, and continue.
 enum { LIMIT = 100 }
 
-main():i32 {
+let main():i32 {
     var composite:bool[LIMIT + 1] = {false}
     var count = 0
     for n in 2...LIMIT {

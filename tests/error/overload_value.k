@@ -1,8 +1,8 @@
 // an overloaded name as a value needs the type that says which (#41)
 #import <stdio.h> as C
-twice(n:i64):i64 { n * 2 }
-twice(x:f64):f64 { x * 2.0 }
-main():i32 {
+let twice(n:i64):i64 { n * 2 }
+let twice(x:f64):f64 { x * 2.0 }
+let main():i32 {
     printf("%p\n", twice as any^)
     return 0
 }

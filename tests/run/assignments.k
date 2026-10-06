@@ -2,9 +2,9 @@
 // --, and pointers step with .next and .prev (#26)
 struct node { value:i32; next:struct node^; };
 
-positive(n:i32):bool { return n > 0; }
+let positive(n:i32):bool { return n > 0; }
 
-copy(var dst:u8^, var src:const u8^) {     // C: while ((*dst++ = *src++)) ;
+let copy(var dst:u8^, var src:const u8^) {     // C: while ((*dst++ = *src++)) ;
     while src^ != 0 {
         dst^ = src^;
         dst := dst.next;
@@ -13,7 +13,7 @@ copy(var dst:u8^, var src:const u8^) {     // C: while ((*dst++ = *src++)) ;
     dst^ = 0;
 }
 
-main():i32 {
+let main():i32 {
     var a = 1;
     var b = 2;
     var ok = a < b;                  // ok = (a < b): a bool

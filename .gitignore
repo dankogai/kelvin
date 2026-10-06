@@ -57,9 +57,9 @@ dkms.conf
 # kelvin build outputs
 /kelvinc
 /build/
-/libkelvin.a
-/libkelvin.so
-/libkelvin.dylib
+/modules/libkelvin.a
+/modules/libkelvin.so
+/modules/libkelvin.dylib
 
 # personal scratch file
 /scratch.k

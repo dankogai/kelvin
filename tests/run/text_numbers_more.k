@@ -9,7 +9,7 @@
 // a number kelvinc cannot see stays a constant at file scope
 let big = u64(UINT32_MAX)
 
-main(argc:i32, argv:u8^^):i32 {
+let main(argc:i32, argv:u8^^):i32 {
     // errno is ERANGE after every clamp, and left alone otherwise
     errno = EDOM
     let a = i64("42")

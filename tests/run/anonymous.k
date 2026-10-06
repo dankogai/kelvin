@@ -8,22 +8,22 @@ struct counter { hits:i64[3]; };
 var total:i64 = 0;
 let step = 10;
 
-apply(x:i64, f:(i64):i64):i64 { return f(x); }
-each(xs:i64^, n:size_t, f:(i64)) {
+let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let each(xs:i64^, n:size_t, f:(i64)) {
     for i in 0..<n {
         f(xs[i]);
     }
 }
 
-counter.each(f:(i64)) {
+let counter.each(f:(i64)) {
     for h in self.hits {
         f(h);
     }
 }
 
-twice():(i64):i64 { return { $0 * 2 }; }
+let twice():(i64):i64 { return { $0 * 2 }; }
 
-fact(n:i64):i64 {
+let fact(n:i64):i64 {
     if n <= 1 {
         return 1;
     }
@@ -33,7 +33,7 @@ fact(n:i64):i64 {
 // a global initializer may be one too
 let shout:(cstr) := { println($0, "!") };
 
-main():i32 {
+let main():i32 {
     // the last argument, written after the call: no ';' needed
     println(apply(20) { $0 + 1 }, " ", apply(20, { $[0] - 1 }));
     var xs:i64[3] = {1, 2, 3};

@@ -283,7 +283,7 @@ static bool accept_word(Lexer *lx, const char *w) {
 
 /* The only directive so far:  #import <header.h> as C  (or "header.h").
    It becomes #include in the generated C, so C's headers are usable.
-   #import <lib/x.k> or "x.k", without `as C`, brings in a Kelvin file
+   #import <x.k> or "x.k", without `as C`, brings in a Kelvin file
    (#40). */
 static void lex_import(Lexer *lx) {
     Pos pos = here(lx);

@@ -1,5 +1,5 @@
 // error: dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'
-main():i32 {
+let main():i32 {
     var x:i32 = 0
     var p:i32^ := &x
     println(x)

@@ -5,7 +5,7 @@
 #import <string.h> as C
 
 // count the vowels: for c in s walks the string up to its NUL
-vowels(s:cstr):i64 {
+let vowels(s:cstr):i64 {
     var n = 0
     for c in s {
         if strchr("aeiouAEIOU", c) != nullptr {
@@ -16,7 +16,7 @@ vowels(s:cstr):i64 {
 }
 
 // reverse in place: two pointers meet in the middle
-reverse(s:cstr) {
+let reverse(s:cstr) {
     if strlen(s) == 0 {
         return
     }
@@ -31,7 +31,7 @@ reverse(s:cstr) {
     }
 }
 
-main():i32 {
+let main():i32 {
     var buf:u8[32]
     strcpy(buf, "Hello, Kelvin")
     println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels")

@@ -11,11 +11,11 @@ struct tagged { type:i32; v:i64; };
 let k = 3;
 var origin:point;
 
-inc(x:i64):i64 { return x + 1; }
-apply(x:i64, f:(i64):i64):i64 { return f(x); }
-far(p:origin.type):origin.x.type { return p.x; }
+let inc(x:i64):i64 { return x + 1; }
+let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let far(p:origin.type):origin.x.type { return p.x; }
 
-main():i32 {
+let main():i32 {
     // the type kelvinc sees, without a let's own const
     var w:k.type = 4;
     w += 1;

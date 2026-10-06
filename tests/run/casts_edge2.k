@@ -3,7 +3,7 @@
 #import <stdlib.h> as C
 #import "include/macros.h" as C
 
-main():i32 {
+let main():i32 {
     // a converter groups its whole argument, even an unparenthesized macro
     printf("%d %d %d\n", i32(TOTAL), u8(WRAP), i32(TERN));
 

@@ -8,24 +8,24 @@ struct box { v:i64; };
 struct bag { xs:i64[3]; };
 struct point { x:i32; y:i32; };
 
-apply(x:i64, f:(i64):i64):i64 { return f(x); }
-box.map(f:(i64):i64):box { return (box){f(self.v)}; }
-bag.each(f:(i64));                                   // a prototype, then the method
-bag.each(f:(i64)) {
+let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let box.map(f:(i64):i64):box { return (box){f(self.v)}; }
+let bag.each(f:(i64));                               // a prototype, then the method
+let bag.each(f:(i64)) {
     for x in self.xs {
         f(x);
     }
 }
-below(n:i64, f:(i64):bool):bool { return f(n); }
-tick(n:i64) { print(n, " "); }
+let below(n:i64, f:(i64):bool):bool { return f(n); }
+let tick(n:i64) { print(n, " "); }
 
 // a function in a member's length, and globals of one declaration
 struct holder { buf:u8[sizeof(apply(1) { $0 })]; };
 var buf:u8[16], fill := { (a:u8[sizeof(buf)]) in a[0] = 1 };
 let N:i64 = 3;
-total(xs:i64^, f:(i64[N]):i64):i64 { return f(xs); }
+let total(xs:i64^, f:(i64[N]):i64):i64 { return f(xs); }
 
-main():i32 {
+let main():i32 {
     // an operator or .member on the next line goes on with the expression
     let a:i64 = apply(3) { $0 * 2 }
         - apply(4) { $0 + 1 };

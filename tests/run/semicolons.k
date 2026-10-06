@@ -9,23 +9,23 @@ struct node { value:i64; next:node^ }
 
 var total:i64 = 0
 
-square(x:i64):i64 { x * x }
-point.dist2():i64 {
+let square(x:i64):i64 { x * x }
+let point.dist2():i64 {
     self.x * self.x + self.y * self.y
 }
-proto(x:i64):i64
-proto(x:i64):i64 { x + 1 }
-apply(x:i64, f:(i64):i64):i64 { f(x) }
-each(n:i64, f:(i64)) {
+let proto(x:i64):i64
+let proto(x:i64):i64 { x + 1 }
+let apply(x:i64, f:(i64):i64):i64 { f(x) }
+let each(n:i64, f:(i64)) {
     for i in 0..<n {
         f(i)
     }
 }
-nothing() {
+let nothing() {
     return
 }
 
-main():i32 {
+let main():i32 {
     let price = 5
     let count = 3
     let t:i64 = price

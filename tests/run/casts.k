@@ -1,7 +1,7 @@
 #import <stdio.h> as C
 #import <stdlib.h> as C
 
-main():i32 {
+let main():i32 {
     // converters: T(v) for built-in types, with C's conversion semantics
     printf("%d %d %.1f %d\n", i32(3.9), u8(300), f64(7) / 2, bool(5));
 

@@ -9,40 +9,40 @@ var g:i64 = 0
 let mask:u32 = (1 << 4)
 
 // a prototype of a method ends at its line
-point.twice():i64
-point.twice():i64 { self.x * 2 }
+let point.twice():i64
+let point.twice():i64 { self.x * 2 }
 
 // a `{` on the line after a head is the body
-square(x:i64):i64
+let square(x:i64):i64
 {
     x * x
 }
 
-apply(x:i64, f:(i64):i64):i64 { f(x) }
-tick() { g += 1 }
-twice(x:i64):i64 { x * 2 }
+let apply(x:i64, f:(i64):i64):i64 { f(x) }
+let tick() { g += 1 }
+let twice(x:i64):i64 { x * 2 }
 
 // in a function with a result, `return` takes the next line
-long_one(a:i64, b:i64):i64 {
+let long_one(a:i64, b:i64):i64 {
     return
         a * 100 + b
 }
 
 // one expression: an annotation, a product broken before an operator,
 // or written with its `;`
-widen(n:i32):i64 { n:i64 }
-scaled(n:i32):i64 {
+let widen(n:i32):i64 { n:i64 }
+let scaled(n:i32):i64 {
     n:i64
         * 1000
 }
-area(w:i64, h:i64):i64 {
+let area(w:i64, h:i64):i64 {
     w * h
         + 1
 }
-mul(a:i64, b:i64):i64 { a * b; }
-named():cstr { abs(-3).typename }
+let mul(a:i64, b:i64):i64 { a * b; }
+let named():cstr { abs(-3).typename }
 
-main():i32 {
+let main():i32 {
     // a `(...)`, a property, a conversion or sizeof(T) at the end of a
     // line, before a line that starts with a name, `(` or `{`
     var xs:i64[2] = {1, 2}

@@ -6,6 +6,6 @@
 struct square { side: f64 }
 struct circle { r: f64 }
 
-area(s:square):f64 { s.side * s.side }
-area(c:circle):f64 { PI * c.r * c.r }
-describe(s:square) { printf("a square of side %g\n", s.side) }
+let area(s:square):f64 { s.side * s.side }
+let area(c:circle):f64 { PI * c.r * c.r }
+let describe(s:square) { printf("a square of side %g\n", s.side) }

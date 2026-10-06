@@ -26,12 +26,12 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `int *a[4];` | `var a:i32^[4]` *(provisional)* |
 | `int (*p)[4];` | `var p:i32[4]^` *(provisional)* |
 | `const char *const s = t;` | `let s:const u8^ := t` |
-| `long add(long a, long b) { ... }` | `add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
+| `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
 | `void f(void);` | `f()` |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
-| `static int g(void);` | `static g():i32` |
-| `int main(int argc, char **argv)` | `main(argc:i32, argv:u8^^):i32` |
+| `static int g(void);` | `static let g():i32` |
+| `int main(int argc, char **argv)` | `let main(argc:i32, argv:u8^^):i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
 | `*p` | `p^` |
@@ -39,7 +39,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next` (no `++`, #26) |
 | `i++`, `--n` | `i += 1`, `n -= 1` (statements) |
 | `x = 1; y = 2;` on two lines | `x = 1` and `y = 2`: a line ends a statement (#35) |
-| `long square(long x) { return x * x; }` | `square(x:i64):i64 { x * x }` (#35) |
+| `long square(long x) { return x * x; }` | `let square(x:i64):i64 { x * x }` (#35) |
 | `for (int i = 0; i < n; i++)` | `for i in 0..<n { ... }` (#28) |
 | `for (int i = 1; i <= n; i++)` | `for i in 1...n { ... }` |
 | `for (p = s; *p; p++) { c = *p; ... }` | `for c in s { ... }` (#30) |
@@ -52,10 +52,10 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
 | `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
-| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <lib/complex.k>` (#40) |
-| `csin(z)` beside `sin(x)` | `sin(z:complex64):complex64 { ... }` beside C's `sin` (#41) |
-| `cadd(a, b)` | `a + b`, given `+(a:complex64, b:complex64):complex64 { ... }` (#42) |
-| `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (lib/complex.k, #43) |
+| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <complex.k>` (#40, #46) |
+| `csin(z)` beside `sin(x)` | `let sin(z:complex64):complex64 { ... }` beside C's `sin` (#41) |
+| `cadd(a, b)` | `a + b`, given `let +(a:complex64, b:complex64):complex64 { ... }` (#42) |
+| `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (modules/complex.k, #43) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
@@ -63,7 +63,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
-| `double area(struct shape s)` | `shape.area():f64 { ... self ... }`, called as `s.area()` |
+| `double area(struct shape s)` | `let shape.area():f64 { ... self ... }`, called as `s.area()` |
 | `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32` (#31) |
 | a `static` function written only to be passed | `sort(xs, n) { $0 < $1 }` (an anonymous function, #32) |
 
@@ -92,14 +92,19 @@ static var calls:i32
 - **A plain `x = 0` assigns**, and never declares. `x:i32 = 0` without
   `let` or `var` is an error that suggests them, and `again: n = 0` is a
   label before a statement, as in C.
-- **Functions** have no keyword. The return type follows the parameter
-  list after a colon: `add(a:i64, b:i64):i64 { ... }`.
+- **Functions** are declared with `let` (#45), as a value that never
+  changes is; methods and operators too. The return type follows the
+  parameter list after a colon: `let add(a:i64, b:i64):i64 { ... }`.
+  - A function is declared at the top level. `var f(...)` is an error,
+    since a variable holding a function is `var f:(T):R` (#31), and so
+    is `let f(...)` inside a function, where a let holds an anonymous
+    function (#32).
   - A prototype ends with `;` or the end of its line instead of a body.
   - With no `: type`, the function returns nothing (C's `void`)
     *(provisional P5)*.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
-- **Parameters** are lets unless written `var`: in `f(p:u8^)`, `p` cannot
-  change, while `f(var p:u8^) { p := p.next }` may move `p`. A method's
+- **Parameters** are lets unless written `var`: in `let f(p:u8^)`, `p`
+  cannot change, while `let f(var p:u8^) { p := p.next }` may move `p`. A method's
   `self` is a mutable copy. Parameters must be named: C's unnamed
   `f(int)` is not available yet.
 - **Struct and union members** are written `name: type`, ended by `;` or
@@ -117,7 +122,7 @@ static var calls:i32
   Kelvin declares it, as in `struct timespec`, but in `sizeof` write
   `sizeof(struct timespec)`, since headers give such names to functions
   and variables too (`stat`, `timezone`) *(provisional P41)*.
-- **Storage classes** go in front: `static f():i32`, `static var n:i32`,
+- **Storage classes** go in front: `static let f():i32`, `static var n:i32`,
   `extern var e:i32` *(provisional P9)*.
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see below).
@@ -161,7 +166,7 @@ as `char **`, because C requires that.
   to an array. A run of brackets keeps C's order, so `i32[2][3]` indexes as
   `m[1][2]` *(provisional P2)*.
 - C's hardest declarators become readable. A function returning a pointer to
-  an array of four ints, `int (*f(void))[4]`, is `f():i32[4]^`.
+  an array of four ints, `int (*f(void))[4]`, is `let f():i32[4]^`.
 
 ### Qualifiers
 
@@ -242,7 +247,7 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
   pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers:
   `let refs:i32^[2] = {p, q}`. An array parameter, though, is a pointer,
-  as in C: in `f(var a:i32[4])`, write `a := a + 1`.
+  as in C: in `let f(var a:i32[4])`, write `a := a + 1`.
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
 
@@ -262,7 +267,7 @@ Kelvin has no `void` type:
 - **To discard a value**, write it as a statement. There is no `(void)x`,
   and C may warn about an unused value *(provisional P33)*.
 
-`void` is rejected with a hint wherever it is written: `f():void`,
+`void` is rejected with a hint wherever it is written: `let f():void`,
 `var p:void^`, `(void)x`, `x as void`.
 
 ## Expressions
@@ -434,7 +439,7 @@ let total:i64 = price
 println(total)
 (p as i64^)^ = 1          // a new statement
 let a = 1; let b = 2      // ; between statements on one line
-square(x:i64):i64 { x * x }
+let square(x:i64):i64 { x * x }
 ```
 
 - A new line ends a statement, a declaration, a struct member or a
@@ -450,10 +455,10 @@ square(x:i64):i64 { x * x }
 - A `;` still ends a statement anywhere, and separates statements on one
   line, where it is needed; `for (...; ...; ...)` keeps its own.
 - A function or method whose body is one expression returns it, as an
-  anonymous function does: `square(x:i64):i64 { x * x }`. There, an
+  anonymous function does: `let square(x:i64):i64 { x * x }`. There, an
   assignment, or a call kelvinc sees has no value such as `println`, is
   an error. `main` is the exception: its end returns 0 as in C, so its
-  one expression is a statement, and `main():i32 { printf("hi\n") }`
+  one expression is a statement, and `let main():i32 { printf("hi\n") }`
   exits 0.
 - A body with more than that uses `return`. kelvinc reports one that
   ends, on any path, in a value it drops: one with no effect, as in
@@ -574,7 +579,7 @@ no truthiness, so compare instead:
 Every Kelvin program can use `print` and `println` without an import:
 
 ```kelvin
-main():i32 {
+let main():i32 {
     let n:i64 = -42
     println("n = ", n, ", half = ", n / 2.0)   // n = -42, half = -21.0
     println()                                  // just a newline
@@ -601,7 +606,8 @@ main():i32 {
 - `print` and `println` cannot be redefined.
 - The prelude lives in `libkelvin`, which kelvinc links statically
   *(provisional P22)*. The same library works from C:
-  `#include <kelvin_prelude.h>` and link `-lkelvin`.
+  `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's
+  `modules/` (#46).
 
 ## Function types: `(T, U):R`
 
@@ -609,8 +615,8 @@ A function type is written as a function's head without names (#31), as
 Swift writes `(T, U) -> R`. In C it is a pointer to a function:
 
 ```kelvin
-fold(xs:i64^, n:size_t, f:(i64, i64):i64):i64 { ... f(acc, xs[i]) ... }
-pick(product:bool):(i64, i64):i64 { ... }   // returns a function
+let fold(xs:i64^, n:size_t, f:(i64, i64):i64):i64 { ... f(acc, xs[i]) ... }
+let pick(product:bool):(i64, i64):i64 { ... }   // returns a function
 
 var f:(i64, i64):i64       // C: int64_t (*f)(int64_t, int64_t) = 0;
 f := add                   // a reference: assigned with :=
@@ -717,10 +723,10 @@ union, or on a built-in type, with an implicit `self` (passed by value):
 ```kelvin
 struct point { x: i32; y: i32 }
 
-point.dist2():i64 { self.x * self.x + self.y * self.y }
-f64.half():f64 { self / 2 }
+let point.dist2():i64 { self.x * self.x + self.y * self.y }
+let f64.half():f64 { self / 2 }
 
-main():i32 {
+let main():i32 {
     let p:point = {3, 4}
     println(p.dist2(), " ", p.cstr, " ", 3.0.half())   // 25 {x: 3, y: 4} 1.5
     return 0
@@ -735,11 +741,11 @@ main():i32 {
   and `x.fmt(...)`, or naming the type `String`, is an error that points
   at `.cstr` *(provisional P36)*. Plain functions, variables and
   parameters may still be named `toString` or `fmt`, as in
-  `printf(fmt:const u8^, ...):i32`.
+  `let printf(fmt:const u8^, ...):i32`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
   - As in C, declare a method before calling it. A prototype is
-    `point.area():f64`. A method may call itself.
+    `let point.area():f64`. A method may call itself.
   - A method call cannot appear in a global initializer.
   - Enums cannot have methods.
   - C typedef names cannot be receivers, and neither can `cstr` or `any`.
@@ -757,11 +763,11 @@ function's name overloads C's, which still takes the numbers:
 
 struct vec { x: f64; y: f64 }
 
-twice(n:i64):i64 { n * 2 }
-twice(x:f64):f64 { x * 2.0 }
-sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
+let twice(n:i64):i64 { n * 2 }
+let twice(x:f64):f64 { x * 2.0 }
+let sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
 
-main():i32 {
+let main():i32 {
     let v:vec = {3.0, 4.0}
     println(twice(4), " ", twice(1.5), " ", sqrt(v), " ", sqrt(2.0))   // 8 3.0 5.0 1.4142135623730951
     return 0
@@ -790,7 +796,7 @@ main():i32 {
   where none does, to C's own function of the name where the program
   calls it, as in `sqrt(fabs(x))`; where several do, C reports
   `kv_no_such_overload` *(provisional P52)*. A library that overloads a
-  C function declares it, `tanh(x:f64):f64`, so that it takes such
+  C function declares it, `let tanh(x:f64):f64`, so that it takes such
   numbers whether or not the program calls it. gcc gives a bit-field of
   a C header no type C can choose by, and a C macro like `isnan` cannot
   take such a value beside an overload of its name.
@@ -814,7 +820,7 @@ main():i32 {
   functions that would have one C name are an error.
 - **As in C**, a call sees only the overloads declared before it.
 
-## Operators: `+(a:T, b:T):T`
+## Operators: `let +(a:T, b:T):T`
 
 A struct or union may define `+ - * / % == != < <= > >=` and unary `-`,
 as functions named by the operator, overloaded by their types as other
@@ -823,12 +829,12 @@ functions are (#42):
 ```kelvin
 struct money { cents: i64 }
 
-+(a:money, b:money):money { (money){a.cents + b.cents} }
-*(a:money, k:i64):money { (money){a.cents * k} }
--(a:money):money { (money){-a.cents} }
-<(a:money, b:money):bool { a.cents < b.cents }
+let +(a:money, b:money):money { (money){a.cents + b.cents} }
+let *(a:money, k:i64):money { (money){a.cents * k} }
+let -(a:money):money { (money){-a.cents} }
+let <(a:money, b:money):bool { a.cents < b.cents }
 
-main():i32 {
+let main():i32 {
     let a:money = {150}
     var b:money = {275}
     b += a                                                // b = b + a
@@ -839,8 +845,8 @@ main():i32 {
 
 - An operator takes two values, or one for `-`, of which at least one
   is a Kelvin struct or union, and has a result. Other operators (`<<`,
-  `!`, `+=`) cannot be defined. Precedence is C's. A definition starts
-  a line at the top level with its head, `+(a:T, b:U):R`.
+  `!`, `+=`) cannot be defined. Precedence is C's. A definition is a
+  `let` at the top level, `let +(a:T, b:U):R`.
 - `a op b` with a struct operand calls the operator its types fit, and
   is an error showing how to define one where none does. Numbers keep
   C's operators. C warns where a statement drops an operator's value,
@@ -904,7 +910,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
     `%.9g` for `f32`), while `print` keeps the shortest form, `0.1`.
   - **`bool`** is `true` or `false`. **C's `_Complex` numbers** are
-    `1+2i`; `complex64` and `complex32` of lib/complex.k are structs,
+    `1+2i`; `complex64` and `complex32` of modules/complex.k are structs,
     `{real: 1, imag: 2}`.
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
@@ -1032,14 +1038,16 @@ let card:cstr := `name: ${name}
   global or a `static` cannot be initialized with it *(provisional
   P50)*.
 
-## Kelvin files: `#import <lib/complex.k>`
+## Kelvin files: `#import <complex.k>`
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
 import is (#40), which is at the top level. `"x.k"` is found next to
-the importing file, and `<lib/x.k>` in Kelvin's home, where kelvinc
-finds its runtime: the source tree, or the `$PREFIX` of `make install`,
-which installs `lib/`. A file is brought in once, however often it is
+the importing file, and `<x.k>` in `./modules`, of the directory kelvinc
+runs in, and then in Kelvin's own `modules/` (#46), which also holds
+the runtime, `kelvin_prelude.h` and `libkelvin`: in the source tree, or
+in `$PREFIX/lib/kelvin/modules` after `make install`, or under
+`$KELVIN_HOME`. A file is brought in once, however often it is
 imported, also through other files or other paths. A declaration ends
 where a file does, and errors in a file, also an unfinished one at its
 end, name its own lines. A C header it imports as `"x.h"` is the one
@@ -1047,15 +1055,15 @@ next to it. Its functions are named by their parameter types in C
 (#41), so that they never clash with C's, except the C functions it
 declares by hand, which keep their names.
 
-## Complex numbers: `lib/complex.k`
+## Complex numbers: `modules/complex.k`
 
-`#import <lib/complex.k>` brings in `complex64`, whose parts are `f64`,
+`#import <complex.k>` brings in `complex64`, whose parts are `f64`,
 and `complex32`, whose parts are `f32`, without C's `_Complex` (#43):
 
 ```kelvin
-#import <lib/complex.k>
+#import <complex.k>
 
-main():i32 {
+let main():i32 {
     let i:complex64 = complex64(0.0, 1.0)
     let z:complex64 = complex64(1.0, 2.0)
     let w:complex64 = exp(z) * z + 1.0          // operators, and exp of a complex64
@@ -1093,12 +1101,16 @@ main():i32 {
   can be used: functions, typedef names, macros like `stdout`, `NULL` or
   `EOF`, and enums.
 - `#import "mylib.h" as C` is looked up next to the `.k` file first.
+- C looks for headers and libraries in `./modules` and Kelvin's
+  `modules/` too (`-I` and `-L`), so `#import <mylib.h> as C` may be
+  there, and `KELVIN_CFLAGS=-lmylib` links its `libmylib.a` (#46).
+  `KELVIN_CFLAGS` go after the program, as a library must on Linux.
 - `as C` is required for a C header. A Kelvin file is imported without
   it (see Kelvin files above).
 - Every other directive (`#include`, `#define`, `#if`, ...) is an error.
   The rest of the preprocessor is TODO.
 - Without an import you can still declare C functions by hand:
-  `printf(fmt:const u8^, ...):i32`. Don't do both, because a
+  `let printf(fmt:const u8^, ...):i32`. Don't do both, because a
   hand-written prototype conflicts with the header's.
 
 A header macro that expands to nothing or to an operator can change how C
@@ -1142,7 +1154,7 @@ These are C features without a Kelvin spelling so far:
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - generics: a function over several types is written once per type, as
-  `lib/complex.k` does for `complex32` and `complex64`
+  `modules/complex.k` does for `complex32` and `complex64`
 - literal suffixes (on purpose: see Literals)
 - the preprocessor beyond `#import`
 - statements of the form `name(x)` where `name` is a C typedef: C reads

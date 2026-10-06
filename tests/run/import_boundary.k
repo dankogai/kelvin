@@ -3,7 +3,7 @@ let VERSION = 3
 #import "lib/sub/wrap.k"
 #import "lib/../lib/late.k"
 #import "import_boundary.k"
-main():i32 {
+let main():i32 {
     println(VERSION, " ", LATE, " ", twice_late(2), " ", add3(2, 3, 4))
     return 0
 }

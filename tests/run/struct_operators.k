@@ -1,4 +1,4 @@
-// operators a struct defines (#42): +(a:T, b:U):R { ... } and the others,
+// operators a struct defines (#42): let +(a:T, b:U):R { ... } and others,
 // called where a Kelvin struct is an operand, as functions of their types
 // are (#41); numbers keep C's own operators (tests/run/operators.k)
 #import <math.h> as C
@@ -6,39 +6,39 @@
 
 struct money;
 // for a struct declared without its body yet, as for a function
-+(a:money, b:money):money
+let +(a:money, b:money):money
 struct money { cents: i64 }
 
-// a definition starts on a new line, also after a value or a type, while
-// a value may go on with an annotated operand on the next line
+// a value may go on with an annotated operand on the next line, and a
+// definition starts with let (#45)
 let rate:f64 = (3:f64)
     / (2:f64)
-+(var a:money, n:i64):money {
+let +(var a:money, n:i64):money {
     a.cents += n
     return a
 }
-half(a:money):money
-*(a:money, k:i64):money { (money){a.cents * k} }
--(a:money, b:money):money { (money){a.cents - b.cents} }
--(a:money):money { (money){-a.cents} }
-*(k:i64, a:money):money { a * k }
-*(a:money, x:f64):money { (money){i64(round(f64(a.cents) * x))} }
-/(a:money, k:i64):money { (money){a.cents / k} }
-%(a:money, k:i64):money { (money){a.cents % k} }
-==(a:money, b:money):bool { a.cents == b.cents }
-!=(a:money, b:money):bool { !(a == b) }
-<(a:money, b:money):bool { a.cents < b.cents }
-<=(a:money, b:money):bool { !(b < a) }
->(a:money, b:money):bool { b < a }
->=(a:money, b:money):bool { !(a < b) }
-+(a:money, b:money):money { (money){a.cents + b.cents} }
-half(a:money):money { a / 2 }
+let half(a:money):money
+let *(a:money, k:i64):money { (money){a.cents * k} }
+let -(a:money, b:money):money { (money){a.cents - b.cents} }
+let -(a:money):money { (money){-a.cents} }
+let *(k:i64, a:money):money { a * k }
+let *(a:money, x:f64):money { (money){i64(round(f64(a.cents) * x))} }
+let /(a:money, k:i64):money { (money){a.cents / k} }
+let %(a:money, k:i64):money { (money){a.cents % k} }
+let ==(a:money, b:money):bool { a.cents == b.cents }
+let !=(a:money, b:money):bool { !(a == b) }
+let <(a:money, b:money):bool { a.cents < b.cents }
+let <=(a:money, b:money):bool { !(b < a) }
+let >(a:money, b:money):bool { b < a }
+let >=(a:money, b:money):bool { !(a < b) }
+let +(a:money, b:money):money { (money){a.cents + b.cents} }
+let half(a:money):money { a / 2 }
 
 // a union may define operators too
 union bits { u: u64; f: f64 }
-==(a:bits, b:bits):bool { a.u == b.u }
+let ==(a:bits, b:bits):bool { a.u == b.u }
 
-main():i32 {
+let main():i32 {
     let a:money = {150}
     let b:money = {275}
     println((a + b).cents, " ", (b - a).cents, " ", (-a).cents, " ", (a * 3).cents, " ", (2 * a).cents, " ", (a * rate).cents)

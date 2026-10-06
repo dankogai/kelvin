@@ -4,9 +4,9 @@
 #import <string.h> as C
 #import "include/conditions.h" as C
 
-positive(n:i32):bool { return n > 0; }
+let positive(n:i32):bool { return n > 0; }
 
-main():i32 {
+let main():i32 {
     var a = 1;
     var b = 2;
     println(a == b, " ", a < b, " ", !(a < b), " ", a < b && b > 0, " ", sizeof(a < b));

@@ -4,14 +4,14 @@
 enum color { RED, GREEN }
 struct wide { a: i128; b: i128; c: i128; d: i128; e: i128; f: i128; g: i128 }
 struct box { four: u8[4]; more: u8[4] }
-down(n:i64) {
+let down(n:i64) {
     let t:cstr := `n=${n}`
     if n > 0 {
         down(n - 1)
     }
     print(t, " ")
 }
-main():i32 {
+let main():i32 {
     let a:i16 = -32768
     let b:u16 = 65535
     let c:u32 = 4294967295

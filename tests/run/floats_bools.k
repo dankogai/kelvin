@@ -1,4 +1,4 @@
-printf(fmt:const u8^, ...):i32;
+let printf(fmt:const u8^, ...):i32;
 
 struct sample {
     ok:bool;
@@ -6,11 +6,11 @@ struct sample {
     y:f64;
 };
 
-is_even(n:i64):bool {
+let is_even(n:i64):bool {
     return n % 2 == 0;
 }
 
-main():i32 {
+let main():i32 {
     var s:struct sample = {true, 1.5, 2.25};
     var done:bool = false;
     printf("%d %d %d\n", i32(sizeof(f32)), i32(sizeof(f64)), i32(sizeof(bool)));

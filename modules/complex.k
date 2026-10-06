@@ -1,8 +1,8 @@
-// lib/complex.k - complex numbers, with arithmetic and the elementary
+// modules/complex.k - complex numbers, with arithmetic and the elementary
 // functions (#43): complex64 has f64 parts and complex32 f32 parts, named
 // by the size of each part. complex128 waits for f128.
 //
-//     #import <lib/complex.k>
+//     #import <complex.k>
 //     let z:complex64 = complex64(1.0, 2.0)
 //     let w:complex64 = exp(z) * z + 1.0
 //     println(`${w} ${abs(w)}`)
@@ -21,23 +21,23 @@
 // C's own functions of the names this file overloads, declared, so that a
 // number reaches them also where only C sees its type, as in
 // tanh(atof(s)) (#41)
-exp(x:f64):f64
-log(x:f64):f64
-sqrt(x:f64):f64
-pow(x:f64, y:f64):f64
-sin(x:f64):f64
-cos(x:f64):f64
-tan(x:f64):f64
-sinh(x:f64):f64
-cosh(x:f64):f64
-tanh(x:f64):f64
-asin(x:f64):f64
-acos(x:f64):f64
-atan(x:f64):f64
-asinh(x:f64):f64
-acosh(x:f64):f64
-atanh(x:f64):f64
-abs(n:i32):i32
+let exp(x:f64):f64
+let log(x:f64):f64
+let sqrt(x:f64):f64
+let pow(x:f64, y:f64):f64
+let sin(x:f64):f64
+let cos(x:f64):f64
+let tan(x:f64):f64
+let sinh(x:f64):f64
+let cosh(x:f64):f64
+let tanh(x:f64):f64
+let asin(x:f64):f64
+let acos(x:f64):f64
+let atan(x:f64):f64
+let asinh(x:f64):f64
+let acosh(x:f64):f64
+let atanh(x:f64):f64
+let abs(n:i32):i32
 
 struct complex64 {
     real: f64
@@ -51,36 +51,36 @@ struct complex32 {
 
 // ---------- making one ----------
 
-complex64(real:f64, imag:f64):complex64 { (complex64){real, imag} }
-complex64(real:f64):complex64 { (complex64){real, 0.0} }
-complex64(z:complex32):complex64 { (complex64){z.real, z.imag} }
-complex32(real:f32, imag:f32):complex32 { (complex32){real, imag} }
-complex32(real:f32):complex32 { (complex32){real, 0.0:f32} }
-complex32(z:complex64):complex32 { (complex32){f32(z.real), f32(z.imag)} }
+let complex64(real:f64, imag:f64):complex64 { (complex64){real, imag} }
+let complex64(real:f64):complex64 { (complex64){real, 0.0} }
+let complex64(z:complex32):complex64 { (complex64){z.real, z.imag} }
+let complex32(real:f32, imag:f32):complex32 { (complex32){real, imag} }
+let complex32(real:f32):complex32 { (complex32){real, 0.0:f32} }
+let complex32(z:complex64):complex32 { (complex32){f32(z.real), f32(z.imag)} }
 
 // r (cos θ + i sin θ)
-polar(r:f64, theta:f64):complex64 { (complex64){r * cos(theta), r * sin(theta)} }
-polar(r:f32, theta:f32):complex32 { complex32(polar(f64(r), f64(theta))) }
+let polar(r:f64, theta:f64):complex64 { (complex64){r * cos(theta), r * sin(theta)} }
+let polar(r:f32, theta:f32):complex32 { complex32(polar(f64(r), f64(theta))) }
 
 // ---------- arithmetic ----------
 
-+(a:complex64, b:complex64):complex64 { (complex64){a.real + b.real, a.imag + b.imag} }
-+(a:complex64, b:f64):complex64 { (complex64){a.real + b, a.imag} }
-+(a:f64, b:complex64):complex64 { (complex64){a + b.real, b.imag} }
--(a:complex64, b:complex64):complex64 { (complex64){a.real - b.real, a.imag - b.imag} }
--(a:complex64, b:f64):complex64 { (complex64){a.real - b, a.imag} }
--(a:f64, b:complex64):complex64 { (complex64){a - b.real, -b.imag} }
--(a:complex64):complex64 { (complex64){-a.real, -a.imag} }
-*(a:complex64, b:complex64):complex64 {
+let +(a:complex64, b:complex64):complex64 { (complex64){a.real + b.real, a.imag + b.imag} }
+let +(a:complex64, b:f64):complex64 { (complex64){a.real + b, a.imag} }
+let +(a:f64, b:complex64):complex64 { (complex64){a + b.real, b.imag} }
+let -(a:complex64, b:complex64):complex64 { (complex64){a.real - b.real, a.imag - b.imag} }
+let -(a:complex64, b:f64):complex64 { (complex64){a.real - b, a.imag} }
+let -(a:f64, b:complex64):complex64 { (complex64){a - b.real, -b.imag} }
+let -(a:complex64):complex64 { (complex64){-a.real, -a.imag} }
+let *(a:complex64, b:complex64):complex64 {
     (complex64){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
 }
-*(a:complex64, b:f64):complex64 { (complex64){a.real * b, a.imag * b} }
-*(a:f64, b:complex64):complex64 { (complex64){a * b.real, a * b.imag} }
+let *(a:complex64, b:f64):complex64 { (complex64){a.real * b, a.imag * b} }
+let *(a:f64, b:complex64):complex64 { (complex64){a * b.real, a * b.imag} }
 
 // Smith's algorithm, which does not overflow where |b|² would, in Baudin
 // and Smith's form where the ratio of b's parts is subnormal; by 0 it is
 // infinite, and by an infinity 0, as C's is
-/(a:complex64, b:complex64):complex64 {
+let /(a:complex64, b:complex64):complex64 {
     if b.real == 0.0 && b.imag == 0.0 {
         return (complex64){a.real / b.real, a.imag / b.real}
     }
@@ -110,53 +110,53 @@ polar(r:f32, theta:f32):complex32 { complex32(polar(f64(r), f64(theta))) }
     }
     return (complex64){(a.real * r + a.imag) / d, (a.imag * r - a.real) / d}
 }
-/(a:complex64, b:f64):complex64 { (complex64){a.real / b, a.imag / b} }
-/(a:f64, b:complex64):complex64 { complex64(a) / b }
+let /(a:complex64, b:f64):complex64 { (complex64){a.real / b, a.imag / b} }
+let /(a:f64, b:complex64):complex64 { complex64(a) / b }
 
-==(a:complex64, b:complex64):bool { a.real == b.real && a.imag == b.imag }
-!=(a:complex64, b:complex64):bool { a.real != b.real || a.imag != b.imag }
+let ==(a:complex64, b:complex64):bool { a.real == b.real && a.imag == b.imag }
+let !=(a:complex64, b:complex64):bool { a.real != b.real || a.imag != b.imag }
 
-+(a:complex32, b:complex32):complex32 { (complex32){a.real + b.real, a.imag + b.imag} }
-+(a:complex32, b:f32):complex32 { (complex32){a.real + b, a.imag} }
-+(a:f32, b:complex32):complex32 { (complex32){a + b.real, b.imag} }
--(a:complex32, b:complex32):complex32 { (complex32){a.real - b.real, a.imag - b.imag} }
--(a:complex32, b:f32):complex32 { (complex32){a.real - b, a.imag} }
--(a:f32, b:complex32):complex32 { (complex32){a - b.real, -b.imag} }
--(a:complex32):complex32 { (complex32){-a.real, -a.imag} }
-*(a:complex32, b:complex32):complex32 {
+let +(a:complex32, b:complex32):complex32 { (complex32){a.real + b.real, a.imag + b.imag} }
+let +(a:complex32, b:f32):complex32 { (complex32){a.real + b, a.imag} }
+let +(a:f32, b:complex32):complex32 { (complex32){a + b.real, b.imag} }
+let -(a:complex32, b:complex32):complex32 { (complex32){a.real - b.real, a.imag - b.imag} }
+let -(a:complex32, b:f32):complex32 { (complex32){a.real - b, a.imag} }
+let -(a:f32, b:complex32):complex32 { (complex32){a - b.real, -b.imag} }
+let -(a:complex32):complex32 { (complex32){-a.real, -a.imag} }
+let *(a:complex32, b:complex32):complex32 {
     (complex32){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
 }
-*(a:complex32, b:f32):complex32 { (complex32){a.real * b, a.imag * b} }
-*(a:f32, b:complex32):complex32 { (complex32){a * b.real, a * b.imag} }
-/(a:complex32, b:complex32):complex32 { complex32(complex64(a) / complex64(b)) }
-/(a:complex32, b:f32):complex32 { (complex32){a.real / b, a.imag / b} }
-/(a:f32, b:complex32):complex32 { complex32(f64(a) / complex64(b)) }
+let *(a:complex32, b:f32):complex32 { (complex32){a.real * b, a.imag * b} }
+let *(a:f32, b:complex32):complex32 { (complex32){a * b.real, a * b.imag} }
+let /(a:complex32, b:complex32):complex32 { complex32(complex64(a) / complex64(b)) }
+let /(a:complex32, b:f32):complex32 { (complex32){a.real / b, a.imag / b} }
+let /(a:f32, b:complex32):complex32 { complex32(f64(a) / complex64(b)) }
 
-==(a:complex32, b:complex32):bool { a.real == b.real && a.imag == b.imag }
-!=(a:complex32, b:complex32):bool { a.real != b.real || a.imag != b.imag }
+let ==(a:complex32, b:complex32):bool { a.real == b.real && a.imag == b.imag }
+let !=(a:complex32, b:complex32):bool { a.real != b.real || a.imag != b.imag }
 
 // ---------- parts ----------
 
-conj(z:complex64):complex64 { (complex64){z.real, -z.imag} }
-conj(z:complex32):complex32 { (complex32){z.real, -z.imag} }
+let conj(z:complex64):complex64 { (complex64){z.real, -z.imag} }
+let conj(z:complex32):complex32 { (complex32){z.real, -z.imag} }
 
 // the magnitude |z|, without overflow where z.real² would
-abs(z:complex64):f64 { hypot(z.real, z.imag) }
-abs(z:complex32):f32 { f32(abs(complex64(z))) }
+let abs(z:complex64):f64 { hypot(z.real, z.imag) }
+let abs(z:complex32):f32 { f32(abs(complex64(z))) }
 
 // the angle from the positive real axis, from -π (just below the negative
 // real axis, where imag is -0) to π
-arg(z:complex64):f64 { atan2(z.imag, z.real) }
-arg(z:complex32):f32 { f32(arg(complex64(z))) }
+let arg(z:complex64):f64 { atan2(z.imag, z.real) }
+let arg(z:complex32):f32 { f32(arg(complex64(z))) }
 
 // |z|²
-norm(z:complex64):f64 { z.real * z.real + z.imag * z.imag }
-norm(z:complex32):f32 { z.real * z.real + z.imag * z.imag }
+let norm(z:complex64):f64 { z.real * z.real + z.imag * z.imag }
+let norm(z:complex32):f32 { z.real * z.real + z.imag * z.imag }
 
 // ---------- exponentials and logarithms ----------
 
 // exp(z) = exp(z.real) (cos z.imag + i sin z.imag)
-exp(z:complex64):complex64 {
+let exp(z:complex64):complex64 {
     if z.imag == 0.0 {
         return (complex64){exp(z.real), z.imag}  // not ∞ × 0 for a large real one
     }
@@ -170,7 +170,7 @@ exp(z:complex64):complex64 {
 
 // the principal value, log|z| + i arg z, with log1p where a part is near
 // ±1, and |z| scaled where it would overflow or lose bits
-log(z:complex64):complex64 {
+let log(z:complex64):complex64 {
     let a:f64 = fmax(fabs(z.real), fabs(z.imag))
     let b:f64 = fmin(fabs(z.real), fabs(z.imag))
     if a > 0.5 && a < 2.0 {
@@ -186,7 +186,7 @@ log(z:complex64):complex64 {
 }
 
 // the principal square root, whose real part is never negative
-sqrt(z:complex64):complex64 {
+let sqrt(z:complex64):complex64 {
     if z.real == 0.0 && z.imag == 0.0 {
         return (complex64){0.0, z.imag}
     }
@@ -221,7 +221,7 @@ sqrt(z:complex64):complex64 {
 
 // z to the power w: exp(w log z); 0 to a power whose real part is
 // positive is 0, and to a negative real power infinite, as 1 / 0 is
-pow(z:complex64, w:complex64):complex64 {
+let pow(z:complex64, w:complex64):complex64 {
     if z.real == 0.0 && z.imag == 0.0 {
         if w.real == 0.0 && w.imag == 0.0 {
             return complex64(1.0)
@@ -235,15 +235,15 @@ pow(z:complex64, w:complex64):complex64 {
     }
     return exp(w * log(z))
 }
-pow(z:complex64, x:f64):complex64 { pow(z, complex64(x)) }
-pow(x:f64, w:complex64):complex64 { pow(complex64(x), w) }
+let pow(z:complex64, x:f64):complex64 { pow(z, complex64(x)) }
+let pow(x:f64, w:complex64):complex64 { pow(complex64(x), w) }
 
-exp(z:complex32):complex32 { complex32(exp(complex64(z))) }
-log(z:complex32):complex32 { complex32(log(complex64(z))) }
-sqrt(z:complex32):complex32 { complex32(sqrt(complex64(z))) }
-pow(z:complex32, w:complex32):complex32 { complex32(pow(complex64(z), complex64(w))) }
-pow(z:complex32, x:f32):complex32 { complex32(pow(complex64(z), f64(x))) }
-pow(x:f32, w:complex32):complex32 { complex32(pow(f64(x), complex64(w))) }
+let exp(z:complex32):complex32 { complex32(exp(complex64(z))) }
+let log(z:complex32):complex32 { complex32(log(complex64(z))) }
+let sqrt(z:complex32):complex32 { complex32(sqrt(complex64(z))) }
+let pow(z:complex32, w:complex32):complex32 { complex32(pow(complex64(z), complex64(w))) }
+let pow(z:complex32, x:f32):complex32 { complex32(pow(complex64(z), f64(x))) }
+let pow(x:f32, w:complex32):complex32 { complex32(pow(f64(x), complex64(w))) }
 
 // ---------- hyperbolic and trigonometric functions ----------
 //
@@ -254,7 +254,7 @@ pow(x:f32, w:complex32):complex32 { complex32(pow(f64(x), complex64(w))) }
 
 // sinh(a + ib) = sinh a cos b + i cosh a sin b; where e^|a| overflows,
 // sinh a and cosh a are ±e^|a| / 2, which is split in two halves
-sinh(z:complex64):complex64 {
+let sinh(z:complex64):complex64 {
     if z.imag == 0.0 {
         return (complex64){sinh(z.real), z.imag}
     }
@@ -266,7 +266,7 @@ sinh(z:complex64):complex64 {
 }
 
 // cosh(a + ib) = cosh a cos b + i sinh a sin b
-cosh(z:complex64):complex64 {
+let cosh(z:complex64):complex64 {
     if z.imag == 0.0 {
         return (complex64){cosh(z.real), copysign(1.0, z.real) * z.imag}
     }
@@ -279,7 +279,7 @@ cosh(z:complex64):complex64 {
 
 // by Kahan's algorithm, which neither overflows for a large a nor loses
 // accuracy near the poles
-tanh(z:complex64):complex64 {
+let tanh(z:complex64):complex64 {
     if fabs(z.real) > 22.0 {
         // tanh a is ±1 to the last bit, and the rest falls as e^-2|a|
         let e:f64 = exp(-fabs(z.real))
@@ -293,24 +293,24 @@ tanh(z:complex64):complex64 {
     return (complex64){beta * rho * s / d, t / d}
 }
 
-sin(z:complex64):complex64 {
+let sin(z:complex64):complex64 {
     let w:complex64 = sinh((complex64){-z.imag, z.real})
     return (complex64){w.imag, -w.real}
 }
 
-cos(z:complex64):complex64 { cosh((complex64){-z.imag, z.real}) }
+let cos(z:complex64):complex64 { cosh((complex64){-z.imag, z.real}) }
 
-tan(z:complex64):complex64 {
+let tan(z:complex64):complex64 {
     let w:complex64 = tanh((complex64){-z.imag, z.real})
     return (complex64){w.imag, -w.real}
 }
 
-asinh(z:complex64):complex64
+let asinh(z:complex64):complex64
 
 // asin and acos by Kahan's formulas, which neither cancel near 0 and ±1
 // nor overflow for a large |z|; beyond 1e300 by asinh's, as -i asinh(iz),
 // and for acos its angle and -asin z's imaginary part
-asin(z:complex64):complex64 {
+let asin(z:complex64):complex64 {
     if fmax(fabs(z.real), fabs(z.imag)) > 1e300 {
         let w:complex64 = asinh((complex64){-z.imag, z.real})
         return (complex64){w.imag, -w.real}
@@ -320,7 +320,7 @@ asin(z:complex64):complex64 {
     return (complex64){atan2(z.real, (s * t).real), asinh((conj(s) * t).imag)}
 }
 
-acos(z:complex64):complex64 {
+let acos(z:complex64):complex64 {
     if fmax(fabs(z.real), fabs(z.imag)) > 1e300 {
         // the angle itself, as π/2 - asin z would lose it near the real axis
         let w:complex64 = asin(z)
@@ -333,7 +333,7 @@ acos(z:complex64):complex64 {
 
 // asinh z = -i asin(iz), as asin z = -i asinh(iz) and asin is odd;
 // beyond 1e300 it is log 2z, for z.real ≥ 0, and odd
-asinh(z:complex64):complex64 {
+let asinh(z:complex64):complex64 {
     if fmax(fabs(z.real), fabs(z.imag)) > 1e300 {
         if signbit(z.real) != 0 {
             return -asinh(-z)
@@ -346,7 +346,7 @@ asinh(z:complex64):complex64 {
 }
 
 // Kahan's formula, as for acos; beyond 1e300, log 2z
-acosh(z:complex64):complex64 {
+let acosh(z:complex64):complex64 {
     if fmax(fabs(z.real), fabs(z.imag)) > 1e300 {
         let w:complex64 = log(z)
         return (complex64){w.real + 0.6931471805599453, w.imag}
@@ -358,7 +358,7 @@ acosh(z:complex64):complex64 {
 
 // atanh z = (log(1 + z) - log(1 - z)) / 2, written so that it neither
 // cancels near 0 and -1 nor overflows for a large |z|
-atanh(z:complex64):complex64 {
+let atanh(z:complex64):complex64 {
     if signbit(z.real) != 0 {
         return -atanh(-z)  // atanh is odd
     }
@@ -378,20 +378,20 @@ atanh(z:complex64):complex64 {
 }
 
 // atan z = -i atanh(iz)
-atan(z:complex64):complex64 {
+let atan(z:complex64):complex64 {
     let w:complex64 = atanh((complex64){-z.imag, z.real})
     return (complex64){w.imag, -w.real}
 }
 
-sinh(z:complex32):complex32 { complex32(sinh(complex64(z))) }
-cosh(z:complex32):complex32 { complex32(cosh(complex64(z))) }
-tanh(z:complex32):complex32 { complex32(tanh(complex64(z))) }
-sin(z:complex32):complex32 { complex32(sin(complex64(z))) }
-cos(z:complex32):complex32 { complex32(cos(complex64(z))) }
-tan(z:complex32):complex32 { complex32(tan(complex64(z))) }
-asin(z:complex32):complex32 { complex32(asin(complex64(z))) }
-acos(z:complex32):complex32 { complex32(acos(complex64(z))) }
-asinh(z:complex32):complex32 { complex32(asinh(complex64(z))) }
-acosh(z:complex32):complex32 { complex32(acosh(complex64(z))) }
-atanh(z:complex32):complex32 { complex32(atanh(complex64(z))) }
-atan(z:complex32):complex32 { complex32(atan(complex64(z))) }
+let sinh(z:complex32):complex32 { complex32(sinh(complex64(z))) }
+let cosh(z:complex32):complex32 { complex32(cosh(complex64(z))) }
+let tanh(z:complex32):complex32 { complex32(tanh(complex64(z))) }
+let sin(z:complex32):complex32 { complex32(sin(complex64(z))) }
+let cos(z:complex32):complex32 { complex32(cos(complex64(z))) }
+let tan(z:complex32):complex32 { complex32(tan(complex64(z))) }
+let asin(z:complex32):complex32 { complex32(asin(complex64(z))) }
+let acos(z:complex32):complex32 { complex32(acos(complex64(z))) }
+let asinh(z:complex32):complex32 { complex32(asinh(complex64(z))) }
+let acosh(z:complex32):complex32 { complex32(acosh(complex64(z))) }
+let atanh(z:complex32):complex32 { complex32(atanh(complex64(z))) }
+let atan(z:complex32):complex32 { complex32(atan(complex64(z))) }
