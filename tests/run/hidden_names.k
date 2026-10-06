@@ -3,16 +3,16 @@
 // with no source from 0 (#38)
 struct point { x: i64; y: i64 }
 
-point.scaled(k:i64):point {
+let point.scaled(k:i64):point {
     let f:(i64):i64 := { $0 * 2 }
     return (point){f(self.x) * k, f(self.y) * k}
 }
 
-apply(x:i64, f:(i64):i64):i64 { f(x) }
+let apply(x:i64, f:(i64):i64):i64 { f(x) }
 let twice:(i64):i64 := { $0 * 2 }
 struct holder { a: u8[sizeof(apply(1) { $0 + 1 })] }
 
-main():i32 {
+let main():i32 {
     let n:i64 = 255
     let p:point = {1, 2}
     var xs:i64[3] = {1, 2, 3}

@@ -4,7 +4,7 @@
 struct node { value:i64; next:node^; };
 struct point { x:i32; y:i32; };
 
-vowels(s:cstr):i64 {
+let vowels(s:cstr):i64 {
     var n = 0;
     for c in s {
         if strchr("aeiouAEIOU", c) != nullptr {
@@ -14,7 +14,7 @@ vowels(s:cstr):i64 {
     return n;
 }
 
-main():i32 {
+let main():i32 {
     println(vowels("Hello, Kelvin"), " ", vowels(nullptr));
     // a list: each node's pointer along next
     var c3:node = {3, nullptr};

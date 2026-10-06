@@ -1,8 +1,8 @@
-// lib/complex.k (#43): complex64 and complex32, their arithmetic and
+// modules/complex.k (#43): complex64 and complex32, their arithmetic and
 // elementary functions, which overload C's own of the same names (#41)
 // through Kelvin's operators (#42). C's libm may differ in the last bits
 // between systems, so results are compared within a tolerance.
-#import <lib/complex.k>
+#import <complex.k>
 #import <math.h> as C
 #import <stdlib.h> as C
 
@@ -10,22 +10,22 @@ let PI = 3.141592653589793
 var checked:i64 = 0
 
 // got is want, within 1e-12 of want's size
-check(what:cstr, got:complex64, want:complex64) {
+let check(what:cstr, got:complex64, want:complex64) {
     checked += 1
     if !(abs(got - want) <= 1e-12 * (1.0 + abs(want))) {
         println(what, ": ", got.cstr, " is not ", want.cstr)
     }
 }
-check(what:cstr, got:f64, want:f64) { check(what, complex64(got), complex64(want)) }
+let check(what:cstr, got:f64, want:f64) { check(what, complex64(got), complex64(want)) }
 // a complex32 is within 1e-6
-check(what:cstr, got:complex32, want:complex64) {
+let check(what:cstr, got:complex32, want:complex64) {
     checked += 1
     if !(abs(complex64(got) - want) <= 1e-6 * (1.0 + abs(want))) {
         println(what, ": ", got.cstr, " is not ", want.cstr)
     }
 }
 
-main():i32 {
+let main():i32 {
     let i:complex64 = complex64(0.0, 1.0)
     let z:complex64 = complex64(1.0, 2.0)
     let w:complex64 = complex64(3.0, -1.0)
@@ -110,7 +110,7 @@ main():i32 {
 
     // where e^x alone would overflow, parts that do not; tiny, huge and
     // infinite parts; C's own functions of these names on numbers only C
-    // sees, through the prototypes lib/complex.k declares
+    // sees, through the prototypes modules/complex.k declares
     let sh:complex64 = sinh(complex64(711.0, 2.0))
     let ch:complex64 = cosh(complex64(-711.0, 2.0))
     let e2:complex64 = exp(complex64(2000.0, 0.0))

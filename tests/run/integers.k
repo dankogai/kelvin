@@ -1,8 +1,8 @@
-printf(fmt:const u8^, ...):i32;
+let printf(fmt:const u8^, ...):i32;
 
 var answer = 42;                // inferred: i64
 
-main():i32 {
+let main():i32 {
     var i = -1;                 // inferred: i64
     var big = 0x7fffffffffffffff;
     printf("%d %d %d %d\n", i32(sizeof(i8)), i32(sizeof(i16)), i32(sizeof(i32)), i32(sizeof(i64)));

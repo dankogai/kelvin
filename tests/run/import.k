@@ -3,11 +3,11 @@
 #import <string.h> as C
 #import "include/greet.h" as C     // found next to this file
 
-cmp(x:const any^, y:const any^):i32 {
+let cmp(x:const any^, y:const any^):i32 {
     return (x as const i32^)^ - (y as const i32^)^;
 }
 
-main():i32 {
+let main():i32 {
     var pi = 3.14159;                       // inferred: f64
     var n = 3;                              // inferred: i64
     printf("%.2f %d %d\n", pi * 2, i32(sizeof pi), i32(sizeof n));

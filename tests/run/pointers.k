@@ -1,11 +1,11 @@
-printf(fmt:const u8^, ...):i32;
+let printf(fmt:const u8^, ...):i32;
 
 struct node {
     value:i32;
     next:struct node^;
 };
 
-sum(var n:struct node^):i32 {
+let sum(var n:struct node^):i32 {
     var total:i32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
@@ -14,13 +14,13 @@ sum(var n:struct node^):i32 {
     return total;
 }
 
-swap(a:i32^, b:i32^) {
+let swap(a:i32^, b:i32^) {
     var t:i32 = a^;            // C: *a
     a^ = b^;
     b^ = t;
 }
 
-main(argc:i32, argv:u8^^):i32 {
+let main(argc:i32, argv:u8^^):i32 {
     var c:struct node = {3, 0};
     var b:struct node = {2, &c};
     var a:struct node = {1, &b};

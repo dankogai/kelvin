@@ -13,25 +13,25 @@ let CHAR_BIT:i64 = 7;
 let INT_MAX:i64 = 100;
 
 var calls:i64 = 0;
-next_len():i64 {
+let next_len():i64 {
     calls += 1;
     return calls + 2;
 }
-inc(x:i64):i64 { return x + 1; }
-g(s:struct cpt, x:s.x.type):i32 { return s.x + x; }
-sum(a:nums.type):i32 {
+let inc(x:i64):i64 { return x + 1; }
+let g(s:struct cpt, x:s.x.type):i32 { return s.x + x; }
+let sum(a:nums.type):i32 {
     var p:a.type := a;          // a parameter's C type: a pointer
     return p[0] + p[2];
 }
-depth(j:jmp_buf):bool {
+let depth(j:jmp_buf):bool {
     var k:j.type := j;
     return sizeof(k) == sizeof(any^);
 }
-apply(p:point, f:(point):i32):i32 { return f(p); }
-twice(x:i32, f:(i32):i32):i32 { return f(f(x)); }
-viatype(f:g_fp.type, x:i32):i32 { return f(x); }
+let apply(p:point, f:(point):i32):i32 { return f(p); }
+let twice(x:i32, f:(i32):i32):i32 { return f(f(x)); }
+let viatype(f:g_fp.type, x:i32):i32 { return f(x); }
 
-main():i32 {
+let main():i32 {
     // C's __typeof__ keeps what kelvinc would evaluate again: a length
     // that is not a number keeps its own value
     var bx:box;

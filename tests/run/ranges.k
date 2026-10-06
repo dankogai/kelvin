@@ -3,9 +3,9 @@
 #import <string.h> as C
 
 var evaluations = 0;
-limit(n:i64):i64 { evaluations += 1; return n; }
+let limit(n:i64):i64 { evaluations += 1; return n; }
 
-main():i32 {
+let main():i32 {
     for i in 0..<3 {
         print(i, " ");
     }

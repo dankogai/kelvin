@@ -6,11 +6,11 @@
 #import "include/fields.h" as C
 
 let answer:cstr := "42"
-twice(n:i64):i64 { n * 2 }
+let twice(n:i64):i64 { n * 2 }
 // a number read from text is no text in the function's buffer
-from_hex(n:i64):i64 { i64(n.hex, 16) }
+let from_hex(n:i64):i64 { i64(n.hex, 16) }
 
-main():i32 {
+let main():i32 {
     // literals, cstr and u8 arrays; a base, and Kelvin's own prefixes
     var digits:u8[4] = {'7', '5', '5', 0}
     println(i64("42"), " ", i32(answer), " ", u16(digits), " ", i32("755", 8), " ", i64("ff", 16), " ",

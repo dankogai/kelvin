@@ -13,15 +13,15 @@ struct image { w:i32; h:i32; px:u8[1048576]; };   // its text would be megabytes
 struct cnames { name:xmlChar^; u:uint8_t^; h:handle_t; r:rstr_t; z:dc_t; b:bytes_t; };
 struct seg { a:struct point; b:struct point; };
 struct msg { len:u32; text:flex_t; };    // never printed, so it needs no .cstr
-seg.cstr_size():i32 { return 2; }         // no clash with kelvinc's size constant
+let seg.cstr_size():i32 { return 2; }         // no clash with kelvinc's size constant
 var pts:struct point[2] = {{1, 2}, {3, 4}};
-first():struct point^ { return &pts[0]; }
-segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
+let first():struct point^ { return &pts[0]; }
+let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
-get():struct point { return (struct point){5, 6}; }
-point.moved():struct point { return (struct point){self.x + 1, self.y}; }
+let get():struct point { return (struct point){5, 6}; }
+let point.moved():struct point { return (struct point){self.x + 1, self.y}; }
 
-main():i32 {
+let main():i32 {
     // numbers: plain decimal; floats lossless; bool; a string is itself
     var pi = 3.141592653589793;
     println(pi.cstr, " ", 0.1.cstr, " ", (0.1:f32).cstr, " ", 1.0.cstr);

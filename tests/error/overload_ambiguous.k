@@ -1,7 +1,7 @@
 // an i32 converts to an i64 and to an f64 alike (#41)
-twice(n:i64):i64 { n * 2 }
-twice(x:f64):f64 { x * 2.0 }
-main():i32 {
+let twice(n:i64):i64 { n * 2 }
+let twice(x:f64):f64 { x * 2.0 }
+let main():i32 {
     let n:i32 = 3
     println(twice(n))
     return 0

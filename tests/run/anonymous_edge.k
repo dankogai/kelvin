@@ -9,14 +9,14 @@ struct ops {
 var total:i64 = 0;
 var other:i64 = 0;
 
-apply(x:i64, f:(i64):i64):i64 { return f(x); }
-each(n:i64, f:(i64)) {
+let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let each(n:i64, f:(i64)) {
     for i in 0..<n {
         f(i);
     }
 }
-run(f:()) { f(); }
-some(n:i64, f:(i64):bool):bool {
+let run(f:()) { f(); }
+let some(n:i64, f:(i64):bool):bool {
     for i in 0..<n {
         if f(i) {
             return true;
@@ -24,13 +24,13 @@ some(n:i64, f:(i64):bool):bool {
     }
     return false;
 }
-size_of(x:i64, f:(i64):size_t):size_t { return f(x); }
+let size_of(x:i64, f:(i64):size_t):size_t { return f(x); }
 
 // globals of the same declaration, and the global itself, are in sight
 let base:i64 = 10, plus_base:(i64):i64 := { $0 + base };
 let fact:(i64):i64 := { $0 <= 1 ? 1 : $0 * fact($0 - 1) };
 
-main():i32 {
+let main():i32 {
     // statements that end with trailing functions need no ';', and a new
     // line ends them, also before a '('
     run() {

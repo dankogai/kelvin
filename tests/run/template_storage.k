@@ -4,8 +4,8 @@
 #import <string.h> as C
 struct rec { id: i64; name: cstr }
 struct tagged { id: i64; tag: u8[8] }
-mk():tagged { (tagged){1, {'t', 'a', 'g', 's', 'a', 'n', 'd', 's'}} }
-main():i32 {
+let mk():tagged { (tagged){1, {'t', 'a', 'g', 's', 'a', 'n', 'd', 's'}} }
+let main():i32 {
     var text:u8[400]
     for i in 0..<399 {
         text[i] = 'a' + (i % 26)

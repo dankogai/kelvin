@@ -2,7 +2,7 @@
 struct point { x:i32; y:i32; };
 struct sized { size:u64; hex:i32; };       // fields win over properties
 
-main():i32 {
+let main():i32 {
     var a:i8 = -1;
     var b:u8 = 255;
     var c:i32 = 42;

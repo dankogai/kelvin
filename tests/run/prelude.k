@@ -1,5 +1,5 @@
 // the prelude: print() and println() need no import (#17)
-main():i32 {
+let main():i32 {
     println("Hello, Kelvin!");
     println();
     print("a", 1, "b");

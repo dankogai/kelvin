@@ -1,6 +1,6 @@
 // error: a template cannot show a function: a function has no text
-f():i64 { 1 }
-main():i32 {
+let f():i64 { 1 }
+let main():i32 {
     println(`${f}`)
     return 0
 }

@@ -1,9 +1,9 @@
 // regressions from the review of #23-#26
 struct point { x:i32; y:i32; };
-f():i32 { return 1; }
-isodd(n:i32):bool { return n % 2 == 1; }
+let f():i32 { return 1; }
+let isodd(n:i32):bool { return n % 2 == 1; }
 
-main():i32 {
+let main():i32 {
     // ?: between two bools kelvinc sees is a bool, not C's int
     var c = true;
     var x = true;

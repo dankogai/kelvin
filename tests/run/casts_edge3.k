@@ -2,11 +2,11 @@
 #import <stdio.h> as C
 #import <stdlib.h> as C
 
-sq(x:i32):i32 { return x * x; }
-say(s:cstr):bool { puts(s); return true; }
+let sq(x:i32):i32 { return x * x; }
+let say(s:cstr):bool { puts(s); return true; }
 var table:i32[4] = {1, 2, 3, 4};
 
-main():i32 {
+let main():i32 {
     var n:i32 = 2, best:i32 = 0, flag:i32 = 1;
     var a:i32[3] = {1, 2, 3};
 

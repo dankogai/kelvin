@@ -1,4 +1,4 @@
 // error: 'y' needs a type: write
-f() {
+let f() {
     var x = 1; var y = x + 1;
 }

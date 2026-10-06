@@ -4,7 +4,7 @@
 #import <string.h> as C
 
 // insertion sort: stable, ordered by `before`
-sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
+let sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     for i in 1..<n {
         var j:size_t = i
         while j > 0 && before(xs[j], xs[j - 1]) {
@@ -16,20 +16,20 @@ sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     }
 }
 
-show(xs:i64^, n:size_t) {
+let show(xs:i64^, n:size_t) {
     for i in 0..<n {
         print(i == 0 ? "" : " ", xs[i])
     }
     println()
 }
 
-descending(a:i64, b:i64):bool { a > b }
+let descending(a:i64, b:i64):bool { a > b }
 
 // an anonymous function encloses nothing, so what it shares is global
 let target = 5
-distance(x:i64):i64 { x > target ? x - target : target - x }
+let distance(x:i64):i64 { x > target ? x - target : target - x }
 
-main():i32 {
+let main():i32 {
     var xs:i64[8] = {5, 3, 8, 1, 9, 2, 7, 4}
     sort(xs, 8) { $0 < $1 }                     // the last argument, after the call
     show(xs, 8)

@@ -6,20 +6,20 @@
 #import <stdlib.h> as C
 
 struct box { n:i64 }
-box.show() { println("box ", self.n) }
+let box.show() { println("box ", self.n) }
 
 // one expression that starts with a name kelvinc cannot see, or with an
 // annotation to a C typedef, before `?` or before `as`
-buffer_bytes(n:i64):i64 { BUFSIZ * n }
-buffer_bytes2(n:i64):i64 { BUFSIZ * n; }
-max_rand():f64 { RAND_MAX:f64 }
-to_u(n:i64):uint8_t { n:uint8_t }
-pick(flags:i32, a:i64, b:i64):i64 { flags:bool ? a : b }
-half(n:i32):f64 { n:i64 as f64 / 2.0 }
-twice(x:i64):i64 { x * 2 }
+let buffer_bytes(n:i64):i64 { BUFSIZ * n }
+let buffer_bytes2(n:i64):i64 { BUFSIZ * n; }
+let max_rand():f64 { RAND_MAX:f64 }
+let to_u(n:i64):uint8_t { n:uint8_t }
+let pick(flags:i32, a:i64, b:i64):i64 { flags:bool ? a : b }
+let half(n:i32):f64 { n:i64 as f64 / 2.0 }
+let twice(x:i64):i64 { x * 2 }
 
 // `return` at the end of a line, before a case, a default or a label
-describe(n:i64) {
+let describe(n:i64) {
     switch (n) {
     case 0:
         println("zero")
@@ -40,12 +40,12 @@ describe(n:i64) {
     }
 }
 var calls:i64 = 0
-none_first(xs:i64^, n:i64) {
+let none_first(xs:i64^, n:i64) {
     for (var i:i64 = 0; i < n && xs[i] != 0; i += 1)
         return
     calls += 1
 }
-cleanup(fail:bool) {
+let cleanup(fail:bool) {
     if fail {
         goto out
     }
@@ -56,15 +56,15 @@ cleanup(fail:bool) {
         println("failed")
     }
 }
-quiet() {
+let quiet() {
     return;
     println("never")
 }
 
 // a call before a case may drop its value: the case falls through
 var hits:i64 = 0
-bump():i64 { hits += 1; return hits }
-count_down(n:i64):i64 {
+let bump():i64 { hits += 1; return hits }
+let count_down(n:i64):i64 {
     switch (n) {
     case 2:
         bump()
@@ -78,12 +78,12 @@ count_down(n:i64):i64 {
 // a `*` at the start of a line goes on with a product, unless what it
 // touches is assigned
 let PI = 3.141592653589793
-sphere(r:f64):f64 {
+let sphere(r:f64):f64 {
     return 4.0 / 3.0
         *PI*r*r*r
 }
 
-main():i32 {
+let main():i32 {
     println(buffer_bytes(2) == buffer_bytes2(2), " ", max_rand() > 0.0, " ", to_u(300), " ", pick(1, 10, 20), " ",
             half(5))
     describe(0)

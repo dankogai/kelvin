@@ -185,7 +185,6 @@ static Var *param_named(const char *name) {
 }
 
 static Decl *function_named(const char *name);
-static bool starts_operator_definition(void);
 
 /* Is the token a tag's bare name (#29) where an expression could stand
    too, as in sizeof(point) or (point^)p? Only for a tag defined in Kelvin:
@@ -798,8 +797,6 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
             parse_qualifiers(p);
             t = p;
         } else if (is_p(tok, "*")) {
-            if (starts_operator_definition())
-                return t; /* *(a:T, k:i64):T on the next line (#42) */
             if (ctx == TYPE_AS) {
                 /* `x as T * y` multiplies; `x as T*` followed by nothing
                    is C's pointer habit */
@@ -861,6 +858,8 @@ static int call_arity(Expr *callee);
 static Decl *method_named(Expr *recv, const char *name);
 static Expr *parse_dollar(void);
 static bool overloadable_op(Token *t);
+static int function_shape(int i);
+static bool params_ahead(int i);
 static void resolve_call(Expr *call);
 static void pick_overload(Expr *v, Type *want);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
@@ -887,26 +886,6 @@ static bool line_break(Token *a, Token *b) {
 
 static bool newline_before(void) { return cur > 0 && line_break(&toks[cur - 1], peek()); }
 
-static bool overloadable_op(Token *t);
-
-/* Does an operator's definition (#42) start here, at the top level of the
-   file, on a new line: +(a:T, ...):R or +(var a:T, ...):R? Then what goes
-   before it ends there. */
-static bool starts_operator_definition(void) {
-    Token *t = peek();
-    if (parsing_fn || !newline_before() || !overloadable_op(t) || !is_p(&t[1], "(") ||
-        !((t[2].kind == TK_IDENT && is_p(&t[3], ":")) || is_kw(&t[2], "var")))
-        return false;
-    /* +(a:T, b:U):R, as `(x:f64)` that only annotates is followed by no `:` */
-    int depth = 0;
-    for (Token *u = &t[1]; u->kind != TK_EOF && u->kind != TK_FILE_END; u++) {
-        if (is_p(u, "(") || is_p(u, "[") || is_p(u, "{"))
-            depth++;
-        else if ((is_p(u, ")") || is_p(u, "]") || is_p(u, "}")) && --depth == 0)
-            return is_p(&u[1], ":");
-    }
-    return false;
-}
 
 static bool at_statement_level(void);
 
@@ -1569,7 +1548,7 @@ static Expr *parse_binary(int min_prec) {
     for (;;) {
         Token *t = peek();
         int prec = binary_prec(t);
-        if (prec < min_prec || starts_operator_definition())
+        if (prec < min_prec)
             return lhs;
         /* `*p = 1` on a line of its own is C's dereference, not a product
            going on from the line above, which could not be assigned (#35) */
@@ -2817,9 +2796,9 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
             sa = sa ? sa : "a value kelvinc cannot see";
             sb = b && !sb ? "a value kelvinc cannot see" : sb;
             if (b)
-                error_at(e->pos, "no operator %s takes %s and %s: define one, as in '%s(a:%s, b:%s):... { ... }'", op,
+                error_at(e->pos, "no operator %s takes %s and %s: define one, as in 'let %s(a:%s, b:%s):... { ... }'", op,
                          sa, sb, op, pa, pb);
-            error_at(e->pos, "no operator %s takes %s: define one, as in '%s(a:%s):... { ... }'", op, sa, op, pa);
+            error_at(e->pos, "no operator %s takes %s: define one, as in 'let %s(a:%s):... { ... }'", op, sa, op, pa);
         }
         return e; /* C's own operator */
     }
@@ -3668,7 +3647,7 @@ static void reject_c_declaration(void) {
         error_at(pos, "'%s' looks like a C function-pointer declaration: write 'var %s:(...):%s%s' (#31)", name,
                  name, quals, type);
     if (function)
-        error_at(pos, "functions are declared at the top level as '%s(...):%s%s%s'", name, quals, type, suffix.buf);
+        error_at(pos, "functions are declared at the top level as 'let %s(...):%s%s%s'", name, quals, type, suffix.buf);
     error_at(pos, "declarations are written 'var name:type', as in '%s%svar %s:%s%s%s%s'", storage ? storage : "",
              storage ? " " : "", name, quals, type, suffix.buf, dims.buf);
 }
@@ -4704,6 +4683,12 @@ static Stmt *parse_stmt_here(void) {
     if (accept_p(";"))
         return new_stmt(S_EMPTY, pos);
     if (binding_ahead(cur)) {
+        int at = cur + 1 + (is_kw(t, "static") || is_kw(t, "extern"));
+        reject_c_fn_pointer(at, "var ");
+        if (function_shape(at) == 2 && params_ahead(at + 1))
+            error_at(toks[at].pos, "a function is declared at the top level; here a let holds an anonymous one, as in "
+                                   "'let %s:(T):R := { (a:T):R in ... }' (#32, #45)",
+                     toks[at].text);
         if (as_body)
             error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
                           "or write 'label: ;' before it");
@@ -4887,6 +4872,29 @@ static bool overloadable_op(Token *t) {
     return false;
 }
 
+/* What starts at token i at the top level: 1 a method `type.name(`, 2 a
+   function `name(`, 3 an operator `+(` (#42), 4 another `op(`, which no
+   struct may define, or 0 none of these */
+static int function_shape(int i) {
+    Token *t = &toks[i];
+    if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && t[2].kind == TK_IDENT && is_p(t + 3, "("))
+        return 1;
+    if (t->kind == TK_IDENT && is_p(t + 1, "("))
+        return 2;
+    if (overloadable_op(t) && is_p(t + 1, "("))
+        return 3;
+    if (t->kind == TK_PUNCT && is_p(t + 1, "(") && !is_p(t, "(") && !is_p(t, ";"))
+        return 4;
+    return 0;
+}
+
+/* Do parameters follow the `(` at token i: `)`, `...`, `var` or `name:`?
+   Otherwise `name(` is a call or C's statement words, such as _Pragma */
+static bool params_ahead(int i) {
+    Token *t = &toks[i + 1];
+    return is_p(t, ")") || is_p(t, "...") || is_kw(t, "var") || (t->kind == TK_IDENT && is_p(t + 1, ":"));
+}
+
 static void check_overload(Decl *d, Token *name);
 
 static Decl *parse_fn(Pos pos, const char *storage) {
@@ -4961,7 +4969,7 @@ static void check_overload(Decl *d, Token *name) {
         if (!record)
             error_at(name->pos, "an operator is for a Kelvin struct or union: at least one of its values must be one");
         if (!d->ret)
-            error_at(name->pos, "operator %s has no result: write its type, as in '%s(...):T'", d->op, d->op);
+            error_at(name->pos, "operator %s has no result: write its type, as in 'let %s(...):T'", d->op, d->op);
     }
     for (int i = 0; i < functions.len; i++) {
         Decl *e = functions.data[i];
@@ -5157,6 +5165,29 @@ Program *parse(Token *tokens, int ntoks) {
         stmt_start = cur;
         top_name = NULL;
         const char *storage = parse_storage();
+        /* a function, a method and an operator are lets (#45) */
+        bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");
+        int shape = function_shape(cur + binding);
+        if (shape && shape != 4) {
+            if (shape == 2)
+                reject_c_fn_pointer(cur + binding, "var ");
+            Token *n = &toks[cur + binding];
+            char *how = strfmt("%s%slet %s%s%s(...)", storage ? storage : "", storage ? " " : "", n->text,
+                               shape == 1 ? "." : "", shape == 1 ? n[2].text : "");
+            if (!binding && !params_ahead(cur + (shape == 1 ? 3 : 1)))
+                error_at(n->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), "
+                                 "found %s: a statement goes in a function",
+                         desc(n));
+            if (!binding)
+                error_at(n->pos, "a function is declared with let: write '%s'", how);
+            if (is_kw(peek(), "var"))
+                error_at(peek()->pos, "a function is a let: write '%s', or, for a variable holding a function, "
+                                      "'var f:(T):R := g'",
+                         how);
+            advance();
+        } else if (shape == 4 && binding) {
+            advance();
+        }
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
             top_name = strfmt("%s_%s", peek()->text, peek_at(2)->text);
@@ -5197,7 +5228,7 @@ Program *parse(Token *tokens, int ntoks) {
             top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
             add_top_decl(prog, parse_record(t->pos, D_ENUM));
         } else {
-            error_at(peek()->pos, "expected a declaration (name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
+            error_at(peek()->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
     name_functions();

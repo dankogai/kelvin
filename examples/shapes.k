@@ -8,22 +8,22 @@ struct point { x: f64; y: f64 }
 struct circle { center: point; radius: f64 }
 struct rect { corner: point; width: f64; height: f64 }
 
-point.distance(to:point):f64 {
+let point.distance(to:point):f64 {
     hypot(to.x - self.x, to.y - self.y)
 }
 
-circle.area():f64 { PI * self.radius * self.radius }
-circle.contains(p:point):bool { self.center.distance(p) <= self.radius }
-rect.area():f64 { self.width * self.height }
+let circle.area():f64 { PI * self.radius * self.radius }
+let circle.contains(p:point):bool { self.center.distance(p) <= self.radius }
+let rect.area():f64 { self.width * self.height }
 
 // self is a mutable copy: moving it here leaves the caller's rect alone
-rect.moved(dx:f64, dy:f64):rect {
+let rect.moved(dx:f64, dy:f64):rect {
     self.corner.x += dx
     self.corner.y += dy
     return self
 }
 
-main():i32 {
+let main():i32 {
     let origin:point = {0, 0}
     let c:circle = {origin, 2}
     let r:rect = {{1, 1}, 3, 4}

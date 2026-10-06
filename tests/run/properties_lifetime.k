@@ -1,9 +1,9 @@
 // text from a property lives until the enclosing block ends (#21):
 // also in a brace-less for body and among a method call's arguments
-i32.pass(p:u8^):u8^ { return p; }
-i32.same():i32 { return self; }
+let i32.pass(p:u8^):u8^ { return p; }
+let i32.same():i32 { return self; }
 
-main():i32 {
+let main():i32 {
     var a:i32 = 1;
     var b:u64 = 255;
     var c:u64 = 4096;

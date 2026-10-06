@@ -8,12 +8,12 @@
 
 struct host { addr: u32; port: u16 }
 struct pair { x: i32; y: i32 }
-point_of(x:i32, y:i32):pair { (pair){x, y} }
+let point_of(x:i32, y:i32):pair { (pair){x, y} }
 
-square(x:i64):i64 { x * x }
-where(p:i32^):uintptr_t { p.addr }      // a number, which may be returned
+let square(x:i64):i64 { x * x }
+let where(p:i32^):uintptr_t { p.addr }      // a number, which may be returned
 
-main():i32 {
+let main():i32 {
     var x:i32 = 7
     let p:i32^ := &x
     let s:cstr := "abc"

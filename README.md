@@ -17,7 +17,7 @@ struct node {
     next:  node^
 }
 
-sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
+let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
     var total:i32 = 0
     while n != nullptr {
         total += n^.value       // C: n->value
@@ -32,8 +32,8 @@ So far the changes from C are:
   for `struct point`
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
-  functions are `add(a:i64, b:i64):i64`, whose parameters are lets
-  unless written `var`
+  functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters
+  are lets unless written `var`
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
 - XOR is `~`
@@ -48,7 +48,7 @@ So far the changes from C are:
   `0xdead:u16`
 - `print()` and `println()` come from a small prelude in `libkelvin`, so
   `println("n = ", n)` works for any type with no import
-- every type can have methods, such as `point.area():f64 { ... }`
+- every type can have methods, such as `let point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
   (derived for structs, as `{x: 3, y: 4}`), where `cstr` is `u8^`;
   `toString()` waits for a true string type
@@ -69,7 +69,7 @@ So far the changes from C are:
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
 - a `;` may be left out at the end of a line, and a function whose body is
-  one expression returns it: `square(x:i64):i64 { x * x }`
+  one expression returns it: `let square(x:i64):i64 { x * x }`
 - function types are `(T, U):R`, as in `before:(i64, i64):bool`
 - anonymous functions enclose nothing, are inline (C's `static inline`),
   and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
@@ -80,13 +80,13 @@ So far the changes from C are:
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
 - functions overload by their parameter types, also C's own: with
-  `sin(z:complex64):complex64` defined, `sin(z)` is Kelvin's and
+  `let sin(z:complex64):complex64` defined, `sin(z)` is Kelvin's and
   `sin(0.5)` C's
 - structs and unions may define operators:
-  `+(a:money, b:money):money { ... }`, then `a + b`
-- `#import <lib/complex.k>` brings in a Kelvin file's source, here
+  `let +(a:money, b:money):money { ... }`, then `a + b`
+- `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
-  functions
+  functions, from `./modules` or Kelvin's own `modules/`
 
 Everything else is C. See [versusC.md](versusC.md) for all the differences,
 [Design.md](Design.md) for the design decisions,
@@ -107,16 +107,16 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
-| [examples/complex.k](examples/complex.k) | `#import <lib/complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
+| [examples/complex.k](examples/complex.k) | `#import <complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 
 ## Build and use
 
 Requires a C11 compiler and make.
 
 ```sh
-make                        # builds ./kelvinc and libkelvin.{a,so|dylib}
+make                        # builds ./kelvinc and modules/libkelvin.{a,so|dylib}
 make test                   # runs tests/run.sh
-make install PREFIX=~/.local # bin/kelvinc, lib/libkelvin.*, lib/*.k, include/
+make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc hello.k           # builds ./hello
 ./kelvinc --run hello.k     # builds and runs
 ./kelvinc --emit-c hello.k  # prints the generated C

@@ -14,7 +14,7 @@ struct list {
 }
 
 // add a value at the front
-push(l:list^, value:i64) {
+let push(l:list^, value:i64) {
     let n := malloc(sizeof(node)) as node^
     if n == nullptr {
         exit(1)
@@ -26,7 +26,7 @@ push(l:list^, value:i64) {
 }
 
 // remove the front value; the list must not be empty
-pop(l:list^):i64 {
+let pop(l:list^):i64 {
     let first:node^ := l^.head
     let value:i64 = first^.value
     l^.head := first^.next
@@ -36,7 +36,7 @@ pop(l:list^):i64 {
 }
 
 // reverse the list in place by turning each link around
-reverse(l:list^) {
+let reverse(l:list^) {
     var done:node^     // a reference starts as nullptr
     var rest:node^ := l^.head
     while rest != nullptr {
@@ -49,14 +49,14 @@ reverse(l:list^) {
 }
 
 // free every node
-clear(l:list^) {
+let clear(l:list^) {
     while l^.head != nullptr {
         pop(l)
     }
 }
 
 // for n in head walks the nodes along next, up to nullptr
-list.sum():i64 {
+let list.sum():i64 {
     var total = 0
     for n in self.head {
         total += n^.value
@@ -64,7 +64,7 @@ list.sum():i64 {
     return total
 }
 
-list.contains(value:i64):bool {
+let list.contains(value:i64):bool {
     for n in self.head {
         if n^.value == value {
             return true
@@ -74,7 +74,7 @@ list.contains(value:i64):bool {
 }
 
 // print the values as [1 -> 4 -> 9]
-list.show() {
+let list.show() {
     print("[")
     for n in self.head {
         print(n^.value)
@@ -85,7 +85,7 @@ list.show() {
     println("] (", self.length, " values)")
 }
 
-main():i32 {
+let main():i32 {
     var squares:list = {nullptr, 0}
     for i in 1...5 {
         push(&squares, i * i)

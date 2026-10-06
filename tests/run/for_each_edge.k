@@ -5,13 +5,13 @@ struct node { value:i32; next:node^; };
 struct point { x:i32; y:i32; };
 
 var calls = 0;
-row():i64 {
+let row():i64 {
     calls += 1;
     return 1;
 }
 
 // a let array parameter has its declared length; a var one is a pointer
-sum4(xs:i32[four]):i64 {
+let sum4(xs:i32[four]):i64 {
     var t:i64 = 0;
     for x in xs {
         t += x;
@@ -19,7 +19,7 @@ sum4(xs:i32[four]):i64 {
     return t;
 }
 
-sumn(n:i64, xs:i32[n]):i64 {
+let sumn(n:i64, xs:i32[n]):i64 {
     var t:i64 = 0;
     for x in xs {
         t += x;
@@ -27,7 +27,7 @@ sumn(n:i64, xs:i32[n]):i64 {
     return t;
 }
 
-rest(var xs:i32[2]):i64 {
+let rest(var xs:i32[2]):i64 {
     var t:i64 = 0;
     xs := xs.next;
     for x in xs {
@@ -36,7 +36,7 @@ rest(var xs:i32[2]):i64 {
     return t;
 }
 
-total(ps:point[2]):i64 {
+let total(ps:point[2]):i64 {
     var t:i64 = 0;
     for p in ps {
         t += p.x + p.y;
@@ -44,7 +44,7 @@ total(ps:point[2]):i64 {
     return t;
 }
 
-main(argc:i32, argv:u8^^):i32 {
+let main(argc:i32, argv:u8^^):i32 {
     // the elements are read as what they are, and x converts each
     var walked = 0;
     let bytes:i32[3] = {300, 2, 0};

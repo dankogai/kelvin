@@ -17,7 +17,7 @@ struct sized {
 };
 
 // placed in a union, an enum, and a struct that names itself
-apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let apply(x:i64, f:(i64):i64):i64 { return f(x); }
 union u {
     buf:u8[sizeof(apply(1) { $0 })];
     n:i32;
@@ -27,8 +27,8 @@ struct s { a:u8[sizeof({ (p:s^):i64 in 1 }(nullptr))]; };
 
 let table:entry[2] = {{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}};
 
-inc(x:i64):i64 { return x + 1; }
-sum(n:size_t, xs:i64[n]):i64 {
+let inc(x:i64):i64 { return x + 1; }
+let sum(n:size_t, xs:i64[n]):i64 {
     var t:i64 = 0;
     for i in 0..<n {
         t += xs[i];
@@ -36,10 +36,10 @@ sum(n:size_t, xs:i64[n]):i64 {
     return t;
 }
 // a parameter's length names another parameter: $0 is then a pointer
-third(n:i64, a:i64[n], f:(i64[n]):i64):i64 { return f(a); }
+let third(n:i64, a:i64[n], f:(i64[n]):i64):i64 { return f(a); }
 // a length inside a function type's parameter never reaches C
-run(n:size_t, xs:i64^, f:((size_t, i64[n]):i64, size_t, i64^):i64):i64 { return f(sum, n, xs); }
-some(n:i64, f:(i64):bool):bool {
+let run(n:size_t, xs:i64^, f:((size_t, i64[n]):i64, size_t, i64^):i64):i64 { return f(sum, n, xs); }
+let some(n:i64, f:(i64):bool):bool {
     for i in 0..<n {
         if f(i) {
             return true;
@@ -47,9 +47,9 @@ some(n:i64, f:(i64):bool):bool {
     }
     return false;
 }
-seven():i64 { return { (x:i64):i64 in x + 4 }(3); }
+let seven():i64 { return { (x:i64):i64 in x + 4 }(3); }
 
-main():i32 {
+let main():i32 {
     // one that writes its parameters is a value: called where it stands
     let r:i64 = { (a:i64):i64 in a * 2 }(3);
     let hi := { () in print("hi ") };

@@ -33,8 +33,8 @@ static void usage(FILE *f) {
             "environment:\n"
             "  CC            C compiler to use (default: cc)\n"
             "  KELVIN_CFLAGS extra flags for the C compiler, space-separated\n"
-            "  KELVIN_HOME   where to find kelvin_prelude.h, libkelvin.a and the Kelvin files\n"
-            "                of #import <lib/x.k>\n");
+            "  KELVIN_HOME   where to find modules/ (kelvin_prelude.h, libkelvin.a and the\n"
+            "                Kelvin files of #import <x.k>), after ./modules for <x.k>\n");
 }
 
 static char *read_file(const char *path) {
@@ -113,33 +113,43 @@ static bool kelvin_file(const char *path) {
     return file_exists(path) && stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
-/* Find the prelude header and libkelvin.a under `home`, laid out either
-   as the source tree (runtime/, libkelvin.a) or as an installation
-   (include/, lib/). */
-static bool runtime_in(const char *home, char **inc, char **lib) {
-    if (!home)
-        return false;
-    const char *layouts[][2] = {{"runtime", "."}, {"include", "lib"}};
-    for (int i = 0; i < 2; i++) {
-        char *h = strfmt("%s/%s", home, layouts[i][0]);
-        char *l = strfmt("%s/%s/libkelvin.a", home, layouts[i][1]);
-        if (file_exists(strfmt("%s/kelvin_prelude.h", h)) && file_exists(l)) {
-            *inc = h;
-            *lib = l;
-            return true;
-        }
-    }
-    return false;
+static bool is_dir(const char *path) {
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-/* The runtime is looked for in $KELVIN_HOME, next to kelvinc (a build in
-   the source tree), and in kelvinc's parent directory (an installation). */
-static void find_runtime(const char *argv0, char **inc, char **lib) {
+/* Kelvin's own modules/ (#46), which holds kelvin_prelude.h, libkelvin
+   and the Kelvin files of #import <x.k>: the first of $KELVIN_HOME,
+   kelvinc's directory (a build in the source tree) and its parent (an
+   installation) with modules/kelvin_prelude.h, or with
+   lib/kelvin/modules/kelvin_prelude.h as make install lays it out; or
+   NULL */
+static char *kelvin_modules(const char *argv0) {
+    static char *found;
+    static bool looked;
+    if (looked)
+        return found;
+    looked = true;
     char *dir = exe_dir(argv0);
-    if (runtime_in(getenv("KELVIN_HOME"), inc, lib) || runtime_in(dir, inc, lib) ||
-        (dir && runtime_in(strfmt("%s/..", dir), inc, lib)))
-        return;
-    fatal("cannot find the Kelvin runtime (kelvin_prelude.h and libkelvin.a); run 'make', or set KELVIN_HOME");
+    const char *homes[] = {getenv("KELVIN_HOME"), dir, dir ? strfmt("%s/..", dir) : NULL};
+    for (int i = 0; i < 3 && !found; i++)
+        for (int j = 0; j < 2 && homes[i] && !found; j++) {
+            char *m = strfmt("%s/%s", homes[i], j ? "lib/kelvin/modules" : "modules");
+            if (file_exists(strfmt("%s/kelvin_prelude.h", m)))
+                found = m;
+        }
+    return found;
+}
+
+/* The runtime: the prelude header and libkelvin.a in Kelvin's modules/ */
+static void find_runtime(const char *argv0, char **inc, char **lib) {
+    char *m = kelvin_modules(argv0);
+    if (!m)
+        fatal("cannot find Kelvin's modules/ (kelvin_prelude.h and libkelvin.a); set KELVIN_HOME");
+    *inc = m;
+    *lib = strfmt("%s/libkelvin.a", m);
+    if (!file_exists(*lib))
+        fatal("cannot find libkelvin.a in %s; run 'make'", m);
 }
 
 /* ---------- #import of Kelvin files (#40) ---------- */
@@ -161,9 +171,8 @@ static bool imported_already(const char *path) {
 }
 
 /* The file that #import <name> or "name" means: "name" next to the
-   importing file, <name> under Kelvin's home ($KELVIN_HOME, kelvinc's
-   directory, or its parent), as <lib/complex.k> is the source tree's
-   lib/complex.k */
+   importing file, <name> in ./modules or else in Kelvin's modules/ (#46),
+   as <complex.k> is the source tree's modules/complex.k */
 static char *import_path(Token *t, const char *argv0) {
     char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
     if (t->text[0] == '"') {
@@ -174,12 +183,12 @@ static char *import_path(Token *t, const char *argv0) {
             error_at(t->pos, "cannot find %s next to the file that imports it", t->text);
         return path;
     }
-    char *dir = exe_dir(argv0);
-    const char *homes[] = {getenv("KELVIN_HOME"), dir, dir ? strfmt("%s/..", dir) : NULL};
-    for (int i = 0; i < 3; i++)
-        if (homes[i] && kelvin_file(strfmt("%s/%s", homes[i], name)))
-            return strfmt("%s/%s", homes[i], name);
-    error_at(t->pos, "cannot find %s in Kelvin's home (KELVIN_HOME, or next to kelvinc)", t->text);
+    const char *dirs[] = {"./modules", kelvin_modules(argv0)};
+    for (int i = 0; i < 2; i++)
+        if (dirs[i] && kelvin_file(strfmt("%s/%s", dirs[i], name)))
+            return strfmt("%s/%s", dirs[i], name);
+    error_at(t->pos, "cannot find %s in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
+             t->text);
 }
 
 /* The tokens with each #import of a Kelvin file followed by that file's
@@ -339,7 +348,7 @@ int main(int argc, char **argv) {
         "-Wno-psabi",
         /* a * b + c is rounded twice, as gcc does in ISO C mode, where
            clang would fuse it into one fma(): the same results from both,
-           and z * w == w * z in lib/complex.k (#43) */
+           and z * w == w * z in modules/complex.k (#43) */
         "-ffp-contract=off",
     };
     List cc_args = {0};
@@ -348,15 +357,30 @@ int main(int argc, char **argv) {
     /* #import "x.h" as C looks next to the .k file, as #include would */
     const char *slash = strrchr(src_path, '/');
     list_push(&cc_args, !slash ? "-I." : slash == src_path ? "-I/" : strfmt("-I%.*s", (int)(slash - src_path), src_path));
-    /* the prelude header is a system header: its macros raise no warnings */
+    /* C looks for headers and libraries in ./modules and Kelvin's modules/
+       too (#46), where the prelude header is a system header: its macros
+       raise no warnings. A ./modules with a prelude header of its own,
+       another Kelvin's, comes after the system's, so that the header is
+       the one of the libkelvin.a linked. */
+    char *here = realpath("./modules", NULL), *home = realpath(rt_inc, NULL);
+    if (here && is_dir(here) && !(home && !strcmp(here, home))) {
+        list_push(&cc_args, file_exists("./modules/kelvin_prelude.h") ? "-idirafter" : "-I");
+        list_push(&cc_args, "./modules");
+        list_push(&cc_args, "-L./modules");
+    }
     list_push(&cc_args, "-isystem");
     list_push(&cc_args, rt_inc);
-    /* extra flags, split on whitespace (e.g. -fsanitize=undefined) */
+    list_push(&cc_args, strfmt("-L%s", rt_inc));
+    list_push(&cc_args, "-o");
+    list_push(&cc_args, exe);
+    list_push(&cc_args, c_path);
+    /* extra flags, split on whitespace (e.g. -fsanitize=undefined), after
+       the program, so that a -lfoo there links what it uses (#46) */
     const char *extra = getenv("KELVIN_CFLAGS");
     char *flags = xstrdup(extra ? extra : "");
     for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
         list_push(&cc_args, tok);
-    const char *tail_args[] = {"-o", exe, c_path, rt_lib, "-lm", NULL};
+    const char *tail_args[] = {rt_lib, "-lm", NULL};
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);
     char **cc_argv = (char **)cc_args.data;

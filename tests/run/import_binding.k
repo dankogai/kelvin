@@ -2,7 +2,7 @@
 // names (#40, #41)
 #import "lib/binding.k"
 
-main():i32 {
+let main():i32 {
     puts("hello")
     println(abs(-3))
     return 0

@@ -3,14 +3,14 @@
 
 struct node { value:i32; next:struct node^; };
 
-sum(list:struct node^):i64 {
+let sum(list:struct node^):i64 {
     var total = 0;
     for (var n:struct node^ := list; n != nullptr; n := n^.next)   // := also works inside expressions
         total += n^.value;
     return total;
 }
 
-main():i32 {
+let main():i32 {
     var buffer := malloc(8 * 1024):i64^;        // declares buffer: i64^
     buffer[0] = 42;                         // a value, through the reference
     buffer^ = buffer^ + 1;
