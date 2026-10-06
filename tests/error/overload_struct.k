@@ -7,4 +7,4 @@ let main():i32 {
     println(length(a))
     return 0
 }
-// error: 'struct node'
+// error: struct node
