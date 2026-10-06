@@ -2222,3 +2222,42 @@ only.
 
 There are 432 tests, and all pass with clang and with gcc 15.
 
+### 74. Inferring from any seen type
+
+> ```
+> #import <complex.k>
+>
+> let main(argc:i32, argv:cstr[]): i32 {
+>     var i:complex64 = complex64(0.0, 1.0);
+>     println(i.real, i.imag);
+> }
+> ```
+>
+> why can not you infer the type of `i`? RHS is obviously `complex64`.
+
+**Claude** answered that it was the rule, not an inability: #11, #24
+and #25 let only literals, bools and annotated values infer a type,
+from the days when kelvinc knew no types at all. Since #41 it tracks
+the result type of every Kelvin function and method, and #25 already
+infers `bool` from one, so `complex64(0.0, 1.0)` has a type it sees.
+What remains a real limit is a value only C sees, a C function's result
+or a macro: `__auto_type` could declare it, but kelvinc would then be
+blind to the type, and the checks that depend on it (`=` against `:=`,
+lets, overloads, templates' room) with it. **Claude** proposed #47,
+inferring from every value kelvinc sees, and asked about arithmetic,
+whose type is C's promotion (`small + 1` is an `i32`, not an `i8`).
+
+> go ahead, with arithmetic excluded
+
+**Claude** implemented #47. The details are provisional P59: a
+declaration takes the type of its value as overloading sees it, so a
+function's or method's result, a variable, a field, `p^`, `a[i]`, `&x`
+(to `const` for a let), a compound literal, a text property, a
+template, an enumerator, a character, `sizeof` and a `?:` between two
+values of one type infer; an array gives the pointer C makes of it.
+Arithmetic, string literals, `.size`, `.addr` and what only C sees
+still need a written type, and the message says so. `var t = &x` is now
+told to write `:=`, as a written reference is.
+
+There are 435 tests, and all pass with clang and with gcc 15.
+

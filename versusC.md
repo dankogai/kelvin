@@ -196,12 +196,22 @@ infers the type from the value:
   `let u = 0xdead as u16` and `let c = u8(300)` are all `u16`/`u8`
 - an anonymous function that writes its parameters is its function type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
+- any other value whose type kelvinc sees is that type (#47): a Kelvin
+  function's or method's result (`var z = complex64(0.0, 1.0)`,
+  `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
+  `&x` (`let r := &q`, which points to `const` when `q` is a let), a
+  compound literal, a text property (`let s := n.cstr` is a `u8^`), a
+  template, an enumerator (its enum), a character (`u8`), `sizeof`
+  (`size_t`), and a `?:` between two values of one type. An array is not
+  copied, so `let ap := arr` is the pointer C makes of it.
 
-Anything else needs a written type, including `let y = x + 1`,
-`let s = "hi"` and a `bool` from a C function, which kelvinc cannot see
-(`let ok:bool = isdigit(c) != 0` is fine, `let ok = is_even(4)` from a
-header is not). A written type is always what you get: `let b:u8 = 42`
-is a `u8`.
+Anything else needs a written type: arithmetic (`let y = x + 1`), whose
+type is C's promotion of its operands (`small + 1` is an `i32`, not an
+`i8`); `let s = "hi"`; `.size` and `.addr`; and any value only C sees,
+such as a C function's result (`let n = strlen(s)`), a macro, or a
+`bool` from a C function (`let ok:bool = isdigit(c) != 0` is fine,
+`let ok = is_even(4)` from a header is not). A written type is always
+what you get: `let b:u8 = 42` is a `u8`.
 
 A declaration cannot be the body of a `for` or follow a label (as in C),
 so `for (;;) var x = 1` is an error. Names from C headers, such as

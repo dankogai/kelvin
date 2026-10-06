@@ -1952,8 +1952,18 @@ static Type *value_type_of(Expr *e) {
         t->elem = base_type("u8", e->pos);
         return t;
     }
-    case E_PROPERTY: /* p.next and p.prev have p's type */
-        return !strcmp(e->text, "next") || !strcmp(e->text, "prev") ? value_type(e->a) : NULL;
+    case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a u8^ */
+        if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
+            return value_type(e->a);
+        if (strcmp(e->text, "cstr") && strcmp(e->text, "dec") && strcmp(e->text, "hex") && strcmp(e->text, "oct") &&
+            strcmp(e->text, "bin") && strcmp(e->text, "typename"))
+            return NULL; /* .size and .addr are C's size_t and uintptr_t */
+        Type *t = xcalloc(1, sizeof *t);
+        t->kind = T_PTR;
+        t->pos = e->pos;
+        t->elem = base_type("u8", e->pos);
+        return t;
+    }
     case E_PREFIX: { /* &x is a pointer to x's type */
         Type *t = !strcmp(e->op, "&") ? value_type(e->a) : NULL;
         if (!t)
@@ -3391,7 +3401,9 @@ static Type *base_type(const char *name, Pos pos) {
    an i64, a floating literal an f64, nullptr is an any^, and `v:T`,
    `v as T` or `T(v)` is a T. A bool is a bool (#24, #25): `true`, a
    comparison, &&, || and !, and any value kelvinc sees is a bool, such as
-   a bool variable or a Kelvin function's bool result. NULL otherwise. */
+   a bool variable or a Kelvin function's bool result. Any other value
+   whose type kelvinc sees has that type (#47). NULL otherwise. */
+static Type *arg_type(Expr *e);
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_FUNC && has_local_size(e->type))
         return NULL; /* a length that names a parameter needs a written type */
@@ -3407,7 +3419,26 @@ static Type *inferred_type(Expr *e, Pos pos) {
         return t;
     }
     const char *lit = literal_type(e);
-    return lit ? base_type(lit, pos) : NULL;
+    if (lit)
+        return base_type(lit, pos);
+    /* any other value whose type kelvinc sees (#47): a Kelvin function's
+       or method's result, a variable, a field, p^, a[i], &x, a compound
+       literal, a template's text; but not arithmetic, whose type is C's
+       promotion of its operands, and not what only C sees */
+    if (e->kind == E_BINARY || e->kind == E_POSTFIX || (e->kind == E_PREFIX && strcmp(e->op, "&")))
+        return NULL;
+    /* as overloading sees it (#41): &x of a let points to const, a character
+       is a u8, an enumerator its enum, sizeof a size_t; a ?: only between
+       two values of one type */
+    Type *t = e->kind == E_TERNARY ? value_type(e) : arg_type(e);
+    if (t && t->kind == T_ARRAY) { /* an array is not copied: the pointer C makes of it */
+        Type *p = xcalloc(1, sizeof *p);
+        p->kind = T_PTR;
+        p->pos = pos;
+        p->elem = t->elem;
+        return p;
+    }
+    return t;
 }
 
 /* name: type [= init], or (for variables) name = init with the type
@@ -3442,9 +3473,9 @@ static Var *parse_var(bool with_init, int let) {
                      v->name, kelvin_type(v->init->type));
         if (!v->type)
             error_at(v->pos,
-                     "'%s' needs a type: write '%s:T = ...' (or '%s:T := ...' for a reference); only literals, "
-                     "bools, values written 'v:T', 'v as T' or 'T(v)', and anonymous functions that write their "
-                     "parameters have a type Kelvin can infer",
+                     "'%s' needs a type: write '%s:T = ...' (or '%s:T := ...' for a reference); Kelvin infers a type "
+                     "from literals, bools, values written 'v:T', 'v as T' or 'T(v)', anonymous functions that write "
+                     "their parameters, and values whose type it sees, not from arithmetic or what only C sees",
                      v->name, v->name, v->name);
         check_assign_op(op->text, v->type, what, op->pos, v->init);
         return v;
