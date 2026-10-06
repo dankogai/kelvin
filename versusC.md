@@ -27,7 +27,7 @@ been agreed yet. See the P-numbers in [Design.md](Design.md).
 | `int (*p)[4];` | `var p:i32[4]^` *(provisional)* |
 | `const char *const s = t;` | `let s:const u8^ := t` |
 | `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
-| `void f(void);` | `f()` |
+| `void f(void);` | `let f()` |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static let g():i32` |

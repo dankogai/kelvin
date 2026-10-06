@@ -5,7 +5,7 @@
 struct point { x:i32; y:i32; };
 static let point.sum():i32 { return self.x + self.y; }   // a static method
 
-let point.fact(n:i64):i64 {                       // recursion needs no prototype
+let point.fact(n:i64):i64 {                   // recursion needs no prototype
     if n <= 1 {
         return 1;
     }

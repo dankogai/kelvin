@@ -6,7 +6,7 @@ struct node { value:i64; next:node^; };
 struct big { a:i64; b:i64; c:i64; next:big^; };
 struct gauge;                                // a C struct; the header also has a variable gauge
 
-let node(v:i64):node^ {                          // a constructor named like its struct
+let node(v:i64):node^ {                      // a constructor named like its struct
     let n := malloc(sizeof(node)) as node^;  // sizeof the struct, never of the function
     n^.value = v;
     n^.next := nullptr;

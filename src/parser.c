@@ -859,6 +859,7 @@ static Decl *method_named(Expr *recv, const char *name);
 static Expr *parse_dollar(void);
 static bool overloadable_op(Token *t);
 static int function_shape(int i);
+static bool params_ahead(int i);
 static void resolve_call(Expr *call);
 static void pick_overload(Expr *v, Type *want);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
@@ -4683,7 +4684,8 @@ static Stmt *parse_stmt_here(void) {
         return new_stmt(S_EMPTY, pos);
     if (binding_ahead(cur)) {
         int at = cur + 1 + (is_kw(t, "static") || is_kw(t, "extern"));
-        if (function_shape(at) == 2)
+        reject_c_fn_pointer(at, "var ");
+        if (function_shape(at) == 2 && params_ahead(at + 1))
             error_at(toks[at].pos, "a function is declared at the top level; here a let holds an anonymous one, as in "
                                    "'let %s:(T):R := { (a:T):R in ... }' (#32, #45)",
                      toks[at].text);
@@ -4884,6 +4886,13 @@ static int function_shape(int i) {
     if (t->kind == TK_PUNCT && is_p(t + 1, "(") && !is_p(t, "(") && !is_p(t, ";"))
         return 4;
     return 0;
+}
+
+/* Do parameters follow the `(` at token i: `)`, `...`, `var` or `name:`?
+   Otherwise `name(` is a call or C's statement words, such as _Pragma */
+static bool params_ahead(int i) {
+    Token *t = &toks[i + 1];
+    return is_p(t, ")") || is_p(t, "...") || is_kw(t, "var") || (t->kind == TK_IDENT && is_p(t + 1, ":"));
 }
 
 static void check_overload(Decl *d, Token *name);
@@ -5165,6 +5174,10 @@ Program *parse(Token *tokens, int ntoks) {
             Token *n = &toks[cur + binding];
             char *how = strfmt("%s%slet %s%s%s(...)", storage ? storage : "", storage ? " " : "", n->text,
                                shape == 1 ? "." : "", shape == 1 ? n[2].text : "");
+            if (!binding && !params_ahead(cur + (shape == 1 ? 3 : 1)))
+                error_at(n->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), "
+                                 "found %s: a statement goes in a function",
+                         desc(n));
             if (!binding)
                 error_at(n->pos, "a function is declared with let: write '%s'", how);
             if (is_kw(peek(), "var"))

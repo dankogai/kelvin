@@ -2189,3 +2189,36 @@ There are 422 tests, and all pass with clang and with gcc 15. A new
 `tests/project/` is built from inside itself, so that its `modules/` is
 `./modules`.
 
+### 73. The review of #45 and #46
+
+**Claude** ran three lenses: the parser, the driver and the build, and
+the docs and tests. Skeptics confirmed 16 of 25 findings, all fixed,
+none needing the user's decision; P57 and P58 have the details:
+
+- A C function-pointer declaration after `var` in a body was told it
+  declared a function there, naming the C type; it gets #31's message
+  again. A top-level call or `_Pragma(...)` was told to take `let`; only
+  a name that parameters follow is told so now, and a statement out of
+  place is an error that says so.
+- A `./modules` that holds another Kelvin's `kelvin_prelude.h` would
+  have given C that header beside this Kelvin's `libkelvin.a`; it now
+  comes after the system's headers.
+- New tests cover `extern let`, `var` before a method or an operator
+  and inside a body, a library in `./modules` linked through
+  `KELVIN_CFLAGS`, and Kelvin's `modules/` as `make install` lays it
+  out, next to kelvinc and through `KELVIN_HOME`. The last Kelvin file
+  without `let` has it, four comments are aligned again, and the docs
+  say `let` in the provisional rows and where C looks for a header.
+
+While fixing them, **Claude** made `tests/run.sh` turn its temporary
+directory into an absolute path through `cd` and `pwd`, and ran it with
+a `TMPDIR` that did not exist. `mktemp` failed, the path became the
+repository's root, and the script's exit trap removed the repository,
+`.git` included. The user restored it; **Claude** copied back its own
+edits to the docs from a review agent's copy, opened the draft PR #3,
+and redid the fixes. The runner now stops when `mktemp` fails and makes
+the path absolute without `cd`; unusual `TMPDIR`s were tried on a copy
+only.
+
+There are 432 tests, and all pass with clang and with gcc 15.
+

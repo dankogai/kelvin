@@ -6,7 +6,7 @@ struct point { x:i32; y:i32; };
 let LIMIT = 3;                          // a global let
 var calls:i32 = 0;
 
-let length(var p:const u8^):i64 {           // a var parameter may change
+let length(var p:const u8^):i64 {       // a var parameter may change
     var n = 0;
     while p^ != 0 {
         n += 1;
@@ -15,7 +15,7 @@ let length(var p:const u8^):i64 {           // a var parameter may change
     return n;
 }
 
-let point.moved(dx:i32):struct point {      // self is a mutable copy
+let point.moved(dx:i32):struct point {  // self is a mutable copy
     self.x += dx;
     return self;
 }

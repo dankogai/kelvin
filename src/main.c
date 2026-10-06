@@ -359,10 +359,13 @@ int main(int argc, char **argv) {
     list_push(&cc_args, !slash ? "-I." : slash == src_path ? "-I/" : strfmt("-I%.*s", (int)(slash - src_path), src_path));
     /* C looks for headers and libraries in ./modules and Kelvin's modules/
        too (#46), where the prelude header is a system header: its macros
-       raise no warnings */
+       raise no warnings. A ./modules with a prelude header of its own,
+       another Kelvin's, comes after the system's, so that the header is
+       the one of the libkelvin.a linked. */
     char *here = realpath("./modules", NULL), *home = realpath(rt_inc, NULL);
     if (here && is_dir(here) && !(home && !strcmp(here, home))) {
-        list_push(&cc_args, "-I./modules");
+        list_push(&cc_args, file_exists("./modules/kelvin_prelude.h") ? "-idirafter" : "-I");
+        list_push(&cc_args, "./modules");
         list_push(&cc_args, "-L./modules");
     }
     list_push(&cc_args, "-isystem");
