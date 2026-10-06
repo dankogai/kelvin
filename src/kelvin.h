@@ -138,6 +138,7 @@ struct Expr {
     char *text;       /* E_LITERAL, E_IDENT, E_FIELD member name */
     List items;       /* E_STRING pieces, E_CALL args, E_INIT values */
     List designators; /* E_INIT: char * per item (NULL if none) */
+    bool bracket;     /* E_INIT: written [...], an array's (#48) */
     Type *type;       /* E_CAST, E_COMPOUND, E_SIZEOF_TYPE, E_FUNC */
     /* E_CALL of an overloaded name (#41) or an operator (#42), E_IDENT of
        an overloaded function as a value: the function chosen, or the ones

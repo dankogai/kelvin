@@ -14,7 +14,7 @@ struct cnames { name:xmlChar^; u:uint8_t^; h:handle_t; r:rstr_t; z:dc_t; b:bytes
 struct seg { a:struct point; b:struct point; };
 struct msg { len:u32; text:flex_t; };    // never printed, so it needs no .cstr
 let seg.cstr_size():i32 { return 2; }         // no clash with kelvinc's size constant
-var pts:struct point[2] = {{1, 2}, {3, 4}};
+var pts:struct point[2] = [{1, 2}, {3, 4}];
 let first():struct point^ { return &pts[0]; }
 let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
@@ -32,7 +32,7 @@ let main():i32 {
     var p:struct point = {3, 4};
     var s:struct segment = {p, {7, 8}, "edge"};
     println(p.cstr, " ", s.cstr);
-    var poly:struct poly = {"tri", {{0, 0}, {1, 0}, {0, 1}}, {{1, 2}, {3, 4}}, 1.5};
+    var poly:struct poly = {"tri", [{0, 0}, {1, 0}, {0, 1}], [[1, 2], [3, 4]], 1.5};
     println(poly.cstr);
     var u:union number = {.i = 1};
     println(u.cstr, " ", get().cstr);
@@ -67,7 +67,7 @@ let main():i32 {
     // cstr is u8^
     var name:cstr := "kelvin";
     var q:cstr const := name;
-    var names:cstr[2] = {"a", "b"};
+    var names:cstr[2] = ["a", "b"];
     println(name.cstr, " ", q, " ", names[1].cstr, " ", name.size == (8 as size_t));
 
     // the text lives until the enclosing block ends

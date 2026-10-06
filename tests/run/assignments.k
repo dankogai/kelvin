@@ -26,7 +26,7 @@ let main():i32 {
     copy(buf, "kelvin");
     println(buf);
 
-    var xs:i32[3] = {10, 20, 30};
+    var xs:i32[3] = [10, 20, 30];
     var p:i32^ := &xs[0];
     println(p.next^, " ", p.next.next^, " ", p.next.next.prev^, " ", (p.next - p) as i64);
 

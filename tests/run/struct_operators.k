@@ -56,7 +56,7 @@ let main():i32 {
     m -= (money){50}
     m %= 300
     m /= 2
-    var ms:money[2] = {a, b}
+    var ms:money[2] = [a, b]
     let i:i64 = 1
     ms[i] += a
     ms[i - 1] += 1

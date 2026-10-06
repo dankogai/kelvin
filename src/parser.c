@@ -867,6 +867,7 @@ static bool repeatable(Expr *e);
 static bool reaches_c(List *cands, Expr *call, int k);
 static List overloads_of(const char *name, const char *op);
 static Expr *parse_initializer_for(Type *t);
+static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
 static bool is_function_designator(Expr *e);
 
@@ -1345,6 +1346,11 @@ static Expr *parse_primary(void) {
                          (brace_in_for && (is_p(after - 2, "]") || is_p(after - 2, "^"))) ||
                          (brace_in_for && chain && (chain->kind == T_ARRAY || chain->kind == T_PTR)) ||
                          (typeof_paren && !brace_ends_condition));
+        /* (i32[])[1, 2, 3], an array's compound literal (#48): the type ends
+           with `]`, or is a v.type kelvinc sees as an array; (p)[0] indexes */
+        compound = compound || (after && is_p(after, "[") &&
+                                ((paren_holds_type(cur) && is_p(after - 2, "]")) ||
+                                 (typeof_paren && chain && chain->kind == T_ARRAY)));
         Token *inner = peek2();
         bool converter_call = is_converter(inner) && is_p(peek_at(2), "(");
         if (!compound && is_kw(inner, "void") && is_p(peek_at(2), ")"))
@@ -1361,6 +1367,7 @@ static Expr *parse_primary(void) {
             Expr *e = new_expr(E_COMPOUND, t->pos);
             e->type = type;
             e->a = parse_initializer_for(type);
+            count_items(type, e->a);
             return e;
         }
         {
@@ -1433,9 +1440,12 @@ static Expr *parse_primary(void) {
         }
         if (signature_ahead(cur))
             return parse_anon_fn(NULL); /* c ? { (a:i64) in ... } : ... (#32) */
-        error_at(t->pos, "a list is not a value here: write a compound literal, as in '(i32[3]){1, 2, 3}'; an "
-                         "anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'");
+        error_at(t->pos, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or "
+                         "'(i32[])[1, 2, 3]'; an anonymous function here writes its parameters, as in "
+                         "'{ (a:i64):i64 in a + 1 }'");
     }
+    if (is_p(t, "["))
+        error_at(t->pos, "an array is not a value here: write a compound literal, as in '(i32[])[1, 2, 3]' (#48)");
     error_at(t->pos, "expected an expression, found %s", desc(t));
 }
 
@@ -1467,11 +1477,13 @@ static Expr *parse_unary(void) {
             Token *open = advance();
             Type *type = parse_type();
             expect_p(")");
-            if (is_p(peek(), "{") && brace_is_compound(cur) && !line_starts_statement()) {
-                /* sizeof (T){...} is the size of a compound literal */
+            if ((is_p(peek(), "{") && brace_is_compound(cur) && !line_starts_statement()) ||
+                (is_p(peek(), "[") && type->kind == T_ARRAY)) {
+                /* sizeof (T){...} or (T[])[...] is the size of a compound literal */
                 Expr *c = new_expr(E_COMPOUND, open->pos);
                 c->type = type;
                 c->a = parse_initializer_for(type);
+                count_items(type, c->a);
                 Expr *e = new_expr(E_SIZEOF_EXPR, t->pos);
                 e->a = parse_postfix_ops(c);
                 return e;
@@ -3291,22 +3303,34 @@ static Expr *parse_initializer_for(Type *t) {
     }
     if (signature_ahead(cur))
         return parse_assign(); /* { (a:i32):i32 in ... } (#32) */
-    if (!accept_p("{"))
+    bool bracket = is_p(open, "[");
+    if (!bracket && !is_p(open, "{"))
         return parse_assign();
+    /* an array is initialized with [...], a struct or union with {...}
+       (#48); where only C sees the type, either is C's { } */
     Decl *record = NULL;
-    if (t && t->kind == T_BASE && type_class(t, &record) != 's')
+    char c = t && t->kind == T_BASE ? type_class(t, &record) : 0;
+    if (bracket && t && t->kind != T_ARRAY && (t->kind != T_BASE || c != 'u'))
+        error_at(open->pos, "'[...]' initializes an array, and this is %s: %s", kelvin_type(t),
+                 c == 's' || c == 'c' ? "a struct or union is initialized with '{...}'" : "write a value");
+    if (!bracket && t && t->kind == T_ARRAY)
+        error_at(open->pos, "an array is initialized with '[...]', not '{...}' (#48)");
+    if (c != 's')
         record = NULL;
+    advance();
     bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
     brace_ends_condition = brace_in_for = false; /* a `{` inside is never a body */
     init_depth++;
     Expr *e = new_expr(E_INIT, open->pos);
     int next = 0;      /* the member of the next item without a designator */
     bool lost = false; /* C's current object is inside a member, which kelvinc does not follow */
-    while (!is_p(peek(), "}")) {
+    while (!is_p(peek(), bracket ? "]" : "}")) {
         Expr *d = NULL;
         Type *dt = t; /* the type that the designators reach */
         int links = 0;
-        while (is_p(peek(), ".") || is_p(peek(), "[")) {
+        /* an item that starts with `[` is a nested array unless `=`
+           follows the group: a designator, [2] = 5 (#48) */
+        while (is_p(peek(), ".") || (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "="))) {
             links++;
             Token *tok = advance();
             Expr *x = new_expr(is_p(tok, ".") ? E_FIELD : E_INDEX, tok->pos);
@@ -3344,7 +3368,7 @@ static Expr *parse_initializer_for(Type *t) {
                                                       : NULL;
         if (d)
             expect_p("=");
-        bool braced = is_p(peek(), "{");
+        bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = parse_initializer_for(item);
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
@@ -3367,7 +3391,8 @@ static Expr *parse_initializer_for(Type *t) {
     init_depth--;
     brace_ends_condition = saved_brace;
     brace_in_for = saved_for;
-    expect_p("}");
+    expect_p(bracket ? "]" : "}");
+    e->bracket = bracket;
     return e;
 }
 
@@ -3404,7 +3429,48 @@ static Type *base_type(const char *name, Pos pos) {
    a bool variable or a Kelvin function's bool result. Any other value
    whose type kelvinc sees has that type (#47). NULL otherwise. */
 static Type *arg_type(Expr *e);
+static Type *inferred_type(Expr *e, Pos pos);
+
+/* T[] with [a, b, ...] is T[N] (#48): the length is the items' count,
+   where none is designated, so that kelvinc knows it, as for T[N] */
+static void count_items(Type *t, Expr *init) {
+    if (!t || t->kind != T_ARRAY || t->size || !init || init->kind != E_INIT || !init->bracket)
+        return;
+    for (int i = 0; i < init->designators.len; i++)
+        if (init->designators.data[i])
+            return;
+    t->size = new_expr(E_LITERAL, init->pos);
+    t->size->text = strfmt("%d", init->items.len);
+}
+
+/* The type of [a, b, ...] (#48): T[N] where every item is a T kelvinc
+   sees (a literal, a bool, a seen value, or a nested list of one type),
+   none designated; NULL otherwise */
+static Type *list_type(Expr *e, Pos pos) {
+    if (!e->bracket || !e->items.len)
+        return NULL;
+    Type *elem = NULL;
+    for (int i = 0; i < e->items.len; i++) {
+        if (e->designators.data[i])
+            return NULL;
+        Expr *x = e->items.data[i];
+        Type *t = x->kind == E_INIT ? list_type(x, pos) : inferred_type(x, pos);
+        if (!t || (elem && strcmp(kelvin_type(elem), kelvin_type(t))))
+            return NULL;
+        elem = elem ? elem : t;
+    }
+    Type *a = xcalloc(1, sizeof *a);
+    a->kind = T_ARRAY;
+    a->pos = pos;
+    a->elem = elem;
+    a->size = new_expr(E_LITERAL, pos);
+    a->size->text = strfmt("%d", e->items.len);
+    return a;
+}
+
 static Type *inferred_type(Expr *e, Pos pos) {
+    if (e->kind == E_INIT)
+        return list_type(e, pos);
     if (e->kind == E_FUNC && has_local_size(e->type))
         return NULL; /* a length that names a parameter needs a written type */
     if (e->kind == E_CAST || e->kind == E_FUNC)
@@ -3489,6 +3555,7 @@ static Var *parse_var(bool with_init, int let) {
         check_assign_op(op->text, v->type, what, op->pos, NULL);
         /* a function type types an anonymous function (#32) */
         v->init = parse_initializer_for(v->type);
+        count_items(v->type, v->init);
         pick_overload(v->init, v->type);
     }
     return v;

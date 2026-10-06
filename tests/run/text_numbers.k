@@ -12,7 +12,7 @@ let from_hex(n:i64):i64 { i64(n.hex, 16) }
 
 let main():i32 {
     // literals, cstr and u8 arrays; a base, and Kelvin's own prefixes
-    var digits:u8[4] = {'7', '5', '5', 0}
+    var digits:u8[4] = ['7', '5', '5', 0]
     println(i64("42"), " ", i32(answer), " ", u16(digits), " ", i32("755", 8), " ", i64("ff", 16), " ",
             u8("101", 2))
     println(i64("-0x1f", 16), " ", i64("0o17", 8), " ", i64("0b11", 2), " ", i64("  +12"), " ", i64("0755"))

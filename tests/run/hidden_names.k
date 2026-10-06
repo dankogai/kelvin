@@ -15,7 +15,7 @@ struct holder { a: u8[sizeof(apply(1) { $0 + 1 })] }
 let main():i32 {
     let n:i64 = 255
     let p:point = {1, 2}
-    var xs:i64[3] = {1, 2, 3}
+    var xs:i64[3] = [1, 2, 3]
     print(n.hex, " ", n.dec, " ", (n + 1).hex, " ", p.cstr, " ", p.scaled(2).x)
     for i in 0..<2 {
         print(" ", i)

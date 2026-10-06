@@ -45,7 +45,7 @@ let named():cstr { abs(-3).typename }
 let main():i32 {
     // a `(...)`, a property, a conversion or sizeof(T) at the end of a
     // line, before a line that starts with a name, `(` or `{`
-    var xs:i64[2] = {1, 2}
+    var xs:i64[2] = [1, 2]
     var q:any^ := &xs[0]
     let a:i64 = (xs[1] + 1)
     let s:cstr := a.hex
@@ -78,12 +78,12 @@ let main():i32 {
     println(apply(3)
         { $0 * 2 }, " ", twice(apply(3)
         { $0 + 1 }))
-    let ys:i64[2] = {
+    let ys:i64[2] = [
         apply(1)
         { $0 + 1 },
         apply(2)
         { $0 + 2 }
-    }
+    ]
     println(ys[0], " ", ys[1])
 
     // ?, :, as and [ at the start of a line go on

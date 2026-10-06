@@ -35,7 +35,7 @@ let main(argc:i32, argv:u8^^):i32 {
     println(b0, " ", b37, " ", wide, " ", f64(nullptr as cstr), " ", f32(nullptr as cstr), " ", i32("777", 010))
 
     // i8 text, and the text of properties
-    var t:i8[3] = {'4', '2', 0}
+    var t:i8[3] = ['4', '2', 0]
     let tp:i8^ := &t[0]
     let n:i64 = 5
     let x:f64 = 2.5
@@ -43,7 +43,7 @@ let main(argc:i32, argv:u8^^):i32 {
 
     // C's text types kelvinc cannot see: _Generic reads them
     let v:xmlChar^ := get_prop()
-    var name:gchar[8] = {'2', '3', 0}
+    var name:gchar[8] = ['2', '3', 0]
     println(i64(column_text()), " ", i64(const_text()), " ", i64(signed_text()), " ", i64(unsigned_text()), " ",
             i64(v), " ", i64(get_str()), " ", i64(name), " ", f64(name))
 
@@ -59,7 +59,7 @@ let main(argc:i32, argv:u8^^):i32 {
     // bool reads no text: of a pointer, it tells nullptr apart; a
     // volatile u8^ is no text either, as C's volatile char * is not
     let missing:cstr := getenv("KELVIN_UNSET")
-    var digits:u8[3] = {'4', '2', 0}
+    var digits:u8[3] = ['4', '2', 0]
     let vp:volatile u8^ := &digits[0]
     println(bool(missing), " ", bool(fallback), " ", i64(vp) == vp as i64)
 

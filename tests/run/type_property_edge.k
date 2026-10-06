@@ -46,8 +46,8 @@ let main():i32 {
     println(c.size, " ", b.size, " ", sizeof(a.type), " ", e.size, " ", calls, " ", len);
 
     // const on an array's type is on its elements; a counter has none
-    var xs:i32[3] = {1, 2, 3};
-    var ys:const xs.type = {4, 5, 6};
+    var xs:i32[3] = [1, 2, 3];
+    var ys:const xs.type = [4, 5, 6];
     for i:limit.type in 0..<limit {
         print(i);
     }
@@ -68,7 +68,7 @@ let main():i32 {
     // compound literals of an unseen type, and in a for head
     let ev:i32 = (const errno.type){6};
     var ev2:errno.type = (errno.type){7};
-    for x in (xs.type){7, 8, 9} {
+    for x in (xs.type)[7, 8, 9] {
         print(x);
     }
     println(" ", ev, " ", ev2, " ", { (k:i64):k.type in k + 1 }(4), " ", CHAR_BIT + INT_MAX);

@@ -22,8 +22,8 @@ let main():i32 {
     let p := &w as w.type^;
     var pt:point = {1, 2};
     var q:pt.type = {3, 4};
-    var xs:i32[4] = {1, 2, 3, 4};
-    var ys:xs.type = {5, 6, 7, 8};
+    var xs:i32[4] = [1, 2, 3, 4];
+    var ys:xs.type = [5, 6, 7, 8];
     let r:pt.x.type = 7;
     var pp:point^ := &pt;
     let ry:pp^.y.type = 9;

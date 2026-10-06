@@ -39,9 +39,9 @@ let main():i32 {
 
     // initializer items that start with an annotation stay values
     let n:i32 = 4;
-    let xs:i64[2] = { (n:i64) * 2, 3 };
-    let ys:i64[2] = { (n:u8):i64, 2 };
-    let ops:op[2] = {{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}};
+    let xs:i64[2] = [ (n:i64) * 2, 3 ];
+    let ys:i64[2] = [ (n:u8):i64, 2 ];
+    let ops:op[2] = [{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}];
     println(xs[0], " ", ys[0], " ", ops[1].f(5), " ", ops[0].g(5));
 
     // ?: picks functions, also nullptr; a compound literal ends a line
@@ -56,7 +56,7 @@ let main():i32 {
     println(pick(1), " ", mk(-1).x);
 
     // a method with a prototype, := through a cast, do ... while
-    let g:bag = {{1, 2, 3}};
+    let g:bag = {[1, 2, 3]};
     g.each() { print($0) }
     println();
     var o:op;
@@ -71,7 +71,7 @@ let main():i32 {
     // placement, sizes, and a length of global names, which is kept
     var h:holder;
     fill(buf);
-    var six:i64[6] = {1, 2, 3, 4, 5, 0};
+    var six:i64[6] = [1, 2, 3, 4, 5, 0];
     println(h.size, " ", buf[0], " ", apply.size == sizeof(any^), " ", total(six) {
         var s:i64 = 0;
         for x in $0 {

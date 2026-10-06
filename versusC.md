@@ -196,6 +196,10 @@ infers the type from the value:
   `let u = 0xdead as u16` and `let c = u8(300)` are all `u16`/`u8`
 - an anonymous function that writes its parameters is its function type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
+- an array literal whose items are all of one inferred type is an array
+  of them (#48): `let a = [1, 2, 3]` is `i64[3]`, `[1.5, 2.0]` is
+  `f64[2]`, `[[1, 2], [3, 4]]` is `i64[2][2]`, and `[p, q]` of two
+  points is `point[2]`
 - any other value whose type kelvinc sees is that type (#47): a Kelvin
   function's or method's result (`var z = complex64(0.0, 1.0)`,
   `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
@@ -256,7 +260,7 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
 - Pointer arithmetic is unchanged (`p + 1`, `p += 1`, `p - q`), and a
   pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers:
-  `let refs:i32^[2] = {p, q}`. An array parameter, though, is a pointer,
+  `let refs:i32^[2] = [p, q]`. An array parameter, though, is a pointer,
   as in C: in `let f(var a:i32[4])`, write `a := a + 1`.
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
@@ -404,8 +408,10 @@ like C's `(int)TOTAL`, converts only the `1.5`.
 
 Compound literals are not casts, and they work as in C for any type,
 including typedef names with suffixes, and under `sizeof`:
-`(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`,
-`(size_t[2]){1, 2}`, `sizeof (i32[3]){1, 2, 3}` *(provisional P19)*.
+`(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`. An array's takes
+`[...]` (#48), and `T[]` counts its items: `(size_t[])[1, 2]`,
+`sizeof (i32[])[1, 2, 3]` is 12, `for x in (i32[])[5, 6, 7] { }`
+*(provisional P19, P60)*.
 
 ## Statements
 
@@ -693,8 +699,8 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   of a struct's type fills a struct member; after C's brace elision or
   `.a.b = ...`, an anonymous function writes its parameters.
 - **A list is not a value:** where C expects a value, as for
-  `memcpy(buf, {'a', 'b'}, 2)` or `show({1, 2})`, write a compound
-  literal, `(u8[2]){'a', 'b'}`. kelvinc says so, rather than taking the
+  `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
+  literal, `(u8[])['a', 'b']`. kelvinc says so, rather than taking the
   list for a function.
 - **A body of one expression** is the result: `{ $0 < $1 }`. Without a
   result, it must do something: a call or an assignment, as in

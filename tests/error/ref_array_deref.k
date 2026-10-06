@@ -3,6 +3,6 @@ var x:i32 = 1;
 struct inner { p:i32^; v:i32; };
 struct inner;
 let main():i32 {
-    var refs:i32^[2] = {&x, &x}; refs^ = &x;
+    var refs:i32^[2] = [&x, &x]; refs^ = &x;
     return 0;
 }

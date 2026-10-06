@@ -20,7 +20,7 @@ let main():i32 {
     let u:number = {.i = 65};
     let c:color = GREEN;
     var t:timespec = {1, 0};
-    let pts:point[2] = {{1, 1}, {2, 2}};
+    let pts:point[2] = [{1, 1}, {2, 2}];
     println(q.cstr, " ", n^.value, " ", u.cstr, " ", name(c), " ", name(RED), " ", t.tv_sec);
     println(sizeof(point), " ", sizeof(struct node), " ", sizeof(color), " ", pts[1].cstr);
 

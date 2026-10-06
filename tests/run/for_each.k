@@ -38,7 +38,7 @@ let main():i32 {
         free(n);
     }
     // arrays: up to the length, stopping early at a 0
-    let xs:i32[5] = {4, 5, 0, 6, 7};
+    let xs:i32[5] = [4, 5, 0, 6, 7];
     var sum = 0;
     for x in xs {
         sum += x;
@@ -49,7 +49,7 @@ let main():i32 {
     for _ in buf {
         count += 1;
     }
-    let pts:point[2] = {{1, 2}, {3, 4}};
+    let pts:point[2] = [{1, 2}, {3, 4}];
     var px = 0;
     for p in pts {
         px += p.x;
@@ -59,7 +59,7 @@ let main():i32 {
     for _ in getenv("NO_SUCH_VARIABLE_KELVIN") {
         lens += 1;
     }
-    let words:cstr[3] = {"one", "two", nullptr};
+    let words:cstr[3] = ["one", "two", nullptr];
     for w in words {
         print(w, " ");
     }

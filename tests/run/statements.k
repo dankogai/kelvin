@@ -70,7 +70,7 @@ again:
 
     var p:struct point = origin();
     var q:struct point = {.x = 1, .y = 2};
-    var pts:struct point[2] = {[1] = {.x = 9}};
+    var pts:struct point[2] = [[1] = {.x = 9}];
     printf("%d %d %d %d\n", p.x, p.y, q.x + q.y, pts[1].x);
 
     if n == 6 { printf("six\n"); } else { printf("not six\n"); }

@@ -2,7 +2,7 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 let main():i32 {
-    var names:cstr[3] = {"kelvin", "celsius", "rankine"}
+    var names:cstr[3] = ["kelvin", "celsius", "rankine"]
     qsort(names, 3, sizeof(cstr))
     { (a:const any^, b:const any^):i32 in
         strcmp((a as const cstr^)^, (b as const cstr^)^)

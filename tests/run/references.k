@@ -32,7 +32,7 @@ let main():i32 {
     a.next^.value = 30;
     println(sum(&a));
 
-    var refs:i32^[2] = {p, q};                 // an array of references is a value
+    var refs:i32^[2] = [p, q];                 // an array of references is a value
     refs[1] := &c.value;
     println(refs[1]^);
 

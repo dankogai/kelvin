@@ -27,7 +27,7 @@ let main():i32 {
     memset(&bx, 'x', sizeof(bx))
     bx.four[0] = 'a'
     bx.four[1] = 0
-    var xs:i32[3] = {1, 2, 3}
+    var xs:i32[3] = [1, 2, 3]
     println(`[${bx.four}] ${strcmp(`${xs}`, `${&xs[0]}`) == 0}`)
     let w:wide = {h, h, h, h, h, h, h}
     var text:u8[400]

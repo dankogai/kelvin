@@ -2261,3 +2261,32 @@ told to write `:=`, as a written reference is.
 
 There are 435 tests, and all pass with clang and with gcc 15.
 
+### 75. Arrays in brackets
+
+> use `[]` for array initializations. `[0,1,2,...]` instead of
+> `{0,1,2,...}`. struct/union inits remains the same.
+
+**Claude** asked three questions, and the user took each
+recommendation, writing the third answer in full:
+
+| Question | Answer |
+|----------|--------|
+| `{...}` for an array kelvinc sees, and `[...]` for a struct? | Errors with a hint; where only C sees the type, either is accepted |
+| Does `let a = [1, 2, 3]` infer `i64[3]`, as #47 infers from seen values? | Yes, from items of one type |
+| Do array compound literals take `[...]` too? | "`(i32[])[1,2,3]`. the number of the elements are inferred from rhs." |
+
+**Claude** implemented #48. The details are provisional P60:
+
+- `[...]` is an array's initializer and `{...}` a struct's or union's,
+  nested too: `{1, [7, 8, 9], {5, 6}}`. A `[2] = 5` inside is a
+  designator, told from a nested array by the `=` after it.
+- `(i32[])[10, 20, 30]` is an array's compound literal, told from
+  `(p)[i]` by the type ending with `]`; `T[]` with `[...]` is `T[N]` to
+  kelvinc, so `for x in (i32[])[5, 6, 7]` and `.size` know the length.
+- `let a = [1, 2, 3]` is `i64[3]`, `[[1, 2], [3, 4]]` is `i64[2][2]`,
+  and `[p, q]` of points `point[2]`.
+- Every array initializer in the repository was rewritten by a script
+  driven by kelvinc's own error positions, 93 of them.
+
+There are 439 tests, and all pass with clang and with gcc 15.
+

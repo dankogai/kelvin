@@ -36,7 +36,7 @@ let shout:(cstr) := { println($0, "!") };
 let main():i32 {
     // the last argument, written after the call: no ';' needed
     println(apply(20) { $0 + 1 }, " ", apply(20, { $[0] - 1 }));
-    var xs:i64[3] = {1, 2, 3};
+    var xs:i64[3] = [1, 2, 3];
     each(xs, 3) { total += $0 * step }      // globals are fine
     println(total);
 
@@ -48,7 +48,7 @@ let main():i32 {
     });
 
     // written parameters, where kelvinc sees no type: C's qsort
-    var ys:i32[4] = {3, 1, 4, 2};
+    var ys:i32[4] = [3, 1, 4, 2];
     qsort(ys, 4, sizeof(i32)) { (a:const any^, b:const any^):i32 in
         let x:i32 = (a as const i32^)^;
         let y:i32 = (b as const i32^)^;
@@ -67,7 +67,7 @@ let main():i32 {
     println(apply(1) { apply($0 + 1) { $0 * 10 } });
 
     // methods, and no parameters at all
-    var c:counter = {{4, 5, 6}};
+    var c:counter = {[4, 5, 6]};
     total = 0;
     c.each() { total += $0 }
     shout("done");

@@ -25,7 +25,7 @@ union u {
 enum e { WIDE = sizeof(apply(1) { $0 + 1 }) };
 struct s { a:u8[sizeof({ (p:s^):i64 in 1 }(nullptr))]; };
 
-let table:entry[2] = {{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}};
+let table:entry[2] = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}];
 
 let inc(x:i64):i64 { return x + 1; }
 let sum(n:size_t, xs:i64[n]):i64 {
@@ -71,7 +71,7 @@ let main():i32 {
     println(inc.size == sizeof(any^), " ", sizeof(inc) == sizeof(any^), " ",
             ({ (x:i64):i64 in x }).size == sizeof(any^), " ", (&fp as any^) != nullptr, " ", mul(100000, 100000));
 
-    var xs:i64[3] = {1, 2, 3};
+    var xs:i64[3] = [1, 2, 3];
     var v:u;
     var w:s;
     while some(5, { $0 > 9 }) {

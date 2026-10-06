@@ -4,7 +4,7 @@
 #import <string.h> as C
 struct rec { id: i64; name: cstr }
 struct tagged { id: i64; tag: u8[8] }
-let mk():tagged { (tagged){1, {'t', 'a', 'g', 's', 'a', 'n', 'd', 's'}} }
+let mk():tagged { (tagged){1, ['t', 'a', 'g', 's', 'a', 'n', 'd', 's']} }
 let main():i32 {
     var text:u8[400]
     for i in 0..<399 {
@@ -55,7 +55,7 @@ again:
         mid[i] = 'm'
     }
     mid[199] = 0
-    var four:u8[4] = {'a', 'b', 'c', 'd'}
+    var four:u8[4] = ['a', 'b', 'c', 'd']
     let N = 8
     var eight:u8[N]
     for i in 0..<N {

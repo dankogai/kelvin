@@ -96,7 +96,7 @@ let main():i32 {
     // overload that takes it
     println(scale(v, small).x, " ", scale(quarter, v).y, " ", twice(small as i64), " ", mix(n, 2.0), " ", mix(x, 2.0))
     let cs:const u8^ := "hello"
-    var three:i64[3] = {7, 8, 9}
+    var three:i64[3] = [7, 8, 9]
     println(put(name), " ", put(cs), " ", run({ (k:i64) in nothing(k) }, once), " ", total(1, 2, 3), " ", first(three))
     println(sqrt(v), " ", sqrt(16.0), " ", fabs(v).y, " ", fabs(-2.5), " ", scale(2.0, v).x, " ", (once)(5))
 
