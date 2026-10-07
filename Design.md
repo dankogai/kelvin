@@ -2,7 +2,8 @@
 
 This file holds the cumulative design results. How each decision was reached
 is recorded in [Dialogue.md](Dialogue.md), and a C programmer's guide to the
-differences is in [versusC.md](versusC.md).
+differences is in [documents/versusC.md](documents/versusC.md), with a
+document per topic beside it.
 
 ## Principles
 

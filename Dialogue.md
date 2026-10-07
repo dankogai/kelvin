@@ -2353,3 +2353,31 @@ There are 447 tests, and all pass with clang and with gcc 15.
 error about a pasted token; kelvinc now says "println takes up to 16
 values, and this is the 17th: write two calls".
 
+### 79. The documents
+
+> make `doucments` folder and split documents there. roughly:
+>
+> * integers
+> * pointers
+> * c strings (special attention. not just a zero-terminated [u8])
+> * struct
+> * union
+> * modules
+> * C interfaces
+> * grammar
+> * flow controls
+>
+> also move `versusC.md` there.
+
+**Claude** made `documents/` and split `versusC.md` into it, one topic
+a document, keeping the text of each section and adding what the split
+needed: an index in `versusC.md`, which keeps the table at a glance,
+the reserved words, what is not available yet and the diagnostics;
+cross-references between the documents; and new prose where the old
+text had none, for C strings (`cstrings.md`: the four kinds of text,
+making, reading, walking, comparing and printing it, and where it
+lives), unions (`unions.md`) and arrays (`arrays.md`). Beyond the list,
+`arrays.md`, `functions.md`, `printing.md` and `properties.md` hold what
+fit nowhere else. Every code example in the new prose was compiled and
+run. README.md and Design.md link to the new place.
+
