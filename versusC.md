@@ -612,7 +612,8 @@ let main():i32 {
 }
 ```
 
-- `print(a, b, ...)` prints up to 16 values with no separators, and
+- `print(a, b, ...)` prints up to 16 values with no separators (a 17th
+  is an error that says to write two calls), and
   `println(...)` adds a newline.
 - Each value prints according to its C type *(provisional P21)*:
   - integers of every size in decimal, so `i64` needs no `PRId64`

@@ -2345,3 +2345,11 @@ error. The details are provisional P62.
 
 There are 447 tests, and all pass with clang and with gcc 15.
 
+### 78. The 17th value of `print`
+
+> fix the println limit: make kelvinc report more than 16 arguments
+
+`print` and `println` take up to 16 values (P22). A 17th gave C's
+error about a pasted token; kelvinc now says "println takes up to 16
+values, and this is the 17th: write two calls".
+

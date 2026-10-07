@@ -4027,6 +4027,11 @@ static void check_print_args(Expr *call) {
         if (t && t->kind == T_FUNC)
             error_at(x->pos, "%s cannot show a function: a function has no text", call->a->text);
     }
+    /* the prelude's macro counts up to 16 values (P22); beyond, C's error
+       would name a pasted token */
+    if (call->items.len > 16)
+        error_at(((Expr *)call->items.data[16])->pos, "%s takes up to 16 values, and this is the %dth: write two calls",
+                 call->a->text, call->items.len);
 }
 
 /* An anonymous function as argument k of call, taking its types from
