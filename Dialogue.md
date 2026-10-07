@@ -2396,3 +2396,39 @@ The details are provisional P63.
 
 There are 453 tests, and all pass with clang and with gcc 15.
 
+### 81. `cstr` is immutable text
+
+> Let us make it clear that `cstr` is more strict than `char *`:
+>
+> * it is `[u8]`, not `u8^`
+> * lt is immutable. so `s = "I love to hate C"; s[0] = 'U'"` is a
+>   compile error.
+> * `var p:u8^ := cstr` is still allowed but not encouraged.
+> * promote `cstr` over `char *`
+
+**Claude** asked about `.count`, stepping and the escape hatch. The
+user wrote the first answer in full:
+
+> strlen(s) for the first use, then sticks till the end of the scope.
+> It is okay because It never expands. in C it will be stored in
+> `_kv_` variables iff it is actually used.
+
+and then "errors for stepping, implicit cast". **Claude** implemented
+#52. The details are provisional P64:
+
+- `cstr` is a pointer to `const u8` that kelvinc knows as text, named
+  `cstr` in messages and `.typename`; a string literal, a text property
+  and a template are `cstr`, and a string literal infers it.
+- Writing through it and stepping it are errors with hints; `&s[i]` is
+  the rest of the text, a `cstr` too.
+- `s.count` is `strlen`, kept in a `_kv_` variable from the first use
+  to the end of the scope, declared only where `.count` is used, and
+  measured again after `s := t`.
+- A `u8^` takes a `cstr` with a cast kelvinc writes, in declarations,
+  `:=`, initializer lists and calls of Kelvin functions; a C function's
+  `char *` needs `s as u8^`.
+- `examples/strings.k` now reverses through a `u8^` cursor with `p++`,
+  and reads through a `cstr`.
+
+There are 457 tests, and all pass with clang and with gcc 15.
+

@@ -40,7 +40,7 @@ let main(argc:i32, argv:[u8^]):i32 {
 // out: 0.0 1.0 3 45 3 6 6
 // out: 2 3 2.0 2 45 5 2
 // out: 3 1 97 16 4
-// out: complex64 point point^ const i32^ u8^ (i64):point
+// out: complex64 point point^ const i32^ cstr (i64):point
 // out: i32 color u8 size_t i64^ const i64^
 // c: struct complex64 i = complex64__f64__f64(0.0, 1.0);
 // c: const int32_t *const ap = arr;

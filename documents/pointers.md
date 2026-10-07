@@ -69,8 +69,9 @@ Kelvin has no `void` type:
   inside an expression (`p++^` is an error; `*p++` is `p^` then `p++`).
   They are postfix only, and for a `var` pointer kelvinc sees, a field
   or an element too: a `let` pointer, a number, an array, a function
-  and `any^` are errors. A pointer only C sees, as `getenv`'s, steps as
-  C allows *(provisional P63)*.
+  and `any^` are errors, and so is a `cstr`, which is text, not a
+  cursor (#52): take a `var p:u8^ := s` to step. A pointer only C sees,
+  as `getenv`'s, steps as C allows *(provisional P63)*.
 - `p.next` is `p + 1` and `p.prev` is `p - 1`, a value, for a pointer
   kelvinc can see; `any^` has neither. On anything else, `.next` is a
   field, so a list still walks with `n := n^.next`.

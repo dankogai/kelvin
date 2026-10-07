@@ -93,6 +93,7 @@ struct Type {
     char *name;       /* T_BASE: "int", "unsigned long", "struct Point";
                          T_TYPEOF: the value as written, for messages */
     bool is_const, is_volatile;
+    bool cstr;        /* T_PTR: a cstr, immutable text (#52): const u8 behind it */
     Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
                          T_TYPEOF: the type kelvinc sees, if any */
     Expr *size;       /* T_ARRAY; NULL for [] */

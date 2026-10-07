@@ -65,7 +65,8 @@ infers the type from the value:
 - an anonymous function that writes its parameters is its function type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
 - an array literal is an array of its items' type (#48), as
-  [arrays.md](arrays.md) says
+  [arrays.md](arrays.md) says, and a string literal is a `cstr` (#52):
+  `let s := "hi"`
 - any other value whose type kelvinc sees is that type (#47): a Kelvin
   function's or method's result (`var z = complex64(0.0, 1.0)`,
   `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
@@ -77,7 +78,7 @@ infers the type from the value:
 
 Anything else needs a written type: arithmetic (`let y = x + 1`), whose
 type is C's promotion of its operands (`small + 1` is an `i32`, not an
-`i8`); `let s = "hi"`; `.size` and `.addr`; and any value only C sees,
+`i8`); `.size` and `.addr`; and any value only C sees,
 such as a C function's result (`let n = strlen(s)`), a macro, or a
 `bool` from a C function (`let ok:bool = isdigit(c) != 0` is fine,
 `let ok = is_even(4)` from a header is not). A written type is always

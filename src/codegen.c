@@ -34,6 +34,12 @@ static List cstr_used;
 /* The buffers that text properties (x.hex) in the innermost block
    write into, "_kv_n_text[36]" each; NULL outside function bodies */
 static List *text_bufs;
+/* a cstr's .count (#52): the locals and parameters whose count the
+   function asks for, and the _kv_ variable that keeps it once measured */
+static List count_names;  /* char *: names whose .count the function uses */
+static List count_cache;  /* name, cache name, in pairs; innermost last */
+static List param_caches; /* the declarations a function's body block starts with */
+static const char *count_cache_of(const char *name);
 /* the template literals' storage in the innermost block (#39),
    "_kv_template0[size]" each */
 static List *template_vars;
@@ -495,6 +501,14 @@ static char *expr_bare(Expr *e) {
         char *recv = expr(e->a);
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
+        if (!strcmp(e->text, "count") && e->op && !strcmp(e->op, "cstr")) {
+            /* strlen, measured at the first use of a local's or a
+               parameter's and kept until the scope ends (#52) */
+            const char *cache = e->a->kind == E_IDENT ? count_cache_of(e->a->text) : NULL;
+            if (cache)
+                return strfmt("(%s == (size_t)-1 ? (%s = strlen((const char *)%s)) : %s)", cache, cache, recv, cache);
+            return strfmt("strlen((const char *)%s)", recv);
+        }
         if (!strcmp(e->text, "count")) /* an array's elements (#49), a VLA's too */
             return strfmt("(sizeof(%s) / sizeof((%s)[0]))", recv, recv);
         if (!strcmp(e->text, "typename")) /* a type kelvinc cannot see (#34) */
@@ -783,6 +797,21 @@ static char *operand_before(Expr *e) {
     return e->paren && may_be_type ? strfmt("(%s)", s) : s;
 }
 
+/* the _kv_ variable that keeps name's .count in this scope, or NULL */
+static const char *count_cache_of(const char *name) {
+    for (int i = count_cache.len - 2; i >= 0; i -= 2)
+        if (!strcmp(count_cache.data[i], name))
+            return count_cache.data[i + 1];
+    return NULL;
+}
+
+static bool counts_cstr(const char *name) {
+    for (int i = 0; i < count_names.len; i++)
+        if (!strcmp(count_names.data[i], name))
+            return true;
+    return false;
+}
+
 static char *initializer(Expr *e) {
     if (e->kind != E_INIT)
         return expr(e);
@@ -860,11 +889,16 @@ static void stmt(Stmt *s) {
         List bufs = {0}, *outer_bufs = text_bufs, tmpls = {0}, *outer_tmpls = template_vars;
         Buf outer = out;
         int top = mapped_line;
+        int caches = count_cache.len;
         text_bufs = &bufs;
         template_vars = &tmpls;
         out = (Buf){0};
+        for (int i = 0; i < param_caches.len; i++) /* a parameter's .count (#52) */
+            line("%s", (char *)param_caches.data[i]);
+        param_caches.len = 0;
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
+        count_cache.len = caches;
         Buf items = out;
         out = outer;
         text_bufs = outer_bufs;
@@ -903,6 +937,12 @@ static void stmt(Stmt *s) {
             sync(v->pos);
             line("%s;", var_decl(s->storage, v));
             Type *t = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
+            if (t->kind == T_PTR && t->cstr && counts_cstr(v->name)) { /* its .count, once measured (#52) */
+                char *cache = hidden(v->name, "count");
+                line("size_t %s = (size_t)-1;", cache);
+                list_push(&count_cache, v->name);
+                list_push(&count_cache, cache);
+            }
             if (v->init && v->init->kind == E_COMPOUND && !v->init->a && t->kind == T_ARRAY && t->size &&
                 t->size->kind != E_LITERAL) /* a VLA of [T](n) is zero-filled here (#49) */
                 line("memset(%s, 0, sizeof %s);", v->name, v->name);
@@ -917,6 +957,10 @@ static void stmt(Stmt *s) {
             line("%s ? %s : %s;", cond(s->expr->a), expr(s->expr->b), expr(s->expr->c));
         else
             line("%s;", expr(s->expr));
+        /* a cstr assigned anew is measured again (#52) */
+        if (s->expr->kind == E_BINARY && !strcmp(s->expr->op, ":=") && s->expr->a->kind == E_IDENT &&
+            count_cache_of(s->expr->a->text))
+            line("%s = (size_t)-1;", count_cache_of(s->expr->a->text));
         break;
     case S_EMPTY:
         line(";");
@@ -1270,7 +1314,7 @@ static const char *template_bound(Expr *x) {
             return strfmt("(_kv_%s_cstr_size - 1)", r->name);
         if (!strcmp(p, "dec") || !strcmp(p, "hex") || !strcmp(p, "oct") || !strcmp(p, "bin"))
             return strfmt("(%s - 1)", number_text_size(p));
-        if (!strcmp(p, "size") || !strcmp(p, "addr"))
+        if (!strcmp(p, "size") || !strcmp(p, "addr") || !strcmp(p, "count"))
             return "20";
         /* .cstr of a string is the string; .typename */
         if (strcmp(p, "next") && strcmp(p, "prev"))
@@ -1374,6 +1418,36 @@ static void use_cstr(Decl *r) {
     }
 }
 
+/* the names whose .count a function asks for, as a cstr's (#52) */
+static void find_counts_stmt(Stmt *s);
+static void find_counts_expr(Expr *e) {
+    if (!e)
+        return;
+    if (e->kind == E_PROPERTY && !strcmp(e->text, "count") && e->op && !strcmp(e->op, "cstr") &&
+        e->a->kind == E_IDENT)
+        list_push(&count_names, e->a->text);
+    find_counts_expr(e->a);
+    find_counts_expr(e->b);
+    find_counts_expr(e->c);
+    if (e->kind == E_CALL || e->kind == E_METHOD || e->kind == E_INIT || e->kind == E_TEMPLATE)
+        for (int i = 0; i < e->items.len; i++)
+            find_counts_expr(e->items.data[i]);
+}
+
+static void find_counts_stmt(Stmt *s) {
+    if (!s)
+        return;
+    for (int i = 0; i < s->stmts.len; i++)
+        find_counts_stmt(s->stmts.data[i]);
+    for (int i = 0; i < s->vars.len; i++)
+        find_counts_expr(((Var *)s->vars.data[i])->init);
+    find_counts_expr(s->expr);
+    find_counts_expr(s->step);
+    find_counts_stmt(s->init);
+    find_counts_stmt(s->body);
+    find_counts_stmt(s->els);
+}
+
 static void find_cstr_stmt(Stmt *s);
 
 static void find_cstr_expr(Expr *e) {
@@ -1463,6 +1537,18 @@ static void emit_decl(Decl *d) {
             line("%s;", fn_head(d));
         } else {
             line("%s", fn_head(d));
+            count_names = (List){0};
+            find_counts_stmt(d->body);
+            param_caches.len = count_cache.len = 0;
+            for (int i = 0; i < d->params.len; i++) {
+                Var *p = d->params.data[i];
+                if (p->type->kind == T_PTR && p->type->cstr && counts_cstr(p->name)) {
+                    char *cache = hidden(p->name, "count");
+                    list_push(&param_caches, strfmt("size_t %s = (size_t)-1;", cache));
+                    list_push(&count_cache, p->name);
+                    list_push(&count_cache, cache);
+                }
+            }
             stmt(d->body);
         }
         break;

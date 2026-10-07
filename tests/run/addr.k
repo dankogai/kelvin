@@ -39,7 +39,7 @@ let main():i32 {
 
     // .addr is unsigned and as wide as a pointer; .hex has lowercase digits
     let digits:cstr := p.addr.hex
-    println(nullptr.addr - 1 > 0, " ", p.addr.size == sizeof(any^), " ", strspn(p.hex + 2, "0123456789abcdef") ==
+    println(nullptr.addr - 1 > 0, " ", p.addr.size == sizeof(any^), " ", strspn(&p.hex[2], "0123456789abcdef") ==
             width - 2, " ", strncmp(digits, "0x", 2) == 0, " ", where(p) == p.addr)
 
     // pointers kelvinc sees by their shape: a string, &x of a C name, a

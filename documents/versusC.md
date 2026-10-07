@@ -24,7 +24,7 @@ P-numbers in [Design.md](../Design.md).
 | `float f = 1.5f;` | `var f:f32 = 1.5` |
 | `1UL << 40` | `1:u64 << 40` |
 | `uint16_t u = 0xdead;` | `var u = 0xdead:u16` (inferred as `u16`) |
-| `char *s;` | `var s:u8^` or `var s:cstr` |
+| `const char *s;`, `char *s;` | `var s:cstr` (immutable text, #52), or `var s:u8^` for bytes to write |
 | `int a[4];` | `var a:[i32](4)`, or `var a = [i32](4)`, zero-filled (#49) |
 | `int *a[4];` | `var a:[i32^](4)` |
 | `int (*p)[4];` | `var p:[i32](4)^` |
@@ -63,6 +63,7 @@ P-numbers in [Design.md](../Design.md).
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
+| `strlen(s)` | `s.count` (measured once per scope, #52) |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |

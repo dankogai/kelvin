@@ -1,6 +1,6 @@
-// C strings: cstr is u8^, for c in s walks one, a pointer steps with .next
-// and .prev, C's <string.h> and <ctype.h> just work, and numbers have text
-// properties.
+// C strings: cstr is immutable text, for c in s walks one, a u8^ cursor
+// steps with p++ and p-- and may write, C's <string.h> and <ctype.h> just
+// work, and numbers have text properties.
 #import <ctype.h> as C
 #import <string.h> as C
 
@@ -15,19 +15,20 @@ let vowels(s:cstr):i64 {
     return n
 }
 
-// reverse in place: two pointers meet in the middle
-let reverse(s:cstr) {
+// reverse in place: a cstr cannot change, so the text comes as u8^, and
+// two cursors meet in the middle
+let reverse(s:u8^) {
     if strlen(s) == 0 {
         return
     }
-    var lo:cstr := s
-    var hi:cstr := s + strlen(s) - 1
+    var lo:u8^ := s
+    var hi:u8^ := &s[strlen(s) - 1]
     while lo < hi {
         let c:u8 = lo^
         lo^ = hi^
         hi^ = c
-        lo := lo.next
-        hi := hi.prev
+        lo++
+        hi--
     }
 }
 

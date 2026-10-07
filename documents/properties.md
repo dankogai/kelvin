@@ -22,7 +22,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **`x.size`** is `sizeof(x)`. A function's `.size`, and its `sizeof`,
   are a pointer's size, since its name is a function value (#31).
 - **`a.count`** is an array's number of elements (#49), `a.size` its
-  bytes; see [arrays.md](arrays.md).
+  bytes; see [arrays.md](arrays.md). A `cstr`'s `.count` is its
+  `strlen` (#52).
 - **`v.type`** is `v`'s type, written where a type goes (#34): after `:`
   and `as`, in `sizeof(...)`, in compound literals and in function types.
   `v` is a variable or `$k`, possibly followed by `.member`, `^` and
@@ -83,9 +84,10 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     fields, `v as T`, what Kelvin functions and methods return (not a
     call that C chooses among overloads with different results), and a
     `?:` between two values of one type (#34) *(provisional P35)*.
-- **`cstr`** is a built-in name for `u8^` (C's `uint8_t *`), as if declared
-  `typedef u8^ cstr`. It is a reference, so assign it with `:=`, and
-  `cstr const` is a constant pointer *(provisional P36)*.
+- **`cstr`** is immutable text, C's `const uint8_t *` (#52): a
+  reference, assigned with `:=`, that cannot be written through or
+  stepped; `s.count` is `strlen(s)`, measured once per scope. See
+  [cstrings.md](cstrings.md) *(provisional P36, P64)*.
 - **Integers** have `.dec`, `.hex`, `.oct` and `.bin`. Each returns `u8^`
   text with a prefix of `0x`, `0o` or `0b`. Signed integers always carry a
   sign (`+42`, `-0x2a`) and unsigned ones never do, so the text tells

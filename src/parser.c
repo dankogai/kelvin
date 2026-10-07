@@ -444,6 +444,9 @@ static int type_suffix_end(int i) {
 
 static Type *fn_type_of(Decl *d);
 static Type *base_type(const char *name, Pos pos);
+static Type *cstr_type(Pos pos);
+static bool is_cstr(Type *t);
+static Expr *drop_cstr(Expr *v, Type *target);
 
 /* Is name a Kelvin enumerator that no local hides? */
 static bool enumerator_named(const char *name) {
@@ -801,15 +804,11 @@ static Type *parse_type_in(TypeContext ctx) {
             error_at(name->pos, "expected a type, found %s", desc(name));
         advance();
         if (is_kw(name, "cstr")) {
-            /* cstr is u8^ (#22); qualifiers apply to the pointer */
-            base->name = "u8";
-            Type *p = xcalloc(1, sizeof *p);
-            p->kind = T_PTR;
-            p->pos = name->pos;
-            p->elem = base;
+            /* cstr is immutable text (#52): a pointer to const u8;
+               qualifiers apply to the pointer */
+            Type *p = cstr_type(name->pos);
             p->is_const = base->is_const;
             p->is_volatile = base->is_volatile;
-            base->is_const = base->is_volatile = false;
             parse_qualifiers(p);
             return parse_type_suffixes(p, ctx);
         }
@@ -911,6 +910,7 @@ static void pick_overload(Expr *v, Type *want);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static bool repeatable(Expr *e);
 static bool reaches_c(List *cands, Expr *call, int k);
+static void drop_cstr_args(Expr *call, Decl *d);
 static List overloads_of(const char *name, const char *op);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
@@ -1655,6 +1655,11 @@ static Expr *parse_binary(int min_prec) {
             require_bool(e->a);
             require_bool(e->b);
         }
+        if ((!strcmp(e->op, "+") || !strcmp(e->op, "-")) &&
+            ((is_cstr(value_type(e->a)) && !is_cstr(value_type(e->b))) ||
+             (!strcmp(e->op, "+") && is_cstr(value_type(e->b)))))
+            error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
+                             "'var p:u8^ := s'");
         lhs = overloadable_op(t) ? resolve_operator(e, e->op, e->a, e->b) : e; /* (#42) */
     }
 }
@@ -1711,6 +1716,8 @@ static char *kelvin_type(Type *t) {
     case T_TYPEOF:
         return strfmt("%s%s%s.type", q, *q ? " " : "", t->name);
     case T_PTR: /* a function type under ^ in parentheses, as its result takes the ^ */
+        if (t->cstr) /* immutable text (#52) */
+            return strfmt("cstr%s%s", *q ? " " : "", q);
         return strfmt(t->elem->kind == T_FUNC ? "(%s)^%s%s" : "%s^%s%s", kelvin_type(t->elem), *q ? " " : "", q);
     case T_ARRAY: /* [T], or [T](N) with its count (#49) */
         return strfmt("[%s]%s%s%s", kelvin_type(t->elem),
@@ -2032,29 +2039,22 @@ static Type *value_type_of(Expr *e) {
         }
         return ret;
     }
-    case E_TEMPLATE: { /* its text is a u8^ (#39) */
-        Type *t = xcalloc(1, sizeof *t);
-        t->kind = T_PTR;
-        t->pos = e->pos;
-        t->elem = base_type("u8", e->pos);
-        return t;
-    }
-    case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a u8^ */
+    case E_TEMPLATE: /* its text is a cstr (#39, #52) */
+        return cstr_type(e->pos);
+    case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a cstr */
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return value_type(e->a);
         if (strcmp(e->text, "cstr") && strcmp(e->text, "dec") && strcmp(e->text, "hex") && strcmp(e->text, "oct") &&
             strcmp(e->text, "bin") && strcmp(e->text, "typename"))
-            return NULL; /* .size and .addr are C's size_t and uintptr_t */
-        Type *t = xcalloc(1, sizeof *t);
-        t->kind = T_PTR;
-        t->pos = e->pos;
-        t->elem = base_type("u8", e->pos);
-        return t;
+            return NULL; /* .size, .count and .addr are C's size_t and uintptr_t */
+        return cstr_type(e->pos);
     }
     case E_PREFIX: { /* &x is a pointer to x's type */
         Type *t = !strcmp(e->op, "&") ? value_type(e->a) : NULL;
         if (!t)
             return NULL;
+        if (e->a->kind == E_INDEX && is_cstr(value_type(e->a->a)))
+            return cstr_type(e->pos); /* &s[i] is the rest of the text (#52) */
         if (t->kind == T_FUNC && is_function_designator(e->a))
             return t; /* &f is the function f, as in C */
         Type *p = xcalloc(1, sizeof *p);
@@ -2531,6 +2531,10 @@ static Type *arg_type(Expr *e) {
     case E_SIZEOF_TYPE:
     case E_SIZEOF_EXPR:
         return base_type("size_t", e->pos);
+    case E_PROPERTY: /* .size and .count are C's size_t */
+        if (!strcmp(e->text, "size") || !strcmp(e->text, "count"))
+            return base_type("size_t", e->pos);
+        break;
     case E_BINARY: {
         if (!strcmp(e->op, ","))
             return arg_type(e->b);
@@ -2839,6 +2843,7 @@ static void resolve_call(Expr *call) {
         }
         if (!other) {
             call->target = only;
+            drop_cstr_args(call, only);
             return;
         }
     } else {
@@ -2849,6 +2854,8 @@ static void resolve_call(Expr *call) {
             typed_literals(call);
             list_push(&dispatched, call);
         }
+        if (call->target)
+            drop_cstr_args(call, call->target);
         if (call->target || call->cands.len)
             return;
     }
@@ -2856,6 +2863,12 @@ static void resolve_call(Expr *call) {
        ones then overload it, and are named by their types in C */
     call->op = "c";
     list_push(&c_called, callee->text);
+}
+
+/* a cstr given to a u8^ parameter of the Kelvin function called (#52) */
+static void drop_cstr_args(Expr *call, Decl *d) {
+    for (int k = 0; k < call->items.len && k < d->params.len; k++)
+        call->items.data[k] = drop_cstr(call->items.data[k], param_type(((Var *)d->params.data[k])->type));
 }
 
 /* How an operand shows in a message about operators */
@@ -3038,6 +3051,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
         /* p.next is p + 1 and p.prev is p - 1, on a pointer kelvinc can
            see (#26); on anything else `.next` is a field, as in n^.next */
         Type *t = value_type(e);
+        if (is_cstr(t))
+            error_at(name->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
+                                "'var p:u8^ := s'");
         if (t && t->kind == T_ARRAY)
             error_at(name->pos, "'.%s' is a property of pointers: for an array, write '&a[%s]'", member,
                      member[0] == 'n' ? "1" : "-1");
@@ -3061,6 +3077,13 @@ static Expr *property(Expr *e, Token *name, char *member) {
         if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
             return NULL;
         Type *t = value_type(e);
+        if (is_cstr(t)) { /* strlen, kept once measured (#52) */
+            Expr *x = new_expr(E_PROPERTY, name->pos);
+            x->a = e;
+            x->text = member;
+            x->op = "cstr";
+            return x;
+        }
         if (!t || t->kind != T_ARRAY) {
             if (t && t->kind == T_PTR)
                 error_at(name->pos, "'.count' is a property of arrays, and this is %s, a pointer: an array passed to "
@@ -3350,6 +3373,9 @@ static Expr *parse_assign(void) {
         advance();
         reject_let_change(lhs, t);
         Type *tt = value_type(lhs);
+        if (is_cstr(tt))
+            error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
+                             "'var p:u8^ := s'");
         if (tt && tt->kind == T_FUNC)
             error_at(t->pos, "'%s' is for pointers, and this is a function", t->text);
         if (tt && tt->kind == T_ARRAY)
@@ -3374,6 +3400,13 @@ static Expr *parse_assign(void) {
                 error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
             reject_let_change(lhs, t);
+            /* a cstr's bytes never change, and it does not step (#52) */
+            if ((lhs->kind == E_INDEX || lhs->kind == E_DEREF) && is_cstr(value_type(lhs->a)))
+                error_at(t->pos, "a cstr is immutable (#52): to change text, copy it into a byte array, "
+                                 "'var t:[u8](n)' and strcpy, or write through a 'var p:u8^ := s'");
+            if ((!strcmp(t->text, "+=") || !strcmp(t->text, "-=")) && is_cstr(value_type(lhs)))
+                error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
+                                 "a 'var p:u8^ := s'");
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
                                 lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);
@@ -3392,6 +3425,8 @@ static Expr *parse_assign(void) {
             e->b = parse_assign();
             assign_ok = ok;
             pick_overload(e->b, target_type(lhs));
+            if (!strcmp(t->text, ":="))
+                e->b = drop_cstr(e->b, target_type(lhs));
             reject_template_escape(lhs, e->b, t->pos);
             /* z += w with an operator a struct defines is z = z + w (#42) */
             if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {
@@ -3517,7 +3552,7 @@ static Expr *parse_initializer_for(Type *t) {
         if (d)
             expect_p("=");
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
-        Expr *value = parse_initializer_for(item);
+        Expr *value = drop_cstr(parse_initializer_for(item), item); /* a cstr into a u8^ member (#52) */
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
            elision), which kelvinc does not follow. A string fills an
@@ -3570,6 +3605,33 @@ static Type *base_type(const char *name, Pos pos) {
     return t;
 }
 
+/* cstr (#52): a pointer to const u8 that kelvinc knows as text */
+static Type *cstr_type(Pos pos) {
+    Type *p = xcalloc(1, sizeof *p);
+    p->kind = T_PTR;
+    p->pos = pos;
+    p->cstr = true;
+    p->elem = base_type("u8", pos);
+    p->elem->is_const = true;
+    return p;
+}
+
+static bool is_cstr(Type *t) { return t && t->kind == T_PTR && t->cstr; }
+
+/* An implicit drop of a cstr's immutability (#52): where a u8^ (to u8
+   that is not const) is declared, assigned or passed from a cstr value,
+   kelvinc writes the cast, as `v as u8^` would */
+static Expr *drop_cstr(Expr *v, Type *target) {
+    if (!v || !target || target->kind != T_PTR || target->cstr || target->elem->kind != T_BASE ||
+        strcmp(target->elem->name, "u8") || target->elem->is_const || !is_cstr(value_type(v)))
+        return v;
+    Expr *c = new_expr(E_CAST, v->pos);
+    c->op = "as";
+    c->a = v;
+    c->type = target;
+    return c;
+}
+
 /* The type of an initializer when none is written: an integer literal is
    an i64, a floating literal an f64, nullptr is an any^, and `v:T`,
    `v as T` or `T(v)` is a T. A bool is a bool (#24, #25): `true`, a
@@ -3619,6 +3681,8 @@ static Type *list_type(Expr *e, Pos pos) {
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_INIT)
         return list_type(e, pos);
+    if (e->kind == E_STRING) /* a string literal is a cstr (#52) */
+        return cstr_type(pos);
     if (e->kind == E_FUNC && has_local_size(e->type))
         return NULL; /* a length that names a parameter needs a written type */
     if (e->kind == E_CAST || e->kind == E_FUNC)
@@ -3718,6 +3782,7 @@ static Var *parse_var(bool with_init, int let) {
         v->init = parse_initializer_for(v->type);
         count_items(v->type, v->init);
         reject_let_vla(v, let);
+        v->init = drop_cstr(v->init, v->type);
         pick_overload(v->init, v->type);
     }
     return v;
@@ -4310,8 +4375,8 @@ static Expr *text_in_buffer(Expr *e) {
     case E_PROPERTY: {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
         if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
-            !strcmp(e->text, "addr"))
-            return NULL;
+            !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull"))
+            return NULL; /* .count and .isNull are numbers too (#49, #50) */
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
         if (strcmp(e->text, "cstr") || e->a->kind == E_STRING)

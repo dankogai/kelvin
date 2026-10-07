@@ -50,7 +50,8 @@ So far the changes from C are:
   `println("n = ", n)` works for any type with no import
 - every type can have methods, such as `let point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
-  (derived for structs, as `{x: 3, y: 4}`), where `cstr` is `u8^`;
+  (derived for structs, as `{x: 3, y: 4}`), where `cstr` is immutable
+  text, C's `const uint8_t *`, with `s.count` for its length;
   `toString()` waits for a true string type
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
   `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
@@ -107,7 +108,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/hello.k](examples/hello.k) | the smallest program |
 | [examples/fizzbuzz.k](examples/fizzbuzz.k) | ranges, `bool` conditions, `else if` |
 | [examples/primes.k](examples/primes.k) | a `bool` array, nested ranges, `continue` |
-| [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, stepping with `.next`/`.prev`, C's string functions, `.hex` and friends |
+| [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, a `u8^` cursor with `p++`, C's string functions, `.hex` and friends |
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |

@@ -19,13 +19,32 @@ let d:cstr := n.cstr         // "42", in a buffer on this block's stack
 let card:cstr := `${n} items` // a template's text, on the stack too
 ```
 
-- **`cstr`** is a built-in name for `u8^`, C's `uint8_t *`, as if
-  declared `typedef u8^ cstr` *(provisional P36)*. It is a reference:
-  assign it with `:=`, compare it with `nullptr` or `.isNull`, and its
-  `.size` is a pointer's size, 8 on a 64-bit target. It has no
-  `.count`: a C string knows its length only by its NUL, so `strlen(s)`
-  is its length, as in C. `cstr const` is a constant pointer, and
-  `const cstr` points to constant bytes.
+- **`cstr`** is immutable text (#52): in C a `const uint8_t *`, a
+  pointer to bytes that never change through it, which Kelvin treats as
+  text rather than as a pointer. It is a reference: assign it with
+  `:=`, compare it with `nullptr` or `.isNull`, and its `.size` is a
+  pointer's size, 8 on a 64-bit target. `s.count` is its length, the
+  bytes before the NUL: `strlen(s)`, measured at the first use and kept
+  for the rest of the scope in a `_kv_` variable, declared only where
+  `.count` is used; after `s := t`, the next use measures again. `cstr
+  const` is a constant pointer.
+  - **It cannot be written through**: `s[0] = 'U'` and `s^ = 0` are
+    errors. To change text, copy it into a byte array, `var t:[u8](n)`
+    and `strcpy(t, s)`, or write through a `u8^`.
+  - **It does not step**: `s++`, `s.next`, `s + 1` and `s += 1` are
+    errors; walk it with `for c in s`, index it with `s[i]`, or take
+    the rest of it with `&s[i]`, which is a `cstr` too.
+  - **A `u8^` may still take it**, `var p:u8^ := s`, in a declaration,
+    a `:=`, an initializer list or a call of a Kelvin function with a
+    `u8^` parameter: kelvinc writes the cast. This is allowed, not
+    encouraged, and writing through `p` into a literal is C's undefined
+    behavior. A C function that takes `char *` needs `s as u8^`, since
+    kelvinc cannot see its parameters. The other way, a `u8^` or
+    `const u8^` into a `cstr`, needs nothing.
+  - **Prefer `cstr`** to `u8^` for text: a parameter `s:cstr` says the
+    function reads it, a `u8^` that it may write; `argv` is `[cstr]`.
+  - A string literal, the text of a property (`n.cstr`, `n.hex`) and a
+    template are `cstr`, so `let s := "hi"` infers it.
 - **A string literal** is C's: a `char` array that lives for the whole
   program, which decays to a pointer. `let s:cstr := "hi"` points at
   it; writing through `s` is undefined, as in C. Adjacent literals join,
