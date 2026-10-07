@@ -63,8 +63,8 @@ So far the changes from C are:
   `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
   `bool`, so `println(a == b)` prints `true`, and `let ok = a < b`
   declares one
-- assignment is a statement, and there is no `++` or `--`: write
-  `i += 1`, and step a pointer with `p := p.next`
+- assignment is a statement, and `++` and `--` step only a pointer, as
+  statements: `p++`; a number takes `i += 1`
 - counting loops use ranges: `for i in 0..<n { ... }` and
   `for i in 1...n { ... }`, where `i` is a `let`
 - `for c in s { ... }` walks a string up to its NUL, and

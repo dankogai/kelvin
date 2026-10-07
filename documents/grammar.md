@@ -102,7 +102,7 @@ Everything else is C's, including precedence, so `6 & 3 == 3` is still
 `6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
 `?:`, `,`, compound literals and designated initializers, except that
 conditions are `bool` (see [flow-controls.md](flow-controls.md)), assignment
-is a statement and there is no `++` or `--` (below).
+is a statement and so are `p++` and `p--`, for pointers only (below).
 
 ### Lines end statements; one expression is the result
 
@@ -148,19 +148,20 @@ let square(x:i64):i64 { x * x }
 
 ## Assignment is a statement
 
-Assignment has no value in Kelvin, and `++` and `--` are gone (#26), as
-in Swift:
+Assignment has no value in Kelvin, as in Swift, and `++` and `--` are
+statements too, for pointers only (#26, #51):
 
 | C | Kelvin |
 |---|--------|
 | `i++;`, `--n;` | `i += 1`, `n -= 1` |
-| `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next` |
+| `p++;`, `p--;` (pointers) | `p++`, `p--`, or `p := p.next` |
+| `*p++ = *q++;` | `p^ = q^; p++; q++` |
 | `a = b = 0;` | `a = 0; b = 0` or `a = 0, b = 0` |
 | `while ((c = getchar()) != EOF) { ... }` | `var c:i32 = getchar(); while c != EOF { ...; c = getchar() }` |
 | `a[i++] = x;` | `a[i] = x; i += 1` |
 
-- `=`, `:=` and the compound assignments (`+=`, `~=`, ...) appear only as
-  a statement of their own, or in a `for` clause. Both take a comma list,
+- `=`, `:=`, the compound assignments (`+=`, `~=`, ...) and `p++`
+  appear only as a statement of their own, or in a `for` clause. Both take a comma list,
   run left to right: `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`,
   `x = 1, y = 2` *(provisional P38)*. A list either declares, after
   `let` or `var`, or assigns.

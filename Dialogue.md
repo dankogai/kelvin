@@ -2381,3 +2381,18 @@ lives), unions (`unions.md`) and arrays (`arrays.md`). Beyond the list,
 fit nowhere else. Every code example in the new prose was compiled and
 run. README.md and Design.md link to the new place.
 
+### 80. `p++`
+
+> * reintroduce `++` and `--` just for pointers, postfix only.
+>   `p := p.next` seems a little too wordy. if p is not `var` it is a
+>   compile-time error.
+
+**Claude** implemented #51: `p++` and `p--` are statements, as every
+assignment is (#26), read where an assignment is and errors inside an
+expression or as a prefix; the target follows assignment's rules, so a
+`let` pointer is an error, and where kelvinc sees the type it must be
+a pointer other than `any^`. A pointer only C sees steps as C allows.
+The details are provisional P63.
+
+There are 453 tests, and all pass with clang and with gcc 15.
+

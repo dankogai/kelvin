@@ -1,4 +1,4 @@
-// error: Kelvin has no '++': write 'x += 1' as a statement, or 'p := p.next' for a pointer
+// error: '++' is for pointers, and this is i32: write 'x += 1'
 let main():i32 {
     var i:i32 = 0;
     i++;

@@ -39,7 +39,7 @@ P-numbers in [Design.md](../Design.md).
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
-| `*p++ = *q++;` | `p^ = q^; p := p.next; q := q.next` (no `++`, #26) |
+| `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
 | `i++`, `--n` | `i += 1`, `n -= 1` (statements) |
 | `x = 1; y = 2;` on two lines | `x = 1` and `y = 2`: a line ends a statement (#35) |
 | `long square(long x) { return x * x; }` | `let square(x:i64):i64 { x * x }` (#35) |

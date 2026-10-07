@@ -1157,7 +1157,7 @@ static Expr *parse_postfix_ops(Expr *e) {
             x->a = e;
             e = x;
         } else if (is_p(t, "++") || is_p(t, "--")) {
-            reject_step(t);
+            return e; /* p++ is a statement (#51): parse_assign takes it */
         } else if (is_p(t, "->")) {
             error_at(t->pos, "write 'p^.member' instead of 'p->member'");
         } else {
@@ -1528,8 +1528,9 @@ static Expr *parse_primary(void) {
 
 /* Kelvin has no ++ and -- (#26) */
 _Noreturn static void reject_step(Token *t) {
-    error_at(t->pos, "Kelvin has no '%s': write 'x %s= 1' as a statement, or 'p := p.%s' for a pointer", t->text,
-             t->text[0] == '+' ? "+" : "-", t->text[0] == '+' ? "next" : "prev");
+    error_at(t->pos, "Kelvin has no prefix '%s': a pointer steps with 'p%s' as a statement (#51), and a number with "
+                     "'x %s= 1'",
+             t->text, t->text, t->text[0] == '+' ? "+" : "-");
 }
 
 static Expr *parse_unary(void) {
@@ -3314,31 +3315,65 @@ static const char *let_target(Expr *e) {
    as in `a = b = c` or `if (x = f()) != nullptr`, it is an error. */
 static bool assign_ok;
 
+/* a let, a range's counter, each element of a sequence or a parameter
+   cannot change: the target of an assignment or of p++ (#27, #51) */
+static void reject_let_change(Expr *lhs, Token *t) {
+    const char *let = let_target(lhs);
+    if (let && let_kind(let) == LET_RANGE)
+        error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
+                         "'var k:%s = %s'", let, kelvin_type(lookup_type(let)), let);
+    if (let && let_kind(let) == LET_EACH)
+        error_at(t->pos, "'%s' is each element in turn and cannot change; copy it into a var under "
+                         "another name",
+                 let);
+    if (let && let[0] == '$')
+        error_at(t->pos, "'%s' is a parameter and cannot change; copy it into a var", let);
+    if (let && let_kind(let) == LET_PARAM)
+        error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
+                 let, let);
+    if (let)
+        error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
+}
+
 static Expr *parse_assign(void) {
     bool ok = assign_ok;
     assign_ok = false; /* nothing inside may assign */
     Expr *lhs = parse_conditional();
     Token *t = peek();
+    if ((is_p(t, "++") || is_p(t, "--")) && !newline_before()) {
+        /* p++ and p-- step a var pointer kelvinc sees, as statements
+           (#51); C decides for a type it cannot see. On the next line,
+           ++p starts a statement (#35), an error */
+        if (!ok)
+            error_at(t->pos, "'%s' is a statement in Kelvin, not a value: step the pointer on a line of its own",
+                     t->text);
+        advance();
+        reject_let_change(lhs, t);
+        Type *tt = value_type(lhs);
+        if (tt && tt->kind == T_FUNC)
+            error_at(t->pos, "'%s' is for pointers, and this is a function", t->text);
+        if (tt && tt->kind == T_ARRAY)
+            error_at(t->pos, "'%s' is for pointers, and an array does not move: index it, or take a pointer, "
+                             "'var p := a'",
+                     t->text);
+        if (tt && tt->kind == T_PTR && tt->elem->kind == T_BASE && !strcmp(tt->elem->name, "any"))
+            error_at(t->pos, "an any^ cannot step: its element has no size");
+        Decl *r;
+        if (tt && tt->kind != T_PTR && !(tt->kind == T_BASE && type_class(tt, &r) == 'u'))
+            error_at(t->pos, "'%s' is for pointers, and this is %s: write 'x %s= 1'", t->text, kelvin_type(tt),
+                     t->text[0] == '+' ? "+" : "-");
+        Expr *e = new_expr(E_POSTFIX, t->pos);
+        e->op = t->text;
+        e->a = lhs;
+        assign_ok = ok;
+        return e;
+    }
     for (int i = 0; assign_ops[i]; i++)
         if (is_p(t, assign_ops[i])) {
             if (!ok)
                 error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
-            const char *let = let_target(lhs);
-            if (let && let_kind(let) == LET_RANGE)
-                error_at(t->pos, "'%s' counts the range and cannot change; copy it under another name, as in "
-                                 "'var k:%s = %s'", let, kelvin_type(lookup_type(let)), let);
-            if (let && let_kind(let) == LET_EACH)
-                error_at(t->pos, "'%s' is each element in turn and cannot change; copy it into a var under "
-                                 "another name",
-                         let);
-            if (let && let[0] == '$')
-                error_at(t->pos, "'%s' is a parameter and cannot change; copy it into a var", let);
-            if (let && let_kind(let) == LET_PARAM)
-                error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
-                         let, let);
-            if (let)
-                error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
+            reject_let_change(lhs, t);
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
                                 lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);

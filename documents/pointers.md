@@ -62,11 +62,18 @@ Kelvin has no `void` type:
 `void` is rejected with a hint wherever it is written: `let f():void`,
 `var p:void^`, `(void)x`, `x as void`.
 
-## Stepping: `.next` and `.prev`
+## Stepping: `p++`, `p--`, `.next` and `.prev`
 
-- `p.next` is `p + 1` and `p.prev` is `p - 1`, for a pointer kelvinc can
-  see; `any^` has neither. On anything else, `.next` is a field, so a list
-  still walks with `n := n^.next`.
+- `p++` and `p--` step a pointer by one element, as statements (#51):
+  on a line of their own, in a comma list, or in a `for` clause, never
+  inside an expression (`p++^` is an error; `*p++` is `p^` then `p++`).
+  They are postfix only, and for a `var` pointer kelvinc sees, a field
+  or an element too: a `let` pointer, a number, an array, a function
+  and `any^` are errors. A pointer only C sees, as `getenv`'s, steps as
+  C allows *(provisional P63)*.
+- `p.next` is `p + 1` and `p.prev` is `p - 1`, a value, for a pointer
+  kelvinc can see; `any^` has neither. On anything else, `.next` is a
+  field, so a list still walks with `n := n^.next`.
 
 ## `.isNull`, `.addr` and `.hex`
 
