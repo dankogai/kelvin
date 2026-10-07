@@ -3113,6 +3113,25 @@ static Expr *property(Expr *e, Token *name, char *member) {
         }
         return x;
     }
+    if (!strcmp(member, "isNull")) {
+        /* p.isNull is p == nullptr, a bool, of a pointer or a function
+           (#50); a field wins where kelvinc is unsure */
+        Decl *record;
+        char c = expr_class(e, &record);
+        if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
+            return NULL;
+        Type *t = value_type(e);
+        if (t && t->kind == T_ARRAY)
+            error_at(name->pos, "'.isNull' of an array: an array is never null; '&a[0]' is a pointer");
+        if (!pointer_expr(e))
+            error_at(name->pos, "'.isNull' is a property of pointers and functions%s%s", t ? ", and this is " : "",
+                     t ? kelvin_type(t) : "");
+        Expr *x = new_expr(E_PROPERTY, name->pos);
+        x->a = e;
+        x->text = member;
+        x->is_bool = true;
+        return x;
+    }
     if (!strcmp(member, "addr") || !strcmp(member, "hex")) {
         /* p.addr is a pointer's or a function's address as a uintptr_t,
            and p.hex its text, 0x and all the digits (#37) */

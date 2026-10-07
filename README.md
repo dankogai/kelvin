@@ -55,7 +55,8 @@ So far the changes from C are:
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
   `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
   (`(42:i32).hex` is `+0x2a`); pointers and functions have `.addr`, the
-  address as a `uintptr_t`, and `.hex`, as in `0x000000016ee86888`;
+  address as a `uintptr_t`, `.hex`, as in `0x000000016ee86888`, and
+  `.isNull`;
   `x.type` is `x`'s type where a type goes, as in `var y:x.type`, and
   `x.typename` its name, as in `"i64"`
 - conditions are `bool`, with no parentheses and block bodies:

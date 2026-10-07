@@ -882,7 +882,7 @@ let main():i32 {
   a number of another type converts to the one operator that takes a
   number there (C reports `kv_no_such_operator` otherwise).
 
-## Properties: `.size`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`
+## Properties: `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 
 Properties are written without parentheses:
 
@@ -977,7 +977,14 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   with `+` or `-`, and a `?:` of pointers. Where only C's `_Generic`
   sees that a value is a pointer (`getenv("X")`), `.hex` still works,
   but `.addr` is a field there, as `.size` is: write `x as uintptr_t`.
-  An array is no pointer: write `(&a[0]).addr`. Through `_Generic`,
+  An array is no pointer: write `(&a[0]).addr`.
+- **Pointers and functions** also have `.isNull` (#50): `p.isNull` is
+  `p == nullptr`, a `bool`, so `if p.isNull { }` and `while !f.isNull { }`
+  read as they sound. It covers every pointer and function value
+  kelvinc sees, `nullptr` included; a struct's field named `isNull`
+  wins, and a value only C sees keeps its field, as with `.addr`, so
+  there write `== nullptr`. An array is never null, so `a.isNull` is an
+  error *(provisional P62)*. Through `_Generic`,
   though, an array kelvinc cannot see (a C struct's `char` array field)
   is a pointer, so its `.hex` is its first element's address. Pointers
   have no `.dec`, `.oct` or `.bin`, and `.cstr` is as before: a string's

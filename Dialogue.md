@@ -2331,3 +2331,17 @@ recommendation:
   type in the repository.
 
 There are 444 tests, and all pass with clang and with gcc 15.
+
+### 77. `.isNull`
+
+> add `.isNull` to pointer types. `p.isNull` is more concise and easy
+> to read than `p == nullptr`.
+
+**Claude** implemented #50 as a property with `.addr`'s rules (#37):
+`p.isNull` is `p == nullptr`, a `bool`, of every pointer and function
+value kelvinc sees, `nullptr` included; a field named `isNull` wins,
+and a value only C sees keeps its field; an array, never null, is an
+error. The details are provisional P62.
+
+There are 447 tests, and all pass with clang and with gcc 15.
+

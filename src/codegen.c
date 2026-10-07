@@ -503,6 +503,8 @@ static char *expr_bare(Expr *e) {
             return strfmt("(%s %s 1)", recv, e->text[0] == 'n' ? "+" : "-");
         if (!strcmp(e->text, "addr")) /* #37 */
             return strfmt("((uintptr_t)(%s))", recv);
+        if (!strcmp(e->text, "isNull")) /* #50: C's == gives an int */
+            return strfmt("((bool)((%s) == 0))", recv);
         bool cstr = !strcmp(e->text, "cstr");
         Decl *r = cstr && e->type ? kelvin_record(e->type->name) : NULL;
         const char *size = r ? strfmt("_kv_%s_cstr_size", r->name) : cstr ? "KV_CSTR_SCALAR" : number_text_size(e->text);
