@@ -14,7 +14,7 @@
    `in` is a keyword only in `for i in ...`. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
-    "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "let", "var",
+    "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "uchr", "let", "var",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",

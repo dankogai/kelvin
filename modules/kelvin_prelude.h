@@ -100,6 +100,24 @@ bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf);
 char *kv_template_string(char *p, size_t max, kv_string s);
+/* uchr (#56): a codepoint on the stack, shown as its UTF-8 */
+typedef struct kv_uchr { uint32_t cp; } kv_uchr;
+kv_uchr kv_uchr_of(uint64_t n);
+kv_uchr kv_uchr_first(const void *text);
+uint8_t *kv_cstr_uchr(kv_uchr c, uint8_t *buf);
+void kv_print_uchr(kv_uchr c);
+char *kv_template_uchr(char *p, size_t max, kv_uchr c);
+void kv_string_append_uchr(kv_string *s, kv_uchr c);
+/* uchr(x): of a number, U+FFFD where it is no codepoint; of text, its first codepoint */
+#define KV_UCHR_OF(x) _Generic((x), \
+    char: kv_uchr_of, signed char: kv_uchr_of, short: kv_uchr_of, int: kv_uchr_of, \
+    long: kv_uchr_of, long long: kv_uchr_of, \
+    unsigned char: kv_uchr_of, unsigned short: kv_uchr_of, unsigned: kv_uchr_of, \
+    unsigned long: kv_uchr_of, unsigned long long: kv_uchr_of, \
+    kv_uchr: kv_uchr_same, \
+    default: kv_uchr_first)(x)
+static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
+
 /* String(x): text, validated, or a copy of a Bytes borrow, validated */
 #define KV_STRING_OF(x) _Generic((x), \
     kv_bytes *: kv_string_from_bytes, const kv_bytes *: kv_string_from_bytes, \
@@ -111,6 +129,7 @@ char *kv_template_string(char *p, size_t max, kv_string s);
     unsigned char: kv_string_append_cp, unsigned short: kv_string_append_cp, unsigned: kv_string_append_cp, \
     unsigned long: kv_string_append_cp, unsigned long long: kv_string_append_cp, \
     kv_string: kv_string_append_owned, kv_string *: kv_string_append_ref, const kv_string *: kv_string_append_ref, \
+    kv_uchr: kv_string_append_uchr, \
     default: kv_string_append_text)((s), (x))
 
 /* Bytes(x): n zero bytes of a number, a copy of text or of a Bytes borrow */
@@ -165,7 +184,7 @@ uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf);
 #define KV_TYPENAME_INT128
 #endif
 #define kv_typename(v) _Generic((v), \
-    kv_bytes: "Bytes", kv_string: "String", \
+    kv_bytes: "Bytes", kv_string: "String", kv_uchr: "uchr", \
     bool: "bool", char: "u8", signed char: "i8", short: "i16", int: "i32", \
     long: KV_TYPENAME_LONG, long long: "i64", \
     unsigned char: "u8", unsigned short: "u16", unsigned: "u32", \
@@ -190,7 +209,7 @@ uint8_t *kv_cstr_u128(unsigned __int128 v, uint8_t *buf);
    int64_t is `long` on some platforms and `long long` on others, and a
    _Generic list may not name the same type twice. */
 #define KV_PROPERTY_cstr \
-    kv_bytes: kv_cstr_bytes, kv_string: kv_cstr_string, \
+    kv_bytes: kv_cstr_bytes, kv_string: kv_cstr_string, kv_uchr: kv_cstr_uchr, \
     bool: kv_cstr_bool, char: kv_cstr_char, \
     signed char: kv_cstr_i64, short: kv_cstr_i64, int: kv_cstr_i64, \
     long: kv_cstr_i64, long long: kv_cstr_i64, \
@@ -394,7 +413,7 @@ void kv_print_u128(unsigned __int128 v);
 #endif
 
 #define kv_print1(v) _Generic((v), \
-    kv_bytes: kv_print_bytes, kv_string: kv_print_string, \
+    kv_bytes: kv_print_bytes, kv_string: kv_print_string, kv_uchr: kv_print_uchr, \
     bool: kv_print_bool, \
     char: kv_print_char, \
     signed char: kv_print_i64, short: kv_print_i64, int: kv_print_i64, \
@@ -501,6 +520,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
    (36 digits and a 4-digit exponent, IEEE quad); a pointer is 0x and
    its digits ("(nil)" on glibc is shorter). */
 #define KV_TEMPLATE_BOUND(v) _Generic((v), \
+    kv_uchr: 4, kv_bytes: 0, kv_string: 0, \
     bool: 5, char: 1, \
     signed char: 4, short: 6, int: 11, long: 20, long long: 20, \
     unsigned char: 3, unsigned short: 5, unsigned: 10, unsigned long: 20, unsigned long long: 20, \
@@ -525,7 +545,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
     char *: kv_template_str, const char *: kv_template_str, \
     signed char *: kv_template_str, const signed char *: kv_template_str, \
     unsigned char *: kv_template_str, const unsigned char *: kv_template_str, \
-    kv_bytes: kv_template_bytes_owner, kv_string: kv_template_string, \
+    kv_bytes: kv_template_bytes_owner, kv_string: kv_template_string, kv_uchr: kv_template_uchr, \
     default: kv_template_ptr)((b).at, (max), (v))
 /* a buffer the size of the storage, and where the text built in it ends */
 #define KV_TEMPLATE_BUILD(b, storage) \

@@ -23,7 +23,10 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   are a pointer's size, since its name is a function value (#31).
 - **`a.count`** is an array's number of elements (#49), `a.size` its
   bytes; see [arrays.md](arrays.md). A `cstr`'s `.count` is its
-  `strlen` (#52).
+  `strlen` (#52); a `String`'s its codepoints (#55).
+- **`c.utf32`** and **`c.codepoint`** are a `uchr`'s number, a `u32`,
+  and **`n.uchr`** an integer's codepoint (#56); see
+  [ownership.md](ownership.md).
 - **`v.type`** is `v`'s type, written where a type goes (#34): after `:`
   and `as`, in `sizeof(...)`, in compound literals and in function types.
   `v` is a variable or `$k`, possibly followed by `.member`, `^` and

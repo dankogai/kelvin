@@ -63,7 +63,7 @@ var s = String("héllo, κόσμε")  // text, checked
 s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
 s.append(0x1F600)
 println(s, " ", s.count, " ", s.bytes^.count)   // héllo, κόσμε 🌍😀 15 27
-for c in s { if c > 127 { ... } }                // each codepoint, a u32
+for c in s { if c > 127 { ... } }                // each codepoint, a uchr
 let t = s.copy()
 println(s == t, " ", t.cstr)
 let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
@@ -78,7 +78,7 @@ let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
   `const Bytes^`, with `s.bytes^.count` the bytes and `s.bytes^[i]` a
   byte; `s.cstr` the text; `s.size` 32.
 - **Methods:** `append(x)`, also `s += x`, where `x` is text, a
-  codepoint (a `u32`, or any integer; a surrogate or a number past
+  `uchr` or a codepoint as a number (a surrogate or a number past
   U+10FFFF ends the program), a borrow `&other`, or a `String` an
   expression gives; `clear()`, `reserve(n)`, `compact()`, `copy()`.
   There is no `insert` or `remove` yet, and no `s[i]`: a position in a
@@ -87,8 +87,14 @@ let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
 - A `Bytes` takes a `String` through `s.bytes`; a `String` takes a
   `Bytes` through `b.string()` or, up to a NUL, `b.cstr`; a borrow of
   the other kind is an error that says so.
-- The codepoint is a `u32` for now; whether it should be a type of its
-  own is open.
+- **`uchr`** is a codepoint on the stack (#56), a value type of four
+  bytes: `for c in s` gives one, `uchr("é")` is the first codepoint of
+  text, `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
+  replacement character, where it is none. `print(c)`, `${c}` and
+  `c.cstr` show it as its UTF-8; `c.utf32`, or `c.codepoint`, is the
+  number, a `u32`, as `u32(c)` and `i64(c)` are. It compares with `==`,
+  `<` and the rest, with a `uchr` or a number (`c == 'a'`), and has no
+  arithmetic: `c.utf32 + 1`. `s += c` appends it.
 
 ## The rules
 

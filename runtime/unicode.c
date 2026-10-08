@@ -158,3 +158,48 @@ bool kv_bytes_is_utf8(const kv_bytes *b) { return kv_utf8_valid(b->at ? b->at : 
 void kv_print_string(kv_string s) { kv_print_bytes(s.b); }
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf) { return kv_cstr_bytes(s.b, buf); }
 char *kv_template_string(char *p, size_t max, kv_string s) { return kv_template_bytes_owner(p, max, s.b); }
+
+/* ---------- uchr (#56): a codepoint on the stack, text when shown ---------- */
+
+/* the codepoint, or U+FFFD, the replacement character, for a number that
+   is none: a surrogate, or past U+10FFFF */
+kv_uchr kv_uchr_of(uint64_t n) {
+    return (kv_uchr){(n >= 0xD800 && n <= 0xDFFF) || n > 0x10FFFF ? 0xFFFD : (uint32_t)n};
+}
+
+/* the first codepoint of text, or U+FFFD for empty or malformed text */
+kv_uchr kv_uchr_first(const void *text) {
+    const uint8_t *p = text;
+    if (!p || !*p)
+        return (kv_uchr){0xFFFD};
+    size_t len = *p < 0x80 ? 1 : (*p & 0xE0) == 0xC0 ? 2 : (*p & 0xF0) == 0xE0 ? 3 : (*p & 0xF8) == 0xF0 ? 4 : 0;
+    size_t n = 0;
+    while (n < len && p[n])
+        n++;
+    if (!len || n < len || !kv_utf8_valid(p, len, NULL))
+        return (kv_uchr){0xFFFD};
+    return (kv_uchr){kv_utf8_next(&p)};
+}
+
+/* its UTF-8, with a NUL, in buf: at most 5 bytes */
+uint8_t *kv_cstr_uchr(kv_uchr c, uint8_t *buf) {
+    size_t n = kv_utf8_put(c.cp, buf);
+    buf[n] = 0;
+    return buf;
+}
+
+void kv_print_uchr(kv_uchr c) {
+    uint8_t out[5];
+    size_t n = kv_utf8_put(c.cp, out);
+    if (n)
+        fwrite(out, 1, n, stdout);
+}
+
+char *kv_template_uchr(char *p, size_t max, kv_uchr c) {
+    uint8_t out[5];
+    size_t n = kv_utf8_put(c.cp, out);
+    return kv_template_bytes(p, max, n, out);
+}
+
+void kv_string_append_uchr(kv_string *s, kv_uchr c) { kv_string_append_cp(s, c.cp); }
+

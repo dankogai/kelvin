@@ -130,6 +130,7 @@ static const char *c_type_name(const char *name) {
         {"any", "void"}, /* any^ is void * */
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
+        {"uchr", "kv_uchr"}, /* a codepoint (#56) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -500,6 +501,8 @@ static char *expr_bare(Expr *e) {
     case E_CAST:
         if (e->op && !strcmp(e->op, "converter"))
             return strfmt("(%s)(%s)", decl(e->type, ""), expr_bare(e->a));
+        if (e->op && !strcmp(e->op, "uchr")) /* uchr(x) (#56) */
+            return strfmt("KV_UCHR_OF(%s)", expr_bare(e->a));
         if (e->op && !strncmp(e->op, "text", 4))
             return text_number(e);
         return strfmt("(%s)%s", decl(e->type, ""), expr(e->a));
@@ -527,6 +530,10 @@ static char *expr_bare(Expr *e) {
            of the receiver's struct, or of one value. The receiver is
            evaluated once: sizeof and _Generic do not evaluate. */
         char *recv = expr(e->a);
+        if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
+            return strfmt("(%s).cp", recv);
+        if (e->op && !strcmp(e->op, "to")) /* n.uchr (#56) */
+            return strfmt("kv_uchr_of(%s)", recv);
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes (#54) */
             if (!strcmp(e->text, "cstr"))
                 return strfmt("kv_bytes_cstr(&%s)", recv);
@@ -1287,8 +1294,8 @@ static void stmt(Stmt *s) {
         line("{");
         indent++;
         sync(s->pos);
-        if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55) */
-            line(strcmp(s->name, "_") ? "%s = kv_utf8_next(&%s);" : "kv_utf8_next(&%s);",
+        if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55, #56) */
+            line(strcmp(s->name, "_") ? "%s = (kv_uchr){kv_utf8_next(&%s)};" : "kv_utf8_next(&%s);",
                  strcmp(s->name, "_") ? decl(const_type(s->type), s->name) : p, p);
         else if (!strcmp(s->name, "_"))
             ; /* for _ in s names no variable */
@@ -1475,7 +1482,7 @@ static char *text_bound(Type *t, const char *lv) {
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
-        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "4"},
         {"f32 _Complex", "31"},         {"f64 _Complex", "49"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
@@ -1543,7 +1550,7 @@ static const char *template_bound(Expr *x) {
         return "KV_TEMPLATE_STR";
     static const struct { const char *type, *bound; } numbers[] = {
         {"i8", "4"},   {"u8", "3"},   {"i16", "6"},   {"u16", "5"},    {"i32", "11"}, {"u32", "10"}, {"i64", "20"},
-        {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"},
+        {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"}, {"uchr", "4"},
     };
     for (size_t i = 0; i < sizeof numbers / sizeof numbers[0]; i++)
         if (!strcmp(t->name, numbers[i].type))

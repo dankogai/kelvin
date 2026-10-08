@@ -2578,3 +2578,27 @@ P67, and the codepoint type is Q15.
 
 There are 481 tests, and all pass with clang and with gcc 15.
 
+### 88. `uchr`
+
+> `var s = string("コガイ ダン"); for c in s {...}` gives a stream of
+> integers representing codepoints which is a little inconvenient. It
+> should be `uchr` type on a stack which is a Unicode codepoint
+> internally yet stringified as a utf-8 `cstr` so it prints fine with
+> `print()` and friends. `uchr` types has `.utf32` attribute which
+> returns `u32`. `.codepoint` can be its alias. Also give array types
+> `.uchr` attribute which converts its integer value to `uchr`,
+> `U+0000` if failed (is `U+FEFF` better?)
+
+**Claude** implemented #56: `uchr` is a four-byte value, a codepoint
+in a struct of its own so that C's `_Generic` can tell it from a
+`u32`; `print`, templates and `.cstr` show its UTF-8, `.utf32` and
+`.codepoint` give the number, comparisons compare the numbers, and
+there is no arithmetic. `n.uchr`, `uchr(n)` and `uchr(text)` make one,
+with U+FFFD, the replacement character, where the number is no
+codepoint: Unicode defines it for this, where U+0000 is a NUL that ends
+C text and U+FEFF a byte order mark. "Array types" was read as integer
+types. `for c in s` gives a `uchr` now, and `s += c` appends it. The
+details are provisional P68, and Q15 is answered.
+
+There are 484 tests, and all pass with clang and with gcc 15.
+
