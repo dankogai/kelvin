@@ -29,6 +29,11 @@ let names:[cstr] = ["ab", "cd"] // the count, 2, comes from the value
 struct bag { n: i64; xs: [i64](3) }
 ```
 
+- `[[T]]` with a value counts every dimension: the outer from the rows,
+  the inner from the first row, which every row must match, since C
+  needs one inner count. `var m:[[i64]] = [[1, 2, 3], [4, 5, 6]]` is
+  `[[i64](3)](2)`; a row that is a string gives no count, so write it,
+  `[[u8](3)]`.
 - A qualifier is the elements', inside the brackets: `[const u8]`.
 - Suffixes still read left to right after the brackets: `[T](N)^` is a
   pointer to the array, `[T^](N)` an array of pointers.

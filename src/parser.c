@@ -3931,13 +3931,31 @@ static Type *inferred_type(Expr *e, Pos pos);
 /* T[] with [a, b, ...] is T[N] (#48): the length is the items' count,
    where none is designated, so that kelvinc knows it, as for T[N] */
 static void count_items(Type *t, Expr *init) {
-    if (!t || t->kind != T_ARRAY || t->size || !init || init->kind != E_INIT || !init->bracket)
+    if (!t || t->kind != T_ARRAY || !init || init->kind != E_INIT || !init->bracket)
         return;
     for (int i = 0; i < init->designators.len; i++)
         if (init->designators.data[i])
             return;
-    t->size = new_expr(E_LITERAL, init->pos);
-    t->size->text = strfmt("%d", init->items.len);
+    if (!t->size) {
+        t->size = new_expr(E_LITERAL, init->pos);
+        t->size->text = strfmt("%d", init->items.len);
+    }
+    /* the rows of [[T]] count alike, as C needs every inner count: the
+       first row's, which every row must match */
+    if (t->elem->kind == T_ARRAY && !t->elem->size && init->items.len) {
+        Expr *first = init->items.data[0];
+        if (first->kind != E_INIT || !first->bracket)
+            error_at(first->pos, "the rows of an array of arrays are written [...], or their count is written in "
+                                 "the type, as in '[[T](n)]'");
+        count_items(t->elem, first);
+        for (int i = 1; i < init->items.len; i++) {
+            Expr *row = init->items.data[i];
+            if (row->kind != E_INIT || !row->bracket || row->items.len != first->items.len)
+                error_at(row->pos, "every row of an array of arrays has the count of the first, %d, which C needs "
+                                   "in the type",
+                         first->items.len);
+        }
+    }
 }
 
 /* The type of [a, b, ...] (#48): T[N] where every item is a T kelvinc

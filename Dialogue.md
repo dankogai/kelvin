@@ -2545,3 +2545,17 @@ rules are in `documents/ownership.md`.
 
 There are 474 tests, and all pass with clang and with gcc 15.
 
+### 86. The inner counts of `[[[i32]]]`
+
+> `var array3d:[[[i32]]] = [[[0,1],[0,1]],[[0,1],[0,1]]]` does not
+> work: `error: array has incomplete element type 'int64_t[]'` while
+> `var array3d = [[[0,1],[0,1]],[[0,1],[0,1]]]` does. Why? Needs to be
+> fixed.
+
+Inference (#48) counted every dimension from the literal, while a
+written `[[[i32]]]` took only the outer count from the value, leaving
+C `int32_t[2][][]`, which it rejects. **Claude** made the written type
+count the inner dimensions too, from the first row, which every row
+must match, since C has one inner count; a row that is a string is an
+error that asks for the count in the type.
+
