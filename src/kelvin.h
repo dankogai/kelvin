@@ -193,6 +193,7 @@ enum {
     EACH_ARRAY,    /* the elements, stopping early at 0 or nullptr */
     EACH_RECORDS,  /* the elements of an array of structs, all of them */
     EACH_UNSEEN,   /* a pointer whose type kelvinc cannot see, as EACH_POINTER */
+    EACH_BYTES,    /* the count bytes of a Bytes (#54), NULs included */
 };
 
 typedef struct Stmt Stmt;

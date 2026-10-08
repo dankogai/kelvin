@@ -133,6 +133,13 @@ number, as every integer does: `println(s[0])` prints `104` for `h`,
 and `println(s.hex)` its address. In a template, `${s}` is the text
 and `${s.addr}` the address. See [printing.md](printing.md).
 
+## `Bytes`
+
+A `Bytes` is text, or any bytes, on the heap, that grows: `var b =
+Bytes("hello"); b += ", world"`. It is an owner, freed when its block
+ends, with `b.cstr` a borrow of its text and `b.count` its bytes. See
+[ownership.md](ownership.md).
+
 ## What is not here yet
 
 A string type with a length of its own, growth, slicing and encoding is

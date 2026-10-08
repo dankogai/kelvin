@@ -59,17 +59,20 @@ static List scope_types; /* Type * (or NULL) for each name in scope_names */
 /* for each name: 0 for a var, else what kind of let (#27) */
 enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH };
 static List scope_lets;
+static List scope_moved; /* per binding: moved out, so dead until assigned anew (#54) */
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 
 static void close_scope(void) {
-    scope_names.len = scope_types.len = scope_lets.len = (int)(intptr_t)scope_marks.data[--scope_marks.len];
+    scope_names.len = scope_types.len = scope_lets.len = scope_moved.len =
+        (int)(intptr_t)scope_marks.data[--scope_marks.len];
 }
 
 static void declare_binding(const char *name, Type *type, int let) {
     list_push(&scope_names, (void *)name);
     list_push(&scope_types, type);
     list_push(&scope_lets, (void *)(intptr_t)let);
+    list_push(&scope_moved, (void *)0);
 }
 
 static void declare_typed(const char *name, Type *type) { declare_binding(name, type, LET_NONE); }
@@ -284,7 +287,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -308,7 +311,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -447,6 +450,15 @@ static Type *base_type(const char *name, Pos pos);
 static Type *cstr_type(Pos pos);
 static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
+static bool is_bytes(Type *t);
+static bool is_owner(Type *t);
+static bool owner_place(Expr *e);
+static bool is_moved(const char *name);
+static void set_moved(const char *name, bool moved);
+static void reject_owner_copy(Expr *value, Type *target, Pos pos);
+static void move_argument(Expr *arg, Type *param, const char *what);
+static const char *let_target(Expr *e);
+static Type *value_type(Expr *e);
 
 /* Is name a Kelvin enumerator that no local hides? */
 static bool enumerator_named(const char *name) {
@@ -911,6 +923,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static bool repeatable(Expr *e);
 static bool reaches_c(List *cands, Expr *call, int k);
 static void drop_cstr_args(Expr *call, Decl *d);
+static void move_args(Expr *call, Decl *d);
+static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
@@ -1027,6 +1041,8 @@ static Expr *parse_postfix_ops(Expr *e) {
         if (line_ends_expression() || cur == postfix_stop)
             return e;
         Token *t = peek();
+        if (is_p(peek(), "[") && is_bytes(value_type(e)) && !owner_place(e))
+            error_at(peek()->pos, "indexing a Bytes that an expression gives: bind it to a variable first");
         if (accept_p("[")) {
             bool saved = ident_annotation_ok;
             bool saved_brace = brace_ends_condition;
@@ -1038,6 +1054,8 @@ static Expr *parse_postfix_ops(Expr *e) {
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p("]");
+            if (is_bytes(value_type(e)))
+                x->op = "bytes"; /* b[i] of a Bytes is checked (#54) */
             e = x;
         } else if (accept_p("(")) {
             bool saved = ident_annotation_ok;
@@ -1095,6 +1113,52 @@ static Expr *parse_postfix_ops(Expr *e) {
                 char c = expr_class(e, &record);
                 if (c != 'c' && c != 'u' && !(c == 's' && record_has_field(record, member)))
                     error_at(name->pos, "%s() " SHELVED_HINT, member);
+            }
+            if (call && is_bytes(value_type(e))) {
+                /* a Bytes method (#54): append, insert, remove, clear,
+                   reserve, compact, copy; on a place; the first six change
+                   it, so not on a let */
+                static const struct { const char *name; int arity; bool changes; } methods[] = {
+                    {"append", 1, true}, {"insert", 2, true}, {"remove", 2, true}, {"clear", 0, true},
+                    {"reserve", 1, true}, {"compact", 0, true}, {"copy", 0, false}};
+                int which = -1;
+                for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
+                    if (!strcmp(member, methods[k].name))
+                        which = (int)k;
+                if (which < 0)
+                    error_at(name->pos, "a Bytes has no method '%s': append, insert, remove, clear, reserve, compact "
+                                        "and copy, and the properties count, capacity, at and cstr",
+                             member);
+                if (!owner_place(e))
+                    error_at(name->pos, "'.%s' of a Bytes that an expression gives: bind it to a variable first",
+                             member);
+                if (methods[which].changes && let_target(e))
+                    error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
+                advance();
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                x->op = "bytes";
+                bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+                brace_ends_condition = brace_in_for = false;
+                while (!is_p(peek(), ")")) {
+                    list_push(&x->items, parse_assign());
+                    if (!accept_p(","))
+                        break;
+                }
+                brace_ends_condition = saved_brace;
+                brace_in_for = saved_for;
+                expect_p(")");
+                if (x->items.len != methods[which].arity)
+                    error_at(name->pos, "'.%s' takes %d argument%s", member, methods[which].arity,
+                             methods[which].arity == 1 ? "" : "s");
+                Expr *given = which == 0 ? x->items.data[0] : which == 1 ? x->items.data[1] : NULL;
+                if (given && owner_place(given))
+                    error_at(given->pos, "'.%s' of an owner would copy it: give a borrow, '&%s', or a copy, '%s.copy()'",
+                             member, given->kind == E_IDENT ? given->text : "...",
+                             given->kind == E_IDENT ? given->text : "...");
+                e = x;
+                continue;
             }
             if (call && is_method_name(member)) {
                 /* v.method(args) */
@@ -1333,6 +1397,9 @@ static Expr *parse_primary(void) {
         advance();
         Expr *e = new_expr(t->kind == TK_IDENT ? E_IDENT : E_LITERAL, t->pos);
         e->text = t->text;
+        /* an owner moved out is dead until assigned anew (#54) */
+        if (t->kind == TK_IDENT && is_moved(t->text) && !is_p(peek(), "="))
+            error_at(t->pos, "'%s' was moved out and holds nothing now: assign it anew before using it", t->text);
         /* a Kelvin function's name, which overloads may share (#41) */
         if (t->kind == TK_IDENT && !lookup_type(t->text) && function_named(t->text)) {
             List cands = overloads_of(t->text, NULL);
@@ -1352,6 +1419,30 @@ static Expr *parse_primary(void) {
         return e;
     }
     reject_c_int_name(t);
+    if (is_kw(t, "Bytes") && is_p(peek2(), "(")) {
+        /* Bytes(), Bytes(n), Bytes(text), Bytes(&b), Bytes(p, n) (#54) */
+        advance();
+        advance();
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "Bytes";
+        e->op = "bytes";
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        while (!is_p(peek(), ")")) {
+            list_push(&e->items, parse_assign());
+            if (!accept_p(","))
+                break;
+        }
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        if (e->items.len > 2)
+            error_at(t->pos, "Bytes takes nothing, a count, text, a borrow of a Bytes, or bytes and their count");
+        if (e->items.len == 1 && owner_place(e->items.data[0]))
+            error_at(t->pos, "Bytes(b) would copy an owner: write b.copy(), or Bytes(&b)");
+        return e;
+    }
     if (is_converter(t)) {
         /* T(v): a converter for a built-in type. codegen emits ((T)(v)),
            grouping v even when it is a header macro such as 1.5 + 2.5 */
@@ -1660,6 +1751,35 @@ static Expr *parse_binary(int min_prec) {
              (!strcmp(e->op, "+") && is_cstr(value_type(e->b)))))
             error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
                              "'var p:u8^ := s'");
+        if (is_bytes(value_type(e->a)) || is_bytes(value_type(e->b))) {
+            /* a Bytes compares with == and != by its bytes (#54), with
+               another Bytes, both places */
+            if (strcmp(e->op, "==") && strcmp(e->op, "!="))
+                error_at(t->pos, "a Bytes has no operator '%s': compare with == and !=, append with .append or +=",
+                         e->op);
+            if (!owner_place(e->a) || !owner_place(e->b))
+                error_at(t->pos, "a Bytes compares with another Bytes, both in variables");
+            Expr *eq = new_expr(E_CALL, t->pos);
+            eq->a = new_expr(E_IDENT, t->pos);
+            eq->a->text = "kv_bytes_eq";
+            eq->op = "c";
+            Expr *pa = new_expr(E_PREFIX, t->pos), *pb = new_expr(E_PREFIX, t->pos);
+            pa->op = pb->op = "&";
+            pa->a = e->a;
+            pb->a = e->b;
+            list_push(&eq->items, pa);
+            list_push(&eq->items, pb);
+            eq->is_bool = true;
+            if (!strcmp(e->op, "!=")) {
+                Expr *not = new_expr(E_PREFIX, t->pos);
+                not->op = "!";
+                not->a = eq;
+                not->is_bool = true;
+                eq = not;
+            }
+            lhs = eq;
+            continue;
+        }
         lhs = overloadable_op(t) ? resolve_operator(e, e->op, e->a, e->b) : e; /* (#42) */
     }
 }
@@ -1773,6 +1893,11 @@ static Type *type_through(Expr *e, Type *(*base)(Expr *)) {
     }
     case E_INDEX: {
         Type *t = base(e->a);
+        if (is_bytes(t)) { /* b[i] (#54): a u8, const for a let */
+            Type *u = base_type("u8", e->pos);
+            u->is_const = let_target(e->a) != NULL;
+            return u;
+        }
         return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
     }
     case E_FIELD: {
@@ -1990,6 +2115,8 @@ static Type *value_type_of(Expr *e) {
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "bytes")) /* Bytes(...) (#54) */
+            return base_type("Bytes", e->pos);
         /* the overload chosen, or the result all that C may choose have,
            or C's own function's (unseen) (#41, #42) */
         if (e->target)
@@ -2024,6 +2151,8 @@ static Type *value_type_of(Expr *e) {
         return b && c && b->kind == T_BASE && c->kind == T_BASE && !strcmp(kelvin_type(b), kelvin_type(c)) ? b : NULL;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "bytes")) /* a Bytes method (#54): copy gives a Bytes */
+            return !strcmp(e->text, "copy") ? base_type("Bytes", e->pos) : NULL;
         Type *rt = value_type(e->a);
         Decl *m = rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
         if (m) /* the method of the receiver's type */
@@ -2042,6 +2171,14 @@ static Type *value_type_of(Expr *e) {
     case E_TEMPLATE: /* its text is a cstr (#39, #52) */
         return cstr_type(e->pos);
     case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a cstr */
+        if (e->op && !strcmp(e->op, "bytes") && !strcmp(e->text, "at")) { /* b.at (#54) */
+            Type *p = xcalloc(1, sizeof *p);
+            p->kind = T_PTR;
+            p->pos = e->pos;
+            p->elem = base_type("u8", e->pos);
+            p->elem->is_const = let_target(e->a) != NULL;
+            return p;
+        }
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return value_type(e->a);
         if (strcmp(e->text, "cstr") && strcmp(e->text, "dec") && strcmp(e->text, "hex") && strcmp(e->text, "oct") &&
@@ -2821,6 +2958,7 @@ static void resolve_call(Expr *call) {
         return;
     if (!function_named(callee->text)) { /* C's function, which a Kelvin one may overload later */
         list_push(&c_called, callee->text);
+        reject_owners_to_c(call);
         return;
     }
     List cands = overloads_of(callee->text, NULL);
@@ -2844,6 +2982,7 @@ static void resolve_call(Expr *call) {
         if (!other) {
             call->target = only;
             drop_cstr_args(call, only);
+            move_args(call, only);
             return;
         }
     } else {
@@ -2854,8 +2993,10 @@ static void resolve_call(Expr *call) {
             typed_literals(call);
             list_push(&dispatched, call);
         }
-        if (call->target)
+        if (call->target) {
             drop_cstr_args(call, call->target);
+            move_args(call, call->target);
+        }
         if (call->target || call->cands.len)
             return;
     }
@@ -2863,6 +3004,27 @@ static void resolve_call(Expr *call) {
        ones then overload it, and are named by their types in C */
     call->op = "c";
     list_push(&c_called, callee->text);
+    reject_owners_to_c(call);
+}
+
+/* an owner given by value to a Kelvin function moves into it (O5) */
+static void move_args(Expr *call, Decl *d) {
+    for (int k = 0; k < call->items.len && k < d->params.len; k++)
+        move_argument(call->items.data[k], param_type(((Var *)d->params.data[k])->type), strfmt("'%s'", d->name));
+}
+
+/* C sees pointers, not owners (O8); print and println show one */
+static void reject_owners_to_c(Expr *call) {
+    if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println")))
+        return;
+    for (int k = 0; k < call->items.len; k++) {
+        Expr *x = call->items.data[k];
+        if (is_owner(value_type(x)))
+            error_at(x->pos, "an owner cannot be given to a C function, which could not free it: pass '%s.at' and "
+                             "'%s.count', or '%s.cstr'",
+                     x->kind == E_IDENT ? x->text : "b", x->kind == E_IDENT ? x->text : "b",
+                     x->kind == E_IDENT ? x->text : "b");
+    }
 }
 
 /* a cstr given to a u8^ parameter of the Kelvin function called (#52) */
@@ -3031,6 +3193,21 @@ static bool converter_is_field(Expr *v, const char *member) {
    for `.size` whenever kelvinc cannot see that the receiver is not a C
    struct (the field wins when unsure). */
 static Expr *property(Expr *e, Token *name, char *member) {
+    if (is_bytes(value_type(e)) && (!strcmp(member, "count") || !strcmp(member, "capacity") || !strcmp(member, "at") ||
+                                    !strcmp(member, "cstr"))) {
+        /* a Bytes (#54): its count and capacity, its bytes, and its text
+           as a cstr, a borrow; of a place, since a value an expression
+           gives would be lost */
+        if (!owner_place(e))
+            error_at(name->pos, "'.%s' of a Bytes that an expression gives: bind it to a variable first, which frees "
+                                "it when its block ends",
+                     member);
+        Expr *x = new_expr(E_PROPERTY, name->pos);
+        x->a = e;
+        x->text = member;
+        x->op = "bytes";
+        return x;
+    }
     if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member})) {
         /* v.i64 is i64(v), so "42".i64 reads text (#36). A field of that
            name wins: a Kelvin struct's, a C struct's, and, as for .size,
@@ -3247,6 +3424,18 @@ static Expr *text_in_buffer(Expr *e);
    outer block, or a global, would keep it after it is gone; the
    function's own parameters end with its body */
 static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
+    /* a borrow of a local owner too (#54) */
+    if (target->kind == E_IDENT && value->kind == E_PREFIX && !strcmp(value->op, "&") && value->a->kind == E_IDENT &&
+        is_owner(value_type(value->a))) {
+        int b = binding_index(value->a->text), i = binding_index(target->text);
+        int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
+        int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (b >= globals && b >= here && i >= 0 && i < here)
+            error_at(pos, "a borrow of '%s' outlives it: '%s' is freed when this block ends, and '%s' is of an "
+                          "outer one",
+                     value->a->text, value->a->text, target->text);
+        return;
+    }
     Expr *text = target->kind == E_IDENT ? text_in_buffer(value) : NULL;
     if (!text || text->kind != E_TEMPLATE)
         return;
@@ -3325,7 +3514,7 @@ static const char *let_target(Expr *e) {
         return e->a ? let_target(e->a) : NULL;
     case E_INDEX: {
         Type *t = value_type(e->a);
-        return t && t->kind == T_ARRAY ? let_target(e->a) : NULL;
+        return t && (t->kind == T_ARRAY || is_bytes(t)) ? let_target(e->a) : NULL; /* a Bytes's byte too (#54) */
     }
     default:
         return NULL;
@@ -3407,6 +3596,22 @@ static Expr *parse_assign(void) {
             if ((!strcmp(t->text, "+=") || !strcmp(t->text, "-=")) && is_cstr(value_type(lhs)))
                 error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
                                  "a 'var p:u8^ := s'");
+            if (!strcmp(t->text, "+=") && is_bytes(value_type(lhs))) {
+                /* b += x is b.append(x) (#54) */
+                if (!owner_place(lhs))
+                    error_at(t->pos, "'+=' on a Bytes that an expression gives: bind it to a variable first");
+                Expr *x = new_expr(E_METHOD, t->pos);
+                x->a = lhs;
+                x->text = "append";
+                x->op = "bytes";
+                Expr *given = parse_assign();
+                if (owner_place(given))
+                    error_at(given->pos, "'+=' of an owner would copy it: append a borrow, '&%s', or a copy, '%s.copy()'",
+                             given->kind == E_IDENT ? given->text : "...", given->kind == E_IDENT ? given->text : "...");
+                list_push(&x->items, given);
+                assign_ok = ok;
+                return x;
+            }
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
                                 lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);
@@ -3427,6 +3632,11 @@ static Expr *parse_assign(void) {
             pick_overload(e->b, target_type(lhs));
             if (!strcmp(t->text, ":="))
                 e->b = drop_cstr(e->b, target_type(lhs));
+            if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
+                reject_owner_copy(e->b, target_type(lhs), t->pos);
+                if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
+                    set_moved(lhs->text, false);
+            }
             reject_template_escape(lhs, e->b, t->pos);
             /* z += w with an operator a struct defines is z = z + w (#42) */
             if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {
@@ -3553,6 +3763,7 @@ static Expr *parse_initializer_for(Type *t) {
             expect_p("=");
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = drop_cstr(parse_initializer_for(item), item); /* a cstr into a u8^ member (#52) */
+        reject_owner_copy(value, item, value->pos);
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
            elision), which kelvinc does not follow. A string fills an
@@ -3617,6 +3828,82 @@ static Type *cstr_type(Pos pos) {
 }
 
 static bool is_cstr(Type *t) { return t && t->kind == T_PTR && t->cstr; }
+
+/* ---------- owners (#54): Bytes, and what holds one ---------- */
+
+static bool is_bytes(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && !strcmp(t->name, "Bytes");
+}
+
+/* An owner: a Bytes, a Kelvin struct with an owner member, or an array of
+   owners. A variable owns one, and its block frees it. */
+static bool is_owner(Type *t) {
+    if (!t)
+        return false;
+    if (t->kind == T_TYPEOF)
+        return is_owner(t->elem);
+    if (t->kind == T_ARRAY)
+        return is_owner(t->elem);
+    if (t->kind != T_BASE)
+        return false;
+    if (is_bytes(t))
+        return true;
+    Decl *r;
+    if (type_class(t, &r) != 's' || !r)
+        return false;
+    for (int i = 0; i < r->members.len; i++)
+        if (is_owner(((Var *)r->members.data[i])->type))
+            return true;
+    return false;
+}
+
+/* a place that owns: a variable, a field, an element, p^ */
+static bool owner_place(Expr *e) {
+    return is_owner(value_type(e)) &&
+           (e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF);
+}
+
+/* an owner is never copied by = (O3): a place of an owner type may not
+   initialize or be assigned to another; a value an expression gives moves */
+static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
+    if (!is_owner(target) || !owner_place(value))
+        return;
+    char *what = value->kind == E_IDENT ? strfmt("'%s'", value->text) : "it";
+    error_at(pos, "an owner is not copied by '=' (#54): copy its bytes with %s.copy(), or borrow it with ':= &%s'",
+             what, value->kind == E_IDENT ? value->text : "...");
+}
+
+static bool is_moved(const char *name) {
+    int i = binding_index(name);
+    return i >= 0 && scope_moved.data[i];
+}
+
+static void set_moved(const char *name, bool moved) {
+    int i = binding_index(name);
+    if (i >= 0)
+        scope_moved.data[i] = (void *)(intptr_t)moved;
+}
+
+/* passing an owner by value moves it (O5): a local variable's name may
+   be given, and is dead afterwards; a field or an element cannot be */
+static void move_argument(Expr *arg, Type *param, const char *what) {
+    if (!is_owner(param) || !is_owner(value_type(arg)))
+        return;
+    if (arg->kind == E_IDENT) {
+        int i = binding_index(arg->text);
+        int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (i >= globals) {
+            set_moved(arg->text, true);
+            return;
+        }
+        error_at(arg->pos, "'%s' is a global owner, which cannot move into %s: pass a borrow, '&%s', or a copy",
+                 arg->text, what, arg->text);
+    }
+    if (owner_place(arg))
+        error_at(arg->pos, "an owner moves into %s only as a whole variable: pass a borrow, '&...', or a copy", what);
+}
 
 /* An implicit drop of a cstr's immutability (#52): where a u8^ (to u8
    that is not const) is declared, assigned or passed from a cstr value,
@@ -3735,6 +4022,13 @@ static void reject_kv_name(Token *t) {
 
 /* [T](n) of a count C computes at run time is a VLA that is zero-filled
    after its declaration, which a let, const in C, cannot be (#49) */
+/* an array of owners, as a variable, waits for its own change (#54) */
+static void reject_owner_array(Var *v) {
+    if (v->type && v->type->kind == T_ARRAY && is_owner(v->type->elem))
+        error_at(v->pos, "an array of owners is not here yet: a struct may hold them");
+}
+
+static void reject_owner_array(Var *v);
 static void reject_let_vla(Var *v, int let) {
     Expr *z = v->init;
     if (let && z && z->kind == E_COMPOUND && !z->a && v->type && v->type->kind == T_ARRAY && v->type->size &&
@@ -3757,6 +4051,8 @@ static Var *parse_var(bool with_init, int let) {
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
         reject_let_vla(v, let);
+        reject_owner_copy(v->init, v->type, v->init->pos);
+        reject_owner_array(v);
         scope_types.data[scope_types.len - 1] = v->type;
         if (!v->type && v->init->kind == E_FUNC)
             error_at(v->pos, "'%s' needs a type: in %s, an array length names a parameter, which a function type "
@@ -3775,6 +4071,8 @@ static Var *parse_var(bool with_init, int let) {
     v->type = parse_type();
     if (with_init) /* a declaration: in scope before its initializer */
         declare_binding(v->name, v->type, let);
+    if (with_init)
+        reject_owner_array(v);
     if (with_init && (is_p(peek(), "=") || is_p(peek(), ":="))) {
         Token *op = advance();
         check_assign_op(op->text, v->type, what, op->pos, NULL);
@@ -3783,6 +4081,8 @@ static Var *parse_var(bool with_init, int let) {
         count_items(v->type, v->init);
         reject_let_vla(v, let);
         v->init = drop_cstr(v->init, v->type);
+        reject_owner_copy(v->init, v->type, v->init->pos);
+        reject_owner_array(v);
         pick_overload(v->init, v->type);
     }
     return v;
@@ -4188,6 +4488,29 @@ static bool is_assignment(Expr *e) {
 }
 
 /* Returning text in the function's own buffer (#21) is an error */
+/* return b moves a local owner out (O4); a field or an element of one
+   cannot go alone, and a borrow of a local owner dies with it (O6) */
+static void return_owner(Expr *e) {
+    if (e->kind == E_IDENT && is_owner(value_type(e))) {
+        int i = binding_index(e->text);
+        int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (i >= globals)
+            set_moved(e->text, true);
+        return;
+    }
+    if (owner_place(e))
+        error_at(e->pos, "an owner is returned as a whole variable, which moves out: a part of one is copied with "
+                         ".copy()");
+    if (e->kind == E_PREFIX && !strcmp(e->op, "&") && e->a->kind == E_IDENT && is_owner(value_type(e->a))) {
+        int i = binding_index(e->a->text);
+        int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (i >= globals)
+            error_at(e->pos, "a borrow of '%s' is returned, and '%s' is freed when this function returns: return "
+                             "'%s' itself, which moves it out",
+                     e->a->text, e->a->text, e->a->text);
+    }
+}
+
 static void reject_returned_text(Expr *e, bool anon) {
     Expr *text = text_in_buffer(e);
     if (text && text->kind == E_TEMPLATE)
@@ -4317,6 +4640,7 @@ static void implicit_return(Decl *d) {
         pick_overload(last->expr, d->ret);
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
             reject_returned_text(last->expr, d->anon);
+        return_owner(last->expr);
         return;
     }
     Stmt *dropped = dropped_at_end(last, !is_main(d));
@@ -4852,7 +5176,12 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                            "the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'");
     Type *elem = NULL;
     Decl *record = NULL;
-    if (!t) {
+    if (is_bytes(t)) { /* its count bytes, NULs included (#54) */
+        if (!owner_place(seq))
+            error_at(seq->pos, "for over a Bytes that an expression gives: bind it to a variable first");
+        s->each = EACH_BYTES;
+        elem = base_type("u8", seq->pos);
+    } else if (!t) {
         s->each = EACH_UNSEEN;
     } else if (t->kind == T_ARRAY) {
         if (!t->size)
@@ -5132,6 +5461,8 @@ static Stmt *parse_stmt_here(void) {
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)
             reject_returned_text(s->expr, parsing_fn->anon);
+        if (s->expr && result)
+            return_owner(s->expr);
         bool semicolon = is_p(peek(), ";");
         end_statement();
         Token *n = peek();
@@ -5183,6 +5514,17 @@ static Stmt *parse_stmt_here(void) {
     s->expr = parse_assignments();
     ident_annotation_ok = saved;
     end_statement();
+    /* a Bytes an expression gives, unbound, is freed at once (O4) */
+    if (is_bytes(value_type(s->expr)) && !owner_place(s->expr)) {
+        Expr *drop = new_expr(E_CALL, pos);
+        drop->a = new_expr(E_IDENT, pos);
+        drop->a->text = "kv_bytes_discard";
+        drop->op = "c";
+        list_push(&drop->items, s->expr);
+        s->expr = drop;
+    } else if (is_owner(value_type(s->expr)) && !owner_place(s->expr)) {
+        error_at(pos, "a struct that owns is given and dropped here: bind it to a variable, which frees it");
+    }
     return s;
 }
 
@@ -5446,7 +5788,10 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
             } else {
                 do {
                     reject_c_fn_pointer(cur, "");
-                    list_push(&d->members, parse_var(false, LET_NONE));
+                    Var *m = parse_var(false, LET_NONE);
+                    if (kind == D_UNION && is_owner(m->type))
+                        error_at(m->pos, "a union cannot hold an owner (#54): which member to free is unknown");
+                    list_push(&d->members, m);
                 } while (accept_p(","));
                 end_statement();
             }
@@ -5500,6 +5845,7 @@ Program *parse(Token *tokens, int ntoks) {
     scope_names = (List){0};
     scope_types = (List){0};
     scope_lets = (List){0};
+    scope_moved = (List){0};
     scope_marks = (List){0};
     records = (List){0};
     functions = (List){0};

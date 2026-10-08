@@ -40,6 +40,13 @@ static List count_names;  /* char *: names whose .count the function uses */
 static List count_cache;  /* name, cache name, in pairs; innermost last */
 static List param_caches; /* the declarations a function's body block starts with */
 static const char *count_cache_of(const char *name);
+static const char *owner_free(Type *t);
+static const char *owner_take(Type *t);
+static List owner_locals; /* name, type, in pairs: the owners of the function's blocks (#54) */
+static bool local_owner(Expr *e);
+static Type *local_owner_type(const char *name);
+static bool owner_assign(Expr *e);
+
 /* the template literals' storage in the innermost block (#39),
    "_kv_template0[size]" each */
 static List *template_vars;
@@ -121,6 +128,7 @@ static const char *c_type_name(const char *name) {
         {"f32", "float"},     {"f64", "double"},
         {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
         {"any", "void"}, /* any^ is void * */
+        {"Bytes", "kv_bytes"}, /* an owner (#54) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -451,6 +459,13 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "bytes")) { /* Bytes(...) (#54) */
+            if (!e->items.len)
+                return "kv_bytes_new()";
+            if (e->items.len == 1)
+                return strfmt("KV_BYTES_OF(%s)", expr(e->items.data[0]));
+            return strfmt("kv_bytes_from(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
+        }
         if (e->cands.len)
             return dispatch_call(e);
         Buf b = {0};
@@ -460,12 +475,20 @@ static char *expr_bare(Expr *e) {
         if ((e->target || (e->op && !strcmp(e->op, "c"))) && e->a->paren)
             callee = strfmt("((%s))", callee); /* (f)(x) calls the function, not a macro of its name */
         buf_printf(&b, "%s(", callee);
-        for (int i = 0; i < e->items.len; i++)
-            buf_printf(&b, "%s%s", i ? ", " : "", expr(e->items.data[i]));
+        for (int i = 0; i < e->items.len; i++) {
+            Expr *x = e->items.data[i];
+            /* a local owner given by value moves into the callee (#54) */
+            const char *take = e->target && i < e->target->params.len && local_owner(x)
+                                   ? owner_take(((Var *)e->target->params.data[i])->type)
+                                   : NULL;
+            buf_printf(&b, "%s%s", i ? ", " : "", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+        }
         buf_puts(&b, ")");
         return b.buf;
     }
     case E_INDEX:
+        if (e->a && e->op && !strcmp(e->op, "bytes")) /* b[i] of a Bytes, checked (#54) */
+            return strfmt("(*kv_bytes_at(&%s, %s))", expr(e->a), expr(e->b));
         return strfmt("%s[%s]", e->a ? expr(e->a) : "", expr(e->b));
     case E_FIELD:
         if (e->a && e->a->kind == E_DEREF && !e->a->paren)
@@ -501,6 +524,11 @@ static char *expr_bare(Expr *e) {
            of the receiver's struct, or of one value. The receiver is
            evaluated once: sizeof and _Generic do not evaluate. */
         char *recv = expr(e->a);
+        if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes (#54) */
+            if (!strcmp(e->text, "cstr"))
+                return strfmt("kv_bytes_cstr(&%s)", recv);
+            return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
+        }
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
         if (!strcmp(e->text, "count") && e->op && !strcmp(e->op, "cstr")) {
@@ -558,6 +586,18 @@ static char *expr_bare(Expr *e) {
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */
+            char *recv = strfmt("&%s", expr(e->a));
+            if (!strcmp(e->text, "append"))
+                return strfmt("KV_BYTES_APPEND(%s, %s)", recv, expr(e->items.data[0]));
+            if (!strcmp(e->text, "insert"))
+                return strfmt("KV_BYTES_INSERT(%s, %s, %s)", recv, expr(e->items.data[0]), expr(e->items.data[1]));
+            if (!strcmp(e->text, "remove"))
+                return strfmt("kv_bytes_remove(%s, %s, %s)", recv, expr(e->items.data[0]), expr(e->items.data[1]));
+            if (!strcmp(e->text, "reserve"))
+                return strfmt("kv_bytes_reserve(%s, %s)", recv, expr(e->items.data[0]));
+            return strfmt("kv_bytes_%s(%s)", e->text, recv); /* clear, compact, copy */
+        }
         /* The receiver is evaluated once into a temporary, which also
            keeps chains like a.b().c() linear in size (GNU statement
            expression and __auto_type, both accepted by gcc and clang) */
@@ -799,6 +839,67 @@ static char *operand_before(Expr *e) {
     return e->paren && may_be_type ? strfmt("(%s)", s) : s;
 }
 
+/* The function that frees an owner of type t (#54): kv_bytes_free, or a
+   struct's derived _kv_T_free; NULL for a type that owns nothing */
+static const char *owner_free(Type *t) {
+    if (!t)
+        return NULL;
+    if (t->kind == T_TYPEOF)
+        return owner_free(t->elem);
+    if (t->kind != T_BASE)
+        return NULL;
+    if (!strcmp(t->name, "Bytes"))
+        return "kv_bytes_free";
+    Decl *r = kelvin_record(t->name);
+    if (!r || r->kind != D_STRUCT)
+        return NULL;
+    for (int i = 0; i < r->members.len; i++) {
+        Type *m = ((Var *)r->members.data[i])->type;
+        if (owner_free(m) || (m->kind == T_ARRAY && owner_free(m->elem)))
+            return strfmt("_kv_%s_free", r->name);
+    }
+    return NULL;
+}
+
+/* the function that moves an owner out of a place, leaving it empty */
+static const char *owner_take(Type *t) {
+    const char *f = owner_free(t);
+    if (!f)
+        return NULL;
+    return !strcmp(f, "kv_bytes_free") ? "kv_bytes_take" : strfmt("%.*s_take", (int)strlen(f) - 5, f);
+}
+
+/* Is e the name of an owner of this function, a local or a parameter? */
+static bool local_owner(Expr *e) {
+    if (e->kind != E_IDENT)
+        return false;
+    for (int i = owner_locals.len - 2; i >= 0; i -= 2)
+        if (!strcmp(owner_locals.data[i], e->text))
+            return true;
+    return false;
+}
+
+static Type *local_owner_type(const char *name) {
+    for (int i = owner_locals.len - 2; i >= 0; i -= 2)
+        if (!strcmp(owner_locals.data[i], name))
+            return owner_locals.data[i + 1];
+    return NULL;
+}
+
+/* b = v where b owns (#54): what b held is freed, then b takes v, which an
+   expression gave (a place would be a copy, which the parser rejects) */
+static bool owner_assign(Expr *e) {
+    Type *t = e->a->kind == E_IDENT ? local_owner_type(e->a->text) : NULL;
+    const char *f = t ? owner_free(t) : NULL;
+    if (!f) /* a field, a global, or no owner: C's assignment */
+        return false;
+    if (!strcmp(f, "kv_bytes_free"))
+        line("kv_bytes_assign(&%s, %s);", c_name(e->a->text), expr(e->b));
+    else
+        line("%s(&%s), %s = %s;", f, c_name(e->a->text), c_name(e->a->text), expr(e->b));
+    return true;
+}
+
 /* the _kv_ variable that keeps name's .count in this scope, or NULL */
 static const char *count_cache_of(const char *name) {
     for (int i = count_cache.len - 2; i >= 0; i -= 2)
@@ -882,7 +983,16 @@ static Type *const_type(Type *t) {
 }
 
 static char *var_decl(const char *storage, Var *v) {
-    char *d = decl(v->is_let ? const_type(v->type) : v->type, v->name);
+    /* an owner (#54): its block frees it (cleanup), it starts empty, and
+       a let one is const to kelvinc only, as C's free takes it */
+    const char *frees = text_bufs && !(storage && (!strcmp(storage, "static") || !strcmp(storage, "extern")))
+                            ? owner_free(v->type)
+                            : NULL;
+    char *d = decl(v->is_let && !owner_free(v->type) ? const_type(v->type) : v->type, v->name);
+    if (frees)
+        d = strfmt("__attribute__((cleanup(%s))) %s", frees, d);
+    if (owner_free(v->type) && !v->init)
+        return strfmt("%s%s%s = {0}", storage ? storage : "", storage ? " " : "", d);
     /* a reference declared without a value is nullptr (#20) */
     /* a v.type that C writes as __typeof__ is the type kelvinc saw (#34) */
     Type *seen = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
@@ -928,7 +1038,7 @@ static void stmt(Stmt *s) {
         List bufs = {0}, *outer_bufs = text_bufs, tmpls = {0}, *outer_tmpls = template_vars;
         Buf outer = out;
         int top = mapped_line;
-        int caches = count_cache.len;
+        int caches = count_cache.len, owners = owner_locals.len;
         text_bufs = &bufs;
         template_vars = &tmpls;
         out = (Buf){0};
@@ -938,6 +1048,7 @@ static void stmt(Stmt *s) {
         for (int i = 0; i < s->stmts.len; i++)
             stmt(s->stmts.data[i]);
         count_cache.len = caches;
+        owner_locals.len = owners;
         Buf items = out;
         out = outer;
         text_bufs = outer_bufs;
@@ -975,6 +1086,10 @@ static void stmt(Stmt *s) {
             Var *v = s->vars.data[i];
             sync(v->pos);
             line("%s;", var_decl(s->storage, v));
+            if (owner_free(v->type) && !(s->storage && !strcmp(s->storage, "static"))) {
+                list_push(&owner_locals, v->name);
+                list_push(&owner_locals, v->type);
+            }
             Type *t = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
             if (t->kind == T_PTR && t->cstr && counts_cstr(v->name)) { /* its .count, once measured (#52) */
                 char *cache = hidden(v->name, "count");
@@ -994,6 +1109,8 @@ static void stmt(Stmt *s) {
             line("%s;", cond(s->expr));
         else if (s->expr->kind == E_TERNARY && !s->expr->paren)
             line("%s ? %s : %s;", cond(s->expr->a), expr(s->expr->b), expr(s->expr->c));
+        else if (s->expr->kind == E_BINARY && !strcmp(s->expr->op, "=") && owner_assign(s->expr))
+            ; /* an owner took a value, and freed what it held (#54) */
         else
             line("%s;", expr(s->expr));
         /* a cstr assigned anew is measured again (#52) */
@@ -1086,7 +1203,18 @@ static void stmt(Stmt *s) {
         if (s->from_argv) /* char ** in C, u8^^ in Kelvin */
             seq = strfmt("(%s)(%s)", decl(reader, ""), seq);
         bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
-        if (s->each == EACH_LIST) {
+        if (s->each == EACH_BYTES) { /* a Bytes's count bytes (#54) */
+            end = hidden(v, "end");
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("%s = (%s).at;", decl(reader, p), seq);
+            sync(s->pos);
+            line("%s = %s + (%s).count;", decl(const_type(reader), end), p, seq);
+            sync(s->pos);
+            line("for (; %s < %s; %s++)", p, end, p);
+            wrap = true;
+        } else if (s->each == EACH_LIST) {
             Type *node = xcalloc(1, sizeof *node);
             *node = *s->elem;
             node->is_const = false;
@@ -1166,7 +1294,9 @@ static void stmt(Stmt *s) {
         line("continue;");
         break;
     case S_RETURN:
-        if (s->expr)
+        if (s->expr && local_owner(s->expr)) /* an owner moves out (#54) */
+            line("return %s(&%s);", owner_take(local_owner_type(s->expr->text)), c_name(s->expr->text));
+        else if (s->expr)
             line("return %s;", expr(s->expr));
         else
             line("return;");
@@ -1239,8 +1369,11 @@ static char *fn_head(Decl *d) {
         const char *argv_c = p->is_let && d->body ? "char **const %s" : "char **%s";
         /* $0, $1, ... (#32): the body need not use each one */
         const char *unused = p->name[0] == '$' ? "__attribute__((unused)) " : "";
-        buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused,
-                   argv ? strfmt(argv_c, p->name) : decl(t, c_name(p->name)));
+        /* an owner comes in by value and moves into a local (#54) */
+        const char *pname = owner_free(p->type) && d->body ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
+        if (owner_free(p->type))
+            t = p->type;
+        buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused, argv ? strfmt(argv_c, p->name) : decl(t, pname));
     }
     if (d->variadic)
         buf_puts(&params, ", ...");
@@ -1385,6 +1518,8 @@ static const char *template_bound(Expr *x) {
 /* a C expression that writes the text of `lv` (type t, not an array) at p
    and gives the end */
 static char *text_writer(Type *t, const char *lv) {
+    if (t->kind == T_BASE && !strcmp(t->name, "Bytes")) /* a Bytes member (#54): its bytes, cut as a string is */
+        return strfmt("kv_cstr_end(kv_cstr_bytes(%s, _kv_p))", lv);
     /* a function's address: ISO C converts it to an integer, not to a
        data pointer */
     if (t->kind == T_FUNC)
@@ -1614,9 +1749,16 @@ static void emit_decl(Decl *d) {
             line("%s", fn_head(d));
             count_names = (List){0};
             find_counts_stmt(d->body);
-            param_caches.len = count_cache.len = 0;
+            param_caches.len = count_cache.len = owner_locals.len = 0;
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
+                const char *frees = owner_free(p->type);
+                if (frees) { /* an owner moved in (#54): the body's block frees it */
+                    list_push(&param_caches, strfmt("__attribute__((cleanup(%s))) %s = _kv_%s_in;", frees,
+                                                    decl(p->type, c_name(p->name)), c_name(p->name)));
+                    list_push(&owner_locals, p->name);
+                    list_push(&owner_locals, p->type);
+                }
                 if (p->type->kind == T_PTR && p->type->cstr && counts_cstr(p->name)) {
                     char *cache = hidden(p->name, "count");
                     list_push(&param_caches, strfmt("size_t %s = (size_t)-1;", cache));
@@ -1663,6 +1805,35 @@ static void emit_decl(Decl *d) {
             recv->pos = d->pos;
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
+            if (d->kind == D_STRUCT && owner_free(recv)) { /* a struct that owns (#54) */
+                line("__attribute__((unused)) static inline void _kv_%s_free(%s *self)", d->name, decl(recv, ""));
+                line("{");
+                indent++;
+                for (int i = 0; i < d->members.len; i++) {
+                    Var *m = d->members.data[i];
+                    const char *f = owner_free(m->type);
+                    if (f) {
+                        line("%s(&self->%s);", f, m->name);
+                    } else if (m->type->kind == T_ARRAY && (f = owner_free(m->type->elem))) {
+                        line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof self->%s[0]; _kv_i++)", m->name,
+                             m->name);
+                        indent++;
+                        line("%s(&self->%s[_kv_i]);", f, m->name);
+                        indent--;
+                    }
+                }
+                indent--;
+                line("}");
+                line("__attribute__((unused)) static inline %s _kv_%s_take(%s *self)", decl(recv, ""), d->name,
+                     decl(recv, ""));
+                line("{");
+                indent++;
+                line("%s _kv_v = *self;", decl(recv, ""));
+                line("*self = (%s){0};", decl(recv, ""));
+                line("return _kv_v;");
+                indent--;
+                line("}");
+            }
             Decl *tm = text_method_of(recv->name);
             if (tm) {
                 /* T.cstr() (#53): its size from its template, and its

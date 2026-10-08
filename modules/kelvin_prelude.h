@@ -37,6 +37,65 @@
    A Kelvin struct's text, {x: 3, y: 4}, is written by a function kelvinc
    derives for it. A buffer for one value holds KV_CSTR_SCALAR bytes. */
 #define KV_CSTR_SCALAR 64
+
+/* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
+
+/* at[count] is a NUL that count does not count, so cstr borrows it; an
+   empty Bytes has at == NULL. A variable owns one and its block frees it
+   (cleanup); it moves by return and by passing, and copies by copy(). */
+typedef struct kv_bytes { uint8_t *at; size_t count, cap; } kv_bytes;
+kv_bytes kv_bytes_new(void);
+kv_bytes kv_bytes_zeros(size_t n);
+kv_bytes kv_bytes_from(const void *p, size_t n);
+kv_bytes kv_bytes_text(const void *s);
+kv_bytes kv_bytes_copy(const kv_bytes *b);
+kv_bytes kv_bytes_take(kv_bytes *b);
+void kv_bytes_free(kv_bytes *b);
+void kv_bytes_assign(kv_bytes *b, kv_bytes v);
+void kv_bytes_discard(kv_bytes v);
+const uint8_t *kv_bytes_cstr(const kv_bytes *b);
+uint8_t *kv_bytes_at(const kv_bytes *b, size_t i);
+void kv_bytes_reserve(kv_bytes *b, size_t n);
+void kv_bytes_append(kv_bytes *b, const void *p, size_t n);
+void kv_bytes_append_text(kv_bytes *b, const void *s);
+void kv_bytes_append_ref(kv_bytes *b, const kv_bytes *v);
+void kv_bytes_append_owned(kv_bytes *b, kv_bytes v);
+void kv_bytes_push(kv_bytes *b, uint8_t c);
+void kv_bytes_insert(kv_bytes *b, size_t i, const void *p, size_t n);
+void kv_bytes_insert_text(kv_bytes *b, size_t i, const void *s);
+void kv_bytes_insert_ref(kv_bytes *b, size_t i, const kv_bytes *v);
+void kv_bytes_insert_owned(kv_bytes *b, size_t i, kv_bytes v);
+void kv_bytes_insert_byte(kv_bytes *b, size_t i, uint8_t c);
+void kv_bytes_remove(kv_bytes *b, size_t i, size_t n);
+void kv_bytes_clear(kv_bytes *b);
+void kv_bytes_compact(kv_bytes *b);
+bool kv_bytes_eq(const kv_bytes *a, const kv_bytes *b);
+void kv_print_bytes(kv_bytes b);
+uint8_t *kv_cstr_bytes(kv_bytes b, uint8_t *buf);
+char *kv_template_bytes_owner(char *p, size_t max, kv_bytes b);
+/* Bytes(x): n zero bytes of a number, a copy of text or of a Bytes borrow */
+#define KV_BYTES_OF(x) _Generic((x), \
+    char: kv_bytes_zeros, signed char: kv_bytes_zeros, short: kv_bytes_zeros, int: kv_bytes_zeros, \
+    long: kv_bytes_zeros, long long: kv_bytes_zeros, \
+    unsigned char: kv_bytes_zeros, unsigned short: kv_bytes_zeros, unsigned: kv_bytes_zeros, \
+    unsigned long: kv_bytes_zeros, unsigned long long: kv_bytes_zeros, \
+    kv_bytes *: kv_bytes_copy, const kv_bytes *: kv_bytes_copy, \
+    default: kv_bytes_text)(x)
+/* b.append(x): a byte, text, a Bytes borrow, or a Bytes an expression gives, which is freed */
+#define KV_BYTES_APPEND(b, x) _Generic((x), \
+    char: kv_bytes_push, signed char: kv_bytes_push, short: kv_bytes_push, int: kv_bytes_push, \
+    long: kv_bytes_push, long long: kv_bytes_push, \
+    unsigned char: kv_bytes_push, unsigned short: kv_bytes_push, unsigned: kv_bytes_push, \
+    unsigned long: kv_bytes_push, unsigned long long: kv_bytes_push, \
+    kv_bytes: kv_bytes_append_owned, kv_bytes *: kv_bytes_append_ref, const kv_bytes *: kv_bytes_append_ref, \
+    default: kv_bytes_append_text)((b), (x))
+#define KV_BYTES_INSERT(b, i, x) _Generic((x), \
+    char: kv_bytes_insert_byte, signed char: kv_bytes_insert_byte, short: kv_bytes_insert_byte, int: kv_bytes_insert_byte, \
+    long: kv_bytes_insert_byte, long long: kv_bytes_insert_byte, \
+    unsigned char: kv_bytes_insert_byte, unsigned short: kv_bytes_insert_byte, unsigned: kv_bytes_insert_byte, \
+    unsigned long: kv_bytes_insert_byte, unsigned long long: kv_bytes_insert_byte, \
+    kv_bytes: kv_bytes_insert_owned, kv_bytes *: kv_bytes_insert_ref, const kv_bytes *: kv_bytes_insert_ref, \
+    default: kv_bytes_insert_text)((b), (i), (x))
 uint8_t *kv_cstr_bool(bool v, uint8_t *buf);
 uint8_t *kv_cstr_char(char v, uint8_t *buf);
 uint8_t *kv_cstr_i64(long long v, uint8_t *buf);
@@ -66,6 +125,7 @@ uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf);
 #define KV_TYPENAME_INT128
 #endif
 #define kv_typename(v) _Generic((v), \
+    kv_bytes: "Bytes", \
     bool: "bool", char: "u8", signed char: "i8", short: "i16", int: "i32", \
     long: KV_TYPENAME_LONG, long long: "i64", \
     unsigned char: "u8", unsigned short: "u16", unsigned: "u32", \
@@ -90,6 +150,7 @@ uint8_t *kv_cstr_u128(unsigned __int128 v, uint8_t *buf);
    int64_t is `long` on some platforms and `long long` on others, and a
    _Generic list may not name the same type twice. */
 #define KV_PROPERTY_cstr \
+    kv_bytes: kv_cstr_bytes, \
     bool: kv_cstr_bool, char: kv_cstr_char, \
     signed char: kv_cstr_i64, short: kv_cstr_i64, int: kv_cstr_i64, \
     long: kv_cstr_i64, long long: kv_cstr_i64, \
@@ -293,6 +354,7 @@ void kv_print_u128(unsigned __int128 v);
 #endif
 
 #define kv_print1(v) _Generic((v), \
+    kv_bytes: kv_print_bytes, \
     bool: kv_print_bool, \
     char: kv_print_char, \
     signed char: kv_print_i64, short: kv_print_i64, int: kv_print_i64, \
@@ -423,6 +485,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
     char *: kv_template_str, const char *: kv_template_str, \
     signed char *: kv_template_str, const signed char *: kv_template_str, \
     unsigned char *: kv_template_str, const unsigned char *: kv_template_str, \
+    kv_bytes: kv_template_bytes_owner, \
     default: kv_template_ptr)((b).at, (max), (v))
 /* a buffer the size of the storage, and where the text built in it ends */
 #define KV_TEMPLATE_BUILD(b, storage) \

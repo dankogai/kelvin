@@ -2473,3 +2473,75 @@ parameter, a built-in receiver or a second definition is an error.
 
 There are 461 tests, and all pass with clang and with gcc 15.
 
+### 84. Ownership, and `Bytes`
+
+> is there any kelvin spec that implicitly use heap so far?
+
+**Claude** checked the runtime, what kelvinc writes, and every test's
+C: none since #44; what remains is libc's own.
+
+> We have avoided heaps for the sake of memory safety. Buffer overrun
+> in still possible but we have made it harder and harder by
+> introducing `for in`, `.cstr, .count`, etc. IMHO time is high to
+> introduce expandable `String`, `Array` and even `Dictionary`, etc to
+> safely use heap, avoiding raw `malloc()` and `free()`. What is your
+> recommended strategy?
+>
+> * Rust-like borrow checking?
+> * Object-C-like refcount?
+> * Go-like GC?
+>
+> Though Kelvin is modern, I want to keep it lightweight enough to
+> allow `--emit-c`. So we deliberately avoided generics (I love it
+> myself), built-in GC, etc.
+
+**Claude** recommended none of the three: ownership by scope with moves
+and borrows, the rule kelvinc can enforce from what it sees, and that a
+copy through C cannot break, since an owner is never copied implicitly.
+Borrow checking needs a type checker with lifetimes; counting needs
+every copy seen, which the C ABI denies; a collector is a runtime. The
+containers would be plain C structs freed at their block's end with
+C's cleanup attribute, moved by `return` and by passing, borrowed as
+pointers with the escape rules text already has, and typed without
+generics by a prelude macro per element type.
+
+> 0. `Bytes` or `Data` which is simply `var [u8]` which can grow (or
+>    shrink if we add a method like `.compact()`, not necessarily `\0`
+>    terminated.
+>    1. `String` is a sequence of Unicode codepoints. it iterates by
+>       codepoints and malformed byte representation is forbidden.
+>    2. Generically speaking it is `Array<u8>` but should be treated
+>       specially.
+>    3. Which do you recommend, `Bytes` or `Data`?
+
+**Claude** recommended `Bytes`: it says what it holds, it pairs with
+`String` as Python, Rust and Go pair them, and a capitalized type
+would mean "owns heap". It proposed that a `Bytes` keep a NUL after
+its last byte, uncounted, so `b.cstr` is a borrow in O(1), and that
+`String` be a `Bytes` with the invariant.
+
+> go with Bytes. start the design with the ownership rules (I
+> personally like `Data` since I am used to Swift but you are
+> convincing enough).
+
+**Claude** wrote the rules O1 to O10 in Design.md, under "Proposed:
+ownership", with the surface of `Bytes`, and asked the user the
+questions that are theirs.
+
+### 85. `Bytes`
+
+> implicit moves, copy only by .copy(), abort out of range, doubling
+
+**Claude** implemented #54: `Bytes` as a keyword and a type, its
+runtime in `runtime/bytes.c` (one struct, its functions, two `_Generic`
+macros for `append` and `insert`), and the ownership rules in kelvinc:
+the cleanup attribute on locals and parameters, moves on `return` and
+on passing with the name dead afterwards, no copy by `=`, borrows as
+`&b` with the escape rules text has, a derived free for a struct that
+owns, no owner to a C function, and a checked index. Every rule has a
+test; the generated C of the main test runs under ASan with every
+allocation freed at exit. The details are provisional P66, and the
+rules are in `documents/ownership.md`.
+
+There are 474 tests, and all pass with clang and with gcc 15.
+

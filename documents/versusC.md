@@ -64,6 +64,8 @@ P-numbers in [Design.md](../Design.md).
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
 | `strlen(s)` | `s.count` (measured once per scope, #52) |
+| `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
+| `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
@@ -81,6 +83,7 @@ P-numbers in [Design.md](../Design.md).
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers |
 | [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing |
+| [ownership.md](ownership.md) | `Bytes`, the first owner on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as `Bytes^` |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, methods, operators |
 | [unions.md](unions.md) | unions, the same way |
 | [functions.md](functions.md) | `let f(...)`, function types, anonymous functions, overloading |
