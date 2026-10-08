@@ -26,7 +26,9 @@ let main():i32 {
   one, `{.f = 1.5}`. `[...]` is for arrays, and an error here.
 - **`.size`** is the largest member's, padded as C pads it.
 - **Text**: `b.cstr` is `<union bits>`, since kelvinc cannot tell which
-  member holds the value. Show a member instead, `b.u.hex`.
+  member holds the value. Define it as one template to say which:
+  `let bits.cstr():cstr { `bits ${self.u.hex}` }` (#53), or show a
+  member, `b.u.hex`.
 - **Methods and operators** are defined on a union as on a struct: an
   implicit `self`, passed by value, and `let ==(a:bits, b:bits):bool`.
   See [structs.md](structs.md).

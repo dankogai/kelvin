@@ -50,7 +50,8 @@ So far the changes from C are:
   `println("n = ", n)` works for any type with no import
 - every type can have methods, such as `let point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
-  (derived for structs, as `{x: 3, y: 4}`), where `cstr` is immutable
+  (derived for structs, as `{x: 3, y: 4}`, or defined as one template,
+  `let point.cstr():cstr { `(${self.x}, ${self.y})` }`), where `cstr` is immutable
   text, C's `const uint8_t *`, with `s.count` for its length;
   `toString()` waits for a true string type
 - properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,

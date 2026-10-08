@@ -69,7 +69,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs and
     arrays (`[a, b]`); a string field shows at most 60 bytes, and a longer
     one is cut with `...` *(provisional P35)*. A union is `<union name>`.
-    It cannot be overridden for now.
+    A struct or union may define its own, `let T.cstr():cstr { `...` }`,
+    one template literal (#53); see [structs.md](structs.md).
   - **Arrays** have no `.cstr` (C arrays are not values); index them, or
     put them in a struct.
   - **C structs and unions** from headers have no `.cstr` of their own.

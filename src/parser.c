@@ -4315,7 +4315,8 @@ static void implicit_return(Decl *d) {
                      kelvin_type(d->ret));
         last->kind = S_RETURN;
         pick_overload(last->expr, d->ret);
-        reject_returned_text(last->expr, d->anon);
+        if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
+            reject_returned_text(last->expr, d->anon);
         return;
     }
     Stmt *dropped = dropped_at_end(last, !is_main(d));
@@ -5129,7 +5130,7 @@ static Stmt *parse_stmt_here(void) {
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
-        if (s->expr && result)
+        if (s->expr && result && !parsing_fn->text_method)
             reject_returned_text(s->expr, parsing_fn->anon);
         bool semicolon = is_p(peek(), ";");
         end_statement();
@@ -5209,8 +5210,9 @@ static bool overloadable_op(Token *t) {
    struct may define, or 0 none of these */
 static int function_shape(int i) {
     Token *t = &toks[i];
-    if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && t[2].kind == TK_IDENT && is_p(t + 3, "("))
-        return 1;
+    if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && (t[2].kind == TK_IDENT || is_kw(&t[2], "cstr")) &&
+        is_p(t + 3, "("))
+        return 1; /* T.cstr() defines a struct's text (#53) */
     if (t->kind == TK_IDENT && is_p(t + 1, "("))
         return 2;
     if (overloadable_op(t) && is_p(t + 1, "("))
@@ -5320,16 +5322,22 @@ static void check_overload(Decl *d, Token *name) {
 
 /* type.name(params): T { ... }, a method with an implicit `self`. The
    receiver is a struct or union declared earlier, or a built-in type. */
+static void check_text_method(Decl *d, Token *name);
+
 static Decl *parse_method(Pos pos, const char *storage) {
     Token *recv = advance();
     advance(); /* . */
     Token *name = peek();
     Decl *d = new_decl(D_FN, pos, storage);
     reject_kv_name(name);
-    d->name = expect_ident("a method name");
+    /* T.cstr() defines a struct's or union's text (#53) */
+    d->text_method = is_kw(name, "cstr");
+    d->name = d->text_method ? advance()->text : expect_ident("a method name");
     d->recv_name = recv->text;
     if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
         error_at(name->pos, "%s() " SHELVED_HINT, d->name);
+    if (d->text_method && recv->kind == TK_KEYWORD)
+        error_at(name->pos, "a built-in type's text is fixed: '.cstr' may be defined for a struct or a union (#53)");
     if (recv->kind == TK_KEYWORD) {
         if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have methods", recv->text);
@@ -5381,10 +5389,34 @@ static Decl *parse_method(Pos pos, const char *storage) {
         parsing_fn = d;
         d->body = parse_fn_body(expect_p("{"));
         parsing_fn = NULL;
+        if (d->text_method)
+            check_text_method(d, name); /* before the body's last value is its result */
         implicit_return(d);
     }
+    if (d->text_method && !d->body)
+        error_at(name->pos, "'.cstr' of %s needs its body here: a prototype is not needed", d->recv_name);
     close_scope();
     return d;
+}
+
+/* T.cstr() (#53): no parameters, a cstr result, a body that is one
+   template literal, whose text kelvinc writes into the caller's buffer
+   as the derived text would be; one per type */
+static void check_text_method(Decl *d, Token *name) {
+    if (d->params.len || d->variadic)
+        error_at(name->pos, "'.cstr' takes no parameters: it is a property, read as 'v.cstr'");
+    if (!d->ret || !is_cstr(d->ret))
+        error_at(name->pos, "'.cstr' gives a cstr: write '%s.cstr():cstr'", d->recv_name);
+    Stmt *only = d->body->stmts.len == 1 ? d->body->stmts.data[0] : NULL;
+    if (!only || (only->kind != S_RETURN && only->kind != S_EXPR) || !only->expr ||
+        (only->expr->kind != E_TEMPLATE && only->expr->kind != E_STRING))
+        error_at(name->pos, "the body of '.cstr' is one template literal, as in '{ `(${self.x}, ${self.y})` }': its "
+                            "text goes into the caller's buffer, which kelvinc sizes from the template (#53)");
+    for (int i = 0; i < functions.len; i++) {
+        Decl *e = functions.data[i];
+        if (e != d && e->text_method && !strcmp(e->recv_name, d->recv_name))
+            error_at(name->pos, "'.cstr' of %s is defined already", d->recv_name);
+    }
 }
 
 static Decl *parse_record(Pos pos, DeclKind kind) {
@@ -5521,7 +5553,7 @@ Program *parse(Token *tokens, int ntoks) {
             advance();
         }
         if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
-            peek_at(2)->kind == TK_IDENT && is_p(peek_at(3), "(")) {
+            (peek_at(2)->kind == TK_IDENT || is_kw(peek_at(2), "cstr")) && is_p(peek_at(3), "(")) {
             top_name = strfmt("%s_%s", peek()->text, peek_at(2)->text);
             add_top_decl(prog, parse_method(t->pos, storage));
         } else if (peek()->kind == TK_IDENT && is_p(peek2(), "(")) {

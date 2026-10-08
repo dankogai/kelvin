@@ -48,7 +48,19 @@ member.
 `p.cstr` is derived text, `{x: 3, y: 4}`, with nested structs and arrays
 (`[a, b]`); a string field shows at most 60 bytes. A template shows a
 struct the same way, while `print` takes no struct: write `print(p.cstr)`
-or `` print(`${p}`) ``. It cannot be overridden for now. See
+or `` print(`${p}`) ``. A struct may define its own text (#53):
+
+```kelvin
+struct vector2d { x: f64; y: f64 }
+let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
+```
+
+The body is one template literal (a plain string literal counts),
+whose text kelvinc writes into the caller's buffer, sized from the
+template as every template is (#44); `v.cstr`, `${v}` in a template
+and the derived text of a struct that holds a `vector2d` all use it.
+It takes no parameters, gives a `cstr`, is read as a property, `v.cstr`,
+and a built-in type's text stays fixed *(provisional P65)*. See
 [properties.md](properties.md).
 
 ## Methods

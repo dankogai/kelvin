@@ -2444,3 +2444,32 @@ highest first, with C beside it; what moved and why; operators on
 structs; and what is not an operator. The index in `versusC.md` lists
 it.
 
+### 83. A struct's own text
+
+> ```
+> struct vector2d { x:f64, y:f64 }
+> let vector2d.cstr():cstr {
+>   `{${self.x}, ${self.y}}`
+> }
+> ```
+>
+> does not work with an error like: `expected ':', found '.'`
+
+**Claude** explained the two walls: `cstr` is a keyword, so the method
+head did not parse; and the derived text is written into a buffer the
+caller owns, which a method's own template could not be returned
+into. It proposed `let T.cstr():cstr { ... }` with a body of one
+template, which kelvinc compiles into that writer, sized from the
+template (#44).
+
+> go with the cstr override, one template body
+
+**Claude** implemented #53. The details are provisional P65: the size
+of the text is the template's room, in the enum at the struct; the
+writer is defined where the method is, building the template in its
+own block and copying it into the caller's buffer; `v.cstr`, `${v}`
+and the text of a struct that holds a `T` use it. Any other body, a
+parameter, a built-in receiver or a second definition is an error.
+
+There are 461 tests, and all pass with clang and with gcc 15.
+

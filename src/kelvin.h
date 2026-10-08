@@ -237,6 +237,8 @@ struct Decl {
     const char *op;       /* D_FN: the operator it defines, as "+" (#42) */
     char *cname;          /* D_FN: its name in C, by its parameter types when
                              overloaded or imported (#41), as sin__complex64 */
+    bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one
+                             template, written into the caller's buffer (#53) */
 };
 
 typedef struct {

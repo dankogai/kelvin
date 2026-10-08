@@ -45,6 +45,8 @@ static const char *count_cache_of(const char *name);
 static List *template_vars;
 static const char *template_bound(Expr *x);
 static bool byte_array(Expr *x);
+static char *template_room(Expr *e);
+static Decl *text_method_of(const char *tag);
 
 /* The size of the buffer that .dec, .hex, .oct or .bin of a number writes
    into, its NUL included: the longest is an i128's */
@@ -812,6 +814,43 @@ static bool counts_cstr(const char *name) {
     return false;
 }
 
+/* The room a template's text needs, its NUL included, as a C constant
+   (#44): the parts and each value's longest text; a nested template
+   counts its own room. For T.cstr() (#53), the size of T's text. */
+static char *template_room(Expr *e) {
+    Buf lits = {0}, bounds = {0};
+    buf_puts(&lits, "");
+    buf_puts(&bounds, "");
+    if (e->kind == E_STRING) {
+        for (int j = 0; j < e->items.len; j++)
+            buf_printf(&lits, " %s", (char *)e->items.data[j]);
+        return strfmt("sizeof%s", lits.buf);
+    }
+    for (int i = 0; i < e->items.len; i++) {
+        Expr *x = e->items.data[i];
+        if (x->kind == E_STRING) {
+            for (int j = 0; j < x->items.len; j++)
+                if (strcmp(x->items.data[j], "\"\""))
+                    buf_printf(&lits, " %s", (char *)x->items.data[j]);
+        } else if (x->kind == E_TEMPLATE) {
+            buf_printf(&bounds, " + (%s - 1)", template_room(x));
+        } else {
+            buf_printf(&bounds, " + %s", template_bound(x));
+        }
+    }
+    return strfmt("sizeof%s%s", lits.len ? lits.buf : " \"\"", bounds.buf);
+}
+
+/* the T.cstr() method that gives a struct's or union's text (#53), or NULL */
+static Decl *text_method_of(const char *tag) {
+    for (int i = 0; i < program->decls.len; i++) {
+        Decl *d = program->decls.data[i];
+        if (d->kind == D_FN && d->text_method && d->recv && !strcmp(d->recv->name, tag))
+            return d;
+    }
+    return NULL;
+}
+
 static char *initializer(Expr *e) {
     if (e->kind != E_INIT)
         return expr(e);
@@ -1533,7 +1572,43 @@ static void emit_decl(Decl *d) {
         /* registered before the body, so a method can call itself */
         if (d->recv)
             register_method(d->name, d->recv, method_cname(d));
-        if (!d->body) {
+        if (d->text_method) {
+            /* T.cstr() (#53): the template's text, built in the method's
+               block as any template is, then copied into the caller's
+               buffer, which has room for it (the enum at the struct) */
+            Stmt *only = d->body->stmts.data[0];
+            Expr *put = xcalloc(1, sizeof *put);
+            put->kind = E_CALL;
+            put->pos = only->pos;
+            put->a = xcalloc(1, sizeof *put->a);
+            put->a->kind = E_IDENT;
+            put->a->pos = only->pos;
+            put->a->text = "kv_cstr_put";
+            Expr *buf = xcalloc(1, sizeof *buf);
+            buf->kind = E_IDENT;
+            buf->pos = only->pos;
+            buf->text = "_kv_buf";
+            list_push(&put->items, buf);
+            list_push(&put->items, only->expr);
+            Stmt *copy = xcalloc(1, sizeof *copy);
+            copy->kind = S_EXPR;
+            copy->pos = only->pos;
+            copy->expr = put;
+            Stmt *ret = xcalloc(1, sizeof *ret);
+            ret->kind = S_RETURN;
+            ret->pos = only->pos;
+            ret->expr = buf;
+            Stmt *body = xcalloc(1, sizeof *body);
+            body->kind = S_BLOCK;
+            body->pos = d->body->pos;
+            list_push(&body->stmts, copy);
+            list_push(&body->stmts, ret);
+            line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf)",
+                 d->recv->name + (strncmp(d->recv->name, "struct ", 7) ? 6 : 7), decl(d->recv, "self"));
+            count_names = (List){0};
+            param_caches.len = count_cache.len = 0;
+            stmt(body);
+        } else if (!d->body) {
             line("%s;", fn_head(d));
         } else {
             line("%s", fn_head(d));
@@ -1588,8 +1663,17 @@ static void emit_decl(Decl *d) {
             recv->pos = d->pos;
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
-            if (is_cstr_used(d->name))
+            Decl *tm = text_method_of(recv->name);
+            if (tm) {
+                /* T.cstr() (#53): its size from its template, and its
+                   prototype here, its definition where it is written */
+                Stmt *only = tm->body->stmts.data[0];
+                line("enum { _kv_%s_cstr_size = %s };", d->name, template_room(only->expr));
+                line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
+                     decl(recv, "self"));
+            } else if (is_cstr_used(d->name)) {
                 emit_derived_cstr(d, recv);
+            }
             /* registered either way, for receivers kelvinc cannot see */
             register_method("cstr", recv, strfmt("_kv_%s_cstr", d->name));
         }
