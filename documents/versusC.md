@@ -65,6 +65,7 @@ P-numbers in [Design.md](../Design.md).
 | `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
 | `strlen(s)` | `s.count` (measured once per scope, #52) |
 | `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
+| a UTF-8 string by hand | `var s = String("héllo")`, `for c in s { }` by codepoint, `s.count` (#55) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
@@ -83,7 +84,7 @@ P-numbers in [Design.md](../Design.md).
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers |
 | [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing |
-| [ownership.md](ownership.md) | `Bytes`, the first owner on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as `Bytes^` |
+| [ownership.md](ownership.md) | `Bytes` and `String`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, methods, operators |
 | [unions.md](unions.md) | unions, the same way |
 | [functions.md](functions.md) | `let f(...)`, function types, anonymous functions, overloading |
@@ -96,8 +97,8 @@ P-numbers in [Design.md](../Design.md).
 ## Reserved words
 
 `print` and `println` belong to the prelude and cannot be redefined.
-The type name `String` is shelved until Kelvin has a true string type,
-and stays reserved, as do the method names `toString` and `fmt` (#22).
+`String` is a type since #55; the method names `toString` and `fmt`
+stay reserved (#22), as a value's text is `x.cstr`.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
 `bool`, `true`, `false`, `String`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a

@@ -2559,3 +2559,22 @@ count the inner dimensions too, from the first row, which every row
 must match, since C has one inner count; a row that is a string is an
 error that asks for the count in the type.
 
+### 87. `String`
+
+> now add `String`, a sequence of codepoints on `Bytes`
+
+**Claude** implemented #55 on the owner rules of #54: `String` is a
+`Bytes` that holds well-formed UTF-8 and keeps its count of codepoints;
+making or appending malformed text ends the program with a message,
+`b.isUTF8` asks first, and `b.string()` converts. `for c in s` gives
+each codepoint as a `u32`, `s.count` the codepoints, `s.bytes` a
+read-only borrow of the bytes. There is no `s[i]`, which would walk
+the text, and no `insert` or `remove` yet. A borrow of the other kind
+into `append` is an error naming `b.string()` or `s.bytes`, and `print`
+of an owner an expression gives, which nothing would free, is an error
+too (found while counting allocations). `String` stops being a shelved
+word; `toString` and `fmt` stay reserved. The details are provisional
+P67, and the codepoint type is Q15.
+
+There are 481 tests, and all pass with clang and with gcc 15.
+

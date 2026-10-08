@@ -90,7 +90,8 @@ So far the changes from C are:
 - `Bytes` is a growable array of bytes on the heap that its variable
   owns: freed when the block ends, moved by `return` and by passing,
   copied only by `.copy()`, borrowed as `Bytes^`; `b += "more"`,
-  `b[i]` checked
+  `b[i]` checked; `String` is a `Bytes` of well-formed UTF-8, counted
+  and walked by codepoint
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`

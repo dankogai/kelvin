@@ -194,6 +194,7 @@ enum {
     EACH_RECORDS,  /* the elements of an array of structs, all of them */
     EACH_UNSEEN,   /* a pointer whose type kelvinc cannot see, as EACH_POINTER */
     EACH_BYTES,    /* the count bytes of a Bytes (#54), NULs included */
+    EACH_STRING,   /* the codepoints of a String (#55), as u32 */
 };
 
 typedef struct Stmt Stmt;

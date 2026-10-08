@@ -133,16 +133,18 @@ number, as every integer does: `println(s[0])` prints `104` for `h`,
 and `println(s.hex)` its address. In a template, `${s}` is the text
 and `${s.addr}` the address. See [printing.md](printing.md).
 
-## `Bytes`
+## `Bytes` and `String`
 
 A `Bytes` is text, or any bytes, on the heap, that grows: `var b =
-Bytes("hello"); b += ", world"`. It is an owner, freed when its block
-ends, with `b.cstr` a borrow of its text and `b.count` its bytes. See
+Bytes("hello"); b += ", world"`. A `String` is a `Bytes` that holds
+well-formed UTF-8, counted and walked by codepoint: `var s =
+String("héllo"); for c in s { }`. Both are owners, freed when their
+block ends, with `.cstr` a borrow of their text. See
 [ownership.md](ownership.md).
 
 ## What is not here yet
 
-A string type with a length of its own, growth, slicing and encoding is
-to come; its names are reserved (#22). Until then, text is C's bytes,
-and so are its rules: a NUL ends it, nothing checks a bound, and a
-`cstr` that points at freed or ended storage is as wrong as in C.
+Slicing, searching and encodings other than UTF-8 are to come. A
+`cstr` is still C's bytes, with C's rules: a NUL ends it, nothing checks
+a bound, and one that points at freed or ended storage is as wrong as
+in C.

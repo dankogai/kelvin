@@ -129,6 +129,7 @@ static const char *c_type_name(const char *name) {
         {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
         {"any", "void"}, /* any^ is void * */
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
+        {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -466,6 +467,8 @@ static char *expr_bare(Expr *e) {
                 return strfmt("KV_BYTES_OF(%s)", expr(e->items.data[0]));
             return strfmt("kv_bytes_from(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
         }
+        if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
+            return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
         if (e->cands.len)
             return dispatch_call(e);
         Buf b = {0};
@@ -527,7 +530,16 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes (#54) */
             if (!strcmp(e->text, "cstr"))
                 return strfmt("kv_bytes_cstr(&%s)", recv);
+            if (!strcmp(e->text, "isUTF8"))
+                return strfmt("kv_bytes_is_utf8(&%s)", recv);
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
+        }
+        if (e->op && !strcmp(e->op, "string")) { /* a String (#55) */
+            if (!strcmp(e->text, "cstr"))
+                return strfmt("kv_bytes_cstr(&(%s).b)", recv);
+            if (!strcmp(e->text, "bytes"))
+                return strfmt("((const kv_bytes *)&(%s).b)", recv);
+            return strfmt("(%s).count", recv);
         }
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
@@ -586,8 +598,18 @@ static char *expr_bare(Expr *e) {
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "string")) { /* a String method (#55), on a place */
+            char *recv = strfmt("&%s", expr(e->a));
+            if (!strcmp(e->text, "append"))
+                return strfmt("KV_STRING_APPEND(%s, %s)", recv, expr(e->items.data[0]));
+            if (!strcmp(e->text, "reserve"))
+                return strfmt("kv_string_reserve(%s, %s)", recv, expr(e->items.data[0]));
+            return strfmt("kv_string_%s(%s)", e->text, recv); /* clear, compact, copy */
+        }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */
             char *recv = strfmt("&%s", expr(e->a));
+            if (!strcmp(e->text, "string"))
+                return strfmt("kv_string_from_bytes(%s)", recv);
             if (!strcmp(e->text, "append"))
                 return strfmt("KV_BYTES_APPEND(%s, %s)", recv, expr(e->items.data[0]));
             if (!strcmp(e->text, "insert"))
@@ -850,6 +872,8 @@ static const char *owner_free(Type *t) {
         return NULL;
     if (!strcmp(t->name, "Bytes"))
         return "kv_bytes_free";
+    if (!strcmp(t->name, "String"))
+        return "kv_string_free";
     Decl *r = kelvin_record(t->name);
     if (!r || r->kind != D_STRUCT)
         return NULL;
@@ -866,7 +890,7 @@ static const char *owner_take(Type *t) {
     const char *f = owner_free(t);
     if (!f)
         return NULL;
-    return !strcmp(f, "kv_bytes_free") ? "kv_bytes_take" : strfmt("%.*s_take", (int)strlen(f) - 5, f);
+    return strfmt("%.*s_take", (int)strlen(f) - 5, f);
 }
 
 /* Is e the name of an owner of this function, a local or a parameter? */
@@ -893,8 +917,8 @@ static bool owner_assign(Expr *e) {
     const char *f = t ? owner_free(t) : NULL;
     if (!f) /* a field, a global, or no owner: C's assignment */
         return false;
-    if (!strcmp(f, "kv_bytes_free"))
-        line("kv_bytes_assign(&%s, %s);", c_name(e->a->text), expr(e->b));
+    if (!strncmp(f, "kv_", 3)) /* kv_bytes_assign, kv_string_assign */
+        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
     else
         line("%s(&%s), %s = %s;", f, c_name(e->a->text), c_name(e->a->text), expr(e->b));
     return true;
@@ -1214,6 +1238,17 @@ static void stmt(Stmt *s) {
             sync(s->pos);
             line("for (; %s < %s; %s++)", p, end, p);
             wrap = true;
+        } else if (s->each == EACH_STRING) { /* a String's codepoints (#55), decoded as it goes */
+            end = hidden(v, "end");
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("const uint8_t *%s = (%s).b.at;", p, seq);
+            sync(s->pos);
+            line("const uint8_t *const %s = %s + (%s).b.count;", end, p, seq);
+            sync(s->pos);
+            line("for (; %s < %s; )", p, end);
+            wrap = true;
         } else if (s->each == EACH_LIST) {
             Type *node = xcalloc(1, sizeof *node);
             *node = *s->elem;
@@ -1252,7 +1287,10 @@ static void stmt(Stmt *s) {
         line("{");
         indent++;
         sync(s->pos);
-        if (!strcmp(s->name, "_"))
+        if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55) */
+            line(strcmp(s->name, "_") ? "%s = kv_utf8_next(&%s);" : "kv_utf8_next(&%s);",
+                 strcmp(s->name, "_") ? decl(const_type(s->type), s->name) : p, p);
+        else if (!strcmp(s->name, "_"))
             ; /* for _ in s names no variable */
         else if (s->each == EACH_LIST)
             line("%s = %s;", decl(const_type(s->type), s->name), p);
@@ -1520,6 +1558,8 @@ static const char *template_bound(Expr *x) {
 static char *text_writer(Type *t, const char *lv) {
     if (t->kind == T_BASE && !strcmp(t->name, "Bytes")) /* a Bytes member (#54): its bytes, cut as a string is */
         return strfmt("kv_cstr_end(kv_cstr_bytes(%s, _kv_p))", lv);
+    if (t->kind == T_BASE && !strcmp(t->name, "String")) /* a String member (#55) */
+        return strfmt("kv_cstr_end(kv_cstr_string(%s, _kv_p))", lv);
     /* a function's address: ISO C converts it to an integer, not to a
        data pointer */
     if (t->kind == T_FUNC)

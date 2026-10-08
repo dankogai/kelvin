@@ -1,10 +1,10 @@
-# Ownership: `Bytes`
+# Ownership: `Bytes` and `String`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
-variable's block frees. The rules below are what kelvinc enforces, from
+variable's block frees; `String` (#55) is a `Bytes` that holds UTF-8. The rules below are what kelvinc enforces, from
 what it sees; a copy of the struct through C is C's business, and
-harmless, since an owner is never copied implicitly. `String`, `Array`
+harmless, since an owner is never copied implicitly. `Array`
 and `Dictionary` are to follow the same rules.
 
 ## `Bytes`
@@ -50,6 +50,46 @@ for x in b { print(x, " ") } // each byte, count of them, NULs included
 - **Growth** doubles the capacity from 16; out of memory ends the
   program with a message, as an index out of range does.
 
+## `String`
+
+A `String` is a sequence of Unicode codepoints, kept as UTF-8 in a
+`Bytes` with its count of codepoints, and an owner under the same rules
+(#55). Malformed text is refused: where a `String` is made or appended
+from bytes that are not well-formed UTF-8 (overlong forms, surrogates,
+anything past U+10FFFF), the program ends with a message.
+
+```kelvin
+var s = String("héllo, κόσμε")  // text, checked
+s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
+s.append(0x1F600)
+println(s, " ", s.count, " ", s.bytes^.count)   // héllo, κόσμε 🌍😀 15 27
+for c in s { if c > 127 { ... } }                // each codepoint, a u32
+let t = s.copy()
+println(s == t, " ", t.cstr)
+let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
+```
+
+- **Making one:** `String()` is empty; `String("text")`, `String(s)`
+  of a `cstr` or a byte array, and `String(&b)` of a `Bytes` copy and
+  check the text; `b.string()` is the same as `String(&b)`, and
+  `b.isUTF8` says whether it would pass.
+- **Properties:** `s.count` the codepoints, kept with the text, so it
+  costs nothing; `s.bytes` a read-only borrow of the bytes, a
+  `const Bytes^`, with `s.bytes^.count` the bytes and `s.bytes^[i]` a
+  byte; `s.cstr` the text; `s.size` 32.
+- **Methods:** `append(x)`, also `s += x`, where `x` is text, a
+  codepoint (a `u32`, or any integer; a surrogate or a number past
+  U+10FFFF ends the program), a borrow `&other`, or a `String` an
+  expression gives; `clear()`, `reserve(n)`, `compact()`, `copy()`.
+  There is no `insert` or `remove` yet, and no `s[i]`: a position in a
+  `String` is a walk, so write `for c in s`, or index the bytes.
+- **`==` and `!=`** compare two `String`s in variables, by their bytes.
+- A `Bytes` takes a `String` through `s.bytes`; a `String` takes a
+  `Bytes` through `b.string()` or, up to a NUL, `b.cstr`; a borrow of
+  the other kind is an error that says so.
+- The codepoint is a `u32` for now; whether it should be a type of its
+  own is open.
+
 ## The rules
 
 | | Rule |
@@ -79,6 +119,7 @@ let total(data:Bytes):i64 {          // data moves in, and is freed here
 let longest(a:Bytes^, b:Bytes^):Bytes^ { a^.count >= b^.count ? a : b }   // borrows
 ```
 
-Not yet: an array of owners as a variable, `String`, `Array` and
-`Dictionary`, and sharing one owner from two places, which would be an
-explicit type of its own if it is ever needed.
+Not yet: an array of owners as a variable, `Array` and `Dictionary`,
+`insert` and `remove` on a `String`, and sharing one owner from two
+places, which would be an explicit type of its own if it is ever
+needed.
