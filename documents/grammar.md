@@ -99,6 +99,7 @@ so `for (;;) var x = 1` is an error. Names from C headers, such as
 | `~a` | `~a` | Unary `~` is still bitwise NOT |
 | `(int)x` | `i32(x)` or `x as i32` | See [integers.md](integers.md) |
 
+The full table, with precedence, is in [operators.md](operators.md).
 Everything else is C's, including precedence, so `6 & 3 == 3` is still
 `6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
 `?:`, `,`, compound literals and designated initializers, except that

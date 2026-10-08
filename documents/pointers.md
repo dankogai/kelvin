@@ -1,9 +1,11 @@
 # Pointers: `T^`, `:=`, `any^` and `nullptr`
 
 A pointer is written with a postfix `^`, in its type and when it is
-followed. Assigning one is `:=`, so that a reference and a value never
-look alike. This document has the pointer types, references, `any^` and
-`nullptr`, and stepping with `.next` and `.prev`. Arrays, which C turns
+followed, and made with a prefix `&`, as in C. Assigning one is `:=`, so
+that a reference and a value never look alike. This document has the
+pointer types, `&`, references, `any^` and `nullptr`, and stepping with
+`p++`, `.next` and `.prev`; every operator is in
+[operators.md](operators.md). Arrays, which C turns
 into pointers, are in [arrays.md](arrays.md); walking a pointer with
 `for x in p` is in [flow-controls.md](flow-controls.md); `.addr`, `.hex`
 and `.isNull` are in [properties.md](properties.md).
@@ -16,6 +18,31 @@ and `.isNull` are in [properties.md](properties.md).
 
 - `p^` is C's `*p`, and `p^.m` is `p->m`: postfix, so it chains left to
   right, and `p^[i]` is `(*p)[i]`. `->` is an error with a hint.
+
+## Prefix `&`
+
+`&x` is the address of `x`, as in C, and the one prefix operator a
+pointer needs:
+
+```kelvin
+var x:i32 = 1
+var p:i32^ := &x          // C: int32_t *p = &x;
+let q := &x               // inferred: q is i32^
+let k = 42
+let r := &k               // const i32^: a let's address points to const
+let m := &a[2]            // the rest of an array, or of a cstr (#52)
+let f := &twice           // a function's address is the function itself
+```
+
+- `&x` of a `let`, or of a let's field or element, points to `const`,
+  as a let is `const` in C (#27); `&x` of a `var` points to its type.
+- `&a[i]` of an array is a pointer into it, and of a `cstr` the rest of
+  the text, a `cstr` (#52). `&f` of a function is `f`, a function
+  value, as in C (#31).
+- `&` binds as C's prefix operators do, tighter than every binary
+  operator and looser than the postfix ones, so `&p^.m` is
+  `&(p^.m)` and `&a[i]` is `&(a[i])`; `(&x).hex` needs its parentheses.
+- There is no `*`: `*p` is an error that says to write `p^`.
 
 ## References: `:=` and `=`
 

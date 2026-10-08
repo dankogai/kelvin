@@ -2432,3 +2432,15 @@ and then "errors for stepping, implicit cast". **Claude** implemented
 
 There are 457 tests, and all pass with clang and with gcc 15.
 
+### 82. `&` and `operators.md`
+
+> mention the prefix `&` in `documents/pointers.md`. adding
+> `documents/operators.md` is also nice.
+
+**Claude** added a section on `&` to `pointers.md` (a let's address
+points to `const`, `&a[i]` and `&s[i]`, `&f` is `f`, where it binds,
+and that there is no `*`), and `operators.md`: the precedence table,
+highest first, with C beside it; what moved and why; operators on
+structs; and what is not an operator. The index in `versusC.md` lists
+it.
+
