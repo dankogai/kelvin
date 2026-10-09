@@ -125,4 +125,5 @@ including typedef names with suffixes, and under `sizeof`:
   spelling yet.
 - **`Array(a)`** copies a fixed array into a growable one, and
   `Array([1, 2, 3])` makes one of the elements written, and
-  `Array([[1], [2, 3]])` an Array of Arrays (#57, #58).
+  `Array([[1], [2, 3]])` an Array of Arrays (#57, #58); `$[1, 2, 3]` is
+  the value and `$[i64]` the type, for short (#62, #64).

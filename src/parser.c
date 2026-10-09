@@ -556,6 +556,8 @@ static int type_shape_end(int i) {
     int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "[")) /* $[T], an Array<T> (#64) */
+        return type_suffix_end(skip_group(i + 1));
     if (is_kw(&toks[i], "Array") && is_p(&toks[i + 1], "<")) { /* Array<T> (#57) */
         int e = type_shape_end(i + 2);
         if (e < 0 || (!is_p(&toks[e], ">") && !is_p(&toks[e], ">>")))
@@ -652,6 +654,7 @@ typedef enum {
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
 static Type *parse_anon_record(DeclKind kind, bool tagged);
+static Type *parse_dollar_array(Token *at);
 static Decl *anon_record_of(Type *t);
 static void reject_kv_name(Token *t);
 static void parse_cases(Decl *d);
@@ -803,6 +806,16 @@ static Type *parse_type_in(TypeContext ctx) {
         if (base->is_const || base->is_volatile)
             error_at(base->pos, "a qualifier of an Array is the variable's: a let does not change");
         Type *t = array_type(kw, parse_array_elem());
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
+    if (is_p(peek(), "$")) { /* $[T] is Array<T>, and $[[T]] Array<Array<T>> (#64) */
+        Token *d = advance();
+        if (!is_p(peek(), "["))
+            error_at(d->pos, "'$' before a type: $[T] is Array<T>, as $[a, b] is Array([a, b]); a String is written String");
+        if (base->is_const || base->is_volatile)
+            error_at(base->pos, "a qualifier of an Array is the variable's: a let does not change");
+        Type *t = parse_dollar_array(d);
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -1123,6 +1136,10 @@ static Expr *parse_postfix_ops(Expr *e) {
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p("]");
+            if ((is_bytes(value_type(e)) || is_array_owner(value_type(e))) && !owner_place(e))
+                error_at(t->pos, "'[]' of %s that an expression gives, which nothing would free: bind it to a "
+                                 "variable first",
+                         is_bytes(value_type(e)) ? "a Bytes" : "an Array");
             if (is_bytes(value_type(e)))
                 x->op = "bytes"; /* b[i] of a Bytes is checked (#54) */
             if (is_array_owner(value_type(e))) { /* xs[i] of an Array too (#57) */
@@ -1798,7 +1815,8 @@ static Expr *parse_primary(void) {
             error_at(t->pos, CAST_HINT "; '%s' is not a Kelvin type, use %s", inner->text, kelvin_for_c_word(inner));
         }
         if (compound && !converter_call &&
-            (starts_type(inner) || inner->kind == TK_IDENT || typeof_paren || is_p(inner, "{"))) { /* ({x:f64}){...} (#59) */
+            (starts_type(inner) || inner->kind == TK_IDENT || typeof_paren || is_p(inner, "{") ||
+             is_p(inner, "$"))) { /* ({x:f64}){...} (#59), ($[i64]){...} (#64) */
             advance();
             Type *type = parse_type_in(TYPE_DECL);
             expect_p(")");
@@ -4330,6 +4348,25 @@ static Expr *array_of_list(Token *t, Type *at) {
 static void check_array_elem(Type *elem) {
     if (elem->kind == T_ARRAY || (elem->kind == T_BASE && !strcmp(elem->name, "any")))
         error_at(elem->pos, "an Array of %s is not here yet: an element is a value C returns", kelvin_type(elem));
+}
+
+/* the inside of $[...] that spells t: [T] for an Array<T>, else T */
+static char *dollar_spelling(Type *t) {
+    return is_array_owner(t) ? strfmt("[%s]", dollar_spelling(t->elem)) : kelvin_type(t);
+}
+
+/* $[T] (#64): Array<T>; a [...] inside is an Array in turn, as it is in
+   $[[1, 0], [0, 1]], so $[[i64]] is Array<Array<i64>> */
+static Type *parse_dollar_array(Token *at) {
+    expect_p("[");
+    Type *elem = is_p(peek(), "[") ? parse_dollar_array(peek()) : parse_type_in(TYPE_DECL);
+    if (is_p(peek(), "("))
+        error_at(peek()->pos, "an Array grows, and has no count in its type: write $[%s], and give the elements "
+                              "or a count where it is made",
+                 dollar_spelling(elem));
+    expect_p("]");
+    check_array_elem(elem);
+    return array_type(at, elem);
 }
 
 /* Array<T> as a type: a T_BASE named by its element, with its C name,

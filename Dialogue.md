@@ -2718,3 +2718,18 @@ are provisional P75.
 
 There are 518 tests, and all pass with clang and with gcc 15.
 
+### 95. `$[T]` as a type
+
+> `var va:$[[i64]]` should work as an alternate expressions as `var
+> va:Array<Array<i64>>`. `$` magic applies to type declarations as
+> well.
+
+**Claude** added #64: `$[T]` where a type goes is `Array<T>`, and a
+`[...]` inside is an Array in turn, so `$[[i64]]` is
+`Array<Array<i64>>`, matching the value `$[[1, 0], [0, 1]]`. It goes
+wherever a type goes. On the way, indexing an Array an expression
+gives, which nothing would free, became an error, as reading its
+count was. The details are provisional P76.
+
+There are 522 tests, and all pass with clang and with gcc 15.
+

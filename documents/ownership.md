@@ -108,6 +108,7 @@ it, copied by `copy()`, and never copied by `=`.
 var xs = Array<i64>()            // empty; Array<i64>(n) is n zero elements
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
 var vb = $[0, 1, 2, 3]            // the same, for short; $"text" is String("text")
+var vc:$[[i64]] = $[[1, 0], [0, 1]]   // $[T] is the type Array<T>, $[[T]] Array<Array<T>>
 var m = Array([[0], [1, 2]])     // a [...] among the elements is an Array in turn: an Array<Array<i64>>
 for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
 xs.insert(0, 100)
@@ -121,11 +122,13 @@ rows += Array<i64>(3)            // moved in
 rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if it owns
 ```
 
-- **The type** is `Array<T>`, with the element type in angle brackets:
-  a variable's type, a parameter's (`xs:Array<i64>` takes it, `xs:
-  Array<i64>^` borrows it), a result's, a struct member's.
-  `Array<Array<i64>>` nests. `Array<T>` with no `(...)` after it is a
-  type, not a value.
+- **The type** is `Array<T>`, with the element type in angle brackets,
+  or `$[T]` for short (#64): a variable's type, a parameter's
+  (`xs:$[i64]` takes it, `xs:$[i64]^` borrows it), a result's, a
+  struct member's. `Array<Array<i64>>` nests, and so does `$[[i64]]`,
+  where a `[...]` inside is an Array in turn, as it is in `$[[1, 0],
+  [0, 1]]`; a fixed array is never an element. `Array<T>` with no
+  `(...)` after it is a type, not a value.
 - **Making one:** `Array<T>()` is empty; `Array<T>(n)` is n zero
   elements (empty owners, for an Array of owners); `Array([a, b, c])`,
   or `$[a, b, c]` for short (#62), holds the elements written, with `T` inferred from them as a
