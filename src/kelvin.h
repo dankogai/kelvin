@@ -242,6 +242,8 @@ struct Decl {
                              overloaded or imported (#41), as sin__complex64 */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one
                              template, written into the caller's buffer (#53) */
+    char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
+                             {x: f64, y: f64}; name is _kv_anonN */
 };
 
 typedef struct {

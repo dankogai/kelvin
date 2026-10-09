@@ -2644,3 +2644,19 @@ provisional P70.
 
 There are 495 tests, and all pass with clang and with gcc 15.
 
+### 91. A struct with no tag
+
+> add an anonymous `struct`, like `var v:{x:f64, y:f64} = {0.0, 0.0}`
+
+**Claude** added #59: `{x:f64, y:f64}` where a type goes is a struct by
+its members alone. One spelling is one type, unlike C's anonymous
+structs, each a type of its own: kelvinc declares one tagged C struct
+per spelling, `_kv_anonN`, before the first top-level declaration that
+writes it, so a value passes to a parameter or an `Array<T>` written
+alike. Everything a tagged struct has comes with it: initializers,
+the derived text, nesting, arrays, pointers, owners as members. Two
+different structs given to each other now get a Kelvin message, since
+C's would name `_kv_anonN`. The details are provisional P71.
+
+There are 500 tests, and all pass with clang and with gcc 15.
+

@@ -156,6 +156,8 @@ static bool returned_statement(int first, int end) {
    start in scope_names (-1 outside one); how its parameters were given;
    and the token just past a trailing `{ }`, which ends a statement */
 static List anon_fns;
+/* the structs with no tag (#59), Decl *, one per spelling, in order of first use */
+static List anon_records;
 static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
 static const char *top_name; /* the top-level declaration being parsed */
 static int anon_start = -1;
@@ -468,6 +470,7 @@ static bool owner_place(Expr *e);
 static bool is_moved(const char *name);
 static void set_moved(const char *name, bool moved);
 static void reject_owner_copy(Expr *value, Type *target, Pos pos);
+static void reject_record_mismatch(Expr *value, Type *target, Pos pos);
 static void move_argument(Expr *arg, Type *param, const char *what);
 static void check_appended(Expr *given, const char *kind, const char *what);
 static const char *array_append_kind(Expr *given, Type *array);
@@ -559,6 +562,8 @@ static int type_shape_end(int i) {
             return -1;
         return type_suffix_end(is_p(&toks[e], ">>") ? e : e + 1); /* >> closes two */
     }
+    if (is_p(&toks[i], "{")) /* {x:f64, y:f64}, a struct with no tag (#59) */
+        return type_suffix_end(skip_nested(i));
     if (is_p(&toks[i], "[")) { /* [T] or [T](N), an array (#49) */
         int e = type_shape_end(i + 1);
         if (e < 0 || !is_p(&toks[e], "]"))
@@ -644,6 +649,9 @@ typedef enum {
 
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
+static Type *parse_anon_record(void);
+static Decl *anon_record_of(Type *t);
+static void reject_kv_name(Token *t);
 static Type *parse_type(void);
 static Type *parse_typeof(int dot);
 
@@ -802,6 +810,14 @@ static Type *parse_type_in(TypeContext ctx) {
         type_start = cur;
         return parse_type_suffixes(a, ctx);
     }
+    if (is_p(peek(), "{")) { /* {x:f64, y:f64}, a struct with no tag (#59) */
+        Type *t = parse_anon_record();
+        t->is_const = base->is_const;
+        t->is_volatile = base->is_volatile;
+        parse_qualifiers(t);
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
     int dot = typeof_at(cur);
     if (dot >= 0) { /* v.type (#34) */
         Type *t = parse_typeof(dot);
@@ -840,6 +856,7 @@ static Type *parse_type_in(TypeContext ctx) {
         Token *name = peek();
         if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
             error_at(name->pos, "expected a type, found %s", desc(name));
+        reject_kv_name(name); /* _kv_anonN is kelvinc's (#59) */
         advance();
         if (is_kw(name, "cstr")) {
             /* cstr is immutable text (#52): a pointer to const u8;
@@ -1644,7 +1661,8 @@ static Expr *parse_primary(void) {
                 reject_c_int_name(inner);
             error_at(t->pos, CAST_HINT "; '%s' is not a Kelvin type, use %s", inner->text, kelvin_for_c_word(inner));
         }
-        if (compound && !converter_call && (starts_type(inner) || inner->kind == TK_IDENT || typeof_paren)) {
+        if (compound && !converter_call &&
+            (starts_type(inner) || inner->kind == TK_IDENT || typeof_paren || is_p(inner, "{"))) { /* ({x:f64}){...} (#59) */
             advance();
             Type *type = parse_type_in(TYPE_DECL);
             expect_p(")");
@@ -1968,6 +1986,9 @@ static char *kelvin_type(Type *t) {
     const char *q = t->is_const && t->is_volatile ? "const volatile" : t->is_const ? "const" : t->is_volatile ? "volatile" : "";
     switch (t->kind) {
     case T_BASE: {
+        Decl *ar = anon_record_of(t); /* a struct with no tag, by its members (#59) */
+        if (ar)
+            return strfmt("%s%s%s", q, *q ? " " : "", ar->spelling);
         /* .typename (#34) spells a Kelvin tag by its bare name (#29) */
         const char *n = t->name;
         for (int k = 0; bare_tags && k < 3; k++) {
@@ -3301,6 +3322,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 static char *mangled_type(Type *t) {
     if (is_array_owner(t)) /* Array<T> is Array_<T> (#57) */
         return strfmt("Array_%s", mangled_type(t->elem));
+    if (anon_record_of(t)) /* a struct with no tag is anonN (#59) */
+        return anon_record_of(t)->name + 4;
     bare_tags = true;
     char *k = kelvin_type(unqualified(t));
     bare_tags = false;
@@ -3876,6 +3899,7 @@ static Expr *parse_assign(void) {
                 e->b = drop_cstr(e->b, target_type(lhs));
             if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
                 reject_owner_copy(e->b, target_type(lhs), t->pos);
+                reject_record_mismatch(e->b, target_type(lhs), t->pos);
                 if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
                     set_moved(lhs->text, false);
             }
@@ -4291,6 +4315,26 @@ static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
              what, value->kind == E_IDENT ? value->text : "...");
 }
 
+/* a struct or union takes a value of its own type: where kelvinc sees
+   both as Kelvin records and they differ, it says so, as C's message
+   would name the C struct, _kv_anonN for one with no tag (#59) */
+static void reject_record_mismatch(Expr *value, Type *target, Pos pos) {
+    Decl *rt, *rv;
+    Type *vt = value_type(value);
+    if (!target || target->kind != T_BASE || !vt || vt->kind != T_BASE)
+        return;
+    char ct = type_class(target, &rt), cv = type_class(vt, &rv);
+    if ((ct != 's' && ct != 'c') || (cv != 's' && cv != 'c') || !rt || !rv || rt == rv)
+        return;
+    bare_tags = true;
+    char *want = kelvin_type(unqualified(target)), *got = kelvin_type(unqualified(vt));
+    bare_tags = false;
+    error_at(pos, "%s is not %s: a %s takes a value of its own type%s", got, want, ct == 's' ? "struct" : "union",
+             rt->spelling || rv->spelling ? ", and two structs with no tag are one type only when their members are "
+                                            "written alike"
+                                          : "");
+}
+
 static bool is_moved(const char *name) {
     int i = binding_index(name);
     return i >= 0 && scope_moved.data[i];
@@ -4519,6 +4563,7 @@ static Var *parse_var(bool with_init, int let) {
         reject_let_vla(v, let);
         v->init = drop_cstr(v->init, v->type);
         reject_owner_copy(v->init, v->type, v->init->pos);
+        reject_record_mismatch(v->init, v->type, v->init->pos);
         reject_owner_array(v);
         pick_overload(v->init, v->type);
     }
@@ -6247,6 +6292,58 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
     return d;
 }
 
+/* {x:f64, y:f64} (#59): a struct with no tag, by its members alone. One
+   spelling is one C struct, _kv_anonN, declared before the top-level
+   declaration that first writes it, so that two written alike are one
+   type; its derived .cstr, free and take come with it as any struct's */
+static Type *parse_anon_record(void) {
+    Token *open = expect_p("{");
+    Decl *d = new_decl(D_STRUCT, open->pos, NULL);
+    d->has_body = true;
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = false;
+    while (!is_p(peek(), "}")) {
+        reject_inner_import();
+        do {
+            reject_c_fn_pointer(cur, "");
+            list_push(&d->members, parse_var(false, LET_NONE));
+        } while (accept_p(","));
+        end_statement();
+    }
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    expect_p("}");
+    if (!d->members.len)
+        error_at(open->pos, "a struct with no tag names its members: {x:f64, y:f64}");
+    Buf b = {0};
+    buf_puts(&b, "{");
+    for (int i = 0; i < d->members.len; i++) {
+        Var *m = d->members.data[i];
+        buf_printf(&b, "%s%s: %s", i ? ", " : "", m->name, kelvin_type(m->type));
+    }
+    buf_puts(&b, "}");
+    Decl *same = NULL;
+    for (int i = 0; !same && i < anon_records.len; i++)
+        if (!strcmp(((Decl *)anon_records.data[i])->spelling, b.buf))
+            same = anon_records.data[i];
+    if (!same) {
+        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->spelling = b.buf;
+        list_push(&anon_records, d);
+        list_push(&records, d);
+        list_push(&program->decls, d);
+        same = d;
+    }
+    return base_type(tag_type_name(same), open->pos);
+}
+
+static Decl *anon_record_of(Type *t) {
+    if (!t || t->kind != T_BASE || !t->name || strncmp(t->name, "struct _kv_anon", 15))
+        return NULL;
+    Decl *r = record_named(t->name + 7);
+    return r && r->spelling ? r : NULL;
+}
+
 /* A top-level declaration and the anonymous functions in it (#32):
    declared before it, so that it may use them, and defined after it, so
    that they may use it and everything it declares */
@@ -6276,6 +6373,7 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     anon_fns = (List){0};
+    anon_records = (List){0};
     anon_names = (List){0};
     top_name = NULL;
     anon_start = -1;

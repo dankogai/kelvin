@@ -1888,6 +1888,8 @@ static void emit_decl(Decl *d) {
             line("%s%s;", kw, name);
             break;
         }
+        if (d->spelling) /* a struct with no tag (#59), as written */
+            line("/* %s */", d->spelling);
         line("%s%s", kw, name);
         line("{");
         indent++;

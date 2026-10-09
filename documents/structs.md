@@ -33,6 +33,38 @@ let q = (point){.y = 7}     // a compound literal; q is a point
   `sizeof(struct timespec)`, since headers give such names to functions
   and variables too (`stat`, `timezone`) *(provisional P41)*.
 
+## Without a tag: `{x:f64, y:f64}`
+
+A struct may be written where a type goes, by its members alone (#59):
+
+```kelvin
+var v:{x:f64, y:f64} = {3.0, 4.0}
+let norm(v:{x:f64, y:f64}):f64 { return v.x * v.x + v.y * v.y }
+var a = ({x:f64, y:f64}){1.0, 2.0}      // a compound literal
+var n:{p:{x:f64, y:f64}, tag:i32} = {{5.0, 6.0}, 7}
+var xs = Array<{x:f64, y:f64}>()
+println(v.typename)                     // {x: f64, y: f64}
+```
+
+- **The members** are written as a struct's, `name: type`, separated by
+  `,`, `;` or a line break, and at least one is needed.
+- **One spelling is one type:** every `{x:f64, y:f64}` in a program is
+  the same struct, so a value passes between them, while `{x:f32}` and
+  `{y:f64}` are other structs. A struct takes a value of its own type,
+  and kelvinc says so by the Kelvin spellings when the two differ,
+  tagged or not.
+- **Everything a tagged struct has**, it has: members, `{...}`
+  initializers with designators, the derived text (`v.cstr`, `${v}`),
+  `.size` and `.typename` (its spelling), use as a parameter, a result,
+  a member, an element of an array or an `Array<T>`, behind a pointer,
+  and members that own, freed with it (#54).
+- **In C** it is a tagged struct kelvinc names, `struct _kv_anon1`, with
+  its spelling in a comment, declared before the top-level declaration
+  that first writes it; the names `_kv_...` are kelvinc's, and are not
+  written in Kelvin.
+- **Not yet:** methods and operators on one (they name a tag), and a
+  union with no tag.
+
 ## Initializers
 
 A struct is initialized with `{...}`, as in C, with C's designators:
