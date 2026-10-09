@@ -38,6 +38,8 @@ P-numbers in [Design.md](../Design.md).
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
 | `struct { double x, y; } v = {3, 4};` | `var v:{x:f64, y:f64} = {3.0, 4.0}`: one type per spelling, so it passes to `let f(v:{x:f64, y:f64})` (#59) |
+| `union { int i; float f; } u;` | `var u:union{i:i32, f:f32}` (#60) |
+| `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch (j) { case n: ... }` (#61) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
@@ -89,7 +91,8 @@ P-numbers in [Design.md](../Design.md).
 | [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing |
 | [ownership.md](ownership.md) | `Bytes`, `String` and `Array<T>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, a struct with no tag `{x:f64, y:f64}`, methods, operators |
-| [unions.md](unions.md) | unions, the same way |
+| [unions.md](unions.md) | unions, the same way, and `union{i:i32, f:f32}` with no tag |
+| [enums.md](enums.md) | C's enums, and enums with values: `enum json { null; n: f64; s: String }`, a union that knows its case |
 | [functions.md](functions.md) | `let f(...)`, function types, anonymous functions, overloading |
 | [flow-controls.md](flow-controls.md) | `if`, `while`, `do`, `for`, ranges, `for x in s`, conditions are `bool` |
 | [printing.md](printing.md) | `print`, `println`, template literals |
@@ -128,8 +131,9 @@ These are C features without a Kelvin spelling so far:
   has no spelling yet
 - bit-fields
 - unnamed parameters
-- nested or local struct/union/enum definitions; a struct with no tag,
-  `{x:f64, y:f64}`, goes where a type goes instead (#59)
+- nested or local struct/union/enum definitions; a struct, a union or an
+  enum with values and no tag, `{x:f64, y:f64}`, `union{i:i32, f:f32}`,
+  `enum{i:i32, f:f32}`, goes where a type goes instead (#59, #60, #61)
 - `long double`
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`

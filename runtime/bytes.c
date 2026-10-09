@@ -23,6 +23,13 @@ void kv_array_range(size_t i, size_t count) {
     kv_bytes_fail(msg);
 }
 
+/* an enum with values (#61): a case read that is not the current one */
+void kv_case_fail(const char *type, const char *want, const char *have) {
+    char msg[160];
+    snprintf(msg, sizeof msg, "case '%s' of %s is not current: it is '%s'", want, type, have);
+    kv_bytes_fail(msg);
+}
+
 /* room for n bytes and the NUL, doubling from 16 */
 void kv_bytes_reserve(kv_bytes *b, size_t n) {
     if (n + 1 <= b->cap)

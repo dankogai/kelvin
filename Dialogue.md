@@ -2660,3 +2660,27 @@ C's would name `_kv_anonN`. The details are provisional P71.
 
 There are 500 tests, and all pass with clang and with gcc 15.
 
+
+
+### 92. A union with no tag, and an enum that knows its case
+
+> add an anonymous `union` too, like `var u:union{i:i32, f:f32}`. And
+> "smart union" like Swift's enum which knows its current effective
+> type *runtime*. It will lose a byte (beyond 255 types are quite
+> unlikely) but it will benefit handling data types like JSON.
+
+**Claude** asked how to spell the smart union and how to read a case;
+Dan chose `enum` with typed cases, as Swift spells it, and members
+checked at run time. #60 is `union{i:i32, f:f32}` where a type goes,
+as #59's struct. #61 is `enum json { null; b: bool; n: f64; s: String;
+a: Array<json> }`: one byte of tag and a union of the cases' values;
+`json.n(1.5)` and `{.n = 1.5}` make one, `j.n = x` sets the case and
+frees what it held, `j.n` reads it and ends the program if another
+case is current, `j.is(n)` tests, `switch (j) { case n: ... }`
+branches by name, and the text is `n(1.5)`. For JSON the enum holds an
+Array of itself and owns, so a struct that owns now has `.copy()` and
+may be an Array's element, and the prelude's Array is declared in two
+parts around the element's declaration. Every allocation of the JSON
+test is freed at exit under ASan. Details are provisional P72 and P73.
+
+There are 509 tests, and all pass with clang and with gcc 15.

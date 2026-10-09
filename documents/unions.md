@@ -35,4 +35,10 @@ let main():i32 {
 - **`for x in`** does not walk a union, and a union has no `.count`.
 - **C unions** from headers are used as C uses them; kelvinc sees none
   of their members, so a property of one is a field there.
-- Not yet: anonymous unions, and a union defined inside a struct.
+- **Without a tag** (#60): `union{i:i32, f:f32}` goes where a type goes,
+  as `{x:f64, y:f64}` does for a struct (see [structs.md](structs.md)):
+  one spelling is one type, its text is `<union{i: i32, f: f32}>`, and
+  it cannot hold an owner either.
+- **A union that knows its case** is `enum` with values, in
+  [enums.md](enums.md) (#61).
+- Not yet: a union defined inside a struct.

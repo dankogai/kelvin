@@ -42,6 +42,13 @@ static List param_caches; /* the declarations a function's body block starts wit
 static const char *count_cache_of(const char *name);
 static const char *owner_free(Type *t);
 static const char *owner_take(Type *t);
+static const char *owner_copy(Type *t);
+static Decl *tagged_type(Type *t);
+static bool c_lvalue(Expr *e);
+static void emit_tagged_record(Decl *d, Type *recv);
+static void emit_arrays_after(Decl *d);
+static void emit_derived_copy(Decl *d, Type *recv);
+static int cur_decl; /* the index of the top-level declaration being emitted */
 static List owner_locals; /* name, type, in pairs: the owners of the function's blocks (#54) */
 static bool local_owner(Expr *e);
 static Type *local_owner_type(const char *name);
@@ -470,6 +477,18 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
+        if (e->op && !strcmp(e->op, "case_make") && e->target) { /* T.n(x), T.none (#61) */
+            if (!e->items.len)
+                return strfmt("_kv_%s_make_%s()", e->target->name, e->text);
+            Expr *x = e->items.data[0];
+            Var *c = NULL;
+            for (int i = 0; i < e->target->members.len; i++)
+                if (!strcmp(((Var *)e->target->members.data[i])->name, e->text))
+                    c = e->target->members.data[i];
+            const char *take = c && local_owner(x) ? owner_take(c->type) : NULL;
+            return strfmt("_kv_%s_make_%s(%s)", e->target->name, e->text,
+                          take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+        }
         if (e->op && !strcmp(e->op, "array")) { /* Array<T>(...) (#57) */
             if (!e->items.len)
                 return strfmt("(%s){0}", e->type->cname);
@@ -509,6 +528,11 @@ static char *expr_bare(Expr *e) {
             return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));
         return strfmt("%s[%s]", e->a ? expr(e->a) : "", expr(e->b));
     case E_FIELD:
+        if (e->op && !strcmp(e->op, "case") && e->target) { /* v.n of an enum with values, checked (#61) */
+            char *recv = expr(e->a);
+            return c_lvalue(e->a) ? strfmt("(*_kv_%s_at_%s(&%s))", e->target->name, e->text, recv)
+                                  : strfmt("_kv_%s_get_%s(%s)", e->target->name, e->text, recv);
+        }
         if (e->a && e->a->kind == E_DEREF && !e->a->paren)
             return strfmt("%s->%s", expr(e->a->a), e->text);
         return strfmt("%s.%s", e->a ? expr(e->a) : "", e->text);
@@ -544,6 +568,8 @@ static char *expr_bare(Expr *e) {
            of the receiver's struct, or of one value. The receiver is
            evaluated once: sizeof and _Generic do not evaluate. */
         char *recv = expr(e->a);
+        if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
+            return strfmt("(%s).tag", recv);
         if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
             return strfmt("(%s).cp", recv);
         if (e->op && !strcmp(e->op, "to")) /* n.uchr (#56) */
@@ -621,6 +647,29 @@ static char *expr_bare(Expr *e) {
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "case_is") && e->target) { /* v.is(n) (#61) */
+            int k = 0;
+            for (int i = 0; i < e->target->members.len; i++)
+                if (!strcmp(((Var *)e->target->members.data[i])->name, e->text))
+                    k = i;
+            return strfmt("((bool)((%s).tag == %d))", expr(e->a), k); /* the cast keeps C quiet about ((a == b)) */
+        }
+        if (e->op && !strcmp(e->op, "case_set") && e->target) { /* v.n = x (#61) */
+            if (!e->items.len)
+                return strfmt("_kv_%s_set_%s(&%s)", e->target->name, e->text, expr(e->a));
+            Expr *x = e->items.data[0];
+            Var *c = NULL;
+            for (int i = 0; i < e->target->members.len; i++)
+                if (!strcmp(((Var *)e->target->members.data[i])->name, e->text))
+                    c = e->target->members.data[i];
+            const char *take = c && local_owner(x) ? owner_take(c->type) : NULL;
+            return strfmt("_kv_%s_set_%s(&%s, %s)", e->target->name, e->text, expr(e->a),
+                          take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+        }
+        if (e->op && !strcmp(e->op, "record_copy") && e->type) { /* s.copy() of a struct that owns (#61) */
+            Decl *r = kelvin_record(e->type->name);
+            return strfmt("_kv_%s_copy(&%s)", r ? r->name : "?", expr(e->a));
+        }
         if (e->op && !strcmp(e->op, "array")) { /* an Array method (#57), on a place */
             Type *at = local_owner_type(e->a->kind == E_IDENT ? e->a->text : "");
             const char *cn = e->type ? e->type->cname : at ? at->cname : NULL;
@@ -921,10 +970,40 @@ static const char *owner_free(Type *t) {
         return NULL;
     for (int i = 0; i < r->members.len; i++) {
         Type *m = ((Var *)r->members.data[i])->type;
-        if (owner_free(m) || (m->kind == T_ARRAY && owner_free(m->elem)))
+        if (m && (owner_free(m) || (m->kind == T_ARRAY && owner_free(m->elem))))
             return strfmt("_kv_%s_free", r->name);
     }
     return NULL;
+}
+
+/* the function that copies an owner, from its free's name */
+static const char *owner_copy(Type *t) {
+    const char *f = owner_free(t);
+    if (!f)
+        return NULL;
+    return strfmt("%.*s_copy", (int)strlen(f) - 5, f);
+}
+
+/* the record of t, if it is an enum with values (#61) */
+static Decl *tagged_type(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    Decl *r = t && t->kind == T_BASE && !t->cname ? kelvin_record(t->name) : NULL;
+    return r && r->tagged ? r : NULL;
+}
+
+/* Is e a place in C, whose address may be taken? */
+static bool c_lvalue(Expr *e) {
+    switch (e->kind) {
+    case E_IDENT:
+    case E_DEREF:
+    case E_INDEX:
+        return true;
+    case E_FIELD:
+        return e->a && c_lvalue(e->a);
+    default:
+        return false;
+    }
 }
 
 /* the function that moves an owner out of a place, leaving it empty */
@@ -1066,7 +1145,7 @@ static char *var_decl(const char *storage, Var *v) {
     char *d = decl(v->is_let && !owner_free(v->type) ? const_type(v->type) : v->type, v->name);
     if (frees)
         d = strfmt("__attribute__((cleanup(%s))) %s", frees, d);
-    if (owner_free(v->type) && !v->init)
+    if ((owner_free(v->type) || tagged_type(v->type)) && !v->init) /* an enum with values starts at its first case (#61) */
         return strfmt("%s%s%s = {0}", storage ? storage : "", storage ? " " : "", d);
     /* a reference declared without a value is nullptr (#20) */
     /* a v.type that C writes as __typeof__ is the type kelvinc saw (#34) */
@@ -1368,7 +1447,7 @@ static void stmt(Stmt *s) {
         break;
     case S_CASE:
         indent--;
-        line("case %s:", expr(s->expr));
+        line("case %s:%s", expr(s->expr), s->name ? strfmt(" /* %s */", s->name) : "");
         indent++;
         break;
     case S_DEFAULT:
@@ -1676,6 +1755,8 @@ static void use_cstr(Decl *r) {
     list_push(&cstr_used, r->name);
     for (int i = 0; r->kind == D_STRUCT && i < r->members.len; i++) {
         Type *t = ((Var *)r->members.data[i])->type;
+        if (!t)
+            continue; /* a case with no value (#61) */
         while (t->kind == T_ARRAY)
             t = t->elem;
         if (t->kind == T_BASE)
@@ -1748,8 +1829,46 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     pinned_line = d->pos;
     char *ctype = decl(recv, "");
     Buf size = {0};
+    if (d->tagged) {
+        /* an enum with values (#61): the case's name, and its value in
+           parentheses: n(1.5), none; room for the longest */
+        buf_printf(&size, "1");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            buf_printf(&size, " + %d", (int)strlen(m->name) + 2);
+            if (m->type)
+                buf_printf(&size, " + %s", text_bound(m->type, strfmt("((%s *)0)->u.%s", ctype, m->name)));
+        }
+        line("enum { _kv_%s_cstr_size = %s };", d->name, size.buf);
+        line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf)", d->name, decl(recv, "self"));
+        line("{");
+        indent++;
+        line("uint8_t *_kv_p = _kv_buf;");
+        line("switch (self.tag)");
+        line("{");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            line("case %d:", i);
+            indent++;
+            line("_kv_p = kv_cstr_put(_kv_p, \"%s%s\");", m->name, m->type ? "(" : "");
+            if (m->type) {
+                write_text(m->type, strfmt("self.u.%s", m->name), 0);
+                line("_kv_p = kv_cstr_put(_kv_p, \")\");");
+            }
+            line("break;");
+            indent--;
+        }
+        line("default: kv_cstr_put(_kv_p, \"?\"); break;");
+        line("}");
+        line("return _kv_buf;");
+        indent--;
+        line("}");
+        pinned_line.file = NULL;
+        mapped_line = -1;
+        return;
+    }
     if (d->kind == D_UNION) {
-        buf_printf(&size, "%d", (int)strlen(d->name) + 9);
+        buf_printf(&size, "%d", (int)strlen(d->spelling ? d->spelling : d->name) + 9);
     } else {
         int fixed = 3; /* {, } and the NUL */
         for (int i = 0; i < d->members.len; i++) {
@@ -1769,7 +1888,7 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     indent++;
     if (d->kind == D_UNION) {
         line("(void)self;");
-        line("kv_cstr_put(_kv_buf, \"<union %s>\");", d->name);
+        line("kv_cstr_put(_kv_buf, \"<%s>\");", d->spelling ? d->spelling : strfmt("union %s", d->name));
     } else {
         line("uint8_t *_kv_p = _kv_buf;");
         line("_kv_p = kv_cstr_put(_kv_p, \"{\");");
@@ -1788,14 +1907,230 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
 }
 
 /* the Array<T> types first used by top-level decl i (#57): their C, once */
+/* Is t the struct or union that d declares? Its Array's functions then
+   follow d, as they need the element complete (#61) */
+static bool declares_elem(Decl *d, Type *t) {
+    if (!d || (d->kind != D_STRUCT && d->kind != D_UNION) || !d->name || !t || t->kind != T_BASE)
+        return false;
+    return !strcmp(t->name, strfmt("%s %s", d->kind == D_STRUCT ? "struct" : "union", d->name));
+}
+
+static void emit_array_funcs(Type *t) {
+    const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
+    line("KV_ARRAY_FUNCS(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
+         f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
+}
+
 static void emit_arrays_before(int i) {
+    Decl *d = program->decls.data[i];
     for (int k = 0; k < program->arrays.len; k++) {
         if ((int)(intptr_t)program->array_decls.data[k] != i)
             continue;
         Type *t = program->arrays.data[k];
+        if (declares_elem(d, t->elem)) { /* the functions follow the element's declaration */
+            line("KV_ARRAY_TYPE(%s, %s)", decl(t->elem, ""), t->cname);
+            continue;
+        }
         const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
         line("KV_ARRAY(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
-             f ? strfmt("%.*s_copy", (int)strlen(f) - 5, f) : "KV_PLAIN_COPY");
+             f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
+    }
+}
+
+/* after the struct d declares: the functions of the Arrays of it, with
+   the prototypes of its own free and copy, which they call */
+static void emit_arrays_after(Decl *d) {
+    bool any = false;
+    for (int k = 0; k < program->arrays.len; k++) {
+        Type *t = program->arrays.data[k];
+        if ((int)(intptr_t)program->array_decls.data[k] != cur_decl || !declares_elem(d, t->elem))
+            continue;
+        if (!any && owner_free(t->elem)) {
+            line("__attribute__((unused)) static inline void _kv_%s_free(%s *self);", d->name, decl(t->elem, ""));
+            line("__attribute__((unused)) static inline %s _kv_%s_copy(const %s *self);", decl(t->elem, ""), d->name,
+                 decl(t->elem, ""));
+        }
+        any = true;
+        emit_array_funcs(t);
+    }
+}
+
+/* the derived copy of a struct that owns (#61): each member that owns
+   is copied, the rest with the bytes */
+static void emit_derived_copy(Decl *d, Type *recv) {
+    line("__attribute__((unused)) static inline %s _kv_%s_copy(const %s *self)", decl(recv, ""), d->name, decl(recv, ""));
+    line("{");
+    indent++;
+    line("%s _kv_v = *self;", decl(recv, ""));
+    for (int i = 0; i < d->members.len; i++) {
+        Var *m = d->members.data[i];
+        const char *f = m->type ? owner_copy(m->type) : NULL;
+        if (f) {
+            line("_kv_v.%s = %s(&self->%s);", m->name, f, m->name);
+        } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(m->type->elem))) {
+            line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof self->%s[0]; _kv_i++)", m->name, m->name);
+            indent++;
+            line("_kv_v.%s[_kv_i] = %s(&self->%s[_kv_i]);", m->name, f, m->name);
+            indent--;
+        }
+    }
+    line("return _kv_v;");
+    indent--;
+    line("}");
+}
+
+/* An enum with values (#61): a struct of a byte tag and a union of the
+   cases' values, its names, and per case: at (a checked pointer), get
+   (checked, by value), set (frees what it held) and make. */
+static void emit_tagged_record(Decl *d, Type *recv) {
+    char *ctype = decl(recv, "");
+    bool values = false;
+    for (int i = 0; i < d->members.len; i++)
+        values = values || ((Var *)d->members.data[i])->type;
+    line("/* %s */", d->spelling ? d->spelling : strfmt("enum %s: %s", d->name, "a tagged union"));
+    line("struct %s", d->name);
+    line("{");
+    indent++;
+    line("uint8_t tag;");
+    if (values) {
+        line("union");
+        line("{");
+        indent++;
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            if (m->type) {
+                sync(m->pos);
+                line("%s;", decl(m->type, m->name));
+            }
+        }
+        indent--;
+        line("} u;");
+    }
+    indent--;
+    line("};");
+    Buf names = {0};
+    buf_puts(&names, "");
+    for (int i = 0; i < d->members.len; i++)
+        buf_printf(&names, "%s\"%s\"", i ? ", " : "", ((Var *)d->members.data[i])->name);
+    line("__attribute__((unused)) static const char *const _kv_%s_cases[] = {%s};", d->name, names.buf);
+    emit_arrays_after(d);
+    bool owns = owner_free(recv) != NULL;
+    if (owns) {
+        line("__attribute__((unused)) static inline void _kv_%s_free(%s *self)", d->name, ctype);
+        line("{");
+        indent++;
+        line("switch (self->tag)");
+        line("{");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            const char *f = m->type ? owner_free(m->type) : NULL;
+            if (f) {
+                line("case %d: %s(&self->u.%s); break;", i, f, m->name);
+            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_free(m->type->elem))) {
+                line("case %d:", i);
+                indent++;
+                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof self->u.%s[0]; _kv_i++)", m->name, m->name);
+                line("    %s(&self->u.%s[_kv_i]);", f, m->name);
+                line("break;");
+                indent--;
+            }
+        }
+        line("default: break;");
+        line("}");
+        line("*self = (%s){0};", ctype);
+        indent--;
+        line("}");
+        line("__attribute__((unused)) static inline %s _kv_%s_take(%s *self)", ctype, d->name, ctype);
+        line("{");
+        indent++;
+        line("%s _kv_v = *self;", ctype);
+        line("*self = (%s){0};", ctype);
+        line("return _kv_v;");
+        indent--;
+        line("}");
+        line("__attribute__((unused)) static inline %s _kv_%s_copy(const %s *self)", ctype, d->name, ctype);
+        line("{");
+        indent++;
+        line("%s _kv_v = *self;", ctype);
+        line("switch (self->tag)");
+        line("{");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            const char *f = m->type ? owner_copy(m->type) : NULL;
+            if (f) {
+                line("case %d: _kv_v.u.%s = %s(&self->u.%s); break;", i, m->name, f, m->name);
+            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(m->type->elem))) {
+                line("case %d:", i);
+                indent++;
+                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof self->u.%s[0]; _kv_i++)", m->name, m->name);
+                line("    _kv_v.u.%s[_kv_i] = %s(&self->u.%s[_kv_i]);", m->name, f, m->name);
+                line("break;");
+                indent--;
+            }
+        }
+        line("default: break;");
+        line("}");
+        line("return _kv_v;");
+        indent--;
+        line("}");
+    }
+    for (int i = 0; i < d->members.len; i++) {
+        Var *m = d->members.data[i];
+        const char *check = strfmt("if (self->tag != %d) kv_case_fail(\"%s\", \"%s\", _kv_%s_cases[self->tag]);", i,
+                                   d->spelling ? d->spelling : d->name, m->name, d->name);
+        if (m->type) {
+            char *mt = decl(m->type, "");
+            line("__attribute__((unused)) static inline %s *_kv_%s_at_%s(const %s *self)", mt, d->name, m->name, ctype);
+            line("{");
+            indent++;
+            line("%s", check);
+            line("return (%s *)&self->u.%s;", mt, m->name);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline %s _kv_%s_get_%s(%s self)", mt, d->name, m->name, ctype);
+            line("{");
+            indent++;
+            line("if (self.tag != %d) kv_case_fail(\"%s\", \"%s\", _kv_%s_cases[self.tag]);", i,
+                 d->spelling ? d->spelling : d->name, m->name, d->name);
+            line("return self.u.%s;", m->name);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline void _kv_%s_set_%s(%s *self, %s v)", d->name, m->name, ctype, mt);
+            line("{");
+            indent++;
+            if (owns)
+                line("_kv_%s_free(self);", d->name);
+            line("self->tag = %d;", i);
+            line("self->u.%s = v;", m->name);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline %s _kv_%s_make_%s(%s v)", ctype, d->name, m->name, mt);
+            line("{");
+            indent++;
+            line("%s _kv_v = {0};", ctype);
+            line("_kv_v.tag = %d;", i);
+            line("_kv_v.u.%s = v;", m->name);
+            line("return _kv_v;");
+            indent--;
+            line("}");
+        } else {
+            line("__attribute__((unused)) static inline void _kv_%s_set_%s(%s *self)", d->name, m->name, ctype);
+            line("{");
+            indent++;
+            if (owns)
+                line("_kv_%s_free(self);", d->name);
+            line("self->tag = %d;", i);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline %s _kv_%s_make_%s(void)", ctype, d->name, m->name);
+            line("{");
+            indent++;
+            line("%s _kv_v = {0};", ctype);
+            line("_kv_v.tag = %d;", i);
+            line("return _kv_v;");
+            indent--;
+            line("}");
+        }
     }
 }
 
@@ -1888,7 +2223,25 @@ static void emit_decl(Decl *d) {
             line("%s%s;", kw, name);
             break;
         }
-        if (d->spelling) /* a struct with no tag (#59), as written */
+        if (d->tagged) { /* an enum with values (#61) */
+            Type *recv = xcalloc(1, sizeof *recv);
+            recv->kind = T_BASE;
+            recv->pos = d->pos;
+            recv->name = strfmt("struct %s", d->name);
+            emit_tagged_record(d, recv);
+            Decl *tm = text_method_of(recv->name);
+            if (tm) {
+                Stmt *only = tm->body->stmts.data[0];
+                line("enum { _kv_%s_cstr_size = %s };", d->name, template_room(only->expr));
+                line("__attribute__((unused)) static inline uint8_t *_kv_%s_cstr(%s, uint8_t *_kv_buf);", d->name,
+                     decl(recv, "self"));
+            } else if (is_cstr_used(d->name)) {
+                emit_derived_cstr(d, recv);
+            }
+            register_method("cstr", recv, strfmt("_kv_%s_cstr", d->name));
+            break;
+        }
+        if (d->spelling) /* a struct or union with no tag (#59, #60), as written */
             line("/* %s */", d->spelling);
         line("%s%s", kw, name);
         line("{");
@@ -1903,6 +2256,8 @@ static void emit_decl(Decl *d) {
         }
         indent--;
         line("};");
+        if (d->kind != D_ENUM && d->name)
+            emit_arrays_after(d); /* the Arrays of this struct, which it may hold (#61) */
         if (d->kind != D_ENUM && d->name) {
             /* every struct and union has a derived .cstr */
             Type *recv = xcalloc(1, sizeof *recv);
@@ -1938,6 +2293,7 @@ static void emit_decl(Decl *d) {
                 line("return _kv_v;");
                 indent--;
                 line("}");
+                emit_derived_copy(d, recv);
             }
             Decl *tm = text_method_of(recv->name);
             if (tm) {
@@ -1979,6 +2335,7 @@ char *gen_program(Program *prog, bool with_lines) {
     hidden_names = (List){0};
     pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
+        cur_decl = i;
         emit_arrays_before(i);
         if (i)
             line("%s", "");

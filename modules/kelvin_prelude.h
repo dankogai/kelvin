@@ -144,11 +144,17 @@ static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
+/* an enum with values (#61): reading a case that is not current */
+void kv_case_fail(const char *type, const char *want, const char *have);
 #define KV_PLAIN_FREE(p) ((void)(p))
 #define KV_PLAIN_COPY(p) (*(p))
-#define KV_ARRAY(T, A, FREE, COPY) \
+/* the type alone first, so that an element may hold an Array of its own
+   type (#61); the functions follow the element's declaration */
+#define KV_ARRAY_TYPE(T, A) \
     typedef T A##_elem; \
-    typedef struct A { T *at; size_t count, cap; } A; \
+    typedef struct A { T *at; size_t count, cap; } A;
+#define KV_ARRAY(T, A, FREE, COPY) KV_ARRAY_TYPE(T, A) KV_ARRAY_FUNCS(T, A, FREE, COPY)
+#define KV_ARRAY_FUNCS(T, A, FREE, COPY) \
     __attribute__((unused)) static inline void A##_free(A *a) { \
         for (size_t i = 0; i < a->count; i++) FREE(&a->at[i]); \
         free(a->at); *a = (A){0}; } \

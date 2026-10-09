@@ -29,8 +29,13 @@ let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
 
 So far the changes from C are:
 - structs, unions and enums are types by their bare name: `var p:point`
-  for `struct point`; a struct with no tag is written by its members
-  where a type goes, `var v:{x:f64, y:f64} = {3.0, 4.0}`
+  for `struct point`; a struct or a union with no tag is written by its
+  members where a type goes, `var v:{x:f64, y:f64} = {3.0, 4.0}`,
+  `var u:union{i:i32, f:f32}`
+- an `enum` whose cases carry values is a union that knows its case,
+  with a byte for the tag: `enum json { null; n: f64; s: String; a:
+  Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested
+  with `j.is(n)` and `switch (j) { case n: ... }`
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
   functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters

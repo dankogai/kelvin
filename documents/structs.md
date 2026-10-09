@@ -62,8 +62,10 @@ println(v.typename)                     // {x: f64, y: f64}
   its spelling in a comment, declared before the top-level declaration
   that first writes it; the names `_kv_...` are kelvinc's, and are not
   written in Kelvin.
-- **Not yet:** methods and operators on one (they name a tag), and a
-  union with no tag.
+- **A union** with no tag is `union{i:i32, f:f32}` (#60), and an enum
+  with values `enum{i:i32, f:f32}` (#61): see [unions.md](unions.md)
+  and [enums.md](enums.md).
+- **Not yet:** methods and operators on one (they name a tag).
 
 ## Initializers
 

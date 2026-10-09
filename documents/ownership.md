@@ -160,7 +160,9 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   built-in type, not a language feature.
 - **Not yet:** text (`print(xs)`, `${xs}` and `.cstr` are errors:
   show the elements), `==` (compare the elements), an element that is
-  an array (`[T](N)`) or a struct that owns, sorting and searching.
+  an array (`[T](N)`), sorting and searching. An element that is a
+  struct that owns, or an enum with values, is copied and freed with
+  the Array (#61).
 
 ## The rules
 
@@ -190,6 +192,10 @@ let total(data:Bytes):i64 {          // data moves in, and is freed here
 }
 let longest(a:Bytes^, b:Bytes^):Bytes^ { a^.count >= b^.count ? a : b }   // borrows
 ```
+
+A struct, or an enum with values (#61), that holds an owner is an owner
+under the same rules, copied with `.copy()`, and may be an element of an
+`Array<T>`.
 
 Not yet: a fixed array of owners as a variable (`[Bytes](4)`; an
 `Array<Bytes>` grows), `Dictionary`, `insert` and `remove` on a

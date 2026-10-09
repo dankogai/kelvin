@@ -577,6 +577,8 @@ static int type_shape_end(int i) {
     if (dot >= 0) /* after a qualifier, only a type can follow */
         return i == start && type_is_field(i, dot) ? -1 : type_suffix_end(dot + 2);
     if (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union") || is_kw(&toks[i], "enum")) {
+        if (is_p(&toks[i + 1], "{")) /* union{i:i32, f:f32}, enum{...}: no tag (#60, #61) */
+            return type_suffix_end(skip_nested(i + 1));
         if (toks[++i].kind != TK_IDENT)
             return -1;
     } else if (toks[i].kind != TK_IDENT && !is_base_word(&toks[i]) && !kelvin_for_c_word(&toks[i]) &&
@@ -649,9 +651,21 @@ typedef enum {
 
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
-static Type *parse_anon_record(void);
+static Type *parse_anon_record(DeclKind kind, bool tagged);
 static Decl *anon_record_of(Type *t);
 static void reject_kv_name(Token *t);
+static void parse_cases(Decl *d);
+static bool brace_has_colon(int i);
+static Var *case_named(Decl *r, const char *name, int *index);
+static Expr *case_value(Type *t);
+static Decl *tagged_record(Type *t);
+static char *case_list(Decl *r);
+static char *record_spelling(Decl *r);
+static Type *unqualified(Type *t);
+static Expr *parse_case_initializer(Type *t, Decl *r);
+static void move_argument(Expr *arg, Type *param, const char *what);
+/* the enum with values a switch is on, while its body is parsed (#61) */
+static Decl *switch_record;
 static Type *parse_type(void);
 static Type *parse_typeof(int dot);
 
@@ -810,8 +824,12 @@ static Type *parse_type_in(TypeContext ctx) {
         type_start = cur;
         return parse_type_suffixes(a, ctx);
     }
-    if (is_p(peek(), "{")) { /* {x:f64, y:f64}, a struct with no tag (#59) */
-        Type *t = parse_anon_record();
+    if (is_p(peek(), "{") || ((is_kw(peek(), "struct") || is_kw(peek(), "union") || is_kw(peek(), "enum")) &&
+                              is_p(peek2(), "{"))) {
+        /* {x:f64, y:f64}, a struct with no tag (#59); union{i:i32, f:f32} (#60);
+           enum{i:i32, f:f32}, an enum with values, a tagged union (#61) */
+        Token *kw = is_p(peek(), "{") ? NULL : advance();
+        Type *t = parse_anon_record(kw && is_kw(kw, "union") ? D_UNION : D_STRUCT, kw && is_kw(kw, "enum"));
         t->is_const = base->is_const;
         t->is_volatile = base->is_volatile;
         parse_qualifiers(t);
@@ -1149,8 +1167,9 @@ static Expr *parse_postfix_ops(Expr *e) {
             Token *name = peek();
             /* cstr is a keyword, but also the .cstr property and possibly
                a field of a C struct */
-            char *member = is_kw(name, "cstr") || is_converter(name) ? advance()->text
-                                                                      : expect_ident("a member or method name");
+            char *member = is_kw(name, "cstr") || is_converter(name) || is_kw(name, "case")
+                               ? advance()->text
+                               : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
             if (call && is_converter(name) && !converter_is_field(e, member))
@@ -1163,6 +1182,41 @@ static Expr *parse_postfix_ops(Expr *e) {
                 char c = expr_class(e, &record);
                 if (c != 'c' && c != 'u' && !(c == 's' && record_has_field(record, member)))
                     error_at(name->pos, "%s() " SHELVED_HINT, member);
+            }
+            Decl *tr = tagged_record(value_type(e)); /* an enum with values (#61) */
+            if (tr && call && !strcmp(member, "is")) {
+                /* v.is(name): is that the current case? */
+                advance();
+                Token *cn = peek();
+                char *cname = expect_ident("a case name");
+                if (!case_named(tr, cname, NULL))
+                    error_at(cn->pos, "%s has no case '%s': the cases are %s", record_spelling(tr), cname, case_list(tr));
+                expect_p(")");
+                Expr *x = new_expr(E_METHOD, t->pos);
+                x->a = e;
+                x->text = cname;
+                x->op = "case_is";
+                x->target = tr;
+                x->is_bool = true;
+                e = x;
+                continue;
+            }
+            {
+                /* s.copy() of a struct, or an enum with values, that owns (#61) */
+                Type *vt = value_type(e);
+                Decl *cr;
+                if (call && !strcmp(member, "copy") && vt && type_class(vt, &cr) == 's' && cr && is_owner(vt) &&
+                    !method_named(e, member)) {
+                    advance();
+                    expect_p(")");
+                    Expr *x = new_expr(E_METHOD, t->pos);
+                    x->a = e;
+                    x->text = "copy";
+                    x->op = "record_copy";
+                    x->type = unqualified(vt);
+                    e = x;
+                    continue;
+                }
             }
             const char *okind = call ? builtin_owner(value_type(e)) : NULL;
             if (okind) {
@@ -1267,12 +1321,37 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            if (tr && !call && !strcmp(member, "case")) { /* v.case: the tag, a u8 (#61) */
+                Expr *x = new_expr(E_PROPERTY, t->pos);
+                x->a = e;
+                x->text = "case";
+                x->op = "tagged";
+                e = x;
+                continue;
+            }
             if (!call) {
                 Expr *x = property(e, name, member);
                 if (x) {
                     e = x;
                     continue;
                 }
+            }
+            if (tr && !call) {
+                /* v.n: the value of case n, checked at run time (#61) */
+                Var *c = case_named(tr, member, NULL);
+                if (!c)
+                    error_at(name->pos, "%s has no case '%s': the cases are %s", record_spelling(tr), member, case_list(tr));
+                if (!c->type)
+                    error_at(name->pos, "case '%s' of %s carries no value: test it with '.is(%s)', or set it with {.%s}",
+                             member, record_spelling(tr), member, member);
+                Expr *x = new_expr(E_FIELD, t->pos);
+                x->a = e;
+                x->text = member;
+                x->op = "case";
+                x->type = c->type;
+                x->target = tr;
+                e = x;
+                continue;
             }
             if (e->kind == E_LITERAL && !e->paren && isdigit((unsigned char)e->text[0]))
                 error_at(e->pos, "'%s.%s': literals have no suffixes in Kelvin, and '%s' is not a method", e->text,
@@ -1458,6 +1537,41 @@ static Expr *parse_primary(void) {
             error_at(t->pos, "an anonymous function cannot use '%s' of the function around it: C has no "
                              "closures, so pass it as an argument, or make it a global",
                      t->text);
+    }
+    if (t->kind == TK_IDENT && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT && binding_index(t->text) < 0) {
+        /* T.n(x) and T.none make a value of an enum with values (#61) */
+        Decl *r = record_named(t->text);
+        int k;
+        Var *c = r && r->tagged ? case_named(r, peek_at(2)->text, &k) : NULL;
+        if (c) {
+            advance();
+            advance();
+            Token *cn = advance();
+            Expr *e = new_expr(E_CALL, t->pos);
+            e->a = new_expr(E_IDENT, t->pos);
+            e->a->text = t->text;
+            e->op = "case_make";
+            e->text = c->name;
+            e->target = r;
+            e->type = base_type(tag_type_name(r), t->pos);
+            if (c->type) {
+                if (!is_p(peek(), "("))
+                    error_at(cn->pos, "case '%s' of %s carries a value: write %s.%s(value)", c->name, r->name, r->name, c->name);
+                advance();
+                bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+                brace_ends_condition = brace_in_for = false;
+                Expr *v = case_value(c->type);
+                brace_ends_condition = saved_brace;
+                brace_in_for = saved_for;
+                expect_p(")");
+                reject_record_mismatch(v, c->type, v->pos);
+                move_argument(v, c->type, strfmt("case '%s'", c->name)); /* given by value, an owner moves (O5) */
+                list_push(&e->items, v);
+            } else if (is_p(peek(), "(")) {
+                error_at(peek()->pos, "case '%s' of %s carries no value: write %s.%s", c->name, r->name, r->name, c->name);
+            }
+            return e;
+        }
     }
     if (t->kind == TK_IDENT || t->kind == TK_NUMBER || t->kind == TK_CHAR || is_kw(t, "true") ||
         is_kw(t, "false")) {
@@ -2290,6 +2404,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("Bytes", e->pos);
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return base_type("String", e->pos);
+        if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
+            return e->type;
         if (e->op && !strcmp(e->op, "array")) /* Array<T>(...) (#57) */
             return e->type;
         /* the overload chosen, or the result all that C may choose have,
@@ -2331,6 +2447,12 @@ static Type *value_type_of(Expr *e) {
                    : !strcmp(e->text, "string") ? base_type("String", e->pos) : NULL;
         if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy gives a String */
             return !strcmp(e->text, "copy") ? base_type("String", e->pos) : NULL;
+        if (e->op && !strcmp(e->op, "case_is")) /* v.is(n) (#61) */
+            return base_type("bool", e->pos);
+        if (e->op && !strcmp(e->op, "case_set"))
+            return NULL;
+        if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
+            return e->type;
         if (e->op && !strcmp(e->op, "array")) { /* an Array method (#57): copy gives one, pop an element */
             Type *at = value_type(e->a);
             return !strcmp(e->text, "copy") ? at : !strcmp(e->text, "pop") ? at->elem : NULL;
@@ -2363,6 +2485,8 @@ static Type *value_type_of(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
             return base_type("u32", e->pos);
+        if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
+            return base_type("u8", e->pos);
         if (e->op && !strcmp(e->op, "array") && !strcmp(e->text, "at")) { /* xs.at, a T^ (#57) */
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;
@@ -2502,8 +2626,8 @@ static char expr_class(Expr *e, Decl **record) {
         return !strcmp(literal_type(e), "f64") ? 'f' : 'i';
     case E_STRING:
         return 'n';
-    case E_PROPERTY: /* .size, .addr, .count, .capacity, .utf32 and .codepoint are integers */
-        return !strcmp(e->text, "size") || !strcmp(e->text, "addr") || !strcmp(e->text, "count") ||
+    case E_PROPERTY: /* .size, .addr, .count, .capacity, .utf32, .codepoint and .case are integers */
+        return (e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "addr") || !strcmp(e->text, "count") ||
                        !strcmp(e->text, "capacity") || !strcmp(e->text, "utf32") || !strcmp(e->text, "codepoint")
                    ? 'i'
                    : 'n';
@@ -3877,6 +4001,21 @@ static Expr *parse_assign(void) {
                 assign_ok = ok;
                 return x;
             }
+            if (!strcmp(t->text, "=") && lhs->kind == E_FIELD && lhs->op && !strcmp(lhs->op, "case")) {
+                /* v.n = x sets the case and its value (#61): an owner moves in */
+                Expr *x = new_expr(E_METHOD, t->pos);
+                x->a = lhs->a;
+                x->text = lhs->text;
+                x->op = "case_set";
+                x->target = lhs->target;
+                Expr *v = case_value(lhs->type);
+                assign_ok = ok;
+                reject_owner_copy(v, lhs->type, t->pos);
+                reject_record_mismatch(v, lhs->type, t->pos);
+                move_argument(v, lhs->type, strfmt("case '%s'", lhs->text));
+                list_push(&x->items, v);
+                return x;
+            }
             if (!strcmp(t->text, "=") || !strcmp(t->text, ":="))
                 check_assign_op(t->text, target_type(lhs),
                                 lhs->kind == E_IDENT ? strfmt("'%s'", lhs->text) : "this target", t->pos, NULL);
@@ -3965,6 +4104,8 @@ static Expr *parse_initializer_for(Type *t) {
     bool bracket = is_p(open, "[") && !zero_array_ahead(cur);
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
+    if (!bracket && tagged_record(t)) /* {.n = 1.5} of an enum with values (#61) */
+        return parse_case_initializer(t, tagged_record(t));
     /* an array is initialized with [...], a struct or union with {...}
        (#48); where only C sees the type, either is C's { } */
     Decl *record = NULL;
@@ -4165,10 +4306,6 @@ static Expr *array_of_list(Token *t, Type *at) {
 
 /* what may be an element of an Array (#57) */
 static void check_array_elem(Type *elem) {
-    if (is_owner(elem) && !builtin_owner(elem))
-        error_at(elem->pos, "an Array of %s, a struct that owns, is not here yet: a Bytes, a String or an Array may "
-                            "be an element",
-                 kelvin_type(elem));
     if (elem->kind == T_ARRAY || (elem->kind == T_BASE && !strcmp(elem->name, "any")))
         error_at(elem->pos, "an Array of %s is not here yet: an element is a value C returns", kelvin_type(elem));
 }
@@ -4262,7 +4399,7 @@ static bool is_owner(Type *t) {
     if (type_class(t, &r) != 's' || !r)
         return false;
     for (int i = 0; i < r->members.len; i++)
-        if (is_owner(((Var *)r->members.data[i])->type))
+        if (((Var *)r->members.data[i])->type && is_owner(((Var *)r->members.data[i])->type))
             return true;
     return false;
 }
@@ -5185,7 +5322,8 @@ static Expr *text_in_buffer(Expr *e) {
     case E_PROPERTY: {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
         if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
-            !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull"))
+            !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull") ||
+            (e->op && !strcmp(e->op, "tagged")))
             return NULL; /* .count and .isNull are numbers too (#49, #50) */
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
@@ -5905,11 +6043,37 @@ static Stmt *parse_stmt_here(void) {
     if (accept_kw("switch")) {
         Stmt *s = new_stmt(S_SWITCH, pos);
         s->expr = parse_paren_expr();
+        /* switch v, of an enum with values, is on its case (#61) */
+        Decl *tr = tagged_record(value_type(s->expr));
+        if (tr) {
+            Expr *x = new_expr(E_PROPERTY, s->expr->pos);
+            x->a = s->expr;
+            x->text = "case";
+            x->op = "tagged";
+            s->expr = x;
+        }
+        Decl *saved = switch_record;
+        switch_record = tr;
         s->body = parse_body();
+        switch_record = saved;
         return s;
     }
     if (accept_kw("case")) {
         Stmt *s = new_stmt(S_CASE, pos);
+        if (switch_record && peek()->kind == TK_IDENT && is_p(peek2(), ":")) {
+            /* case n: of an enum with values, by the case's name (#61) */
+            int k;
+            Var *c = case_named(switch_record, peek()->text, &k);
+            if (!c)
+                error_at(peek()->pos, "%s has no case '%s': the cases are %s", record_spelling(switch_record),
+                         peek()->text, case_list(switch_record));
+            Token *cn = advance();
+            s->expr = new_expr(E_LITERAL, cn->pos);
+            s->expr->text = strfmt("%d", k);
+            s->name = c->name;
+            expect_p(":");
+            return s;
+        }
         bool saved = ident_annotation_ok;
         ident_annotation_ok = false;
         s->expr = parse_conditional();
@@ -6252,7 +6416,11 @@ static void check_text_method(Decl *d, Token *name) {
 }
 
 static Decl *parse_record(Pos pos, DeclKind kind) {
-    Decl *d = new_decl(kind, pos, NULL);
+    /* enum T { none; some: i32 }: a case with a value makes an enum with
+       values, a tagged union, a struct in C (#61) */
+    bool tagged = kind == D_ENUM && peek()->kind == TK_IDENT && is_p(peek2(), "{") && brace_has_colon(cur + 1);
+    Decl *d = new_decl(tagged ? D_STRUCT : kind, pos, NULL);
+    d->tagged = tagged;
     if (kind == D_ENUM && is_p(peek(), "{"))
         d->name = NULL; /* anonymous enum: a group of int constants */
     else {
@@ -6262,7 +6430,9 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
     list_push(&records, d);
     if (accept_p("{")) {
         d->has_body = true;
-        while (!is_p(peek(), "}")) {
+        if (tagged)
+            parse_cases(d);
+        while (!tagged && !is_p(peek(), "}")) {
             reject_inner_import();
             if (kind == D_ENUM) {
                 Var *v = xcalloc(1, sizeof *v);
@@ -6296,17 +6466,23 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
    spelling is one C struct, _kv_anonN, declared before the top-level
    declaration that first writes it, so that two written alike are one
    type; its derived .cstr, free and take come with it as any struct's */
-static Type *parse_anon_record(void) {
+static Type *parse_anon_record(DeclKind kind, bool tagged) {
     Token *open = expect_p("{");
-    Decl *d = new_decl(D_STRUCT, open->pos, NULL);
+    Decl *d = new_decl(kind, open->pos, NULL);
     d->has_body = true;
+    d->tagged = tagged;
     bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
     brace_ends_condition = brace_in_for = false;
-    while (!is_p(peek(), "}")) {
+    if (tagged)
+        parse_cases(d);
+    while (!tagged && !is_p(peek(), "}")) {
         reject_inner_import();
         do {
             reject_c_fn_pointer(cur, "");
-            list_push(&d->members, parse_var(false, LET_NONE));
+            Var *m = parse_var(false, LET_NONE);
+            if (kind == D_UNION && is_owner(m->type))
+                error_at(m->pos, "a union cannot hold an owner (#54): which member to free is unknown");
+            list_push(&d->members, m);
         } while (accept_p(","));
         end_statement();
     }
@@ -6314,12 +6490,16 @@ static Type *parse_anon_record(void) {
     brace_in_for = saved_for;
     expect_p("}");
     if (!d->members.len)
-        error_at(open->pos, "a struct with no tag names its members: {x:f64, y:f64}");
+        error_at(open->pos, "%s with no tag names its %s: %s", tagged ? "an enum" : kind == D_UNION ? "a union" : "a struct",
+                 tagged ? "cases" : "members", tagged ? "enum{i:i32, f:f32}" : kind == D_UNION ? "union{i:i32, f:f32}" : "{x:f64, y:f64}");
     Buf b = {0};
-    buf_puts(&b, "{");
+    buf_puts(&b, tagged ? "enum{" : kind == D_UNION ? "union{" : "{");
     for (int i = 0; i < d->members.len; i++) {
         Var *m = d->members.data[i];
-        buf_printf(&b, "%s%s: %s", i ? ", " : "", m->name, kelvin_type(m->type));
+        if (m->type)
+            buf_printf(&b, "%s%s: %s", i ? ", " : "", m->name, kelvin_type(m->type));
+        else
+            buf_printf(&b, "%s%s", i ? ", " : "", m->name);
     }
     buf_puts(&b, "}");
     Decl *same = NULL;
@@ -6338,10 +6518,162 @@ static Type *parse_anon_record(void) {
 }
 
 static Decl *anon_record_of(Type *t) {
-    if (!t || t->kind != T_BASE || !t->name || strncmp(t->name, "struct _kv_anon", 15))
+    if (!t || t->kind != T_BASE || !t->name)
         return NULL;
-    Decl *r = record_named(t->name + 7);
+    const char *n = !strncmp(t->name, "struct _kv_anon", 15) ? t->name + 7 : !strncmp(t->name, "union _kv_anon", 14) ? t->name + 6 : NULL;
+    Decl *r = n ? record_named(n) : NULL;
     return r && r->spelling ? r : NULL;
+}
+
+/* ---------- an enum with values (#61): a tagged union ---------- */
+
+/* Is there a `:` at depth 1 inside the {...} group at i? */
+static bool brace_has_colon(int i) {
+    int end = skip_nested(i);
+    for (int k = i + 1, depth = 0; k < end; k++) {
+        if (is_p(&toks[k], "(") || is_p(&toks[k], "[") || is_p(&toks[k], "{"))
+            depth++;
+        else if (is_p(&toks[k], ")") || is_p(&toks[k], "]") || is_p(&toks[k], "}"))
+            depth--;
+        else if (depth == 0 && is_p(&toks[k], ":"))
+            return true;
+    }
+    return false;
+}
+
+/* the cases of enum T { none; some: i32 }: a name, with a value's type
+   after `:` or none, separated by `,`, `;` or a line break */
+static void parse_cases(Decl *d) {
+    while (!is_p(peek(), "}")) {
+        reject_inner_import();
+        do {
+            Var *v = xcalloc(1, sizeof *v);
+            v->pos = peek()->pos;
+            reject_kv_name(peek());
+            v->name = expect_ident("a case name");
+            if (case_named(d, v->name, NULL))
+                error_at(v->pos, "case '%s' is written twice", v->name);
+            if (accept_p(":"))
+                v->type = parse_type_in(TYPE_DECL);
+            if (is_p(peek(), "="))
+                error_at(peek()->pos, "a case of an enum with values is known by its name, not by a number");
+            list_push(&d->members, v);
+        } while (accept_p(","));
+        end_statement();
+    }
+    if (d->members.len > 255)
+        error_at(d->pos, "an enum with values has up to 255 cases: its tag is one byte");
+}
+
+/* the value given to a case (#61): an expression, or, for a case of a
+   struct or array type, its initializer list, as (T){...} */
+static Expr *case_value(Type *t) {
+    Decl *r;
+    bool list = is_p(peek(), "{") && t && ((t->kind == T_BASE && type_class(t, &r) == 's') || t->kind == T_ARRAY);
+    Expr *v;
+    if (list) {
+        v = new_expr(E_COMPOUND, peek()->pos);
+        v->type = t;
+        v->a = parse_initializer_for(t);
+        count_items(t, v->a);
+    } else {
+        v = parse_assign();
+        pick_overload(v, t);
+        v = drop_cstr(v, t);
+    }
+    return v;
+}
+
+static Var *case_named(Decl *r, const char *name, int *index) {
+    for (int i = 0; i < r->members.len; i++) {
+        Var *m = r->members.data[i];
+        if (!strcmp(m->name, name)) {
+            if (index)
+                *index = i;
+            return m;
+        }
+    }
+    return NULL;
+}
+
+/* the record of t, if it is an enum with values */
+static Decl *tagged_record(Type *t) {
+    Decl *r = NULL;
+    if (t && type_class(t, &r) == 's' && r && r->tagged)
+        return r;
+    return NULL;
+}
+
+static char *case_list(Decl *r) {
+    Buf b = {0};
+    buf_puts(&b, "");
+    for (int i = 0; i < r->members.len; i++)
+        buf_printf(&b, "%s%s", i ? ", " : "", ((Var *)r->members.data[i])->name);
+    return b.buf;
+}
+
+/* the spelling of a record in a message: its name, or its members */
+static char *record_spelling(Decl *r) {
+    if (r->spelling)
+        return r->spelling;
+    return r->name;
+}
+
+/* {.n = 1.5} or {.none} of an enum with values (#61): one case, by its
+   name; in C, {.tag = k, .u.n = 1.5} */
+static Expr *parse_case_initializer(Type *t, Decl *r) {
+    (void)t;
+    Token *open = expect_p("{");
+    Expr *e = new_expr(E_INIT, open->pos);
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+    brace_ends_condition = brace_in_for = false;
+    init_depth++;
+    if (is_p(peek(), "}")) { /* {}: the first case, zeroed */
+        init_depth--;
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        advance();
+        return e;
+    }
+    Var *first = r->members.data[0];
+    if (!accept_p("."))
+        error_at(peek()->pos, "a case of %s is written by its name: {.%s%s}", record_spelling(r), first->name,
+                 first->type ? " = ..." : "");
+    Token *cn = peek();
+    char *name = expect_ident("a case name");
+    int k;
+    Var *c = case_named(r, name, &k);
+    if (!c)
+        error_at(cn->pos, "%s has no case '%s': the cases are %s", record_spelling(r), name, case_list(r));
+    Expr *tag = new_expr(E_FIELD, cn->pos);
+    tag->text = "tag";
+    Expr *kv = new_expr(E_LITERAL, cn->pos);
+    kv->text = strfmt("%d", k);
+    list_push(&e->designators, tag);
+    list_push(&e->items, kv);
+    if (c->type) {
+        if (!accept_p("="))
+            error_at(peek()->pos, "case '%s' carries a value: write {.%s = ...}", c->name, c->name);
+        Expr *v = drop_cstr(parse_initializer_for(c->type), c->type);
+        reject_owner_copy(v, c->type, v->pos);
+        reject_record_mismatch(v, c->type, v->pos);
+        Expr *u = new_expr(E_FIELD, cn->pos);
+        u->text = "u";
+        Expr *d = new_expr(E_FIELD, cn->pos);
+        d->a = u;
+        d->text = c->name;
+        list_push(&e->designators, d);
+        list_push(&e->items, v);
+    } else if (is_p(peek(), "=")) {
+        error_at(peek()->pos, "case '%s' carries no value: write {.%s}", c->name, c->name);
+    }
+    if (accept_p(",") && !is_p(peek(), "}"))
+        error_at(peek()->pos, "an enum with values holds one case at a time: write one");
+    init_depth--;
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    expect_p("}");
+    return e;
 }
 
 /* A top-level declaration and the anonymous functions in it (#32):

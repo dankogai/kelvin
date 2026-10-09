@@ -244,6 +244,8 @@ struct Decl {
                              template, written into the caller's buffer (#53) */
     char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
                              {x: f64, y: f64}; name is _kv_anonN */
+    bool tagged;          /* D_STRUCT: an enum with values (#61), a tagged union:
+                             members are its cases, type NULL for one with no value */
 };
 
 typedef struct {
