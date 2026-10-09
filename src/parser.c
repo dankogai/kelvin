@@ -1527,6 +1527,23 @@ static Expr *parse_primary(void) {
     }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
         error_at(t->pos, "_Pragma(\"...\") is only allowed as a statement of its own");
+    if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_STRING) {
+        /* $"text" is String("text") (#62) */
+        advance();
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "String";
+        e->op = "string";
+        list_push(&e->items, parse_primary());
+        return e;
+    }
+    if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "[") &&
+        !(anon_start >= 0 && !is_p(peek_at(2), "]") && is_p(peek_at(3), "]"))) {
+        /* $[a, b, c] is Array([a, b, c]) (#62); in an anonymous function,
+           $[k] of one token is still its parameter k */
+        advance();
+        return array_of_list(t, NULL);
+    }
     if (t->kind == TK_PUNCT && t->text[0] == '$')
         return parse_dollar();
     if (t->kind == TK_IDENT && anon_start >= 0) {
@@ -5513,7 +5530,8 @@ static Expr *parse_dollar(void) {
     bool bracket = !*digits;
     if (bracket) {
         if (!accept_p("["))
-            error_at(t->pos, "'$' alone is not a value: its parameters are $[0], $[1], ..., or $0, $1, ...");
+            error_at(t->pos, "'$' alone is not a value: $\"text\" is a String, $[a, b] an Array, and an anonymous "
+                             "function's parameters are $[0], $[1], ..., or $0, $1, ...");
         Token *n = peek();
         if (n->kind != TK_NUMBER || strspn(n->text, "0123456789") != strlen(n->text))
             error_at(n->pos, "$[...] takes a number, as in $[0]: each parameter may have a type of its own");

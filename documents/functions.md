@@ -90,6 +90,7 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
 ```
 
 - **Its parameters** are `$0`, `$1`, ..., also written `$[0]`, `$[1]`,
+  (inside the function; elsewhere `$[a, b]` is an `Array`, #62),
   where kelvinc sees their types: from the parameter of a Kelvin function,
   method or function value it is passed to, a declared variable, a
   member of a struct in an initializer list (`{ $0 - $1 }` for a member

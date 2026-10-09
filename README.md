@@ -98,7 +98,8 @@ So far the changes from C are:
   copied only by `.copy()`, borrowed as `Bytes^`; `b += "more"`,
   `b[i]` checked; `String` is a `Bytes` of well-formed UTF-8, counted
   and walked by codepoint, each a `uchr`, which prints as its character;
-  `Array<T>` is a growable array of any value type, owners included
+  `Array<T>` is a growable array of any value type, owners included;
+  `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`

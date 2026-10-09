@@ -2684,3 +2684,18 @@ parts around the element's declaration. Every allocation of the JSON
 test is freed at exit under ASan. Details are provisional P72 and P73.
 
 There are 509 tests, and all pass with clang and with gcc 15.
+
+### 93. `$"text"` and `$[a, b, c]`
+
+> `String("...")`and `Array([...])`seems too long, may keep users away
+> from using. as a human I feel the need for the shortcut. How about
+> prefixing them with `$`? `$"I needed it"` is `String("I needed it")`,
+> `$[[1,0],[0,1]]` is `Array([[1,0],[0,1])`
+
+**Claude** added #62: `$"text"` is `String("text")` and `$[...]` is
+`Array([...])`, nested lists included, through the same code; inside
+an anonymous function, `$[k]` of one number stays its parameter k. The
+details are provisional P74.
+
+There are 511 tests, and all pass with clang and with gcc 15.
+

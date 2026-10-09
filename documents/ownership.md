@@ -69,9 +69,9 @@ println(s == t, " ", t.cstr)
 let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
 ```
 
-- **Making one:** `String()` is empty; `String("text")`, `String(s)`
-  of a `cstr` or a byte array, and `String(&b)` of a `Bytes` copy and
-  check the text; `b.string()` is the same as `String(&b)`, and
+- **Making one:** `String()` is empty; `String("text")`, or `$"text"`
+  for short (#62), `String(s)` of a `cstr` or a byte array, and
+  `String(&b)` of a `Bytes` copy and check the text; `b.string()` is the same as `String(&b)`, and
   `b.isUTF8` says whether it would pass.
 - **Properties:** `s.count` the codepoints, kept with the text, so it
   costs nothing; `s.bytes` a read-only borrow of the bytes, a
@@ -107,6 +107,7 @@ it, copied by `copy()`, and never copied by `=`.
 ```kelvin
 var xs = Array<i64>()            // empty; Array<i64>(n) is n zero elements
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
+var vb = $[0, 1, 2, 3]            // the same, for short; $"text" is String("text")
 var m = Array([[0], [1, 2]])     // a [...] among the elements is an Array in turn: an Array<Array<i64>>
 for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
 xs.insert(0, 100)
@@ -126,8 +127,8 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   `Array<Array<i64>>` nests. `Array<T>` with no `(...)` after it is a
   type, not a value.
 - **Making one:** `Array<T>()` is empty; `Array<T>(n)` is n zero
-  elements (empty owners, for an Array of owners); `Array([a, b, c])`
-  holds the elements written, with `T` inferred from them as a
+  elements (empty owners, for an Array of owners); `Array([a, b, c])`,
+  or `$[a, b, c]` for short (#62), holds the elements written, with `T` inferred from them as a
   variable's type is (#47, #48), or given, `Array<T>([a, b, c])`; a
   `[...]` among the elements is an Array in turn, so `Array([[0], [1,
   2]])` is an `Array<Array<i64>>`, never a fixed array;
