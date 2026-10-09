@@ -67,7 +67,7 @@ P-numbers in [Design.md](../Design.md).
 | `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
 | a UTF-8 string by hand | `var s = String("héllo")`, `for c in s { }` by codepoint, `s.count` (#55) |
 | `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
-| `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array<T>()`, `xs += x`, `xs[i]` checked, freed by its block (#57) |
+| `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array([1, 2, 3])`, `xs += x`, `xs[i]` checked, freed by its block (#57, #58) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |

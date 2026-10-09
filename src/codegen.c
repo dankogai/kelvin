@@ -476,6 +476,8 @@ static char *expr_bare(Expr *e) {
             char *x = expr(e->items.data[0]);
             if (!strcmp(e->text, "fixed"))
                 return strfmt("%s_from(%s, sizeof (%s) / sizeof (%s)[0])", e->type->cname, x, x, x);
+            if (!strcmp(e->text, "list")) /* Array([a, b, c]): a compound literal of the elements (#58) */
+                return strfmt("%s_from(%s, %s)", e->type->cname, x, ((Expr *)e->items.data[0])->type->size->text);
             if (!strcmp(e->text, "copy"))
                 return strfmt("%s_copy(%s)", e->type->cname, x);
             return strfmt("%s_zeros(%s)", e->type->cname, x);

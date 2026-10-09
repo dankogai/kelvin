@@ -2619,3 +2619,28 @@ provisional P69.
 
 There are 490 tests, and all pass with clang and with gcc 15.
 
+### 90. `Array([0, 1, 2, 3])`
+
+> Why doesn't `var va = Array([0,1,2,3])` work? It should work as:
+> `var va = Array<i64>()` and `va.append(0); va.append(1); va.append(2);
+> va.append(3)`
+
+**Claude** found two reasons: `Array` was a constructor only as
+`Array<T>(...)`, and `[...]` was a value only as a declaration's
+initializer. #58 lets `Array(...)` infer `T` from its argument, and
+takes a `[...]` argument as the elements, typed as a fixed array's
+initializer is, so that `Array([0, 1, 2, 3])`, `Array<f64>([1, 2.5])`,
+`Array([String("a"), String("b")])`, `Array([Array([1, 2]), squares(3)])`,
+`Array(fixed)` and `Array(&other)` all work.
+
+> and `Array([ [0], [0] ])` should be parsed as
+> `Array([Array([0]),Array([0])])`.
+
+So it is: a `[...]` among the elements is an Array in turn, inferred
+or of the written type's element, and `Array([[[1, 2, 3]], [[4], [5,
+6]]])` is an `Array<Array<Array<i64>>>`; `Array()` and `Array(n)`
+have nothing to infer from and ask for `Array<T>`. The details are
+provisional P70.
+
+There are 495 tests, and all pass with clang and with gcc 15.
+

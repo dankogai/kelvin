@@ -106,12 +106,14 @@ it, copied by `copy()`, and never copied by `=`.
 
 ```kelvin
 var xs = Array<i64>()            // empty; Array<i64>(n) is n zero elements
+var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
+var m = Array([[0], [1, 2]])     // a [...] among the elements is an Array in turn: an Array<Array<i64>>
 for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
 xs.insert(0, 100)
 xs.remove(1, 2)
 let last = xs.pop()
 println(xs.count, " ", xs[0], " ", xs.capacity)
-let ys = Array<i64>(fixed)       // a copy of a fixed array, [i64](3)
+let ys = Array(fixed)            // a copy of a fixed array, [i64](3); Array(&xs) a copy of an Array
 for x in xs { ... }              // each element, a let
 var rows = Array<Array<i64>>()   // Arrays of Arrays, of Strings, of Bytes
 rows += Array<i64>(3)            // moved in
@@ -124,9 +126,17 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   `Array<Array<i64>>` nests. `Array<T>` with no `(...)` after it is a
   type, not a value.
 - **Making one:** `Array<T>()` is empty; `Array<T>(n)` is n zero
-  elements (empty owners, for an Array of owners); `Array<T>(a)` of a
-  fixed array `[T](N)` copies its elements; `Array<T>(&other)` copies
-  another. `var xs:Array<T>` without a value is empty.
+  elements (empty owners, for an Array of owners); `Array([a, b, c])`
+  holds the elements written, with `T` inferred from them as a
+  variable's type is (#47, #48), or given, `Array<T>([a, b, c])`; a
+  `[...]` among the elements is an Array in turn, so `Array([[0], [1,
+  2]])` is an `Array<Array<i64>>`, never a fixed array;
+  `Array(a)` of a fixed array `[T](N)` copies its elements;
+  `Array(&other)` copies another; `T` may be written before `(` in
+  every form, and must be when nothing gives it: `Array()` and
+  `Array(n)` are errors. `var xs:Array<T>` without a value is empty.
+  An owner written among the elements is moved in (`Array([String("a")])`);
+  a variable that owns is not copied there, as `=` does not copy it.
 - **Properties:** `xs.count`, `xs.capacity`, `xs.at` the elements as a
   `T^` (`const T^` for a let), `xs.size` C's `sizeof`, 24,
   `xs.typename` `Array<T>`.

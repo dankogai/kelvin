@@ -456,7 +456,10 @@ static bool is_uchr(Type *t);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
+static void check_array_elem(Type *elem);
+static Expr *array_of_list(Token *t, Type *at);
 static Type *array_type(Token *at, Type *elem);
+static Type *list_type(Expr *e, Pos pos);
 static char *mangled_type(Type *t);
 static Expr *utf32_of(Expr *c);
 static const char *builtin_owner(Type *t);
@@ -1466,11 +1469,13 @@ static Expr *parse_primary(void) {
         return e;
     }
     reject_c_int_name(t);
-    if (is_kw(t, "Array") && is_p(peek2(), "<")) {
+    if (is_kw(t, "Array") && (is_p(peek2(), "<") || is_p(peek2(), "("))) {
         /* Array<T>(), Array<T>(n) of n zero elements, Array<T>(a) of a
-           fixed array of T, Array<T>(&other) a copy (#57) */
+           fixed array of T, Array<T>(&other) a copy (#57); Array<T>([...])
+           of the elements written, and Array([...]), Array(a) and
+           Array(&other), with T inferred from the argument (#58) */
         advance();
-        Type *at = array_type(t, parse_array_elem());
+        Type *at = is_p(peek(), "<") ? array_type(t, parse_array_elem()) : NULL;
         if (!is_p(peek(), "("))
             error_at(peek()->pos, "Array<%s> is a type: make one with Array<%s>(), or write it after ':'",
                      kelvin_type(at->elem), kelvin_type(at->elem));
@@ -1482,6 +1487,15 @@ static Expr *parse_primary(void) {
         e->type = at;
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
+        if (is_p(peek(), "[")) { /* the elements (#58) */
+            e = array_of_list(t, at);
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            if (!is_p(peek(), ")"))
+                error_at(peek()->pos, "Array([...]) takes the elements alone: expected ')'");
+            advance();
+            return e;
+        }
         while (!is_p(peek(), ")")) {
             list_push(&e->items, parse_assign());
             if (!accept_p(","))
@@ -1491,9 +1505,23 @@ static Expr *parse_primary(void) {
         brace_in_for = saved_for;
         expect_p(")");
         if (e->items.len > 1)
-            error_at(t->pos, "Array<T> takes nothing, a count, a fixed array of T, or a borrow of an Array<T>");
-        if (e->items.len == 1) {
-            Expr *x = e->items.data[0];
+            error_at(t->pos, "Array%s takes nothing, a count, the elements in [...], a fixed array, or a borrow of "
+                             "an Array",
+                     at ? "<T>" : "");
+        Expr *x = e->items.len ? e->items.data[0] : NULL;
+        if (!at) {
+            Type *xt = x ? value_type(x) : NULL;
+            if (xt && xt->kind == T_ARRAY && xt->elem) {
+                check_array_elem(xt->elem);
+                at = e->type = array_type(t, xt->elem);
+            } else if (xt && xt->kind == T_PTR && is_array_owner(xt->elem)) {
+                at = e->type = xt->elem;
+            } else {
+                error_at(t->pos, "Array(%s) has no element type: write Array<T>(%s), or the elements, Array([...])",
+                         x ? "x" : "", x ? "x" : "");
+            }
+        }
+        if (x) {
             Type *xt = value_type(x);
             if (owner_place(x))
                 error_at(x->pos, "Array<T>(a) would copy an owner: write a.copy(), or Array<T>(&a)");
@@ -4041,13 +4069,84 @@ static Type *parse_array_elem(void) {
         toks[cur].text = ">";
     else if (!accept_p(">"))
         error_at(peek()->pos, "expected '>' after the element type of Array<T>");
+    check_array_elem(elem);
+    return elem;
+}
+
+/* Array([a, b, c]) (#58): the elements written, each as a fixed array's
+   initializer item; a [...] among them is an Array in turn, so that
+   Array([[0], [1, 2]]) is an Array<Array<i64>>. at is the Array's type
+   when written, else it is inferred from the elements as a variable's
+   type is (#47, #48). The C is a compound literal of the elements and
+   their count, through A_from, which takes their bytes: an owner
+   written there is moved in. */
+static Expr *array_of_list(Token *t, Type *at) {
+    Token *open = expect_p("[");
+    Type *elem = at ? at->elem : NULL;
+    Expr *list = new_expr(E_INIT, open->pos);
+    list->bracket = true;
+    init_depth++;
+    while (!is_p(peek(), "]")) {
+        if (is_p(peek(), ".") || (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "=")))
+            error_at(peek()->pos, "the elements of an Array are written in order, without designators");
+        Expr *x;
+        if (is_p(peek(), "[")) {
+            if (at && !is_array_owner(elem))
+                error_at(peek()->pos, "'[...]' here makes an Array, and an element of %s is %s", kelvin_type(at),
+                         kelvin_type(elem));
+            x = array_of_list(t, at ? elem : NULL);
+        } else {
+            x = drop_cstr(parse_initializer_for(elem), elem); /* a cstr into a u8^ element (#52) */
+            reject_owner_copy(x, elem, x->pos);
+        }
+        list_push(&list->designators, NULL);
+        list_push(&list->items, x);
+        if (!accept_p(","))
+            break;
+    }
+    init_depth--;
+    expect_p("]");
+    if (!at) {
+        if (!list->items.len)
+            error_at(open->pos, "Array([]) has no element type: write Array<T>()");
+        Type *lt = list_type(list, open->pos);
+        if (!lt)
+            error_at(open->pos, "the elements have no one type kelvinc sees here: write Array<T>([...])");
+        check_array_elem(lt->elem);
+        at = array_type(t, lt->elem);
+        elem = lt->elem;
+        for (int i = 0; i < list->items.len; i++)
+            reject_owner_copy(list->items.data[i], elem, ((Expr *)list->items.data[i])->pos);
+    }
+    Expr *e = new_expr(E_CALL, t->pos);
+    e->a = new_expr(E_IDENT, t->pos);
+    e->a->text = "Array";
+    e->op = "array";
+    e->type = at;
+    if (!list->items.len)
+        return e; /* Array<T>([]) is empty */
+    Type *fixed = xcalloc(1, sizeof *fixed);
+    fixed->kind = T_ARRAY;
+    fixed->pos = open->pos;
+    fixed->elem = elem;
+    fixed->size = new_expr(E_LITERAL, open->pos);
+    fixed->size->text = strfmt("%d", list->items.len);
+    Expr *c = new_expr(E_COMPOUND, open->pos);
+    c->type = fixed;
+    c->a = list;
+    list_push(&e->items, c);
+    e->text = "list";
+    return e;
+}
+
+/* what may be an element of an Array (#57) */
+static void check_array_elem(Type *elem) {
     if (is_owner(elem) && !builtin_owner(elem))
         error_at(elem->pos, "an Array of %s, a struct that owns, is not here yet: a Bytes, a String or an Array may "
                             "be an element",
                  kelvin_type(elem));
     if (elem->kind == T_ARRAY || (elem->kind == T_BASE && !strcmp(elem->name, "any")))
         error_at(elem->pos, "an Array of %s is not here yet: an element is a value C returns", kelvin_type(elem));
-    return elem;
 }
 
 /* Array<T> as a type: a T_BASE named by its element, with its C name,

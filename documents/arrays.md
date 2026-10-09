@@ -123,4 +123,6 @@ including typedef names with suffixes, and under `sizeof`:
   null: write `(&a[0]).addr`.
 - **An array of functions**, or a pointer to a function type, has no
   spelling yet.
-- **`Array<T>(a)`** copies a fixed array into a growable one (#57).
+- **`Array(a)`** copies a fixed array into a growable one, and
+  `Array([1, 2, 3])` makes one of the elements written, and
+  `Array([[1], [2, 3]])` an Array of Arrays (#57, #58).
