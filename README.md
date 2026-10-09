@@ -35,7 +35,9 @@ So far the changes from C are:
 - an `enum` whose cases carry values is a union that knows its case,
   with a byte for the tag: `enum json { null; n: f64; s: String; a:
   Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested
-  with `j.is(n)` and `switch (j) { case n: ... }`
+  with `j.is(n)` and `switch j { case n: ... }`
+- `switch` is Swift's: a case ends at the next, `case 1, 2:` shares a
+  body, and every value is handled, by every case or by `default:`
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
   functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters

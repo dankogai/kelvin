@@ -49,6 +49,14 @@ static void emit_tagged_record(Decl *d, Type *recv);
 static void emit_arrays_after(Decl *d);
 static void emit_derived_copy(Decl *d, Type *recv);
 static int cur_decl; /* the index of the top-level declaration being emitted */
+/* the block of the switch being emitted (#63): a case ends at the next,
+   so `break;` goes before each label and at the end; one exhaustive by
+   its cases (closed) tells C that nothing else reaches it */
+static Stmt *switch_block;
+static bool switch_closed;
+static bool is_jump(Stmt *s) {
+    return s && (s->kind == S_BREAK || s->kind == S_RETURN || s->kind == S_CONTINUE || s->kind == S_GOTO);
+}
 static List owner_locals; /* name, type, in pairs: the owners of the function's blocks (#54) */
 static bool local_owner(Expr *e);
 static Type *local_owner_type(const char *name);
@@ -1199,8 +1207,22 @@ static void stmt(Stmt *s) {
         for (int i = 0; i < param_caches.len; i++) /* a parameter's .count (#52) */
             line("%s", (char *)param_caches.data[i]);
         param_caches.len = 0;
-        for (int i = 0; i < s->stmts.len; i++)
-            stmt(s->stmts.data[i]);
+        bool sw = s == switch_block, closed = sw && switch_closed;
+        switch_block = NULL;
+        for (int i = 0; i < s->stmts.len; i++) {
+            Stmt *x = s->stmts.data[i];
+            if (sw && i && (x->kind == S_CASE || x->kind == S_DEFAULT) && !is_jump(s->stmts.data[i - 1]))
+                line("break;");
+            stmt(x);
+        }
+        if (sw && s->stmts.len && !is_jump(s->stmts.data[s->stmts.len - 1]))
+            line("break;");
+        if (closed) {
+            indent--;
+            line("default:");
+            indent++;
+            line("__builtin_unreachable();");
+        }
         count_cache.len = caches;
         owner_locals.len = owners;
         Buf items = out;
@@ -1443,11 +1465,14 @@ static void stmt(Stmt *s) {
     }
     case S_SWITCH:
         line("switch (%s)", expr(s->expr));
+        switch_block = s->body;
+        switch_closed = s->closed;
         body(s->body);
         break;
     case S_CASE:
         indent--;
-        line("case %s:%s", expr(s->expr), s->name ? strfmt(" /* %s */", s->name) : "");
+        for (Stmt *c = s; c; c = c->els) /* case a, b: (#63) */
+            line("case %s:%s", expr(c->expr), c->name ? strfmt(" /* %s */", c->name) : "");
         indent++;
         break;
     case S_DEFAULT:

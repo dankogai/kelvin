@@ -666,6 +666,11 @@ static Expr *parse_case_initializer(Type *t, Decl *r);
 static void move_argument(Expr *arg, Type *param, const char *what);
 /* the enum with values a switch is on, while its body is parsed (#61) */
 static Decl *switch_record;
+/* the depth of blocks being parsed, and the depth at which the cases of
+   the switch being parsed are written: at the top of its block (#63) */
+static int block_depth, case_depth = -1;
+static void parse_case_label(Stmt *s);
+static void check_switch(Stmt *s);
 static Type *parse_type(void);
 static Type *parse_typeof(int dot);
 
@@ -4932,12 +4937,14 @@ static void reject_inner_import(void) {
 static Stmt *parse_block_rest(Token *t) {
     Stmt *s = new_stmt(S_BLOCK, t->pos);
     open_scope();
+    block_depth++;
     while (!is_p(peek(), "}")) {
         if (peek()->kind == TK_EOF || peek()->kind == TK_FILE_END)
             error_at(t->pos, "unterminated block");
         reject_inner_import();
         list_push(&s->stmts, parse_stmt());
     }
+    block_depth--;
     close_scope();
     advance();
     return s;
@@ -5238,14 +5245,14 @@ static Stmt *dropped_at_end(Stmt *s, bool calls) {
     case S_SWITCH: {
         if (!s->body || s->body->kind != S_BLOCK)
             return dropped_at_end(s->body, calls);
-        /* before a case, a call's value may be dropped on purpose, since
-           the case falls through */
+        /* a case ends at the next (#63), so each case's last statement is
+           at the end */
         List *l = &s->body->stmts;
         for (int k = 0; k < l->len; k++) {
             Stmt *next = k + 1 < l->len ? l->data[k + 1] : NULL;
             if (next && next->kind != S_CASE && next->kind != S_DEFAULT)
                 continue;
-            Stmt *d = dropped_at_end(l->data[k], calls && !next);
+            Stmt *d = dropped_at_end(l->data[k], calls);
             if (d)
                 return d;
         }
@@ -5662,11 +5669,85 @@ static Stmt *parse_declaration(void) {
     return s;
 }
 
-static Expr *parse_paren_expr(void) {
-    expect_p("(");
-    Expr *e = parse_expr();
-    expect_p(")");
-    return e;
+/* one label of a case: of an enum with values, a case's bare name (#61);
+   otherwise C's constant expression */
+static void parse_case_label(Stmt *s) {
+    if (switch_record && peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), ","))) {
+        int k;
+        Var *c = case_named(switch_record, peek()->text, &k);
+        if (!c)
+            error_at(peek()->pos, "%s has no case '%s': the cases are %s", record_spelling(switch_record),
+                     peek()->text, case_list(switch_record));
+        Token *cn = advance();
+        s->expr = new_expr(E_LITERAL, cn->pos);
+        s->expr->text = strfmt("%d", k);
+        s->name = c->name;
+        return;
+    }
+    bool saved = ident_annotation_ok;
+    ident_annotation_ok = false;
+    s->expr = parse_conditional();
+    ident_annotation_ok = saved;
+}
+
+/* the Kelvin enum (C's kind) that t names, with its enumerators */
+static Decl *plain_enum_of(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (!t || t->kind != T_BASE || strncmp(t->name, "enum ", 5))
+        return NULL;
+    Decl *r = record_named(t->name + 5);
+    return r && r->kind == D_ENUM && r->has_body ? r : NULL;
+}
+
+/* A switch's block (#63): it starts with a case, no case is empty before
+   another (a case ends at the next: write `case a, b:` for one body), and
+   every value is handled: every case of an enum with values, every
+   enumerator of a Kelvin enum, or `default:`. One exhaustive by its cases
+   is marked closed, for C. */
+static void check_switch(Stmt *s) {
+    List *l = &s->body->stmts;
+    if (!l->len || (((Stmt *)l->data[0])->kind != S_CASE && ((Stmt *)l->data[0])->kind != S_DEFAULT))
+        error_at(l->len ? ((Stmt *)l->data[0])->pos : s->body->pos, "a switch's block starts with 'case' or 'default:'");
+    bool has_default = false;
+    List labels = {0}; /* Stmt *: every case label, chains included */
+    for (int k = 0; k < l->len; k++) {
+        Stmt *x = l->data[k];
+        if (x->kind == S_DEFAULT)
+            has_default = true;
+        if (x->kind != S_CASE && x->kind != S_DEFAULT)
+            continue;
+        for (Stmt *c = x; c && c->kind == S_CASE; c = c->els)
+            list_push(&labels, c);
+        Stmt *next = k + 1 < l->len ? l->data[k + 1] : NULL;
+        if (next && (next->kind == S_CASE || next->kind == S_DEFAULT))
+            error_at(next->pos, "a case ends at the next case, and the one before this has no body: write 'case a, "
+                                "b:' to share a body, or 'break' to do nothing");
+    }
+    if (has_default)
+        return;
+    Decl *tr = tagged_record(s->type), *pe = tr ? NULL : plain_enum_of(s->type);
+    Decl *r = tr ? tr : pe;
+    if (!r)
+        error_at(s->pos, "a switch handles every value: add 'default:'");
+    Buf missing = {0};
+    buf_puts(&missing, "");
+    int n = 0;
+    for (int i = 0; i < r->members.len; i++) {
+        Var *m = r->members.data[i];
+        bool found = false;
+        for (int k = 0; !found && k < labels.len; k++) {
+            Stmt *c = labels.data[k];
+            found = tr ? c->name && !strcmp(c->name, m->name)
+                       : c->expr->kind == E_IDENT && !strcmp(c->expr->text, m->name);
+        }
+        if (!found)
+            buf_printf(&missing, "%s%s", n++ ? ", " : "", m->name);
+    }
+    if (n)
+        error_at(s->pos, "switch on %s is not exhaustive: %s %s missing; write every %s, or add 'default:'",
+                 tr ? record_spelling(tr) : pe->name, missing.buf, n == 1 ? "is" : "are", tr ? "case" : "enumerator");
+    s->closed = true;
 }
 
 /* The condition of if, while or do (#23): a bool, with no parentheses
@@ -6059,10 +6140,18 @@ static Stmt *parse_stmt_here(void) {
         return s;
     }
     if (accept_kw("switch")) {
+        /* switch v { case a: ... case b, c: ... default: ... } (#63): no
+           parentheses needed, a case ends at the next, every value is
+           handled; of an enum with values, on its case (#61) */
         Stmt *s = new_stmt(S_SWITCH, pos);
-        s->expr = parse_paren_expr();
-        /* switch v, of an enum with values, is on its case (#61) */
+        bool saved_brace = brace_ends_condition;
+        brace_ends_condition = true;
+        s->expr = parse_expr();
+        brace_ends_condition = saved_brace;
+        if (!is_p(peek(), "{"))
+            error_at(peek()->pos, "expected '{': the body of 'switch' is a block of cases, as in 'switch v { case a: ... }'");
         Decl *tr = tagged_record(value_type(s->expr));
+        s->type = value_type(s->expr); /* for the check of its cases */
         if (tr) {
             Expr *x = new_expr(E_PROPERTY, s->expr->pos);
             x->a = s->expr;
@@ -6071,35 +6160,37 @@ static Stmt *parse_stmt_here(void) {
             s->expr = x;
         }
         Decl *saved = switch_record;
+        int saved_depth = case_depth;
         switch_record = tr;
-        s->body = parse_body();
+        case_depth = block_depth + 1;
+        s->body = parse_block();
+        case_depth = saved_depth;
         switch_record = saved;
+        check_switch(s);
         return s;
     }
     if (accept_kw("case")) {
-        Stmt *s = new_stmt(S_CASE, pos);
-        if (switch_record && peek()->kind == TK_IDENT && is_p(peek2(), ":")) {
-            /* case n: of an enum with values, by the case's name (#61) */
-            int k;
-            Var *c = case_named(switch_record, peek()->text, &k);
-            if (!c)
-                error_at(peek()->pos, "%s has no case '%s': the cases are %s", record_spelling(switch_record),
-                         peek()->text, case_list(switch_record));
-            Token *cn = advance();
-            s->expr = new_expr(E_LITERAL, cn->pos);
-            s->expr->text = strfmt("%d", k);
-            s->name = c->name;
-            expect_p(":");
-            return s;
+        if (case_depth < 0)
+            error_at(pos, "'case' outside a switch");
+        if (case_depth != block_depth)
+            error_at(pos, "a case is written at the top of the switch's block, not inside a statement of it");
+        Stmt *s = new_stmt(S_CASE, pos), *last = s;
+        for (;;) {
+            parse_case_label(last);
+            if (!accept_p(","))
+                break;
+            Stmt *more = new_stmt(S_CASE, peek()->pos); /* case a, b: one body for both */
+            last->els = more;
+            last = more;
         }
-        bool saved = ident_annotation_ok;
-        ident_annotation_ok = false;
-        s->expr = parse_conditional();
-        ident_annotation_ok = saved;
         expect_p(":");
         return s;
     }
     if (accept_kw("default")) {
+        if (case_depth < 0)
+            error_at(pos, "'default' outside a switch");
+        if (case_depth != block_depth)
+            error_at(pos, "'default' is written at the top of the switch's block, not inside a statement of it");
         expect_p(":");
         return new_stmt(S_DEFAULT, pos);
     }

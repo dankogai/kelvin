@@ -2699,3 +2699,22 @@ details are provisional P74.
 
 There are 511 tests, and all pass with clang and with gcc 15.
 
+### 94. `switch` without `break`
+
+> Regarding `switch`-`case`, does the current kelvin need `;break;`
+> like C? If not, make it unnecessary like `Swift` and many other
+> modern languages. And make it exhaustive too. Duff's devices should
+> be blown in the wind. You may add `default:` keyword
+
+**Claude**: it did need `break`, as C does. #63 makes `switch` Swift's:
+a case ends at the next, `case a, b:` shares a body, an empty case
+before another and a case inside a statement are errors, every value
+is handled (every case of an enum with values, every enumerator of a
+Kelvin enum, or `default:`, C's keyword already), and the parentheses
+go: `switch n {`. The C gets a `break` per case, and
+`__builtin_unreachable()` where the cases are exhaustive. Two tests
+that leaned on fallthrough or had no default were rewritten. Details
+are provisional P75.
+
+There are 518 tests, and all pass with clang and with gcc 15.
+

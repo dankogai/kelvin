@@ -14,8 +14,8 @@ var j:json = {.n = 1.5}                  // a case by its name
 j.s = String("text")                     // sets the case; what it held is freed
 var k = json.a(Array([json.n(1.0), json.null]))   // T.case(value), T.case
 println(j.cstr, " ", k.a.count, " ", j.is(s), " ", j.case)   // s(text) 2 true 3
-switch (k.a[0]) {
-case n: println(k.a[0].n)                // a case by its bare name
+switch k.a[0] {
+case n: println(k.a[0].n)                // a case by its bare name; ends at the next (#63)
 case s: println(k.a[0].s)
 default: println("another")
 }
@@ -28,7 +28,8 @@ println(j.n)                             // ends the program: case 'n' of json i
   C's enum: `color` is a type, `red` an integer constant, and `c.cstr`
   its number.
 - **An anonymous `enum { a, b }`** at the top level is a group of int
-  constants, as in C.
+  constants, as in C. A `switch` on a Kelvin enum lists every
+  enumerator, or has `default:` (#63).
 
 ## An enum with values: `enum T { none; some: i32 }`
 
@@ -51,9 +52,9 @@ println(j.n)                             // ends the program: case 'n' of json i
   It is a place: `v.rect.w += 1.0` and `v.s += "x"` change it. A case
   with no value cannot be read.
 - **Testing:** `v.is(n)` is a bool; `v.case` is the tag, a `u8`, the
-  case's index from 0; `switch (v) { case n: ... case none: ... }`
-  branches on the case by its bare name, with C's `switch` otherwise
-  (`break`, `default`).
+  case's index from 0; `switch v { case n: ... case none: ... }`
+  branches on the case by its bare name, each case ending at the next,
+  and lists every case or has `default:` (#63, [flow-controls.md](flow-controls.md)).
 - **Text:** `v.cstr` and `${v}` are the case's name and its value in
   parentheses, `n(1.5)`, `rect({w: 3, h: 4})`, or the name alone,
   `none`; `T.cstr()` (#53) replaces it.

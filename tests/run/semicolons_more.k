@@ -61,15 +61,18 @@ let quiet() {
     println("never")
 }
 
-// a call before a case may drop its value: the case falls through
+// a case ends at the next (#63): each case returns on its own
 var hits:i64 = 0
 let bump():i64 { hits += 1; return hits }
 let count_down(n:i64):i64 {
     switch (n) {
     case 2:
         bump()
+        bump()
+        return hits
     case 1:
         bump()
+        return hits
     default:
         return hits
     }
@@ -151,6 +154,8 @@ again:
     {
     case 4:
         println("four")
+    default:
+        break
     }
     if k > 0 { k = 10 } k += 1
     if true { _Pragma("GCC diagnostic push") }

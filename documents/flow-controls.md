@@ -33,10 +33,51 @@ do {
 - Parentheses around a condition are only grouping now: `if (n > 0) { ... }`
   still works, while C's `if (n > 0) n = 0;` is an error, since the body
   must be a block. `else` is followed by a block or by `if`.
-- `switch (...)` keeps C's parentheses for now, and so does C's `for`,
-  whose body may still be a single statement *(provisional P37)*. To
-  count, prefer a range (below).
-- `case`, `goto` and labels are C's.
+- C's `for` keeps its parentheses, and its body may still be a single
+  statement *(provisional P37)*. To count, prefer a range (below).
+- `goto` and labels are C's.
+
+## Switch: a case ends at the next
+
+`switch` is Swift's, not C's (#63): no parentheses are needed, a case
+ends where the next begins, with no `break` and no fallthrough, and
+every value is handled.
+
+```kelvin
+switch n {
+case 0:
+    println("zero")
+case 1, 2:                      // one body for both
+    println("small")
+    if n == 2 { break }         // break leaves the switch
+    println("one")
+default:
+    println("big")
+}
+switch s {                      // an enum with values (#61), by its cases
+case none: return 0.0
+case circle: return 3.0 * s.circle * s.circle
+case rect: return s.rect.w * s.rect.h
+}                               // exhaustive: no default needed
+```
+
+- **The cases** are written at the top of the switch's block, each with
+  at least one statement before the next, since a case ends there; a
+  case before another with nothing between them is an error, as a C
+  programmer would mean a fallthrough: write `case a, b:` for one body,
+  or `break` to do nothing. A case inside a statement of the block
+  (Duff's device) is an error too. `case` and `default:` are only in a
+  switch.
+- **Every value is handled:** a switch on an enum with values lists
+  every case, a switch on an enum declared in Kelvin every enumerator,
+  and any other switch has `default:`; otherwise kelvinc names what is
+  missing.
+- **`break`** leaves the switch, as in C, and `continue` goes on with
+  the loop around it; `return` returns. `goto` is C's.
+- **In C**, each case gets a `break` before the next label and at the
+  end, unless it ends with a jump; a switch exhaustive by its cases
+  gets `default: __builtin_unreachable();`, so that C sees no path past
+  it. `switch (n) {` still works: the parentheses group.
 
 ## Ranges: `for i in a..<b`
 

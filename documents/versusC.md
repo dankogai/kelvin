@@ -39,7 +39,8 @@ P-numbers in [Design.md](../Design.md).
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
 | `struct { double x, y; } v = {3, 4};` | `var v:{x:f64, y:f64} = {3.0, 4.0}`: one type per spelling, so it passes to `let f(v:{x:f64, y:f64})` (#59) |
 | `union { int i; float f; } u;` | `var u:union{i:i32, f:f32}` (#60) |
-| `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch (j) { case n: ... }` (#61) |
+| `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch j { case n: ... }` (#61) |
+| `switch (n) { case 1: case 2: ...; break; default: ... }` | `switch n { case 1, 2: ... default: ... }`: a case ends at the next, no fallthrough, every value handled (#63) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
@@ -131,6 +132,8 @@ These are C features without a Kelvin spelling so far:
   has no spelling yet
 - bit-fields
 - unnamed parameters
+- fallthrough between cases, and a case inside a statement of the
+  switch (Duff's device): a case ends at the next (#63)
 - nested or local struct/union/enum definitions; a struct, a union or an
   enum with values and no tag, `{x:f64, y:f64}`, `union{i:i32, f:f32}`,
   `enum{i:i32, f:f32}`, goes where a type goes instead (#59, #60, #61)

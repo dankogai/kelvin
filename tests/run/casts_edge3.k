@@ -24,13 +24,13 @@ let main():i32 {
     var z:i32^ := ([i32](sizeof table / sizeof table[0]))[0, 0, 0, 42];
     printf("%d\n", z[3]);
 
-    // attributes and pragmas pass through as written
+    // pragmas pass through as written; a case lists several values (#63)
     switch (n) {
-    case 2:
+    case 2, 3:
         puts("two");
-        __attribute__((fallthrough));
-    case 3:
         puts("three");
+    default:
+        break;
     }
     _Pragma("GCC diagnostic push");
     _Pragma("GCC diagnostic pop");
