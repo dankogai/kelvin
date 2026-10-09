@@ -287,7 +287,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -311,7 +311,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -453,6 +453,11 @@ static Expr *drop_cstr(Expr *v, Type *target);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
 static bool is_uchr(Type *t);
+static bool is_array_owner(Type *t);
+static Program *program; /* the program being parsed: its Array<T> types (#57) */
+static Type *parse_array_elem(void);
+static Type *array_type(Token *at, Type *elem);
+static char *mangled_type(Type *t);
 static Expr *utf32_of(Expr *c);
 static const char *builtin_owner(Type *t);
 static bool is_owner(Type *t);
@@ -462,6 +467,7 @@ static void set_moved(const char *name, bool moved);
 static void reject_owner_copy(Expr *value, Type *target, Pos pos);
 static void move_argument(Expr *arg, Type *param, const char *what);
 static void check_appended(Expr *given, const char *kind, const char *what);
+static const char *array_append_kind(Expr *given, Type *array);
 static const char *let_target(Expr *e);
 static Type *value_type(Expr *e);
 
@@ -544,6 +550,12 @@ static int type_shape_end(int i) {
     int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    if (is_kw(&toks[i], "Array") && is_p(&toks[i + 1], "<")) { /* Array<T> (#57) */
+        int e = type_shape_end(i + 2);
+        if (e < 0 || (!is_p(&toks[e], ">") && !is_p(&toks[e], ">>")))
+            return -1;
+        return type_suffix_end(is_p(&toks[e], ">>") ? e : e + 1); /* >> closes two */
+    }
     if (is_p(&toks[i], "[")) { /* [T] or [T](N), an array (#49) */
         int e = type_shape_end(i + 1);
         if (e < 0 || !is_p(&toks[e], "]"))
@@ -756,6 +768,14 @@ static Type *parse_type_in(TypeContext ctx) {
     base->kind = T_BASE;
     base->pos = peek()->pos;
     parse_qualifiers(base);
+    if (is_kw(peek(), "Array")) {
+        Token *kw = advance();
+        if (base->is_const || base->is_volatile)
+            error_at(base->pos, "a qualifier of an Array is the variable's: a let does not change");
+        Type *t = array_type(kw, parse_array_elem());
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
     if (is_p(peek(), "[")) {
         /* [T] is an array of T, [T](N) one of N elements (#49); a
            qualifier is the elements', inside the brackets */
@@ -1062,6 +1082,10 @@ static Expr *parse_postfix_ops(Expr *e) {
             expect_p("]");
             if (is_bytes(value_type(e)))
                 x->op = "bytes"; /* b[i] of a Bytes is checked (#54) */
+            if (is_array_owner(value_type(e))) { /* xs[i] of an Array too (#57) */
+                x->op = "array";
+                x->type = value_type(e);
+            }
             e = x;
         } else if (accept_p("(")) {
             bool saved = ident_annotation_ok;
@@ -1127,9 +1151,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                    clear, reserve, compact, copy; on a place; those that
                    change it, not on a let or through a read-only borrow */
                 static const struct { const char *name; int arity; bool changes; const char *of; } methods[] = {
-                    {"append", 1, true, "bs"}, {"insert", 2, true, "b"}, {"remove", 2, true, "b"},
-                    {"clear", 0, true, "bs"}, {"reserve", 1, true, "bs"}, {"compact", 0, true, "bs"},
-                    {"copy", 0, false, "bs"}, {"string", 0, false, "b"}};
+                    {"append", 1, true, "bsa"}, {"insert", 2, true, "ba"}, {"remove", 2, true, "ba"},
+                    {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
+                    {"copy", 0, false, "bsa"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, okind[0]))
@@ -1139,12 +1163,15 @@ static Expr *parse_postfix_ops(Expr *e) {
                                             ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, "
                                               "compact, copy and string, and the properties count, capacity, at, cstr "
                                               "and isUTF8"
-                                            : "a String has no method '%s': append, clear, reserve, compact and copy, "
-                                              "and the properties count, bytes and cstr",
+                                        : okind[0] == 's'
+                                            ? "a String has no method '%s': append, clear, reserve, compact and copy, "
+                                              "and the properties count, bytes and cstr"
+                                            : "an Array has no method '%s': append, insert, remove, pop, clear, "
+                                              "reserve, compact and copy, and the properties count, capacity and at",
                              member);
                 if (!owner_place(e))
                     error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first", member,
-                             okind[0] == 'b' ? "Bytes" : "String");
+                             okind[0] == 'b' ? "Bytes" : okind[0] == 's' ? "String" : "Array");
                 if (methods[which].changes && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
                 Type *through = e->kind == E_DEREF ? value_type(e->a) : NULL;
@@ -1156,6 +1183,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 x->a = e;
                 x->text = member;
                 x->op = (char *)okind;
+                x->type = value_type(e); /* an Array's own type names its C functions (#57) */
                 bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
                 brace_ends_condition = brace_in_for = false;
                 while (!is_p(peek(), ")")) {
@@ -1172,6 +1200,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 Expr *given = which == 0 ? x->items.data[0] : which == 1 ? x->items.data[1] : NULL;
                 if (given)
                     check_appended(given, okind, member);
+                if (given && which == 0 && okind[0] == 'a')
+                    x->text = (char *)array_append_kind(given, x->type);
                 e = x;
                 continue;
             }
@@ -1369,6 +1399,8 @@ static Expr *parse_template(void) {
         if (expr_class(v, &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         v->shown = shown_type(v);
+        if (is_array_owner(value_type(v)))
+            error_at(v->pos, "an Array has no text yet: show its elements");
         list_push(&e->items, v);
         part = peek();
         if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
@@ -1434,6 +1466,43 @@ static Expr *parse_primary(void) {
         return e;
     }
     reject_c_int_name(t);
+    if (is_kw(t, "Array") && is_p(peek2(), "<")) {
+        /* Array<T>(), Array<T>(n) of n zero elements, Array<T>(a) of a
+           fixed array of T, Array<T>(&other) a copy (#57) */
+        advance();
+        Type *at = array_type(t, parse_array_elem());
+        if (!is_p(peek(), "("))
+            error_at(peek()->pos, "Array<%s> is a type: make one with Array<%s>(), or write it after ':'",
+                     kelvin_type(at->elem), kelvin_type(at->elem));
+        advance();
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "Array";
+        e->op = "array";
+        e->type = at;
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        while (!is_p(peek(), ")")) {
+            list_push(&e->items, parse_assign());
+            if (!accept_p(","))
+                break;
+        }
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        if (e->items.len > 1)
+            error_at(t->pos, "Array<T> takes nothing, a count, a fixed array of T, or a borrow of an Array<T>");
+        if (e->items.len == 1) {
+            Expr *x = e->items.data[0];
+            Type *xt = value_type(x);
+            if (owner_place(x))
+                error_at(x->pos, "Array<T>(a) would copy an owner: write a.copy(), or Array<T>(&a)");
+            e->text = xt && xt->kind == T_ARRAY ? "fixed" : xt && xt->kind == T_PTR ? "copy" : "zeros";
+            if (xt && xt->kind == T_ARRAY && !xt->size)
+                error_at(x->pos, "the fixed array's count is not known here");
+        }
+        return e;
+    }
     if ((is_kw(t, "Bytes") || is_kw(t, "String")) && is_p(peek2(), "(")) {
         /* Bytes(), Bytes(n), Bytes(text), Bytes(&b), Bytes(p, n) (#54);
            String(), String(text), String(&b) of a Bytes, validated (#55) */
@@ -1785,7 +1854,9 @@ static Expr *parse_binary(int min_prec) {
         if (ka || kb) {
             /* a Bytes or a String compares with == and != by its bytes
                (#54, #55), with another of its type, both places */
-            const char *tn = (ka ? ka : kb)[0] == 'b' ? "Bytes" : "String";
+            const char *tn = (ka ? ka : kb)[0] == 'b' ? "Bytes" : (ka ? ka : kb)[0] == 's' ? "String" : "Array";
+            if (tn[0] == 'A')
+                error_at(t->pos, "an Array has no operator '%s': compare its elements", e->op);
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
                 error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=", tn,
                          e->op);
@@ -1943,6 +2014,12 @@ static Type *type_through(Expr *e, Type *(*base)(Expr *)) {
             u->is_const = let_target(e->a) != NULL;
             return u;
         }
+        if (is_array_owner(t)) { /* xs[i] (#57): a T, const for a let */
+            Type *u = xcalloc(1, sizeof *u);
+            *u = *t->elem;
+            u->is_const = u->is_const || let_target(e->a) != NULL;
+            return u;
+        }
         return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
     }
     case E_FIELD: {
@@ -1984,7 +2061,7 @@ static char type_class(Type *t, Decl **record) {
         return type_class(t->elem, record);
     if (!t)
         return 'u';
-    if (t->kind != T_BASE)
+    if (t->kind != T_BASE || t->cname) /* an Array<T> is known (#57) */
         return 'n';
     const char *n = t->name;
     static const char *ints[] = {"i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", NULL};
@@ -2164,6 +2241,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("Bytes", e->pos);
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return base_type("String", e->pos);
+        if (e->op && !strcmp(e->op, "array")) /* Array<T>(...) (#57) */
+            return e->type;
         /* the overload chosen, or the result all that C may choose have,
            or C's own function's (unseen) (#41, #42) */
         if (e->target)
@@ -2203,6 +2282,10 @@ static Type *value_type_of(Expr *e) {
                    : !strcmp(e->text, "string") ? base_type("String", e->pos) : NULL;
         if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy gives a String */
             return !strcmp(e->text, "copy") ? base_type("String", e->pos) : NULL;
+        if (e->op && !strcmp(e->op, "array")) { /* an Array method (#57): copy gives one, pop an element */
+            Type *at = value_type(e->a);
+            return !strcmp(e->text, "copy") ? at : !strcmp(e->text, "pop") ? at->elem : NULL;
+        }
         Type *rt = value_type(e->a);
         Decl *m = rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
         if (m) /* the method of the receiver's type */
@@ -2231,6 +2314,15 @@ static Type *value_type_of(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
             return base_type("u32", e->pos);
+        if (e->op && !strcmp(e->op, "array") && !strcmp(e->text, "at")) { /* xs.at, a T^ (#57) */
+            Type *p = xcalloc(1, sizeof *p);
+            p->kind = T_PTR;
+            p->pos = e->pos;
+            p->elem = xcalloc(1, sizeof *p->elem);
+            *p->elem = *value_type(e->a)->elem;
+            p->elem->is_const = let_target(e->a) != NULL;
+            return p;
+        }
         if (e->op && !strcmp(e->op, "to")) /* n.uchr (#56) */
             return base_type("uchr", e->pos);
         if (e->op && !strcmp(e->op, "string") && !strcmp(e->text, "bytes")) { /* s.bytes, a read-only borrow (#55) */
@@ -3094,6 +3186,8 @@ static void reject_owners_to_c(Expr *call) {
     if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println"))) {
         for (int k = 0; k < call->items.len; k++) {
             Expr *x = call->items.data[k];
+            if (is_array_owner(value_type(x)))
+                error_at(x->pos, "an Array has no text yet: %s its elements, as in 'for x in xs'", call->a->text);
             if (is_owner(value_type(x)) && !owner_place(x))
                 error_at(x->pos, "%s of an owner that an expression gives, which nothing would free: bind it to a "
                                  "variable first",
@@ -3177,6 +3271,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 /* A C name made from a type, as complex64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
+    if (is_array_owner(t)) /* Array<T> is Array_<T> (#57) */
+        return strfmt("Array_%s", mangled_type(t->elem));
     bare_tags = true;
     char *k = kelvin_type(unqualified(t));
     bare_tags = false;
@@ -3304,7 +3400,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                              !strcmp(member, "at") || !strcmp(member, "cstr") ||
                                              !strcmp(member, "isUTF8"))) ||
                  (!strcmp(kind, "string") && (!strcmp(member, "count") || !strcmp(member, "bytes") ||
-                                              !strcmp(member, "cstr"))))) {
+                                              !strcmp(member, "cstr"))) ||
+                 (!strcmp(kind, "array") && (!strcmp(member, "count") || !strcmp(member, "capacity") ||
+                                             !strcmp(member, "at"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -3312,7 +3410,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
         if (!owner_place(e))
             error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first, which frees "
                                 "it when its block ends",
-                     member, kind[0] == 'b' ? "Bytes" : "String");
+                     member, kind[0] == 'b' ? "Bytes" : kind[0] == 's' ? "String" : "Array");
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
@@ -3626,7 +3724,8 @@ static const char *let_target(Expr *e) {
         return e->a ? let_target(e->a) : NULL;
     case E_INDEX: {
         Type *t = value_type(e->a);
-        return t && (t->kind == T_ARRAY || is_bytes(t)) ? let_target(e->a) : NULL; /* a Bytes's byte too (#54) */
+        return t && (t->kind == T_ARRAY || is_bytes(t) || is_array_owner(t)) ? let_target(e->a)
+                                                                          : NULL; /* a Bytes's byte too (#54) */
     }
     default:
         return NULL;
@@ -3718,8 +3817,11 @@ static Expr *parse_assign(void) {
                 x->a = lhs;
                 x->text = "append";
                 x->op = (char *)builtin_owner(value_type(lhs));
+                x->type = value_type(lhs);
                 Expr *given = parse_assign();
                 check_appended(given, x->op, "+=");
+                if (x->op[0] == 'a')
+                    x->text = (char *)array_append_kind(given, x->type);
                 list_push(&x->items, given);
                 assign_ok = ok;
                 return x;
@@ -3928,6 +4030,50 @@ static Type *base_type(const char *name, Pos pos) {
     return t;
 }
 
+/* ---------- Array<T> (#57): a growable array of T, an owner ---------- */
+
+/* the <T> of Array<T>: a value type that owns nothing, for now */
+static Type *parse_array_elem(void) {
+    if (!accept_p("<"))
+        error_at(peek()->pos, "an Array names its element type: Array<T>");
+    Type *elem = parse_type_in(TYPE_DECL);
+    if (is_p(peek(), ">>")) /* Array<Array<T>>: >> closes two */
+        toks[cur].text = ">";
+    else if (!accept_p(">"))
+        error_at(peek()->pos, "expected '>' after the element type of Array<T>");
+    if (is_owner(elem) && !builtin_owner(elem))
+        error_at(elem->pos, "an Array of %s, a struct that owns, is not here yet: a Bytes, a String or an Array may "
+                            "be an element",
+                 kelvin_type(elem));
+    if (elem->kind == T_ARRAY || (elem->kind == T_BASE && !strcmp(elem->name, "any")))
+        error_at(elem->pos, "an Array of %s is not here yet: an element is a value C returns", kelvin_type(elem));
+    return elem;
+}
+
+/* Array<T> as a type: a T_BASE named by its element, with its C name,
+   recorded once per program in the order of first use, with the
+   top-level declaration that first uses it, where its C is emitted */
+static Type *array_type(Token *at, Type *elem) {
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_BASE;
+    t->pos = at->pos;
+    t->elem = elem;
+    t->name = strfmt("Array<%s>", kelvin_type(elem));
+    t->cname = strfmt("_kv_array_%s", mangled_type(elem));
+    for (int i = 0; i < program->arrays.len; i++)
+        if (!strcmp(((Type *)program->arrays.data[i])->name, t->name))
+            return t;
+    list_push(&program->arrays, t);
+    list_push(&program->array_decls, (void *)(intptr_t)program->decls.len);
+    return t;
+}
+
+static bool is_array_owner(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && t->cname && !strncmp(t->name, "Array<", 6);
+}
+
 /* cstr (#52): a pointer to const u8 that kelvinc knows as text */
 static Type *cstr_type(Pos pos) {
     Type *p = xcalloc(1, sizeof *p);
@@ -3972,7 +4118,9 @@ static bool is_string(Type *t) {
 }
 
 /* "bytes" or "string" for the built-in owners, NULL otherwise */
-static const char *builtin_owner(Type *t) { return is_bytes(t) ? "bytes" : is_string(t) ? "string" : NULL; }
+static const char *builtin_owner(Type *t) {
+    return is_bytes(t) ? "bytes" : is_string(t) ? "string" : is_array_owner(t) ? "array" : NULL;
+}
 
 /* An owner: a Bytes, a String, a Kelvin struct with an owner member, or an
    array of owners. A variable owns one, and its block frees it. */
@@ -3985,7 +4133,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -4014,6 +4162,18 @@ static void check_appended(Expr *given, const char *kind, const char *what) {
                  b, b);
     if (to && is_string(to) && kind[0] == 'b')
         error_at(given->pos, "a Bytes takes bytes: give the String's bytes, 's.bytes'");
+}
+
+/* xs.append(x) (#57): an element, a borrow of an Array of the same
+   elements (its elements are appended), or an Array an expression gives
+   (appended and freed) */
+static const char *array_append_kind(Expr *given, Type *array) {
+    Type *t = value_type(given);
+    if (t && t->kind == T_PTR && is_array_owner(t->elem) && !strcmp(t->elem->name, array->name))
+        return "append_ref";
+    if (is_array_owner(t) && !owner_place(given) && !strcmp(t->name, array->name))
+        return "append_owned";
+    return "append";
 }
 
 /* a place that owns: a variable, a field, an element, p^ */
@@ -4051,6 +4211,9 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
     if (arg->kind == E_IDENT) {
         int i = binding_index(arg->text);
         int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (let_kind(arg->text) == LET_EACH)
+            error_at(arg->pos, "'%s' is each element in turn, which its Array owns: pass a borrow, '&%s', or a copy",
+                     arg->text, arg->text);
         if (i >= globals) {
             set_moved(arg->text, true);
             return;
@@ -4667,6 +4830,9 @@ static bool is_assignment(Expr *e) {
    cannot go alone, and a borrow of a local owner dies with it (O6) */
 static void return_owner(Expr *e) {
     if (e->kind == E_IDENT && is_owner(value_type(e))) {
+        if (let_kind(e->text) == LET_EACH)
+            error_at(e->pos, "'%s' is each element in turn, which its Array owns: return a copy, '%s.copy()'", e->text,
+                     e->text);
         int i = binding_index(e->text);
         int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
         if (i >= globals)
@@ -5351,12 +5517,14 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                            "the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'");
     Type *elem = NULL;
     Decl *record = NULL;
-    if (is_bytes(t) || is_string(t)) { /* its count bytes, NULs included (#54); a String's codepoints (#55) */
+    if (is_bytes(t) || is_string(t) || is_array_owner(t)) {
+        /* its count bytes, NULs included (#54); a String's codepoints
+           (#55); an Array's elements (#57) */
         if (!owner_place(seq))
             error_at(seq->pos, "for over a %s that an expression gives: bind it to a variable first",
-                     is_bytes(t) ? "Bytes" : "String");
-        s->each = is_bytes(t) ? EACH_BYTES : EACH_STRING;
-        elem = base_type(is_bytes(t) ? "u8" : "uchr", seq->pos);
+                     is_bytes(t) ? "Bytes" : is_string(t) ? "String" : "Array");
+        s->each = is_string(t) ? EACH_STRING : EACH_BYTES;
+        elem = is_array_owner(t) ? t->elem : base_type(is_bytes(t) ? "u8" : "uchr", seq->pos);
     } else if (!t) {
         s->each = EACH_UNSEEN;
     } else if (t->kind == T_ARRAY) {
@@ -5694,7 +5862,9 @@ static Stmt *parse_stmt_here(void) {
     if (builtin_owner(value_type(s->expr)) && !owner_place(s->expr)) {
         Expr *drop = new_expr(E_CALL, pos);
         drop->a = new_expr(E_IDENT, pos);
-        drop->a->text = is_bytes(value_type(s->expr)) ? "kv_bytes_discard" : "kv_string_discard";
+        Type *dt = value_type(s->expr);
+        drop->a->text = is_bytes(dt) ? "kv_bytes_discard" : is_string(dt) ? "kv_string_discard"
+                                                                            : strfmt("%s_discard", dt->cname);
         drop->op = "c";
         list_push(&drop->items, s->expr);
         s->expr = drop;
@@ -6036,6 +6206,7 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&method_names, toks[i + 2].text);
     }
     Program *prog = xcalloc(1, sizeof *prog);
+    program = prog;
     while (peek()->kind != TK_EOF) {
         Token *t = peek();
         if (t->kind == TK_IMPORT_K || t->kind == TK_FILE_END) { /* where an imported file begins and ends (#40) */

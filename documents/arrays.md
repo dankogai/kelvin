@@ -1,7 +1,8 @@
 # Arrays: `[T]`, `[T](N)` and `.count`
 
 An array type is written in brackets, as Swift writes it, and its count
-is a property. This document has the types, the `[...]` initializers,
+is a property. A fixed array lives where it is declared; one that grows
+is `Array<T>`, on the heap, in [ownership.md](ownership.md). This document has the types, the `[...]` initializers,
 `[T](n)` for a zero-filled array, `.count` and `.size`, and what stays
 C's: an array passed to a function is a pointer. Byte arrays that hold
 text are in [cstrings.md](cstrings.md).
@@ -122,3 +123,4 @@ including typedef names with suffixes, and under `sizeof`:
   null: write `(&a[0]).addr`.
 - **An array of functions**, or a pointer to a function type, has no
   spelling yet.
+- **`Array<T>(a)`** copies a fixed array into a growable one (#57).

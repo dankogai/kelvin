@@ -1,11 +1,11 @@
-# Ownership: `Bytes` and `String`
+# Ownership: `Bytes`, `String` and `Array<T>`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
-variable's block frees; `String` (#55) is a `Bytes` that holds UTF-8. The rules below are what kelvinc enforces, from
+variable's block frees; `String` (#55) is a `Bytes` that holds UTF-8;
+`Array<T>` (#57) is a growable array of any value type. The rules below are what kelvinc enforces, from
 what it sees; a copy of the struct through C is C's business, and
-harmless, since an owner is never copied implicitly. `Array`
-and `Dictionary` are to follow the same rules.
+harmless, since an owner is never copied implicitly. `Dictionary` is to follow the same rules.
 
 ## `Bytes`
 
@@ -96,6 +96,62 @@ let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
   `<` and the rest, with a `uchr` or a number (`c == 'a'`), and has no
   arithmetic: `c.utf32 + 1`. `s += c` appends it.
 
+## `Array<T>`
+
+`Array<T>` is a growable array of `T` on the heap, an owner under the
+same rules (#57). `T` is any value type: a number, a `bool`, a `uchr`,
+a pointer, a `cstr`, a struct that owns nothing, or an owner among
+`Bytes`, `String` and `Array<U>`, which the Array then owns: freed with
+it, copied by `copy()`, and never copied by `=`.
+
+```kelvin
+var xs = Array<i64>()            // empty; Array<i64>(n) is n zero elements
+for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
+xs.insert(0, 100)
+xs.remove(1, 2)
+let last = xs.pop()
+println(xs.count, " ", xs[0], " ", xs.capacity)
+let ys = Array<i64>(fixed)       // a copy of a fixed array, [i64](3)
+for x in xs { ... }              // each element, a let
+var rows = Array<Array<i64>>()   // Arrays of Arrays, of Strings, of Bytes
+rows += Array<i64>(3)            // moved in
+rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if it owns
+```
+
+- **The type** is `Array<T>`, with the element type in angle brackets:
+  a variable's type, a parameter's (`xs:Array<i64>` takes it, `xs:
+  Array<i64>^` borrows it), a result's, a struct member's.
+  `Array<Array<i64>>` nests. `Array<T>` with no `(...)` after it is a
+  type, not a value.
+- **Making one:** `Array<T>()` is empty; `Array<T>(n)` is n zero
+  elements (empty owners, for an Array of owners); `Array<T>(a)` of a
+  fixed array `[T](N)` copies its elements; `Array<T>(&other)` copies
+  another. `var xs:Array<T>` without a value is empty.
+- **Properties:** `xs.count`, `xs.capacity`, `xs.at` the elements as a
+  `T^` (`const T^` for a let), `xs.size` C's `sizeof`, 24,
+  `xs.typename` `Array<T>`.
+- **Methods:** `append(x)`, also `xs += x`, where `x` is an element, a
+  borrow `&other` of the same `Array<T>` (its elements are appended, a
+  copy each), or an `Array<T>` an expression gives (its elements are
+  moved in); `insert(i, x)` of an element; `remove(i, n)`; `pop()`,
+  the last element, moved out; `clear()`; `reserve(n)`; `compact()`;
+  `copy()`.
+- **`xs[i]`** is checked; `i` at or past `xs.count` ends the program
+  with a message. It is a place: `xs[i] = v` writes, and frees the
+  element it replaces if it owns; `let y = xs[i]` of an owner is an
+  error (copy it, or borrow it); `xs.at[i]` is C's, unchecked.
+- **`for x in xs`** gives each element as a let: a copy of a plain
+  value, and of an owner a view the Array still owns, which cannot be
+  moved or returned, only borrowed (`&x`) or copied.
+- **In C**, each `Array<T>` of a program is one struct `{at, count,
+  cap}` and its functions, from a macro in the prelude, named by its
+  element type (`_kv_array_i64`, `_kv_array_Array_i64`), emitted before
+  the first top-level declaration that uses it: generics for one
+  built-in type, not a language feature.
+- **Not yet:** text (`print(xs)`, `${xs}` and `.cstr` are errors:
+  show the elements), `==` (compare the elements), an element that is
+  an array (`[T](N)`) or a struct that owns, sorting and searching.
+
 ## The rules
 
 | | Rule |
@@ -125,7 +181,7 @@ let total(data:Bytes):i64 {          // data moves in, and is freed here
 let longest(a:Bytes^, b:Bytes^):Bytes^ { a^.count >= b^.count ? a : b }   // borrows
 ```
 
-Not yet: an array of owners as a variable, `Array` and `Dictionary`,
-`insert` and `remove` on a `String`, and sharing one owner from two
-places, which would be an explicit type of its own if it is ever
-needed.
+Not yet: a fixed array of owners as a variable (`[Bytes](4)`; an
+`Array<Bytes>` grows), `Dictionary`, `insert` and `remove` on a
+`String`, and sharing one owner from two places, which would be an
+explicit type of its own if it is ever needed.

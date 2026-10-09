@@ -94,6 +94,7 @@ struct Type {
                          T_TYPEOF: the value as written, for messages */
     bool is_const, is_volatile;
     bool cstr;        /* T_PTR: a cstr, immutable text (#52): const u8 behind it */
+    char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T */
     Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
                          T_TYPEOF: the type kelvinc sees, if any */
     Expr *size;       /* T_ARRAY; NULL for [] */
@@ -245,6 +246,8 @@ struct Decl {
 
 typedef struct {
     List decls;
+    List arrays;       /* Type *: each Array<T> (#57), in order of first use */
+    List array_decls;  /* intptr_t: the index of the top-level decl that first uses it */
 } Program;
 
 /* ---------- parser.c / codegen.c ---------- */

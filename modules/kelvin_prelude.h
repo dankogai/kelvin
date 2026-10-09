@@ -37,6 +37,8 @@
    A Kelvin struct's text, {x: 3, y: 4}, is written by a function kelvinc
    derives for it. A buffer for one value holds KV_CSTR_SCALAR bytes. */
 #define KV_CSTR_SCALAR 64
+#include <stdlib.h> /* realloc and free, for Array<T>'s functions (#57) */
+#include <string.h>
 
 /* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
 
@@ -131,6 +133,68 @@ static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
     kv_string: kv_string_append_owned, kv_string *: kv_string_append_ref, const kv_string *: kv_string_append_ref, \
     kv_uchr: kv_string_append_uchr, \
     default: kv_string_append_text)((s), (x))
+
+/* ---------- Array<T> (#57): a growable array of T, an owner ---------- */
+
+/* KV_ARRAY(T, A, FREE, COPY) declares A, the Array of T, and its
+   functions, once per element type in a program's C: at[0..count) are
+   the elements, cap the room; FREE(p) frees an element that owns and
+   COPY(p) copies one (nothing, and *p, for a plain T). The rules are
+   Bytes's: a variable owns it, moves by return and passing, copies by
+   copy(), and its block frees it, elements included. */
+void kv_array_fail(const char *what);
+void kv_array_range(size_t i, size_t count);
+#define KV_PLAIN_FREE(p) ((void)(p))
+#define KV_PLAIN_COPY(p) (*(p))
+#define KV_ARRAY(T, A, FREE, COPY) \
+    typedef T A##_elem; \
+    typedef struct A { T *at; size_t count, cap; } A; \
+    __attribute__((unused)) static inline void A##_free(A *a) { \
+        for (size_t i = 0; i < a->count; i++) FREE(&a->at[i]); \
+        free(a->at); *a = (A){0}; } \
+    __attribute__((unused)) static inline A A##_take(A *a) { A v = *a; *a = (A){0}; return v; } \
+    __attribute__((unused)) static inline void A##_assign(A *a, A v) { A##_free(a); *a = v; } \
+    __attribute__((unused)) static inline void A##_discard(A v) { A##_free(&v); } \
+    __attribute__((unused)) static inline void A##_reserve(A *a, size_t n) { \
+        if (n <= a->cap) return; \
+        size_t cap = a->cap ? a->cap : 16; \
+        while (cap < n) cap *= 2; \
+        T *at = realloc(a->at, cap * sizeof *at); \
+        if (!at) kv_array_fail("out of memory"); \
+        a->at = at; a->cap = cap; } \
+    __attribute__((unused)) static inline A A##_zeros(size_t n) { \
+        A v = {0}; A##_reserve(&v, n); memset(v.at, 0, n * sizeof *v.at); v.count = n; return v; } \
+    __attribute__((unused)) static inline A A##_from(const A##_elem *p, size_t n) { \
+        A v = {0}; A##_reserve(&v, n); memcpy(v.at, p, n * sizeof *v.at); v.count = n; return v; } \
+    __attribute__((unused)) static inline A A##_copy(const A *a) { \
+        A v = {0}; A##_reserve(&v, a->count); \
+        for (size_t i = 0; i < a->count; i++) v.at[i] = COPY(&a->at[i]); \
+        v.count = a->count; return v; } \
+    __attribute__((unused)) static inline void A##_append(A *a, T v) { A##_reserve(a, a->count + 1); a->at[a->count++] = v; } \
+    __attribute__((unused)) static inline void A##_append_ref(A *a, const A *v) { \
+        size_t n = v->count; A##_reserve(a, a->count + n); \
+        for (size_t i = 0; i < n; i++) a->at[a->count + i] = COPY(&v->at[i]); \
+        a->count += n; } \
+    __attribute__((unused)) static inline void A##_append_owned(A *a, A v) { \
+        A##_reserve(a, a->count + v.count); memmove(a->at + a->count, v.at, v.count * sizeof *a->at); \
+        a->count += v.count; free(v.at); } \
+    __attribute__((unused)) static inline T *A##_at(const A *a, size_t i) { if (i >= a->count) kv_array_range(i, a->count); return a->at + i; } \
+    __attribute__((unused)) static inline T A##_pop(A *a) { if (!a->count) kv_array_fail("pop of an empty Array"); return a->at[--a->count]; } \
+    __attribute__((unused)) static inline void A##_insert(A *a, size_t i, T v) { \
+        if (i > a->count) kv_array_range(i, a->count); \
+        A##_reserve(a, a->count + 1); \
+        memmove(a->at + i + 1, a->at + i, (a->count - i) * sizeof *a->at); a->at[i] = v; a->count++; } \
+    __attribute__((unused)) static inline void A##_remove(A *a, size_t i, size_t n) { \
+        if (i > a->count || n > a->count - i) kv_array_range(i, a->count); \
+        for (size_t k = i; k < i + n; k++) FREE(&a->at[k]); \
+        memmove(a->at + i, a->at + i + n, (a->count - i - n) * sizeof *a->at); a->count -= n; } \
+    __attribute__((unused)) static inline void A##_clear(A *a) { \
+        for (size_t i = 0; i < a->count; i++) FREE(&a->at[i]); \
+        a->count = 0; } \
+    __attribute__((unused)) static inline void A##_compact(A *a) { \
+        if (!a->at) return; \
+        if (!a->count) { free(a->at); *a = (A){0}; return; } \
+        T *at = realloc(a->at, a->count * sizeof *at); if (at) { a->at = at; a->cap = a->count; } }
 
 /* Bytes(x): n zero bytes of a number, a copy of text or of a Bytes borrow */
 #define KV_BYTES_OF(x) _Generic((x), \

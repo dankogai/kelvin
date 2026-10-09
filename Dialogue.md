@@ -2602,3 +2602,20 @@ details are provisional P68, and Q15 is answered.
 
 There are 484 tests, and all pass with clang and with gcc 15.
 
+### 89. `Array<T>`
+
+> now add `Array`, a growable array of `T` on the heap
+
+**Claude** implemented #57: `Array<T>`, spelled with the element type
+in angle brackets, since Kelvin has no generics and this is the one
+built-in one: each element type a program uses gets one C struct and
+its functions from a prelude macro, emitted before the first top-level
+declaration that uses it. It is an owner under the rules of #54,
+through the same code as `Bytes`; its elements may own (a `Bytes`, a
+`String`, an `Array`), and are then freed, copied and replaced with it,
+and the element each loop turn gives cannot be moved. Every allocation
+of the tests' C is freed at exit under ASan. The details are
+provisional P69.
+
+There are 490 tests, and all pass with clang and with gcc 15.
+

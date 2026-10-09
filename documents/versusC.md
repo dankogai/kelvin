@@ -67,6 +67,7 @@ P-numbers in [Design.md](../Design.md).
 | `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
 | a UTF-8 string by hand | `var s = String("héllo")`, `for c in s { }` by codepoint, `s.count` (#55) |
 | `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
+| `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array<T>()`, `xs += x`, `xs[i]` checked, freed by its block (#57) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
@@ -85,7 +86,7 @@ P-numbers in [Design.md](../Design.md).
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers |
 | [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing |
-| [ownership.md](ownership.md) | `Bytes` and `String`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
+| [ownership.md](ownership.md) | `Bytes`, `String` and `Array<T>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, methods, operators |
 | [unions.md](unions.md) | unions, the same way |
 | [functions.md](functions.md) | `let f(...)`, function types, anonymous functions, overloading |
@@ -101,7 +102,7 @@ P-numbers in [Design.md](../Design.md).
 `String` is a type since #55; the method names `toString` and `fmt`
 stay reserved (#22), as a value's text is `x.cstr`.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true`, `false`, `String`, `Bytes`, `uchr`, `any`, `nullptr` and `cstr`
+`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `uchr`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
 keyword only in `for i in ...` and in an anonymous function's
 `{ (a:T) in ... }`, so C names called `in` still work. It
@@ -131,7 +132,8 @@ These are C features without a Kelvin spelling so far:
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - generics: a function over several types is written once per type, as
-  `modules/complex.k` does for `complex32` and `complex64`
+  `modules/complex.k` does for `complex32` and `complex64`; `Array<T>`
+  is the one built-in generic (#57)
 - literal suffixes (on purpose: see [integers.md](integers.md))
 - the preprocessor beyond `#import`
 - statements of the form `name(x)` where `name` is a C typedef: C reads

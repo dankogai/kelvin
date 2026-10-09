@@ -14,6 +14,15 @@ static void kv_bytes_fail(const char *what) {
     abort();
 }
 
+/* for every Array<T> (#57), instantiated in the program's C */
+void kv_array_fail(const char *what) { kv_bytes_fail(what); }
+
+void kv_array_range(size_t i, size_t count) {
+    char msg[96];
+    snprintf(msg, sizeof msg, "index %zu is out of range: the Array has %zu", i, count);
+    kv_bytes_fail(msg);
+}
+
 /* room for n bytes and the NUL, doubling from 16 */
 void kv_bytes_reserve(kv_bytes *b, size_t n) {
     if (n + 1 <= b->cap)

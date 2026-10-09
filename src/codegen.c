@@ -144,7 +144,7 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
     switch (t->kind) {
     case T_BASE:
         return strfmt("%s%s%s%s%s", t->is_const ? "const " : "", t->is_volatile ? "volatile " : "",
-                      c_type_name(t->name), *inner ? " " : "", inner);
+                      t->cname ? t->cname : c_type_name(t->name), *inner ? " " : "", inner);
     case T_PTR: {
         char *q = strfmt("%s%s", t->is_const ? "const" : "",
                          t->is_volatile ? (t->is_const ? " volatile" : "volatile") : "");
@@ -470,6 +470,16 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
+        if (e->op && !strcmp(e->op, "array")) { /* Array<T>(...) (#57) */
+            if (!e->items.len)
+                return strfmt("(%s){0}", e->type->cname);
+            char *x = expr(e->items.data[0]);
+            if (!strcmp(e->text, "fixed"))
+                return strfmt("%s_from(%s, sizeof (%s) / sizeof (%s)[0])", e->type->cname, x, x, x);
+            if (!strcmp(e->text, "copy"))
+                return strfmt("%s_copy(%s)", e->type->cname, x);
+            return strfmt("%s_zeros(%s)", e->type->cname, x);
+        }
         if (e->cands.len)
             return dispatch_call(e);
         Buf b = {0};
@@ -493,6 +503,8 @@ static char *expr_bare(Expr *e) {
     case E_INDEX:
         if (e->a && e->op && !strcmp(e->op, "bytes")) /* b[i] of a Bytes, checked (#54) */
             return strfmt("(*kv_bytes_at(&%s, %s))", expr(e->a), expr(e->b));
+        if (e->a && e->op && !strcmp(e->op, "array") && e->type) /* xs[i] of an Array, checked (#57) */
+            return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));
         return strfmt("%s[%s]", e->a ? expr(e->a) : "", expr(e->b));
     case E_FIELD:
         if (e->a && e->a->kind == E_DEREF && !e->a->paren)
@@ -541,6 +553,8 @@ static char *expr_bare(Expr *e) {
                 return strfmt("kv_bytes_is_utf8(&%s)", recv);
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
         }
+        if (e->op && !strcmp(e->op, "array")) /* an Array (#57) */
+            return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
         if (e->op && !strcmp(e->op, "string")) { /* a String (#55) */
             if (!strcmp(e->text, "cstr"))
                 return strfmt("kv_bytes_cstr(&(%s).b)", recv);
@@ -605,6 +619,23 @@ static char *expr_bare(Expr *e) {
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "array")) { /* an Array method (#57), on a place */
+            Type *at = local_owner_type(e->a->kind == E_IDENT ? e->a->text : "");
+            const char *cn = e->type ? e->type->cname : at ? at->cname : NULL;
+            char *recv = strfmt("&%s", expr(e->a));
+            Buf args = {0};
+            buf_puts(&args, "");
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&args, ", %s", expr(e->items.data[i]));
+            if (!strcmp(e->text, "append") && e->items.len == 1) {
+                Expr *x = e->items.data[0];
+                if (x->kind == E_PREFIX && !strcmp(x->op, "&") && x->c) /* a borrow of an Array: its elements */
+                    return strfmt("%s_append_ref(%s%s)", cn, recv, args.buf);
+                if (x->c) /* an Array an expression gives: appended and freed */
+                    return strfmt("%s_append_owned(%s%s)", cn, recv, args.buf);
+            }
+            return strfmt("%s_%s(%s%s)", cn, e->text, recv, args.buf);
+        }
         if (e->op && !strcmp(e->op, "string")) { /* a String method (#55), on a place */
             char *recv = strfmt("&%s", expr(e->a));
             if (!strcmp(e->text, "append"))
@@ -881,6 +912,8 @@ static const char *owner_free(Type *t) {
         return "kv_bytes_free";
     if (!strcmp(t->name, "String"))
         return "kv_string_free";
+    if (t->cname) /* Array<T> (#57) */
+        return strfmt("%s_free", t->cname);
     Decl *r = kelvin_record(t->name);
     if (!r || r->kind != D_STRUCT)
         return NULL;
@@ -920,11 +953,20 @@ static Type *local_owner_type(const char *name) {
 /* b = v where b owns (#54): what b held is freed, then b takes v, which an
    expression gave (a place would be a copy, which the parser rejects) */
 static bool owner_assign(Expr *e) {
+    if (e->a->kind == E_INDEX && e->a->op && !strcmp(e->a->op, "array") && e->a->type) {
+        /* xs[i] = v where the element owns (#57) */
+        const char *f = owner_free(e->a->type->elem);
+        if (!f)
+            return false;
+        line("%.*s_assign(%s_at(&%s, %s), %s);", (int)strlen(f) - 5, f, e->a->type->cname, expr(e->a->a), expr(e->a->b),
+             expr(e->b));
+        return true;
+    }
     Type *t = e->a->kind == E_IDENT ? local_owner_type(e->a->text) : NULL;
     const char *f = t ? owner_free(t) : NULL;
     if (!f) /* a field, a global, or no owner: C's assignment */
         return false;
-    if (!strncmp(f, "kv_", 3)) /* kv_bytes_assign, kv_string_assign */
+    if (!strncmp(f, "kv_", 3) || !strncmp(f, "_kv_array_", 10)) /* kv_bytes_assign, kv_string_assign, an Array's */
         line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
     else
         line("%s(&%s), %s = %s;", f, c_name(e->a->text), c_name(e->a->text), expr(e->b));
@@ -1743,6 +1785,18 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     mapped_line = -1;
 }
 
+/* the Array<T> types first used by top-level decl i (#57): their C, once */
+static void emit_arrays_before(int i) {
+    for (int k = 0; k < program->arrays.len; k++) {
+        if ((int)(intptr_t)program->array_decls.data[k] != i)
+            continue;
+        Type *t = program->arrays.data[k];
+        const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
+        line("KV_ARRAY(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
+             f ? strfmt("%.*s_copy", (int)strlen(f) - 5, f) : "KV_PLAIN_COPY");
+    }
+}
+
 static void emit_decl(Decl *d) {
     sync(d->pos);
     hidden_names.len = 0;
@@ -1921,6 +1975,7 @@ char *gen_program(Program *prog, bool with_lines) {
     hidden_names = (List){0};
     pinned_line.file = NULL;
     for (int i = 0; i < prog->decls.len; i++) {
+        emit_arrays_before(i);
         if (i)
             line("%s", "");
         emit_decl(prog->decls.data[i]);
