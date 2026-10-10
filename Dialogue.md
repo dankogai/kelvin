@@ -2854,3 +2854,19 @@ provisional P86 and P87.
 
 There are 566 tests, and all pass with clang and with gcc 15.
 
+
+### 103. `results.md`, with Optionals as the special case
+
+> Optional<T> is a special case of Result<T, R>, not vice versa. Yet
+> `documents/results.md` is absent
+
+**Claude** wrote [documents/results.md](documents/results.md), the
+document of `Result<T, U>`: the type, `ok(v)` and `err(e)`, `.ok` and
+`.err` checked, `??`, `if let`, `switch`, the text, the C, and `T?` as
+its special case in one section. `optionals.md` now opens as that
+special case, keeps the Optional's own spelling and examples, and
+points at `results.md` for the rest; `properties.md`, `versusC.md`,
+`flow-controls.md`, `enums.md` and the README link both, Result first.
+No code changed.
+
+There are 566 tests, and all pass with clang and with gcc 15.

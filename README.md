@@ -108,10 +108,11 @@ So far the changes from C are:
   `` $`a${x}b` `` builds a `String` from a template, with no bound;
   `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
   `s & t` and `s ~ t`
-- `T?` is a value that may be absent: `var x:i64? = none`, `x = 3`,
-  `x.some` checked, `x ?? 0`, `x.is(none)`, `if let v = x { }`, and
-  `switch x { case some: ... case none: ... }`; `Result<T, U>` is the
-  same with a reason, `ok(v)` or `err(e)`
+- `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`:
+  `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`,
+  and `switch r { case ok: ... case err: ... }`; `T?` is its special
+  case, a value that may be absent, `none` or `some(v)`:
+  `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`
