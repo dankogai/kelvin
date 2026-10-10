@@ -161,10 +161,87 @@ void kv_dict_missing_text(const void *k);
 #define KV_EQ_INT(kp, k) (*(kp) == (k))
 #define KV_STORE_INT(k) (k)
 #define KV_MISSING_INT(k) kv_dict_missing_int((long long)(k))
+#define KV_LK_INT(kp) (*(kp))
+#define KV_LK_TEXT(kp) kv_bytes_cstr(&(kp)->b)
 #define KV_HASH_TEXT(k) kv_hash_text(k)
 #define KV_EQ_TEXT(kp, k) kv_string_eq_text((kp), (k))
 #define KV_STORE_TEXT(k) kv_string_text(k)
 #define KV_MISSING_TEXT(k) kv_dict_missing_text(k)
+
+/* Set<T> (#71): a hash set on the heap, as a Dictionary with no values;
+   LKOF gives the key given back from the key kept, for the set algebra */
+#define KV_SET_TYPE(S) \
+    typedef struct S##_entry S##_entry; \
+    typedef struct S { S##_entry *at; size_t count, len, cap; uint32_t *head; size_t hcap; } S;
+#define KV_SET(K, LK, S, HASH, EQ, STORE, LKOF, KFREE, KCOPY) \
+    KV_SET_TYPE(S) KV_SET_FUNCS(K, LK, S, HASH, EQ, STORE, LKOF, KFREE, KCOPY)
+#define KV_SET_FUNCS(K, LK, S, HASH, EQ, STORE, LKOF, KFREE, KCOPY) \
+    struct S##_entry { K key; size_t hash; uint32_t next; bool live; }; \
+    __attribute__((unused)) static inline void S##_free(S *s) { \
+        for (size_t i = 0; i < s->len; i++) if (s->at[i].live) KFREE(&s->at[i].key); \
+        free(s->at); free(s->head); *s = (S){0}; } \
+    __attribute__((unused)) static inline S S##_take(S *s) { S v = *s; *s = (S){0}; return v; } \
+    __attribute__((unused)) static inline void S##_assign(S *s, S v) { S##_free(s); *s = v; } \
+    __attribute__((unused)) static inline void S##_discard(S v) { S##_free(&v); } \
+    __attribute__((unused)) static inline S##_entry *S##_lookup(const S *s, LK k, size_t h) { \
+        if (!s->hcap) return NULL; \
+        for (uint32_t i = s->head[h & (s->hcap - 1)]; i; i = s->at[i - 1].next) \
+            if (s->at[i - 1].hash == h && EQ(&s->at[i - 1].key, k)) return &s->at[i - 1]; \
+        return NULL; } \
+    __attribute__((unused)) static inline void S##_link(S *s, size_t i) { \
+        size_t b = s->at[i].hash & (s->hcap - 1); s->at[i].next = s->head[b]; s->head[b] = (uint32_t)(i + 1); } \
+    __attribute__((unused)) static inline void S##_rehash(S *s, size_t cap) { \
+        S##_entry *at = malloc(cap * sizeof *at); \
+        uint32_t *head = malloc(cap * 2 * sizeof *head); \
+        if (!at || !head) kv_array_fail("out of memory"); \
+        memset(head, 0, cap * 2 * sizeof *head); \
+        size_t n = 0; \
+        for (size_t i = 0; i < s->len; i++) if (s->at[i].live) at[n++] = s->at[i]; \
+        free(s->at); free(s->head); \
+        s->at = at; s->len = n; s->cap = cap; s->head = head; s->hcap = cap * 2; \
+        for (size_t i = 0; i < n; i++) S##_link(s, i); } \
+    __attribute__((unused)) static inline void S##_reserve(S *s, size_t n) { \
+        if (n <= s->cap) return; \
+        size_t cap = s->cap ? s->cap : 16; \
+        while (cap < n) cap *= 2; \
+        S##_rehash(s, cap); } \
+    __attribute__((unused)) static inline bool S##_has(const S *s, LK k) { return S##_lookup(s, k, HASH(k)) != NULL; } \
+    __attribute__((unused)) static inline bool S##_insert(S *s, LK k) { \
+        size_t h = HASH(k); \
+        if (S##_lookup(s, k, h)) return false; \
+        if (s->len == s->cap) S##_rehash(s, !s->cap ? 16 : s->count + 1 > s->cap / 2 ? s->cap * 2 : s->cap); \
+        S##_entry *e = &s->at[s->len++]; \
+        e->key = STORE(k); e->hash = h; e->live = true; \
+        S##_link(s, (size_t)(e - s->at)); s->count++; return true; } \
+    __attribute__((unused)) static inline bool S##_remove(S *s, LK k) { \
+        if (!s->hcap) return false; \
+        size_t h = HASH(k); \
+        for (uint32_t *p = &s->head[h & (s->hcap - 1)]; *p; p = &s->at[*p - 1].next) { \
+            S##_entry *e = &s->at[*p - 1]; \
+            if (e->hash == h && EQ(&e->key, k)) { *p = e->next; KFREE(&e->key); e->live = false; s->count--; return true; } } \
+        return false; } \
+    __attribute__((unused)) static inline void S##_clear(S *s) { \
+        for (size_t i = 0; i < s->len; i++) if (s->at[i].live) KFREE(&s->at[i].key); \
+        s->len = 0; s->count = 0; \
+        if (s->head) memset(s->head, 0, s->hcap * sizeof *s->head); } \
+    __attribute__((unused)) static inline S S##_copy(const S *s) { \
+        S v = {0}; S##_reserve(&v, s->count); \
+        for (size_t i = 0; i < s->len; i++) if (s->at[i].live) { \
+            S##_entry *e = &v.at[v.len++]; \
+            e->key = KCOPY(&s->at[i].key); e->hash = s->at[i].hash; e->live = true; \
+            S##_link(&v, (size_t)(e - v.at)); v.count++; } \
+        return v; } \
+    __attribute__((unused)) static inline void S##_insert_all(S *s, const S *t) { \
+        for (size_t i = 0; i < t->len; i++) if (t->at[i].live) S##_insert(s, LKOF(&t->at[i].key)); } \
+    __attribute__((unused)) static inline S S##_union(const S *a, const S *b) { S v = S##_copy(a); S##_insert_all(&v, b); return v; } \
+    __attribute__((unused)) static inline S S##_intersection(const S *a, const S *b) { \
+        S v = {0}; \
+        for (size_t i = 0; i < a->len; i++) if (a->at[i].live && S##_has(b, LKOF(&a->at[i].key))) S##_insert(&v, LKOF(&a->at[i].key)); \
+        return v; } \
+    __attribute__((unused)) static inline S S##_difference(const S *a, const S *b) { \
+        S v = {0}; \
+        for (size_t i = 0; i < a->len; i++) if (a->at[i].live && !S##_has(b, LKOF(&a->at[i].key))) S##_insert(&v, LKOF(&a->at[i].key)); \
+        return v; }
 
 /* Dictionary<K, V> (#65): a hash map on the heap, its entries in the
    order they were added (dead ones skipped, compacted on growth), a

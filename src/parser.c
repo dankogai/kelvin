@@ -289,7 +289,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -313,7 +313,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -560,6 +560,12 @@ static int type_shape_end(int i) {
         return type_suffix_end(skip_group(i + 1));
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "{")) /* ${K: V}, a Dictionary<K, V> (#70) */
         return type_suffix_end(skip_nested(i + 1));
+    if (is_kw(&toks[i], "Set") && is_p(&toks[i + 1], "<")) { /* Set<T> (#71) */
+        int e = type_shape_end(i + 2);
+        if (e < 0 || (!is_p(&toks[e], ">") && !is_p(&toks[e], ">>")))
+            return -1;
+        return type_suffix_end(is_p(&toks[e], ">>") ? e : e + 1);
+    }
     if (is_kw(&toks[i], "Dictionary") && is_p(&toks[i + 1], "<")) { /* Dictionary<K, V> (#65) */
         int e = type_shape_end(i + 2);
         if (e < 0 || !is_p(&toks[e], ","))
@@ -669,6 +675,11 @@ static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
 static bool is_dict_owner(Type *t);
+static Type *set_type(Token *at, Type *elem);
+static char owner_letter(const char *kind);
+static bool is_set_owner(Type *t);
+static Type *parse_set_type(Token *kw);
+static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first);
 static Type *parse_dict_types(Token *kw);
 static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first);
 static Expr *dict_key(Expr *k, Type *dt);
@@ -823,6 +834,14 @@ static Type *parse_type_in(TypeContext ctx) {
     base->kind = T_BASE;
     base->pos = peek()->pos;
     parse_qualifiers(base);
+    if (is_kw(peek(), "Set")) { /* Set<T> (#71) */
+        Token *kw = advance();
+        if (base->is_const || base->is_volatile)
+            error_at(base->pos, "a qualifier of a Set is the variable's: a let does not change");
+        Type *t = parse_set_type(kw);
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
     if (is_kw(peek(), "Dictionary")) { /* Dictionary<K, V> (#65) */
         Token *kw = advance();
         if (base->is_const || base->is_volatile)
@@ -1232,6 +1251,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 error_at(t->pos, "'[]' of %s that an expression gives, which nothing would free: bind it to a "
                                  "variable first",
                          is_bytes(value_type(e)) ? "a Bytes" : is_dict_owner(value_type(e)) ? "a Dictionary" : "an Array");
+            if (is_set_owner(value_type(e)))
+                error_at(t->pos, "a Set is not indexed: test an element with '.has(x)', or walk it with 'for x in s'");
             if (is_dict_owner(value_type(e))) { /* d[k] of a Dictionary, checked (#65) */
                 x->op = "dict";
                 x->type = value_type(e);
@@ -1286,8 +1307,8 @@ static Expr *parse_postfix_ops(Expr *e) {
             Token *name = peek();
             /* cstr is a keyword, but also the .cstr property and possibly
                a field of a C struct */
-            char *member = is_kw(name, "cstr") || is_converter(name) || is_kw(name, "case")
-                               ? advance()->text
+            char *member = is_kw(name, "cstr") || is_converter(name) || is_kw(name, "case") || is_kw(name, "union")
+                               ? advance()->text /* .case of an enum with values (#61), .union of a Set (#71) */
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
@@ -1339,6 +1360,7 @@ static Expr *parse_postfix_ops(Expr *e) {
             }
             const char *okind = call ? builtin_owner(value_type(e)) : NULL;
             if (okind) {
+                char ok = owner_letter(okind);
                 /* a Bytes method (#54): append, insert, remove, clear,
                    reserve, compact, copy, string; a String's (#55): append,
                    clear, reserve, compact, copy; on a place; those that
@@ -1346,30 +1368,35 @@ static Expr *parse_postfix_ops(Expr *e) {
                 static const struct { const char *name; int arity; bool changes; const char *of; } methods[] = {
                     {"append", 1, true, "bsa"}, {"insert", 2, true, "ba"}, {"remove", 2, true, "ba"},
                     {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
-                    {"copy", 0, false, "bsad"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
-                    {"has", 1, false, "d"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
-                    {"remove", 1, true, "d"}, {"clear", 0, true, "d"}, {"reserve", 1, true, "d"}};
+                    {"copy", 0, false, "bsadt"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
+                    {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
+                    {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
+                    {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
+                    {"difference", 1, false, "t"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
-                    if (!strcmp(member, methods[k].name) && strchr(methods[k].of, okind[0]))
+                    if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
                         which = (int)k;
                 if (which < 0)
-                    error_at(name->pos, okind[0] == 'b'
+                    error_at(name->pos, ok == 'b'
                                             ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, "
                                               "compact, copy and string, and the properties count, capacity, at, cstr "
                                               "and isUTF8"
-                                        : okind[0] == 's'
+                                        : ok == 's'
                                             ? "a String has no method '%s': append, clear, reserve, compact and copy, "
                                               "and the properties count, bytes and cstr"
-                                        : okind[0] == 'd'
+                                        : ok == 'd'
                                             ? "a Dictionary has no method '%s': has, find, get, remove, clear, reserve "
                                               "and copy, and the property count"
+                                        : ok == 't'
+                                            ? "a Set has no method '%s': insert, has, remove, clear, reserve, copy, "
+                                              "union, intersection and difference, and the properties count and elements"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
                 if (!owner_place(e))
                     error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first", member,
-                             okind[0] == 'b' ? "Bytes" : okind[0] == 's' ? "String" : okind[0] == 'd' ? "Dictionary" : "Array");
+                             ok == 'b' ? "Bytes" : ok == 's' ? "String" : ok == 'd' ? "Dictionary" : ok == 't' ? "Set" : "Array");
                 if (methods[which].changes && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
                 Type *through = e->kind == E_DEREF ? value_type(e->a) : NULL;
@@ -1398,12 +1425,21 @@ static Expr *parse_postfix_ops(Expr *e) {
                 Expr *given = which == 0 ? x->items.data[0] : which == 1 ? x->items.data[1] : NULL;
                 if (given)
                     check_appended(given, okind, member);
-                if (given && which == 0 && okind[0] == 'a')
+                if (given && which == 0 && ok == 'a')
                     x->text = (char *)array_append_kind(given, x->type);
-                if (okind[0] == 'd' && (!strcmp(member, "has") || !strcmp(member, "find") || !strcmp(member, "get") ||
-                                        !strcmp(member, "remove"))) {
+                if (ok == 't' && (!strcmp(member, "union") || !strcmp(member, "intersection") ||
+                                        !strcmp(member, "difference"))) {
+                    /* the set algebra takes a borrow of a Set of the same elements (#71) */
+                    Expr *o = x->items.data[0];
+                    Type *ot = value_type(o);
+                    if (!(ot && ot->kind == T_PTR && is_set_owner(ot->elem) && !strcmp(ot->elem->name, x->type->name)))
+                        error_at(o->pos, "'.%s' takes a borrow of another %s, '&other'", member, kelvin_type(x->type));
+                }
+                if ((ok == 'd' || ok == 't') && (!strcmp(member, "has") || !strcmp(member, "find") ||
+                                                           !strcmp(member, "get") || !strcmp(member, "remove") ||
+                                                           !strcmp(member, "insert"))) {
                     x->items.data[0] = dict_key(x->items.data[0], x->type); /* the key, by its kind (#65) */
-                    x->is_bool = !strcmp(member, "has") || !strcmp(member, "remove");
+                    x->is_bool = !strcmp(member, "has") || !strcmp(member, "remove") || !strcmp(member, "insert");
                     if (!strcmp(member, "get") && is_owner(x->type->elem))
                         error_at(name->pos, "'.get' copies the value, and %s owns: borrow it with '.find(k)', a %s^ "
                                             "or nullptr",
@@ -1635,8 +1671,9 @@ static Expr *parse_template(void) {
         if (expr_class(v, &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         v->shown = shown_type(v);
-        if (is_array_owner(value_type(v)) || is_dict_owner(value_type(v)))
-            error_at(v->pos, "%s has no text yet: show its %s", is_dict_owner(value_type(v)) ? "a Dictionary" : "an Array",
+        if (is_array_owner(value_type(v)) || is_dict_owner(value_type(v)) || is_set_owner(value_type(v)))
+            error_at(v->pos, "%s has no text yet: show its %s",
+                     is_dict_owner(value_type(v)) ? "a Dictionary" : is_set_owner(value_type(v)) ? "a Set" : "an Array",
                      is_dict_owner(value_type(v)) ? "entries" : "elements");
         list_push(&e->items, v);
         part = peek();
@@ -1792,6 +1829,43 @@ static Expr *parse_primary(void) {
         return e;
     }
     reject_c_int_name(t);
+    if (is_kw(t, "Set") && is_p(peek2(), "<")) {
+        /* Set<T>(), Set<T>({a, b, c}), Set<T>(&other) (#71) */
+        advance();
+        Type *st = parse_set_type(t);
+        if (!is_p(peek(), "("))
+            error_at(peek()->pos, "%s is a type: make one with %s(), or write it after ':'", kelvin_type(st),
+                     kelvin_type(st));
+        advance();
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        Expr *e;
+        if (is_p(peek(), "{") || (is_p(peek(), "$") && is_p(peek2(), "{"))) {
+            if (is_p(peek(), "$"))
+                advance();
+            e = set_of_list(t, st, NULL, NULL);
+        } else {
+            e = new_expr(E_CALL, t->pos);
+            e->a = new_expr(E_IDENT, t->pos);
+            e->a->text = "Set";
+            e->op = "set";
+            e->text = "";
+            e->type = st;
+            if (!is_p(peek(), ")")) {
+                Expr *x = parse_assign();
+                Type *xt = value_type(x);
+                if (!(xt && xt->kind == T_PTR && is_set_owner(xt->elem) && !strcmp(xt->elem->name, st->name)))
+                    error_at(x->pos, "%s takes nothing, the elements in {a, b, c}, or a borrow of another, '&s'",
+                             kelvin_type(st));
+                e->text = "copy";
+                list_push(&e->items, x);
+            }
+        }
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        return e;
+    }
     if (is_kw(t, "Dictionary") && is_p(peek2(), "<")) {
         /* Dictionary<K, V>(), Dictionary<K, V>([k: v, ...]), Dictionary<K, V>(&other) (#65) */
         advance();
@@ -2244,13 +2318,12 @@ static Expr *parse_binary(int min_prec) {
         if (ka || kb) {
             /* a Bytes or a String compares with == and != by its bytes
                (#54, #55), with another of its type, both places */
-            const char *tn = (ka ? ka : kb)[0] == 'b'   ? "Bytes"
-                             : (ka ? ka : kb)[0] == 's' ? "String"
-                             : (ka ? ka : kb)[0] == 'd' ? "Dictionary"
-                                                        : "Array";
-            if (tn[0] == 'A' || tn[0] == 'D')
-                error_at(t->pos, "%s has no operator '%s': compare its %s", tn[0] == 'A' ? "an Array" : "a Dictionary",
-                         e->op, tn[0] == 'A' ? "elements" : "entries");
+            char kl = owner_letter(ka ? ka : kb);
+            const char *tn = kl == 'b' ? "Bytes" : kl == 's' ? "String" : kl == 'd' ? "Dictionary" : kl == 't' ? "Set" : "Array";
+            if (tn[0] == 'A' || tn[0] == 'D' || (tn[0] == 'S' && tn[1] == 'e'))
+                error_at(t->pos, "%s has no operator '%s': compare its %s",
+                         tn[0] == 'A' ? "an Array" : tn[0] == 'D' ? "a Dictionary" : "a Set", e->op,
+                         tn[0] == 'D' ? "entries" : "elements");
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
                 error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=", tn,
                          e->op);
@@ -2644,6 +2717,8 @@ static Type *value_type_of(Expr *e) {
             return e->type;
         if (e->op && !strcmp(e->op, "dict")) /* Dictionary<K, V>(...) (#65) */
             return e->type;
+        if (e->op && !strcmp(e->op, "set")) /* Set<T>(...) (#71) */
+            return e->type;
         if (e->op && !strcmp(e->op, "array")) /* Array<T>(...) (#57) */
             return e->type;
         /* the overload chosen, or the result all that C may choose have,
@@ -2691,6 +2766,14 @@ static Type *value_type_of(Expr *e) {
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
+        if (e->op && !strcmp(e->op, "set")) { /* a Set method (#71) */
+            if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
+                return base_type("bool", e->pos);
+            if (!strcmp(e->text, "copy") || !strcmp(e->text, "union") || !strcmp(e->text, "intersection") ||
+                !strcmp(e->text, "difference"))
+                return value_type(e->a);
+            return NULL;
+        }
         if (e->op && !strcmp(e->op, "dict")) { /* a Dictionary method (#65) */
             Type *dt = value_type(e->a);
             if (!strcmp(e->text, "has") || !strcmp(e->text, "remove"))
@@ -2744,7 +2827,7 @@ static Type *value_type_of(Expr *e) {
             return base_type("u32", e->pos);
         if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
             return base_type("u8", e->pos);
-        if (e->op && !strcmp(e->op, "dict") && e->type) /* d.keys, d.values: Arrays (#66) */
+        if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set")) && e->type) /* d.keys, d.values, s.elements: Arrays (#66, #71) */
             return e->type;
         if (e->op && !strcmp(e->op, "array") && !strcmp(e->text, "at")) { /* xs.at, a T^ (#57) */
             Type *p = xcalloc(1, sizeof *p);
@@ -3618,10 +3701,10 @@ static void reject_owners_to_c(Expr *call) {
     if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println"))) {
         for (int k = 0; k < call->items.len; k++) {
             Expr *x = call->items.data[k];
-            if (is_array_owner(value_type(x)) || is_dict_owner(value_type(x)))
+            if (is_array_owner(value_type(x)) || is_dict_owner(value_type(x)) || is_set_owner(value_type(x)))
                 error_at(x->pos, "%s has no text yet: %s its %s, as in '%s'",
-                         is_dict_owner(value_type(x)) ? "a Dictionary" : "an Array", call->a->text,
-                         is_dict_owner(value_type(x)) ? "entries" : "elements",
+                         is_dict_owner(value_type(x)) ? "a Dictionary" : is_set_owner(value_type(x)) ? "a Set" : "an Array",
+                         call->a->text, is_dict_owner(value_type(x)) ? "entries" : "elements",
                          is_dict_owner(value_type(x)) ? "for k, v in d" : "for x in xs");
             if (is_owner(value_type(x)) && !owner_place(x))
                 error_at(x->pos, "%s of an owner that an expression gives, which nothing would free: bind it to a "
@@ -3706,6 +3789,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 /* A C name made from a type, as complex64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
+    if (is_set_owner(t)) /* Set<T> is Set_<T> (#71) */
+        return strfmt("Set_%s", mangled_type(t->elem));
     if (is_dict_owner(t)) /* Dictionary<K, V> is Dictionary_<K>_<V> (#65) */
         return strfmt("Dictionary_%s_%s", mangled_type(t->key), mangled_type(t->elem));
     if (is_array_owner(t)) /* Array<T> is Array_<T> (#57) */
@@ -3835,6 +3920,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
         return x;
     }
     const char *kind = builtin_owner(value_type(e));
+    char kk = owner_letter(kind);
     if (kind && ((!strcmp(kind, "bytes") && (!strcmp(member, "count") || !strcmp(member, "capacity") ||
                                              !strcmp(member, "at") || !strcmp(member, "cstr") ||
                                              !strcmp(member, "isUTF8"))) ||
@@ -3843,7 +3929,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
                  (!strcmp(kind, "array") && (!strcmp(member, "count") || !strcmp(member, "capacity") ||
                                              !strcmp(member, "at"))) ||
                  (!strcmp(kind, "dict") && (!strcmp(member, "count") || !strcmp(member, "keys") ||
-                                            !strcmp(member, "values"))))) {
+                                            !strcmp(member, "values"))) ||
+                 (!strcmp(kind, "set") && (!strcmp(member, "count") || !strcmp(member, "elements"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -3851,17 +3938,18 @@ static Expr *property(Expr *e, Token *name, char *member) {
         if (!owner_place(e))
             error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first, which frees "
                                 "it when its block ends",
-                     member, kind[0] == 'b' ? "Bytes" : kind[0] == 's' ? "String" : kind[0] == 'd' ? "Dictionary" : "Array");
+                     member, kk == 'b' ? "Bytes" : kk == 's' ? "String" : kk == 'd' ? "Dictionary" : kk == 't' ? "Set" : "Array");
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
         x->op = (char *)kind;
         x->is_bool = !strcmp(member, "isUTF8");
-        if (kind[0] == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) {
+        if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
+            (kk == 't' && !strcmp(member, "elements"))) {
             /* d.keys and d.values (#66): Arrays of copies, made by a function
                the codegen writes after the Dictionary's and the Array's C */
             Type *dt = value_type(e);
-            bool keys = !strcmp(member, "keys");
+            bool keys = strcmp(member, "values") != 0;
             x->recv_type = dt;
             x->type = array_type(name, keys ? dt->key : dt->elem);
             bool seen = false;
@@ -4274,6 +4362,27 @@ static Expr *parse_assign(void) {
                 /* b += x is b.append(x) (#54, #55) */
                 if (is_dict_owner(value_type(lhs)))
                     error_at(t->pos, "a Dictionary has no '+=': add an entry with d[k] = v");
+                if (is_set_owner(value_type(lhs))) { /* s += x inserts, s += &other its elements (#71) */
+                    if (!owner_place(lhs))
+                        error_at(t->pos, "'+=' on a Set that an expression gives: bind it to a variable first");
+                    if (let_target(lhs))
+                        error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs));
+                    Expr *x = new_expr(E_METHOD, t->pos);
+                    x->a = lhs;
+                    x->op = "set";
+                    x->type = value_type(lhs);
+                    Expr *given = parse_assign();
+                    assign_ok = ok;
+                    Type *gt = value_type(given);
+                    if (gt && gt->kind == T_PTR && is_set_owner(gt->elem) && !strcmp(gt->elem->name, x->type->name)) {
+                        x->text = "insert_all";
+                    } else {
+                        x->text = "insert";
+                        given = dict_key(given, x->type);
+                    }
+                    list_push(&x->items, given);
+                    return x;
+                }
                 if (!owner_place(lhs))
                     error_at(t->pos, "'+=' on an owner that an expression gives: bind it to a variable first");
                 if (let_target(lhs))
@@ -4414,10 +4523,10 @@ static Expr *parse_initializer_for(Type *t) {
         Token *d = advance();
         return array_of_list(d, t);
     }
-    if (t && is_dict_owner(t) && (is_p(open, "{") || (is_p(open, "$") && is_p(peek2(), "{")))) {
-        /* {k: v, ...} or ${k: v, ...} of the declared Dictionary type (#65, #69) */
+    if (t && (is_dict_owner(t) || is_set_owner(t)) && (is_p(open, "{") || (is_p(open, "$") && is_p(peek2(), "{")))) {
+        /* {k: v, ...} or ${k: v, ...} of the declared Dictionary type (#65, #69); {a, b} of a Set (#71) */
         Token *d = is_p(open, "$") ? advance() : open;
-        return dict_of_list(d, t, NULL, NULL);
+        return is_set_owner(t) ? set_of_list(d, t, NULL, NULL) : dict_of_list(d, t, NULL, NULL);
     }
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
@@ -4650,6 +4759,8 @@ static void check_array_elem(Type *elem) {
 
 /* the inside of $[...] that spells t: [T] for an Array<T>, else T */
 static char *dollar_spelling(Type *t) {
+    if (is_set_owner(t))
+        return strfmt("{%s}", kelvin_type(t->elem));
     if (is_dict_owner(t))
         return strfmt("{%s: %s}", kelvin_type(t->key), dollar_spelling(t->elem));
     return is_array_owner(t) ? strfmt("[%s]", dollar_spelling(t->elem)) : kelvin_type(t);
@@ -4660,8 +4771,11 @@ static char *dollar_spelling(Type *t) {
 static Type *parse_dollar_dict(Token *at) {
     expect_p("{");
     Type *key = parse_type_in(TYPE_DECL);
+    if (accept_p("}")) /* ${T} is Set<T> (#71) */
+        return set_type(at, key);
     if (!accept_p(":"))
-        error_at(peek()->pos, "expected ':' between the key and value types of ${K: V}");
+        error_at(peek()->pos, "expected ':' between the key and value types of ${K: V}, or '}' after the element "
+                              "type of a Set, ${T}");
     Type *val = parse_type_in(TYPE_DECL);
     if (is_p(peek(), "("))
         error_at(peek()->pos, "an Array grows, and has no count in its type: write ${%s: %s}, and give the elements "
@@ -4754,6 +4868,103 @@ static Type *dict_type(Token *at, Type *key, Type *val) {
     return t;
 }
 
+/* Set<T> (#71): as a Dictionary with no values; T as a key */
+static bool is_set_owner(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && t->cname && !strncmp(t->name, "Set<", 4);
+}
+
+static Type *set_type(Token *at, Type *elem) {
+    check_dict_key(elem);
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_BASE;
+    t->pos = at->pos;
+    t->key = elem;
+    t->elem = elem;
+    t->name = strfmt("Set<%s>", kelvin_type(elem));
+    t->cname = strfmt("_kv_set_%s", mangled_type(elem));
+    for (int i = 0; i < program->arrays.len; i++)
+        if (!strcmp(((Type *)program->arrays.data[i])->name, t->name))
+            return t;
+    list_push(&program->arrays, t);
+    list_push(&program->array_decls, (void *)(intptr_t)program->decls.len);
+    return t;
+}
+
+static Type *parse_set_type(Token *kw) {
+    if (!accept_p("<"))
+        error_at(peek()->pos, "a Set names its element type: Set<T>");
+    Type *elem = parse_type_in(TYPE_DECL);
+    if (is_p(peek(), ">>"))
+        toks[cur].text = ">";
+    else if (!accept_p(">"))
+        error_at(peek()->pos, "expected '>' after the element type of Set<T>");
+    return set_type(kw, elem);
+}
+
+/* ${a, b, c} and Set<T>({a, b, c}) (#71): the elements written, T inferred
+   from the first as a key's is, or given; ${} is the empty Set where the
+   type is known */
+static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first) {
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for, saved_annotation = ident_annotation_ok;
+    brace_ends_condition = brace_in_for = false;
+    init_depth++;
+    if (!open)
+        open = expect_p("{");
+    Expr *e = new_expr(E_CALL, t->pos);
+    e->a = new_expr(E_IDENT, t->pos);
+    e->a->text = "Set";
+    e->op = "set";
+    e->text = "list";
+    e->type = st;
+    Type *kt = st ? st->key : NULL;
+    if (!first && is_p(peek(), ":"))
+        error_at(peek()->pos, "an empty Set is written ${}; ${:} is an empty Dictionary");
+    for (Expr *k = first;; k = NULL) {
+        if (!k) {
+            if (is_p(peek(), "}"))
+                break;
+            ident_annotation_ok = false;
+            k = parse_assign();
+            ident_annotation_ok = saved_annotation;
+        }
+        if (is_p(peek(), ":"))
+            error_at(peek()->pos, "a Set holds elements, not entries: ${a, b, c}; a Dictionary's are ${k: v}");
+        if (!st) {
+            Type *k0 = inferred_type(k, k->pos);
+            if (k0 && is_cstr(k0))
+                k0 = base_type("String", k->pos);
+            if (!kt) {
+                if (!k0)
+                    error_at(k->pos, "this element has no type kelvinc sees: write Set<T>({...})");
+                kt = k0;
+            } else if (!k0 || strcmp(kelvin_type(k0), kelvin_type(kt))) {
+                error_at(k->pos, "every element of a Set has one type: this one is %s, the first %s",
+                         k0 ? kelvin_type(k0) : "unseen", kelvin_type(kt));
+            }
+        }
+        list_push(&e->items, k);
+        if (!accept_p(","))
+            break;
+    }
+    expect_p("}");
+    if (!st) {
+        if (!kt)
+            error_at(open->pos, "${} has no element type here: write Set<T>(), or give the variable a type, as in "
+                                "'var s:${String} = ${}'");
+        st = e->type = set_type(t, kt);
+    }
+    if (!e->items.len)
+        e->text = "";
+    for (int i = 0; i < e->items.len; i++)
+        e->items.data[i] = dict_key(e->items.data[i], st);
+    init_depth--;
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    return e;
+}
+
 static Type *parse_dict_types(Token *kw) {
     if (!accept_p("<"))
         error_at(peek()->pos, "a Dictionary names its key and value types: Dictionary<K, V>");
@@ -4817,6 +5028,17 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
     e->op = "dict";
     e->text = "list";
     e->type = dt;
+    if (!first && is_set_owner(dt)) { /* ${a, b} of a declared Set (#71) */
+        init_depth--;
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        return set_of_list(t, dt, open, NULL);
+    }
+    if (!first && !dt && is_p(peek(), "}")) /* ${}: an empty Set, typed */
+        error_at(open->pos, "${} has no element type here: write Set<T>(), or give the variable a type, as in "
+                            "'var s:${String} = ${}'");
+    if (!first && dt && is_p(peek(), "}"))
+        error_at(peek()->pos, "an empty Dictionary is written ${:}");
     if (!first && accept_p(":")) { /* ${:}: empty */
         if (!dt)
             error_at(open->pos, "${:} has no key and value types here: write Dictionary<K, V>(), or give the "
@@ -4837,6 +5059,12 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
             ident_annotation_ok = false; /* the `:` after a key is the entry's */
             k = parse_assign();
             ident_annotation_ok = saved_annotation;
+        }
+        if (!dt && !e->items.len && !is_p(peek(), ":")) { /* ${a, b, c}: a Set (#71) */
+            init_depth--;
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            return set_of_list(t, NULL, open, k);
         }
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
@@ -4928,8 +5156,19 @@ static bool is_string(Type *t) {
 }
 
 /* "bytes" or "string" for the built-in owners, NULL otherwise */
+/* the one letter of a built-in owner's kind: b, s, a, d, or t for a Set,
+   whose name starts as a String's does (#71) */
+static char owner_letter(const char *kind) {
+    return kind && kind[0] == 's' && kind[1] == 'e' ? 't' : kind ? kind[0] : 0;
+}
+
 static const char *builtin_owner(Type *t) {
-    return is_bytes(t) ? "bytes" : is_string(t) ? "string" : is_array_owner(t) ? "array" : is_dict_owner(t) ? "dict" : NULL;
+    return is_bytes(t)         ? "bytes"
+           : is_string(t)      ? "string"
+           : is_array_owner(t) ? "array"
+           : is_dict_owner(t)  ? "dict"
+           : is_set_owner(t)   ? "set"
+                               : NULL;
 }
 
 /* An owner: a Bytes, a String, a Kelvin struct with an owner member, or an
@@ -4943,7 +5182,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -6428,7 +6667,14 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                            "the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'");
     Type *elem = NULL;
     Decl *record = NULL;
-    if (is_dict_owner(t)) { /* its entries, in order (#65): the key, or key and value */
+    if (is_set_owner(t)) { /* its elements, in order (#71) */
+        if (!owner_place(seq))
+            error_at(seq->pos, "for over a Set that an expression gives: bind it to a variable first");
+        if (s->name2)
+            error_at(s->pos, "two loop variables walk a Dictionary's entries; a Set's elements take one");
+        s->each = EACH_DICT;
+        elem = t->elem;
+    } else if (is_dict_owner(t)) { /* its entries, in order (#65): the key, or key and value */
         if (!owner_place(seq))
             error_at(seq->pos, "for over a Dictionary that an expression gives: bind it to a variable first");
         s->each = EACH_DICT;

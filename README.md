@@ -105,7 +105,9 @@ So far the changes from C are:
   and `$[i64]` the type `Array<i64>`; `Dictionary<K, V>` is a hash map,
   `${"ann": 31}`, with `d[k]` checked, `d.has(k)`, `d.find(k)` and
   `for k, v in d`, `d.keys` and `d.values`, keyed by integers or Strings;
-  `` $`a${x}b` `` builds a `String` from a template, with no bound
+  `` $`a${x}b` `` builds a `String` from a template, with no bound;
+  `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)` and
+  `s.union(&t)`
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`

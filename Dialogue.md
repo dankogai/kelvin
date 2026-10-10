@@ -2805,3 +2805,18 @@ are provisional P82.
 
 There are 544 tests, and all pass with clang and with gcc 15.
 
+### 100. `Set<T>`
+
+> now add `Set`, a hash set on the heap
+
+**Claude** added #71: `Set<T>`, or `${T}`, a Dictionary with no
+values: `${3, 1, 4}` makes one (braces without colons, as Python
+reads them), `${}` is the empty one where the type is known, `s += x`
+and `insert` add, `has` tests, `remove` removes, `union`,
+`intersection` and `difference` take a borrow and give new Sets,
+`elements` is an Array of copies, and `for x in s` walks the elements
+in the order added. Every allocation of the test's C is freed at exit
+under ASan. Details are provisional P83.
+
+There are 552 tests, and all pass with clang and with gcc 15.
+

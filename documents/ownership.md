@@ -223,6 +223,16 @@ words["a"] = $[$"apple"]
   entries), `==`, keys of other types, `keys` and `values` as Arrays,
   and `d[k, default]`.
 
+## `Set<T>`
+
+`Set<T>`, or `${T}`, is a hash set on the heap (#71): a Dictionary with
+no values, under the same rules, keyed as a Dictionary is (an integer
+type or `String`). `${3, 1, 4}` makes one, `s += x` and `s.insert(x)`
+add, `s.has(x)` tests, `s.remove(x)` removes, `s.union(&t)`,
+`s.intersection(&t)` and `s.difference(&t)` make new ones,
+`s.elements` is an Array of copies, and `for x in s` walks it in the
+order added. See [sets.md](sets.md).
+
 ## The rules
 
 | | Rule |

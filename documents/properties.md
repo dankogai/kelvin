@@ -16,6 +16,7 @@ its document:
 | unions | [unions.md](unions.md#properties-and-methods) |
 | enums, enums with values | [enums.md](enums.md#properties-and-methods) |
 | `Dictionary<K, V>` | [dictionaries.md](dictionaries.md#properties-and-methods) |
+| `Set<T>` | [sets.md](sets.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
 ## `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
