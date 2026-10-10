@@ -2870,3 +2870,24 @@ points at `results.md` for the rest; `properties.md`, `versusC.md`,
 No code changed.
 
 There are 566 tests, and all pass with clang and with gcc 15.
+
+### 104. Results in practice, before `try`
+
+> Hold "now add `try`, passing an `err` up". We need more examples and
+> practices. Take a look at `lstat(path, buf)` while it has been long
+> okay to `a = b` where a and be are structs.
+
+**Claude** held `try` and wrote the practice down first.
+[examples/results.k](examples/results.k) wraps C's `timespec_get`,
+`fopen` and `getenv`, whose value comes back through a pointer or as a
+null with the error beside it, into functions that return a
+`Result<timespec, i32>`, a `Result<FILE^, i32>` and a `cstr?`, reads
+numbers from a file as `Result<i64, String>`, and passes an `err` up
+by hand, the line `try` would write. `results.md` has a section "From
+C" with the `lstat` wrapper the user named, `Result<stat, i32>`, and
+why the example uses ISO C instead: glibc hides `lstat` under
+`-std=c11`. Found on the way: `v ?? "unset"` of a `cstr?` is no text
+in C (clang prints an address, gcc refuses), so the literal needs
+`as cstr`; a wart to fix.
+
+There are 567 tests, and all pass with clang and with gcc 15.

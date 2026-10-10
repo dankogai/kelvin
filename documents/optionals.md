@@ -62,6 +62,21 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
 - **Not yet:** `x!`, `==` with `none`, a literal `none` where no type is
   around, and `??` of an owner.
 
+A C function that returns a pointer or null, with no reason beside it,
+wraps as an Optional; `v ?? "unset" as cstr` wants the literal as a
+`cstr`, since C's `?:` of two kinds of text is no text (see
+[results.md](results.md#from-c-the-value-through-a-pointer-the-error-beside-it)):
+
+```kelvin
+let env(name:cstr):cstr? {                // char *getenv(const char *)
+    let v:cstr := getenv(name)
+    if v.isNull { return none }
+    return v
+}
+var home = env("HOME")
+println(home ?? "unset" as cstr)
+```
+
 When the absence has a reason, return a `Result<T, U>` instead, with
 the reason in `err`: [results.md](results.md).
 

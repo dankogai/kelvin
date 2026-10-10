@@ -139,6 +139,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/shapes.k](examples/shapes.k) | structs, methods, derived `.cstr` text, `<math.h>` |
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
+| [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
 | [examples/complex.k](examples/complex.k) | `#import <complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 
 ## Build and use

@@ -70,6 +70,55 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
 - **Not yet:** `try` or `?` to pass an `err` up, `if let` of the error,
   `==`, mapping.
 
+## From C: the value through a pointer, the error beside it
+
+C returns an `int` and hands the value back through a pointer, as
+`lstat(path, &buf)` does, though `buf = other` has copied a struct
+since C89. A Kelvin wrapper returns both as one Result, and the caller
+cannot take the value without facing the case:
+
+```kelvin
+#import <sys/stat.h> as C
+#import <errno.h> as C
+#import <string.h> as C
+struct stat;                                 // the C struct, by its bare name
+let statOf(path:cstr):Result<stat, i32> {    // the struct, or errno
+    var buf:stat
+    if lstat(path, &buf) != 0 { return err(errno) }
+    return buf                               // a T becomes ok(T)
+}
+let sizeOf(path:cstr):Result<i64, i32> {     // an err passed up, by hand
+    var r = statOf(path)
+    if r.is(err) { return err(r.err) }
+    return r.ok.st_size
+}
+if let st = statOf("/") { println((st.st_mode & S_IFMT) == S_IFDIR) }   // true
+var s = sizeOf("/no/such")
+if s.is(err) { println(strerror(s.err)) }    // No such file or directory
+```
+
+- **The error type** is what C gives: `i32` for `errno` and for a
+  function's own code, a `String` when the reason is text,
+  `` err($`not a number: ${s}`) ``, an enum of your own when the callers
+  switch on it.
+- **A pointer that may be null** with a reason beside it, as `fopen`
+  with `errno`, is a `Result<FILE^, i32>`; one with no reason, as
+  `getenv`, is a `cstr?` (see [optionals.md](optionals.md)).
+- **A number read from text** is `i64(s)`, which reads as `strtol`
+  does and sets `errno` to `ERANGE` past the limits; check the digits
+  first, and the Result's `err` says which.
+- **Passing an err up** is written by hand: `if r.is(err) { return
+  err(r.err) }`, then `r.ok`. A `try` to write that for us is held
+  until the practice settles.
+- **A default for a `cstr?`** needs the literal as a `cstr`, `v ??
+  "unset" as cstr`: C's `?:` of a `const uint8_t *` and a `char *` is
+  no text (clang prints an address, gcc refuses) *(a wart to fix)*.
+- **`lstat` is POSIX**, and glibc hides it under `-std=c11`, which
+  kelvinc uses, unless `_POSIX_C_SOURCE` is defined: on Linux, give
+  kelvinc `KELVIN_CFLAGS=-D_POSIX_C_SOURCE=200809L`.
+  [examples/results.k](../examples/results.k) does the same with ISO
+  C's `timespec_get`, `fopen` and `getenv`, and runs with the tests.
+
 ## `T?`: the special case
 
 `Optional<T>`, or `T?` for short, is a Result whose `err` carries
