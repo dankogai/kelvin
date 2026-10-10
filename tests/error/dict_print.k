@@ -1,6 +1,6 @@
 // a Dictionary has no text yet (#65)
 let main():i32 {
-    var d = $["a": 1]
+    var d = ${"a": 1}
     println(d)
     return 0
 }

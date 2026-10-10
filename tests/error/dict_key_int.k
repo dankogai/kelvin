@@ -1,6 +1,6 @@
 // an integer-keyed Dictionary is read with an integer (#65)
 let main():i32 {
-    var d = $[1: 1]
+    var d = ${1: 1}
     var y = d["x"]
     return 0
 }

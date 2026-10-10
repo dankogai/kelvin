@@ -166,10 +166,13 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   `capacity`, `at` and `isUTF8` of a Bytes, `size`, `typename`.
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
   prints as its character; `for b in bytes` each byte.
+- **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
+  and `s[...hi]` are new Strings of those codepoints, a Bytes's of
+  those bytes; a range past the count ends the program.
 - **Comparing:** `==` and `!=` compare two Strings, or two Bytes, by
   their bytes.
-- **Not yet:** slicing, searching, `insert` and `remove` on a String,
-  encodings other than UTF-8.
+- **Not yet:** searching, `insert` and `remove` on a String, encodings
+  other than UTF-8.
 
 ## What is not here yet
 

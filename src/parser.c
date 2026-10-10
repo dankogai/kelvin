@@ -1069,6 +1069,20 @@ static char *source_text(int i, int end) {
 
 static bool at_statement_level(void);
 
+/* Does the [...] at i hold a `..<` or `...` at its top level: a slice (#68)? */
+static bool bracket_is_slice(int i) {
+    int end = skip_group(i);
+    for (int k = i + 1, depth = 0; k < end - 1; k++) {
+        if (is_p(&toks[k], "(") || is_p(&toks[k], "[") || is_p(&toks[k], "{"))
+            depth++;
+        else if (is_p(&toks[k], ")") || is_p(&toks[k], "]") || is_p(&toks[k], "}"))
+            depth--;
+        else if (depth == 0 && (is_p(&toks[k], "..<") || is_p(&toks[k], "...")))
+            return true;
+    }
+    return false;
+}
+
 /* At the top level of a statement, a `(` on a new line starts the next
    statement, as in Swift, rather than calling what went before (#35);
    an operator, `.member` or `[` there goes on with the expression */
@@ -1146,9 +1160,9 @@ static Expr *parse_postfix_ops(Expr *e) {
         if (line_ends_expression() || cur == postfix_stop)
             return e;
         Token *t = peek();
-        if (is_p(peek(), "[") && is_string(value_type(e)))
+        if (is_p(peek(), "[") && is_string(value_type(e)) && !bracket_is_slice(cur))
             error_at(peek()->pos, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
-                                  "s', or index its bytes, 's.bytes^[i]'");
+                                  "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
         if (is_p(peek(), "[") && is_bytes(value_type(e)) && !owner_place(e))
             error_at(peek()->pos, "indexing a Bytes that an expression gives: bind it to a variable first");
         if (accept_p("[")) {
@@ -1158,10 +1172,56 @@ static Expr *parse_postfix_ops(Expr *e) {
             brace_ends_condition = false;
             Expr *x = new_expr(E_INDEX, t->pos);
             x->a = e;
-            x->b = parse_expr();
+            bool slice = false, closed = false;
+            if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* [..<hi], [...hi] (#68) */
+                slice = true;
+                closed = is_p(peek(), "...");
+                advance();
+                x->c = parse_expr();
+            } else {
+                x->b = parse_expr();
+                if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* [lo..<hi], [lo...hi], [lo...] (#68) */
+                    slice = true;
+                    closed = is_p(peek(), "...");
+                    advance();
+                    if (!is_p(peek(), "]"))
+                        x->c = parse_expr();
+                    else if (!closed)
+                        error_at(peek()->pos, "a slice to the end is written [lo...]; '..<' needs an end");
+                    else
+                        closed = false; /* [lo...] is lo..<count */
+                }
+            }
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p("]");
+            if (slice) {
+                /* xs[lo..<hi] (#68): a copy of the elements, or of a String's
+                   codepoints, or of a Bytes's bytes, of a place */
+                Type *st = value_type(e);
+                if (!is_array_owner(st) && !is_string(st) && !is_bytes(st))
+                    error_at(t->pos, "a slice [lo..<hi] is of an Array, a String or a Bytes, and this is %s",
+                             st ? kelvin_type(st) : "not one");
+                if (!owner_place(e))
+                    error_at(t->pos, "a slice of %s that an expression gives, which nothing would free: bind it to a "
+                                     "variable first",
+                             is_string(st) ? "a String" : is_bytes(st) ? "a Bytes" : "an Array");
+                for (int k = 0; k < 2; k++) {
+                    Expr *bound = k ? x->c : x->b;
+                    Decl *r;
+                    char c = bound ? expr_class(bound, &r) : 'i';
+                    if (c != 'i' && c != 'u')
+                        error_at(bound->pos, "a slice's bounds are integers, and this is %s",
+                                 value_type(bound)    ? kelvin_type(value_type(bound))
+                                 : literal_type(bound) ? literal_type(bound)
+                                                       : "not one");
+                }
+                x->op = "slice";
+                x->text = closed ? "closed" : "open";
+                x->type = unqualified(st);
+                e = x;
+                continue;
+            }
             if ((is_bytes(value_type(e)) || is_array_owner(value_type(e)) || is_dict_owner(value_type(e))) &&
                 !owner_place(e))
                 error_at(t->pos, "'[]' of %s that an expression gives, which nothing would free: bind it to a "
@@ -1632,6 +1692,11 @@ static Expr *parse_primary(void) {
         }
         return e;
     }
+    if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "{")) {
+        /* ${k: v, ...} is a Dictionary of the entries, ${:} an empty one (#65, #69) */
+        advance();
+        return dict_of_list(t, NULL, NULL, NULL);
+    }
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_STRING) {
         /* $"text" is String("text") (#62) */
         advance();
@@ -1733,7 +1798,9 @@ static Expr *parse_primary(void) {
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
         Expr *e;
-        if (is_p(peek(), "[")) {
+        if (is_p(peek(), "{") || (is_p(peek(), "$") && is_p(peek2(), "{"))) {
+            if (is_p(peek(), "$"))
+                advance();
             e = dict_of_list(t, dt, NULL, NULL);
         } else {
             e = new_expr(E_CALL, t->pos);
@@ -1746,7 +1813,7 @@ static Expr *parse_primary(void) {
                 Expr *x = parse_assign();
                 Type *xt = value_type(x);
                 if (!(xt && xt->kind == T_PTR && is_dict_owner(xt->elem) && !strcmp(xt->elem->name, dt->name)))
-                    error_at(x->pos, "%s takes nothing, the entries in [k: v, ...], or a borrow of another, '&d'",
+                    error_at(x->pos, "%s takes nothing, the entries in {k: v, ...}, or a borrow of another, '&d'",
                              kelvin_type(dt));
                 e->text = "copy";
                 list_push(&e->items, x);
@@ -2333,6 +2400,8 @@ static Type *type_through(Expr *e, Type *(*base)(Expr *)) {
         return t && (t->kind == T_PTR || t->kind == T_ARRAY) ? t->elem : NULL;
     }
     case E_INDEX: {
+        if (e->op && !strcmp(e->op, "slice")) /* xs[lo..<hi] (#68): a copy of the same type */
+            return e->type;
         Type *t = base(e->a);
         if (is_bytes(t)) { /* b[i] (#54): a u8, const for a let */
             Type *u = base_type("u8", e->pos);
@@ -4333,10 +4402,15 @@ static Expr *parse_initializer_for(Type *t) {
     if (signature_ahead(cur))
         return parse_assign(); /* { (a:i32):i32 in ... } (#32) */
     bool bracket = is_p(open, "[") && !zero_array_ahead(cur);
-    if (is_p(open, "$") && is_p(peek2(), "[") && t && (is_array_owner(t) || is_dict_owner(t))) {
-        /* $[...] of the declared Array or Dictionary type (#62, #65) */
+    if (is_p(open, "$") && is_p(peek2(), "[") && t && is_array_owner(t)) {
+        /* $[...] of the declared Array type (#62) */
         Token *d = advance();
         return array_of_list(d, t);
+    }
+    if (t && is_dict_owner(t) && (is_p(open, "{") || (is_p(open, "$") && is_p(peek2(), "{")))) {
+        /* {k: v, ...} or ${k: v, ...} of the declared Dictionary type (#65, #69) */
+        Token *d = is_p(open, "$") ? advance() : open;
+        return dict_of_list(d, t, NULL, NULL);
     }
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
@@ -4501,8 +4575,8 @@ static bool list_is_dict(int i) {
 }
 
 static Expr *array_of_list(Token *t, Type *at) {
-    if ((at && is_dict_owner(at)) || (!at && list_is_dict(cur))) /* [k: v, ...] of a Dictionary (#65) */
-        return dict_of_list(t, at, NULL, NULL);
+    if ((at && is_dict_owner(at)) || list_is_dict(cur)) /* [k: v] was a Dictionary's until #69 */
+        error_at(peek()->pos, "a Dictionary's entries are written in braces: ${k: v, ...}, and ${:} for none");
     Token *open = expect_p("[");
     Type *elem = at ? at->elem : NULL;
     Expr *list = new_expr(E_INIT, open->pos);
@@ -4698,27 +4772,27 @@ static Expr *dict_key(Expr *k, Type *dt) {
     return k;
 }
 
-/* $[k: v, ...] and Dictionary<K, V>([k: v, ...]) (#65): the entries
-   written; K and V inferred from the first entry as a variable's type
-   is, every other entry alike, or given. The C sets each entry into an
+/* ${k: v, ...} and Dictionary<K, V>({k: v, ...}) (#65, braces since #69):
+   the entries written; K and V inferred from the first entry as a
+   variable's type is, every other entry alike, or given. The C sets each entry into an
    empty Dictionary; a value that owns is moved in */
 static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
     bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
     brace_ends_condition = brace_in_for = false;
     init_depth++;
     if (!open)
-        open = expect_p("[");
+        open = expect_p("{");
     Expr *e = new_expr(E_CALL, t->pos);
     e->a = new_expr(E_IDENT, t->pos);
     e->a->text = "Dictionary";
     e->op = "dict";
     e->text = "list";
     e->type = dt;
-    if (!first && accept_p(":")) { /* $[:]: empty */
+    if (!first && accept_p(":")) { /* ${:}: empty */
         if (!dt)
-            error_at(open->pos, "$[:] has no key and value types here: write Dictionary<K, V>(), or give the "
-                                "variable a type, as in 'var d:$[String: i64] = $[:]'");
-        expect_p("]");
+            error_at(open->pos, "${:} has no key and value types here: write Dictionary<K, V>(), or give the "
+                                "variable a type, as in 'var d:$[String: i64] = ${:}'");
+        expect_p("}");
         e->text = "";
         init_depth--;
         brace_ends_condition = saved_brace;
@@ -4729,7 +4803,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
     bool saved_annotation = ident_annotation_ok;
     for (Expr *k = first;; k = NULL) {
         if (!k) {
-            if (is_p(peek(), "]"))
+            if (is_p(peek(), "}"))
                 break;
             ident_annotation_ok = false; /* the `:` after a key is the entry's */
             k = parse_assign();
@@ -4738,13 +4812,20 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
         Expr *v = is_p(peek(), "[") ? array_of_list(t, vt) : drop_cstr(parse_initializer_for(vt), vt);
+        if (v->kind == E_INIT && vt) { /* {...} of a struct or array value, as its compound literal */
+            Expr *c = new_expr(E_COMPOUND, v->pos);
+            c->type = vt;
+            c->a = v;
+            count_items(vt, v);
+            v = c;
+        }
         if (!dt) {
             Type *k0 = inferred_type(k, k->pos), *v0 = inferred_type(v, v->pos);
             if (k0 && is_cstr(k0))
                 k0 = base_type("String", k->pos);
             if (!kt) {
                 if (!k0 || !v0)
-                    error_at(k->pos, "the %s of this entry has no type kelvinc sees: write Dictionary<K, V>([...])",
+                    error_at(k->pos, "the %s of this entry has no type kelvinc sees: write Dictionary<K, V>({...})",
                              k0 ? "value" : "key");
                 kt = k0;
                 vt = v0;
@@ -4763,7 +4844,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
         if (!accept_p(","))
             break;
     }
-    expect_p("]");
+    expect_p("}");
     if (!dt)
         dt = e->type = dict_type(t, kt, vt);
     for (int i = 0; i < e->designators.len; i++)
@@ -4878,6 +4959,8 @@ static const char *array_append_kind(Expr *given, Type *array) {
 
 /* a place that owns: a variable, a field, an element, p^ */
 static bool owner_place(Expr *e) {
+    if (e->kind == E_INDEX && e->op && !strcmp(e->op, "slice"))
+        return false; /* a slice is a copy an expression gives (#68) */
     return is_owner(value_type(e)) &&
            (e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF);
 }
@@ -5955,8 +6038,8 @@ static Expr *parse_dollar(void) {
     bool bracket = !*digits;
     if (bracket) {
         if (!accept_p("["))
-            error_at(t->pos, "'$' alone is not a value: $\"text\" is a String, $[a, b] an Array, and an anonymous "
-                             "function's parameters are $[0], $[1], ..., or $0, $1, ...");
+            error_at(t->pos, "'$' alone is not a value: $\"text\" is a String, $[a, b] an Array, ${k: v} a "
+                             "Dictionary, and an anonymous function's parameters are $[0], $[1], ..., or $0, $1, ...");
         Token *n = peek();
         if (n->kind != TK_NUMBER || strspn(n->text, "0123456789") != strlen(n->text))
             error_at(n->pos, "$[...] takes a number, as in $[0]: each parameter may have a type of its own");

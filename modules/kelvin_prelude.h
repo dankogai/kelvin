@@ -98,6 +98,7 @@ void kv_string_clear(kv_string *s);
 void kv_string_reserve(kv_string *s, size_t n);
 void kv_string_compact(kv_string *s);
 bool kv_string_eq(const kv_string *a, const kv_string *b);
+kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf);
@@ -144,6 +145,9 @@ static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
+/* a slice (#68): lo..<hi within count, else the program ends */
+void kv_slice_range(size_t lo, size_t hi, size_t count, const char *what);
+kv_bytes kv_bytes_slice(const kv_bytes *b, size_t lo, size_t hi);
 /* an enum with values (#61): reading a case that is not current */
 void kv_case_fail(const char *type, const char *want, const char *have);
 /* Dictionary<K, V> (#65): hashes, a text key against a stored String,
@@ -263,6 +267,11 @@ void kv_dict_missing_text(const void *k);
         A v = {0}; A##_reserve(&v, n); memset(v.at, 0, n * sizeof *v.at); v.count = n; return v; } \
     __attribute__((unused)) static inline A A##_from(const A##_elem *p, size_t n) { \
         A v = {0}; A##_reserve(&v, n); memcpy(v.at, p, n * sizeof *v.at); v.count = n; return v; } \
+    __attribute__((unused)) static inline A A##_slice(const A *a, size_t lo, size_t hi) { \
+        if (lo > hi || hi > a->count) kv_slice_range(lo, hi, a->count, "Array"); \
+        A v = {0}; A##_reserve(&v, hi - lo); \
+        for (size_t i = lo; i < hi; i++) v.at[v.count++] = COPY(&a->at[i]); \
+        return v; } \
     __attribute__((unused)) static inline A A##_copy(const A *a) { \
         A v = {0}; A##_reserve(&v, a->count); \
         for (size_t i = 0; i < a->count; i++) v.at[i] = COPY(&a->at[i]); \

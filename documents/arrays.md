@@ -154,6 +154,10 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
   `reserve`, `compact`, `copy`; **properties** `count`, `capacity`, `at`
   (the elements as a `T^`), `size`, `typename`.
+- **Slices** (#68): `xs[lo..<hi]`, `xs[lo...hi]`, `xs[lo...]` to the
+  end, `xs[..<hi]` and `xs[...hi]` from the start, each a new Array of
+  copies of those elements, which a variable then owns; a range past
+  the count ends the program with a message.
 - **Elements** are any value type, owners included, which the Array
   then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
   or an enum with values that owns. A fixed array is not an element.

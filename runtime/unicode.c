@@ -97,6 +97,22 @@ kv_string kv_string_from_bytes(const kv_bytes *b) {
 
 kv_string kv_string_copy(const kv_string *s) { return (kv_string){kv_bytes_copy(&s->b), s->count}; }
 
+/* the codepoints lo..<hi (#68), a new String */
+kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi) {
+    if (lo > hi || hi > s->count)
+        kv_slice_range(lo, hi, s->count, "String");
+    const uint8_t *p = s->b.at, *from = p, *to = p;
+    for (size_t i = 0; p && i < hi; i++) {
+        if (i == lo)
+            from = p;
+        kv_utf8_next(&p);
+    }
+    if (lo == hi)
+        return (kv_string){0};
+    to = p;
+    return (kv_string){kv_bytes_from(from, (size_t)(to - from)), hi - lo};
+}
+
 kv_string kv_string_take(kv_string *s) {
     kv_string v = *s;
     *s = (kv_string){0};

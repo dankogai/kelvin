@@ -1,6 +1,6 @@
-// $[:] needs the type written (#65)
+// ${:} needs the type written (#65)
 let main():i32 {
-    var x = $[:]
+    var x = ${:}
     return 0
 }
-// error: $[:] has no key and value types here: write Dictionary<K, V>(), or give the variable a type
+// error: ${:} has no key and value types here: write Dictionary<K, V>(), or give the variable a type

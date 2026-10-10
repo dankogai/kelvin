@@ -1,4 +1,4 @@
-// Dictionary<K, V> (#65): a hash map on the heap, an owner; $[k: v] and
+// Dictionary<K, V> (#65): a hash map on the heap, an owner; ${k: v} and
 // $[K: V]; d[k] checked, d[k] = v, has, find, get, remove, clear, copy;
 // for k, v in d in the order added; String and integer keys; owners as
 // values, nested
@@ -8,7 +8,7 @@ let total(d:$[String: i64]^):i64 {
     return n
 }
 let main():i32 {
-    var ages = $["ann": 31, "bob": 42]
+    var ages = ${"ann": 31, "bob": 42}
     ages["cy"] = 7
     ages["ann"] += 1
     println(ages.count, " ", ages["ann"], " ", ages.has("bob"), " ", ages.has("dan"), " ", ages.typename)
@@ -27,17 +27,17 @@ let main():i32 {
     var copy = ages.copy()
     copy["ann"] = 0
     println(ages["ann"], " ", copy["ann"], " ", copy.count)
-    var words:$[String: $[String]] = $[:]
+    var words:$[String: $[String]] = ${:}
     words["a"] = $[$"apple"]
     words["a"] += $"avocado"
     words["b"] = $[$"banana"]
     for k, v in words { print(k, ":", v.count, " ") }
     println(words["a"][1])
-    var names = Dictionary<String, String>(["x": $"ex"])
+    var names = Dictionary<String, String>({"x": $"ex"})
     names["y"] = $"why"
     var s = $"x"
     println(names[s], " ", names["y"].count, " ", names.typename)
-    var nested = $[1: $[2: $"two"]]
+    var nested = ${1: ${2: $"two"}}
     println(nested[1][2], " ", nested.typename)
     var e:Dictionary<i64, i64> = Dictionary<i64, i64>()
     println(e.count, " ", e.size)

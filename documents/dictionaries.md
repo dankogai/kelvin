@@ -6,7 +6,7 @@ passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
 
 ```kelvin
-var ages = $["ann": 31, "bob": 42]       // Dictionary<String, i64>
+var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: a missing key ends the program
 println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
@@ -18,7 +18,7 @@ println(ages.get("zed", -1))             // the value, or a default
 ages.remove("bob")                       // true if it was there
 var names = ages.keys                    // an Array<String>, copies, in order
 var counts = ages.values                 // an Array<i64>
-var words:$[String: $[String]] = $[:]    // empty; a value may own
+var words:$[String: $[String]] = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
@@ -27,9 +27,9 @@ words["a"] = $[$"apple"]
   template, or a String. A `cstr` key type is an error that says so.
 - **Values** are anything an Array holds, owners included, which the
   Dictionary then owns.
-- **Making one:** `$[k: v, ...]` with `K` and `V` inferred from the
-  first entry; `$[:]` where the type is written; `Dictionary<K, V>()`,
-  `Dictionary<K, V>([k: v, ...])`, `Dictionary<K, V>(&other)` a copy; a
+- **Making one:** `${k: v, ...}` with `K` and `V` inferred from the
+  first entry; `${:}` where the type is written; `Dictionary<K, V>()`,
+  `Dictionary<K, V>({k: v, ...})`, `Dictionary<K, V>(&other)` a copy; a
   declaration without a value is empty.
 - **`d[k]`** reads the value, checked, and is a place; `d[k] = v` adds
   the entry or replaces its value, freeing what it held if it owns; `=`

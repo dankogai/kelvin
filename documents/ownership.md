@@ -155,6 +155,7 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   with a message. It is a place: `xs[i] = v` writes, and frees the
   element it replaces if it owns; `let y = xs[i]` of an owner is an
   error (copy it, or borrow it); `xs.at[i]` is C's, unchecked.
+  `xs[lo..<hi]` and friends are slices, copies (#68, [arrays.md](arrays.md)).
 - **`for x in xs`** gives each element as a let: a copy of a plain
   value, and of an owner a view the Array still owns, which cannot be
   moved or returned, only borrowed (`&x`) or copied.
@@ -176,7 +177,7 @@ rules (#65): `K` an integer type or `String`, `V` any value an Array
 holds. Its entries keep the order they were added in.
 
 ```kelvin
-var ages = $["ann": 31, "bob": 42]       // Dictionary<String, i64>; $[K: V] is the type
+var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>; $[K: V] is the type
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: the key must be there
 println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
@@ -185,7 +186,7 @@ let p := ages.find("zed")                // a V^, or nullptr
 if !p.isNull { println(p^) }
 println(ages.get("zed", -1))             // a value, or the default
 ages.remove("bob")                       // true if it was there
-var words:$[String: $[String]] = $[:]    // empty; a value may own
+var words:$[String: $[String]] = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
@@ -194,10 +195,10 @@ words["a"] = $[$"apple"]
   copy of the text, and is read with a `cstr`, a template or a String.
   A `cstr` key is an error that says so. `V` is any value an Array may
   hold, owners included, which the Dictionary then owns.
-- **Making one:** `$[k: v, ...]` holds the entries written, `K` and
-  `V` inferred from the first as a variable's type is; `$[:]` is empty
-  where the type is known, as in `var d:$[String: i64] = $[:]`;
-  `Dictionary<K, V>()`, `Dictionary<K, V>([k: v, ...])`, and
+- **Making one:** `${k: v, ...}` holds the entries written, `K` and
+  `V` inferred from the first as a variable's type is; `${:}` is empty
+  where the type is known, as in `var d:$[String: i64] = ${:}`;
+  `Dictionary<K, V>()`, `Dictionary<K, V>({k: v, ...})`, and
   `Dictionary<K, V>(&other)`, a copy. A variable declared without a
   value is empty.
 - **`d[k]`** reads the value, and ends the program with a message if
@@ -256,6 +257,6 @@ under the same rules, copied with `.copy()`, and may be an element of an
 `Array<T>`.
 
 Not yet: a fixed array of owners as a variable (`[Bytes](4)`; an
-`Array<Bytes>` grows), `insert` and `remove` on a `String`, and sharing
-one owner from two places, which would be an explicit type of its own
-if it is ever needed.
+`Array<Bytes>` grows), `insert` and `remove` on a `String`, slices that
+borrow rather than copy, and sharing one owner from two places, which
+would be an explicit type of its own if it is ever needed.

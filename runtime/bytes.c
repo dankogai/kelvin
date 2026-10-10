@@ -30,6 +30,19 @@ void kv_case_fail(const char *type, const char *want, const char *have) {
     kv_bytes_fail(msg);
 }
 
+/* a slice (#68): lo..<hi within count, else the program ends */
+void kv_slice_range(size_t lo, size_t hi, size_t count, const char *what) {
+    char msg[128];
+    snprintf(msg, sizeof msg, "range %zu..<%zu is out of range: the %s has %zu", lo, hi, what, count);
+    kv_bytes_fail(msg);
+}
+
+kv_bytes kv_bytes_slice(const kv_bytes *b, size_t lo, size_t hi) {
+    if (lo > hi || hi > b->count)
+        kv_slice_range(lo, hi, b->count, "Bytes");
+    return kv_bytes_from(b->at + lo, hi - lo);
+}
+
 /* room for n bytes and the NUL, doubling from 16 */
 void kv_bytes_reserve(kv_bytes *b, size_t n) {
     if (n + 1 <= b->cap)

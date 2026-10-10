@@ -2768,3 +2768,20 @@ are provisional P78 and P79.
 
 There are 535 tests, and all pass with clang and with gcc 15.
 
+### 98. Slices, and braces for a Dictionary's entries
+
+> now add slicing to `Array` and `String`. Also change Dictionary
+> literal notation from `$["key":value]`to `${"key":value}`. Being a
+> Swift user I like the former better but the rest of the world is
+> more accustomed to braces than brackets :(
+
+**Claude** added #68, slices: `xs[lo..<hi]`, `xs[lo...hi]`,
+`xs[lo...]`, `xs[..<hi]` and `xs[...hi]` of an Array, of a String by
+codepoint, and of a Bytes, each a new copy, the range checked at run
+time; and #69, `${k: v, ...}` for a Dictionary's entries, `${:}` for
+none, and `{k: v}` where the type is written, with `$[k: v]` now an
+error that names the braces. The type stays `$[K: V]`. Details are
+provisional P80 and P81.
+
+There are 541 tests, and all pass with clang and with gcc 15.
+

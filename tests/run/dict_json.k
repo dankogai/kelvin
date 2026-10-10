@@ -30,10 +30,10 @@ let show(j:const json^) {
     }
 }
 let main():i32 {
-    var doc = json.o($["name": json.s($"kelvin"), "tags": json.a($[json.s($"c"), json.n(11.0)]), "ok": json.b(true), "nil": json.null])
+    var doc = json.o(${"name": json.s($"kelvin"), "tags": json.a($[json.s($"c"), json.n(11.0)]), "ok": json.b(true), "nil": json.null})
     show(&doc)
     println()
-    doc.o["tags"].a += json.o($["deep": json.n(1.5)])
+    doc.o["tags"].a += json.o(${"deep": json.n(1.5)})
     show(&doc)
     println()
     var copy = doc.copy()

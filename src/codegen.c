@@ -564,6 +564,17 @@ static char *expr_bare(Expr *e) {
     case E_INDEX:
         if (e->a && e->op && !strcmp(e->op, "bytes")) /* b[i] of a Bytes, checked (#54) */
             return strfmt("(*kv_bytes_at(&%s, %s))", expr(e->a), expr(e->b));
+        if (e->a && e->op && !strcmp(e->op, "slice") && e->type) { /* xs[lo..<hi] (#68): a copy */
+            char *seq = expr(e->a);
+            const char *lo = e->b ? expr(e->b) : "0";
+            const char *hi = e->c ? (!strcmp(e->text, "closed") ? strfmt("(%s) + 1", expr(e->c)) : expr(e->c))
+                                  : strfmt("(%s).count", seq);
+            if (!strcmp(e->type->name, "String"))
+                return strfmt("kv_string_slice(&%s, %s, %s)", seq, lo, hi);
+            if (!strcmp(e->type->name, "Bytes"))
+                return strfmt("kv_bytes_slice(&%s, %s, %s)", seq, lo, hi);
+            return strfmt("%s_slice(&%s, %s, %s)", e->type->cname, seq, lo, hi);
+        }
         if (e->a && e->op && !strcmp(e->op, "dict") && e->type) /* d[k] of a Dictionary, checked (#65) */
             return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));
         if (e->a && e->op && !strcmp(e->op, "array") && e->type) /* xs[i] of an Array, checked (#57) */
