@@ -146,6 +146,97 @@ void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
 /* an enum with values (#61): reading a case that is not current */
 void kv_case_fail(const char *type, const char *want, const char *have);
+/* Dictionary<K, V> (#65): hashes, a text key against a stored String,
+   and a missing key, which ends the program */
+size_t kv_hash_int(uint64_t x);
+size_t kv_hash_text(const void *s);
+bool kv_string_eq_text(const kv_string *s, const void *t);
+void kv_dict_missing_int(long long k);
+void kv_dict_missing_text(const void *k);
+#define KV_HASH_INT(k) kv_hash_int((uint64_t)(k))
+#define KV_EQ_INT(kp, k) (*(kp) == (k))
+#define KV_STORE_INT(k) (k)
+#define KV_MISSING_INT(k) kv_dict_missing_int((long long)(k))
+#define KV_HASH_TEXT(k) kv_hash_text(k)
+#define KV_EQ_TEXT(kp, k) kv_string_eq_text((kp), (k))
+#define KV_STORE_TEXT(k) kv_string_text(k)
+#define KV_MISSING_TEXT(k) kv_dict_missing_text(k)
+
+/* Dictionary<K, V> (#65): a hash map on the heap, its entries in the
+   order they were added (dead ones skipped, compacted on growth), a
+   chain per bucket, twice as many buckets as entries; the type alone
+   first, so that a value may hold a Dictionary of its own type. K is
+   the key kept (an integer, or a String of the text), LK the key given
+   (the integer, or a cstr). */
+#define KV_DICT_TYPE(D) \
+    typedef struct D##_entry D##_entry; \
+    typedef struct D { D##_entry *at; size_t count, len, cap; uint32_t *head; size_t hcap; } D;
+#define KV_DICT(K, LK, V, D, HASH, EQ, STORE, MISSING, KFREE, KCOPY, VFREE, VCOPY) \
+    KV_DICT_TYPE(D) KV_DICT_FUNCS(K, LK, V, D, HASH, EQ, STORE, MISSING, KFREE, KCOPY, VFREE, VCOPY)
+#define KV_DICT_FUNCS(K, LK, V, D, HASH, EQ, STORE, MISSING, KFREE, KCOPY, VFREE, VCOPY) \
+    struct D##_entry { K key; V value; size_t hash; uint32_t next; bool live; }; \
+    __attribute__((unused)) static inline void D##_free(D *d) { \
+        for (size_t i = 0; i < d->len; i++) if (d->at[i].live) { KFREE(&d->at[i].key); VFREE(&d->at[i].value); } \
+        free(d->at); free(d->head); *d = (D){0}; } \
+    __attribute__((unused)) static inline D D##_take(D *d) { D v = *d; *d = (D){0}; return v; } \
+    __attribute__((unused)) static inline void D##_assign(D *d, D v) { D##_free(d); *d = v; } \
+    __attribute__((unused)) static inline void D##_discard(D v) { D##_free(&v); } \
+    __attribute__((unused)) static inline D##_entry *D##_lookup(const D *d, LK k, size_t h) { \
+        if (!d->hcap) return NULL; \
+        for (uint32_t i = d->head[h & (d->hcap - 1)]; i; i = d->at[i - 1].next) \
+            if (d->at[i - 1].hash == h && EQ(&d->at[i - 1].key, k)) return &d->at[i - 1]; \
+        return NULL; } \
+    __attribute__((unused)) static inline void D##_link(D *d, size_t i) { \
+        size_t b = d->at[i].hash & (d->hcap - 1); d->at[i].next = d->head[b]; d->head[b] = (uint32_t)(i + 1); } \
+    __attribute__((unused)) static inline void D##_rehash(D *d, size_t cap) { \
+        D##_entry *at = malloc(cap * sizeof *at); \
+        uint32_t *head = malloc(cap * 2 * sizeof *head); \
+        if (!at || !head) kv_array_fail("out of memory"); \
+        memset(head, 0, cap * 2 * sizeof *head); \
+        size_t n = 0; \
+        for (size_t i = 0; i < d->len; i++) if (d->at[i].live) at[n++] = d->at[i]; \
+        free(d->at); free(d->head); \
+        d->at = at; d->len = n; d->cap = cap; d->head = head; d->hcap = cap * 2; \
+        for (size_t i = 0; i < n; i++) D##_link(d, i); } \
+    __attribute__((unused)) static inline void D##_reserve(D *d, size_t n) { \
+        if (n <= d->cap) return; \
+        size_t cap = d->cap ? d->cap : 16; \
+        while (cap < n) cap *= 2; \
+        D##_rehash(d, cap); } \
+    __attribute__((unused)) static inline V *D##_find(const D *d, LK k) { \
+        D##_entry *e = D##_lookup(d, k, HASH(k)); return e ? &e->value : NULL; } \
+    __attribute__((unused)) static inline V *D##_at(const D *d, LK k) { \
+        D##_entry *e = D##_lookup(d, k, HASH(k)); if (!e) MISSING(k); return &e->value; } \
+    __attribute__((unused)) static inline bool D##_has(const D *d, LK k) { return D##_lookup(d, k, HASH(k)) != NULL; } \
+    __attribute__((unused)) static inline V D##_get(const D *d, LK k, V v) { \
+        D##_entry *e = D##_lookup(d, k, HASH(k)); return e ? e->value : v; } \
+    __attribute__((unused)) static inline V *D##_set(D *d, LK k, V v) { \
+        size_t h = HASH(k); \
+        D##_entry *e = D##_lookup(d, k, h); \
+        if (e) { VFREE(&e->value); e->value = v; return &e->value; } \
+        if (d->len == d->cap) D##_rehash(d, !d->cap ? 16 : d->count + 1 > d->cap / 2 ? d->cap * 2 : d->cap); \
+        e = &d->at[d->len++]; \
+        e->key = STORE(k); e->value = v; e->hash = h; e->live = true; \
+        D##_link(d, (size_t)(e - d->at)); d->count++; return &e->value; } \
+    __attribute__((unused)) static inline bool D##_remove(D *d, LK k) { \
+        if (!d->hcap) return false; \
+        size_t h = HASH(k); \
+        for (uint32_t *p = &d->head[h & (d->hcap - 1)]; *p; p = &d->at[*p - 1].next) { \
+            D##_entry *e = &d->at[*p - 1]; \
+            if (e->hash == h && EQ(&e->key, k)) { \
+                *p = e->next; KFREE(&e->key); VFREE(&e->value); e->live = false; d->count--; return true; } } \
+        return false; } \
+    __attribute__((unused)) static inline void D##_clear(D *d) { \
+        for (size_t i = 0; i < d->len; i++) if (d->at[i].live) { KFREE(&d->at[i].key); VFREE(&d->at[i].value); } \
+        d->len = 0; d->count = 0; \
+        if (d->head) memset(d->head, 0, d->hcap * sizeof *d->head); } \
+    __attribute__((unused)) static inline D D##_copy(const D *d) { \
+        D v = {0}; D##_reserve(&v, d->count); \
+        for (size_t i = 0; i < d->len; i++) if (d->at[i].live) { \
+            D##_entry *e = &v.at[v.len++]; \
+            e->key = KCOPY(&d->at[i].key); e->value = VCOPY(&d->at[i].value); e->hash = d->at[i].hash; e->live = true; \
+            D##_link(&v, (size_t)(e - v.at)); v.count++; } \
+        return v; }
 #define KV_PLAIN_FREE(p) ((void)(p))
 #define KV_PLAIN_COPY(p) (*(p))
 /* the type alone first, so that an element may hold an Array of its own

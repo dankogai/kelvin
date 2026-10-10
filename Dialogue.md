@@ -2733,3 +2733,20 @@ count was. The details are provisional P76.
 
 There are 522 tests, and all pass with clang and with gcc 15.
 
+### 96. `Dictionary<K, V>`
+
+> now add `Dictionary`, a hash map on the heap. Here it comes!
+
+**Claude** added #65: `Dictionary<K, V>`, or `$[K: V]`, an owner under
+the rules of #54, keyed by integers or Strings (the text copied in and
+looked up by text), holding any value an Array holds. `$["ann": 31]`
+makes one, `d[k] = v` adds or replaces, `d[k]` is checked as `xs[i]`
+is, `has`, `find` (a `V^` or nullptr) and `get` (a default) stand in
+for an optional, and `for k, v in d` walks the entries in the order
+they were added. The C is one struct and its functions per key and
+value type, from the prelude, as an Array's is; every allocation of
+the tests' C is freed at exit under ASan. The details are provisional
+P77.
+
+There are 532 tests, and all pass with clang and with gcc 15.
+

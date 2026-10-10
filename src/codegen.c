@@ -485,6 +485,19 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
+        if (e->op && !strcmp(e->op, "dict") && e->type) { /* Dictionary<K, V>(...), $[k: v] (#65) */
+            if (!strcmp(e->text, "copy"))
+                return strfmt("%s_copy(%s)", e->type->cname, expr(e->items.data[0]));
+            if (!e->items.len)
+                return strfmt("(%s){0}", e->type->cname);
+            Buf b = {0};
+            buf_printf(&b, "({ %s _kv_d = {0}; ", e->type->cname);
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&b, "%s_set(&_kv_d, %s, %s); ", e->type->cname, expr(e->designators.data[i]),
+                           expr(e->items.data[i]));
+            buf_puts(&b, "_kv_d; })");
+            return b.buf;
+        }
         if (e->op && !strcmp(e->op, "case_make") && e->target) { /* T.n(x), T.none (#61) */
             if (!e->items.len)
                 return strfmt("_kv_%s_make_%s()", e->target->name, e->text);
@@ -532,6 +545,8 @@ static char *expr_bare(Expr *e) {
     case E_INDEX:
         if (e->a && e->op && !strcmp(e->op, "bytes")) /* b[i] of a Bytes, checked (#54) */
             return strfmt("(*kv_bytes_at(&%s, %s))", expr(e->a), expr(e->b));
+        if (e->a && e->op && !strcmp(e->op, "dict") && e->type) /* d[k] of a Dictionary, checked (#65) */
+            return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));
         if (e->a && e->op && !strcmp(e->op, "array") && e->type) /* xs[i] of an Array, checked (#57) */
             return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));
         return strfmt("%s[%s]", e->a ? expr(e->a) : "", expr(e->b));
@@ -591,6 +606,8 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "array")) /* an Array (#57) */
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
+        if (e->op && !strcmp(e->op, "dict")) /* a Dictionary's count (#65) */
+            return strfmt("(%s).count", recv);
         if (e->op && !strcmp(e->op, "string")) { /* a String (#55) */
             if (!strcmp(e->text, "cstr"))
                 return strfmt("kv_bytes_cstr(&(%s).b)", recv);
@@ -655,6 +672,13 @@ static char *expr_bare(Expr *e) {
         return tmp ? strfmt("({ __auto_type %s = %s; %s; })", tmp, recv, call) : call;
     }
     case E_METHOD: {
+        if (e->op && !strcmp(e->op, "dict") && e->type) { /* a Dictionary method (#65), on a place */
+            Buf args = {0};
+            buf_puts(&args, "");
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&args, ", %s", expr(e->items.data[i]));
+            return strfmt("%s_%s(&%s%s)", e->type->cname, e->text, expr(e->a), args.buf);
+        }
         if (e->op && !strcmp(e->op, "case_is") && e->target) { /* v.is(n) (#61) */
             int k = 0;
             for (int i = 0; i < e->target->members.len; i++)
@@ -1055,7 +1079,7 @@ static bool owner_assign(Expr *e) {
     const char *f = t ? owner_free(t) : NULL;
     if (!f) /* a field, a global, or no owner: C's assignment */
         return false;
-    if (!strncmp(f, "kv_", 3) || !strncmp(f, "_kv_array_", 10)) /* kv_bytes_assign, kv_string_assign, an Array's */
+    if (!strncmp(f, "kv_", 3) || !strncmp(f, "_kv_array_", 10) || !strncmp(f, "_kv_dict_", 9)) /* kv_bytes_assign, kv_string_assign, an Array's, a Dictionary's */
         line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
     else
         line("%s(&%s), %s = %s;", f, c_name(e->a->text), c_name(e->a->text), expr(e->b));
@@ -1207,16 +1231,36 @@ static void stmt(Stmt *s) {
         for (int i = 0; i < param_caches.len; i++) /* a parameter's .count (#52) */
             line("%s", (char *)param_caches.data[i]);
         param_caches.len = 0;
-        bool sw = s == switch_block, closed = sw && switch_closed;
+        bool sw = s == switch_block, closed = sw && switch_closed, open = false;
         switch_block = NULL;
+        Stmt *prev = NULL;
         for (int i = 0; i < s->stmts.len; i++) {
             Stmt *x = s->stmts.data[i];
-            if (sw && i && (x->kind == S_CASE || x->kind == S_DEFAULT) && !is_jump(s->stmts.data[i - 1]))
-                line("break;");
+            if (sw && (x->kind == S_CASE || x->kind == S_DEFAULT)) {
+                /* a case is a block of its own (#63): its declarations are
+                   its, and it ends with a break unless it jumps */
+                if (open) {
+                    if (!is_jump(prev))
+                        line("break;");
+                    indent--;
+                    line("}");
+                }
+                stmt(x);
+                line("{");
+                indent++;
+                open = true;
+                prev = NULL;
+                continue;
+            }
             stmt(x);
+            prev = x;
         }
-        if (sw && s->stmts.len && !is_jump(s->stmts.data[s->stmts.len - 1]))
-            line("break;");
+        if (open) {
+            if (!is_jump(prev))
+                line("break;");
+            indent--;
+            line("}");
+        }
         if (closed) {
             indent--;
             line("default:");
@@ -1369,6 +1413,30 @@ static void stmt(Stmt *s) {
         const char *v = strcmp(s->name, "_") ? s->name : NULL;
         char *p = hidden(v, "ptr"), *end = NULL, *arr = NULL; /* end and arr name only what an array uses */
         char *seq = expr(s->expr);
+        if (s->each == EACH_DICT) { /* the entries of a Dictionary, in order (#65) */
+            char *d = hidden(v, "dict"), *i = hidden(v, "i");
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("__auto_type %s = &(%s);", d, seq);
+            sync(s->pos);
+            line("for (size_t %s = 0; %s < %s->len; %s++)", i, i, d, i);
+            line("{");
+            indent++;
+            line("if (!%s->at[%s].live)", d, i);
+            line("    continue;");
+            sync(s->pos);
+            if (v) /* unused: a body may read the value alone, or the key alone */
+                line("__attribute__((unused)) %s = %s->at[%s].key;", decl(const_type(s->type), v), d, i);
+            if (s->name2 && strcmp(s->name2, "_"))
+                line("__attribute__((unused)) %s = %s->at[%s].value;", decl(const_type(s->elem), s->name2), d, i);
+            stmt(s->body);
+            indent--;
+            line("}");
+            indent--;
+            line("}");
+            break;
+        }
         Type *reader = NULL; /* const E^, for the elements; NULL: unseen */
         if (s->elem && s->each != EACH_LIST) {
             reader = xcalloc(1, sizeof *reader);
@@ -1940,7 +2008,27 @@ static bool declares_elem(Decl *d, Type *t) {
     return !strcmp(t->name, strfmt("%s %s", d->kind == D_STRUCT ? "struct" : "union", d->name));
 }
 
+static bool is_dict(Type *t) { return t->cname && !strncmp(t->cname, "_kv_dict_", 9); }
+
+/* the arguments of KV_DICT (#65): the key kept and given, the value, the
+   C name, and the key's hash, equality, storing and missing-key
+   functions, by its kind, with the free and copy of what owns */
+static char *dict_args(Type *t) {
+    bool text = !strcmp(t->key->name, "String");
+    const char *vf = owner_free(t->elem);
+    return strfmt("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s", decl(t->key, ""),
+                  text ? "const uint8_t *" : decl(t->key, ""), decl(t->elem, ""), t->cname,
+                  text ? "KV_HASH_TEXT" : "KV_HASH_INT", text ? "KV_EQ_TEXT" : "KV_EQ_INT",
+                  text ? "KV_STORE_TEXT" : "KV_STORE_INT", text ? "KV_MISSING_TEXT" : "KV_MISSING_INT",
+                  text ? "kv_string_free" : "KV_PLAIN_FREE", text ? "kv_string_copy" : "KV_PLAIN_COPY",
+                  vf ? vf : "KV_PLAIN_FREE", vf ? owner_copy(t->elem) : "KV_PLAIN_COPY");
+}
+
 static void emit_array_funcs(Type *t) {
+    if (is_dict(t)) {
+        line("KV_DICT_FUNCS(%s)", dict_args(t));
+        return;
+    }
     const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
     line("KV_ARRAY_FUNCS(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
          f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
@@ -1953,7 +2041,14 @@ static void emit_arrays_before(int i) {
             continue;
         Type *t = program->arrays.data[k];
         if (declares_elem(d, t->elem)) { /* the functions follow the element's declaration */
-            line("KV_ARRAY_TYPE(%s, %s)", decl(t->elem, ""), t->cname);
+            if (is_dict(t))
+                line("KV_DICT_TYPE(%s)", t->cname);
+            else
+                line("KV_ARRAY_TYPE(%s, %s)", decl(t->elem, ""), t->cname);
+            continue;
+        }
+        if (is_dict(t)) { /* a Dictionary (#65) */
+            line("KV_DICT(%s)", dict_args(t));
             continue;
         }
         const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */

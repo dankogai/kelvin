@@ -72,6 +72,7 @@ P-numbers in [Design.md](../Design.md).
 | a UTF-8 string by hand | `var s = String("héllo")`, or `$"héllo"`, `for c in s { }` by codepoint, `s.count` (#55, #62) |
 | `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
 | `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array([1, 2, 3])`, or `$[1, 2, 3]`, `xs += x`, `xs[i]` checked, freed by its block; the type is `Array<i64>`, or `$[i64]` (#57, #58, #62, #64) |
+| a hash table by hand, or a library's | `var d = $["ann": 31]`, `d["bob"] = 42`, `d["ann"]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`; the type is `Dictionary<String, i64>`, or `$[String: i64]` (#65) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
 | `__typeof__(x) y;` | `var y:x.type` (#34) |
@@ -90,7 +91,7 @@ P-numbers in [Design.md](../Design.md).
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers |
 | [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing |
-| [ownership.md](ownership.md) | `Bytes`, `String` and `Array<T>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
+| [ownership.md](ownership.md) | `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, a struct with no tag `{x:f64, y:f64}`, methods, operators |
 | [unions.md](unions.md) | unions, the same way, and `union{i:i32, f:f32}` with no tag |
 | [enums.md](enums.md) | C's enums, and enums with values: `enum json { null; n: f64; s: String }`, a union that knows its case |
@@ -107,7 +108,7 @@ P-numbers in [Design.md](../Design.md).
 `String` is a type since #55; the method names `toString` and `fmt`
 stay reserved (#22), as a value's text is `x.cstr`.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `uchr`, `any`, `nullptr` and `cstr`
+`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `Dictionary`, `uchr`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
 keyword only in `for i in ...` and in an anonymous function's
 `{ (a:T) in ... }`, so C names called `in` still work. It
@@ -142,7 +143,7 @@ These are C features without a Kelvin spelling so far:
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - generics: a function over several types is written once per type, as
   `modules/complex.k` does for `complex32` and `complex64`; `Array<T>`
-  is the one built-in generic (#57)
+  and `Dictionary<K, V>` are the built-in generics (#57, #65)
 - literal suffixes (on purpose: see [integers.md](integers.md))
 - the preprocessor beyond `#import`
 - statements of the form `name(x)` where `name` is a C typedef: C reads
