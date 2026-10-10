@@ -77,6 +77,11 @@ let card:cstr := `name: ${name}
   least 64); for longer text, use `print` or C's `snprintf`. Each such
   value takes that much stack, twice while its text is built, which
   counts in a deep recursion; a struct's text, three times.
+- **`` $`a${x}b` ``** (#67) builds the same text as a `String` on the
+  heap, with no bound on its length: each value's text is appended as it
+  comes, a String's whole, a `uchr` as its character. It is an owner,
+  so bind it to a variable (`var s = $`...``), which frees it when its
+  block ends; see [cstrings.md](cstrings.md).
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text

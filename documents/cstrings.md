@@ -133,14 +133,43 @@ number, as every integer does: `println(s[0])` prints `104` for `h`,
 and `println(s.hex)` its address. In a template, `${s}` is the text
 and `${s.addr}` the address. See [printing.md](printing.md).
 
-## `Bytes` and `String`
+## `Bytes` and `String`: text on the heap
 
-A `Bytes` is text, or any bytes, on the heap, that grows: `var b =
-Bytes("hello"); b += ", world"`. A `String` is a `Bytes` that holds
-well-formed UTF-8, counted and walked by codepoint: `var s =
-String("héllo"); for c in s { }`. Both are owners, freed when their
-block ends, with `.cstr` a borrow of their text. See
-[ownership.md](ownership.md).
+A `cstr` is C's text, where it is. `Bytes` (#54) is text, or any bytes,
+on the heap, that grows; `String` (#55) is a `Bytes` that holds
+well-formed UTF-8, counted and walked by codepoint. Both are owners:
+freed when their block ends, moved by `return` and by passing, copied
+only by `.copy()`, borrowed as a pointer. The rules are in
+[ownership.md](ownership.md); this is the summary.
+
+```kelvin
+var s = $"héllo"                 // String("héllo"); String() is empty
+s += ", world"                   // append text; also s.append(...)
+s += t.copy()                    // a String's text; s += &t borrows it
+println(s, " ", s.count)         // the text, and its codepoints: 12
+for c in s { print(c.utf32, " ") }   // each codepoint, a uchr
+var b = Bytes("raw")             // bytes, indexed: b[0] is a u8, checked
+let p := s.cstr                  // a borrow of the text, NUL-ended, for C
+var line = $`${s} has ${s.count} codepoints`   // a String built from a template (#67)
+```
+
+- **Making one:** `$"text"` or `String("text")`, `String(s)` of a
+  `cstr` or a byte array, `String(&b)` or `b.string()` of a `Bytes`,
+  all checked for UTF-8; `` $`a${x}b` `` from a template, with no bound
+  on its length; `Bytes("text")`, `Bytes(n)` of n zero bytes, `Bytes(p,
+  n)` of bytes and their count.
+- **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
+  or a String an expression gives), `clear`, `reserve`, `compact`,
+  `copy`; a `Bytes` also `insert`, `remove` and `string()`.
+- **Properties:** `count` (codepoints of a String, bytes of a Bytes),
+  `cstr` (a borrow of the text), `bytes` (a String's Bytes, read only),
+  `capacity`, `at` and `isUTF8` of a Bytes, `size`, `typename`.
+- **Walking:** `for c in s` gives each codepoint as a `uchr`, which
+  prints as its character; `for b in bytes` each byte.
+- **Comparing:** `==` and `!=` compare two Strings, or two Bytes, by
+  their bytes.
+- **Not yet:** slicing, searching, `insert` and `remove` on a String,
+  encodings other than UTF-8.
 
 ## What is not here yet
 

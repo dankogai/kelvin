@@ -127,3 +127,36 @@ including typedef names with suffixes, and under `sizeof`:
   `Array([1, 2, 3])` makes one of the elements written, and
   `Array([[1], [2, 3]])` an Array of Arrays (#57, #58); `$[1, 2, 3]` is
   the value and `$[i64]` the type, for short (#62, #64).
+
+## `Array<T>`: a growable array on the heap
+
+A fixed array lives where it is declared and never grows. `Array<T>`,
+or `$[T]` for short, is a growable array on the heap (#57), an owner:
+freed when its block ends, moved by `return` and by passing, copied
+only by `.copy()`, borrowed as a pointer. The rules are in
+[ownership.md](ownership.md); this is the summary.
+
+```kelvin
+var xs = $[1, 2, 3]              // Array<i64>, from the elements; Array<i64>() is empty
+xs += 4                          // append; also xs.append(4)
+xs += &ys                        // ys's elements, copied; xs += make() moves an Array in
+xs.insert(0, 100); xs.remove(1, 2); let last = xs.pop()
+println(xs.count, " ", xs[0], " ", xs.capacity)   // xs[i] is checked: out of range ends the program
+for x in xs { }                  // each element, a let
+var m:$[[i64]] = $[[1, 0], [0, 1]]   // Arrays of Arrays; of Strings, Bytes, Dictionaries, structs that own
+let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy of an Array
+```
+
+- **Making one:** `$[a, b, c]` or `Array([a, b, c])` with `T` inferred
+  from the elements, `Array<T>()`, `Array<T>(n)` of n zero elements,
+  `Array(a)` of a fixed array, `Array(&other)` a copy; a declaration
+  without a value is empty.
+- **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
+  `reserve`, `compact`, `copy`; **properties** `count`, `capacity`, `at`
+  (the elements as a `T^`), `size`, `typename`.
+- **Elements** are any value type, owners included, which the Array
+  then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
+  or an enum with values that owns. A fixed array is not an element.
+- **Not yet:** text (`print(xs)` is an error: show the elements), `==`,
+  sorting and searching.
+

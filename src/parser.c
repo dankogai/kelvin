@@ -671,6 +671,8 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first);
 static Expr *dict_key(Expr *k, Type *dt);
 static Type *inferred_type(Expr *e, Pos pos);
 static Expr *property(Expr *e, Token *name, char *member);
+static bool is_text_expr(Expr *e);
+static Type *array_type(Token *at, Type *elem);
 static Decl *anon_record_of(Type *t);
 static void reject_kv_name(Token *t);
 static void parse_cases(Decl *d);
@@ -1598,6 +1600,38 @@ static Expr *parse_primary(void) {
     }
     if (t->kind == TK_IDENT && !strcmp(t->text, "_Pragma") && !pragma_statement)
         error_at(t->pos, "_Pragma(\"...\") is only allowed as a statement of its own");
+    if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_TPL_HEAD) {
+        /* $`a${x}b` (#67): a String built on the heap from the parts and the
+           values' text, with no bound; each value is appended as text, a
+           String's by reference, a uchr as its codepoint */
+        advance();
+        Expr *e = parse_template();
+        e->op = "string";
+        for (int i = 1; i < e->items.len; i += 2) {
+            Expr *v = e->items.data[i];
+            Type *vt = value_type(v);
+            Expr *w = new_expr(E_CAST, v->pos);
+            w->a = v;
+            if (is_string(vt) || is_bytes(vt)) {
+                if (!owner_place(v))
+                    error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it "
+                                     "to a variable first",
+                             is_string(vt) ? "String" : "Bytes");
+                if (is_bytes(vt))
+                    w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+                w->op = is_string(vt) ? "tplstr_ref" : "tplstr_text";
+            } else if (is_uchr(vt)) {
+                w->op = "tplstr_uchr";
+            } else if (v->kind == E_STRING || v->kind == E_TEMPLATE || is_text_expr(v)) {
+                w->op = "tplstr_text";
+            } else {
+                w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+                w->op = "tplstr_text";
+            }
+            e->items.data[i] = w;
+        }
+        return e;
+    }
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && peek2()->kind == TK_STRING) {
         /* $"text" is String("text") (#62) */
         advance();
@@ -2621,8 +2655,8 @@ static Type *value_type_of(Expr *e) {
         }
         return ret;
     }
-    case E_TEMPLATE: /* its text is a cstr (#39, #52) */
-        return cstr_type(e->pos);
+    case E_TEMPLATE: /* its text is a cstr (#39, #52); $`...` a String (#67) */
+        return e->op && !strcmp(e->op, "string") ? base_type("String", e->pos) : cstr_type(e->pos);
     case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a cstr */
         if (e->op && !strcmp(e->op, "bytes") && !strcmp(e->text, "at")) { /* b.at (#54) */
             Type *p = xcalloc(1, sizeof *p);
@@ -2636,6 +2670,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("u32", e->pos);
         if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
             return base_type("u8", e->pos);
+        if (e->op && !strcmp(e->op, "dict") && e->type) /* d.keys, d.values: Arrays (#66) */
+            return e->type;
         if (e->op && !strcmp(e->op, "array") && !strcmp(e->text, "at")) { /* xs.at, a T^ (#57) */
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;
@@ -3732,7 +3768,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                               !strcmp(member, "cstr"))) ||
                  (!strcmp(kind, "array") && (!strcmp(member, "count") || !strcmp(member, "capacity") ||
                                              !strcmp(member, "at"))) ||
-                 (!strcmp(kind, "dict") && !strcmp(member, "count")))) {
+                 (!strcmp(kind, "dict") && (!strcmp(member, "count") || !strcmp(member, "keys") ||
+                                            !strcmp(member, "values"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -3746,6 +3783,27 @@ static Expr *property(Expr *e, Token *name, char *member) {
         x->text = member;
         x->op = (char *)kind;
         x->is_bool = !strcmp(member, "isUTF8");
+        if (kind[0] == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) {
+            /* d.keys and d.values (#66): Arrays of copies, made by a function
+               the codegen writes after the Dictionary's and the Array's C */
+            Type *dt = value_type(e);
+            bool keys = !strcmp(member, "keys");
+            x->recv_type = dt;
+            x->type = array_type(name, keys ? dt->key : dt->elem);
+            bool seen = false;
+            for (int i = 0; !seen && i < program->views.len; i++) {
+                DictView *v = program->views.data[i];
+                seen = v->keys == keys && !strcmp(v->dict->name, dt->name);
+            }
+            if (!seen) {
+                DictView *v = xcalloc(1, sizeof *v);
+                v->dict = dt;
+                v->arr = x->type;
+                v->keys = keys;
+                v->decl = program->decls.len;
+                list_push(&program->views, v);
+            }
+        }
         return x;
     }
     if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member})) {
@@ -5684,8 +5742,8 @@ static bool has_effect(Expr *e) {
    none. .cstr of a string kelvinc sees is the string itself (P34). */
 static Expr *text_in_buffer(Expr *e) {
     switch (e->kind) {
-    case E_TEMPLATE: /* (#39) */
-        return e;
+    case E_TEMPLATE: /* (#39); $`...` is a String on the heap (#67) */
+        return e->op && !strcmp(e->op, "string") ? NULL : e;
     case E_CAST: /* i64(x.hex) is a number (#36) */
         return e->op && !strncmp(e->op, "text", 4) ? NULL : text_in_buffer(e->a);
     case E_TERNARY: {
@@ -5707,7 +5765,7 @@ static Expr *text_in_buffer(Expr *e) {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
         if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
             !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull") ||
-            (e->op && !strcmp(e->op, "tagged")))
+            !strcmp(e->text, "keys") || !strcmp(e->text, "values") || (e->op && !strcmp(e->op, "tagged")))
             return NULL; /* .count and .isNull are numbers too (#49, #50) */
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);

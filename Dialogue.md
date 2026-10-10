@@ -2750,3 +2750,21 @@ P77.
 
 There are 532 tests, and all pass with clang and with gcc 15.
 
+### 97. `keys`, `values`, `` $`...` ``, and the documents
+
+> now add `keys` and `values` to `Dictionary`, as `Array`s. Also edit
+> `documents/arrays.md` and others so it covers dynamic, heap-allocated
+> versions as well besides `documents/ownership.md`. Also add `` $`...` ``,
+> a dynamic version of template string.
+
+**Claude** added #66, `d.keys` and `d.values`, Arrays of copies in the
+order the entries were added, and #67, `` $`a${x}b` ``, a template
+built as a String on the heap with no bound on its length, each value
+appended as the bounded template would show it and a String whole.
+The documents now carry the heap versions beside the C ones:
+arrays.md has `Array<T>`, cstrings.md `Bytes` and `String`, and
+dictionaries.md is new, with ownership.md keeping the rules. Details
+are provisional P78 and P79.
+
+There are 535 tests, and all pass with clang and with gcc 15.
+

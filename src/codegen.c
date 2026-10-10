@@ -404,6 +404,25 @@ static char *expr_bare(Expr *e) {
            enclosing block declares with room for the parts, a NUL and each
            value's longest text. A value may read the earlier text, which is
            replaced only then. The text is a char *, as a string literal is. */
+        if (e->op && !strcmp(e->op, "string")) { /* $`...` (#67): a String, appended part by part */
+            Buf b = {0};
+            buf_puts(&b, "({ kv_string _kv_s = kv_string_new(); ");
+            for (int i = 0; i < e->items.len; i++) {
+                Expr *x = e->items.data[i];
+                if (i % 2 == 0) {
+                    if (x->items.len && *(char *)x->items.data[0])
+                        buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x));
+                } else if (!strcmp(x->op, "tplstr_ref")) {
+                    buf_printf(&b, "kv_string_append_ref(&_kv_s, &(%s)); ", expr(x->a));
+                } else if (!strcmp(x->op, "tplstr_uchr")) {
+                    buf_printf(&b, "kv_string_append_uchr(&_kv_s, %s); ", expr(x->a));
+                } else {
+                    buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x->a));
+                }
+            }
+            buf_puts(&b, "_kv_s; })");
+            return b.buf;
+        }
         if (!template_vars) /* a type outside any block: an anonymous function's head */
             error_at(e->pos, "a template literal with ${...} is made at run time, so it cannot be part of a type");
         char *t = hidden(NULL, "template"), *build = hidden(NULL, "build");
@@ -606,6 +625,8 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "array")) /* an Array (#57) */
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
+        if (e->op && !strcmp(e->op, "dict") && e->recv_type) /* d.keys, d.values (#66) */
+            return strfmt("%s_%s(&%s)", e->recv_type->cname, e->text, recv);
         if (e->op && !strcmp(e->op, "dict")) /* a Dictionary's count (#65) */
             return strfmt("(%s).count", recv);
         if (e->op && !strcmp(e->op, "string")) { /* a String (#55) */
@@ -2034,6 +2055,33 @@ static void emit_array_funcs(Type *t) {
          f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
 }
 
+/* d.keys and d.values (#66): an Array of copies, by a function after the
+   Dictionary's and the Array's C */
+static void emit_views_before(int i) {
+    for (int k = 0; k < program->views.len; k++) {
+        DictView *v = program->views.data[k];
+        if (v->decl != i)
+            continue;
+        bool text = !strcmp(v->dict->key->name, "String");
+        const char *copy = v->keys ? (text ? "kv_string_copy" : "KV_PLAIN_COPY")
+                                   : (owner_copy(v->dict->elem) ? owner_copy(v->dict->elem) : "KV_PLAIN_COPY");
+        line("__attribute__((unused)) static inline %s %s_%s(const %s *d)", v->arr->cname, v->dict->cname,
+             v->keys ? "keys" : "values", v->dict->cname);
+        line("{");
+        indent++;
+        line("%s v = {0};", v->arr->cname);
+        line("%s_reserve(&v, d->count);", v->arr->cname);
+        line("for (size_t i = 0; i < d->len; i++)");
+        indent++;
+        line("if (d->at[i].live)");
+        line("    v.at[v.count++] = %s(&d->at[i].%s);", copy, v->keys ? "key" : "value");
+        indent--;
+        line("return v;");
+        indent--;
+        line("}");
+    }
+}
+
 static void emit_arrays_before(int i) {
     Decl *d = program->decls.data[i];
     for (int k = 0; k < program->arrays.len; k++) {
@@ -2457,6 +2505,7 @@ char *gen_program(Program *prog, bool with_lines) {
     for (int i = 0; i < prog->decls.len; i++) {
         cur_decl = i;
         emit_arrays_before(i);
+        emit_views_before(i);
         if (i)
             line("%s", "");
         emit_decl(prog->decls.data[i]);

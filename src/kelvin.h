@@ -156,6 +156,7 @@ struct Expr {
     /* a template's value (#39): the type by which kelvinc reckons the
        length of its text, NULL where it cannot see one */
     Type *shown;
+    Type *recv_type;  /* E_PROPERTY keys/values of a Dictionary (#66): its type */
 };
 
 typedef struct {
@@ -253,8 +254,15 @@ struct Decl {
 };
 
 typedef struct {
+    Type *dict, *arr; /* d.keys or d.values (#66): the Dictionary, and the Array it gives */
+    bool keys;
+    int decl;         /* the index of the top-level decl that first uses it */
+} DictView;
+
+typedef struct {
     List decls;
     List arrays;       /* Type *: each Array<T> (#57), in order of first use */
+    List views;        /* DictView *: d.keys and d.values used (#66), the Arrays they give */
     List array_decls;  /* intptr_t: the index of the top-level decl that first uses it */
 } Program;
 
