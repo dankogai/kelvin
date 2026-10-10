@@ -65,7 +65,7 @@ let main():i32 {
     case err: println("sum: ", strerror(missing.err))
     }
     var unset = env("KELVIN_NO_SUCH_VARIABLE")
-    println(unset ?? "unset" as cstr, " ", env("PATH").is(some))
+    println(unset ?? "unset", " ", env("PATH").is(some))
     var f:FILE^ := tmpfile()
     fputs("40\n2\nx\n9 lives\n99999999999999999999\n", f)
     rewind(f)

@@ -48,7 +48,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   'none'`. It is a place: `x.some += 1`, `x.some += "!"`. `x ?? y` is
   the value if some, else `y`, for a `T` that does not own, of an
   Optional in a variable, a member or an element; for an owner, `if
-  let` or switch on it.
+  let` or switch on it. Of a `cstr?`, `u8^?` or `i8^?`, a `y` that is
+  a string literal, or text of another spelling, is cast to the value's
+  type, as a declaration would cast it.
 - **Testing:** `x.is(some)`, `x.is(none)`, `x.case` (0 for none, 1 for
   some), `switch x { case some: ... case none: ... }`, exhaustive.
 - **`if let v = x { ... } else { ... }`** (#74) runs the block with `v`
@@ -63,8 +65,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   around, and `??` of an owner.
 
 A C function that returns a pointer or null, with no reason beside it,
-wraps as an Optional; `v ?? "unset" as cstr` wants the literal as a
-`cstr`, since C's `?:` of two kinds of text is no text (see
+wraps as an Optional, and `v ?? "unset"` takes a string literal as it
+is: kelvinc casts it to the value's type, since C's `?:` of two kinds
+of text is no text (see
 [results.md](results.md#from-c-the-value-through-a-pointer-the-error-beside-it)):
 
 ```kelvin
@@ -74,7 +77,7 @@ let env(name:cstr):cstr? {                // char *getenv(const char *)
     return v
 }
 var home = env("HOME")
-println(home ?? "unset" as cstr)
+println(home ?? "unset")
 ```
 
 When the absence has a reason, return a `Result<T, U>` instead, with

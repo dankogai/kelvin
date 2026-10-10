@@ -110,9 +110,11 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
 - **Passing an err up** is written by hand: `if r.is(err) { return
   err(r.err) }`, then `r.ok`. A `try` to write that for us is held
   until the practice settles.
-- **A default for a `cstr?`** needs the literal as a `cstr`, `v ??
-  "unset" as cstr`: C's `?:` of a `const uint8_t *` and a `char *` is
-  no text (clang prints an address, gcc refuses) *(a wart to fix)*.
+- **A default for a `cstr?`** is written as it reads, `v ?? "unset"`:
+  kelvinc casts a string literal, or text of another spelling, to the
+  value's type, since C's `?:` of a `const uint8_t *` and a `char *` is
+  no text (clang made it an address, gcc refused; found by the example,
+  fixed since).
 - **`lstat` is POSIX**, and glibc hides it under `-std=c11`, which
   kelvinc uses, unless `_POSIX_C_SOURCE` is defined: on Linux, give
   kelvinc `KELVIN_CFLAGS=-D_POSIX_C_SOURCE=200809L`.

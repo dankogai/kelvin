@@ -2891,3 +2891,15 @@ in C (clang prints an address, gcc refuses), so the literal needs
 `as cstr`; a wart to fix.
 
 There are 567 tests, and all pass with clang and with gcc 15.
+
+### 105. `v ?? "unset"` of a `cstr?`
+
+> now fix the wart: `v ?? "unset"` of a `cstr?`
+
+**Claude** fixed it in `??`: a string literal, or text of another
+spelling, on the right of a `cstr?`, `u8^?` or `i8^?` is cast to the
+value's type, as a declaration casts it, so C's `?:` sees one type of
+text. examples/results.k and the documents drop the `as cstr`. Details
+in provisional P87.
+
+There are 568 tests, and all pass with clang and with gcc 15.

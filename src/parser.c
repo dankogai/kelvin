@@ -714,6 +714,7 @@ static Expr *dict_key(Expr *k, Type *dt);
 static Expr *string_of_literal(Expr *x, Type *target);
 static Type *inferred_type(Expr *e, Pos pos);
 static Expr *property(Expr *e, Token *name, char *member);
+static bool is_text_type(Type *t);
 static bool is_text_expr(Expr *e);
 static Type *array_type(Token *at, Type *elem);
 static Decl *anon_record_of(Type *t);
@@ -2454,6 +2455,19 @@ static Expr *parse_conditional(void) {
             error_at(q->pos, "'?\?' reads its left side twice: bind it to a variable first");
         pick_overload(y, some->type);
         y = string_of_literal(drop_cstr(y, some->type), some->type);
+        /* C's ?: of a const uint8_t * and a char * is no text (gcc refuses,
+           clang makes it an address): a string literal, or text of another
+           spelling, on the right of a cstr?, u8^? or i8^? is cast to the
+           value's type, as a declaration would cast it */
+        Type *yt = value_type(y);
+        if (some->type->kind == T_PTR && is_text_type(some->type) && y->kind != E_CAST && is_text_expr(y) &&
+            (!yt || yt->kind != T_PTR || strcmp(yt->elem->name, some->type->elem->name))) {
+            Expr *cast = new_expr(E_CAST, y->pos);
+            cast->op = "as";
+            cast->a = y;
+            cast->type = some->type;
+            y = cast;
+        }
         Expr *is = new_expr(E_METHOD, q->pos);
         is->a = c;
         is->text = some->name;
