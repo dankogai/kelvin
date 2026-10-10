@@ -2,8 +2,21 @@
 
 A property is written after a value with no parentheses, and gives its
 size, its type, its text, or, for a pointer, its address and whether it
-is null. This document lists them all. Arrays' `.count` is in
-[arrays.md](arrays.md), and C strings in [cstrings.md](cstrings.md).
+is null. This document has the ones every value shares, and their
+details. Each type's own are listed, with its methods, at the end of
+its document:
+
+| Type | Synopsis |
+|---|---|
+| numbers, `bool` | [integers.md](integers.md#properties-and-methods) |
+| pointers | [pointers.md](pointers.md#properties-and-methods) |
+| `cstr`, `Bytes`, `String`, `uchr` | [cstrings.md](cstrings.md#properties-and-methods) |
+| arrays, `Array<T>` | [arrays.md](arrays.md#properties-and-methods) |
+| structs | [structs.md](structs.md#properties-and-methods) |
+| unions | [unions.md](unions.md#properties-and-methods) |
+| enums, enums with values | [enums.md](enums.md#properties-and-methods) |
+| `Dictionary<K, V>` | [dictionaries.md](dictionaries.md#properties-and-methods) |
+| functions | [functions.md](functions.md#properties-and-methods) |
 
 ## `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 

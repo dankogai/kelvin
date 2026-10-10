@@ -155,7 +155,9 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 
 - **Making one:** `$"text"` or `String("text")`, `String(s)` of a
   `cstr` or a byte array, `String(&b)` or `b.string()` of a `Bytes`,
-  all checked for UTF-8; `` $`a${x}b` `` from a template, with no bound
+  all checked for UTF-8; where a String is expected, a string literal
+  becomes one by itself (#70): `var s:String = "x"`, `s = "y"`, a
+  member, an element or an entry written as `"text"`; `` $`a${x}b` `` from a template, with no bound
   on its length; `Bytes("text")`, `Bytes(n)` of n zero bytes, `Bytes(p,
   n)` of bytes and their count.
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
@@ -180,3 +182,36 @@ Slicing, searching and encodings other than UTF-8 are to come. A
 `cstr` is still C's bytes, with C's rules: a NUL ends it, nothing checks
 a bound, and one that points at freed or ended storage is as wrong as
 in C.
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| `cstr`, a literal | `.count` | `strlen`, measured once per scope (#52) |
+| | `.cstr` | the text itself |
+| | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
+| | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
+| | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
+| `Bytes` | `.count`, `.capacity` | the bytes held, and the room |
+| | `.at` | the bytes, a `u8^` borrow; `b[i]` is checked |
+| | `.cstr` | a borrow of the text, NUL-ended |
+| | `.isUTF8` | whether it would pass as a String |
+| | `.append(x)`, `+=` | text, a byte, `&other`, or a Bytes an expression gives |
+| | `.insert(i, x)`, `.remove(i, n)`, `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
+| | `.copy()`, `.string()` | a new Bytes; a new String, checked |
+| | `b[lo..<hi]` | a slice, a new Bytes (#68) |
+| `String` | `.count` | the codepoints, kept with the text |
+| | `.bytes` | its Bytes, a read-only borrow |
+| | `.cstr` | a borrow of the text |
+| | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
+| | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | as a Bytes's |
+| | `for c in s` | each codepoint, a `uchr` |
+| | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
+| | `==`, `!=` | by the bytes |
+| `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
+| | `.cstr` | the character as UTF-8 text |
+| | `<`, `==` and the rest | with a `uchr` or a number |
+| all three | `.size`, `.typename` | as any value's |
+
+The ownership rules are in [ownership.md](ownership.md), the general
+properties in [properties.md](properties.md).

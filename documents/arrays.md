@@ -164,3 +164,28 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **Not yet:** text (`print(xs)` is an error: show the elements), `==`,
   sorting and searching.
 
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| a fixed array `[T](N)` | `.count` | the elements, `sizeof(a) / sizeof(a[0])`, a VLA's too (#49) |
+| | `.size` | the bytes |
+| | `.typename` | `[i32](4)` |
+| | `a[i]` | an element, unchecked, as C has it |
+| | `for x in a` | each element |
+| | `var p := a` | the pointer C makes of it |
+| `Array<T>`, `$[T]` | `.count`, `.capacity` | the elements held, and the room |
+| | `.at` | the elements, a `T^` borrow, unchecked |
+| | `xs[i]` | an element, checked: out of range ends the program |
+| | `xs[lo..<hi]`, `[lo...hi]`, `[lo...]`, `[..<hi]`, `[...hi]` | a slice, a new Array (#68) |
+| | `.append(x)`, `+=` | an element, `&other` (copies), or an Array an expression gives (moved in) |
+| | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `pop` gives the last element |
+| | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
+| | `.copy()` | a new Array, each element copied |
+| | `for x in xs` | each element, a let the Array owns |
+| | `.size`, `.typename` | 24, `Array<i64>` |
+
+No `.cstr` for either: show the elements. The general properties are in
+[properties.md](properties.md), the ownership rules in
+[ownership.md](ownership.md).

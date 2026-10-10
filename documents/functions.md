@@ -210,3 +210,14 @@ let main():i32 {
   functions that would have one C name are an error.
 - **As in C**, a call sees only the overloads declared before it.
 
+
+## Properties and methods
+
+| On | Property | Gives |
+|---|---|---|
+| a function, a function value | `.isNull` | whether it is null, a `bool` |
+| | `.addr`, `.hex` | its address, as a number and as text |
+| | `.size`, `.typename` | a pointer's size; `(i64):i64` |
+| | `f(...)`, `f { ... }` | a call, with a trailing anonymous function |
+
+A function has no `.cstr` and cannot be printed: print its `.hex`.

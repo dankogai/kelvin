@@ -126,3 +126,19 @@ like arithmetic or a call to Kelvin, so they reach the C compiler, which
 rejects them with "expected expression" at your line. They never compile
 as a cast.
 
+
+## Properties and methods
+
+| On | Property | Gives |
+|---|---|---|
+| any number, `bool` | `.size` | `sizeof`, a `size_t` |
+| | `.type`, `.typename` | the type, where a type goes; its name as text |
+| | `.cstr` | the text, as `print` shows it, in the block's buffer |
+| integers | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |
+| | `.uchr` | the codepoint of the number, a `uchr` (#56) |
+| `f32`, `f64` | `.dec`, `.hex` | lossless decimal, C's `%a` |
+| any number | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
+| text | `.i64` and the others | read a number from text, `i64("42")`; `i64(text, 16)` in a base |
+
+The details are in [properties.md](properties.md); conversions are
+above, under [Conversions](#conversions-no-c-casts).

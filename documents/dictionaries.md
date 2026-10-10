@@ -1,6 +1,6 @@
 # Dictionaries: `Dictionary<K, V>`
 
-`Dictionary<K, V>`, or `$[K: V]` for short, is a hash map on the heap
+`Dictionary<K, V>`, or `${K: V}` for short, is a hash map on the heap
 (#65): an owner, freed when its block ends, moved by `return` and by
 passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
@@ -18,7 +18,7 @@ println(ages.get("zed", -1))             // the value, or a default
 ages.remove("bob")                       // true if it was there
 var names = ages.keys                    // an Array<String>, copies, in order
 var counts = ages.values                 // an Array<i64>
-var words:$[String: $[String]] = ${:}    // empty; a value may own
+var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
@@ -43,3 +43,24 @@ words["a"] = $[$"apple"]
   the Dictionary owns, in the order added; `for k in d` the keys.
 - **Not yet:** text (`print(d)` is an error: show the entries), `==`,
   keys of other types, `d[k, default]`.
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| `Dictionary<K, V>`, `${K: V}` | `.count` | the entries held |
+| | `d[k]` | the value, checked: a missing key ends the program; a place |
+| | `d[k] = v` | adds the entry, or replaces the value, freeing what it held |
+| | `.has(k)` | whether the key is there, a `bool` |
+| | `.find(k)` | a `V^` to the value, or `nullptr`; `const V^` for a let |
+| | `.get(k, default)` | the value, or the default; for a `V` that does not own |
+| | `.remove(k)` | removes the entry; `true` if it was there |
+| | `.clear()`, `.reserve(n)` | changes, in place |
+| | `.copy()` | a new Dictionary, keys and values copied |
+| | `.keys`, `.values` | Arrays of copies, in the order added (#66) |
+| | `for k, v in d`, `for k in d` | each entry, or each key, in the order added |
+| | `.size`, `.typename` | `sizeof`; `Dictionary<String, i64>` |
+
+No `.cstr`, no `==`, no `+=`. The general properties are in
+[properties.md](properties.md), the ownership rules in
+[ownership.md](ownership.md).

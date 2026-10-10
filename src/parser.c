@@ -558,6 +558,8 @@ static int type_shape_end(int i) {
         i++;
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "[")) /* $[T], an Array<T> (#64) */
         return type_suffix_end(skip_group(i + 1));
+    if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "{")) /* ${K: V}, a Dictionary<K, V> (#70) */
+        return type_suffix_end(skip_nested(i + 1));
     if (is_kw(&toks[i], "Dictionary") && is_p(&toks[i + 1], "<")) { /* Dictionary<K, V> (#65) */
         int e = type_shape_end(i + 2);
         if (e < 0 || !is_p(&toks[e], ","))
@@ -664,11 +666,13 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
 static Type *parse_anon_record(DeclKind kind, bool tagged);
 static Type *parse_dollar_array(Token *at);
+static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
 static bool is_dict_owner(Type *t);
 static Type *parse_dict_types(Token *kw);
 static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first);
 static Expr *dict_key(Expr *k, Type *dt);
+static Expr *string_of_literal(Expr *x, Type *target);
 static Type *inferred_type(Expr *e, Pos pos);
 static Expr *property(Expr *e, Token *name, char *member);
 static bool is_text_expr(Expr *e);
@@ -835,13 +839,14 @@ static Type *parse_type_in(TypeContext ctx) {
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
-    if (is_p(peek(), "$")) { /* $[T] is Array<T>, and $[[T]] Array<Array<T>> (#64) */
+    if (is_p(peek(), "$")) { /* $[T] is Array<T>, $[[T]] Array<Array<T>> (#64); ${K: V} Dictionary<K, V> (#70) */
         Token *d = advance();
-        if (!is_p(peek(), "["))
-            error_at(d->pos, "'$' before a type: $[T] is Array<T>, as $[a, b] is Array([a, b]); a String is written String");
+        if (!is_p(peek(), "[") && !is_p(peek(), "{"))
+            error_at(d->pos, "'$' before a type: $[T] is Array<T> and ${K: V} Dictionary<K, V>, as $[a, b] and ${k: v} "
+                             "are the values; a String is written String");
         if (base->is_const || base->is_volatile)
-            error_at(base->pos, "a qualifier of an Array is the variable's: a let does not change");
-        Type *t = parse_dollar_array(d);
+            error_at(base->pos, "a qualifier of an Array or a Dictionary is the variable's: a let does not change");
+        Type *t = is_p(peek(), "{") ? parse_dollar_dict(d) : parse_dollar_array(d);
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -4336,6 +4341,8 @@ static Expr *parse_assign(void) {
             pick_overload(e->b, target_type(lhs));
             if (!strcmp(t->text, ":="))
                 e->b = drop_cstr(e->b, target_type(lhs));
+            if (!strcmp(t->text, "="))
+                e->b = string_of_literal(e->b, target_type(lhs)); /* s = "text" of a String (#70) */
             if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
                 reject_owner_copy(e->b, target_type(lhs), t->pos);
                 reject_record_mismatch(e->b, target_type(lhs), t->pos);
@@ -4479,7 +4486,7 @@ static Expr *parse_initializer_for(Type *t) {
         if (d)
             expect_p("=");
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
-        Expr *value = drop_cstr(parse_initializer_for(item), item); /* a cstr into a u8^ member (#52) */
+        Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
         reject_owner_copy(value, item, value->pos);
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
@@ -4592,7 +4599,7 @@ static Expr *array_of_list(Token *t, Type *at) {
                          kelvin_type(elem));
             x = array_of_list(t, at ? elem : NULL);
         } else {
-            x = drop_cstr(parse_initializer_for(elem), elem); /* a cstr into a u8^ element (#52) */
+            x = string_of_literal(drop_cstr(parse_initializer_for(elem), elem), elem); /* a cstr into a u8^ element (#52) */
             reject_owner_copy(x, elem, x->pos);
         }
         list_push(&list->designators, NULL);
@@ -4644,8 +4651,24 @@ static void check_array_elem(Type *elem) {
 /* the inside of $[...] that spells t: [T] for an Array<T>, else T */
 static char *dollar_spelling(Type *t) {
     if (is_dict_owner(t))
-        return strfmt("[%s: %s]", kelvin_type(t->key), dollar_spelling(t->elem));
+        return strfmt("{%s: %s}", kelvin_type(t->key), dollar_spelling(t->elem));
     return is_array_owner(t) ? strfmt("[%s]", dollar_spelling(t->elem)) : kelvin_type(t);
+}
+
+/* ${K: V} (#70): Dictionary<K, V>; a [...] value is an Array, a ${...} a
+   Dictionary, a {...} a struct with no tag, as everywhere a type goes */
+static Type *parse_dollar_dict(Token *at) {
+    expect_p("{");
+    Type *key = parse_type_in(TYPE_DECL);
+    if (!accept_p(":"))
+        error_at(peek()->pos, "expected ':' between the key and value types of ${K: V}");
+    Type *val = parse_type_in(TYPE_DECL);
+    if (is_p(peek(), "("))
+        error_at(peek()->pos, "an Array grows, and has no count in its type: write ${%s: %s}, and give the elements "
+                              "or a count where it is made",
+                 kelvin_type(key), dollar_spelling(val));
+    expect_p("}");
+    return dict_type(at, key, val);
 }
 
 /* $[T] (#64): Array<T>; a [...] inside is an Array in turn, as it is in
@@ -4653,15 +4676,8 @@ static char *dollar_spelling(Type *t) {
 static Type *parse_dollar_array(Token *at) {
     expect_p("[");
     Type *elem = is_p(peek(), "[") ? parse_dollar_array(peek()) : parse_type_in(TYPE_DECL);
-    if (accept_p(":")) { /* $[K: V] is Dictionary<K, V> (#65) */
-        Type *val = is_p(peek(), "[") ? parse_dollar_array(peek()) : parse_type_in(TYPE_DECL);
-        if (is_p(peek(), "("))
-            error_at(peek()->pos, "an Array grows, and has no count in its type: write $[%s: %s], and give the "
-                                  "elements or a count where it is made",
-                     kelvin_type(elem), dollar_spelling(val));
-        expect_p("]");
-        return dict_type(at, elem, val);
-    }
+    if (is_p(peek(), ":")) /* $[K: V] was a Dictionary's type until #70 */
+        error_at(peek()->pos, "a Dictionary's type is written in braces: ${%s: V}, as its entries are", kelvin_type(elem));
     if (is_p(peek(), "("))
         error_at(peek()->pos, "an Array grows, and has no count in its type: write $[%s], and give the elements "
                               "or a count where it is made",
@@ -4752,6 +4768,19 @@ static Type *parse_dict_types(Token *kw) {
     return dict_type(kw, key, val);
 }
 
+/* a string literal where a String is expected (#70): String("...") of it,
+   as an Array's, a Dictionary's or a struct's String takes it */
+static Expr *string_of_literal(Expr *x, Type *target) {
+    if (!target || !is_string(target) || x->kind != E_STRING)
+        return x;
+    Expr *e = new_expr(E_CALL, x->pos);
+    e->a = new_expr(E_IDENT, x->pos);
+    e->a->text = "String";
+    e->op = "string";
+    list_push(&e->items, x);
+    return e;
+}
+
 /* the key given to a Dictionary: text for String keys (a cstr, a template,
    or a String's text), an integer otherwise */
 static Expr *dict_key(Expr *k, Type *dt) {
@@ -4791,7 +4820,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
     if (!first && accept_p(":")) { /* ${:}: empty */
         if (!dt)
             error_at(open->pos, "${:} has no key and value types here: write Dictionary<K, V>(), or give the "
-                                "variable a type, as in 'var d:$[String: i64] = ${:}'");
+                                "variable a type, as in 'var d:${String: i64} = ${:}'");
         expect_p("}");
         e->text = "";
         init_depth--;
@@ -4811,7 +4840,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
         }
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
-        Expr *v = is_p(peek(), "[") ? array_of_list(t, vt) : drop_cstr(parse_initializer_for(vt), vt);
+        Expr *v = is_p(peek(), "[") ? array_of_list(t, vt) : string_of_literal(drop_cstr(parse_initializer_for(vt), vt), vt);
         if (v->kind == E_INIT && vt) { /* {...} of a struct or array value, as its compound literal */
             Expr *c = new_expr(E_COMPOUND, v->pos);
             c->type = vt;
@@ -5221,7 +5250,7 @@ static Var *parse_var(bool with_init, int let) {
         v->init = parse_initializer_for(v->type);
         count_items(v->type, v->init);
         reject_let_vla(v, let);
-        v->init = drop_cstr(v->init, v->type);
+        v->init = string_of_literal(drop_cstr(v->init, v->type), v->type); /* a literal into a String (#70) */
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
         reject_owner_array(v);
@@ -7209,7 +7238,7 @@ static Expr *case_value(Type *t) {
     } else {
         v = parse_assign();
         pick_overload(v, t);
-        v = drop_cstr(v, t);
+        v = string_of_literal(drop_cstr(v, t), t);
     }
     return v;
 }

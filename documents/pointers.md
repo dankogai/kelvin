@@ -108,3 +108,20 @@ Kelvin has no `void` type:
 `p.isNull` is `p == nullptr`, a `bool` (#50), `p.addr` the address as a
 `uintptr_t`, and `p.hex` its text (#37). See
 [properties.md](properties.md).
+
+## Properties and methods
+
+| On | Property | Gives |
+|---|---|---|
+| any pointer, a function | `.isNull` | `p == nullptr`, a `bool` (#50) |
+| | `.addr` | the address as a number, a `uintptr_t` (#37) |
+| | `.hex` | the address as text, `0x` and all its digits |
+| | `.size`, `.type`, `.typename` | a pointer's size; the type; its name |
+| a pointer | `.next`, `.prev` | `p + 1`, `p - 1` (#26); `p++`, `p--` step it (#51) |
+| | `p^` | what it points to; `p^.member` |
+| `u8^`, `i8^` | `.cstr` | the text itself; `.count` is not a pointer's |
+| another pointer | `.cstr` | its address as text, `0x16ee86888` |
+| any pointer | `.i64` and the other converters | fields, if a C struct has them; otherwise `x as uintptr_t` |
+
+`cstr`, immutable text, is in [cstrings.md](cstrings.md); the details
+of each property are in [properties.md](properties.md).

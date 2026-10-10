@@ -177,7 +177,7 @@ rules (#65): `K` an integer type or `String`, `V` any value an Array
 holds. Its entries keep the order they were added in.
 
 ```kelvin
-var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>; $[K: V] is the type
+var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>; ${K: V} is the type
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: the key must be there
 println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
@@ -186,18 +186,18 @@ let p := ages.find("zed")                // a V^, or nullptr
 if !p.isNull { println(p^) }
 println(ages.get("zed", -1))             // a value, or the default
 ages.remove("bob")                       // true if it was there
-var words:$[String: $[String]] = ${:}    // empty; a value may own
+var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
-- **The type** is `Dictionary<K, V>`, or `$[K: V]` for short. `K` is an
+- **The type** is `Dictionary<K, V>`, or `${K: V}` for short. `K` is an
   integer type, hashed as a number, or `String`: the Dictionary keeps a
   copy of the text, and is read with a `cstr`, a template or a String.
   A `cstr` key is an error that says so. `V` is any value an Array may
   hold, owners included, which the Dictionary then owns.
 - **Making one:** `${k: v, ...}` holds the entries written, `K` and
   `V` inferred from the first as a variable's type is; `${:}` is empty
-  where the type is known, as in `var d:$[String: i64] = ${:}`;
+  where the type is known, as in `var d:${String: i64} = ${:}`;
   `Dictionary<K, V>()`, `Dictionary<K, V>({k: v, ...})`, and
   `Dictionary<K, V>(&other)`, a copy. A variable declared without a
   value is empty.

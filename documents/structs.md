@@ -171,3 +171,20 @@ let main():i32 {
   a number of another type converts to the one operator that takes a
   number there (C reports `kv_no_such_operator` otherwise).
 
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| any struct kelvinc sees | `.member` | a field, a place |
+| | `.cstr` | the derived text, `{x: 3, y: 4}`, or `T.cstr()`'s |
+| | `.size`, `.type`, `.typename` | `sizeof`; the type; its name, or the spelling of one with no tag |
+| | `.method(...)` | a method declared `let T.method()` |
+| | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
+| a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
+| | passing, `return` | a move; `=` is an error |
+| with a `[u8]` member | its `.cstr` | up to 60 bytes of it |
+
+A `.hex`, `.dec`, `.addr` or `.isNull` on a struct is an error. A field
+with a property's name wins. The details are in
+[properties.md](properties.md).

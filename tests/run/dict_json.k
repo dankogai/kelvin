@@ -1,7 +1,7 @@
 // JSON (#61, #65): an enum with values holding an Array and a Dictionary
 // of itself, built from literals, walked, grown, copied, and freed by its
 // block; each case of a switch is a block of its own (#63)
-enum json { null; b: bool; n: f64; s: String; a: $[json]; o: $[String: json] }
+enum json { null; b: bool; n: f64; s: String; a: $[json]; o: ${String: json} }
 let show(j:const json^) {
     switch j^ {
     case null: print("null")

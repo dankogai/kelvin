@@ -76,3 +76,19 @@ println(j.n)                             // ends the program: case 'n' of json i
 A struct, or an enum with values, that holds an owner is copied with
 `.copy()` (#61), member by member, and may now be an element of an
 `Array<T>`, which copies and frees its elements with it.
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| C's enum, an enumerator | `.cstr`, `.dec`, `.hex`, ... | as an integer's |
+| | `.size`, `.typename` | as C's |
+| an enum with values | `.case` | the tag, a `u8`, the case's index from 0 |
+| | `.is(n)` | whether `n` is the current case, a `bool` |
+| | `.n` | the value of case `n`, checked: another case ends the program |
+| | `.n = x` | sets the case and its value, freeing what it held |
+| | `T.n(x)`, `T.none` | a value, by the type's name |
+| | `switch v { case n: ... }` | by the case, exhaustive (#63) |
+| | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |
+| | `.copy()` | a copy, when a case owns |
+| | `.size`, `.typename` | `sizeof`; the name or spelling |

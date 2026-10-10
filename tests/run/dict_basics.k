@@ -1,8 +1,8 @@
 // Dictionary<K, V> (#65): a hash map on the heap, an owner; ${k: v} and
-// $[K: V]; d[k] checked, d[k] = v, has, find, get, remove, clear, copy;
+// ${K: V}; d[k] checked, d[k] = v, has, find, get, remove, clear, copy;
 // for k, v in d in the order added; String and integer keys; owners as
 // values, nested
-let total(d:$[String: i64]^):i64 {
+let total(d:${String: i64}^):i64 {
     var n:i64 = 0
     for k, v in d^ { n += v }
     return n
@@ -21,13 +21,13 @@ let main():i32 {
     let p := ages.find("cy")
     let q := ages.find("zed")
     println(p.isNull, " ", p^, " ", q.isNull)
-    var squares:$[i64: i64]
+    var squares:${i64: i64}
     for i in 0..<100 { squares[i] = i * i }
     println(squares.count, " ", squares[99], " ", squares.has(100), " ", squares.typename)
     var copy = ages.copy()
     copy["ann"] = 0
     println(ages["ann"], " ", copy["ann"], " ", copy.count)
-    var words:$[String: $[String]] = ${:}
+    var words:${String: $[String]} = ${:}
     words["a"] = $[$"apple"]
     words["a"] += $"avocado"
     words["b"] = $[$"banana"]

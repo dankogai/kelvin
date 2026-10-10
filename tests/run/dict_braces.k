@@ -3,12 +3,12 @@
 struct point { x: i32; y: i32 }
 let main():i32 {
     var d = ${"a": 1, "b": 2}
-    var e:$[String: i64] = ${:}
-    var f:$[String: i64] = {"x": 9}
+    var e:${String: i64} = ${:}
+    var f:${String: i64} = {"x": 9}
     var g = Dictionary<i64, String>({1: $"one"})
-    var h = Dictionary<String, $[String: i64]>({"in": {"k": 1}})
+    var h = Dictionary<String, ${String: i64}>({"in": {"k": 1}})
     var p = ${"o": (point){1, 2}}
-    var q:$[String: point] = ${"o": {3, 4}}
+    var q:${String: point} = ${"o": {3, 4}}
     var r = ${"xs": [1, 2], "ys": [3]}
     e["z"] = 26
     println(d.count, " ", d["b"], " ", e.count, " ", f["x"], " ", g[1], " ", h["in"]["k"])

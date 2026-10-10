@@ -2785,3 +2785,23 @@ provisional P80 and P81.
 
 There are 541 tests, and all pass with clang and with gcc 15.
 
+### 99. `${K: V}`, and a synopsis per type
+
+> now change the Dictionary type to `${K: V}` too. Also add at least a
+> synopsis of properties/attributes or description if necessary, to
+> example/T.md. You are squeezing too much in properties.md.
+
+**Claude** moved the type to braces (#70): `${String: i64}`, nested as
+`${String: ${String: i64}}` and `${i64: $[String]}`, with `$[K: V]`
+now an error that names the braces. Each type's document ends with a
+"Properties and methods" table now: integers, pointers, cstrings
+(with Bytes, String and uchr), arrays (with Array), structs, unions,
+enums (with enums with values), dictionaries and functions; and
+properties.md keeps the shared ones in detail, with an index to the
+tables. On the way, a string literal where a String is expected
+(`var s:String = "x"`, a member, an element, an entry) became a
+String by itself; it had reached C as bytes into a struct. Details
+are provisional P82.
+
+There are 544 tests, and all pass with clang and with gcc 15.
+

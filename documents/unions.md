@@ -42,3 +42,15 @@ let main():i32 {
 - **A union that knows its case** is `enum` with values, in
   [enums.md](enums.md) (#61).
 - Not yet: a union defined inside a struct.
+
+## Properties and methods
+
+| On | Property or method | Gives |
+|---|---|---|
+| a union | `.member` | a member, as C reads it |
+| | `.cstr` | `<union bits>`, or `T.cstr()`'s text |
+| | `.size`, `.type`, `.typename` | the largest member's size; the type; its name or spelling |
+| | `.method(...)`, operators | as a struct's |
+
+A union holds no owner, so it has no `.copy()`. An enum with values,
+which knows its case, is in [enums.md](enums.md).
