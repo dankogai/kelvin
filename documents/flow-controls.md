@@ -74,12 +74,16 @@ case rect: return s.rect.w * s.rect.h
   missing.
 - **`break`** leaves the switch, as in C, and `continue` goes on with
   the loop around it; `return` returns. `goto` is C's.
-- **In C**, each case gets a `break` before the next label and at the
-  end, unless it ends with a jump; a switch exhaustive by its cases
-  gets `default: __builtin_unreachable();`, so that C sees no path past
-  it. `switch (n) {` still works: the parentheses group.
+- **In C**, each case is a block of its own, so a variable declared in
+  one is its own, ending with a `break` unless it ends with a jump; a
+  switch exhaustive by its cases gets `default: __builtin_unreachable();`,
+  so that C sees no path past it. `switch (n) {` still works: the
+  parentheses group.
 
 ## Ranges: `for i in a..<b`
+
+`for k, v in d { ... }` walks a Dictionary's entries, and `for k in d`
+its keys (#65, [ownership.md](ownership.md)).
 
 `for i in a..<b { ... }` counts from `a` up to `b`, without `b`, and
 `for i in a...b { ... }` up to and with `b` (#28):

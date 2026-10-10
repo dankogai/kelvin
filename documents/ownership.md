@@ -1,11 +1,12 @@
-# Ownership: `Bytes`, `String` and `Array<T>`
+# Ownership: `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
 variable's block frees; `String` (#55) is a `Bytes` that holds UTF-8;
-`Array<T>` (#57) is a growable array of any value type. The rules below are what kelvinc enforces, from
+`Array<T>` (#57) is a growable array of any value type; `Dictionary<K,
+V>` (#65) is a hash map. The rules below are what kelvinc enforces, from
 what it sees; a copy of the struct through C is C's business, and
-harmless, since an owner is never copied implicitly. `Dictionary` is to follow the same rules.
+harmless, since an owner is never copied implicitly. `Dictionary` (#65) follows the same rules.
 
 ## `Bytes`
 
@@ -168,6 +169,59 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   struct that owns, or an enum with values, is copied and freed with
   the Array (#61).
 
+## `Dictionary<K, V>`
+
+`Dictionary<K, V>` is a hash map on the heap, an owner under the same
+rules (#65): `K` an integer type or `String`, `V` any value an Array
+holds. Its entries keep the order they were added in.
+
+```kelvin
+var ages = $["ann": 31, "bob": 42]       // Dictionary<String, i64>; $[K: V] is the type
+ages["cy"] = 7                           // adds, or replaces the value
+ages["ann"] += 1                         // a place, checked: the key must be there
+println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
+for k, v in ages { print(k, "=", v, " ") }   // ann=32 bob=42 cy=7
+let p := ages.find("zed")                // a V^, or nullptr
+if !p.isNull { println(p^) }
+println(ages.get("zed", -1))             // a value, or the default
+ages.remove("bob")                       // true if it was there
+var words:$[String: $[String]] = $[:]    // empty; a value may own
+words["a"] = $[$"apple"]
+```
+
+- **The type** is `Dictionary<K, V>`, or `$[K: V]` for short. `K` is an
+  integer type, hashed as a number, or `String`: the Dictionary keeps a
+  copy of the text, and is read with a `cstr`, a template or a String.
+  A `cstr` key is an error that says so. `V` is any value an Array may
+  hold, owners included, which the Dictionary then owns.
+- **Making one:** `$[k: v, ...]` holds the entries written, `K` and
+  `V` inferred from the first as a variable's type is; `$[:]` is empty
+  where the type is known, as in `var d:$[String: i64] = $[:]`;
+  `Dictionary<K, V>()`, `Dictionary<K, V>([k: v, ...])`, and
+  `Dictionary<K, V>(&other)`, a copy. A variable declared without a
+  value is empty.
+- **`d[k]`** reads the value, and ends the program with a message if
+  the key is not there, as `xs[i]` does out of range; it is a place, so
+  `d[k] += 1` and `d[k] += "x"` change it. `d[k] = v` adds the entry or
+  replaces its value, freeing what it held if it owns; `=` does not copy
+  an owner in, as it copies none (#54): `d[k] = s.copy()`.
+- **Methods:** `has(k)`; `find(k)`, a `V^` to the value or `nullptr`
+  (`const V^` for a let); `get(k, default)`, the value or the default,
+  for a `V` that does not own; `remove(k)`, true if it was there;
+  `clear()`; `reserve(n)`; `copy()`. **Properties:** `count`, `size`,
+  `typename`.
+- **`for k, v in d`** walks the entries in the order they were added,
+  `k` and `v` lets that the Dictionary owns, as an Array's elements are
+  in `for x in xs`; `for k in d` walks the keys.
+- **In C**, each `Dictionary<K, V>` is one struct and its functions from
+  the prelude's `KV_DICT`, named `_kv_dict_<K>_<V>`: an entries array
+  in order, a chain per bucket, twice as many buckets as entries, the
+  keys' hashes kept; growth doubles from 16 and compacts removed
+  entries.
+- **Not yet:** text (`print(d)` and `${d}` are errors: show the
+  entries), `==`, keys of other types, `keys` and `values` as Arrays,
+  and `d[k, default]`.
+
 ## The rules
 
 | | Rule |
@@ -202,6 +256,6 @@ under the same rules, copied with `.copy()`, and may be an element of an
 `Array<T>`.
 
 Not yet: a fixed array of owners as a variable (`[Bytes](4)`; an
-`Array<Bytes>` grows), `Dictionary`, `insert` and `remove` on a
-`String`, and sharing one owner from two places, which would be an
-explicit type of its own if it is ever needed.
+`Array<Bytes>` grows), `insert` and `remove` on a `String`, and sharing
+one owner from two places, which would be an explicit type of its own
+if it is ever needed.

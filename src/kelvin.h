@@ -94,7 +94,9 @@ struct Type {
                          T_TYPEOF: the value as written, for messages */
     bool is_const, is_volatile;
     bool cstr;        /* T_PTR: a cstr, immutable text (#52): const u8 behind it */
-    char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T */
+    char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T;
+                         Dictionary<K, V> (#65): _kv_dict_<K>_<V>; key is K, elem is V */
+    Type *key;        /* T_BASE Dictionary<K, V> (#65): K */
     Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
                          T_TYPEOF: the type kelvinc sees, if any */
     Expr *size;       /* T_ARRAY; NULL for [] */
@@ -196,6 +198,7 @@ enum {
     EACH_UNSEEN,   /* a pointer whose type kelvinc cannot see, as EACH_POINTER */
     EACH_BYTES,    /* the count bytes of a Bytes (#54), NULs included */
     EACH_STRING,   /* the codepoints of a String (#55), as u32 */
+    EACH_DICT,     /* the entries of a Dictionary (#65), in order: key, or key and value */
 };
 
 typedef struct Stmt Stmt;
@@ -217,6 +220,7 @@ struct Stmt {
     int each;          /* S_FOR_EACH: EACH_* above */
     Stmt *body, *els;  /* loop body / if-then, else */
     char *name;        /* S_GOTO, S_LABEL, S_FOR_IN */
+    char *name2;       /* S_FOR_EACH: the value's name in for k, v in d (#65) */
 };
 
 typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;
