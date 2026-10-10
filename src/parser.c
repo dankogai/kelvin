@@ -289,7 +289,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -313,7 +313,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -440,6 +440,9 @@ static int type_suffix_end(int i) {
     for (;;) {
         if (is_p(&toks[i], "^") || is_kw(&toks[i], "const") || is_kw(&toks[i], "volatile"))
             i++;
+        else if ((is_p(&toks[i], "?") || is_p(&toks[i], "??")) &&
+                 (line_break(&toks[i], &toks[i + 1]) || !starts_operand(&toks[i + 1])))
+            i++; /* T? is Optional<T> (#72), T?? twice; a ? b : c and x ?? y go on with an operand */
         else if (is_p(&toks[i], "["))
             i = skip_group(i);
         else
@@ -560,6 +563,12 @@ static int type_shape_end(int i) {
         return type_suffix_end(skip_group(i + 1));
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "{")) /* ${K: V}, a Dictionary<K, V> (#70) */
         return type_suffix_end(skip_nested(i + 1));
+    if (is_kw(&toks[i], "Optional") && is_p(&toks[i + 1], "<")) { /* Optional<T> (#72) */
+        int e = type_shape_end(i + 2);
+        if (e < 0 || (!is_p(&toks[e], ">") && !is_p(&toks[e], ">>")))
+            return -1;
+        return type_suffix_end(is_p(&toks[e], ">>") ? e : e + 1);
+    }
     if (is_kw(&toks[i], "Set") && is_p(&toks[i + 1], "<")) { /* Set<T> (#71) */
         int e = type_shape_end(i + 2);
         if (e < 0 || (!is_p(&toks[e], ">") && !is_p(&toks[e], ">>")))
@@ -677,6 +686,11 @@ static Type *dict_type(Token *at, Type *key, Type *val);
 static bool is_dict_owner(Type *t);
 static Type *set_type(Token *at, Type *elem);
 static char owner_letter(const char *kind);
+static Type *optional_type(Token *at, Type *inner);
+static Decl *optional_record(Type *t);
+static Expr *optional_of(Expr *v, Type *target, Pos pos);
+static Type *parse_optional_type(Token *kw);
+static bool starts_operand(Token *t);
 static bool is_set_owner(Type *t);
 static Type *parse_set_type(Token *kw);
 static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first);
@@ -834,6 +848,15 @@ static Type *parse_type_in(TypeContext ctx) {
     base->kind = T_BASE;
     base->pos = peek()->pos;
     parse_qualifiers(base);
+    if (is_kw(peek(), "Optional")) { /* Optional<T> (#72) */
+        Token *kw = advance();
+        Type *t = parse_optional_type(kw);
+        t->is_const = base->is_const;
+        t->is_volatile = base->is_volatile;
+        parse_qualifiers(t);
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
     if (is_kw(peek(), "Set")) { /* Set<T> (#71) */
         Token *kw = advance();
         if (base->is_const || base->is_volatile)
@@ -971,7 +994,12 @@ static Type *parse_type_in(TypeContext ctx) {
 static Type *parse_type_suffixes(Type *t, TypeContext ctx) {
     for (;;) {
         Token *tok = peek();
-        if (accept_p("^")) {
+        if ((is_p(tok, "?") || is_p(tok, "??")) && ctx != TYPE_AS) { /* T? is Optional<T> (#72); T?? twice */
+            advance();
+            t = optional_type(tok, t);
+            if (is_p(tok, "??"))
+                t = optional_type(tok, t);
+        } else if (accept_p("^")) {
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;
             p->pos = tok->pos;
@@ -1829,6 +1857,28 @@ static Expr *parse_primary(void) {
         return e;
     }
     reject_c_int_name(t);
+    if (is_kw(t, "Optional") && is_p(peek2(), "<")) {
+        /* Optional<T>() is none, Optional<T>(v) some(v) (#72) */
+        advance();
+        Type *ot = parse_optional_type(t);
+        if (!is_p(peek(), "("))
+            error_at(peek()->pos, "%s is a type: make one with %s(v) or %s(), or write it after ':'", kelvin_type(ot),
+                     kelvin_type(ot), kelvin_type(ot));
+        advance();
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        Expr *v = NULL;
+        if (!is_p(peek(), ")"))
+            v = parse_assign();
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        if (!v) {
+            v = new_expr(E_IDENT, t->pos);
+            v->text = "none";
+        }
+        return optional_of(v, ot, t->pos);
+    }
     if (is_kw(t, "Set") && is_p(peek2(), "<")) {
         /* Set<T>(), Set<T>({a, b, c}), Set<T>(&other) (#71) */
         advance();
@@ -2320,6 +2370,23 @@ static Expr *parse_binary(int min_prec) {
                (#54, #55), with another of its type, both places */
             char kl = owner_letter(ka ? ka : kb);
             const char *tn = kl == 'b' ? "Bytes" : kl == 's' ? "String" : kl == 'd' ? "Dictionary" : kl == 't' ? "Set" : "Array";
+            if (kl == 't' && (!strcmp(e->op, "|") || !strcmp(e->op, "&") || !strcmp(e->op, "~"))) {
+                /* s | t, s & t, s ~ t (#73): a new Set, of two in variables */
+                if (!ka || !kb || strcmp(value_type(e->a)->name, value_type(e->b)->name) || !owner_place(e->a) ||
+                    !owner_place(e->b))
+                    error_at(t->pos, "'%s' takes two Sets of the same elements, both in variables", e->op);
+                Expr *m = new_expr(E_METHOD, t->pos);
+                m->a = e->a;
+                m->text = e->op[0] == '|' ? "union" : e->op[0] == '&' ? "intersection" : "symdiff";
+                m->op = "set";
+                m->type = value_type(e->a);
+                Expr *pb = new_expr(E_PREFIX, t->pos);
+                pb->op = "&";
+                pb->a = e->b;
+                list_push(&m->items, pb);
+                lhs = m;
+                continue;
+            }
             if (tn[0] == 'A' || tn[0] == 'D' || (tn[0] == 'S' && tn[1] == 'e'))
                 error_at(t->pos, "%s has no operator '%s': compare its %s",
                          tn[0] == 'A' ? "an Array" : tn[0] == 'D' ? "a Dictionary" : "a Set", e->op,
@@ -2357,6 +2424,40 @@ static Expr *parse_binary(int min_prec) {
 static Expr *parse_conditional(void) {
     Expr *c = parse_binary(1);
     Token *t = peek();
+    while (is_p(peek(), "??")) { /* x ?? y (#72): x's value if some, else y */
+        Token *q = advance();
+        Expr *y = parse_binary(1);
+        Type *ct = value_type(c);
+        Decl *r = ct ? optional_record(ct) : NULL;
+        if (!r)
+            error_at(q->pos, "'?\?' takes an Optional on its left, and this is %s", ct ? kelvin_type(ct) : "not one");
+        Var *some = r->members.data[1];
+        if (is_owner(some->type))
+            error_at(q->pos, "'?\?' would copy the value, and %s owns: switch on it, or test '.is(some)' and read '.some'",
+                     kelvin_type(some->type));
+        if (c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
+            error_at(q->pos, "'?\?' reads its left side twice: bind it to a variable first");
+        pick_overload(y, some->type);
+        y = string_of_literal(drop_cstr(y, some->type), some->type);
+        Expr *is = new_expr(E_METHOD, q->pos);
+        is->a = c;
+        is->text = "some";
+        is->op = "case_is";
+        is->target = r;
+        is->is_bool = true;
+        Expr *val = new_expr(E_FIELD, q->pos);
+        val->a = c;
+        val->text = "some";
+        val->op = "case";
+        val->type = some->type;
+        val->target = r;
+        Expr *e = new_expr(E_TERNARY, q->pos);
+        e->a = is;
+        e->b = val;
+        e->c = y;
+        e->paren = true;
+        c = e;
+    }
     if (!accept_p("?"))
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
@@ -2770,7 +2871,7 @@ static Type *value_type_of(Expr *e) {
             if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
                 return base_type("bool", e->pos);
             if (!strcmp(e->text, "copy") || !strcmp(e->text, "union") || !strcmp(e->text, "intersection") ||
-                !strcmp(e->text, "difference"))
+                !strcmp(e->text, "difference") || !strcmp(e->text, "symdiff"))
                 return value_type(e->a);
             return NULL;
         }
@@ -4358,6 +4459,29 @@ static Expr *parse_assign(void) {
             if ((!strcmp(t->text, "+=") || !strcmp(t->text, "-=")) && is_cstr(value_type(lhs)))
                 error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
                                  "a 'var p:u8^ := s'");
+            if ((!strcmp(t->text, "|=") || !strcmp(t->text, "&=") || !strcmp(t->text, "~=")) &&
+                is_set_owner(value_type(lhs))) {
+                /* s |= t, s &= t, s ~= t (#73): in place, of another Set in a variable */
+                if (!owner_place(lhs))
+                    error_at(t->pos, "'%s' on a Set that an expression gives: bind it to a variable first", t->text);
+                if (let_target(lhs))
+                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs));
+                Expr *x = new_expr(E_METHOD, t->pos);
+                x->a = lhs;
+                x->op = "set";
+                x->type = value_type(lhs);
+                x->text = t->text[0] == '|' ? "insert_all" : t->text[0] == '&' ? "intersect_with" : "symdiff_with";
+                Expr *given = parse_assign();
+                assign_ok = ok;
+                Type *gt = value_type(given);
+                if (!gt || strcmp(gt->name, x->type->name) || !owner_place(given))
+                    error_at(t->pos, "'%s' takes another %s, in a variable", t->text, kelvin_type(x->type));
+                Expr *pb = new_expr(E_PREFIX, t->pos);
+                pb->op = "&";
+                pb->a = given;
+                list_push(&x->items, pb);
+                return x;
+            }
             if (!strcmp(t->text, "+=") && builtin_owner(value_type(lhs))) {
                 /* b += x is b.append(x) (#54, #55) */
                 if (is_dict_owner(value_type(lhs)))
@@ -4451,7 +4575,7 @@ static Expr *parse_assign(void) {
             if (!strcmp(t->text, ":="))
                 e->b = drop_cstr(e->b, target_type(lhs));
             if (!strcmp(t->text, "="))
-                e->b = string_of_literal(e->b, target_type(lhs)); /* s = "text" of a String (#70) */
+                e->b = optional_of(string_of_literal(e->b, target_type(lhs)), target_type(lhs), t->pos); /* (#70, #72) */
             if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
                 reject_owner_copy(e->b, target_type(lhs), t->pos);
                 reject_record_mismatch(e->b, target_type(lhs), t->pos);
@@ -4530,6 +4654,15 @@ static Expr *parse_initializer_for(Type *t) {
     }
     if (!bracket && !is_p(open, "{"))
         return parse_assign();
+    if (!bracket && optional_record(t) && !is_p(peek2(), ".")) {
+        /* {...} of a T? is the T's initializer, wrapped as some (#72) */
+        Type *inner = ((Var *)optional_record(t)->members.data[1])->type;
+        Expr *c = new_expr(E_COMPOUND, open->pos);
+        c->type = inner;
+        c->a = parse_initializer_for(inner);
+        count_items(inner, c->a);
+        return optional_of(c, t, open->pos);
+    }
     if (!bracket && tagged_record(t)) /* {.n = 1.5} of an enum with values (#61) */
         return parse_case_initializer(t, tagged_record(t));
     /* an array is initialized with [...], a struct or union with {...}
@@ -4596,6 +4729,7 @@ static Expr *parse_initializer_for(Type *t) {
             expect_p("=");
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
+        value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
         reject_owner_copy(value, item, value->pos);
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
@@ -4709,6 +4843,7 @@ static Expr *array_of_list(Token *t, Type *at) {
             x = array_of_list(t, at ? elem : NULL);
         } else {
             x = string_of_literal(drop_cstr(parse_initializer_for(elem), elem), elem); /* a cstr into a u8^ element (#52) */
+            x = optional_of(x, elem, x->pos); /* a T into a T? element (#72) */
             reject_owner_copy(x, elem, x->pos);
         }
         list_push(&list->designators, NULL);
@@ -5069,6 +5204,7 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
         if (!accept_p(":"))
             error_at(peek()->pos, "an entry of a Dictionary is written key: value");
         Expr *v = is_p(peek(), "[") ? array_of_list(t, vt) : string_of_literal(drop_cstr(parse_initializer_for(vt), vt), vt);
+        v = optional_of(v, vt, v->pos); /* a T into a T? value (#72) */
         if (v->kind == E_INIT && vt) { /* {...} of a struct or array value, as its compound literal */
             Expr *c = new_expr(E_COMPOUND, v->pos);
             c->type = vt;
@@ -5490,6 +5626,7 @@ static Var *parse_var(bool with_init, int let) {
         count_items(v->type, v->init);
         reject_let_vla(v, let);
         v->init = string_of_literal(drop_cstr(v->init, v->type), v->type); /* a literal into a String (#70) */
+        v->init = optional_of(v->init, v->type, v->init->pos); /* a T into a T? (#72) */
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
         reject_owner_array(v);
@@ -7014,6 +7151,8 @@ static Stmt *parse_stmt_here(void) {
             (result || !newline_before())) {
             s->expr = parse_expr();
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
+            if (result)
+                s->expr = optional_of(s->expr, parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)
@@ -7425,7 +7564,9 @@ static Type *parse_anon_record(DeclKind kind, bool tagged) {
 static Decl *anon_record_of(Type *t) {
     if (!t || t->kind != T_BASE || !t->name)
         return NULL;
-    const char *n = !strncmp(t->name, "struct _kv_anon", 15) ? t->name + 7 : !strncmp(t->name, "union _kv_anon", 14) ? t->name + 6 : NULL;
+    const char *n = !strncmp(t->name, "struct _kv_anon", 15) || !strncmp(t->name, "struct _kv_opt_", 15) ? t->name + 7
+                    : !strncmp(t->name, "union _kv_anon", 14)                                              ? t->name + 6
+                                                                                                                : NULL;
     Decl *r = n ? record_named(n) : NULL;
     return r && r->spelling ? r : NULL;
 }
@@ -7484,9 +7625,94 @@ static Expr *case_value(Type *t) {
     } else {
         v = parse_assign();
         pick_overload(v, t);
-        v = string_of_literal(drop_cstr(v, t), t);
+        v = optional_of(string_of_literal(drop_cstr(v, t), t), t, v->pos); /* (#70, #72) */
     }
     return v;
+}
+
+/* ---------- Optional<T>, T? (#72): an enum with values, none and some ---------- */
+
+/* the record of T?, one per T, made as a struct with no tag is (#59),
+   with the cases none and some: T; its spelling is T? */
+static Type *optional_type(Token *at, Type *inner) {
+    if (inner->kind == T_ARRAY)
+        error_at(at->pos, "an Optional holds a value, and an array is none: hold an Array, $[%s]?",
+                 kelvin_type(inner->elem));
+    if (inner->kind == T_FUNC)
+        error_at(at->pos, "an Optional of a function type has no spelling yet: write Optional<(...):T>");
+    bare_tags = true;
+    char *spelling = strfmt("%s?", kelvin_type(unqualified(inner)));
+    bare_tags = false;
+    Decl *same = NULL;
+    for (int i = 0; !same && i < anon_records.len; i++)
+        if (!strcmp(((Decl *)anon_records.data[i])->spelling, spelling))
+            same = anon_records.data[i];
+    if (!same) {
+        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
+        d->has_body = true;
+        d->tagged = true;
+        d->name = strfmt("_kv_opt_%s", mangled_type(inner));
+        d->spelling = spelling;
+        Var *none = xcalloc(1, sizeof *none), *some = xcalloc(1, sizeof *some);
+        none->pos = some->pos = at->pos;
+        none->name = "none";
+        some->name = "some";
+        some->type = unqualified(inner);
+        list_push(&d->members, none);
+        list_push(&d->members, some);
+        list_push(&anon_records, d);
+        list_push(&records, d);
+        list_push(&program->decls, d);
+        same = d;
+    }
+    return base_type(tag_type_name(same), at->pos);
+}
+
+/* the record of t, if t is an Optional */
+static Decl *optional_record(Type *t) {
+    Decl *r = tagged_record(t);
+    return r && r->spelling && r->spelling[strlen(r->spelling) - 1] == '?' ? r : NULL;
+}
+
+static Type *parse_optional_type(Token *kw) {
+    if (!accept_p("<"))
+        error_at(peek()->pos, "an Optional names its type: Optional<T>, or T?");
+    Type *inner = parse_type_in(TYPE_DECL);
+    if (is_p(peek(), ">>"))
+        toks[cur].text = ">";
+    else if (!accept_p(">"))
+        error_at(peek()->pos, "expected '>' after the type of Optional<T>");
+    return optional_type(kw, inner);
+}
+
+/* a value where a T? is expected (#72): none, the T? itself, or a T,
+   which becomes some(T); an owner moves in, as a case's value does */
+static Expr *optional_of(Expr *v, Type *target, Pos pos) {
+    Decl *r = target ? optional_record(target) : NULL;
+    if (!r)
+        return v;
+    Type *vt = value_type(v);
+    if (vt && vt->kind == T_BASE && !strcmp(vt->name, tag_type_name(r)))
+        return v; /* a T? already */
+    Expr *e = new_expr(E_CALL, pos);
+    e->a = new_expr(E_IDENT, pos);
+    e->a->text = r->spelling;
+    e->op = "case_make";
+    e->target = r;
+    e->type = base_type(tag_type_name(r), pos);
+    if (v->kind == E_IDENT && !strcmp(v->text, "none") && binding_index("none") < 0) {
+        e->text = "none";
+        return e;
+    }
+    Var *some = r->members.data[1];
+    pick_overload(v, some->type);
+    v = string_of_literal(drop_cstr(v, some->type), some->type);
+    v = optional_of(v, some->type, pos); /* a T?? takes a T too */
+    reject_record_mismatch(v, some->type, pos);
+    move_argument(v, some->type, "'some'");
+    e->text = "some";
+    list_push(&e->items, v);
+    return e;
 }
 
 static Var *case_named(Decl *r, const char *name, int *index) {

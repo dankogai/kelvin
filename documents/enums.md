@@ -68,6 +68,8 @@ println(j.n)                             // ends the program: case 'n' of json i
   with its cases' names, and per case `_kv_json_at_n` (checked, a
   pointer), `_kv_json_get_n` (checked, a value), `_kv_json_set_n` and
   `_kv_json_make_n`; a case with no value has `set` and `make` alone.
+- **`T?`**, an Optional, is one of these with the cases `none` and
+  `some: T`, made for each `T`: see [optionals.md](optionals.md) (#72).
 - **Not yet:** binding a case's value in a `case` label (Swift's `case
   .n(let x)`), and an anonymous `enum` with values at the top level.
 

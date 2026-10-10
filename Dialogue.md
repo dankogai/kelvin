@@ -2820,3 +2820,20 @@ under ASan. Details are provisional P83.
 
 There are 552 tests, and all pass with clang and with gcc 15.
 
+### 101. `T?`, and `|`, `&`, `~` on Sets
+
+> now add `Optional`, a value that may be absent. Also add binary `|`,
+> `&`, and `~` operators to `Set`
+
+**Claude** added #72, `Optional<T>` or `T?`: an enum with values with
+the cases `none` and `some: T`, made per `T`, so that `.some`
+(checked), `.is`, `.case`, `switch`, the text `some(3)`/`none` and the
+ownership rules come as they are; a `T` where a `T?` is expected
+becomes `some` by itself, `none` is the absent value, and `x ?? y`
+gives the value or a default. And #73: `s | t`, `s & t` and `s ~ t`
+are the union, the intersection and the symmetric difference of two
+Sets, with `|=`, `&=` and `~=` in place. Details are provisional P84
+and P85.
+
+There are 560 tests, and all pass with clang and with gcc 15.
+

@@ -106,8 +106,11 @@ So far the changes from C are:
   `${"ann": 31}`, with `d[k]` checked, `d.has(k)`, `d.find(k)` and
   `for k, v in d`, `d.keys` and `d.values`, keyed by integers or Strings;
   `` $`a${x}b` `` builds a `String` from a template, with no bound;
-  `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)` and
-  `s.union(&t)`
+  `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
+  `s & t` and `s ~ t`
+- `T?` is a value that may be absent: `var x:i64? = none`, `x = 3`,
+  `x.some` checked, `x ?? 0`, `x.is(none)`, and `switch x { case some:
+  ... case none: ... }`
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`

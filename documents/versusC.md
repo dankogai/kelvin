@@ -73,7 +73,8 @@ P-numbers in [Design.md](../Design.md).
 | `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
 | `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array([1, 2, 3])`, or `$[1, 2, 3]`, `xs += x`, `xs[i]` checked, freed by its block; the type is `Array<i64>`, or `$[i64]` (#57, #58, #62, #64) |
 | a hash table by hand, or a library's | `var d = ${"ann": 31}`, `d["bob"] = 42`, `d["ann"]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`, `d.keys`, `d.values`; the type is `Dictionary<String, i64>`, or `${String: i64}` (#65, #66) |
-| a hash set by hand | `var s = ${3, 1, 4}`, `s += 9`, `s.has(4)`, `s.union(&t)`, `for x in s`; the type is `Set<i64>`, or `${i64}` (#71) |
+| a hash set by hand | `var s = ${3, 1, 4}`, `s += 9`, `s.has(4)`, `s | t`, `s & t`, `s ~ t`, `for x in s`; the type is `Set<i64>`, or `${i64}` (#71, #73) |
+| a sentinel such as `-1` or `NULL`, or a `bool` beside the value | `i64?`: `none` or `some(3)`, `x.some` checked, `x ?? 0`, `x.is(none)`, `switch x { case some: ... case none: ... }` (#72) |
 | `memcpy` of a part, with its length by hand | `xs[1..<3]`, `s[2...]`, `b[..<4]`: a slice, a copy, checked (#68) |
 | `snprintf` into a buffer sized by hand, or `asprintf` | `` var s = $`${name}: ${n}` ``, a String with no bound (#67) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
@@ -92,6 +93,7 @@ P-numbers in [Design.md](../Design.md).
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
 | [integers.md](integers.md) | `i8`…`u128`, `f32`, `f64`, `bool`, literals, conversions, numbers from text |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
+| [optionals.md](optionals.md) | `T?`, `Optional<T>`: `none`, `some`, `??`, switching on it |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |
@@ -113,7 +115,7 @@ P-numbers in [Design.md](../Design.md).
 `String` is a type since #55; the method names `toString` and `fmt`
 stay reserved (#22), as a value's text is `x.cstr`.
 Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`, `uchr`, `any`, `nullptr` and `cstr`
+`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`, `Optional`, `uchr`, `any`, `nullptr` and `cstr`
 *(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
 keyword only in `for i in ...` and in an anonymous function's
 `{ (a:T) in ... }`, so C names called `in` still work. It

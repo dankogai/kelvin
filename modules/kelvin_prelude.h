@@ -241,7 +241,13 @@ void kv_dict_missing_text(const void *k);
     __attribute__((unused)) static inline S S##_difference(const S *a, const S *b) { \
         S v = {0}; \
         for (size_t i = 0; i < a->len; i++) if (a->at[i].live && !S##_has(b, LKOF(&a->at[i].key))) S##_insert(&v, LKOF(&a->at[i].key)); \
-        return v; }
+        return v; } \
+    __attribute__((unused)) static inline S S##_symdiff(const S *a, const S *b) { \
+        S v = S##_difference(a, b); \
+        for (size_t i = 0; i < b->len; i++) if (b->at[i].live && !S##_has(a, LKOF(&b->at[i].key))) S##_insert(&v, LKOF(&b->at[i].key)); \
+        return v; } \
+    __attribute__((unused)) static inline void S##_intersect_with(S *s, const S *t) { S v = S##_intersection(s, t); S##_assign(s, v); } \
+    __attribute__((unused)) static inline void S##_symdiff_with(S *s, const S *t) { S v = S##_symdiff(s, t); S##_assign(s, v); }
 
 /* Dictionary<K, V> (#65): a hash map on the heap, its entries in the
    order they were added (dead ones skipped, compacted on growth), a

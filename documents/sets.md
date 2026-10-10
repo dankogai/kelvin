@@ -13,6 +13,7 @@ s += &t                                  // t's elements
 println(s.count, " ", s.has(4), " ", s.remove(1))
 for x in s { print(x, " ") }             // in the order added
 var u = s.union(&t)                      // new Sets: union, intersection, difference
+var v = s | t                            // the same as operators: |, &, ~ (symmetric difference); |=, &=, ~=
 var words = ${"to", "be", "or"}          // Set<String>: the text copied in
 println(words.has("be"), " ", words.elements.typename)   // true Array<String>
 var e:${String} = ${}                    // empty; Set<String>() too
@@ -29,13 +30,17 @@ var e:${String} = ${}                    // empty; Set<String>() too
 - **Methods:** `insert(x)` (also `+=`), `true` if it was new; `+=
   &other` inserts another's elements; `has(x)`; `remove(x)`, `true` if
   it was there; `union(&t)`, `intersection(&t)`, `difference(&t)`, new
-  Sets; `clear()`; `reserve(n)`; `copy()`. **Properties:** `count`;
+  Sets; `clear()`; `reserve(n)`; `copy()`.
+- **Operators** (#73): `s | t` is the union, `s & t` the intersection
+  and `s ~ t` the symmetric difference (what is in one, not both), new
+  Sets of two in variables; `s |= t`, `s &= t` and `s ~= t` change `s`
+  in place. **Properties:** `count`;
   `elements`, an Array of copies in the order added; `size`,
   `typename`.
 - **Walking:** `for x in s` gives each element as a let the Set owns,
   in the order added. A Set is not indexed.
 - **Not yet:** text (`print(s)` is an error: show the elements), `==`,
-  `isSubset`, elements of other types.
+  `isSubset`, `-` for the difference, elements of other types.
 
 ## Properties and methods
 
@@ -46,6 +51,8 @@ var e:${String} = ${}                    // empty; Set<String>() too
 | | `.has(x)` | whether it is there, a `bool` |
 | | `.remove(x)` | removes; `true` if it was there |
 | | `.union(&t)`, `.intersection(&t)`, `.difference(&t)` | new Sets |
+| | `s \| t`, `s & t`, `s ~ t` | the union, the intersection, the symmetric difference, new Sets (#73) |
+| | `s \|= t`, `s &= t`, `s ~= t` | the same, in place |
 | | `.clear()`, `.reserve(n)` | changes, in place |
 | | `.copy()` | a new Set, elements copied |
 | | `.elements` | an Array of copies, in the order added |
