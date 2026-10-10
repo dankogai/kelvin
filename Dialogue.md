@@ -2837,3 +2837,20 @@ and P85.
 
 There are 560 tests, and all pass with clang and with gcc 15.
 
+### 102. `if let`, and `Result<T, U>`
+
+> now add `if let`, binding an optional's value when present. Also
+> implement a `Result<T,U>` As a smart union as `{ ok:T, err:U }` and
+> reimplement `Optional<T>` as its special type.
+
+**Claude** added #74 and #75. `if let v = e { ... } else { ... }`
+binds the value of an Optional or a Result when it is present, read
+once, a let the variant still owns. `Result<T, U>` is an enum with
+values with `ok: T` and `err: U`, and `Optional<T>` is now made by the
+same maker with `none` and `some`; a `T` where either is expected is
+wrapped by itself, `ok(v)` and `err(e)` are words where a Result is
+expected, and the type names spell the cases out. Details are
+provisional P86 and P87.
+
+There are 566 tests, and all pass with clang and with gcc 15.
+

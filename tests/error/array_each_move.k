@@ -5,4 +5,4 @@ let main():i32 {
     for s in xs { take(s) }
     return 0
 }
-// error: 's' is each element in turn, which its Array owns: pass a borrow, '&s', or a copy
+// error: 's' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&s', or a copy

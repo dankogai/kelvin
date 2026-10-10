@@ -30,6 +30,9 @@ do {
 } while n > 0
 ```
 
+- **`if let x = e { ... } else { ... }`** (#74) binds the value of an
+  Optional or a Result when it is present; see
+  [optionals.md](optionals.md).
 - Parentheses around a condition are only grouping now: `if (n > 0) { ... }`
   still works, while C's `if (n > 0) n = 0;` is an error, since the body
   must be a block. `else` is followed by a block or by `if`.

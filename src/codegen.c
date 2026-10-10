@@ -1394,6 +1394,37 @@ static void stmt(Stmt *s) {
         line(";");
         break;
     case S_IF:
+        if (s->name) { /* if let x = e (#74): e once, into a hidden place; x its value when present */
+            Decl *r = kelvin_record(s->elem->name);
+            const char *cname = ((Var *)r->members.data[s->each])->name;
+            char *h = hidden(s->name, "opt");
+            const char *f = owner_free(s->elem);
+            line("{");
+            indent++;
+            sync(s->pos);
+            if (s->closed)
+                line("__auto_type %s = &(%s);", h, expr(s->expr));
+            else
+                line("%s%s = %s;", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(s->elem, h), expr(s->expr));
+            sync(s->pos);
+            line("if (%s%stag == %d)", h, s->closed ? "->" : ".", s->each);
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("__attribute__((unused)) %s = %s%su.%s;", decl(const_type(s->type), s->name), h, s->closed ? "->" : ".",
+                 cname);
+            stmt(s->body);
+            indent--;
+            line("}");
+            if (s->els) {
+                sync(s->els->pos);
+                line("else");
+                body(s->els);
+            }
+            indent--;
+            line("}");
+            break;
+        }
         line("if (%s)", stmt_cond(s->expr));
         body(s->body);
         if (s->els) {

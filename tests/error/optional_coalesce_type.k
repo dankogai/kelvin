@@ -4,4 +4,4 @@ let main():i32 {
     var y = n ?? 1
     return 0
 }
-// error: '??' takes an Optional on its left, and this is i64
+// error: '??' takes an Optional or a Result on its left, and this is i64

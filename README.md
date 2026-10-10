@@ -109,8 +109,9 @@ So far the changes from C are:
   `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
   `s & t` and `s ~ t`
 - `T?` is a value that may be absent: `var x:i64? = none`, `x = 3`,
-  `x.some` checked, `x ?? 0`, `x.is(none)`, and `switch x { case some:
-  ... case none: ... }`
+  `x.some` checked, `x ?? 0`, `x.is(none)`, `if let v = x { }`, and
+  `switch x { case some: ... case none: ... }`; `Result<T, U>` is the
+  same with a reason, `ok(v)` or `err(e)`
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`
