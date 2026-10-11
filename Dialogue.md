@@ -2961,3 +2961,17 @@ message names the case; an owner made on the spot, `err($"x")`, is not
 taken, since nothing would free it. Details are provisional P91.
 
 There are 586 tests, and all pass with clang and with gcc 15.
+
+### 110. Mapping on Results and Optionals
+
+> now add mapping on `Result` and `Optional`
+
+**Claude** added #80: `x.map(f)` and `x.map { ... }` give a `U?` or a
+`Result<U, E>` of `f`'s result when the value is there, and carry the
+other case over; `r.mapErr(g)` maps the err instead. `f` is a function
+by name, a function value, or an anonymous function whose result
+kelvinc sees, as a `let` infers, or which writes it. A variable that
+owns is not mapped, since `f` would take its value: map the call, or a
+copy; calls chain. Details are provisional P92.
+
+There are 591 tests, and all pass with clang and with gcc 15.

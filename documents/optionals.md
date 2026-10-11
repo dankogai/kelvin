@@ -16,6 +16,7 @@ println(a.is(some), " ", b.is(none))     // true true
 println(a.some)                          // 3; of none, the program ends with a message
 println(a ?? 0, " ", b ?? -1)            // the value, or the default: 3 -1
 println(a == 3, " ", b == none, " ", a != b)   // true true true (#79)
+var d = a.map { $0 > 2 }                 // some(true), a bool? (#80)
 a = none                                 // sets the case
 b = 9                                    // some(9)
 b.some += 1                              // a place, checked
@@ -70,6 +71,12 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   owner made on the spot (`x == $"hi"`) is not taken, since nothing
   would free it: bind it to a variable. See
   [results.md](results.md).
+- **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`,
+  else `none`; `f` takes the `T` and gives a `U`, a function by name, a
+  function value, or an anonymous function, `x.map { $0 > 2 }` or
+  `x.map { (v:i64):f64 in v / 2.0 }`, whose result kelvinc sees or
+  which writes it. Of a variable that owns, map the call itself, or
+  `x.copy()`. See [results.md](results.md).
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
@@ -110,6 +117,7 @@ the reason in `err`: [results.md](results.md).
 | | `switch x { case some: ... case none: ... }` | by the case |
 | | `.cstr` | `some(3)`, `none` |
 | | `==`, `!=` | both `none`, or equal values; `x == none`, `x == 3` (#79) |
+| | `.map(f)`, `.map { ... }` | a `U?` of `f`'s result, or `none` (#80) |
 | | `.copy()` | a copy, when the value owns |
 | | `.size`, `.typename` | `sizeof`; `i64?` |
 

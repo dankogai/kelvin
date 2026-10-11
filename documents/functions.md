@@ -101,7 +101,10 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   method or function value it is passed to, a declared variable, a
   member of a struct in an initializer list (`{ $0 - $1 }` for a member
   `sub:(i64, i64):i64`), an assignment's target, or the result of the
-  function it is returned from. Elsewhere, such as for C's `qsort`,
+  function it is returned from. For `x.map { ... }` of a Result or an
+  Optional (#80), `$0` is the value, and the result is the body's one
+  expression's type where kelvinc sees it (a bool, a literal, a call,
+  `i64(...)`); else write the parameters and the result. Elsewhere, such as for C's `qsort`,
   whose types kelvinc cannot see, it writes them:
   `{ (a:T, b:U):R in ... }`. Without either, it has none, as for
   `atexit() { println("bye") }`. `$[k]` takes a decimal number, and `$`

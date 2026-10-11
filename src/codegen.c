@@ -753,6 +753,24 @@ static char *expr_bare(Expr *e) {
             return strfmt("_kv_%s_set_%s(&%s, %s)", e->target->name, e->text, expr(e->a),
                           take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
         }
+        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err")) && e->type) {
+            /* x.map(f), r.mapErr(g) (#80): f of the case's value, in the new
+               record's same case; the other case carried over. What f takes,
+               and what carries over, moves out of the temporary, so that its
+               cleanup frees nothing of it */
+            Decl *r = e->target, *nr = kelvin_record(e->type->name);
+            int vc = !strncmp(r->name, "_kv_opt_", 8) ? 1 : 0;
+            int mc = !strcmp(e->op, "map_err") ? 1 - vc : vc;
+            Var *m = r->members.data[mc], *o = r->members.data[1 - mc];
+            Var *nm = nr->members.data[mc], *no = nr->members.data[1 - mc];
+            const char *take = owner_take(e->from), *f = owner_free(e->from);
+            const char *at = take ? strfmt("%s(&_kv_t).u.", take) : "_kv_t.u.";
+            const char *other = o->type ? strfmt("_kv_%s_make_%s(%s%s)", nr->name, no->name, at, o->name)
+                                        : strfmt("_kv_%s_make_%s()", nr->name, no->name);
+            return strfmt("({ %s%s _kv_t = %s; _kv_t.tag == %d ? _kv_%s_make_%s(%s(%s%s)) : %s; })",
+                          f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, nr->name,
+                          nm->name, expr(e->items.data[0]), at, m->name, other);
+        }
         if (e->op && !strcmp(e->op, "record_copy") && e->type) { /* s.copy() of a struct that owns (#61) */
             Decl *r = kelvin_record(e->type->name);
             return strfmt("_kv_%s_copy(&%s)", r ? r->name : "?", expr(e->a));

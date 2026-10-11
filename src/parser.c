@@ -134,6 +134,7 @@ static bool bound_here(const char *name) {
 /* the function or method being parsed, and where its parameters sit in
    scope_names */
 static Decl *parsing_fn;
+static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
@@ -1385,6 +1386,74 @@ static Expr *parse_postfix_ops(Expr *e) {
                     error_at(name->pos, "%s() " SHELVED_HINT, member);
             }
             Decl *tr = tagged_record(value_type(e)); /* an enum with values (#61) */
+            Decl *vr = variant_record(value_type(e));
+            if (vr && (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())) &&
+                (!strcmp(member, "map") || !strcmp(member, "mapErr")) && !method_named(e, member)) {
+                /* x.map(f), x.map { ... } (#80): a U? or a Result<U, E> of f's
+                   result, of the value when that is the case; r.mapErr(g) a
+                   Result<T, F> of g's, of the err */
+                bool to_err = !strcmp(member, "mapErr");
+                Type *vt = unqualified(value_type(e));
+                int vc = value_case(vr);
+                if (to_err && optional_record(vt))
+                    error_at(name->pos, "'.mapErr' is a Result's: an Optional's none carries nothing to map");
+                Var *from = vr->members.data[to_err ? 1 - vc : vc];
+                Type *ctx = xcalloc(1, sizeof *ctx);
+                ctx->kind = T_FUNC;
+                ctx->pos = name->pos;
+                list_push(&ctx->params, from->type);
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                Expr *f;
+                if (call) {
+                    advance();
+                    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")"))
+                        error_at(peek()->pos, "'.%s' takes a function of the %s: write '.%s(f)' or '.%s { ... }'", member,
+                                 from->name, member, member);
+                    infer_anon_result = true;
+                    f = is_p(peek(), "{") ? anon_arg(ctx, 1, 0, x, false) : parse_assign();
+                    infer_anon_result = false;
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.%s' takes one function", member);
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                    if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())
+                        error_at(peek()->pos, "'.%s' takes one function, and this would be a second", member);
+                } else {
+                    infer_anon_result = true;
+                    f = anon_arg(ctx, 1, 0, x, true);
+                    infer_anon_result = false;
+                    if (at_statement_level())
+                        trailing_end = cur;
+                }
+                Type *ft = value_type(f);
+                if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem)
+                    error_at(f->pos, "'.%s' takes a function of one parameter, the %s, with a result, and this is %s", member,
+                             from->name, ft ? kelvin_type(ft) : "not one");
+                if (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(from->type)))
+                    error_at(f->pos, "'.%s' calls its function with the %s, %s, and this takes %s", member, from->name,
+                             kelvin_type(from->type), kelvin_type(ft->params.data[0]));
+                if (is_owner(vt) && owner_place(e))
+                    error_at(name->pos, "'.%s' would move the %s out of %s, which keeps it: map the call itself, or '%s.copy()'",
+                             member, from->name, e->kind == E_IDENT ? strfmt("'%s'", e->text) : "it",
+                             e->kind == E_IDENT ? e->text : "...");
+                Type *u = unqualified(ft->elem);
+                Var *other = vr->members.data[to_err ? vc : 1 - vc];
+                x->type = optional_record(vt) ? variant_type(name, "opt", u, NULL)
+                          : to_err            ? variant_type(name, "res", other->type, u)
+                                              : variant_type(name, "res", u, other->type);
+                x->op = to_err ? "map_err" : "map";
+                list_push(&x->items, f);
+                x->from = vt;
+                x->target = vr;
+                e = x;
+                continue;
+            }
             if (tr && call && !strcmp(member, "is")) {
                 /* v.is(name): is that the current case? */
                 advance();
@@ -2986,6 +3055,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && !strcmp(e->op, "case_set"))
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
+            return e->type;
+        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err"))) /* x.map(f) (#80) */
             return e->type;
         if (e->op && !strcmp(e->op, "set")) { /* a Set method (#71) */
             if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
@@ -6448,6 +6519,8 @@ static char *anon_name(void) {
 static Expr *parse_anon_fn(Type *ctx) {
     Token *open = peek();
     bool written = signature_ahead(cur);
+    bool infer = infer_anon_result;
+    infer_anon_result = false;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = anon_name();
     Decl *saved_fn = parsing_fn;
@@ -6539,6 +6612,17 @@ static Expr *parse_anon_fn(Type *ctx) {
     Stmt *only = d->body->stmts.len == 1 ? d->body->stmts.data[0] : NULL;
     while (only && only->kind == S_LABEL)
         only = only->body;
+    if (infer && !written && !d->ret && anon_kind == ANON_CONTEXT) {
+        /* .map { ... } (#80): the result is the one expression's type */
+        if (!only || only->kind != S_EXPR)
+            error_at(open->pos, "the function of '.map' gives a value: one expression, as in '{ $0 + 1 }', or written "
+                                "parameters and a result, as in '{ (v:i64):i64 in ... }'");
+        d->ret = inferred_type(only->expr, only->expr->pos);
+        if (!d->ret)
+            error_at(only->expr->pos, "the result of this function is not a type kelvinc sees: write its parameters "
+                                      "and result, as in '{ (v:i64):i64 in v * 2 }', or convert the value, as in "
+                                      "'i64(...)'");
+    }
     if (only && only->kind == S_EXPR && !d->ret && !has_effect(only->expr)) {
         if (anon_kind == ANON_BARE)
             error_at(only->expr->pos, "a list is not a value here: write a compound literal, as in "
