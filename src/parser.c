@@ -158,6 +158,12 @@ static bool returned_statement(int first, int end) {
    start in scope_names (-1 outside one); how its parameters were given;
    and the token just past a trailing `{ }`, which ends a statement */
 static List anon_fns;
+/* expression statements that give an owner and drop it (O4): decided
+   when the function's body ends, since its one expression is returned
+   (#81); a Bytes, a String, an Array, a Dictionary or a Set is freed at
+   once, a struct that owns is an error */
+static List pending_drops;
+static void finish_drops(int from);
 /* the structs with no tag (#59), Decl *, one per spelling, in order of first use */
 static List anon_records;
 static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
@@ -1388,11 +1394,13 @@ static Expr *parse_postfix_ops(Expr *e) {
             Decl *tr = tagged_record(value_type(e)); /* an enum with values (#61) */
             Decl *vr = variant_record(value_type(e));
             if (vr && (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())) &&
-                (!strcmp(member, "map") || !strcmp(member, "mapErr")) && !method_named(e, member)) {
+                (!strcmp(member, "map") || !strcmp(member, "mapErr") || !strcmp(member, "flatMap")) &&
+                !method_named(e, member)) {
                 /* x.map(f), x.map { ... } (#80): a U? or a Result<U, E> of f's
                    result, of the value when that is the case; r.mapErr(g) a
-                   Result<T, F> of g's, of the err */
-                bool to_err = !strcmp(member, "mapErr");
+                   Result<T, F> of g's, of the err; x.flatMap(f) (#81) f's own
+                   U? or Result<U, E>, of the value */
+                bool to_err = !strcmp(member, "mapErr"), flat = !strcmp(member, "flatMap");
                 Type *vt = unqualified(value_type(e));
                 int vc = value_case(vr);
                 if (to_err && optional_record(vt))
@@ -1444,10 +1452,22 @@ static Expr *parse_postfix_ops(Expr *e) {
                              e->kind == E_IDENT ? e->text : "...");
                 Type *u = unqualified(ft->elem);
                 Var *other = vr->members.data[to_err ? vc : 1 - vc];
-                x->type = optional_record(vt) ? variant_type(name, "opt", u, NULL)
-                          : to_err            ? variant_type(name, "res", other->type, u)
-                                              : variant_type(name, "res", u, other->type);
-                x->op = to_err ? "map_err" : "map";
+                if (flat) {
+                    /* f gives the new value itself: an Optional's, or a Result's with the same err */
+                    Decl *fr = variant_record(u);
+                    bool opt = optional_record(vt) != NULL;
+                    if (!fr || (optional_record(u) != NULL) != opt ||
+                        (!opt && strcmp(kelvin_type(((Var *)fr->members.data[1])->type), kelvin_type(other->type))))
+                        error_at(f->pos, "'.flatMap' takes a function that gives %s, and this gives %s",
+                                 opt ? "an Optional, a U?" : strfmt("a Result<U, %s>", kelvin_type(other->type)),
+                                 kelvin_type(u));
+                    x->type = u;
+                } else {
+                    x->type = optional_record(vt) ? variant_type(name, "opt", u, NULL)
+                              : to_err            ? variant_type(name, "res", other->type, u)
+                                                  : variant_type(name, "res", u, other->type);
+                }
+                x->op = flat ? "flat_map" : to_err ? "map_err" : "map";
                 list_push(&x->items, f);
                 x->from = vt;
                 x->target = vr;
@@ -3056,8 +3076,8 @@ static Type *value_type_of(Expr *e) {
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
-        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err"))) /* x.map(f) (#80) */
-            return e->type;
+        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map")))
+            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81) */
         if (e->op && !strcmp(e->op, "set")) { /* a Set method (#71) */
             if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
                 return base_type("bool", e->pos);
@@ -6380,6 +6400,24 @@ static Stmt *dropped_at_end(Stmt *s, bool calls) {
    keeps C's rule that its end returns 0. One assignment or one call
    kelvinc sees has no value is an error there, as is a body that ends,
    on any path, in a value it drops; in main, one with no effect. */
+static void finish_drops(int from) {
+    for (int i = from; i < pending_drops.len; i++) {
+        Stmt *s = pending_drops.data[i];
+        if (!s->closed)
+            continue; /* returned by implicit_return */
+        if (!s->name)
+            error_at(s->pos, "a struct that owns is given and dropped here: bind it to a variable, which frees it");
+        Expr *drop = new_expr(E_CALL, s->pos);
+        drop->a = new_expr(E_IDENT, s->pos);
+        drop->a->text = s->name;
+        drop->op = "c";
+        list_push(&drop->items, s->expr);
+        s->expr = drop;
+        s->closed = false;
+    }
+    pending_drops.len = from;
+}
+
 static void implicit_return(Decl *d) {
     if (!d->ret || !d->body || !d->body->stmts.len)
         return;
@@ -6395,6 +6433,7 @@ static void implicit_return(Decl *d) {
                                 "with a value after it",
                      kelvin_type(d->ret));
         last->kind = S_RETURN;
+        last->closed = false; /* its owner is returned, not dropped (#81) */
         pick_overload(last->expr, d->ret);
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
             reject_returned_text(last->expr, d->anon);
@@ -6605,6 +6644,7 @@ static Expr *parse_anon_fn(Type *ctx) {
         anon_kind = ANON_BARE;
     }
     params_end = scope_names.len;
+    int drops_from = pending_drops.len;
     d->body = parse_fn_body(written ? open : expect_p("{"));
     /* one expression is the result, as in { $0 < $1 } (#32, #35); without
        a result, it must do something, as { total += $0 } does: `{x: 1}`
@@ -6633,6 +6673,7 @@ static Expr *parse_anon_fn(Type *ctx) {
                  kelvin_type(fn_type_of(d)));
     }
     implicit_return(d);
+    finish_drops(drops_from);
     close_scope();
     parsing_fn = saved_fn;
     params_start = saved_start;
@@ -7506,18 +7547,17 @@ static Stmt *parse_stmt_here(void) {
     s->expr = parse_assignments();
     ident_annotation_ok = saved;
     end_statement();
-    /* a Bytes an expression gives, unbound, is freed at once (O4) */
-    if (builtin_owner(value_type(s->expr)) && !owner_place(s->expr)) {
-        Expr *drop = new_expr(E_CALL, pos);
-        drop->a = new_expr(E_IDENT, pos);
-        Type *dt = value_type(s->expr);
-        drop->a->text = is_bytes(dt) ? "kv_bytes_discard" : is_string(dt) ? "kv_string_discard"
-                                                                            : strfmt("%s_discard", dt->cname);
-        drop->op = "c";
-        list_push(&drop->items, s->expr);
-        s->expr = drop;
-    } else if (is_owner(value_type(s->expr)) && !owner_place(s->expr)) {
-        error_at(pos, "a struct that owns is given and dropped here: bind it to a variable, which frees it");
+    /* an owner an expression gives, unbound (O4): freed at once, or an
+       error for a struct, unless it is the function's one expression,
+       returned, which finish_drops decides when the body ends (#81) */
+    Type *dt = value_type(s->expr);
+    if (is_owner(dt) && !owner_place(s->expr)) {
+        s->closed = true;
+        s->name = !builtin_owner(dt) ? NULL
+                  : is_bytes(dt)     ? "kv_bytes_discard"
+                  : is_string(dt)    ? "kv_string_discard"
+                                     : strfmt("%s_discard", dt->cname);
+        list_push(&pending_drops, s);
     }
     return s;
 }
@@ -7616,9 +7656,11 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
         parsing_fn = d;
+        int drops_from = pending_drops.len;
         d->body = parse_fn_body(expect_p("{"));
         parsing_fn = NULL;
         implicit_return(d);
+        finish_drops(drops_from);
     }
     close_scope();
     return d;
@@ -7723,11 +7765,13 @@ static Decl *parse_method(Pos pos, const char *storage) {
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
         parsing_fn = d;
+        int drops_from = pending_drops.len;
         d->body = parse_fn_body(expect_p("{"));
         parsing_fn = NULL;
         if (d->text_method)
             check_text_method(d, name); /* before the body's last value is its result */
         implicit_return(d);
+        finish_drops(drops_from);
     }
     if (d->text_method && !d->body)
         error_at(name->pos, "'.cstr' of %s needs its body here: a prototype is not needed", d->recv_name);

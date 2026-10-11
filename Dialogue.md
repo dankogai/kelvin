@@ -2975,3 +2975,19 @@ owns is not mapped, since `f` would take its value: map the call, or a
 copy; calls chain. Details are provisional P92.
 
 There are 591 tests, and all pass with clang and with gcc 15.
+
+### 111. `flatMap` on Results and Optionals
+
+> now add `flatMap` on `Result` and `Optional`
+
+**Claude** added #81: `x.flatMap(f)` takes an `f` that gives the
+`U?` or the `Result<U, E>` itself, with the same `E`, and is that
+when the value is there, else `none` or the `err` carried over. It
+reads as `map` does, by name or as a trailing function, and chains
+with it. On the way, `{ positive($0) }` was refused: a one-expression
+body that gives an owner was judged as dropping it before it was known
+to be the result. The check now waits for the body's end, so such a
+function, written or trailing, returns its owner. Details are
+provisional P93.
+
+There are 597 tests, and all pass with clang and with gcc 15.

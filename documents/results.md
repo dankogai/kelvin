@@ -22,6 +22,7 @@ println(r ?? -1, " ", e ?? -1)                 // the ok value, or the default: 
 println(r.cstr, " ", e.cstr)                   // ok(42) err(empty)
 println(r == 42, " ", r == e, " ", r != ok(41))   // true false true: the same case and value (#79)
 var twice = parse("21").map { i64($0 * 2) }    // ok(42), a Result<i64, String> (#80)
+var checked = parse("0").flatMap(positive)     // err(zero): positive gives a Result itself (#81)
 if let v = r { println(v) } else { println(r.err) }   // binds the ok value (#74)
 if let err(why) = e { println("failed: ", why) }   // binds the err, by the case's name (#78)
 switch e {                                     // exhaustive, as an enum's
@@ -92,17 +93,21 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   `U`, a function by name, a function value, or an anonymous function,
   `r.map { i64($0 * 2) }` or `r.map { (v:i64):i64 in v * 2 }`, whose
   result kelvinc sees or which writes it. **`r.mapErr(g)`** maps the
-  `err` instead, to a `Result<T, F>`. Of a variable that owns, `map`
-  would move the value out, so map the call itself, `parse(s).map(f)`,
-  or `r.copy()`; calls chain, `parse(s).map(f).map(g)`.
+  `err` instead, to a `Result<T, F>`. **`r.flatMap(f)`** (#81) takes an
+  `f` that gives a `Result<U, E>` itself, with the same `E`, and is
+  that Result when `r` is `ok(v)`, else the `err` carried over:
+  `parse(s).flatMap(positive)`. Of a variable that owns, `map` and
+  `flatMap` would move the value out, so map the call itself,
+  `parse(s).map(f)`, or `r.copy()`; calls chain,
+  `parse(s).map(f).flatMap(g)`.
 - **Text:** `r.cstr` is `ok(42)` or `err(empty)`, the value's text
   inside; `${r}` the same.
 - **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
   tag and a union of the two values, with the functions of an enum with
   values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
   case.
-- **Not yet:** `==` of a struct value with its own `==`, `flatMap`, and
-  `try` of an `err` that must change type on the way up.
+- **Not yet:** `==` of a struct value with its own `==`, and `try` of
+  an `err` that must change type on the way up.
 
 ## From C: the value through a pointer, the error beside it
 
@@ -190,6 +195,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `.cstr` | `ok(42)`, `err(empty)` |
 | | `==`, `!=` | the same case and equal values; `r == 42`, `r == err(2)` (#79) |
 | | `.map(f)`, `.map { ... }`, `.mapErr(g)` | a `Result<U, E>` of `f`'s result, or a `Result<T, F>` of `g`'s (#80) |
+| | `.flatMap(f)` | `f`'s own `Result<U, E>`, or the `err` carried over (#81) |
 | | `.copy()` | a copy, when the value owns |
 | | `.size`, `.typename` | `sizeof`; `Result<i64, String>` |
 | `T?` | `.some`, `.is(none)`, `= none`, and the rest | as a Result's, with `some` for `ok` and `none` for `err`: see [optionals.md](optionals.md#properties-and-methods) |

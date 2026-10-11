@@ -753,11 +753,12 @@ static char *expr_bare(Expr *e) {
             return strfmt("_kv_%s_set_%s(&%s, %s)", e->target->name, e->text, expr(e->a),
                           take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
         }
-        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err")) && e->type) {
+        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map")) && e->type) {
             /* x.map(f), r.mapErr(g) (#80): f of the case's value, in the new
-               record's same case; the other case carried over. What f takes,
-               and what carries over, moves out of the temporary, so that its
-               cleanup frees nothing of it */
+               record's same case; x.flatMap(f) (#81): f's own value; the
+               other case carried over. What f takes, and what carries over,
+               moves out of the temporary, so that its cleanup frees nothing
+               of it */
             Decl *r = e->target, *nr = kelvin_record(e->type->name);
             int vc = !strncmp(r->name, "_kv_opt_", 8) ? 1 : 0;
             int mc = !strcmp(e->op, "map_err") ? 1 - vc : vc;
@@ -767,9 +768,11 @@ static char *expr_bare(Expr *e) {
             const char *at = take ? strfmt("%s(&_kv_t).u.", take) : "_kv_t.u.";
             const char *other = o->type ? strfmt("_kv_%s_make_%s(%s%s)", nr->name, no->name, at, o->name)
                                         : strfmt("_kv_%s_make_%s()", nr->name, no->name);
-            return strfmt("({ %s%s _kv_t = %s; _kv_t.tag == %d ? _kv_%s_make_%s(%s(%s%s)) : %s; })",
-                          f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, nr->name,
-                          nm->name, expr(e->items.data[0]), at, m->name, other);
+            const char *applied = strfmt("%s(%s%s)", expr(e->items.data[0]), at, m->name);
+            const char *value = !strcmp(e->op, "flat_map") ? applied : strfmt("_kv_%s_make_%s(%s)", nr->name, nm->name, applied);
+            return strfmt("({ %s%s _kv_t = %s; _kv_t.tag == %d ? %s : %s; })",
+                          f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, value,
+                          other);
         }
         if (e->op && !strcmp(e->op, "record_copy") && e->type) { /* s.copy() of a struct that owns (#61) */
             Decl *r = kelvin_record(e->type->name);

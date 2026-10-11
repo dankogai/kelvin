@@ -17,6 +17,7 @@ println(a.some)                          // 3; of none, the program ends with a 
 println(a ?? 0, " ", b ?? -1)            // the value, or the default: 3 -1
 println(a == 3, " ", b == none, " ", a != b)   // true true true (#79)
 var d = a.map { $0 > 2 }                 // some(true), a bool? (#80)
+var h = a.flatMap(half)                  // half's own i64?: none of an odd number (#81)
 a = none                                 // sets the case
 b = 9                                    // some(9)
 b.some += 1                              // a place, checked
@@ -75,8 +76,11 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   else `none`; `f` takes the `T` and gives a `U`, a function by name, a
   function value, or an anonymous function, `x.map { $0 > 2 }` or
   `x.map { (v:i64):f64 in v / 2.0 }`, whose result kelvinc sees or
-  which writes it. Of a variable that owns, map the call itself, or
-  `x.copy()`. See [results.md](results.md).
+  which writes it. **`x.flatMap(f)`** (#81) takes an `f` that gives a
+  `U?` itself, and is that when `x` is `some(v)`, else `none`:
+  `a.flatMap(half)`, where `half` gives `none` of an odd number. Of a
+  variable that owns, map the call itself, or `x.copy()`. See
+  [results.md](results.md).
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
@@ -118,6 +122,7 @@ the reason in `err`: [results.md](results.md).
 | | `.cstr` | `some(3)`, `none` |
 | | `==`, `!=` | both `none`, or equal values; `x == none`, `x == 3` (#79) |
 | | `.map(f)`, `.map { ... }` | a `U?` of `f`'s result, or `none` (#80) |
+| | `.flatMap(f)` | `f`'s own `U?`, or `none` (#81) |
 | | `.copy()` | a copy, when the value owns |
 | | `.size`, `.typename` | `sizeof`; `i64?` |
 

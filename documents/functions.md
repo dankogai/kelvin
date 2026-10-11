@@ -107,7 +107,8 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   `i64(...)`); else write the parameters and the result. Elsewhere, such as for C's `qsort`,
   whose types kelvinc cannot see, it writes them:
   `{ (a:T, b:U):R in ... }`. Without either, it has none, as for
-  `atexit() { println("bye") }`. `$[k]` takes a decimal number, and `$`
+  `atexit() { println("bye") }`. A body of one expression that gives an
+  owner, `{ (n:i64):String in $`#${n}` }`, returns it (#81). `$[k]` takes a decimal number, and `$`
   works only in an anonymous function.
 - **In a declaration without a type**, `{` starts an initializer list, so
   an anonymous function there writes its parameters, even none:
