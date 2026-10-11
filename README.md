@@ -141,6 +141,8 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
 | [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
+| [examples/bfi.k](examples/bfi.k) | a brainfuck interpreter: a struct that owns a `Bytes` and an `Array`, `Result` and `if let err(why)`, a `switch` on bytes, `argv`, `fopen` and `getchar`; `!` ends the program and starts its input |
+| [examples/bfc.k](examples/bfc.k) | a brainfuck compiler to Kelvin source, which kelvinc then compiles: slices, `for c in bytes`, `printf` for escapes, `argv` |
 | [examples/complex.k](examples/complex.k) | `#import <complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 
 ## Build and use

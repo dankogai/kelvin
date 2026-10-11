@@ -2991,3 +2991,27 @@ function, written or trailing, returns its owner. Details are
 provisional P93.
 
 There are 597 tests, and all pass with clang and with gcc 15.
+
+### 112. A brainfuck interpreter and compiler
+
+> add `bfi.k` and `bfc.k` that are brainfuck interpreter and compiler,
+> respectively, to `examples/`. See https://github.com/dankogai/swift-bf
+> for brainfuck syntax with `!` extension.
+
+**Claude** added [examples/bfi.k](examples/bfi.k) and
+[examples/bfc.k](examples/bfc.k), after swift-bf: the tape is 65536
+cells that wrap, as the pointer does; the first `!` ends the program
+and starts its input, so a source carries its own data, and `,` then
+reads it; without one, `,` reads stdin. The interpreter halts at the
+end of input, the compiled program stores 0, as swift-bf does. Both
+take the program from the file named on the command line, and report
+an unmatched bracket with its offset; run with no file, the
+interpreter runs Hello World and the echo program with embedded input,
+and the compiler prints the echo program as Kelvin source, which
+kelvinc compiles. The interpreter is a struct that owns a `Bytes` of
+commands and an `Array` of jumps, given as a `Result`, read with
+`if let err(why)` and run through a borrow; the compiler slices the
+input off after the `!` and writes it as a string literal with C's
+escapes.
+
+There are 599 tests, and all pass with clang and with gcc 15.
