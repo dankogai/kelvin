@@ -253,6 +253,9 @@ struct Decl {
                              {x: f64, y: f64}; name is _kv_anonN */
     bool tagged;          /* D_STRUCT: an enum with values (#61), a tagged union:
                              members are its cases, type NULL for one with no value */
+    char *no_eq;          /* D_STRUCT tagged (#79): NULL when every case's value compares
+                             with ==, so that _kv_<name>_eq is written; else the first
+                             case whose value does not */
 };
 
 typedef struct {

@@ -42,6 +42,7 @@ static List param_caches; /* the declarations a function's body block starts wit
 static const char *count_cache_of(const char *name);
 static const char *owner_free(Type *t);
 static const char *owner_take(Type *t);
+static char *eq_code(Type *t, const char *x, const char *y);
 static const char *owner_copy(Type *t);
 static Decl *tagged_type(Type *t);
 static bool c_lvalue(Expr *e);
@@ -2233,6 +2234,23 @@ static void emit_arrays_after(Decl *d) {
     }
 }
 
+/* x == y of a case's value (#79): a String or a Bytes by its bytes, a
+   uchr by its codepoint, an enum with values by its own _eq, the rest
+   by C's == */
+static char *eq_code(Type *t, const char *x, const char *y) {
+    const char *f = owner_free(t);
+    if (f && !strcmp(f, "kv_string_free"))
+        return strfmt("kv_string_eq(&%s, &%s)", x, y);
+    if (f && !strcmp(f, "kv_bytes_free"))
+        return strfmt("kv_bytes_eq(&%s, &%s)", x, y);
+    if (!strcmp(decl(t, ""), "kv_uchr"))
+        return strfmt("%s.cp == %s.cp", x, y);
+    Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
+    if (r && r->tagged)
+        return strfmt("_kv_%s_eq(%s, %s)", r->name, x, y);
+    return strfmt("%s == %s", x, y);
+}
+
 /* the derived copy of a struct that owns (#61): each member that owns
    is copied, the rest with the bytes */
 static void emit_derived_copy(Decl *d, Type *recv) {
@@ -2349,6 +2367,24 @@ static void emit_tagged_record(Decl *d, Type *recv) {
         line("default: break;");
         line("}");
         line("return _kv_v;");
+        indent--;
+        line("}");
+    }
+    if (!d->no_eq) { /* == (#79): the same case, and equal values */
+        line("__attribute__((unused)) static inline bool _kv_%s_eq(const %s a, const %s b)", d->name, ctype, ctype);
+        line("{");
+        indent++;
+        line("if (a.tag != b.tag) return false;");
+        line("switch (a.tag)");
+        line("{");
+        for (int i = 0; i < d->members.len; i++) {
+            Var *m = d->members.data[i];
+            if (m->type)
+                line("case %d: return %s;", i,
+                     eq_code(m->type, strfmt("a.u.%s", m->name), strfmt("b.u.%s", m->name)));
+        }
+        line("default: return true;");
+        line("}");
         indent--;
         line("}");
     }

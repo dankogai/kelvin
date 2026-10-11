@@ -20,6 +20,7 @@ var e = parse("")
 println(r.is(ok), " ", r.ok, " ", e.err)       // true 42 empty
 println(r ?? -1, " ", e ?? -1)                 // the ok value, or the default: 42 -1
 println(r.cstr, " ", e.cstr)                   // ok(42) err(empty)
+println(r == 42, " ", r == e, " ", r != ok(41))   // true false true: the same case and value (#79)
 if let v = r { println(v) } else { println(r.err) }   // binds the ok value (#74)
 if let err(why) = e { println("failed: ", why) }   // binds the err, by the case's name (#78)
 switch e {                                     // exhaustive, as an enum's
@@ -76,14 +77,23 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   did, so `try` of a variable whose value owns is an error (`try` the
   call itself, `try r.copy()`, or `if let`), and of a variable whose
   err owns, the err moves out of it. See the example below.
+- **`==` and `!=`** (#79) compare two Results of one type: the same
+  case, and equal values, a String's by its bytes, a nested Result's or
+  Optional's by its own `==`, a `cstr`'s by its address, as Kelvin
+  compares one. A value, `ok(v)` or `err(e)` on the other side is
+  wrapped, as where a Result is expected: `r == 42`, `r == err(2)`. A
+  value whose type has no `==`, a struct or an Array, has none here
+  either, and one that owns, made on the spot (`err($"x")`), is not
+  taken, since nothing would free it: bind it to a variable. The other
+  operators are not for Results.
 - **Text:** `r.cstr` is `ok(42)` or `err(empty)`, the value's text
   inside; `${r}` the same.
 - **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
   tag and a union of the two values, with the functions of an enum with
   values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
   case.
-- **Not yet:** `==`, mapping, and `try` of an `err` that must change
-  type on the way up.
+- **Not yet:** `==` of a struct value with its own `==`, mapping, and
+  `try` of an `err` that must change type on the way up.
 
 ## From C: the value through a pointer, the error beside it
 
@@ -169,6 +179,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `r ?? y` | the `ok` value, or `y` |
 | | `switch r { case ok: ... case err: ... }` | by the case |
 | | `.cstr` | `ok(42)`, `err(empty)` |
+| | `==`, `!=` | the same case and equal values; `r == 42`, `r == err(2)` (#79) |
 | | `.copy()` | a copy, when the value owns |
 | | `.size`, `.typename` | `sizeof`; `Result<i64, String>` |
 | `T?` | `.some`, `.is(none)`, `= none`, and the rest | as a Result's, with `some` for `ok` and `none` for `err`: see [optionals.md](optionals.md#properties-and-methods) |

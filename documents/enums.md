@@ -62,8 +62,14 @@ println(j.n)                             // ends the program: case 'n' of json i
   of #54: freed by its block, moved by `return` and by passing, copied by
   `.copy()`, borrowed as a pointer, and an element of an `Array<T>`,
   which may be a case of the enum itself, as `json` above.
-- **`.size`** is C's, `.typename` the name or the spelling; `==` is not
-  defined: define an operator, or compare `.case` and the cases.
+- **`.size`** is C's, `.typename` the name or the spelling.
+- **`==` and `!=`** (#79) compare two of one type: the same case, and
+  equal values, where every case's value has a `==` of its own (a
+  number, a pointer, a `uchr`, a String, a Bytes, another enum with
+  values); one with a struct or an Array in a case has none, so define
+  an operator, or compare `.case` and the cases. `j == json.n(1.5)`
+  makes the case on the spot; one that would own, `json.s($"x")`, is
+  not taken, since nothing would free it: bind it to a variable.
 - **In C**, `enum json` is `struct json { uint8_t tag; union { ... } u; }`
   with its cases' names, and per case `_kv_json_at_n` (checked, a
   pointer), `_kv_json_get_n` (checked, a value), `_kv_json_set_n` and

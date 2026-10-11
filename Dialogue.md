@@ -2946,3 +2946,18 @@ code gives. A case with no value has nothing to bind, and says so.
 Details are provisional P90.
 
 There are 581 tests, and all pass with clang and with gcc 15.
+
+### 109. `==` on Results and Optionals
+
+> now add `==` on `Result` and `Optional`
+
+**Claude** added #79: `==` and `!=` on a Result, an Optional, and,
+by the same derived function, any enum with values: the same case, and
+equal values, a String's by its bytes and a nested variant's by its own
+`==`. The other side is wrapped as where one is expected, so `x == none`,
+`r == 42` and `r == err(2)` read as they sound. A value with no `==` of
+its own, a struct or an Array, leaves the type without one, and the
+message names the case; an owner made on the spot, `err($"x")`, is not
+taken, since nothing would free it. Details are provisional P91.
+
+There are 586 tests, and all pass with clang and with gcc 15.

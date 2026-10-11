@@ -134,6 +134,7 @@ static bool bound_here(const char *name) {
 /* the function or method being parsed, and where its parameters sit in
    scope_names */
 static Decl *parsing_fn;
+static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
    one expression is what the body returns (#35) */
@@ -470,6 +471,7 @@ static Expr *utf32_of(Expr *c);
 static const char *builtin_owner(Type *t);
 static bool is_owner(Type *t);
 static bool owner_place(Expr *e);
+static bool eq_operand_ok(Expr *x);
 static bool is_moved(const char *name);
 static void set_moved(const char *name, bool moved);
 static void reject_owner_copy(Expr *value, Type *target, Pos pos);
@@ -720,6 +722,7 @@ static Type *array_type(Token *at, Type *elem);
 static Decl *anon_record_of(Type *t);
 static void reject_kv_name(Token *t);
 static void parse_cases(Decl *d);
+static void set_no_eq(Decl *d);
 static bool brace_has_colon(int i);
 static Var *case_named(Decl *r, const char *name, int *index);
 static Expr *case_value(Type *t);
@@ -2413,6 +2416,54 @@ static Expr *parse_binary(int min_prec) {
                 e->b = utf32_of(e->b);
             e->is_bool = true;
             lhs = e;
+            continue;
+        }
+        Type *ta = value_type(e->a), *tb = value_type(e->b);
+        Decl *ra = ta ? tagged_record(ta) : NULL, *rb = tb ? tagged_record(tb) : NULL;
+        if (ra || rb) {
+            /* a Result, an Optional or an enum with values compares with ==
+               and != (#79): the same case, and equal values. On the other
+               side, a value, none, ok(v) or err(e) is wrapped, as where
+               one is expected; an owner that an expression gives, which
+               nothing would free, is not taken */
+            Decl *r = ra ? ra : rb;
+            Type *rt = ra ? ta : tb;
+            if (strcmp(e->op, "==") && strcmp(e->op, "!="))
+                error_at(t->pos, "%s has no operator '%s': compare with == and !=", kelvin_type(rt), e->op);
+            if (!ra)
+                e->a = optional_of(e->a, rt, e->a->pos);
+            if (!rb)
+                e->b = optional_of(e->b, rt, e->b->pos);
+            if (r->no_eq) {
+                Var *c = case_named(r, r->no_eq, NULL);
+                bare_tags = true;
+                char *held = kelvin_type(c->type);
+                bare_tags = false;
+                error_at(t->pos, "'%s' of %s compares the values, and case '%s' holds %s, which has no '=='", e->op,
+                         kelvin_type(rt), c->name, held);
+            }
+            Type *ta2 = value_type(e->a), *tb2 = value_type(e->b);
+            if (!ta2 || !tb2 || ta2->kind != T_BASE || tb2->kind != T_BASE || strcmp(ta2->name, tb2->name))
+                error_at(t->pos, "'%s' compares two %s, and this is %s", e->op, kelvin_type(rt),
+                         ra && tb2 ? kelvin_type(tb2) : ta2 && !ra ? kelvin_type(ta2) : "not one");
+            if (is_owner(rt) && (!eq_operand_ok(e->a) || !eq_operand_ok(e->b)))
+                error_at(t->pos, "a %s that an expression gives, which nothing would free: bind it to a variable first",
+                         kelvin_type(rt));
+            Expr *eq = new_expr(E_CALL, t->pos);
+            eq->a = new_expr(E_IDENT, t->pos);
+            eq->a->text = strfmt("_kv_%s_eq", r->name);
+            eq->op = "c";
+            list_push(&eq->items, e->a);
+            list_push(&eq->items, e->b);
+            eq->is_bool = true;
+            if (!strcmp(e->op, "!=")) {
+                Expr *not = new_expr(E_PREFIX, t->pos);
+                not->op = "!";
+                not->a = eq;
+                not->is_bool = true;
+                eq = not;
+            }
+            lhs = eq;
             continue;
         }
         const char *ka = builtin_owner(value_type(e->a)), *kb = builtin_owner(value_type(e->b));
@@ -5438,6 +5489,21 @@ static bool owner_place(Expr *e) {
            (e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF);
 }
 
+/* May x, of an owner variant type, be passed by value to its _eq (#79)?
+   A place, which keeps it; or a case made on the spot whose value does
+   not own (none, ok(5)), so that nothing is lost unfreed */
+static bool eq_operand_ok(Expr *x) {
+    if (owner_place(x))
+        return true;
+    if (x->kind == E_CALL && x->op && !strcmp(x->op, "case_make") && x->target) {
+        if (!x->items.len)
+            return true;
+        Var *c = case_named(x->target, x->text, NULL);
+        return c && !is_owner(c->type);
+    }
+    return false;
+}
+
 /* an owner is never copied by = (O3): a place of an owner type may not
    initialize or be assigned to another; a value an expression gives moves */
 static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
@@ -7757,6 +7823,7 @@ static void parse_cases(Decl *d) {
     }
     if (d->members.len > 255)
         error_at(d->pos, "an enum with values has up to 255 cases: its tag is one byte");
+    set_no_eq(d);
 }
 
 /* the value given to a case (#61): an expression, or, for a case of a
@@ -7790,6 +7857,32 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
                  kelvin_type(t->elem));
     if (t->kind == T_FUNC)
         error_at(at->pos, "%s of a function type has no spelling yet", what);
+}
+
+/* Does a case's value of this type compare with == (#79)? Numbers,
+   bools, pointers (a cstr by its address, as Kelvin compares it), a
+   uchr, a String or a Bytes by its bytes, and an enum with values whose
+   cases all do; not an array, a struct or union, an Array, a Dictionary
+   or a Set. The first case that does not is the record's no_eq. */
+static bool eq_type(Type *t) {
+    if (!t || t->kind == T_PTR || t->kind == T_FUNC)
+        return true;
+    if (t->kind == T_ARRAY || t->cname)
+        return false;
+    if (is_string(t) || is_bytes(t) || is_uchr(t))
+        return true;
+    Decl *r = NULL;
+    char c = type_class(t, &r);
+    if (c == 's')
+        return r && r->tagged && !r->no_eq;
+    return c != 'c';
+}
+
+static void set_no_eq(Decl *d) {
+    d->no_eq = NULL;
+    for (int i = 0; i < d->members.len && !d->no_eq; i++)
+        if (!eq_type(((Var *)d->members.data[i])->type))
+            d->no_eq = ((Var *)d->members.data[i])->name;
 }
 
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b) {
@@ -7826,6 +7919,7 @@ static Type *variant_type(Token *at, const char *kind, Type *a, Type *b) {
         }
         list_push(&d->members, first);
         list_push(&d->members, second);
+        set_no_eq(d);
         list_push(&anon_records, d);
         list_push(&records, d);
         list_push(&program->decls, d);

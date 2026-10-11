@@ -15,6 +15,7 @@ var b:i64? = none                        // none, a word that needs the type aro
 println(a.is(some), " ", b.is(none))     // true true
 println(a.some)                          // 3; of none, the program ends with a message
 println(a ?? 0, " ", b ?? -1)            // the value, or the default: 3 -1
+println(a == 3, " ", b == none, " ", a != b)   // true true true (#79)
 a = none                                 // sets the case
 b = 9                                    // some(9)
 b.some += 1                              // a place, checked
@@ -62,12 +63,19 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
 - **`try x`** (#76) is the value when there is one, and otherwise
   returns `none` from the function, which must return an Optional:
   `let i = try find(&xs, v)`; see [results.md](results.md).
+- **`==` and `!=`** (#79): `a == b` is true of two `none`, or of two
+  values that are equal, a String's by its bytes; `x == none` and
+  `x == 3` wrap the other side, as where a `T?` is expected. A value
+  whose type has no `==` (a struct, an Array) has none here either; an
+  owner made on the spot (`x == $"hi"`) is not taken, since nothing
+  would free it: bind it to a variable. See
+  [results.md](results.md).
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
   `_kv_res_<T>_<U>` is.
-- **Not yet:** `x!`, `==` with `none`, a literal `none` where no type is
-  around, and `??` of an owner.
+- **Not yet:** `x!`, a literal `none` where no type is around, and `??`
+  of an owner.
 
 A C function that returns a pointer or null, with no reason beside it,
 wraps as an Optional, and `v ?? "unset"` takes a string literal as it
@@ -101,6 +109,7 @@ the reason in `err`: [results.md](results.md).
 | | `x ?? y` | the value, or `y` |
 | | `switch x { case some: ... case none: ... }` | by the case |
 | | `.cstr` | `some(3)`, `none` |
+| | `==`, `!=` | both `none`, or equal values; `x == none`, `x == 3` (#79) |
 | | `.copy()` | a copy, when the value owns |
 | | `.size`, `.typename` | `sizeof`; `i64?` |
 
