@@ -7253,8 +7253,24 @@ static Stmt *parse_stmt_here(void) {
            in a function with a result, as in Swift, and in one without, has
            nothing to return (#35) */
         bool result = parsing_fn && parsing_fn->ret;
-        if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && peek()->kind != TK_FILE_END &&
-            (result || !newline_before())) {
+        Decl *rd = NULL;
+        char rc = result && parsing_fn->ret->kind == T_BASE && !parsing_fn->ret->cname ? type_class(parsing_fn->ret, &rd) : 0;
+        if (is_p(peek(), "{") && result && !ret && !signature_ahead(cur) &&
+            (variant_record(parsing_fn->ret) || rc == 's' || rc == 'c')) {
+            /* return {...} (#77): the list takes the result type, as a
+               declaration's does: a struct's or union's, an enum with
+               values' {.n = v}, or the value of a Result or a T?, wrapped */
+            Token *open = peek();
+            if (variant_record(parsing_fn->ret)) {
+                s->expr = parse_initializer_for(parsing_fn->ret);
+            } else {
+                Expr *c = new_expr(E_COMPOUND, open->pos);
+                c->type = parsing_fn->ret;
+                c->a = parse_initializer_for(parsing_fn->ret);
+                s->expr = c;
+            }
+        } else if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && peek()->kind != TK_FILE_END &&
+                   (result || !newline_before())) {
             s->expr = parse_expr();
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
             if (result)

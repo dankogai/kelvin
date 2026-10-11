@@ -75,7 +75,8 @@ A struct is initialized with `{...}`, as in C, with C's designators:
 array and a struct. Where kelvinc sees the type, `[...]` for a struct is
 an error with a hint; see [arrays.md](arrays.md). A string fills a byte
 array member, and a value of the struct's own type fills a struct
-member.
+member. `return {3, 4}` in a function that returns the struct takes
+its type too (#77), as does a `return {.y = 7}`.
 
 ## Text
 

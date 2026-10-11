@@ -76,6 +76,7 @@ P-numbers in [Design.md](../Design.md).
 | a hash set by hand | `var s = ${3, 1, 4}`, `s += 9`, `s.has(4)`, `s | t`, `s & t`, `s ~ t`, `for x in s`; the type is `Set<i64>`, or `${i64}` (#71, #73) |
 | a sentinel such as `-1` or `NULL`, or a `bool` beside the value | `i64?`: `none` or `some(3)`, `x.some` checked, `x ?? 0`, `x.is(none)`, `if let v = x { }`, `switch x { case some: ... case none: ... }` (#72, #74) |
 | an error code beside the value, or `errno` | `Result<i64, String>`: `ok(v)` or `err(e)`, `r.ok` checked, `r ?? 0`, `if let v = r { } else { r.err }` (#75); `let v = try f()` passes the `err` up (#76) |
+| `return (struct point){0, 0};` | `return {0, 0}`: the list takes the result type, a Result's or Optional's value wrapped (#77) |
 | `memcpy` of a part, with its length by hand | `xs[1..<3]`, `s[2...]`, `b[..<4]`: a slice, a copy, checked (#68) |
 | `snprintf` into a buffer sized by hand, or `asprintf` | `` var s = $`${name}: ${n}` ``, a String with no bound (#67) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |

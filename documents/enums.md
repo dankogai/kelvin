@@ -38,8 +38,8 @@ println(j.n)                             // ends the program: case 'n' of json i
   them, since the tag is a byte. A case has a name, not a number.
   Without a tag, `enum{i:i32, f:f32}` goes where a type goes, one type
   per spelling, as `{x:f64, y:f64}` does (#59).
-- **Making a value:** `{.n = 1.5}` or `{.none}` as an initializer or a
-  compound literal, `(json){.n = 1.5}`; `json.n(1.5)` and `json.none`
+- **Making a value:** `{.n = 1.5}` or `{.none}` as an initializer, a
+  `return` (#77) or a compound literal, `(json){.n = 1.5}`; `json.n(1.5)` and `json.none`
   as an expression, with the value given by value, so an owner moves in
   (O5); a case of a struct or array type takes its list, `shape.rect({3.0,
   4.0})`. A variable declared without a value is at the first case, zeroed.

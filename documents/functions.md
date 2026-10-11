@@ -32,6 +32,12 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
   cannot change, while `let f(var p:u8^) { p := p.next }` may move `p`. A method's
   `self` is a mutable copy. Parameters must be named: C's unnamed
   `f(int)` is not available yet.
+- **`return {...}`** (#77) takes the function's result type, as a
+  declaration's `{...}` does: `return {0, 0}` in a function that
+  returns a `point`, `{.y = 7}` with a designator, a union's or a C
+  struct's, an enum with values' `{.n = 0.5}`, and the value of a
+  `Result<point, U>` or a `point?`, wrapped. A number's result still
+  takes a value, not a list.
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 

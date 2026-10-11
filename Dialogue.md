@@ -2919,3 +2919,16 @@ now passes its error up with `try`, and the documents say so. Details
 are provisional P88.
 
 There are 575 tests, and all pass with clang and with gcc 15.
+
+### 107. `return {0, 0}` into a Result
+
+> now make `return {0, 0}` wrap into a `Result<point, U>`
+
+**Claude** added #77: `return {...}` takes the function's result type,
+as a declaration's `{...}` does. Of a `Result<point, U>` or a `point?`
+the list is the value's initializer, wrapped; of a `point` it is the
+struct's, with designators, as it is of a union, a C struct, and an
+enum with values' `{.n = 0.5}`. A number's result still takes a value.
+Details are provisional P89.
+
+There are 577 tests, and all pass with clang and with gcc 15.

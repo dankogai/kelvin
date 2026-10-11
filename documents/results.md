@@ -28,7 +28,7 @@ case err: println("failed: ", e.err)
 e = 5                                          // ok(5): sets the case
 e.err = $"later"                               // err(later)
 e.ok += 1                                      // a place, checked: of err, the program ends
-var q:Result<point, i32> = {1, 2}             // the T's initializer, wrapped as ok
+var q:Result<point, i32> = {1, 2}             // the T's initializer, wrapped; so is return {1, 2} (#77) as ok
 var bad:Result<point, i32> = err(404)
 var w = Result<i64, cstr>.ok(5)                // the cases by the type's name
 var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped

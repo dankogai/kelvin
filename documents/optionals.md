@@ -27,7 +27,7 @@ let find(xs:$[i64]^, v:i64):i64? {       // a result that may be absent
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }
-var p:point? = {1, 2}                    // the T's initializer, wrapped
+var p:point? = {1, 2}                    // the T's initializer, wrapped; so is return {1, 2} (#77)
 var r = Optional<i64>(4)                 // explicit: some(4); Optional<i64>() is none
 var s = Optional<i64>.some(4)            // the cases by the type's name; Optional<i64>.none
 ```
