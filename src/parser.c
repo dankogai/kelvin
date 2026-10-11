@@ -7096,7 +7096,18 @@ static Stmt *parse_stmt_here(void) {
             advance();
             Token *name = peek();
             reject_kv_name(name);
-            s->name = expect_ident("a name, as in 'if let x = e'");
+            char *first = expect_ident("a name, as in 'if let x = e'");
+            char *casename = NULL;
+            if (accept_p("(")) {
+                /* if let err(e) = r (#78): the case by its name, and the
+                   name its value binds; of any enum with values */
+                casename = first;
+                reject_kv_name(peek());
+                s->name = expect_ident(strfmt("a name, as in 'if let %s(x) = e'", casename));
+                expect_p(")");
+            } else {
+                s->name = first;
+            }
             if (!accept_p("="))
                 error_at(peek()->pos, "expected '=' after the name of 'if let %s'", s->name);
             bool saved_brace = brace_ends_condition;
@@ -7104,11 +7115,24 @@ static Stmt *parse_stmt_here(void) {
             s->expr = parse_expr();
             brace_ends_condition = saved_brace;
             Type *et = value_type(s->expr);
-            Decl *r = et ? variant_record(et) : NULL;
+            Decl *r = et ? (casename ? tagged_record(et) : variant_record(et)) : NULL;
             if (!r)
-                error_at(s->expr->pos, "'if let' takes an Optional or a Result, and this is %s",
+                error_at(s->expr->pos, casename ? "'if let %s(%s)' takes an enum with values, a Result or an Optional, and this is %s"
+                                                : "'if let' takes an Optional or a Result, and this is %s",
+                         casename ? casename : et ? kelvin_type(et) : "not one", casename ? s->name : "",
                          et ? kelvin_type(et) : "not one");
-            s->each = value_case(r);
+            if (casename) {
+                int k;
+                Var *c = case_named(r, casename, &k);
+                if (!c)
+                    error_at(name->pos, "%s has no case '%s': its cases are %s", kelvin_type(et), casename, case_list(r));
+                if (!c->type)
+                    error_at(name->pos, "case '%s' of %s carries no value to bind: test it with '.is(%s)'", casename,
+                             kelvin_type(et), casename);
+                s->each = k;
+            } else {
+                s->each = value_case(r);
+            }
             s->elem = unqualified(et);
             Type *vt = xcalloc(1, sizeof *vt);
             *vt = *((Var *)r->members.data[s->each])->type;

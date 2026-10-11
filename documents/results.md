@@ -21,6 +21,7 @@ println(r.is(ok), " ", r.ok, " ", e.err)       // true 42 empty
 println(r ?? -1, " ", e ?? -1)                 // the ok value, or the default: 42 -1
 println(r.cstr, " ", e.cstr)                   // ok(42) err(empty)
 if let v = r { println(v) } else { println(r.err) }   // binds the ok value (#74)
+if let err(why) = e { println("failed: ", why) }   // binds the err, by the case's name (#78)
 switch e {                                     // exhaustive, as an enum's
 case ok: println(e.ok)
 case err: println("failed: ", e.err)
@@ -61,6 +62,11 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   owns, as a loop's element is (borrow it, or copy it). `r` may be a
   variable or a value a call gives, read once; `else if let` chains,
   and the `else` block may read `r.err`.
+- **`if let err(e) = r { ... }`** (#78) names the case: `e` is the
+  `err` when that is the case, and `if let ok(v) = r` spells the
+  form above out. `if let ok(v) = r { ... } else if let err(e) = r {
+  ... }` covers both. The same works for any enum with values, `if let
+  n(x) = j`; see [enums.md](enums.md).
 - **`try r`** (#76) is the `ok` value when that is the case, and
   otherwise returns from the function with the `err`, passed up as it
   is: `let n = try parse(s)`, `return try parse(a) + try parse(b)`, or
@@ -76,8 +82,8 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   tag and a union of the two values, with the functions of an enum with
   values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
   case.
-- **Not yet:** `if let` of the error, `==`, mapping, and `try` of an
-  `err` that must change type on the way up.
+- **Not yet:** `==`, mapping, and `try` of an `err` that must change
+  type on the way up.
 
 ## From C: the value through a pointer, the error beside it
 
@@ -156,6 +162,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | `Result<T, U>` | `.ok`, `.err` | the values, checked; places |
 | | `if let v = r { } else { }` | runs with `v` the `ok` value, when that is the case |
 | | `try r` | the `ok` value, or returns the `err` from the function (#76) |
+| | `if let err(e) = r { }`, `if let ok(v) = r { }` | runs with the case's value, when that is the case (#78) |
 | | `.ok = v`, `.err = e`, `= v`, `= ok(v)`, `= err(e)` | sets the case |
 | | `.is(ok)`, `.is(err)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for ok, 1 for err |

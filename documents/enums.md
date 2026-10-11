@@ -72,6 +72,12 @@ println(j.n)                             // ends the program: case 'n' of json i
   `err: U`, made for each pair of types, and **`T?`**, an Optional, its
   special case with `none` and `some: T`: see [results.md](results.md)
   (#75) and [optionals.md](optionals.md) (#72).
+- **`if let n(x) = j { ... } else { ... }`** (#78) runs the block with
+  `x` bound to the case's value when that is `j`'s case: a let `j`
+  still owns, as a loop's element is. `j` may be a variable or a value
+  a call gives, read once; `else if let` chains. A case with no value
+  has nothing to bind: test it with `.is(none)`. This is how a Result's
+  `if let err(e) = r` works; see [results.md](results.md).
 - **Not yet:** binding a case's value in a `case` label (Swift's `case
   .n(let x)`), and an anonymous `enum` with values at the top level.
 

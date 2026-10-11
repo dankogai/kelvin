@@ -31,8 +31,11 @@ do {
 ```
 
 - **`if let x = e { ... } else { ... }`** (#74) binds the `ok` value of
-  a Result, or the `some` value of an Optional, when that is the case;
-  see [results.md](results.md) and [optionals.md](optionals.md).
+  a Result, or the `some` value of an Optional, when that is the case,
+  and **`if let err(x) = e { ... }`** (#78) the value of the case named,
+  of a Result, an Optional or an enum with values; see
+  [results.md](results.md), [optionals.md](optionals.md) and
+  [enums.md](enums.md).
 - **`try e`** (#76), an expression, returns from the function with the
   `err` or `none` of `e` when that is its case; see
   [results.md](results.md).

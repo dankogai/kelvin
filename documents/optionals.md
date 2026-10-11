@@ -56,7 +56,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
 - **`if let v = x { ... } else { ... }`** (#74) runs the block with `v`
   bound to the value when there is one: a let the Optional still owns,
   as a loop's element is (borrow it, or copy it). `x` may be a variable
-  or a value a call gives, read once; `else if let` chains.
+  or a value a call gives, read once; `else if let` chains. `if let
+  some(v) = x` spells the case out (#78); `none` carries nothing to
+  bind, so test it with `.is(none)`.
 - **`try x`** (#76) is the value when there is one, and otherwise
   returns `none` from the function, which must return an Optional:
   `let i = try find(&xs, v)`; see [results.md](results.md).
@@ -91,7 +93,7 @@ the reason in `err`: [results.md](results.md).
 | On | Property or method | Gives |
 |---|---|---|
 | `T?` | `.some` | the value, checked; a place |
-| | `if let v = x { }` | runs with `v` the value, when present |
+| | `if let v = x { }`, `if let some(v) = x { }` | runs with `v` the value, when present |
 | | `try x` | the value, or returns `none` from the function (#76) |
 | | `.some = v`, `= v`, `= none` | sets the case |
 | | `.is(some)`, `.is(none)` | a `bool` |

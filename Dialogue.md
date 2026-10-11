@@ -2932,3 +2932,17 @@ enum with values' `{.n = 0.5}`. A number's result still takes a value.
 Details are provisional P89.
 
 There are 577 tests, and all pass with clang and with gcc 15.
+
+### 108. `if let` of the error
+
+> now add `if let` of the error
+
+**Claude** added #78: `if let err(e) = r { ... } else { ... }` names
+the case and binds its value when that is `r`'s case, so the error is
+read as the value was; `if let ok(v) = r` spells `if let v = r` out,
+and `if let some(v) = x` an Optional's. Since the form names any case,
+it works for every enum with values, `if let n(x) = j`, which the same
+code gives. A case with no value has nothing to bind, and says so.
+Details are provisional P90.
+
+There are 581 tests, and all pass with clang and with gcc 15.
