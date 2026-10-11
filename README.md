@@ -110,7 +110,8 @@ So far the changes from C are:
   `s & t` and `s ~ t`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`:
   `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`,
-  and `switch r { case ok: ... case err: ... }`; `T?` is its special
+  `switch r { case ok: ... case err: ... }`, and `let v = try f()` passes
+  the `err` up; `T?` is its special
   case, a value that may be absent, `none` or `some(v)`:
   `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
 - `#import <complex.k>` brings in a Kelvin file's source, here

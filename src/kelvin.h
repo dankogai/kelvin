@@ -156,7 +156,9 @@ struct Expr {
     /* a template's value (#39): the type by which kelvinc reckons the
        length of its text, NULL where it cannot see one */
     Type *shown;
-    Type *recv_type;  /* E_PROPERTY keys/values of a Dictionary (#66): its type */
+    Type *recv_type;  /* E_PROPERTY keys/values of a Dictionary (#66): its type;
+                         E_CAST try (#76): the function's result type */
+    Type *from;       /* E_CAST try (#76): the operand's type, a Result or an Optional */
 };
 
 typedef struct {

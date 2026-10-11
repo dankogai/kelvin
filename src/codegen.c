@@ -45,6 +45,7 @@ static const char *owner_take(Type *t);
 static const char *owner_copy(Type *t);
 static Decl *tagged_type(Type *t);
 static bool c_lvalue(Expr *e);
+static char *try_code(Expr *e, bool value);
 static void emit_tagged_record(Decl *d, Type *recv);
 static void emit_arrays_after(Decl *d);
 static void emit_derived_copy(Decl *d, Type *recv);
@@ -608,6 +609,8 @@ static char *expr_bare(Expr *e) {
             return strfmt("KV_UCHR_OF(%s)", expr_bare(e->a));
         if (e->op && !strncmp(e->op, "text", 4))
             return text_number(e);
+        if (e->op && !strcmp(e->op, "try")) /* try x (#76) */
+            return try_code(e, true);
         return strfmt("(%s)%s", decl(e->type, ""), expr(e->a));
     case E_COMPOUND: /* without an initializer, [T](n): zero-filled (#49) */
         return strfmt("(%s)%s", decl(e->type, ""), e->a ? initializer(e->a) : "{0}");
@@ -1075,6 +1078,29 @@ static Decl *tagged_type(Type *t) {
     return r && r->tagged ? r : NULL;
 }
 
+/* try x (#76): x's value when its case is ok (some), else the function
+   returns x's err (none), passed up as it is. The err moves out, so that
+   the place, or the temporary's cleanup, frees nothing of it; so does an
+   owner value, when it is wanted: a bare `try f()` statement drops it,
+   and the cleanup frees it */
+static char *try_code(Expr *e, bool value) {
+    Decl *r = e->target, *fr = kelvin_record(e->recv_type->name);
+    int vc = !strncmp(r->name, "_kv_opt_", 8) ? 1 : 0;
+    const char *vn = ((Var *)r->members.data[vc])->name, *on = ((Var *)r->members.data[1 - vc])->name;
+    const char *take = owner_take(e->from), *f = owner_free(e->from);
+    bool place = c_lvalue(e->a);
+    const char *at = place ? "_kv_p->u." : "_kv_t.u.";
+    const char *taken = take ? strfmt("%s(%s_kv_%c).u.", take, place ? "" : "&", place ? 'p' : 't') : at;
+    const char *up = ((Var *)fr->members.data[1 - vc])->type ? strfmt("_kv_%s_make_%s(%s%s)", fr->name, on, taken, on)
+                                                              : strfmt("_kv_%s_make_%s()", fr->name, on);
+    const char *v = !value ? "" : place ? strfmt(" _kv_p->u.%s;", vn) : strfmt(" %s%s;", taken, vn);
+    if (place)
+        return strfmt("({ %s *_kv_p = &(%s); if (_kv_p->tag != %d) return %s;%s })", decl(e->from, ""), expr(e->a), vc,
+                      up, v);
+    return strfmt("({ %s%s _kv_t = %s; if (_kv_t.tag != %d) return %s;%s })",
+                  f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), vc, up, v);
+}
+
 /* Is e a place in C, whose address may be taken? */
 static bool c_lvalue(Expr *e) {
     switch (e->kind) {
@@ -1383,6 +1409,8 @@ static void stmt(Stmt *s) {
             line("%s ? %s : %s;", cond(s->expr->a), expr(s->expr->b), expr(s->expr->c));
         else if (s->expr->kind == E_BINARY && !strcmp(s->expr->op, "=") && owner_assign(s->expr))
             ; /* an owner took a value, and freed what it held (#54) */
+        else if (s->expr->kind == E_CAST && s->expr->op && !strcmp(s->expr->op, "try"))
+            line("%s;", try_code(s->expr, false)); /* try f() alone: the value is dropped (#76) */
         else
             line("%s;", expr(s->expr));
         /* a cstr assigned anew is measured again (#52) */

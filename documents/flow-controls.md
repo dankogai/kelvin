@@ -33,6 +33,9 @@ do {
 - **`if let x = e { ... } else { ... }`** (#74) binds the `ok` value of
   a Result, or the `some` value of an Optional, when that is the case;
   see [results.md](results.md) and [optionals.md](optionals.md).
+- **`try e`** (#76), an expression, returns from the function with the
+  `err` or `none` of `e` when that is its case; see
+  [results.md](results.md).
 - Parentheses around a condition are only grouping now: `if (n > 0) { ... }`
   still works, while C's `if (n > 0) n = 0;` is an error, since the body
   must be a block. `else` is followed by a block or by `if`.

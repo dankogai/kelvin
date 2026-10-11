@@ -2254,6 +2254,42 @@ static Expr *parse_unary(void) {
     }
     if (is_p(t, "*"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
+    if (accept_kw("try")) {
+        /* try x (#76): x's value when it is ok (some); else the function
+           returns x's err (none), passed up as it is */
+        Expr *x = parse_unary();
+        Type *xt = value_type(x);
+        Decl *r = xt ? variant_record(xt) : NULL;
+        if (!r)
+            error_at(x->pos, "'try' takes a Result or an Optional, and this is %s", xt ? kelvin_type(xt) : "not one");
+        Var *some = r->members.data[value_case(r)];
+        Var *other = r->members.data[1 - value_case(r)];
+        if (!parsing_fn || !parsing_fn->ret)
+            error_at(t->pos, "'try' passes the '%s' up, and this function has no result: give it %s", other->name,
+                     kelvin_type(xt));
+        Decl *fr = variant_record(parsing_fn->ret);
+        Var *fother = fr ? fr->members.data[1 - value_case(fr)] : NULL;
+        if (!fother || strcmp(fother->name, other->name))
+            error_at(t->pos, "'try' passes the '%s' up, and this function returns %s, not %s: switch on it, or 'if let'",
+                     other->name, kelvin_type(parsing_fn->ret),
+                     !strcmp(other->name, "err") ? "a Result" : "an Optional");
+        if (other->type && strcmp(kelvin_type(other->type), kelvin_type(fother->type)))
+            error_at(t->pos, "'try' passes the 'err' up as it is, and it is %s where this function's is %s",
+                     kelvin_type(other->type), kelvin_type(fother->type));
+        if (is_owner(some->type) && owner_place(x))
+            error_at(x->pos, "'try' would move the %s out of %s, which keeps it: try the call itself, 'try %s.copy()', "
+                             "or 'if let'",
+                     kelvin_type(some->type), x->kind == E_IDENT ? strfmt("'%s'", x->text) : "it",
+                     x->kind == E_IDENT ? x->text : "...");
+        Expr *e = new_expr(E_CAST, t->pos);
+        e->op = "try";
+        e->a = x;
+        e->type = unqualified(some->type);
+        e->target = r;
+        e->from = unqualified(xt);
+        e->recv_type = parsing_fn->ret;
+        return e;
+    }
     if (accept_kw("sizeof")) {
         if (tag_name_ahead(peek(), true))
             error_at(peek()->pos, "sizeof a type needs parentheses: sizeof(%s)", peek()->text);

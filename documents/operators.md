@@ -11,7 +11,7 @@ each operator means for its types.
 | Level | Operators | Kelvin | C |
 |------:|-----------|--------|---|
 | 1 | postfix | `p^`, `a[i]`, `f(x)`, `s.m`, `p^.m`, `x.prop`, `x.method()`, `p++`, `p--` (statements) | `*p`, `a[i]`, `f(x)`, `s.m`, `p->m`, `x++` |
-| 2 | prefix | `&x`, `-x`, `+x`, `!b`, `~n` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
+| 2 | prefix | `&x`, `-x`, `+x`, `!b`, `~n`, `try r` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
 | 3 | conversion | `x as T`, `x:T`, `T(x)` | `(T)x` |
 | 4 | `* / %` | `a * b` | `a * b` |
 | 5 | `+ -` | `a + b` | `a + b` |

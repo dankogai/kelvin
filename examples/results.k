@@ -1,7 +1,7 @@
 // Results in practice: C hands a value back through a pointer and an
 // error code or errno beside it; a Kelvin function returns both as one
 // Result<T, U>, since a struct has always been a value. Wrappers of
-// timespec_get, fopen, strtol and getenv, and errors passed up by hand.
+// timespec_get, fopen, strtol and getenv, and an error passed up by try.
 #import <stdio.h> as C
 #import <stdlib.h> as C
 #import <string.h> as C
@@ -43,17 +43,16 @@ let number(s:cstr):Result<i64, String> {
     return n
 }
 
-// an err passed up by hand: what a future `try` would write for us
+// try passes an err up: the FILE^, or return err(errno) for the caller
 let sumOf(path:cstr):Result<i64, i32> {
-    var r = open(path, "r")
-    if r.is(err) { return err(r.err) }
+    let f := try open(path, "r")
     var sum:i64 = 0
     var line = [u8](64)
-    while fgets(line, line.size, r.ok) != nullptr {
+    while fgets(line, line.size, f) != nullptr {
         line[strcspn(line, "\n")] = 0
         if let n = number(line) { sum += n }
     }
-    fclose(r.ok)
+    fclose(f)
     return sum
 }
 

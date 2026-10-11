@@ -75,7 +75,7 @@ P-numbers in [Design.md](../Design.md).
 | a hash table by hand, or a library's | `var d = ${"ann": 31}`, `d["bob"] = 42`, `d["ann"]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`, `d.keys`, `d.values`; the type is `Dictionary<String, i64>`, or `${String: i64}` (#65, #66) |
 | a hash set by hand | `var s = ${3, 1, 4}`, `s += 9`, `s.has(4)`, `s | t`, `s & t`, `s ~ t`, `for x in s`; the type is `Set<i64>`, or `${i64}` (#71, #73) |
 | a sentinel such as `-1` or `NULL`, or a `bool` beside the value | `i64?`: `none` or `some(3)`, `x.some` checked, `x ?? 0`, `x.is(none)`, `if let v = x { }`, `switch x { case some: ... case none: ... }` (#72, #74) |
-| an error code beside the value, or `errno` | `Result<i64, String>`: `ok(v)` or `err(e)`, `r.ok` checked, `r ?? 0`, `if let v = r { } else { r.err }` (#75) |
+| an error code beside the value, or `errno` | `Result<i64, String>`: `ok(v)` or `err(e)`, `r.ok` checked, `r ?? 0`, `if let v = r { } else { r.err }` (#75); `let v = try f()` passes the `err` up (#76) |
 | `memcpy` of a part, with its length by hand | `xs[1..<3]`, `s[2...]`, `b[..<4]`: a slice, a copy, checked (#68) |
 | `snprintf` into a buffer sized by hand, or `asprintf` | `` var s = $`${name}: ${n}` ``, a String with no bound (#67) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
@@ -94,7 +94,7 @@ P-numbers in [Design.md](../Design.md).
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
 | [integers.md](integers.md) | `i8`…`u128`, `f32`, `f64`, `bool`, literals, conversions, numbers from text |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
-| [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, switching on it; `T?` as its special case |
+| [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |

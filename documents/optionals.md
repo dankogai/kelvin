@@ -57,6 +57,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   bound to the value when there is one: a let the Optional still owns,
   as a loop's element is (borrow it, or copy it). `x` may be a variable
   or a value a call gives, read once; `else if let` chains.
+- **`try x`** (#76) is the value when there is one, and otherwise
+  returns `none` from the function, which must return an Optional:
+  `let i = try find(&xs, v)`; see [results.md](results.md).
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
@@ -89,6 +92,7 @@ the reason in `err`: [results.md](results.md).
 |---|---|---|
 | `T?` | `.some` | the value, checked; a place |
 | | `if let v = x { }` | runs with `v` the value, when present |
+| | `try x` | the value, or returns `none` from the function (#76) |
 | | `.some = v`, `= v`, `= none` | sets the case |
 | | `.is(some)`, `.is(none)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for none, 1 for some |

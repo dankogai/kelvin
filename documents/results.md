@@ -61,14 +61,23 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   owns, as a loop's element is (borrow it, or copy it). `r` may be a
   variable or a value a call gives, read once; `else if let` chains,
   and the `else` block may read `r.err`.
+- **`try r`** (#76) is the `ok` value when that is the case, and
+  otherwise returns from the function with the `err`, passed up as it
+  is: `let n = try parse(s)`, `return try parse(a) + try parse(b)`, or
+  `try f()` alone, which drops the value. It is a prefix, as `-x` is,
+  so `try f(x) + 1` is `(try f(x)) + 1`. The function must return a
+  `Result` whose `err` has the same type; the value owns as its Result
+  did, so `try` of a variable whose value owns is an error (`try` the
+  call itself, `try r.copy()`, or `if let`), and of a variable whose
+  err owns, the err moves out of it. See the example below.
 - **Text:** `r.cstr` is `ok(42)` or `err(empty)`, the value's text
   inside; `${r}` the same.
 - **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
   tag and a union of the two values, with the functions of an enum with
   values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
   case.
-- **Not yet:** `try` or `?` to pass an `err` up, `if let` of the error,
-  `==`, mapping.
+- **Not yet:** `if let` of the error, `==`, mapping, and `try` of an
+  `err` that must change type on the way up.
 
 ## From C: the value through a pointer, the error beside it
 
@@ -87,10 +96,9 @@ let statOf(path:cstr):Result<stat, i32> {    // the struct, or errno
     if lstat(path, &buf) != 0 { return err(errno) }
     return buf                               // a T becomes ok(T)
 }
-let sizeOf(path:cstr):Result<i64, i32> {     // an err passed up, by hand
-    var r = statOf(path)
-    if r.is(err) { return err(r.err) }
-    return r.ok.st_size
+let sizeOf(path:cstr):Result<i64, i32> {     // an err passed up
+    let st = try statOf(path)                // the struct, or return the err
+    return st.st_size
 }
 if let st = statOf("/") { println((st.st_mode & S_IFMT) == S_IFDIR) }   // true
 var s = sizeOf("/no/such")
@@ -107,9 +115,9 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
 - **A number read from text** is `i64(s)`, which reads as `strtol`
   does and sets `errno` to `ERANGE` past the limits; check the digits
   first, and the Result's `err` says which.
-- **Passing an err up** is written by hand: `if r.is(err) { return
-  err(r.err) }`, then `r.ok`. A `try` to write that for us is held
-  until the practice settles.
+- **Passing an err up** is `try f()` (#76): the value, or `return
+  err(e)` written for you. By hand, it is `if r.is(err) { return
+  err(r.err) }`, then `r.ok`.
 - **A default for a `cstr?`** is written as it reads, `v ?? "unset"`:
   kelvinc casts a string literal, or text of another spelling, to the
   value's type, since C's `?:` of a `const uint8_t *` and a `char *` is
@@ -128,8 +136,8 @@ nothing: the cases are `none`, with no value, and `some: T`. Everything
 above holds with `some` for `ok` and `none` for `err`: a `T` where a
 `T?` is expected becomes `some(T)`, `none` is a word there, `x.some` is
 checked, `x ?? y`, `if let v = x`, `switch x { case some: ... case
-none: ... }`, and `Optional<T>.some(v)` and `Optional<T>.none` spell
-the cases out. One maker builds both in kelvinc, so a change to one is
+none: ... }`, `try x` passes `none` up, and `Optional<T>.some(v)` and
+`Optional<T>.none` spell the cases out. One maker builds both in kelvinc, so a change to one is
 a change to the other. The details, and the examples, are in
 [optionals.md](optionals.md).
 
@@ -147,6 +155,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 |---|---|---|
 | `Result<T, U>` | `.ok`, `.err` | the values, checked; places |
 | | `if let v = r { } else { }` | runs with `v` the `ok` value, when that is the case |
+| | `try r` | the `ok` value, or returns the `err` from the function (#76) |
 | | `.ok = v`, `.err = e`, `= v`, `= ok(v)`, `= err(e)` | sets the case |
 | | `.is(ok)`, `.is(err)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for ok, 1 for err |

@@ -2903,3 +2903,19 @@ text. examples/results.k and the documents drop the `as cstr`. Details
 in provisional P87.
 
 There are 568 tests, and all pass with clang and with gcc 15.
+
+### 106. `try`, passing an `err` up
+
+> now add `try`, passing an `err` up
+
+**Claude** added #76. `try r` is the `ok` value of a Result, or the
+`some` of an Optional, and otherwise returns from the function with
+the `err`, or `none`, passed up as it is: `let n = try parse(s)`,
+`return try f(a) + try f(b)`, or `try f()` alone. It is a prefix, as
+`-x` is. The function must return a Result whose `err` has the same
+type, or an Optional for an Optional; `try` of a variable whose value
+owns is an error, since it would move the value out. examples/results.k
+now passes its error up with `try`, and the documents say so. Details
+are provisional P88.
+
+There are 575 tests, and all pass with clang and with gcc 15.
