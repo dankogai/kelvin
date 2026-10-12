@@ -48,7 +48,10 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   `return` and passing move it; `&f` borrows it; it is not copied, so
   `var g = f` is an error, as is `.copy()`. A struct may hold one, and
   then closes it with its other owners; a Result holds the one `IO`
-  gives. `f.close()` closes it now, and its block then does nothing.
+  gives. `f.close()` closes it now, and its block then does nothing;
+  it needs the var that owns the IO, as `append` needs a String's,
+  since a let bound by `if let` holds a copy, and closing through it
+  would close twice: write `r.ok.close()` of the Result.
 - **Reading whole:** `f.bytes` is the rest of the file as a `Bytes`, and
   `f.string` as a `String`, each a `Result` with `errno` as the err:
   `EILSEQ` when the bytes are not UTF-8, what `ferror` reports when the
@@ -66,7 +69,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   a String or Bytes an expression gives, which is then freed. `f.flush()` flushes. Writing
   to a closed IO ends the program.
 - **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
-  reads and writes: what changes is the file, not the IO.
+  reads, writes and flushes: what changes is the file, not the IO.
+  Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
   that `IO.stdout` names in place.
@@ -84,7 +88,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
 | | `for line in f.lines { }` | each line without its newline, a `String` the loop owns |
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
-| | `.flush()`, `.close()` | flushes; closes now |
+| | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 
 No `.cstr`, no `==`, no `.copy()`. The general properties are in

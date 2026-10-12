@@ -3039,6 +3039,11 @@ gives, with `f.flush()` and `f.close()` beside it; `IO.stdin`,
 stand. An IO closes when its block ends, moves and borrows as the other
 owners do, and is not copied. The prelude holds the `FILE *` as a
 `void *`, so that it needs no `<stdio.h>`, whose names a program may
-declare itself. Details are provisional P94.
+declare itself. CI's Linux jobs then found a double `fclose`: the
+test closed an IO through the copy that `if let ok(f)` binds, and the
+Result closed its own at the block's end, which glibc reports and
+macOS tolerated. `close` now needs the var that owns the IO, as
+`append` needs a String's: `r.ok.close()`. Details are provisional
+P94.
 
-There are 606 tests, and all pass with clang and with gcc 15.
+There are 607 tests, and all pass with clang and with gcc 15.

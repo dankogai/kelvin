@@ -1525,7 +1525,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
                     {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
                     {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
-                    {"close", 0, false, "i"}, {"read", 1, false, "i"}};
+                    {"close", 0, true, "i"}, {"read", 1, false, "i"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))

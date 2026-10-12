@@ -3,7 +3,7 @@
 // when it is not UTF-8); for x in f.read(n) and for line in f.lines walk
 // it; f.write takes text, a borrow or an owner an expression gives;
 // IO.stdin, IO.stdout and IO.stderr are never closed; a file closes
-// when its block ends
+// when its block ends, or by .close() through the var that owns it
 #import <errno.h> as C
 #import <stdio.h> as C
 let path := "io_basics.tmp"
@@ -75,8 +75,8 @@ let main():i32 {
     h.f.write("through a member\n")
     println(h.cstr)
     var f3 = IO(path, "r")
-    if let ok(f) = f3 {
-        f.close()                       // closed by hand; its block does nothing more
+    if f3.is(ok) {
+        f3.ok.close()                   // closed by hand, through the var that owns it; its block does nothing more
     }
     remove(path)
     remove("io_bad.tmp")
