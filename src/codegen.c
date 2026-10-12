@@ -599,27 +599,44 @@ static char *expr_bare(Expr *e) {
                               "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_t); })",
                               decl(pair, ""), args.buf, r->name, r->name);
             }
-            if (!strcmp(gives, "stat")) { /* kv_stat copied into the struct kelvinc wrote, member by member */
-                Decl *r = kelvin_record(e->type->name);
-                Type *st = ((Var *)r->members.data[0])->type;
-                Decl *sr = kelvin_record(st->name);
-                Buf init = {0};
-                buf_puts(&init, "");
-                for (int i = 0; i < sr->members.len; i++) {
-                    const char *m = ((Var *)sr->members.data[i])->name;
-                    buf_printf(&init, "%s.%s = _kv_st.%s", i ? ", " : "", m, m);
+            static const char *structs[] = {"stat", "uname", "splitext", "loadavg", "terminalsize", "diskusage", NULL};
+            for (int k = 0; structs[k]; k++)
+                if (!strcmp(gives, structs[k])) {
+                    /* the runtime's kv_<gives> copied into the struct kelvinc wrote, member by member (#95, #102) */
+                    Decl *r = kelvin_record(e->type->name);
+                    Type *st = ((Var *)r->members.data[0])->type;
+                    Decl *sr = kelvin_record(st->name);
+                    Buf init = {0};
+                    buf_puts(&init, "");
+                    for (int i = 0; i < sr->members.len; i++) {
+                        const char *m = ((Var *)sr->members.data[i])->name;
+                        buf_printf(&init, "%s.%s = _kv_st.%s", i ? ", " : "", m, m);
+                    }
+                    return strfmt("({ kv_%s _kv_st = {0}; int _kv_e = kv_os_%s(%s%s&_kv_st); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                                  "_kv_%s_make_ok((%s){%s}); })",
+                                  gives, n, args.buf, args.len ? ", " : "", r->name, r->name, decl(st, ""), init.buf);
                 }
-                return strfmt("({ kv_stat _kv_st = {0}; int _kv_e = kv_os_%s(%s, &_kv_st); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                              "_kv_%s_make_ok((%s){%s}); })",
-                              n, args.buf, r->name, r->name, decl(st, ""), init.buf);
+            if (!strcmp(gives, "ints")) { /* OS.groups (#102): i32s taken over into an Array */
+                Decl *r = kelvin_record(e->type->name);
+                Type *arr = ((Var *)r->members.data[0])->type;
+                return strfmt("({ int32_t *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_%s(&_kv_at, &_kv_n); "
+                              "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok(_kv_a); })",
+                              n, arr->cname, arr->cname, r->name, r->name);
+            }
+            if (!strcmp(gives, "res_bytes")) { /* OS.urandom (#102): a Bytes, or errno */
+                Decl *r = kelvin_record(e->type->name);
+                return strfmt("({ kv_bytes _kv_b = {0}; int _kv_e = kv_os_%s(%s, &_kv_b); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok(_kv_b); })",
+                              n, args.buf, r->name, r->name);
             }
             if (!strcmp(gives, "listdir")) { /* listdir, walk, glob (#94, #96): Strings taken over into an Array */
                 Decl *r = kelvin_record(e->type->name);
                 Type *arr = ((Var *)r->members.data[0])->type;
-                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_%s(%s, &_kv_at, &_kv_n); "
+                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_%s(%s%s&_kv_at, &_kv_n); "
                               "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
                               "_kv_%s_make_ok(_kv_a); })",
-                              n, args.buf, arr->cname, arr->cname, r->name, r->name);
+                              n, args.buf, args.len ? ", " : "", arr->cname, arr->cname, r->name, r->name);
             }
             return strfmt("kv_%s_%s(%s)", e->op, n, args.buf);
         }

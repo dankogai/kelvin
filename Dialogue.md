@@ -3359,3 +3359,18 @@ io.md's "The structs an IO gives", `{reader: IO, writer: IO}` and
 `{io: IO, path: String}`. No code changed.
 
 There are 638 tests, and all pass with clang and with gcc 15.
+
+### 136. The rest of Python's `os`
+
+> now add what Python's `os` has beyond these to `OS`
+
+**Claude** added #102, what C gives plainly: `strerror`, `environ`,
+the effective ids and `groups`, `uname`, `readable`, `writable` and
+`executable`, `isabs`, `splitext`, `normpath`, `relpath`,
+`expanduser`, `samefile`, `mkfifo`, `sync`, `cpus`, `loadavg`,
+`urandom`, `isatty`, `terminalsize`, `diskusage`, and the constants
+`sep`, `linesep`, `devnull` and `name`. The structs they give are
+spelled as themselves, now all made by one maker from the spelling.
+Details are provisional P114.
+
+There are 639 tests, and all pass with clang and with gcc 15.

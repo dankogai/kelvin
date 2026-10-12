@@ -704,6 +704,8 @@ static Type *parse_anon_record(DeclKind kind, bool tagged);
 static Type *pipe_type(Token *at);
 static Type *stat_type(Token *at);
 static Type *temp_type(Token *at);
+static Type *anon_struct(Token *at, const char *spec);
+static const char *struct_spec(const char *gives);
 static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
@@ -1612,9 +1614,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                             Decl *ar;
                             char ac = at ? type_class(at, &ar) : 0;
                             char want = ops[k].args[i];
-                            if (want == 'i' || want == 'f') {
-                                bool fine = want == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a))
-                                                        : (ac == 'i' || (number_expr(a) && !at));
+                            if (want == 'i' || want == 'f') { /* a number, or a name only C sees */
+                                bool fine = !at || (want == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a))
+                                                                : ac == 'i' || number_expr(a));
                                 if (!fine || is_text_expr(a))
                                     error_at(a->pos, "argument %d of '.%s' is %s, and this is %s", i + 1, member,
                                              want == 'f' ? "a number" : "an integer", at ? kelvin_type(at) : "not one");
@@ -2297,6 +2299,16 @@ static Expr *parse_primary(void) {
             {"OS", "mkdtemp", "t", "res_string"}, {"OS", "utime", "tff", "i32"}, {"OS", "touch", "t", "i32"},
             {"OS", "chown", "tii", "i32"},      {"OS", "lchown", "tii", "i32"},    {"OS", "username", "i", "opt_string"},
             {"OS", "groupname", "i", "opt_string"},
+            {"OS", "strerror", "i", "string"},   {"OS", "environ", NULL, "listdir"},  {"OS", "euid", NULL, "i32"},
+            {"OS", "egid", NULL, "i32"},         {"OS", "groups", NULL, "ints"},      {"OS", "uname", NULL, "uname"},
+            {"OS", "readable", "t", "bool"},     {"OS", "writable", "t", "bool"},     {"OS", "executable", "t", "bool"},
+            {"OS", "isabs", "t", "bool"},        {"OS", "splitext", "t", "splitext"}, {"OS", "normpath", "t", "string"},
+            {"OS", "relpath", "tt", "string"},   {"OS", "expanduser", "t", "string"}, {"OS", "samefile", "tt", "bool"},
+            {"OS", "mkfifo", "t", "i32"},        {"OS", "sync", "", "void"},          {"OS", "cpus", NULL, "i32"},
+            {"OS", "loadavg", NULL, "loadavg"},  {"OS", "urandom", "i", "res_bytes"}, {"OS", "isatty", "i", "bool"},
+            {"OS", "sep", NULL, "cstr"},         {"OS", "linesep", NULL, "cstr"},     {"OS", "devnull", NULL, "cstr"},
+            {"OS", "name", NULL, "cstr"},        {"OS", "terminalsize", NULL, "terminalsize"},
+            {"OS", "diskusage", "t", "diskusage"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2314,7 +2326,10 @@ static Expr *parse_primary(void) {
                            "isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, "
                            "symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, "
                            "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp, mkdtemp, utime, "
-                           "touch, chown, lchown, username and groupname",
+                           "touch, chown, lchown, username, groupname, strerror, environ, euid, egid, groups, uname, "
+                           "readable, writable, executable, isabs, splitext, normpath, relpath, expanduser, samefile, "
+                           "mkfifo, sync, cpus, loadavg, urandom, isatty, sep, linesep, devnull, name, terminalsize and "
+                           "diskusage",
                      name);
         Expr *e = new_expr(E_CALL, t->pos);
         e->op = sys ? "sys" : "os";
@@ -2345,8 +2360,8 @@ static Expr *parse_primary(void) {
                 Type *at = value_type(a);
                 Decl *ar;
                 char ac = at ? type_class(at, &ar) : 0;
-                if (args[i] == 'i' || args[i] == 'f') { /* a number */
-                    bool ok = args[i] == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a)) : (ac == 'i' || (number_expr(a) && !at));
+                if (args[i] == 'i' || args[i] == 'f') { /* a number, or a name only C sees, as ENOENT is */
+                    bool ok = !at || (args[i] == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a)) : ac == 'i' || number_expr(a));
                     if (!ok || is_text_expr(a))
                         error_at(a->pos, "argument %d of %s.%s is %s, and this is %s", i + 1, sys ? "SYS" : "OS", name,
                                  args[i] == 'f' ? "a number" : "an integer", at ? kelvin_type(at) : "not one");
@@ -2386,11 +2401,15 @@ static Expr *parse_primary(void) {
             e->type = optional_type(t, base_type("String", t->pos));
         else if (!strcmp(gives, "listdir"))
             e->type = variant_type(t, "res", array_type(t, base_type("String", t->pos)), base_type("i32", t->pos));
-        else if (!strcmp(gives, "stat"))
-            e->type = variant_type(t, "res", stat_type(t), base_type("i32", t->pos));
+        else if (struct_spec(gives)) /* stat, uname, splitext, loadavg, terminalsize, diskusage */
+            e->type = variant_type(t, "res", anon_struct(t, struct_spec(gives)), base_type("i32", t->pos));
         else if (!strcmp(gives, "temp"))
             e->type = variant_type(t, "res", temp_type(t), base_type("i32", t->pos));
-        return e; /* "void": SYS.exit and OS.sleep have no value */
+        else if (!strcmp(gives, "ints"))
+            e->type = variant_type(t, "res", array_type(t, base_type("i32", t->pos)), base_type("i32", t->pos));
+        else if (!strcmp(gives, "res_bytes"))
+            e->type = variant_type(t, "res", base_type("Bytes", t->pos), base_type("i32", t->pos));
+        return e; /* "void": SYS.exit, OS.sleep and OS.sync have no value */
     }
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
         /* IO.stdin, IO.stdout, IO.stderr (#82), also written with ();
@@ -8460,8 +8479,12 @@ static Type *parse_anon_record(DeclKind kind, bool tagged) {
 
 /* {reader: IO, writer: IO}, what IO.pipe() gives (#87): an untagged
    struct, registered as one written in the program is */
-static Type *pipe_type(Token *at) {
-    const char *spelling = "{reader: IO, writer: IO}";
+/* an untagged struct from its spelling, "reader: IO, writer: IO",
+   registered as one written in the program is, so that a Result may
+   hold it and its derived functions free what it owns (#87, #95,
+   #97, #102) */
+static Type *anon_struct(Token *at, const char *spec) {
+    char *spelling = strfmt("{%s}", spec);
     Decl *same = NULL;
     for (int i = 0; !same && i < anon_records.len; i++)
         if (!strcmp(((Decl *)anon_records.data[i])->spelling, spelling))
@@ -8469,16 +8492,23 @@ static Type *pipe_type(Token *at) {
     if (!same) {
         Decl *d = new_decl(D_STRUCT, at->pos, NULL);
         d->has_body = true;
-        static const char *names[] = {"reader", "writer"};
-        for (int i = 0; i < 2; i++) {
+        char *copy = xstrdup(spec);
+        for (char *field = strtok(copy, ","); field; field = strtok(NULL, ",")) {
+            while (*field == ' ')
+                field++;
+            char *colon = strchr(field, ':');
+            *colon = '\0';
+            char *type = colon + 1;
+            while (*type == ' ')
+                type++;
             Var *m = xcalloc(1, sizeof *m);
-            m->name = (char *)names[i];
+            m->name = xstrdup(field);
             m->pos = at->pos;
-            m->type = base_type("IO", at->pos);
+            m->type = base_type(type, at->pos);
             list_push(&d->members, m);
         }
         d->name = strfmt("_kv_anon%d", anon_records.len + 1);
-        d->spelling = (char *)spelling;
+        d->spelling = spelling;
         list_push(&anon_records, d);
         list_push(&records, d);
         list_push(&program->decls, d);
@@ -8487,72 +8517,27 @@ static Type *pipe_type(Token *at) {
     return base_type(tag_type_name(same), at->pos);
 }
 
-/* what OS.stat and OS.lstat give (#95): an untagged struct of C's stat,
-   registered as one written in the program is, its members those of
-   the prelude's kv_stat, in its order, which the codegen copies by name */
-static Type *stat_type(Token *at) {
-    static const struct { const char *name, *type; } fields[] = {
-        {"dev", "i64"},   {"ino", "i64"},   {"mode", "i32"},  {"nlink", "i64"}, {"uid", "i32"},     {"gid", "i32"},
-        {"size", "i64"},  {"atime", "f64"}, {"mtime", "f64"}, {"ctime", "f64"}, {"isdir", "bool"},  {"isfile", "bool"},
-        {"islink", "bool"},
+static Type *pipe_type(Token *at) { return anon_struct(at, "reader: IO, writer: IO"); }
+static Type *temp_type(Token *at) { return anon_struct(at, "io: IO, path: String"); }
+
+/* the structs OS's members give (#95, #102), by the member's gives */
+static const char *struct_spec(const char *gives) {
+    static const struct { const char *gives, *spec; } specs[] = {
+        {"stat", "dev: i64, ino: i64, mode: i32, nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64, "
+                 "ctime: f64, isdir: bool, isfile: bool, islink: bool"},
+        {"uname", "sysname: String, nodename: String, release: String, version: String, machine: String"},
+        {"splitext", "root: String, ext: String"},
+        {"loadavg", "one: f64, five: f64, fifteen: f64"},
+        {"terminalsize", "columns: i64, lines: i64"},
+        {"diskusage", "total: i64, used: i64, free: i64"},
     };
-    Buf b = {0};
-    buf_puts(&b, "{");
-    for (size_t i = 0; i < sizeof fields / sizeof fields[0]; i++)
-        buf_printf(&b, "%s%s: %s", i ? ", " : "", fields[i].name, fields[i].type);
-    buf_puts(&b, "}");
-    Decl *same = NULL;
-    for (int i = 0; !same && i < anon_records.len; i++)
-        if (!strcmp(((Decl *)anon_records.data[i])->spelling, b.buf))
-            same = anon_records.data[i];
-    if (!same) {
-        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
-        d->has_body = true;
-        for (size_t i = 0; i < sizeof fields / sizeof fields[0]; i++) {
-            Var *m = xcalloc(1, sizeof *m);
-            m->name = (char *)fields[i].name;
-            m->pos = at->pos;
-            m->type = base_type(fields[i].type, at->pos);
-            list_push(&d->members, m);
-        }
-        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
-        d->spelling = b.buf;
-        list_push(&anon_records, d);
-        list_push(&records, d);
-        list_push(&program->decls, d);
-        same = d;
-    }
-    return base_type(tag_type_name(same), at->pos);
+    for (size_t i = 0; i < sizeof specs / sizeof specs[0]; i++)
+        if (!strcmp(gives, specs[i].gives))
+            return specs[i].spec;
+    return NULL;
 }
 
-/* {io: IO, path: String}, what OS.mkstemp gives (#97) */
-static Type *temp_type(Token *at) {
-    const char *spelling = "{io: IO, path: String}";
-    Decl *same = NULL;
-    for (int i = 0; !same && i < anon_records.len; i++)
-        if (!strcmp(((Decl *)anon_records.data[i])->spelling, spelling))
-            same = anon_records.data[i];
-    if (!same) {
-        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
-        d->has_body = true;
-        Var *io = xcalloc(1, sizeof *io), *path = xcalloc(1, sizeof *path);
-        io->name = "io";
-        io->pos = at->pos;
-        io->type = base_type("IO", at->pos);
-        path->name = "path";
-        path->pos = at->pos;
-        path->type = base_type("String", at->pos);
-        list_push(&d->members, io);
-        list_push(&d->members, path);
-        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
-        d->spelling = (char *)spelling;
-        list_push(&anon_records, d);
-        list_push(&records, d);
-        list_push(&program->decls, d);
-        same = d;
-    }
-    return base_type(tag_type_name(same), at->pos);
-}
+static Type *stat_type(Token *at) { return anon_struct(at, struct_spec("stat")); }
 
 static Decl *anon_record_of(Type *t) {
     if (!t || t->kind != T_BASE || !t->name)

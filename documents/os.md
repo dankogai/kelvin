@@ -124,6 +124,39 @@ let main():i32 {
   its output or input, `IO.popen` and `IO.exec` are in
   [io.md](io.md).
 - **`OS.pid`** is the process id, an `i32`.
+- **The rest of Python's `os`** (#102), what C gives plainly:
+  - `OS.strerror(code)` is the message for an `errno`, a `String`, so
+    `println(OS.strerror(r.err))` needs no `#import`.
+  - `OS.environ` is every `"NAME=value"` of the environment, a
+    `Result<Array<String>, i32>`; `OS.euid` and `OS.egid` the
+    effective ids, `OS.groups` the groups the user is in, a
+    `Result<Array<i32>, i32>`.
+  - `OS.uname` is what `uname` gives, a Result of `{sysname, nodename,
+    release, version, machine}`, each a `String`, as `uname -s`,
+    `-n`, `-r`, `-v` and `-m` print them.
+  - `OS.readable(path)`, `OS.writable(path)` and `OS.executable(path)`
+    are C's `access`, `bool`s for this user.
+  - `OS.isabs(path)` is whether it begins with `/`; `OS.splitext(path)`
+    its root and its extension, `{root: String, ext: String}`, the
+    extension from the last `.` of the last part unless that begins
+    it, so `.bashrc` has none; `OS.normpath(path)` resolves `.`, `..`
+    and repeated `/` by the text alone; `OS.relpath(path, start)` is
+    `path` from `start`, both made absolute first; `OS.expanduser(path)`
+    replaces a leading `~` or `~user` with the home; each a `String`.
+  - `OS.samefile(a, b)` is whether two paths reach one file, by device
+    and inode; `OS.mkfifo(path)` makes a named pipe; `OS.sync()` asks
+    the system to write everything out.
+  - `OS.cpus` is how many processors are online; `OS.loadavg` the load
+    over one, five and fifteen minutes, a Result of `{one: f64, five:
+    f64, fifteen: f64}`; `OS.urandom(n)` `n` random bytes from the
+    system, a `Result<Bytes, i32>`.
+  - `OS.isatty(fd)` is whether a descriptor is a terminal;
+    `OS.terminalsize` the terminal on stdout as `{columns: i64, lines:
+    i64}`, `ENOTTY` when stdout is no terminal; `OS.diskusage(path)`
+    the file system holding a path as `{total: i64, used: i64, free:
+    i64}` in bytes, `free` what this user may use.
+  - `OS.sep`, `OS.linesep`, `OS.devnull` and `OS.name` are `"/"`,
+    `"\n"`, `"/dev/null"` and `"posix"`, `cstr`s, as Python has them.
 - **From an IO** (#101): an IO opened by path does this work on its
   own path, `f.stat`, `f.listdir`, `f.chmod(mode)` and the rest; see
   [io.md](io.md).
@@ -137,8 +170,9 @@ let main():i32 {
   `realpath`, `glob`, `mkstemp`, `mkdtemp`, `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`, `kill`, `umask`, `getpid` and its kin,
   `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
   runtime/os.c, which asks for POSIX; a program needs nothing.
-- **Not yet:** what Python's `os` has beyond these, such as file
-  descriptors handled by number, which an `IO` covers.
+- **Not yet:** what C gives only with root or a scheduler, such as
+  `setuid`, `chroot` and `nice`, and file descriptors handled by
+  number, which an `IO` covers.
 
 ## What each member takes and gives
 
@@ -205,6 +239,34 @@ OS.groupname(gid: i32): String?
 OS.host: Result<String, i32>             // the host's name
 OS.time: f64                             // seconds since the epoch, with a fraction
 OS.sleep(seconds: f64)                   // no value
+
+OS.strerror(code: i32): String           // the message for an errno
+OS.environ: Result<Array<String>, i32>   // every "NAME=value"
+OS.euid: i32                             // the effective user id
+OS.egid: i32                             // the effective group id
+OS.groups: Result<Array<i32>, i32>       // the groups the user is in
+OS.uname: Result<Uname, i32>             // {sysname, nodename, release, version, machine}, Strings
+OS.readable(path: text): bool            // access for this user
+OS.writable(path: text): bool
+OS.executable(path: text): bool
+OS.isabs(path: text): bool               // begins with /
+OS.splitext(path: text): Result<{root: String, ext: String}, i32>   // never fails: a Result for the struct
+OS.normpath(path: text): String          // ., .. and // resolved by the text alone
+OS.relpath(path: text, start: text): String   // path from start
+OS.expanduser(path: text): String        // ~ and ~user replaced
+OS.samefile(a: text, b: text): bool      // one file by device and inode
+OS.mkfifo(path: text): i32               // a named pipe, mode 0666 as the umask leaves it
+OS.sync()                                // no value
+OS.cpus: i32                             // processors online
+OS.loadavg: Result<{one: f64, five: f64, fifteen: f64}, i32>
+OS.urandom(n: i64): Result<Bytes, i32>   // n random bytes
+OS.isatty(fd: i32): bool
+OS.terminalsize: Result<{columns: i64, lines: i64}, i32>   // of stdout; ENOTTY otherwise
+OS.diskusage(path: text): Result<{total: i64, used: i64, free: i64}, i32>   // bytes
+OS.sep: cstr                             // "/"
+OS.linesep: cstr                         // "\n"
+OS.devnull: cstr                         // "/dev/null"
+OS.name: cstr                            // "posix"
 ```
 
 A `String` given back is a new one, an owner: bind it, and its block
@@ -242,6 +304,22 @@ struct itself, since it has no name:
 A `Stat` holds no owner, so it copies freely, prints as a struct does,
 `println(st.cstr)`, and may be kept. The times are whole seconds,
 what C's `st_mtime` holds everywhere; `OS.time` has a fraction.
+
+## The other structs
+
+Each is spelled as itself, an untagged struct, and comes in a
+`Result<..., i32>`:
+
+| From | Struct | Members |
+|---|---|---|
+| `OS.uname` | `{sysname: String, nodename: String, release: String, version: String, machine: String}` | the system's name (`Darwin`, `Linux`), the host's, the kernel's release and version, the machine's architecture (`arm64`, `x86_64`); each a `String` the struct owns |
+| `OS.splitext(path)` | `{root: String, ext: String}` | the path up to its extension, and the extension with its `.`; `ext` is `""` where there is none |
+| `OS.loadavg` | `{one: f64, five: f64, fifteen: f64}` | the load average over the last one, five and fifteen minutes |
+| `OS.terminalsize` | `{columns: i64, lines: i64}` | the terminal's width and height in characters |
+| `OS.diskusage(path)` | `{total: i64, used: i64, free: i64}` | the file system's size, what is used, and what this user may still use, in bytes; `used + free` may be less than `total`, the rest being reserved |
+
+The structs of Strings own them, so bind the Result and read through
+it; the structs of numbers copy freely.
 
 ## Properties and methods
 
