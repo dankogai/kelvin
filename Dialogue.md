@@ -3242,3 +3242,18 @@ call underneath and giving what C gives, Kelvinized: a `bool`, 0 or
 `argc` and `argv`, for `SYS.argv`. Details are provisional P106.
 
 There are 629 tests, and all pass with clang and with gcc 15.
+
+### 128. More of `OS`
+
+> So many methods are missing!! Where is `.lstat(path)`, for instance?
+
+**Claude** added #95, the rest of what C gives plainly: `OS.stat` and
+`OS.lstat` as a Result of a struct of C's fields, `islink`,
+`symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
+`makedirs`, `realpath`, the path helpers `basename`, `dirname` and
+`join`, the ids `ppid`, `uid` and `gid`, `user` and `host`, `umask`
+and `kill`, `time` and `sleep`, and `tmpdir`. Walking a tree,
+globbing and temporary files made for you are still to come. Details
+are provisional P107.
+
+There are 631 tests, and all pass with clang and with gcc 15.

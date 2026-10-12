@@ -567,24 +567,38 @@ static char *expr_bare(Expr *e) {
                           "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_p); })",
                           decl(pair, ""), r->name, r->name);
         }
-        if (e->op && (!strcmp(e->op, "os") || !strcmp(e->op, "sys"))) { /* OS and SYS (#94) */
-            const char *n = e->text;
+        if (e->op && (!strcmp(e->op, "os") || !strcmp(e->op, "sys"))) { /* OS and SYS (#94, #95) */
+            const char *n = e->text, *gives = e->a->text;
             Buf args = {0};
             buf_puts(&args, "");
             for (int i = 0; i < e->items.len; i++)
                 buf_printf(&args, "%s%s", i ? ", " : "", expr(e->items.data[i]));
             if (!strcmp(n, "argv"))
                 return strfmt("%s_from((const uint8_t *const *)kv_sys_argv_p(), (size_t)kv_sys_argc_n())", e->type->cname);
-            if (!strcmp(n, "cwd")) {
+            if (!strcmp(gives, "res_string")) { /* a String, or errno */
                 Decl *r = kelvin_record(e->type->name);
-                return strfmt("({ kv_string _kv_s = {0}; int _kv_e = kv_os_cwd(&_kv_s); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                return strfmt("({ kv_string _kv_s = {0}; int _kv_e = kv_%s_%s(%s%s&_kv_s); _kv_e ? _kv_%s_make_err(_kv_e) : "
                               "_kv_%s_make_ok(_kv_s); })",
-                              r->name, r->name);
+                              e->op, n, args.buf, args.len ? ", " : "", r->name, r->name);
             }
-            if (!strcmp(n, "env")) {
+            if (!strcmp(gives, "opt_cstr")) { /* a cstr, or none */
                 Decl *r = kelvin_record(e->type->name);
-                return strfmt("({ const uint8_t *_kv_v = kv_os_env(%s); _kv_v ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",
-                              args.buf, r->name, r->name);
+                return strfmt("({ const uint8_t *_kv_v = kv_%s_%s(%s); _kv_v ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",
+                              e->op, n, args.buf, r->name, r->name);
+            }
+            if (!strcmp(gives, "stat")) { /* kv_stat copied into the struct kelvinc wrote, member by member */
+                Decl *r = kelvin_record(e->type->name);
+                Type *st = ((Var *)r->members.data[0])->type;
+                Decl *sr = kelvin_record(st->name);
+                Buf init = {0};
+                buf_puts(&init, "");
+                for (int i = 0; i < sr->members.len; i++) {
+                    const char *m = ((Var *)sr->members.data[i])->name;
+                    buf_printf(&init, "%s.%s = _kv_st.%s", i ? ", " : "", m, m);
+                }
+                return strfmt("({ kv_stat _kv_st = {0}; int _kv_e = kv_os_%s(%s, &_kv_st); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok((%s){%s}); })",
+                              n, args.buf, r->name, r->name, decl(st, ""), init.buf);
             }
             if (!strcmp(n, "listdir")) {
                 Decl *r = kelvin_record(e->type->name);

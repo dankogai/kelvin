@@ -702,6 +702,7 @@ static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
 static Type *parse_anon_record(DeclKind kind, bool tagged);
 static Type *pipe_type(Token *at);
+static Type *stat_type(Token *at);
 static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
@@ -2218,13 +2219,23 @@ static Expr *parse_primary(void) {
     if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")) {
         /* OS.name(args) and SYS.name (#94): the system around the program,
            and the program itself, as the prelude's namespaces */
-        static const struct { const char *ns, *name; int arity; const char *gives; } members[] = {
-            {"SYS", "argv", -1, "argv"},     {"SYS", "exit", 1, "void"},      {"SYS", "platform", -1, "cstr"},
-            {"OS", "cwd", -1, "cwd"},        {"OS", "chdir", 1, "i32"},       {"OS", "env", 1, "env"},
-            {"OS", "setenv", 2, "i32"},      {"OS", "unsetenv", 1, "i32"},    {"OS", "exists", 1, "bool"},
-            {"OS", "isdir", 1, "bool"},      {"OS", "isfile", 1, "bool"},     {"OS", "remove", 1, "i32"},
-            {"OS", "rename", 2, "i32"},      {"OS", "mkdir", 1, "i32"},       {"OS", "rmdir", 1, "i32"},
-            {"OS", "listdir", 1, "listdir"}, {"OS", "system", 1, "i32"},      {"OS", "pid", -1, "i32"},
+        /* args: NULL a property; else one letter per argument, t text (a
+           String or a Bytes too), i an integer, f a number */
+        static const struct { const char *ns, *name, *args, *gives; } members[] = {
+            {"SYS", "argv", NULL, "argv"},      {"SYS", "exit", "i", "void"},      {"SYS", "platform", NULL, "cstr"},
+            {"OS", "cwd", NULL, "res_string"},  {"OS", "chdir", "t", "i32"},       {"OS", "env", "t", "opt_cstr"},
+            {"OS", "setenv", "tt", "i32"},      {"OS", "unsetenv", "t", "i32"},    {"OS", "exists", "t", "bool"},
+            {"OS", "isdir", "t", "bool"},       {"OS", "isfile", "t", "bool"},     {"OS", "islink", "t", "bool"},
+            {"OS", "remove", "t", "i32"},       {"OS", "unlink", "t", "i32"},      {"OS", "rename", "tt", "i32"},
+            {"OS", "mkdir", "t", "i32"},        {"OS", "makedirs", "t", "i32"},    {"OS", "rmdir", "t", "i32"},
+            {"OS", "listdir", "t", "listdir"},  {"OS", "stat", "t", "stat"},       {"OS", "lstat", "t", "stat"},
+            {"OS", "symlink", "tt", "i32"},     {"OS", "readlink", "t", "res_string"}, {"OS", "link", "tt", "i32"},
+            {"OS", "chmod", "ti", "i32"},       {"OS", "truncate", "ti", "i32"},   {"OS", "realpath", "t", "res_string"},
+            {"OS", "basename", "t", "string"},  {"OS", "dirname", "t", "string"},  {"OS", "join", "tt", "string"},
+            {"OS", "system", "t", "i32"},       {"OS", "kill", "ii", "i32"},       {"OS", "umask", "i", "i32"},
+            {"OS", "pid", NULL, "i32"},         {"OS", "ppid", NULL, "i32"},       {"OS", "uid", NULL, "i32"},
+            {"OS", "gid", NULL, "i32"},         {"OS", "user", NULL, "opt_cstr"},  {"OS", "host", NULL, "res_string"},
+            {"OS", "time", NULL, "f64"},        {"OS", "sleep", "f", "void"},      {"OS", "tmpdir", NULL, "cstr"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2238,20 +2249,23 @@ static Expr *parse_primary(void) {
         if (which < 0)
             error_at(n->pos,
                      sys ? "SYS has argv, exit(code) and platform, not '%s'"
-                         : "OS has cwd, chdir(path), env(name), setenv(name, value), unsetenv(name), exists(path), "
-                           "isdir(path), isfile(path), remove(path), rename(from, to), mkdir(path), rmdir(path), "
-                           "listdir(path), system(command) and pid, not '%s'",
+                         : "OS has no '%s': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, "
+                           "isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, "
+                           "symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, "
+                           "umask, pid, ppid, uid, gid, user, host, time, sleep and tmpdir",
                      name);
         Expr *e = new_expr(E_CALL, t->pos);
         e->op = sys ? "sys" : "os";
         e->text = name;
-        if (members[which].arity < 0) { /* a property, also written with () */
+        const char *args = members[which].args;
+        int arity = args ? (int)strlen(args) : -1;
+        if (!args) { /* a property, also written with () */
             if (accept_p("("))
                 expect_p(")");
         } else {
             if (!accept_p("("))
-                error_at(peek()->pos, "%s.%s takes %d argument%s: write %s.%s(...)", sys ? "SYS" : "OS", name,
-                         members[which].arity, members[which].arity == 1 ? "" : "s", sys ? "SYS" : "OS", name);
+                error_at(peek()->pos, "%s.%s takes %d argument%s: write %s.%s(...)", sys ? "SYS" : "OS", name, arity,
+                         arity == 1 ? "" : "s", sys ? "SYS" : "OS", name);
             bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
             brace_ends_condition = brace_in_for = false;
             while (!is_p(peek(), ")")) {
@@ -2262,15 +2276,18 @@ static Expr *parse_primary(void) {
             brace_ends_condition = saved_brace;
             brace_in_for = saved_for;
             expect_p(")");
-            if (e->items.len != members[which].arity)
-                error_at(t->pos, "%s.%s takes %d argument%s", sys ? "SYS" : "OS", name, members[which].arity,
-                         members[which].arity == 1 ? "" : "s");
+            if (e->items.len != arity)
+                error_at(t->pos, "%s.%s takes %d argument%s", sys ? "SYS" : "OS", name, arity, arity == 1 ? "" : "s");
             for (int i = 0; i < e->items.len; i++) {
                 Expr *a = e->items.data[i];
                 Type *at = value_type(a);
-                if (!strcmp(name, "exit")) { /* the code, a number */
-                    if ((at && type_class(at, &(Decl *){NULL}) != 'i') || is_text_expr(a))
-                        error_at(a->pos, "SYS.exit takes the exit code, an integer");
+                Decl *ar;
+                char ac = at ? type_class(at, &ar) : 0;
+                if (args[i] == 'i' || args[i] == 'f') { /* a number */
+                    bool ok = args[i] == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a)) : (ac == 'i' || (number_expr(a) && !at));
+                    if (!ok || is_text_expr(a))
+                        error_at(a->pos, "argument %d of %s.%s is %s, and this is %s", i + 1, sys ? "SYS" : "OS", name,
+                                 args[i] == 'f' ? "a number" : "an integer", at ? kelvin_type(at) : "not one");
                     continue;
                 }
                 if (is_string(at) || is_bytes(at)) {
@@ -2285,21 +2302,29 @@ static Expr *parse_primary(void) {
             }
         }
         const char *gives = members[which].gives;
+        e->a = new_expr(E_IDENT, t->pos); /* what it gives, for the codegen */
+        e->a->text = (char *)gives;
         if (!strcmp(gives, "i32"))
             e->type = base_type("i32", t->pos);
+        else if (!strcmp(gives, "f64"))
+            e->type = base_type("f64", t->pos);
         else if (!strcmp(gives, "bool"))
             e->type = base_type("bool", t->pos), e->is_bool = true;
         else if (!strcmp(gives, "cstr"))
             e->type = cstr_type(t->pos);
+        else if (!strcmp(gives, "string"))
+            e->type = base_type("String", t->pos);
         else if (!strcmp(gives, "argv"))
             e->type = array_type(t, cstr_type(t->pos));
-        else if (!strcmp(gives, "cwd"))
+        else if (!strcmp(gives, "res_string"))
             e->type = variant_type(t, "res", base_type("String", t->pos), base_type("i32", t->pos));
-        else if (!strcmp(gives, "env"))
+        else if (!strcmp(gives, "opt_cstr"))
             e->type = optional_type(t, cstr_type(t->pos));
         else if (!strcmp(gives, "listdir"))
             e->type = variant_type(t, "res", array_type(t, base_type("String", t->pos)), base_type("i32", t->pos));
-        return e; /* "void": SYS.exit has no value */
+        else if (!strcmp(gives, "stat"))
+            e->type = variant_type(t, "res", stat_type(t), base_type("i32", t->pos));
+        return e; /* "void": SYS.exit and OS.sleep have no value */
     }
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
         /* IO.stdin, IO.stdout, IO.stderr (#82), also written with ();
@@ -8364,6 +8389,44 @@ static Type *pipe_type(Token *at) {
         }
         d->name = strfmt("_kv_anon%d", anon_records.len + 1);
         d->spelling = (char *)spelling;
+        list_push(&anon_records, d);
+        list_push(&records, d);
+        list_push(&program->decls, d);
+        same = d;
+    }
+    return base_type(tag_type_name(same), at->pos);
+}
+
+/* what OS.stat and OS.lstat give (#95): an untagged struct of C's stat,
+   registered as one written in the program is, its members those of
+   the prelude's kv_stat, in its order, which the codegen copies by name */
+static Type *stat_type(Token *at) {
+    static const struct { const char *name, *type; } fields[] = {
+        {"dev", "i64"},   {"ino", "i64"},   {"mode", "i32"},  {"nlink", "i64"}, {"uid", "i32"},     {"gid", "i32"},
+        {"size", "i64"},  {"atime", "f64"}, {"mtime", "f64"}, {"ctime", "f64"}, {"isdir", "bool"},  {"isfile", "bool"},
+        {"islink", "bool"},
+    };
+    Buf b = {0};
+    buf_puts(&b, "{");
+    for (size_t i = 0; i < sizeof fields / sizeof fields[0]; i++)
+        buf_printf(&b, "%s%s: %s", i ? ", " : "", fields[i].name, fields[i].type);
+    buf_puts(&b, "}");
+    Decl *same = NULL;
+    for (int i = 0; !same && i < anon_records.len; i++)
+        if (!strcmp(((Decl *)anon_records.data[i])->spelling, b.buf))
+            same = anon_records.data[i];
+    if (!same) {
+        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
+        d->has_body = true;
+        for (size_t i = 0; i < sizeof fields / sizeof fields[0]; i++) {
+            Var *m = xcalloc(1, sizeof *m);
+            m->name = (char *)fields[i].name;
+            m->pos = at->pos;
+            m->type = base_type(fields[i].type, at->pos);
+            list_push(&d->members, m);
+        }
+        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->spelling = b.buf;
         list_push(&anon_records, d);
         list_push(&records, d);
         list_push(&program->decls, d);

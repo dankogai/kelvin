@@ -160,3 +160,172 @@ int kv_os_system(const void *command) {
 }
 
 int kv_os_pid(void) { return (int)getpid(); }
+
+/* ---------- more of OS (#95) ---------- */
+#include <pwd.h>
+#include <signal.h>
+#include <time.h>
+
+static void fill_stat(const struct stat *st, kv_stat *out) {
+    out->dev = (long long)st->st_dev;
+    out->ino = (long long)st->st_ino;
+    out->mode = (int)st->st_mode;
+    out->nlink = (long long)st->st_nlink;
+    out->uid = (int)st->st_uid;
+    out->gid = (int)st->st_gid;
+    out->size = (long long)st->st_size;
+    out->atime = (double)st->st_atime;
+    out->mtime = (double)st->st_mtime;
+    out->ctime = (double)st->st_ctime;
+    out->isdir = S_ISDIR(st->st_mode);
+    out->isfile = S_ISREG(st->st_mode);
+    out->islink = S_ISLNK(st->st_mode);
+}
+
+int kv_os_stat(const void *path, kv_stat *out) {
+    struct stat st;
+    if (stat((const char *)path, &st) != 0)
+        return err_or(EIO);
+    fill_stat(&st, out);
+    return 0;
+}
+
+int kv_os_lstat(const void *path, kv_stat *out) {
+    struct stat st;
+    if (lstat((const char *)path, &st) != 0)
+        return err_or(EIO);
+    fill_stat(&st, out);
+    return 0;
+}
+
+bool kv_os_islink(const void *path) {
+    struct stat st;
+    return lstat((const char *)path, &st) == 0 && S_ISLNK(st.st_mode);
+}
+
+int kv_os_symlink(const void *target, const void *path) {
+    return symlink((const char *)target, (const char *)path) == 0 ? 0 : err_or(EIO);
+}
+
+int kv_os_readlink(const void *path, kv_string *out) {
+    char buf[4096];
+    ssize_t n = readlink((const char *)path, buf, sizeof buf - 1);
+    if (n < 0)
+        return err_or(EIO);
+    *out = kv_string_from_bytes(&(kv_bytes){(uint8_t *)buf, (size_t)n, 0});
+    return 0;
+}
+
+int kv_os_link(const void *from, const void *to) { return link((const char *)from, (const char *)to) == 0 ? 0 : err_or(EIO); }
+int kv_os_unlink(const void *path) { return unlink((const char *)path) == 0 ? 0 : err_or(EIO); }
+int kv_os_chmod(const void *path, int mode) { return chmod((const char *)path, (mode_t)mode) == 0 ? 0 : err_or(EIO); }
+
+int kv_os_truncate(const void *path, long long size) {
+    return truncate((const char *)path, (off_t)size) == 0 ? 0 : err_or(EIO);
+}
+
+/* mkdir -p: each directory on the way, those there already left alone */
+int kv_os_makedirs(const void *path) {
+    const char *p = (const char *)path;
+    size_t n = strlen(p);
+    char *copy = malloc(n + 1);
+    if (!copy)
+        return ENOMEM;
+    memcpy(copy, p, n + 1);
+    for (size_t i = 1; i <= n; i++) {
+        if (copy[i] != '/' && copy[i] != '\0')
+            continue;
+        char c = copy[i];
+        copy[i] = '\0';
+        if (mkdir(copy, 0777) != 0 && errno != EEXIST) {
+            int e = err_or(EIO);
+            free(copy);
+            return e;
+        }
+        copy[i] = c;
+    }
+    struct stat st;
+    bool dir = stat(p, &st) == 0 && S_ISDIR(st.st_mode);
+    free(copy);
+    return dir ? 0 : ENOTDIR;
+}
+
+int kv_os_ppid(void) { return (int)getppid(); }
+int kv_os_uid(void) { return (int)getuid(); }
+int kv_os_gid(void) { return (int)getgid(); }
+
+const uint8_t *kv_os_user(void) {
+    struct passwd *pw = getpwuid(getuid());
+    return pw ? (const uint8_t *)pw->pw_name : NULL;
+}
+
+int kv_os_host(kv_string *out) {
+    char buf[256];
+    if (gethostname(buf, sizeof buf) != 0)
+        return err_or(EIO);
+    buf[sizeof buf - 1] = '\0';
+    *out = kv_string_text(buf);
+    return 0;
+}
+
+int kv_os_umask(int mask) { return (int)umask((mode_t)mask); }
+int kv_os_kill(int pid, int sig) { return kill((pid_t)pid, sig) == 0 ? 0 : err_or(EIO); }
+
+double kv_os_time(void) {
+    struct timespec ts;
+    if (!timespec_get(&ts, TIME_UTC))
+        return (double)time(NULL);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+void kv_os_sleep(double seconds) {
+    if (seconds <= 0)
+        return;
+    struct timespec ts = {(time_t)seconds, (long)((seconds - (double)(time_t)seconds) * 1e9)};
+    while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
+        ;
+}
+
+const uint8_t *kv_os_tmpdir(void) {
+    const char *t = getenv("TMPDIR");
+    return (const uint8_t *)(t && *t ? t : "/tmp");
+}
+
+/* the last part of a path after its last /, and what is before it, as
+   Python's os.path has them: basename("a/b/") is "", dirname("a") is "" */
+kv_string kv_os_basename(const void *path) {
+    const char *p = (const char *)path, *slash = strrchr(p, '/');
+    return kv_string_text(slash ? slash + 1 : p);
+}
+
+kv_string kv_os_dirname(const void *path) {
+    const char *p = (const char *)path, *slash = strrchr(p, '/');
+    if (!slash)
+        return kv_string_new();
+    size_t n = (size_t)(slash - p);
+    while (n > 1 && p[n - 1] == '/')
+        n--;
+    if (n == 0)
+        n = 1; /* "/a": the root */
+    return kv_string_from_bytes(&(kv_bytes){(uint8_t *)p, n, 0});
+}
+
+kv_string kv_os_join(const void *a, const void *b) {
+    const char *x = (const char *)a, *y = (const char *)b;
+    if (y[0] == '/' || !x[0])
+        return kv_string_text(y);
+    kv_string s = kv_string_text(x);
+    if (x[strlen(x) - 1] != '/')
+        kv_string_append_text(&s, "/");
+    kv_string_append_text(&s, y);
+    return s;
+}
+
+int kv_os_realpath(const void *path, kv_string *out) {
+    char *r = realpath((const char *)path, NULL);
+    if (!r)
+        return err_or(EIO);
+    *out = kv_string_text(r);
+    free(r);
+    return 0;
+}

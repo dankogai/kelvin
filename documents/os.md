@@ -57,20 +57,54 @@ let main():i32 {
   left out, sorted by their bytes, a `Result<Array<String>, i32>`;
   a name that is not UTF-8 ends the program, as a String made of it
   would.
+- **`OS.stat(path)`** and **`OS.lstat(path)`** (#95) are what C's
+  `stat` and `lstat` give, a `Result<{dev: i64, ino: i64, mode: i32,
+  nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64,
+  ctime: f64, isdir: bool, isfile: bool, islink: bool}, i32>`: `lstat`
+  of a symbolic link is the link's own, `stat` its target's; the
+  times are seconds since the epoch, `mode` C's bits, and `isdir`,
+  `isfile` and `islink` read off it. `OS.islink(path)` is the `bool`
+  alone.
+- **Links and the rest of a file** (#95): `OS.symlink(target, path)`
+  makes a symbolic link, `OS.readlink(path)` reads one, a
+  `Result<String, i32>`, `OS.link(from, to)` makes a hard link,
+  `OS.unlink(path)` removes a file, as `remove` does, `OS.chmod(path,
+  mode)` sets C's mode bits, an integer such as `0644` (C's octal),
+  `OS.truncate(path, size)` cuts or extends, `OS.makedirs(path)` makes
+  every directory on the way, as `mkdir -p` does, and
+  `OS.realpath(path)` is the absolute path with every link followed,
+  a `Result<String, i32>`; each `i32` is 0 or `errno`.
+- **Paths as text** (#95): `OS.basename(path)` and `OS.dirname(path)`
+  are the last part and what is before it, as Python's `os.path` has
+  them, so `basename("a/b/")` is `""` and `dirname("a")` is `""`,
+  `dirname("/a")` `"/"`; `OS.join(a, b)` joins with one `/`, and is
+  `b` when `b` is absolute; each a new `String`.
+- **The process and the user** (#95): `OS.ppid`, `OS.uid` and
+  `OS.gid` are the parent's id and the user's and group's ids;
+  `OS.user` the user's name, a `cstr?`; `OS.host` the host's name, a
+  `Result<String, i32>`; `OS.umask(mask)` sets the mask and gives the
+  old; `OS.kill(pid, signal)` sends a signal, 0 or `errno`.
+- **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
+  with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
+  allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
+  or `/tmp`, a `cstr`.
 - **`OS.system(command)`** runs a shell command with the program's
   streams, and gives its exit code, or -1 where it did not exit; for
   its output or input, `IO.popen` and `IO.exec` are in
   [io.md](io.md).
 - **`OS.pid`** is the process id, an `i32`.
 - **Paths, names and commands** are text (a literal, a `cstr`, a
-  `u8^`), or a `String` or a `Bytes` in a variable.
+  `u8^`), or a `String` or a `Bytes` in a variable; a mode, a size, a
+  pid or a signal is an integer, and seconds a number.
 - **In C**, each is the call of the same name, `getcwd`, `chdir`,
-  `getenv`, `setenv`, `unsetenv`, `access`, `stat`, `remove`,
-  `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`, `system` and
-  `getpid`, in runtime/os.c, which asks for POSIX; a program needs
-  nothing.
-- **Not yet:** a file's size and times, walking a tree, globbing,
-  temporary files, and the user and host.
+  `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
+  `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
+  `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
+  `realpath`, `system`, `kill`, `umask`, `getpid` and its kin,
+  `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
+  runtime/os.c, which asks for POSIX; a program needs nothing.
+- **Not yet:** walking a tree, globbing, temporary files made for you,
+  and setting a file's times.
 
 ## Properties and methods
 
@@ -86,6 +120,17 @@ let main():i32 {
 | | `.exists(path)`, `.isdir(path)`, `.isfile(path)` | a `bool` |
 | | `.remove(path)`, `.rename(from, to)`, `.mkdir(path)`, `.rmdir(path)` | 0 or `errno` |
 | | `.listdir(path)` | the names, sorted, a `Result<Array<String>, i32>` |
+| | `.stat(path)`, `.lstat(path)` | C's stat as a struct, a `Result<{dev, ino, mode, nlink, uid, gid, size, atime, mtime, ctime, isdir, isfile, islink}, i32>` (#95) |
+| | `.islink(path)` | a `bool` |
+| | `.symlink(target, path)`, `.link(from, to)`, `.unlink(path)`, `.chmod(path, mode)`, `.truncate(path, size)`, `.makedirs(path)` | 0 or `errno` |
+| | `.readlink(path)`, `.realpath(path)` | a `Result<String, i32>` |
+| | `.basename(path)`, `.dirname(path)`, `.join(a, b)` | a `String` |
+| | `.ppid`, `.uid`, `.gid` | ids, `i32`s |
+| | `.user` | the user's name, a `cstr?` |
+| | `.host` | the host's name, a `Result<String, i32>` |
+| | `.umask(mask)`, `.kill(pid, signal)` | the old mask; 0 or `errno` |
+| | `.time`, `.sleep(seconds)` | seconds since the epoch, an `f64`; sleeps |
+| | `.tmpdir` | the directory for temporary files, a `cstr` |
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 
