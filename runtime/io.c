@@ -88,8 +88,10 @@ int kv_io_pipe(kv_io *reader, kv_io *writer) {
 /* a program run without the shell (#90): argv[0] found on the PATH, as
    execvp finds it, its output read ("r") or its input written ("w")
    through a pipe; what exec itself fails with comes back as errno,
-   through a pipe closed on exec, so a missing program is ENOENT */
-int kv_io_exec(kv_io *out, const char *const *argv, const void *mode) {
+   through a pipe closed on exec, so a missing program is ENOENT. In
+   dir, when one is given, and with env's "NAME=value" entries set
+   (#92); a dir that cannot be entered is reported the same way */
+int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env) {
     const char *m = (const char *)mode;
     bool reading = m[0] == 'r';
     if ((m[0] != 'r' && m[0] != 'w') || !argv || !argv[0])
@@ -119,8 +121,17 @@ int kv_io_exec(kv_io *out, const char *const *argv, const void *mode) {
             _exit(127);
         close(fds[0]);
         close(fds[1]);
-        execvp(argv[0], (char *const *)argv);
-        int e = errno;
+        int e = 0;
+        const char *d = (const char *)dir;
+        if (d && *d && chdir(d) != 0)
+            e = errno ? errno : EIO;
+        for (size_t i = 0; !e && env && env[i]; i++)
+            if (putenv((char *)env[i]) != 0)
+                e = errno ? errno : EINVAL;
+        if (!e)
+            execvp(argv[0], (char *const *)argv);
+        if (!e)
+            e = errno;
         if (write(report[1], &e, sizeof e) != (ssize_t)sizeof e)
             _exit(127);
         _exit(127);
@@ -152,27 +163,43 @@ int kv_io_exec(kv_io *out, const char *const *argv, const void *mode) {
     return 0;
 }
 
-/* the same of an Array of cstr, or of String, and its count */
-int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode) {
-    const char **argv = malloc((n + 1) * sizeof *argv);
-    if (!argv)
-        return ENOMEM;
+/* a NULL-ended vector of an Array of cstr, or of String, and its count:
+   the arguments, or the environment (#92) */
+const char **kv_io_vector_cstrs(const uint8_t *const *at, size_t n) {
+    const char **v = malloc((n + 1) * sizeof *v);
+    if (!v)
+        kv_io_fail("out of memory");
     for (size_t i = 0; i < n; i++)
-        argv[i] = (const char *)at[i];
-    argv[n] = NULL;
-    int e = kv_io_exec(out, argv, mode);
+        v[i] = (const char *)at[i];
+    v[n] = NULL;
+    return v;
+}
+
+const char **kv_io_vector_strings(const kv_string *at, size_t n) {
+    const char **v = malloc((n + 1) * sizeof *v);
+    if (!v)
+        kv_io_fail("out of memory");
+    for (size_t i = 0; i < n; i++)
+        v[i] = (const char *)kv_bytes_cstr(&at[i].b);
+    v[n] = NULL;
+    return v;
+}
+
+void kv_io_vector_free(const char *const *v) { free((void *)v); }
+
+/* the same of an Array of cstr, or of String, and its count */
+int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode, const void *dir,
+                     const char *const *env) {
+    const char **argv = kv_io_vector_cstrs(at, n);
+    int e = kv_io_exec(out, argv, mode, dir, env);
     free(argv);
     return e;
 }
 
-int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode) {
-    const char **argv = malloc((n + 1) * sizeof *argv);
-    if (!argv)
-        return ENOMEM;
-    for (size_t i = 0; i < n; i++)
-        argv[i] = (const char *)kv_bytes_cstr(&at[i].b);
-    argv[n] = NULL;
-    int e = kv_io_exec(out, argv, mode);
+int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode, const void *dir,
+                       const char *const *env) {
+    const char **argv = kv_io_vector_strings(at, n);
+    int e = kv_io_exec(out, argv, mode, dir, env);
     free(argv);
     return e;
 }

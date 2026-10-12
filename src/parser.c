@@ -2228,9 +2228,7 @@ static Expr *parse_primary(void) {
                variable */
             expect_p("(");
             Expr *e = new_expr(E_CALL, t->pos);
-            e->a = new_expr(E_IDENT, t->pos);
-            e->a->text = "IO";
-            e->op = "io_exec";
+            e->op = "io_exec"; /* e->a is the directory, when one is given (#92) */
             bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
             brace_ends_condition = brace_in_for = false;
             if (accept_p("[")) {
@@ -2244,9 +2242,9 @@ static Expr *parse_primary(void) {
                                              "variable first",
                                      is_string(at) ? "String" : "Bytes");
                         a = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
-                    } else if (at && !is_text_expr(a)) {
+                    } else if ((at && !is_text_expr(a)) || number_expr(a)) {
                         error_at(a->pos, "an argument of IO.exec is text, a String or a Bytes, and this is %s",
-                                 kelvin_type(at));
+                                 at ? kelvin_type(at) : "a number");
                     }
                     list_push(&e->items, a);
                     if (!accept_p(","))
@@ -2272,7 +2270,8 @@ static Expr *parse_primary(void) {
                 e->b = a;
             }
             if (!accept_p(","))
-                error_at(peek()->pos, "IO.exec takes the arguments and then a mode, \"r\" or \"w\"");
+                error_at(peek()->pos, "IO.exec takes the arguments and then a mode, \"r\" or \"w\", then a directory and an "
+                                      "environment if wanted");
             Expr *m = parse_assign();
             Type *mt = value_type(m);
             if (is_string(mt) || is_bytes(mt)) {
@@ -2284,6 +2283,62 @@ static Expr *parse_primary(void) {
                 error_at(m->pos, "the mode of IO.exec is text, \"r\" or \"w\", and this is %s", kelvin_type(mt));
             }
             e->c = m;
+            if (accept_p(",")) {
+                /* IO.exec(args, mode, dir) and IO.exec(args, mode, dir, env) (#92):
+                   the directory, text or a String, "" for the current; the
+                   environment's "NAME=value" entries, a list or an Array */
+                Expr *d = parse_assign();
+                Type *dt = value_type(d);
+                if (is_string(dt) || is_bytes(dt)) {
+                    if (!owner_place(d))
+                        error_at(d->pos, "the directory of IO.exec is a %s that an expression gives: bind it to a variable "
+                                         "first",
+                                 is_string(dt) ? "String" : "Bytes");
+                    d = property(d, &(Token){.kind = TK_IDENT, .pos = d->pos, .text = "cstr"}, "cstr");
+                } else if ((dt && !is_text_expr(d)) || number_expr(d)) {
+                    error_at(d->pos, "the directory of IO.exec is text or a String, \"\" for the current one, and this is %s",
+                             dt ? kelvin_type(dt) : "a number");
+                }
+                e->a = d;
+                if (accept_p(",")) {
+                    if (accept_p("[")) {
+                        Expr *env = new_expr(E_INIT, t->pos);
+                        env->bracket = true;
+                        while (!is_p(peek(), "]")) {
+                            Expr *a = parse_assign();
+                            Type *at = value_type(a);
+                            if (is_string(at) || is_bytes(at)) {
+                                if (!owner_place(a))
+                                    error_at(a->pos, "an entry of IO.exec's environment is a %s that an expression gives: "
+                                                     "bind it to a variable first",
+                                             is_string(at) ? "String" : "Bytes");
+                                a = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+                            } else if ((at && !is_text_expr(a)) || number_expr(a)) {
+                                error_at(a->pos, "an entry of IO.exec's environment is text, \"NAME=value\", a String or a "
+                                                 "Bytes, and this is %s",
+                                         at ? kelvin_type(at) : "a number");
+                            }
+                            list_push(&env->items, a);
+                            if (!accept_p(","))
+                                break;
+                        }
+                        expect_p("]");
+                        e->d = env;
+                    } else {
+                        Expr *a = parse_assign();
+                        Type *at = value_type(a);
+                        if (!is_array_owner(at) || !(is_cstr(at->elem) || is_string(at->elem)))
+                            error_at(a->pos, "the environment of IO.exec is a list of \"NAME=value\" entries, or an Array of "
+                                             "cstr or of String in a variable, and this is %s",
+                                     at ? kelvin_type(at) : "not one");
+                        if (!owner_place(a))
+                            error_at(a->pos, "the environment of IO.exec is an Array that an expression gives: bind it to a "
+                                             "variable first");
+                        e->d = a;
+                        e->recv_type = at; /* cstr or String entries, for the codegen */
+                    }
+                }
+            }
             brace_ends_condition = saved_brace;
             brace_in_for = saved_for;
             expect_p(")");

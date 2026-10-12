@@ -116,9 +116,14 @@ int kv_io_open(kv_io *out, const void *path, const void *mode);
 int kv_io_fdopen(kv_io *out, int fd, const void *mode);
 int kv_io_popen(kv_io *out, const void *command, const void *mode);
 int kv_io_pipe(kv_io *reader, kv_io *writer);
-int kv_io_exec(kv_io *out, const char *const *argv, const void *mode);
-int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode);
-int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode);
+int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env);
+int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode, const void *dir,
+                     const char *const *env);
+int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode, const void *dir,
+                       const char *const *env);
+const char **kv_io_vector_cstrs(const uint8_t *const *at, size_t n);
+const char **kv_io_vector_strings(const kv_string *at, size_t n);
+void kv_io_vector_free(const char *const *v);
 int kv_io_status(kv_io *f);
 int kv_io_signal(kv_io *f);
 bool kv_io_kill(kv_io *f, int sig);

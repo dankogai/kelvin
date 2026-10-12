@@ -516,8 +516,31 @@ static char *expr_bare(Expr *e) {
                                                       : "kv_io_fdopen",
                           expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
         }
-        if (e->op && !strcmp(e->op, "io_exec") && e->type) { /* IO.exec(args, mode) (#90): the IO, or errno */
+        if (e->op && !strcmp(e->op, "io_exec") && e->type) {
+            /* IO.exec(args, mode, dir, env) (#90, #92): the IO, or errno; an
+               Array's environment is a vector made and freed around the call */
             Decl *r = kelvin_record(e->type->name);
+            Buf pre = {0};
+            buf_puts(&pre, "");
+            const char *dir = e->a ? expr(e->a) : "NULL";
+            const char *env = "NULL", *post = "";
+            if (e->d && e->d->kind == E_INIT) {
+                Buf b = {0};
+                buf_puts(&b, "(const char *const[]){");
+                for (int i = 0; i < e->d->items.len; i++)
+                    buf_printf(&b, "(const char *)(%s), ", expr(e->d->items.data[i]));
+                buf_puts(&b, "NULL}");
+                env = b.buf;
+            } else if (e->d) {
+                char *xs = expr(e->d);
+                bool strings = e->recv_type && e->recv_type->elem && e->recv_type->elem->kind == T_BASE &&
+                               !strcmp(e->recv_type->elem->name, "String");
+                buf_printf(&pre, "const char **_kv_env = %s(%s(%s).at, (%s).count); ",
+                           strings ? "kv_io_vector_strings" : "kv_io_vector_cstrs", strings ? "" : "(const uint8_t *const *)",
+                           xs, xs);
+                env = "(const char *const *)_kv_env";
+                post = "kv_io_vector_free(_kv_env); ";
+            }
             char *call;
             if (!strcmp(e->text, "list")) {
                 Buf b = {0};
@@ -525,15 +548,16 @@ static char *expr_bare(Expr *e) {
                 for (int i = 0; i < e->items.len; i++)
                     buf_printf(&b, "(const char *)(%s), ", expr(e->items.data[i]));
                 buf_puts(&b, "NULL}");
-                call = strfmt("kv_io_exec(&_kv_f, %s, %s)", b.buf, expr(e->c));
+                call = strfmt("kv_io_exec(&_kv_f, %s, %s, %s, %s)", b.buf, expr(e->c), dir, env);
             } else if (!strcmp(e->text, "cstrs")) {
-                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s)", expr(e->b),
-                              expr(e->b), expr(e->c));
+                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s, %s, %s)", expr(e->b),
+                              expr(e->b), expr(e->c), dir, env);
             } else {
-                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s)", expr(e->b), expr(e->b), expr(e->c));
+                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s, %s, %s)", expr(e->b), expr(e->b),
+                              expr(e->c), dir, env);
             }
-            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = %s; _kv_e ? _kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_f); })",
-                          call, r->name, r->name);
+            return strfmt("({ kv_io _kv_f = {0}; %sint _kv_e = %s; %s_kv_e ? _kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_f); })",
+                          pre.buf, call, post, r->name, r->name);
         }
         if (e->op && !strcmp(e->op, "io_pipe") && e->type) { /* IO.pipe() (#87): {reader, writer}, or errno */
             Decl *r = kelvin_record(e->type->name);

@@ -38,6 +38,7 @@ for line in f.lines { sum += i64(line) }      // a number is read from the text 
 var ls = IO.popen("ls -l", "r")               // a shell command's output (#87); IO.pipe() a pipe's two ends
 var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90)
 if let ok(p) = wc { p.kill(15) }              // a signal to it (#91); p.pid its process id
+var ls = IO.exec(["ls"], "r", "/tmp", ["LC_ALL=C"])   // in a directory, with an environment entry (#92)
 if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
@@ -67,7 +68,13 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   to read its output or `"w"` to write its input, a `Result<IO, i32>`,
   with what the exec itself failed with as the err, `ENOENT` for a
   program not found. Its block, or `close()`, waits for it, and
-  `status` and `signal` are then as a `popen`'s. `f.kill(signal)` (#91)
+  `status` and `signal` are then as a `popen`'s. `IO.exec(args, mode,
+  dir)` and `IO.exec(args, mode, dir, env)` (#92) run it in the
+  directory `dir`, text or a String, `""` for the current one, and
+  with the entries of `env`, `"NAME=value"` each, a list or an Array of
+  `cstr` or of `String` in a variable, added to the parent's
+  environment, or replacing those it has; a directory that cannot be
+  entered is an err, as a missing program is. `f.kill(signal)` (#91)
   sends a signal to that process, `true` when it was sent, and `f.pid`
   is its process id, an `i32`; a `popen`'s child has no pid C knows,
   so there `kill` is `false` and `pid` is -1, as for any other IO. The
@@ -134,8 +141,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   that `IO.stdout` names in place. `fdopen`, `fileno`, `popen`,
   `pipe`, `fork`, `execvp` and `waitpid` are POSIX, which the runtime
   asks for; a program needs nothing.
-- **Not yet:** a `popen`'s pid, which C does not give, and a process's
-  environment or working directory.
+- **Not yet:** a `popen`'s pid, which C does not give, and an
+  environment made from nothing rather than the parent's.
 
 ## Properties and methods
 
@@ -145,6 +152,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
 | `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
 | `IO.exec(args, mode)` | | the same of a program run without the shell, `args` a list or an Array (#90) |
+| `IO.exec(args, mode, dir, env)` | | the same, in a directory, with `"NAME=value"` entries added to the environment (#92) |
 | `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |
