@@ -3091,3 +3091,15 @@ them, an `i64?` or an `f64?`; `none` at the end, or where no number is
 there. Details are provisional P97.
 
 There are 614 tests, and all pass with clang and with gcc 15.
+
+### 117. An IO of a file descriptor
+
+> now add opening with a file descriptor to `IO`
+
+**Claude** added #86: `IO(fd, mode)`, with a number first, opens a
+file descriptor as `fdopen` does, and owns it, so its block closes the
+descriptor too; `f.fd` beside it is an IO's descriptor, an `i32`, for
+C's own calls, -1 once closed. A bad descriptor is an err, `EBADF`.
+Details are provisional P98.
+
+There are 616 tests, and all pass with clang and with gcc 15.

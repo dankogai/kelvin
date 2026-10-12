@@ -43,7 +43,10 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   (`"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...), and gives a
   `Result<IO, i32>`: the IO, or `errno` as `fopen` left it. `path` and
   `mode` are text (a literal, a `cstr`, a `u8^`), a `String` or a
-  `Bytes` in a variable. `IO.stdin`, `IO.stdout` and `IO.stderr` are
+  `Bytes` in a variable. `IO(fd, mode)` (#86), with a number first,
+  opens a file descriptor as `fdopen` does, and owns it: its block
+  closes the descriptor too; `f.fd` is an IO's descriptor, an `i32`,
+  for C's calls, -1 once closed. `IO.stdin`, `IO.stdout` and `IO.stderr` are
   the standard streams, also written `IO.stdout()`: an IO that is never
   closed, only flushed, and may be used where it stands,
   `IO.stderr.write("x")`, or bound, `var out = IO.stdout`.
@@ -97,15 +100,17 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
-  that `IO.stdout` names in place.
-- **Not yet:** opening with a file descriptor, and reading numbers in
-  a base or of a narrower type.
+  that `IO.stdout` names in place. `fdopen` and `fileno` are POSIX,
+  which the runtime asks for; a program needs nothing.
+- **Not yet:** reading numbers in a base or of a narrower type, and
+  opening a pipe or a process.
 
 ## Properties and methods
 
 | On | Property or method | Gives |
 |---|---|---|
 | `IO(path, mode)` | | a `Result<IO, i32>`: the IO, or errno |
+| `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |
 | | `.string` | a `Result<String, i32>`: the same as UTF-8, or `EILSEQ` |
@@ -118,6 +123,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.i64`, `.f64` | the next integer or float as `scanf` reads it, an `i64?` or `f64?`, `none` where there is none |
 | | `.eof` | `true` once a read has met the end (#84) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
+| | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

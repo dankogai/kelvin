@@ -468,6 +468,7 @@ static bool is_string(Type *t);
 static bool is_uchr(Type *t);
 static bool is_io(Type *t);
 static bool is_io_std(Expr *e);
+static bool number_expr(Expr *e);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
@@ -2188,8 +2189,16 @@ static Expr *parse_primary(void) {
         brace_in_for = saved_for;
         expect_p(")");
         if (e->items.len != 2)
-            error_at(t->pos, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes");
-        for (int i = 0; i < 2; i++) {
+            error_at(t->pos, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes; "
+                             "or a file descriptor and a mode, IO(fd, \"r\")");
+        Expr *first = e->items.data[0];
+        Type *ft = value_type(first);
+        Decl *fr;
+        if (is_io(ft))
+            error_at(first->pos, "IO takes a descriptor number here: an IO's is 'f.fd'");
+        if (number_expr(first) || (ft && type_class(ft, &fr) == 'i'))
+            e->text = "fd"; /* IO(fd, mode) (#86): a descriptor's, as fdopen gives it */
+        for (int i = e->text ? 1 : 0; i < 2; i++) {
             Expr *a = e->items.data[i];
             Type *at = value_type(a);
             if (is_string(at) || is_bytes(at)) {
@@ -4354,7 +4363,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "i64") ||
-                                          !strcmp(member, "f64"))))) {
+                                          !strcmp(member, "f64") || !strcmp(member, "fd"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4376,6 +4385,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
+        else if (kk == 'i' && !strcmp(member, "fd")) /* the descriptor (#86) */
+            x->type = base_type("i32", name->pos);
         else if (kk == 'i' && (!strcmp(member, "byte") || !strcmp(member, "i64") || !strcmp(member, "f64")))
             /* the next byte, integer or float, or none at the end (#85) */
             x->type = optional_type(name, base_type(!strcmp(member, "byte") ? "u8" : member, name->pos));

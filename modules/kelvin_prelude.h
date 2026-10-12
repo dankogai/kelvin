@@ -107,6 +107,8 @@ bool kv_string_eq(const kv_string *a, const kv_string *b);
    may declare itself */
 typedef struct kv_io { void *fp; bool owned; } kv_io;
 int kv_io_open(kv_io *out, const void *path, const void *mode);
+int kv_io_fdopen(kv_io *out, int fd, const void *mode);
+int kv_io_fd(kv_io *f);
 kv_io *kv_io_std(int which);
 void kv_io_free(kv_io *f);
 kv_io kv_io_take(kv_io *f);
