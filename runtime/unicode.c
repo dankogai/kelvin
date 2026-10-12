@@ -172,6 +172,7 @@ bool kv_string_eq(const kv_string *a, const kv_string *b) { return kv_bytes_eq(&
 bool kv_bytes_is_utf8(const kv_bytes *b) { return kv_utf8_valid(b->at ? b->at : (const uint8_t *)"", b->count, NULL); }
 
 void kv_print_string(kv_string s) { kv_print_bytes(s.b); }
+void kv_fprint_string(void *fp, kv_string s) { kv_fprint_bytes(fp, s.b); }
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf) { return kv_cstr_bytes(s.b, buf); }
 char *kv_template_string(char *p, size_t max, kv_string s) { return kv_template_bytes_owner(p, max, s.b); }
 
@@ -204,12 +205,14 @@ uint8_t *kv_cstr_uchr(kv_uchr c, uint8_t *buf) {
     return buf;
 }
 
-void kv_print_uchr(kv_uchr c) {
+void kv_fprint_uchr(void *fp, kv_uchr c) {
     uint8_t out[5];
     size_t n = kv_utf8_put(c.cp, out);
     if (n)
-        fwrite(out, 1, n, stdout);
+        fwrite(out, 1, n, (FILE *)fp);
 }
+
+void kv_print_uchr(kv_uchr c) { kv_fprint_uchr(stdout, c); }
 
 char *kv_template_uchr(char *p, size_t max, kv_uchr c) {
     uint8_t out[5];

@@ -37,6 +37,8 @@ let main():i32 {
   `println(a == b)` prints `true` or `false`, as do `true` and `false`
   themselves *(provisional P23)*.
 - `print` and `println` cannot be redefined.
+- **`f.print(...)`** and **`f.println(...)`** (#83) show the same values
+  the same way to an IO, a file or `IO.stderr`; see [io.md](io.md).
 - The prelude lives in `libkelvin`, which kelvinc links statically
   *(provisional P22)*. The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's

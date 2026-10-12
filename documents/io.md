@@ -29,6 +29,7 @@ let f = try IO("log.txt", "a")
 f.write("started\n")                      // text
 f.write(&name)                            // a borrow of a String or a Bytes
 f.write($`${n} items\n`)                  // a String an expression gives, written and freed
+f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
 let raw = try f.bytes                     // as a Bytes
@@ -66,7 +67,13 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   are only for `for`; `break`, `continue` and `return` work in the body.
 - **Writing:** `f.write(x)` writes text (a literal, a `cstr`, a `u8^`),
   a borrow of a `String` or a `Bytes` (`&s`, or a `String^` held), or
-  a String or Bytes an expression gives, which is then freed. `f.flush()` flushes. Writing
+  a String or Bytes an expression gives, which is then freed.
+  **`f.print(a, b, ...)`** and **`f.println(...)`** (#83) show up to 16
+  values as `print` and `println` do, by their types (numbers, floats
+  in their shortest form, `bool`, text, a `String`, a `Bytes`, a
+  `uchr` as its character, a struct's `.cstr`), to the IO:
+  `IO.stderr.println("warning: ", n)`; see
+  [printing.md](printing.md). `f.flush()` flushes. Writing
   to a closed IO ends the program.
 - **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
   reads, writes and flushes: what changes is the file, not the IO.
@@ -74,8 +81,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
   that `IO.stdout` names in place.
-- **Not yet:** seeking, `.eof`, reading a single byte or a number,
-  `print` to an IO, and opening with a file descriptor.
+- **Not yet:** seeking, `.eof`, reading a single byte or a number, and
+  opening with a file descriptor.
 
 ## Properties and methods
 
@@ -88,6 +95,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
 | | `for line in f.lines { }` | each line without its newline, a `String` the loop owns |
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
+| | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

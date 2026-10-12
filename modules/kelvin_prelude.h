@@ -73,6 +73,7 @@ void kv_bytes_clear(kv_bytes *b);
 void kv_bytes_compact(kv_bytes *b);
 bool kv_bytes_eq(const kv_bytes *a, const kv_bytes *b);
 void kv_print_bytes(kv_bytes b);
+void kv_fprint_bytes(void *fp, kv_bytes b);
 uint8_t *kv_cstr_bytes(kv_bytes b, uint8_t *buf);
 char *kv_template_bytes_owner(char *p, size_t max, kv_bytes b);
 /* ---------- String (#55): codepoints, as UTF-8 in a Bytes ---------- */
@@ -122,9 +123,11 @@ void kv_io_write_bytes(kv_io *f, const kv_bytes *b);
 void kv_io_write_string(kv_io *f, const kv_string *s);
 void kv_io_write_owned_bytes(kv_io *f, kv_bytes b);
 void kv_io_write_owned_string(kv_io *f, kv_string s);
+void *kv_io_fp(kv_io *f);
 kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);
+void kv_fprint_string(void *fp, kv_string s);
 uint8_t *kv_cstr_string(kv_string s, uint8_t *buf);
 char *kv_template_string(char *p, size_t max, kv_string s);
 /* uchr (#56): a codepoint on the stack, shown as its UTF-8 */
@@ -133,6 +136,7 @@ kv_uchr kv_uchr_of(uint64_t n);
 kv_uchr kv_uchr_first(const void *text);
 uint8_t *kv_cstr_uchr(kv_uchr c, uint8_t *buf);
 void kv_print_uchr(kv_uchr c);
+void kv_fprint_uchr(void *fp, kv_uchr c);
 char *kv_template_uchr(char *p, size_t max, kv_uchr c);
 void kv_string_append_uchr(kv_string *s, kv_uchr c);
 /* uchr(x): of a number, U+FFFD where it is no codepoint; of text, its first codepoint */
@@ -681,13 +685,43 @@ void kv_print_bool(bool v);
 void kv_print_str(const char *v);
 void kv_print_ptr(const void *v);
 void kv_print_newline(void);
+/* the same to an IO's FILE (#83), fp a void * */
+void kv_fprint_char(void *fp, char v);
+void kv_fprint_i64(void *fp, long long v);
+void kv_fprint_u64(void *fp, unsigned long long v);
+void kv_fprint_f32(void *fp, float v);
+void kv_fprint_f64(void *fp, double v);
+void kv_fprint_f80(void *fp, long double v);
+void kv_fprint_bool(void *fp, bool v);
+void kv_fprint_str(void *fp, const char *v);
+void kv_fprint_ptr(void *fp, const void *v);
+void kv_fprint_newline(void *fp);
 #ifdef __SIZEOF_INT128__
 void kv_print_i128(__int128 v);
 void kv_print_u128(unsigned __int128 v);
+void kv_fprint_i128(void *fp, __int128 v);
+void kv_fprint_u128(void *fp, unsigned __int128 v);
 #define KV_PRINT_INT128 __int128: kv_print_i128, unsigned __int128: kv_print_u128,
+#define KV_FPRINT_INT128 __int128: kv_fprint_i128, unsigned __int128: kv_fprint_u128,
 #else
 #define KV_PRINT_INT128
+#define KV_FPRINT_INT128
 #endif
+
+#define KV_FPRINT1(fp, v) _Generic((v), \
+    kv_bytes: kv_fprint_bytes, kv_string: kv_fprint_string, kv_uchr: kv_fprint_uchr, \
+    bool: kv_fprint_bool, \
+    char: kv_fprint_char, \
+    signed char: kv_fprint_i64, short: kv_fprint_i64, int: kv_fprint_i64, \
+    long: kv_fprint_i64, long long: kv_fprint_i64, \
+    unsigned char: kv_fprint_u64, unsigned short: kv_fprint_u64, unsigned: kv_fprint_u64, \
+    unsigned long: kv_fprint_u64, unsigned long long: kv_fprint_u64, \
+    KV_FPRINT_INT128 \
+    float: kv_fprint_f32, double: kv_fprint_f64, long double: kv_fprint_f80, \
+    char *: kv_fprint_str, const char *: kv_fprint_str, \
+    signed char *: kv_fprint_str, const signed char *: kv_fprint_str, \
+    unsigned char *: kv_fprint_str, const unsigned char *: kv_fprint_str, \
+    default: kv_fprint_ptr)(fp, v)
 
 #define kv_print1(v) _Generic((v), \
     kv_bytes: kv_print_bytes, kv_string: kv_print_string, kv_uchr: kv_print_uchr, \
@@ -861,5 +895,25 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
 
 #define print(...) KV_CAT(kv_print_n, KV_NARGS(__VA_ARGS__))(__VA_ARGS__)
 #define println(...) (print(__VA_ARGS__), kv_print_newline())
+/* f.print(...) and f.println(...) (#83): the same to an IO's FILE, evaluated once */
+#define kv_fprint_n0(fp, ...) ((void)(fp))
+#define kv_fprint_n1(fp, a) KV_FPRINT1(fp, a)
+#define kv_fprint_n2(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n1(fp, __VA_ARGS__))
+#define kv_fprint_n3(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n2(fp, __VA_ARGS__))
+#define kv_fprint_n4(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n3(fp, __VA_ARGS__))
+#define kv_fprint_n5(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n4(fp, __VA_ARGS__))
+#define kv_fprint_n6(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n5(fp, __VA_ARGS__))
+#define kv_fprint_n7(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n6(fp, __VA_ARGS__))
+#define kv_fprint_n8(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n7(fp, __VA_ARGS__))
+#define kv_fprint_n9(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n8(fp, __VA_ARGS__))
+#define kv_fprint_n10(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n9(fp, __VA_ARGS__))
+#define kv_fprint_n11(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n10(fp, __VA_ARGS__))
+#define kv_fprint_n12(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n11(fp, __VA_ARGS__))
+#define kv_fprint_n13(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n12(fp, __VA_ARGS__))
+#define kv_fprint_n14(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n13(fp, __VA_ARGS__))
+#define kv_fprint_n15(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n14(fp, __VA_ARGS__))
+#define kv_fprint_n16(fp, a, ...) (KV_FPRINT1(fp, a), kv_fprint_n15(fp, __VA_ARGS__))
+#define KV_FPRINT(f, ...) ({ void *_kv_fp = kv_io_fp(f); KV_CAT(kv_fprint_n, KV_NARGS(__VA_ARGS__))(_kv_fp, __VA_ARGS__); })
+#define KV_FPRINTLN(f, ...) ({ void *_kv_fp = kv_io_fp(f); KV_CAT(kv_fprint_n, KV_NARGS(__VA_ARGS__))(_kv_fp, __VA_ARGS__); kv_fprint_newline(_kv_fp); })
 
 #endif

@@ -124,45 +124,59 @@ static char *i128_text(__int128 v, char *buf) {
 
 /* ---------- print ---------- */
 
-void kv_print_char(char v) { putchar((unsigned char)v); }
+/* each value's text to a FILE (an IO's fp, a void * in the prelude,
+   #83), and to stdout for print */
+void kv_fprint_char(void *fp, char v) { putc((unsigned char)v, (FILE *)fp); }
+void kv_print_char(char v) { kv_fprint_char(stdout, v); }
 
-void kv_print_i64(long long v) { printf("%lld", v); }
+void kv_fprint_i64(void *fp, long long v) { fprintf((FILE *)fp, "%lld", v); }
+void kv_print_i64(long long v) { kv_fprint_i64(stdout, v); }
 
-void kv_print_u64(unsigned long long v) { printf("%llu", v); }
+void kv_fprint_u64(void *fp, unsigned long long v) { fprintf((FILE *)fp, "%llu", v); }
+void kv_print_u64(unsigned long long v) { kv_fprint_u64(stdout, v); }
 
-void kv_print_bool(bool v) { fputs(v ? "true" : "false", stdout); }
+void kv_fprint_bool(void *fp, bool v) { fputs(v ? "true" : "false", (FILE *)fp); }
+void kv_print_bool(bool v) { kv_fprint_bool(stdout, v); }
 
-void kv_print_str(const char *v) { fputs(v ? v : "(null)", stdout); }
+void kv_fprint_str(void *fp, const char *v) { fputs(v ? v : "(null)", (FILE *)fp); }
+void kv_print_str(const char *v) { kv_fprint_str(stdout, v); }
 
-void kv_print_ptr(const void *v) { printf("%p", v); }
+void kv_fprint_ptr(void *fp, const void *v) { fprintf((FILE *)fp, "%p", v); }
+void kv_print_ptr(const void *v) { kv_fprint_ptr(stdout, v); }
 
-void kv_print_newline(void) { putchar('\n'); }
+void kv_fprint_newline(void *fp) { putc('\n', (FILE *)fp); }
+void kv_print_newline(void) { kv_fprint_newline(stdout); }
 
-void kv_print_f64(double v) {
+void kv_fprint_f64(void *fp, double v) {
     char buf[96];
-    fputs(f64_text(v, buf), stdout);
+    fputs(f64_text(v, buf), (FILE *)fp);
 }
+void kv_print_f64(double v) { kv_fprint_f64(stdout, v); }
 
-void kv_print_f32(float v) {
+void kv_fprint_f32(void *fp, float v) {
     char buf[96];
-    fputs(f32_text(v, buf), stdout);
+    fputs(f32_text(v, buf), (FILE *)fp);
 }
+void kv_print_f32(float v) { kv_fprint_f32(stdout, v); }
 
-void kv_print_f80(long double v) {
+void kv_fprint_f80(void *fp, long double v) {
     char buf[96];
-    fputs(f80_text(v, buf), stdout);
+    fputs(f80_text(v, buf), (FILE *)fp);
 }
+void kv_print_f80(long double v) { kv_fprint_f80(stdout, v); }
 
 #ifdef __SIZEOF_INT128__
-void kv_print_u128(unsigned __int128 v) {
+void kv_fprint_u128(void *fp, unsigned __int128 v) {
     char buf[48];
-    fputs(u128_text(v, buf), stdout);
+    fputs(u128_text(v, buf), (FILE *)fp);
 }
+void kv_print_u128(unsigned __int128 v) { kv_fprint_u128(stdout, v); }
 
-void kv_print_i128(__int128 v) {
+void kv_fprint_i128(void *fp, __int128 v) {
     char buf[48];
-    fputs(i128_text(v, buf), stdout);
+    fputs(i128_text(v, buf), (FILE *)fp);
 }
+void kv_print_i128(__int128 v) { kv_fprint_i128(stdout, v); }
 #endif
 
 /* ---------- template literals (#39) ---------- */

@@ -3047,3 +3047,15 @@ macOS tolerated. `close` now needs the var that owns the IO, as
 P94.
 
 There are 607 tests, and all pass with clang and with gcc 15.
+
+### 114. `print` and `println` on an IO
+
+> now add `print` and `println` to `IO`
+
+**Claude** added #83: `f.print(a, b, ...)` and `f.println(...)` show
+values to an IO as `print` and `println` show them to stdout, by each
+value's type, up to 16 at a time, `IO.stderr.println("warning: ", n)`.
+The runtime's printers now take a FILE, with `print` the stdout case.
+Details are provisional P95.
+
+There are 610 tests, and all pass with clang and with gcc 15.

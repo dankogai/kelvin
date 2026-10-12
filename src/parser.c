@@ -1525,7 +1525,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
                     {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
                     {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
-                    {"close", 0, true, "i"}, {"read", 1, false, "i"}};
+                    {"close", 0, true, "i"}, {"read", 1, false, "i"},
+                    {"print", -1, false, "i"}, {"println", -1, false, "i"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
@@ -1545,8 +1546,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                             ? "a Set has no method '%s': insert, has, remove, clear, reserve, copy, "
                                               "union, intersection and difference, and the properties count and elements"
                                         : ok == 'i'
-                                            ? "an IO has no method '%s': write, flush, close and read(n), and the "
-                                              "properties bytes, string and lines; it is not copied"
+                                            ? "an IO has no method '%s': write, print, println, flush, close and read(n), "
+                                              "and the properties bytes, string and lines; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
@@ -1576,9 +1577,21 @@ static Expr *parse_postfix_ops(Expr *e) {
                 brace_ends_condition = saved_brace;
                 brace_in_for = saved_for;
                 expect_p(")");
-                if (x->items.len != methods[which].arity)
+                if (methods[which].arity >= 0 && x->items.len != methods[which].arity)
                     error_at(name->pos, "'.%s' takes %d argument%s", member, methods[which].arity,
                              methods[which].arity == 1 ? "" : "s");
+                if (ok == 'i' && (!strcmp(member, "print") || !strcmp(member, "println"))) {
+                    /* f.print(...), f.println(...) (#83): as print, to the IO */
+                    for (int i = 0; i < x->items.len; i++) {
+                        Expr *v = x->items.data[i];
+                        Type *vt = value_type(v);
+                        if (vt && vt->kind == T_FUNC)
+                            error_at(v->pos, "'.%s' cannot show a function: a function has no text", member);
+                    }
+                    if (x->items.len > 16)
+                        error_at(((Expr *)x->items.data[16])->pos,
+                                 "'.%s' takes up to 16 values, and this has %d: write two calls", member, x->items.len);
+                }
                 Expr *given = which == 0 ? x->items.data[0] : which == 1 ? x->items.data[1] : NULL;
                 if (given)
                     check_appended(given, okind, member);

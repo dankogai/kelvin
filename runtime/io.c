@@ -73,6 +73,9 @@ static FILE *open_fp(const kv_io *f, const char *what) {
     return (FILE *)f->fp;
 }
 
+/* the FILE for print and println (#83) */
+void *kv_io_fp(kv_io *f) { return open_fp(f, "printing to a closed IO"); }
+
 /* the rest of the file, or errno: of a stream that cannot be read, such
    as a directory, what ferror reports */
 int kv_io_read_all(kv_io *f, kv_bytes *out) {

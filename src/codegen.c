@@ -823,6 +823,13 @@ static char *expr_bare(Expr *e) {
             char *recv = strfmt("(kv_io *)&%s", expr(e->a));
             if (!strncmp(e->text, "write", 5))
                 return strfmt("kv_io_%s(%s, %s)", e->text, recv, expr(e->items.data[0]));
+            if (!strcmp(e->text, "print") || !strcmp(e->text, "println")) { /* as print, to the IO (#83) */
+                Buf args = {0};
+                buf_puts(&args, "");
+                for (int i = 0; i < e->items.len; i++)
+                    buf_printf(&args, ", %s", expr(e->items.data[i]));
+                return strfmt("%s(%s%s)", e->text[5] ? "KV_FPRINTLN" : "KV_FPRINT", recv, args.buf);
+            }
             return strfmt("kv_io_%s(%s)", e->text, recv); /* flush, close */
         }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */

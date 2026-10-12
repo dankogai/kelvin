@@ -203,10 +203,12 @@ bool kv_bytes_eq(const kv_bytes *a, const kv_bytes *b) {
 
 /* print, template and derived text: the bytes as text, NULs included for
    print; a template or a struct's text cuts as a string is cut */
-void kv_print_bytes(kv_bytes b) {
+void kv_fprint_bytes(void *fp, kv_bytes b) {
     if (b.count)
-        fwrite(b.at, 1, b.count, stdout);
+        fwrite(b.at, 1, b.count, (FILE *)fp);
 }
+
+void kv_print_bytes(kv_bytes b) { kv_fprint_bytes(stdout, b); }
 
 uint8_t *kv_cstr_bytes(kv_bytes b, uint8_t *buf) {
     size_t n = b.count < KV_CSTR_SCALAR - 4 ? b.count : KV_CSTR_SCALAR - 4;
