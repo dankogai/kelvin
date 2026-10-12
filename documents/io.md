@@ -37,6 +37,7 @@ if let b = f.byte { println(b) }              // the next byte, or none (#85)
 for line in f.lines { sum += i64(line) }      // a number is read from the text (#88)
 var ls = IO.popen("ls -l", "r")               // a shell command's output (#87); IO.pipe() a pipe's two ends
 var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90)
+if let ok(p) = wc { p.kill(15) }              // a signal to it (#91); p.pid its process id
 if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
@@ -66,7 +67,13 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   to read its output or `"w"` to write its input, a `Result<IO, i32>`,
   with what the exec itself failed with as the err, `ENOENT` for a
   program not found. Its block, or `close()`, waits for it, and
-  `status` and `signal` are then as a `popen`'s. `IO.pipe()` gives
+  `status` and `signal` are then as a `popen`'s. `f.kill(signal)` (#91)
+  sends a signal to that process, `true` when it was sent, and `f.pid`
+  is its process id, an `i32`; a `popen`'s child has no pid C knows,
+  so there `kill` is `false` and `pid` is -1, as for any other IO. The
+  signal numbers are C's, `f.kill(15)`, or `SIGTERM` with
+  `#import <signal.h> as C`; `close()` then waits, and `f.signal` says
+  which ended it. `IO.pipe()` gives
   a `Result<{reader: IO, writer: IO}, i32>`: a pipe's two ends, each an
   IO that owns its descriptor, so `p.ok.writer.close()` ends what the
   reader reads. `IO.stdin`, `IO.stdout` and `IO.stderr` are
@@ -127,7 +134,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   that `IO.stdout` names in place. `fdopen`, `fileno`, `popen`,
   `pipe`, `fork`, `execvp` and `waitpid` are POSIX, which the runtime
   asks for; a program needs nothing.
-- **Not yet:** sending a signal to a process, and a process's `pid`.
+- **Not yet:** a `popen`'s pid, which C does not give, and a process's
+  environment or working directory.
 
 ## Properties and methods
 
@@ -152,6 +160,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
+| | `.kill(signal)`, `.pid` | sends a signal to a process `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91) |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

@@ -3188,3 +3188,14 @@ its closing paragraph no longer promises slicing, which #68 gave. The
 links in the other documents and the README follow the new name.
 
 There are 622 tests, and all pass with clang and with gcc 15.
+
+### 124. A signal to a process
+
+> now add sending a signal to a process to `IO`
+
+**Claude** added #91: `f.kill(signal)` sends a signal to a process
+`IO.exec` started, `true` when sent, and `f.pid` is its process id;
+a `popen`'s child has no pid C gives, so there `kill` is `false` and
+`pid` -1, as for any other IO. Details are provisional P103.
+
+There are 623 tests, and all pass with clang and with gcc 15.

@@ -692,7 +692,8 @@ static char *expr_bare(Expr *e) {
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "eof") || !strcmp(e->text, "position") ||
                                               !strcmp(e->text, "count") || !strcmp(e->text, "fd") ||
-                                              !strcmp(e->text, "status") || !strcmp(e->text, "signal"))) /* (#84, #86, #87, #89) */
+                                              !strcmp(e->text, "status") || !strcmp(e->text, "signal") ||
+                                              !strcmp(e->text, "pid"))) /* (#84, #86, #87, #89, #91) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
         if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "byte")) { /* f.byte (#85): the next, or none */
             Decl *r = kelvin_record(e->type->name);
@@ -869,8 +870,8 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&args, ", %s", expr(e->items.data[i]));
                 return strfmt("%s(%s%s)", e->text[5] ? "KV_FPRINTLN" : "KV_FPRINT", recv, args.buf);
             }
-            if (!strcmp(e->text, "seek"))
-                return strfmt("kv_io_seek(%s, %s)", recv, expr(e->items.data[0]));
+            if (!strcmp(e->text, "seek") || !strcmp(e->text, "kill")) /* (#84, #91) */
+                return strfmt("kv_io_%s(%s, %s)", e->text, recv, expr(e->items.data[0]));
             return strfmt("kv_io_%s(%s)", e->text, recv); /* flush, close, rewind */
         }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */

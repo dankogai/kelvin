@@ -121,6 +121,8 @@ int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void 
 int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode);
 int kv_io_status(kv_io *f);
 int kv_io_signal(kv_io *f);
+bool kv_io_kill(kv_io *f, int sig);
+int kv_io_pid(kv_io *f);
 int kv_io_fd(kv_io *f);
 kv_io *kv_io_std(int which);
 void kv_io_free(kv_io *f);

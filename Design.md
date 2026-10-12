@@ -122,6 +122,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 88 | no `f.i64` or `f.f64`: a number is read from a line, `i64(line)`, or the whole text; `f.byte` stays; the converters take a String as they take a `cstr` | `fscanf(f, "%lld", &n)` | `for line in f.lines { sum += i64(line) }` | 2026-10-12 |
 | 89 | `f.signal`: the signal that ended a process, once closed; 0 when it exited on its own; -1 before, or for an IO that is no process; `status` is then -1 for a process a signal ended | `WIFSIGNALED(st) ? WTERMSIG(st) : 0` after `pclose` | `p.ok.close(); if p.ok.signal != 0 { }` | 2026-10-12 |
 | 90 | `IO.exec(args, mode)`: a program run without the shell, `args` a list of text or an Array of cstr or of String in a variable, the program found on the PATH; `"r"` reads its output, `"w"` writes its input; a `Result<IO, i32>` with the exec's own errno as the err; waited for when closed, with `status` and `signal` | `pipe`, `fork`, `dup2`, `execvp`, `waitpid`, and a close-on-exec pipe to learn why exec failed | `IO.exec(["wc", "-l", path], "r")` | 2026-10-12 |
+| 91 | `f.kill(signal)`: a signal to a process `IO.exec` started, a `bool`, true when sent; `f.pid` its process id, an `i32`, -1 for any other IO, a `popen`'s included, whose child's pid C does not give | `kill(pid, sig)` | `p.kill(SIGTERM)`, `p.close(); p.signal` | 2026-10-12 |
 
 Notes:
 
@@ -684,6 +685,12 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (91) Agreed details: "now add sending a signal to a process to `IO`".
+  Only a process `IO.exec` started has a pid to send to, since `popen`
+  keeps its child's to itself, so `kill` is `false` there and `pid` -1,
+  which the document says; the signal numbers are C's, as `<signal.h>`
+  names them (P103).
+
 - (90) Agreed details: "now add running a process without the shell
   to `IO`". The arguments as a list, since there is no shell to split
   one text, which the message says; the program found on the PATH as
@@ -982,6 +989,7 @@ says "as agreed".
 | P100 | Details of #88 | `i64(line)` of a String is `kv_text_i64(kv_bytes_cstr(&(line).b), 10)`, as `i64(line.cstr)` is; `f.i64` is an error naming `.byte`, `.lines`, `.read(n)` and `.string` | `kv_io_read_i64` and `kv_io_read_f64` are removed from runtime/io.c and the prelude, with the `i64` and `f64` IO properties; a converter name on an IO is refused where it was read before. In `convert`, a String or a Bytes in a variable becomes its `.cstr` borrow before the converter reads it, so every converter, `.i64` and `i64(s, 16)` included, takes one; one that an expression gives says to bind it first, since the text would be freed under the reader |
 | P101 | Details of #89 | `p.ok.signal` is `kv_io_signal((kv_io *)&(*_kv__kv_res_IO_i32_at_ok(&p)))` | `kv_io` gains `signal`, -1 from every opener and for the standard streams, set with `status` when `kv_io_free` runs `pclose` on a process: `WTERMSIG` when `WIFSIGNALED`, else 0, -1 when `pclose` fails. `signal` is an IO property typed `i32`, as `status` is |
 | P102 | Details of #90 | `IO.exec(["printf", "x"], "r")` is `({ kv_io _kv_f = {0}; int _kv_e = kv_io_exec(&_kv_f, (const char *const[]){(const char *)("printf"), (const char *)("x"), NULL}, "r"); ... })`; of an Array `args`, `kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(args).at, (args).count, "r")`, of one of Strings `kv_io_exec_strings` | `kv_io_exec` makes two pipes, the data pipe and a report pipe with `FD_CLOEXEC`, flushes every stream, forks, and in the child dups the data pipe onto 1 or 0 and `execvp`s; where exec fails, the child writes errno into the report pipe and exits 127, and the parent, reading it, waits for the child and gives the errno; else the report pipe's end of file means exec happened, and the parent's end becomes the IO, kind 3 with the pid, which `kv_io_free` closes and waits for, setting status and signal as for a `popen`. `IO.exec` is read in the `IO.` branch: a `[` starts a list of text items, each a String's or Bytes's `.cstr` where it is one in a variable; else an Array of cstr or of String in a variable; then the mode; an E_CALL of op `io_exec`, text `list`, `cstrs` or `strings` |
+| P103 | Details of #91 | `p.ok.kill(SIGTERM)` is `kv_io_kill((kv_io *)&(*_kv__kv_res_IO_i32_at_ok(&p)), SIGTERM)`, `out.pid` `kv_io_pid((kv_io *)&out)` | `kv_io_kill` is `kill` on the pid of an IO of kind 3 that is open, false otherwise; `kv_io_pid` that pid, or -1. `kill` is an IO method of one argument giving a `bool`, as `seek` is; `pid` an IO property typed `i32` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -175,6 +176,17 @@ int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mo
     free(argv);
     return e;
 }
+
+/* a signal to a process IO.exec started (#91): its pid is known, where
+   popen's child's is not; false where there is no such process, or
+   kill refuses */
+bool kv_io_kill(kv_io *f, int sig) {
+    if (f->kind != 3 || f->pid <= 0 || !f->fp)
+        return false;
+    return kill((pid_t)f->pid, sig) == 0;
+}
+
+int kv_io_pid(kv_io *f) { return f->kind == 3 && f->fp ? (int)f->pid : -1; }
 
 int kv_io_status(kv_io *f) { return f->status; }
 

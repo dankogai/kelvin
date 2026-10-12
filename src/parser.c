@@ -1529,7 +1529,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
                     {"close", 0, true, "i"}, {"read", 1, false, "i"},
                     {"print", -1, false, "i"}, {"println", -1, false, "i"}, {"seek", 1, false, "i"},
-                    {"rewind", 0, false, "i"}};
+                    {"rewind", 0, false, "i"}, {"kill", 1, false, "i"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
@@ -1550,8 +1550,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                               "union, intersection and difference, and the properties count and elements"
                                         : ok == 'i'
                                             ? "an IO has no method '%s': write, print, println, flush, close, read(n), "
-                                              "seek(n) and rewind, and the properties bytes, string, lines, eof, position "
-                                              "and count; it is not copied"
+                                              "seek(n), rewind and kill(signal), and the properties bytes, string, lines, "
+                                              "byte, eof, position, count, fd, status, signal and pid; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
@@ -1584,7 +1584,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (methods[which].arity >= 0 && x->items.len != methods[which].arity)
                     error_at(name->pos, "'.%s' takes %d argument%s", member, methods[which].arity,
                              methods[which].arity == 1 ? "" : "s");
-                if (ok == 'i' && !strcmp(member, "seek")) /* f.seek(n) (#84): a bool, whether it could */
+                if (ok == 'i' && (!strcmp(member, "seek") || !strcmp(member, "kill"))) /* a bool: whether it could (#84, #91) */
                     x->is_bool = true;
                 if (ok == 'i' && (!strcmp(member, "print") || !strcmp(member, "println"))) {
                     /* f.print(...), f.println(...) (#83): as print, to the IO */
@@ -3307,8 +3307,8 @@ static Type *value_type_of(Expr *e) {
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map")))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81) */
-        if (e->op && !strcmp(e->op, "io")) /* an IO method (#82): seek gives a bool (#84) */
-            return !strcmp(e->text, "seek") ? base_type("bool", e->pos) : NULL;
+        if (e->op && !strcmp(e->op, "io")) /* an IO method (#82): seek and kill give a bool (#84, #91) */
+            return !strcmp(e->text, "seek") || !strcmp(e->text, "kill") ? base_type("bool", e->pos) : NULL;
         if (e->op && !strcmp(e->op, "set")) { /* a Set method (#71) */
             if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
                 return base_type("bool", e->pos);
@@ -4489,7 +4489,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "fd") ||
-                                          !strcmp(member, "status") || !strcmp(member, "signal"))))) {
+                                          !strcmp(member, "status") || !strcmp(member, "signal") ||
+                                          !strcmp(member, "pid"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4511,8 +4512,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
-        else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status") || !strcmp(member, "signal")))
-            x->type = base_type("i32", name->pos); /* (#86, #87, #89) */
+        else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status") || !strcmp(member, "signal") ||
+                               !strcmp(member, "pid")))
+            x->type = base_type("i32", name->pos); /* (#86, #87, #89, #91) */
         else if (kk == 'i' && !strcmp(member, "byte")) /* the next byte, or none at the end (#85) */
             x->type = optional_type(name, base_type("u8", name->pos));
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
