@@ -202,6 +202,8 @@ enum {
     EACH_BYTES,    /* the count bytes of a Bytes (#54), NULs included */
     EACH_STRING,   /* the codepoints of a String (#55), as u32 */
     EACH_DICT,     /* the entries of a Dictionary (#65), in order: key, or key and value */
+    EACH_IO_READ,  /* f.read(n) (#82): the next n bytes at most, a Bytes the loop owns */
+    EACH_IO_LINES, /* f.lines (#82): each line without its newline, a String the loop owns */
 };
 
 typedef struct Stmt Stmt;

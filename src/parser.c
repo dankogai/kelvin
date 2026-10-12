@@ -297,7 +297,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -321,7 +321,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -466,6 +466,8 @@ static Expr *drop_cstr(Expr *v, Type *target);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
 static bool is_uchr(Type *t);
+static bool is_io(Type *t);
+static bool is_io_std(Expr *e);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
@@ -1522,7 +1524,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
                     {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
-                    {"difference", 1, false, "t"}};
+                    {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
+                    {"close", 0, false, "i"}, {"read", 1, false, "i"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
@@ -1541,12 +1544,16 @@ static Expr *parse_postfix_ops(Expr *e) {
                                         : ok == 't'
                                             ? "a Set has no method '%s': insert, has, remove, clear, reserve, copy, "
                                               "union, intersection and difference, and the properties count and elements"
+                                        : ok == 'i'
+                                            ? "an IO has no method '%s': write, flush, close and read(n), and the "
+                                              "properties bytes, string and lines; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
-                if (!owner_place(e))
-                    error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first", member,
-                             ok == 'b' ? "Bytes" : ok == 's' ? "String" : ok == 'd' ? "Dictionary" : ok == 't' ? "Set" : "Array");
+                if (!owner_place(e) && !is_io_std(e))
+                    error_at(name->pos, "'.%s' of a%s %s that an expression gives: bind it to a variable first", member,
+                             ok == 'i' || ok == 'a' ? "n" : "",
+                             ok == 'b' ? "Bytes" : ok == 's' ? "String" : ok == 'd' ? "Dictionary" : ok == 't' ? "Set" : ok == 'i' ? "IO" : "Array");
                 if (methods[which].changes && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
                 Type *through = e->kind == E_DEREF ? value_type(e->a) : NULL;
@@ -1584,6 +1591,28 @@ static Expr *parse_postfix_ops(Expr *e) {
                     Type *ot = value_type(o);
                     if (!(ot && ot->kind == T_PTR && is_set_owner(ot->elem) && !strcmp(ot->elem->name, x->type->name)))
                         error_at(o->pos, "'.%s' takes a borrow of another %s, '&other'", member, kelvin_type(x->type));
+                }
+                if (ok == 'i' && !strcmp(member, "write")) {
+                    /* f.write(x) (#82): text, a borrow of a String or a Bytes,
+                       or one an expression gives, written and freed */
+                    Expr *a = x->items.data[0];
+                    Type *at = value_type(a);
+                    Type *bt = a->kind == E_PREFIX && !strcmp(a->op, "&") ? value_type(a->a)
+                               : at && at->kind == T_PTR                    ? at->elem /* a String^ held (#82) */
+                                                                            : NULL;
+                    if (bt && (is_bytes(bt) || is_string(bt)))
+                        x->text = is_bytes(bt) ? "write_bytes" : "write_string";
+                    else if ((is_bytes(at) || is_string(at)) && !owner_place(a))
+                        x->text = is_bytes(at) ? "write_owned_bytes" : "write_owned_string";
+                    else if (is_bytes(at) || is_string(at))
+                        error_at(a->pos, "'.write' takes a borrow of a %s, '&%s'", is_bytes(at) ? "Bytes" : "String",
+                                 a->kind == E_IDENT ? a->text : "...");
+                    else if (!at || is_text_expr(a))
+                        x->text = "write_text";
+                    else
+                        error_at(a->pos, "'.write' takes text, a borrow of a String or a Bytes ('&s'), or one an "
+                                         "expression gives, and this is %s",
+                                 kelvin_type(at));
                 }
                 if ((ok == 'd' || ok == 't') && (!strcmp(member, "has") || !strcmp(member, "find") ||
                                                            !strcmp(member, "get") || !strcmp(member, "remove") ||
@@ -2120,6 +2149,61 @@ static Expr *parse_primary(void) {
             if (xt && xt->kind == T_ARRAY && !xt->size)
                 error_at(x->pos, "the fixed array's count is not known here");
         }
+        return e;
+    }
+    if (is_kw(t, "IO") && is_p(peek2(), "(")) {
+        /* IO(path, mode) (#82): a Result<IO, i32>, the IO or errno; path
+           and mode text, a String or a Bytes */
+        advance();
+        advance();
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "IO";
+        e->op = "io";
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        while (!is_p(peek(), ")")) {
+            list_push(&e->items, parse_assign());
+            if (!accept_p(","))
+                break;
+        }
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        if (e->items.len != 2)
+            error_at(t->pos, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes");
+        for (int i = 0; i < 2; i++) {
+            Expr *a = e->items.data[i];
+            Type *at = value_type(a);
+            if (is_string(at) || is_bytes(at)) {
+                if (!owner_place(a))
+                    error_at(a->pos, "the %s of IO is a %s that an expression gives: bind it to a variable first",
+                             i ? "mode" : "path", is_string(at) ? "String" : "Bytes");
+                e->items.data[i] = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+            } else if (at && !is_text_expr(a)) {
+                error_at(a->pos, "the %s of IO is text, a String or a Bytes, and this is %s", i ? "mode" : "path",
+                         kelvin_type(at));
+            }
+        }
+        e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+        return e;
+    }
+    if (is_kw(t, "IO") && is_p(peek2(), ".")) {
+        /* IO.stdin, IO.stdout, IO.stderr (#82), also written with () */
+        advance();
+        advance();
+        Token *n = peek();
+        char *which = expect_ident("stdin, stdout or stderr");
+        if (strcmp(which, "stdin") && strcmp(which, "stdout") && strcmp(which, "stderr"))
+            error_at(n->pos, "IO has stdin, stdout and stderr, not '%s'; a file is IO(path, mode)", which);
+        if (accept_p("("))
+            expect_p(")");
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "IO";
+        e->op = "io_std";
+        e->text = which;
+        e->type = base_type("IO", t->pos);
         return e;
     }
     if ((is_kw(t, "Bytes") || is_kw(t, "String")) && is_p(peek2(), "(")) {
@@ -3023,6 +3107,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("String", e->pos);
         if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
             return e->type;
+        if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std"))) /* IO(path, mode), IO.stdout (#82) */
+            return e->type;
         if (e->op && !strcmp(e->op, "dict")) /* Dictionary<K, V>(...) (#65) */
             return e->type;
         if (e->op && !strcmp(e->op, "set")) /* Set<T>(...) (#71) */
@@ -3135,6 +3221,8 @@ static Type *value_type_of(Expr *e) {
             p->elem->is_const = let_target(e->a) != NULL;
             return p;
         }
+        if (e->op && !strcmp(e->op, "io")) /* f.bytes, f.string: Results (#82); f.lines: for only */
+            return e->type;
         if (e->op && !strcmp(e->op, "uchr")) /* c.utf32 (#56) */
             return base_type("u32", e->pos);
         if (e->op && !strcmp(e->op, "tagged")) /* v.case, the tag (#61) */
@@ -4242,20 +4330,26 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                              !strcmp(member, "at"))) ||
                  (!strcmp(kind, "dict") && (!strcmp(member, "count") || !strcmp(member, "keys") ||
                                             !strcmp(member, "values"))) ||
-                 (!strcmp(kind, "set") && (!strcmp(member, "count") || !strcmp(member, "elements"))))) {
+                 (!strcmp(kind, "set") && (!strcmp(member, "count") || !strcmp(member, "elements"))) ||
+                 (!strcmp(kind, "io") && (!strcmp(member, "bytes") || !strcmp(member, "string") ||
+                                          !strcmp(member, "lines"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
            place, since a value an expression gives would be lost */
-        if (!owner_place(e))
-            error_at(name->pos, "'.%s' of a %s that an expression gives: bind it to a variable first, which frees "
+        if (!owner_place(e) && !is_io_std(e))
+            error_at(name->pos, "'.%s' of a%s %s that an expression gives: bind it to a variable first, which frees "
                                 "it when its block ends",
-                     member, kk == 'b' ? "Bytes" : kk == 's' ? "String" : kk == 'd' ? "Dictionary" : kk == 't' ? "Set" : "Array");
+                     member, kk == 'i' || kk == 'a' ? "n" : "",
+                     kk == 'b' ? "Bytes" : kk == 's' ? "String" : kk == 'd' ? "Dictionary" : kk == 't' ? "Set" : kk == 'i' ? "IO" : "Array");
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
         x->op = (char *)kind;
         x->is_bool = !strcmp(member, "isUTF8");
+        if (kk == 'i' && strcmp(member, "lines")) /* f.bytes, f.string (#82): the whole file, or errno */
+            x->type = variant_type(name, "res", base_type(!strcmp(member, "bytes") ? "Bytes" : "String", name->pos),
+                                   base_type("i32", name->pos));
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
             (kk == 't' && !strcmp(member, "elements"))) {
             /* d.keys and d.values (#66): Arrays of copies, made by a function
@@ -5502,6 +5596,16 @@ static bool is_string(Type *t) {
     return t && t->kind == T_BASE && !strcmp(t->name, "String");
 }
 
+/* IO (#82): stdio as an owner, a FILE closed when its block ends */
+static bool is_io(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && !strcmp(t->name, "IO");
+}
+
+/* IO.stdin, IO.stdout or IO.stderr (#82): a place in C, never closed */
+static bool is_io_std(Expr *e) { return e->kind == E_CALL && e->op && !strcmp(e->op, "io_std"); }
+
 /* "bytes" or "string" for the built-in owners, NULL otherwise */
 /* the one letter of a built-in owner's kind: b, s, a, d, or t for a Set,
    whose name starts as a String's does (#71) */
@@ -5515,6 +5619,7 @@ static const char *builtin_owner(Type *t) {
            : is_array_owner(t) ? "array"
            : is_dict_owner(t)  ? "dict"
            : is_set_owner(t)   ? "set"
+           : is_io(t)          ? "io"
                                : NULL;
 }
 
@@ -5529,7 +5634,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -7064,7 +7169,21 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                            "the loop runs, so copy it into a let first, as in 'let v = make(); for x in v.xs'");
     Type *elem = NULL;
     Decl *record = NULL;
-    if (is_set_owner(t)) { /* its elements, in order (#71) */
+    bool io_read = seq->kind == E_METHOD && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "read");
+    bool io_lines = seq->kind == E_PROPERTY && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "lines");
+    if (io_read || io_lines) {
+        /* f.read(n): the next n bytes at most, a Bytes; f.lines: each line,
+           a String (#82); the loop owns the one it holds, x borrows it */
+        if (s->name2)
+            error_at(s->pos, "two loop variables walk a Dictionary's entries; an IO's chunks or lines take one");
+        s->each = io_read ? EACH_IO_READ : EACH_IO_LINES;
+        if (io_read)
+            s->step = seq->items.data[0];
+        elem = base_type(io_read ? "Bytes" : "String", seq->pos);
+        if (written && strcmp(kelvin_type(written), kelvin_type(elem)))
+            error_at(written->pos, "the loop variable of %s is a %s, not %s", io_read ? ".read(n)" : ".lines",
+                     elem->name, kelvin_type(written));
+    } else if (is_set_owner(t)) { /* its elements, in order (#71) */
         if (!owner_place(seq))
             error_at(seq->pos, "for over a Set that an expression gives: bind it to a variable first");
         if (s->name2)
@@ -7532,7 +7651,7 @@ static Stmt *parse_stmt_here(void) {
         return s;
     }
     reject_c_declaration();
-    bool call_like = is_converter(t) && is_p(peek2(), "(");
+    bool call_like = (is_converter(t) && is_p(peek2(), "(")) || (is_kw(t, "IO") && is_p(peek2(), ".")); /* IO.stdout... (#82) */
     if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";
         if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)
@@ -7556,6 +7675,7 @@ static Stmt *parse_stmt_here(void) {
         s->name = !builtin_owner(dt) ? NULL
                   : is_bytes(dt)     ? "kv_bytes_discard"
                   : is_string(dt)    ? "kv_string_discard"
+                  : is_io(dt)        ? "kv_io_discard"
                                      : strfmt("%s_discard", dt->cname);
         list_push(&pending_drops, s);
     }
@@ -7995,7 +8115,7 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
 static bool eq_type(Type *t) {
     if (!t || t->kind == T_PTR || t->kind == T_FUNC)
         return true;
-    if (t->kind == T_ARRAY || t->cname)
+    if (t->kind == T_ARRAY || t->cname || is_io(t))
         return false;
     if (is_string(t) || is_bytes(t) || is_uchr(t))
         return true;

@@ -3015,3 +3015,30 @@ input off after the `!` and writes it as a string literal with C's
 escapes.
 
 There are 599 tests, and all pass with clang and with gcc 15.
+
+### 113. `IO`: stdio as an owner
+
+> Let us add Kelvinized version of stdio to the prelude.
+> `let f = try IO(path, mode)` where path is either cstr or String;
+> `f.bytes` returns the entire content of the path in `Bytes` or err if
+> it fails; `f.string` returns the UTF-8 string or fails if it was not a
+> valid UTF-8; `f.read(nbytes)` is an iterator used like `for bytes in
+> f.read(nbytes) {}`; `f.lines` is also an iterator; `IO.stdin, IO.stdout,
+> IO.stderr` are predefined; `IO` instances are dynamic objects which are
+> like `String`, `Array`, and `Dictionary`, auto-`.close` when the scope
+> ends.
+
+**Claude** added #82, in [documents/io.md](documents/io.md). `IO(path,
+mode)` is a `Result<IO, i32>`, the IO or `errno`, of a text, a String
+or a Bytes path; `f.bytes` and `f.string` are the rest of the file as a
+Result, `EILSEQ` for text that is not UTF-8; `for chunk in f.read(n)`
+and `for line in f.lines` walk it, the loop owning the Bytes or String
+it holds; `f.write(x)` takes text, a borrow or an owner an expression
+gives, with `f.flush()` and `f.close()` beside it; `IO.stdin`,
+`IO.stdout` and `IO.stderr` are never closed and work where they
+stand. An IO closes when its block ends, moves and borrows as the other
+owners do, and is not copied. The prelude holds the `FILE *` as a
+`void *`, so that it needs no `<stdio.h>`, whose names a program may
+declare itself. Details are provisional P94.
+
+There are 606 tests, and all pass with clang and with gcc 15.

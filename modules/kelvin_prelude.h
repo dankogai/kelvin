@@ -98,6 +98,30 @@ void kv_string_clear(kv_string *s);
 void kv_string_reserve(kv_string *s, size_t n);
 void kv_string_compact(kv_string *s);
 bool kv_string_eq(const kv_string *a, const kv_string *b);
+/* ---------- IO (#82): stdio as an owner ---------- */
+
+/* fp is a FILE *, closed when its block ends if the IO opened it, flushed
+   if it is stdin, stdout or stderr; opening and reading whole give errno.
+   A void *, so that this header needs no <stdio.h>, whose names a program
+   may declare itself */
+typedef struct kv_io { void *fp; bool owned; } kv_io;
+int kv_io_open(kv_io *out, const void *path, const void *mode);
+kv_io *kv_io_std(int which);
+void kv_io_free(kv_io *f);
+kv_io kv_io_take(kv_io *f);
+kv_io kv_io_copy(const kv_io *f);
+void kv_io_discard(kv_io v);
+void kv_io_close(kv_io *f);
+void kv_io_flush(kv_io *f);
+int kv_io_read_all(kv_io *f, kv_bytes *out);
+int kv_io_read_string(kv_io *f, kv_string *out);
+bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf);
+bool kv_io_read_line(kv_io *f, kv_string *line);
+void kv_io_write_text(kv_io *f, const void *s);
+void kv_io_write_bytes(kv_io *f, const kv_bytes *b);
+void kv_io_write_string(kv_io *f, const kv_string *s);
+void kv_io_write_owned_bytes(kv_io *f, kv_bytes b);
+void kv_io_write_owned_string(kv_io *f, kv_string s);
 kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);

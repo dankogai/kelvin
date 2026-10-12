@@ -141,7 +141,9 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
   switch on it.
 - **A pointer that may be null** with a reason beside it, as `fopen`
   with `errno`, is a `Result<FILE^, i32>`; one with no reason, as
-  `getenv`, is a `cstr?` (see [optionals.md](optionals.md)).
+  `getenv`, is a `cstr?` (see [optionals.md](optionals.md)). For files,
+  `IO(path, mode)` is that wrapper, with the IO closed by its block
+  (#82, [io.md](io.md)).
 - **A number read from text** is `i64(s)`, which reads as `strtol`
   does and sets `errno` to `ERANGE` past the limits; check the digits
   first, and the Result's `err` says which.

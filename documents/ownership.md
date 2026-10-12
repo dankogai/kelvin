@@ -1,4 +1,4 @@
-# Ownership: `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`
+# Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>` and `IO`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
@@ -232,6 +232,15 @@ add, `s.has(x)` tests, `s.remove(x)` removes, `s.union(&t)`,
 `s.intersection(&t)` and `s.difference(&t)` make new ones,
 `s.elements` is an Array of copies, and `for x in s` walks it in the
 order added. See [sets.md](sets.md).
+
+## `IO`
+
+An `IO` (#82) is a file, or a standard stream, as an owner: `IO(path,
+mode)` gives a `Result<IO, i32>`, and the IO it holds is closed when
+its block ends, as a `Bytes` is freed. It moves by `try`, `return` and
+passing, is borrowed with `&f`, and is not copied. `IO.stdin`,
+`IO.stdout` and `IO.stderr` are never closed, only flushed. The rest is
+in [io.md](io.md).
 
 ## The rules
 

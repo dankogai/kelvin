@@ -148,6 +148,7 @@ static const char *c_type_name(const char *name) {
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
         {"uchr", "kv_uchr"}, /* a codepoint (#56) */
+        {"IO", "kv_io"}, /* stdio as an owner (#82) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (!strcmp(name, map[i].kelvin))
@@ -506,6 +507,14 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
+        if (e->op && !strcmp(e->op, "io") && e->type) { /* IO(path, mode) (#82): the IO, or errno */
+            Decl *r = kelvin_record(e->type->name);
+            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = kv_io_open(&_kv_f, %s, %s); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                          "_kv_%s_make_ok(_kv_f); })",
+                          expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
+        }
+        if (e->op && !strcmp(e->op, "io_std")) /* IO.stdin, IO.stdout, IO.stderr (#82): a place, never closed */
+            return strfmt("(*kv_io_std(%d))", !strcmp(e->text, "stdin") ? 0 : !strcmp(e->text, "stdout") ? 1 : 2);
         if (e->op && !strcmp(e->op, "set") && e->type) { /* Set<T>(...), ${a, b} (#71) */
             if (!strcmp(e->text, "copy"))
                 return strfmt("%s_copy(%s)", e->type->cname, expr(e->items.data[0]));
@@ -652,6 +661,13 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "array")) /* an Array (#57) */
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
+        if (e->op && !strcmp(e->op, "io") && e->type) { /* f.bytes, f.string (#82): the rest of the file, or errno */
+            Decl *r = kelvin_record(e->type->name);
+            bool text = !strcmp(e->text, "string");
+            return strfmt("({ %s _kv_v = {0}; int _kv_e = kv_io_read_%s((kv_io *)&%s, &_kv_v); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                          "_kv_%s_make_ok(_kv_v); })",
+                          text ? "kv_string" : "kv_bytes", text ? "string" : "all", recv, r->name, r->name);
+        }
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set")) && e->recv_type) /* d.keys, d.values, s.elements (#66, #71) */
             return strfmt("%s_%s(&%s)", e->recv_type->cname, e->text, recv);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set"))) /* a Dictionary's or a Set's count (#65, #71) */
@@ -802,6 +818,12 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(e->text, "reserve"))
                 return strfmt("kv_string_reserve(%s, %s)", recv, expr(e->items.data[0]));
             return strfmt("kv_string_%s(%s)", e->text, recv); /* clear, compact, copy */
+        }
+        if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82), on a place, a let too: the FILE changes, not the IO */
+            char *recv = strfmt("(kv_io *)&%s", expr(e->a));
+            if (!strncmp(e->text, "write", 5))
+                return strfmt("kv_io_%s(%s, %s)", e->text, recv, expr(e->items.data[0]));
+            return strfmt("kv_io_%s(%s)", e->text, recv); /* flush, close */
         }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */
             char *recv = strfmt("&%s", expr(e->a));
@@ -1071,6 +1093,8 @@ static const char *owner_free(Type *t) {
         return "kv_bytes_free";
     if (!strcmp(t->name, "String"))
         return "kv_string_free";
+    if (!strcmp(t->name, "IO"))
+        return "kv_io_free";
     if (t->cname) /* Array<T> (#57) */
         return strfmt("%s_free", t->cname);
     Decl *r = kelvin_record(t->name);
@@ -1545,7 +1569,8 @@ static void stmt(Stmt *s) {
            for's line, where C's warnings about them belong. */
         const char *v = strcmp(s->name, "_") ? s->name : NULL;
         char *p = hidden(v, "ptr"), *end = NULL, *arr = NULL; /* end and arr name only what an array uses */
-        char *seq = expr(s->expr);
+        /* an IO's f.read(n) or f.lines (#82) is no value: its receiver is read below */
+        char *seq = s->each == EACH_IO_READ || s->each == EACH_IO_LINES ? NULL : expr(s->expr);
         if (s->each == EACH_DICT) { /* the entries of a Dictionary, in order (#65) */
             char *d = hidden(v, "dict"), *i = hidden(v, "i");
             line("{");
@@ -1580,6 +1605,40 @@ static void stmt(Stmt *s) {
         if (s->from_argv) /* char ** in C, u8^^ in Kelvin */
             seq = strfmt("(%s)(%s)", decl(reader, ""), seq);
         bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
+        if (s->each == EACH_IO_READ || s->each == EACH_IO_LINES) {
+            /* f.read(n), f.lines (#82): the loop owns one Bytes or String,
+               filled again each time round, which x borrows */
+            bool lines = s->each == EACH_IO_LINES;
+            char *buf = hidden(v, "buf"), *io = hidden(v, "io");
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("__attribute__((cleanup(%s))) %s %s = {0};", lines ? "kv_string_free" : "kv_bytes_free",
+                 lines ? "kv_string" : "kv_bytes", buf);
+            sync(s->pos);
+            line("kv_io *const %s = (kv_io *)&(%s);", io, expr(s->expr->a));
+            if (!lines) {
+                sync(s->pos);
+                line("const size_t %s = %s;", end = hidden(v, "n"), expr(s->step));
+            }
+            sync(s->pos);
+            if (lines)
+                line("while (kv_io_read_line(%s, &%s))", io, buf);
+            else
+                line("while (kv_io_read_chunk(%s, %s, &%s))", io, end, buf);
+            line("{");
+            indent++;
+            if (strcmp(s->name, "_")) {
+                sync(s->pos);
+                line("const %s %s = %s;", lines ? "kv_string" : "kv_bytes", s->name, buf);
+            }
+            stmt(s->body);
+            indent--;
+            line("}");
+            indent--;
+            line("}");
+            break;
+        }
         if (s->each == EACH_BYTES) { /* a Bytes's count bytes (#54) */
             end = hidden(v, "end");
             line("{");
@@ -1916,6 +1975,8 @@ static char *text_writer(Type *t, const char *lv) {
         return strfmt("kv_cstr_end(kv_cstr_bytes(%s, _kv_p))", lv);
     if (t->kind == T_BASE && !strcmp(t->name, "String")) /* a String member (#55) */
         return strfmt("kv_cstr_end(kv_cstr_string(%s, _kv_p))", lv);
+    if (t->kind == T_BASE && !strcmp(t->name, "IO")) /* an IO member (#82): no text of its own */
+        return "kv_cstr_put(_kv_p, \"<IO>\")";
     /* a function's address: ISO C converts it to an integer, not to a
        data pointer */
     if (t->kind == T_FUNC)

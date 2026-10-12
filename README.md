@@ -108,6 +108,9 @@ So far the changes from C are:
   `` $`a${x}b` `` builds a `String` from a template, with no bound;
   `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
   `s & t` and `s ~ t`
+- `IO` is a file as an owner, closed when its block ends: `let f = try
+  IO(path, "r")`, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
+  `let s = try f.string`, `f.write("x")`, `IO.stderr.write("x")`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`:
   `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`,
   `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

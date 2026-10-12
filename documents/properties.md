@@ -19,6 +19,7 @@ its document:
 | `Set<T>` | [sets.md](sets.md#properties-and-methods) |
 | `Result<T, U>` | [results.md](results.md#properties-and-methods) |
 | `T?` | [optionals.md](optionals.md#properties-and-methods) |
+| `IO` | [io.md](io.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
 ## `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
