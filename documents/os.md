@@ -94,10 +94,19 @@ let main():i32 {
   `OS.user` the user's name, a `cstr?`; `OS.host` the host's name, a
   `Result<String, i32>`; `OS.umask(mask)` sets the mask and gives the
   old; `OS.kill(pid, signal)` sends a signal, 0 or `errno`.
+- **Temporary files** (#97): `OS.mkstemp(prefix)` makes a new file
+  with a name of the prefix and six random characters, and opens it
+  for reading and writing, a `Result<{io: IO, path: String}, i32>`:
+  `t.ok.io` writes and reads it, `t.ok.path` names it, and the block
+  closes the IO and frees the path, the file itself staying until
+  `OS.remove(t.ok.path)`. `OS.mkdtemp(prefix)` makes a new directory
+  the same way, a `Result<String, i32>`. Both are made in `OS.tmpdir`,
+  unless the prefix names a place with a `/` in it, as `"./build_"`
+  does.
 - **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
   with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
   allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
-  or `/tmp`, a `cstr`.
+  or `/tmp`, without a trailing `/`, a `cstr`.
 - **`OS.system(command)`** runs a shell command with the program's
   streams, and gives its exit code, or -1 where it did not exit; for
   its output or input, `IO.popen` and `IO.exec` are in
@@ -110,11 +119,10 @@ let main():i32 {
   `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
   `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
   `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
-  `realpath`, `glob`, `system`, `kill`, `umask`, `getpid` and its kin,
+  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `system`, `kill`, `umask`, `getpid` and its kin,
   `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
   runtime/os.c, which asks for POSIX; a program needs nothing.
-- **Not yet:** temporary files made for you, and setting a file's
-  times.
+- **Not yet:** setting a file's times.
 
 ## Properties and methods
 
@@ -143,6 +151,8 @@ let main():i32 {
 | | `.umask(mask)`, `.kill(pid, signal)` | the old mask; 0 or `errno` |
 | | `.time`, `.sleep(seconds)` | seconds since the epoch, an `f64`; sleeps |
 | | `.tmpdir` | the directory for temporary files, a `cstr` |
+| | `.mkstemp(prefix)` | a temporary file, made and opened, a `Result<{io: IO, path: String}, i32>` (#97) |
+| | `.mkdtemp(prefix)` | a temporary directory, its path, a `Result<String, i32>` |
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 

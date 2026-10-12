@@ -703,6 +703,7 @@ static Type *parse_type_in(TypeContext ctx);
 static Type *parse_anon_record(DeclKind kind, bool tagged);
 static Type *pipe_type(Token *at);
 static Type *stat_type(Token *at);
+static Type *temp_type(Token *at);
 static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
@@ -2236,7 +2237,8 @@ static Expr *parse_primary(void) {
             {"OS", "pid", NULL, "i32"},         {"OS", "ppid", NULL, "i32"},       {"OS", "uid", NULL, "i32"},
             {"OS", "gid", NULL, "i32"},         {"OS", "user", NULL, "opt_cstr"},  {"OS", "host", NULL, "res_string"},
             {"OS", "time", NULL, "f64"},        {"OS", "sleep", "f", "void"},      {"OS", "tmpdir", NULL, "cstr"},
-            {"OS", "walk", "t", "listdir"},     {"OS", "glob", "t", "listdir"},
+            {"OS", "walk", "t", "listdir"},     {"OS", "glob", "t", "listdir"},    {"OS", "mkstemp", "t", "temp"},
+            {"OS", "mkdtemp", "t", "res_string"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2253,7 +2255,7 @@ static Expr *parse_primary(void) {
                          : "OS has no '%s': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, "
                            "isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, "
                            "symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, "
-                           "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk and glob",
+                           "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp and mkdtemp",
                      name);
         Expr *e = new_expr(E_CALL, t->pos);
         e->op = sys ? "sys" : "os";
@@ -2325,6 +2327,8 @@ static Expr *parse_primary(void) {
             e->type = variant_type(t, "res", array_type(t, base_type("String", t->pos)), base_type("i32", t->pos));
         else if (!strcmp(gives, "stat"))
             e->type = variant_type(t, "res", stat_type(t), base_type("i32", t->pos));
+        else if (!strcmp(gives, "temp"))
+            e->type = variant_type(t, "res", temp_type(t), base_type("i32", t->pos));
         return e; /* "void": SYS.exit and OS.sleep have no value */
     }
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
@@ -8428,6 +8432,35 @@ static Type *stat_type(Token *at) {
         }
         d->name = strfmt("_kv_anon%d", anon_records.len + 1);
         d->spelling = b.buf;
+        list_push(&anon_records, d);
+        list_push(&records, d);
+        list_push(&program->decls, d);
+        same = d;
+    }
+    return base_type(tag_type_name(same), at->pos);
+}
+
+/* {io: IO, path: String}, what OS.mkstemp gives (#97) */
+static Type *temp_type(Token *at) {
+    const char *spelling = "{io: IO, path: String}";
+    Decl *same = NULL;
+    for (int i = 0; !same && i < anon_records.len; i++)
+        if (!strcmp(((Decl *)anon_records.data[i])->spelling, spelling))
+            same = anon_records.data[i];
+    if (!same) {
+        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
+        d->has_body = true;
+        Var *io = xcalloc(1, sizeof *io), *path = xcalloc(1, sizeof *path);
+        io->name = "io";
+        io->pos = at->pos;
+        io->type = base_type("IO", at->pos);
+        path->name = "path";
+        path->pos = at->pos;
+        path->type = base_type("String", at->pos);
+        list_push(&d->members, io);
+        list_push(&d->members, path);
+        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->spelling = (char *)spelling;
         list_push(&anon_records, d);
         list_push(&records, d);
         list_push(&program->decls, d);

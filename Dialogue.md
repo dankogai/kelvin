@@ -3270,3 +3270,15 @@ matches, sorted, none where none match; each a
 provisional P108.
 
 There are 632 tests, and all pass with clang and with gcc 15.
+
+### 130. Temporary files
+
+> now add temporary files made for you to `OS`
+
+**Claude** added #97: `OS.mkstemp(prefix)` makes a temporary file and
+opens it, an IO with its path in a struct the Result owns;
+`OS.mkdtemp(prefix)` a temporary directory, its path; both in
+`OS.tmpdir` unless the prefix names a place. Details are provisional
+P109.
+
+There are 633 tests, and all pass with clang and with gcc 15.

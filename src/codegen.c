@@ -586,6 +586,13 @@ static char *expr_bare(Expr *e) {
                 return strfmt("({ const uint8_t *_kv_v = kv_%s_%s(%s); _kv_v ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",
                               e->op, n, args.buf, r->name, r->name);
             }
+            if (!strcmp(gives, "temp")) { /* OS.mkstemp (#97): {io, path}, or errno */
+                Decl *r = kelvin_record(e->type->name);
+                Type *pair = ((Var *)r->members.data[0])->type;
+                return strfmt("({ %s _kv_t = {0}; int _kv_e = kv_os_mkstemp(%s, &_kv_t.io, &_kv_t.path); _kv_e ? "
+                              "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_t); })",
+                              decl(pair, ""), args.buf, r->name, r->name);
+            }
             if (!strcmp(gives, "stat")) { /* kv_stat copied into the struct kelvinc wrote, member by member */
                 Decl *r = kelvin_record(e->type->name);
                 Type *st = ((Var *)r->members.data[0])->type;

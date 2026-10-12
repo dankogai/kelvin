@@ -1,7 +1,14 @@
 /* os.c - OS and SYS (#94): the system around the program, and the
    program itself, as the prelude's namespaces: no import. Each call is
    C's, with errno given back where C sets it, 0 where it does not. */
-#define _XOPEN_SOURCE 700 /* getcwd, setenv, stat, mkdir, opendir, getpid: POSIX, which -std=c11 hides on glibc */
+/* POSIX and X/Open under -std=c11, which hides them: glibc wants
+   _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
+   as kelvinc's own main.c has it */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
+#define _XOPEN_SOURCE 700
+#endif
 #include "kelvin_prelude.h"
 
 #include <dirent.h>
@@ -287,9 +294,20 @@ void kv_os_sleep(double seconds) {
         ;
 }
 
+/* TMPDIR, or /tmp, without a trailing /, which macOS's TMPDIR has */
 const uint8_t *kv_os_tmpdir(void) {
+    static char dir[4096];
     const char *t = getenv("TMPDIR");
-    return (const uint8_t *)(t && *t ? t : "/tmp");
+    if (!t || !*t)
+        t = "/tmp";
+    size_t n = strlen(t);
+    while (n > 1 && t[n - 1] == '/')
+        n--;
+    if (n >= sizeof dir)
+        n = sizeof dir - 1;
+    memcpy(dir, t, n);
+    dir[n] = '\0';
+    return (const uint8_t *)dir;
 }
 
 /* the last part of a path after its last /, and what is before it, as
@@ -414,5 +432,61 @@ int kv_os_glob(const void *pattern, kv_string **out, size_t *count) {
     globfree(&g);
     *out = at;
     *count = n;
+    return 0;
+}
+
+/* ---------- temporary files (#97) ---------- */
+
+/* the template mkstemp and mkdtemp want: the prefix, in tmpdir unless
+   it names a place itself, and six X */
+static char *temp_template(const void *prefix) {
+    const char *p = (const char *)prefix;
+    const char *dir = strchr(p, '/') ? "" : (const char *)kv_os_tmpdir();
+    size_t n = strlen(dir) + 1 + strlen(p) + 7;
+    char *t = malloc(n);
+    if (!t)
+        return NULL;
+    snprintf(t, n, "%s%s%sXXXXXX", dir, *dir ? "/" : "", p);
+    return t;
+}
+
+int kv_os_mkstemp(const void *prefix, kv_io *io, kv_string *path) {
+    char *t = temp_template(prefix);
+    if (!t)
+        return ENOMEM;
+    int fd = mkstemp(t);
+    if (fd < 0) {
+        int e = err_or(EIO);
+        free(t);
+        return e;
+    }
+    FILE *fp = fdopen(fd, "w+");
+    if (!fp) {
+        int e = err_or(EIO);
+        close(fd);
+        unlink(t);
+        free(t);
+        return e;
+    }
+    io->fp = fp;
+    io->kind = 1;
+    io->status = io->signal = -1;
+    io->pid = 0;
+    *path = kv_string_text(t);
+    free(t);
+    return 0;
+}
+
+int kv_os_mkdtemp(const void *prefix, kv_string *out) {
+    char *t = temp_template(prefix);
+    if (!t)
+        return ENOMEM;
+    if (!mkdtemp(t)) {
+        int e = err_or(EIO);
+        free(t);
+        return e;
+    }
+    *out = kv_string_text(t);
+    free(t);
     return 0;
 }

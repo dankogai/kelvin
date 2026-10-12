@@ -3,4 +3,4 @@ let main():i32 {
     OS.reboot()
     return 0
 }
-// error: OS has no 'reboot': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk and glob
+// error: OS has no 'reboot': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp and mkdtemp
