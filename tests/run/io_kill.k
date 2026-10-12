@@ -1,6 +1,6 @@
-// f.kill(signal) (#91): a signal to a process IO.exec started, true when
-// sent; f.pid its pid, -1 for any other IO; after kill, close waits and
-// .signal says which; a popen's child has no known pid, so kill is false
+// f.kill(signal) (#91): a signal to a process IO.exec or IO.popen started
+// (#100), true when sent; f.pid its pid, -1 for any other IO; after
+// kill, close waits and .signal says which
 #import <signal.h> as C
 let main():i32 {
     var p = IO.exec(["sleep", "30"], "r")
@@ -15,10 +15,11 @@ let main():i32 {
         k.ok.close()
         println(k.ok.signal)
     }
-    var sh = IO.popen("exit 0", "r")
+    var sh = IO.popen("sleep 30", "r")
     if sh.is(ok) {
-        println(sh.ok.pid, " ", sh.ok.kill(SIGTERM))
+        println(sh.ok.pid > 0, " ", sh.ok.kill(SIGTERM))
         sh.ok.close()
+        println(sh.ok.signal, " ", sh.ok.status)
     }
     var out = IO.stdout
     println(out.pid, " ", out.kill(0))
@@ -28,7 +29,8 @@ let main():i32 {
 // out: 15 -1 -1 false
 // out: true
 // out: 9
-// out: -1 false
+// out: true true
+// out: 15 -1
 // out: -1 false
 // c: kv_io_kill((kv_io *)&(*_kv__kv_res_IO_i32_at_ok(&p)), SIGTERM)
 // c: kv_io_pid((kv_io *)&out)

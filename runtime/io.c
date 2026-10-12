@@ -52,17 +52,13 @@ int kv_io_fdopen(kv_io *out, int fd, const void *mode) {
     return 0;
 }
 
-/* a process's IO (#87), as popen gives it: its block waits for the
-   process, and status is then its exit code */
+/* a shell command's IO (#87): /bin/sh -c command, through the fork and
+   exec of IO.exec (#100), so that its pid is known and kill reaches it,
+   which C's popen keeps to itself; its block waits for it, and status
+   is then its exit code */
 int kv_io_popen(kv_io *out, const void *command, const void *mode) {
-    FILE *fp = popen((const char *)command, (const char *)mode);
-    if (!fp)
-        return errno ? errno : EIO;
-    out->fp = fp;
-    out->kind = 2;
-    out->status = -1;
-    out->signal = -1;
-    return 0;
+    const char *const argv[] = {"/bin/sh", "-c", (const char *)command, NULL};
+    return kv_io_exec(out, argv, mode, NULL, NULL, false);
 }
 
 /* a pipe (#87): its reading and its writing end, each an IO that owns
@@ -222,9 +218,8 @@ int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mo
     return e;
 }
 
-/* a signal to a process IO.exec started (#91): its pid is known, where
-   popen's child's is not; false where there is no such process, or
-   kill refuses */
+/* a signal to a process IO.popen or IO.exec started (#91, #100); false
+   where there is no such process, or kill refuses */
 bool kv_io_kill(kv_io *f, int sig) {
     if (f->kind != 3 || f->pid <= 0 || !f->fp)
         return false;
@@ -253,11 +248,7 @@ kv_io *kv_io_std(int which) {
 }
 
 void kv_io_free(kv_io *f) {
-    if (f->fp && f->kind == 2) { /* a process: wait for it, and keep its exit code, or its signal (#89) */
-        int st = pclose((FILE *)f->fp);
-        f->status = st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
-        f->signal = st == -1 ? -1 : WIFSIGNALED(st) ? WTERMSIG(st) : 0;
-    } else if (f->fp && f->kind == 3) { /* a program run without the shell (#90): the same, by its pid */
+    if (f->fp && f->kind == 3) { /* a process (#87, #90): wait for it, and keep its exit code, or its signal (#89) */
         fclose((FILE *)f->fp);
         int st = 0;
         if (waitpid((pid_t)f->pid, &st, 0) == -1) {

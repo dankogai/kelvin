@@ -3309,3 +3309,15 @@ value an expression gives did: `.is` and `.case` of one now say to
 bind it first. Details are provisional P111.
 
 There are 636 tests, and all pass with clang and with gcc 15.
+
+### 133. A signal to a `popen`'s process
+
+> now add setting the signal of `IO.popen`'s pid
+
+**Claude** added #100: `IO.popen` now runs `/bin/sh -c command`
+through the same fork and exec as `IO.exec`, so its process has a pid
+Kelvin knows, and `f.kill(signal)` and `f.pid` work on it; C's
+`popen`, which keeps its child's pid to itself, is no longer used.
+Details are provisional P112.
+
+There are 636 tests, and all pass with clang and with gcc 15.

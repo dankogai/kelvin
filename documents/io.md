@@ -57,7 +57,9 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   closes the descriptor too; `f.fd` is an IO's descriptor, an `i32`,
   for C's calls, -1 once closed. `IO.popen(command, mode)` (#87) runs
   a shell command as `popen` does, with `"r"` to read its output or
-  `"w"` to write its input, a `Result<IO, i32>`; its block, or
+  `"w"` to write its input, a `Result<IO, i32>`, run as `/bin/sh -c`
+  through the same fork and exec as `IO.exec`, so that its pid is
+  known (#100); its block, or
   `close()`, waits for the process, and `f.status` is then its exit
   code, -1 before, or for an IO that is no process; `f.signal` (#89)
   is the signal that ended it, 0 when it exited on its own, -1 before
@@ -81,9 +83,9 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   one: the program is then found on that environment's PATH, or the
   system's default when it has none, so a fresh environment names the
   program by its path, or sets PATH. `f.kill(signal)` (#91)
-  sends a signal to that process, `true` when it was sent, and `f.pid`
-  is its process id, an `i32`; a `popen`'s child has no pid C knows,
-  so there `kill` is `false` and `pid` is -1, as for any other IO. The
+  sends a signal to that process, or to an `IO.popen`'s (#100), `true`
+  when it was sent, and `f.pid` is its process id, an `i32`, -1 for
+  an IO that is no process. The
   signal numbers are C's, `f.kill(15)`, or `SIGTERM` with
   `#import <signal.h> as C`; `close()` then waits, and `f.signal` says
   which ended it. `IO.pipe()` gives
@@ -144,10 +146,11 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
-  that `IO.stdout` names in place. `fdopen`, `fileno`, `popen`,
-  `pipe`, `fork`, `execvp`, `waitpid`, `kill` and `putenv` are POSIX
+  that `IO.stdout` names in place. `fdopen`, `fileno`, `pipe`, `fork`,
+  `execvp`, `waitpid`, `kill` and `putenv` are POSIX
   and X/Open, which the runtime asks for; a program needs nothing.
-- **Not yet:** a `popen`'s pid, which C does not give.
+- **Not yet:** nothing of what was listed here; see
+  [os.md](os.md) for the system around a program.
 
 ## Properties and methods
 
@@ -174,7 +177,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
-| | `.kill(signal)`, `.pid` | sends a signal to a process `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91) |
+| | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

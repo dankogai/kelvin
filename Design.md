@@ -131,6 +131,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 97 | `OS.mkstemp(prefix)`: a temporary file made and opened for reading and writing, a `Result<{io: IO, path: String}, i32>`; `OS.mkdtemp(prefix)`: a temporary directory, a `Result<String, i32>`; both in `OS.tmpdir` unless the prefix holds a `/` | `mkstemp` and `fdopen`, `mkdtemp`, with a template of six X | `var t = OS.mkstemp("kelvin_")`, `t.ok.io.println(...)`, `OS.remove(t.ok.path)` | 2026-10-12 |
 | 98 | `OS.utime(path, atime, mtime)`: a file's times, in seconds since the epoch as `stat` gives them, a fraction allowed; `OS.touch(path)`: both now, and the file made when missing; each 0 or `errno` | `utimensat`, and `open(O_CREAT)` | `OS.utime(p, OS.time, OS.time)`, `OS.touch("stamp")` | 2026-10-12 |
 | 99 | `OS.chown(path, uid, gid)` and `OS.lchown`, a file's owner and a link's own, -1 to leave an id, 0 or `errno`; `OS.username(uid)` and `OS.groupname(gid)`, the names of ids, each a `String?`, and `OS.user` a `String?` too | `chown`, `lchown`, `getpwuid`, `getgrgid` | `OS.chown(p, OS.uid, -1)`, `OS.username(s.ok.uid)` | 2026-10-12 |
+| 100 | `IO.popen` runs `/bin/sh -c command` through the fork and exec of `IO.exec`, so its pid is known: `f.pid` and `f.kill(signal)` work on it as on an `IO.exec`'s process | `popen`, whose child's pid C keeps to itself | `var p = IO.popen("sleep 30", "r"); p.ok.kill(SIGTERM)` | 2026-10-12 |
 
 Notes:
 
@@ -693,6 +694,12 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (100) Agreed details: "now add setting the signal of `IO.popen`'s
+  pid". The pid a `popen` child has is C's secret, so `IO.popen` no
+  longer uses `popen`: it is `IO.exec` of `/bin/sh -c command`, which
+  is what `popen` does underneath, and so has a pid, a `kill`, and the
+  same `status` and `signal` as before (P112).
+
 - (99) Agreed details: "now add a file's owner to `OS`". `chown` and
   `lchown` as C has them, with -1 to leave an id; the names beside
   them, since `stat` gives numbers and a program shows names, as
@@ -1064,6 +1071,7 @@ says "as agreed".
 | P109 | Details of #97 | `OS.mkstemp("k_")` is `({ struct _kv_anonN _kv_t = {0}; int _kv_e = kv_os_mkstemp("k_", &_kv_t.io, &_kv_t.path); _kv_e ? ..._make_err(_kv_e) : ..._make_ok(_kv_t); })`; `OS.mkdtemp("k_")` through the `res_string` shape | `temp_type` registers `{io: IO, path: String}` as `pipe_type` does; the runtime builds the template from `tmpdir`, the prefix and `XXXXXX`, calls `mkstemp` and `fdopen` with `"w+"`, or `mkdtemp`. macOS hides `mkdtemp` under `_XOPEN_SOURCE`, so runtime/os.c and io.c now define `_DARWIN_C_SOURCE` there and `_XOPEN_SOURCE 700` elsewhere, as kelvinc's own main.c does |
 | P110 | Details of #98 | `OS.utime(p, 1.0, 2.5)` is `kv_os_utime(p, 1.0, 2.5)`, `OS.touch(p)` `kv_os_touch(p)` | `kv_os_utime` splits each `double` into a `timespec` and calls `utimensat(AT_FDCWD, ...)`; `kv_os_touch` opens the file with `O_CREAT` and closes it, then `utimensat` with `UTIME_NOW` for both. Table members with arguments `tff` and `t` giving `i32` |
 | P111 | Details of #99 | `OS.chown(p, OS.uid, OS.gid)` is `kv_os_chown(p, kv_os_uid(), kv_os_gid())`; `OS.username(0)` is `({ kv_string _kv_s = {0}; kv_os_username(0, &_kv_s) ? ..._make_some(_kv_s) : ..._make_none(); })`, a `String?` | `kv_os_chown` and `kv_os_lchown` cast the ids to `uid_t` and `gid_t`, so -1 is C's leave-alone; `kv_os_username`, `kv_os_groupname` and now `kv_os_user` copy the name out of `getpwuid`'s and `getgrgid`'s static storage into a String, false where there is none: CI's Linux showed the name read for uid 0 as the runner's, since a later lookup had overwritten the storage a `cstr?` pointed into. Table members `tii` giving `i32`, and `i` giving `opt_string`, a new shape. With `OS.user` an owner, `OS.user.is(some)` in a test leaked its String, which `.is` of a value an expression gives always did for an owning record: `.is` and `.case` of such a value are now errors that say to bind it, as `.count` of an unbound Bytes is. A file made in a directory may take the directory's group, as on macOS, which the test allows for |
+| P112 | Details of #100 | `IO.popen(cmd, "r")` is as before in the program's C; in the runtime, `kv_io_popen` calls `kv_io_exec` with `{"/bin/sh", "-c", cmd, NULL}`, no directory, no environment | `kv_io`'s kind 2, the `pclose` one, is gone: a process is kind 3, waited for by its pid in `kv_io_free`, whichever way it was started; `kv_io_kill` and `kv_io_pid` then serve both. A shell that is missing is `ENOENT`, as an `IO.exec` program is |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -107,7 +107,7 @@ bool kv_string_eq(const kv_string *a, const kv_string *b);
    may declare itself */
 typedef struct kv_io {
     void *fp;
-    int kind;   /* 0 a stream never closed, 1 a file (fclose), 2 a process (pclose) (#87) */
+    int kind;   /* 0 a stream never closed, 1 a file (fclose), 3 a process by its pid (#87, #90, #100) */
     int status; /* a process's exit code once closed, else -1 */
     int signal; /* the signal that ended a process, once closed, 0 when none, else -1 (#89) */
     long pid;   /* a process run without the shell (#90), waited for when closed */
