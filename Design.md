@@ -132,6 +132,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 98 | `OS.utime(path, atime, mtime)`: a file's times, in seconds since the epoch as `stat` gives them, a fraction allowed; `OS.touch(path)`: both now, and the file made when missing; each 0 or `errno` | `utimensat`, and `open(O_CREAT)` | `OS.utime(p, OS.time, OS.time)`, `OS.touch("stamp")` | 2026-10-12 |
 | 99 | `OS.chown(path, uid, gid)` and `OS.lchown`, a file's owner and a link's own, -1 to leave an id, 0 or `errno`; `OS.username(uid)` and `OS.groupname(gid)`, the names of ids, each a `String?`, and `OS.user` a `String?` too | `chown`, `lchown`, `getpwuid`, `getgrgid` | `OS.chown(p, OS.uid, -1)`, `OS.username(s.ok.uid)` | 2026-10-12 |
 | 100 | `IO.popen` runs `/bin/sh -c command` through the fork and exec of `IO.exec`, so its pid is known: `f.pid` and `f.kill(signal)` work on it as on an `IO.exec`'s process | `popen`, whose child's pid C keeps to itself | `var p = IO.popen("sleep 30", "r"); p.ok.kill(SIGTERM)` | 2026-10-12 |
+| 101 | an IO keeps its path: `f.path` as given, `f.abspath`, `f.basename`, `f.dirname`, `f.join(name)`; `f.stat` of the open file, `f.lstat`, `f.isdir`, `f.isfile`, `f.islink`, `f.exists`; `f.listdir`, `f.walk`, `f.glob(pattern)`; `f.chmod`, `f.chown`, `f.truncate` on the open file, `f.remove()`, `f.rename(to)` (the path follows; a var), `f.utime`, `f.touch()`; `IO(path)` alone opens for reading | `fstat`, `fchmod`, `fchown`, `ftruncate` on `fileno`, and the path's calls by hand | `let d = try IO("."); for n in try d.listdir { }` | 2026-10-12 |
 
 Notes:
 
@@ -694,6 +695,17 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (101) Agreed details: "Adopt some of those in `OS` to `IO`,
+  especially those related to directory manipulations and file
+  permissions: `f = try IO("./foo"); f.abspath` [...] `f.path` simply
+  returns `"./foo"`; `d = try IO("."); for item in listdir {...}`;
+  `f.stat` that returns `OS.stat(f.path)`; and the list goes on". The
+  IO keeps the path it was opened with; what C does on a descriptor,
+  `fstat`, `fchmod`, `fchown`, `ftruncate`, is done on the open file,
+  the rest on the path; `rename` changes the IO's path, so it needs a
+  var, as `close` does; `IO(path)` with no mode reads, a directory
+  too (P113).
+
 - (100) Agreed details: "now add setting the signal of `IO.popen`'s
   pid". The pid a `popen` child has is C's secret, so `IO.popen` no
   longer uses `popen`: it is `IO.exec` of `/bin/sh -c command`, which
@@ -1072,6 +1084,7 @@ says "as agreed".
 | P110 | Details of #98 | `OS.utime(p, 1.0, 2.5)` is `kv_os_utime(p, 1.0, 2.5)`, `OS.touch(p)` `kv_os_touch(p)` | `kv_os_utime` splits each `double` into a `timespec` and calls `utimensat(AT_FDCWD, ...)`; `kv_os_touch` opens the file with `O_CREAT` and closes it, then `utimensat` with `UTIME_NOW` for both. Table members with arguments `tff` and `t` giving `i32` |
 | P111 | Details of #99 | `OS.chown(p, OS.uid, OS.gid)` is `kv_os_chown(p, kv_os_uid(), kv_os_gid())`; `OS.username(0)` is `({ kv_string _kv_s = {0}; kv_os_username(0, &_kv_s) ? ..._make_some(_kv_s) : ..._make_none(); })`, a `String?` | `kv_os_chown` and `kv_os_lchown` cast the ids to `uid_t` and `gid_t`, so -1 is C's leave-alone; `kv_os_username`, `kv_os_groupname` and now `kv_os_user` copy the name out of `getpwuid`'s and `getgrgid`'s static storage into a String, false where there is none: CI's Linux showed the name read for uid 0 as the runner's, since a later lookup had overwritten the storage a `cstr?` pointed into. Table members `tii` giving `i32`, and `i` giving `opt_string`, a new shape. With `OS.user` an owner, `OS.user.is(some)` in a test leaked its String, which `.is` of a value an expression gives always did for an owning record: `.is` and `.case` of such a value are now errors that say to bind it, as `.count` of an unbound Bytes is. A file made in a directory may take the directory's group, as on macOS, which the test allows for |
 | P112 | Details of #100 | `IO.popen(cmd, "r")` is as before in the program's C; in the runtime, `kv_io_popen` calls `kv_io_exec` with `{"/bin/sh", "-c", cmd, NULL}`, no directory, no environment | `kv_io`'s kind 2, the `pclose` one, is gone: a process is kind 3, waited for by its pid in `kv_io_free`, whichever way it was started; `kv_io_kill` and `kv_io_pid` then serve both. A shell that is missing is `ENOENT`, as an `IO.exec` program is |
+| P113 | Details of #101 | `f.path` is `kv_io_path((kv_io *)&f)`, `f.stat` the stat shape over `kv_io_stat`, `d.listdir` the listdir shape over `kv_io_listdir`, `f.rename(to)` `kv_io_rename((kv_io *)&f, to)`; `IO(p)` is `kv_io_open(&_kv_f, p, "r")` | `kv_io` gains `path`, a copy made by `kv_io_open` and `kv_os_mkstemp`, freed by `kv_io_free`, moved by `kv_io_take`, NULL for a stream, a descriptor or a process. The runtime's `kv_io_*` path functions call `kv_os_*` on it, or `fstat`, `fchmod`, `fchown` and `ftruncate` on `fileno` where the file is open, `ENOENT` where there is no path. In the parser, the IO property list gains the names with their types, and the method table the methods, their arguments checked by kind as `OS`'s are through a small table; `rename` is `changes`, so a let refuses it; `value_type` of an IO method is its type for these names alone, since every owner method carries its receiver's type for the codegen, which made `f.write(...)` as a statement look like a dropped owner when all were typed. The codegen reuses the `res_string`, `listdir` and `stat` shapes of `OS` with `kv_io_` calls |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

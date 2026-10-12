@@ -1537,7 +1537,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
                     {"close", 0, true, "i"}, {"read", 1, false, "i"},
                     {"print", -1, false, "i"}, {"println", -1, false, "i"}, {"seek", 1, false, "i"},
-                    {"rewind", 0, false, "i"}, {"kill", 1, false, "i"}};
+                    {"rewind", 0, false, "i"}, {"kill", 1, false, "i"},   {"glob", 1, false, "i"},
+                    {"chmod", 1, false, "i"},  {"chown", 2, false, "i"},  {"truncate", 1, false, "i"},
+                    {"remove", 0, false, "i"}, {"rename", 1, true, "i"},  {"utime", 2, false, "i"},
+                    {"touch", 0, false, "i"},  {"join", 1, false, "i"}};
                 int which = -1;
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
@@ -1557,9 +1560,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                                             ? "a Set has no method '%s': insert, has, remove, clear, reserve, copy, "
                                               "union, intersection and difference, and the properties count and elements"
                                         : ok == 'i'
-                                            ? "an IO has no method '%s': write, print, println, flush, close, read(n), "
-                                              "seek(n), rewind and kill(signal), and the properties bytes, string, lines, "
-                                              "byte, eof, position, count, fd, status, signal and pid; it is not copied"
+                                            ? "an IO has no method '%s': see documents/io.md for write, print, println, "
+                                              "flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, "
+                                              "remove, rename, utime, touch and join, and its properties; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
@@ -1594,6 +1597,47 @@ static Expr *parse_postfix_ops(Expr *e) {
                              methods[which].arity == 1 ? "" : "s");
                 if (ok == 'i' && (!strcmp(member, "seek") || !strcmp(member, "kill"))) /* a bool: whether it could (#84, #91) */
                     x->is_bool = true;
+                if (ok == 'i') { /* the OS's work on its path (#101): the arguments by kind, and what each gives */
+                    static const struct { const char *name, *args, *gives; } ops[] = {
+                        {"glob", "t", "listdir"}, {"chmod", "i", "i32"},    {"chown", "ii", "i32"}, {"truncate", "i", "i32"},
+                        {"remove", "", "i32"},    {"rename", "t", "i32"},   {"utime", "ff", "i32"}, {"touch", "", "i32"},
+                        {"join", "t", "string"},
+                    };
+                    for (size_t k = 0; k < sizeof ops / sizeof ops[0]; k++) {
+                        if (strcmp(member, ops[k].name))
+                            continue;
+                        for (int i = 0; i < x->items.len; i++) {
+                            Expr *a = x->items.data[i];
+                            Type *at = value_type(a);
+                            Decl *ar;
+                            char ac = at ? type_class(at, &ar) : 0;
+                            char want = ops[k].args[i];
+                            if (want == 'i' || want == 'f') {
+                                bool fine = want == 'f' ? (ac == 'i' || ac == 'f' || number_expr(a))
+                                                        : (ac == 'i' || (number_expr(a) && !at));
+                                if (!fine || is_text_expr(a))
+                                    error_at(a->pos, "argument %d of '.%s' is %s, and this is %s", i + 1, member,
+                                             want == 'f' ? "a number" : "an integer", at ? kelvin_type(at) : "not one");
+                            } else if (is_string(at) || is_bytes(at)) {
+                                if (!owner_place(a))
+                                    error_at(a->pos, "an argument of '.%s' is a %s that an expression gives: bind it to a "
+                                                     "variable first",
+                                             member, is_string(at) ? "String" : "Bytes");
+                                x->items.data[i] = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+                            } else if ((at && !is_text_expr(a)) || number_expr(a)) {
+                                error_at(a->pos, "an argument of '.%s' is text, a String or a Bytes, and this is %s", member,
+                                         at ? kelvin_type(at) : "a number");
+                            }
+                        }
+                        if (!strcmp(ops[k].gives, "i32"))
+                            x->type = base_type("i32", name->pos);
+                        else if (!strcmp(ops[k].gives, "string"))
+                            x->type = base_type("String", name->pos);
+                        else /* listdir */
+                            x->type = variant_type(name, "res", array_type(name, base_type("String", name->pos)),
+                                                   base_type("i32", name->pos));
+                    }
+                }
                 if (ok == 'i' && (!strcmp(member, "print") || !strcmp(member, "println"))) {
                     /* f.print(...), f.println(...) (#83): as print, to the IO */
                     for (int i = 0; i < x->items.len; i++) {
@@ -2201,9 +2245,9 @@ static Expr *parse_primary(void) {
         brace_ends_condition = saved_brace;
         brace_in_for = saved_for;
         expect_p(")");
-        if (e->items.len != 2)
+        if (e->items.len < 1 || e->items.len > 2)
             error_at(t->pos, "IO takes a path and a mode, as in IO(\"log.txt\", \"w\"): text, a String or a Bytes; "
-                             "or a file descriptor and a mode, IO(fd, \"r\")");
+                             "a path alone opens for reading (#101); or a file descriptor and a mode, IO(fd, \"r\")");
         Expr *first = e->items.data[0];
         Type *ft = value_type(first);
         Decl *fr;
@@ -2211,7 +2255,9 @@ static Expr *parse_primary(void) {
             error_at(first->pos, "IO takes a descriptor number here: an IO's is 'f.fd'");
         if (number_expr(first) || (ft && type_class(ft, &fr) == 'i'))
             e->text = "fd"; /* IO(fd, mode) (#86): a descriptor's, as fdopen gives it */
-        for (int i = e->text ? 1 : 0; i < 2; i++) {
+        if (e->text && e->items.len < 2)
+            error_at(t->pos, "IO of a descriptor takes a mode too, as in IO(fd, \"r\")");
+        for (int i = e->text ? 1 : 0; i < e->items.len; i++) {
             Expr *a = e->items.data[i];
             Type *at = value_type(a);
             if (is_string(at) || is_bytes(at)) {
@@ -3502,8 +3548,13 @@ static Type *value_type_of(Expr *e) {
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map")))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81) */
-        if (e->op && !strcmp(e->op, "io")) /* an IO method (#82): seek and kill give a bool (#84, #91) */
+        if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
+            static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
+            for (int i = 0; typed[i]; i++)
+                if (!strcmp(e->text, typed[i]))
+                    return e->type;
             return !strcmp(e->text, "seek") || !strcmp(e->text, "kill") ? base_type("bool", e->pos) : NULL;
+        }
         if (e->op && !strcmp(e->op, "set")) { /* a Set method (#71) */
             if (!strcmp(e->text, "has") || !strcmp(e->text, "insert") || !strcmp(e->text, "remove"))
                 return base_type("bool", e->pos);
@@ -4685,7 +4736,13 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "fd") ||
                                           !strcmp(member, "status") || !strcmp(member, "signal") ||
-                                          !strcmp(member, "pid"))))) {
+                                          !strcmp(member, "pid") || !strcmp(member, "path") ||
+                                          !strcmp(member, "abspath") || !strcmp(member, "listdir") ||
+                                          !strcmp(member, "walk") || !strcmp(member, "stat") ||
+                                          !strcmp(member, "lstat") || !strcmp(member, "isdir") ||
+                                          !strcmp(member, "isfile") || !strcmp(member, "islink") ||
+                                          !strcmp(member, "exists") || !strcmp(member, "basename") ||
+                                          !strcmp(member, "dirname"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4712,6 +4769,19 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("i32", name->pos); /* (#86, #87, #89, #91) */
         else if (kk == 'i' && !strcmp(member, "byte")) /* the next byte, or none at the end (#85) */
             x->type = optional_type(name, base_type("u8", name->pos));
+        else if (kk == 'i' && !strcmp(member, "path")) /* its path, and the OS's work on it (#101) */
+            x->type = cstr_type(name->pos);
+        else if (kk == 'i' && !strcmp(member, "abspath"))
+            x->type = variant_type(name, "res", base_type("String", name->pos), base_type("i32", name->pos));
+        else if (kk == 'i' && (!strcmp(member, "listdir") || !strcmp(member, "walk")))
+            x->type = variant_type(name, "res", array_type(name, base_type("String", name->pos)), base_type("i32", name->pos));
+        else if (kk == 'i' && (!strcmp(member, "stat") || !strcmp(member, "lstat")))
+            x->type = variant_type(name, "res", stat_type(name), base_type("i32", name->pos));
+        else if (kk == 'i' && (!strcmp(member, "isdir") || !strcmp(member, "isfile") || !strcmp(member, "islink") ||
+                               !strcmp(member, "exists")))
+            x->type = base_type("bool", name->pos), x->is_bool = true;
+        else if (kk == 'i' && (!strcmp(member, "basename") || !strcmp(member, "dirname")))
+            x->type = base_type("String", name->pos);
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
             (kk == 't' && !strcmp(member, "elements"))) {
             /* d.keys and d.values (#66): Arrays of copies, made by a function

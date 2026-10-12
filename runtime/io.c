@@ -19,6 +19,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -26,6 +27,14 @@ static void kv_io_fail(const char *what) {
     fflush(stdout);
     fprintf(stderr, "kelvin: %s\n", what);
     abort();
+}
+
+static char *copy_text(const void *s) {
+    size_t n = strlen((const char *)s) + 1;
+    char *c = malloc(n);
+    if (c)
+        memcpy(c, s, n);
+    return c;
 }
 
 int kv_io_open(kv_io *out, const void *path, const void *mode) {
@@ -36,6 +45,7 @@ int kv_io_open(kv_io *out, const void *path, const void *mode) {
     out->kind = 1;
     out->status = -1;
     out->signal = -1;
+    out->path = copy_text(path); /* kept for f.path and the OS's work on it (#101) */
     return 0;
 }
 
@@ -264,12 +274,15 @@ void kv_io_free(kv_io *f) {
     }
     f->fp = NULL;
     f->kind = 0;
+    free(f->path);
+    f->path = NULL;
 }
 
 kv_io kv_io_take(kv_io *f) {
     kv_io v = *f;
     f->fp = NULL;
     f->kind = 0;
+    f->path = NULL;
     return v;
 }
 
@@ -444,3 +457,95 @@ void kv_io_write_owned_string(kv_io *f, kv_string s) {
     kv_io_write_bytes(f, &s.b);
     kv_string_free(&s);
 }
+
+/* ---------- its path, and the OS's work on it (#101) ---------- */
+
+static const char *path_of(kv_io *f) { return f->path ? f->path : ""; }
+
+const uint8_t *kv_io_path(kv_io *f) { return (const uint8_t *)path_of(f); }
+
+int kv_io_abspath(kv_io *f, kv_string *out) { return f->path ? kv_os_realpath(f->path, out) : ENOENT; }
+int kv_io_listdir(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_listdir(f->path, out, count) : ENOENT; }
+int kv_io_walk(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_walk(f->path, out, count) : ENOENT; }
+
+int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count) {
+    if (!f->path)
+        return ENOENT;
+    kv_string p = kv_os_join(f->path, pattern);
+    int e = kv_os_glob(kv_bytes_cstr(&p.b), out, count);
+    kv_string_free(&p);
+    return e;
+}
+
+/* of the open file itself where there is one, as fstat sees it */
+int kv_io_stat(kv_io *f, kv_stat *out) {
+    if (f->fp) {
+        struct stat st;
+        if (fstat(fileno((FILE *)f->fp), &st) != 0)
+            return errno ? errno : EIO;
+        out->dev = (long long)st.st_dev;
+        out->ino = (long long)st.st_ino;
+        out->mode = (int)st.st_mode;
+        out->nlink = (long long)st.st_nlink;
+        out->uid = (int)st.st_uid;
+        out->gid = (int)st.st_gid;
+        out->size = (long long)st.st_size;
+        out->atime = (double)st.st_atime;
+        out->mtime = (double)st.st_mtime;
+        out->ctime = (double)st.st_ctime;
+        out->isdir = S_ISDIR(st.st_mode);
+        out->isfile = S_ISREG(st.st_mode);
+        out->islink = S_ISLNK(st.st_mode);
+        return 0;
+    }
+    return f->path ? kv_os_stat(f->path, out) : ENOENT;
+}
+
+int kv_io_lstat(kv_io *f, kv_stat *out) { return f->path ? kv_os_lstat(f->path, out) : ENOENT; }
+bool kv_io_isdir(kv_io *f) { return f->path && kv_os_isdir(f->path); }
+bool kv_io_isfile(kv_io *f) { return f->path && kv_os_isfile(f->path); }
+bool kv_io_islink(kv_io *f) { return f->path && kv_os_islink(f->path); }
+bool kv_io_exists(kv_io *f) { return f->path && kv_os_exists(f->path); }
+
+int kv_io_chmod(kv_io *f, int mode) {
+    if (f->fp)
+        return fchmod(fileno((FILE *)f->fp), (mode_t)mode) == 0 ? 0 : errno ? errno : EIO;
+    return f->path ? kv_os_chmod(f->path, mode) : ENOENT;
+}
+
+int kv_io_chown(kv_io *f, int uid, int gid) {
+    if (f->fp)
+        return fchown(fileno((FILE *)f->fp), (uid_t)uid, (gid_t)gid) == 0 ? 0 : errno ? errno : EIO;
+    return f->path ? kv_os_chown(f->path, uid, gid) : ENOENT;
+}
+
+int kv_io_truncate(kv_io *f, long long size) {
+    if (f->fp) {
+        fflush((FILE *)f->fp);
+        return ftruncate(fileno((FILE *)f->fp), (off_t)size) == 0 ? 0 : errno ? errno : EIO;
+    }
+    return f->path ? kv_os_truncate(f->path, size) : ENOENT;
+}
+
+int kv_io_remove(kv_io *f) { return f->path ? kv_os_remove(f->path) : ENOENT; }
+
+/* the path follows the file */
+int kv_io_rename(kv_io *f, const void *to) {
+    if (!f->path)
+        return ENOENT;
+    int e = kv_os_rename(f->path, to);
+    if (e)
+        return e;
+    char *moved = copy_text(to);
+    if (!moved)
+        return ENOMEM;
+    free(f->path);
+    f->path = moved;
+    return 0;
+}
+
+int kv_io_utime(kv_io *f, double atime, double mtime) { return f->path ? kv_os_utime(f->path, atime, mtime) : ENOENT; }
+int kv_io_touch(kv_io *f) { return f->path ? kv_os_touch(f->path) : ENOENT; }
+kv_string kv_io_basename(kv_io *f) { return kv_os_basename(path_of(f)); }
+kv_string kv_io_dirname(kv_io *f) { return kv_os_dirname(path_of(f)); }
+kv_string kv_io_join(kv_io *f, const void *name) { return kv_os_join(path_of(f), name); }

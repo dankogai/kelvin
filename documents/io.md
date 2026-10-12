@@ -49,7 +49,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 ```
 
 - **Making one:** `IO(path, mode)` opens as `fopen` does, with C's modes
-  (`"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...), and gives a
+  (`"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...), `"r"` when the mode is
+  left out, `IO(path)` (#101), and gives a
   `Result<IO, i32>`: the IO, or `errno` as `fopen` left it. `path` and
   `mode` are text (a literal, a `cstr`, a `u8^`), a `String` or a
   `Bytes` in a variable. `IO(fd, mode)` (#86), with a number first,
@@ -152,11 +153,44 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 - **Not yet:** nothing of what was listed here; see
   [os.md](os.md) for the system around a program.
 
+## Its path, and the OS's work on it
+
+An IO opened by path keeps that path (#101): `f.path` is it as given,
+a `cstr`, `""` for a stream or a process, and the work `OS` does on a
+path, [os.md](os.md)'s, is done from the IO on its own:
+
+```kelvin
+let f = try IO("./notes.txt")                 // a path alone opens for reading
+println(f.path, " ", try f.abspath)           // ./notes.txt, and /home/me/notes.txt
+let st = try f.stat                           // of the open file itself, as fstat sees it
+let d = try IO(".")                           // a directory opens too
+for name in try d.listdir { println(name) }   // its names; d.walk every path under it; d.glob("*.k")
+```
+
+- **`f.path`** is the path as given; **`f.abspath`** the absolute path
+  with every link followed, a `Result<String, i32>`; **`f.basename`**
+  and **`f.dirname`** its parts and **`f.join(name)`** a path under it,
+  each a `String`.
+- **`f.stat`** is `OS.stat` of the open file itself, through its
+  descriptor, so a file removed or renamed while open still answers;
+  **`f.lstat`** is of the path. **`f.isdir`**, **`f.isfile`**,
+  **`f.islink`** and **`f.exists`** are `OS`'s of the path.
+- **`f.listdir`**, **`f.walk`** and **`f.glob(pattern)`** are `OS`'s
+  of the path, a directory's, the pattern under it.
+- **`f.chmod(mode)`**, **`f.chown(uid, gid)`** and
+  **`f.truncate(size)`** work on the open file itself; **`f.remove()`**,
+  **`f.rename(to)`**, **`f.utime(atime, mtime)`** and **`f.touch()`**
+  on the path, each 0 or `errno`. After `rename`, `f.path` is the new
+  name, so `rename` needs the var that owns the IO, as `close` does. A
+  file removed while open stays readable until it is closed.
+- An IO with no path, a stream or a process, answers `""`, `false` or
+  `ENOENT`.
+
 ## Properties and methods
 
 | On | Property or method | Gives |
 |---|---|---|
-| `IO(path, mode)` | | a `Result<IO, i32>`: the IO, or errno |
+| `IO(path, mode)`, `IO(path)` | | a `Result<IO, i32>`: the IO, or errno; the mode `"r"` when none (#101) |
 | `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
 | `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
 | `IO.exec(args, mode)` | | the same of a program run without the shell, `args` a list or an Array (#90) |
@@ -178,6 +212,13 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |
+| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `Result<String, i32>` (#101) |
+| | `.basename`, `.dirname`, `.join(name)` | the path's parts, a path under it, `String`s |
+| | `.stat`, `.lstat` | C's stat of the open file, of the path, a Result of a struct |
+| | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s, of the path |
+| | `.listdir`, `.walk`, `.glob(pattern)` | the names, every path under it, the matches, each a `Result<Array<String>, i32>` |
+| | `.chmod(mode)`, `.chown(uid, gid)`, `.truncate(size)` | on the open file, 0 or `errno` |
+| | `.remove()`, `.rename(to)`, `.utime(atime, mtime)`, `.touch()` | on the path, 0 or `errno`; `rename` needs a var |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

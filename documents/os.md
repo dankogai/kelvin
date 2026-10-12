@@ -124,6 +124,9 @@ let main():i32 {
   its output or input, `IO.popen` and `IO.exec` are in
   [io.md](io.md).
 - **`OS.pid`** is the process id, an `i32`.
+- **From an IO** (#101): an IO opened by path does this work on its
+  own path, `f.stat`, `f.listdir`, `f.chmod(mode)` and the rest; see
+  [io.md](io.md).
 - **Paths, names and commands** are text (a literal, a `cstr`, a
   `u8^`), or a `String` or a `Bytes` in a variable; a mode, a size, a
   pid or a signal is an integer, and seconds a number.

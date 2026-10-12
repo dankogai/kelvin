@@ -111,6 +111,7 @@ typedef struct kv_io {
     int status; /* a process's exit code once closed, else -1 */
     int signal; /* the signal that ended a process, once closed, 0 when none, else -1 (#89) */
     long pid;   /* a process run without the shell (#90), waited for when closed */
+    char *path; /* the path it was opened with (#101), freed with it; NULL for a stream or a process */
 } kv_io;
 int kv_io_open(kv_io *out, const void *path, const void *mode);
 int kv_io_fdopen(kv_io *out, int fd, const void *mode);
@@ -158,6 +159,28 @@ typedef struct kv_stat {
 } kv_stat;
 int kv_os_stat(const void *path, kv_stat *out);
 int kv_os_lstat(const void *path, kv_stat *out);
+/* its path, and the OS's work on it (#101) */
+const uint8_t *kv_io_path(kv_io *f);
+int kv_io_abspath(kv_io *f, kv_string *out);
+int kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
+int kv_io_walk(kv_io *f, kv_string **out, size_t *count);
+int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count);
+int kv_io_stat(kv_io *f, kv_stat *out);
+int kv_io_lstat(kv_io *f, kv_stat *out);
+bool kv_io_isdir(kv_io *f);
+bool kv_io_isfile(kv_io *f);
+bool kv_io_islink(kv_io *f);
+bool kv_io_exists(kv_io *f);
+int kv_io_chmod(kv_io *f, int mode);
+int kv_io_chown(kv_io *f, int uid, int gid);
+int kv_io_truncate(kv_io *f, long long size);
+int kv_io_remove(kv_io *f);
+int kv_io_rename(kv_io *f, const void *to);
+int kv_io_utime(kv_io *f, double atime, double mtime);
+int kv_io_touch(kv_io *f);
+kv_string kv_io_basename(kv_io *f);
+kv_string kv_io_dirname(kv_io *f);
+kv_string kv_io_join(kv_io *f, const void *name);
 bool kv_os_islink(const void *path);
 int kv_os_symlink(const void *target, const void *path);
 int kv_os_readlink(const void *path, kv_string *out);

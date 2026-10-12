@@ -3321,3 +3321,23 @@ Kelvin knows, and `f.kill(signal)` and `f.pid` work on it; C's
 Details are provisional P112.
 
 There are 636 tests, and all pass with clang and with gcc 15.
+
+### 134. An IO's path, and the OS's work on it
+
+> Before adding what Python's `os` has beyond these to `OS`, Adopt
+> some of those in `OS` to `IO`, especially those related to directory
+> manipulations and file permissions: `f = try IO("./foo"); f.abspath`
+> that returns an absolute path. `f.path` simply returns `"./foo"`;
+> `d = try IO("."); for item in listdir {...}`; `f.stat` that returns
+> `OS.stat(f.path)`; and the list goes on...
+
+**Claude** added #101: an IO keeps the path it was opened with, and
+does `OS`'s work on it from itself: `f.path`, `f.abspath`,
+`f.basename`, `f.dirname`, `f.join(name)`; `f.stat` of the open file
+itself and `f.lstat`; `f.isdir`, `f.isfile`, `f.islink`, `f.exists`;
+`f.listdir`, `f.walk`, `f.glob(pattern)`; `f.chmod`, `f.chown` and
+`f.truncate` on the open file; `f.remove()`, `f.rename(to)`, after
+which the path follows, `f.utime` and `f.touch()`. `IO(path)` alone
+opens for reading, a directory too. Details are provisional P113.
+
+There are 638 tests, and all pass with clang and with gcc 15.

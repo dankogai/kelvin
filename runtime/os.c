@@ -479,7 +479,12 @@ int kv_os_mkstemp(const void *prefix, kv_io *io, kv_string *path) {
     io->kind = 1;
     io->status = io->signal = -1;
     io->pid = 0;
+    io->path = NULL;
     *path = kv_string_text(t);
+    size_t n = strlen(t) + 1;
+    io->path = malloc(n);
+    if (io->path)
+        memcpy(io->path, t, n);
     free(t);
     return 0;
 }

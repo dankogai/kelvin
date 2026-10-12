@@ -514,7 +514,8 @@ static char *expr_bare(Expr *e) {
                           !e->text                    ? "kv_io_open"
                           : !strcmp(e->text, "popen") ? "kv_io_popen" /* (#87) */
                                                       : "kv_io_fdopen",
-                          expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
+                          expr(e->items.data[0]), e->items.len > 1 ? expr(e->items.data[1]) : "\"r\"" /* (#101) */,
+                          r->name, r->name);
         }
         if (e->op && !strcmp(e->op, "io_exec") && e->type) {
             /* IO.exec(args, mode, dir, env) (#90, #92): the IO, or errno; an
@@ -775,6 +776,39 @@ static char *expr_bare(Expr *e) {
                                               !strcmp(e->text, "status") || !strcmp(e->text, "signal") ||
                                               !strcmp(e->text, "pid"))) /* (#84, #86, #87, #89, #91) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
+        if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "path") || !strcmp(e->text, "isdir") ||
+                                              !strcmp(e->text, "isfile") || !strcmp(e->text, "islink") ||
+                                              !strcmp(e->text, "exists") || !strcmp(e->text, "basename") ||
+                                              !strcmp(e->text, "dirname"))) /* its path, and the OS's work (#101) */
+            return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
+        if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "abspath")) {
+            Decl *r = kelvin_record(e->type->name);
+            return strfmt("({ kv_string _kv_s = {0}; int _kv_e = kv_io_abspath((kv_io *)&%s, &_kv_s); _kv_e ? "
+                          "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_s); })",
+                          recv, r->name, r->name);
+        }
+        if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "listdir") || !strcmp(e->text, "walk"))) {
+            Decl *r = kelvin_record(e->type->name);
+            Type *arr = ((Var *)r->members.data[0])->type;
+            return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_io_%s((kv_io *)&%s, &_kv_at, &_kv_n); "
+                          "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                          "_kv_%s_make_ok(_kv_a); })",
+                          e->text, recv, arr->cname, arr->cname, r->name, r->name);
+        }
+        if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "stat") || !strcmp(e->text, "lstat"))) {
+            Decl *r = kelvin_record(e->type->name);
+            Type *st = ((Var *)r->members.data[0])->type;
+            Decl *sr = kelvin_record(st->name);
+            Buf init = {0};
+            buf_puts(&init, "");
+            for (int i = 0; i < sr->members.len; i++) {
+                const char *m = ((Var *)sr->members.data[i])->name;
+                buf_printf(&init, "%s.%s = _kv_st.%s", i ? ", " : "", m, m);
+            }
+            return strfmt("({ kv_stat _kv_st = {0}; int _kv_e = kv_io_%s((kv_io *)&%s, &_kv_st); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                          "_kv_%s_make_ok((%s){%s}); })",
+                          e->text, recv, r->name, r->name, decl(st, ""), init.buf);
+        }
         if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "byte")) { /* f.byte (#85): the next, or none */
             Decl *r = kelvin_record(e->type->name);
             return strfmt("({ uint8_t _kv_v = 0; kv_io_read_byte((kv_io *)&%s, &_kv_v) ? _kv_%s_make_some(_kv_v) : "
@@ -950,9 +984,19 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&args, ", %s", expr(e->items.data[i]));
                 return strfmt("%s(%s%s)", e->text[5] ? "KV_FPRINTLN" : "KV_FPRINT", recv, args.buf);
             }
-            if (!strcmp(e->text, "seek") || !strcmp(e->text, "kill")) /* (#84, #91) */
-                return strfmt("kv_io_%s(%s, %s)", e->text, recv, expr(e->items.data[0]));
-            return strfmt("kv_io_%s(%s)", e->text, recv); /* flush, close, rewind */
+            if (!strcmp(e->text, "glob") && e->type) { /* f.glob(pattern) (#101): under its path */
+                Decl *r = kelvin_record(e->type->name);
+                Type *arr = ((Var *)r->members.data[0])->type;
+                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_io_glob(%s, %s, &_kv_at, &_kv_n); "
+                              "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok(_kv_a); })",
+                              recv, expr(e->items.data[0]), arr->cname, arr->cname, r->name, r->name);
+            }
+            Buf args = {0};
+            buf_puts(&args, "");
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&args, ", %s", expr(e->items.data[i]));
+            return strfmt("kv_io_%s(%s%s)", e->text, recv, args.buf); /* flush, close, rewind, seek, kill, and the path's (#101) */
         }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */
             char *recv = strfmt("&%s", expr(e->a));
