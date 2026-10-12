@@ -30,6 +30,7 @@ f.write("started\n")                      // text
 f.write(&name)                            // a borrow of a String or a Bytes
 f.write($`${n} items\n`)                  // a String an expression gives, written and freed
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
+f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
 let raw = try f.bytes                     // as a Bytes
@@ -75,14 +76,22 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   `IO.stderr.println("warning: ", n)`; see
   [printing.md](printing.md). `f.flush()` flushes. Writing
   to a closed IO ends the program.
+- **The position** (#84): `f.position` is the offset from the start in
+  bytes, an `i64`, and `f.count` the file's length, both -1 where the
+  stream has none, as a pipe; `f.seek(n)` moves to byte `n` from the
+  start, and is `true` when it could; `f.rewind()` moves to the start
+  and clears the end; `f.eof` is `true` once a read has met the end, as
+  C's `feof` is, so it is false before the first read past it: read,
+  then test. A position elsewhere is `f.seek(f.position + k)` or
+  `f.seek(f.count - k)`.
 - **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
   reads, writes and flushes: what changes is the file, not the IO.
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
   that `IO.stdout` names in place.
-- **Not yet:** seeking, `.eof`, reading a single byte or a number, and
-  opening with a file descriptor.
+- **Not yet:** reading a single byte or a number, and opening with a
+  file descriptor.
 
 ## Properties and methods
 
@@ -97,6 +106,9 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
 | | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
+| | `.eof` | `true` once a read has met the end (#84) |
+| | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
+| | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 
 No `.cstr`, no `==`, no `.copy()`. The general properties are in

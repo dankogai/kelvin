@@ -3059,3 +3059,16 @@ The runtime's printers now take a FILE, with `print` the stdout case.
 Details are provisional P95.
 
 There are 610 tests, and all pass with clang and with gcc 15.
+
+### 115. An IO's position
+
+> now add `.eof` and seeking to `IO`
+
+**Claude** added #84: `f.eof`, true once a read has met the end, as
+C's `feof` is; `f.position` and `f.count`, the offset and the length
+in bytes, -1 where the stream has none; `f.seek(n)` from the start, a
+`bool`; and `f.rewind()`. A relative or end-relative position is
+written with `position` and `count`, since C's `SEEK_CUR` and
+`SEEK_END` are stdio's names. Details are provisional P96.
+
+There are 612 tests, and all pass with clang and with gcc 15.

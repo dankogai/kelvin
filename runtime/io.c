@@ -5,6 +5,7 @@
 #include "kelvin_prelude.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -71,6 +72,42 @@ static FILE *open_fp(const kv_io *f, const char *what) {
     if (!f->fp)
         kv_io_fail(what);
     return (FILE *)f->fp;
+}
+
+/* the position (#84): C's feof, set once a read has met the end; ftell,
+   or -1 where the stream has none, as a pipe; the length, by seeking to
+   the end and back; fseek from the start, false where it fails; rewind,
+   which also clears the end */
+bool kv_io_eof(kv_io *f) { return f->fp && feof((FILE *)f->fp) != 0; }
+
+long long kv_io_position(kv_io *f) {
+    if (!f->fp)
+        return -1;
+    long v = ftell((FILE *)f->fp);
+    return v < 0 ? -1 : (long long)v;
+}
+
+long long kv_io_count(kv_io *f) {
+    if (!f->fp)
+        return -1;
+    FILE *fp = (FILE *)f->fp;
+    long here = ftell(fp);
+    if (here < 0 || fseek(fp, 0, SEEK_END) != 0)
+        return -1;
+    long end = ftell(fp);
+    fseek(fp, here, SEEK_SET);
+    return end < 0 ? -1 : (long long)end;
+}
+
+bool kv_io_seek(kv_io *f, long long offset) {
+    if (!f->fp || offset < 0 || offset > LONG_MAX)
+        return false;
+    return fseek((FILE *)f->fp, (long)offset, SEEK_SET) == 0;
+}
+
+void kv_io_rewind(kv_io *f) {
+    if (f->fp)
+        rewind((FILE *)f->fp);
 }
 
 /* the FILE for print and println (#83) */

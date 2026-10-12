@@ -4,4 +4,4 @@ let main():i32 {
     f.append("x")
     return 0
 }
-// error: an IO has no method 'append': write, print, println, flush, close and read(n), and the properties bytes, string and lines; it is not copied
+// error: an IO has no method 'append': write, print, println, flush, close, read(n), seek(n) and rewind, and the properties bytes, string, lines, eof, position and count; it is not copied

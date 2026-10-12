@@ -124,6 +124,11 @@ void kv_io_write_string(kv_io *f, const kv_string *s);
 void kv_io_write_owned_bytes(kv_io *f, kv_bytes b);
 void kv_io_write_owned_string(kv_io *f, kv_string s);
 void *kv_io_fp(kv_io *f);
+bool kv_io_eof(kv_io *f);
+long long kv_io_position(kv_io *f);
+long long kv_io_count(kv_io *f);
+bool kv_io_seek(kv_io *f, long long offset);
+void kv_io_rewind(kv_io *f);
 kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);
