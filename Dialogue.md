@@ -3214,3 +3214,15 @@ the runtime asks for X/Open 700 instead. Details are provisional
 P104.
 
 There are 625 tests, and all pass with clang and with gcc 15.
+
+### 126. An environment from nothing
+
+> now add an environment made from nothing to `IO.exec`
+
+**Claude** added #93: `IO.exec(args, mode, dir, env, fresh)`, with
+`fresh` true, gives the program an environment of the entries alone,
+`[]` an empty one; the program is then found on that environment's
+PATH, or the system's default, so a fresh environment names the
+program by its path or sets PATH. Details are provisional P105.
+
+There are 627 tests, and all pass with clang and with gcc 15.

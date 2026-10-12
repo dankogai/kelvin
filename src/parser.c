@@ -2337,6 +2337,15 @@ static Expr *parse_primary(void) {
                         e->d = a;
                         e->recv_type = at; /* cstr or String entries, for the codegen */
                     }
+                    if (accept_p(",")) {
+                        /* IO.exec(args, mode, dir, env, fresh) (#93): true for an
+                           environment of the entries alone */
+                        Expr *f = parse_assign();
+                        if (!seen_bool(f))
+                            error_at(f->pos, "the fifth argument of IO.exec is a bool: true for an environment made from "
+                                             "nothing but the entries, false for them added to this program's");
+                        e->fresh = f;
+                    }
                 }
             }
             brace_ends_condition = saved_brace;

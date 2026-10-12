@@ -90,8 +90,14 @@ int kv_io_pipe(kv_io *reader, kv_io *writer) {
    through a pipe; what exec itself fails with comes back as errno,
    through a pipe closed on exec, so a missing program is ENOENT. In
    dir, when one is given, and with env's "NAME=value" entries set
-   (#92); a dir that cannot be entered is reported the same way */
-int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env) {
+   (#92), or, when fresh, with those entries as the whole environment
+   (#93), the program then found on that environment's PATH, or the
+   system's default; a dir that cannot be entered is reported the same
+   way */
+extern char **environ;
+
+int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,
+               bool fresh) {
     const char *m = (const char *)mode;
     bool reading = m[0] == 'r';
     if ((m[0] != 'r' && m[0] != 'w') || !argv || !argv[0])
@@ -125,9 +131,14 @@ int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void
         const char *d = (const char *)dir;
         if (d && *d && chdir(d) != 0)
             e = errno ? errno : EIO;
-        for (size_t i = 0; !e && env && env[i]; i++)
-            if (putenv((char *)env[i]) != 0)
-                e = errno ? errno : EINVAL;
+        if (fresh) {
+            static const char *const none[] = {NULL};
+            environ = (char **)(env ? env : none);
+        } else {
+            for (size_t i = 0; !e && env && env[i]; i++)
+                if (putenv((char *)env[i]) != 0)
+                    e = errno ? errno : EINVAL;
+        }
         if (!e)
             execvp(argv[0], (char *const *)argv);
         if (!e)
@@ -189,17 +200,17 @@ void kv_io_vector_free(const char *const *v) { free((void *)v); }
 
 /* the same of an Array of cstr, or of String, and its count */
 int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode, const void *dir,
-                     const char *const *env) {
+                     const char *const *env, bool fresh) {
     const char **argv = kv_io_vector_cstrs(at, n);
-    int e = kv_io_exec(out, argv, mode, dir, env);
+    int e = kv_io_exec(out, argv, mode, dir, env, fresh);
     free(argv);
     return e;
 }
 
 int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode, const void *dir,
-                       const char *const *env) {
+                       const char *const *env, bool fresh) {
     const char **argv = kv_io_vector_strings(at, n);
-    int e = kv_io_exec(out, argv, mode, dir, env);
+    int e = kv_io_exec(out, argv, mode, dir, env, fresh);
     free(argv);
     return e;
 }

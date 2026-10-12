@@ -524,6 +524,7 @@ static char *expr_bare(Expr *e) {
             buf_puts(&pre, "");
             const char *dir = e->a ? expr(e->a) : "NULL";
             const char *env = "NULL", *post = "";
+            const char *fresh = e->fresh ? cond(e->fresh) : "false"; /* (#93) */
             if (e->d && e->d->kind == E_INIT) {
                 Buf b = {0};
                 buf_puts(&b, "(const char *const[]){");
@@ -548,13 +549,13 @@ static char *expr_bare(Expr *e) {
                 for (int i = 0; i < e->items.len; i++)
                     buf_printf(&b, "(const char *)(%s), ", expr(e->items.data[i]));
                 buf_puts(&b, "NULL}");
-                call = strfmt("kv_io_exec(&_kv_f, %s, %s, %s, %s)", b.buf, expr(e->c), dir, env);
+                call = strfmt("kv_io_exec(&_kv_f, %s, %s, %s, %s, %s)", b.buf, expr(e->c), dir, env, fresh);
             } else if (!strcmp(e->text, "cstrs")) {
-                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s, %s, %s)", expr(e->b),
-                              expr(e->b), expr(e->c), dir, env);
+                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s, %s, %s, %s)",
+                              expr(e->b), expr(e->b), expr(e->c), dir, env, fresh);
             } else {
-                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s, %s, %s)", expr(e->b), expr(e->b),
-                              expr(e->c), dir, env);
+                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s, %s, %s, %s)", expr(e->b), expr(e->b),
+                              expr(e->c), dir, env, fresh);
             }
             return strfmt("({ kv_io _kv_f = {0}; %sint _kv_e = %s; %s_kv_e ? _kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_f); })",
                           pre.buf, call, post, r->name, r->name);

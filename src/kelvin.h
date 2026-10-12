@@ -160,6 +160,7 @@ struct Expr {
                          E_CAST try (#76): the function's result type */
     Type *from;       /* E_CAST try (#76): the operand's type, a Result or an Optional */
     Expr *d;          /* E_CALL IO.exec (#92): the environment, a list (E_INIT) or an Array in a variable */
+    Expr *fresh;      /* E_CALL IO.exec (#93): a bool, true for an environment of the entries alone */
 };
 
 typedef struct {

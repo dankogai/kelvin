@@ -61,6 +61,6 @@ let main():i32 {
 // out: ok(strings) Result<IO, i32>
 // out: a String argument
 // out: -1 9
-// c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("printf"), (const char *)("one\\ntwo\\n"), NULL}, "r", NULL, NULL)
-// c: kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(args).at, (args).count, "r", NULL, NULL)
-// c: kv_io_exec_strings(&_kv_f, (sargs).at, (sargs).count, "r", NULL, NULL)
+// c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("printf"), (const char *)("one\\ntwo\\n"), NULL}, "r", NULL, NULL, false)
+// c: kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(args).at, (args).count, "r", NULL, NULL, false)
+// c: kv_io_exec_strings(&_kv_f, (sargs).at, (sargs).count, "r", NULL, NULL, false)

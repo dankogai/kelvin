@@ -30,5 +30,5 @@ let main():i32 {
 // out: in /
 // out: true true
 // out: kept
-// c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("pwd"), NULL}, "r", "/", NULL)
+// c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("pwd"), NULL}, "r", "/", NULL, false)
 // c: const char **_kv_env = kv_io_vector_strings((senv).at, (senv).count);
