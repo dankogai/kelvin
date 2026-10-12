@@ -31,7 +31,8 @@ f.write(&name)                            // a borrow of a String or a Bytes
 f.write($`${n} items\n`)                  // a String an expression gives, written and freed
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
-if let n = f.i64 { println(n) }               // the next integer, or none (#85); also f.byte, f.f64
+if let b = f.byte { println(b) }              // the next byte, or none (#85)
+for line in f.lines { sum += i64(line) }      // a number is read from the text (#88)
 var ls = IO.popen("ls -l", "r")               // a process's output (#87); IO.pipe() a pipe's two ends
 if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
@@ -97,13 +98,14 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   C's `feof` is, so it is false before the first read past it: read,
   then test. A position elsewhere is `f.seek(f.position + k)` or
   `f.seek(f.count - k)`.
-- **Reading one at a time** (#85): `f.byte` is the next byte, a `u8?`,
-  `none` at the end; `f.i64` the next integer, an `i64?`, and `f.f64`
-  the next float, an `f64?`, read as `scanf` reads them, spaces and
-  newlines skipped, `none` at the end or where no number is there, in
-  which case nothing is consumed but the spaces. So `while true { if
-  let n = f.i64 { sum += n } else { break } }` sums a file of numbers.
-  The other converters are not an IO's: read a `.i64` and convert it.
+- **A byte at a time** (#85): `f.byte` is the next byte, a `u8?`,
+  `none` at the end. **Numbers** are read from the text (#88): a line,
+  `for line in f.lines { sum += i64(line) }`, or the whole file,
+  `i64(try f.string)`, with the converters of
+  [integers.md](integers.md), which take a String as they take a
+  `cstr`; `f.i64` is an error that says so. C's `scanf` reads no number
+  for Kelvin: it skips what it cannot read and leaves the stream where
+  it stopped, which no program should have to reason about.
 - **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
   reads, writes and flushes: what changes is the file, not the IO.
   Only `close` changes the IO, so it needs a var.
@@ -112,8 +114,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   that `IO.stdout` names in place. `fdopen`, `fileno`, `popen` and
   `pipe` are POSIX, which the runtime asks for; a program needs
   nothing.
-- **Not yet:** reading numbers in a base or of a narrower type, a
-  process's signal, and running a process without the shell.
+- **Not yet:** a process's signal, and running a process without the
+  shell.
 
 ## Properties and methods
 
@@ -132,7 +134,6 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
 | | `.byte` | the next byte, a `u8?`, `none` at the end (#85) |
-| | `.i64`, `.f64` | the next integer or float as `scanf` reads it, an `i64?` or `f64?`, `none` where there is none |
 | | `.eof` | `true` once a read has met the end (#84) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |

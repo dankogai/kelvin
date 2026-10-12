@@ -1,7 +1,7 @@
-// an IO reads a byte, an i64 or an f64 (#85)
+// an IO reads bytes and text; a number is read from the text (#88)
 let main():i32 {
     var f = IO.stdin
-    var n = f.i32
+    var n = f.i64
     return 0
 }
-// error: an IO reads a byte with '.byte', an integer with '.i64' and a float with '.f64', not '.i32'
+// error: an IO reads a byte with '.byte', and text with '.lines', '.read(n)' or '.string': read a number from the text, as i64(line) does (#88)

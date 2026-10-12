@@ -139,8 +139,6 @@ long long kv_io_count(kv_io *f);
 bool kv_io_seek(kv_io *f, long long offset);
 void kv_io_rewind(kv_io *f);
 bool kv_io_read_byte(kv_io *f, uint8_t *out);
-bool kv_io_read_i64(kv_io *f, long long *out);
-bool kv_io_read_f64(kv_io *f, double *out);
 kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);

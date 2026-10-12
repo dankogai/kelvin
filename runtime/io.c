@@ -171,22 +171,14 @@ void kv_io_rewind(kv_io *f) {
         rewind((FILE *)f->fp);
 }
 
-/* one byte, or an integer or a float as scanf reads them, skipping
-   spaces (#85); false at the end, or where no number is there */
+/* one byte (#85); false at the end. Numbers are read as a line or the
+   whole text, and converted: scanf is no reader for Kelvin (#88) */
 bool kv_io_read_byte(kv_io *f, uint8_t *out) {
     int c = fgetc(open_fp(f, "reading a closed IO"));
     if (c == EOF)
         return false;
     *out = (uint8_t)c;
     return true;
-}
-
-bool kv_io_read_i64(kv_io *f, long long *out) {
-    return fscanf(open_fp(f, "reading a closed IO"), "%lld", out) == 1;
-}
-
-bool kv_io_read_f64(kv_io *f, double *out) {
-    return fscanf(open_fp(f, "reading a closed IO"), "%lf", out) == 1;
 }
 
 /* the FILE for print and println (#83) */

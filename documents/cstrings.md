@@ -99,7 +99,9 @@ char` make incompatible function types: wrap it, as
 A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 `i32("755", 8)` with a base from 2 to 36, and the same as a property,
 `"42".i64`, `s.f64`. The text may be a literal, a `cstr`, a `u8^` or
-`i8^`, a byte array, the text of a property, or C's `char *`. They read
+`i8^`, a byte array, the text of a property, C's `char *`, or a
+`String` or a `Bytes` in a variable, read through its text (#88):
+`i64(line)` of a line an IO gives. They read
 as `strtol` and `strtod` do: leading spaces and a sign, the longest
 number, 0 for none, and the type's limits with `errno` set. See
 [integers.md](integers.md) for the table.

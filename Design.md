@@ -119,6 +119,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 85 | reading one at a time from an IO: `f.byte` the next byte, a `u8?`; `f.i64` and `f.f64` the next integer or float as `scanf` reads them, an `i64?` or an `f64?`; `none` at the end, or where no number is there | `fgetc(f)` and `EOF`, `fscanf(f, "%lld", &n) == 1` | `if let n = f.i64 { sum += n }` | 2026-10-12 |
 | 86 | `IO(fd, mode)`, with a number first: a file descriptor's IO, as `fdopen` gives it, owned, so its block closes the descriptor; `f.fd` the descriptor, an `i32`, -1 once closed | `FILE *f = fdopen(fd, "r")`, `fileno(f)` | `var f = IO(fd, "r")`, `write(f.fd, p, n)` | 2026-10-12 |
 | 87 | `IO.popen(command, mode)`: a shell command's output or input as an IO, a `Result<IO, i32>`; its block or `close()` waits for it, and `f.status` is then its exit code, -1 otherwise; `IO.pipe()`: a `Result<{reader: IO, writer: IO}, i32>`, each end an IO that owns its descriptor | `popen`, `pclose` and `WEXITSTATUS`; `pipe(fds)` and two `fdopen`s | `for line in p.lines { }`, `p.ok.writer.close()` | 2026-10-12 |
+| 88 | no `f.i64` or `f.f64`: a number is read from a line, `i64(line)`, or the whole text; `f.byte` stays; the converters take a String as they take a `cstr` | `fscanf(f, "%lld", &n)` | `for line in f.lines { sum += i64(line) }` | 2026-10-12 |
 
 Notes:
 
@@ -681,6 +682,14 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (88) Agreed details: "Instead of adding reading a number in a base to
+  `IO`, let us get rid of them. `scanf()` is evil and error-prone and
+  you can always read line or whole file string and apply i64(line) on
+  it." The readers of #85 that went through `fscanf` are gone, two days
+  after they came; `f.byte` stays. So that `i64(line)` reads as the
+  user wrote it, the converters now take a String or a Bytes, through
+  its text, as they take a `cstr` (P100).
+
 - (87) Agreed details: "now add opening a pipe or a process to `IO`".
   A process by `popen`'s name, since it runs a shell command as
   `popen` does, and its exit code as `status` once closed, where the
@@ -956,6 +965,7 @@ says "as agreed".
 | P97 | Details of #85 | `f.i64` is `({ long long _kv_v = 0; kv_io_read_i64((kv_io *)&f, &_kv_v) ? _kv__kv_opt_i64_make_some(_kv_v) : _kv__kv_opt_i64_make_none(); })` | `kv_io_read_byte` is `fgetc`, `kv_io_read_i64` and `kv_io_read_f64` are `fscanf` with `%lld` and `%lf`, true when one was read; `byte`, `i64` and `f64` are IO properties of op `io` typed `optional_type` of `u8`, `i64`, `f64`; a converter name on an IO other than these says what an IO reads, before the text converters' branch, which an IO skips |
 | P98 | Details of #86 | `IO(fd, "r")` is `({ kv_io _kv_f = {0}; int _kv_e = kv_io_fdopen(&_kv_f, fd, "r"); _kv_e ? _kv__kv_res_IO_i32_make_err(_kv_e) : _kv__kv_res_IO_i32_make_ok(_kv_f); })`, `f.fd` `kv_io_fd((kv_io *)&f)` | In the `IO(...)` branch, a first argument that is a number or of an integer type marks the call `fd` (an IO there says to write `f.fd`), and the mode alone is checked as text; the codegen then calls `kv_io_fdopen`, which is `fdopen`, EBADF where it fails without errno. `fd` is an IO property typed `i32`, `fileno`, -1 of a closed IO. runtime/io.c defines `_POSIX_C_SOURCE 200809L` before its includes, since glibc hides `fdopen` and `fileno` under `-std=c11`; programs need no such thing, as the prelude declares the runtime's functions itself |
 | P99 | Details of #87 | `IO.popen(cmd, "r")` is `({ kv_io _kv_f = {0}; int _kv_e = kv_io_popen(&_kv_f, cmd, "r"); ... })` as `IO(path, mode)` is; `IO.pipe()` is `({ struct _kv_anon1 _kv_p = {0}; int _kv_e = kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_e ? _kv__kv_res__kv_anon1_i32_make_err(_kv_e) : ..._make_ok(_kv_p); })` | `kv_io` now holds `kind` (0 a stream never closed, 1 a file, 2 a process) and `status` in place of `owned`; `kv_io_free` runs `pclose` for a process and keeps `WEXITSTATUS` in `status`, or -1. `IO.popen` is read in the `IO.` branch with the text checks of `IO(path, mode)`, an E_CALL of op `io` with text `popen`; `IO.pipe()` an E_CALL of op `io_pipe` typed `Result<{reader: IO, writer: IO}, i32>`, the record made by `pipe_type` and registered as an untagged struct written in the program is, so that its derived free closes both ends. `status` is an IO property typed `i32` |
+| P100 | Details of #88 | `i64(line)` of a String is `kv_text_i64(kv_bytes_cstr(&(line).b), 10)`, as `i64(line.cstr)` is; `f.i64` is an error naming `.byte`, `.lines`, `.read(n)` and `.string` | `kv_io_read_i64` and `kv_io_read_f64` are removed from runtime/io.c and the prelude, with the `i64` and `f64` IO properties; a converter name on an IO is refused where it was read before. In `convert`, a String or a Bytes in a variable becomes its `.cstr` borrow before the converter reads it, so every converter, `.i64` and `i64(s, 16)` included, takes one; one that an expression gives says to bind it first, since the text would be freed under the reader |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

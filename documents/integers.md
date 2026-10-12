@@ -69,8 +69,10 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 and with a base from 2 to 36 for an integer type, `i32("755", 8)`. The
 property form is the same converter: `"42".i64` is `i64("42")`, and
 `n.u8` is `u8(n)` for a number. Text is a string, `cstr`, `u8^`, `i8^`,
-an array of `u8` or `i8`, the text of a property such as `n.hex`, or C's
-`char *`. Every other value converts as before. Where kelvinc cannot
+an array of `u8` or `i8`, the text of a property such as `n.hex`, C's
+`char *`, or a `String` or a `Bytes` in a variable, read through its
+text (#88), as `i64(line)` of a line an IO gives. Every other value
+converts as before. Where kelvinc cannot
 see the type, C's `_Generic` makes the choice.
 
 The text is read as C's `strtol` and `strtod` read it *(provisional

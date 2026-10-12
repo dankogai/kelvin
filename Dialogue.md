@@ -3116,3 +3116,19 @@ its exit code; `IO.pipe()` gives a pipe's two ends as
 Details are provisional P99.
 
 There are 619 tests, and all pass with clang and with gcc 15.
+
+### 119. No numbers from `scanf`
+
+> What do you mean by "now add reading a number in a base to `IO`"?
+> [...] Instead of adding reading a number in a base to `IO`, let us
+> get rid of them. `scanf()` is evil and error-prone and you can always
+> read line or whole file string and apply i64(line) on it.
+
+**Claude** removed `f.i64` and `f.f64`, #85's readers through
+`fscanf`, as #88, keeping `f.byte`; a number is read from the text,
+`i64(line)` of a line or `i64(try f.string)` of the whole, and `f.i64`
+says so. For `i64(line)` to read as written, the converters now take
+a String or a Bytes in a variable, through its text, as they take a
+`cstr`. Details are provisional P100.
+
+There are 619 tests, and all pass with clang and with gcc 15.

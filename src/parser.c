@@ -3544,6 +3544,15 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     }
     if (is_uchr(value_type(v))) /* i64(c) is i64(c.utf32) */
         e->a = v = utf32_of(v);
+    if (is_string(value_type(v)) || is_bytes(value_type(v))) {
+        /* i64(line) of a String or a Bytes reads its text (#88), of one
+           in a variable, as the text of one an expression gives would
+           be freed under the reader */
+        if (!owner_place(v))
+            error_at(v->pos, "%s(...) of a %s that an expression gives: bind it to a variable first", name,
+                     is_string(value_type(v)) ? "String" : "Bytes");
+        e->a = v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+    }
     bool text = is_text_expr(v);
     bool is_bool = !strcmp(name, "bool");
     bool floating = !strcmp(name, "f32") || !strcmp(name, "f64");
@@ -4410,8 +4419,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                  (!strcmp(kind, "io") && (!strcmp(member, "bytes") || !strcmp(member, "string") ||
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
-                                          !strcmp(member, "byte") || !strcmp(member, "i64") ||
-                                          !strcmp(member, "f64") || !strcmp(member, "fd") ||
+                                          !strcmp(member, "byte") || !strcmp(member, "fd") ||
                                           !strcmp(member, "status"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
@@ -4436,9 +4444,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("i64", name->pos);
         else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status"))) /* (#86, #87) */
             x->type = base_type("i32", name->pos);
-        else if (kk == 'i' && (!strcmp(member, "byte") || !strcmp(member, "i64") || !strcmp(member, "f64")))
-            /* the next byte, integer or float, or none at the end (#85) */
-            x->type = optional_type(name, base_type(!strcmp(member, "byte") ? "u8" : member, name->pos));
+        else if (kk == 'i' && !strcmp(member, "byte")) /* the next byte, or none at the end (#85) */
+            x->type = optional_type(name, base_type("u8", name->pos));
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
             (kk == 't' && !strcmp(member, "elements"))) {
             /* d.keys and d.values (#66): Arrays of copies, made by a function
@@ -4463,11 +4470,11 @@ static Expr *property(Expr *e, Token *name, char *member) {
         }
         return x;
     }
-    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member}) && is_io(value_type(e)) && strcmp(member, "i64") &&
-        strcmp(member, "f64"))
-        error_at(name->pos, "an IO reads a byte with '.byte', an integer with '.i64' and a float with '.f64', not '.%s'",
+    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member}) && is_io(value_type(e)))
+        error_at(name->pos, "an IO reads a byte with '.byte', and text with '.lines', '.read(n)' or '.string': read a "
+                            "number from the text, as %s(line) does (#88)",
                  member);
-    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member}) && !is_io(value_type(e))) {
+    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member})) {
         /* v.i64 is i64(v), so "42".i64 reads text (#36). A field of that
            name wins: a Kelvin struct's, a C struct's, and, as for .size,
            whenever kelvinc cannot see that v is no struct (o.via.i64) */
