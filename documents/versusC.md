@@ -112,7 +112,7 @@ Each document says so under its title. In short:
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |
-| [cstrings.md](cstrings.md) | C strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing; `Bytes` and `String`, text on the heap, `$"..."` and `` $`...` `` |
+| [strings.md](strings.md) | strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing; `Bytes` and `String`, text on the heap, `$"..."` and `` $`...` `` |
 | [ownership.md](ownership.md) | `Bytes`, `String`, `Array<T>` and `Dictionary<K, V>`, the owners on the heap, and the rules: freed by its block, moved by `return` and by passing, copied by `.copy()`, borrowed as a pointer; `uchr`, a codepoint |
 | [structs.md](structs.md) | structs by their bare name, members, initializers, a struct with no tag `{x:f64, y:f64}`, methods, operators |
 | [unions.md](unions.md) | unions, the same way, and `union{i:i32, f:f32}` with no tag |

@@ -125,5 +125,5 @@ Kelvin has no `void` type:
 | another pointer | `.cstr` | its address as text, `0x16ee86888` |
 | any pointer | `.i64` and the other converters | fields, if a C struct has them; otherwise `x as uintptr_t` |
 
-`cstr`, immutable text, is in [cstrings.md](cstrings.md); the details
+`cstr`, immutable text, is in [strings.md](strings.md); the details
 of each property are in [properties.md](properties.md).

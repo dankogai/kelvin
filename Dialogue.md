@@ -3172,3 +3172,19 @@ closed, it is waited for, with `status` and `signal`. Details are
 provisional P102.
 
 There are 622 tests, and all pass with clang and with gcc 15.
+
+### 123. `strings.md`
+
+> rename `documents/cstring.md` to `documents/strings.md`. And "A C
+> string is a pointer to bytes that end at a NUL. Kelvin has no string
+> type yet [...]" is no longer correct now that we have `String` and
+> `Bytes`. Rewrite it
+
+**Claude** renamed the document and rewrote its opening: text in
+Kelvin is C's, the four kinds kept apart, or Kelvin's own, `String`
+and `Bytes` on the heap with `uchr` a codepoint, with `toString()` and
+`fmt()` still shelved since `.cstr` and the templates do their work;
+its closing paragraph no longer promises slicing, which #68 gave. The
+links in the other documents and the README follow the new name.
+
+There are 622 tests, and all pass with clang and with gcc 15.

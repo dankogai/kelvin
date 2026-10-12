@@ -22,7 +22,7 @@ C's `char`, `short`, `int`, `long`, `signed`, `unsigned`, `float`, `double`
 and `_Bool` are errors that suggest the Kelvin name. As a result:
 
 - There is no plain `char`. Use `u8`, or `i8` for signed bytes; see
-  [cstrings.md](cstrings.md) for text.
+  [strings.md](strings.md) for text.
 - `long double` has no Kelvin spelling yet.
 - `true` and `false` are built in *(provisional P14)*.
 - `f32 _Complex` and `f64 _Complex` are C's complex types.

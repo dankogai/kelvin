@@ -1,12 +1,17 @@
-# C strings: `cstr`
+# Strings: `cstr`, `String` and `Bytes`
 
-A C string is a pointer to bytes that end at a NUL. Kelvin has no string
-type yet (`String`, `toString()` and `fmt()` are shelved until it does,
-#22), so text is C's, and this document says how Kelvin spells it, makes
-it, reads it, walks it and prints it, and where it lives. It is more than
-a zero-terminated `[u8]`: a string literal, a byte array, a `cstr` and
-the text a property or a template makes are four different things in C,
-and Kelvin keeps them apart.
+Text in Kelvin is C's, or Kelvin's own. C's is a pointer to bytes that
+end at a NUL, and it is more than a zero-terminated `[u8]`: a string
+literal, a byte array, a `cstr` and the text a property or a template
+makes are four different things in C, which Kelvin keeps apart. Kelvin's
+own are `String` (#55), text that is well-formed UTF-8, counted and
+walked by codepoint, and `Bytes` (#54), any bytes, both on the heap,
+growing, and freed when their block ends, with `uchr` (#56) a single
+codepoint. This document says how Kelvin spells each kind, makes it,
+reads it, walks it, compares it and prints it, and where it lives;
+the ownership rules of `String` and `Bytes` are in
+[ownership.md](ownership.md). `toString()` and `fmt()` stay shelved
+(#22): `.cstr`, a template literal and `` $`...` `` do their work.
 
 **Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `Bytes`, `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
 
@@ -182,10 +187,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 
 ## What is not here yet
 
-Slicing, searching and encodings other than UTF-8 are to come. A
-`cstr` is still C's bytes, with C's rules: a NUL ends it, nothing checks
-a bound, and one that points at freed or ended storage is as wrong as
-in C.
+Searching, `insert` and `remove` on a String, and encodings other than
+UTF-8 are to come. A `cstr` is C's bytes, with C's rules: a NUL ends
+it, nothing checks a bound, and one that points at freed or ended
+storage is as wrong as in C; a `String` and a `Bytes` are checked, and
+freed when their block ends.
 
 ## Properties and methods
 

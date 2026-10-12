@@ -40,7 +40,7 @@ statement of its own.
   (`twice__i64`), as [functions.md](functions.md) says.
 - `let main(argc:i32, argv:[cstr]):i32` is C's `main`, and `argv` is
   written `char **`.
-- `u8` and C's `char` mix freely; see [cstrings.md](cstrings.md).
+- `u8` and C's `char` mix freely; see [strings.md](strings.md).
 - A Kelvin function may overload a C function of the same name, which
   still takes the numbers: `let sqrt(v:vec):f64` beside C's `sqrt`
   ([functions.md](functions.md)).

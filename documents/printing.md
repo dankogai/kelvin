@@ -4,7 +4,7 @@
 value by its type; a template literal joins text and values the same
 way. This document has both. The text of a single value, `n.cstr`, is in
 [properties.md](properties.md), and C strings in
-[cstrings.md](cstrings.md).
+[strings.md](strings.md).
 
 **Where it lives:** the prelude. `print`, `println` and the text a template makes are `libkelvin`'s, declared by `kelvin_prelude.h` and linked without an import.
 
@@ -85,7 +85,7 @@ let card:cstr := `name: ${name}
   heap, with no bound on its length: each value's text is appended as it
   comes, a String's whole, a `uchr` as its character. It is an owner,
   so bind it to a variable (`var s = $`...``), which frees it when its
-  block ends; see [cstrings.md](cstrings.md).
+  block ends; see [strings.md](strings.md).
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text

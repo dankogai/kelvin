@@ -11,7 +11,7 @@ its document:
 |---|---|
 | numbers, `bool` | [integers.md](integers.md#properties-and-methods) |
 | pointers | [pointers.md](pointers.md#properties-and-methods) |
-| `cstr`, `Bytes`, `String`, `uchr` | [cstrings.md](cstrings.md#properties-and-methods) |
+| `cstr`, `Bytes`, `String`, `uchr` | [strings.md](strings.md#properties-and-methods) |
 | arrays, `Array<T>` | [arrays.md](arrays.md#properties-and-methods) |
 | structs | [structs.md](structs.md#properties-and-methods) |
 | unions | [unions.md](unions.md#properties-and-methods) |
@@ -111,7 +111,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **`cstr`** is immutable text, C's `const uint8_t *` (#52): a
   reference, assigned with `:=`, that cannot be written through or
   stepped; `s.count` is `strlen(s)`, measured once per scope. See
-  [cstrings.md](cstrings.md) *(provisional P36, P64)*.
+  [strings.md](strings.md) *(provisional P36, P64)*.
 - **Integers** have `.dec`, `.hex`, `.oct` and `.bin`. Each returns `u8^`
   text with a prefix of `0x`, `0o` or `0b`. Signed integers always carry a
   sign (`+42`, `-0x2a`) and unsigned ones never do, so the text tells

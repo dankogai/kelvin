@@ -125,7 +125,7 @@ Everything else is C. Each document says whether what it covers is the
 core, the prelude, or loaded with an `#import`; versusC.md sums that up.
 See [documents/versusC.md](documents/versusC.md) for
 all the differences at a glance, and the documents beside it, one topic
-each ([cstrings.md](documents/cstrings.md), [arrays.md](documents/arrays.md),
+each ([strings.md](documents/strings.md), [arrays.md](documents/arrays.md),
 [functions.md](documents/functions.md), ...),
 [Design.md](Design.md) for the design decisions,
 [Dialogue.md](Dialogue.md) for how they were made, and

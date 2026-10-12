@@ -5,7 +5,7 @@ is a property. A fixed array lives where it is declared; one that grows
 is `Array<T>`, on the heap, in [ownership.md](ownership.md). This document has the types, the `[...]` initializers,
 `[T](n)` for a zero-filled array, `.count` and `.size`, and what stays
 C's: an array passed to a function is a pointer. Byte arrays that hold
-text are in [cstrings.md](cstrings.md).
+text are in [strings.md](strings.md).
 
 **Where it lives:** a fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelude's: its C comes from `kelvin_prelude.h`, instantiated for each `T`, and `libkelvin` is linked without an import.
 
