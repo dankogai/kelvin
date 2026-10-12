@@ -4420,7 +4420,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "fd") ||
-                                          !strcmp(member, "status"))))) {
+                                          !strcmp(member, "status") || !strcmp(member, "signal"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4442,8 +4442,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
-        else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status"))) /* (#86, #87) */
-            x->type = base_type("i32", name->pos);
+        else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status") || !strcmp(member, "signal")))
+            x->type = base_type("i32", name->pos); /* (#86, #87, #89) */
         else if (kk == 'i' && !strcmp(member, "byte")) /* the next byte, or none at the end (#85) */
             x->type = optional_type(name, base_type("u8", name->pos));
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||

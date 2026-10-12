@@ -109,12 +109,14 @@ typedef struct kv_io {
     void *fp;
     int kind;   /* 0 a stream never closed, 1 a file (fclose), 2 a process (pclose) (#87) */
     int status; /* a process's exit code once closed, else -1 */
+    int signal; /* the signal that ended a process, once closed, 0 when none, else -1 (#89) */
 } kv_io;
 int kv_io_open(kv_io *out, const void *path, const void *mode);
 int kv_io_fdopen(kv_io *out, int fd, const void *mode);
 int kv_io_popen(kv_io *out, const void *command, const void *mode);
 int kv_io_pipe(kv_io *reader, kv_io *writer);
 int kv_io_status(kv_io *f);
+int kv_io_signal(kv_io *f);
 int kv_io_fd(kv_io *f);
 kv_io *kv_io_std(int which);
 void kv_io_free(kv_io *f);

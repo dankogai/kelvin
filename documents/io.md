@@ -55,7 +55,10 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   a shell command as `popen` does, with `"r"` to read its output or
   `"w"` to write its input, a `Result<IO, i32>`; its block, or
   `close()`, waits for the process, and `f.status` is then its exit
-  code, -1 before, or for an IO that is no process. `IO.pipe()` gives
+  code, -1 before, or for an IO that is no process; `f.signal` (#89)
+  is the signal that ended it, 0 when it exited on its own, -1 before
+  or for an IO that is no process, and `status` is -1 for a process a
+  signal ended. `IO.pipe()` gives
   a `Result<{reader: IO, writer: IO}, i32>`: a pipe's two ends, each an
   IO that owns its descriptor, so `p.ok.writer.close()` ends what the
   reader reads. `IO.stdin`, `IO.stdout` and `IO.stderr` are
@@ -116,8 +119,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   that `IO.stdout` names in place. `fdopen`, `fileno`, `popen` and
   `pipe` are POSIX, which the runtime asks for; a program needs
   nothing.
-- **Not yet:** a process's signal, and running a process without the
-  shell.
+- **Not yet:** running a process without the shell, and sending a
+  signal to one.
 
 ## Properties and methods
 
@@ -140,6 +143,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
 | | `.status` | a process's exit code once closed, else -1 (#87) |
+| | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

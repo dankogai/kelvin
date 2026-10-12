@@ -3147,3 +3147,14 @@ mixed cases named, as a fixed array's being the core and `Array<T>`
 the prelude's. versusC.md sums it up in a table.
 
 There are 619 tests, and all pass with clang and with gcc 15.
+
+### 121. A process's signal
+
+> now add a process's signal to `IO`
+
+**Claude** added #89: `f.signal` is the signal that ended a process,
+once closed, 0 when it exited on its own, -1 before or for an IO that
+is no process; `status` is then -1 for a process a signal ended.
+Details are provisional P101.
+
+There are 620 tests, and all pass with clang and with gcc 15.
