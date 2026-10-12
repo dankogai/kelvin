@@ -8,6 +8,8 @@ up; reading in chunks and in lines are walked by `for`. The ownership
 rules are in [ownership.md](ownership.md), Results in
 [results.md](results.md).
 
+**Where it lives:** the prelude. An IO's functions are in `libkelvin`'s runtime/io.c, declared by `kelvin_prelude.h` and linked without an import; a program needs no `#import <stdio.h>`.
+
 ```kelvin
 let count(path:cstr):Result<i64, i32> {
     let f = try IO(path, "r")            // the IO, or return the errno

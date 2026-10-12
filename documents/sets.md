@@ -6,6 +6,8 @@ copied only by `.copy()`, borrowed as a pointer. The rules are in
 [ownership.md](ownership.md); this is the summary. A Set is a
 Dictionary with no values, and keeps its elements in the order added.
 
+**Where it lives:** the prelude. A Set's C comes from `kelvin_prelude.h`, instantiated for each `T`, with hashing in `libkelvin`, linked without an import.
+
 ```kelvin
 var s = ${3, 1, 4, 1, 5}                 // Set<i64>: 3 1 4 5
 s += 9                                   // insert; s.insert(9) says whether it was new

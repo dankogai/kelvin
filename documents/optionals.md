@@ -9,6 +9,8 @@ owners included, and then owns it. Everything a Result does, an
 Optional does with `some` for `ok` and `none` for `err`; this document
 has the Optional's own spelling and examples.
 
+**Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+
 ```kelvin
 var a:i64? = 3                           // some(3): a T becomes a T? where one is expected
 var b:i64? = none                        // none, a word that needs the type around it

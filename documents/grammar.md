@@ -7,6 +7,8 @@ themselves are in [integers.md](integers.md), [pointers.md](pointers.md)
 and [arrays.md](arrays.md); the statements that control flow are in
 [flow-controls.md](flow-controls.md).
 
+**Where it lives:** the core. The grammar is kelvinc's own; nothing here needs the prelude.
+
 ## Declarations
 
 A variable is declared with `let` or `var`, and the type follows the name

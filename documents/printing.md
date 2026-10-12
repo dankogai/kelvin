@@ -6,6 +6,8 @@ way. This document has both. The text of a single value, `n.cstr`, is in
 [properties.md](properties.md), and C strings in
 [cstrings.md](cstrings.md).
 
+**Where it lives:** the prelude. `print`, `println` and the text a template makes are `libkelvin`'s, declared by `kelvin_prelude.h` and linked without an import.
+
 ## The prelude: `print` and `println`
 
 Every Kelvin program can use `print` and `println` without an import:

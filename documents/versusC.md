@@ -88,6 +88,16 @@ P-numbers in [Design.md](../Design.md).
 | `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32` (#31) |
 | a `static` function written only to be passed | `sort(xs, n) { $0 < $1 }` (an anonymous function, #32) |
 
+## Where each thing lives
+
+Each document says so under its title. In short:
+
+| Home | What | Needs |
+|---|---|---|
+| the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
+| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
+| loaded explicitly | `complex64` and `complex32`; a C header's names | `#import <complex.k>`; `#import <x.h> as C` |
+
 ## The documents
 
 | Document | Covers |

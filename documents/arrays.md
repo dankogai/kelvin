@@ -7,6 +7,8 @@ is `Array<T>`, on the heap, in [ownership.md](ownership.md). This document has t
 C's: an array passed to a function is a pointer. Byte arrays that hold
 text are in [cstrings.md](cstrings.md).
 
+**Where it lives:** a fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelude's: its C comes from `kelvin_prelude.h`, instantiated for each `T`, and `libkelvin` is linked without an import.
+
 ## The types
 
 - `[T]` is an array of `T`, as Swift writes it, and `[T](N)` one of N

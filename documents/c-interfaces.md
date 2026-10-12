@@ -6,6 +6,8 @@ document has the ways in and out: C headers, typedef names, C's own
 functions beside Kelvin's, the prelude from C, and what the C compiler
 checks.
 
+**Where it lives:** explicitly loaded. A C header's names come only with `#import <x.h> as C`; `libkelvin` and `kelvin_prelude.h` are the prelude, which Kelvin links without an import and which C may use too.
+
 ## Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares

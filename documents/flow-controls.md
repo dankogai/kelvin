@@ -5,6 +5,8 @@ body; `for` counts over a range or walks a sequence; and a condition is
 always a `bool`. This document has the statements; the rules for lines
 and `;` are in [grammar.md](grammar.md).
 
+**Where it lives:** the core. Every statement here is kelvinc's own, written as C's, with nothing linked; `for` over a String, an Array, a Dictionary, a Set or an IO walks it with the prelude's functions.
+
 ## Statements
 
 Declarations start with `let` or `var` (see [grammar.md](grammar.md)),

@@ -8,6 +8,8 @@ a zero-terminated `[u8]`: a string literal, a byte array, a `cstr` and
 the text a property or a template makes are four different things in C,
 and Kelvin keeps them apart.
 
+**Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `Bytes`, `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
+
 ## Four kinds of text
 
 ```kelvin

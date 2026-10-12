@@ -6,6 +6,7 @@ is null. This document has the ones every value shares, and their
 details. Each type's own are listed, with its methods, at the end of
 its document:
 
+
 | Type | Synopsis |
 |---|---|
 | numbers, `bool` | [integers.md](integers.md#properties-and-methods) |
@@ -21,6 +22,8 @@ its document:
 | `T?` | [optionals.md](optionals.md#properties-and-methods) |
 | `IO` | [io.md](io.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
+
+**Where it lives:** `.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.
 
 ## `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 

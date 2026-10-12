@@ -10,6 +10,8 @@ without facing the case. `Optional<T>`, or `T?`, is its special case:
 a Result whose `err` carries nothing, with its cases named `none` and
 `some` (#72); it has its own document, [optionals.md](optionals.md).
 
+**Where it lives:** the prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+
 ```kelvin
 let parse(s:cstr):Result<i64, String> {
     if s.count == 0 { return err($"empty") }   // err(e), a word

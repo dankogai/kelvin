@@ -5,6 +5,8 @@ a type by its bare name. This document has the declaration, the
 initializers, the derived text, methods and operators. Unions follow
 the same rules; see [unions.md](unions.md).
 
+**Where it lives:** the core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a struct that owns are written with the prelude's functions, which `libkelvin` holds, linked without an import.
+
 ## Declaring
 
 ```kelvin

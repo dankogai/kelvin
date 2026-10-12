@@ -10,6 +10,8 @@ into pointers, are in [arrays.md](arrays.md); walking a pointer with
 `for x in p` is in [flow-controls.md](flow-controls.md); `.addr`, `.hex`
 and `.isNull` are in [properties.md](properties.md).
 
+**Where it lives:** the core. Pointers, `:=`, `any^` and `nullptr` are kelvinc's own, written as C's, with nothing linked; only an address's text, `p.hex`, is the prelude's.
+
 ## Postfix `^`
 
 - `T^` is a pointer to `T`. `*` only means multiplication.

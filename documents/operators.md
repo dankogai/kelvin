@@ -6,6 +6,8 @@ converts, and assignment, `++` and `--` are statements. This document
 is the table, highest precedence first; the other documents say what
 each operator means for its types.
 
+**Where it lives:** the core. The operators are C's, placed and typed by kelvinc, with nothing linked; `==` on Strings and the Set algebra call the prelude's functions, in `libkelvin`.
+
 ## Precedence, highest first
 
 | Level | Operators | Kelvin | C |

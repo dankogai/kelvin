@@ -4,6 +4,8 @@ A union is declared, named, initialized and used as a struct is, with
 C's meaning: its members share one storage, and reading a member other
 than the one last written is C's type punning, with C's rules.
 
+**Where it lives:** the core. A union is C's, with nothing linked.
+
 ```kelvin
 union bits { u: u64; f: f64 }
 

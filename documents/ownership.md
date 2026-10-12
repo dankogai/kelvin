@@ -8,6 +8,8 @@ V>` (#65) is a hash map. The rules below are what kelvinc enforces, from
 what it sees; a copy of the struct through C is C's business, and
 harmless, since an owner is never copied implicitly. `Dictionary` (#65) follows the same rules.
 
+**Where it lives:** the prelude. The owners are `kelvin_prelude.h`'s types and `libkelvin`'s functions, linked without an import; the rules are kelvinc's, which writes the frees.
+
 ## `Bytes`
 
 ```kelvin

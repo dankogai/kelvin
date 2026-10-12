@@ -5,6 +5,8 @@
 passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
 
+**Where it lives:** the prelude. A Dictionary's C comes from `kelvin_prelude.h`, instantiated for each `K` and `V`, with hashing and the rest in `libkelvin`, linked without an import.
+
 ```kelvin
 var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>
 ages["cy"] = 7                           // adds, or replaces the value

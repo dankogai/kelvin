@@ -6,6 +6,8 @@ files, its prelude header and its library live in one directory,
 the one module so far, `complex.k`. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
+**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/complex.k`, with `complex64` and `complex32`, comes only with `#import <complex.k>`, and a C header's names only with `#import <x.h> as C`.
+
 ## Kelvin files: `#import <complex.k>`
 
 `#import` of a `.k` file, without `as C`, brings in its source: its

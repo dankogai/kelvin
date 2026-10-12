@@ -6,6 +6,8 @@ function types, anonymous functions and overloading. Methods and
 operators, which are functions of a struct, are in
 [structs.md](structs.md).
 
+**Where it lives:** the core. Functions, methods, operators, function types and anonymous functions are kelvinc's own, written as C's, with nothing linked.
+
 ## Declaring
 
 ```kelvin

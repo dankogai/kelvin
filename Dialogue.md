@@ -3132,3 +3132,18 @@ a String or a Bytes in a variable, through its text, as they take a
 `cstr`. Details are provisional P100.
 
 There are 619 tests, and all pass with clang and with gcc 15.
+
+### 120. Where each thing lives
+
+> state documents/T.md if the T is in core, prelude or explicitly
+> loaded via `#import`.
+
+**Claude** put a line under the title of every document in
+documents/: whether what it covers is the core (kelvinc alone, the C
+being C's own, nothing linked), the prelude (`kelvin_prelude.h` and
+`libkelvin`, which every program gets without an import), or loaded
+explicitly (`#import <complex.k>`, `#import <x.h> as C`), with the
+mixed cases named, as a fixed array's being the core and `Array<T>`
+the prelude's. versusC.md sums it up in a table.
+
+There are 619 tests, and all pass with clang and with gcc 15.

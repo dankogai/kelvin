@@ -121,7 +121,9 @@ So far the changes from C are:
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`
 
-Everything else is C. See [documents/versusC.md](documents/versusC.md) for
+Everything else is C. Each document says whether what it covers is the
+core, the prelude, or loaded with an `#import`; versusC.md sums that up.
+See [documents/versusC.md](documents/versusC.md) for
 all the differences at a glance, and the documents beside it, one topic
 each ([cstrings.md](documents/cstrings.md), [arrays.md](documents/arrays.md),
 [functions.md](documents/functions.md), ...),

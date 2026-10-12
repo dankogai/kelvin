@@ -6,6 +6,8 @@ from text. The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
 [printing.md](printing.md).
 
+**Where it lives:** the core. Numbers, floats and `bool` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
+
 ## Numeric types always say their size
 
 | Kelvin | C |
