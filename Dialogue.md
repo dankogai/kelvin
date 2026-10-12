@@ -3341,3 +3341,21 @@ which the path follows, `f.utime` and `f.touch()`. `IO(path)` alone
 opens for reading, a directory too. Details are provisional P113.
 
 There are 638 tests, and all pass with clang and with gcc 15.
+
+### 135. What each member takes and gives
+
+> would you explain more about methods and function in io.md and
+> os.md, especially the ones like `stat` returning an anonymous
+> struct. What is in there? we need member types as well as member
+> names. If table is too tight, give a section explaining what they
+> are.
+
+**Claude** gave each document a section "What each member takes and
+gives", every member written as it would be declared, with its
+argument and result types in Kelvin's spelling and a word on what
+it does, and a section on the structs: os.md's "The `Stat` struct",
+each of its thirteen members with its type and what it is, and
+io.md's "The structs an IO gives", `{reader: IO, writer: IO}` and
+`{io: IO, path: String}`. No code changed.
+
+There are 638 tests, and all pass with clang and with gcc 15.

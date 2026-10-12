@@ -140,6 +140,109 @@ let main():i32 {
 - **Not yet:** what Python's `os` has beyond these, such as file
   descriptors handled by number, which an `IO` covers.
 
+## What each member takes and gives
+
+Each line is a member as it would be declared, in Kelvin's spelling.
+`text` stands for what every path, name, pattern or command takes: a
+string literal, a `cstr`, a `u8^`, or a `String` or a `Bytes` held in
+a variable, read through its text. An `i32` result that is "0 or
+`errno`" is 0 when the call succeeded and otherwise the `errno` C left,
+which `strerror` reads. A `Result<T, i32>` holds the `T`, or that
+`errno` as its `err`, so `try` passes it up and `if let ok(v)` reads
+it. `Stat` below stands for the struct of the next section.
+
+```kelvin
+SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it
+SYS.exit(code: i32)                      // ends the program; no value
+SYS.platform: cstr                       // "macos", "linux", "freebsd", "openbsd", "netbsd", "windows", "unknown"
+
+OS.cwd: Result<String, i32>              // the working directory
+OS.chdir(path: text): i32                // 0 or errno
+OS.env(name: text): cstr?                // the variable's value, or none; a borrow of C's, copy it to keep it
+OS.setenv(name: text, value: text): i32  // 0 or errno
+OS.unsetenv(name: text): i32
+OS.exists(path: text): bool              // anything is there
+OS.isdir(path: text): bool               // a directory, a link to one too
+OS.isfile(path: text): bool              // a regular file, a link to one too
+OS.islink(path: text): bool              // a symbolic link itself
+OS.stat(path: text): Result<Stat, i32>   // of what the path reaches, links followed
+OS.lstat(path: text): Result<Stat, i32>  // of the path itself, a link's own
+OS.remove(path: text): i32               // a file, or an empty directory
+OS.unlink(path: text): i32               // a file
+OS.rename(from: text, to: text): i32     // replaces `to` if it is a file
+OS.mkdir(path: text): i32                // one directory, mode 0777 as the umask leaves it
+OS.makedirs(path: text): i32             // every directory on the way, those there already left alone
+OS.rmdir(path: text): i32                // an empty directory
+OS.listdir(path: text): Result<Array<String>, i32>   // the names, . and .. left out, sorted by bytes
+OS.walk(path: text): Result<Array<String>, i32>      // every path under it, depth first, links not followed
+OS.glob(pattern: text): Result<Array<String>, i32>   // the matches, sorted; none is an empty Array
+OS.symlink(target: text, path: text): i32            // makes `path` a link to `target`
+OS.readlink(path: text): Result<String, i32>         // what a link points at, as written
+OS.link(from: text, to: text): i32                   // a hard link
+OS.chmod(path: text, mode: i32): i32                 // C's permission bits, as 0644
+OS.chown(path: text, uid: i32, gid: i32): i32        // -1 leaves an id as it is
+OS.lchown(path: text, uid: i32, gid: i32): i32       // of a link itself
+OS.truncate(path: text, size: i64): i32              // cuts, or extends with zeros
+OS.utime(path: text, atime: f64, mtime: f64): i32    // seconds since the epoch, a fraction allowed
+OS.touch(path: text): i32                            // both times now; makes the file, empty, if missing
+OS.realpath(path: text): Result<String, i32>         // absolute, every link followed, no . or ..
+OS.basename(path: text): String          // after the last /: basename("a/b/") is ""
+OS.dirname(path: text): String           // before it: dirname("a") is "", dirname("/a") is "/"
+OS.join(a: text, b: text): String        // a/b, with one /; b alone when b is absolute
+OS.mkstemp(prefix: text): Result<{io: IO, path: String}, i32>   // a new file, open for "w+"
+OS.mkdtemp(prefix: text): Result<String, i32>                   // a new directory
+OS.tmpdir: cstr                          // TMPDIR, or /tmp, without a trailing /
+OS.system(command: text): i32            // the shell command's exit code, -1 where it did not exit
+OS.kill(pid: i32, signal: i32): i32      // 0 or errno
+OS.umask(mask: i32): i32                 // sets the mask, gives the old one
+OS.pid: i32                              // this process
+OS.ppid: i32                             // its parent
+OS.uid: i32                              // the user running it
+OS.gid: i32                              // the user's group
+OS.user: String?                         // the user's name, none when the system has none
+OS.username(uid: i32): String?           // the name of an id, none for an id no one has
+OS.groupname(gid: i32): String?
+OS.host: Result<String, i32>             // the host's name
+OS.time: f64                             // seconds since the epoch, with a fraction
+OS.sleep(seconds: f64)                   // no value
+```
+
+A `String` given back is a new one, an owner: bind it, and its block
+frees it. A `cstr` given back, `SYS.platform`, `OS.tmpdir` and
+`OS.env`'s value, is a borrow of text C keeps, which a later call of
+the same kind may replace, so copy it with `String(...)` to keep it.
+
+## The `Stat` struct
+
+`OS.stat`, `OS.lstat`, and an IO's `stat` and `lstat`, give C's
+`struct stat` as a Kelvin struct, Kelvinized. Its spelling is the
+struct itself, since it has no name:
+
+```kelvin
+{dev: i64, ino: i64, mode: i32, nlink: i64, uid: i32, gid: i32, size: i64,
+ atime: f64, mtime: f64, ctime: f64, isdir: bool, isfile: bool, islink: bool}
+```
+
+| Member | Type | What it is |
+|---|---|---|
+| `dev` | `i64` | the id of the device the file is on, C's `st_dev` |
+| `ino` | `i64` | the file's inode number on it, C's `st_ino`; `dev` and `ino` together name the file, however many paths reach it |
+| `mode` | `i32` | C's `st_mode`: the kind of file in its high bits and the permissions in its low ones, so `mode & 0777` is the permissions, as `chmod` sets them, and the kind is read off it by the three `bool`s below |
+| `nlink` | `i64` | how many hard links the file has, C's `st_nlink` |
+| `uid` | `i32` | the owner's user id; `OS.username(uid)` names it |
+| `gid` | `i32` | the owner's group id; `OS.groupname(gid)` names it |
+| `size` | `i64` | the size in bytes; of a directory, what the system reports |
+| `atime` | `f64` | when the file was last read, in seconds since the epoch, whole seconds |
+| `mtime` | `f64` | when its contents were last written; what `OS.utime` sets |
+| `ctime` | `f64` | when its inode last changed: its contents, owner, mode or links; not settable |
+| `isdir` | `bool` | the file is a directory |
+| `isfile` | `bool` | it is a regular file |
+| `islink` | `bool` | it is a symbolic link itself, which only `lstat` can say, since `stat` follows the link |
+
+A `Stat` holds no owner, so it copies freely, prints as a struct does,
+`println(st.cstr)`, and may be kept. The times are whole seconds,
+what C's `st_mtime` holds everywhere; `OS.time` has a fraction.
+
 ## Properties and methods
 
 | On | Property or method | Gives |

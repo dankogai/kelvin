@@ -186,6 +186,99 @@ for name in try d.listdir { println(name) }   // its names; d.walk every path un
 - An IO with no path, a stream or a process, answers `""`, `false` or
   `ENOENT`.
 
+## What each member takes and gives
+
+Each line is a member as it would be declared, in Kelvin's spelling.
+`text` stands for a string literal, a `cstr`, a `u8^`, or a `String`
+or a `Bytes` held in a variable; an `i32` that is "0 or `errno`" is 0
+on success and otherwise the `errno` C left; a `Result<T, i32>` holds
+the `T` or that `errno`. `Stat` is the struct of [os.md](os.md).
+
+```kelvin
+IO(path: text, mode: text): Result<IO, i32>        // fopen; "r" when the mode is left out
+IO(fd: i32, mode: text): Result<IO, i32>           // fdopen; the IO owns the descriptor
+IO.stdin: IO                                        // the streams, never closed, only flushed
+IO.stdout: IO
+IO.stderr: IO
+IO.popen(command: text, mode: text): Result<IO, i32>            // /bin/sh -c command, "r" its output, "w" its input
+IO.exec(args: [text], mode: text): Result<IO, i32>              // a program by its arguments, no shell
+IO.exec(args: [text], mode: text, dir: text): Result<IO, i32>   // run in a directory, "" for the current one
+IO.exec(args: [text], mode: text, dir: text, env: [text]): Result<IO, i32>   // with "NAME=value" entries added
+IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): Result<IO, i32>   // true: those entries alone
+IO.pipe(): Result<{reader: IO, writer: IO}, i32>  // a pipe's two ends
+
+f.bytes: Result<Bytes, i32>              // the rest of the file, as bytes
+f.string: Result<String, i32>            // the same as UTF-8; EILSEQ when it is not
+for chunk in f.read(n: i64) { }          // each next n bytes at most, a Bytes the loop owns
+for line in f.lines { }                  // each line without its newline, a String the loop owns
+f.byte: u8?                              // the next byte, none at the end
+f.write(x: text | &String | &Bytes | String | Bytes)   // text, a borrow, or an owner given, freed after
+f.print(a, b, ...)                       // as print, up to 16 values
+f.println(a, b, ...)                     // as println
+f.flush()
+f.close()                                // now; needs the var that owns the IO
+f.eof: bool                              // true once a read has met the end
+f.position: i64                          // the offset in bytes, -1 where the stream has none
+f.count: i64                             // the length in bytes, -1 where the stream has none
+f.seek(offset: i64): bool                // from the start; false where it could not
+f.rewind()                               // to the start, the end cleared
+f.fd: i32                                // the descriptor, -1 once closed
+f.status: i32                            // a process's exit code once closed, else -1
+f.signal: i32                            // the signal that ended a process, 0 when none, else -1
+f.pid: i32                               // a process's id, -1 for any other IO
+f.kill(signal: i32): bool                // to a process; true when sent
+
+f.path: cstr                             // as opened with; "" for a stream, a descriptor or a process
+f.abspath: Result<String, i32>           // absolute, every link followed
+f.basename: String                       // after the last /
+f.dirname: String                        // before it
+f.join(name: text): String               // a path under it
+f.stat: Result<Stat, i32>                // of the open file itself, through its descriptor
+f.lstat: Result<Stat, i32>               // of the path, a link's own
+f.isdir: bool                            // of the path
+f.isfile: bool
+f.islink: bool
+f.exists: bool
+f.listdir: Result<Array<String>, i32>    // a directory's names, sorted
+f.walk: Result<Array<String>, i32>       // every path under it, depth first
+f.glob(pattern: text): Result<Array<String>, i32>   // the matches of the pattern under its path
+f.chmod(mode: i32): i32                  // on the open file; 0 or errno
+f.chown(uid: i32, gid: i32): i32         // on the open file; -1 leaves an id
+f.truncate(size: i64): i32               // on the open file
+f.remove(): i32                          // the path; the open file stays readable until closed
+f.rename(to: text): i32                  // the path, which then follows; needs the var that owns the IO
+f.utime(atime: f64, mtime: f64): i32     // the path's times, in seconds since the epoch
+f.touch(): i32                           // both now
+```
+
+`[text]` for `args` and `env` is a list written in brackets,
+`["ls", "-l"]`, or an `Array<cstr>` or `Array<String>` held in a
+variable. Where a member gives an owner, a `String`, a `Bytes`, an
+`Array` or an `IO`, bind it, and its block frees it; a `Result` or an
+Optional holding one is an owner too.
+
+## The structs an IO gives
+
+Two members give a struct with no name, spelled as itself:
+
+- **`IO.pipe()` gives `{reader: IO, writer: IO}`**: `reader` is the
+  end to read from and `writer` the end to write to, each an `IO`
+  that owns its descriptor. What is written to `writer` is read from
+  `reader`, in order, and closing `writer` is the end of `reader`'s
+  input; `writer.close()` needs the var, so write `p.ok.writer.close()`
+  of the Result. The struct owns both, so a Result holding it closes
+  both when its block ends.
+- **`OS.mkstemp(prefix)` gives `{io: IO, path: String}`**: `io` is
+  the new file, open for reading and writing (`"w+"`) and positioned
+  at its start, and `path` its name, the prefix and six random
+  characters, in `OS.tmpdir` unless the prefix names a place. The file
+  stays until `OS.remove(t.ok.path)`, or `t.ok.io.remove()`; the
+  block closes the IO and frees the path.
+
+Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
+`p.ok.reader` and `p.ok.writer` are places: methods work on them, and
+`.cstr` of the struct shows the IO as `<IO>` and the path as its text.
+
 ## Properties and methods
 
 | On | Property or method | Gives |
