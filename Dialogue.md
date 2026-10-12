@@ -3072,3 +3072,22 @@ written with `position` and `count`, since C's `SEEK_CUR` and
 `SEEK_END` are stdio's names. Details are provisional P96.
 
 There are 612 tests, and all pass with clang and with gcc 15.
+
+### 116. A pasted program, and reading one at a time
+
+> now add reading a single byte and a number to `IO`. but before that,
+> make the following work: [a program that opens `argv[1]`, switches on
+> the Result, reads `r.ok.string`, switches on that, and prints
+> `strerror(r.err)`]
+
+**Claude** found the program short of a `)` on its `strerror` line and
+of the `}` that closes its `case ok:` block, so that its `case err:`
+lay inside that block, which kelvinc had said; with the two typos
+fixed it compiled and ran as written, `strerror` included, since the
+prelude has `<string.h>`. The user: "I did not mean to fix kelvin. I
+meant to fix the code pasted." Then #85: `f.byte` is the next byte, a
+`u8?`; `f.i64` and `f.f64` the next integer or float as `scanf` reads
+them, an `i64?` or an `f64?`; `none` at the end, or where no number is
+there. Details are provisional P97.
+
+There are 614 tests, and all pass with clang and with gcc 15.

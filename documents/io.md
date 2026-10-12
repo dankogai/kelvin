@@ -31,6 +31,7 @@ f.write(&name)                            // a borrow of a String or a Bytes
 f.write($`${n} items\n`)                  // a String an expression gives, written and freed
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
+if let n = f.i64 { println(n) }               // the next integer, or none (#85); also f.byte, f.f64
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
 let raw = try f.bytes                     // as a Bytes
@@ -84,14 +85,21 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   C's `feof` is, so it is false before the first read past it: read,
   then test. A position elsewhere is `f.seek(f.position + k)` or
   `f.seek(f.count - k)`.
+- **Reading one at a time** (#85): `f.byte` is the next byte, a `u8?`,
+  `none` at the end; `f.i64` the next integer, an `i64?`, and `f.f64`
+  the next float, an `f64?`, read as `scanf` reads them, spaces and
+  newlines skipped, `none` at the end or where no number is there, in
+  which case nothing is consumed but the spaces. So `while true { if
+  let n = f.i64 { sum += n } else { break } }` sums a file of numbers.
+  The other converters are not an IO's: read a `.i64` and convert it.
 - **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
   reads, writes and flushes: what changes is the file, not the IO.
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
   that `IO.stdout` names in place.
-- **Not yet:** reading a single byte or a number, and opening with a
-  file descriptor.
+- **Not yet:** opening with a file descriptor, and reading numbers in
+  a base or of a narrower type.
 
 ## Properties and methods
 
@@ -106,6 +114,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
 | | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
+| | `.byte` | the next byte, a `u8?`, `none` at the end (#85) |
+| | `.i64`, `.f64` | the next integer or float as `scanf` reads it, an `i64?` or `f64?`, `none` where there is none |
 | | `.eof` | `true` once a read has met the end (#84) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |

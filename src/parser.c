@@ -4352,7 +4352,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
                  (!strcmp(kind, "set") && (!strcmp(member, "count") || !strcmp(member, "elements"))) ||
                  (!strcmp(kind, "io") && (!strcmp(member, "bytes") || !strcmp(member, "string") ||
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
-                                          !strcmp(member, "position") || !strcmp(member, "count"))))) {
+                                          !strcmp(member, "position") || !strcmp(member, "count") ||
+                                          !strcmp(member, "byte") || !strcmp(member, "i64") ||
+                                          !strcmp(member, "f64"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4374,6 +4376,9 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
+        else if (kk == 'i' && (!strcmp(member, "byte") || !strcmp(member, "i64") || !strcmp(member, "f64")))
+            /* the next byte, integer or float, or none at the end (#85) */
+            x->type = optional_type(name, base_type(!strcmp(member, "byte") ? "u8" : member, name->pos));
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||
             (kk == 't' && !strcmp(member, "elements"))) {
             /* d.keys and d.values (#66): Arrays of copies, made by a function
@@ -4398,7 +4403,11 @@ static Expr *property(Expr *e, Token *name, char *member) {
         }
         return x;
     }
-    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member})) {
+    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member}) && is_io(value_type(e)) && strcmp(member, "i64") &&
+        strcmp(member, "f64"))
+        error_at(name->pos, "an IO reads a byte with '.byte', an integer with '.i64' and a float with '.f64', not '.%s'",
+                 member);
+    if (is_converter(&(Token){.kind = TK_KEYWORD, .text = member}) && !is_io(value_type(e))) {
         /* v.i64 is i64(v), so "42".i64 reads text (#36). A field of that
            name wins: a Kelvin struct's, a C struct's, and, as for .size,
            whenever kelvinc cannot see that v is no struct (o.via.i64) */

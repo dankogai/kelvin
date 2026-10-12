@@ -664,6 +664,14 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "eof") || !strcmp(e->text, "position") ||
                                               !strcmp(e->text, "count"))) /* (#84) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
+        if (e->op && !strcmp(e->op, "io") && e->type &&
+            (!strcmp(e->text, "byte") || !strcmp(e->text, "i64") || !strcmp(e->text, "f64"))) {
+            /* f.byte, f.i64, f.f64 (#85): the next one, or none */
+            Decl *r = kelvin_record(e->type->name);
+            const char *ct = !strcmp(e->text, "byte") ? "uint8_t" : !strcmp(e->text, "i64") ? "long long" : "double";
+            return strfmt("({ %s _kv_v = 0; kv_io_read_%s((kv_io *)&%s, &_kv_v) ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",
+                          ct, e->text, recv, r->name, r->name);
+        }
         if (e->op && !strcmp(e->op, "io") && e->type) { /* f.bytes, f.string (#82): the rest of the file, or errno */
             Decl *r = kelvin_record(e->type->name);
             bool text = !strcmp(e->text, "string");
