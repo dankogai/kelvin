@@ -600,13 +600,13 @@ static char *expr_bare(Expr *e) {
                               "_kv_%s_make_ok((%s){%s}); })",
                               n, args.buf, r->name, r->name, decl(st, ""), init.buf);
             }
-            if (!strcmp(n, "listdir")) {
+            if (!strcmp(gives, "listdir")) { /* listdir, walk, glob (#94, #96): Strings taken over into an Array */
                 Decl *r = kelvin_record(e->type->name);
                 Type *arr = ((Var *)r->members.data[0])->type;
-                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_listdir(%s, &_kv_at, &_kv_n); "
+                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_%s(%s, &_kv_at, &_kv_n); "
                               "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
                               "_kv_%s_make_ok(_kv_a); })",
-                              args.buf, arr->cname, arr->cname, r->name, r->name);
+                              n, args.buf, arr->cname, arr->cname, r->name, r->name);
             }
             return strfmt("kv_%s_%s(%s)", e->op, n, args.buf);
         }

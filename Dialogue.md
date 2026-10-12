@@ -3257,3 +3257,16 @@ globbing and temporary files made for you are still to come. Details
 are provisional P107.
 
 There are 631 tests, and all pass with clang and with gcc 15.
+
+### 129. Walking and globbing
+
+> now add walking a tree and globbing to `OS`
+
+**Claude** added #96: `OS.walk(path)` is every path under a
+directory as one Array of Strings, each level sorted, depth first,
+links not followed; `OS.glob(pattern)` the paths a shell pattern
+matches, sorted, none where none match; each a
+`Result<Array<String>, i32>` as `listdir` is. Details are
+provisional P108.
+
+There are 632 tests, and all pass with clang and with gcc 15.

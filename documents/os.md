@@ -57,6 +57,16 @@ let main():i32 {
   left out, sorted by their bytes, a `Result<Array<String>, i32>`;
   a name that is not UTF-8 ends the program, as a String made of it
   would.
+- **`OS.walk(path)`** (#96) is every path under a directory, the root
+  itself left out, each a `String` of the root joined with what is
+  under it: each directory's names sorted, then what is under a
+  directory among them before the next name, depth first, as `find`
+  lists them; a symbolic link is not followed, and a directory that
+  cannot be read is passed over, as Python's `walk` passes it; a
+  `Result<Array<String>, i32>`, the err the root's. **`OS.glob(pattern)`**
+  is the paths a shell pattern matches, `*`, `?` and `[...]` as the
+  shell has them, sorted, the same Result, with none where none match;
+  `**` is `*`, as POSIX `glob` has it.
 - **`OS.stat(path)`** and **`OS.lstat(path)`** (#95) are what C's
   `stat` and `lstat` give, a `Result<{dev: i64, ino: i64, mode: i32,
   nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64,
@@ -100,11 +110,11 @@ let main():i32 {
   `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
   `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
   `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
-  `realpath`, `system`, `kill`, `umask`, `getpid` and its kin,
+  `realpath`, `glob`, `system`, `kill`, `umask`, `getpid` and its kin,
   `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
   runtime/os.c, which asks for POSIX; a program needs nothing.
-- **Not yet:** walking a tree, globbing, temporary files made for you,
-  and setting a file's times.
+- **Not yet:** temporary files made for you, and setting a file's
+  times.
 
 ## Properties and methods
 
@@ -120,6 +130,8 @@ let main():i32 {
 | | `.exists(path)`, `.isdir(path)`, `.isfile(path)` | a `bool` |
 | | `.remove(path)`, `.rename(from, to)`, `.mkdir(path)`, `.rmdir(path)` | 0 or `errno` |
 | | `.listdir(path)` | the names, sorted, a `Result<Array<String>, i32>` |
+| | `.walk(path)` | every path under a directory, depth first, a `Result<Array<String>, i32>` (#96) |
+| | `.glob(pattern)` | the paths a shell pattern matches, sorted, the same |
 | | `.stat(path)`, `.lstat(path)` | C's stat as a struct, a `Result<{dev, ino, mode, nlink, uid, gid, size, atime, mtime, ctime, isdir, isfile, islink}, i32>` (#95) |
 | | `.islink(path)` | a `bool` |
 | | `.symlink(target, path)`, `.link(from, to)`, `.unlink(path)`, `.chmod(path, mode)`, `.truncate(path, size)`, `.makedirs(path)` | 0 or `errno` |

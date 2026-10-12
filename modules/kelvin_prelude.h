@@ -180,6 +180,8 @@ kv_string kv_os_basename(const void *path);
 kv_string kv_os_dirname(const void *path);
 kv_string kv_os_join(const void *a, const void *b);
 int kv_os_realpath(const void *path, kv_string *out);
+int kv_os_walk(const void *path, kv_string **out, size_t *count);
+int kv_os_glob(const void *pattern, kv_string **out, size_t *count);
 int kv_io_status(kv_io *f);
 int kv_io_signal(kv_io *f);
 bool kv_io_kill(kv_io *f, int sig);

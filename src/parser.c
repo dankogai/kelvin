@@ -2236,6 +2236,7 @@ static Expr *parse_primary(void) {
             {"OS", "pid", NULL, "i32"},         {"OS", "ppid", NULL, "i32"},       {"OS", "uid", NULL, "i32"},
             {"OS", "gid", NULL, "i32"},         {"OS", "user", NULL, "opt_cstr"},  {"OS", "host", NULL, "res_string"},
             {"OS", "time", NULL, "f64"},        {"OS", "sleep", "f", "void"},      {"OS", "tmpdir", NULL, "cstr"},
+            {"OS", "walk", "t", "listdir"},     {"OS", "glob", "t", "listdir"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2252,7 +2253,7 @@ static Expr *parse_primary(void) {
                          : "OS has no '%s': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, "
                            "isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, "
                            "symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, "
-                           "umask, pid, ppid, uid, gid, user, host, time, sleep and tmpdir",
+                           "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk and glob",
                      name);
         Expr *e = new_expr(E_CALL, t->pos);
         e->op = sys ? "sys" : "os";
