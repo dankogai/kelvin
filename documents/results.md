@@ -61,7 +61,10 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   `y`, for a `T` that does not own, of a Result in a variable, a member
   or an element; for an owner, `if let` or `switch` on it.
 - **Testing:** `r.is(ok)`, `r.is(err)`, `r.case` (0 for ok, 1 for err),
-  and `switch r { case ok: ... case err: ... }`, exhaustive.
+  and `switch r { case ok: ... case err: ... }`, exhaustive. Of a
+  Result that owns, `.is` and `.case` take a place, since one an
+  expression gives would be lost with what it holds: bind it first,
+  or `if let` on the call (#99).
 - **`if let v = r { ... } else { ... }`** (#74) runs the block with `v`
   bound to the `ok` value when that is the case: a let the Result still
   owns, as a loop's element is (borrow it, or copy it). `r` may be a

@@ -28,7 +28,9 @@ let main():i32 {
     println(OS.remove(path), " ", OS.remove("os_sys.tmpdir/b.txt"), " ", OS.remove("os_sys.tmpdir/none") != 0)
     var listed = OS.listdir(dir)
     if let ok(ns) = listed { println(ns.count) }
-    println(OS.rmdir(dir), " ", OS.exists(dir), " ", OS.listdir(dir).is(err))
+    let removed = OS.rmdir(dir)
+    var gone = OS.listdir(dir)
+    println(removed, " ", OS.exists(dir), " ", gone.is(err))
     println(OS.env("KELVIN_OS_TEST").is(none), " ", OS.setenv("KELVIN_OS_TEST", "set"))
     var v = OS.env("KELVIN_OS_TEST")
     println(v.cstr, " ", v.typename, " ", OS.unsetenv("KELVIN_OS_TEST"), " ", OS.env("KELVIN_OS_TEST").is(none))

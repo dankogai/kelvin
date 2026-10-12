@@ -3301,6 +3301,11 @@ There are 634 tests, and all pass with clang and with gcc 15.
 **Claude** added #99: `OS.chown(path, uid, gid)` and `OS.lchown` set
 a file's owner, and a link's own, -1 leaving an id as it is;
 `OS.username(uid)` and `OS.groupname(gid)` give the names of the ids
-`stat` gives, each a `cstr?`. Details are provisional P111.
+`stat` gives, each a `String?`, as `OS.user` now is too: CI's Linux
+read the name for uid 0 as the runner's, since C keeps the name in
+storage the next lookup overwrites, so the names are copied out.
+That made `OS.user.is(some)` leak a String, as `.is` of any owning
+value an expression gives did: `.is` and `.case` of one now say to
+bind it first. Details are provisional P111.
 
-There are 635 tests, and all pass with clang and with gcc 15.
+There are 636 tests, and all pass with clang and with gcc 15.

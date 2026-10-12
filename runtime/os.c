@@ -264,9 +264,14 @@ int kv_os_ppid(void) { return (int)getppid(); }
 int kv_os_uid(void) { return (int)getuid(); }
 int kv_os_gid(void) { return (int)getgid(); }
 
-const uint8_t *kv_os_user(void) {
+/* the names are copied out of getpwuid's and getgrgid's static storage,
+   which the next lookup overwrites (#99) */
+bool kv_os_user(kv_string *out) {
     struct passwd *pw = getpwuid(getuid());
-    return pw ? (const uint8_t *)pw->pw_name : NULL;
+    if (!pw)
+        return false;
+    *out = kv_string_text(pw->pw_name);
+    return true;
 }
 
 int kv_os_host(kv_string *out) {
@@ -529,12 +534,18 @@ int kv_os_lchown(const void *path, int uid, int gid) {
     return lchown((const char *)path, (uid_t)uid, (gid_t)gid) == 0 ? 0 : err_or(EIO);
 }
 
-const uint8_t *kv_os_username(int uid) {
+bool kv_os_username(int uid, kv_string *out) {
     struct passwd *pw = getpwuid((uid_t)uid);
-    return pw ? (const uint8_t *)pw->pw_name : NULL;
+    if (!pw)
+        return false;
+    *out = kv_string_text(pw->pw_name);
+    return true;
 }
 
-const uint8_t *kv_os_groupname(int gid) {
+bool kv_os_groupname(int gid, kv_string *out) {
     struct group *gr = getgrgid((gid_t)gid);
-    return gr ? (const uint8_t *)gr->gr_name : NULL;
+    if (!gr)
+        return false;
+    *out = kv_string_text(gr->gr_name);
+    return true;
 }

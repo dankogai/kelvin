@@ -91,7 +91,7 @@ let main():i32 {
   `b` when `b` is absolute; each a new `String`.
 - **The process and the user** (#95): `OS.ppid`, `OS.uid` and
   `OS.gid` are the parent's id and the user's and group's ids;
-  `OS.user` the user's name, a `cstr?`; `OS.host` the host's name, a
+  `OS.user` the user's name, a `String?`; `OS.host` the host's name, a
   `Result<String, i32>`; `OS.umask(mask)` sets the mask and gives the
   old; `OS.kill(pid, signal)` sends a signal, 0 or `errno`.
 - **Temporary files** (#97): `OS.mkstemp(prefix)` makes a new file
@@ -112,7 +112,9 @@ let main():i32 {
   a file, `OS.lchown` a symbolic link itself, -1 for an id to leave as
   it is, each 0 or `errno`, `EPERM` for an owner one may not give;
   `OS.username(uid)` and `OS.groupname(gid)` are the names of the ids
-  `stat` gives, each a `cstr?`, `none` for an id no one has.
+  `stat` gives, each a `String?`, `none` for an id no one has; a
+  String, copied out, since C keeps the name in storage the next
+  lookup overwrites.
 - **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
   with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
   allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
@@ -157,7 +159,7 @@ let main():i32 {
 | | `.readlink(path)`, `.realpath(path)` | a `Result<String, i32>` |
 | | `.basename(path)`, `.dirname(path)`, `.join(a, b)` | a `String` |
 | | `.ppid`, `.uid`, `.gid` | ids, `i32`s |
-| | `.user` | the user's name, a `cstr?` |
+| | `.user` | the user's name, a `String?` |
 | | `.host` | the host's name, a `Result<String, i32>` |
 | | `.umask(mask)`, `.kill(pid, signal)` | the old mask; 0 or `errno` |
 | | `.time`, `.sleep(seconds)` | seconds since the epoch, an `f64`; sleeps |
@@ -166,7 +168,7 @@ let main():i32 {
 | | `.mkdtemp(prefix)` | a temporary directory, its path, a `Result<String, i32>` |
 | | `.utime(path, atime, mtime)`, `.touch(path)` | sets a file's times; both to now, making the file (#98) |
 | | `.chown(path, uid, gid)`, `.lchown(path, uid, gid)` | sets a file's owner, a link's own; 0 or `errno` (#99) |
-| | `.username(uid)`, `.groupname(gid)` | the names of ids, each a `cstr?` |
+| | `.username(uid)`, `.groupname(gid)` | the names of ids, each a `String?` |
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 

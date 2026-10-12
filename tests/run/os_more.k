@@ -44,7 +44,9 @@ let main():i32 {
     println(OS.unlink("os_more.tmpdir/a/link"), " ", OS.unlink("os_more.tmpdir/a/hard"), " ",
             OS.remove("os_more.tmpdir/a/b/f.txt"), " ", OS.rmdir("os_more.tmpdir/a/b"), " ", OS.rmdir("os_more.tmpdir/a"),
             " ", OS.rmdir(dir), " ", OS.exists(dir))
-    println(OS.ppid > 0, " ", OS.uid >= 0, " ", OS.gid >= 0, " ", OS.user.is(some), " ", OS.host.is(ok))
+    var user = OS.user
+    var host = OS.host
+    println(OS.ppid > 0, " ", OS.uid >= 0, " ", OS.gid >= 0, " ", user.is(some), " ", host.is(ok))
     let old = OS.umask(18)
     println(OS.umask(old) == 18, " ", OS.kill(OS.pid, 0), " ", OS.kill(999999, 0) != 0)
     let t0 = OS.time

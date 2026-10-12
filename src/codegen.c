@@ -581,6 +581,11 @@ static char *expr_bare(Expr *e) {
                               "_kv_%s_make_ok(_kv_s); })",
                               e->op, n, args.buf, args.len ? ", " : "", r->name, r->name);
             }
+            if (!strcmp(gives, "opt_string")) { /* a String copied out, or none (#99) */
+                Decl *r = kelvin_record(e->type->name);
+                return strfmt("({ kv_string _kv_s = {0}; kv_%s_%s(%s%s&_kv_s) ? _kv_%s_make_some(_kv_s) : _kv_%s_make_none(); })",
+                              e->op, n, args.buf, args.len ? ", " : "", r->name, r->name);
+            }
             if (!strcmp(gives, "opt_cstr")) { /* a cstr, or none */
                 Decl *r = kelvin_record(e->type->name);
                 return strfmt("({ const uint8_t *_kv_v = kv_%s_%s(%s); _kv_v ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",

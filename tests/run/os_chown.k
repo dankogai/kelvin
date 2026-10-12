@@ -1,6 +1,6 @@
 // OS.chown(path, uid, gid) and OS.lchown (#99): a file's owner, 0 or
 // errno; OS.username(uid) and OS.groupname(gid): the names of the ids
-// stat gives, cstr?, none for an id no one has
+// stat gives, String?, none for an id no one has
 #import <errno.h> as C
 let main():i32 {
     let path := "os_chown.tmp"
@@ -26,8 +26,8 @@ let main():i32 {
 // out: 0 0
 // out: true
 // out: true true
-// out: true true some(root) none cstr?
+// out: true true some(root) none String?
 // out: true
 // out: 0
 // c: kv_os_chown(path, kv_os_uid(), kv_os_gid())
-// c: kv_os_username(0)
+// c: kv_os_username(0, &_kv_s) ? _kv__kv_opt_String_make_some(_kv_s) : _kv__kv_opt_String_make_none()

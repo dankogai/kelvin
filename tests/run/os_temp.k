@@ -29,7 +29,8 @@ let main():i32 {
         println(where, " ", OS.rmdir(p))
     }
     var bad = OS.mkstemp("/no/such/dir/x")
-    println(bad.is(err), " ", bad.err == ENOENT, " ", OS.mkdtemp("/no/such/dir/x").is(err))
+    var badDir = OS.mkdtemp("/no/such/dir/x")
+    println(bad.is(err), " ", bad.err == ENOENT, " ", badDir.is(err))
     return 0
 }
 // out: Result<{io: IO, path: String}, i32>

@@ -1481,7 +1481,13 @@ static Expr *parse_postfix_ops(Expr *e) {
                 continue;
             }
             if (tr && call && !strcmp(member, "is")) {
-                /* v.is(name): is that the current case? */
+                /* v.is(name): is that the current case? Of a place, when
+                   the record owns: a value an expression gives would be
+                   lost with what it holds (#99) */
+                if (is_owner(value_type(e)) && !owner_place(e))
+                    error_at(name->pos, "'.is' of a %s that an expression gives, which nothing would free: bind it to a "
+                                        "variable first",
+                             kelvin_type(value_type(e)));
                 advance();
                 Token *cn = peek();
                 char *cname = expect_ident("a case name");
@@ -1695,6 +1701,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 continue;
             }
             if (tr && !call && !strcmp(member, "case")) { /* v.case: the tag, a u8 (#61) */
+                if (is_owner(value_type(e)) && !owner_place(e))
+                    error_at(name->pos, "'.case' of a %s that an expression gives, which nothing would free: bind it to a "
+                                        "variable first",
+                             kelvin_type(value_type(e)));
                 Expr *x = new_expr(E_PROPERTY, t->pos);
                 x->a = e;
                 x->text = "case";
@@ -2235,12 +2245,12 @@ static Expr *parse_primary(void) {
             {"OS", "basename", "t", "string"},  {"OS", "dirname", "t", "string"},  {"OS", "join", "tt", "string"},
             {"OS", "system", "t", "i32"},       {"OS", "kill", "ii", "i32"},       {"OS", "umask", "i", "i32"},
             {"OS", "pid", NULL, "i32"},         {"OS", "ppid", NULL, "i32"},       {"OS", "uid", NULL, "i32"},
-            {"OS", "gid", NULL, "i32"},         {"OS", "user", NULL, "opt_cstr"},  {"OS", "host", NULL, "res_string"},
+            {"OS", "gid", NULL, "i32"},         {"OS", "user", NULL, "opt_string"}, {"OS", "host", NULL, "res_string"},
             {"OS", "time", NULL, "f64"},        {"OS", "sleep", "f", "void"},      {"OS", "tmpdir", NULL, "cstr"},
             {"OS", "walk", "t", "listdir"},     {"OS", "glob", "t", "listdir"},    {"OS", "mkstemp", "t", "temp"},
             {"OS", "mkdtemp", "t", "res_string"}, {"OS", "utime", "tff", "i32"}, {"OS", "touch", "t", "i32"},
-            {"OS", "chown", "tii", "i32"},      {"OS", "lchown", "tii", "i32"},    {"OS", "username", "i", "opt_cstr"},
-            {"OS", "groupname", "i", "opt_cstr"},
+            {"OS", "chown", "tii", "i32"},      {"OS", "lchown", "tii", "i32"},    {"OS", "username", "i", "opt_string"},
+            {"OS", "groupname", "i", "opt_string"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2326,6 +2336,8 @@ static Expr *parse_primary(void) {
             e->type = variant_type(t, "res", base_type("String", t->pos), base_type("i32", t->pos));
         else if (!strcmp(gives, "opt_cstr"))
             e->type = optional_type(t, cstr_type(t->pos));
+        else if (!strcmp(gives, "opt_string"))
+            e->type = optional_type(t, base_type("String", t->pos));
         else if (!strcmp(gives, "listdir"))
             e->type = variant_type(t, "res", array_type(t, base_type("String", t->pos)), base_type("i32", t->pos));
         else if (!strcmp(gives, "stat"))

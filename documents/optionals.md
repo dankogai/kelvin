@@ -57,7 +57,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   a string literal, or text of another spelling, is cast to the value's
   type, as a declaration would cast it.
 - **Testing:** `x.is(some)`, `x.is(none)`, `x.case` (0 for none, 1 for
-  some), `switch x { case some: ... case none: ... }`, exhaustive.
+  some), `switch x { case some: ... case none: ... }`, exhaustive. Of
+  an Optional that owns, `.is` and `.case` take a place: bind the value
+  first, or `if let` on the call (#99).
 - **`if let v = x { ... } else { ... }`** (#74) runs the block with `v`
   bound to the value when there is one: a let the Optional still owns,
   as a loop's element is (borrow it, or copy it). `x` may be a variable
