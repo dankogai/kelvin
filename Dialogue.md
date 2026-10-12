@@ -3371,6 +3371,8 @@ the effective ids and `groups`, `uname`, `readable`, `writable` and
 `urandom`, `isatty`, `terminalsize`, `diskusage`, and the constants
 `sep`, `linesep`, `devnull` and `name`. The structs they give are
 spelled as themselves, now all made by one maker from the spelling.
-Details are provisional P114.
+CI's Linux clang then found `getloadavg` undeclared, a BSD extension
+glibc keeps for `_DEFAULT_SOURCE`, which the runtime now defines
+beside `_XOPEN_SOURCE`. Details are provisional P114.
 
 There are 639 tests, and all pass with clang and with gcc 15.

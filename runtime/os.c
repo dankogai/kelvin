@@ -8,6 +8,7 @@
 #define _DARWIN_C_SOURCE
 #else
 #define _XOPEN_SOURCE 700
+#define _DEFAULT_SOURCE 1 /* getloadavg (#102), a BSD extension glibc keeps for this */
 #endif
 #include "kelvin_prelude.h"
 
