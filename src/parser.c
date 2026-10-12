@@ -2239,6 +2239,8 @@ static Expr *parse_primary(void) {
             {"OS", "time", NULL, "f64"},        {"OS", "sleep", "f", "void"},      {"OS", "tmpdir", NULL, "cstr"},
             {"OS", "walk", "t", "listdir"},     {"OS", "glob", "t", "listdir"},    {"OS", "mkstemp", "t", "temp"},
             {"OS", "mkdtemp", "t", "res_string"}, {"OS", "utime", "tff", "i32"}, {"OS", "touch", "t", "i32"},
+            {"OS", "chown", "tii", "i32"},      {"OS", "lchown", "tii", "i32"},    {"OS", "username", "i", "opt_cstr"},
+            {"OS", "groupname", "i", "opt_cstr"},
         };
         bool sys = is_kw(t, "SYS");
         advance();
@@ -2255,8 +2257,8 @@ static Expr *parse_primary(void) {
                          : "OS has no '%s': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, "
                            "isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, "
                            "symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, "
-                           "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp, mkdtemp, utime "
-                           "and touch",
+                           "umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp, mkdtemp, utime, "
+                           "touch, chown, lchown, username and groupname",
                      name);
         Expr *e = new_expr(E_CALL, t->pos);
         e->op = sys ? "sys" : "os";

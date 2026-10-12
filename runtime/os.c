@@ -171,6 +171,7 @@ int kv_os_pid(void) { return (int)getpid(); }
 /* ---------- more of OS (#95) ---------- */
 #include <fcntl.h>
 #include <glob.h>
+#include <grp.h>
 #include <pwd.h>
 #include <signal.h>
 #include <time.h>
@@ -516,4 +517,24 @@ int kv_os_touch(const void *path) {
     close(fd);
     struct timespec ts[2] = {{0, UTIME_NOW}, {0, UTIME_NOW}};
     return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
+}
+
+/* ---------- a file's owner (#99) ---------- */
+
+int kv_os_chown(const void *path, int uid, int gid) {
+    return chown((const char *)path, (uid_t)uid, (gid_t)gid) == 0 ? 0 : err_or(EIO);
+}
+
+int kv_os_lchown(const void *path, int uid, int gid) {
+    return lchown((const char *)path, (uid_t)uid, (gid_t)gid) == 0 ? 0 : err_or(EIO);
+}
+
+const uint8_t *kv_os_username(int uid) {
+    struct passwd *pw = getpwuid((uid_t)uid);
+    return pw ? (const uint8_t *)pw->pw_name : NULL;
+}
+
+const uint8_t *kv_os_groupname(int gid) {
+    struct group *gr = getgrgid((gid_t)gid);
+    return gr ? (const uint8_t *)gr->gr_name : NULL;
 }

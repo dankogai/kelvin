@@ -108,6 +108,11 @@ let main():i32 {
   `stat` gives them, a fraction allowed; `OS.touch(path)` sets both to
   now, and makes the file, empty, when it is missing, as the command
   does; each 0 or `errno`.
+- **A file's owner** (#99): `OS.chown(path, uid, gid)` sets who owns
+  a file, `OS.lchown` a symbolic link itself, -1 for an id to leave as
+  it is, each 0 or `errno`, `EPERM` for an owner one may not give;
+  `OS.username(uid)` and `OS.groupname(gid)` are the names of the ids
+  `stat` gives, each a `cstr?`, `none` for an id no one has.
 - **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
   with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
   allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
@@ -124,10 +129,11 @@ let main():i32 {
   `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
   `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
   `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
-  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `utimensat`, `system`, `kill`, `umask`, `getpid` and its kin,
+  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`, `kill`, `umask`, `getpid` and its kin,
   `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
   runtime/os.c, which asks for POSIX; a program needs nothing.
-- **Not yet:** a file's owner, and what Python's `os` has beyond these.
+- **Not yet:** what Python's `os` has beyond these, such as file
+  descriptors handled by number, which an `IO` covers.
 
 ## Properties and methods
 
@@ -159,6 +165,8 @@ let main():i32 {
 | | `.mkstemp(prefix)` | a temporary file, made and opened, a `Result<{io: IO, path: String}, i32>` (#97) |
 | | `.mkdtemp(prefix)` | a temporary directory, its path, a `Result<String, i32>` |
 | | `.utime(path, atime, mtime)`, `.touch(path)` | sets a file's times; both to now, making the file (#98) |
+| | `.chown(path, uid, gid)`, `.lchown(path, uid, gid)` | sets a file's owner, a link's own; 0 or `errno` (#99) |
+| | `.username(uid)`, `.groupname(gid)` | the names of ids, each a `cstr?` |
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 

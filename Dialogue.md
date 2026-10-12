@@ -3293,3 +3293,14 @@ times in seconds since the epoch, as `stat` gives them, and
 missing. Details are provisional P110.
 
 There are 634 tests, and all pass with clang and with gcc 15.
+
+### 132. A file's owner
+
+> now add a file's owner to `OS`
+
+**Claude** added #99: `OS.chown(path, uid, gid)` and `OS.lchown` set
+a file's owner, and a link's own, -1 leaving an id as it is;
+`OS.username(uid)` and `OS.groupname(gid)` give the names of the ids
+`stat` gives, each a `cstr?`. Details are provisional P111.
+
+There are 635 tests, and all pass with clang and with gcc 15.
