@@ -32,6 +32,8 @@ f.write($`${n} items\n`)                  // a String an expression gives, writt
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 if let n = f.i64 { println(n) }               // the next integer, or none (#85); also f.byte, f.f64
+var ls = IO.popen("ls -l", "r")               // a process's output (#87); IO.pipe() a pipe's two ends
+if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
 let raw = try f.bytes                     // as a Bytes
@@ -46,7 +48,14 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   `Bytes` in a variable. `IO(fd, mode)` (#86), with a number first,
   opens a file descriptor as `fdopen` does, and owns it: its block
   closes the descriptor too; `f.fd` is an IO's descriptor, an `i32`,
-  for C's calls, -1 once closed. `IO.stdin`, `IO.stdout` and `IO.stderr` are
+  for C's calls, -1 once closed. `IO.popen(command, mode)` (#87) runs
+  a shell command as `popen` does, with `"r"` to read its output or
+  `"w"` to write its input, a `Result<IO, i32>`; its block, or
+  `close()`, waits for the process, and `f.status` is then its exit
+  code, -1 before, or for an IO that is no process. `IO.pipe()` gives
+  a `Result<{reader: IO, writer: IO}, i32>`: a pipe's two ends, each an
+  IO that owns its descriptor, so `p.ok.writer.close()` ends what the
+  reader reads. `IO.stdin`, `IO.stdout` and `IO.stderr` are
   the standard streams, also written `IO.stdout()`: an IO that is never
   closed, only flushed, and may be used where it stands,
   `IO.stderr.write("x")`, or bound, `var out = IO.stdout`.
@@ -100,10 +109,11 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
-  that `IO.stdout` names in place. `fdopen` and `fileno` are POSIX,
-  which the runtime asks for; a program needs nothing.
-- **Not yet:** reading numbers in a base or of a narrower type, and
-  opening a pipe or a process.
+  that `IO.stdout` names in place. `fdopen`, `fileno`, `popen` and
+  `pipe` are POSIX, which the runtime asks for; a program needs
+  nothing.
+- **Not yet:** reading numbers in a base or of a narrower type, a
+  process's signal, and running a process without the shell.
 
 ## Properties and methods
 
@@ -111,6 +121,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 |---|---|---|
 | `IO(path, mode)` | | a `Result<IO, i32>`: the IO, or errno |
 | `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
+| `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
+| `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |
 | | `.string` | a `Result<String, i32>`: the same as UTF-8, or `EILSEQ` |
@@ -124,6 +136,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | | `.eof` | `true` once a read has met the end (#84) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
+| | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

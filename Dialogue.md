@@ -3103,3 +3103,16 @@ C's own calls, -1 once closed. A bad descriptor is an err, `EBADF`.
 Details are provisional P98.
 
 There are 616 tests, and all pass with clang and with gcc 15.
+
+### 118. A process and a pipe as IOs
+
+> now add opening a pipe or a process to `IO`
+
+**Claude** added #87: `IO.popen(command, mode)` runs a shell command
+as `popen` does, its output read or its input written through the IO,
+and its block, or `close()`, waits for it, after which `f.status` is
+its exit code; `IO.pipe()` gives a pipe's two ends as
+`{reader: IO, writer: IO}` in a Result, each owning its descriptor.
+Details are provisional P99.
+
+There are 619 tests, and all pass with clang and with gcc 15.

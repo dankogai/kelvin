@@ -701,6 +701,7 @@ typedef enum {
 static Type *parse_type_suffixes(Type *t, TypeContext ctx);
 static Type *parse_type_in(TypeContext ctx);
 static Type *parse_anon_record(DeclKind kind, bool tagged);
+static Type *pipe_type(Token *at);
 static Type *parse_dollar_array(Token *at);
 static Type *parse_dollar_dict(Token *at);
 static Type *dict_type(Token *at, Type *key, Type *val);
@@ -2215,13 +2216,60 @@ static Expr *parse_primary(void) {
         return e;
     }
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
-        /* IO.stdin, IO.stdout, IO.stderr (#82), also written with () */
+        /* IO.stdin, IO.stdout, IO.stderr (#82), also written with ();
+           IO.popen(command, mode), IO.pipe() (#87) */
         advance();
         advance();
         Token *n = peek();
-        char *which = expect_ident("stdin, stdout or stderr");
+        char *which = expect_ident("stdin, stdout, stderr, popen or pipe");
+        if (!strcmp(which, "popen") || !strcmp(which, "pipe")) {
+            bool process = !strcmp(which, "popen");
+            expect_p("(");
+            Expr *e = new_expr(E_CALL, t->pos);
+            e->a = new_expr(E_IDENT, t->pos);
+            e->a->text = "IO";
+            bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+            brace_ends_condition = brace_in_for = false;
+            while (!is_p(peek(), ")")) {
+                list_push(&e->items, parse_assign());
+                if (!accept_p(","))
+                    break;
+            }
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            expect_p(")");
+            if (process) {
+                if (e->items.len != 2)
+                    error_at(t->pos, "IO.popen takes a command and a mode, as in IO.popen(\"ls -l\", \"r\")");
+                for (int i = 0; i < 2; i++) {
+                    Expr *a = e->items.data[i];
+                    Type *at = value_type(a);
+                    if (is_string(at) || is_bytes(at)) {
+                        if (!owner_place(a))
+                            error_at(a->pos, "the %s of IO.popen is a %s that an expression gives: bind it to a "
+                                             "variable first",
+                                     i ? "mode" : "command", is_string(at) ? "String" : "Bytes");
+                        e->items.data[i] = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+                    } else if (at && !is_text_expr(a)) {
+                        error_at(a->pos, "the %s of IO.popen is text, a String or a Bytes, and this is %s",
+                                 i ? "mode" : "command", kelvin_type(at));
+                    }
+                }
+                e->op = "io";
+                e->text = "popen";
+                e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+            } else {
+                if (e->items.len)
+                    error_at(t->pos, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}");
+                e->op = "io_pipe";
+                e->type = variant_type(t, "res", pipe_type(t), base_type("i32", t->pos));
+            }
+            return e;
+        }
         if (strcmp(which, "stdin") && strcmp(which, "stdout") && strcmp(which, "stderr"))
-            error_at(n->pos, "IO has stdin, stdout and stderr, not '%s'; a file is IO(path, mode)", which);
+            error_at(n->pos, "IO has stdin, stdout, stderr, popen(command, mode) and pipe(), not '%s'; a file is "
+                             "IO(path, mode)",
+                     which);
         if (accept_p("("))
             expect_p(")");
         Expr *e = new_expr(E_CALL, t->pos);
@@ -3133,8 +3181,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("String", e->pos);
         if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
             return e->type;
-        if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std"))) /* IO(path, mode), IO.stdout (#82) */
-            return e->type;
+        if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe")))
+            return e->type; /* IO(path, mode), IO.stdout (#82), IO.pipe() (#87) */
         if (e->op && !strcmp(e->op, "dict")) /* Dictionary<K, V>(...) (#65) */
             return e->type;
         if (e->op && !strcmp(e->op, "set")) /* Set<T>(...) (#71) */
@@ -4363,7 +4411,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "lines") || !strcmp(member, "eof") ||
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "i64") ||
-                                          !strcmp(member, "f64") || !strcmp(member, "fd"))))) {
+                                          !strcmp(member, "f64") || !strcmp(member, "fd") ||
+                                          !strcmp(member, "status"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4385,7 +4434,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
-        else if (kk == 'i' && !strcmp(member, "fd")) /* the descriptor (#86) */
+        else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status"))) /* (#86, #87) */
             x->type = base_type("i32", name->pos);
         else if (kk == 'i' && (!strcmp(member, "byte") || !strcmp(member, "i64") || !strcmp(member, "f64")))
             /* the next byte, integer or float, or none at the end (#85) */
@@ -8063,6 +8112,35 @@ static Type *parse_anon_record(DeclKind kind, bool tagged) {
         same = d;
     }
     return base_type(tag_type_name(same), open->pos);
+}
+
+/* {reader: IO, writer: IO}, what IO.pipe() gives (#87): an untagged
+   struct, registered as one written in the program is */
+static Type *pipe_type(Token *at) {
+    const char *spelling = "{reader: IO, writer: IO}";
+    Decl *same = NULL;
+    for (int i = 0; !same && i < anon_records.len; i++)
+        if (!strcmp(((Decl *)anon_records.data[i])->spelling, spelling))
+            same = anon_records.data[i];
+    if (!same) {
+        Decl *d = new_decl(D_STRUCT, at->pos, NULL);
+        d->has_body = true;
+        static const char *names[] = {"reader", "writer"};
+        for (int i = 0; i < 2; i++) {
+            Var *m = xcalloc(1, sizeof *m);
+            m->name = (char *)names[i];
+            m->pos = at->pos;
+            m->type = base_type("IO", at->pos);
+            list_push(&d->members, m);
+        }
+        d->name = strfmt("_kv_anon%d", anon_records.len + 1);
+        d->spelling = (char *)spelling;
+        list_push(&anon_records, d);
+        list_push(&records, d);
+        list_push(&program->decls, d);
+        same = d;
+    }
+    return base_type(tag_type_name(same), at->pos);
 }
 
 static Decl *anon_record_of(Type *t) {

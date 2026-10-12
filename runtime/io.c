@@ -2,7 +2,7 @@
    block closes when it owns it (a file it opened) and flushes when it
    does not (stdin, stdout, stderr). Opening and reading whole give errno
    as the err of a Result; reading in chunks and lines are walked by for. */
-#define _POSIX_C_SOURCE 200809L /* fdopen and fileno (#86), which -std=c11 hides on glibc */
+#define _POSIX_C_SOURCE 200809L /* fdopen, fileno (#86), popen, pipe (#87), which -std=c11 hides on glibc */
 #include "kelvin_prelude.h"
 
 #include <errno.h>
@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static void kv_io_fail(const char *what) {
     fflush(stdout);
@@ -22,7 +24,8 @@ int kv_io_open(kv_io *out, const void *path, const void *mode) {
     if (!fp)
         return errno ? errno : EIO;
     out->fp = fp;
-    out->owned = true;
+    out->kind = 1;
+    out->status = -1;
     return 0;
 }
 
@@ -33,9 +36,49 @@ int kv_io_fdopen(kv_io *out, int fd, const void *mode) {
     if (!fp)
         return errno ? errno : EBADF;
     out->fp = fp;
-    out->owned = true;
+    out->kind = 1;
+    out->status = -1;
     return 0;
 }
+
+/* a process's IO (#87), as popen gives it: its block waits for the
+   process, and status is then its exit code */
+int kv_io_popen(kv_io *out, const void *command, const void *mode) {
+    FILE *fp = popen((const char *)command, (const char *)mode);
+    if (!fp)
+        return errno ? errno : EIO;
+    out->fp = fp;
+    out->kind = 2;
+    out->status = -1;
+    return 0;
+}
+
+/* a pipe (#87): its reading and its writing end, each an IO that owns
+   its descriptor */
+int kv_io_pipe(kv_io *reader, kv_io *writer) {
+    int fds[2];
+    if (pipe(fds) != 0)
+        return errno ? errno : EIO;
+    FILE *r = fdopen(fds[0], "r"), *w = r ? fdopen(fds[1], "w") : NULL;
+    if (!r || !w) {
+        int e = errno ? errno : EIO;
+        if (r)
+            fclose(r);
+        else
+            close(fds[0]);
+        close(fds[1]);
+        return e;
+    }
+    reader->fp = r;
+    reader->kind = 1;
+    reader->status = -1;
+    writer->fp = w;
+    writer->kind = 1;
+    writer->status = -1;
+    return 0;
+}
+
+int kv_io_status(kv_io *f) { return f->status; }
 
 /* the descriptor, or -1 of a closed IO */
 int kv_io_fd(kv_io *f) { return f->fp ? fileno((FILE *)f->fp) : -1; }
@@ -46,25 +89,28 @@ kv_io *kv_io_std(int which) {
         streams[0].fp = stdin;
         streams[1].fp = stdout;
         streams[2].fp = stderr;
+        streams[0].status = streams[1].status = streams[2].status = -1;
     }
     return &streams[which < 0 || which > 2 ? 0 : which];
 }
 
 void kv_io_free(kv_io *f) {
-    if (f->fp) {
-        if (f->owned)
-            fclose((FILE *)f->fp);
-        else
-            fflush((FILE *)f->fp);
+    if (f->fp && f->kind == 2) { /* a process: wait for it, and keep its exit code */
+        int st = pclose((FILE *)f->fp);
+        f->status = st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+    } else if (f->fp && f->kind == 1) {
+        fclose((FILE *)f->fp);
+    } else if (f->fp) {
+        fflush((FILE *)f->fp);
     }
     f->fp = NULL;
-    f->owned = false;
+    f->kind = 0;
 }
 
 kv_io kv_io_take(kv_io *f) {
     kv_io v = *f;
     f->fp = NULL;
-    f->owned = false;
+    f->kind = 0;
     return v;
 }
 

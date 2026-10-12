@@ -105,9 +105,16 @@ bool kv_string_eq(const kv_string *a, const kv_string *b);
    if it is stdin, stdout or stderr; opening and reading whole give errno.
    A void *, so that this header needs no <stdio.h>, whose names a program
    may declare itself */
-typedef struct kv_io { void *fp; bool owned; } kv_io;
+typedef struct kv_io {
+    void *fp;
+    int kind;   /* 0 a stream never closed, 1 a file (fclose), 2 a process (pclose) (#87) */
+    int status; /* a process's exit code once closed, else -1 */
+} kv_io;
 int kv_io_open(kv_io *out, const void *path, const void *mode);
 int kv_io_fdopen(kv_io *out, int fd, const void *mode);
+int kv_io_popen(kv_io *out, const void *command, const void *mode);
+int kv_io_pipe(kv_io *reader, kv_io *writer);
+int kv_io_status(kv_io *f);
 int kv_io_fd(kv_io *f);
 kv_io *kv_io_std(int which);
 void kv_io_free(kv_io *f);

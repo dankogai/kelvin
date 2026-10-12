@@ -511,8 +511,17 @@ static char *expr_bare(Expr *e) {
             Decl *r = kelvin_record(e->type->name);
             return strfmt("({ kv_io _kv_f = {0}; int _kv_e = %s(&_kv_f, %s, %s); _kv_e ? _kv_%s_make_err(_kv_e) : "
                           "_kv_%s_make_ok(_kv_f); })",
-                          e->text ? "kv_io_fdopen" : "kv_io_open", expr(e->items.data[0]), expr(e->items.data[1]), r->name,
-                          r->name);
+                          !e->text                    ? "kv_io_open"
+                          : !strcmp(e->text, "popen") ? "kv_io_popen" /* (#87) */
+                                                      : "kv_io_fdopen",
+                          expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
+        }
+        if (e->op && !strcmp(e->op, "io_pipe") && e->type) { /* IO.pipe() (#87): {reader, writer}, or errno */
+            Decl *r = kelvin_record(e->type->name);
+            Type *pair = ((Var *)r->members.data[0])->type;
+            return strfmt("({ %s _kv_p = {0}; int _kv_e = kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_e ? "
+                          "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_p); })",
+                          decl(pair, ""), r->name, r->name);
         }
         if (e->op && !strcmp(e->op, "io_std")) /* IO.stdin, IO.stdout, IO.stderr (#82): a place, never closed */
             return strfmt("(*kv_io_std(%d))", !strcmp(e->text, "stdin") ? 0 : !strcmp(e->text, "stdout") ? 1 : 2);
@@ -663,7 +672,8 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "array")) /* an Array (#57) */
             return strfmt("(%s).%s", recv, !strcmp(e->text, "capacity") ? "cap" : e->text);
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "eof") || !strcmp(e->text, "position") ||
-                                              !strcmp(e->text, "count") || !strcmp(e->text, "fd"))) /* (#84, #86) */
+                                              !strcmp(e->text, "count") || !strcmp(e->text, "fd") ||
+                                              !strcmp(e->text, "status"))) /* (#84, #86, #87) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
         if (e->op && !strcmp(e->op, "io") && e->type &&
             (!strcmp(e->text, "byte") || !strcmp(e->text, "i64") || !strcmp(e->text, "f64"))) {
