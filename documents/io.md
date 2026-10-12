@@ -139,8 +139,8 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
   that `IO.stdout` names in place. `fdopen`, `fileno`, `popen`,
-  `pipe`, `fork`, `execvp` and `waitpid` are POSIX, which the runtime
-  asks for; a program needs nothing.
+  `pipe`, `fork`, `execvp`, `waitpid`, `kill` and `putenv` are POSIX
+  and X/Open, which the runtime asks for; a program needs nothing.
 - **Not yet:** a `popen`'s pid, which C does not give, and an
   environment made from nothing rather than the parent's.
 

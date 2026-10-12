@@ -3208,7 +3208,9 @@ There are 623 tests, and all pass with clang and with gcc 15.
 a directory, `""` for the current one, and `IO.exec(args, mode, dir,
 env)` with `"NAME=value"` entries, a list or an Array of cstr or of
 String, added to the parent's environment; a directory that cannot be
-entered is an err, as a missing program is. Details are provisional
+entered is an err, as a missing program is. CI's Linux clang then
+refused `putenv`, which glibc hides under `_POSIX_C_SOURCE` alone, so
+the runtime asks for X/Open 700 instead. Details are provisional
 P104.
 
 There are 625 tests, and all pass with clang and with gcc 15.

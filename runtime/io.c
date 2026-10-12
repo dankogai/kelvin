@@ -2,7 +2,7 @@
    block closes when it owns it (a file it opened) and flushes when it
    does not (stdin, stdout, stderr). Opening and reading whole give errno
    as the err of a Result; reading in chunks and lines are walked by for. */
-#define _POSIX_C_SOURCE 200809L /* fdopen, fileno (#86), popen, pipe (#87), which -std=c11 hides on glibc */
+#define _XOPEN_SOURCE 700 /* fdopen, fileno (#86), popen, pipe (#87), putenv (#92): POSIX 2008 and X/Open, which -std=c11 hides on glibc */
 #include "kelvin_prelude.h"
 
 #include <errno.h>
