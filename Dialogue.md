@@ -3387,3 +3387,29 @@ terminal, and `IO.strerror(code)`, the message for an err as
 P115.
 
 There are 640 tests, and all pass with clang and with gcc 15.
+
+### 138. An open file's attributes straight
+
+> if `let res = IO(path, r)` is `ok(IO)`, `path` is guaranteed to exist
+> as of invocation. if so, why `res.ok.lstat` needs to be
+> `Result<Stat, i32>`? You should be able to go straight to `Stat`.
+> Skipping unwrapping `Result`.
+
+**Claude** agreed for `f.stat`, which goes through the descriptor, and
+noted that `f.lstat` goes by the path, which can be gone. The user
+decided for the suite:
+
+> now make `f.stat` give a `Stat` straight. Other file-attribute
+> related methods follow the suite. Note `OS.lstat(path)` is a
+> completely different story because It needs to heck the
+> accessibility of `path` for each invocation that may fail.
+
+**Claude** added #104: `f.stat` and `f.lstat` give a `Stat`, `f.abspath`
+a `String`, with no Result around them, and `f.isdir` and `f.isfile`
+read the open file. Where the path is gone, `f.lstat` is the open
+file's and `f.abspath` is `""`. `OS.stat(path)` and the rest of `OS`
+stay Results. On the way, `f.stat.size` turned out to be sizeof: a
+property that gives a struct now classes as that struct, so its fields
+win. Details are provisional P116.
+
+There are 642 tests, and all pass with clang and with gcc 15.

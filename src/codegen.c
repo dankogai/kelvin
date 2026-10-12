@@ -796,14 +796,9 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "path") || !strcmp(e->text, "isdir") ||
                                               !strcmp(e->text, "isfile") || !strcmp(e->text, "islink") ||
                                               !strcmp(e->text, "exists") || !strcmp(e->text, "basename") ||
-                                              !strcmp(e->text, "dirname") || !strcmp(e->text, "isatty"))) /* (#101, #103) */
+                                              !strcmp(e->text, "dirname") || !strcmp(e->text, "isatty") ||
+                                              !strcmp(e->text, "abspath"))) /* (#101, #103, #104) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
-        if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "abspath")) {
-            Decl *r = kelvin_record(e->type->name);
-            return strfmt("({ kv_string _kv_s = {0}; int _kv_e = kv_io_abspath((kv_io *)&%s, &_kv_s); _kv_e ? "
-                          "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_s); })",
-                          recv, r->name, r->name);
-        }
         if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "listdir") || !strcmp(e->text, "walk"))) {
             Decl *r = kelvin_record(e->type->name);
             Type *arr = ((Var *)r->members.data[0])->type;
@@ -813,18 +808,16 @@ static char *expr_bare(Expr *e) {
                           e->text, recv, arr->cname, arr->cname, r->name, r->name);
         }
         if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "stat") || !strcmp(e->text, "lstat"))) {
-            Decl *r = kelvin_record(e->type->name);
-            Type *st = ((Var *)r->members.data[0])->type;
-            Decl *sr = kelvin_record(st->name);
+            /* the runtime's kv_stat copied into the struct kelvinc wrote, member by member: a Stat straight (#104) */
+            Decl *sr = kelvin_record(e->type->name);
             Buf init = {0};
             buf_puts(&init, "");
             for (int i = 0; i < sr->members.len; i++) {
                 const char *m = ((Var *)sr->members.data[i])->name;
                 buf_printf(&init, "%s.%s = _kv_st.%s", i ? ", " : "", m, m);
             }
-            return strfmt("({ kv_stat _kv_st = {0}; int _kv_e = kv_io_%s((kv_io *)&%s, &_kv_st); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                          "_kv_%s_make_ok((%s){%s}); })",
-                          e->text, recv, r->name, r->name, decl(st, ""), init.buf);
+            return strfmt("({ kv_stat _kv_st = kv_io_%s((kv_io *)&%s); (%s){%s}; })", e->text, recv, decl(e->type, ""),
+                          init.buf);
         }
         if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "byte")) { /* f.byte (#85): the next, or none */
             Decl *r = kelvin_record(e->type->name);

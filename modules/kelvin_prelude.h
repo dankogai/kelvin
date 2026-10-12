@@ -161,12 +161,12 @@ int kv_os_stat(const void *path, kv_stat *out);
 int kv_os_lstat(const void *path, kv_stat *out);
 /* its path, and the OS's work on it (#101) */
 const uint8_t *kv_io_path(kv_io *f);
-int kv_io_abspath(kv_io *f, kv_string *out);
+kv_string kv_io_abspath(kv_io *f); /* "" where there is no path (#104) */
 int kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
 int kv_io_walk(kv_io *f, kv_string **out, size_t *count);
 int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count);
-int kv_io_stat(kv_io *f, kv_stat *out);
-int kv_io_lstat(kv_io *f, kv_stat *out);
+kv_stat kv_io_stat(kv_io *f);  /* of the open file itself: a Stat, no Result (#104) */
+kv_stat kv_io_lstat(kv_io *f); /* the path's own, else the open file's */
 bool kv_io_isdir(kv_io *f);
 bool kv_io_isfile(kv_io *f);
 bool kv_io_islink(kv_io *f);

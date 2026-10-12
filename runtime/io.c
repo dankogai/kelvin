@@ -467,7 +467,14 @@ static const char *path_of(kv_io *f) { return f->path ? f->path : ""; }
 
 const uint8_t *kv_io_path(kv_io *f) { return (const uint8_t *)path_of(f); }
 
-int kv_io_abspath(kv_io *f, kv_string *out) { return f->path ? kv_os_realpath(f->path, out) : ENOENT; }
+/* the absolute path with every link followed, "" where the IO has no
+   path, or the path is gone (#104) */
+kv_string kv_io_abspath(kv_io *f) {
+    kv_string out = {0};
+    if (f->path && kv_os_realpath(f->path, &out) == 0)
+        return out;
+    return kv_string_text("");
+}
 int kv_io_listdir(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_listdir(f->path, out, count) : ENOENT; }
 int kv_io_walk(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_walk(f->path, out, count) : ENOENT; }
 
@@ -480,33 +487,46 @@ int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count) {
     return e;
 }
 
-/* of the open file itself where there is one, as fstat sees it */
-int kv_io_stat(kv_io *f, kv_stat *out) {
-    if (f->fp) {
-        struct stat st;
-        if (fstat(fileno((FILE *)f->fp), &st) != 0)
-            return errno ? errno : EIO;
-        out->dev = (long long)st.st_dev;
-        out->ino = (long long)st.st_ino;
-        out->mode = (int)st.st_mode;
-        out->nlink = (long long)st.st_nlink;
-        out->uid = (int)st.st_uid;
-        out->gid = (int)st.st_gid;
-        out->size = (long long)st.st_size;
-        out->atime = (double)st.st_atime;
-        out->mtime = (double)st.st_mtime;
-        out->ctime = (double)st.st_ctime;
-        out->isdir = S_ISDIR(st.st_mode);
-        out->isfile = S_ISREG(st.st_mode);
-        out->islink = S_ISLNK(st.st_mode);
-        return 0;
-    }
-    return f->path ? kv_os_stat(f->path, out) : ENOENT;
+static void fill_stat(const struct stat *st, kv_stat *out) {
+    out->dev = (long long)st->st_dev;
+    out->ino = (long long)st->st_ino;
+    out->mode = (int)st->st_mode;
+    out->nlink = (long long)st->st_nlink;
+    out->uid = (int)st->st_uid;
+    out->gid = (int)st->st_gid;
+    out->size = (long long)st->st_size;
+    out->atime = (double)st->st_atime;
+    out->mtime = (double)st->st_mtime;
+    out->ctime = (double)st->st_ctime;
+    out->isdir = S_ISDIR(st->st_mode);
+    out->isfile = S_ISREG(st->st_mode);
+    out->islink = S_ISLNK(st->st_mode);
 }
 
-int kv_io_lstat(kv_io *f, kv_stat *out) { return f->path ? kv_os_lstat(f->path, out) : ENOENT; }
-bool kv_io_isdir(kv_io *f) { return f->path && kv_os_isdir(f->path); }
-bool kv_io_isfile(kv_io *f) { return f->path && kv_os_isfile(f->path); }
+/* of the open file itself, as fstat sees it: an open descriptor always
+   answers, so this is a Stat and no Result (#104); once closed, the
+   path's, and all zero where there is none */
+kv_stat kv_io_stat(kv_io *f) {
+    kv_stat out = {0};
+    struct stat st;
+    if (f->fp && fstat(fileno((FILE *)f->fp), &st) == 0)
+        fill_stat(&st, &out);
+    else if (f->path)
+        kv_os_stat(f->path, &out);
+    return out;
+}
+
+/* the path's own, a link's not its target's; the open file's where the
+   path is gone or there is none (#104) */
+kv_stat kv_io_lstat(kv_io *f) {
+    kv_stat out = {0};
+    if (f->path && kv_os_lstat(f->path, &out) == 0)
+        return out;
+    return kv_io_stat(f);
+}
+
+bool kv_io_isdir(kv_io *f) { return kv_io_stat(f).isdir; }
+bool kv_io_isfile(kv_io *f) { return kv_io_stat(f).isfile; }
 bool kv_io_islink(kv_io *f) { return f->path && kv_os_islink(f->path); }
 bool kv_io_exists(kv_io *f) { return f->path && kv_os_exists(f->path); }
 

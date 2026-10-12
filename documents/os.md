@@ -161,7 +161,8 @@ let main():i32 {
   - `OS.sep`, `OS.linesep`, `OS.devnull` and `OS.name` are `"/"`,
     `"\n"`, `"/dev/null"` and `"posix"`, `cstr`s, as Python has them.
 - **From an IO** (#101): an IO opened by path does this work on its
-  own path, `f.stat`, `f.listdir`, `f.chmod(mode)` and the rest; see
+  own path, `f.stat` (a `Stat` straight, since the open file always
+  answers, #104), `f.listdir`, `f.chmod(mode)` and the rest; see
   [io.md](io.md).
 - **Paths, names and commands** are text (a literal, a `cstr`, a
   `u8^`), or a `String` or a `Bytes` in a variable; a mode, a size, a

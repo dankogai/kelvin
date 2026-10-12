@@ -1,5 +1,6 @@
 // an IO's path (#101): f.path as given, f.abspath resolved; the OS's work
-// on it from the IO: listdir, walk, glob, stat (of the open file itself),
+// on it from the IO: listdir, walk, glob, stat (of the open file itself, a
+// Stat straight, #104),
 // lstat, isdir, isfile, islink, exists, chmod, chown, truncate, remove,
 // rename (the path follows), utime, touch, basename, dirname, join; and
 // IO(path) alone opens for reading, a directory too
@@ -11,13 +12,13 @@ let main():i32 {
         f.write("hello")
         f.flush()
         var st = f.stat
-        println(f.path, " ", st.ok.size, " ", f.isfile, " ", f.isdir, " ", f.exists, " ", f.islink)
-        println(f.chmod(384), " ", f.stat.ok.mode & 511, " ", f.truncate(2), " ", f.stat.ok.size)
+        println(f.path, " ", st.size, " ", f.isfile, " ", f.isdir, " ", f.exists, " ", f.islink)
+        println(f.chmod(384), " ", f.stat.mode & 511, " ", f.truncate(2), " ", f.stat.size)
         var base = f.basename
         var dir = f.dirname
         var joined = f.join("x")
         println(base, " ", dir, " ", joined, " ", base.typename)
-        println(f.chown(OS.uid, -1), " ", f.utime(1000000000.0, 1000000000.0), " ", f.lstat.ok.mtime, " ", f.touch())
+        println(f.chown(OS.uid, -1), " ", f.utime(1000000000.0, 1000000000.0), " ", f.lstat.mtime, " ", f.touch())
     }
     var d = IO("io_path.tmpdir")                 // a directory, opened for reading
     if let ok(dir) = d {
@@ -32,18 +33,18 @@ let main():i32 {
         var abs = dir.abspath
         var cwd = OS.cwd
         var rel = OS.join(cwd.ok, "io_path.tmpdir")
-        println(abs.ok == rel, " ", abs.typename)
+        println(abs == rel, " ", abs.typename)
     }
     var m = IO("io_path.tmpdir/sub/f.txt", "r+")
     if m.is(ok) {
         println(m.ok.rename("io_path.tmpdir/sub/g.txt"), " ", m.ok.path, " ", OS.exists("io_path.tmpdir/sub/g.txt"))
-        println(m.ok.remove(), " ", m.ok.exists, " ", m.ok.stat.ok.size)   // removed, yet open: stat sees the file
+        println(m.ok.remove(), " ", m.ok.exists, " ", m.ok.stat.size)   // removed, yet open: stat sees the file
         m.ok.close()
     }
     var out = IO.stdout
     var noPath = out.abspath
     var noDir = out.listdir
-    println(out.path.count, " ", out.exists, " ", noPath.is(err), " ", noDir.is(err))
+    println(out.path.count, " ", out.exists, " ", noPath.count == 0, " ", noDir.is(err))
     println(OS.rmdir("io_path.tmpdir/sub"), " ", OS.rmdir("io_path.tmpdir"))
     return 0
 }
@@ -57,7 +58,7 @@ let main():i32 {
 // out: io_path.tmpdir/sub
 // out: io_path.tmpdir/sub/f.txt
 // out: io_path.tmpdir/sub/f.txt
-// out: true Result<String, i32>
+// out: true String
 // out: 0 io_path.tmpdir/sub/g.txt true
 // out: 0 false 2
 // out: 0 false true true

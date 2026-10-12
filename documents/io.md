@@ -167,20 +167,26 @@ path, [os.md](os.md)'s, is done from the IO on its own:
 
 ```kelvin
 let f = try IO("./notes.txt")                 // a path alone opens for reading
-println(f.path, " ", try f.abspath)           // ./notes.txt, and /home/me/notes.txt
-let st = try f.stat                           // of the open file itself, as fstat sees it
+var abs = f.abspath                           // a String: /home/me/notes.txt
+println(f.path, " ", abs, " ", f.stat.size)   // ./notes.txt, and the open file's size, no case to unwrap (#104)
 let d = try IO(".")                           // a directory opens too
 for name in try d.listdir { println(name) }   // its names; d.walk every path under it; d.glob("*.k")
 ```
 
 - **`f.path`** is the path as given; **`f.abspath`** the absolute path
-  with every link followed, a `Result<String, i32>`; **`f.basename`**
-  and **`f.dirname`** its parts and **`f.join(name)`** a path under it,
-  each a `String`.
-- **`f.stat`** is `OS.stat` of the open file itself, through its
-  descriptor, so a file removed or renamed while open still answers;
-  **`f.lstat`** is of the path. **`f.isdir`**, **`f.isfile`**,
-  **`f.islink`** and **`f.exists`** are `OS`'s of the path.
+  with every link followed, a `String`, `""` where the IO has no path
+  or the path is gone (#104); **`f.basename`** and **`f.dirname`** its
+  parts and **`f.join(name)`** a path under it, each a `String`.
+- **`f.stat`** is the `Stat` of the open file itself, through its
+  descriptor, straight and no Result (#104): an open descriptor always
+  answers, so a file removed or renamed while open still does, and
+  `let s = f.stat` or `f.stat.size` reads it without a case. Once the
+  IO is closed it is the path's, and all zero where there is none.
+  **`f.lstat`** is the path's own, a link's not its target's, and the
+  open file's where the path is gone or there is none. **`f.isdir`** and
+  **`f.isfile`** are the open file's, as `f.stat` sees it; **`f.islink`**
+  and **`f.exists`** are `OS`'s of the path. `OS.stat(path)` stays a
+  `Result`: a path is looked up anew at each call, and may be gone.
 - **`f.listdir`**, **`f.walk`** and **`f.glob(pattern)`** are `OS`'s
   of the path, a directory's, the pattern under it.
 - **`f.chmod(mode)`**, **`f.chown(uid, gid)`** and
@@ -237,13 +243,13 @@ f.pid: i32                               // a process's id, -1 for any other IO
 f.kill(signal: i32): bool                // to a process; true when sent
 
 f.path: cstr                             // as opened with; "" for a stream, a descriptor or a process
-f.abspath: Result<String, i32>           // absolute, every link followed
+f.abspath: String                        // absolute, every link followed; "" with no path (#104)
 f.basename: String                       // after the last /
 f.dirname: String                        // before it
 f.join(name: text): String               // a path under it
-f.stat: Result<Stat, i32>                // of the open file itself, through its descriptor
-f.lstat: Result<Stat, i32>               // of the path, a link's own
-f.isdir: bool                            // of the path
+f.stat: Stat                             // of the open file itself, through its descriptor: no Result (#104)
+f.lstat: Stat                            // the path's own, a link's; the open file's where the path is gone
+f.isdir: bool                            // of the open file, as f.stat sees it
 f.isfile: bool
 f.islink: bool
 f.exists: bool
@@ -315,10 +321,10 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |
-| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `Result<String, i32>` (#101) |
+| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `String`, `""` with no path (#101, #104) |
 | | `.basename`, `.dirname`, `.join(name)` | the path's parts, a path under it, `String`s |
-| | `.stat`, `.lstat` | C's stat of the open file, of the path, a Result of a struct |
-| | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s, of the path |
+| | `.stat`, `.lstat` | C's stat of the open file, of the path's own, each a `Stat` straight, no Result (#104) |
+| | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s: of the open file, of the open file, of the path, of the path |
 | | `.listdir`, `.walk`, `.glob(pattern)` | the names, every path under it, the matches, each a `Result<Array<String>, i32>` |
 | | `.chmod(mode)`, `.chown(uid, gid)`, `.truncate(size)` | on the open file, 0 or `errno` |
 | | `.remove()`, `.rename(to)`, `.utime(atime, mtime)`, `.touch()` | on the path, 0 or `errno`; `rename` needs a var |

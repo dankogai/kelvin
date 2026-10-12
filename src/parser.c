@@ -3797,10 +3797,16 @@ static char expr_class(Expr *e, Decl **record) {
     case E_STRING:
         return 'n';
     case E_PROPERTY: /* .size, .addr, .count, .capacity, .utf32, .codepoint and .case are integers */
-        return (e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "addr") || !strcmp(e->text, "count") ||
-                       !strcmp(e->text, "capacity") || !strcmp(e->text, "utf32") || !strcmp(e->text, "codepoint")
-                   ? 'i'
-                   : 'n';
+        if ((e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "addr") ||
+            !strcmp(e->text, "count") || !strcmp(e->text, "capacity") || !strcmp(e->text, "utf32") ||
+            !strcmp(e->text, "codepoint"))
+            return 'i';
+        /* a property that gives a struct kelvinc sees, f.stat (#104): its
+           fields win over .size and the rest, as a variable's do */
+        if (e->type && type_class(e->type, record) == 's')
+            return 's';
+        *record = NULL;
+        return 'n';
     default:
         return type_class(value_type(e), record);
     }
@@ -4808,12 +4814,12 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = optional_type(name, base_type("u8", name->pos));
         else if (kk == 'i' && !strcmp(member, "path")) /* its path, and the OS's work on it (#101) */
             x->type = cstr_type(name->pos);
-        else if (kk == 'i' && !strcmp(member, "abspath"))
-            x->type = variant_type(name, "res", base_type("String", name->pos), base_type("i32", name->pos));
+        else if (kk == 'i' && !strcmp(member, "abspath")) /* a String, "" with no path (#104) */
+            x->type = base_type("String", name->pos);
         else if (kk == 'i' && (!strcmp(member, "listdir") || !strcmp(member, "walk")))
             x->type = variant_type(name, "res", array_type(name, base_type("String", name->pos)), base_type("i32", name->pos));
         else if (kk == 'i' && (!strcmp(member, "stat") || !strcmp(member, "lstat")))
-            x->type = variant_type(name, "res", stat_type(name), base_type("i32", name->pos));
+            x->type = stat_type(name); /* of the open file, which always answers: no Result (#104) */
         else if (kk == 'i' && (!strcmp(member, "isdir") || !strcmp(member, "isfile") || !strcmp(member, "islink") ||
                                !strcmp(member, "exists") || !strcmp(member, "isatty")))
             x->type = base_type("bool", name->pos), x->is_bool = true; /* isatty (#103) */
