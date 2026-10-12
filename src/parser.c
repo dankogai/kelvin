@@ -2215,6 +2215,92 @@ static Expr *parse_primary(void) {
         e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
         return e;
     }
+    if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")) {
+        /* OS.name(args) and SYS.name (#94): the system around the program,
+           and the program itself, as the prelude's namespaces */
+        static const struct { const char *ns, *name; int arity; const char *gives; } members[] = {
+            {"SYS", "argv", -1, "argv"},     {"SYS", "exit", 1, "void"},      {"SYS", "platform", -1, "cstr"},
+            {"OS", "cwd", -1, "cwd"},        {"OS", "chdir", 1, "i32"},       {"OS", "env", 1, "env"},
+            {"OS", "setenv", 2, "i32"},      {"OS", "unsetenv", 1, "i32"},    {"OS", "exists", 1, "bool"},
+            {"OS", "isdir", 1, "bool"},      {"OS", "isfile", 1, "bool"},     {"OS", "remove", 1, "i32"},
+            {"OS", "rename", 2, "i32"},      {"OS", "mkdir", 1, "i32"},       {"OS", "rmdir", 1, "i32"},
+            {"OS", "listdir", 1, "listdir"}, {"OS", "system", 1, "i32"},      {"OS", "pid", -1, "i32"},
+        };
+        bool sys = is_kw(t, "SYS");
+        advance();
+        advance();
+        Token *n = peek();
+        char *name = expect_ident(sys ? "argv, exit or platform" : "a name, as in OS.cwd");
+        int which = -1;
+        for (size_t k = 0; k < sizeof members / sizeof members[0]; k++)
+            if (!strcmp(members[k].ns, sys ? "SYS" : "OS") && !strcmp(members[k].name, name))
+                which = (int)k;
+        if (which < 0)
+            error_at(n->pos,
+                     sys ? "SYS has argv, exit(code) and platform, not '%s'"
+                         : "OS has cwd, chdir(path), env(name), setenv(name, value), unsetenv(name), exists(path), "
+                           "isdir(path), isfile(path), remove(path), rename(from, to), mkdir(path), rmdir(path), "
+                           "listdir(path), system(command) and pid, not '%s'",
+                     name);
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->op = sys ? "sys" : "os";
+        e->text = name;
+        if (members[which].arity < 0) { /* a property, also written with () */
+            if (accept_p("("))
+                expect_p(")");
+        } else {
+            if (!accept_p("("))
+                error_at(peek()->pos, "%s.%s takes %d argument%s: write %s.%s(...)", sys ? "SYS" : "OS", name,
+                         members[which].arity, members[which].arity == 1 ? "" : "s", sys ? "SYS" : "OS", name);
+            bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+            brace_ends_condition = brace_in_for = false;
+            while (!is_p(peek(), ")")) {
+                list_push(&e->items, parse_assign());
+                if (!accept_p(","))
+                    break;
+            }
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            expect_p(")");
+            if (e->items.len != members[which].arity)
+                error_at(t->pos, "%s.%s takes %d argument%s", sys ? "SYS" : "OS", name, members[which].arity,
+                         members[which].arity == 1 ? "" : "s");
+            for (int i = 0; i < e->items.len; i++) {
+                Expr *a = e->items.data[i];
+                Type *at = value_type(a);
+                if (!strcmp(name, "exit")) { /* the code, a number */
+                    if ((at && type_class(at, &(Decl *){NULL}) != 'i') || is_text_expr(a))
+                        error_at(a->pos, "SYS.exit takes the exit code, an integer");
+                    continue;
+                }
+                if (is_string(at) || is_bytes(at)) {
+                    if (!owner_place(a))
+                        error_at(a->pos, "an argument of %s.%s is a %s that an expression gives: bind it to a variable first",
+                                 sys ? "SYS" : "OS", name, is_string(at) ? "String" : "Bytes");
+                    e->items.data[i] = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+                } else if ((at && !is_text_expr(a)) || number_expr(a)) {
+                    error_at(a->pos, "an argument of %s.%s is text, a String or a Bytes, and this is %s", sys ? "SYS" : "OS",
+                             name, at ? kelvin_type(at) : "a number");
+                }
+            }
+        }
+        const char *gives = members[which].gives;
+        if (!strcmp(gives, "i32"))
+            e->type = base_type("i32", t->pos);
+        else if (!strcmp(gives, "bool"))
+            e->type = base_type("bool", t->pos), e->is_bool = true;
+        else if (!strcmp(gives, "cstr"))
+            e->type = cstr_type(t->pos);
+        else if (!strcmp(gives, "argv"))
+            e->type = array_type(t, cstr_type(t->pos));
+        else if (!strcmp(gives, "cwd"))
+            e->type = variant_type(t, "res", base_type("String", t->pos), base_type("i32", t->pos));
+        else if (!strcmp(gives, "env"))
+            e->type = optional_type(t, cstr_type(t->pos));
+        else if (!strcmp(gives, "listdir"))
+            e->type = variant_type(t, "res", array_type(t, base_type("String", t->pos)), base_type("i32", t->pos));
+        return e; /* "void": SYS.exit has no value */
+    }
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
         /* IO.stdin, IO.stdout, IO.stderr (#82), also written with ();
            IO.popen(command, mode), IO.pipe() (#87) */
@@ -3314,8 +3400,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
             return e->type;
         if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe") ||
-                      !strcmp(e->op, "io_exec")))
-            return e->type; /* IO(path, mode), IO.stdout (#82), IO.pipe() (#87), IO.exec (#90) */
+                      !strcmp(e->op, "io_exec") || !strcmp(e->op, "os") || !strcmp(e->op, "sys")))
+            return e->type; /* IO(path, mode), IO.stdout (#82), IO.pipe() (#87), IO.exec (#90), OS, SYS (#94) */
         if (e->op && !strcmp(e->op, "dict")) /* Dictionary<K, V>(...) (#65) */
             return e->type;
         if (e->op && !strcmp(e->op, "set")) /* Set<T>(...) (#71) */
@@ -7886,7 +7972,8 @@ static Stmt *parse_stmt_here(void) {
         return s;
     }
     reject_c_declaration();
-    bool call_like = (is_converter(t) && is_p(peek2(), "(")) || (is_kw(t, "IO") && is_p(peek2(), ".")); /* IO.stdout... (#82) */
+    bool call_like = (is_converter(t) && is_p(peek2(), "(")) ||
+                     ((is_kw(t, "IO") || is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")); /* IO.stdout... (#82, #94) */
     if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";
         if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT)

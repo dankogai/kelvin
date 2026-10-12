@@ -111,6 +111,9 @@ So far the changes from C are:
 - `IO` is a file as an owner, closed when its block ends: `let f = try
   IO(path, "r")`, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
   `let s = try f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
+- `OS` and `SYS` are the system and the program, as Python has them, with
+  no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,
+  `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`:
   `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`,
   `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

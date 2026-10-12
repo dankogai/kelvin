@@ -567,6 +567,35 @@ static char *expr_bare(Expr *e) {
                           "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_p); })",
                           decl(pair, ""), r->name, r->name);
         }
+        if (e->op && (!strcmp(e->op, "os") || !strcmp(e->op, "sys"))) { /* OS and SYS (#94) */
+            const char *n = e->text;
+            Buf args = {0};
+            buf_puts(&args, "");
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&args, "%s%s", i ? ", " : "", expr(e->items.data[i]));
+            if (!strcmp(n, "argv"))
+                return strfmt("%s_from((const uint8_t *const *)kv_sys_argv_p(), (size_t)kv_sys_argc_n())", e->type->cname);
+            if (!strcmp(n, "cwd")) {
+                Decl *r = kelvin_record(e->type->name);
+                return strfmt("({ kv_string _kv_s = {0}; int _kv_e = kv_os_cwd(&_kv_s); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok(_kv_s); })",
+                              r->name, r->name);
+            }
+            if (!strcmp(n, "env")) {
+                Decl *r = kelvin_record(e->type->name);
+                return strfmt("({ const uint8_t *_kv_v = kv_os_env(%s); _kv_v ? _kv_%s_make_some(_kv_v) : _kv_%s_make_none(); })",
+                              args.buf, r->name, r->name);
+            }
+            if (!strcmp(n, "listdir")) {
+                Decl *r = kelvin_record(e->type->name);
+                Type *arr = ((Var *)r->members.data[0])->type;
+                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_os_listdir(%s, &_kv_at, &_kv_n); "
+                              "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
+                              "_kv_%s_make_ok(_kv_a); })",
+                              args.buf, arr->cname, arr->cname, r->name, r->name);
+            }
+            return strfmt("kv_%s_%s(%s)", e->op, n, args.buf);
+        }
         if (e->op && !strcmp(e->op, "io_std")) /* IO.stdin, IO.stdout, IO.stderr (#82): a place, never closed */
             return strfmt("(*kv_io_std(%d))", !strcmp(e->text, "stdin") ? 0 : !strcmp(e->text, "stdout") ? 1 : 2);
         if (e->op && !strcmp(e->op, "set") && e->type) { /* Set<T>(...), ${a, b} (#71) */
@@ -1905,8 +1934,10 @@ static char *fn_head(Decl *d) {
     if (d->variadic)
         buf_puts(&params, ", ...");
     /* Kelvin's `()` means no parameters, which C spells `(void)` */
+    /* main always takes argc and argv in C, for SYS.argv (#94) */
+    bool main_fn = !d->recv && !d->anon && !strcmp(d->name, "main");
     char *inner = strfmt("%s(%s)", d->recv ? method_cname(d) : d->cname ? d->cname : d->name,
-                         params.len ? params.buf : "void");
+                         params.len ? params.buf : main_fn && d->body ? "int _kv_argc, char **_kv_argv" : "void");
     char *head = d->ret ? decl(d->ret, inner) : strfmt("void %s", inner);
     /* an anonymous function used only where C does not evaluate, as in
        sizeof, is never emitted, which C need not mention (#32) */
@@ -2658,6 +2689,11 @@ static void emit_decl(Decl *d) {
             count_names = (List){0};
             find_counts_stmt(d->body);
             param_caches.len = count_cache.len = owner_locals.len = 0;
+            if (!d->recv && !d->anon && !strcmp(d->name, "main")) /* SYS.argv (#94) */
+                list_push(&param_caches, d->params.len >= 2
+                                             ? strfmt("kv_sys_init(%s, %s);", c_name(((Var *)d->params.data[0])->name),
+                                                      c_name(((Var *)d->params.data[1])->name))
+                                             : "kv_sys_init(_kv_argc, _kv_argv);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
                 const char *frees = owner_free(p->type);

@@ -125,6 +125,27 @@ int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mo
 const char **kv_io_vector_cstrs(const uint8_t *const *at, size_t n);
 const char **kv_io_vector_strings(const kv_string *at, size_t n);
 void kv_io_vector_free(const char *const *v);
+/* ---------- OS and SYS (#94): the system, and the program ---------- */
+void kv_sys_init(int argc, char **argv);
+int kv_sys_argc_n(void);
+char **kv_sys_argv_p(void);
+const uint8_t *kv_sys_platform(void);
+void kv_sys_exit(int code);
+int kv_os_cwd(kv_string *out);
+int kv_os_chdir(const void *path);
+const uint8_t *kv_os_env(const void *name);
+int kv_os_setenv(const void *name, const void *value);
+int kv_os_unsetenv(const void *name);
+bool kv_os_exists(const void *path);
+bool kv_os_isdir(const void *path);
+bool kv_os_isfile(const void *path);
+int kv_os_remove(const void *path);
+int kv_os_rename(const void *from, const void *to);
+int kv_os_mkdir(const void *path);
+int kv_os_rmdir(const void *path);
+int kv_os_listdir(const void *path, kv_string **out, size_t *count);
+int kv_os_system(const void *command);
+int kv_os_pid(void);
 int kv_io_status(kv_io *f);
 int kv_io_signal(kv_io *f);
 bool kv_io_kill(kv_io *f, int sig);

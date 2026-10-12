@@ -21,6 +21,7 @@ its document:
 | `Result<T, U>` | [results.md](results.md#properties-and-methods) |
 | `T?` | [optionals.md](optionals.md#properties-and-methods) |
 | `IO` | [io.md](io.md#properties-and-methods) |
+| `OS`, `SYS` | [os.md](os.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
 **Where it lives:** `.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.

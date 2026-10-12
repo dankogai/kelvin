@@ -77,6 +77,7 @@ P-numbers in [Design.md](../Design.md).
 | a sentinel such as `-1` or `NULL`, or a `bool` beside the value | `i64?`: `none` or `some(3)`, `x.some` checked, `x ?? 0`, `x.is(none)`, `x == none`, `x == 3`, `x.map { $0 > 2 }`, `if let v = x { }`, `switch x { case some: ... case none: ... }` (#72, #74, #79, #80) |
 | an error code beside the value, or `errno` | `Result<i64, String>`: `ok(v)` or `err(e)`, `r.ok` checked, `r ?? 0`, `if let v = r { } else { r.err }` (#75), `if let err(e) = r { }` (#78), `r == 42`, `r == err(2)` (#79), `r.map(f)`, `r.mapErr(g)`, `r.flatMap(f)` (#80, #81); `let v = try f()` passes the `err` up (#76) |
 | `FILE *f = fopen(p, "r"); if (!f) ...; ... fclose(f);` | `let f = try IO(p, "r")`, closed when its block ends; `for line in f.lines { }`, `for chunk in f.read(4096) { }`, `let s = try f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`, `f.seek(n)`, `f.position`, `f.eof`, `i64(line)` of a line read, `IO(fd, "r")`, `f.fd`, `IO.popen("ls", "r")`, `IO.exec(["ls", "-l"], "r")`, `IO.exec(args, "r", dir, ["LC_ALL=C"])`, `IO.exec(args, "r", "", env, true)`, `p.status`, `p.signal`, `p.kill(15)`, `IO.pipe()` (#82, #83, #84, #85, #86, #87, #89, #90, #91, #92) |
+| `getcwd`, `getenv`, `stat`, `opendir` and `readdir`, `system`, `exit` | `OS.cwd`, `OS.env("HOME")`, `OS.isdir(p)`, `OS.listdir(p)`, `OS.system(cmd)`, `SYS.exit(1)`, `SYS.argv`, `SYS.platform` (#94) |
 | `return (struct point){0, 0};` | `return {0, 0}`: the list takes the result type, a Result's or Optional's value wrapped (#77) |
 | `memcpy` of a part, with its length by hand | `xs[1..<3]`, `s[2...]`, `b[..<4]`: a slice, a copy, checked (#68) |
 | `snprintf` into a buffer sized by hand, or `asprintf` | `` var s = $`${name}: ${n}` ``, a String with no bound (#67) |
@@ -95,7 +96,7 @@ Each document says so under its title. In short:
 | Home | What | Needs |
 |---|---|---|
 | the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
-| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
+| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, `OS`, `SYS`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
 | loaded explicitly | `complex64` and `complex32`; a C header's names | `#import <complex.k>`; `#import <x.h> as C` |
 
 ## The documents
@@ -109,6 +110,7 @@ Each document says so under its title. In short:
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` as a Result, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
+| [os.md](os.md) | `OS` and `SYS`: the working directory, the environment, files and directories, a shell command, the pid; the arguments, the platform, exiting |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |

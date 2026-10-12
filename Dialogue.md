@@ -3226,3 +3226,19 @@ PATH, or the system's default, so a fresh environment names the
 program by its path or sets PATH. Details are provisional P105.
 
 There are 627 tests, and all pass with clang and with gcc 15.
+
+### 127. `OS` and `SYS`
+
+> Add `OS` and `SYS` to prelude. A la Python but as a part of prelude
+> you don't have to `#import`.
+
+**Claude** added #94, in [documents/os.md](documents/os.md): `SYS`
+is the program, with `argv` as an `Array<cstr>`, `exit(code)` and
+`platform`; `OS` the system around it, with `cwd`, `chdir`, `env`,
+`setenv`, `unsetenv`, `exists`, `isdir`, `isfile`, `remove`,
+`rename`, `mkdir`, `rmdir`, `listdir`, `system` and `pid`, each C's
+call underneath and giving what C gives, Kelvinized: a `bool`, 0 or
+`errno`, an Optional, or a Result. kelvinc's C `main` now always takes
+`argc` and `argv`, for `SYS.argv`. Details are provisional P106.
+
+There are 629 tests, and all pass with clang and with gcc 15.
