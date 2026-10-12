@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -83,6 +84,98 @@ int kv_io_pipe(kv_io *reader, kv_io *writer) {
     return 0;
 }
 
+/* a program run without the shell (#90): argv[0] found on the PATH, as
+   execvp finds it, its output read ("r") or its input written ("w")
+   through a pipe; what exec itself fails with comes back as errno,
+   through a pipe closed on exec, so a missing program is ENOENT */
+int kv_io_exec(kv_io *out, const char *const *argv, const void *mode) {
+    const char *m = (const char *)mode;
+    bool reading = m[0] == 'r';
+    if ((m[0] != 'r' && m[0] != 'w') || !argv || !argv[0])
+        return EINVAL;
+    int fds[2], report[2];
+    if (pipe(fds) != 0)
+        return errno ? errno : EIO;
+    if (pipe(report) != 0 || fcntl(report[1], F_SETFD, FD_CLOEXEC) == -1) {
+        int e = errno ? errno : EIO;
+        close(fds[0]);
+        close(fds[1]);
+        return e;
+    }
+    fflush(NULL);
+    pid_t pid = fork();
+    if (pid < 0) {
+        int e = errno ? errno : EAGAIN;
+        close(fds[0]);
+        close(fds[1]);
+        close(report[0]);
+        close(report[1]);
+        return e;
+    }
+    if (pid == 0) { /* the child: its stdout, or stdin, is the pipe */
+        close(report[0]);
+        if (dup2(reading ? fds[1] : fds[0], reading ? 1 : 0) == -1)
+            _exit(127);
+        close(fds[0]);
+        close(fds[1]);
+        execvp(argv[0], (char *const *)argv);
+        int e = errno;
+        if (write(report[1], &e, sizeof e) != (ssize_t)sizeof e)
+            _exit(127);
+        _exit(127);
+    }
+    close(report[1]);
+    close(reading ? fds[1] : fds[0]);
+    int e = 0;
+    ssize_t got = read(report[0], &e, sizeof e);
+    close(report[0]);
+    if (got == (ssize_t)sizeof e) { /* exec failed: the child is gone */
+        close(reading ? fds[0] : fds[1]);
+        int st;
+        waitpid(pid, &st, 0);
+        return e ? e : EIO;
+    }
+    FILE *fp = fdopen(reading ? fds[0] : fds[1], reading ? "r" : "w");
+    if (!fp) {
+        e = errno ? errno : EIO;
+        close(reading ? fds[0] : fds[1]);
+        int st;
+        waitpid(pid, &st, 0);
+        return e;
+    }
+    out->fp = fp;
+    out->kind = 3;
+    out->status = -1;
+    out->signal = -1;
+    out->pid = pid;
+    return 0;
+}
+
+/* the same of an Array of cstr, or of String, and its count */
+int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode) {
+    const char **argv = malloc((n + 1) * sizeof *argv);
+    if (!argv)
+        return ENOMEM;
+    for (size_t i = 0; i < n; i++)
+        argv[i] = (const char *)at[i];
+    argv[n] = NULL;
+    int e = kv_io_exec(out, argv, mode);
+    free(argv);
+    return e;
+}
+
+int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode) {
+    const char **argv = malloc((n + 1) * sizeof *argv);
+    if (!argv)
+        return ENOMEM;
+    for (size_t i = 0; i < n; i++)
+        argv[i] = (const char *)kv_bytes_cstr(&at[i].b);
+    argv[n] = NULL;
+    int e = kv_io_exec(out, argv, mode);
+    free(argv);
+    return e;
+}
+
 int kv_io_status(kv_io *f) { return f->status; }
 
 int kv_io_signal(kv_io *f) { return f->signal; }
@@ -107,6 +200,15 @@ void kv_io_free(kv_io *f) {
         int st = pclose((FILE *)f->fp);
         f->status = st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
         f->signal = st == -1 ? -1 : WIFSIGNALED(st) ? WTERMSIG(st) : 0;
+    } else if (f->fp && f->kind == 3) { /* a program run without the shell (#90): the same, by its pid */
+        fclose((FILE *)f->fp);
+        int st = 0;
+        if (waitpid((pid_t)f->pid, &st, 0) == -1) {
+            f->status = f->signal = -1;
+        } else {
+            f->status = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+            f->signal = WIFSIGNALED(st) ? WTERMSIG(st) : 0;
+        }
     } else if (f->fp && f->kind == 1) {
         fclose((FILE *)f->fp);
     } else if (f->fp) {

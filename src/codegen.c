@@ -516,6 +516,25 @@ static char *expr_bare(Expr *e) {
                                                       : "kv_io_fdopen",
                           expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
         }
+        if (e->op && !strcmp(e->op, "io_exec") && e->type) { /* IO.exec(args, mode) (#90): the IO, or errno */
+            Decl *r = kelvin_record(e->type->name);
+            char *call;
+            if (!strcmp(e->text, "list")) {
+                Buf b = {0};
+                buf_puts(&b, "(const char *const[]){");
+                for (int i = 0; i < e->items.len; i++)
+                    buf_printf(&b, "(const char *)(%s), ", expr(e->items.data[i]));
+                buf_puts(&b, "NULL}");
+                call = strfmt("kv_io_exec(&_kv_f, %s, %s)", b.buf, expr(e->c));
+            } else if (!strcmp(e->text, "cstrs")) {
+                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s)", expr(e->b),
+                              expr(e->b), expr(e->c));
+            } else {
+                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s)", expr(e->b), expr(e->b), expr(e->c));
+            }
+            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = %s; _kv_e ? _kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_f); })",
+                          call, r->name, r->name);
+        }
         if (e->op && !strcmp(e->op, "io_pipe") && e->type) { /* IO.pipe() (#87): {reader, writer}, or errno */
             Decl *r = kelvin_record(e->type->name);
             Type *pair = ((Var *)r->members.data[0])->type;

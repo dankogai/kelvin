@@ -3158,3 +3158,17 @@ is no process; `status` is then -1 for a process a signal ended.
 Details are provisional P101.
 
 There are 620 tests, and all pass with clang and with gcc 15.
+
+### 122. A program without the shell
+
+> now add running a process without the shell to `IO`
+
+**Claude** added #90: `IO.exec(args, mode)` runs a program with its
+arguments as a list, `["ls", "-l"]`, or an Array of cstr or of String
+in a variable, found on the PATH, its output read or its input written
+through a pipe; a program not found is an err, `ENOENT`, since the
+child reports what exec failed with through a pipe closed on exec;
+closed, it is waited for, with `status` and `signal`. Details are
+provisional P102.
+
+There are 622 tests, and all pass with clang and with gcc 15.

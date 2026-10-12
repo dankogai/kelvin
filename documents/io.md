@@ -35,7 +35,8 @@ f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 if let b = f.byte { println(b) }              // the next byte, or none (#85)
 for line in f.lines { sum += i64(line) }      // a number is read from the text (#88)
-var ls = IO.popen("ls -l", "r")               // a process's output (#87); IO.pipe() a pipe's two ends
+var ls = IO.popen("ls -l", "r")               // a shell command's output (#87); IO.pipe() a pipe's two ends
+var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90)
 if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
@@ -58,7 +59,14 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   code, -1 before, or for an IO that is no process; `f.signal` (#89)
   is the signal that ended it, 0 when it exited on its own, -1 before
   or for an IO that is no process, and `status` is -1 for a process a
-  signal ended. `IO.pipe()` gives
+  signal ended. `IO.exec(args, mode)` (#90) runs a program without the
+  shell: `args` is the program and its arguments, a list of text,
+  `["ls", "-l"]`, or an `Array` of `cstr` or of `String` in a variable,
+  the program found on the PATH as `execvp` finds it; `mode` is `"r"`
+  to read its output or `"w"` to write its input, a `Result<IO, i32>`,
+  with what the exec itself failed with as the err, `ENOENT` for a
+  program not found. Its block, or `close()`, waits for it, and
+  `status` and `signal` are then as a `popen`'s. `IO.pipe()` gives
   a `Result<{reader: IO, writer: IO}, i32>`: a pipe's two ends, each an
   IO that owns its descriptor, so `p.ok.writer.close()` ends what the
   reader reads. `IO.stdin`, `IO.stdout` and `IO.stderr` are
@@ -116,11 +124,10 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c; the standard streams are three statics
-  that `IO.stdout` names in place. `fdopen`, `fileno`, `popen` and
-  `pipe` are POSIX, which the runtime asks for; a program needs
-  nothing.
-- **Not yet:** running a process without the shell, and sending a
-  signal to one.
+  that `IO.stdout` names in place. `fdopen`, `fileno`, `popen`,
+  `pipe`, `fork`, `execvp` and `waitpid` are POSIX, which the runtime
+  asks for; a program needs nothing.
+- **Not yet:** sending a signal to a process, and a process's `pid`.
 
 ## Properties and methods
 
@@ -129,6 +136,7 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
 | `IO(path, mode)` | | a `Result<IO, i32>`: the IO, or errno |
 | `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
 | `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
+| `IO.exec(args, mode)` | | the same of a program run without the shell, `args` a list or an Array (#90) |
 | `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |

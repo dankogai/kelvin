@@ -2221,7 +2221,75 @@ static Expr *parse_primary(void) {
         advance();
         advance();
         Token *n = peek();
-        char *which = expect_ident("stdin, stdout, stderr, popen or pipe");
+        char *which = expect_ident("stdin, stdout, stderr, popen, exec or pipe");
+        if (!strcmp(which, "exec")) {
+            /* IO.exec(args, mode) (#90): a program, no shell; args a list of
+               text, ["ls", "-l"], or an Array of cstr or of String in a
+               variable */
+            expect_p("(");
+            Expr *e = new_expr(E_CALL, t->pos);
+            e->a = new_expr(E_IDENT, t->pos);
+            e->a->text = "IO";
+            e->op = "io_exec";
+            bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+            brace_ends_condition = brace_in_for = false;
+            if (accept_p("[")) {
+                e->text = "list";
+                while (!is_p(peek(), "]")) {
+                    Expr *a = parse_assign();
+                    Type *at = value_type(a);
+                    if (is_string(at) || is_bytes(at)) {
+                        if (!owner_place(a))
+                            error_at(a->pos, "an argument of IO.exec is a %s that an expression gives: bind it to a "
+                                             "variable first",
+                                     is_string(at) ? "String" : "Bytes");
+                        a = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
+                    } else if (at && !is_text_expr(a)) {
+                        error_at(a->pos, "an argument of IO.exec is text, a String or a Bytes, and this is %s",
+                                 kelvin_type(at));
+                    }
+                    list_push(&e->items, a);
+                    if (!accept_p(","))
+                        break;
+                }
+                expect_p("]");
+                if (!e->items.len)
+                    error_at(t->pos, "IO.exec takes the program and its arguments, as in IO.exec([\"ls\", \"-l\"], \"r\")");
+            } else {
+                Expr *a = parse_assign();
+                Type *at = value_type(a);
+                if (!is_array_owner(at) || !(is_cstr(at->elem) || is_string(at->elem)))
+                    error_at(a->pos, "IO.exec takes a list of arguments, [\"ls\", \"-l\"], or an Array of cstr or of String "
+                                     "in a variable, and this is %s",
+                             at                ? kelvin_type(at)
+                             : is_text_expr(a) ? "one text: write the program and each argument apart, with no shell "
+                                                 "to split them"
+                                               : "not one");
+                if (!owner_place(a))
+                    error_at(a->pos, "the arguments of IO.exec are an Array that an expression gives: bind it to a variable "
+                                     "first");
+                e->text = is_string(at->elem) ? "strings" : "cstrs";
+                e->b = a;
+            }
+            if (!accept_p(","))
+                error_at(peek()->pos, "IO.exec takes the arguments and then a mode, \"r\" or \"w\"");
+            Expr *m = parse_assign();
+            Type *mt = value_type(m);
+            if (is_string(mt) || is_bytes(mt)) {
+                if (!owner_place(m))
+                    error_at(m->pos, "the mode of IO.exec is a %s that an expression gives: bind it to a variable first",
+                             is_string(mt) ? "String" : "Bytes");
+                m = property(m, &(Token){.kind = TK_IDENT, .pos = m->pos, .text = "cstr"}, "cstr");
+            } else if (mt && !is_text_expr(m)) {
+                error_at(m->pos, "the mode of IO.exec is text, \"r\" or \"w\", and this is %s", kelvin_type(mt));
+            }
+            e->c = m;
+            brace_ends_condition = saved_brace;
+            brace_in_for = saved_for;
+            expect_p(")");
+            e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+            return e;
+        }
         if (!strcmp(which, "popen") || !strcmp(which, "pipe")) {
             bool process = !strcmp(which, "popen");
             expect_p("(");
@@ -2267,8 +2335,8 @@ static Expr *parse_primary(void) {
             return e;
         }
         if (strcmp(which, "stdin") && strcmp(which, "stdout") && strcmp(which, "stderr"))
-            error_at(n->pos, "IO has stdin, stdout, stderr, popen(command, mode) and pipe(), not '%s'; a file is "
-                             "IO(path, mode)",
+            error_at(n->pos, "IO has stdin, stdout, stderr, popen(command, mode), exec(args, mode) and pipe(), not "
+                             "'%s'; a file is IO(path, mode)",
                      which);
         if (accept_p("("))
             expect_p(")");
@@ -3181,8 +3249,9 @@ static Type *value_type_of(Expr *e) {
             return base_type("String", e->pos);
         if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
             return e->type;
-        if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe")))
-            return e->type; /* IO(path, mode), IO.stdout (#82), IO.pipe() (#87) */
+        if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe") ||
+                      !strcmp(e->op, "io_exec")))
+            return e->type; /* IO(path, mode), IO.stdout (#82), IO.pipe() (#87), IO.exec (#90) */
         if (e->op && !strcmp(e->op, "dict")) /* Dictionary<K, V>(...) (#65) */
             return e->type;
         if (e->op && !strcmp(e->op, "set")) /* Set<T>(...) (#71) */
