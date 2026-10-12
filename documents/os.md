@@ -126,7 +126,10 @@ let main():i32 {
 - **`OS.pid`** is the process id, an `i32`.
 - **The rest of Python's `os`** (#102), what C gives plainly:
   - `OS.strerror(code)` is the message for an `errno`, a `String`, so
-    `println(OS.strerror(r.err))` needs no `#import`.
+    no `#import` is needed to show one: `var why = OS.strerror(r.err)`,
+    then `println(why)`, since a String an expression gives is bound
+    before it is printed. `IO.strerror(code)` is the same, from `IO`
+    (#103).
   - `OS.environ` is every `"NAME=value"` of the environment, a
     `Result<Array<String>, i32>`; `OS.euid` and `OS.egid` the
     effective ids, `OS.groups` the groups the user is in, a

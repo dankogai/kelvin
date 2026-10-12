@@ -269,6 +269,7 @@ void kv_io_write_owned_bytes(kv_io *f, kv_bytes b);
 void kv_io_write_owned_string(kv_io *f, kv_string s);
 void *kv_io_fp(kv_io *f);
 bool kv_io_eof(kv_io *f);
+bool kv_io_isatty(kv_io *f);
 long long kv_io_position(kv_io *f);
 long long kv_io_count(kv_io *f);
 bool kv_io_seek(kv_io *f, long long offset);

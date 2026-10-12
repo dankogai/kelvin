@@ -796,7 +796,7 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "path") || !strcmp(e->text, "isdir") ||
                                               !strcmp(e->text, "isfile") || !strcmp(e->text, "islink") ||
                                               !strcmp(e->text, "exists") || !strcmp(e->text, "basename") ||
-                                              !strcmp(e->text, "dirname"))) /* its path, and the OS's work (#101) */
+                                              !strcmp(e->text, "dirname") || !strcmp(e->text, "isatty"))) /* (#101, #103) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
         if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "abspath")) {
             Decl *r = kelvin_record(e->type->name);

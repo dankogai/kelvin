@@ -2417,7 +2417,25 @@ static Expr *parse_primary(void) {
         advance();
         advance();
         Token *n = peek();
-        char *which = expect_ident("stdin, stdout, stderr, popen, exec or pipe");
+        char *which = expect_ident("stdin, stdout, stderr, popen, exec, pipe or strerror");
+        if (!strcmp(which, "strerror")) {
+            /* IO.strerror(code) (#103): the message for an err, as OS.strerror is */
+            expect_p("(");
+            Expr *e = new_expr(E_CALL, t->pos);
+            e->op = "os";
+            e->text = "strerror";
+            e->a = new_expr(E_IDENT, t->pos);
+            e->a->text = "string";
+            Expr *code = parse_assign();
+            Type *ct = value_type(code);
+            Decl *cr;
+            if ((ct && type_class(ct, &cr) != 'i') || is_text_expr(code))
+                error_at(code->pos, "IO.strerror takes an err, an integer, as in IO.strerror(r.err)");
+            list_push(&e->items, code);
+            expect_p(")");
+            e->type = base_type("String", t->pos);
+            return e;
+        }
         if (!strcmp(which, "exec")) {
             /* IO.exec(args, mode) (#90): a program, no shell; args a list of
                text, ["ls", "-l"], or an Array of cstr or of String in a
@@ -2595,8 +2613,8 @@ static Expr *parse_primary(void) {
             return e;
         }
         if (strcmp(which, "stdin") && strcmp(which, "stdout") && strcmp(which, "stderr"))
-            error_at(n->pos, "IO has stdin, stdout, stderr, popen(command, mode), exec(args, mode) and pipe(), not "
-                             "'%s'; a file is IO(path, mode)",
+            error_at(n->pos, "IO has stdin, stdout, stderr, popen(command, mode), exec(args, mode), pipe() and "
+                             "strerror(err), not '%s'; a file is IO(path, mode)",
                      which);
         if (accept_p("("))
             expect_p(")");
@@ -4761,7 +4779,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "lstat") || !strcmp(member, "isdir") ||
                                           !strcmp(member, "isfile") || !strcmp(member, "islink") ||
                                           !strcmp(member, "exists") || !strcmp(member, "basename") ||
-                                          !strcmp(member, "dirname"))))) {
+                                          !strcmp(member, "dirname") || !strcmp(member, "isatty"))))) {
         /* a Bytes (#54): its count and capacity, its bytes, its text as a
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
@@ -4797,8 +4815,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         else if (kk == 'i' && (!strcmp(member, "stat") || !strcmp(member, "lstat")))
             x->type = variant_type(name, "res", stat_type(name), base_type("i32", name->pos));
         else if (kk == 'i' && (!strcmp(member, "isdir") || !strcmp(member, "isfile") || !strcmp(member, "islink") ||
-                               !strcmp(member, "exists")))
-            x->type = base_type("bool", name->pos), x->is_bool = true;
+                               !strcmp(member, "exists") || !strcmp(member, "isatty")))
+            x->type = base_type("bool", name->pos), x->is_bool = true; /* isatty (#103) */
         else if (kk == 'i' && (!strcmp(member, "basename") || !strcmp(member, "dirname")))
             x->type = base_type("String", name->pos);
         if ((kk == 'd' && (!strcmp(member, "keys") || !strcmp(member, "values"))) ||

@@ -45,7 +45,7 @@ f.flush()
 let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
 let raw = try f.bytes                     // as a Bytes
 IO.stderr.write("warning\n")              // never closed; also IO.stdin, IO.stdout
-if let err(e) = IO("missing", "r") { println(strerror(e)) }
+if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   // the err's message (#103)
 ```
 
 - **Making one:** `IO(path, mode)` opens as `fopen` does, with C's modes
@@ -126,6 +126,12 @@ if let err(e) = IO("missing", "r") { println(strerror(e)) }
   `IO.stderr.println("warning: ", n)`; see
   [printing.md](printing.md). `f.flush()` flushes. Writing
   to a closed IO ends the program.
+- **`f.isatty`** (#103) is whether the IO's descriptor is a terminal,
+  as C's `isatty` says: `false` for a file, a pipe, a process, a
+  closed IO, and a stream that is redirected. **`IO.strerror(code)`**
+  is the message for an `err`, a `String`, the same as
+  `OS.strerror`, so a program reading a `Result` of `IO(...)` need not
+  go to `OS` for it.
 - **The position** (#84): `f.position` is the offset from the start in
   bytes, an `i64`, and `f.count` the file's length, both -1 where the
   stream has none, as a pipe; `f.seek(n)` moves to byte `n` from the
@@ -206,6 +212,7 @@ IO.exec(args: [text], mode: text, dir: text): Result<IO, i32>   // run in a dire
 IO.exec(args: [text], mode: text, dir: text, env: [text]): Result<IO, i32>   // with "NAME=value" entries added
 IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): Result<IO, i32>   // true: those entries alone
 IO.pipe(): Result<{reader: IO, writer: IO}, i32>  // a pipe's two ends
+IO.strerror(code: i32): String                    // the message for an err
 
 f.bytes: Result<Bytes, i32>              // the rest of the file, as bytes
 f.string: Result<String, i32>            // the same as UTF-8; EILSEQ when it is not
@@ -218,6 +225,7 @@ f.println(a, b, ...)                     // as println
 f.flush()
 f.close()                                // now; needs the var that owns the IO
 f.eof: bool                              // true once a read has met the end
+f.isatty: bool                           // its descriptor is a terminal
 f.position: i64                          // the offset in bytes, -1 where the stream has none
 f.count: i64                             // the length in bytes, -1 where the stream has none
 f.seek(offset: i64): bool                // from the start; false where it could not
@@ -291,6 +299,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | `IO.exec(args, mode, dir, env, fresh)` | | the same, with the entries as the whole environment when `fresh` is `true` (#93) |
 | `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
+| `IO.strerror(code)` | | the message for an `err`, a `String` (#103) |
 | an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |
 | | `.string` | a `Result<String, i32>`: the same as UTF-8, or `EILSEQ` |
 | | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
@@ -300,6 +309,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |
 | | `.byte` | the next byte, a `u8?`, `none` at the end (#85) |
 | | `.eof` | `true` once a read has met the end (#84) |
+| | `.isatty` | its descriptor is a terminal (#103) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
 | | `.status` | a process's exit code once closed, else -1 (#87) |

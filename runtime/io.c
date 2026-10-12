@@ -353,6 +353,9 @@ bool kv_io_read_byte(kv_io *f, uint8_t *out) {
     return true;
 }
 
+/* whether its descriptor is a terminal (#103); false once closed */
+bool kv_io_isatty(kv_io *f) { return f->fp && isatty(fileno((FILE *)f->fp)) == 1; }
+
 /* the FILE for print and println (#83) */
 void *kv_io_fp(kv_io *f) { return open_fp(f, "printing to a closed IO"); }
 

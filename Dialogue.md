@@ -3376,3 +3376,14 @@ glibc keeps for `_DEFAULT_SOURCE`, which the runtime now defines
 beside `_XOPEN_SOURCE`. Details are provisional P114.
 
 There are 639 tests, and all pass with clang and with gcc 15.
+
+### 137. `isatty`, and `strerror` from `IO`
+
+> now add `IO.isatty` and `IO.strerror` for its err to `IO`
+
+**Claude** added #103: `f.isatty`, whether an IO's descriptor is a
+terminal, and `IO.strerror(code)`, the message for an err as
+`OS.strerror` gives it, reachable from `IO`. Details are provisional
+P115.
+
+There are 640 tests, and all pass with clang and with gcc 15.
