@@ -184,6 +184,8 @@ int kv_os_walk(const void *path, kv_string **out, size_t *count);
 int kv_os_glob(const void *pattern, kv_string **out, size_t *count);
 int kv_os_mkstemp(const void *prefix, kv_io *io, kv_string *path);
 int kv_os_mkdtemp(const void *prefix, kv_string *out);
+int kv_os_utime(const void *path, double atime, double mtime);
+int kv_os_touch(const void *path);
 int kv_io_status(kv_io *f);
 int kv_io_signal(kv_io *f);
 bool kv_io_kill(kv_io *f, int sig);

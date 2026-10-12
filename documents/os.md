@@ -103,6 +103,11 @@ let main():i32 {
   the same way, a `Result<String, i32>`. Both are made in `OS.tmpdir`,
   unless the prefix names a place with a `/` in it, as `"./build_"`
   does.
+- **A file's times** (#98): `OS.utime(path, atime, mtime)` sets when
+  a file was last read and last written, in seconds since the epoch as
+  `stat` gives them, a fraction allowed; `OS.touch(path)` sets both to
+  now, and makes the file, empty, when it is missing, as the command
+  does; each 0 or `errno`.
 - **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
   with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
   allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
@@ -119,10 +124,10 @@ let main():i32 {
   `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
   `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
   `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
-  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `system`, `kill`, `umask`, `getpid` and its kin,
+  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `utimensat`, `system`, `kill`, `umask`, `getpid` and its kin,
   `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
   runtime/os.c, which asks for POSIX; a program needs nothing.
-- **Not yet:** setting a file's times.
+- **Not yet:** a file's owner, and what Python's `os` has beyond these.
 
 ## Properties and methods
 
@@ -153,6 +158,7 @@ let main():i32 {
 | | `.tmpdir` | the directory for temporary files, a `cstr` |
 | | `.mkstemp(prefix)` | a temporary file, made and opened, a `Result<{io: IO, path: String}, i32>` (#97) |
 | | `.mkdtemp(prefix)` | a temporary directory, its path, a `Result<String, i32>` |
+| | `.utime(path, atime, mtime)`, `.touch(path)` | sets a file's times; both to now, making the file (#98) |
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 

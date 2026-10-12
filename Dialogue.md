@@ -3282,3 +3282,14 @@ opens it, an IO with its path in a struct the Result owns;
 P109.
 
 There are 633 tests, and all pass with clang and with gcc 15.
+
+### 131. A file's times
+
+> now add setting a file's times to `OS`
+
+**Claude** added #98: `OS.utime(path, atime, mtime)` sets a file's
+times in seconds since the epoch, as `stat` gives them, and
+`OS.touch(path)` sets both to now, making the file when it is
+missing. Details are provisional P110.
+
+There are 634 tests, and all pass with clang and with gcc 15.

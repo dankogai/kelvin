@@ -169,6 +169,7 @@ int kv_os_system(const void *command) {
 int kv_os_pid(void) { return (int)getpid(); }
 
 /* ---------- more of OS (#95) ---------- */
+#include <fcntl.h>
 #include <glob.h>
 #include <pwd.h>
 #include <signal.h>
@@ -489,4 +490,30 @@ int kv_os_mkdtemp(const void *prefix, kv_string *out) {
     *out = kv_string_text(t);
     free(t);
     return 0;
+}
+
+/* ---------- a file's times (#98) ---------- */
+
+static struct timespec at_seconds(double s) {
+    struct timespec ts;
+    ts.tv_sec = (time_t)s;
+    ts.tv_nsec = (long)((s - (double)ts.tv_sec) * 1e9);
+    if (ts.tv_nsec < 0)
+        ts.tv_nsec = 0;
+    return ts;
+}
+
+int kv_os_utime(const void *path, double atime, double mtime) {
+    struct timespec ts[2] = {at_seconds(atime), at_seconds(mtime)};
+    return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
+}
+
+/* both times now, and the file made if it is missing, as touch does */
+int kv_os_touch(const void *path) {
+    int fd = open((const char *)path, O_WRONLY | O_CREAT, 0666);
+    if (fd < 0)
+        return err_or(EIO);
+    close(fd);
+    struct timespec ts[2] = {{0, UTIME_NOW}, {0, UTIME_NOW}};
+    return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
 }
