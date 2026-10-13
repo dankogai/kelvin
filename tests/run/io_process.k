@@ -23,10 +23,8 @@ let main():i32 {
         println(w.ok.status)
     }
     var back = IO(path, "r")
-    if let ok(f) = back {
-        for line in f.lines { println(line) }
-        println(f.status)                   // not a process
-    }
+    for line in back.lines { println(line) }
+    println(back.status)                    // not a process
     var pipe = IO.pipe()
     if let ok(ends) = pipe {
         println(pipe.typename, " ", ends.reader.fd >= 0, " ", ends.writer.fd >= 0)

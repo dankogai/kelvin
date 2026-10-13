@@ -507,16 +507,15 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
-        if (e->op && !strcmp(e->op, "io") && e->type) { /* IO(path, mode) (#82), IO(fd, mode) (#86): the IO, or errno */
+        if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) { /* IO.popen (#87): the IO, or errno */
             Decl *r = kelvin_record(e->type->name);
-            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = %s(&_kv_f, %s, %s); _kv_e ? _kv_%s_make_err(_kv_e) : "
+            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = kv_io_popen(&_kv_f, %s, %s); _kv_e ? _kv_%s_make_err(_kv_e) : "
                           "_kv_%s_make_ok(_kv_f); })",
-                          !e->text                    ? "kv_io_open"
-                          : !strcmp(e->text, "popen") ? "kv_io_popen" /* (#87) */
-                                                      : "kv_io_fdopen",
-                          expr(e->items.data[0]), e->items.len > 1 ? expr(e->items.data[1]) : "\"r\"" /* (#101) */,
-                          r->name, r->name);
+                          expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
         }
+        if (e->op && !strcmp(e->op, "io") && e->type) /* IO(path, mode) (#82), IO(fd, mode) (#86): the IO, straight (#109) */
+            return strfmt("%s(%s, %s)", e->text ? "kv_io_fdopen" : "kv_io_open", expr(e->items.data[0]),
+                          e->items.len > 1 ? expr(e->items.data[1]) : "\"r\"" /* (#101) */);
         if (e->op && !strcmp(e->op, "io_exec") && e->type) {
             /* IO.exec(args, mode, dir, env) (#90, #92): the IO, or errno; an
                Array's environment is a vector made and freed around the call */
@@ -791,6 +790,7 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "eof") || !strcmp(e->text, "position") ||
                                               !strcmp(e->text, "count") || !strcmp(e->text, "fd") ||
                                               !strcmp(e->text, "status") || !strcmp(e->text, "signal") ||
+                                              !strcmp(e->text, "error") ||
                                               !strcmp(e->text, "pid"))) /* (#84, #86, #87, #89, #91) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
         if (e->op && !strcmp(e->op, "io") && (!strcmp(e->text, "path") || !strcmp(e->text, "isdir") ||

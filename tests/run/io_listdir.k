@@ -5,16 +5,16 @@
 // nothing, gives none
 let main():i32 {
     println(OS.makedirs("io_listdir.tmpdir/sub"))
-    var w = IO("io_listdir.tmpdir/sub/f.txt", "w")
-    if let ok(f) = w {
+    var f = IO("io_listdir.tmpdir/sub/f.txt", "w")
+    if f.error == 0 {
         f.write("x")
         var names = f.listdir                    // a file: no names
         var under = f.walk
         var none = f.glob("*")
         println(names.count, " ", under.count, " ", none.count, " ", names.typename)
     }
-    var d = IO("io_listdir.tmpdir")
-    if let ok(dir) = d {
+    var dir = IO("io_listdir.tmpdir")
+    if dir.error == 0 {
         var names = dir.listdir
         for n in names { print("[", n, "]") }
         println()

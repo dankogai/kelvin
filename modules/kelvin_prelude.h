@@ -112,9 +112,11 @@ typedef struct kv_io {
     int signal; /* the signal that ended a process, once closed, 0 when none, else -1 (#89) */
     long pid;   /* a process run without the shell (#90), waited for when closed */
     char *path; /* the path it was opened with (#101), freed with it; NULL for a stream or a process */
+    int error;  /* the errno of an open that failed (#109), 0 otherwise; such an IO is as a closed one */
 } kv_io;
-int kv_io_open(kv_io *out, const void *path, const void *mode);
-int kv_io_fdopen(kv_io *out, int fd, const void *mode);
+kv_io kv_io_open(const void *path, const void *mode); /* the IO straight (#109), .error set when it did not open */
+kv_io kv_io_fdopen(int fd, const void *mode);
+int kv_io_error(kv_io *f);
 int kv_io_popen(kv_io *out, const void *command, const void *mode);
 int kv_io_pipe(kv_io *reader, kv_io *writer);
 int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,

@@ -4,8 +4,8 @@
 #import <errno.h> as C
 let main():i32 {
     var f = IO("io_isatty.k.none", "r")
-    if let err(e) = f {
-        var why = IO.strerror(e)
+    if f.error != 0 {                            // the IO straight; the open's errno (#109)
+        var why = IO.strerror(f.error)
         println(why)
     }
     var msg = IO.strerror(ENOENT)

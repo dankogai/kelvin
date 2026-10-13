@@ -8,7 +8,8 @@ let main():i32 {
     let dir := "os_more.tmpdir"
     println(OS.makedirs("os_more.tmpdir/a/b"), " ", OS.isdir("os_more.tmpdir/a/b"), " ", OS.makedirs("os_more.tmpdir/a"))
     var f = IO("os_more.tmpdir/a/b/f.txt", "w")
-    if f.is(ok) { f.ok.write("12345"); f.ok.close() }
+    f.write("12345")
+    f.close()
     var st = OS.stat("os_more.tmpdir/a/b/f.txt")
     if let ok(s) = st {
         println(s.size, " ", s.isfile, " ", s.isdir, " ", s.islink, " ", s.nlink, " ", s.mtime > 1.0e9, " ", s.uid == OS.uid,

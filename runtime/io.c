@@ -37,30 +37,40 @@ static char *copy_text(const void *s) {
     return c;
 }
 
-int kv_io_open(kv_io *out, const void *path, const void *mode) {
+/* a file's IO, straight (#109): when the open failed, an IO with no
+   stream and the errno in .error, which .fd == -1 and the reads treat
+   as a closed IO; the path is kept either way, for f.path and for the
+   message of a read or a write that meets it */
+kv_io kv_io_open(const void *path, const void *mode) {
+    kv_io f = {0};
+    f.status = f.signal = -1;
+    f.path = copy_text(path); /* kept for f.path and the OS's work on it (#101) */
     FILE *fp = fopen((const char *)path, (const char *)mode);
-    if (!fp)
-        return errno ? errno : EIO;
-    out->fp = fp;
-    out->kind = 1;
-    out->status = -1;
-    out->signal = -1;
-    out->path = copy_text(path); /* kept for f.path and the OS's work on it (#101) */
-    return 0;
+    if (!fp) {
+        f.error = errno ? errno : EIO;
+        return f;
+    }
+    f.fp = fp;
+    f.kind = 1;
+    return f;
 }
 
 /* a file descriptor's IO (#86), as fdopen gives it, owned: its block
    closes the descriptor too */
-int kv_io_fdopen(kv_io *out, int fd, const void *mode) {
+kv_io kv_io_fdopen(int fd, const void *mode) {
+    kv_io f = {0};
+    f.status = f.signal = -1;
     FILE *fp = fdopen(fd, (const char *)mode);
-    if (!fp)
-        return errno ? errno : EBADF;
-    out->fp = fp;
-    out->kind = 1;
-    out->status = -1;
-    out->signal = -1;
-    return 0;
+    if (!fp) {
+        f.error = errno ? errno : EBADF;
+        return f;
+    }
+    f.fp = fp;
+    f.kind = 1;
+    return f;
 }
+
+int kv_io_error(kv_io *f) { return f->error; }
 
 /* a shell command's IO (#87): /bin/sh -c command, through the fork and
    exec of IO.exec (#100), so that its pid is known and kill reaches it,
@@ -301,9 +311,21 @@ void kv_io_flush(kv_io *f) {
         fflush((FILE *)f->fp);
 }
 
+/* the stream, or the end of the program: of an IO that did not open
+   (#109), with the open's reason, so that a program that did not ask
+   f.error still learns it */
 static FILE *open_fp(const kv_io *f, const char *what) {
-    if (!f->fp)
-        kv_io_fail(what);
+    if (!f->fp) {
+        if (f->error) {
+            char msg[4096 + 256];
+            snprintf(msg, sizeof msg, "%s: %s (%s an IO that did not open; ask f.error first)",
+                     f->path ? f->path : "a descriptor", strerror(f->error), what);
+            kv_io_fail(msg);
+        }
+        char msg[256];
+        snprintf(msg, sizeof msg, "%s a closed IO", what);
+        kv_io_fail(msg);
+    }
     return (FILE *)f->fp;
 }
 
@@ -346,7 +368,7 @@ void kv_io_rewind(kv_io *f) {
 /* one byte (#85); false at the end. Numbers are read as a line or the
    whole text, and converted: scanf is no reader for Kelvin (#88) */
 bool kv_io_read_byte(kv_io *f, uint8_t *out) {
-    int c = fgetc(open_fp(f, "reading a closed IO"));
+    int c = fgetc(open_fp(f, "reading"));
     if (c == EOF)
         return false;
     *out = (uint8_t)c;
@@ -357,7 +379,7 @@ bool kv_io_read_byte(kv_io *f, uint8_t *out) {
 bool kv_io_isatty(kv_io *f) { return f->fp && isatty(fileno((FILE *)f->fp)) == 1; }
 
 /* the FILE for print and println (#83) */
-void *kv_io_fp(kv_io *f) { return open_fp(f, "printing to a closed IO"); }
+void *kv_io_fp(kv_io *f) { return open_fp(f, "printing to"); }
 
 /* the rest of the file, a Bytes straight (#107): what was read before a
    stream stopped answering, as a directory does on Linux, the error
@@ -388,7 +410,7 @@ kv_string kv_io_read_string(kv_io *f) {
 
 /* the next n bytes at most into buf, which the loop owns; false at the end */
 bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf) {
-    FILE *fp = open_fp(f, "reading a closed IO");
+    FILE *fp = open_fp(f, "reading");
     kv_bytes_clear(buf);
     uint8_t tmp[4096];
     while (buf->count < n) {
@@ -404,7 +426,7 @@ bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf) {
 /* the next line, without its newline, into line, which the loop owns;
    false at the end; a line that is not UTF-8 aborts, as a String does */
 bool kv_io_read_line(kv_io *f, kv_string *line) {
-    FILE *fp = open_fp(f, "reading a closed IO");
+    FILE *fp = open_fp(f, "reading");
     kv_bytes b = kv_bytes_new();
     int c;
     bool any = false;
@@ -428,12 +450,12 @@ bool kv_io_read_line(kv_io *f, kv_string *line) {
 }
 
 void kv_io_write_text(kv_io *f, const void *s) {
-    FILE *fp = open_fp(f, "writing a closed IO");
+    FILE *fp = open_fp(f, "writing");
     fputs((const char *)s, fp);
 }
 
 void kv_io_write_bytes(kv_io *f, const kv_bytes *b) {
-    FILE *fp = open_fp(f, "writing a closed IO");
+    FILE *fp = open_fp(f, "writing");
     if (b->count)
         fwrite(b->at, 1, b->count, fp);
 }

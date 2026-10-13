@@ -4,15 +4,15 @@
 #import <stdio.h> as C
 let path := "io_read_number.tmp"
 let fill():Result<i64, i32> {
-    let f = try IO(path, "w")
+    let f = IO(path, "w")
     f.print("ab\n42\n-7\n3.5\nx\n9")
     return 0
 }
 let main():i32 {
     var w = fill()
     println(w.cstr)
-    var r = IO(path, "r")
-    if let ok(f) = r {
+    var f = IO(path, "r")
+    if f.error == 0 {
         var b1 = f.byte
         var b2 = f.byte
         var b3 = f.byte

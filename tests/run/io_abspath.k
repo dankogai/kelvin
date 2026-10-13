@@ -3,8 +3,8 @@
 // new name and a removed one by the name it had; "" where neither the path
 // nor the descriptor answers, as of a pipe
 let main():i32 {
-    var w = IO("io_abspath.tmp", "w")
-    if let ok(f) = w {
+    var f = IO("io_abspath.tmp", "w")
+    if f.error == 0 {
         f.write("x")
         f.flush()
         var cwd = OS.cwd

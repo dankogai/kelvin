@@ -5,7 +5,7 @@
 struct point { x: i32; y: i32 }
 let path := "io_print.tmp"
 let write_it():Result<i64, i32> {
-    let f = try IO(path, "w")
+    let f = IO(path, "w")
     let p:point = {3, 4}
     var s = $"héllo"
     var b = Bytes("raw")
@@ -20,8 +20,8 @@ let write_it():Result<i64, i32> {
 let main():i32 {
     var w = write_it()
     println(w.cstr)
-    var r = IO(path, "r")
-    if let ok(f) = r {
+    var f = IO(path, "r")
+    if f.error == 0 {
         for line in f.lines { println("[", line, "]") }
     }
     IO.stderr.println("to stderr ", 1)

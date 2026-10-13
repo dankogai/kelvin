@@ -12,14 +12,17 @@ rules are in [ownership.md](ownership.md), Results in
 
 ```kelvin
 let count(path:cstr):Result<i64, i32> {
-    let f = try IO(path, "r")            // the IO, or return the errno
+    let f = IO(path, "r")                // the IO, straight (#109)
+    if f.error != 0 { return err(f.error) }   // the errno when it did not open, passed up
     var n:i64 = 0
     for line in f.lines { n += 1 }       // each line, a String, without its newline
     return n                              // f closes here
 }
 let copy(from:cstr, to:cstr):Result<i64, i32> {
-    let src = try IO(from, "r")
-    let dst = try IO(to, "w")
+    let src = IO(from, "r")
+    let dst = IO(to, "w")
+    if src.error != 0 { return err(src.error) }
+    if dst.error != 0 { return err(dst.error) }
     var total:i64 = 0
     for chunk in src.read(4096) {        // the next 4096 bytes at most, a Bytes
         dst.write(&chunk)
@@ -27,7 +30,7 @@ let copy(from:cstr, to:cstr):Result<i64, i32> {
     }
     return total
 }
-let f = try IO("log.txt", "a")
+let f = IO("log.txt", "a")                // straight; f.error is the errno when it did not open (#109)
 f.write("started\n")                      // text
 f.write(&name)                            // a borrow of a String or a Bytes
 f.write($`${n} items\n`)                  // a String an expression gives, written and freed
@@ -45,17 +48,23 @@ f.flush()
 let text = f.string                       // the rest of the file as a String, straight (#107); not UTF-8 ends the program
 let raw = f.bytes                         // as a Bytes, whatever it holds
 IO.stderr.write("warning\n")              // never closed; also IO.stdin, IO.stdout
-if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   // the err's message (#103)
+var m = IO("missing", "r")
+if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error's message (#103)
 ```
 
 - **Making one:** `IO(path, mode)` opens as `fopen` does, with C's modes
   (`"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...), `"r"` when the mode is
-  left out, `IO(path)` (#101), and gives a
-  `Result<IO, i32>`: the IO, or `errno` as `fopen` left it. `path` and
-  `mode` are text (a literal, a `cstr`, a `u8^`), a `String` or a
-  `Bytes` in a variable. `IO(fd, mode)` (#86), with a number first,
-  opens a file descriptor as `fdopen` does, and owns it: its block
-  closes the descriptor too; `f.fd` is an IO's descriptor, an `i32`,
+  left out, `IO(path)` (#101), and gives the IO straight (#109): when
+  the open failed, `f.error` is the `errno` as `fopen` left it, 0
+  otherwise, and the IO is as a closed one, `f.fd` -1, its path kept,
+  its whole-file reads and its attributes none, while reading it by
+  `f.lines` or `f.read(n)`, or writing to it, ends the program with the
+  path and the reason. Ask `f.error` where a file may be missing, and
+  `return err(f.error)` passes it up. `path` and `mode` are text (a
+  literal, a `cstr`, a `u8^`), a `String` or a `Bytes` in a variable.
+  `IO(fd, mode)` (#86), with a number first, opens a file descriptor as
+  `fdopen` does, and owns it: its block closes the descriptor too,
+  and `EBADF` is its `f.error`; `f.fd` is an IO's descriptor, an `i32`,
   for C's calls, -1 once closed. `IO.popen(command, mode)` (#87) runs
   a shell command as `popen` does, with `"r"` to read its output or
   `"w"` to write its input, a `Result<IO, i32>`, run as `/bin/sh -c`
@@ -133,8 +142,8 @@ if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   
   as C's `isatty` says: `false` for a file, a pipe, a process, a
   closed IO, and a stream that is redirected. **`IO.strerror(code)`**
   is the message for an `err`, a `String`, the same as
-  `OS.strerror`, so a program reading a `Result` of `IO(...)` need not
-  go to `OS` for it.
+  `OS.strerror`, so a program reading `f.error` of an `IO(...)` need
+  not go to `OS` for it.
 - **The position** (#84): `f.position` is the offset from the start in
   bytes, an `i64`, and `f.count` the file's length, both -1 where the
   stream has none, as a pipe; `f.seek(n)` moves to byte `n` from the
@@ -171,10 +180,10 @@ a `cstr`, `""` for a stream or a process, and the work `OS` does on a
 path, [os.md](os.md)'s, is done from the IO on its own:
 
 ```kelvin
-let f = try IO("./notes.txt")                 // a path alone opens for reading
+let f = IO("./notes.txt")                     // a path alone opens for reading
 var abs = f.abspath                           // a String: /home/me/notes.txt
 println(f.path, " ", abs, " ", f.stat.size)   // ./notes.txt, and the open file's size, no case to unwrap (#104)
-let d = try IO(".")                           // a directory opens too
+let d = IO(".")                               // a directory opens too
 var names = d.listdir                         // its names, an Array straight (#106); d.walk every path under it; d.glob("*.k")
 for name in names { println(name) }
 ```
@@ -228,8 +237,8 @@ on success and otherwise the `errno` C left; a `Result<T, i32>` holds
 the `T` or that `errno`. `Stat` is the struct of [os.md](os.md).
 
 ```kelvin
-IO(path: text, mode: text): Result<IO, i32>        // fopen; "r" when the mode is left out
-IO(fd: i32, mode: text): Result<IO, i32>           // fdopen; the IO owns the descriptor
+IO(path: text, mode: text): IO                     // fopen, straight; "r" when the mode is left out; f.error when it did not open (#109)
+IO(fd: i32, mode: text): IO                        // fdopen; the IO owns the descriptor
 IO.stdin: IO                                        // the streams, never closed, only flushed
 IO.stdout: IO
 IO.stderr: IO
@@ -258,6 +267,7 @@ f.count: i64                             // the length in bytes, -1 where the st
 f.seek(offset: i64): bool                // from the start; false where it could not
 f.rewind()                               // to the start, the end cleared
 f.fd: i32                                // the descriptor, -1 once closed
+f.error: i32                             // the errno of an open that failed, 0 otherwise (#109)
 f.status: i32                            // a process's exit code once closed, else -1
 f.signal: i32                            // the signal that ended a process, 0 when none, else -1
 f.pid: i32                               // a process's id, -1 for any other IO
@@ -318,8 +328,8 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 
 | On | Property or method | Gives |
 |---|---|---|
-| `IO(path, mode)`, `IO(path)` | | a `Result<IO, i32>`: the IO, or errno; the mode `"r"` when none (#101) |
-| `IO(fd, mode)` | | a `Result<IO, i32>` of a descriptor, as `fdopen` gives it (#86) |
+| `IO(path, mode)`, `IO(path)` | | the IO, straight; `f.error` the errno when it did not open; the mode `"r"` when none (#101, #109) |
+| `IO(fd, mode)` | | the same of a descriptor, as `fdopen` gives it (#86) |
 | `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
 | `IO.exec(args, mode)` | | the same of a program run without the shell, `args` a list or an Array (#90) |
 | `IO.exec(args, mode, dir, env)` | | the same, in a directory, with `"NAME=value"` entries added to the environment (#92) |
@@ -339,6 +349,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.isatty` | its descriptor is a terminal (#103) |
 | | `.position`, `.count` | the offset from the start, and the length, in bytes; -1 where there is none |
 | | `.fd` | the file descriptor, an `i32`, -1 once closed (#86) |
+| | `.error` | the errno of an open that failed, 0 otherwise (#109) |
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |

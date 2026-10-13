@@ -8,7 +8,8 @@ let main():i32 {
     var files = $["os_walk.tmpdir/a/b/f.txt", "os_walk.tmpdir/a/g.txt", "os_walk.tmpdir/h.txt", "os_walk.tmpdir/c/i.md"]
     for p in files {
         var f = IO(p, "w")
-        if f.is(ok) { f.ok.write("x"); f.ok.close() }
+        f.write("x")
+        f.close()
     }
     var all = OS.walk("os_walk.tmpdir")
     if let ok(ps) = all { for p in ps { println(p) } }

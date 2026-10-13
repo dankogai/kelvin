@@ -3,7 +3,7 @@
 #import <stdio.h> as C
 let path := "io_seek.tmp"
 let fill():Result<i64, i32> {
-    let f = try IO(path, "w")
+    let f = IO(path, "w")
     f.print("0123456789\n")
     println(f.position, " ", f.count)
     return 0
@@ -11,8 +11,8 @@ let fill():Result<i64, i32> {
 let main():i32 {
     var w = fill()
     println(w.cstr)
-    var r = IO(path, "r")
-    if let ok(f) = r {
+    var f = IO(path, "r")
+    if f.error == 0 {
         println(f.count, " ", f.position, " ", f.eof)
         for chunk in f.read(4) {
             print("[", chunk, "]", f.position, " ")

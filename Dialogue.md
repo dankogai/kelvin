@@ -1,15 +1,16 @@
 
 
-### 142. The operations straight
+### 143. `IO(path, mode)` straight
 
-> now add `f.chmod` and the other operations straight too
+> now add `IO(path, mode)` straight too
 
-**Claude** added #108: `f.chmod`, `f.chown`, `f.truncate`, `f.utime`,
-`f.touch`, `f.remove` and `f.rename` give a `bool`, true when done,
-and no `errno`, as `seek` and `kill` already did; the first five
-through the descriptor, so they work on a file renamed or removed
-behind the IO, the last two by the path while it is there, else by the
-descriptor's name. `OS`'s of the same path still tell why. Details are
-provisional P120.
+**Claude** noted that the open is the call that checks a path, so with
+no Result something else must carry the errno, and asked which shape:
+an IO holding its error, ending the program, or keeping the Result.
+The user chose the first. #109: `IO(path, mode)` and `IO(fd, mode)`
+give the IO; `f.error` is the open's `errno`, 0 when it opened, and
+such an IO is as a closed one, with the reason in the message should
+it be read by `f.lines` or written to. `IO.popen`, `IO.exec` and
+`IO.pipe()` stay Results until asked. Details are provisional P121.
 
-There are 646 tests, and all pass with clang and with gcc 15.
+There are 648 tests, and all pass with clang and with gcc 15.

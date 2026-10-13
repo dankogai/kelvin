@@ -5,8 +5,8 @@
 // f.isdir and f.isfile from the descriptor. OS.stat(path) stays a Result:
 // a path is checked anew at each call
 let main():i32 {
-    var w = IO("io_stat.tmp", "w")
-    if let ok(f) = w {
+    var f = IO("io_stat.tmp", "w")
+    if f.error == 0 {
         f.write("hello")
         f.flush()
         let s = f.stat                          // a Stat, bound without a case

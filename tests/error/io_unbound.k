@@ -1,6 +1,7 @@
-// a Result an expression gives is an owner: its IO is not taken by = (#82)
+// an IO an expression gives is an owner: what it holds is read through a
+// variable, which frees it (#82, #109)
 let main():i32 {
-    var f = IO("x", "r").ok
+    var b = IO("x", "r").bytes
     return 0
 }
-// error: an owner is not copied by '=' (#54)
+// error: '.bytes' of an IO that an expression gives: bind it to a variable first

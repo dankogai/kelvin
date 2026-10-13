@@ -12,7 +12,7 @@ let main():i32 {
         t.ok.io.println("written through the IO")
         t.ok.io.flush()
         var back = IO(t.ok.path, "r")
-        if let ok(f) = back { for line in f.lines { println(line) } }
+        for line in back.lines { println(line) }
         t.ok.io.rewind()
         var same = t.ok.io.string                // a String straight (#107)
         print(same)

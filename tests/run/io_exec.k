@@ -26,7 +26,7 @@ let main():i32 {
         println(w.ok.status)
     }
     var back = IO(path, "r")
-    if let ok(f) = back { for line in f.lines { println(line) } }
+    for line in back.lines { println(line) }
     var args = $["printf", "%s-%s", "a", "b"]
     var a = IO.exec(args, "r")
     if let ok(f) = a {

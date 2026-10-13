@@ -238,9 +238,10 @@ order added. See [sets.md](sets.md).
 ## `IO`
 
 An `IO` (#82) is a file, or a standard stream, as an owner: `IO(path,
-mode)` gives a `Result<IO, i32>`, and the IO it holds is closed when
-its block ends, as a `Bytes` is freed. It moves by `try`, `return` and
-passing, is borrowed with `&f`, and is not copied. `IO.stdin`,
+mode)` gives the IO straight, `f.error` the errno when it did not open
+(#109), and it is closed when its block ends, as a `Bytes` is freed.
+It moves by `return` and passing, is borrowed with `&f`, and is not
+copied. `IO.stdin`,
 `IO.stdout` and `IO.stderr` are never closed, only flushed. The rest is
 in [io.md](io.md).
 

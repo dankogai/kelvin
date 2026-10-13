@@ -108,8 +108,8 @@ So far the changes from C are:
   `` $`a${x}b` `` builds a `String` from a template, with no bound;
   `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
   `s & t` and `s ~ t`
-- `IO` is a file as an owner, closed when its block ends: `let f = try
-  IO(path, "r")`, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
+- `IO` is a file as an owner, closed when its block ends: `let f =
+  IO(path, "r")`, `f.error` when it did not open, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
   `let s = f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `OS` and `SYS` are the system and the program, as Python has them, with
   no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,

@@ -2228,8 +2228,9 @@ static Expr *parse_primary(void) {
         return e;
     }
     if (is_kw(t, "IO") && is_p(peek2(), "(")) {
-        /* IO(path, mode) (#82): a Result<IO, i32>, the IO or errno; path
-           and mode text, a String or a Bytes */
+        /* IO(path, mode) (#82): the IO, straight (#109), with f.error the
+           errno when it did not open; path and mode text, a String or a
+           Bytes */
         advance();
         advance();
         Expr *e = new_expr(E_CALL, t->pos);
@@ -2271,7 +2272,7 @@ static Expr *parse_primary(void) {
                          kelvin_type(at));
             }
         }
-        e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+        e->type = base_type("IO", t->pos);
         return e;
     }
     if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")) {
@@ -4778,6 +4779,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
                                           !strcmp(member, "position") || !strcmp(member, "count") ||
                                           !strcmp(member, "byte") || !strcmp(member, "fd") ||
                                           !strcmp(member, "status") || !strcmp(member, "signal") ||
+                                          !strcmp(member, "error") ||
                                           !strcmp(member, "pid") || !strcmp(member, "path") ||
                                           !strcmp(member, "abspath") || !strcmp(member, "listdir") ||
                                           !strcmp(member, "walk") || !strcmp(member, "stat") ||
@@ -4806,8 +4808,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
             x->type = base_type("i64", name->pos);
         else if (kk == 'i' && (!strcmp(member, "fd") || !strcmp(member, "status") || !strcmp(member, "signal") ||
-                               !strcmp(member, "pid")))
-            x->type = base_type("i32", name->pos); /* (#86, #87, #89, #91) */
+                               !strcmp(member, "pid") || !strcmp(member, "error")))
+            x->type = base_type("i32", name->pos); /* (#86, #87, #89, #91, #109) */
         else if (kk == 'i' && !strcmp(member, "byte")) /* the next byte, or none at the end (#85) */
             x->type = optional_type(name, base_type("u8", name->pos));
         else if (kk == 'i' && !strcmp(member, "path")) /* its path, and the OS's work on it (#101) */

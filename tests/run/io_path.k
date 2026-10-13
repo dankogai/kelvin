@@ -8,8 +8,8 @@
 #import <errno.h> as C
 let main():i32 {
     println(OS.makedirs("io_path.tmpdir/sub"))
-    var w = IO("io_path.tmpdir/sub/f.txt", "w")
-    if let ok(f) = w {
+    var f = IO("io_path.tmpdir/sub/f.txt", "w")
+    if f.error == 0 {
         f.write("hello")
         f.flush()
         var st = f.stat
@@ -21,8 +21,8 @@ let main():i32 {
         println(base, " ", dir, " ", joined, " ", base.typename)
         println(f.chown(OS.uid, -1), " ", f.utime(1000000000.0, 1000000000.0), " ", f.lstat.mtime, " ", f.touch())
     }
-    var d = IO("io_path.tmpdir")                 // a directory, opened for reading
-    if let ok(dir) = d {
+    var dir = IO("io_path.tmpdir")               // a directory, opened for reading
+    if dir.error == 0 {
         println(dir.path, " ", dir.isdir, " ", dir.isfile)
         var names = dir.listdir                  // Arrays straight (#106)
         for n in names { print("[", n, "]") }
@@ -37,10 +37,10 @@ let main():i32 {
         println(abs == rel, " ", abs.typename)
     }
     var m = IO("io_path.tmpdir/sub/f.txt", "r+")
-    if m.is(ok) {
-        println(m.ok.rename("io_path.tmpdir/sub/g.txt"), " ", m.ok.path, " ", OS.exists("io_path.tmpdir/sub/g.txt"))
-        println(m.ok.remove(), " ", m.ok.exists, " ", m.ok.stat.size)   // removed, yet open: stat sees the file
-        m.ok.close()
+    if m.error == 0 {
+        println(m.rename("io_path.tmpdir/sub/g.txt"), " ", m.path, " ", OS.exists("io_path.tmpdir/sub/g.txt"))
+        println(m.remove(), " ", m.exists, " ", m.stat.size)   // removed, yet open: stat sees the file
+        m.close()
     }
     var out = IO.stdout
     var ends = IO.pipe()                         // a pipe end has no path, by name or by descriptor (#105)
@@ -65,5 +65,5 @@ let main():i32 {
 // out: true false 2
 // out: 0 false true true
 // out: 0 0
-// c: kv_io_open(&_kv_f, "io_path.tmpdir", "r")
-// c: kv_io_rename((kv_io *)&(*_kv__kv_res_IO_i32_at_ok(&m)), "io_path.tmpdir/sub/g.txt")
+// c: kv_io_open("io_path.tmpdir", "r")
+// c: kv_io_rename((kv_io *)&m, "io_path.tmpdir/sub/g.txt")

@@ -14,11 +14,11 @@ let main():i32 {
     let dir := "os_sys.tmpdir"
     println(OS.exists(dir), " ", OS.mkdir(dir), " ", OS.exists(dir), " ", OS.isdir(dir), " ", OS.mkdir(dir) != 0)
     var b = IO("os_sys.tmpdir/b.txt", "w")
-    if b.is(ok) { b.ok.write("b") }
+    b.write("b")
     var a = IO("os_sys.tmpdir/a.txt", "w")
-    if a.is(ok) { a.ok.write("a") }
-    b.ok.close()
-    a.ok.close()
+    a.write("a")
+    b.close()
+    a.close()
     var names = OS.listdir(dir)
     if let ok(ns) = names { for n in ns { print(n, " ") } }
     println(names.typename)
