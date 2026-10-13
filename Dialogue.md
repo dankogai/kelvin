@@ -1,15 +1,14 @@
 
 
-### 140. The rest of an IO's attributes straight
+### 141. `f.bytes` and `f.string` straight
 
-> now add `f.stat` straight to the rest of `IO`'s attributes
+> now add `f.bytes` and `f.string` straight too
 
-**Claude** added #106: `f.listdir`, `f.walk` and `f.glob(pattern)`
-give an `Array<String>` with no Result, since the directory was there
-to open; of the path while it is there, else of the descriptor's name,
-so a directory renamed behind the IO still answers. An IO that is no
-readable directory gives none. The operations, `chmod` and its kin,
-stay 0 or `errno`, and `f.bytes` and `f.string` stay Results, as
-contents with real errors. Details are provisional P118.
+**Claude** added #107: `f.bytes` is the rest of the file as a `Bytes`
+and `f.string` as a `String`, with no Result, since the file was there
+to open; a stream that stops answering gives what was read before.
+Text that is not UTF-8 ends `f.string` with a message, as a line of
+`f.lines` already did, so a program that may meet such text reads
+`f.bytes` and asks `b.isUTF8`. Details are provisional P119.
 
-There are 644 tests, and all pass with clang and with gcc 15.
+There are 645 tests, and all pass with clang and with gcc 15.

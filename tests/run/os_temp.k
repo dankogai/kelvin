@@ -14,8 +14,8 @@ let main():i32 {
         var back = IO(t.ok.path, "r")
         if let ok(f) = back { for line in f.lines { println(line) } }
         t.ok.io.rewind()
-        var same = t.ok.io.string
-        print(same.ok)
+        var same = t.ok.io.string                // a String straight (#107)
+        print(same)
         println(OS.remove(t.ok.path), " ", OS.exists(t.ok.path))
     }
     var d = OS.mkdtemp("kelvin_dir_")

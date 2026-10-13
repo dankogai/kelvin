@@ -42,8 +42,8 @@ var ls = IO.exec(["ls"], "r", "/tmp", ["LC_ALL=C"])   // in a directory, with an
 var bare = IO.exec(["/usr/bin/env"], "r", "", ["ONLY=1"], true)   // an environment of that entry alone (#93)
 if let ok(p) = ls { for line in p.lines { println(line) } }
 f.flush()
-let text = try f.string                   // the rest of the file as a String, or errno (EILSEQ if not UTF-8)
-let raw = try f.bytes                     // as a Bytes
+let text = f.string                       // the rest of the file as a String, straight (#107); not UTF-8 ends the program
+let raw = f.bytes                         // as a Bytes, whatever it holds
 IO.stderr.write("warning\n")              // never closed; also IO.stdin, IO.stdout
 if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   // the err's message (#103)
 ```
@@ -105,10 +105,13 @@ if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   
   since a let bound by `if let` holds a copy, and closing through it
   would close twice: write `r.ok.close()` of the Result.
 - **Reading whole:** `f.bytes` is the rest of the file as a `Bytes`, and
-  `f.string` as a `String`, each a `Result` with `errno` as the err:
-  `EILSEQ` when the bytes are not UTF-8, what `ferror` reports when the
-  file cannot be read, as a directory cannot on Linux. Both are of an
-  IO in a variable, since the Result they give owns the text.
+  `f.string` as a `String`, each straight and no Result (#107), since
+  the file was there to open: what was read before a stream stopped
+  answering, as a directory does on Linux, none of a closed IO. Text
+  that is not UTF-8 ends `f.string` with a message, as a line of
+  `f.lines` does: read `f.bytes` and ask `b.isUTF8` where that may
+  happen. Both are of an IO in a variable, since what they give is
+  owned, and is bound as any owner is.
 - **Reading by parts:** `for chunk in f.read(n) { }` gives the next `n`
   bytes at most as a `Bytes`, up to the end; `for line in f.lines { }`
   each line as a `String` without its `\n`, up to the end, and a line
@@ -143,7 +146,7 @@ if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   
 - **A byte at a time** (#85): `f.byte` is the next byte, a `u8?`,
   `none` at the end. **Numbers** are read from the text (#88): a line,
   `for line in f.lines { sum += i64(line) }`, or the whole file,
-  `i64(try f.string)`, with the converters of
+  `var text = f.string; i64(text)`, with the converters of
   [integers.md](integers.md), which take a String as they take a
   `cstr`; `f.i64` is an error that says so. C's `scanf` reads no number
   for Kelvin: it skips what it cannot read and leaves the stream where
@@ -234,8 +237,8 @@ IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): Result<I
 IO.pipe(): Result<{reader: IO, writer: IO}, i32>  // a pipe's two ends
 IO.strerror(code: i32): String                    // the message for an err
 
-f.bytes: Result<Bytes, i32>              // the rest of the file, as bytes
-f.string: Result<String, i32>            // the same as UTF-8; EILSEQ when it is not
+f.bytes: Bytes                           // the rest of the file, straight (#107)
+f.string: String                         // the same as UTF-8; not UTF-8 ends the program
 for chunk in f.read(n: i64) { }          // each next n bytes at most, a Bytes the loop owns
 for line in f.lines { }                  // each line without its newline, a String the loop owns
 f.byte: u8?                              // the next byte, none at the end
@@ -320,8 +323,8 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | `IO.strerror(code)` | | the message for an `err`, a `String` (#103) |
-| an `IO` | `.bytes` | a `Result<Bytes, i32>`: the rest of the file |
-| | `.string` | a `Result<String, i32>`: the same as UTF-8, or `EILSEQ` |
+| an `IO` | `.bytes` | a `Bytes`: the rest of the file, straight (#107) |
+| | `.string` | a `String`: the same as UTF-8; not UTF-8 ends the program |
 | | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
 | | `for line in f.lines { }` | each line without its newline, a `String` the loop owns |
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |

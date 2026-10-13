@@ -4799,9 +4799,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         x->text = member;
         x->op = (char *)kind;
         x->is_bool = !strcmp(member, "isUTF8") || (kk == 'i' && !strcmp(member, "eof"));
-        if (kk == 'i' && (!strcmp(member, "bytes") || !strcmp(member, "string"))) /* the whole file, or errno (#82) */
-            x->type = variant_type(name, "res", base_type(!strcmp(member, "bytes") ? "Bytes" : "String", name->pos),
-                                   base_type("i32", name->pos));
+        if (kk == 'i' && (!strcmp(member, "bytes") || !strcmp(member, "string"))) /* the whole file, straight (#82, #107) */
+            x->type = base_type(!strcmp(member, "bytes") ? "Bytes" : "String", name->pos);
         else if (kk == 'i' && !strcmp(member, "eof")) /* (#84) */
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))

@@ -1,6 +1,7 @@
 // IO (#82): stdio as an owner. IO(path, mode) is the IO or errno, a
-// Result; f.bytes and f.string the rest of the file, or errno (EILSEQ
-// when it is not UTF-8); for x in f.read(n) and for line in f.lines walk
+// Result; f.bytes and f.string the rest of the file, straight (#107: a
+// Bytes, a String; text that is not UTF-8 ends the program, so ask
+// b.isUTF8 of the bytes first); for x in f.read(n) and for line in f.lines walk
 // it; f.write takes text, a borrow or an owner an expression gives;
 // IO.stdin, IO.stdout and IO.stderr are never closed; a file closes
 // when its block ends, or by .close() through the var that owns it
@@ -22,23 +23,24 @@ let write_it():Result<i64, i32> {
 }
 let read_all():Result<i64, i32> {
     let f = try IO(path, "r")
-    let b = try f.bytes
+    let b = f.bytes                     // a Bytes straight (#107)
     return b.count as i64
 }
 let read_text():Result<String, i32> {
     var p = $"io_basics"
     p += ".tmp"
     let f = try IO(p, "r")              // a String path
-    return try f.string
+    return f.string                     // a String, wrapped as ok
 }
-let bad_text():Result<String, i32> {
+let bad_text():Result<bool, i32> {
     var w = try IO("io_bad.tmp", "w")
     var b = Bytes("x")
     b += 255
     w.write(&b)
     w.close()
     let f = try IO("io_bad.tmp", "r")
-    return try f.string
+    let raw = f.bytes                   // .string of this would end the program
+    return raw.isUTF8
 }
 struct holder { name: String; f: IO }
 let main():i32 {
@@ -64,7 +66,7 @@ let main():i32 {
     var missing = IO("/no/such/dir/x", "r")
     println(missing.is(err), " ", missing.err == ENOENT)
     var bad = bad_text()
-    println(bad.is(err), " ", bad.err == EILSEQ)
+    println(bad.is(ok), " ", bad.ok)
     var e = IO.stderr
     e.write("to stderr\n")
     IO.stdout.write("to stdout\n")
@@ -94,7 +96,7 @@ let main():i32 {
 // out: 4: bytes 5
 // out: [7][7][7][4]
 // out: true true
-// out: true true
+// out: true false
 // out: to stdout
 // out: via a variable
 // out: through a member

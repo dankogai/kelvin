@@ -110,7 +110,7 @@ So far the changes from C are:
   `s & t` and `s ~ t`
 - `IO` is a file as an owner, closed when its block ends: `let f = try
   IO(path, "r")`, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
-  `let s = try f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
+  `let s = f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `OS` and `SYS` are the system and the program, as Python has them, with
   no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,
   `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

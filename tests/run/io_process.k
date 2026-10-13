@@ -39,8 +39,8 @@ let main():i32 {
     var cmd = $"printf 'from a String'"
     var s = IO.popen(cmd, "r")
     if let ok(f) = s {
-        var all = f.string
-        println(all.cstr)
+        var all = f.string                       // a String straight (#107)
+        println(all)
     }
     remove(path)
     return 0
@@ -55,6 +55,6 @@ let main():i32 {
 // out: -1
 // out: Result<{reader: IO, writer: IO}, i32> true true
 // out: through a pipe
-// out: ok(from a String)
+// out: from a String
 // c: kv_io_popen(&_kv_f, "printf 'one\\ntwo\\n'", "r")
 // c: kv_io_pipe(&_kv_p.reader, &_kv_p.writer)

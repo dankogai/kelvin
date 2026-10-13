@@ -259,8 +259,8 @@ kv_io kv_io_copy(const kv_io *f);
 void kv_io_discard(kv_io v);
 void kv_io_close(kv_io *f);
 void kv_io_flush(kv_io *f);
-int kv_io_read_all(kv_io *f, kv_bytes *out);
-int kv_io_read_string(kv_io *f, kv_string *out);
+kv_bytes kv_io_read_all(kv_io *f);     /* the rest of the file, straight (#107) */
+kv_string kv_io_read_string(kv_io *f); /* the same as UTF-8, or the program ends */
 bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf);
 bool kv_io_read_line(kv_io *f, kv_string *line);
 void kv_io_write_text(kv_io *f, const void *s);

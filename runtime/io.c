@@ -359,42 +359,31 @@ bool kv_io_isatty(kv_io *f) { return f->fp && isatty(fileno((FILE *)f->fp)) == 1
 /* the FILE for print and println (#83) */
 void *kv_io_fp(kv_io *f) { return open_fp(f, "printing to a closed IO"); }
 
-/* the rest of the file, or errno: of a stream that cannot be read, such
-   as a directory, what ferror reports */
-int kv_io_read_all(kv_io *f, kv_bytes *out) {
-    if (!f->fp)
-        return EBADF;
-    FILE *fp = (FILE *)f->fp;
+/* the rest of the file, a Bytes straight (#107): what was read before a
+   stream stopped answering, as a directory does on Linux, the error
+   cleared; none of a closed IO */
+kv_bytes kv_io_read_all(kv_io *f) {
     kv_bytes b = kv_bytes_new();
+    if (!f->fp)
+        return b;
+    FILE *fp = (FILE *)f->fp;
     uint8_t buf[4096];
     size_t n;
-    errno = 0;
     while ((n = fread(buf, 1, sizeof buf, fp)) > 0)
         kv_bytes_append(&b, buf, n);
-    if (ferror(fp)) {
-        int e = errno ? errno : EIO;
+    if (ferror(fp))
         clearerr(fp);
-        kv_bytes_free(&b);
-        return e;
-    }
-    *out = b;
-    return 0;
+    return b;
 }
 
-/* the rest of the file as a String, or errno; EILSEQ when it is not UTF-8 */
-int kv_io_read_string(kv_io *f, kv_string *out) {
-    kv_bytes b;
-    int e = kv_io_read_all(f, &b);
-    if (e)
-        return e;
+/* the rest of the file as a String straight (#107); text that is not
+   UTF-8 ends the program, as a line of .lines does */
+kv_string kv_io_read_string(kv_io *f) {
+    kv_bytes b = kv_io_read_all(f);
     size_t count;
-    if (!kv_utf8_valid(b.at, b.count, &count)) {
-        kv_bytes_free(&b);
-        return EILSEQ;
-    }
-    out->b = b;
-    out->count = count;
-    return 0;
+    if (!kv_utf8_valid(b.at, b.count, &count))
+        kv_io_fail("the rest of the file read by .string is not UTF-8: read .bytes, or walk .read(n)");
+    return (kv_string){.b = b, .count = count};
 }
 
 /* the next n bytes at most into buf, which the loop owns; false at the end */

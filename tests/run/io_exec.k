@@ -30,14 +30,14 @@ let main():i32 {
     var args = $["printf", "%s-%s", "a", "b"]
     var a = IO.exec(args, "r")
     if let ok(f) = a {
-        var s = f.string
-        println(s.cstr)
+        var s = f.string                         // a String straight (#107)
+        println(s)
     }
     var sargs:$[String] = $[$"printf", $"strings"]
     var b = IO.exec(sargs, "r")
     if let ok(f) = b {
         var s = f.string
-        println(s.cstr, " ", b.typename)
+        println(s, " ", b.typename)
     }
     var name = $"echo"
     var c = IO.exec([name, "a String argument"], "r")
@@ -57,8 +57,8 @@ let main():i32 {
 // out: true true
 // out: 0
 // out: via exec 42
-// out: ok(a-b)
-// out: ok(strings) Result<IO, i32>
+// out: a-b
+// out: strings Result<IO, i32>
 // out: a String argument
 // out: -1 9
 // c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("printf"), (const char *)("one\\ntwo\\n"), NULL}, "r", NULL, NULL, false)

@@ -823,13 +823,8 @@ static char *expr_bare(Expr *e) {
                           "_kv_%s_make_none(); })",
                           recv, r->name, r->name);
         }
-        if (e->op && !strcmp(e->op, "io") && e->type) { /* f.bytes, f.string (#82): the rest of the file, or errno */
-            Decl *r = kelvin_record(e->type->name);
-            bool text = !strcmp(e->text, "string");
-            return strfmt("({ %s _kv_v = {0}; int _kv_e = kv_io_read_%s((kv_io *)&%s, &_kv_v); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                          "_kv_%s_make_ok(_kv_v); })",
-                          text ? "kv_string" : "kv_bytes", text ? "string" : "all", recv, r->name, r->name);
-        }
+        if (e->op && !strcmp(e->op, "io") && e->type) /* f.bytes, f.string (#82): the rest of the file, straight (#107) */
+            return strfmt("kv_io_read_%s((kv_io *)&%s)", !strcmp(e->text, "string") ? "string" : "all", recv);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set")) && e->recv_type) /* d.keys, d.values, s.elements (#66, #71) */
             return strfmt("%s_%s(&%s)", e->recv_type->cname, e->text, recv);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set"))) /* a Dictionary's or a Set's count (#65, #71) */

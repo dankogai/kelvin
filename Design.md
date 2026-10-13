@@ -138,6 +138,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 104 | An open file's attributes straight, no Result: `f.stat` and `f.lstat` give a `Stat`, `f.abspath` a `String`, since the open descriptor always answers; `f.isdir` and `f.isfile` are the open file's. `OS.stat(path)` and the rest of `OS` stay Results: a path is looked up anew at each call | `fstat(fileno(f), &st)` | `let s = f.stat`, `println(f.stat.size, " ", f.abspath)` | 2026-10-13 |
 | 105 | `f.abspath` of the open descriptor where the path is gone or there is none: a file renamed behind the IO answers by its new name, a removed one by the name it had; `""` where neither the path nor the descriptor answers | `fcntl(fd, F_GETPATH, buf)`, `readlink("/proc/self/fd/N")` | `OS.remove(f.path); var p = f.abspath` | 2026-10-13 |
 | 106 | The rest of an IO's attributes straight: `f.listdir`, `f.walk` and `f.glob(pattern)` give an `Array<String>`, no Result, of the path while it is there, else of the descriptor's name; none where the IO is no readable directory | `opendir(path)` after `fopen` | `var names = d.listdir; for n in names { }` | 2026-10-13 |
+| 107 | `f.bytes` and `f.string` straight: the rest of the file as a `Bytes` and as a `String`, no Result, since the file was there to open; text that is not UTF-8 ends `f.string` with a message, as a line of `f.lines` does | `fread` in a loop | `let s = f.string`, `let b = f.bytes; if b.isUTF8 { }` | 2026-10-13 |
 
 Notes:
 
@@ -700,6 +701,16 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (107) Agreed details: "now add `f.bytes` and `f.string` straight
+  too". As #104 and #106: the file was there to open, so what reading
+  it gives needs no Result. A stream that stops answering, a directory
+  on Linux, gives what was read before, with the error cleared. The
+  one case that was a real err, `EILSEQ` of text that is not UTF-8,
+  now ends the program with a message, as a line of `f.lines` and
+  `String(&b)` of a Bytes already did: a program that may meet such
+  text reads `f.bytes` and asks `b.isUTF8`. `try f.string` is an error,
+  as of any non-variant (P119).
+
 - (106) Agreed details: "now add `f.stat` straight to the rest of
   `IO`'s attributes". The attributes still wrapped were `listdir`,
   `walk` and `glob`, and they follow #104: the directory was there to
@@ -1145,6 +1156,7 @@ says "as agreed".
 | P116 | Details of #104 | `f.stat` is `({ kv_stat _kv_st = kv_io_stat((kv_io *)&f); (struct _kv_anonN){.dev = _kv_st.dev, ...}; })`, the OS struct shape without the Result; `f.abspath` is `kv_io_abspath((kv_io *)&f)`, a `kv_string` | `kv_io_stat` gives the struct by value: fstat of the stream, else the path's stat once closed, else all zero; `kv_io_lstat` is lstat of the path, else `kv_io_stat`; `kv_io_isdir` and `kv_io_isfile` read `kv_io_stat`; `kv_io_abspath` is realpath of the path, else `""`. Found while testing: `f.stat.size` gave sizeof, since `expr_class` classed every property that is no integer as "n"; a property typed as a struct kelvinc sees now classes as that struct, so its fields win over `.size` and the rest, as a variable's do. `try f.stat` is an error, as of any non-variant |
 | P117 | Details of #105 | `f.abspath` is still `kv_io_abspath((kv_io *)&f)` | `kv_io_abspath` tries `kv_os_realpath` of the path, then `fcntl(F_GETPATH)` on Apple or `readlink` of `/proc/self/fd/<fd>` on Linux into a `PATH_MAX` buffer, cutting a trailing ` (deleted)`, and gives the answer only when it starts with `/`; `""` otherwise. The tests that read `IO.stdout.abspath` now read a pipe end's, since the runner sends stdout to a file, which `F_GETPATH` names |
 | P118 | Details of #106 | `d.listdir` is `({ kv_string *_kv_at = NULL; size_t _kv_n = 0; kv_io_listdir((kv_io *)&d, &_kv_at, &_kv_n); _kv_arr_String _kv_a = _kv_arr_String_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })`, the Result's two makers gone; `d.glob(p)` the same through `kv_io_glob` | `kv_io_listdir`, `kv_io_walk` and `kv_io_glob` give void and fill the array, empty on any failure; `dir_of` in runtime/io.c picks the path when `stat` answers, else `kv_io_abspath`. The method table's `gives` "listdir" now means an Array; `OS`'s "listdir" shape stays a Result. `for p in d.walk { }` is refused as any owner an expression gives: bind it |
+| P119 | Details of #107 | `f.string` is `kv_io_read_string((kv_io *)&f)`, `f.bytes` is `kv_io_read_all((kv_io *)&f)`, each by value | `kv_io_read_all` reads until `fread` gives nothing, clears `ferror`, and gives the Bytes, empty of a closed IO; `kv_io_read_string` checks UTF-8 and calls `kv_io_fail` with "the rest of the file read by .string is not UTF-8: read .bytes, or walk .read(n)". io_basics's `bad_text` now gives `b.isUTF8` of the bytes, false, where it gave `err(EILSEQ)` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
