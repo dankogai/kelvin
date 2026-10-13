@@ -496,16 +496,48 @@ kv_string kv_io_abspath(kv_io *f) {
     }
     return kv_string_text(buf[0] == '/' ? buf : "");
 }
-int kv_io_listdir(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_listdir(f->path, out, count) : ENOENT; }
-int kv_io_walk(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_walk(f->path, out, count) : ENOENT; }
+/* the directory an IO's listdir, walk and glob work in (#106): its path
+   while that is there, else the open descriptor's name as kv_io_abspath
+   finds it, else "" */
+static kv_string dir_of(kv_io *f) {
+    struct stat st;
+    if (f->path && stat(f->path, &st) == 0)
+        return kv_string_text(f->path);
+    return kv_io_abspath(f);
+}
 
-int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count) {
-    if (!f->path)
-        return ENOENT;
-    kv_string p = kv_os_join(f->path, pattern);
-    int e = kv_os_glob(kv_bytes_cstr(&p.b), out, count);
-    kv_string_free(&p);
-    return e;
+/* a directory's names, every path under it, the matches of a pattern
+   under it: Arrays straight, no Result (#106); none where the IO is no
+   directory that can be read, or nothing names it */
+void kv_io_listdir(kv_io *f, kv_string **out, size_t *count) {
+    kv_string d = dir_of(f);
+    *out = NULL;
+    *count = 0;
+    if (d.b.count && kv_os_listdir(kv_bytes_cstr(&d.b), out, count) != 0)
+        *out = NULL, *count = 0;
+    kv_string_free(&d);
+}
+
+void kv_io_walk(kv_io *f, kv_string **out, size_t *count) {
+    kv_string d = dir_of(f);
+    *out = NULL;
+    *count = 0;
+    if (d.b.count && kv_os_walk(kv_bytes_cstr(&d.b), out, count) != 0)
+        *out = NULL, *count = 0;
+    kv_string_free(&d);
+}
+
+void kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count) {
+    kv_string d = dir_of(f);
+    *out = NULL;
+    *count = 0;
+    if (d.b.count) {
+        kv_string p = kv_os_join(kv_bytes_cstr(&d.b), pattern);
+        if (kv_os_glob(kv_bytes_cstr(&p.b), out, count) != 0)
+            *out = NULL, *count = 0;
+        kv_string_free(&p);
+    }
+    kv_string_free(&d);
 }
 
 static void fill_stat(const struct stat *st, kv_stat *out) {

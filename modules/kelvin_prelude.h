@@ -162,9 +162,10 @@ int kv_os_lstat(const void *path, kv_stat *out);
 /* its path, and the OS's work on it (#101) */
 const uint8_t *kv_io_path(kv_io *f);
 kv_string kv_io_abspath(kv_io *f); /* of the path, else of the descriptor; "" where neither answers (#104, #105) */
-int kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
-int kv_io_walk(kv_io *f, kv_string **out, size_t *count);
-int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count);
+/* Arrays straight, none where the IO is no readable directory (#106) */
+void kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
+void kv_io_walk(kv_io *f, kv_string **out, size_t *count);
+void kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count);
 kv_stat kv_io_stat(kv_io *f);  /* of the open file itself: a Stat, no Result (#104) */
 kv_stat kv_io_lstat(kv_io *f); /* the path's own, else the open file's */
 bool kv_io_isdir(kv_io *f);

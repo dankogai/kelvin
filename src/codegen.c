@@ -800,12 +800,10 @@ static char *expr_bare(Expr *e) {
                                               !strcmp(e->text, "abspath"))) /* (#101, #103, #104) */
             return strfmt("kv_io_%s((kv_io *)&%s)", e->text, recv);
         if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "listdir") || !strcmp(e->text, "walk"))) {
-            Decl *r = kelvin_record(e->type->name);
-            Type *arr = ((Var *)r->members.data[0])->type;
-            return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_io_%s((kv_io *)&%s, &_kv_at, &_kv_n); "
-                          "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                          "_kv_%s_make_ok(_kv_a); })",
-                          e->text, recv, arr->cname, arr->cname, r->name, r->name);
+            /* Strings taken over into an Array, straight (#106) */
+            return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; kv_io_%s((kv_io *)&%s, &_kv_at, &_kv_n); "
+                          "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })",
+                          e->text, recv, e->type->cname, e->type->cname);
         }
         if (e->op && !strcmp(e->op, "io") && e->type && (!strcmp(e->text, "stat") || !strcmp(e->text, "lstat"))) {
             /* the runtime's kv_stat copied into the struct kelvinc wrote, member by member: a Stat straight (#104) */
@@ -994,13 +992,10 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&args, ", %s", expr(e->items.data[i]));
                 return strfmt("%s(%s%s)", e->text[5] ? "KV_FPRINTLN" : "KV_FPRINT", recv, args.buf);
             }
-            if (!strcmp(e->text, "glob") && e->type) { /* f.glob(pattern) (#101): under its path */
-                Decl *r = kelvin_record(e->type->name);
-                Type *arr = ((Var *)r->members.data[0])->type;
-                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; int _kv_e = kv_io_glob(%s, %s, &_kv_at, &_kv_n); "
-                              "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                              "_kv_%s_make_ok(_kv_a); })",
-                              recv, expr(e->items.data[0]), arr->cname, arr->cname, r->name, r->name);
+            if (!strcmp(e->text, "glob") && e->type) { /* f.glob(pattern) (#101): under its path, an Array straight (#106) */
+                return strfmt("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; kv_io_glob(%s, %s, &_kv_at, &_kv_n); "
+                              "%s _kv_a = %s_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })",
+                              recv, expr(e->items.data[0]), e->type->cname, e->type->cname);
             }
             Buf args = {0};
             buf_puts(&args, "");

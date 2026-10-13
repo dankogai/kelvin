@@ -137,6 +137,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 103 | `f.isatty`, whether an IO's descriptor is a terminal; `IO.strerror(code)`, the message for an err, a `String`, as `OS.strerror` is | `isatty(fileno(f))`, `strerror(e)` | `if IO.stdout.isatty { }`, `var why = IO.strerror(r.err)` | 2026-10-13 |
 | 104 | An open file's attributes straight, no Result: `f.stat` and `f.lstat` give a `Stat`, `f.abspath` a `String`, since the open descriptor always answers; `f.isdir` and `f.isfile` are the open file's. `OS.stat(path)` and the rest of `OS` stay Results: a path is looked up anew at each call | `fstat(fileno(f), &st)` | `let s = f.stat`, `println(f.stat.size, " ", f.abspath)` | 2026-10-13 |
 | 105 | `f.abspath` of the open descriptor where the path is gone or there is none: a file renamed behind the IO answers by its new name, a removed one by the name it had; `""` where neither the path nor the descriptor answers | `fcntl(fd, F_GETPATH, buf)`, `readlink("/proc/self/fd/N")` | `OS.remove(f.path); var p = f.abspath` | 2026-10-13 |
+| 106 | The rest of an IO's attributes straight: `f.listdir`, `f.walk` and `f.glob(pattern)` give an `Array<String>`, no Result, of the path while it is there, else of the descriptor's name; none where the IO is no readable directory | `opendir(path)` after `fopen` | `var names = d.listdir; for n in names { }` | 2026-10-13 |
 
 Notes:
 
@@ -699,6 +700,20 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (106) Agreed details: "now add `f.stat` straight to the rest of
+  `IO`'s attributes". The attributes still wrapped were `listdir`,
+  `walk` and `glob`, and they follow #104: the directory was there to
+  open, so an Array straight. They work in the path while a stat of it
+  answers, else in the descriptor's name of #105, so a renamed
+  directory answers with absolute paths; a file, a pipe, a closed IO
+  give an empty Array, where `OS.listdir` of the same would give
+  `ENOTDIR`, since `f.isdir` tells that already. What stays as it was:
+  `f.chmod`, `f.chown`, `f.truncate`, `f.utime`, `f.touch`, `f.remove`
+  and `f.rename` are operations, 0 or `errno`, and fail for real on an
+  open file one does not own; `f.bytes` and `f.string` are contents,
+  with `EISDIR` and `EILSEQ` to tell. An Array an expression gives
+  stays an owner to bind first, by the rule of #54 (P118).
+
 - (105) Agreed details: "now add `f.abspath` via the descriptor when the
   path is gone". The path first, as #104 had it; then what the system
   knows of the descriptor, macOS's `F_GETPATH` and Linux's
@@ -1129,6 +1144,7 @@ says "as agreed".
 | P115 | Details of #103 | `out.isatty` is `kv_io_isatty((kv_io *)&out)`; `IO.strerror(e)` is `kv_os_strerror(e)`, the very node `OS.strerror` makes | `kv_io_isatty` is `isatty(fileno(fp))`, false with no FILE; `isatty` joins the IO property list as a `bool`. `IO.strerror` is read in the `IO.` branch into an E_CALL of op `os` and text `strerror`, so the codegen of `OS` serves it; the argument must be an integer, or a name only C sees |
 | P116 | Details of #104 | `f.stat` is `({ kv_stat _kv_st = kv_io_stat((kv_io *)&f); (struct _kv_anonN){.dev = _kv_st.dev, ...}; })`, the OS struct shape without the Result; `f.abspath` is `kv_io_abspath((kv_io *)&f)`, a `kv_string` | `kv_io_stat` gives the struct by value: fstat of the stream, else the path's stat once closed, else all zero; `kv_io_lstat` is lstat of the path, else `kv_io_stat`; `kv_io_isdir` and `kv_io_isfile` read `kv_io_stat`; `kv_io_abspath` is realpath of the path, else `""`. Found while testing: `f.stat.size` gave sizeof, since `expr_class` classed every property that is no integer as "n"; a property typed as a struct kelvinc sees now classes as that struct, so its fields win over `.size` and the rest, as a variable's do. `try f.stat` is an error, as of any non-variant |
 | P117 | Details of #105 | `f.abspath` is still `kv_io_abspath((kv_io *)&f)` | `kv_io_abspath` tries `kv_os_realpath` of the path, then `fcntl(F_GETPATH)` on Apple or `readlink` of `/proc/self/fd/<fd>` on Linux into a `PATH_MAX` buffer, cutting a trailing ` (deleted)`, and gives the answer only when it starts with `/`; `""` otherwise. The tests that read `IO.stdout.abspath` now read a pipe end's, since the runner sends stdout to a file, which `F_GETPATH` names |
+| P118 | Details of #106 | `d.listdir` is `({ kv_string *_kv_at = NULL; size_t _kv_n = 0; kv_io_listdir((kv_io *)&d, &_kv_at, &_kv_n); _kv_arr_String _kv_a = _kv_arr_String_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })`, the Result's two makers gone; `d.glob(p)` the same through `kv_io_glob` | `kv_io_listdir`, `kv_io_walk` and `kv_io_glob` give void and fill the array, empty on any failure; `dir_of` in runtime/io.c picks the path when `stat` answers, else `kv_io_abspath`. The method table's `gives` "listdir" now means an Array; `OS`'s "listdir" shape stays a Result. `for p in d.walk { }` is refused as any owner an expression gives: bind it |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

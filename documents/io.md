@@ -172,7 +172,8 @@ let f = try IO("./notes.txt")                 // a path alone opens for reading
 var abs = f.abspath                           // a String: /home/me/notes.txt
 println(f.path, " ", abs, " ", f.stat.size)   // ./notes.txt, and the open file's size, no case to unwrap (#104)
 let d = try IO(".")                           // a directory opens too
-for name in try d.listdir { println(name) }   // its names; d.walk every path under it; d.glob("*.k")
+var names = d.listdir                         // its names, an Array straight (#106); d.walk every path under it; d.glob("*.k")
+for name in names { println(name) }
 ```
 
 - **`f.path`** is the path as given; **`f.abspath`** the absolute path
@@ -194,7 +195,14 @@ for name in try d.listdir { println(name) }   // its names; d.walk every path un
   and **`f.exists`** are `OS`'s of the path. `OS.stat(path)` stays a
   `Result`: a path is looked up anew at each call, and may be gone.
 - **`f.listdir`**, **`f.walk`** and **`f.glob(pattern)`** are `OS`'s
-  of the path, a directory's, the pattern under it.
+  of the directory, its names, every path under it, the pattern's
+  matches under it, each an `Array<String>` straight and no Result
+  (#106), since the directory was there to open: of the path while it
+  is there, else of the descriptor's name as `f.abspath` finds it
+  (#105), so a directory renamed behind the IO answers by its new
+  name, with absolute paths. An IO that is no directory one can read,
+  or that nothing names, gives none. An Array an expression gives is
+  bound first, as any owner is: `var names = d.listdir`.
 - **`f.chmod(mode)`**, **`f.chown(uid, gid)`** and
   **`f.truncate(size)`** work on the open file itself; **`f.remove()`**,
   **`f.rename(to)`**, **`f.utime(atime, mtime)`** and **`f.touch()`**
@@ -259,9 +267,9 @@ f.isdir: bool                            // of the open file, as f.stat sees it
 f.isfile: bool
 f.islink: bool
 f.exists: bool
-f.listdir: Result<Array<String>, i32>    // a directory's names, sorted
-f.walk: Result<Array<String>, i32>       // every path under it, depth first
-f.glob(pattern: text): Result<Array<String>, i32>   // the matches of the pattern under its path
+f.listdir: Array<String>                 // a directory's names, sorted; none where it is no directory (#106)
+f.walk: Array<String>                    // every path under it, depth first
+f.glob(pattern: text): Array<String>     // the matches of the pattern under it
 f.chmod(mode: i32): i32                  // on the open file; 0 or errno
 f.chown(uid: i32, gid: i32): i32         // on the open file; -1 leaves an id
 f.truncate(size: i64): i32               // on the open file
@@ -331,7 +339,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.basename`, `.dirname`, `.join(name)` | the path's parts, a path under it, `String`s |
 | | `.stat`, `.lstat` | C's stat of the open file, of the path's own, each a `Stat` straight, no Result (#104) |
 | | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s: of the open file, of the open file, of the path, of the path |
-| | `.listdir`, `.walk`, `.glob(pattern)` | the names, every path under it, the matches, each a `Result<Array<String>, i32>` |
+| | `.listdir`, `.walk`, `.glob(pattern)` | the names, every path under it, the matches, each an `Array<String>` straight, none where it is no directory (#106) |
 | | `.chmod(mode)`, `.chown(uid, gid)`, `.truncate(size)` | on the open file, 0 or `errno` |
 | | `.remove()`, `.rename(to)`, `.utime(atime, mtime)`, `.touch()` | on the path, 0 or `errno`; `rename` needs a var |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |

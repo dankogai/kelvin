@@ -23,13 +23,13 @@ let main():i32 {
     var d = IO("io_path.tmpdir")                 // a directory, opened for reading
     if let ok(dir) = d {
         println(dir.path, " ", dir.isdir, " ", dir.isfile)
-        var names = dir.listdir
-        if let ok(ns) = names { for n in ns { print("[", n, "]") } }
+        var names = dir.listdir                  // Arrays straight (#106)
+        for n in names { print("[", n, "]") }
         println()
         var all = dir.walk
-        if let ok(ps) = all { for p in ps { println(p) } }
+        for p in all { println(p) }
         var txt = dir.glob("*/*.txt")
-        if let ok(ps) = txt { for p in ps { println(p) } }
+        for p in txt { println(p) }
         var abs = dir.abspath
         var cwd = OS.cwd
         var rel = OS.join(cwd.ok, "io_path.tmpdir")
@@ -44,8 +44,8 @@ let main():i32 {
     var out = IO.stdout
     var ends = IO.pipe()                         // a pipe end has no path, by name or by descriptor (#105)
     var noPath = ends.ok.reader.abspath
-    var noDir = out.listdir
-    println(out.path.count, " ", out.exists, " ", noPath.count == 0, " ", noDir.is(err))
+    var noDir = ends.ok.reader.listdir           // no directory: none
+    println(out.path.count, " ", out.exists, " ", noPath.count == 0, " ", noDir.count == 0)
     println(OS.rmdir("io_path.tmpdir/sub"), " ", OS.rmdir("io_path.tmpdir"))
     return 0
 }

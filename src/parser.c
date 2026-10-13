@@ -1635,9 +1635,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                             x->type = base_type("i32", name->pos);
                         else if (!strcmp(ops[k].gives, "string"))
                             x->type = base_type("String", name->pos);
-                        else /* listdir */
-                            x->type = variant_type(name, "res", array_type(name, base_type("String", name->pos)),
-                                                   base_type("i32", name->pos));
+                        else /* glob: an Array straight, as listdir (#106) */
+                            x->type = array_type(name, base_type("String", name->pos));
                     }
                 }
                 if (ok == 'i' && (!strcmp(member, "print") || !strcmp(member, "println"))) {
@@ -4816,8 +4815,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = cstr_type(name->pos);
         else if (kk == 'i' && !strcmp(member, "abspath")) /* a String, "" with no path (#104) */
             x->type = base_type("String", name->pos);
-        else if (kk == 'i' && (!strcmp(member, "listdir") || !strcmp(member, "walk")))
-            x->type = variant_type(name, "res", array_type(name, base_type("String", name->pos)), base_type("i32", name->pos));
+        else if (kk == 'i' && (!strcmp(member, "listdir") || !strcmp(member, "walk"))) /* an Array straight (#106) */
+            x->type = array_type(name, base_type("String", name->pos));
         else if (kk == 'i' && (!strcmp(member, "stat") || !strcmp(member, "lstat")))
             x->type = stat_type(name); /* of the open file, which always answers: no Result (#104) */
         else if (kk == 'i' && (!strcmp(member, "isdir") || !strcmp(member, "isfile") || !strcmp(member, "islink") ||
