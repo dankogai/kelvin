@@ -152,7 +152,9 @@ if let err(e) = IO("missing", "r") { var why = IO.strerror(e); println(why) }   
   reads, writes and flushes: what changes is the file, not the IO.
   Only `close` changes the IO, so it needs a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
-  libkelvin's runtime/io.c; the standard streams are three statics
+  libkelvin's runtime/io.c, where `abspath` of a descriptor is macOS's
+  `F_GETPATH` or Linux's `/proc/self/fd`, `""` elsewhere; the standard
+  streams are three statics
   that `IO.stdout` names in place. `fdopen`, `fileno`, `pipe`, `fork`,
   `execvp`, `waitpid`, `kill` and `putenv` are POSIX
   and X/Open, which the runtime asks for; a program needs nothing.
@@ -174,8 +176,12 @@ for name in try d.listdir { println(name) }   // its names; d.walk every path un
 ```
 
 - **`f.path`** is the path as given; **`f.abspath`** the absolute path
-  with every link followed, a `String`, `""` where the IO has no path
-  or the path is gone (#104); **`f.basename`** and **`f.dirname`** its
+  with every link followed, a `String` (#104): of the path, and where
+  that is gone or there is none, of the open descriptor as the system
+  names it (#105), so a file renamed behind the IO answers by its new
+  name, a removed one by the name it had, and an IO opened from a
+  descriptor by the file's; `""` where neither answers, as of a pipe
+  or a closed IO. **`f.basename`** and **`f.dirname`** are the path's
   parts and **`f.join(name)`** a path under it, each a `String`.
 - **`f.stat`** is the `Stat` of the open file itself, through its
   descriptor, straight and no Result (#104): an open descriptor always
@@ -243,7 +249,7 @@ f.pid: i32                               // a process's id, -1 for any other IO
 f.kill(signal: i32): bool                // to a process; true when sent
 
 f.path: cstr                             // as opened with; "" for a stream, a descriptor or a process
-f.abspath: String                        // absolute, every link followed; "" with no path (#104)
+f.abspath: String                        // absolute, every link followed; the descriptor's where the path is gone; "" with neither (#104, #105)
 f.basename: String                       // after the last /
 f.dirname: String                        // before it
 f.join(name: text): String               // a path under it
@@ -321,7 +327,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |
-| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `String`, `""` with no path (#101, #104) |
+| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `String`, the descriptor's where the path is gone, `""` with neither (#101, #104, #105) |
 | | `.basename`, `.dirname`, `.join(name)` | the path's parts, a path under it, `String`s |
 | | `.stat`, `.lstat` | C's stat of the open file, of the path's own, each a `Stat` straight, no Result (#104) |
 | | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s: of the open file, of the open file, of the path, of the path |

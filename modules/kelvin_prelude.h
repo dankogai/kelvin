@@ -161,7 +161,7 @@ int kv_os_stat(const void *path, kv_stat *out);
 int kv_os_lstat(const void *path, kv_stat *out);
 /* its path, and the OS's work on it (#101) */
 const uint8_t *kv_io_path(kv_io *f);
-kv_string kv_io_abspath(kv_io *f); /* "" where there is no path (#104) */
+kv_string kv_io_abspath(kv_io *f); /* of the path, else of the descriptor; "" where neither answers (#104, #105) */
 int kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
 int kv_io_walk(kv_io *f, kv_string **out, size_t *count);
 int kv_io_glob(kv_io *f, const void *pattern, kv_string **out, size_t *count);

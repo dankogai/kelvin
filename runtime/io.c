@@ -467,13 +467,34 @@ static const char *path_of(kv_io *f) { return f->path ? f->path : ""; }
 
 const uint8_t *kv_io_path(kv_io *f) { return (const uint8_t *)path_of(f); }
 
-/* the absolute path with every link followed, "" where the IO has no
-   path, or the path is gone (#104) */
+/* the absolute path with every link followed: of the path (#104), and
+   where that is gone or there is none, of the open descriptor as the
+   system names it (#105), macOS's F_GETPATH or Linux's /proc/self/fd,
+   a removed file's by the name it had; "" where neither answers, as of
+   a pipe, a closed IO, or another system */
 kv_string kv_io_abspath(kv_io *f) {
     kv_string out = {0};
     if (f->path && kv_os_realpath(f->path, &out) == 0)
         return out;
-    return kv_string_text("");
+    char buf[PATH_MAX + 1];
+    buf[0] = 0;
+    int fd = f->fp ? fileno((FILE *)f->fp) : -1;
+    if (fd >= 0) {
+#if defined(__APPLE__)
+        if (fcntl(fd, F_GETPATH, buf) != 0)
+            buf[0] = 0;
+#elif defined(__linux__)
+        char link[64];
+        snprintf(link, sizeof link, "/proc/self/fd/%d", fd);
+        ssize_t n = readlink(link, buf, sizeof buf - 1);
+        buf[n < 0 ? 0 : n] = 0;
+        static const char gone[] = " (deleted)";
+        size_t len = strlen(buf), gl = sizeof gone - 1;
+        if (len > gl && !strcmp(buf + len - gl, gone)) /* a removed file, by the name it had */
+            buf[len - gl] = 0;
+#endif
+    }
+    return kv_string_text(buf[0] == '/' ? buf : "");
 }
 int kv_io_listdir(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_listdir(f->path, out, count) : ENOENT; }
 int kv_io_walk(kv_io *f, kv_string **out, size_t *count) { return f->path ? kv_os_walk(f->path, out, count) : ENOENT; }
