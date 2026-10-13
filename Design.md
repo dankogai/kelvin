@@ -147,6 +147,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 113 | `modules/JSON.k`: `enum JSON { null; boolean: bool; number: f64; string: String; array: Array<JSON>; object: Dictionary<String, JSON>; error: String }`, `JSON.parse(text)` of a cstr or a borrowed String, straight, with a text that is not JSON as the case `error`, and `JSON.stringify(&j, replacer, space)` as JS's, numbers written as JS writes them | a JSON library | `var j = JSON.parse(text); println(j.object["k"].number); var s = JSON.stringify(&j, "  ")` | 2026-10-14 |
 | 114 | An anonymous function with an Optional result, `{ (v:i64):i64? in ... }`: the `?` before `in` is the type's, and a one-expression body is wrapped as `return` wraps it, a `U` or `none` of a `U?` | — | `xs.map { (v:i64):i64? in v > 2 ? Optional<i64>(v) : none }` | 2026-10-14 |
 | 115 | `"""text"""`: a string literal over any number of lines, with the text as written, no escapes, no `${...}`, a `cstr` as any literal; `$"""..."""` a String of it | `"line\n" "line\n"` | `JSON.parse("""{"a": "b\n"}""")` | 2026-10-14 |
+| 116 | `none` as an arm of `?:`: where a `T?` or a Result is expected, each arm is wrapped on its own, `return c ? v : none`, `c ? ok(v) : err(e)`; beside an arm that is one, `c ? Optional<i64>(n) : none`, the other is wrapped to it; an else arm `Optional<i64>(n)` or `Bytes(s)` is a value, not an annotation | `c ? a : b` | `let half(v:i64):i64? { v % 2 == 0 ? v / 2 : none }` | 2026-10-14 |
 
 Notes:
 
@@ -709,6 +710,16 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (116) Agreed details: "now fix the wart: `none` as an arm of `?:`".
+  Three things: the wrapping a `return`, a declaration or a body gives
+  a `T?` now goes into each arm of a `?:`, so `none` and a `T` are
+  wrapped where they stand, and a Result's `ok(v)` and `err(e)` the
+  same; an arm beside one that is a `T?` or a Result is wrapped to it,
+  as `==` wraps its other side (#79), so the type is inferred; and an
+  else arm that starts with a type's name and `<` or `(`,
+  `Optional<i64>(n)`, `Set<i64>()`, `Bytes(s)`, is a value, where the
+  parser read `v : Optional<i64>` as an annotation (P128).
+
 - (115) Agreed details: "Also add the multi-line, non-interpolating `"""`
   a la python, et al. That may quote JSON-like text more easily." The
   text between the `"""` is taken as it is, over any number of lines:
@@ -1257,6 +1268,7 @@ says "as agreed".
 | P125 | Details of #113 | `JSON.parse(s)` is `JSON__parse__cstr(s)`, `JSON.stringify(&j, "  ")` is `JSON__stringify__const_JSONp__cstr(&j, "  ")`; the module's helpers are `static let JSON_...` functions, C-static | A recursive descent reader over a `JSONReader {at, i, count, depth}`; strings are gathered as Bytes, checked as UTF-8, then made Strings; `f64(bytes)` reads a number the grammar accepted. Found while writing it: a `return v` inside a branch marks `v` moved for the lines after it, so loops end with one return; an anonymous function with a `JSON?` result cannot be written inline, since `):JSON? in` reads the `?` as a conditional (a wart to fix); passing a JSON by value where a borrow is wanted says "an owner cannot be given to a C function", a message that should name the overloads instead; `.hex` of an integer gives `+0x..`, so messages do not show the code unit |
 | P126 | Details of #114 | `{ (v:i64):i64? in none }` is a `static inline` function returning `_kv__kv_opt_i64_make_none()` | `type_shape_end`'s base-word loop ends in `type_suffix_end`, which takes `?` when a line break, a non-operand or `in` follows; `implicit_return` applies `optional_of` to the one expression, as `return` does. Still not wrapped: `none` as one arm of a `?:`, `c ? Optional<i64>(v) : none`, whose arms are typed before the result is known; write `if` and `return` |
 | P127 | Details of #115 | `"""a "b"\nc"""` is the C literal `"a \"b\"\nc"` | `lex_triple` in the lexer, after `lex_template`'s model: a new line is `\n`, a backslash, a quote and a `?` are escaped for C, everything else is copied; the token is a plain TK_STRING, so `.count`, joining, `$` and `Bytes(...)` need nothing |
+| P128 | Details of #116 | `c ? v : none` of an `i64?` is `c ? _kv__kv_opt_i64_make_some(v) : _kv__kv_opt_i64_make_none()` | `optional_of` distributes over an E_TERNARY that is no `??`; `parse_conditional` wraps the arm beside a variant with `optional_of`; `annotation_ahead` refuses a base word followed by `<` or `(` while a ternary's middle arm is parsed, where `ident_annotation_ok` is false |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

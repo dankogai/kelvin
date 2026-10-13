@@ -2963,6 +2963,8 @@ static bool annotation_ahead(void) {
     Token *n = peek2();
     if (is_converter(n) && is_p(peek_at(2), "(") && !(line_break(n, peek_at(2)) && at_statement_level()))
         return false; /* c ? x : u8(y), but not 7:i64 before a `(` line (#35) */
+    if (!ident_annotation_ok && (is_base_word(n) || is_kw(n, "String")) && (is_p(peek_at(2), "<") || is_p(peek_at(2), "(")))
+        return false; /* c ? x : Optional<i64>(y), c ? x : Bytes(s): the else arm makes a value (#116) */
     if (is_base_word(n) || is_qualifier(n) || kelvin_for_c_word(n) || is_kw(n, "struct") || is_kw(n, "union") ||
         is_kw(n, "enum") || is_kw(n, "String"))
         return true;
@@ -3210,6 +3212,16 @@ static Expr *parse_conditional(void) {
     expect_p(":");
     e->c = parse_conditional();
     e->is_bool = seen_bool(e); /* C would promote two bools to int */
+    {
+        /* c ? Optional<i64>(v) : none (#116): an arm beside a T? or a Result
+           is wrapped as where one is expected, as == wraps it (#79) */
+        Type *tb = value_type(e->b), *tc = value_type(e->c);
+        Decl *vb = tb ? variant_record(tb) : NULL, *vc = tc ? variant_record(tc) : NULL;
+        if (vb && !vc)
+            e->c = optional_of(e->c, tb, e->c->pos);
+        else if (vc && !vb)
+            e->b = optional_of(e->b, tc, e->b->pos);
+    }
     /* c ? 'A' : ch, a uchr beside an integer: the integer becomes a uchr (#56) */
     Decl *r;
     if (is_uchr(value_type(e->b)) != is_uchr(value_type(e->c))) {
@@ -8884,6 +8896,14 @@ static Expr *optional_of(Expr *v, Type *target, Pos pos) {
     Type *vt = value_type(v);
     if (vt && vt->kind == T_BASE && !strcmp(vt->name, tag_type_name(r)))
         return v; /* a T? or a Result already */
+    if (v->kind == E_TERNARY && !(v->op && !strcmp(v->op, "coalesce"))) {
+        /* c ? a : b where a T? or a Result is expected (#116): each arm is
+           wrapped on its own, so that c ? v : none and c ? ok(v) : err(e)
+           are what return and a declaration take */
+        v->b = optional_of(v->b, target, v->b->pos);
+        v->c = optional_of(v->c, target, v->c->pos);
+        return v;
+    }
     Expr *e = new_expr(E_CALL, pos);
     e->a = new_expr(E_IDENT, pos);
     e->a->text = r->spelling;

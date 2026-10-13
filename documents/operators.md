@@ -25,7 +25,7 @@ each operator means for its types.
 | 11 | `\|` | `a \| b` | `a \| b` |
 | 12 | `&&` | `a && b` (`bool`s) | `a && b` |
 | 13 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
-| 14 | `?:` | `c ? a : b` (`c` a `bool`) | `c ? a : b` |
+| 14 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
 | 15 | ranges | `a..<b`, `a...b` (in `for` only) | |
 | 16 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=` | `=`, `+=`, ..., `^=` |
 | 17 | `,` | `a, b` (in a `for` clause, an assignment list) | `a, b` |

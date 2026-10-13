@@ -45,7 +45,10 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
 - **Making one:** a `T` where a `T?` is expected becomes `some(T)` by
   itself, in a declaration, an assignment, a member, an element, an
   entry or a `return`; `none` there is the absent value, a word that
-  needs the type around it (`var x = none` has no type). An owner moves
+  needs the type around it (`var x = none` has no type). The arms of a
+  `?:` take this too (#116): `return c ? v : none`, `var x:i64? = c ?
+  n : none`, and `c ? Optional<i64>(n) : none`, where the other arm
+  gives the type. An owner moves
   in, as a case's value does. `Optional<T>(v)`, `Optional<T>()`,
   `Optional<T>.some(v)` and `Optional<T>.none` spell both out.
 - **Reading:** `x.some` is the value, checked at run time: of `none`,
@@ -122,6 +125,7 @@ the reason in `err`: [results.md](results.md).
 | | `.is(some)`, `.is(none)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for none, 1 for some |
 | | `x ?? y` | the value, or `y` |
+| | `c ? v : none` | each arm wrapped where a `T?` is expected, or beside an arm that is one (#116) |
 | | `switch x { case some: ... case none: ... }` | by the case |
 | | `.cstr` | `some(3)`, `none` |
 | | `==`, `!=` | both `none`, or equal values; `x == none`, `x == 3` (#79) |

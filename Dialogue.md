@@ -1,17 +1,13 @@
 
 
-### 146. The `?` before `in`, and `"""`
+### 147. `none` as an arm of `?:`
 
-> now fix the wart: `):JSON? in` in an anonymous function. Also add the
-> multi-line, non-interpolating `"""` a la python, et al. That may quote
-> JSON-like text more easily.
+> now fix the wart: `none` as an arm of `?:`
 
-**Claude** fixed #114: the signature lookahead stopped at the `?` of a
-base type and took `in` for an operand, and a one-expression body of a
-`T?` result was not wrapped as `return` wraps it; both now are, so
-`{ (key:cstr, v:const JSON^):JSON? in none }` is a replacer. And added
-#115: `"""text"""`, a string literal over lines with the text as it
-is, no escapes and no `${...}`, so `JSON.parse("""{"a": "b\n"}""")`
-reads JSON as written. Details are provisional P126 and P127.
+**Claude** fixed #116: the wrapping a `T?` or a Result gets from a
+`return`, a declaration or a one-expression body now goes into each
+arm of a `?:`, an arm beside one that is a `T?` is wrapped to it, and
+an else arm such as `Optional<i64>(n)` is a value, not an annotation.
+Details are provisional P128.
 
-There are 662 tests, and all pass with clang and with gcc 15.
+There are 663 tests, and all pass with clang and with gcc 15.

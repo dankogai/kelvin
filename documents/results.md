@@ -152,6 +152,8 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
 - **A number read from text** is `i64(s)`, which reads as `strtol`
   does and sets `errno` to `ERANGE` past the limits; check the digits
   first, and the Result's `err` says which.
+- **A `?:`** takes the same wrapping in each arm (#116): `return
+  s.count > 0 ? i64(s) : err("empty")`, or `c ? ok(v) : err(e)`.
 - **Passing an err up** is `try f()` (#76): the value, or `return
   err(e)` written for you. By hand, it is `if r.is(err) { return
   err(r.err) }`, then `r.ok`.
