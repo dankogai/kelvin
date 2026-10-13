@@ -1601,8 +1601,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                     x->is_bool = true;
                 if (ok == 'i') { /* the OS's work on its path (#101): the arguments by kind, and what each gives */
                     static const struct { const char *name, *args, *gives; } ops[] = {
-                        {"glob", "t", "listdir"}, {"chmod", "i", "i32"},    {"chown", "ii", "i32"}, {"truncate", "i", "i32"},
-                        {"remove", "", "i32"},    {"rename", "t", "i32"},   {"utime", "ff", "i32"}, {"touch", "", "i32"},
+                        {"glob", "t", "listdir"}, {"chmod", "i", "bool"},   {"chown", "ii", "bool"}, {"truncate", "i", "bool"},
+                        {"remove", "", "bool"},   {"rename", "t", "bool"},  {"utime", "ff", "bool"}, {"touch", "", "bool"},
                         {"join", "t", "string"},
                     };
                     for (size_t k = 0; k < sizeof ops / sizeof ops[0]; k++) {
@@ -1631,8 +1631,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                          at ? kelvin_type(at) : "a number");
                             }
                         }
-                        if (!strcmp(ops[k].gives, "i32"))
-                            x->type = base_type("i32", name->pos);
+                        if (!strcmp(ops[k].gives, "bool")) /* the operations: true when done (#108) */
+                            x->type = base_type("bool", name->pos), x->is_bool = true;
                         else if (!strcmp(ops[k].gives, "string"))
                             x->type = base_type("String", name->pos);
                         else /* glob: an Array straight, as listdir (#106) */

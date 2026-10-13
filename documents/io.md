@@ -206,14 +206,18 @@ for name in names { println(name) }
   name, with absolute paths. An IO that is no directory one can read,
   or that nothing names, gives none. An Array an expression gives is
   bound first, as any owner is: `var names = d.listdir`.
-- **`f.chmod(mode)`**, **`f.chown(uid, gid)`** and
-  **`f.truncate(size)`** work on the open file itself; **`f.remove()`**,
-  **`f.rename(to)`**, **`f.utime(atime, mtime)`** and **`f.touch()`**
-  on the path, each 0 or `errno`. After `rename`, `f.path` is the new
-  name, so `rename` needs the var that owns the IO, as `close` does. A
-  file removed while open stays readable until it is closed.
+- **`f.chmod(mode)`**, **`f.chown(uid, gid)`**, **`f.truncate(size)`**,
+  **`f.utime(atime, mtime)`** and **`f.touch()`** work on the open file
+  itself, through its descriptor, so they work on a file renamed or
+  removed behind the IO; **`f.remove()`** and **`f.rename(to)`** by the
+  path while it is there, else by the descriptor's name (#105). Each
+  gives a `bool`, true when done, as `seek` and `kill` do (#108), and
+  no `errno`: `OS`'s of the same path tell why. After `rename`,
+  `f.path` is the new name, so `rename` needs the var that owns the
+  IO, as `close` does. A file removed while open stays readable until
+  it is closed.
 - An IO with no path, a stream or a process, answers `""`, `false` or
-  `ENOENT`.
+  none.
 
 ## What each member takes and gives
 
@@ -273,13 +277,13 @@ f.exists: bool
 f.listdir: Array<String>                 // a directory's names, sorted; none where it is no directory (#106)
 f.walk: Array<String>                    // every path under it, depth first
 f.glob(pattern: text): Array<String>     // the matches of the pattern under it
-f.chmod(mode: i32): i32                  // on the open file; 0 or errno
-f.chown(uid: i32, gid: i32): i32         // on the open file; -1 leaves an id
-f.truncate(size: i64): i32               // on the open file
-f.remove(): i32                          // the path; the open file stays readable until closed
-f.rename(to: text): i32                  // the path, which then follows; needs the var that owns the IO
-f.utime(atime: f64, mtime: f64): i32     // the path's times, in seconds since the epoch
-f.touch(): i32                           // both now
+f.chmod(mode: i32): bool                 // on the open file; true when done (#108)
+f.chown(uid: i32, gid: i32): bool        // on the open file; -1 leaves an id
+f.truncate(size: i64): bool              // on the open file
+f.remove(): bool                         // the path, else the descriptor's name; the open file stays readable until closed
+f.rename(to: text): bool                 // the same, and the path then follows; needs the var that owns the IO
+f.utime(atime: f64, mtime: f64): bool    // the open file's times, in seconds since the epoch
+f.touch(): bool                          // both now
 ```
 
 `[text]` for `args` and `env` is a list written in brackets,
@@ -343,8 +347,8 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.stat`, `.lstat` | C's stat of the open file, of the path's own, each a `Stat` straight, no Result (#104) |
 | | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s: of the open file, of the open file, of the path, of the path |
 | | `.listdir`, `.walk`, `.glob(pattern)` | the names, every path under it, the matches, each an `Array<String>` straight, none where it is no directory (#106) |
-| | `.chmod(mode)`, `.chown(uid, gid)`, `.truncate(size)` | on the open file, 0 or `errno` |
-| | `.remove()`, `.rename(to)`, `.utime(atime, mtime)`, `.touch()` | on the path, 0 or `errno`; `rename` needs a var |
+| | `.chmod(mode)`, `.chown(uid, gid)`, `.truncate(size)`, `.utime(atime, mtime)`, `.touch()` | on the open file, a `bool`, true when done (#108) |
+| | `.remove()`, `.rename(to)` | by the path, else the descriptor's name, a `bool`; `rename` needs a var |
 | | `.seek(n)`, `.rewind()` | moves to byte `n` from the start, a `bool`; to the start, clearing the end |
 | | `.size`, `.typename` | `sizeof`; `IO` |
 

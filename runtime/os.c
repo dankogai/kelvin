@@ -523,6 +523,17 @@ int kv_os_utime(const void *path, double atime, double mtime) {
     return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
 }
 
+/* the same of an open descriptor, for an IO (#108) */
+int kv_os_futime(int fd, double atime, double mtime) {
+    struct timespec ts[2] = {at_seconds(atime), at_seconds(mtime)};
+    return futimens(fd, ts) == 0 ? 0 : err_or(EIO);
+}
+
+int kv_os_ftouch(int fd) {
+    struct timespec ts[2] = {{0, UTIME_NOW}, {0, UTIME_NOW}};
+    return futimens(fd, ts) == 0 ? 0 : err_or(EIO);
+}
+
 /* both times now, and the file made if it is missing, as touch does */
 int kv_os_touch(const void *path) {
     int fd = open((const char *)path, O_WRONLY | O_CREAT, 0666);

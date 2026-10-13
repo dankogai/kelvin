@@ -2,7 +2,8 @@
 // on it from the IO: listdir, walk, glob, stat (of the open file itself, a
 // Stat straight, #104),
 // lstat, isdir, isfile, islink, exists, chmod, chown, truncate, remove,
-// rename (the path follows), utime, touch, basename, dirname, join; and
+// rename (the path follows), utime, touch, each true when done (#108),
+// basename, dirname, join; and
 // IO(path) alone opens for reading, a directory too
 #import <errno.h> as C
 let main():i32 {
@@ -51,17 +52,17 @@ let main():i32 {
 }
 // out: 0
 // out: io_path.tmpdir/sub/f.txt 5 true false true false
-// out: 0 384 0 2
+// out: true 384 true 2
 // out: f.txt io_path.tmpdir/sub io_path.tmpdir/sub/f.txt/x String
-// out: 0 0 1000000000.0 0
+// out: true true 1000000000.0 true
 // out: io_path.tmpdir true false
 // out: [sub]
 // out: io_path.tmpdir/sub
 // out: io_path.tmpdir/sub/f.txt
 // out: io_path.tmpdir/sub/f.txt
 // out: true String
-// out: 0 io_path.tmpdir/sub/g.txt true
-// out: 0 false 2
+// out: true io_path.tmpdir/sub/g.txt true
+// out: true false 2
 // out: 0 false true true
 // out: 0 0
 // c: kv_io_open(&_kv_f, "io_path.tmpdir", "r")
