@@ -2560,6 +2560,10 @@ static void emit_tagged_record(Decl *d, Type *recv) {
     emit_arrays_after(d);
     bool owns = owner_free(recv) != NULL;
     if (owns) {
+        /* xs[i] = v of an element that is one (#117): freed, then stored */
+        line("__attribute__((unused)) static inline void _kv_%s_free(%s *self);", d->name, ctype);
+        line("__attribute__((unused)) static inline void _kv_%s_assign(%s *p, %s v) { _kv_%s_free(p); *p = v; }", d->name,
+             ctype, ctype, d->name);
         line("__attribute__((unused)) static inline void _kv_%s_free(%s *self)", d->name, ctype);
         line("{");
         indent++;
@@ -2833,6 +2837,9 @@ static void emit_decl(Decl *d) {
             recv->name = strfmt("%s %s", kw, d->name);
             line("%s", "");
             if (d->kind == D_STRUCT && owner_free(recv)) { /* a struct that owns (#54) */
+                line("__attribute__((unused)) static inline void _kv_%s_free(%s *self);", d->name, decl(recv, ""));
+                line("__attribute__((unused)) static inline void _kv_%s_assign(%s *p, %s v) { _kv_%s_free(p); *p = v; }",
+                     d->name, decl(recv, ""), decl(recv, ""), d->name); /* xs[i] = v (#117) */
                 line("__attribute__((unused)) static inline void _kv_%s_free(%s *self)", d->name, decl(recv, ""));
                 line("{");
                 indent++;

@@ -1291,6 +1291,36 @@ static Expr *parse_postfix_ops(Expr *e) {
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p("]");
+            Decl *jr = tagged_record(value_type(e));
+            if (jr) {
+                /* v[k] of an enum with values (#117): through its case that is a
+                   Dictionary for text, or an Array for an integer, as j["key"]
+                   and j[i] of a JSON; checked as the case and the index are */
+                Var *dc = NULL, *ac = NULL;
+                for (int i = 0; i < jr->members.len; i++) {
+                    Var *c = jr->members.data[i];
+                    if (c->type && is_dict_owner(c->type) && !dc)
+                        dc = c;
+                    if (c->type && is_array_owner(c->type) && !ac)
+                        ac = c;
+                }
+                Expr *k = x->b ? x->b : x->c;
+                bool text = k && !slice && (is_text_expr(k) || is_string(value_type(k)) || is_bytes(value_type(k)));
+                Var *c = text ? dc : ac;
+                if (!c)
+                    error_at(t->pos, "%s is not indexed with %s: %s", record_spelling(jr), text ? "text" : "an integer",
+                             dc && !text  ? "its Dictionary case takes text"
+                             : ac && text ? "its Array case takes an integer"
+                                          : "no case of it is a Dictionary or an Array");
+                Expr *f = new_expr(E_FIELD, t->pos);
+                f->a = e;
+                f->text = c->name;
+                f->op = "case";
+                f->type = c->type;
+                f->target = jr;
+                e = f;
+                x->a = f;
+            }
             if (slice) {
                 /* xs[lo..<hi] (#68): a copy of the elements, or of a String's
                    codepoints, or of a Bytes's bytes, of a place */

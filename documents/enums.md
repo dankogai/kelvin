@@ -53,6 +53,11 @@ println(j.n)                             // ends the program: case 'n' of json i
   another case is current, the program ends with a message naming both.
   It is a place: `v.rect.w += 1.0` and `v.s += "x"` change it. A case
   with no value cannot be read.
+- **Indexing** (#117): `v[k]` of an enum with values goes through its
+  case that is a Dictionary when `k` is text, and its Array case when
+  `k` is an integer, so `j["key"]` is `j.object["key"]` and `j[0]` is
+  `j.array[0]`: a place, checked as the case and the index are. An
+  enum with no such case says so.
 - **Testing:** `v.is(n)` is a bool; `v.case` is the tag, a `u8`, the
   case's index from 0; `switch v { case n: ... case none: ... }`
   branches on the case by its bare name, each case ending at the next,
@@ -105,6 +110,7 @@ A struct, or an enum with values, that holds an owner is copied with
 | | `.is(n)` | whether `n` is the current case, a `bool` |
 | | `.n` | the value of case `n`, checked: another case ends the program |
 | | `.n = x` | sets the case and its value, freeing what it held |
+| | `v["key"]`, `v[i]` | the Dictionary case's entry, the Array case's element, checked (#117) |
 | | `T.n(x)`, `T.none` | a value, by the type's name |
 | | `switch v { case n: ... }` | by the case, exhaustive (#63) |
 | | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |

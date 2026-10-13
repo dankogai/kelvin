@@ -14,9 +14,9 @@ space)` writes it back, as JS's do.
 
 var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11], "ok": true}""")   // """ quotes JSON as it is (#115)
 if j.is(error) { println(j.error) }           // "a key in an object: unexpected end of text at 1"
-println(j.object["name"].string, " ", j.object["tags"].array[1].number, " ", j.object["ok"].boolean)
-j.object["tags"].array += JSON.number(12.0)   // grown, as any Array
-j.object["new"] = JSON.string($"added")       // a member added, or replaced
+println(j["name"].string, " ", j["tags"][1].number, " ", j["ok"].boolean)   // j["key"], j[i]: through the cases (#117)
+j["tags"].array += JSON.number(12.0)          // grown, as any Array
+j["new"] = JSON.string($"added")              // a member added, or replaced
 var flat = JSON.stringify(&j)                 // {"name":"kelvin","tags":["c",11,12],"ok":true,"new":"added"}
 var pretty = JSON.stringify(&j, "  ")         // one member or element a line, two spaces a level
 var v = JSON.array($[JSON.number(1.0), JSON.null, JSON.boolean(false)])   // made by hand, by the cases
@@ -64,9 +64,17 @@ var a = JSON.parse(&text)                     // a String, borrowed
   the infinities. **Strings** escape `"`, `\`, the control characters as
   `\n`, `\t`, `\r`, `\b`, `\f` or `\u00XX`, and write every other
   codepoint as itself. An `error` is written as its message, a string.
-- **Not yet:** `j["key"]` and `j[i]` straight on a JSON, a `switch` that
-  binds the case's value, numbers past an `f64`, and comments or
-  trailing commas, which are not JSON.
+- **`j["key"]` and `j[i]`** (#117) index a JSON straight: text goes
+  through the `object` case and an integer through the `array` case,
+  so `j["tags"][1].number` reads a path, `j["n"] = JSON.number(4.0)`
+  sets or adds a member and `j["tags"][0] = ...` an element, each
+  checked as the case and the index are: a JSON that is no object ends
+  the program as `j.object` would, and so does a missing key or an
+  index out of range. `j["tags"].array += x` grows one, `j[1..<3]`
+  slices the array. This is the rule of [enums.md](enums.md) for any
+  enum with values that holds a Dictionary or an Array.
+- **Not yet:** a `switch` that binds the case's value, numbers past an
+  `f64`, and comments or trailing commas, which are not JSON.
 
 ## Functions
 
@@ -86,6 +94,7 @@ JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: cons
 | On | Property or method | Gives |
 |---|---|---|
 | `JSON` | `.null`, `.boolean`, `.number`, `.string`, `.array`, `.object`, `.error` | the case's value, checked; `JSON.null`, `JSON.number(1.5)`, ... make one |
+| | `j["key"]`, `j[i]` | the member, the element, through the object or the array case, checked; a place (#117) |
 | | `.is(array)`, `.case`, `switch j { case array: ... }` | which case it is |
 | | `.copy()` | a copy, deep |
 | | `.cstr`, `${j}` | the case and its value, `number(1.5)`, as any enum's; `JSON.stringify(&j)` for JSON text |
