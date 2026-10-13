@@ -13,7 +13,6 @@ let onlyStrings(key:cstr, v:const JSON^):JSON? {
     if v^.is(string) || v^.is(array) || v^.is(object) || key[0] == 0 { return v^.copy() }
     return none
 }
-let nothing(key:cstr, v:const JSON^):JSON? { return none }
 let main():i32 {
     var j = JSON.parse("{\"user\": \"ann\", \"password\": \"hunter2\", \"age\": 21, \"scores\": [1, 2, \"x\"]}")
     var a = JSON.stringify(&j, noSecrets)
@@ -23,7 +22,7 @@ let main():i32 {
     var unit = $"--"
     var c = JSON.stringify(&j, noSecrets, &unit)
     println(c)
-    var gone = JSON.stringify(&j, nothing)             // the root left out: no text at all
+    var gone = JSON.stringify(&j, { (key:cstr, v:const JSON^):JSON? in none })   // the root left out: no text at all (#114)
     println(gone.count, " [", gone, "]")
     return 0
 }

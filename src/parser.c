@@ -336,6 +336,7 @@ static bool is_qualifier(Token *t);
 
 static int typeof_at(int i);
 static int type_suffix_end(int i);
+static bool is_in(Token *t);
 static bool type_is_field(int i, int dot);
 
 static bool paren_type_ahead(bool in_sizeof) {
@@ -449,8 +450,9 @@ static int type_suffix_end(int i) {
         if (is_p(&toks[i], "^") || is_kw(&toks[i], "const") || is_kw(&toks[i], "volatile"))
             i++;
         else if ((is_p(&toks[i], "?") || is_p(&toks[i], "??")) &&
-                 (line_break(&toks[i], &toks[i + 1]) || !starts_operand(&toks[i + 1])))
-            i++; /* T? is Optional<T> (#72), T?? twice; a ? b : c and x ?? y go on with an operand */
+                 (line_break(&toks[i], &toks[i + 1]) || !starts_operand(&toks[i + 1]) || is_in(&toks[i + 1])))
+            i++; /* T? is Optional<T> (#72), T?? twice; a ? b : c and x ?? y go on with an operand; `in` ends an
+                    anonymous function's result type, {(a:T):U? in ...} (#114) */
         else if (is_p(&toks[i], "["))
             i = skip_group(i);
         else
@@ -641,7 +643,7 @@ static int type_shape_end(int i) {
         else if (is_p(&toks[i], "["))
             i = skip_group(i);
         else
-            return i;
+            return type_suffix_end(i); /* T? too, as {(a:T):U? in ...} writes it (#114) */
     }
 }
 
@@ -7049,6 +7051,7 @@ static void implicit_return(Decl *d) {
         last->kind = S_RETURN;
         last->closed = false; /* its owner is returned, not dropped (#81) */
         pick_overload(last->expr, d->ret);
+        last->expr = optional_of(last->expr, d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
             reject_returned_text(last->expr, d->anon);
         return_owner(last->expr);

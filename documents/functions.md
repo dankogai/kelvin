@@ -155,7 +155,9 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
   literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the
   list for a function. See [arrays.md](arrays.md).
-- **A body of one expression** is the result: `{ $0 < $1 }`. Without a
+- **A body of one expression** is the result: `{ $0 < $1 }`, wrapped as
+  `return` wraps it, a `U` or `none` of a `U?` result, which is written
+  `{ (v:i64):i64? in none }` (#114). Without a
   result, it must do something: a call or an assignment, as in
   `{ total += $0 }`; with one, it may not be an assignment or a call
   kelvinc sees has no value. Any other body is statements, with

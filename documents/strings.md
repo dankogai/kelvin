@@ -55,7 +55,13 @@ let card:cstr := `${n} items` // a template's text, on the stack too
 - **A string literal** is C's: a `char` array that lives for the whole
   program, which decays to a pointer. `let s:cstr := "hi"` points at
   it; writing through `s` is undefined, as in C. Adjacent literals join,
-  and the escapes are C's.
+  and the escapes are C's. **`"""text"""`** (#115) is a string literal
+  over any number of lines, with the text exactly as written: no
+  escapes, no `${...}`, the line breaks and the indentation kept, so
+  JSON or C can be quoted as it is, `"""{"a": "b\n"}"""`; it ends at
+  the next `"""`, which it cannot hold. It is a `cstr` as any literal,
+  joins with its neighbours, and `$"""..."""` and `Bytes("""...""")`
+  make a String or a Bytes of it.
 - **A byte array**, `[u8](N)` or `[u8]` filled from a literal, is a
   value with a count: `let t:[u8] = "hi"` has `t.count` 3, the NUL
   included, and its bytes may change if it is a `var`. It is an array,
@@ -198,6 +204,7 @@ freed when their block ends.
 | On | Property or method | Gives |
 |---|---|---|
 | `cstr`, a literal | `.count` | `strlen`, measured once per scope (#52) |
+| `"""text"""` | | a literal over lines, as written, no escapes (#115) |
 | | `.cstr` | the text itself |
 | | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
 | | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |

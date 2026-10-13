@@ -69,7 +69,7 @@ infers the type from the value:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
 - an array literal is an array of its items' type (#48), as
   [arrays.md](arrays.md) says, and a string literal is a `cstr` (#52):
-  `let s := "hi"`
+  `let s := "hi"`, also `"""..."""` over lines, as written (#115)
 - any other value whose type kelvinc sees is that type (#47): a Kelvin
   function's or method's result (`var z = complex64(0.0, 1.0)`,
   `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,

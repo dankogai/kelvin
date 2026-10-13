@@ -267,6 +267,49 @@ static void lex_template(Lexer *lx, Pos pos, Pos start, bool head) {
     lx->toks[lx->len - 1].tpl = kind == TK_STRING;
 }
 
+/* """text""" (#115): the text between the quotes as it is, over any
+   number of lines, with no escapes and no ${...}, as a C string literal;
+   a new line is \n, and a backslash, a quote and a ? are escaped for C.
+   A string literal, a cstr, as any other; adjacent ones join */
+static void lex_triple(Lexer *lx) {
+    Pos pos = here(lx);
+    step(lx);
+    step(lx);
+    step(lx);
+    Buf lit = {0};
+    buf_puts(&lit, "\"");
+    for (;;) {
+        char c = *lx->p;
+        if (!c)
+            error_at(pos, "unterminated \"\"\" string: it ends with \"\"\"");
+        if (c == '"' && lx->p[1] == '"' && lx->p[2] == '"') {
+            step(lx);
+            step(lx);
+            step(lx);
+            break;
+        }
+        if (c == '\\') {
+            buf_puts(&lit, "\\\\");
+        } else if (c == '"') {
+            buf_puts(&lit, "\\\"");
+        } else if (c == '\n') {
+            buf_puts(&lit, "\\n");
+        } else if (c == '\r' && lx->p[1] == '\n') { /* a CRLF line end is a new line */
+            buf_puts(&lit, "\\n");
+            step(lx);
+        } else if (c == '\r') {
+            buf_puts(&lit, "\\r");
+        } else if (c == '?') { /* never a C trigraph */
+            buf_puts(&lit, "\\?");
+        } else {
+            buf_putn(&lit, lx->p, 1);
+        }
+        step(lx);
+    }
+    buf_puts(&lit, "\"");
+    push(lx, TK_STRING, pos, lit.buf, lit.buf + lit.len);
+}
+
 static void skip_blanks(Lexer *lx) {
     while (*lx->p == ' ' || *lx->p == '\t')
         step(lx);
@@ -366,6 +409,10 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         }
         if (isdigit((unsigned char)c) || (c == '.' && isdigit((unsigned char)lx.p[1]))) {
             lex_number(&lx);
+            continue;
+        }
+        if (c == '"' && lx.p[1] == '"' && lx.p[2] == '"') {
+            lex_triple(&lx);
             continue;
         }
         if (c == '"') {

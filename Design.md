@@ -145,6 +145,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 111 | Functions of a type: `static let T.name(params):R { }`, Swift's `static func`, with no self, called as `T.name(args)`; `T` a struct, union or enum with values of the program; overloads by parameter types as any function's | a function named `T__name` | `static let point.of(x:i64, y:i64):point { (point){x, y} }`, `let p = point.of(3, 4)` | 2026-10-14 |
 | 112 | `#import <name>` with no extension is `#import <name.k>`: a Kelvin file of `./modules` or of Kelvin's `modules/` | — | `#import <JSON>` | 2026-10-14 |
 | 113 | `modules/JSON.k`: `enum JSON { null; boolean: bool; number: f64; string: String; array: Array<JSON>; object: Dictionary<String, JSON>; error: String }`, `JSON.parse(text)` of a cstr or a borrowed String, straight, with a text that is not JSON as the case `error`, and `JSON.stringify(&j, replacer, space)` as JS's, numbers written as JS writes them | a JSON library | `var j = JSON.parse(text); println(j.object["k"].number); var s = JSON.stringify(&j, "  ")` | 2026-10-14 |
+| 114 | An anonymous function with an Optional result, `{ (v:i64):i64? in ... }`: the `?` before `in` is the type's, and a one-expression body is wrapped as `return` wraps it, a `U` or `none` of a `U?` | — | `xs.map { (v:i64):i64? in v > 2 ? Optional<i64>(v) : none }` | 2026-10-14 |
+| 115 | `"""text"""`: a string literal over any number of lines, with the text as written, no escapes, no `${...}`, a `cstr` as any literal; `$"""..."""` a String of it | `"line\n" "line\n"` | `JSON.parse("""{"a": "b\n"}""")` | 2026-10-14 |
 
 Notes:
 
@@ -707,6 +709,23 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (115) Agreed details: "Also add the multi-line, non-interpolating `"""`
+  a la python, et al. That may quote JSON-like text more easily." The
+  text between the `"""` is taken as it is, over any number of lines:
+  no escapes either, since a JSON text holds `\"` and `\n` that must
+  reach the parser as two characters, and no `${...}`; a `"""` cannot
+  be inside. The lexer writes it as one C string literal, so it is a
+  `cstr` as any literal, joins with a neighbour, and `$"""..."""`
+  makes a String (P127).
+
+- (114) Agreed details: "now fix the wart: `):JSON? in` in an anonymous
+  function." Two faults: the lookahead that tells a signature from a
+  block scanned a base type's suffixes with a loop of its own that
+  stopped at `?`, and read `in` as an operand after a `?`, since `in`
+  is an identifier token; and a one-expression body was returned
+  without the wrapping a `return` statement gives a `T?` result, so
+  `none` reached C as a name. Both now go the way of `return` (P126).
+
 - (113) Agreed details: "Add JSON handler as an importable module as
   `#import <JSON>`. define `union JSON` like `enum SION` in swift-sion:
   bool, f64, String, Array<JSON> or Dictionary<String, JSON>. is
@@ -1236,6 +1255,8 @@ says "as agreed".
 | P123 | Details of #111 | `point.of(3, 4)` is `point__of__i64__i64(3, 4)`; a lone `point.origin()` is `point__origin()` | `parse_method` takes the `static` storage as the mark, makes a D_FN named `T.name` with `type_fn` and `recv_name` set and no `recv`, and parses the rest through `parse_fn_tail`, which `parse_fn` now shares; `name_functions` writes `T__name` for the C name, with the types appended by the usual rule, so an imported module's are always by types. At a call, `T.name` where `T` is a record and `name` is no case and `function_named("T.name")` holds is read as the identifier `T.name`, with its overloads, and the call goes the way of any function's. The method-name scan of the tokens skips `static let T.name(`, so `v.name()` is no method call, and says to use the type's name |
 | P124 | Details of #112 | `#import <JSON>` reads `modules/JSON.k` | The lexer counts a header name with no `.` as a Kelvin file; `import_path` appends `.k`; the message of a missing file names both |
 | P125 | Details of #113 | `JSON.parse(s)` is `JSON__parse__cstr(s)`, `JSON.stringify(&j, "  ")` is `JSON__stringify__const_JSONp__cstr(&j, "  ")`; the module's helpers are `static let JSON_...` functions, C-static | A recursive descent reader over a `JSONReader {at, i, count, depth}`; strings are gathered as Bytes, checked as UTF-8, then made Strings; `f64(bytes)` reads a number the grammar accepted. Found while writing it: a `return v` inside a branch marks `v` moved for the lines after it, so loops end with one return; an anonymous function with a `JSON?` result cannot be written inline, since `):JSON? in` reads the `?` as a conditional (a wart to fix); passing a JSON by value where a borrow is wanted says "an owner cannot be given to a C function", a message that should name the overloads instead; `.hex` of an integer gives `+0x..`, so messages do not show the code unit |
+| P126 | Details of #114 | `{ (v:i64):i64? in none }` is a `static inline` function returning `_kv__kv_opt_i64_make_none()` | `type_shape_end`'s base-word loop ends in `type_suffix_end`, which takes `?` when a line break, a non-operand or `in` follows; `implicit_return` applies `optional_of` to the one expression, as `return` does. Still not wrapped: `none` as one arm of a `?:`, `c ? Optional<i64>(v) : none`, whose arms are typed before the result is known; write `if` and `return` |
+| P127 | Details of #115 | `"""a "b"\nc"""` is the C literal `"a \"b\"\nc"` | `lex_triple` in the lexer, after `lex_template`'s model: a new line is `\n`, a backslash, a quote and a `?` are escaped for C, everything else is copied; the token is a plain TK_STRING, so `.count`, joining, `$` and `Bytes(...)` need nothing |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

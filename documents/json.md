@@ -12,7 +12,7 @@ space)` writes it back, as JS's do.
 ```kelvin
 #import <JSON>
 
-var j = JSON.parse("{\"name\": \"kelvin\", \"tags\": [\"c\", 11], \"ok\": true}")
+var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11], "ok": true}""")   // """ quotes JSON as it is (#115)
 if j.is(error) { println(j.error) }           // "a key in an object: unexpected end of text at 1"
 println(j.object["name"].string, " ", j.object["tags"].array[1].number, " ", j.object["ok"].boolean)
 j.object["tags"].array += JSON.number(12.0)   // grown, as any Array
@@ -55,7 +55,9 @@ var a = JSON.parse(&text)                     // a String, borrowed
   it gives: `none` leaves a member out, writes `null` for an element,
   and gives no text at all for the root, as JS's `undefined` does. The
   value is given to the replacer as a borrow, so it gives a new one,
-  `v^.copy()` for the value as it is.
+  `v^.copy()` for the value as it is; an anonymous one is written
+  `{ (key:cstr, v:const JSON^):JSON? in ... }` (#114). JSON text in a
+  program is quoted as it is with `"""..."""` (#115).
 - **Numbers** are written as JS writes them: the shortest text that
   reads back as the same `f64`, `3` for a whole number, `1e+21` and
   `1e-7` past the limits JS uses for exponents, and `null` for NaN and
