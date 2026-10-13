@@ -141,6 +141,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 107 | `f.bytes` and `f.string` straight: the rest of the file as a `Bytes` and as a `String`, no Result, since the file was there to open; text that is not UTF-8 ends `f.string` with a message, as a line of `f.lines` does | `fread` in a loop | `let s = f.string`, `let b = f.bytes; if b.isUTF8 { }` | 2026-10-13 |
 | 108 | An IO's operations straight: `f.chmod`, `f.chown`, `f.truncate`, `f.utime`, `f.touch`, `f.remove` and `f.rename` give a `bool`, true when done, no `errno`, as `seek` and `kill` do; through the descriptor where the system can, so they work on a file renamed or removed behind the IO | `fchmod(fileno(f), m) == 0` | `if f.chmod(0644) { }`, `f.touch()` | 2026-10-13 |
 | 109 | `IO(path, mode)` and `IO(fd, mode)` straight: the IO, with `f.error` the `errno` when it did not open, 0 otherwise; such an IO is as a closed one, its path kept, and reading it by `f.lines` or writing to it ends the program with the reason. `IO.popen`, `IO.exec` and `IO.pipe()` stay Results for now | `FILE *f = fopen(p, m); if (!f) return errno;` | `let f = IO(path); if f.error != 0 { return err(f.error) }` | 2026-10-14 |
+| 110 | `IO.popen`, `IO.exec` and `IO.pipe()` straight: the IO, with `f.error` the `errno` when the process could not start, `ENOENT` for a program not found; the pair `{reader: IO, writer: IO}`, both ends carrying the error of a pipe not made | `popen(cmd, "r")`, `pipe(fds)` | `var p = IO.exec(["ls"], "r"); if p.error == 0 { for line in p.lines { } }` | 2026-10-14 |
 
 Notes:
 
@@ -703,6 +704,15 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (110) Agreed details: "now add `IO.popen`, `IO.exec` and `IO.pipe()`
+  straight too". As #109: the shape the user chose there, an IO holding
+  its error, serves a process the same, `f.error` what the exec failed
+  with, `ENOENT` for a program not found or a directory not entered,
+  and such an IO as one that did not open, `f.pid` -1. A pipe's two
+  ends are a struct of two IOs, so the error of a pipe that could not
+  be made is in both. With this, nothing of `IO` is a Result any more
+  (P122).
+
 - (109) Agreed details: "now add `IO(path, mode)` straight too". Claude
   noted that the open is the one call on an IO that checks a path, as
   `OS.lstat` does, so something else must carry `ENOENT`, and offered
@@ -1185,6 +1195,7 @@ says "as agreed".
 | P119 | Details of #107 | `f.string` is `kv_io_read_string((kv_io *)&f)`, `f.bytes` is `kv_io_read_all((kv_io *)&f)`, each by value | `kv_io_read_all` reads until `fread` gives nothing, clears `ferror`, and gives the Bytes, empty of a closed IO; `kv_io_read_string` checks UTF-8 and calls `kv_io_fail` with "the rest of the file read by .string is not UTF-8: read .bytes, or walk .read(n)". io_basics's `bad_text` now gives `b.isUTF8` of the bytes, false, where it gave `err(EILSEQ)` |
 | P120 | Details of #108 | `f.chmod(m)` is `kv_io_chmod((kv_io *)&f, m)`, a `bool`, as before but for the type | The method table's `gives` "i32" became "bool" for the seven, with `is_bool` set as for `seek`; the runtime's seven give `bool`; `kv_os_futime(fd, a, m)` and `kv_os_ftouch(fd)` join os.c beside `kv_os_utime` and `kv_os_touch`, since `at_seconds` lives there; `name_of` (was `dir_of`) serves remove and rename too. Of a removed file, `f.remove()` again is false, since the descriptor's name is gone, while `f.truncate(0)` is true: the file is open |
 | P121 | Details of #109 | `IO(p, m)` is `kv_io_open(p, m)` by value, `IO(fd, m)` is `kv_io_fdopen(fd, m)`; `f.error` is `kv_io_error((kv_io *)&f)` | `kv_io` gains `int error`; `kv_io_open` keeps the path and sets `error` when `fopen` fails, with no stream, so every reader's `!f->fp` branch serves; `open_fp`, which ends the program on a closed IO, now says `<path>: <strerror> (reading an IO that did not open; ask f.error first)` when `error` is set. `IO.popen` keeps the old `({ kv_io _kv_f ... })` shape. The tests that read `if let ok(f) = r` now read `if f.error == 0`, and the error tests about `let` bind the IO with `let` directly |
+| P122 | Details of #110 | `IO.popen(c, m)` is `kv_io_popen(c, m)` by value; `IO.exec(...)` is `kv_io_exec(argv, m, dir, env, fresh)`, or `({ const char **_kv_env = ...; kv_io _kv_f = kv_io_exec(...); kv_io_vector_free(_kv_env); _kv_f; })` with an Array's environment; `IO.pipe()` is `({ struct _kv_anonN _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })` | The fork and exec body is now the static `exec_into`, and `process_of` puts its errno into `.error`; `kv_io_pipe` gives void and sets both ends' `.error`. The tests read `if p.error == 0` for `if p.is(ok)`, and the pair's members directly for `ends.ok.reader` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

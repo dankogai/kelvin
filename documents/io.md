@@ -38,12 +38,12 @@ f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 if let b = f.byte { println(b) }              // the next byte, or none (#85)
 for line in f.lines { sum += i64(line) }      // a number is read from the text (#88)
-var ls = IO.popen("ls -l", "r")               // a shell command's output (#87); IO.pipe() a pipe's two ends
-var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90)
-if let ok(p) = wc { p.kill(15) }              // a signal to it (#91); p.pid its process id
+var ls = IO.popen("ls -l", "r")               // a shell command's output, straight (#87, #110); IO.pipe() a pipe's two ends
+var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90); wc.error is ENOENT when there is no such program
+if wc.error == 0 { wc.kill(15) }              // a signal to it (#91); wc.pid its process id
 var ls = IO.exec(["ls"], "r", "/tmp", ["LC_ALL=C"])   // in a directory, with an environment entry (#92)
 var bare = IO.exec(["/usr/bin/env"], "r", "", ["ONLY=1"], true)   // an environment of that entry alone (#93)
-if let ok(p) = ls { for line in p.lines { println(line) } }
+for line in ls.lines { println(line) }
 f.flush()
 let text = f.string                       // the rest of the file as a String, straight (#107); not UTF-8 ends the program
 let raw = f.bytes                         // as a Bytes, whatever it holds
@@ -67,7 +67,7 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   and `EBADF` is its `f.error`; `f.fd` is an IO's descriptor, an `i32`,
   for C's calls, -1 once closed. `IO.popen(command, mode)` (#87) runs
   a shell command as `popen` does, with `"r"` to read its output or
-  `"w"` to write its input, a `Result<IO, i32>`, run as `/bin/sh -c`
+  `"w"` to write its input, the IO straight (#110), run as `/bin/sh -c`
   through the same fork and exec as `IO.exec`, so that its pid is
   known (#100); its block, or
   `close()`, waits for the process, and `f.status` is then its exit
@@ -78,16 +78,17 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   shell: `args` is the program and its arguments, a list of text,
   `["ls", "-l"]`, or an `Array` of `cstr` or of `String` in a variable,
   the program found on the PATH as `execvp` finds it; `mode` is `"r"`
-  to read its output or `"w"` to write its input, a `Result<IO, i32>`,
-  with what the exec itself failed with as the err, `ENOENT` for a
-  program not found. Its block, or `close()`, waits for it, and
+  to read its output or `"w"` to write its input, the IO straight
+  (#110), with what the exec itself failed with in `f.error`, `ENOENT`
+  for a program not found, and the IO then as one that did not open,
+  `f.pid` -1. Its block, or `close()`, waits for it, and
   `status` and `signal` are then as a `popen`'s. `IO.exec(args, mode,
   dir)` and `IO.exec(args, mode, dir, env)` (#92) run it in the
   directory `dir`, text or a String, `""` for the current one, and
   with the entries of `env`, `"NAME=value"` each, a list or an Array of
   `cstr` or of `String` in a variable, added to the parent's
   environment, or replacing those it has; a directory that cannot be
-  entered is an err, as a missing program is. `IO.exec(args, mode,
+  entered is `f.error` too, as a missing program is. `IO.exec(args, mode,
   dir, env, fresh)` (#93), with `fresh` a `bool`, makes the environment
   from nothing but the entries when it is `true`, `[]` for an empty
   one: the program is then found on that environment's PATH, or the
@@ -99,9 +100,10 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   signal numbers are C's, `f.kill(15)`, or `SIGTERM` with
   `#import <signal.h> as C`; `close()` then waits, and `f.signal` says
   which ended it. `IO.pipe()` gives
-  a `Result<{reader: IO, writer: IO}, i32>`: a pipe's two ends, each an
-  IO that owns its descriptor, so `p.ok.writer.close()` ends what the
-  reader reads. `IO.stdin`, `IO.stdout` and `IO.stderr` are
+  `{reader: IO, writer: IO}` straight (#110): a pipe's two ends, each an
+  IO that owns its descriptor, so `p.writer.close()` ends what the
+  reader reads; both ends carry the `error` of a pipe that could not
+  be made. `IO.stdin`, `IO.stdout` and `IO.stderr` are
   the standard streams, also written `IO.stdout()`: an IO that is never
   closed, only flushed, and may be used where it stands,
   `IO.stderr.write("x")`, or bound, `var out = IO.stdout`.
@@ -242,12 +244,12 @@ IO(fd: i32, mode: text): IO                        // fdopen; the IO owns the de
 IO.stdin: IO                                        // the streams, never closed, only flushed
 IO.stdout: IO
 IO.stderr: IO
-IO.popen(command: text, mode: text): Result<IO, i32>            // /bin/sh -c command, "r" its output, "w" its input
-IO.exec(args: [text], mode: text): Result<IO, i32>              // a program by its arguments, no shell
-IO.exec(args: [text], mode: text, dir: text): Result<IO, i32>   // run in a directory, "" for the current one
-IO.exec(args: [text], mode: text, dir: text, env: [text]): Result<IO, i32>   // with "NAME=value" entries added
-IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): Result<IO, i32>   // true: those entries alone
-IO.pipe(): Result<{reader: IO, writer: IO}, i32>  // a pipe's two ends
+IO.popen(command: text, mode: text): IO            // /bin/sh -c command, "r" its output, "w" its input; straight, f.error when it could not start (#110)
+IO.exec(args: [text], mode: text): IO              // a program by its arguments, no shell; f.error ENOENT when there is none
+IO.exec(args: [text], mode: text, dir: text): IO   // run in a directory, "" for the current one
+IO.exec(args: [text], mode: text, dir: text, env: [text]): IO   // with "NAME=value" entries added
+IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): IO   // true: those entries alone
+IO.pipe(): {reader: IO, writer: IO}                // a pipe's two ends; both carry the error of a pipe not made
 IO.strerror(code: i32): String                    // the message for an err
 
 f.bytes: Bytes                           // the rest of the file, straight (#107)
@@ -310,7 +312,7 @@ Two members give a struct with no name, spelled as itself:
   end to read from and `writer` the end to write to, each an `IO`
   that owns its descriptor. What is written to `writer` is read from
   `reader`, in order, and closing `writer` is the end of `reader`'s
-  input; `writer.close()` needs the var, so write `p.ok.writer.close()`
+  input; `writer.close()` needs the var, so write `p.writer.close()`
   of the Result. The struct owns both, so a Result holding it closes
   both when its block ends.
 - **`OS.mkstemp(prefix)` gives `{io: IO, path: String}`**: `io` is
@@ -330,11 +332,11 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 |---|---|---|
 | `IO(path, mode)`, `IO(path)` | | the IO, straight; `f.error` the errno when it did not open; the mode `"r"` when none (#101, #109) |
 | `IO(fd, mode)` | | the same of a descriptor, as `fdopen` gives it (#86) |
-| `IO.popen(command, mode)` | | a `Result<IO, i32>` of a shell command's output or input (#87) |
+| `IO.popen(command, mode)` | | the IO of a shell command's output or input, straight, `f.error` when it could not start (#87, #110) |
 | `IO.exec(args, mode)` | | the same of a program run without the shell, `args` a list or an Array (#90) |
 | `IO.exec(args, mode, dir, env)` | | the same, in a directory, with `"NAME=value"` entries added to the environment (#92) |
 | `IO.exec(args, mode, dir, env, fresh)` | | the same, with the entries as the whole environment when `fresh` is `true` (#93) |
-| `IO.pipe()` | | a `Result<{reader: IO, writer: IO}, i32>`, a pipe's two ends (#87) |
+| `IO.pipe()` | | `{reader: IO, writer: IO}`, a pipe's two ends, straight (#87, #110) |
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | `IO.strerror(code)` | | the message for an `err`, a `String` (#103) |
 | an `IO` | `.bytes` | a `Bytes`: the rest of the file, straight (#107) |

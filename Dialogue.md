@@ -1,16 +1,13 @@
 
 
-### 143. `IO(path, mode)` straight
+### 144. The processes and the pipe straight
 
-> now add `IO(path, mode)` straight too
+> now add `IO.popen`, `IO.exec` and `IO.pipe()` straight too
 
-**Claude** noted that the open is the call that checks a path, so with
-no Result something else must carry the errno, and asked which shape:
-an IO holding its error, ending the program, or keeping the Result.
-The user chose the first. #109: `IO(path, mode)` and `IO(fd, mode)`
-give the IO; `f.error` is the open's `errno`, 0 when it opened, and
-such an IO is as a closed one, with the reason in the message should
-it be read by `f.lines` or written to. `IO.popen`, `IO.exec` and
-`IO.pipe()` stay Results until asked. Details are provisional P121.
+**Claude** added #110: `IO.popen` and `IO.exec` give the IO, with
+`f.error` what the exec failed with, `ENOENT` for a program not found,
+and `IO.pipe()` the pair `{reader: IO, writer: IO}`, both ends carrying
+the error of a pipe that could not be made. Nothing of `IO` is a
+Result any more. Details are provisional P122.
 
-There are 648 tests, and all pass with clang and with gcc 15.
+There are 649 tests, and all pass with clang and with gcc 15.

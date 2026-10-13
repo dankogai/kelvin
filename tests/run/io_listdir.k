@@ -36,8 +36,8 @@ let main():i32 {
         println(matches.count, " ", matches[0] == file)
     }
     var ends = IO.pipe()
-    if let ok(p) = ends {
-        var names = p.reader.listdir
+    if ends.reader.error == 0 {
+        var names = ends.reader.listdir
         println(names.count)
     }
     println(OS.remove("io_listdir.moved/sub/f.txt"), " ", OS.rmdir("io_listdir.moved/sub"), " ", OS.rmdir("io_listdir.moved"))

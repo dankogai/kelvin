@@ -44,8 +44,8 @@ let main():i32 {
     }
     var out = IO.stdout
     var ends = IO.pipe()                         // a pipe end has no path, by name or by descriptor (#105)
-    var noPath = ends.ok.reader.abspath
-    var noDir = ends.ok.reader.listdir           // no directory: none
+    var noPath = ends.reader.abspath
+    var noDir = ends.reader.listdir           // no directory: none
     println(out.path.count, " ", out.exists, " ", noPath.count == 0, " ", noDir.count == 0)
     println(OS.rmdir("io_path.tmpdir/sub"), " ", OS.rmdir("io_path.tmpdir"))
     return 0

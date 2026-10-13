@@ -507,19 +507,14 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
-        if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) { /* IO.popen (#87): the IO, or errno */
-            Decl *r = kelvin_record(e->type->name);
-            return strfmt("({ kv_io _kv_f = {0}; int _kv_e = kv_io_popen(&_kv_f, %s, %s); _kv_e ? _kv_%s_make_err(_kv_e) : "
-                          "_kv_%s_make_ok(_kv_f); })",
-                          expr(e->items.data[0]), expr(e->items.data[1]), r->name, r->name);
-        }
+        if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) /* IO.popen (#87), straight (#110) */
+            return strfmt("kv_io_popen(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
         if (e->op && !strcmp(e->op, "io") && e->type) /* IO(path, mode) (#82), IO(fd, mode) (#86): the IO, straight (#109) */
             return strfmt("%s(%s, %s)", e->text ? "kv_io_fdopen" : "kv_io_open", expr(e->items.data[0]),
                           e->items.len > 1 ? expr(e->items.data[1]) : "\"r\"" /* (#101) */);
         if (e->op && !strcmp(e->op, "io_exec") && e->type) {
-            /* IO.exec(args, mode, dir, env) (#90, #92): the IO, or errno; an
+            /* IO.exec(args, mode, dir, env) (#90, #92): the IO, straight (#110); an
                Array's environment is a vector made and freed around the call */
-            Decl *r = kelvin_record(e->type->name);
             Buf pre = {0};
             buf_puts(&pre, "");
             const char *dir = e->a ? expr(e->a) : "NULL";
@@ -549,24 +544,20 @@ static char *expr_bare(Expr *e) {
                 for (int i = 0; i < e->items.len; i++)
                     buf_printf(&b, "(const char *)(%s), ", expr(e->items.data[i]));
                 buf_puts(&b, "NULL}");
-                call = strfmt("kv_io_exec(&_kv_f, %s, %s, %s, %s, %s)", b.buf, expr(e->c), dir, env, fresh);
+                call = strfmt("kv_io_exec(%s, %s, %s, %s, %s)", b.buf, expr(e->c), dir, env, fresh);
             } else if (!strcmp(e->text, "cstrs")) {
-                call = strfmt("kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(%s).at, (%s).count, %s, %s, %s, %s)",
-                              expr(e->b), expr(e->b), expr(e->c), dir, env, fresh);
+                call = strfmt("kv_io_exec_cstrs((const uint8_t *const *)(%s).at, (%s).count, %s, %s, %s, %s)", expr(e->b),
+                              expr(e->b), expr(e->c), dir, env, fresh);
             } else {
-                call = strfmt("kv_io_exec_strings(&_kv_f, (%s).at, (%s).count, %s, %s, %s, %s)", expr(e->b), expr(e->b),
-                              expr(e->c), dir, env, fresh);
+                call = strfmt("kv_io_exec_strings((%s).at, (%s).count, %s, %s, %s, %s)", expr(e->b), expr(e->b), expr(e->c),
+                              dir, env, fresh);
             }
-            return strfmt("({ kv_io _kv_f = {0}; %sint _kv_e = %s; %s_kv_e ? _kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_f); })",
-                          pre.buf, call, post, r->name, r->name);
+            if (!pre.len)
+                return call;
+            return strfmt("({ %skv_io _kv_f = %s; %s_kv_f; })", pre.buf, call, post);
         }
-        if (e->op && !strcmp(e->op, "io_pipe") && e->type) { /* IO.pipe() (#87): {reader, writer}, or errno */
-            Decl *r = kelvin_record(e->type->name);
-            Type *pair = ((Var *)r->members.data[0])->type;
-            return strfmt("({ %s _kv_p = {0}; int _kv_e = kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_e ? "
-                          "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_p); })",
-                          decl(pair, ""), r->name, r->name);
-        }
+        if (e->op && !strcmp(e->op, "io_pipe") && e->type) /* IO.pipe() (#87): {reader, writer}, straight (#110) */
+            return strfmt("({ %s _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })", decl(e->type, ""));
         if (e->op && (!strcmp(e->op, "os") || !strcmp(e->op, "sys"))) { /* OS and SYS (#94, #95) */
             const char *n = e->text, *gives = e->a->text;
             Buf args = {0};

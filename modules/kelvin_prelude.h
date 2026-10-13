@@ -117,14 +117,14 @@ typedef struct kv_io {
 kv_io kv_io_open(const void *path, const void *mode); /* the IO straight (#109), .error set when it did not open */
 kv_io kv_io_fdopen(int fd, const void *mode);
 int kv_io_error(kv_io *f);
-int kv_io_popen(kv_io *out, const void *command, const void *mode);
-int kv_io_pipe(kv_io *reader, kv_io *writer);
-int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,
-               bool fresh);
-int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode, const void *dir,
-                     const char *const *env, bool fresh);
-int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode, const void *dir,
-                       const char *const *env, bool fresh);
+/* a process's IO and a pipe's two ends, straight (#110): .error the errno when it could not start */
+kv_io kv_io_popen(const void *command, const void *mode);
+void kv_io_pipe(kv_io *reader, kv_io *writer);
+kv_io kv_io_exec(const char *const *argv, const void *mode, const void *dir, const char *const *env, bool fresh);
+kv_io kv_io_exec_cstrs(const uint8_t *const *at, size_t n, const void *mode, const void *dir, const char *const *env,
+                       bool fresh);
+kv_io kv_io_exec_strings(const kv_string *at, size_t n, const void *mode, const void *dir, const char *const *env,
+                         bool fresh);
 const char **kv_io_vector_cstrs(const uint8_t *const *at, size_t n);
 const char **kv_io_vector_strings(const kv_string *at, size_t n);
 void kv_io_vector_free(const char *const *v);

@@ -23,7 +23,7 @@ let main():i32 {
     }
     var out = IO.stdout
     var ends = IO.pipe()
-    var none = ends.ok.reader.abspath           // a pipe has no path
+    var none = ends.reader.abspath           // a pipe has no path
     println(none.count, " ", out.stat.nlink.typename)
     var st = OS.stat("io_stat.tmp")             // of a path: a Result still
     println(st.is(err), " ", st.typename)

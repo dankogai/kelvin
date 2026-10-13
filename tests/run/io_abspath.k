@@ -19,9 +19,9 @@ let main():i32 {
         var gone = f.abspath
         println(gone == there, " ", f.stat.size)    // by the name it had; the file is still open
     }
-    var ends = IO.pipe()
-    if let ok(p) = ends {
-        var none = p.reader.abspath
+    var ends = IO.pipe()                         // the pair straight (#110)
+    if ends.reader.error == 0 {
+        var none = ends.reader.abspath
         println(none.count, " ", none.typename)
     }
     return 0

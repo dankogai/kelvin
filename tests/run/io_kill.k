@@ -4,22 +4,22 @@
 #import <signal.h> as C
 let main():i32 {
     var p = IO.exec(["sleep", "30"], "r")
-    if p.is(ok) {
-        println(p.ok.pid > 0, " ", p.ok.kill(SIGTERM))
-        p.ok.close()
-        println(p.ok.signal, " ", p.ok.status, " ", p.ok.pid, " ", p.ok.kill(SIGTERM))
+    if p.error == 0 {
+        println(p.pid > 0, " ", p.kill(SIGTERM))
+        p.close()
+        println(p.signal, " ", p.status, " ", p.pid, " ", p.kill(SIGTERM))
     }
     var k = IO.exec(["sleep", "30"], "r")
-    if k.is(ok) {
-        println(k.ok.kill(9))
-        k.ok.close()
-        println(k.ok.signal)
+    if k.error == 0 {
+        println(k.kill(9))
+        k.close()
+        println(k.signal)
     }
     var sh = IO.popen("sleep 30", "r")
-    if sh.is(ok) {
-        println(sh.ok.pid > 0, " ", sh.ok.kill(SIGTERM))
-        sh.ok.close()
-        println(sh.ok.signal, " ", sh.ok.status)
+    if sh.error == 0 {
+        println(sh.pid > 0, " ", sh.kill(SIGTERM))
+        sh.close()
+        println(sh.signal, " ", sh.status)
     }
     var out = IO.stdout
     println(out.pid, " ", out.kill(0))
@@ -32,5 +32,5 @@ let main():i32 {
 // out: true true
 // out: 15 -1
 // out: -1 false
-// c: kv_io_kill((kv_io *)&(*_kv__kv_res_IO_i32_at_ok(&p)), SIGTERM)
+// c: kv_io_kill((kv_io *)&p, SIGTERM)
 // c: kv_io_pid((kv_io *)&out)

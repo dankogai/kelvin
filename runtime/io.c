@@ -76,17 +76,34 @@ int kv_io_error(kv_io *f) { return f->error; }
    exec of IO.exec (#100), so that its pid is known and kill reaches it,
    which C's popen keeps to itself; its block waits for it, and status
    is then its exit code */
-int kv_io_popen(kv_io *out, const void *command, const void *mode) {
+static int exec_into(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,
+                     bool fresh);
+
+/* a process's IO, straight (#110): .error the errno when it could not
+   start, and the IO then as one that did not open */
+static kv_io process_of(int e, kv_io f) {
+    if (e)
+        f.error = e;
+    return f;
+}
+
+kv_io kv_io_popen(const void *command, const void *mode) {
     const char *const argv[] = {"/bin/sh", "-c", (const char *)command, NULL};
-    return kv_io_exec(out, argv, mode, NULL, NULL, false);
+    kv_io f = {.status = -1, .signal = -1};
+    return process_of(exec_into(&f, argv, mode, NULL, NULL, false), f);
 }
 
 /* a pipe (#87): its reading and its writing end, each an IO that owns
-   its descriptor */
-int kv_io_pipe(kv_io *reader, kv_io *writer) {
+   its descriptor; both carry the errno of a pipe that could not be
+   made (#110) */
+void kv_io_pipe(kv_io *reader, kv_io *writer) {
+    *reader = (kv_io){.status = -1, .signal = -1};
+    *writer = (kv_io){.status = -1, .signal = -1};
     int fds[2];
-    if (pipe(fds) != 0)
-        return errno ? errno : EIO;
+    if (pipe(fds) != 0) {
+        reader->error = writer->error = errno ? errno : EIO;
+        return;
+    }
     FILE *r = fdopen(fds[0], "r"), *w = r ? fdopen(fds[1], "w") : NULL;
     if (!r || !w) {
         int e = errno ? errno : EIO;
@@ -95,17 +112,13 @@ int kv_io_pipe(kv_io *reader, kv_io *writer) {
         else
             close(fds[0]);
         close(fds[1]);
-        return e;
+        reader->error = writer->error = e;
+        return;
     }
     reader->fp = r;
     reader->kind = 1;
-    reader->status = -1;
-    reader->signal = -1;
     writer->fp = w;
     writer->kind = 1;
-    writer->status = -1;
-    writer->signal = -1;
-    return 0;
 }
 
 /* a program run without the shell (#90): argv[0] found on the PATH, as
@@ -119,8 +132,8 @@ int kv_io_pipe(kv_io *reader, kv_io *writer) {
    way */
 extern char **environ;
 
-int kv_io_exec(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,
-               bool fresh) {
+static int exec_into(kv_io *out, const char *const *argv, const void *mode, const void *dir, const char *const *env,
+                     bool fresh) {
     const char *m = (const char *)mode;
     bool reading = m[0] == 'r';
     if ((m[0] != 'r' && m[0] != 'w') || !argv || !argv[0])
@@ -221,21 +234,26 @@ const char **kv_io_vector_strings(const kv_string *at, size_t n) {
 
 void kv_io_vector_free(const char *const *v) { free((void *)v); }
 
-/* the same of an Array of cstr, or of String, and its count */
-int kv_io_exec_cstrs(kv_io *out, const uint8_t *const *at, size_t n, const void *mode, const void *dir,
-                     const char *const *env, bool fresh) {
-    const char **argv = kv_io_vector_cstrs(at, n);
-    int e = kv_io_exec(out, argv, mode, dir, env, fresh);
-    free(argv);
-    return e;
+kv_io kv_io_exec(const char *const *argv, const void *mode, const void *dir, const char *const *env, bool fresh) {
+    kv_io f = {.status = -1, .signal = -1};
+    return process_of(exec_into(&f, argv, mode, dir, env, fresh), f);
 }
 
-int kv_io_exec_strings(kv_io *out, const kv_string *at, size_t n, const void *mode, const void *dir,
-                       const char *const *env, bool fresh) {
-    const char **argv = kv_io_vector_strings(at, n);
-    int e = kv_io_exec(out, argv, mode, dir, env, fresh);
+/* the same of an Array of cstr, or of String, and its count */
+kv_io kv_io_exec_cstrs(const uint8_t *const *at, size_t n, const void *mode, const void *dir, const char *const *env,
+                       bool fresh) {
+    const char **argv = kv_io_vector_cstrs(at, n);
+    kv_io f = kv_io_exec(argv, mode, dir, env, fresh);
     free(argv);
-    return e;
+    return f;
+}
+
+kv_io kv_io_exec_strings(const kv_string *at, size_t n, const void *mode, const void *dir, const char *const *env,
+                         bool fresh) {
+    const char **argv = kv_io_vector_strings(at, n);
+    kv_io f = kv_io_exec(argv, mode, dir, env, fresh);
+    free(argv);
+    return f;
 }
 
 /* a signal to a process IO.popen or IO.exec started (#91, #100); false

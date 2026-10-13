@@ -1,51 +1,47 @@
 // IO.exec(args, mode) (#90): a program run without the shell, args a
 // list of text or an Array of cstr or of String in a variable, its
 // output read or its input written; waited for when closed, with
-// .status and .signal; a program not found is an err, ENOENT
+// .status and .signal; a program not found leaves f.error ENOENT (#110)
 #import <errno.h> as C
 #import <stdio.h> as C
 let path := "io_exec.tmp"
 let main():i32 {
     var p = IO.exec(["printf", "one\\ntwo\\n"], "r")
-    if p.is(ok) {
-        for line in p.ok.lines { println("[", line, "]") }
-        p.ok.close()
-        println(p.ok.status, " ", p.ok.signal)
+    if p.error == 0 {
+        for line in p.lines { println("[", line, "]") }
+        p.close()
+        println(p.status, " ", p.signal)
     }
     var e = IO.exec(["sh", "-c", "exit 3"], "r")
-    if e.is(ok) {
-        e.ok.close()
-        println(e.ok.status)
+    if e.error == 0 {
+        e.close()
+        println(e.status)
     }
     var missing = IO.exec(["no-such-program-kelvin"], "r")
-    println(missing.is(err), " ", missing.err == ENOENT)
+    println(missing.error == ENOENT, " ", missing.fd, " ", missing.pid)
     var w = IO.exec(["sh", "-c", "cat > io_exec.tmp"], "w")
-    if w.is(ok) {
-        w.ok.println("via exec ", 42)
-        w.ok.close()
-        println(w.ok.status)
+    if w.error == 0 {
+        w.println("via exec ", 42)
+        w.close()
+        println(w.status)
     }
     var back = IO(path, "r")
     for line in back.lines { println(line) }
     var args = $["printf", "%s-%s", "a", "b"]
     var a = IO.exec(args, "r")
-    if let ok(f) = a {
-        var s = f.string                         // a String straight (#107)
-        println(s)
-    }
+    var s = a.string                             // a String straight (#107)
+    println(s)
     var sargs:$[String] = $[$"printf", $"strings"]
     var b = IO.exec(sargs, "r")
-    if let ok(f) = b {
-        var s = f.string
-        println(s, " ", b.typename)
-    }
+    var t = b.string
+    println(t, " ", b.typename)
     var name = $"echo"
     var c = IO.exec([name, "a String argument"], "r")
-    if let ok(f) = c { for line in f.lines { println(line) } }
+    for line in c.lines { println(line) }
     var k = IO.exec(["sh", "-c", "kill -9 $$"], "r")
-    if k.is(ok) {
-        k.ok.close()
-        println(k.ok.status, " ", k.ok.signal)
+    if k.error == 0 {
+        k.close()
+        println(k.status, " ", k.signal)
     }
     remove(path)
     return 0
@@ -54,13 +50,13 @@ let main():i32 {
 // out: [two]
 // out: 0 0
 // out: 3
-// out: true true
+// out: true -1 -1
 // out: 0
 // out: via exec 42
 // out: a-b
-// out: strings Result<IO, i32>
+// out: strings IO
 // out: a String argument
 // out: -1 9
-// c: kv_io_exec(&_kv_f, (const char *const[]){(const char *)("printf"), (const char *)("one\\ntwo\\n"), NULL}, "r", NULL, NULL, false)
-// c: kv_io_exec_cstrs(&_kv_f, (const uint8_t *const *)(args).at, (args).count, "r", NULL, NULL, false)
-// c: kv_io_exec_strings(&_kv_f, (sargs).at, (sargs).count, "r", NULL, NULL, false)
+// c: kv_io_exec((const char *const[]){(const char *)("printf"), (const char *)("one\\ntwo\\n"), NULL}, "r", NULL, NULL, false)
+// c: kv_io_exec_cstrs((const uint8_t *const *)(args).at, (args).count, "r", NULL, NULL, false)
+// c: kv_io_exec_strings((sargs).at, (sargs).count, "r", NULL, NULL, false)

@@ -19,7 +19,7 @@ let main():i32 {
         println(w.chmod(384).typename)
     }
     var ends = IO.pipe()
-    if ends.is(ok) { println(ends.ok.reader.remove(), " ", ends.ok.reader.rename("io_ops.x")) }   // nothing names a pipe
+    println(ends.reader.remove(), " ", ends.reader.rename("io_ops.x"))   // nothing names a pipe
     return 0
 }
 // out: true 384 true true 2

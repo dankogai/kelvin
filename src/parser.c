@@ -2565,7 +2565,7 @@ static Expr *parse_primary(void) {
             brace_ends_condition = saved_brace;
             brace_in_for = saved_for;
             expect_p(")");
-            e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+            e->type = base_type("IO", t->pos); /* straight (#110): f.error when the program could not start */
             return e;
         }
         if (!strcmp(which, "popen") || !strcmp(which, "pipe")) {
@@ -2603,12 +2603,12 @@ static Expr *parse_primary(void) {
                 }
                 e->op = "io";
                 e->text = "popen";
-                e->type = variant_type(t, "res", base_type("IO", t->pos), base_type("i32", t->pos));
+                e->type = base_type("IO", t->pos); /* straight (#110): f.error when it could not start */
             } else {
                 if (e->items.len)
                     error_at(t->pos, "IO.pipe takes nothing, and gives {reader: IO, writer: IO}");
                 e->op = "io_pipe";
-                e->type = variant_type(t, "res", pipe_type(t), base_type("i32", t->pos));
+                e->type = pipe_type(t); /* straight (#110): both ends carry the error of a pipe not made */
             }
             return e;
         }

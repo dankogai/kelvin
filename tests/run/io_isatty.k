@@ -13,7 +13,7 @@ let main():i32 {
     var out = IO.stdout
     println(out.isatty)
     var p = IO.pipe()
-    if let ok(ends) = p { println(ends.reader.isatty, " ", ends.writer.isatty) }
+    println(p.reader.isatty, " ", p.writer.isatty)
     var t = OS.mkstemp("io_isatty_")
     if t.is(ok) {
         println(t.ok.io.isatty)
