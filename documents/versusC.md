@@ -33,7 +33,8 @@ P-numbers in [Design.md](../Design.md).
 | `void f(void);` | `let f()` |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
-| `static int g(void);` | `static let g():i32` |
+| `static int g(void);` | `static let g():i32`; `static let T.name(...)` is a function of the type, `T.name(...)` (#111) |
+| a JSON library | `#import <JSON>`; `var j = JSON.parse(text)`, `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113) |
 | `int main(int argc, char **argv)` | `let main(argc:i32, argv:u8^^):i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
@@ -109,6 +110,7 @@ Each document says so under its title. In short:
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
+| [json.md](json.md) | `#import <JSON>`: `JSON` as an enum with values, `JSON.parse(text)`, `JSON.stringify(&j, replacer, space)` as JS's (#113) |
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` straight with `f.error`, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
 | [os.md](os.md) | `OS` and `SYS`: the working directory, the environment, files and directories, a shell command, the pid; the arguments, the platform, exiting |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |

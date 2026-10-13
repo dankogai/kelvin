@@ -308,7 +308,8 @@ static void lex_import(Lexer *lx) {
     step(lx);
     const char *end = lx->p;
     skip_blanks(lx);
-    bool kelvin = end - start > 4 && !strncmp(end - 3, ".k", 2);
+    /* a Kelvin file ends with .k, or has no extension at all: <JSON> is <JSON.k> (#112) */
+    bool kelvin = (end - start > 4 && !strncmp(end - 3, ".k", 2)) || !memchr(start + 1, '.', (size_t)(end - start - 2));
     if (kelvin) {
         if (accept_word(lx, "as"))
             error_at(pos, "a Kelvin file is imported as it is: write '#import %.*s' without 'as C'",

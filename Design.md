@@ -142,6 +142,9 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 108 | An IO's operations straight: `f.chmod`, `f.chown`, `f.truncate`, `f.utime`, `f.touch`, `f.remove` and `f.rename` give a `bool`, true when done, no `errno`, as `seek` and `kill` do; through the descriptor where the system can, so they work on a file renamed or removed behind the IO | `fchmod(fileno(f), m) == 0` | `if f.chmod(0644) { }`, `f.touch()` | 2026-10-13 |
 | 109 | `IO(path, mode)` and `IO(fd, mode)` straight: the IO, with `f.error` the `errno` when it did not open, 0 otherwise; such an IO is as a closed one, its path kept, and reading it by `f.lines` or writing to it ends the program with the reason. `IO.popen`, `IO.exec` and `IO.pipe()` stay Results for now | `FILE *f = fopen(p, m); if (!f) return errno;` | `let f = IO(path); if f.error != 0 { return err(f.error) }` | 2026-10-14 |
 | 110 | `IO.popen`, `IO.exec` and `IO.pipe()` straight: the IO, with `f.error` the `errno` when the process could not start, `ENOENT` for a program not found; the pair `{reader: IO, writer: IO}`, both ends carrying the error of a pipe not made | `popen(cmd, "r")`, `pipe(fds)` | `var p = IO.exec(["ls"], "r"); if p.error == 0 { for line in p.lines { } }` | 2026-10-14 |
+| 111 | Functions of a type: `static let T.name(params):R { }`, Swift's `static func`, with no self, called as `T.name(args)`; `T` a struct, union or enum with values of the program; overloads by parameter types as any function's | a function named `T__name` | `static let point.of(x:i64, y:i64):point { (point){x, y} }`, `let p = point.of(3, 4)` | 2026-10-14 |
+| 112 | `#import <name>` with no extension is `#import <name.k>`: a Kelvin file of `./modules` or of Kelvin's `modules/` | — | `#import <JSON>` | 2026-10-14 |
+| 113 | `modules/JSON.k`: `enum JSON { null; boolean: bool; number: f64; string: String; array: Array<JSON>; object: Dictionary<String, JSON>; error: String }`, `JSON.parse(text)` of a cstr or a borrowed String, straight, with a text that is not JSON as the case `error`, and `JSON.stringify(&j, replacer, space)` as JS's, numbers written as JS writes them | a JSON library | `var j = JSON.parse(text); println(j.object["k"].number); var s = JSON.stringify(&j, "  ")` | 2026-10-14 |
 
 Notes:
 
@@ -704,6 +707,40 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (113) Agreed details: "Add JSON handler as an importable module as
+  `#import <JSON>`. define `union JSON` like `enum SION` in swift-sion:
+  bool, f64, String, Array<JSON> or Dictionary<String, JSON>. is
+  nullptr fit for null of JSON? `JSON.parse(str)` takes `cstr` or
+  `String` and return `JSON`. `JSON.stringifiy(json, replacer, space)`
+  like JS. space is either cstr or String." The union is an enum with
+  values, which holds an Array and a Dictionary of itself already
+  (#61); its `null` is a case carrying nothing, since `nullptr` is a
+  pointer and a value of JSON is not; the case is `boolean`, since
+  `bool` names a type. Asked how a bad text should come back, the user
+  chose a case `error: String`, as SION has `Error`, over ending the
+  program or a Result, so `parse` is straight. `stringify` takes `&j`,
+  since passing an owner moves it; its replacer is a function
+  `(key:cstr, value:const JSON^):JSON?`, `none` for JS's `undefined`;
+  `space` a cstr or a borrowed String, cut to 10 characters as JS
+  cuts it. Numbers are written as JS writes them, by `snprintf` at 15,
+  16 and 17 digits until the text reads back (P125).
+
+- (112) Agreed details: from "Add JSON handler as an importable module
+  as `#import <JSON>`": the lexer took a header name without `.k` for
+  C's, and asked for `as C`; a name with no extension at all is now a
+  Kelvin file, `name.k`, found as `<name.k>` is (P124).
+
+- (111) Agreed details: "`JSON.parse(str)`", "`JSON.stringify(json,
+  replacer, space)` like JS", from the same request. Kelvin had `T.case(v)`
+  for enums and methods with `self`, but no function called by a type's
+  name. Claude offered three spellings and the user chose Swift's:
+  `static let T.name(...)`, where `static` on a dotted name means the
+  type's function, not C's storage; a plain `let T.name()` stays a
+  method. `self` in such a function, calling it on a value, and
+  declaring it on a built-in type are errors that say so. The one use
+  of a C-static method, in a regression test of #18, became a plain
+  method (P123).
+
 - (110) Agreed details: "now add `IO.popen`, `IO.exec` and `IO.pipe()`
   straight too". As #109: the shape the user chose there, an IO holding
   its error, serves a process the same, `f.error` what the exec failed
@@ -1196,6 +1233,9 @@ says "as agreed".
 | P120 | Details of #108 | `f.chmod(m)` is `kv_io_chmod((kv_io *)&f, m)`, a `bool`, as before but for the type | The method table's `gives` "i32" became "bool" for the seven, with `is_bool` set as for `seek`; the runtime's seven give `bool`; `kv_os_futime(fd, a, m)` and `kv_os_ftouch(fd)` join os.c beside `kv_os_utime` and `kv_os_touch`, since `at_seconds` lives there; `name_of` (was `dir_of`) serves remove and rename too. Of a removed file, `f.remove()` again is false, since the descriptor's name is gone, while `f.truncate(0)` is true: the file is open |
 | P121 | Details of #109 | `IO(p, m)` is `kv_io_open(p, m)` by value, `IO(fd, m)` is `kv_io_fdopen(fd, m)`; `f.error` is `kv_io_error((kv_io *)&f)` | `kv_io` gains `int error`; `kv_io_open` keeps the path and sets `error` when `fopen` fails, with no stream, so every reader's `!f->fp` branch serves; `open_fp`, which ends the program on a closed IO, now says `<path>: <strerror> (reading an IO that did not open; ask f.error first)` when `error` is set. `IO.popen` keeps the old `({ kv_io _kv_f ... })` shape. The tests that read `if let ok(f) = r` now read `if f.error == 0`, and the error tests about `let` bind the IO with `let` directly |
 | P122 | Details of #110 | `IO.popen(c, m)` is `kv_io_popen(c, m)` by value; `IO.exec(...)` is `kv_io_exec(argv, m, dir, env, fresh)`, or `({ const char **_kv_env = ...; kv_io _kv_f = kv_io_exec(...); kv_io_vector_free(_kv_env); _kv_f; })` with an Array's environment; `IO.pipe()` is `({ struct _kv_anonN _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })` | The fork and exec body is now the static `exec_into`, and `process_of` puts its errno into `.error`; `kv_io_pipe` gives void and sets both ends' `.error`. The tests read `if p.error == 0` for `if p.is(ok)`, and the pair's members directly for `ends.ok.reader` |
+| P123 | Details of #111 | `point.of(3, 4)` is `point__of__i64__i64(3, 4)`; a lone `point.origin()` is `point__origin()` | `parse_method` takes the `static` storage as the mark, makes a D_FN named `T.name` with `type_fn` and `recv_name` set and no `recv`, and parses the rest through `parse_fn_tail`, which `parse_fn` now shares; `name_functions` writes `T__name` for the C name, with the types appended by the usual rule, so an imported module's are always by types. At a call, `T.name` where `T` is a record and `name` is no case and `function_named("T.name")` holds is read as the identifier `T.name`, with its overloads, and the call goes the way of any function's. The method-name scan of the tokens skips `static let T.name(`, so `v.name()` is no method call, and says to use the type's name |
+| P124 | Details of #112 | `#import <JSON>` reads `modules/JSON.k` | The lexer counts a header name with no `.` as a Kelvin file; `import_path` appends `.k`; the message of a missing file names both |
+| P125 | Details of #113 | `JSON.parse(s)` is `JSON__parse__cstr(s)`, `JSON.stringify(&j, "  ")` is `JSON__stringify__const_JSONp__cstr(&j, "  ")`; the module's helpers are `static let JSON_...` functions, C-static | A recursive descent reader over a `JSONReader {at, i, count, depth}`; strings are gathered as Bytes, checked as UTF-8, then made Strings; `f64(bytes)` reads a number the grammar accepted. Found while writing it: a `return v` inside a branch marks `v` moved for the lines after it, so loops end with one return; an anonymous function with a `JSON?` result cannot be written inline, since `):JSON? in` reads the `?` as a conditional (a wart to fix); passing a JSON by value where a borrow is wanted says "an owner cannot be given to a C function", a message that should name the overloads instead; `.hex` of an integer gives `+0x..`, so messages do not show the code unit |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

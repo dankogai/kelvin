@@ -3,7 +3,7 @@
 A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its library live in one directory,
 `modules/`. This document has the import, the search, the layout, and
-the one module so far, `complex.k`. C headers are in
+the modules so far, `complex.k` and `JSON.k`. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
 **Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/complex.k`, with `complex64` and `complex32`, comes only with `#import <complex.k>`, and a C header's names only with `#import <x.h> as C`.
@@ -12,9 +12,10 @@ the one module so far, `complex.k`. C headers are in
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
-import is (#40), which is at the top level. `"x.k"` is found next to
-the importing file, and `<x.k>` in `./modules`, of the directory kelvinc
-runs in, and then in Kelvin's own `modules/` (#46), which also holds
+import is (#40), which is at the top level. A name with no extension is
+a Kelvin file too: `#import <JSON>` is `#import <JSON.k>` (#112). `"x.k"`
+is found next to the importing file, and `<x.k>` in `./modules`, of the
+directory kelvinc runs in, and then in Kelvin's own `modules/` (#46), which also holds
 the runtime, `kelvin_prelude.h` and `libkelvin`: in the source tree, or
 in `$PREFIX/lib/kelvin/modules` after `make install`, or under
 `$KELVIN_HOME`. A file is brought in once, however often it is
@@ -33,11 +34,12 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkelvin.a           built by make, linked into every program
     libkelvin.dylib|.so   the same, for use from C and other toolchains
     complex.k             #import <complex.k>
+    JSON.k                #import <JSON> (#113, json.md)
 ./modules/                a project's own, looked in first
     x.k, x.h, libx.a      #import <x.k>, #import <x.h> as C, KELVIN_CFLAGS=-lx
 ```
 
-- `#import <x.k>` looks in `./modules` of the directory kelvinc runs in,
+- `#import <x.k>`, or `#import <x>` (#112), looks in `./modules` of the directory kelvinc runs in,
   then in Kelvin's `modules/`: the first of `$KELVIN_HOME`, kelvinc's
   own directory (the source tree) and its parent (an installation,
   `bin/../lib/kelvin/modules`) that holds `kelvin_prelude.h` (#46).
@@ -88,3 +90,8 @@ let main():i32 {
   c` with two roundings, as gcc does, and the results are the same with
   both *(provisional P55)*.
 
+## JSON: `modules/JSON.k`
+
+`#import <JSON>` brings in `JSON`, a JSON value as an enum with values,
+with `JSON.parse(text)` and `JSON.stringify(&j, replacer, space)` as JS
+has them (#113): see [json.md](json.md).

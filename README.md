@@ -111,6 +111,8 @@ So far the changes from C are:
 - `IO` is a file as an owner, closed when its block ends: `let f =
   IO(path, "r")`, `f.error` when it did not open, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
   `let s = f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
+- `#import <JSON>` is JSON as an enum with values: `var j = JSON.parse(text)`,
+  `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113)
 - `OS` and `SYS` are the system and the program, as Python has them, with
   no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,
   `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

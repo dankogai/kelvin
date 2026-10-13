@@ -1391,6 +1391,13 @@ static Expr *parse_postfix_ops(Expr *e) {
             if (call && is_converter(name) && !converter_is_field(e, member))
                 error_at(name->pos, "'.%s' takes no arguments: read text in a base with %s(text, base)", member,
                          member);
+            if (call && !is_method_name(member)) { /* a function of the type is called by the type's name (#111) */
+                Decl *record;
+                if (expr_class(e, &record) == 's' && record && record->name &&
+                    function_named(strfmt("%s.%s", record->name, member)))
+                    error_at(name->pos, "'%s' is a function of %s, not a method: call it as %s.%s(...)", member,
+                             record->name, record->name, member);
+            }
             if (call && (!strcmp(member, "toString") || !strcmp(member, "fmt")) && !is_method_name(member)) {
                 /* a field of that name that kelvinc can see, or one of a
                    struct it cannot see, is called as in C */
@@ -2056,12 +2063,32 @@ static Expr *parse_primary(void) {
             }
             return e;
         }
+        if (r && r->name) { /* T.name(...): a function of the type (#111), a name that overloads may share */
+            char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
+            if (function_named(full)) {
+                advance();
+                advance();
+                advance();
+                Expr *e = new_expr(E_IDENT, t->pos);
+                e->text = full;
+                List cands = overloads_of(full, NULL);
+                if (cands.len == 1)
+                    e->target = cands.data[0];
+                else
+                    e->cands = cands;
+                return e;
+            }
+        }
     }
     if (t->kind == TK_IDENT || t->kind == TK_NUMBER || t->kind == TK_CHAR || is_kw(t, "true") ||
         is_kw(t, "false")) {
         advance();
         Expr *e = new_expr(t->kind == TK_IDENT ? E_IDENT : E_LITERAL, t->pos);
         e->text = t->text;
+        if (t->kind == TK_IDENT && !strcmp(t->text, "self") && parsing_fn && parsing_fn->type_fn)
+            error_at(t->pos, "a function of a type has no self: '%s' is called as %s(...), with no value before it; "
+                             "a method, 'let %s.name()', has one",
+                     parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
         /* an owner moved out is dead until assigned anew (#54) */
         if (t->kind == TK_IDENT && is_moved(t->text) && !is_p(peek(), "="))
             error_at(t->pos, "'%s' was moved out and holds nothing now: assign it anew before using it", t->text);
@@ -4707,7 +4734,10 @@ static void name_functions(void) {
         bool by_types = overloads_of(d->name, NULL).len > 1 || imported || called_as_c(d->name);
         if (!defined || !strcmp(d->name, "main"))
             by_types = false;
-        d->cname = by_types ? strfmt("%s%s", d->name, types.buf) : d->name;
+        const char *base = d->name;
+        if (d->type_fn) /* T.name is T__name in C (#111) */
+            base = strfmt("%s__%s", d->recv_name, d->name + strlen(d->recv_name) + 1);
+        d->cname = by_types ? strfmt("%s%s", base, types.buf) : (char *)base;
     }
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
@@ -8207,6 +8237,8 @@ static bool params_ahead(int i) {
 
 static void check_overload(Decl *d, Token *name);
 
+static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos);
+
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     Token *name = peek();
@@ -8220,6 +8252,12 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     }
     if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
+    return parse_fn_tail(d, name, pos);
+}
+
+/* the parameters, the result and the body of a function, after its name:
+   a plain function's, an operator's, or a function of a type's (#111) */
+static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     if (!d->op)
         declare_name(d->name);
     open_scope();
@@ -8306,6 +8344,26 @@ static Decl *parse_method(Pos pos, const char *storage) {
     Token *recv = advance();
     advance(); /* . */
     Token *name = peek();
+    if (storage && !strcmp(storage, "static")) {
+        /* static let T.name(params):R { ... } (#111): a function of the
+           type, Swift's static func, with no self, called as T.name(...);
+           T a struct, union or enum with values of the program */
+        if (recv->kind == TK_KEYWORD)
+            error_at(recv->pos, "a function of a type is declared on a struct, union or enum of the program: '%s' is "
+                                "built in",
+                     recv->text);
+        if (!record_named(recv->text))
+            error_at(recv->pos, "'%s' is not a struct, union or enum declared before this function", recv->text);
+        if (is_kw(name, "cstr"))
+            error_at(name->pos, "'.cstr' is a method, the text of a value: write 'let %s.cstr():cstr'", recv->text);
+        reject_kv_name(name);
+        Decl *d = new_decl(D_FN, pos, NULL);
+        d->imported = name->imported;
+        d->type_fn = true;
+        d->recv_name = recv->text;
+        d->name = strfmt("%s.%s", recv->text, expect_ident("a function name"));
+        return parse_fn_tail(d, name, pos);
+    }
     Decl *d = new_decl(D_FN, pos, storage);
     reject_kv_name(name);
     /* T.cstr() defines a struct's or union's text (#53) */
@@ -9009,8 +9067,9 @@ Program *parse(Token *tokens, int ntoks) {
         else if (is_p(&toks[i], "}"))
             depth--;
         else if (depth == 0 && (toks[i].kind == TK_IDENT || is_base_word(&toks[i])) && is_p(&toks[i + 1], ".") &&
-                 toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], "("))
-            list_push(&method_names, toks[i + 2].text);
+                 toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], "(") &&
+                 !(i >= 2 && is_kw(&toks[i - 1], "let") && is_kw(&toks[i - 2], "static")))
+            list_push(&method_names, toks[i + 2].text); /* not static let T.name(, a function of the type (#111) */
     }
     Program *prog = xcalloc(1, sizeof *prog);
     program = prog;

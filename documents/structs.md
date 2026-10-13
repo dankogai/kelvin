@@ -132,7 +132,9 @@ let main():i32 {
   - As in C, declare a method before calling it. A prototype is
     `let point.area():f64`. A method may call itself.
   - A method call cannot appear in a global initializer.
-  - Enums cannot have methods.
+  - C's enums cannot have methods; an enum with values can (#61). A
+    function of the type, `static let T.name()`, with no self, goes on
+    any of them (#111, [functions.md](functions.md)).
   - C typedef names cannot be receivers, and neither can `cstr` or `any`.
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.

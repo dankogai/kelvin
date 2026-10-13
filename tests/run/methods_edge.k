@@ -3,7 +3,7 @@
 #import <time.h> as C
 
 struct point { x:i32; y:i32; };
-static let point.sum():i32 { return self.x + self.y; }   // a static method
+let point.sum():i32 { return self.x + self.y; }          // was a C-static method; static let T.name() is now a function of the type (#111)
 
 let point.fact(n:i64):i64 {                   // recursion needs no prototype
     if n <= 1 {

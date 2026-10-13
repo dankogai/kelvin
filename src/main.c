@@ -175,6 +175,8 @@ static bool imported_already(const char *path) {
    as <complex.k> is the source tree's modules/complex.k */
 static char *import_path(Token *t, const char *argv0) {
     char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
+    if (!strchr(name, '.')) /* <JSON> is <JSON.k> (#112) */
+        name = strfmt("%s.k", name);
     if (t->text[0] == '"') {
         const char *slash = strrchr(t->pos.file, '/');
         char *path = slash && name[0] != '/' ? strfmt("%.*s/%s", (int)(slash - t->pos.file), t->pos.file, name)
@@ -187,8 +189,8 @@ static char *import_path(Token *t, const char *argv0) {
     for (int i = 0; i < 2; i++)
         if (dirs[i] && kelvin_file(strfmt("%s/%s", dirs[i], name)))
             return strfmt("%s/%s", dirs[i], name);
-    error_at(t->pos, "cannot find %s in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
-             t->text);
+    error_at(t->pos, "cannot find %s (%s) in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
+             t->text, name);
 }
 
 /* The tokens with each #import of a Kelvin file followed by that file's

@@ -35,7 +35,8 @@ static var calls:i32
   `let` or `var` is an error that suggests them, and `again: n = 0` is a
   label before a statement, as in C.
 - **Storage classes** go in front: `static let f():i32`, `static var n:i32`,
-  `extern var e:i32` *(provisional P9)*.
+  `extern var e:i32` *(provisional P9)*; on a dotted name, `static let
+  T.name()` is a function of the type, not C's static (#111).
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see [integers.md](integers.md)).
 

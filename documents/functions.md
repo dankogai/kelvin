@@ -43,6 +43,36 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 
+## Functions of a type: `static let T.name(...)`
+
+`static let T.name(params):R { ... }` (#111) declares a function of the
+type `T`, Swift's `static func`: it has no `self`, and is called by the
+type's name, `T.name(args)`. `T` is a struct, a union or an enum with
+values of the program, declared before it; a built-in type takes none.
+The overloads of one name differ by their parameter types, as any
+function's do, and one may call another:
+
+```kelvin
+struct point { x: i64; y: i64 }
+static let point.origin():point { (point){0, 0} }
+static let point.of(x:i64, y:i64):point { (point){x, y} }
+static let point.of(s:cstr):point { point.of(i64(s), 0) }
+let point.dist2():i64 { self.x * self.x + self.y * self.y }   // a method, with self, beside them
+
+let o = point.origin()
+let p = point.of(3, 4)
+let q = point.of("5")
+println(p.dist2())                        // 25; p.origin() is an error: it is called as point.origin()
+```
+
+- `self` in its body is an error that says so, and so is calling it on
+  a value, `p.origin()`: a function of a type is not a method, and a
+  method, `let T.name()`, is not called by the type's name.
+- A `static let T.name()` used to be a method with C's `static`; a
+  file-local method had no use, and the plain `let T.name()` serves.
+- In C it is `T__name`, with its parameter types appended when it
+  overloads or comes from an imported file, as `point__of__i64__i64`.
+
 ## Function types: `(T, U):R`
 
 A function type is written as a function's head without names (#31), as
