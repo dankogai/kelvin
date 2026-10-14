@@ -166,6 +166,21 @@ static List pending_drops;
 static void finish_drops(int from);
 /* the structs with no tag (#59), Decl *, one per spelling, in order of first use */
 static List anon_records;
+static List anon_words; /* Decl *: the top-level enums with values that have no tag, whose cases are words (#120) */
+static Var *case_named(Decl *r, const char *name, int *k);
+static Expr *case_maker(Token *t, Token *cn, Decl *r, Var *c);
+
+/* the case `name` of a top-level anonymous enum with values (#120), if any */
+static Var *anon_word(const char *name, Decl **r, int *k) {
+    for (int i = 0; i < anon_words.len; i++) {
+        Var *c = case_named(anon_words.data[i], name, k);
+        if (c) {
+            *r = anon_words.data[i];
+            return c;
+        }
+    }
+    return NULL;
+}
 static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
 static const char *top_name; /* the top-level declaration being parsed */
 static int anon_start = -1;
@@ -2061,6 +2076,17 @@ static Expr *parse_primary(void) {
                              "closures, so pass it as an argument, or make it a global",
                      t->text);
     }
+    if (t->kind == TK_IDENT && binding_index(t->text) < 0 && !function_named(t->text) && !is_p(peek2(), ".")) {
+        /* red, rgb({1, 2, 3}): a case of a top-level enum with values that
+           has no tag makes a value, as a word of the program (#120) */
+        Decl *r;
+        int k;
+        Var *c = anon_word(t->text, &r, &k);
+        if (c) {
+            advance();
+            return case_maker(t, t, r, c);
+        }
+    }
     if (t->kind == TK_IDENT && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT && binding_index(t->text) < 0) {
         /* T.n(x) and T.none make a value of an enum with values (#61) */
         Decl *r = record_named(t->text);
@@ -2070,30 +2096,7 @@ static Expr *parse_primary(void) {
             advance();
             advance();
             Token *cn = advance();
-            Expr *e = new_expr(E_CALL, t->pos);
-            e->a = new_expr(E_IDENT, t->pos);
-            e->a->text = t->text;
-            e->op = "case_make";
-            e->text = c->name;
-            e->target = r;
-            e->type = base_type(tag_type_name(r), t->pos);
-            if (c->type) {
-                if (!is_p(peek(), "("))
-                    error_at(cn->pos, "case '%s' of %s carries a value: write %s.%s(value)", c->name, r->name, r->name, c->name);
-                advance();
-                bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
-                brace_ends_condition = brace_in_for = false;
-                Expr *v = case_value(c->type);
-                brace_ends_condition = saved_brace;
-                brace_in_for = saved_for;
-                expect_p(")");
-                reject_record_mismatch(v, c->type, v->pos);
-                move_argument(v, c->type, strfmt("case '%s'", c->name)); /* given by value, an owner moves (O5) */
-                list_push(&e->items, v);
-            } else if (is_p(peek(), "(")) {
-                error_at(peek()->pos, "case '%s' of %s carries no value: write %s.%s", c->name, r->name, r->name, c->name);
-            }
-            return e;
+            return case_maker(t, cn, r, c);
         }
         if (r && r->name) { /* T.name(...): a function of the type (#111), a name that overloads may share */
             char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
@@ -8318,6 +8321,12 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     }
     if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
+    Decl *wr;
+    int wk;
+    if (!d->op && anon_word(d->name, &wr, &wk)) /* (#120) */
+        error_at(name->pos, "'%s' is a case of %s, a word of the program: name the function otherwise, or give the "
+                            "enum a tag",
+                 d->name, record_spelling(wr));
     return parse_fn_tail(d, name, pos);
 }
 
@@ -8523,9 +8532,70 @@ static void check_text_method(Decl *d, Token *name) {
     }
 }
 
+/* T.n(x), T.none (#61), and a word of a top-level anonymous enum with
+   values, n(x), none (#120): the value made, the case's value parsed */
+static Expr *case_maker(Token *t, Token *cn, Decl *r, Var *c) {
+    const char *how = r->spelling ? c->name : strfmt("%s.%s", r->name, c->name);
+    Expr *e = new_expr(E_CALL, t->pos);
+    e->a = new_expr(E_IDENT, t->pos);
+    e->a->text = t->text;
+    e->op = "case_make";
+    e->text = c->name;
+    e->target = r;
+    e->type = base_type(tag_type_name(r), t->pos);
+    if (c->type) {
+        if (!is_p(peek(), "("))
+            error_at(cn->pos, "case '%s' of %s carries a value: write %s(value)", c->name, record_spelling(r), how);
+        advance();
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        Expr *v = case_value(c->type);
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        reject_record_mismatch(v, c->type, v->pos);
+        move_argument(v, c->type, strfmt("case '%s'", c->name)); /* given by value, an owner moves (O5) */
+        list_push(&e->items, v);
+    } else if (is_p(peek(), "(")) {
+        error_at(peek()->pos, "case '%s' of %s carries no value: write %s", c->name, record_spelling(r), how);
+    }
+    return e;
+}
+
 static Decl *parse_record(Pos pos, DeclKind kind) {
     /* enum T { none; some: i32 }: a case with a value makes an enum with
        values, a tagged union, a struct in C (#61) */
+    if (kind == D_ENUM && is_p(peek(), "{") && brace_has_colon(cur)) {
+        /* enum { red; rgb: {r: u8, g: u8, b: u8} } with no tag at the top
+           level (#120): the type of its spelling, as where a type goes, and
+           its cases words of the program, red and rgb({1, 2, 3}), as C's
+           anonymous enum declares its enumerators */
+        Token *open = peek();
+        Type *ty = parse_anon_record(D_STRUCT, true);
+        Decl *r = anon_record_of(ty);
+        for (int i = 0; i < r->members.len; i++) {
+            Var *c = r->members.data[i];
+            if (!strcmp(c->name, "ok") || !strcmp(c->name, "err") || !strcmp(c->name, "none") || !strcmp(c->name, "some"))
+                error_at(c->pos, "'%s' is a word of Result and Optional (#72, #75): a case of an enum with no tag is a "
+                                 "word of the program, so name it otherwise, or give the enum a tag",
+                         c->name);
+            if (function_named(c->name))
+                error_at(c->pos, "'%s' is a function: a case of an enum with no tag is a word of the program, so name it "
+                                 "otherwise, or give the enum a tag",
+                         c->name);
+            Decl *other;
+            int k;
+            if (anon_word(c->name, &other, &k) && other != r)
+                error_at(c->pos, "'%s' is a case of %s already: a case of an enum with no tag is a word of the program",
+                         c->name, record_spelling(other));
+        }
+        for (int i = 0; i < anon_words.len; i++)
+            if (anon_words.data[i] == r)
+                return NULL; /* the same spelling declared again: the same words */
+        list_push(&anon_words, r);
+        (void)open;
+        return NULL;
+    }
     bool tagged = kind == D_ENUM && peek()->kind == TK_IDENT && is_p(peek2(), "{") && brace_has_colon(cur + 1);
     Decl *d = new_decl(tagged ? D_STRUCT : kind, pos, NULL);
     d->tagged = tagged;
@@ -8547,6 +8617,11 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 v->pos = peek()->pos;
                 reject_kv_name(peek());
                 v->name = expect_ident("an enumerator");
+                Decl *wr;
+                int wk;
+                if (anon_word(v->name, &wr, &wk)) /* (#120) */
+                    error_at(v->pos, "'%s' is a case of %s, a word of the program: name the enumerator otherwise",
+                             v->name, record_spelling(wr));
                 declare_name(v->name);
                 if (accept_p("="))
                     v->init = parse_conditional();
@@ -9223,7 +9298,9 @@ Program *parse(Token *tokens, int ntoks) {
             add_top_decl(prog, parse_record(t->pos, D_UNION));
         } else if (!storage && accept_kw("enum")) {
             top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
-            add_top_decl(prog, parse_record(t->pos, D_ENUM));
+            Decl *d = parse_record(t->pos, D_ENUM);
+            if (d) /* NULL: an enum with values and no tag, registered as a type and its words (#120) */
+                add_top_decl(prog, d);
         } else {
             error_at(peek()->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }

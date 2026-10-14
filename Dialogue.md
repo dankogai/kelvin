@@ -1,12 +1,15 @@
 
 
-### 152. A `switch` that binds the case's value
+### 153. An enum with values and no tag, at the top level
 
-> now add a `switch` that binds the case's value
+> now add an anonymous `enum` with values at the top level
 
-**Claude** added #119: `case n(x):` runs its body with `x` bound to the
-case's value, as `if let n(x) = e` binds it, a let the enum still
-owns; a binding case stands alone, a case with no value binds nothing,
-and a value no place holds is read once. Details are provisional P131.
+**Claude** found a nameless enum already went where a type goes, so
+the one thing left was the top-level declaration itself, and asked
+what it should mean. The user chose C's reading: #120, its cases are
+words of the program, `red` a value and `rgb({1, 2, 3})` a maker of
+the type spelled `enum{red, rgb: ...}`, with the words of Result and
+Optional, a function's name and an enumerator's refused as case names.
+Details are provisional P132.
 
-There are 671 tests, and all pass with clang and with gcc 15.
+There are 675 tests, and all pass with clang and with gcc 15.

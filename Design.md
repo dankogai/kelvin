@@ -151,6 +151,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 117 | `v[k]` of an enum with values: through its Dictionary case with text, its Array case with an integer, checked as the case and the index are; so `j["key"]` and `j[i]` on a JSON, a place, a path | — | `j["tags"][1].number`, `j["n"] = JSON.number(4.0)` | 2026-10-14 |
 | 118 | `"""` on its own lines: the line break after the opening run and the one before the closing run are not text, and the closing run's indentation comes off each line; a longer delimiter, `""""`, holds a `"""`, closed by a run as long, the extra quotes of a longer closing run being text | — | `let doc := """` ... `"""` | 2026-10-14 |
 | 119 | `switch v { case n(x): ... }`: the case's value bound to `x`, a let the enum still owns, for that case's body, as `if let n(x) = v` binds it; a binding case stands alone; a value no place holds is read once | — | `switch r { case ok(v): println(v) case err(e): println(e) }` | 2026-10-14 |
+| 120 | An enum with values and no tag at the top level, `enum { red; rgb: {r: u8, g: u8, b: u8} }`: the type of its spelling, and its cases words of the program, `red` a value and `rgb({1, 2, 3})` a maker, as C's anonymous enum declares its enumerators; a case named `ok`, `err`, `none`, `some`, a function or an enumerator is an error | `enum { A, B }` declaring A and B | `var c = rgb({1, 2, 3})` | 2026-10-14 |
 
 Notes:
 
@@ -712,6 +713,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (120) Agreed details: "now add an anonymous `enum` with values at
+  the top level". A nameless enum already went where a type goes; the
+  top-level declaration had no meaning and gave a confusing error, and
+  a nameless type had no `T.n(x)` to make a value by. Asked, the user
+  chose C's reading: as `enum { A, B }` declares A and B, the cases
+  become words of the program, `red` a value and `rgb({1, 2, 3})` a
+  maker, so a declaration infers the type from them. The words that
+  Result and Optional own, `ok`, `err`, `none`, `some`, a function's
+  name and an enumerator's are refused as case names, each way round,
+  since a word that two things claim is no word (P132).
 
 - (119) Agreed details: "now add a `switch` that binds the case's
   value". Swift's `case .n(let x)` in the spelling `if let n(x) = e`
@@ -1309,6 +1321,7 @@ says "as agreed".
 | P129 | Details of #117 | `j["name"]` is `_kv_dict_String_JSON_at(&(*_kv_JSON_at_object(&j)), "name")`, the case read and the entry read, each checked; `j["tags"][0] = v` is `_kv_JSON_assign(_kv_array_JSON_at(...), v)` | In the index parse, after `]`, a receiver whose type is a tagged record is replaced by the E_FIELD of its first Dictionary case for text (a literal, a cstr, a String or a Bytes) or its first Array case otherwise, and the parse goes on as for that case; a slice takes the Array case. An enum with no such case, or with the other one only, is an error that says which it has. `_kv_T_assign(T *p, T v)`, free then store, is now written beside `_kv_T_free` for an enum with values and for a struct that owns |
 | P130 | Details of #118 | a `"""` on its own lines is one C string literal of the lines between, each ended by `\n` but the last | `lex_triple` counts the opening run, gathers the raw text up to a run as long, keeping the extra quotes of a longer run, then takes off a first `\n`, a last `\n` and the blanks after it, which it strips from the start of every line that begins with them, and escapes the rest for C. A text that is only the two delimiter lines is `""`. An unterminated one says how many quotes it ends with |
 | P131 | Details of #119 | `case some(v):` is `case 1: { __attribute__((unused)) const int64_t v = a.u.some; ... break; }`; of a call, `{ __auto_type _kv_switch_sw = half(10); switch (_kv_switch_sw.tag) { ... } }` | `parse_case_label` takes `(name)` after a case name, declares it with `LET_EACH`, the kind of a loop's element, and keeps it in the S_CASE's `name2` and `type`; the block emitter writes the let after the `{` it already opens for each case; the S_SWITCH emitter hoists a subject that is no C lvalue when any case binds. Moving the bound value out gets the message of a value a container still owns |
+| P132 | Details of #120 | `rgb({1, 2, 3})` is `_kv__kv_anon1_make_rgb((struct _kv_anon1_rgb){1, 2, 3})` or the like, the maker of the spelling's record, as `T.n(x)`'s is | `parse_record` sees `enum {` with a `:` inside and reads it through `parse_anon_record`, the type-position path, so the record is the one of its spelling, registered once; the record joins `anon_words`, and the top-level loop gets NULL, since the record is in the program's declarations already. In `parse_primary`, an identifier that is no binding, no function and not followed by `.` is looked up in `anon_words`, and `case_maker`, split out of the `T.n(x)` block, makes the value. The clashes are checked where the enum is declared and where a function or an enumerator is |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

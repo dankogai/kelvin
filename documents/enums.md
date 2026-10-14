@@ -42,6 +42,14 @@ println(j.n)                             // ends the program: case 'n' of json i
   - A case has a name, not a number.
   - Without a tag, `enum{i:i32, f:f32}` goes where a type goes, one
     type per spelling, as `{x:f64, y:f64}` does (#59).
+  - At the top level, `enum { red; rgb: {r: u8, g: u8, b: u8} }` with no
+    tag (#120) is that type, and its cases are words of the program, as
+    C's anonymous enum declares its enumerators: `red` is a value,
+    `rgb({1, 2, 3})` makes one, and `var c = rgb({1, 2, 3})` infers the
+    type, spelled `enum{red, rgb: {r: u8, g: u8, b: u8}}`.
+    - A case named `ok`, `err`, `none` or `some`, or like a function or
+      an enumerator, is an error that says so: those are words already.
+    - The same spelling declared again gives the same type and words.
 - **Making a value:** `{.n = 1.5}` or `{.none}` as an initializer, a
   `return` (#77) or a compound literal, `(json){.n = 1.5}`.
   - `json.n(1.5)` and `json.none` as an expression, with the value
@@ -107,7 +115,7 @@ println(j.n)                             // ends the program: case 'n' of json i
   for that case's body, as `if let n(x) = v` does: a let `v` still owns.
   - A case that binds stands alone, and a case with no value binds
     nothing; see [flow-controls.md](flow-controls.md).
-- **Not yet:** an anonymous `enum` with values at the top level.
+- **Not yet:** methods and operators on an enum with no tag.
 
 ## A struct that owns
 
@@ -127,6 +135,7 @@ A struct, or an enum with values, that holds an owner is copied with
 | | `.n = x` | sets the case and its value, freeing what it held |
 | | `v["key"]`, `v[i]` | the Dictionary case's entry, the Array case's element, checked (#117) |
 | | `T.n(x)`, `T.none` | a value, by the type's name |
+| | `n(x)`, `none` | the same of a top-level enum with no tag, whose cases are words (#120) |
 | | `switch v { case n: ... }` | by the case, exhaustive (#63) |
 | | `switch v { case n(x): ... }` | the same, with `x` the case's value in that body (#119) |
 | | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |
