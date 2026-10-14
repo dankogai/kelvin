@@ -105,7 +105,8 @@ So far the changes from C are:
   `let f()`, functions `static let f()`, computed attributes
   `let area:f64 { ... }` read as `r.area`, attributes with a setter
   `var celsius:f64 { get { ... } set(v) { ... } }`, and type attributes
-  `static var count:i64 = 0` read as `T.count`; each also written alone,
+  `static var count:i64 = 0` read as `T.count`, and operators
+  `static let +(a:T, b:T):T`; each also written alone,
   `let T.area:f64 { ... }`
 - structs and unions may define operators:
   `let +(a:money, b:money):money { ... }`, then `a + b`

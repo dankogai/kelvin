@@ -8972,12 +8972,35 @@ static void parse_extend(Program *prog) {
             error_at(m->pos, "extern is not for a member of extend: declare it at the top level");
         if (!is_kw(peek(), "let") && !is_kw(peek(), "var"))
             error_at(peek()->pos, "extend holds let f() { }, static let f() { }, let x:R { }, var x:R { get { } set(v) "
-                                  "{ } }, static let x = v and static var x = v; found %s",
+                                  "{ } }, static let x = v, static var x = v and static let +(a:T, b:T):T { }; found %s",
                      desc(peek()));
         bool is_let = is_kw(peek(), "let");
         Token *nm = peek_at(1), *after = peek_at(2);
-        if (nm->kind == TK_PUNCT)
-            error_at(nm->pos, "an operator is declared at the top level, as 'let %s(a:T, b:T):T { ... }'", nm->text);
+        if (nm->kind == TK_PUNCT) {
+            /* static let +(a:T, b:T):T { } (#135): an operator, as Swift's
+               static func +, which is the top level's let + */
+            if (!overloadable_op(nm) || !is_p(after, "("))
+                error_at(nm->pos, "'%s' cannot be defined: an operator is one of + - * / %% == != < <= > >=, or unary -",
+                         nm->text);
+            if (!storage || !is_let)
+                error_at(m->pos, "an operator in extend is a function of the type, as Swift's static func: write 'static "
+                                 "let %s(a:%s, b:%s):%s { ... }'",
+                         nm->text, recv->text, recv->text, recv->text);
+            advance(); /* let */
+            char *tn;
+            Type *rt = attribute_receiver(recv, spelled, &tn);
+            top_name = strfmt("%s_op", rname);
+            Decl *d = parse_fn(m->pos, NULL);
+            bool takes = false;
+            for (int k = 0; k < d->params.len && !takes; k++) {
+                Type *pt = unqualified(((Var *)d->params.data[k])->type);
+                takes = pt && pt->kind == T_BASE && rt->kind == T_BASE && !strcmp(pt->name, rt->name);
+            }
+            if (!takes)
+                error_at(nm->pos, "an operator in extend %s takes a %s, as one of its values", recv->text, recv->text);
+            add_top_decl(prog, d);
+            continue;
+        }
         if (is_p(after, "(")) {
             if (!is_let)
                 error_at(m->pos, "a method is a let: write 'let %s(...)'", nm->text);

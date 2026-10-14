@@ -249,6 +249,7 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
 | `static let T.x:R = v` | `static let x:R = v` | a type attribute, a constant (#133) | `T.x` |
 | `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |
 | `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
+| `let +(a:T, b:T):T { }` | `static let +(a:T, b:T):T { }` | an operator (#42, #135) | `a + b`, `a += b` |
 
 - **`extend T { }`** (#130) holds any of these, and names `T` once.
   - `T` is a struct, a union or an enum with values declared before it,
@@ -257,8 +258,10 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
     `extend enum{nothing, just: i64} { ... }` (#121).
   - A member and its alone form are the same thing: either may be used,
     and a program may mix them.
-  - An operator is declared at the top level, `let +(a:T, b:T):T`, not
-    in `extend`.
+  - An operator in `extend` is `static let +(a:T, b:T):T` (#135), as
+    Swift's `static func +`, the same as the top level's `let +`; one of
+    its values is a `T`, and a plain `let +` there is an error that says
+    to write `static`.
 - **A computed attribute**, `let T.x:R { ... }` (#131), is read as
   `v.x`, with no parentheses.
   - Its body is a method's, with `self`, and its one expression is the

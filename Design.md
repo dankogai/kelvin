@@ -166,6 +166,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 132 | `var T.x:R { get { } set(v) { } }`, or in extend: a computed attribute with a setter; `v.x = y` and `v.x += y` call the setter on the var that holds `v`, whose `self` is that var | a getter and a setter on `struct T *` | `t.celsius = 100.0` | 2026-10-15 |
 | 133 | `static let T.x = v` and `static var T.x = v`, or in extend: type attributes, a global of the type read and written as `T.x`; a `static let` needs its value; a type with no tag has none | a global `T_x` | `rect.made += 1` | 2026-10-15 |
 | 134 | `x.m = v`, `xs[i].m = v` and `p^ = v` of a type that owns free what they held, after the new value is made, as `x = v` of a local does | — | `p.name = $"Grace"` | 2026-10-15 |
+| 135 | Operators in `extend T { }`: `static let +(a:T, b:T):T { }`, as Swift's `static func +`, the same as the top level's `let +`; one of its values is a `T`; a plain `let +` in extend is an error naming `static` | — | `extend money { static let +(a:money, b:money):money { ... } }` | 2026-10-15 |
 
 Notes:
 
@@ -727,6 +728,12 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (135) Agreed details: "now add operators inside `extend T {}` as
+  `static let +`". The spelling is the user's, Swift's `static func +`:
+  an operator is no method, since it has no self, so it is `static` in
+  extend, and the same Decl as the top level's `let +`. As in Swift, it
+  takes a `T` as one of its values (P147).
 
 - (134) Agreed details: found while testing #132, whose setters assign
   to members of `self`: `p.name = v` of a member that owns was C's
@@ -1456,6 +1463,7 @@ says "as agreed".
 | P144 | Details of #132 | `t.celsius = v` is `temp__set_celsius(&(t), v)`; the setter is `void temp__set_celsius(struct temp *_kv_selfp, double v)` with `#define self (*_kv_selfp)` around its body | `parse_var_attribute` makes two Decls, the getter and a `setter` with the parameter of `set(v)`; `method_named` and dispatch skip setters, and the C-name check names them `T__set_x`. `parse_assign` turns `v.x op= y` into an E_CALL `attr_set` before the usual checks: the receiver must be a var place, and a compound one is read twice, so it may not hold a call |
 | P145 | Details of #133 | `static var rect.made:i64 = 0` is the global `int64_t rect__made = 0;`, and `rect.made` is the identifier `rect__made` | `parse_type_attribute` parses the declaration as `parse_var` does, then renames the Var and its binding to `T__x` and lists it in `type_attrs`; the primary expression reads `T.x` as that identifier where `T` is a record, after its cases and functions |
 | P146 | Details of #134 | `p.name = $"Grace"` is `kv_string_assign(&(p.name), KV_STRING_OF("Grace"))`, where it was `p.name = KV_STRING_OF("Grace")` | `parse_assign` marks an `=` to a place other than a name, of an owner other than an IO, with the place's type, and `owner_assign` writes the type's `_assign` for it |
+| P147 | Details of #135 | `static let +(a:money, b:money):money` in `extend money` is `_kv_add_op__money__money`, as `let +` at the top level is | `parse_extend` takes `static` `let` and an overloadable operator before `(` to `parse_fn`, the top level's parser of operators, then checks a parameter's type against the receiver's from `attribute_receiver`; without `static`, or another punctuation, it is an error |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -1,0 +1,8 @@
+// an operator in extend T takes a T (#135)
+struct money { cents: i64 }
+struct other { n: i64 }
+extend money {
+    static let +(a:other, b:other):other { (other){a.n + b.n} }
+}
+let main():i32 { return 0 }
+// error: an operator in extend money takes a money, as one of its values

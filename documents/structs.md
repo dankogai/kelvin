@@ -184,7 +184,9 @@ let main():i32 {
   is a Kelvin struct or union, and has a result.
   - Other operators (`<<`, `!`, `+=`) cannot be defined.
   - Precedence is C's.
-  - A definition is a `let` at the top level, `let +(a:T, b:U):R`.
+  - A definition is a `let` at the top level, `let +(a:T, b:U):R`, or a
+    `static let +(a:T, b:U):R` in `extend T { }` (#135), as Swift's
+    `static func +`.
 - `a op b` with a struct operand calls the operator its types fit, and
   is an error showing how to define one where none does.
   - Numbers keep C's operators.

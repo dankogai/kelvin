@@ -4,4 +4,4 @@ extend rect {
     struct inner { a: i64 }
 }
 let main():i32 { return 0 }
-// error: extend holds let f() { }, static let f() { }, let x:R { }, var x:R { get { } set(v) { } }, static let x = v and static var x = v
+// error: extend holds let f() { }, static let f() { }, let x:R { }, var x:R { get { } set(v) { } }, static let x = v, static var x = v and static let +(a:T, b:T):T { }

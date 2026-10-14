@@ -3790,3 +3790,14 @@ fixes that for every program. examples/shapes.k, linkedlist.k and the
 JSON module now use `extend`. Details are provisional P142 to P146.
 
 There are 703 tests, and all pass with clang and with gcc 15.
+
+### 165. Operators in `extend`
+
+> now add operators inside `extend T {}` as `static let +`
+
+**Claude** added #135: `static let +(a:T, b:T):T { }` in `extend T { }`,
+as Swift's `static func +`, the same operator as the top level's
+`let +`, taking a `T` as one of its values; a plain `let +` there is an
+error that says to write `static`. Details are provisional P147.
+
+There are 706 tests, and all pass with clang and with gcc 15.
