@@ -3713,3 +3713,15 @@ in `` $`...` ``. Before, it went through as a String that nothing
 freed, or was refused in `` $`...` ``. Details are provisional P138.
 
 There are 684 tests, and all pass with clang and with gcc 15.
+
+### 160. A file test for `f.println` of `.pretty`
+
+> add a file-based test for f.println of .pretty
+
+**Claude** added tests/run/io_pretty.k: `f.println` and `f.print` of
+`.pretty`, and of whole values, write to a file, which is read back and
+removed. It worked already since #124; the test pins the path through a
+file, where the earlier one went through `IO.stdout` only. No code
+changed.
+
+There are 685 tests, and all pass with clang and with gcc 15.
