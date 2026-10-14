@@ -50,7 +50,8 @@ words["a"] = $[$"apple"]
   the Dictionary owns, in the order added; `for k in d` the keys.
 - **Text:** `print(d)` shows `{"ann": 31, "bob": 42}`, in the order
   added, and `d.pretty` the same indented, a line for each entry (#123,
-  #124); String keys and values are quoted.
+  #124); String keys and values are quoted; `${d}` in a template is the
+  same text (#125).
 - **Not yet:** `==`, keys of other types, `d[k, default]`.
 
 ## Properties and methods

@@ -2029,11 +2029,24 @@ static Expr *parse_template(void) {
         Decl *record;
         if (type_class(value_type(v), &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        Type *ct = value_type(v);
+        if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct)) {
+            /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
+               kelvinc's printer of it (#123), cut as a string value is in a
+               template's room, and whole in $`...` */
+            if (!owner_place(v))
+                error_at(v->pos, "%s that an expression gives in a template, which nothing would free: bind it to a "
+                                 "variable first",
+                         is_dict_owner(ct) ? "a Dictionary" : is_set_owner(ct) ? "a Set" : "an Array");
+            Expr *s = new_expr(E_PROPERTY, v->pos);
+            s->a = v;
+            s->text = "text";
+            s->op = "tpl_show";
+            s->recv_type = unqualified(ct);
+            s->type = base_type("String", v->pos);
+            v = s;
+        }
         v->shown = shown_type(v);
-        if (is_array_owner(value_type(v)) || is_dict_owner(value_type(v)) || is_set_owner(value_type(v)))
-            error_at(v->pos, "%s has no text in a template, whose room is bounded: print it with print or println, or "
-                             "bind its .pretty, a String, and show that (#123, #124)",
-                     is_dict_owner(value_type(v)) ? "a Dictionary" : is_set_owner(value_type(v)) ? "a Set" : "an Array");
         list_push(&e->items, v);
         part = peek();
         if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
@@ -2073,7 +2086,11 @@ static Expr *parse_primary(void) {
             Type *vt = value_type(v);
             Expr *w = new_expr(E_CAST, v->pos);
             w->a = v;
-            if (is_string(vt) || is_bytes(vt)) {
+            if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "tpl_show")) {
+                w->a = v->a; /* ${xs} (#125): the printer appends to the String */
+                w->op = "tplstr_show";
+                w->recv_type = v->recv_type;
+            } else if (is_string(vt) || is_bytes(vt)) {
                 if (!owner_place(v))
                     error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it "
                                      "to a variable first",
@@ -3773,8 +3790,8 @@ static Type *value_type_of(Expr *e) {
     case E_TEMPLATE: /* its text is a cstr (#39, #52); $`...` a String (#67) */
         return e->op && !strcmp(e->op, "string") ? base_type("String", e->pos) : cstr_type(e->pos);
     case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a cstr */
-        if (e->op && (!strcmp(e->op, "pretty") || !strcmp(e->op, "show"))) /* v.pretty, a String (#124) */
-            return e->type;
+        if (e->op && (!strcmp(e->op, "pretty") || !strcmp(e->op, "show") || !strcmp(e->op, "tpl_show")))
+            return e->type; /* v.pretty, a String (#124); ${xs}'s text (#125) */
         if (e->op && !strcmp(e->op, "bytes") && !strcmp(e->text, "at")) { /* b.at (#54) */
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;

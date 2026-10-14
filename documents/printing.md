@@ -104,8 +104,12 @@ var text = ages.pretty                   // a String, where print does not show 
     `.cstr`.
 - **An owner an expression gives** is not printed, since nothing would
   free it: bind it first, as `var xs = make(); println(xs)`.
-- **A template** has bounded room, so `${xs}` of an Array, a Dictionary
-  or a Set is an error that says to print it, or to bind its `.pretty`.
+- **A template** shows an Array, a Dictionary or a Set by the same
+  printer (#125): `${xs}` is `[1, 2, 3]`.
+  - In `` `...` ``, whose room is bounded, its text is cut as a string
+    value's is, past 256 bytes, with `...`.
+  - In `` $`...` ``, a String, it is whole.
+  - One that an expression gives is bound first, as for `print`.
 
 ## Template literals: `` `a${x}b` ``
 

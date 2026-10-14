@@ -426,6 +426,10 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&b, "kv_string_append_ref(&_kv_s, &(%s)); ", expr(x->a));
                 } else if (!strcmp(x->op, "tplstr_uchr")) {
                     buf_printf(&b, "kv_string_append_uchr(&_kv_s, %s); ", expr(x->a));
+                } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
+                    need_show(x->recv_type);
+                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s}, &_kv_sv, -1); } ",
+                               expr(x->a), show_key(x->recv_type));
                 } else {
                     buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x->a));
                 }
@@ -457,6 +461,16 @@ static char *expr_bare(Expr *e) {
                 const char *bound = template_bound(x);
                 buf_printf(&b, "KV_TEMPLATE_BYTES(%s, %s, sizeof (%s), (%s)); ", build, bound, value, value);
                 buf_printf(&bounds, " + %s", bound);
+            } else if (x->kind == E_PROPERTY && x->op && !strcmp(x->op, "tpl_show")) {
+                /* ${xs} (#125): its text by the printer into a String, shown
+                   as a string value is, cut to the room, and freed */
+                char *v = hidden(NULL, "value");
+                need_show(x->recv_type);
+                buf_printf(&b,
+                           "kv_string %s = kv_string_new(); { __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s}, "
+                           "&_kv_sv, -1); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
+                           v, expr(x->a), show_key(x->recv_type), v, build, v, v);
+                buf_puts(&bounds, " + KV_TEMPLATE_STR");
             } else {
                 /* (void)0, v: a bit-field cannot initialize __auto_type */
                 char *v = hidden(NULL, "value");
@@ -2988,8 +3002,9 @@ static void find_shows_stmt(Stmt *s);
 static void find_shows_expr(Expr *e) {
     if (!e)
         return;
-    if (e->kind == E_PROPERTY && e->op && (!strcmp(e->op, "show") || !strcmp(e->op, "pretty")) && e->recv_type)
-        need_show(e->recv_type);
+    if (e->op && e->recv_type &&
+        (!strcmp(e->op, "show") || !strcmp(e->op, "pretty") || !strcmp(e->op, "tpl_show") || !strcmp(e->op, "tplstr_show")))
+        need_show(e->recv_type); /* print's, .pretty's and a template's (#123, #124, #125) */
     find_shows_expr(e->a);
     find_shows_expr(e->b);
     find_shows_expr(e->c);

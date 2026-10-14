@@ -175,7 +175,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   or an enum with values that owns. A fixed array is not an element.
 - **Text:** `print(xs)` shows `[1, 2, 3]`, and `xs.pretty` the same
   indented, a line for each element (#123, #124); Strings inside are
-  quoted.
+  quoted. `${xs}` in a template is the same text (#125), cut to the
+  template's room, and whole in `` $`...` ``.
 - **Not yet:** `==`, sorting and searching.
 
 

@@ -156,6 +156,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 122 | `print`, `println`, `f.print` and `f.println` show a struct, a union or an enum with values that kelvinc sees as its `.cstr` text, the derived one or the type's own `T.cstr()`, as a template does | — | `println(p)` | 2026-10-14 |
 | 123 | `print`, `println` and `f.println` show a value with brackets whole, on one line, by a printer kelvinc writes for each type: a struct `{x: 1}`, an enum with values `n(v)`, an Optional, a Result, an `Array` `[a, b]`, a `Dictionary` `{"k": v}`, a `Set` `{a, b}`; a `String`, a `Bytes` or a `cstr` inside a value is quoted and escaped, also in `.cstr` and `${v}`, which stay cut to their room | a loop of `printf`s | `println(xs, " ", ages)` | 2026-10-14 |
 | 124 | `v.pretty`: the same text indented, each item of a `[]` or `{}` on a line of its own, two spaces a level; printed where `print` shows it, a `String` elsewhere | — | `println(cfg.pretty)`, `var text = cfg.pretty` | 2026-10-14 |
+| 125 | `${xs}` of an Array, a Dictionary or a Set in a template: its text by kelvinc's printer (#123), cut to a template's room as a string value is, and whole in `` $`...` ``; one an expression gives is bound first | — | `` `xs = ${xs}` ``, `` $`${d}` `` | 2026-10-14 |
 
 Notes:
 
@@ -717,6 +718,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (125) Agreed details: "now add `${xs}` of an Array in a template".
+  The printer of #123 serves a Dictionary and a Set the same way, so all
+  three, which a template had refused. A template's text has bounded
+  room, kept on the stack, so the text goes through a String freed at
+  once and is cut as a string value is, past `KV_TEMPLATE_STR` bytes
+  with `...`; `` $`...` ``, a String, takes it whole (P137).
 
 - (124) Agreed details: from the same request, "add `print` and
   `println` and option to pretty-print values in `()`, `[]`, and `{}`,
@@ -1375,6 +1383,7 @@ says "as agreed".
 | P134 | Details of #122 | `println(p)` is `println(_kv_point_cstr(p, _kv_p_text))`, the C that `println(p.cstr)` gives | `print_records_as_text`, called by `check_print_args` for `print` and `println` and by the `f.print`/`f.println` branch of the member path, replaces each argument whose `expr_class` is `'s'` with `property(x, "cstr")`, as `parse_template` does for `${x}`; the text's buffer is the one `.cstr` makes in the enclosing block |
 | P135 | Details of #123 | `println(xs)` is `println(({ __auto_type _kv_sv = (xs); _kv_show__kv_array_i64(&(kv_out){.fp = NULL}, &_kv_sv, -1); (const uint8_t *)""; }))`: the printer streams, and the argument prints as an empty text | In the parser, `print_records_as_text` (of #122) now wraps every argument that is a record kelvinc sees, an Array, a Dictionary or a Set in an E_PROPERTY `show`; an owner an expression gives is refused there. In codegen, a pre-pass collects the types, closed over members, elements, keys and case values; each gets `static void _kv_show_<key>(kv_out *, const void *, int)` declared after the includes, since it takes `const void *`, and written after everything; `level < 0` is one line. The runtime's `kv_out` writes to a stream (stdout for NULL) or appends to a String; `kv_out_quoted` escapes in full, and `kv_cstr_quoted_*` escape within `.cstr`'s room, cutting with `..."` outside a codepoint. `f.println` sets the sink to `kv_io_fp`. The refusal of `print(xs)` in `reject_owners_to_c` became unreachable and was removed; `${xs}` in a template still errors, now naming `print` and `.pretty` |
 | P136 | Details of #124 | `cfg.pretty` elsewhere is `({ kv_string _kv_ps = kv_string_new(); ...; _kv_show_scene(&(kv_out){.s = &_kv_ps}, &_kv_sv, 0); _kv_ps; })` | `.pretty` is an E_PROPERTY `pretty` typed `String`, with the receiver's type kept; in a print call it turns into `show` at level 0. `kv_out_sep` writes `,` and a line at level + 1, `kv_out_end` a line at the level, before the closing bracket. A field named `pretty` wins, as fields do; `.pretty` of anything else is an error naming `.cstr` |
+| P137 | Details of #125 | `` `${xs}` `` is `kv_string v = kv_string_new(); { __auto_type _kv_sv = (xs); _kv_show__kv_array_i64(&(kv_out){.s = &v}, &_kv_sv, -1); } KV_TEMPLATE_VALUE(build, KV_TEMPLATE_STR, v); kv_string_free(&v);` inside the template's statement expression; `` $`${xs}` `` appends with the printer straight into the String being built | In `parse_template`, a value that is an Array, a Dictionary or a Set becomes an E_PROPERTY `tpl_show` typed `String`, so its room is `KV_TEMPLATE_STR`; `` $`...` `` turns it into a `tplstr_show` part. The refusal of #123 is gone, and so is its error test; an owner an expression gives is refused, as `print` refuses it |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

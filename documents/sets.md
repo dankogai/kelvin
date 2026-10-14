@@ -46,7 +46,8 @@ var e:${String} = ${}                    // empty; Set<String>() too
 - **Walking:** `for x in s` gives each element as a let the Set owns,
   in the order added. A Set is not indexed.
 - **Text:** `print(s)` shows `{3, 1, 4}`, in the order added, and
-  `s.pretty` the same indented (#123, #124).
+  `s.pretty` the same indented (#123, #124); `${s}` in a template is
+  the same text (#125).
 - **Not yet:** `==`, `isSubset`, `-` for the difference, elements of
   other types.
 
