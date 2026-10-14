@@ -152,6 +152,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 118 | `"""` on its own lines: the line break after the opening run and the one before the closing run are not text, and the closing run's indentation comes off each line; a longer delimiter, `""""`, holds a `"""`, closed by a run as long, the extra quotes of a longer closing run being text | — | `let doc := """` ... `"""` | 2026-10-14 |
 | 119 | `switch v { case n(x): ... }`: the case's value bound to `x`, a let the enum still owns, for that case's body, as `if let n(x) = v` binds it; a binding case stands alone; a value no place holds is read once | — | `switch r { case ok(v): println(v) case err(e): println(e) }` | 2026-10-14 |
 | 120 | An enum with values and no tag at the top level, `enum { red; rgb: {r: u8, g: u8, b: u8} }`: the type of its spelling, and its cases words of the program, `red` a value and `rgb({1, 2, 3})` a maker, as C's anonymous enum declares its enumerators; a case named `ok`, `err`, `none`, `some`, a function or an enumerator is an error | `enum { A, B }` declaring A and B | `var c = rgb({1, 2, 3})` | 2026-10-14 |
+| 121 | Methods and operators on a type with no tag, by its spelling: `let enum{nothing, just: i64}.orZero():i64 { }`, `let {x: f64, y: f64}.norm2():f64 { }`, `let +(a:enum{...}, b:enum{...}):enum{...}`; and an operator of any enum with values is the program's, `==` and `!=` included once written | functions named by the record | `just(3).orZero()`, `just(1) + just(2)` | 2026-10-14 |
 
 Notes:
 
@@ -713,6 +714,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (121) Agreed details: "now add methods and operators on an enum with
+  no tag". Asked how a method names a receiver that has no name, the
+  user chose its spelling, `let enum{nothing, just: i64}.orZero()`,
+  over a type alias or operators alone; the same form serves a struct
+  or a union with no tag. Found on the way: an operator the program
+  defined for any enum with values, named or not, was never reached,
+  since the check of `==` (#79) refused every other operator first; it
+  now goes to the program's operators, and `==` and `!=` too when the
+  program writes them for the type. A function of the type, `static
+  let`, is refused for a type with no tag, which has no name to call
+  it by (P133).
 
 - (120) Agreed details: "now add an anonymous `enum` with values at
   the top level". A nameless enum already went where a type goes; the
@@ -1322,6 +1335,7 @@ says "as agreed".
 | P130 | Details of #118 | a `"""` on its own lines is one C string literal of the lines between, each ended by `\n` but the last | `lex_triple` counts the opening run, gathers the raw text up to a run as long, keeping the extra quotes of a longer run, then takes off a first `\n`, a last `\n` and the blanks after it, which it strips from the start of every line that begins with them, and escapes the rest for C. A text that is only the two delimiter lines is `""`. An unterminated one says how many quotes it ends with |
 | P131 | Details of #119 | `case some(v):` is `case 1: { __attribute__((unused)) const int64_t v = a.u.some; ... break; }`; of a call, `{ __auto_type _kv_switch_sw = half(10); switch (_kv_switch_sw.tag) { ... } }` | `parse_case_label` takes `(name)` after a case name, declares it with `LET_EACH`, the kind of a loop's element, and keeps it in the S_CASE's `name2` and `type`; the block emitter writes the let after the `{` it already opens for each case; the S_SWITCH emitter hoists a subject that is no C lvalue when any case binds. Moving the bound value out gets the message of a value a container still owns |
 | P132 | Details of #120 | `rgb({1, 2, 3})` is `_kv__kv_anon1_make_rgb((struct _kv_anon1_rgb){1, 2, 3})` or the like, the maker of the spelling's record, as `T.n(x)`'s is | `parse_record` sees `enum {` with a `:` inside and reads it through `parse_anon_record`, the type-position path, so the record is the one of its spelling, registered once; the record joins `anon_words`, and the top-level loop gets NULL, since the record is in the program's declarations already. In `parse_primary`, an identifier that is no binding, no function and not followed by `.` is looked up in `anon_words`, and `case_maker`, split out of the `T.n(x)` block, makes the value. The clashes are checked where the enum is declared and where a function or an enumerator is |
+| P133 | Details of #121 | `let enum{nothing, just: i64}.orZero()` is the C function `_kv_anon1__orZero(struct _kv_anon1 self)`, dispatched as any method by `_Generic` on `struct _kv_anon1` | `spelled_receiver(i)` finds `enum{...}`, `union{...}`, `struct{...}` or `{...}` followed by `.name(`; `function_shape` gives it shape 5, the top-level loop routes it to `parse_method`, which reads the receiver with `parse_type`, so the record is the one of its spelling, and names it in C by the record, `_kv_anonN`; the method-name scan takes `} . name (` at depth 0. In the binary path, an enum with values and an overloadable operator other than `==` and `!=`, or one of those when `user_operator_on` finds a definition taking the type, goes to `resolve_operator`; with none written, the old message stays, with "or define one" for an enum of the program. Printing such a value by itself with `println(v)` is still a C error, as it is for any struct |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

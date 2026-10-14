@@ -115,7 +115,19 @@ println(j.n)                             // ends the program: case 'n' of json i
   for that case's body, as `if let n(x) = v` does: a let `v` still owns.
   - A case that binds stands alone, and a case with no value binds
     nothing; see [flow-controls.md](flow-controls.md).
-- **Not yet:** methods and operators on an enum with no tag.
+- **Methods and operators** (#121): an enum with values takes methods,
+  `let maybe.orZero():i64 { ... }`, and operators,
+  `let +(a:maybe, b:maybe):maybe { ... }`, as a struct does.
+  - One with no tag names its receiver by its spelling:
+    `let enum{nothing, just: i64}.orZero():i64 { ... }`, and an operator
+    takes it by its spelling too.
+  - `==` and `!=` are its own (#79) until the program writes them for
+    it; any other operator is the program's, and an error that shows
+    how to define one where none is written.
+  - A function of the type, `static let T.name()`, needs a name to be
+    called by, so one with no tag has none.
+- **Not yet:** printing one with `print` or `println` by itself: show
+  `v.cstr`, or use a template.
 
 ## A struct that owns
 
@@ -140,4 +152,5 @@ A struct, or an enum with values, that holds an owner is copied with
 | | `switch v { case n(x): ... }` | the same, with `x` the case's value in that body (#119) |
 | | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |
 | | `.copy()` | a copy, when a case owns |
+| | `let T.name()`, `let enum{...}.name()`, `let +(a:T, b:T)` | methods and operators, by the name or the spelling (#121) |
 | | `.size`, `.typename` | `sizeof`; the name or spelling |

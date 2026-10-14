@@ -73,7 +73,9 @@ println(v.typename)                     // {x: f64, y: f64}
 - **A union** with no tag is `union{i:i32, f:f32}` (#60), and an enum
   with values `enum{i:i32, f:f32}` (#61): see [unions.md](unions.md)
   and [enums.md](enums.md).
-- **Not yet:** methods and operators on one (they name a tag).
+- **Methods and operators** on one name it by its spelling (#121):
+  `let {x: f64, y: f64}.norm2():f64 { ... }`, and
+  `let +(a:{x: f64, y: f64}, b:{x: f64, y: f64}):{x: f64, y: f64}`.
 
 ## Initializers
 
@@ -153,9 +155,9 @@ let main():i32 {
 
 ## Operators: `let +(a:T, b:T):T`
 
-A struct or union may define `+ - * / % == != < <= > >=` and unary `-`,
-as functions named by the operator, overloaded by their types as other
-functions are (#42):
+A struct, a union or an enum with values (#121) may define
+`+ - * / % == != < <= > >=` and unary `-`, as functions named by the
+operator, overloaded by their types as other functions are (#42):
 
 ```kelvin
 struct money { cents: i64 }

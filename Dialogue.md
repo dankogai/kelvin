@@ -1,15 +1,15 @@
 
 
-### 153. An enum with values and no tag, at the top level
+### 154. Methods and operators on a type with no tag
 
-> now add an anonymous `enum` with values at the top level
+> now add methods and operators on an enum with no tag
 
-**Claude** found a nameless enum already went where a type goes, so
-the one thing left was the top-level declaration itself, and asked
-what it should mean. The user chose C's reading: #120, its cases are
-words of the program, `red` a value and `rgb({1, 2, 3})` a maker of
-the type spelled `enum{red, rgb: ...}`, with the words of Result and
-Optional, a function's name and an enumerator's refused as case names.
-Details are provisional P132.
+**Claude** asked how a method should name a receiver with no name, and
+the user chose its spelling: #121, `let enum{nothing, just: i64}.orZero()`,
+which serves a struct or a union with no tag the same way, and
+operators that take it by its spelling. On the way, operators the
+program defined for any enum with values turned out never to be
+reached, since the check of `==` came first; they are now. Details are
+provisional P133.
 
-There are 675 tests, and all pass with clang and with gcc 15.
+There are 678 tests, and all pass with clang and with gcc 15.

@@ -412,6 +412,21 @@ static int skip_group(int i) {
 }
 
 /* the index just past the (...), [...] or {...} group that starts at i */
+/* A receiver spelled as a type at token i, `enum{...}`, `union{...}` or
+   `{...}`, followed by `.name(` (#121): the index of the `.`, or -1 */
+static int spelled_receiver(int i) {
+    int open = is_p(&toks[i], "{") ? i
+               : (is_kw(&toks[i], "enum") || is_kw(&toks[i], "union") || is_kw(&toks[i], "struct")) && is_p(&toks[i + 1], "{")
+                   ? i + 1
+                   : -1;
+    if (open < 0)
+        return -1;
+    int j = skip_nested(open);
+    return is_p(&toks[j], ".") && (toks[j + 1].kind == TK_IDENT || is_kw(&toks[j + 1], "cstr")) && is_p(&toks[j + 2], "(")
+               ? j
+               : -1;
+}
+
 static int skip_nested(int i) {
     int depth = 0;
     for (; toks[i].kind != TK_EOF; i++) {
@@ -1142,6 +1157,8 @@ static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
+static bool user_operator_on(const char *op, Type *t);
+static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
@@ -3077,6 +3094,12 @@ static Expr *parse_binary(int min_prec) {
         }
         Type *ta = value_type(e->a), *tb = value_type(e->b);
         Decl *ra = ta ? tagged_record(ta) : NULL, *rb = tb ? tagged_record(tb) : NULL;
+        if ((ra || rb) && overloadable_op(t) && user_operator_on(e->op, ra ? ta : tb)) {
+            /* an operator of an enum with values that the program defines
+               (#121): +, -, <, ..., and == or != when one is written for it */
+            lhs = resolve_operator(e, e->op, e->a, e->b);
+            continue;
+        }
         if (ra || rb) {
             /* a Result, an Optional or an enum with values compares with ==
                and != (#79): the same case, and equal values. On the other
@@ -3086,7 +3109,9 @@ static Expr *parse_binary(int min_prec) {
             Decl *r = ra ? ra : rb;
             Type *rt = ra ? ta : tb;
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
-                error_at(t->pos, "%s has no operator '%s': compare with == and !=", kelvin_type(rt), e->op);
+                error_at(t->pos, "%s has no operator '%s': compare with == and !=%s", kelvin_type(rt), e->op,
+                         variant_record(rt) ? ""
+                                            : strfmt(", or define one, as in 'let %s(a:T, b:T):T { ... }' (#121)", e->op));
             if (!ra)
                 e->a = optional_of(e->a, rt, e->a->pos);
             if (!rb)
@@ -4662,6 +4687,19 @@ static char *operand_text(Expr *x, Type *t) {
 
 /* a op b and op a, with an operator a Kelvin struct defines (#42): a call
    of the operator chosen, or e as C's own operator */
+/* Does the program define operator op with a parameter of type t (#121)? */
+static bool user_operator_on(const char *op, Type *t) {
+    List cands = overloads_of(NULL, op);
+    char *want = kelvin_type(unqualified(t));
+    for (int i = 0; i < cands.len; i++) {
+        Decl *d = cands.data[i];
+        for (int k = 0; k < d->params.len; k++)
+            if (!strcmp(kelvin_type(unqualified(((Var *)d->params.data[k])->type)), want))
+                return true;
+    }
+    return false;
+}
+
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     Decl *r;
     Type *ta = arg_type(a), *tb = b ? arg_type(b) : NULL;
@@ -8285,6 +8323,8 @@ static bool overloadable_op(Token *t) {
    struct may define, or 0 none of these */
 static int function_shape(int i) {
     Token *t = &toks[i];
+    if (spelled_receiver(i) >= 0)
+        return 5; /* enum{...}.name(), a method of a type with no tag (#121) */
     if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && (t[2].kind == TK_IDENT || is_kw(&t[2], "cstr")) &&
         is_p(t + 3, "("))
         return 1; /* T.cstr() defines a struct's text (#53) */
@@ -8416,7 +8456,18 @@ static void check_overload(Decl *d, Token *name) {
 static void check_text_method(Decl *d, Token *name);
 
 static Decl *parse_method(Pos pos, const char *storage) {
-    Token *recv = advance();
+    Type *spelled = NULL;
+    Token *recv = peek();
+    if (spelled_receiver(cur) >= 0) {
+        /* a method of a type with no tag, by its spelling (#121):
+           let enum{none, some: i64}.orZero():i64 { ... } */
+        if (storage && !strcmp(storage, "static"))
+            error_at(recv->pos, "a function of a type is called by the type's name, and a type with no tag has none: "
+                                "write a method, or a function that takes it");
+        spelled = parse_type();
+    } else {
+        advance();
+    }
     advance(); /* . */
     Token *name = peek();
     if (storage && !strcmp(storage, "static")) {
@@ -8445,11 +8496,18 @@ static Decl *parse_method(Pos pos, const char *storage) {
     d->text_method = is_kw(name, "cstr");
     d->name = d->text_method ? advance()->text : expect_ident("a method name");
     d->recv_name = recv->text;
+    if (spelled) {
+        Decl *r = anon_record_of(spelled);
+        d->recv_name = r->name; /* _kv_anonN, so the C name is _kv_anonN__name */
+        d->recv = spelled;
+    }
     if (!strcmp(d->name, "toString") || !strcmp(d->name, "fmt"))
         error_at(name->pos, "%s() " SHELVED_HINT, d->name);
-    if (d->text_method && recv->kind == TK_KEYWORD)
+    if (d->text_method && recv->kind == TK_KEYWORD && !spelled)
         error_at(name->pos, "a built-in type's text is fixed: '.cstr' may be defined for a struct or a union (#53)");
-    if (recv->kind == TK_KEYWORD) {
+    if (spelled) {
+        /* the receiver is the type of its spelling */
+    } else if (recv->kind == TK_KEYWORD) {
         if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have methods", recv->text);
         d->recv = base_type(recv->text, recv->pos);
@@ -9213,9 +9271,11 @@ Program *parse(Token *tokens, int ntoks) {
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
         if (is_p(&toks[i], "{"))
             depth++;
-        else if (is_p(&toks[i], "}"))
+        else if (is_p(&toks[i], "}")) {
             depth--;
-        else if (depth == 0 && (toks[i].kind == TK_IDENT || is_base_word(&toks[i])) && is_p(&toks[i + 1], ".") &&
+            if (depth == 0 && is_p(&toks[i + 1], ".") && toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], "("))
+                list_push(&method_names, toks[i + 2].text); /* enum{...}.name(, a method of a type with no tag (#121) */
+        } else if (depth == 0 && (toks[i].kind == TK_IDENT || is_base_word(&toks[i])) && is_p(&toks[i + 1], ".") &&
                  toks[i + 2].kind == TK_IDENT && is_p(&toks[i + 3], "(") &&
                  !(i >= 2 && is_kw(&toks[i - 1], "let") && is_kw(&toks[i - 2], "static")))
             list_push(&method_names, toks[i + 2].text); /* not static let T.name(, a function of the type (#111) */
@@ -9244,9 +9304,11 @@ Program *parse(Token *tokens, int ntoks) {
             if (shape == 2)
                 reject_c_fn_pointer(cur + binding, "var ");
             Token *n = &toks[cur + binding];
-            char *how = strfmt("%s%slet %s%s%s(...)", storage ? storage : "", storage ? " " : "", n->text,
-                               shape == 1 ? "." : "", shape == 1 ? n[2].text : "");
-            if (!binding && !params_ahead(cur + (shape == 1 ? 3 : 1)))
+            char *how = shape == 5 ? strfmt("%s%slet %s{...}.%s(...)", storage ? storage : "", storage ? " " : "",
+                                            is_p(n, "{") ? "" : n->text, toks[spelled_receiver(cur + binding) + 1].text)
+                                   : strfmt("%s%slet %s%s%s(...)", storage ? storage : "", storage ? " " : "", n->text,
+                                            shape == 1 ? "." : "", shape == 1 ? n[2].text : "");
+            if (!binding && shape != 5 && !params_ahead(cur + (shape == 1 ? 3 : 1)))
                 error_at(n->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), "
                                  "found %s: a statement goes in a function",
                          desc(n));
@@ -9260,7 +9322,10 @@ Program *parse(Token *tokens, int ntoks) {
         } else if (shape == 4 && binding) {
             advance();
         }
-        if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
+        if (spelled_receiver(cur) >= 0) { /* enum{...}.name(...), a method of a type with no tag (#121) */
+            top_name = strfmt("anon_%s", toks[spelled_receiver(cur) + 1].text);
+            add_top_decl(prog, parse_method(t->pos, storage));
+        } else if ((peek()->kind == TK_IDENT || is_base_word(peek())) && is_p(peek2(), ".") &&
             (peek_at(2)->kind == TK_IDENT || is_kw(peek_at(2), "cstr")) && is_p(peek_at(3), "(")) {
             top_name = strfmt("%s_%s", peek()->text, peek_at(2)->text);
             add_top_decl(prog, parse_method(t->pos, storage));
