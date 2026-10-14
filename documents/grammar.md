@@ -69,7 +69,7 @@ infers the type from the value:
   `let mul := { (a:i64, b:i64):i64 in a * b }` (#32)
 - an array literal is an array of its items' type (#48), as
   [arrays.md](arrays.md) says, and a string literal is a `cstr` (#52):
-  `let s := "hi"`, also `"""..."""` over lines, as written (#115)
+  `let s := "hi"`, as is a `"""..."""` or a template (see Quoting text)
 - any other value whose type kelvinc sees is that type (#47): a Kelvin
   function's or method's result (`var z = complex64(0.0, 1.0)`,
   `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
@@ -90,6 +90,67 @@ what you get: `let b:u8 = 42` is a `u8`.
 A declaration cannot be the body of a `for` or follow a label (as in C),
 so `for (;;) var x = 1` is an error. Names from C headers, such as
 `optind`, are assigned with a plain `optind = 1`, as in C.
+
+## Quoting text
+
+Text is quoted five ways, and each spelling says what the text is, where
+it lives, and whether values go into it:
+
+```kelvin
+let s := "a line\n"                      // C's string literal: C's escapes, a cstr
+let c = 'x'                               // C's character constant: a byte, a u8
+let t := `n = ${n}, half = ${n / 2.0}`    // a template: text with values, on the stack of the block
+let raw := """{"a": "b\n",
+  "c": 'd'}"""                            // as written, over lines: no escapes, no ${...}; a cstr
+var u = $"héllo"                          // a String, on the heap, owned
+var v = $`${n} items`                     // a String built from a template
+var w = $"""also as written"""           // a String of a """ text
+var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
+```
+
+| Spelling | Gives | Over lines | Escapes | `${...}` |
+|---|---|---|---|---|
+| `"..."` | a `cstr`, C's literal, for the whole program | no | C's | no |
+| `'c'` | a `u8`, one byte | no | C's | no |
+| `` `...` `` | a `cstr` on the stack of the block, until it ends | yes | C's, `\``, `\$`, a `\` before a line end joins | yes |
+| `"""..."""` | a `cstr`, C's literal, as written | yes | none | no |
+| `$"..."`, `` $`...` ``, `$"""..."""` | a `String`, on the heap, owned | as the one inside | as the one inside | as the one inside |
+| `Bytes("...")`, `String("...")` | a `Bytes`, a `String` of any of the above | as the one inside | as the one inside | as the one inside |
+
+- **`"..."`** is C's string literal (#52): the escapes are C's, `\n`,
+  `\t`, `\"`, `\\`, `\x41`, `\u00e9`; adjacent literals join, `"a" "b"`;
+  the text lives for the whole program and cannot be written through.
+  A `cstr` is a reference, so `let s := "hi"`; see
+  [strings.md](strings.md).
+- **`'c'`** is C's character constant, a `u8` in Kelvin, with C's
+  escapes: `'\n'`, `'\0'`, `'\''`. A codepoint is a `uchr`, made from a
+  number, `0x1F600.uchr`; see [strings.md](strings.md).
+- **`` `...${x}...` ``** is a template literal (#39): the text with each
+  `${expression}` replaced by the expression's text, as `print` shows
+  it. It may span lines, and a line break in it is a line break in the
+  text; a `\` at the end of a line joins the lines; `` \` `` is a
+  backquote, `\$` a dollar, `\{` and `\}` braces, and the other escapes
+  are C's. A template with no `${...}` is a plain literal. Its text is
+  a `cstr` kept in a buffer on the stack of the block, with room for
+  each value's longest text, and lives until the block ends, so it is
+  not returned or kept in an outer variable: copy it. The limits and
+  the rules of the room are in [printing.md](printing.md).
+- **`"""..."""`** (#115) is a string literal over any number of lines,
+  with the text exactly as written: no escapes, so `\n` stays two
+  characters, no `${...}`, the line breaks and the indentation kept,
+  and `"` and `` ` `` inside as they are. It ends at the next `"""`,
+  which it cannot hold. It is a `cstr` as `"..."` is, and joins with a
+  neighbour. It quotes JSON, C, shell or any text that has its own
+  escapes, as it is.
+- **`$"..."`**, **`` $`...` ``** (#67) and **`$"""..."""`** make a
+  `String` of the text, on the heap, owned by its variable and freed
+  when the block ends, with no bound on its length: the `$` is
+  `String(...)` of what follows, so the spelling inside keeps its own
+  rules. `Bytes("...")` is the same for a `Bytes`, which may hold any
+  bytes; see [ownership.md](ownership.md).
+- **Where each lives:** `"..."`, `'c'` and `"""..."""` are C's, in the
+  program; a template's text is on the stack of its block; a `String` or
+  a `Bytes` is on the heap, and is an owner.
 
 ## Expressions
 

@@ -12,7 +12,7 @@ space)` writes it back, as JS's do.
 ```kelvin
 #import <JSON>
 
-var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11], "ok": true}""")   // """ quotes JSON as it is (#115)
+var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11], "ok": true}""")   // """: the text as written (grammar.md)
 if j.is(error) { println(j.error) }           // "a key in an object: unexpected end of text at 1"
 println(j["name"].string, " ", j["tags"][1].number, " ", j["ok"].boolean)   // j["key"], j[i]: through the cases (#117)
 j["tags"].array += JSON.number(12.0)          // grown, as any Array
@@ -57,7 +57,8 @@ var a = JSON.parse(&text)                     // a String, borrowed
   value is given to the replacer as a borrow, so it gives a new one,
   `v^.copy()` for the value as it is; an anonymous one is written
   `{ (key:cstr, v:const JSON^):JSON? in ... }` (#114). JSON text in a
-  program is quoted as it is with `"""..."""` (#115).
+  program is quoted as it is with `"""..."""`, as any text is
+  ([grammar.md](grammar.md#quoting-text)).
 - **Numbers** are written as JS writes them: the shortest text that
   reads back as the same `f64`, `3` for a whole number, `1e+21` and
   `1e-7` past the limits JS uses for exponents, and `null` for NaN and

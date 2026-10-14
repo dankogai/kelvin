@@ -100,7 +100,8 @@ let card:cstr := `name: ${name}
   backslash at the end of a line, which joins the lines. A new line in
   the template is a new line in the text, also in a file with CRLF line
   ends, and `"` needs no escape; text such as `??!` is taken as written,
-  never as a C trigraph.
+  never as a C trigraph. The other ways to quote text, `"..."`, `"""..."""` as
+  written, and the `$` forms, are in [grammar.md](grammar.md#quoting-text).
 - **Without `${...}`** a template is a plain string literal, so it also
   works where C needs a constant. With one, it is made at run time, so a
   global or a `static` cannot be initialized with it *(provisional

@@ -1,15 +1,17 @@
 
 
-### 148. `j["key"]` and `j[i]`
+### 149. Quoting text, in one place
 
-> now add `j["key"]` and `j[i]` straight on a JSON
+> `"""` is not limited to JSON so the snippet in `json.md`. rewrite
+> `grammar.md` and other document on how to quote strings including the
+> explanation on ``.
 
-**Claude** added #117 as a rule of enums with values: `v[k]` goes
-through the case that is a Dictionary when `k` is text, and the Array
-case when it is an integer, so `j["tags"][1].number` reads a path and
-`j["n"] = JSON.number(4.0)` writes one, checked as the case and the
-index are. On the way, assigning into an element of an Array of such
-an enum turned out to want a helper that was never written; it is
-now. Details are provisional P129.
+**Claude** wrote a section "Quoting text" into grammar.md with every
+spelling side by side: `"..."`, `'c'`, the template with its own
+escapes, `"""..."""` as written, and the `$` forms and `Bytes(...)`
+that make a String or a Bytes of any of them, with a table of what
+each gives, whether it spans lines, its escapes and whether values go
+in. strings.md, printing.md, json.md and the README now point there
+instead of explaining a spelling each. No code changed.
 
 There are 666 tests, and all pass with clang and with gcc 15.

@@ -105,7 +105,7 @@ Each document says so under its title. In short:
 
 | Document | Covers |
 |----------|--------|
-| [grammar.md](grammar.md) | declarations, type inference, expressions, lines and `;`, assignment as a statement, C habits kelvinc catches |
+| [grammar.md](grammar.md) | declarations, type inference, quoting text (`"..."`, `` `...` ``, `"""..."""`, `$"..."`), expressions, lines and `;`, assignment as a statement, C habits kelvinc catches |
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
 | [integers.md](integers.md) | `i8`…`u128`, `f32`, `f64`, `bool`, literals, conversions, numbers from text |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |

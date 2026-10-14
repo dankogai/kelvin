@@ -87,7 +87,8 @@ So far the changes from C are:
   where `$0` and `$1` are the parameters
 - template literals: `` `Hello, ${name}!` `` may span lines, and
   `${x}` is `x`'s text as `print` shows it, kept on the stack (a string
-  value is cut at 256 bytes)
+  value is cut at 256 bytes); `"""..."""` is text as written, over lines,
+  with no escapes; `$"..."` and `` $`...` `` make a `String`
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
 - functions overload by their parameter types, also C's own: with
