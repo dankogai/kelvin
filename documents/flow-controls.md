@@ -162,6 +162,8 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 
 ## Conditions are `bool`
 
+The type itself is in [bool.md](bool.md).
+
 Every condition is a `bool`: those of `if`, `while`, `do` and `for`, the
 condition of `?:`, and the operands of `&&`, `||` and `!` (#23). There is
 no truthiness, so compare instead:

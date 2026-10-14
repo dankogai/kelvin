@@ -3,7 +3,8 @@
 Kelvin keeps C's grammar where it can. This document has what changed in
 the shape of a program: how things are declared, how a type is inferred,
 the operators that moved, and how lines end statements. The types
-themselves are in [integers.md](integers.md), [pointers.md](pointers.md)
+themselves are in [integers.md](integers.md),
+[floatingpoint.md](floatingpoint.md), [bool.md](bool.md), [pointers.md](pointers.md)
 and [arrays.md](arrays.md); the statements that control flow are in
 [flow-controls.md](flow-controls.md).
 

@@ -109,7 +109,9 @@ Each document says so under its title. In short:
 |----------|--------|
 | [grammar.md](grammar.md) | declarations, type inference, quoting text (`"..."`, `` `...` ``, `"""..."""`, `$"..."`), expressions, lines and `;`, assignment as a statement, C habits kelvinc catches |
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
-| [integers.md](integers.md) | `i8`…`u128`, `f32`, `f64`, `bool`, literals, conversions, numbers from text |
+| [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
+| [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text, C's complex types |
+| [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |

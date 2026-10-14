@@ -3736,3 +3736,19 @@ There are 685 tests, and all pass with clang and with gcc 15.
 two; it works wherever `.pretty` does. Details are provisional P139.
 
 There are 689 tests, and all pass with clang and with gcc 15.
+
+### 162. `bool` and floats out of integers.md
+
+> documents/integers.md is misleading as it also explains bool and
+> floating points. Split them to bool.md and floatingpoint.md
+
+**Claude** split it: integers.md keeps the integer types, their
+literals, and the conversions and numbers from text, which serve every
+number; floatingpoint.md has `f32` and `f64`, their literals, reading,
+printing, text and C's complex types; bool.md has `bool`, where one
+comes from, conditions and converting. What the two new documents say
+about printing, text and conditions was gathered from printing.md,
+properties.md and flow-controls.md, with links back; the links to
+integers.md elsewhere now point to the right document. No code changed.
+
+There are 689 tests, and all pass with clang and with gcc 15.

@@ -26,7 +26,8 @@ let main():i32 {
   `println(...)` adds a newline.
 - Each value prints according to its C type *(provisional P21)*:
   - integers of every size in decimal, so `i64` needs no `PRId64`
-  - floats in the shortest text that reads back the same, always with a
+  - floats in the shortest text that reads back the same (see
+    [floatingpoint.md](floatingpoint.md)), always with a
     `.` or an exponent
     - As in Swift, they are plain from 0.0001 up to 2^53 (2^24 for
       `f32`), where every integer is exact (`10.0`, `0.1`,

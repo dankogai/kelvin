@@ -1,56 +1,56 @@
-# Integers, floats and `bool`
+# Integers
 
-Every number in Kelvin says its size. This document has the numeric
-types, their literals, the two ways to convert, and how a number is read
-from text. The text of a number (`n.cstr`, `n.hex`) is in
+Every number in Kelvin says its size. This document has the integer
+types, their literals, the two ways to convert any number, and how a
+number is read from text. Floats are in
+[floatingpoint.md](floatingpoint.md), and `bool` in [bool.md](bool.md).
+The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
 [printing.md](printing.md).
 
-**Where it lives:** the core. Numbers, floats and `bool` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
+**Where it lives:** the core. Integers are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
 
-## Numeric types always say their size
+## Integer types always say their size
 
 | Kelvin | C |
 |--------|---|
 | `i8` `i16` `i32` `i64` | `int8_t` `int16_t` `int32_t` `int64_t` |
 | `u8` `u16` `u32` `u64` | `uint8_t` `uint16_t` `uint32_t` `uint64_t` |
 | `i128` `u128` | `__int128`, `unsigned __int128` (where the C compiler has them) |
-| `f32` `f64` | `float`, `double` |
-| `bool` | `bool` from `<stdbool.h>`, i.e. `_Bool` |
 
-C's `char`, `short`, `int`, `long`, `signed`, `unsigned`, `float`, `double`
-and `_Bool` are errors that suggest the Kelvin name. As a result:
+C's `char`, `short`, `int`, `long`, `signed` and `unsigned` are errors
+that suggest the Kelvin name, as `float`, `double` and `_Bool` are (see
+[floatingpoint.md](floatingpoint.md) and [bool.md](bool.md)). As a result:
 
 - There is no plain `char`. Use `u8`, or `i8` for signed bytes; see
   [strings.md](strings.md) for text.
-- `long double` has no Kelvin spelling yet.
-- `true` and `false` are built in *(provisional P14)*.
-- `f32 _Complex` and `f64 _Complex` are C's complex types.
 
-Kelvin's built-in types need no header, and neither do `<stdint.h>` and
-`<stdbool.h>`, because the generated C includes those two itself.
+Kelvin's built-in types need no header, and neither does `<stdint.h>`,
+because the generated C includes it itself.
 
 ## Literals
 
-Literals carry no size or type hints. C's suffixes `u`, `l`, `ll` and `f`
-(`10UL`, `10u`, `1.5f`, `1.5L`) are errors. The type belongs on the
+Literals carry no size or type hints. C's suffixes `u`, `l` and `ll`
+(`10UL`, `10u`, `10LL`) are errors, as `f` and `L` on a float are (see
+[floatingpoint.md](floatingpoint.md)). The type belongs on the
 declaration, or on the value as an annotation (`10:u64`):
 
 | C | Kelvin |
 |---|--------|
 | `unsigned long v = 10UL;` | `var v:u64 = 10` |
-| `float f = 1.5f;` | `var f:f32 = 1.5` |
 | `long long n = 10LL;` | `var n = 10` (or `var n:i64 = 10`) |
 
 Everything else about literals is C's:
 
-- hex `0xff`, octal `017`, binary `0b101`, exponents `1e9`, hex floats
-  `0x1p4`, character constants `'a'`, and adjacent strings.
+- hex `0xff`, octal `017`, binary `0b101`, character constants `'a'`,
+  and adjacent strings.
 - A literal inside an expression still has C's type, so a bare `1` is
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.
 
 ## Conversions (no C casts)
+
+These serve every number, floats and `bool` included.
 
 C's `(T)v` does not exist in Kelvin. There are two ways to convert, and
 both mean exactly what the C cast means (`i32(3.9)` is 3, `u8(300)` is 44),
@@ -141,14 +141,15 @@ looser than prefix operators, and it chains left to right
 
 | On | Property | Gives |
 |---|---|---|
-| any number, `bool` | `.size` | `sizeof`, a `size_t` |
+| integers | `.size` | `sizeof`, a `size_t` |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text, as `print` shows it, in the block's buffer |
-| integers | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |
+| | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |
 | | `.uchr` | the codepoint of the number, a `uchr` (#56) |
-| `f32`, `f64` | `.dec`, `.hex` | lossless decimal, C's `%a` |
 | any number | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.i64` and the others | read a number from text, `i64("42")`; `i64(text, 16)` in a base |
 
 The details are in [properties.md](properties.md); conversions are
-above, under [Conversions](#conversions-no-c-casts).
+above, under [Conversions](#conversions-no-c-casts). A float's
+properties are in [floatingpoint.md](floatingpoint.md#properties-and-methods),
+and `bool`'s in [bool.md](bool.md#properties-and-methods).
