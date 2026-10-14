@@ -89,7 +89,7 @@ let main():i32 {
   - C's own functions of these names still take numbers, also ones only
     C sees, as `tanh(atof(s))`: the file declares them.
 - **The text** of one is its derived `.cstr`, as in
-  `{real: 1, imag: 2}`, also in a template; `print` takes no struct.
+  `{real: 1, imag: 2}`, also in a template and in `print` (#122).
 - `complex128` waits for `f128`. C99's special values for infinities and
   NaNs are not attempted, except for `sqrt` and division by an
   infinity *(provisional P54)*.

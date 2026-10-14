@@ -37,6 +37,13 @@ let main():i32 {
   - `bool` as `true`/`false`
   - `u8^` and string literals as strings (`(null)` for a null pointer)
   - other pointers as addresses
+  - a struct, a union or an enum with values as its `.cstr` text
+    (#122), as a template shows it:
+    - the derived text, `{x: 1, y: 2}`, `just(7)` or `<union bits>`,
+      or the type's own `T.cstr()` where it defines one
+    - kelvinc must see that the value is one, as for a template: one it
+      cannot see, as `println((q, p))`, is a C error, so assign it to a
+      variable first
 - Comparisons, `&&`, `||` and `!` produce a `bool` (#23), so
   `println(a == b)` prints `true` or `false`, as do `true` and `false`
   themselves *(provisional P23)*.
@@ -96,10 +103,10 @@ let card:cstr := `name: ${name}
   `print` shows them: numbers as `println(n)` does, floats in their
   shortest form (`0.1`), `bool` as `true`/`false`, strings as their text
   (`(null)` for `nullptr`), other pointers as addresses.
-  - A struct kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`),
-    which `print` itself does not; one it cannot see, as a call that C
-    chooses among overloads with different results, is a C error, so
-    assign it to a variable first.
+  - A struct kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), as
+    `print` does (#122); one it cannot see, as a call that C chooses
+    among overloads with different results, is a C error, so assign it
+    to a variable first.
   - A function has no text.
   - A value may be any expression, a template too.
 - **Escapes** are C's, plus `` \` `` for a backquote, `\$`, `\{` and

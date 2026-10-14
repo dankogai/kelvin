@@ -95,8 +95,9 @@ A struct is initialized with `{...}`, as in C, with C's designators:
 
 `p.cstr` is derived text, `{x: 3, y: 4}`, with nested structs and arrays
 (`[a, b]`); a string field shows at most 60 bytes. A template shows a
-struct the same way, while `print` takes no struct: write `print(p.cstr)`
-or `` print(`${p}`) ``. A struct may define its own text (#53):
+struct the same way, and so do `print` and `println` (#122):
+`println(p)` is `println(p.cstr)`. A struct may define its own text
+(#53):
 
 ```kelvin
 struct vector2d { x: f64; y: f64 }

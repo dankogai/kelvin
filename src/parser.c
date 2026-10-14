@@ -1162,6 +1162,7 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
+static void print_records_as_text(Expr *call);
 static bool is_function_designator(Expr *e);
 
 /* set while parsing the head of `for x in ...`, where a `{` ends it too */
@@ -1718,6 +1719,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                         if (vt && vt->kind == T_FUNC)
                             error_at(v->pos, "'.%s' cannot show a function: a function has no text", member);
                     }
+                    print_records_as_text(x);
                     if (x->items.len > 16)
                         error_at(((Expr *)x->items.data[16])->pos,
                                  "'.%s' takes up to 16 values, and this has %d: write two calls", member, x->items.len);
@@ -6891,6 +6893,18 @@ static Decl *method_named(Expr *recv, const char *name) {
     return n == 1 ? found : NULL;
 }
 
+/* a struct kelvinc sees, an enum with values too, is shown by print as
+   its .cstr text, as a template shows it (#122) */
+static void print_records_as_text(Expr *call) {
+    for (int i = 0; i < call->items.len; i++) {
+        Expr *x = call->items.data[i];
+        Decl *record;
+        if (type_class(value_type(x), &record) != 's') /* p.cstr keeps p's type, to size its buffer */
+            continue;
+        call->items.data[i] = property(x, &(Token){.kind = TK_IDENT, .pos = x->pos, .text = "cstr"}, "cstr");
+    }
+}
+
 /* print and println cannot show a function (#31) */
 static void check_print_args(Expr *call) {
     if (call->a->kind != E_IDENT || (strcmp(call->a->text, "print") && strcmp(call->a->text, "println")))
@@ -6901,6 +6915,7 @@ static void check_print_args(Expr *call) {
         if (t && t->kind == T_FUNC)
             error_at(x->pos, "%s cannot show a function: a function has no text", call->a->text);
     }
+    print_records_as_text(call);
     /* the prelude's macro counts up to 16 values (P22); beyond, C's error
        would name a pasted token */
     if (call->items.len > 16)
