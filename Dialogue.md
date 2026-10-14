@@ -1,15 +1,14 @@
 
 
-### 155. print shows a struct as its text
+### 156. A template of a struct's .cstr
 
-> `println(p)` of a struct, or of an enum with values, is not caught by
-> kelvinc, and fails in C
+> `${p.cstr}` segfaults kelvinc
 
-**Claude** asked whether kelvinc should refuse such an argument with a
-hint to write `p.cstr`, or show its `.cstr` text, and the user chose
-the text: #122, `print`, `println`, `f.print` and `f.println` show a
-struct, a union or an enum with values that kelvinc sees as `${p}`
-does, the derived text or the type's own `T.cstr()`. Details are
-provisional P134.
+**Claude** found that a template showed a struct by its `.cstr`, and
+took `p.cstr`, which keeps the struct's type to size its text, for the
+struct itself, so wrapped it again as `p.cstr.cstr`. The user agreed to
+ask the value's type instead, as print does since #122: a `.cstr` is
+text, and a property that gives a struct, `f.stat` (#104), is still
+one. A bug fix, with no change to the language.
 
-There are 679 tests, and all pass with clang and with gcc 15.
+There are 680 tests, and all pass with clang and with gcc 15.

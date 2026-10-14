@@ -1996,7 +1996,7 @@ static Expr *parse_template(void) {
         if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
             error_at(v->pos, "a template cannot show a function: a function has no text");
         Decl *record;
-        if (expr_class(v, &record) == 's')
+        if (type_class(value_type(v), &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         v->shown = shown_type(v);
         if (is_array_owner(value_type(v)) || is_dict_owner(value_type(v)) || is_set_owner(value_type(v)))
