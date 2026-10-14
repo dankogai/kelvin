@@ -133,6 +133,7 @@ typedef enum {
 } ExprKind;
 
 struct Expr {
+    bool attr;         /* E_METHOD: v.x, a computed attribute read without parentheses (#131) */
     ExprKind kind;
     Pos pos;
     bool paren;       /* written inside parentheses */
@@ -252,6 +253,8 @@ struct Decl {
     const char *op;       /* D_FN: the operator it defines, as "+" (#42) */
     char *cname;          /* D_FN: its name in C, by its parameter types when
                              overloaded or imported (#41), as sin__complex64 */
+    bool attribute;       /* D_FN: let T.x:R { }, a computed attribute read as v.x, its getter (#131) */
+    bool setter;          /* D_FN: the set(v) { } of var T.x:R { get set }, self the caller's var (#132) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,
                              called as T.name(...) (#111); name is "T.name" */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one

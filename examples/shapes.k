@@ -1,5 +1,6 @@
-// Structs and methods: self is a copy of the receiver, every struct has
-// derived text (.cstr), and C's <math.h> is a header away.
+// Structs, methods and attributes in extend blocks (#130, #131): self is a
+// copy of the receiver, an attribute is read without parentheses, every
+// struct has derived text (.cstr), and C's <math.h> is a header away.
 #import <math.h> as C
 
 let PI = 3.141592653589793
@@ -8,19 +9,25 @@ struct point { x: f64; y: f64 }
 struct circle { center: point; radius: f64 }
 struct rect { corner: point; width: f64; height: f64 }
 
-let point.distance(to:point):f64 {
-    hypot(to.x - self.x, to.y - self.y)
+extend point {
+    let distance(to:point):f64 {
+        hypot(to.x - self.x, to.y - self.y)
+    }
 }
 
-let circle.area():f64 { PI * self.radius * self.radius }
-let circle.contains(p:point):bool { self.center.distance(p) <= self.radius }
-let rect.area():f64 { self.width * self.height }
+extend circle {
+    let area:f64 { PI * self.radius * self.radius }               // an attribute: c.area
+    let contains(p:point):bool { self.center.distance(p) <= self.radius }
+}
 
-// self is a mutable copy: moving it here leaves the caller's rect alone
-let rect.moved(dx:f64, dy:f64):rect {
-    self.corner.x += dx
-    self.corner.y += dy
-    return self
+extend rect {
+    let area:f64 { self.width * self.height }
+    // self is a mutable copy: moving it here leaves the caller's rect alone
+    let moved(dx:f64, dy:f64):rect {
+        self.corner.x += dx
+        self.corner.y += dy
+        return self
+    }
 }
 
 let main():i32 {
@@ -29,7 +36,7 @@ let main():i32 {
     let r:rect = {{1, 1}, 3, 4}
     println(c.cstr)
     println(r.cstr, " moved: ", r.moved(2, 0).cstr)
-    println("areas ", c.area(), " and ", r.area())
+    println("areas ", c.area, " and ", r.area)
     let p:point = {1, 1.5}
     println(p.cstr, " is ", origin.distance(p), " from the origin, inside: ", c.contains(p))
     return 0

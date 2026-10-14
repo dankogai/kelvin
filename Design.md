@@ -161,6 +161,11 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 127 | `x.pretty(n)`: `n` spaces a level, an integer from 0 to 10, as JS clamps `JSON.stringify`'s space; `x.pretty` stays two; a literal out of range is an error, a computed one clamped | — | `println(cfg.pretty(4))` | 2026-10-15 |
 | 128 | `x += y` on an enum with values by the operator the program defines, `x = x + y`, as for a struct (#42); and `x = v` of a struct or an enum that owns evaluates `v` before it frees what `x` held, so `x = x + y` and `x = f(x)` keep `x`'s value | — | `t += txt.s($"cd")` | 2026-10-15 |
 | 129 | `JSON.stringify(&j, n)` and `JSON.stringify(&j, replacer, n)`: a number as the space, that many spaces a level, 0 to 10, as JS's takes one and as `v.pretty(n)` indents; 0 is compact | `JSON.stringify(v, null, 4)` in JS | `JSON.stringify(&j, 4)` | 2026-10-15 |
+| 130 | `extend T { }`, Swift's `extension`: the members of `T` without writing `T` each time, `let f()` a method, `static let f()` a function of the type, and the attributes of #131 to #133; of a type of the program, a built-in one, or one with no tag by its spelling | functions on `struct T *` | `extend rect { let area:f64 { ... } }` | 2026-10-15 |
+| 131 | `let T.x:R { }`, or `let x:R { }` in extend: a computed attribute, read as `v.x` with no parentheses, its body a method's; `v.x()` and `v.x = y` are errors; a member of the same name is an error | a getter function | `r.area` | 2026-10-15 |
+| 132 | `var T.x:R { get { } set(v) { } }`, or in extend: a computed attribute with a setter; `v.x = y` and `v.x += y` call the setter on the var that holds `v`, whose `self` is that var | a getter and a setter on `struct T *` | `t.celsius = 100.0` | 2026-10-15 |
+| 133 | `static let T.x = v` and `static var T.x = v`, or in extend: type attributes, a global of the type read and written as `T.x`; a `static let` needs its value; a type with no tag has none | a global `T_x` | `rect.made += 1` | 2026-10-15 |
+| 134 | `x.m = v`, `xs[i].m = v` and `p^ = v` of a type that owns free what they held, after the new value is made, as `x = v` of a local does | — | `p.name = $"Grace"` | 2026-10-15 |
 
 Notes:
 
@@ -722,6 +727,33 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (134) Agreed details: found while testing #132, whose setters assign
+  to members of `self`: `p.name = v` of a member that owns was C's
+  assignment, so the old value was never freed, in any program, not
+  only in a setter. It now goes through the type's `_assign`, the new
+  value first, as an owner local's assignment does (#128); an IO is the
+  one owner with no `_assign`, and keeps C's (P146).
+
+- (130, 131, 132, 133) Agreed details: "add `extend T {}` that does
+  `extension T {}` in Swift where `var` or `let` are instance attributes
+  and `static var` or `static let` are type attributes. Also add
+  document about it as `attributes.md`. Document both `let T.f {}` and
+  `extend { let f {} }`. If you like, rewrite existing codes in the repo
+  with `extend T {}`." Then: "we already have properties.md. aggregate
+  attributes.md to that". Kelvin had methods and functions of a type
+  but no attribute read without parentheses and no value of a type;
+  asked, the user chose all three kinds of member, and for a `var`
+  instance attribute, a computed one with a setter, over an error that
+  no storage is added. So: `extend` groups the members (#130); `let
+  T.x:R { }` is a computed attribute (#131); `var T.x:R { get set }`
+  has a setter, whose `self` is the caller's var (#132); `static let`
+  and `static var` are type attributes, globals of the type (#133).
+  Each member has its form alone, naming `T`, and its form in extend,
+  the same thing; both are documented in properties.md, not a new
+  document. examples/shapes.k, examples/linkedlist.k and the functions
+  of modules/JSON.k were rewritten with `extend`, their output
+  unchanged (P142 to P145).
 
 - (129) Agreed details: "also add `.pretty(n)` to `JSON.stringify`'s
   space", read as a number for the space, as `.pretty(n)` takes one and
@@ -1419,6 +1451,11 @@ says "as agreed".
 | P139 | Details of #127 | `d.pretty(4)` is #124's code with `.width = 4` in the sink; a computed `w` is `.width = kv_out_width(w)`; plain `.pretty` is `.width = 2` | `kv_out` gains `int width`, which `out_line` writes as that many spaces a level; `kv_out_width` clamps to 0 to 10. The parser takes `.pretty(` ahead of the owners' method tables, which would refuse a method of that name, keeps the width as the node's `b`, and carries it through `print`, `f.println`, both kinds of template and the String form. Tests that pin a printer's C now show `.width = 2` |
 | P140 | Details of #128 | `t += txt.s($"cd")` of an owning `txt` is `_kv_txt_assign(&t, _kv_add_op__txt__txt(_kv_txt_take(&t), ...))`, where it was `_kv_txt_free(&t), t = _kv_add_op__txt__txt(_kv_txt_take(&t), ...)` | `owner_assign` in codegen sends a local owner whose free is a record's to `_kv_T_assign`, written for every struct or enum with values that owns since #117, instead of freeing first; Bytes, Strings, Arrays, Dictionaries and Sets already went through their own `_assign` |
 | P141 | Details of #129 | `JSON.stringify(&j, 4)` is `JSON__stringify__const_JSONp__i64(&j, 4)` | `JSON_spaces(n)` in modules/JSON.k gives the tail of a literal of ten spaces, `n` of them, clamped to 0 to 10, and the two overloads pass it to the text path, so a number and the same spaces as text give the same output |
+| P142 | Details of #130 | `extend rect { let f() {} }` is `let rect.f() {}`, the same Decl | `parse_extend` sets `in_extend`, `ext_tok` and `ext_spelled`, and each member goes to the parser of its alone form, which then reads no receiver: `parse_method` for `let f(`, `static let f(` and `let x:`, `parse_var_attribute` for `var x:`, `parse_type_attribute` for `static let/var x`. The method-name prescan also takes `let f(` at the top of an extend body, so `v.f()` is a method call. An operator in extend is an error |
+| P143 | Details of #131 | `r.area` is the E_METHOD of `r.area()`, marked `attr`, so it dispatches as any method, to `rect__area(r)` | `function_shape` gives 6 for `T.x:` and `T.x =`, and `spelled_receiver` takes `.x:` too; in `parse_method`, a `:` where `(` would be makes the Decl an `attribute` with no parameters, which needs a body. The member parse reads `v.x` as the getter where `method_named` finds an attribute, before properties and after a field |
+| P144 | Details of #132 | `t.celsius = v` is `temp__set_celsius(&(t), v)`; the setter is `void temp__set_celsius(struct temp *_kv_selfp, double v)` with `#define self (*_kv_selfp)` around its body | `parse_var_attribute` makes two Decls, the getter and a `setter` with the parameter of `set(v)`; `method_named` and dispatch skip setters, and the C-name check names them `T__set_x`. `parse_assign` turns `v.x op= y` into an E_CALL `attr_set` before the usual checks: the receiver must be a var place, and a compound one is read twice, so it may not hold a call |
+| P145 | Details of #133 | `static var rect.made:i64 = 0` is the global `int64_t rect__made = 0;`, and `rect.made` is the identifier `rect__made` | `parse_type_attribute` parses the declaration as `parse_var` does, then renames the Var and its binding to `T__x` and lists it in `type_attrs`; the primary expression reads `T.x` as that identifier where `T` is a record, after its cases and functions |
+| P146 | Details of #134 | `p.name = $"Grace"` is `kv_string_assign(&(p.name), KV_STRING_OF("Grace"))`, where it was `p.name = KV_STRING_OF("Grace")` | `parse_assign` marks an `=` to a place other than a name, of an owner other than an IO, with the place's type, and `owner_assign` writes the type's `_assign` for it |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

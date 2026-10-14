@@ -281,17 +281,19 @@ static let JSON_value(var r:JSONReader^):JSON {
     return JSON_fail(r, "a value")
 }
 
-static let JSON.parse(text:cstr):JSON {
-    var r:JSONReader = {text, 0, text.count as i64, 0}
-    var v = JSON_value(&r)
-    if !v.is(error) {
-        JSON_space(&r)
-        if r.i < r.count { return JSON_fail(&r, "the end of the text") }
+extend JSON {
+    static let parse(text:cstr):JSON {
+        var r:JSONReader = {text, 0, text.count as i64, 0}
+        var v = JSON_value(&r)
+        if !v.is(error) {
+            JSON_space(&r)
+            if r.i < r.count { return JSON_fail(&r, "the end of the text") }
+        }
+        return v
     }
-    return v
-}
 
-static let JSON.parse(text:const String^):JSON { JSON.parse(text^.cstr) }
+    static let parse(text:const String^):JSON { JSON.parse(text^.cstr) }
+}
 
 // ---------- writing ----------
 
@@ -470,13 +472,6 @@ static let JSON_stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, spa
     return out
 }
 
-static let JSON.stringify(j:const JSON^):String { JSON_stringify(j, nullptr, "") }
-static let JSON.stringify(j:const JSON^, space:cstr):String { JSON_stringify(j, nullptr, space) }
-static let JSON.stringify(j:const JSON^, space:const String^):String { JSON_stringify(j, nullptr, space^.cstr) }
-static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?):String { JSON_stringify(j, replacer, "") }
-static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:cstr):String { JSON_stringify(j, replacer, space) }
-static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:const String^):String { JSON_stringify(j, replacer, space^.cstr) }
-
 // a number as the space (#129): that many spaces a level, 0 to 10, as JS's
 // JSON.stringify takes one and as v.pretty(n) indents
 static let JSON_spaces(n:i64):cstr {
@@ -484,5 +479,19 @@ static let JSON_spaces(n:i64):cstr {
     return &spaces[n < 0 ? 10 : n > 10 ? 0 : 10 - n]
 }
 
-static let JSON.stringify(j:const JSON^, space:i64):String { JSON_stringify(j, nullptr, JSON_spaces(space)) }
-static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:i64):String { JSON_stringify(j, replacer, JSON_spaces(space)) }
+// the space as text, a String, a number, or none for compact text; a
+// replacer before it, or none (#130: the functions of JSON, in one block)
+extend JSON {
+    static let stringify(j:const JSON^):String { JSON_stringify(j, nullptr, "") }
+    static let stringify(j:const JSON^, space:cstr):String { JSON_stringify(j, nullptr, space) }
+    static let stringify(j:const JSON^, space:const String^):String { JSON_stringify(j, nullptr, space^.cstr) }
+    static let stringify(j:const JSON^, space:i64):String { JSON_stringify(j, nullptr, JSON_spaces(space)) }
+    static let stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?):String { JSON_stringify(j, replacer, "") }
+    static let stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:cstr):String { JSON_stringify(j, replacer, space) }
+    static let stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:const String^):String {
+        JSON_stringify(j, replacer, space^.cstr)
+    }
+    static let stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:i64):String {
+        JSON_stringify(j, replacer, JSON_spaces(space))
+    }
+}

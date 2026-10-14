@@ -3767,3 +3767,26 @@ level, 0 to 10, as JS's and as `v.pretty(n)`. Details are provisional
 P140 and P141.
 
 There are 691 tests, and all pass with clang and with gcc 15.
+
+### 164. `extend T { }` and attributes
+
+> add `extend T {}` that does `extension T {}` in Swift where `var` or
+> `let` are instance attributes and `static var` or `static let` are
+> type attributes. Also add document about it as `attributes.md`.
+> Document both `let T.f {}` and `extend { let f {} }`. If you like,
+> rewrite existing codes in the repo with `extend T {}`.
+
+> sorry. we already have properties.md. aggregate attributes.md to that
+
+**Claude** asked which members to support and what a `var` instance
+attribute means; the user chose all three kinds and a computed
+attribute with a setter. #130 `extend T { }` groups a type's members;
+#131 `let T.x:R { }` is a computed attribute read as `v.x`; #132
+`var T.x:R { get { } set(v) { } }` adds a setter, `v.x = y`; #133
+`static let` and `static var` are type attributes, `T.x`. Each has a
+form alone and one in extend, both in properties.md. Testing a setter
+found that `p.name = v` of an owner never freed the old value; #134
+fixes that for every program. examples/shapes.k, linkedlist.k and the
+JSON module now use `extend`. Details are provisional P142 to P146.
+
+There are 703 tests, and all pass with clang and with gcc 15.

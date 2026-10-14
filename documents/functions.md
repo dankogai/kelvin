@@ -49,6 +49,9 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
 
 ## Functions of a type: `static let T.name(...)`
 
+In an `extend T { }` block (#130), the same is `static let name(...)`;
+see [properties.md](properties.md#attributes-of-your-own-and-extend).
+
 `static let T.name(params):R { ... }` (#111) declares a function of the
 type `T`, Swift's `static func`: it has no `self`, and is called by the
 type's name, `T.name(args)`. `T` is a struct, a union or an enum with

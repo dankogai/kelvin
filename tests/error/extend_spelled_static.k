@@ -1,0 +1,7 @@
+// a type with no tag has no name to read a type attribute by (#133)
+enum { nothing; just: i64 }
+extend enum{nothing, just: i64} {
+    static let zero = 0
+}
+let main():i32 { return 0 }
+// error: a type attribute is read by the type's name, as T.x, and a type with no tag has none

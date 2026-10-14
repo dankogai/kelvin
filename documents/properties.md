@@ -3,8 +3,10 @@
 A property is written after a value with no parentheses, and gives its
 size, its type, its text, or, for a pointer, its address and whether it
 is null. This document has the ones every value shares, and their
-details. Each type's own are listed, with its methods, at the end of
-its document:
+details, and how a type of your own gets its own attributes, alone or
+in an `extend T { }` block (see
+[Attributes of your own](#attributes-of-your-own-and-extend)). Each
+type's own are listed, with its methods, at the end of its document:
 
 
 | Type | Synopsis |
@@ -197,4 +199,90 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     negative, so its `.dec` is `2`.
 - **C bit-fields** from a header are converted first, as in
   `u32(b.flags).hex`: gcc's `_Generic` does not match a bit-field's type.
+
+## Attributes of your own, and `extend`
+
+A type of the program gets methods, attributes and type attributes of
+its own (#130 to #133). Each is written alone, naming its type, `T.x`,
+or with others in an `extend T { }` block, Swift's `extension`, which
+names the type once:
+
+```kelvin
+struct rect { w: f64; h: f64 }
+struct temp { kelvin: f64 }
+
+let rect.area:f64 { self.w * self.h }       // an attribute, alone
+static var rect.made:i64 = 0                // a type attribute, alone
+
+extend rect {
+    let perimeter:f64 { 2.0 * (self.w + self.h) }        // an attribute
+    let scaled(k:f64):rect { (rect){self.w * k, self.h * k} }   // a method
+    static let unit:rect = {1.0, 1.0}                     // a type attribute
+    static let square(s:f64):rect {                       // a function of the type
+        rect.made += 1
+        return {s, s}
+    }
+}
+
+extend temp {
+    var celsius:f64 {                                     // an attribute with a setter
+        get { self.kelvin - 273.15 }
+        set(v) { self.kelvin = v + 273.15 }
+    }
+}
+
+let r:rect = {2.0, 3.0}
+println(r.area, " ", r.perimeter, " ", r.scaled(2.0))   // 6.0 10.0 {w: 4, h: 6}
+var t:temp = {300.0}
+t.celsius = 100.0                                         // the setter, on t
+t.celsius += 10.0
+let s = rect.square(4.0)
+println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
+```
+
+| Alone | In `extend T { }` | Is | Used as |
+|---|---|---|---|
+| `let T.f(a:A):R { }` | `let f(a:A):R { }` | a method, with `self` | `v.f(a)` |
+| `static let T.f(a:A):R { }` | `static let f(a:A):R { }` | a function of the type, no `self` (#111) | `T.f(a)` |
+| `let T.x:R { }` | `let x:R { }` | a computed attribute, its getter (#131) | `v.x` |
+| `var T.x:R { get { } set(v) { } }` | `var x:R { get { } set(v) { } }` | a computed attribute with a setter (#132) | `v.x`, `v.x = y`, `v.x += y` |
+| `static let T.x:R = v` | `static let x:R = v` | a type attribute, a constant (#133) | `T.x` |
+| `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |
+| `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
+
+- **`extend T { }`** (#130) holds any of these, and names `T` once.
+  - `T` is a struct, a union or an enum with values declared before it,
+    a built-in type, as `extend f64 { let half:f64 { self / 2.0 } }`,
+    or a type with no tag by its spelling,
+    `extend enum{nothing, just: i64} { ... }` (#121).
+  - A member and its alone form are the same thing: either may be used,
+    and a program may mix them.
+  - An operator is declared at the top level, `let +(a:T, b:T):T`, not
+    in `extend`.
+- **A computed attribute**, `let T.x:R { ... }` (#131), is read as
+  `v.x`, with no parentheses.
+  - Its body is a method's, with `self`, and its one expression is the
+    result.
+  - `v.x()` is an error, and so is `v.x = y`: it has no setter.
+  - A member of the struct with the same name is an error, since one is
+    stored and the other computed.
+  - An instance attribute is always computed: a stored one is a member
+    of the struct, which `extend` cannot add, as Swift's cannot.
+- **An attribute with a setter**, `var T.x:R { get { ... } set(v) { ... } }`
+  (#132), is read as the getter gives it and written through the setter.
+  - `v.x = y` calls the setter with `y` as `v`; in its body, `self` is the
+    caller's variable, so `self.kelvin = ...` changes it.
+  - The variable is a `var`: a `let` cannot change.
+  - `v.x += y` is `v.x = v.x + y`, so `v` is read twice and may not hold
+    a call.
+- **A type attribute**, `static let T.x = v` or `static var T.x = v`
+  (#133), is one value of the type, a global, read as `T.x`.
+  - A `static let` needs its value and never changes; a `static var`
+    is assigned as any variable, `T.made += 1`.
+  - Its type is written, or inferred from the value as a declaration's
+    is.
+  - A type with no tag has no name to read one by, so it has none.
+- **In C**, a method is `T__f`, a getter `T__x`, a setter `T__set_x`,
+  which takes a pointer to the caller's variable, and a type attribute
+  the global `T__x`.
 

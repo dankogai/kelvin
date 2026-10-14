@@ -270,6 +270,7 @@ static const char *show_sink = "NULL";
 static char *show_key(Type *t);
 static void need_show(Type *t);
 static char *pretty_width(Expr *e);
+static char *method_cname(Decl *d);
 
 /* the _Generic associations `<C type>: <function>, ` for a method name */
 static char *dispatch(const char *method) {
@@ -522,6 +523,8 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "attr_set") && e->target) /* v.x = y through x's setter (#132) */
+            return strfmt("%s(&(%s), %s)", method_cname(e->target), expr(e->a), expr(e->items.data[0]));
         if (e->op && !strcmp(e->op, "bytes")) { /* Bytes(...) (#54) */
             if (!e->items.len)
                 return "kv_bytes_new()";
@@ -1402,6 +1405,13 @@ static bool owner_assign(Expr *e) {
              expr(e->b));
         return true;
     }
+    if (e->a->kind != E_IDENT && e->recv_type && owner_free(e->recv_type)) {
+        /* p.name = v, *p = v, of a type that owns (#134): the new value
+           first, then the old one freed, by the type's _assign */
+        const char *g = owner_free(e->recv_type);
+        line("%.*s_assign(&(%s), %s);", (int)strlen(g) - 5, g, expr(e->a), expr(e->b));
+        return true;
+    }
     Type *t = e->a->kind == E_IDENT ? local_owner_type(e->a->text) : NULL;
     const char *f = t ? owner_free(t) : NULL;
     if (!f) /* a field, a global, or no owner: C's assignment */
@@ -1991,7 +2001,7 @@ static void stmt(Stmt *s) {
 /* ---------- declarations ---------- */
 
 /* point.area is the C function point__area, f64.half f64__half */
-static char *method_cname(Decl *d) { return strfmt("%s__%s", d->recv_name, d->name); }
+static char *method_cname(Decl *d) { return strfmt(d->setter ? "%s__set_%s" : "%s__%s", d->recv_name, d->name); }
 
 static void register_method(const char *method, Type *recv, const char *fn) {
     char *ctype = decl(recv, "");
@@ -2012,7 +2022,13 @@ static void register_method(const char *method, Type *recv, const char *fn) {
 
 static char *fn_head(Decl *d) {
     Buf params = {0};
-    if (d->recv)
+    if (d->recv && d->setter) { /* a setter's self is the caller's var (#132): a pointer, which self names in the body */
+        Type *p = xcalloc(1, sizeof *p);
+        p->kind = T_PTR;
+        p->pos = d->recv->pos;
+        p->elem = d->recv;
+        buf_puts(&params, decl(p, "_kv_selfp"));
+    } else if (d->recv)
         buf_puts(&params, decl(d->recv, "self"));
     for (int i = 0; i < d->params.len; i++) {
         Var *p = d->params.data[i];
@@ -2770,8 +2786,9 @@ static void emit_decl(Decl *d) {
         line("#include %s", d->name);
         break;
     case D_FN:
-        /* registered before the body, so a method can call itself */
-        if (d->recv)
+        /* registered before the body, so a method can call itself; a
+           setter (#132) is called by its own name, never dispatched */
+        if (d->recv && !d->setter)
             register_method(d->name, d->recv, method_cname(d));
         if (d->text_method) {
             /* T.cstr() (#53): the template's text, built in the method's
@@ -2837,7 +2854,11 @@ static void emit_decl(Decl *d) {
                     list_push(&count_cache, cache);
                 }
             }
+            if (d->setter)
+                line("#define self (*_kv_selfp)"); /* self is the caller's var (#132) */
             stmt(d->body);
+            if (d->setter)
+                line("#undef self");
         }
         break;
     case D_VAR:

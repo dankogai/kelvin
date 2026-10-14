@@ -55,34 +55,36 @@ let clear(l:list^) {
     }
 }
 
-// for n in head walks the nodes along next, up to nullptr
-let list.sum():i64 {
-    var total = 0
-    for n in self.head {
-        total += n^.value
-    }
-    return total
-}
-
-let list.contains(value:i64):bool {
-    for n in self.head {
-        if n^.value == value {
-            return true
+extend list {
+    // for n in head walks the nodes along next, up to nullptr
+    let sum():i64 {
+        var total = 0
+        for n in self.head {
+            total += n^.value
         }
+        return total
     }
-    return false
-}
 
-// print the values as [1 -> 4 -> 9]
-let list.show() {
-    print("[")
-    for n in self.head {
-        print(n^.value)
-        if n^.next != nullptr {
-            print(" -> ")
+    let contains(value:i64):bool {
+        for n in self.head {
+            if n^.value == value {
+                return true
+            }
         }
+        return false
     }
-    println("] (", self.length, " values)")
+
+    // print the values as [1 -> 4 -> 9]
+    let show() {
+        print("[")
+        for n in self.head {
+            print(n^.value)
+            if n^.next != nullptr {
+                print(" -> ")
+            }
+        }
+        println("] (", self.length, " values)")
+    }
 }
 
 let main():i32 {

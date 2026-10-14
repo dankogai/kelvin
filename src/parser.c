@@ -167,6 +167,12 @@ static void finish_drops(int from);
 /* the structs with no tag (#59), Decl *, one per spelling, in order of first use */
 static List anon_records;
 static List anon_words; /* Decl *: the top-level enums with values that have no tag, whose cases are words (#120) */
+static bool in_extend;     /* inside extend T { } (#130): its members name no receiver */
+static Token *ext_tok;     /* that T */
+static Type *ext_spelled;  /* or its spelling, extend enum{...} { } */
+static List type_attrs;    /* char *: the C names of the type attributes, point__count (#133) */
+static void add_top_decl(Program *prog, Decl *d);
+static void reject_attribute_member(Type *recv, Token *name);
 static Var *case_named(Decl *r, const char *name, int *k);
 static Expr *case_maker(Token *t, Token *cn, Decl *r, Var *c);
 
@@ -422,9 +428,10 @@ static int spelled_receiver(int i) {
     if (open < 0)
         return -1;
     int j = skip_nested(open);
-    return is_p(&toks[j], ".") && (toks[j + 1].kind == TK_IDENT || is_kw(&toks[j + 1], "cstr")) && is_p(&toks[j + 2], "(")
+    return is_p(&toks[j], ".") && (toks[j + 1].kind == TK_IDENT || is_kw(&toks[j + 1], "cstr")) &&
+                   (is_p(&toks[j + 2], "(") || is_p(&toks[j + 2], ":") || is_p(&toks[j + 2], "="))
                ? j
-               : -1;
+               : -1; /* .name( a method; .name: or .name = an attribute (#131, #133) */
 }
 
 static int skip_nested(int i) {
@@ -1882,6 +1889,23 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            {
+                /* v.x, a computed attribute (#131): its getter, as v.x() of a
+                   method would be, with no parentheses; a field wins */
+                Decl *g = method_named(e, member);
+                Decl *record;
+                if (g && g->attribute && !(expr_class(e, &record) == 's' && record_has_field(record, member))) {
+                    if (call)
+                        error_at(name->pos, "'%s' is an attribute of %s: read it as '.%s', with no parentheses", member,
+                                 g->recv_name, member);
+                    Expr *x = new_expr(E_METHOD, name->pos);
+                    x->a = e;
+                    x->text = member;
+                    x->attr = true;
+                    e = x;
+                    continue;
+                }
+            }
             if (!call) {
                 Expr *x = property(e, name, member);
                 if (x) {
@@ -2191,6 +2215,18 @@ static Expr *parse_primary(void) {
             advance();
             Token *cn = advance();
             return case_maker(t, cn, r, c);
+        }
+        if (r && r->name) { /* T.x, a type attribute (#133): the global T__x */
+            char *cn = strfmt("%s__%s", t->text, peek_at(2)->text);
+            for (int i = 0; i < type_attrs.len; i++)
+                if (!strcmp(type_attrs.data[i], cn) && binding_index(cn) >= 0) {
+                    advance();
+                    advance();
+                    advance();
+                    Expr *e = new_expr(E_IDENT, t->pos);
+                    e->text = cn;
+                    return e;
+                }
         }
         if (r && r->name) { /* T.name(...): a function of the type (#111), a name that overloads may share */
             char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
@@ -4900,7 +4936,7 @@ static void name_functions(void) {
     }
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
-        char *name = d->recv ? strfmt("%s__%s", d->recv_name, d->name) : d->cname;
+        char *name = d->recv ? strfmt(d->setter ? "%s__set_%s" : "%s__%s", d->recv_name, d->name) : d->cname;
         for (int j = 0; j < i; j++) {
             Decl *e = functions.data[j];
             char *other = e->recv ? strfmt("%s__%s", e->recv_name, e->name) : e->cname;
@@ -5424,6 +5460,55 @@ static Expr *parse_assign(void) {
             if (!ok)
                 error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
+            if (lhs->kind == E_METHOD && lhs->attr) {
+                /* v.x = y and v.x += y of a computed attribute (#132): its
+                   setter, on the var that holds v */
+                Type *vt = value_type(lhs->a);
+                Decl *setter = NULL;
+                for (int k = 0; k < functions.len && !setter; k++) {
+                    Decl *d = functions.data[k];
+                    if (d->setter && !strcmp(d->name, lhs->text) && vt && !strcmp(d->recv->name, unqualified(vt)->name))
+                        setter = d;
+                }
+                if (!setter)
+                    error_at(t->pos, "'%s' is a let attribute, computed and never set: a var attribute has a setter, "
+                                     "'var T.%s:R { get { ... } set(v) { ... } }'",
+                             lhs->text, lhs->text);
+                if (!strcmp(t->text, ":="))
+                    error_at(t->pos, "':=' sets a reference: an attribute is set with '='");
+                if (let_target(lhs->a))
+                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+                if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
+                    lhs->a->kind != E_DEREF)
+                    error_at(t->pos, "the setter of '%s' changes the value it is called on, so that value is a variable",
+                             lhs->text);
+                Expr *v = parse_assign();
+                assign_ok = ok;
+                if (strcmp(t->text, "=")) {
+                    if (!repeatable(lhs->a))
+                        error_at(t->pos, "'x.%s %s y' is 'x.%s = x.%s %.*s y', which reads x twice, so x may not hold "
+                                         "a call",
+                                 lhs->text, t->text, lhs->text, lhs->text, (int)strlen(t->text) - 1, t->text);
+                    Expr *bin = new_expr(E_BINARY, t->pos);
+                    bin->op = strfmt("%.*s", (int)strlen(t->text) - 1, t->text);
+                    bin->a = lhs;
+                    bin->b = v;
+                    v = overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
+                            ? resolve_operator(bin, bin->op, lhs, v)
+                            : bin;
+                }
+                Type *pt = ((Var *)setter->params.data[0])->type;
+                pick_overload(v, pt);
+                v = optional_of(string_of_literal(v, pt), pt, v->pos);
+                move_argument(v, pt, strfmt("the setter of '%s'", lhs->text));
+                Expr *c = new_expr(E_CALL, t->pos);
+                c->a = lhs->a;
+                c->op = "attr_set";
+                c->text = lhs->text;
+                c->target = setter;
+                list_push(&c->items, v);
+                return c;
+            }
             reject_let_change(lhs, t);
             /* a cstr's bytes never change, and it does not step (#52) */
             if ((lhs->kind == E_INDEX || lhs->kind == E_DEREF) && is_cstr(value_type(lhs->a)))
@@ -5554,6 +5639,8 @@ static Expr *parse_assign(void) {
                 reject_record_mismatch(e->b, target_type(lhs), t->pos);
                 if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
                     set_moved(lhs->text, false);
+                if (lhs->kind != E_IDENT && is_owner(value_type(lhs)) && !is_io(value_type(lhs)))
+                    e->recv_type = unqualified(value_type(lhs)); /* p.name = v frees the old one (#134) */
             }
             reject_template_escape(lhs, e->b, t->pos);
             /* z += w with an operator a struct defines is z = z + w (#42) */
@@ -6956,7 +7043,7 @@ static Decl *method_named(Expr *recv, const char *name) {
     int n = 0;
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
-        if (!d->recv || strcmp(d->name, name) || (seen && strcmp(d->recv->name, rt->name)))
+        if (!d->recv || d->setter || strcmp(d->name, name) || (seen && strcmp(d->recv->name, rt->name)))
             continue;
         if (!found || strcmp(found->recv->name, d->recv->name))
             n++; /* a prototype and its definition are one method */
@@ -8440,11 +8527,15 @@ static bool overloadable_op(Token *t) {
    struct may define, or 0 none of these */
 static int function_shape(int i) {
     Token *t = &toks[i];
-    if (spelled_receiver(i) >= 0)
-        return 5; /* enum{...}.name(), a method of a type with no tag (#121) */
+    int sr = spelled_receiver(i);
+    if (sr >= 0)
+        return is_p(&toks[sr + 2], "(") ? 5 : 6; /* enum{...}.name(), a method of a type with no tag (#121); an attribute */
     if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && (t[2].kind == TK_IDENT || is_kw(&t[2], "cstr")) &&
         is_p(t + 3, "("))
         return 1; /* T.cstr() defines a struct's text (#53) */
+    if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && t[2].kind == TK_IDENT &&
+        (is_p(t + 3, ":") || is_p(t + 3, "=")))
+        return 6; /* T.x:R { }, an attribute (#131-#133) */
     if (t->kind == TK_IDENT && is_p(t + 1, "("))
         return 2;
     if (overloadable_op(t) && is_p(t + 1, "("))
@@ -8575,7 +8666,14 @@ static void check_text_method(Decl *d, Token *name);
 static Decl *parse_method(Pos pos, const char *storage) {
     Type *spelled = NULL;
     Token *recv = peek();
-    if (spelled_receiver(cur) >= 0) {
+    if (in_extend) {
+        /* extend T { let f() {} } (#130): T is the block's, not written */
+        recv = ext_tok;
+        spelled = ext_spelled;
+        if (spelled && storage && !strcmp(storage, "static"))
+            error_at(peek()->pos, "a function of a type is called by the type's name, and a type with no tag has "
+                                  "none: write a method, or a function that takes it");
+    } else if (spelled_receiver(cur) >= 0) {
         /* a method of a type with no tag, by its spelling (#121):
            let enum{none, some: i64}.orZero():i64 { ... } */
         if (storage && !strcmp(storage, "static"))
@@ -8585,7 +8683,8 @@ static Decl *parse_method(Pos pos, const char *storage) {
     } else {
         advance();
     }
-    advance(); /* . */
+    if (!in_extend)
+        advance(); /* . */
     Token *name = peek();
     if (storage && !strcmp(storage, "static")) {
         /* static let T.name(params):R { ... } (#111): a function of the
@@ -8644,8 +8743,14 @@ static Decl *parse_method(Pos pos, const char *storage) {
     open_scope();
     params_start = scope_names.len;
     declare_typed("self", d->recv);
-    expect_p("(");
-    while (!is_p(peek(), ")")) {
+    /* let T.x:R { ... } (#131): a computed attribute, read as v.x, no
+       parentheses; its body has self, as a method's */
+    d->attribute = !d->text_method && is_p(peek(), ":");
+    if (d->attribute)
+        reject_attribute_member(d->recv, name);
+    if (!d->attribute)
+        expect_p("(");
+    while (!d->attribute && !is_p(peek(), ")")) {
         if (accept_p("...")) {
             d->variadic = true;
             break;
@@ -8660,7 +8765,8 @@ static Decl *parse_method(Pos pos, const char *storage) {
         if (!accept_p(","))
             break;
     }
-    expect_p(")");
+    if (!d->attribute)
+        expect_p(")");
     params_end = scope_names.len;
     if (accept_p(":")) {
         d->ret = parse_type();
@@ -8669,6 +8775,9 @@ static Decl *parse_method(Pos pos, const char *storage) {
                                   "result: write the type itself",
                      kelvin_type(d->ret));
     }
+    if (d->attribute && !is_p(peek(), "{"))
+        error_at(peek()->pos, "an attribute is computed by its body: write 'let %s.%s:%s { ... }'", d->recv_name,
+                 d->name, kelvin_type(d->ret));
     list_push(&functions, d);
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
@@ -8685,6 +8794,219 @@ static Decl *parse_method(Pos pos, const char *storage) {
         error_at(name->pos, "'.cstr' of %s needs its body here: a prototype is not needed", d->recv_name);
     close_scope();
     return d;
+}
+
+/* the receiver of an attribute (#131-#133): a struct, union or enum with
+   values of the program, a built-in type, or one with no tag by its
+   spelling; its name for the C names */
+static Type *attribute_receiver(Token *recv, Type *spelled, char **recv_name) {
+    if (spelled) {
+        *recv_name = anon_record_of(spelled)->name;
+        return spelled;
+    }
+    *recv_name = recv->text;
+    if (recv->kind == TK_KEYWORD) {
+        if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
+            error_at(recv->pos, "'%s' cannot have attributes", recv->text);
+        return base_type(recv->text, recv->pos);
+    }
+    Decl *r = NULL;
+    for (int i = records.len - 1; i >= 0 && !r; i--) {
+        Decl *c = records.data[i];
+        if (c->name && !strcmp(c->name, recv->text))
+            r = c;
+    }
+    if (!r)
+        error_at(recv->pos, "'%s' is not a struct, union or enum declared before this attribute", recv->text);
+    if (r->kind == D_ENUM)
+        error_at(recv->pos, "enums cannot have attributes: C cannot tell an enum from its integer type");
+    return base_type(strfmt("%s %s", r->kind == D_STRUCT ? "struct" : "union", r->name), recv->pos);
+}
+
+/* an attribute named as a member of its struct is an error (#131): the
+   member is stored, the attribute computed, and v.x would mean both */
+static void reject_attribute_member(Type *recv, Token *name) {
+    Decl *r;
+    if (recv && type_class(recv, &r) == 's' && record_has_field(r, name->text))
+        error_at(name->pos, "'%s' is a member of %s already: an attribute is computed, a member stored, so name the "
+                            "attribute otherwise",
+                 name->text, record_spelling(r));
+}
+
+/* the body of an attribute's getter or setter, self declared as a
+   method's, and param, the setter's new value, if any */
+static void attribute_body(Decl *d, Var *param) {
+    open_scope();
+    params_start = scope_names.len;
+    declare_typed("self", d->recv);
+    if (param) {
+        param->number = numeric_type(param_type(param->type));
+        declare_binding(param->name, param_type(param->type), LET_PARAM);
+        list_push(&d->params, param);
+    }
+    params_end = scope_names.len;
+    list_push(&functions, d);
+    parsing_fn = d;
+    int drops_from = pending_drops.len;
+    d->body = parse_fn_body(expect_p("{"));
+    parsing_fn = NULL;
+    implicit_return(d);
+    finish_drops(drops_from);
+    close_scope();
+}
+
+/* var T.x:R { get { ... } set(v) { ... } } (#132): a computed attribute
+   with a setter, read as t.x, written as t.x = v on the var that holds t,
+   whose self is that var; at the name, the receiver read */
+static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spelled) {
+    char *rname;
+    Type *rt = attribute_receiver(recv, spelled, &rname);
+    Token *name = peek();
+    reject_kv_name(name);
+    reject_attribute_member(rt, name);
+    char *nm = expect_ident("an attribute name");
+    if (!is_p(peek(), ":"))
+        error_at(peek()->pos, "a var attribute has a type, a getter and a setter: 'var %s.%s:R { get { ... } set(v) "
+                              "{ ... } }'",
+                 recv->text, nm);
+    advance();
+    Type *vt = parse_type();
+    expect_p("{");
+    if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "get")))
+        error_at(peek()->pos, "a var attribute starts with its getter, 'get { ... }', then its setter, 'set(v) { ... }'");
+    advance();
+    Decl *g = new_decl(D_FN, pos, NULL);
+    g->imported = name->imported;
+    g->recv = rt;
+    g->recv_name = rname;
+    g->name = nm;
+    g->attribute = true;
+    g->ret = vt;
+    attribute_body(g, NULL);
+    if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "set")))
+        error_at(peek()->pos, "after the getter comes the setter, 'set(v) { ... }', with v the new value; a let "
+                              "attribute, 'let %s.%s:R { ... }', has none",
+                 recv->text, nm);
+    advance();
+    expect_p("(");
+    Token *vn = peek();
+    reject_kv_name(vn);
+    Var *p = xcalloc(1, sizeof *p);
+    p->pos = vn->pos;
+    p->name = expect_ident("the new value's name, as in 'set(v)'");
+    p->type = vt;
+    p->is_let = true;
+    expect_p(")");
+    Decl *s = new_decl(D_FN, pos, NULL);
+    s->imported = name->imported;
+    s->recv = rt;
+    s->recv_name = rname;
+    s->name = nm;
+    s->setter = true;
+    attribute_body(s, p);
+    expect_p("}");
+    add_top_decl(prog, g);
+    add_top_decl(prog, s);
+}
+
+/* static let T.x:R = v and static var T.x = v (#133): a type attribute, a
+   global read as T.x, named T__x in C; at the name, the receiver read */
+static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *recv, Type *spelled) {
+    if (spelled)
+        error_at(peek()->pos, "a type attribute is read by the type's name, as T.x, and a type with no tag has none");
+    if (recv->kind == TK_KEYWORD)
+        error_at(recv->pos, "a type attribute is of a struct, union or enum of the program: '%s' is built in", recv->text);
+    if (!record_named(recv->text))
+        error_at(recv->pos, "'%s' is not a struct, union or enum declared before this attribute", recv->text);
+    int before = scope_names.len;
+    Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it, by its own name */
+    v->is_let = is_let;
+    if (is_let && !v->init)
+        error_at(v->pos, "a static let needs a value: write 'static let %s.%s = ...', or 'static var' if it changes",
+                 recv->text, v->name);
+    char *cn = strfmt("%s__%s", recv->text, v->name);
+    for (int i = scope_names.len - 1; i >= before; i--)
+        if (!strcmp(scope_names.data[i], v->name)) {
+            scope_names.data[i] = cn;
+            break;
+        }
+    v->name = cn;
+    list_push(&type_attrs, cn);
+    Decl *d = new_decl(D_VAR, pos, NULL);
+    list_push(&d->members, v);
+    add_top_decl(prog, d);
+    end_statement();
+}
+
+/* extend T { ... } (#130), Swift's extension: the members of T without
+   writing T: let f() {} a method, static let f() {} a function of the
+   type, let x:R {} a computed attribute, var x:R { get set } one with a
+   setter, static let x = v and static var x = v type attributes */
+static void parse_extend(Program *prog) {
+    advance(); /* extend */
+    Token *recv = peek();
+    Type *spelled = NULL;
+    if (is_p(recv, "{") || ((is_kw(recv, "enum") || is_kw(recv, "union") || is_kw(recv, "struct")) && is_p(peek2(), "{")))
+        spelled = parse_type();
+    else if (recv->kind == TK_IDENT || is_base_word(recv))
+        advance();
+    else
+        error_at(recv->pos, "extend names the type it extends, as in 'extend point { ... }'");
+    if (!spelled && recv->kind == TK_IDENT && !record_named(recv->text))
+        error_at(recv->pos, "'%s' is not a struct, union or enum declared before this extend", recv->text);
+    expect_p("{");
+    bool saved = in_extend;
+    Token *saved_tok = ext_tok;
+    Type *saved_spelled = ext_spelled;
+    in_extend = true;
+    ext_tok = recv;
+    ext_spelled = spelled;
+    char *rname = spelled ? anon_record_of(spelled)->name : recv->text;
+    while (!is_p(peek(), "}")) {
+        Token *m = peek();
+        if (m->kind == TK_EOF || m->kind == TK_FILE_END)
+            error_at(recv->pos, "extend has no closing '}'");
+        stmt_start = cur;
+        const char *storage = parse_storage();
+        if (storage && !strcmp(storage, "extern"))
+            error_at(m->pos, "extern is not for a member of extend: declare it at the top level");
+        if (!is_kw(peek(), "let") && !is_kw(peek(), "var"))
+            error_at(peek()->pos, "extend holds let f() { }, static let f() { }, let x:R { }, var x:R { get { } set(v) "
+                                  "{ } }, static let x = v and static var x = v; found %s",
+                     desc(peek()));
+        bool is_let = is_kw(peek(), "let");
+        Token *nm = peek_at(1), *after = peek_at(2);
+        if (nm->kind == TK_PUNCT)
+            error_at(nm->pos, "an operator is declared at the top level, as 'let %s(a:T, b:T):T { ... }'", nm->text);
+        if (is_p(after, "(")) {
+            if (!is_let)
+                error_at(m->pos, "a method is a let: write 'let %s(...)'", nm->text);
+            advance();
+            top_name = strfmt("%s_%s", rname, nm->text);
+            add_top_decl(prog, parse_method(m->pos, storage));
+        } else if (storage) {
+            advance();
+            parse_type_attribute(prog, m->pos, is_let, recv, spelled);
+        } else if (is_p(after, ":") && is_let) {
+            advance();
+            top_name = strfmt("%s_%s", rname, nm->text);
+            add_top_decl(prog, parse_method(m->pos, NULL));
+        } else if (is_p(after, ":")) {
+            advance();
+            top_name = strfmt("%s_%s", rname, nm->text);
+            parse_var_attribute(prog, m->pos, recv, spelled);
+        } else if (is_p(after, "=")) {
+            error_at(after->pos, "an instance attribute is computed, 'let %s:R { ... }': a stored one is a member of the "
+                                 "struct; a value of the type is 'static let %s = ...'",
+                     nm->text, nm->text);
+        } else {
+            error_at(after->pos, "expected '(' for a method, or ':' for an attribute, after '%s'", nm->text);
+        }
+    }
+    expect_p("}");
+    in_extend = saved;
+    ext_tok = saved_tok;
+    ext_spelled = saved_spelled;
 }
 
 /* T.cstr() (#53): no parameters, a cstr result, a body that is one
@@ -9386,6 +9708,27 @@ Program *parse(Token *tokens, int ntoks) {
     functions = (List){0};
     method_names = (List){0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
+        if (depth == 0 && toks[i].kind == TK_IDENT && !strcmp(toks[i].text, "extend")) {
+            /* extend T { let f() {} } (#130): f is a method name, as T.f( is */
+            int k = i + 1;
+            if (is_p(&toks[k], "{"))
+                k = skip_nested(k);
+            else if ((is_kw(&toks[k], "enum") || is_kw(&toks[k], "union") || is_kw(&toks[k], "struct")) &&
+                     is_p(&toks[k + 1], "{"))
+                k = skip_nested(k + 1);
+            else
+                k++;
+            if (is_p(&toks[k], "{"))
+                for (int j = k + 1, d = 1; d > 0 && toks[j].kind != TK_EOF; j++) {
+                    if (is_p(&toks[j], "{"))
+                        d++;
+                    else if (is_p(&toks[j], "}"))
+                        d--;
+                    else if (d == 1 && is_kw(&toks[j], "let") && toks[j + 1].kind == TK_IDENT && is_p(&toks[j + 2], "(") &&
+                             !(j > 0 && is_kw(&toks[j - 1], "static")))
+                        list_push(&method_names, toks[j + 1].text);
+                }
+        }
         if (is_p(&toks[i], "{"))
             depth++;
         else if (is_p(&toks[i], "}")) {
@@ -9416,7 +9759,52 @@ Program *parse(Token *tokens, int ntoks) {
         const char *storage = parse_storage();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");
+        if (!binding && !storage && peek()->kind == TK_IDENT && !strcmp(peek()->text, "extend") &&
+            (peek2()->kind == TK_IDENT || is_base_word(peek2()) || is_p(peek2(), "{") || is_kw(peek2(), "enum") ||
+             is_kw(peek2(), "union") || is_kw(peek2(), "struct"))) {
+            parse_extend(prog); /* extend T { ... } (#130) */
+            continue;
+        }
         int shape = function_shape(cur + binding);
+        if (shape == 6) {
+            /* let T.x:R { }, var T.x:R { get set }, static let T.x = v (#131-#133) */
+            if (!binding)
+                error_at(peek()->pos, "an attribute is declared with let or var, as 'let %s.x:R { ... }'", peek()->text);
+            bool is_let = is_kw(advance(), "let");
+            Token *recv = peek();
+            Type *spelled = NULL;
+            if (spelled_receiver(cur) >= 0)
+                spelled = parse_type();
+            else
+                advance();
+            expect_p(".");
+            Token *nm = peek(), *after = peek2();
+            if (storage && !strcmp(storage, "static")) {
+                parse_type_attribute(prog, t->pos, is_let, recv, spelled);
+            } else if (storage) {
+                error_at(t->pos, "extern is not for an attribute");
+            } else if (is_p(after, "=")) {
+                error_at(after->pos, "an instance attribute is computed, 'let %s.%s:R { ... }': a stored one is a member "
+                                     "of the struct; a value of the type is 'static let %s.%s = ...'",
+                         recv->text, nm->text, recv->text, nm->text);
+            } else if (is_let) {
+                bool saved = in_extend;
+                Token *saved_tok = ext_tok;
+                Type *saved_spelled = ext_spelled;
+                in_extend = true; /* parse_method then names no receiver: it is read */
+                ext_tok = recv;
+                ext_spelled = spelled;
+                top_name = strfmt("%s_%s", recv->text, nm->text);
+                add_top_decl(prog, parse_method(t->pos, NULL));
+                in_extend = saved;
+                ext_tok = saved_tok;
+                ext_spelled = saved_spelled;
+            } else {
+                top_name = strfmt("%s_%s", recv->text, nm->text);
+                parse_var_attribute(prog, t->pos, recv, spelled);
+            }
+            continue;
+        }
         if (shape && shape != 4) {
             if (shape == 2)
                 reject_c_fn_pointer(cur + binding, "var ");

@@ -116,7 +116,10 @@ let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
 ## Methods
 
 Every type can have methods. You define them Swift-style on a struct or
-union, or on a built-in type, with an implicit `self` (passed by value):
+union, or on a built-in type, with an implicit `self` (passed by value).
+Attributes read without parentheses, type attributes, and an
+`extend T { }` block that holds them all are in
+[properties.md](properties.md#attributes-of-your-own-and-extend) (#130 to #133):
 
 ```kelvin
 struct point { x: i32; y: i32 }
