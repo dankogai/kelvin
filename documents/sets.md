@@ -21,24 +21,28 @@ println(words.has("be"), " ", words.elements.typename)   // true Array<String>
 var e:${String} = ${}                    // empty; Set<String>() too
 ```
 
-- **Elements** are an integer type, hashed as a number, or `String`:
-  the Set keeps a copy of the text, and is asked with a `cstr`, a
-  template, or a String. A `cstr` element type is an error that says so.
-- **Making one:** `${a, b, c}` with `T` inferred from the first element;
-  `${}` where the type is written (`${:}` is an empty Dictionary);
-  `Set<T>()`, `Set<T>({a, b, c})`, `Set<T>(&other)` a copy; a
-  declaration without a value is empty. `{a, b, c}` works where the
-  type is written, as a member's value or an initializer.
-- **Methods:** `insert(x)` (also `+=`), `true` if it was new; `+=
-  &other` inserts another's elements; `has(x)`; `remove(x)`, `true` if
-  it was there; `union(&t)`, `intersection(&t)`, `difference(&t)`, new
-  Sets; `clear()`; `reserve(n)`; `copy()`.
+- **Elements** are an integer type, hashed as a number, or `String`.
+  - The Set keeps a copy of the text, and is asked with a `cstr`, a
+    template, or a String.
+  - A `cstr` element type is an error that says so.
+- **Making one:** `${a, b, c}` with `T` inferred from the first
+  element.
+  - `${}` where the type is written (`${:}` is an empty Dictionary);
+    `Set<T>()`; a declaration without a value is empty.
+  - `Set<T>({a, b, c})`; `Set<T>(&other)` a copy.
+  - `{a, b, c}` works where the type is written, as a member's value
+    or an initializer.
+- **Methods:** `insert(x)` (also `+=`), `true` if it was new;
+  `+= &other` inserts another's elements.
+  - `has(x)`; `remove(x)`, `true` if it was there.
+  - `union(&t)`, `intersection(&t)`, `difference(&t)`, new Sets.
+  - `clear()`; `reserve(n)`; `copy()`.
 - **Operators** (#73): `s | t` is the union, `s & t` the intersection
   and `s ~ t` the symmetric difference (what is in one, not both), new
-  Sets of two in variables; `s |= t`, `s &= t` and `s ~= t` change `s`
-  in place. **Properties:** `count`;
-  `elements`, an Array of copies in the order added; `size`,
-  `typename`.
+  Sets of two in variables.
+  - `s |= t`, `s &= t` and `s ~= t` change `s` in place.
+- **Properties:** `count`; `elements`, an Array of copies in the order
+  added; `size`, `typename`.
 - **Walking:** `for x in s` gives each element as a let the Set owns,
   in the order added. A Set is not indexed.
 - **Not yet:** text (`print(s)` is an error: show the elements), `==`,

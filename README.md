@@ -58,17 +58,19 @@ So far the changes from C are:
   `println("n = ", n)` works for any type with no import
 - every type can have methods, such as `let point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
-  (derived for structs, as `{x: 3, y: 4}`, or defined as one template,
-  `let point.cstr():cstr { `(${self.x}, ${self.y})` }`), where `cstr` is immutable
-  text, C's `const uint8_t *`, with `s.count` for its length;
-  `toString()` waits for a true string type
-- properties: `x.size` is `sizeof(x)`; integers have `.dec`, `.hex`,
-  `.oct` and `.bin` text, and `f32`/`f64` have `.dec` and `.hex`
-  (`(42:i32).hex` is `+0x2a`); pointers and functions have `.addr`, the
-  address as a `uintptr_t`, `.hex`, as in `0x000000016ee86888`, and
-  `.isNull`;
-  `x.type` is `x`'s type where a type goes, as in `var y:x.type`, and
-  `x.typename` its name, as in `"i64"`
+  - a struct's is derived, as `{x: 3, y: 4}`, or defined as one template,
+    `let point.cstr():cstr { `(${self.x}, ${self.y})` }`
+  - `cstr` is immutable text, C's `const uint8_t *`, with `s.count` for
+    its length
+  - `toString()` waits for a true string type
+- properties
+  - `x.size` is `sizeof(x)`
+  - integers have `.dec`, `.hex`, `.oct` and `.bin` text, and `f32`/`f64`
+    have `.dec` and `.hex` (`(42:i32).hex` is `+0x2a`)
+  - pointers and functions have `.addr`, the address as a `uintptr_t`,
+    `.hex`, as in `0x000000016ee86888`, and `.isNull`
+  - `x.type` is `x`'s type where a type goes, as in `var y:x.type`, and
+    `x.typename` its name, as in `"i64"`
 - conditions are `bool`, with no parentheses and block bodies:
   `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
   `bool`, so `println(a == b)` prints `true`, and `let ok = a < b`
@@ -85,10 +87,12 @@ So far the changes from C are:
 - anonymous functions enclose nothing, are inline (C's `static inline`),
   and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
   where `$0` and `$1` are the parameters
-- template literals: `` `Hello, ${name}!` `` may span lines, and
-  `${x}` is `x`'s text as `print` shows it, kept on the stack (a string
-  value is cut at 256 bytes); `"""` on its own lines quotes text as
-  written, with no escapes; `$"..."` and `` $`...` `` make a `String`
+- quoting text
+  - template literals: `` `Hello, ${name}!` `` may span lines, and
+    `${x}` is `x`'s text as `print` shows it, kept on the stack (a string
+    value is cut at 256 bytes)
+  - `"""` on its own lines quotes text as written, with no escapes
+  - `$"..."` and `` $`...` `` make a `String`
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
 - functions overload by their parameter types, also C's own: with
@@ -96,33 +100,37 @@ So far the changes from C are:
   `sin(0.5)` C's
 - structs and unions may define operators:
   `let +(a:money, b:money):money { ... }`, then `a + b`
-- `Bytes` is a growable array of bytes on the heap that its variable
-  owns: freed when the block ends, moved by `return` and by passing,
-  copied only by `.copy()`, borrowed as `Bytes^`; `b += "more"`,
-  `b[i]` checked; `String` is a `Bytes` of well-formed UTF-8, counted
-  and walked by codepoint, each a `uchr`, which prints as its character;
-  `Array<T>` is a growable array of any value type, owners included;
-  `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short,
-  and `$[i64]` the type `Array<i64>`; `Dictionary<K, V>` is a hash map,
-  `${"ann": 31}`, with `d[k]` checked, `d.has(k)`, `d.find(k)` and
-  `for k, v in d`, `d.keys` and `d.values`, keyed by integers or Strings;
-  `` $`a${x}b` `` builds a `String` from a template, with no bound;
-  `Set<T>` is a hash set, `${3, 1, 4}`, with `s += x`, `s.has(x)`, `s | t`,
-  `s & t` and `s ~ t`
-- `IO` is a file as an owner, closed when its block ends: `let f =
-  IO(path, "r")`, `f.error` when it did not open, `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
-  `let s = f.string`, `f.write("x")`, `IO.stderr.println("n = ", n)`
+- owners on the heap, each freed when its block ends, moved by `return`
+  and by passing, copied only by `.copy()`, borrowed as a pointer
+  - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
+  - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
+    codepoint, each a `uchr`, which prints as its character;
+    `` $`a${x}b` `` builds one from a template, with no bound
+  - `Array<T>` is a growable array of any value type, owners included
+  - `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short,
+    and `$[i64]` the type `Array<i64>`
+  - `Dictionary<K, V>` is a hash map, `${"ann": 31}`, keyed by integers
+    or Strings: `d[k]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`,
+    `d.keys` and `d.values`
+  - `Set<T>` is a hash set, `${3, 1, 4}`: `s += x`, `s.has(x)`, `s | t`,
+    `s & t` and `s ~ t`
+- `IO` is a file as an owner, closed when its block ends
+  - `let f = IO(path, "r")`, with `f.error` when it did not open
+  - `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
+    `let s = f.string`
+  - `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `#import <JSON>` is JSON as an enum with values: `var j = JSON.parse(text)`,
   `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113)
 - `OS` and `SYS` are the system and the program, as Python has them, with
   no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,
   `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
-- `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`:
-  `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`,
-  `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,
-  `r.map(f)`, and `let v = try f()` passes the `err` up; `T?` is its special
-  case, a value that may be absent, `none` or `some(v)`:
-  `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
+- `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
+  - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
+  - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,
+    `r.map(f)`
+  - `let v = try f()` passes the `err` up
+  - `T?` is its special case, a value that may be absent, `none` or
+    `some(v)`: `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
 - `#import <complex.k>` brings in a Kelvin file's source, here
   `complex64` and `complex32` with their arithmetic and elementary
   functions, from `./modules` or Kelvin's own `modules/`

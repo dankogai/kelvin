@@ -33,11 +33,11 @@ do {
 ```
 
 - **`if let x = e { ... } else { ... }`** (#74) binds the `ok` value of
-  a Result, or the `some` value of an Optional, when that is the case,
-  and **`if let err(x) = e { ... }`** (#78) the value of the case named,
-  of a Result, an Optional or an enum with values; see
-  [results.md](results.md), [optionals.md](optionals.md) and
-  [enums.md](enums.md).
+  a Result, or the `some` value of an Optional, when that is the case.
+  - **`if let err(x) = e { ... }`** (#78) binds the value of the case
+    named, of a Result, an Optional or an enum with values.
+  - See [results.md](results.md), [optionals.md](optionals.md) and
+    [enums.md](enums.md).
 - **`try e`** (#76), an expression, returns from the function with the
   `err` or `none` of `e` when that is its case; see
   [results.md](results.md).
@@ -73,23 +73,24 @@ case rect: return s.rect.w * s.rect.h
 ```
 
 - **The cases** are written at the top of the switch's block, each with
-  at least one statement before the next, since a case ends there; a
-  case before another with nothing between them is an error, as a C
-  programmer would mean a fallthrough: write `case a, b:` for one body,
-  or `break` to do nothing. A case inside a statement of the block
-  (Duff's device) is an error too. `case` and `default:` are only in a
-  switch.
-- **Every value is handled:** a switch on an enum with values lists
-  every case, a switch on an enum declared in Kelvin every enumerator,
-  and any other switch has `default:`; otherwise kelvinc names what is
-  missing.
+  at least one statement before the next, since a case ends there.
+  - A case before another with nothing between them is an error, as a
+    C programmer would mean a fallthrough: write `case a, b:` for one
+    body, or `break` to do nothing.
+  - A case inside a statement of the block (Duff's device) is an error
+    too.
+  - `case` and `default:` are only in a switch.
+- **Every value is handled;** otherwise kelvinc names what is missing.
+  - A switch on an enum with values lists every case.
+  - A switch on an enum declared in Kelvin lists every enumerator.
+  - Any other switch has `default:`.
 - **`break`** leaves the switch, as in C, and `continue` goes on with
   the loop around it; `return` returns. `goto` is C's.
 - **In C**, each case is a block of its own, so a variable declared in
-  one is its own, ending with a `break` unless it ends with a jump; a
-  switch exhaustive by its cases gets `default: __builtin_unreachable();`,
-  so that C sees no path past it. `switch (n) {` still works: the
-  parentheses group.
+  one is its own, ending with a `break` unless it ends with a jump.
+  - A switch exhaustive by its cases gets
+    `default: __builtin_unreachable();`, so that C sees no path past it.
+  - `switch (n) {` still works: the parentheses group.
 
 ## Ranges: `for i in a..<b`
 
@@ -109,10 +110,10 @@ for b:u8 in 250...255 { }  // ends, where C's b <= 255 never would
 ```
 
 - `i` is a `let` in the body, and `a` and `b` are evaluated once.
-- `i`'s type is written, as in `for i:u8 in`, or comes from the bounds:
-  the upper bound's type if kelvinc sees it (`0..<n` with `n:i32` gives
-  `i32`), else the lower one's, else `i64` for literals. A range is of
-  integers *(provisional P40)*.
+- `i`'s type is written, as in `for i:u8 in`, or comes from the bounds.
+  - The upper bound's type if kelvinc sees it (`0..<n` with `n:i32`
+    gives `i32`), else the lower one's, else `i64` for literals.
+  - A range is of integers *(provisional P40)*.
 - A bound is an expression down to the shifts, so `0..<n - 1` stops before
   `n - 1`. `continue` and `break` work as in any loop.
 - Ranges exist only in `for` for now: there are no range values, and no
@@ -143,11 +144,13 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 - **A pointer kelvinc cannot see**, such as `getenv("PATH")`'s, is walked
   like a pointer.
 - `x` is a `let`, `s` is evaluated once and does not move, and
-  `for _ in s` names no variable. `for b:u8 in xs` converts each element
-  for `b`. A number, `any^`, an array of arrays, a C struct whose fields
-  kelvinc cannot see, or an array in a value that a call returns
-  (`make().xs`, which C discards before the loop runs) is an error
-  *(provisional P42)*.
+  `for _ in s` names no variable.
+  - `for b:u8 in xs` converts each element for `b`.
+  - These are an error *(provisional P42)*:
+    - a number, `any^`, or an array of arrays;
+    - a C struct whose fields kelvinc cannot see;
+    - an array in a value that a call returns (`make().xs`, which C
+      discards before the loop runs).
 
 ## Conditions are `bool`
 
@@ -168,8 +171,9 @@ no truthiness, so compare instead:
 - A `bool` variable, field or function result is a condition as it is, as
   is `bool(x)` or `x as bool`.
 - kelvinc reports a non-`bool` condition it can see, with a hint
-  (`'x != 0'`, `'p != nullptr'`). Where it cannot see the type, as for C
-  functions and macros, the C compiler reports it, naming
-  `kv_condition_is_not_bool`: `while fgets(...)` fails that way, and so
-  does `if isdigit(c)` (an `int`), which needs `!= 0`.
+  (`'x != 0'`, `'p != nullptr'`).
+  - Where it cannot see the type, as for C functions and macros, the C
+    compiler reports it, naming `kv_condition_is_not_bool`.
+  - `while fgets(...)` fails that way, and so does `if isdigit(c)` (an
+    `int`), which needs `!= 0`.
 

@@ -26,15 +26,16 @@ let main():i32 {
 ## `SYS`: the program
 
 - **`SYS.argv`** is the program's arguments, `argv[0]` the program, as
-  an `Array<cstr>` made from C's `argv`: an owner, so bind it. It is
-  there whether or not `main` declares `argc` and `argv`, since C's
-  `main` always takes them for it.
+  an `Array<cstr>` made from C's `argv`: an owner, so bind it.
+  - It is there whether or not `main` declares `argc` and `argv`,
+    since C's `main` always takes them for it.
 - **`SYS.exit(code)`** flushes every stream and ends the program with
-  the code, as C's `exit` does; what follows it never runs, and no
-  block ends, so the owners alive at that point are not freed and no
-  file is closed by Kelvin: the system reclaims them, as it does when
-  `main` returns, but a file written through an IO is flushed only
-  because every stream is.
+  the code, as C's `exit` does.
+  - What follows it never runs, and no block ends, so the owners alive
+    at that point are not freed and no file is closed by Kelvin.
+  - The system reclaims them, as it does when `main` returns, but a
+    file written through an IO is flushed only because every stream
+    is.
 - **`SYS.platform`** is a `cstr`: `"macos"`, `"linux"`, `"freebsd"`,
   `"openbsd"`, `"netbsd"`, `"windows"` or `"unknown"`, decided when
   the runtime was built.
@@ -44,136 +45,158 @@ let main():i32 {
 - **`OS.cwd`** is the working directory, a `Result<String, i32>`;
   **`OS.chdir(path)`** moves to one, 0 or `errno`.
 - **`OS.env(name)`** is an environment variable's value, a `cstr?`,
-  `none` when it is unset; **`OS.setenv(name, value)`** sets one,
-  **`OS.unsetenv(name)`** removes it, each 0 or `errno`.
+  `none` when it is unset.
+  - **`OS.setenv(name, value)`** sets one, **`OS.unsetenv(name)`**
+    removes it, each 0 or `errno`.
 - **`OS.exists(path)`**, **`OS.isdir(path)`** and **`OS.isfile(path)`**
   are `bool`s: whether something is there, a directory, a regular
   file.
-- **`OS.remove(path)`** removes a file or an empty directory,
-  **`OS.rename(from, to)`** renames, **`OS.mkdir(path)`** makes a
-  directory (mode 0777, as the umask leaves it), **`OS.rmdir(path)`**
-  removes an empty one, each 0 or `errno`.
+- **`OS.remove(path)`** removes a file or an empty directory, and
+  **`OS.rename(from, to)`** renames, each 0 or `errno`.
+- **`OS.mkdir(path)`** makes a directory (mode 0777, as the umask
+  leaves it), and **`OS.rmdir(path)`** removes an empty one, each 0 or
+  `errno`.
 - **`OS.listdir(path)`** is the names in a directory, `.` and `..`
-  left out, sorted by their bytes, a `Result<Array<String>, i32>`;
-  a name that is not UTF-8 ends the program, as a String made of it
-  would.
+  left out, sorted by their bytes, a `Result<Array<String>, i32>`.
+  - A name that is not UTF-8 ends the program, as a String made of it
+    would.
 - **`OS.walk(path)`** (#96) is every path under a directory, the root
   itself left out, each a `String` of the root joined with what is
-  under it: each directory's names sorted, then what is under a
-  directory among them before the next name, depth first, as `find`
-  lists them; a symbolic link is not followed, and a directory that
-  cannot be read is passed over, as Python's `walk` passes it; a
-  `Result<Array<String>, i32>`, the err the root's. **`OS.glob(pattern)`**
-  is the paths a shell pattern matches, `*`, `?` and `[...]` as the
-  shell has them, sorted, the same Result, with none where none match;
-  `**` is `*`, as POSIX `glob` has it.
+  under it; a `Result<Array<String>, i32>`, the err the root's.
+  - Each directory's names sorted, then what is under a directory
+    among them before the next name, depth first, as `find` lists
+    them.
+  - A symbolic link is not followed, and a directory that cannot be
+    read is passed over, as Python's `walk` passes it.
+- **`OS.glob(pattern)`** is the paths a shell pattern matches, sorted,
+  the same Result, with none where none match.
+  - `*`, `?` and `[...]` are as the shell has them; `**` is `*`, as
+    POSIX `glob` has it.
 - **`OS.stat(path)`** and **`OS.lstat(path)`** (#95) are what C's
   `stat` and `lstat` give, a `Result<{dev: i64, ino: i64, mode: i32,
   nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64,
-  ctime: f64, isdir: bool, isfile: bool, islink: bool}, i32>`: `lstat`
-  of a symbolic link is the link's own, `stat` its target's; the
-  times are seconds since the epoch, `mode` C's bits, and `isdir`,
-  `isfile` and `islink` read off it. `OS.islink(path)` is the `bool`
-  alone.
-- **Links and the rest of a file** (#95): `OS.symlink(target, path)`
-  makes a symbolic link, `OS.readlink(path)` reads one, a
-  `Result<String, i32>`, `OS.link(from, to)` makes a hard link,
-  `OS.unlink(path)` removes a file, as `remove` does, `OS.chmod(path,
-  mode)` sets C's mode bits, an integer such as `0644` (C's octal),
-  `OS.truncate(path, size)` cuts or extends, `OS.makedirs(path)` makes
-  every directory on the way, as `mkdir -p` does, and
-  `OS.realpath(path)` is the absolute path with every link followed,
-  a `Result<String, i32>`; each `i32` is 0 or `errno`.
-- **Paths as text** (#95): `OS.basename(path)` and `OS.dirname(path)`
-  are the last part and what is before it, as Python's `os.path` has
-  them, so `basename("a/b/")` is `""` and `dirname("a")` is `""`,
-  `dirname("/a")` `"/"`; `OS.join(a, b)` joins with one `/`, and is
-  `b` when `b` is absolute; each a new `String`.
-- **The process and the user** (#95): `OS.ppid`, `OS.uid` and
-  `OS.gid` are the parent's id and the user's and group's ids;
-  `OS.user` the user's name, a `String?`; `OS.host` the host's name, a
-  `Result<String, i32>`; `OS.umask(mask)` sets the mask and gives the
-  old; `OS.kill(pid, signal)` sends a signal, 0 or `errno`.
+  ctime: f64, isdir: bool, isfile: bool, islink: bool}, i32>`.
+  - `lstat` of a symbolic link is the link's own, `stat` its target's.
+  - The times are seconds since the epoch, `mode` C's bits, and
+    `isdir`, `isfile` and `islink` read off it.
+  - `OS.islink(path)` is the `bool` alone.
+- **Links and the rest of a file** (#95); each `i32` is 0 or `errno`.
+  - `OS.symlink(target, path)` makes a symbolic link;
+    `OS.readlink(path)` reads one, a `Result<String, i32>`.
+  - `OS.link(from, to)` makes a hard link; `OS.unlink(path)` removes a
+    file, as `remove` does.
+  - `OS.chmod(path, mode)` sets C's mode bits, an integer such as
+    `0644` (C's octal).
+  - `OS.truncate(path, size)` cuts or extends.
+  - `OS.makedirs(path)` makes every directory on the way, as `mkdir -p`
+    does.
+  - `OS.realpath(path)` is the absolute path with every link followed,
+    a `Result<String, i32>`.
+- **Paths as text** (#95); each a new `String`.
+  - `OS.basename(path)` and `OS.dirname(path)` are the last part and
+    what is before it, as Python's `os.path` has them, so
+    `basename("a/b/")` is `""` and `dirname("a")` is `""`,
+    `dirname("/a")` `"/"`.
+  - `OS.join(a, b)` joins with one `/`, and is `b` when `b` is
+    absolute.
+- **The process and the user** (#95).
+  - `OS.ppid`, `OS.uid` and `OS.gid` are the parent's id and the
+    user's and group's ids.
+  - `OS.user` the user's name, a `String?`; `OS.host` the host's name,
+    a `Result<String, i32>`.
+  - `OS.umask(mask)` sets the mask and gives the old.
+  - `OS.kill(pid, signal)` sends a signal, 0 or `errno`.
 - **Temporary files** (#97): `OS.mkstemp(prefix)` makes a new file
   with a name of the prefix and six random characters, and opens it
-  for reading and writing, a `Result<{io: IO, path: String}, i32>`:
-  `t.ok.io` writes and reads it, `t.ok.path` names it, and the block
-  closes the IO and frees the path, the file itself staying until
-  `OS.remove(t.ok.path)`. `OS.mkdtemp(prefix)` makes a new directory
-  the same way, a `Result<String, i32>`. Both are made in `OS.tmpdir`,
-  unless the prefix names a place with a `/` in it, as `"./build_"`
-  does.
-- **A file's times** (#98): `OS.utime(path, atime, mtime)` sets when
-  a file was last read and last written, in seconds since the epoch as
-  `stat` gives them, a fraction allowed; `OS.touch(path)` sets both to
-  now, and makes the file, empty, when it is missing, as the command
-  does; each 0 or `errno`.
+  for reading and writing, a `Result<{io: IO, path: String}, i32>`.
+  - `t.ok.io` writes and reads it, `t.ok.path` names it.
+  - The block closes the IO and frees the path, the file itself
+    staying until `OS.remove(t.ok.path)`.
+  - `OS.mkdtemp(prefix)` makes a new directory the same way, a
+    `Result<String, i32>`.
+  - Both are made in `OS.tmpdir`, unless the prefix names a place with
+    a `/` in it, as `"./build_"` does.
+- **A file's times** (#98); each 0 or `errno`.
+  - `OS.utime(path, atime, mtime)` sets when a file was last read and
+    last written, in seconds since the epoch as `stat` gives them, a
+    fraction allowed.
+  - `OS.touch(path)` sets both to now, and makes the file, empty, when
+    it is missing, as the command does.
 - **A file's owner** (#99): `OS.chown(path, uid, gid)` sets who owns
-  a file, `OS.lchown` a symbolic link itself, -1 for an id to leave as
-  it is, each 0 or `errno`, `EPERM` for an owner one may not give;
-  `OS.username(uid)` and `OS.groupname(gid)` are the names of the ids
-  `stat` gives, each a `String?`, `none` for an id no one has; a
-  String, copied out, since C keeps the name in storage the next
-  lookup overwrites.
+  a file, `OS.lchown` a symbolic link itself.
+  - -1 for an id to leave as it is.
+  - Each 0 or `errno`, `EPERM` for an owner one may not give.
+  - `OS.username(uid)` and `OS.groupname(gid)` are the names of the
+    ids `stat` gives, each a `String?`, `none` for an id no one has.
+    - A String, copied out, since C keeps the name in storage the next
+      lookup overwrites.
 - **Time** (#95): `OS.time` is the seconds since the epoch, an `f64`
   with its fraction; `OS.sleep(seconds)` sleeps that long, a fraction
-  allowed. `OS.tmpdir` is the directory for temporary files, `TMPDIR`
-  or `/tmp`, without a trailing `/`, a `cstr`.
+  allowed.
+  - `OS.tmpdir` is the directory for temporary files, `TMPDIR` or
+    `/tmp`, without a trailing `/`, a `cstr`.
 - **`OS.system(command)`** runs a shell command with the program's
-  streams, and gives its exit code, or -1 where it did not exit; for
-  its output or input, `IO.popen` and `IO.exec` are in
-  [io.md](io.md).
+  streams, and gives its exit code, or -1 where it did not exit.
+  - For its output or input, `IO.popen` and `IO.exec` are in
+    [io.md](io.md).
 - **`OS.pid`** is the process id, an `i32`.
 - **The rest of Python's `os`** (#102), what C gives plainly:
   - `OS.strerror(code)` is the message for an `errno`, a `String`, so
-    no `#import` is needed to show one: `var why = OS.strerror(r.err)`,
-    then `println(why)`, since a String an expression gives is bound
-    before it is printed. `IO.strerror(code)` is the same, from `IO`
-    (#103).
+    no `#import` is needed to show one.
+    - `var why = OS.strerror(r.err)`, then `println(why)`, since a
+      String an expression gives is bound before it is printed.
+    - `IO.strerror(code)` is the same, from `IO` (#103).
   - `OS.environ` is every `"NAME=value"` of the environment, a
-    `Result<Array<String>, i32>`; `OS.euid` and `OS.egid` the
-    effective ids, `OS.groups` the groups the user is in, a
-    `Result<Array<i32>, i32>`.
+    `Result<Array<String>, i32>`.
+  - `OS.euid` and `OS.egid` the effective ids, `OS.groups` the groups
+    the user is in, a `Result<Array<i32>, i32>`.
   - `OS.uname` is what `uname` gives, a Result of `{sysname, nodename,
     release, version, machine}`, each a `String`, as `uname -s`,
     `-n`, `-r`, `-v` and `-m` print them.
   - `OS.readable(path)`, `OS.writable(path)` and `OS.executable(path)`
     are C's `access`, `bool`s for this user.
-  - `OS.isabs(path)` is whether it begins with `/`; `OS.splitext(path)`
-    its root and its extension, `{root: String, ext: String}`, the
-    extension from the last `.` of the last part unless that begins
-    it, so `.bashrc` has none; `OS.normpath(path)` resolves `.`, `..`
-    and repeated `/` by the text alone; `OS.relpath(path, start)` is
-    `path` from `start`, both made absolute first; `OS.expanduser(path)`
-    replaces a leading `~` or `~user` with the home; each a `String`.
+  - `OS.isabs(path)` is whether it begins with `/`.
+  - `OS.splitext(path)` its root and its extension, `{root: String,
+    ext: String}`, the extension from the last `.` of the last part
+    unless that begins it, so `.bashrc` has none.
+  - `OS.normpath(path)` resolves `.`, `..` and repeated `/` by the text
+    alone; `OS.relpath(path, start)` is `path` from `start`, both made
+    absolute first; `OS.expanduser(path)` replaces a leading `~` or
+    `~user` with the home; each a `String`.
   - `OS.samefile(a, b)` is whether two paths reach one file, by device
-    and inode; `OS.mkfifo(path)` makes a named pipe; `OS.sync()` asks
-    the system to write everything out.
+    and inode.
+  - `OS.mkfifo(path)` makes a named pipe; `OS.sync()` asks the system
+    to write everything out.
   - `OS.cpus` is how many processors are online; `OS.loadavg` the load
     over one, five and fifteen minutes, a Result of `{one: f64, five:
-    f64, fifteen: f64}`; `OS.urandom(n)` `n` random bytes from the
-    system, a `Result<Bytes, i32>`.
+    f64, fifteen: f64}`.
+  - `OS.urandom(n)` `n` random bytes from the system, a
+    `Result<Bytes, i32>`.
   - `OS.isatty(fd)` is whether a descriptor is a terminal;
     `OS.terminalsize` the terminal on stdout as `{columns: i64, lines:
-    i64}`, `ENOTTY` when stdout is no terminal; `OS.diskusage(path)`
-    the file system holding a path as `{total: i64, used: i64, free:
-    i64}` in bytes, `free` what this user may use.
+    i64}`, `ENOTTY` when stdout is no terminal.
+  - `OS.diskusage(path)` the file system holding a path as `{total:
+    i64, used: i64, free: i64}` in bytes, `free` what this user may
+    use.
   - `OS.sep`, `OS.linesep`, `OS.devnull` and `OS.name` are `"/"`,
     `"\n"`, `"/dev/null"` and `"posix"`, `cstr`s, as Python has them.
 - **From an IO** (#101): an IO opened by path does this work on its
-  own path, `f.stat` (a `Stat` straight, since the open file always
-  answers, #104), `f.listdir`, `f.chmod(mode)` and the rest; see
-  [io.md](io.md).
+  own path; see [io.md](io.md).
+  - `f.stat` (a `Stat` straight, since the open file always answers,
+    #104), `f.listdir`, `f.chmod(mode)` and the rest.
 - **Paths, names and commands** are text (a literal, a `cstr`, a
-  `u8^`), or a `String` or a `Bytes` in a variable; a mode, a size, a
-  pid or a signal is an integer, and seconds a number.
-- **In C**, each is the call of the same name, `getcwd`, `chdir`,
-  `getenv`, `setenv`, `unsetenv`, `access`, `stat` and `lstat`,
-  `remove`, `rename`, `mkdir`, `rmdir`, `opendir` and `readdir`,
-  `symlink`, `readlink`, `link`, `unlink`, `chmod`, `truncate`,
-  `realpath`, `glob`, `mkstemp`, `mkdtemp`, `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`, `kill`, `umask`, `getpid` and its kin,
-  `getpwuid`, `gethostname`, `timespec_get` and `nanosleep`, in
-  runtime/os.c, which asks for POSIX; a program needs nothing.
+  `u8^`), or a `String` or a `Bytes` in a variable.
+  - A mode, a size, a pid or a signal is an integer, and seconds a
+    number.
+- **In C**, each is the call of the same name, in runtime/os.c, which
+  asks for POSIX; a program needs nothing.
+  - `getcwd`, `chdir`, `getenv`, `setenv`, `unsetenv`, `access`,
+    `stat` and `lstat`, `remove`, `rename`, `mkdir`, `rmdir`,
+    `opendir` and `readdir`, `symlink`, `readlink`, `link`, `unlink`,
+    `chmod`, `truncate`, `realpath`, `glob`, `mkstemp`, `mkdtemp`,
+    `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`,
+    `kill`, `umask`, `getpid` and its kin, `getpwuid`, `gethostname`,
+    `timespec_get` and `nanosleep`.
 - **Not yet:** what C gives only with root or a scheduler, such as
   `setuid`, `chroot` and `nice`, and file descriptors handled by
   number, which an `IO` covers.
@@ -183,11 +206,13 @@ let main():i32 {
 Each line is a member as it would be declared, in Kelvin's spelling.
 `text` stands for what every path, name, pattern or command takes: a
 string literal, a `cstr`, a `u8^`, or a `String` or a `Bytes` held in
-a variable, read through its text. An `i32` result that is "0 or
-`errno`" is 0 when the call succeeded and otherwise the `errno` C left,
-which `strerror` reads. A `Result<T, i32>` holds the `T`, or that
-`errno` as its `err`, so `try` passes it up and `if let ok(v)` reads
-it. `Stat` below stands for the struct of the next section.
+a variable, read through its text.
+
+An `i32` result that is "0 or `errno`" is 0 when the call succeeded
+and otherwise the `errno` C left, which `strerror` reads. A
+`Result<T, i32>` holds the `T`, or that `errno` as its `err`, so `try`
+passes it up and `if let ok(v)` reads it. `Stat` below stands for the
+struct of the next section.
 
 ```kelvin
 SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it

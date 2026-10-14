@@ -4,10 +4,12 @@
 It is the special case of `Result<T, U>` (#75, see
 [results.md](results.md)) whose `err` carries nothing: an enum with
 values (see [enums.md](enums.md)) with the cases `none` and `some: T`,
-made for each `T` as it is written. It holds a `T` of any value type,
-owners included, and then owns it. Everything a Result does, an
-Optional does with `some` for `ok` and `none` for `err`; this document
-has the Optional's own spelling and examples.
+made for each `T` as it is written.
+
+It holds a `T` of any value type, owners included, and then owns it.
+Everything a Result does, an Optional does with `some` for `ok` and
+`none` for `err`; this document has the Optional's own spelling and
+examples.
 
 **Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
@@ -38,56 +40,64 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
 ```
 
 - **The type** is `T?`, or `Optional<T>`, for any value type: `i64?`,
-  `String?`, `point?`, `$[i64]?`, `i64^?`, `i64??`. An array is no
-  value, so `[i64](3)?` is an error (hold an Array). `x as T?` is not
-  written, since `?` would read as a condition there: write
-  `Optional<T>`.
+  `String?`, `point?`, `$[i64]?`, `i64^?`, `i64??`.
+  - An array is no value, so `[i64](3)?` is an error (hold an Array).
+  - `x as T?` is not written, since `?` would read as a condition
+    there: write `Optional<T>`.
 - **Making one:** a `T` where a `T?` is expected becomes `some(T)` by
   itself, in a declaration, an assignment, a member, an element, an
-  entry or a `return`; `none` there is the absent value, a word that
-  needs the type around it (`var x = none` has no type). The arms of a
-  `?:` take this too (#116): `return c ? v : none`, `var x:i64? = c ?
-  n : none`, and `c ? Optional<i64>(n) : none`, where the other arm
-  gives the type. An owner moves
-  in, as a case's value does. `Optional<T>(v)`, `Optional<T>()`,
-  `Optional<T>.some(v)` and `Optional<T>.none` spell both out.
+  entry or a `return`.
+  - `none` there is the absent value, a word that needs the type around
+    it (`var x = none` has no type).
+  - The arms of a `?:` take this too (#116): `return c ? v : none`,
+    `var x:i64? = c ? n : none`, and `c ? Optional<i64>(n) : none`,
+    where the other arm gives the type.
+  - An owner moves in, as a case's value does.
+  - `Optional<T>(v)`, `Optional<T>()`, `Optional<T>.some(v)` and
+    `Optional<T>.none` spell both out.
 - **Reading:** `x.some` is the value, checked at run time: of `none`,
   the program ends with `case 'some' of i64? is not current: it is
-  'none'`. It is a place: `x.some += 1`, `x.some += "!"`. `x ?? y` is
-  the value if some, else `y`, for a `T` that does not own, of an
-  Optional in a variable, a member or an element; for an owner, `if
-  let` or switch on it. Of a `cstr?`, `u8^?` or `i8^?`, a `y` that is
-  a string literal, or text of another spelling, is cast to the value's
-  type, as a declaration would cast it.
+  'none'`.
+  - It is a place: `x.some += 1`, `x.some += "!"`.
+  - `x ?? y` is the value if some, else `y`, for a `T` that does not
+    own, of an Optional in a variable, a member or an element; for an
+    owner, `if let` or switch on it.
+  - Of a `cstr?`, `u8^?` or `i8^?`, a `y` that is a string literal, or
+    text of another spelling, is cast to the value's type, as a
+    declaration would cast it.
 - **Testing:** `x.is(some)`, `x.is(none)`, `x.case` (0 for none, 1 for
-  some), `switch x { case some: ... case none: ... }`, exhaustive. Of
-  an Optional that owns, `.is` and `.case` take a place: bind the value
-  first, or `if let` on the call (#99).
+  some), `switch x { case some: ... case none: ... }`, exhaustive.
+  - Of an Optional that owns, `.is` and `.case` take a place: bind the
+    value first, or `if let` on the call (#99).
 - **`if let v = x { ... } else { ... }`** (#74) runs the block with `v`
   bound to the value when there is one: a let the Optional still owns,
-  as a loop's element is (borrow it, or copy it). `x` may be a variable
-  or a value a call gives, read once; `else if let` chains. `if let
-  some(v) = x` spells the case out (#78); `none` carries nothing to
-  bind, so test it with `.is(none)`.
+  as a loop's element is (borrow it, or copy it).
+  - `x` may be a variable or a value a call gives, read once;
+    `else if let` chains.
+  - `if let some(v) = x` spells the case out (#78); `none` carries
+    nothing to bind, so test it with `.is(none)`.
 - **`try x`** (#76) is the value when there is one, and otherwise
   returns `none` from the function, which must return an Optional:
   `let i = try find(&xs, v)`; see [results.md](results.md).
 - **`==` and `!=`** (#79): `a == b` is true of two `none`, or of two
   values that are equal, a String's by its bytes; `x == none` and
-  `x == 3` wrap the other side, as where a `T?` is expected. A value
-  whose type has no `==` (a struct, an Array) has none here either; an
-  owner made on the spot (`x == $"hi"`) is not taken, since nothing
-  would free it: bind it to a variable. See
-  [results.md](results.md).
+  `x == 3` wrap the other side, as where a `T?` is expected.
+  - A value whose type has no `==` (a struct, an Array) has none here
+    either.
+  - An owner made on the spot (`x == $"hi"`) is not taken, since
+    nothing would free it: bind it to a variable. See
+    [results.md](results.md).
 - **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`,
-  else `none`; `f` takes the `T` and gives a `U`, a function by name, a
-  function value, or an anonymous function, `x.map { $0 > 2 }` or
-  `x.map { (v:i64):f64 in v / 2.0 }`, whose result kelvinc sees or
-  which writes it. **`x.flatMap(f)`** (#81) takes an `f` that gives a
-  `U?` itself, and is that when `x` is `some(v)`, else `none`:
-  `a.flatMap(half)`, where `half` gives `none` of an odd number. Of a
-  variable that owns, map the call itself, or `x.copy()`. See
-  [results.md](results.md).
+  else `none`.
+  - `f` takes the `T` and gives a `U`, a function by name, a function
+    value, or an anonymous function, `x.map { $0 > 2 }` or
+    `x.map { (v:i64):f64 in v / 2.0 }`, whose result kelvinc sees or
+    which writes it.
+  - **`x.flatMap(f)`** (#81) takes an `f` that gives a `U?` itself, and
+    is that when `x` is `some(v)`, else `none`: `a.flatMap(half)`,
+    where `half` gives `none` of an odd number.
+  - Of a variable that owns, map the call itself, or `x.copy()`. See
+    [results.md](results.md).
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
@@ -96,9 +106,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
   of an owner.
 
 A C function that returns a pointer or null, with no reason beside it,
-wraps as an Optional, and `v ?? "unset"` takes a string literal as it
-is: kelvinc casts it to the value's type, since C's `?:` of two kinds
-of text is no text (see
+wraps as an Optional. `v ?? "unset"` takes a string literal as it is:
+kelvinc casts it to the value's type, since C's `?:` of two kinds of
+text is no text (see
 [results.md](results.md#from-c-the-value-through-a-pointer-the-error-beside-it)):
 
 ```kelvin

@@ -12,19 +12,24 @@ the modules so far, `complex.k` and `JSON.k`. C headers are in
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
-import is (#40), which is at the top level. A name with no extension is
-a Kelvin file too: `#import <JSON>` is `#import <JSON.k>` (#112). `"x.k"`
-is found next to the importing file, and `<x.k>` in `./modules`, of the
-directory kelvinc runs in, and then in Kelvin's own `modules/` (#46), which also holds
-the runtime, `kelvin_prelude.h` and `libkelvin`: in the source tree, or
-in `$PREFIX/lib/kelvin/modules` after `make install`, or under
-`$KELVIN_HOME`. A file is brought in once, however often it is
-imported, also through other files or other paths. A declaration ends
-where a file does, and errors in a file, also an unfinished one at its
-end, name its own lines. A C header it imports as `"x.h"` is the one
-next to it. Its functions are named by their parameter types in C
-(#41), so that they never clash with C's, except the C functions it
-declares by hand, which keep their names.
+import is (#40), which is at the top level.
+
+- A name with no extension is a Kelvin file too: `#import <JSON>` is
+  `#import <JSON.k>` (#112).
+- `"x.k"` is found next to the importing file, and `<x.k>` in
+  `./modules`, of the directory kelvinc runs in, and then in Kelvin's
+  own `modules/` (#46), which also holds the runtime,
+  `kelvin_prelude.h` and `libkelvin`.
+  - That is in the source tree, or in `$PREFIX/lib/kelvin/modules`
+    after `make install`, or under `$KELVIN_HOME`.
+- A file is brought in once, however often it is imported, also
+  through other files or other paths.
+- A declaration ends where a file does, and errors in a file, also an
+  unfinished one at its end, name its own lines.
+- A C header it imports as `"x.h"` is the one next to it.
+- Its functions are named by their parameter types in C (#41), so that
+  they never clash with C's, except the C functions it declares by
+  hand, which keep their names.
 
 ## `modules/`
 
@@ -39,14 +44,15 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     x.k, x.h, libx.a      #import <x.k>, #import <x.h> as C, KELVIN_CFLAGS=-lx
 ```
 
-- `#import <x.k>`, or `#import <x>` (#112), looks in `./modules` of the directory kelvinc runs in,
-  then in Kelvin's `modules/`: the first of `$KELVIN_HOME`, kelvinc's
-  own directory (the source tree) and its parent (an installation,
-  `bin/../lib/kelvin/modules`) that holds `kelvin_prelude.h` (#46).
+- `#import <x.k>`, or `#import <x>` (#112), looks in `./modules` of the
+  directory kelvinc runs in, then in Kelvin's `modules/`.
+  - Kelvin's `modules/` is the first of `$KELVIN_HOME`, kelvinc's own
+    directory (the source tree) and its parent (an installation,
+    `bin/../lib/kelvin/modules`) that holds `kelvin_prelude.h` (#46).
 - C looks in both for headers and libraries too (`-I`, `-L`), so a
   project's `./modules` may hold a C header or a static library beside
   its Kelvin files, and `KELVIN_CFLAGS=-lx` links `./modules/libx.a`.
-  `KELVIN_CFLAGS` go after the program's C, as a library must.
+  - `KELVIN_CFLAGS` go after the program's C, as a library must.
 - `make install PREFIX=...` puts `kelvinc` in `$PREFIX/bin` and the whole
   of `modules/` in `$PREFIX/lib/kelvin/modules`.
 
@@ -77,10 +83,11 @@ let main():i32 {
 - **Functions**: `conj`, `abs`, `arg`, `norm` (`abs` squared), `exp`,
   `log`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh` and
   their inverses, which take their principal values, with C99's branch
-  cuts and its signs of zero on them. They keep their accuracy near 0
-  and ±1, and no step overflows where the result does not. C's own
-  functions of these names still take numbers, also ones only C sees,
-  as `tanh(atof(s))`: the file declares them.
+  cuts and its signs of zero on them.
+  - They keep their accuracy near 0 and ±1, and no step overflows where
+    the result does not.
+  - C's own functions of these names still take numbers, also ones only
+    C sees, as `tanh(atof(s))`: the file declares them.
 - **The text** of one is its derived `.cstr`, as in
   `{real: 1, imag: 2}`, also in a template; `print` takes no struct.
 - `complex128` waits for `f128`. C99's special values for infinities and

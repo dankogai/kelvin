@@ -51,17 +51,19 @@ looser than the prefix ones, so `-x as u8` is `(-x) as u8`.
   (#23): `if n` is an error that says `if n != 0`. See
   [flow-controls.md](flow-controls.md).
 - **`=` and `:=`** are statements with no value (#26), `:=` for a
-  reference and `=` for a value (#19), so `a = b = 0` and `if (c = f())`
-  are gone, and `while (c = getchar()) != EOF` is written with the call
-  in the body. A comma list of assignments runs left to right.
+  reference and `=` for a value (#19).
+  - So `a = b = 0` and `if (c = f())` are gone, and
+    `while (c = getchar()) != EOF` is written with the call in the body.
+  - A comma list of assignments runs left to right.
 - **`p++` and `p--`** step a `var` pointer, as statements, postfix only
-  (#51); `i++` on a number is an error that says `i += 1`, and `++p` an
-  error that says `p++`.
+  (#51).
+  - `i++` on a number is an error that says `i += 1`, and `++p` an
+    error that says `p++`.
 - **`a..<b` and `a...b`** are ranges, in `for i in` only (#28).
 - **`.`** reaches a field, a method (`x.m()`), a property (`x.size`,
-  `s.count`, `p.isNull`) and a type (`v.type`); `x.name(...)` is a
-  method call when some type defines the method, a field call
-  otherwise. See [properties.md](properties.md).
+  `s.count`, `p.isNull`) and a type (`v.type`).
+  - `x.name(...)` is a method call when some type defines the method, a
+    field call otherwise. See [properties.md](properties.md).
 - **`$0`, `$1`** are an anonymous function's parameters, and `{ ... }`
   after a call is its last argument (#32). See
   [functions.md](functions.md).

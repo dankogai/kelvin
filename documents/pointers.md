@@ -2,11 +2,12 @@
 
 A pointer is written with a postfix `^`, in its type and when it is
 followed, and made with a prefix `&`, as in C. Assigning one is `:=`, so
-that a reference and a value never look alike. This document has the
-pointer types, `&`, references, `any^` and `nullptr`, and stepping with
-`p++`, `.next` and `.prev`; every operator is in
-[operators.md](operators.md). Arrays, which C turns
-into pointers, are in [arrays.md](arrays.md); walking a pointer with
+that a reference and a value never look alike.
+
+This document has the pointer types, `&`, references, `any^` and
+`nullptr`, and stepping with `p++`, `.next` and `.prev`; every operator
+is in [operators.md](operators.md). Arrays, which C turns into
+pointers, are in [arrays.md](arrays.md); walking a pointer with
 `for x in p` is in [flow-controls.md](flow-controls.md); `.addr`, `.hex`
 and `.isNull` are in [properties.md](properties.md).
 
@@ -61,14 +62,15 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
 
 - `=` on a reference and `:=` on a value are errors, wherever kelvinc can
   see the target's type: variables, parameters, `self`, fields of Kelvin
-  structs, `p^` and `a[i]`. Targets it cannot see, such as C typedef
-  types, fields of C structs and call results, are not checked
-  *(provisional P32)*.
+  structs, `p^` and `a[i]`.
+  - Targets it cannot see, such as C typedef types, fields of C structs
+    and call results, are not checked *(provisional P32)*.
 - Pointer arithmetic is unchanged (`p + 1`, `p += 1`, `p - q`), and a
   pointer steps by one element with `p.next` and `p.prev` (#26).
 - An array is a value, even an array of pointers:
-  `let refs:i32^[2] = [p, q]`. An array parameter, though, is a pointer,
-  as in C: in `let f(var a:[i32])`, write `a := a + 1`.
+  `let refs:i32^[2] = [p, q]`.
+  - An array parameter, though, is a pointer, as in C: in
+    `let f(var a:[i32])`, write `a := a + 1`.
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
 
@@ -81,9 +83,9 @@ Kelvin has no `void` type:
 - **`nullptr` is C's `(void *)0`**, typed `any^`: `p := nullptr`, and
   `var r := nullptr` infers `any^`.
 - **A reference declared without a value is `nullptr`**, so `var p:any^`
-  means `var p:any^ := nullptr`. This applies to every pointer
-  declaration (`var q:i32^`), local or global, but not to `extern` ones
-  *(provisional P33)*.
+  means `var p:any^ := nullptr`.
+  - This applies to every pointer declaration (`var q:i32^`), local or
+    global, but not to `extern` ones *(provisional P33)*.
 - **A function without a result** omits `: type`, as before.
 - **To discard a value**, write it as a statement. There is no `(void)x`,
   and C may warn about an unused value *(provisional P33)*.
@@ -96,14 +98,17 @@ Kelvin has no `void` type:
 - `p++` and `p--` step a pointer by one element, as statements (#51):
   on a line of their own, in a comma list, or in a `for` clause, never
   inside an expression (`p++^` is an error; `*p++` is `p^` then `p++`).
-  They are postfix only, and for a `var` pointer kelvinc sees, a field
-  or an element too: a `let` pointer, a number, an array, a function
-  and `any^` are errors, and so is a `cstr`, which is text, not a
-  cursor (#52): take a `var p:u8^ := s` to step. A pointer only C sees,
-  as `getenv`'s, steps as C allows *(provisional P63)*.
+  - They are postfix only, and for a `var` pointer kelvinc sees, a
+    field or an element too.
+  - A `let` pointer, a number, an array, a function and `any^` are
+    errors, and so is a `cstr`, which is text, not a cursor (#52): take
+    a `var p:u8^ := s` to step.
+  - A pointer only C sees, as `getenv`'s, steps as C allows
+    *(provisional P63)*.
 - `p.next` is `p + 1` and `p.prev` is `p - 1`, a value, for a pointer
-  kelvinc can see; `any^` has neither. On anything else, `.next` is a
-  field, so a list still walks with `n := n^.next`.
+  kelvinc can see; `any^` has neither.
+  - On anything else, `.next` is a field, so a list still walks with
+    `n := n^.next`.
 
 ## `.isNull`, `.addr` and `.hex`
 

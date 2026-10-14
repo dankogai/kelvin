@@ -23,17 +23,21 @@ let q = (point){.y = 7}     // a compound literal; q is a point
   a new line, with no keyword: `struct p { x: i32; y: i32 }`
   *(provisional P8)*.
 - **A struct, union or enum is a type by its bare name** (#29), as if C
-  had `typedef struct point point;`: `var p:point`, `next: node^` inside
-  `struct node`, `sizeof(point)`, `(point){1, 2}`, `c:color` for
-  `enum color`. `struct point` still works too. kelvinc resolves the name
-  itself and writes `struct point` in the C, so a variable or function
-  may share the name; in an expression the name is that variable, from
-  its own declarator on, as in C. In `sizeof(name)`, a function of the
-  same name does not count (`sizeof(node)` inside a constructor `node()`
-  is the struct's size). A struct from a C header has a bare name once
-  Kelvin declares it, as in `struct timespec`, but in `sizeof` write
-  `sizeof(struct timespec)`, since headers give such names to functions
-  and variables too (`stat`, `timezone`) *(provisional P41)*.
+  had `typedef struct point point;`.
+  - `var p:point`, `next: node^` inside `struct node`, `sizeof(point)`,
+    `(point){1, 2}`, `c:color` for `enum color`. `struct point` still
+    works too.
+  - kelvinc resolves the name itself and writes `struct point` in the
+    C, so a variable or function may share the name; in an expression
+    the name is that variable, from its own declarator on, as in C.
+  - In `sizeof(name)`, a function of the same name does not count
+    (`sizeof(node)` inside a constructor `node()` is the struct's
+    size).
+  - A struct from a C header has a bare name once Kelvin declares it,
+    as in `struct timespec`, but in `sizeof` write
+    `sizeof(struct timespec)`, since headers give such names to
+    functions and variables too (`stat`, `timezone`)
+    *(provisional P41)*.
 
 ## Without a tag: `{x:f64, y:f64}`
 
@@ -52,18 +56,20 @@ println(v.typename)                     // {x: f64, y: f64}
   `,`, `;` or a line break, and at least one is needed.
 - **One spelling is one type:** every `{x:f64, y:f64}` in a program is
   the same struct, so a value passes between them, while `{x:f32}` and
-  `{y:f64}` are other structs. A struct takes a value of its own type,
-  and kelvinc says so by the Kelvin spellings when the two differ,
-  tagged or not.
-- **Everything a tagged struct has**, it has: members, `{...}`
-  initializers with designators, the derived text (`v.cstr`, `${v}`),
-  `.size` and `.typename` (its spelling), use as a parameter, a result,
-  a member, an element of an array or an `Array<T>`, behind a pointer,
-  and members that own, freed with it (#54).
+  `{y:f64}` are other structs.
+  - A struct takes a value of its own type, and kelvinc says so by the
+    Kelvin spellings when the two differ, tagged or not.
+- **Everything a tagged struct has**, it has:
+  - members, `{...}` initializers with designators;
+  - the derived text (`v.cstr`, `${v}`), `.size` and `.typename` (its
+    spelling);
+  - use as a parameter, a result, a member, an element of an array or
+    an `Array<T>`, behind a pointer;
+  - and members that own, freed with it (#54).
 - **In C** it is a tagged struct kelvinc names, `struct _kv_anon1`, with
   its spelling in a comment, declared before the top-level declaration
-  that first writes it; the names `_kv_...` are kelvinc's, and are not
-  written in Kelvin.
+  that first writes it.
+  - The names `_kv_...` are kelvinc's, and are not written in Kelvin.
 - **A union** with no tag is `union{i:i32, f:f32}` (#60), and an enum
   with values `enum{i:i32, f:f32}` (#61): see [unions.md](unions.md)
   and [enums.md](enums.md).
@@ -72,13 +78,16 @@ println(v.typename)                     // {x: f64, y: f64}
 ## Initializers
 
 A struct is initialized with `{...}`, as in C, with C's designators:
-`{3, 4}`, `{.y = 7}`, `(point){1, 2}`. An array inside it takes
-`[...]` (#48): `{1, [7, 8, 9], {5, 6}}` for a struct of a number, an
-array and a struct. Where kelvinc sees the type, `[...]` for a struct is
-an error with a hint; see [arrays.md](arrays.md). A string fills a byte
-array member, and a value of the struct's own type fills a struct
-member. `return {3, 4}` in a function that returns the struct takes
-its type too (#77), as does a `return {.y = 7}`.
+`{3, 4}`, `{.y = 7}`, `(point){1, 2}`.
+
+- An array inside it takes `[...]` (#48): `{1, [7, 8, 9], {5, 6}}` for
+  a struct of a number, an array and a struct.
+  - Where kelvinc sees the type, `[...]` for a struct is an error with
+    a hint; see [arrays.md](arrays.md).
+- A string fills a byte array member, and a value of the struct's own
+  type fills a struct member.
+- `return {3, 4}` in a function that returns the struct takes its type
+  too (#77), as does a `return {.y = 7}`.
 
 ## Text
 
@@ -92,13 +101,14 @@ struct vector2d { x: f64; y: f64 }
 let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
 ```
 
-The body is one template literal (a plain string literal counts),
-whose text kelvinc writes into the caller's buffer, sized from the
-template as every template is (#44); `v.cstr`, `${v}` in a template
-and the derived text of a struct that holds a `vector2d` all use it.
-It takes no parameters, gives a `cstr`, is read as a property, `v.cstr`,
-and a built-in type's text stays fixed *(provisional P65)*. See
-[properties.md](properties.md).
+- The body is one template literal (a plain string literal counts),
+  whose text kelvinc writes into the caller's buffer, sized from the
+  template as every template is (#44).
+- `v.cstr`, `${v}` in a template and the derived text of a struct that
+  holds a `vector2d` all use it.
+- It takes no parameters, gives a `cstr`, is read as a property,
+  `v.cstr`, and a built-in type's text stays fixed *(provisional P65)*.
+  See [properties.md](properties.md).
 
 ## Methods
 
@@ -119,14 +129,16 @@ let main():i32 {
 ```
 
 - **Literals** take methods and properties too: `2.cstr`, `1.5.hex`,
-  `(7:i64).inc()` *(provisional P30)*. Hex floats like `0x1.f4p+9` are
-  still numbers. Annotated values need parentheses: `(0.1:f32).cstr`.
+  `(7:i64).inc()` *(provisional P30)*.
+  - Hex floats like `0x1.f4p+9` are still numbers.
+  - Annotated values need parentheses: `(0.1:f32).cstr`.
 - **`toString()`, `fmt()` and `String` are shelved** until Kelvin has a
-  true string type (#22). Calling or defining the methods `x.toString()`
-  and `x.fmt(...)`, or naming the type `String`, is an error that points
-  at `.cstr` *(provisional P36)*. Plain functions, variables and
-  parameters may still be named `toString` or `fmt`, as in
-  `let printf(fmt:const u8^, ...):i32`.
+  true string type (#22).
+  - Calling or defining the methods `x.toString()` and `x.fmt(...)`, or
+    naming the type `String`, is an error that points at `.cstr`
+    *(provisional P36)*.
+  - Plain functions, variables and parameters may still be named
+    `toString` or `fmt`, as in `let printf(fmt:const u8^, ...):i32`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
   - As in C, declare a method before calling it. A prototype is
@@ -163,13 +175,15 @@ let main():i32 {
 ```
 
 - An operator takes two values, or one for `-`, of which at least one
-  is a Kelvin struct or union, and has a result. Other operators (`<<`,
-  `!`, `+=`) cannot be defined. Precedence is C's. A definition is a
-  `let` at the top level, `let +(a:T, b:U):R`.
+  is a Kelvin struct or union, and has a result.
+  - Other operators (`<<`, `!`, `+=`) cannot be defined.
+  - Precedence is C's.
+  - A definition is a `let` at the top level, `let +(a:T, b:U):R`.
 - `a op b` with a struct operand calls the operator its types fit, and
-  is an error showing how to define one where none does. Numbers keep
-  C's operators. C warns where a statement drops an operator's value,
-  as in `m == a` (gcc not where C chooses the operator).
+  is an error showing how to define one where none does.
+  - Numbers keep C's operators.
+  - C warns where a statement drops an operator's value, as in
+    `m == a` (gcc not where C chooses the operator).
 - `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
   a call *(provisional P53)*.
 - Where only C sees an operand's type, C chooses as for functions, and

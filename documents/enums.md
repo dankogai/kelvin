@@ -36,32 +36,39 @@ println(j.n)                             // ends the program: case 'n' of json i
 ## An enum with values: `enum T { none; some: i32 }`
 
 - **Declaring:** a case is a name, with a value's type after `:` or
-  none; cases are separated by `,`, `;` or a line break, up to 255 of
-  them, since the tag is a byte. A case has a name, not a number.
-  Without a tag, `enum{i:i32, f:f32}` goes where a type goes, one type
-  per spelling, as `{x:f64, y:f64}` does (#59).
+  none.
+  - Cases are separated by `,`, `;` or a line break, up to 255 of them,
+    since the tag is a byte.
+  - A case has a name, not a number.
+  - Without a tag, `enum{i:i32, f:f32}` goes where a type goes, one
+    type per spelling, as `{x:f64, y:f64}` does (#59).
 - **Making a value:** `{.n = 1.5}` or `{.none}` as an initializer, a
-  `return` (#77) or a compound literal, `(json){.n = 1.5}`; `json.n(1.5)` and `json.none`
-  as an expression, with the value given by value, so an owner moves in
-  (O5); a case of a struct or array type takes its list, `shape.rect({3.0,
-  4.0})`. A variable declared without a value is at the first case, zeroed.
-- **Setting:** `v.n = 1.5` sets the case and its value, freeing what the
-  value held if it owns; `v.rect = {3.0, 4.0}` takes a list; `=` does
-  not copy an owner into a case, as it copies none (#54): `v.s =
-  t.copy()`, or move with `json.s(t)`.
+  `return` (#77) or a compound literal, `(json){.n = 1.5}`.
+  - `json.n(1.5)` and `json.none` as an expression, with the value
+    given by value, so an owner moves in (O5).
+  - A case of a struct or array type takes its list,
+    `shape.rect({3.0, 4.0})`.
+  - A variable declared without a value is at the first case, zeroed.
+- **Setting:** `v.n = 1.5` sets the case and its value, freeing what
+  the value held if it owns.
+  - `v.rect = {3.0, 4.0}` takes a list.
+  - `=` does not copy an owner into a case, as it copies none (#54):
+    `v.s = t.copy()`, or move with `json.s(t)`.
 - **Reading:** `v.n` is the value of case `n`, checked at run time: if
   another case is current, the program ends with a message naming both.
-  It is a place: `v.rect.w += 1.0` and `v.s += "x"` change it. A case
-  with no value cannot be read.
+  - It is a place: `v.rect.w += 1.0` and `v.s += "x"` change it.
+  - A case with no value cannot be read.
 - **Indexing** (#117): `v[k]` of an enum with values goes through its
   case that is a Dictionary when `k` is text, and its Array case when
-  `k` is an integer, so `j["key"]` is `j.object["key"]` and `j[0]` is
-  `j.array[0]`: a place, checked as the case and the index are. An
-  enum with no such case says so.
+  `k` is an integer.
+  - `j["key"]` is `j.object["key"]` and `j[0]` is `j.array[0]`: a
+    place, checked as the case and the index are.
+  - An enum with no such case says so.
 - **Testing:** `v.is(n)` is a bool; `v.case` is the tag, a `u8`, the
-  case's index from 0; `switch v { case n: ... case none: ... }`
-  branches on the case by its bare name, each case ending at the next,
-  and lists every case or has `default:` (#63, [flow-controls.md](flow-controls.md)).
+  case's index from 0.
+  - `switch v { case n: ... case none: ... }` branches on the case by
+    its bare name, each case ending at the next, and lists every case
+    or has `default:` (#63, [flow-controls.md](flow-controls.md)).
 - **Text:** `v.cstr` and `${v}` are the case's name and its value in
   parentheses, `n(1.5)`, `rect({w: 3, h: 4})`, or the name alone,
   `none`; `T.cstr()` (#53) replaces it.
@@ -73,24 +80,29 @@ println(j.n)                             // ends the program: case 'n' of json i
 - **`==` and `!=`** (#79) compare two of one type: the same case, and
   equal values, where every case's value has a `==` of its own (a
   number, a pointer, a `uchr`, a String, a Bytes, another enum with
-  values); one with a struct or an Array in a case has none, so define
-  an operator, or compare `.case` and the cases. `j == json.n(1.5)`
-  makes the case on the spot; one that would own, `json.s($"x")`, is
-  not taken, since nothing would free it: bind it to a variable.
+  values).
+  - One with a struct or an Array in a case has none, so define an
+    operator, or compare `.case` and the cases.
+  - `j == json.n(1.5)` makes the case on the spot; one that would own,
+    `json.s($"x")`, is not taken, since nothing would free it: bind it
+    to a variable.
 - **In C**, `enum json` is `struct json { uint8_t tag; union { ... } u; }`
-  with its cases' names, and per case `_kv_json_at_n` (checked, a
-  pointer), `_kv_json_get_n` (checked, a value), `_kv_json_set_n` and
-  `_kv_json_make_n`; a case with no value has `set` and `make` alone.
+  with its cases' names.
+  - Per case, `_kv_json_at_n` (checked, a pointer), `_kv_json_get_n`
+    (checked, a value), `_kv_json_set_n` and `_kv_json_make_n`; a case
+    with no value has `set` and `make` alone.
 - **`Result<T, U>`** is one of these with the cases `ok: T` and
   `err: U`, made for each pair of types, and **`T?`**, an Optional, its
   special case with `none` and `some: T`: see [results.md](results.md)
   (#75) and [optionals.md](optionals.md) (#72).
 - **`if let n(x) = j { ... } else { ... }`** (#78) runs the block with
   `x` bound to the case's value when that is `j`'s case: a let `j`
-  still owns, as a loop's element is. `j` may be a variable or a value
-  a call gives, read once; `else if let` chains. A case with no value
-  has nothing to bind: test it with `.is(none)`. This is how a Result's
-  `if let err(e) = r` works; see [results.md](results.md).
+  still owns, as a loop's element is.
+  - `j` may be a variable or a value a call gives, read once;
+    `else if let` chains.
+  - A case with no value has nothing to bind: test it with `.is(none)`.
+  - This is how a Result's `if let err(e) = r` works; see
+    [results.md](results.md).
 - **Not yet:** binding a case's value in a `case` label (Swift's `case
   .n(let x)`), and an anonymous `enum` with values at the top level.
 

@@ -23,20 +23,22 @@ static var calls:i32
 ```
 
 - **`let` never changes.** `let i = 42; i += 1` is an error, and in the
-  generated C a `let` is `const`. A let pointer is fixed, but what it
-  points to may change: `let p:i32^ := &x; p^ = 7` is fine. A let array
-  or struct cannot change its elements or fields. A `let` needs a value,
-  except in an `extern` declaration.
+  generated C a `let` is `const`.
+  - A let pointer is fixed, but what it points to may change:
+    `let p:i32^ := &x; p^ = 7` is fine.
+  - A let array or struct cannot change its elements or fields.
+  - A `let` needs a value, except in an `extern` declaration.
 - **`var` may change.** `var p:any^` without a value is `nullptr` (#20).
 - **A list** shares the keyword: `let a:i32 = 1, b:u8^ := p` declares
   both, each with its own complete type, so C's `int a, *b` split cannot
   happen *(provisional P7)*.
-- **A plain `x = 0` assigns**, and never declares. `x:i32 = 0` without
-  `let` or `var` is an error that suggests them, and `again: n = 0` is a
-  label before a statement, as in C.
-- **Storage classes** go in front: `static let f():i32`, `static var n:i32`,
-  `extern var e:i32` *(provisional P9)*; on a dotted name, `static let
-  T.name()` is a function of the type, not C's static (#111).
+- **A plain `x = 0` assigns**, and never declares.
+  - `x:i32 = 0` without `let` or `var` is an error that suggests them.
+  - `again: n = 0` is a label before a statement, as in C.
+- **Storage classes** go in front: `static let f():i32`,
+  `static var n:i32`, `extern var e:i32` *(provisional P9)*.
+  - On a dotted name, `static let T.name()` is a function of the type,
+    not C's static (#111).
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see [integers.md](integers.md)).
 
@@ -70,22 +72,28 @@ infers the type from the value:
 - an array literal is an array of its items' type (#48), as
   [arrays.md](arrays.md) says, and a string literal is a `cstr` (#52):
   `let s := "hi"`, as is a `"""..."""` or a template (see Quoting text)
-- any other value whose type kelvinc sees is that type (#47): a Kelvin
-  function's or method's result (`var z = complex64(0.0, 1.0)`,
-  `let n = p.norm()`), a variable (`var q = p`), a field, `p^`, `a[i]`,
-  `&x` (`let r := &q`, which points to `const` when `q` is a let), a
-  compound literal, a text property (`let s := n.cstr` is a `u8^`), a
-  template, an enumerator (its enum), a character (`u8`), `sizeof`
-  (`size_t`), and a `?:` between two values of one type. An array is not
-  copied, so `let ap := arr` is the pointer C makes of it.
+- any other value whose type kelvinc sees is that type (#47):
+  - a Kelvin function's or method's result
+    (`var z = complex64(0.0, 1.0)`, `let n = p.norm()`), a variable
+    (`var q = p`), a field, `p^`, `a[i]`
+  - `&x` (`let r := &q`, which points to `const` when `q` is a let)
+  - a compound literal, a text property (`let s := n.cstr` is a `u8^`),
+    a template, an enumerator (its enum), a character (`u8`), `sizeof`
+    (`size_t`), and a `?:` between two values of one type
+  - An array is not copied, so `let ap := arr` is the pointer C makes
+    of it.
 
-Anything else needs a written type: arithmetic (`let y = x + 1`), whose
-type is C's promotion of its operands (`small + 1` is an `i32`, not an
-`i8`); `.size` and `.addr`; and any value only C sees,
-such as a C function's result (`let n = strlen(s)`), a macro, or a
-`bool` from a C function (`let ok:bool = isdigit(c) != 0` is fine,
-`let ok = is_even(4)` from a header is not). A written type is always
-what you get: `let b:u8 = 42` is a `u8`.
+Anything else needs a written type:
+
+- arithmetic (`let y = x + 1`), whose type is C's promotion of its
+  operands (`small + 1` is an `i32`, not an `i8`)
+- `.size` and `.addr`
+- any value only C sees, such as a C function's result
+  (`let n = strlen(s)`), a macro, or a `bool` from a C function
+  (`let ok:bool = isdigit(c) != 0` is fine, `let ok = is_even(4)` from
+  a header is not)
+
+A written type is always what you get: `let b:u8 = 42` is a `u8`.
 
 A declaration cannot be the body of a `for` or follow a label (as in C),
 so `for (;;) var x = 1` is an error. Names from C headers, such as
@@ -121,44 +129,54 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 | `$"..."`, `` $`...` ``, `$"""..."""` | a `String`, on the heap, owned | as the one inside | as the one inside | as the one inside |
 | `Bytes("...")`, `String("...")` | a `Bytes`, a `String` of any of the above | as the one inside | as the one inside | as the one inside |
 
-- **`"..."`** is C's string literal (#52): the escapes are C's, `\n`,
-  `\t`, `\"`, `\\`, `\x41`, `\u00e9`; adjacent literals join, `"a" "b"`;
-  the text lives for the whole program and cannot be written through.
-  A `cstr` is a reference, so `let s := "hi"`; see
-  [strings.md](strings.md).
+- **`"..."`** is C's string literal (#52).
+  - The escapes are C's, `\n`, `\t`, `\"`, `\\`, `\x41`, `\u00e9`.
+  - Adjacent literals join, `"a" "b"`.
+  - The text lives for the whole program and cannot be written through.
+  - A `cstr` is a reference, so `let s := "hi"`; see
+    [strings.md](strings.md).
 - **`'c'`** is C's character constant, a `u8` in Kelvin, with C's
-  escapes: `'\n'`, `'\0'`, `'\''`. A codepoint is a `uchr`, made from a
-  number, `0x1F600.uchr`; see [strings.md](strings.md).
+  escapes: `'\n'`, `'\0'`, `'\''`.
+  - A codepoint is a `uchr`, made from a number, `0x1F600.uchr`; see
+    [strings.md](strings.md).
 - **`` `...${x}...` ``** is a template literal (#39): the text with each
   `${expression}` replaced by the expression's text, as `print` shows
-  it. It may span lines, and a line break in it is a line break in the
-  text; a `\` at the end of a line joins the lines; `` \` `` is a
-  backquote, `\$` a dollar, `\{` and `\}` braces, and the other escapes
-  are C's. A template with no `${...}` is a plain literal. Its text is
-  a `cstr` kept in a buffer on the stack of the block, with room for
-  each value's longest text, and lives until the block ends, so it is
-  not returned or kept in an outer variable: copy it. The limits and
-  the rules of the room are in [printing.md](printing.md).
+  it.
+  - It may span lines, and a line break in it is a line break in the
+    text; a `\` at the end of a line joins the lines.
+  - `` \` `` is a backquote, `\$` a dollar, `\{` and `\}` braces, and
+    the other escapes are C's.
+  - A template with no `${...}` is a plain literal.
+  - Its text is a `cstr` kept in a buffer on the stack of the block,
+    with room for each value's longest text, and lives until the block
+    ends, so it is not returned or kept in an outer variable: copy it.
+  - The limits and the rules of the room are in
+    [printing.md](printing.md).
 - **`"""`** (#115) is a string literal over any number of lines, with
-  the text exactly as written: no escapes, so `\n` stays two
-  characters, no `${...}`, and `"` and `` ` `` inside as they are. It
-  is a `cstr` as `"..."` is, and joins with a neighbour. It quotes
-  JSON, C, shell or any text that has its own escapes, as it is. It is
-  written on its own lines (#118): the opening `"""` ends its line, the
-  closing `"""` starts one, and neither line break is text; the
-  indentation of the closing `"""` is taken off every line, so the text
-  sits at the depth of the code and starts at its first line. A longer
-  delimiter holds a `"""`: `""""` opens and `""""` closes, four or more,
-  as long as it began, and the extra quotes of a longer closing run are
-  text. `"""as it is"""` on one line keeps everything between the
-  quotes; the opening run is the whole run of quotes, so a text that
-  starts with a quote goes on its own line.
+  the text exactly as written.
+  - No escapes, so `\n` stays two characters, no `${...}`, and `"` and
+    `` ` `` inside as they are.
+  - It is a `cstr` as `"..."` is, and joins with a neighbour.
+  - It quotes JSON, C, shell or any text that has its own escapes, as
+    it is.
+  - It is written on its own lines (#118): the opening `"""` ends its
+    line, the closing `"""` starts one, and neither line break is text.
+    - The indentation of the closing `"""` is taken off every line, so
+      the text sits at the depth of the code and starts at its first
+      line.
+  - A longer delimiter holds a `"""`: `""""` opens and `""""` closes,
+    four or more, as long as it began, and the extra quotes of a longer
+    closing run are text.
+  - `"""as it is"""` on one line keeps everything between the quotes;
+    the opening run is the whole run of quotes, so a text that starts
+    with a quote goes on its own line.
 - **`$"..."`**, **`` $`...` ``** (#67) and **`$"""..."""`** make a
   `String` of the text, on the heap, owned by its variable and freed
-  when the block ends, with no bound on its length: the `$` is
-  `String(...)` of what follows, so the spelling inside keeps its own
-  rules. `Bytes("...")` is the same for a `Bytes`, which may hold any
-  bytes; see [ownership.md](ownership.md).
+  when the block ends, with no bound on its length.
+  - The `$` is `String(...)` of what follows, so the spelling inside
+    keeps its own rules.
+  - `Bytes("...")` is the same for a `Bytes`, which may hold any bytes;
+    see [ownership.md](ownership.md).
 - **Where each lives:** `"..."`, `'c'` and `"""..."""` are C's, in the
   program; a template's text is on the stack of its block; a `String` or
   a `Bytes` is on the heap, and is an owner.
@@ -176,10 +194,14 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 
 The full table, with precedence, is in [operators.md](operators.md).
 Everything else is C's, including precedence, so `6 & 3 == 3` is still
-`6 & (3 == 3)`. The same goes for integer promotion, implicit conversions,
-`?:`, `,`, compound literals and designated initializers, except that
-conditions are `bool` (see [flow-controls.md](flow-controls.md)), assignment
-is a statement and so are `p++` and `p--`, for pointers only (below).
+`6 & (3 == 3)`.
+
+The same goes for integer promotion, implicit conversions, `?:`, `,`,
+compound literals and designated initializers, except that:
+
+- conditions are `bool` (see [flow-controls.md](flow-controls.md))
+- assignment is a statement and so are `p++` and `p--`, for pointers
+  only (below)
 
 ### Lines end statements; one expression is the result
 
@@ -195,33 +217,37 @@ let square(x:i64):i64 { x * x }
 ```
 
 - A new line ends a statement, a declaration, a struct member or a
-  prototype once what is written is complete. An operator, `.member`,
-  `[`, `?`, `:` or `as` at the start of the next line goes on with it,
-  and so does any line after one that ends with an operator or a `,`. At
-  the top level of a statement, a `(` or `{` at the start of a line
-  starts the next statement; inside brackets, lines do not matter. A
-  line that starts with `*p =` (a `*` touching what it assigns) is C's
-  dereference, an error; `* x` goes on with a product.
+  prototype once what is written is complete.
+  - An operator, `.member`, `[`, `?`, `:` or `as` at the start of the
+    next line goes on with it, and so does any line after one that
+    ends with an operator or a `,`.
+  - At the top level of a statement, a `(` or `{` at the start of a
+    line starts the next statement; inside brackets, lines do not
+    matter.
+  - A line that starts with `*p =` (a `*` touching what it assigns) is
+    C's dereference, an error; `* x` goes on with a product.
 - After the head of a function, a method, `if`, `while`, `for` or a
   struct, a `{` on the next line is still its body.
 - A `;` still ends a statement anywhere, and separates statements on one
   line, where it is needed; `for (...; ...; ...)` keeps its own.
 - A function or method whose body is one expression returns it, as an
-  anonymous function does: `let square(x:i64):i64 { x * x }`. There, an
-  assignment, or a call kelvinc sees has no value such as `println`, is
-  an error. `main` is the exception: its end returns 0 as in C, so its
-  one expression is a statement, and `let main():i32 { printf("hi\n") }`
-  exits 0.
-- A body with more than that uses `return`. kelvinc reports one that
-  ends, on any path, in a value it drops: one with no effect, as in
-  `if x < 0 { -1 } else { 1 }`, or a call it sees has a result (in
-  `main`, only the first kind).
+  anonymous function does: `let square(x:i64):i64 { x * x }`.
+  - There, an assignment, or a call kelvinc sees has no value such as
+    `println`, is an error.
+  - `main` is the exception: its end returns 0 as in C, so its one
+    expression is a statement, and `let main():i32 { printf("hi\n") }`
+    exits 0.
+- A body with more than that uses `return`.
+  - kelvinc reports one that ends, on any path, in a value it drops:
+    one with no effect, as in `if x < 0 { -1 } else { 1 }`, or a call
+    it sees has a result (in `main`, only the first kind).
 - In a function with a result, `return` at the end of a line takes the
-  expression on the next line, as in Swift. In one without a result
-  there is nothing to return, so `return` ends at its line, and a
-  statement after it in the same block is an error, unless it is a
-  `case`, a `default` or a label, or a block holding one, which `goto`
-  may reach. `return;` is C's and is not checked.
+  expression on the next line, as in Swift.
+  - In one without a result there is nothing to return, so `return`
+    ends at its line, and a statement after it in the same block is an
+    error, unless it is a `case`, a `default` or a label, or a block
+    holding one, which `goto` may reach.
+  - `return;` is C's and is not checked.
 
 ## Assignment is a statement
 
@@ -238,12 +264,14 @@ statements too, for pointers only (#26, #51):
 | `a[i++] = x;` | `a[i] = x; i += 1` |
 
 - `=`, `:=`, the compound assignments (`+=`, `~=`, ...) and `p++`
-  appear only as a statement of their own, or in a `for` clause. Both take a comma list,
-  run left to right: `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`,
-  `x = 1, y = 2` *(provisional P38)*. A list either declares, after
-  `let` or `var`, or assigns.
+  appear only as a statement of their own, or in a `for` clause.
+  - Both take a comma list, run left to right:
+    `for (var i = 0, j = 10; i < j; i += 1, j -= 1)`, `x = 1, y = 2`
+    *(provisional P38)*.
+  - A list either declares, after `let` or `var`, or assigns.
 - So nothing can be changed inside `[...]`, a condition or an argument,
   except by a function call.
+
 ## C habits kelvinc catches
 
 C-style declarations at the start of a statement get the Kelvin spelling as
@@ -258,10 +286,11 @@ a hint:
 
 An expression that only looks similar, such as `n * f(x) == 4 || g()`, is
 left alone.
-One shape cannot be caught, because Kelvin cannot see typedefs: a statement
-`name(x)` or `name(x) = v` is a call or a function-like macro, but if
-`name` is a C typedef, C reads it as a declaration of `x`. To convert to a
-typedef type, write `x as size_t`, never `size_t(x)`.
+
+One shape cannot be caught, because Kelvin cannot see typedefs: a
+statement `name(x)` or `name(x) = v` is a call or a function-like macro,
+but if `name` is a C typedef, C reads it as a declaration of `x`. To
+convert to a typedef type, write `x as size_t`, never `size_t(x)`.
 
 A converter takes one value, and for text, a base after it
 (`i32("755", 8)`); a base after a number is an error. A statement may
@@ -270,4 +299,3 @@ start with a converter.
 A converter groups its whole argument, so `i32(TOTAL)` is right even if a
 header defines `TOTAL` as `1.5 + 2.5` without parentheses. `TOTAL as i32`,
 like C's `(int)TOTAL`, converts only the `1.5`.
-

@@ -2,26 +2,31 @@
 
 An array type is written in brackets, as Swift writes it, and its count
 is a property. A fixed array lives where it is declared; one that grows
-is `Array<T>`, on the heap, in [ownership.md](ownership.md). This document has the types, the `[...]` initializers,
-`[T](n)` for a zero-filled array, `.count` and `.size`, and what stays
-C's: an array passed to a function is a pointer. Byte arrays that hold
-text are in [strings.md](strings.md).
+is `Array<T>`, on the heap, in [ownership.md](ownership.md).
+
+This document has the types, the `[...]` initializers, `[T](n)` for a
+zero-filled array, `.count` and `.size`, and what stays C's: an array
+passed to a function is a pointer. Byte arrays that hold text are in
+[strings.md](strings.md).
 
 **Where it lives:** a fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelude's: its C comes from `kelvin_prelude.h`, instantiated for each `T`, and `libkelvin` is linked without an import.
 
 ## The types
 
 - `[T]` is an array of `T`, as Swift writes it, and `[T](N)` one of N
-  elements (#49): `[i32^](4)` is an array of four pointers, `[i32](4)^` a
-  pointer to an array of four, and `[[i32](3)](2)` C's `int32_t m[2][3]`,
-  indexed as `m[1][2]`. A declaration with a value needs no count:
-  `let a:[i32] = [1, 2, 3]`, or just `let a = [1, 2, 3]`, has three;
-  `[T](n)` is a value too, n zero-filled elements, with a count C computes
-  at run time if need be (C's VLA, in a `var`). A count never changes:
-  `.count` is it, and `.size` the bytes, `count * sizeof(T)`. A `var`
-  array's elements may change, a `let` array's may not. An array passed
-  to a function is a pointer, as in C, so `.count` there is an error:
-  pass the count beside it *(provisional P61)*.
+  elements (#49).
+  - `[i32^](4)` is an array of four pointers, `[i32](4)^` a pointer to
+    an array of four, and `[[i32](3)](2)` C's `int32_t m[2][3]`,
+    indexed as `m[1][2]`.
+  - A declaration with a value needs no count: `let a:[i32] = [1, 2, 3]`,
+    or just `let a = [1, 2, 3]`, has three.
+  - `[T](n)` is a value too, n zero-filled elements, with a count C
+    computes at run time if need be (C's VLA, in a `var`).
+  - A count never changes: `.count` is it, and `.size` the bytes,
+    `count * sizeof(T)`.
+  - A `var` array's elements may change, a `let` array's may not.
+  - An array passed to a function is a pointer, as in C, so `.count`
+    there is an error: pass the count beside it *(provisional P61)*.
 
 ```kelvin
 var a:[i32](4)                  // C: int32_t a[4]
@@ -34,9 +39,9 @@ struct bag { n: i64; xs: [i64](3) }
 
 - `[[T]]` with a value counts every dimension: the outer from the rows,
   the inner from the first row, which every row must match, since C
-  needs one inner count. `var m:[[i64]] = [[1, 2, 3], [4, 5, 6]]` is
-  `[[i64](3)](2)`; a row that is a string gives no count, so write it,
-  `[[u8](3)]`.
+  needs one inner count.
+  - `var m:[[i64]] = [[1, 2, 3], [4, 5, 6]]` is `[[i64](3)](2)`; a row
+    that is a string gives no count, so write it, `[[u8](3)]`.
 - A qualifier is the elements', inside the brackets: `[const u8]`.
 - Suffixes still read left to right after the brackets: `[T](N)^` is a
   pointer to the array, `[T^](N)` an array of pointers.
@@ -63,10 +68,12 @@ let s:[u8] = "hi"                       // a string fills a byte array
 - An item that starts with `[` is a nested array unless `=` follows
   it, which makes it a designator.
 - an array literal whose items are all of one inferred type is an array
-  of them (#48): `let a = [1, 2, 3]` is `[i64](3)`, `[1.5, 2.0]` is
-  `[f64](2)`, `[[1, 2], [3, 4]]` is `[[i64](2)](2)`, and `[p, q]` of two
-  points is `[point](2)`; so is `[T](n)`, and an array's compound literal
-  declares the array itself (#49)
+  of them (#48):
+  - `let a = [1, 2, 3]` is `[i64](3)`, `[1.5, 2.0]` is `[f64](2)`,
+    `[[1, 2], [3, 4]]` is `[[i64](2)](2)`, and `[p, q]` of two points
+    is `[point](2)`;
+  - so is `[T](n)`, and an array's compound literal declares the array
+    itself (#49)
 
 ## `[T](n)`: a zero-filled array
 
@@ -99,22 +106,21 @@ for i in 0..<a.count { a[i] = a[i] * 2 }
 Kelvin prefers arrays to pointers where it can, but an array is C's:
 
 - **A parameter `a:[i64]`** is a pointer in C, so `a.count` there is an
-  error: pass the count beside the array, `let sum(a:[i64], n:i64)`. A
-  `let` parameter written with a count, `xs:[i32](4)`, is walked by
-  `for x in xs` up to that count.
+  error: pass the count beside the array, `let sum(a:[i64], n:i64)`.
+  - A `let` parameter written with a count, `xs:[i32](4)`, is walked by
+    `for x in xs` up to that count.
 - **`var p := a`** is the pointer C makes of the array, and `p^` is
   `a[0]`. A declaration without a type does the same: `let ap := arr` is
   a pointer, since C does not copy an array into a variable.
 - **A compound literal** of an array, `([i32])[10, 20, 30]`, declares
   the array itself in `let c = ([i32])[10, 20, 30]`, and is a pointer
   where one is declared (`let q:i32^ := ([i32])[1, 2]`).
-Compound literals are not casts, and they work as in C for any type,
-including typedef names with suffixes, and under `sizeof`:
-`(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`. An array's takes
-`[...]` (#48), and `[T]` counts its items: `([size_t])[1, 2]`,
-`sizeof ([i32])[1, 2, 3]` is 12, `for x in ([i32])[5, 6, 7] { }`
-*(provisional P19, P60)*.
-
+  - Compound literals are not casts, and they work as in C for any
+    type, including typedef names with suffixes, and under `sizeof`:
+    `(point){.y = 7}`, `(div_t){.quot = 3, .rem = 1}`.
+  - An array's takes `[...]` (#48), and `[T]` counts its items:
+    `([size_t])[1, 2]`, `sizeof ([i32])[1, 2, 3]` is 12,
+    `for x in ([i32])[5, 6, 7] { }` *(provisional P19, P60)*.
 - **A list is not a value:** where C expects a value, as for
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
   literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the
@@ -127,8 +133,9 @@ including typedef names with suffixes, and under `sizeof`:
   spelling yet.
 - **`Array(a)`** copies a fixed array into a growable one, and
   `Array([1, 2, 3])` makes one of the elements written, and
-  `Array([[1], [2, 3]])` an Array of Arrays (#57, #58); `$[1, 2, 3]` is
-  the value and `$[i64]` the type, for short (#62, #64).
+  `Array([[1], [2, 3]])` an Array of Arrays (#57, #58).
+  - `$[1, 2, 3]` is the value and `$[i64]` the type, for short
+    (#62, #64).
 
 ## `Array<T>`: a growable array on the heap
 
@@ -150,16 +157,19 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 ```
 
 - **Making one:** `$[a, b, c]` or `Array([a, b, c])` with `T` inferred
-  from the elements, `Array<T>()`, `Array<T>(n)` of n zero elements,
-  `Array(a)` of a fixed array, `Array(&other)` a copy; a declaration
-  without a value is empty.
+  from the elements.
+  - `Array<T>()`, `Array<T>(n)` of n zero elements.
+  - `Array(a)` of a fixed array, `Array(&other)` a copy.
+  - A declaration without a value is empty.
 - **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
-  `reserve`, `compact`, `copy`; **properties** `count`, `capacity`, `at`
-  (the elements as a `T^`), `size`, `typename`.
+  `reserve`, `compact`, `copy`.
+  - **Properties** `count`, `capacity`, `at` (the elements as a `T^`),
+    `size`, `typename`.
 - **Slices** (#68): `xs[lo..<hi]`, `xs[lo...hi]`, `xs[lo...]` to the
-  end, `xs[..<hi]` and `xs[...hi]` from the start, each a new Array of
-  copies of those elements, which a variable then owns; a range past
-  the count ends the program with a message.
+  end, `xs[..<hi]` and `xs[...hi]` from the start.
+  - Each is a new Array of copies of those elements, which a variable
+    then owns.
+  - A range past the count ends the program with a message.
 - **Elements** are any value type, owners included, which the Array
   then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
   or an enum with values that owns. A fixed array is not an element.

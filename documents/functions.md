@@ -22,24 +22,28 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
 - **Functions** are declared with `let` (#45), as a value that never
   changes is; methods and operators too. The return type follows the
   parameter list after a colon: `let add(a:i64, b:i64):i64 { ... }`.
-  - A function is declared at the top level. `var f(...)` is an error,
-    since a variable holding a function is `var f:(T):R` (#31), and so
-    is `let f(...)` inside a function, where a let holds an anonymous
-    function (#32).
+  - A function is declared at the top level.
+    - `var f(...)` is an error, since a variable holding a function is
+      `var f:(T):R` (#31).
+    - So is `let f(...)` inside a function, where a let holds an
+      anonymous function (#32).
   - A prototype ends with `;` or the end of its line instead of a body.
   - With no `: type`, the function returns nothing (C's `void`)
     *(provisional P5)*.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
-- **Parameters** are lets unless written `var`: in `let f(p:u8^)`, `p`
-  cannot change, while `let f(var p:u8^) { p := p.next }` may move `p`. A method's
-  `self` is a mutable copy. Parameters must be named: C's unnamed
-  `f(int)` is not available yet.
+- **Parameters** are lets unless written `var`.
+  - In `let f(p:u8^)`, `p` cannot change, while
+    `let f(var p:u8^) { p := p.next }` may move `p`.
+  - A method's `self` is a mutable copy.
+  - Parameters must be named: C's unnamed `f(int)` is not available
+    yet.
 - **`return {...}`** (#77) takes the function's result type, as a
-  declaration's `{...}` does: `return {0, 0}` in a function that
-  returns a `point`, `{.y = 7}` with a designator, a union's or a C
-  struct's, an enum with values' `{.n = 0.5}`, and the value of a
-  `Result<point, U>` or a `point?`, wrapped. A number's result still
-  takes a value, not a list.
+  declaration's `{...}` does.
+  - `return {0, 0}` in a function that returns a `point`.
+  - `{.y = 7}` with a designator, a union's or a C struct's.
+  - An enum with values' `{.n = 0.5}`.
+  - The value of a `Result<point, U>` or a `point?`, wrapped.
+  - A number's result still takes a value, not a list.
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 
@@ -49,6 +53,7 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
 type `T`, Swift's `static func`: it has no `self`, and is called by the
 type's name, `T.name(args)`. `T` is a struct, a union or an enum with
 values of the program, declared before it; a built-in type takes none.
+
 The overloads of one name differ by their parameter types, as any
 function's do, and one may call another:
 
@@ -66,8 +71,9 @@ println(p.dist2())                        // 25; p.origin() is an error: it is c
 ```
 
 - `self` in its body is an error that says so, and so is calling it on
-  a value, `p.origin()`: a function of a type is not a method, and a
-  method, `let T.name()`, is not called by the type's name.
+  a value, `p.origin()`.
+  - A function of a type is not a method, and a method,
+    `let T.name()`, is not called by the type's name.
 - A `static let T.name()` used to be a method with C's `static`; a
   file-local method had no use, and the plain `let T.name()` serves.
 - In C it is `T__name`, with its parameter types appended when it
@@ -96,23 +102,26 @@ let t:() := tick           // no parameters, no result
 - The result takes every suffix after it, so `(i64):i64^` returns a
   pointer; an array of functions, or a pointer to a function type, has no
   spelling yet, and kelvinc says so.
-- A Kelvin function's name has its function type, so `let g:(i64):i64 := f`
-  works, `if f {` asks for a comparison, and `f.size` is a pointer's size.
-  `?:` between functions is a function too.
+- A Kelvin function's name has its function type.
+  - `let g:(i64):i64 := f` works, `if f {` asks for a comparison, and
+    `f.size` is a pointer's size.
+  - `?:` between functions is a function too.
 - Where kelvinc sees a function, its `.cstr`, `.next` and `.prev`, and
   `print` or `println` of it (or of `&f`), are errors. In a struct's
   derived text, a function member is its address.
 - A C function with `char` parameters does not match a Kelvin function
-  type with `u8^` ones: C's `char` and `unsigned char` make incompatible
-  function types, so `let p:(const u8^, ...):i32 := printf` fails. Wrap
-  it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) }`
-  *(provisional P43)*.
+  type with `u8^` ones.
+  - C's `char` and `unsigned char` make incompatible function types, so
+    `let p:(const u8^, ...):i32 := printf` fails.
+  - Wrap it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) }`
+    *(provisional P43)*.
 
 ## Anonymous functions: `{ ... }`
 
 An anonymous function is `{ ... }` (#32). It encloses nothing, since C has
 no closures: kelvinc makes it a `static inline` function of its own
 (#33), declared before the declaration around it and defined after it.
+
 With `kelvinc -O`, the C compiler may then inline it where it is called,
 as in a Kelvin `sort` that calls its `before`; one passed to a C
 function such as `qsort` stays a function, whose address C needs.
@@ -128,61 +137,76 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
 ```
 
 - **Its parameters** are `$0`, `$1`, ..., also written `$[0]`, `$[1]`,
-  (inside the function; elsewhere `$[a, b]` is an `Array`, #62),
-  where kelvinc sees their types: from the parameter of a Kelvin function,
-  method or function value it is passed to, a declared variable, a
-  member of a struct in an initializer list (`{ $0 - $1 }` for a member
-  `sub:(i64, i64):i64`), an assignment's target, or the result of the
-  function it is returned from. For `x.map { ... }` of a Result or an
-  Optional (#80), `$0` is the value, and the result is the body's one
-  expression's type where kelvinc sees it (a bool, a literal, a call,
-  `i64(...)`); else write the parameters and the result. Elsewhere, such as for C's `qsort`,
-  whose types kelvinc cannot see, it writes them:
-  `{ (a:T, b:U):R in ... }`. Without either, it has none, as for
-  `atexit() { println("bye") }`. A body of one expression that gives an
-  owner, `{ (n:i64):String in $`#${n}` }`, returns it (#81). `$[k]` takes a decimal number, and `$`
-  works only in an anonymous function.
+  (inside the function; elsewhere `$[a, b]` is an `Array`, #62).
+  - kelvinc sees their types from one of these:
+    - the parameter of a Kelvin function, method or function value it
+      is passed to;
+    - a declared variable;
+    - a member of a struct in an initializer list (`{ $0 - $1 }` for a
+      member `sub:(i64, i64):i64`);
+    - an assignment's target;
+    - the result of the function it is returned from.
+  - For `x.map { ... }` of a Result or an Optional (#80), `$0` is the
+    value, and the result is the body's one expression's type where
+    kelvinc sees it (a bool, a literal, a call, `i64(...)`); else write
+    the parameters and the result.
+  - Elsewhere, such as for C's `qsort`, whose types kelvinc cannot see,
+    it writes them: `{ (a:T, b:U):R in ... }`.
+  - Without either, it has none, as for `atexit() { println("bye") }`.
+  - A body of one expression that gives an owner,
+    `{ (n:i64):String in $`#${n}` }`, returns it (#81).
+  - `$[k]` takes a decimal number, and `$` works only in an anonymous
+    function.
 - **In a declaration without a type**, `{` starts an initializer list, so
   an anonymous function there writes its parameters, even none:
-  `let hi := { () in println("hi") }`. One that writes them may stand
-  anywhere a value may, and be called there:
-  `c ? { (x:i64):i64 in x + 1 } : dec`, `{ (a:i64):i64 in a * 2 }(3)`.
-  In an initializer list, kelvinc follows the members in order and
-  designators of one member. A string fills an array member and a value
-  of a struct's type fills a struct member; after C's brace elision or
-  `.a.b = ...`, an anonymous function writes its parameters.
+  `let hi := { () in println("hi") }`.
+  - One that writes them may stand anywhere a value may, and be called
+    there: `c ? { (x:i64):i64 in x + 1 } : dec`,
+    `{ (a:i64):i64 in a * 2 }(3)`.
+  - In an initializer list, kelvinc follows the members in order and
+    designators of one member.
+    - A string fills an array member and a value of a struct's type
+      fills a struct member.
+    - After C's brace elision or `.a.b = ...`, an anonymous function
+      writes its parameters.
 - **A list is not a value:** where C expects a value, as for
   `memcpy(buf, ['a', 'b'], 2)` or `show([1, 2])`, write a compound
-  literal, `([u8])['a', 'b']`. kelvinc says so, rather than taking the
-  list for a function. See [arrays.md](arrays.md).
+  literal, `([u8])['a', 'b']`.
+  - kelvinc says so, rather than taking the list for a function. See
+    [arrays.md](arrays.md).
 - **A body of one expression** is the result: `{ $0 < $1 }`, wrapped as
   `return` wraps it, a `U` or `none` of a `U?` result, which is written
-  `{ (v:i64):i64? in none }` (#114). Without a
-  result, it must do something: a call or an assignment, as in
-  `{ total += $0 }`; with one, it may not be an assignment or a call
-  kelvinc sees has no value. Any other body is statements, with
-  `return`. The
-  text of `.hex` and friends lives in the function's own buffer, so
-  returning it, as in `{ $0.hex }`, `{ $0.hex + 2 }` or
-  `{ return $0.hex }`, is an error.
+  `{ (v:i64):i64? in none }` (#114).
+  - Without a result, it must do something: a call or an assignment,
+    as in `{ total += $0 }`.
+  - With one, it may not be an assignment or a call kelvinc sees has no
+    value.
+  - Any other body is statements, with `return`.
+  - The text of `.hex` and friends lives in the function's own buffer,
+    so returning it, as in `{ $0.hex }`, `{ $0.hex + 2 }` or
+    `{ return $0.hex }`, is an error.
 - **It encloses nothing:** using a local, a parameter or `self` of the
-  function around it is an error, also in its parameter types; globals,
-  functions and C's names are fine, as are the global it initializes and
-  the ones before it. It may call the function around it. A parameter
-  type that comes from elsewhere keeps its array lengths when they are
-  made of numbers and globals. A length that names another function's
-  local or parameter means something else here: the outer array becomes
-  a pointer, as C makes it, and such a length anywhere else is an error
-  that asks for written parameters.
-- **Trailing:** after a call's `)`, `{ ... }` is the last argument. At
-  the top level of a statement it starts on the line of the `)`, since a
-  `{` on the next line starts a block there. Like any
-  statement, one that ends with it needs no `;` at the end of a line
-  (#35); another statement on the same line needs one. In the
-  head of `if`, `while` or `for`, where a body follows, a `{` after a call
-  starts the body, so pass the function inside the parentheses there:
-  `if some(xs, { $0 > 3 }) {`. Inside any parentheses, an initializer
-  list, or the condition of `do ... while`, it stays an argument.
+  function around it is an error, also in its parameter types.
+  - Globals, functions and C's names are fine, as are the global it
+    initializes and the ones before it.
+  - It may call the function around it.
+  - A parameter type that comes from elsewhere keeps its array lengths
+    when they are made of numbers and globals.
+    - A length that names another function's local or parameter means
+      something else here: the outer array becomes a pointer, as C
+      makes it.
+    - Such a length anywhere else is an error that asks for written
+      parameters.
+- **Trailing:** after a call's `)`, `{ ... }` is the last argument.
+  - At the top level of a statement it starts on the line of the `)`,
+    since a `{` on the next line starts a block there.
+  - Like any statement, one that ends with it needs no `;` at the end
+    of a line (#35); another statement on the same line needs one.
+  - In the head of `if`, `while` or `for`, where a body follows, a `{`
+    after a call starts the body, so pass the function inside the
+    parentheses there: `if some(xs, { $0 > 3 }) {`.
+  - Inside any parentheses, an initializer list, or the condition of
+    `do ... while`, it stays an argument.
 - Written parameters let a declaration infer its type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` *(provisional P44)*.
 
@@ -210,48 +234,60 @@ let main():i32 {
 
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
-  argument and better on one, where a number converts to any number and
-  a pointer may gain `const`, as C converts arguments. An argument's
-  type is its value's: a literal has its own, also negated (`4` and
-  `-4` are `i64`, `0.5` an `f64`, `'a'` a `u8`), a comparison is a
-  `bool`, an enumerator its enum, and `n * 2` the type C gives it (a
-  literal in arithmetic is C's `int`, so `small * 4` is an `i32`). A tie is an
-  error, as for an `i32` given to `twice` above: convert it,
-  `twice(n as i64)`. Where no overload fits, C's own function of the
-  name is called *(provisional P52)*.
+  argument and better on one.
+  - A number converts to any number and a pointer may gain `const`, as
+    C converts arguments.
+  - An argument's type is its value's.
+    - A literal has its own, also negated: `4` and `-4` are `i64`,
+      `0.5` an `f64`, `'a'` a `u8`.
+    - A comparison is a `bool`, an enumerator its enum, and `n * 2` the
+      type C gives it (a literal in arithmetic is C's `int`, so
+      `small * 4` is an `i32`).
+  - A tie is an error, as for an `i32` given to `twice` above: convert
+    it, `twice(n as i64)`.
+  - Where no overload fits, C's own function of the name is called
+    *(provisional P52)*.
 - **Where only C sees a type**, as for what a C function returns, C
-  chooses: structs, pointers and C typedefs by their type, numbers by
-  their Kelvin type, and enums after the numbers, so
-  `twice(atan2(y, x))` calls `twice(x:f64)`, and
-  `twice(strtol(s, nullptr, 10))` `twice(n:i64)` wherever `long` has 64
-  bits, as C's `long` and `long long` are both `i64` there. A number of
-  a type no overload takes goes to the one that takes a number there,
-  and a pointer to the one that takes a pointer (`char *` to a `u8^`);
-  where none does, to C's own function of the name where the program
-  calls it, as in `sqrt(fabs(x))`; where several do, C reports
-  `kv_no_such_overload` *(provisional P52)*. A library that overloads a
-  C function declares it, `let tanh(x:f64):f64`, so that it takes such
-  numbers whether or not the program calls it. gcc gives a bit-field of
-  a C header no type C can choose by, and a C macro like `isnan` cannot
-  take such a value beside an overload of its name.
+  chooses.
+  - Structs, pointers and C typedefs by their type, numbers by their
+    Kelvin type, and enums after the numbers.
+    - `twice(atan2(y, x))` calls `twice(x:f64)`, and
+      `twice(strtol(s, nullptr, 10))` `twice(n:i64)` wherever `long`
+      has 64 bits, as C's `long` and `long long` are both `i64` there.
+  - A number of a type no overload takes goes to the one that takes a
+    number there, and a pointer to the one that takes a pointer
+    (`char *` to a `u8^`).
+    - Where none does, to C's own function of the name where the
+      program calls it, as in `sqrt(fabs(x))`.
+    - Where several do, C reports `kv_no_such_overload`
+      *(provisional P52)*.
+  - A library that overloads a C function declares it,
+    `let tanh(x:f64):f64`, so that it takes such numbers whether or not
+    the program calls it.
+  - gcc gives a bit-field of a C header no type C can choose by, and a
+    C macro like `isnan` cannot take such a value beside an overload of
+    its name.
 - **Overloads differ in their parameter types**, not only in their
-  results, nor in a parameter's own `const`. A prototype and its
-  definition are one overload. `main` has one form, and methods are
-  chosen by their receiver instead.
+  results, nor in a parameter's own `const`.
+  - A prototype and its definition are one overload.
+  - `main` has one form, and methods are chosen by their receiver
+    instead.
 - **A function's name as a value** is the overload of the function type
   wanted: `let f:(i64):i64 := twice`, a parameter of that type, or a
-  function's result. Where no Kelvin overload has that type, it is C's
-  own function: `let g:(f64):f64 := sqrt`. An anonymous function given
-  to an overloaded function writes its parameters' types where the
-  overloads differ in them.
+  function's result.
+  - Where no Kelvin overload has that type, it is C's own function:
+    `let g:(f64):f64 := sqrt`.
+  - An anonymous function given to an overloaded function writes its
+    parameters' types where the overloads differ in them.
 - **In C**, a function with overloads, one from an imported file, and
   one that shares a name with a C function the program calls are named
-  by their parameter types, as `twice__i64` and `sqrt__vec`; the
-  program's other functions keep their names, and so does a function
-  it declares but never defines, which is C's. A Kelvin function of a C
-  function's name that the program neither calls as C's nor declares
-  keeps its name, which conflicts with the C header's, as in C. Two
-  functions that would have one C name are an error.
+  by their parameter types, as `twice__i64` and `sqrt__vec`.
+  - The program's other functions keep their names, and so does a
+    function it declares but never defines, which is C's.
+  - A Kelvin function of a C function's name that the program neither
+    calls as C's nor declares keeps its name, which conflicts with the
+    C header's, as in C.
+  - Two functions that would have one C name are an error.
 - **As in C**, a call sees only the overloads declared before it.
 
 

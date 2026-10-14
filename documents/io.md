@@ -52,128 +52,159 @@ var m = IO("missing", "r")
 if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error's message (#103)
 ```
 
-- **Making one:** `IO(path, mode)` opens as `fopen` does, with C's modes
-  (`"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...), `"r"` when the mode is
-  left out, `IO(path)` (#101), and gives the IO straight (#109): when
-  the open failed, `f.error` is the `errno` as `fopen` left it, 0
-  otherwise, and the IO is as a closed one, `f.fd` -1, its path kept,
-  its whole-file reads and its attributes none, while reading it by
-  `f.lines` or `f.read(n)`, or writing to it, ends the program with the
-  path and the reason. Ask `f.error` where a file may be missing, and
-  `return err(f.error)` passes it up. `path` and `mode` are text (a
-  literal, a `cstr`, a `u8^`), a `String` or a `Bytes` in a variable.
-  `IO(fd, mode)` (#86), with a number first, opens a file descriptor as
-  `fdopen` does, and owns it: its block closes the descriptor too,
-  and `EBADF` is its `f.error`; `f.fd` is an IO's descriptor, an `i32`,
-  for C's calls, -1 once closed. `IO.popen(command, mode)` (#87) runs
-  a shell command as `popen` does, with `"r"` to read its output or
-  `"w"` to write its input, the IO straight (#110), run as `/bin/sh -c`
-  through the same fork and exec as `IO.exec`, so that its pid is
-  known (#100); its block, or
-  `close()`, waits for the process, and `f.status` is then its exit
-  code, -1 before, or for an IO that is no process; `f.signal` (#89)
-  is the signal that ended it, 0 when it exited on its own, -1 before
-  or for an IO that is no process, and `status` is -1 for a process a
-  signal ended. `IO.exec(args, mode)` (#90) runs a program without the
-  shell: `args` is the program and its arguments, a list of text,
-  `["ls", "-l"]`, or an `Array` of `cstr` or of `String` in a variable,
-  the program found on the PATH as `execvp` finds it; `mode` is `"r"`
-  to read its output or `"w"` to write its input, the IO straight
-  (#110), with what the exec itself failed with in `f.error`, `ENOENT`
-  for a program not found, and the IO then as one that did not open,
-  `f.pid` -1. Its block, or `close()`, waits for it, and
-  `status` and `signal` are then as a `popen`'s. `IO.exec(args, mode,
-  dir)` and `IO.exec(args, mode, dir, env)` (#92) run it in the
-  directory `dir`, text or a String, `""` for the current one, and
-  with the entries of `env`, `"NAME=value"` each, a list or an Array of
-  `cstr` or of `String` in a variable, added to the parent's
-  environment, or replacing those it has; a directory that cannot be
-  entered is `f.error` too, as a missing program is. `IO.exec(args, mode,
-  dir, env, fresh)` (#93), with `fresh` a `bool`, makes the environment
-  from nothing but the entries when it is `true`, `[]` for an empty
-  one: the program is then found on that environment's PATH, or the
-  system's default when it has none, so a fresh environment names the
-  program by its path, or sets PATH. `f.kill(signal)` (#91)
-  sends a signal to that process, or to an `IO.popen`'s (#100), `true`
-  when it was sent, and `f.pid` is its process id, an `i32`, -1 for
-  an IO that is no process. The
-  signal numbers are C's, `f.kill(15)`, or `SIGTERM` with
-  `#import <signal.h> as C`; `close()` then waits, and `f.signal` says
-  which ended it. `IO.pipe()` gives
-  `{reader: IO, writer: IO}` straight (#110): a pipe's two ends, each an
-  IO that owns its descriptor, so `p.writer.close()` ends what the
-  reader reads; both ends carry the `error` of a pipe that could not
-  be made. `IO.stdin`, `IO.stdout` and `IO.stderr` are
-  the standard streams, also written `IO.stdout()`: an IO that is never
-  closed, only flushed, and may be used where it stands,
-  `IO.stderr.write("x")`, or bound, `var out = IO.stdout`.
-- **An owner:** a variable owns its IO, and its block closes it; `try`,
-  `return` and passing move it; `&f` borrows it; it is not copied, so
-  `var g = f` is an error, as is `.copy()`. A struct may hold one, and
-  then closes it with its other owners; a Result holds the one `IO`
-  gives. `f.close()` closes it now, and its block then does nothing;
-  it needs the var that owns the IO, as `append` needs a String's,
-  since a let bound by `if let` holds a copy, and closing through it
-  would close twice: write `r.ok.close()` of the Result.
-- **Reading whole:** `f.bytes` is the rest of the file as a `Bytes`, and
-  `f.string` as a `String`, each straight and no Result (#107), since
-  the file was there to open: what was read before a stream stopped
-  answering, as a directory does on Linux, none of a closed IO. Text
-  that is not UTF-8 ends `f.string` with a message, as a line of
-  `f.lines` does: read `f.bytes` and ask `b.isUTF8` where that may
-  happen. Both are of an IO in a variable, since what they give is
-  owned, and is bound as any owner is.
-- **Reading by parts:** `for chunk in f.read(n) { }` gives the next `n`
-  bytes at most as a `Bytes`, up to the end; `for line in f.lines { }`
-  each line as a `String` without its `\n`, up to the end, and a line
-  that is not UTF-8 ends the program with a message. The loop owns the
-  one Bytes or String it holds, filled again each time round, and
-  `chunk` or `line` is a let that borrows it: copy it to keep it. Both
-  are only for `for`; `break`, `continue` and `return` work in the body.
-- **Writing:** `f.write(x)` writes text (a literal, a `cstr`, a `u8^`),
-  a borrow of a `String` or a `Bytes` (`&s`, or a `String^` held), or
-  a String or Bytes an expression gives, which is then freed.
-  **`f.print(a, b, ...)`** and **`f.println(...)`** (#83) show up to 16
-  values as `print` and `println` do, by their types (numbers, floats
-  in their shortest form, `bool`, text, a `String`, a `Bytes`, a
-  `uchr` as its character, a struct's `.cstr`), to the IO:
-  `IO.stderr.println("warning: ", n)`; see
-  [printing.md](printing.md). `f.flush()` flushes. Writing
-  to a closed IO ends the program.
-- **`f.isatty`** (#103) is whether the IO's descriptor is a terminal,
-  as C's `isatty` says: `false` for a file, a pipe, a process, a
-  closed IO, and a stream that is redirected. **`IO.strerror(code)`**
-  is the message for an `err`, a `String`, the same as
-  `OS.strerror`, so a program reading `f.error` of an `IO(...)` need
-  not go to `OS` for it.
-- **The position** (#84): `f.position` is the offset from the start in
-  bytes, an `i64`, and `f.count` the file's length, both -1 where the
-  stream has none, as a pipe; `f.seek(n)` moves to byte `n` from the
-  start, and is `true` when it could; `f.rewind()` moves to the start
-  and clears the end; `f.eof` is `true` once a read has met the end, as
-  C's `feof` is, so it is false before the first read past it: read,
-  then test. A position elsewhere is `f.seek(f.position + k)` or
-  `f.seek(f.count - k)`.
+- **Making one:** `IO(path, mode)` opens as `fopen` does, and gives
+  the IO straight (#109).
+  - `mode` is C's: `"r"`, `"w"`, `"a"`, `"rb"`, `"r+"`, ...; left out,
+    it is `"r"`: `IO(path)` (#101).
+  - `path` and `mode` are text (a literal, a `cstr`, a `u8^`), or a
+    `String` or a `Bytes` in a variable.
+  - When the open failed, `f.error` is the `errno` as `fopen` left it,
+    0 otherwise.
+    - Such an IO is as a closed one: `f.fd` is -1, its path is kept,
+      its whole-file reads and its attributes give none.
+    - Reading it by `f.lines` or `f.read(n)`, or writing to it, ends
+      the program with the path and the reason.
+    - Ask `f.error` where a file may be missing; `return err(f.error)`
+      passes it up.
+- **`IO(fd, mode)`** (#86), with a number first, opens a file descriptor
+  as `fdopen` does, and owns it.
+  - Its block closes the descriptor too.
+  - `EBADF` is its `f.error` when the descriptor is bad.
+  - `f.fd` is any IO's descriptor, an `i32`, for C's calls; -1 once
+    closed.
+- **`IO.popen(command, mode)`** (#87) runs a shell command as `popen`
+  does, and gives the IO straight (#110).
+  - `"r"` reads its output, `"w"` writes its input.
+  - It runs as `/bin/sh -c` through the same fork and exec as
+    `IO.exec`, so its pid is known (#100).
+  - Its block, or `close()`, waits for the process.
+    - `f.status` is then its exit code; -1 before, or for an IO that is
+      no process.
+    - `f.signal` (#89) is the signal that ended it; 0 when it exited on
+      its own; -1 before, or for an IO that is no process. `status` is
+      -1 for a process a signal ended.
+- **`IO.exec(args, mode)`** (#90) runs a program without the shell, and
+  gives the IO straight (#110).
+  - `args` is the program and its arguments: a list of text,
+    `["ls", "-l"]`, or an `Array` of `cstr` or of `String` in a
+    variable. The program is found on the PATH as `execvp` finds it.
+  - `mode` is `"r"` to read its output or `"w"` to write its input.
+  - What the exec itself failed with is `f.error`, `ENOENT` for a
+    program not found; the IO is then as one that did not open, and
+    `f.pid` is -1.
+  - Its block, or `close()`, waits for it; `status` and `signal` are
+    then as a `popen`'s.
+  - `IO.exec(args, mode, dir)` and `IO.exec(args, mode, dir, env)`
+    (#92) run it in a directory, with entries added to the environment.
+    - `dir` is text or a String; `""` is the current directory.
+    - `env` holds `"NAME=value"` entries, a list or an Array of `cstr`
+      or of `String` in a variable, added to the parent's environment
+      or replacing the ones it has.
+    - A directory that cannot be entered is `f.error` too, as a missing
+      program is.
+  - `IO.exec(args, mode, dir, env, fresh)` (#93), with `fresh` a `bool`,
+    makes the environment from nothing but the entries when it is
+    `true`; `[]` is an empty one.
+    - The program is then found on that environment's PATH, or the
+      system's default when it has none: name it by its path, or set
+      PATH.
+- **`f.kill(signal)`** (#91) sends a signal to the process `IO.exec` or
+  `IO.popen` started (#100).
+  - `true` when it was sent.
+  - `f.pid` is the process id, an `i32`; -1 for an IO that is no
+    process.
+  - The signal numbers are C's, `f.kill(15)`, or `SIGTERM` with
+    `#import <signal.h> as C`.
+  - `close()` then waits, and `f.signal` says which signal ended it.
+- **`IO.pipe()`** gives `{reader: IO, writer: IO}` straight (#110): a
+  pipe's two ends, each an IO that owns its descriptor.
+  - `p.writer.close()` ends what the reader reads.
+  - Both ends carry the `error` of a pipe that could not be made.
+- **`IO.stdin`, `IO.stdout` and `IO.stderr`** are the standard streams,
+  also written `IO.stdout()`.
+  - Never closed, only flushed.
+  - Used where they stand, `IO.stderr.write("x")`, or bound,
+    `var out = IO.stdout`.
+- **An owner:** a variable owns its IO, and its block closes it.
+  - `return` and passing move it; `&f` borrows it.
+  - It is not copied: `var g = f` is an error, and so is `.copy()`.
+  - A struct may hold one, and then closes it with its other owners.
+  - `f.close()` closes it now, and its block then does nothing.
+    - It needs the var that owns the IO, as `append` needs a String's:
+      a let, as `if let` binds one, holds a copy, and closing through
+      it would close twice.
+- **Reading whole:** `f.bytes` is the rest of the file as a `Bytes`,
+  and `f.string` as a `String`, each straight and no Result (#107),
+  since the file was there to open.
+  - A stream that stops answering, as a directory does on Linux, gives
+    what was read before; a closed IO gives none.
+  - Text that is not UTF-8 ends `f.string` with a message, as a line of
+    `f.lines` does: read `f.bytes` and ask `b.isUTF8` where that may
+    happen.
+  - Both are of an IO in a variable, since what they give is owned,
+    and is bound as any owner is.
+- **Reading by parts:** `for chunk in f.read(n) { }` and
+  `for line in f.lines { }`.
+  - `f.read(n)` gives the next `n` bytes at most as a `Bytes`, up to the
+    end.
+  - `f.lines` gives each line as a `String` without its `\n`, up to the
+    end; a line that is not UTF-8 ends the program with a message.
+  - The loop owns the one Bytes or String it holds, filled again each
+    time round; `chunk` or `line` is a let that borrows it: copy it to
+    keep it.
+  - Both are only for `for`; `break`, `continue` and `return` work in
+    the body.
+- **Writing:** `f.write(x)` writes `x`.
+  - `x` is text (a literal, a `cstr`, a `u8^`), a borrow of a `String`
+    or a `Bytes` (`&s`, or a `String^` held), or a String or Bytes an
+    expression gives, which is then freed.
+  - `f.print(a, b, ...)` and `f.println(...)` (#83) show up to 16 values
+    as `print` and `println` do, to the IO:
+    `IO.stderr.println("warning: ", n)`; see [printing.md](printing.md).
+    - Each by its type: numbers, floats in their shortest form, `bool`,
+      text, a `String`, a `Bytes`, a `uchr` as its character, a struct's
+      `.cstr`.
+  - `f.flush()` flushes.
+  - Writing to a closed IO ends the program.
+- **`f.isatty`** (#103) is whether the IO's descriptor is a terminal, as
+  C's `isatty` says.
+  - `false` for a file, a pipe, a process, a closed IO, and a stream
+    that is redirected.
+- **`IO.strerror(code)`** is the message for an `error`, a `String`, the
+  same as `OS.strerror`, so a program reading `f.error` need not go to
+  `OS` for it.
+- **The position** (#84), in bytes from the start.
+  - `f.position` is the offset, an `i64`; `f.count` the file's length;
+    both -1 where the stream has none, as a pipe.
+  - `f.seek(n)` moves to byte `n`, and is `true` when it could;
+    `f.seek(f.position + k)` and `f.seek(f.count - k)` move elsewhere.
+  - `f.rewind()` moves to the start and clears the end.
+  - `f.eof` is `true` once a read has met the end, as C's `feof` is: it
+    is false before the first read past it, so read, then test.
 - **A byte at a time** (#85): `f.byte` is the next byte, a `u8?`,
-  `none` at the end. **Numbers** are read from the text (#88): a line,
-  `for line in f.lines { sum += i64(line) }`, or the whole file,
-  `var text = f.string; i64(text)`, with the converters of
+  `none` at the end.
+- **Numbers** are read from the text (#88), with the converters of
   [integers.md](integers.md), which take a String as they take a
-  `cstr`; `f.i64` is an error that says so. C's `scanf` reads no number
-  for Kelvin: it skips what it cannot read and leaves the stream where
-  it stopped, which no program should have to reason about.
-- **Lets:** an IO bound by `let`, as `try` and `if let` bind it, still
-  reads, writes and flushes: what changes is the file, not the IO.
-  Only `close` changes the IO, so it needs a var.
+  `cstr`.
+  - A line: `for line in f.lines { sum += i64(line) }`.
+  - The whole file: `var text = f.string; i64(text)`.
+  - `f.i64` is an error that says so. C's `scanf` reads no number for
+    Kelvin: it skips what it cannot read and leaves the stream where it
+    stopped, which no program should have to reason about.
+- **Lets:** an IO bound by `let` still reads, writes and flushes: what
+  changes is the file, not the IO. Only `close` and `rename` change the
+  IO, so they need a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
-  libkelvin's runtime/io.c, where `abspath` of a descriptor is macOS's
-  `F_GETPATH` or Linux's `/proc/self/fd`, `""` elsewhere; the standard
-  streams are three statics
-  that `IO.stdout` names in place. `fdopen`, `fileno`, `pipe`, `fork`,
-  `execvp`, `waitpid`, `kill` and `putenv` are POSIX
-  and X/Open, which the runtime asks for; a program needs nothing.
-- **Not yet:** nothing of what was listed here; see
-  [os.md](os.md) for the system around a program.
+  libkelvin's runtime/io.c.
+  - `abspath` of a descriptor is macOS's `F_GETPATH` or Linux's
+    `/proc/self/fd`, `""` elsewhere.
+  - The standard streams are three statics that `IO.stdout` names in
+    place.
+  - `fdopen`, `fileno`, `pipe`, `fork`, `execvp`, `waitpid`, `kill` and
+    `putenv` are POSIX and X/Open, which the runtime asks for; a program
+    needs nothing.
+- **Not yet:** nothing of what was listed here; see [os.md](os.md) for
+  the system around a program.
 
 ## Its path, and the OS's work on it
 
@@ -190,43 +221,53 @@ var names = d.listdir                         // its names, an Array straight (#
 for name in names { println(name) }
 ```
 
-- **`f.path`** is the path as given; **`f.abspath`** the absolute path
-  with every link followed, a `String` (#104): of the path, and where
-  that is gone or there is none, of the open descriptor as the system
-  names it (#105), so a file renamed behind the IO answers by its new
-  name, a removed one by the name it had, and an IO opened from a
-  descriptor by the file's; `""` where neither answers, as of a pipe
-  or a closed IO. **`f.basename`** and **`f.dirname`** are the path's
-  parts and **`f.join(name)`** a path under it, each a `String`.
+- **`f.path`** is the path as given, a `cstr`; `""` for a stream, a
+  descriptor or a process.
+- **`f.abspath`** is the absolute path with every link followed, a
+  `String` (#104).
+  - Of the path; where that is gone or there is none, of the open
+    descriptor as the system names it (#105).
+    - A file renamed behind the IO answers by its new name, a removed
+      one by the name it had, an IO opened from a descriptor by the
+      file's.
+  - `""` where neither answers, as of a pipe or a closed IO.
+- **`f.basename`** and **`f.dirname`** are the path's parts, and
+  **`f.join(name)`** a path under it, each a `String`.
 - **`f.stat`** is the `Stat` of the open file itself, through its
-  descriptor, straight and no Result (#104): an open descriptor always
-  answers, so a file removed or renamed while open still does, and
-  `let s = f.stat` or `f.stat.size` reads it without a case. Once the
-  IO is closed it is the path's, and all zero where there is none.
-  **`f.lstat`** is the path's own, a link's not its target's, and the
-  open file's where the path is gone or there is none. **`f.isdir`** and
-  **`f.isfile`** are the open file's, as `f.stat` sees it; **`f.islink`**
-  and **`f.exists`** are `OS`'s of the path. `OS.stat(path)` stays a
-  `Result`: a path is looked up anew at each call, and may be gone.
-- **`f.listdir`**, **`f.walk`** and **`f.glob(pattern)`** are `OS`'s
-  of the directory, its names, every path under it, the pattern's
-  matches under it, each an `Array<String>` straight and no Result
-  (#106), since the directory was there to open: of the path while it
-  is there, else of the descriptor's name as `f.abspath` finds it
-  (#105), so a directory renamed behind the IO answers by its new
-  name, with absolute paths. An IO that is no directory one can read,
-  or that nothing names, gives none. An Array an expression gives is
-  bound first, as any owner is: `var names = d.listdir`.
-- **`f.chmod(mode)`**, **`f.chown(uid, gid)`**, **`f.truncate(size)`**,
-  **`f.utime(atime, mtime)`** and **`f.touch()`** work on the open file
-  itself, through its descriptor, so they work on a file renamed or
-  removed behind the IO; **`f.remove()`** and **`f.rename(to)`** by the
-  path while it is there, else by the descriptor's name (#105). Each
-  gives a `bool`, true when done, as `seek` and `kill` do (#108), and
-  no `errno`: `OS`'s of the same path tell why. After `rename`,
-  `f.path` is the new name, so `rename` needs the var that owns the
-  IO, as `close` does. A file removed while open stays readable until
-  it is closed.
+  descriptor, straight and no Result (#104).
+  - An open descriptor always answers, so a file removed or renamed
+    while open still does: `let s = f.stat`, or `f.stat.size`, reads it
+    without a case.
+  - Once the IO is closed it is the path's, and all zero where there
+    is none.
+  - **`f.lstat`** is the path's own, a link's and not its target's; the
+    open file's where the path is gone or there is none.
+  - **`f.isdir`** and **`f.isfile`** are the open file's, as `f.stat`
+    sees it; **`f.islink`** and **`f.exists`** are `OS`'s of the path.
+  - `OS.stat(path)` stays a `Result`: a path is looked up anew at each
+    call, and may be gone.
+- **`f.listdir`**, **`f.walk`** and **`f.glob(pattern)`** are `OS`'s of
+  the directory: its names, every path under it, the pattern's matches
+  under it, each an `Array<String>` straight and no Result (#106),
+  since the directory was there to open.
+  - Of the path while it is there; else of the descriptor's name as
+    `f.abspath` finds it (#105), so a directory renamed behind the IO
+    answers by its new name, with absolute paths.
+  - An IO that is no directory one can read, or that nothing names,
+    gives none.
+  - An Array an expression gives is bound first, as any owner is:
+    `var names = d.listdir`.
+- **The operations** each give a `bool`, true when done, as `seek` and
+  `kill` do (#108), and no `errno`: `OS`'s of the same path tell why.
+  - **`f.chmod(mode)`**, **`f.chown(uid, gid)`**, **`f.truncate(size)`**,
+    **`f.utime(atime, mtime)`** and **`f.touch()`** work on the open
+    file itself, through its descriptor, so they work on a file renamed
+    or removed behind the IO.
+  - **`f.remove()`** and **`f.rename(to)`** work by the path while it is
+    there, else by the descriptor's name (#105).
+    - After `rename`, `f.path` is the new name, so `rename` needs the
+      var that owns the IO, as `close` does.
+    - A file removed while open stays readable until it is closed.
 - An IO with no path, a stream or a process, answers `""`, `false` or
   none.
 

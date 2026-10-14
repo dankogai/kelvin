@@ -24,23 +24,28 @@ var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
-- **Keys** are an integer type, hashed as a number, or `String`: the
-  Dictionary keeps a copy of the text, and is read with a `cstr`, a
-  template, or a String. A `cstr` key type is an error that says so.
+- **Keys** are an integer type, hashed as a number, or `String`.
+  - The Dictionary keeps a copy of the text, and is read with a
+    `cstr`, a template, or a String.
+  - A `cstr` key type is an error that says so.
 - **Values** are anything an Array holds, owners included, which the
   Dictionary then owns.
 - **Making one:** `${k: v, ...}` with `K` and `V` inferred from the
-  first entry; `${:}` where the type is written; `Dictionary<K, V>()`,
-  `Dictionary<K, V>({k: v, ...})`, `Dictionary<K, V>(&other)` a copy; a
-  declaration without a value is empty.
-- **`d[k]`** reads the value, checked, and is a place; `d[k] = v` adds
-  the entry or replaces its value, freeing what it held if it owns; `=`
-  does not copy an owner in: `d[k] = s.copy()`.
+  first entry.
+  - `${:}` where the type is written; `Dictionary<K, V>()`; a
+    declaration without a value is empty.
+  - `Dictionary<K, V>({k: v, ...})`; `Dictionary<K, V>(&other)` a copy.
+- **`d[k]`** reads the value, checked, and is a place.
+  - `d[k] = v` adds the entry or replaces its value, freeing what it
+    held if it owns.
+  - `=` does not copy an owner in: `d[k] = s.copy()`.
 - **Methods:** `has(k)`; `find(k)`, a `V^` or `nullptr` (`const V^` for
-  a let); `get(k, default)`, for a `V` that does not own; `remove(k)`;
-  `clear()`; `reserve(n)`; `copy()`. **Properties:** `count`; `keys`
-  and `values` (#66), Arrays of copies in the order added, which a
-  variable then owns; `size`, `typename`.
+  a let).
+  - `get(k, default)`, for a `V` that does not own.
+  - `remove(k)`; `clear()`; `reserve(n)`; `copy()`.
+- **Properties:** `count`; `size`, `typename`.
+  - `keys` and `values` (#66), Arrays of copies in the order added,
+    which a variable then owns.
 - **Walking:** `for k, v in d` gives each entry's key and value as lets
   the Dictionary owns, in the order added; `for k in d` the keys.
 - **Not yet:** text (`print(d)` is an error: show the entries), `==`,

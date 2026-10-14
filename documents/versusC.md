@@ -6,9 +6,10 @@ as in C, including the semantics, the ABI, operator precedence, implicit
 conversions and undefined behavior.
 
 The table below is the whole language at a glance; the documents beside
-this one have the details, one topic each. Items marked *(provisional)*
-were chosen during implementation and have not been agreed yet. See the
-P-numbers in [Design.md](../Design.md).
+this one have the details, one topic each.
+
+Items marked *(provisional)* were chosen during implementation and have
+not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 
 ## At a glance
 
@@ -131,25 +132,30 @@ Each document says so under its title. In short:
 
 ## Reserved words
 
-`print` and `println` belong to the prelude and cannot be redefined.
-`String` is a type since #55; the method names `toString` and `fmt`
-stay reserved (#22), as a value's text is `x.cstr`.
-Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`, `f64`,
-`bool`, `true`, `false`, `String`, `Bytes`, `Array`, `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr` and `cstr`
-*(provisional P11)*, `as` (#14), and `let` and `var` (#27). `in` is a
-keyword only in `for i in ...` and in an anonymous function's
-`{ (a:T) in ... }`, so C names called `in` still work. It
-also rejects C compiler keywords beyond C11, such as `__extension__`,
-`__real__`, `__alignof__`, `typeof`, `_BitInt`, `__signed__` and `__int128`
-(use `i128`), because in C they can act as casts or prefix operators
-*(provisional P20)*. Names starting with `_kv_` belong to the C that
-kelvinc writes, and `kv_` and `KV_` ones to its runtime, so Kelvin cannot
-declare them *(provisional P44)*. kelvinc names what it writes after the source,
-as in `_kv_n_text` for the text buffer of `n.hex`, `_kv_i_count` for the
-counter of `for i in`, and `_kv_main_fn` for an anonymous function in
-`main`; a repeat gets 1, 2, ..., and with no name to derive from, a
-number from 0, as in `_kv_text0` (#38). `__asm__(...)` and `__attribute__((...))` remain
-usable, and `_Pragma("...")` works as a statement. `fn` is not reserved.
+- `print` and `println` belong to the prelude and cannot be redefined.
+- `String` is a type since #55; the method names `toString` and `fmt`
+  stay reserved (#22), as a value's text is `x.cstr`.
+- Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`,
+  `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
+  `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
+  and `cstr` *(provisional P11)*, `as` (#14), and `let` and `var`
+  (#27).
+  - `in` is a keyword only in `for i in ...` and in an anonymous
+    function's `{ (a:T) in ... }`, so C names called `in` still work.
+- It also rejects C compiler keywords beyond C11, such as
+  `__extension__`, `__real__`, `__alignof__`, `typeof`, `_BitInt`,
+  `__signed__` and `__int128` (use `i128`), because in C they can act
+  as casts or prefix operators *(provisional P20)*.
+- Names starting with `_kv_` belong to the C that kelvinc writes, and
+  `kv_` and `KV_` ones to its runtime, so Kelvin cannot declare them
+  *(provisional P44)*.
+  - kelvinc names what it writes after the source, as in `_kv_n_text`
+    for the text buffer of `n.hex`, `_kv_i_count` for the counter of
+    `for i in`, and `_kv_main_fn` for an anonymous function in `main`.
+  - A repeat gets 1, 2, ..., and with no name to derive from, a number
+    from 0, as in `_kv_text0` (#38).
+- `__asm__(...)` and `__attribute__((...))` remain usable, and
+  `_Pragma("...")` works as a statement. `fn` is not reserved.
 
 ## Not available yet
 

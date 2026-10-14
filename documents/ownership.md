@@ -2,11 +2,15 @@
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
-variable's block frees; `String` (#55) is a `Bytes` that holds UTF-8;
-`Array<T>` (#57) is a growable array of any value type; `Dictionary<K,
-V>` (#65) is a hash map. The rules below are what kelvinc enforces, from
-what it sees; a copy of the struct through C is C's business, and
-harmless, since an owner is never copied implicitly. `Dictionary` (#65) follows the same rules.
+variable's block frees.
+
+- `String` (#55) is a `Bytes` that holds UTF-8.
+- `Array<T>` (#57) is a growable array of any value type.
+- `Dictionary<K, V>` (#65) is a hash map.
+
+The rules below are what kelvinc enforces, from what it sees; a copy of
+the struct through C is C's business, and harmless, since an owner is
+never copied implicitly. `Dictionary` (#65) follows the same rules.
 
 **Where it lives:** the prelude. The owners are `kelvin_prelude.h`'s types and `libkelvin`'s functions, linked without an import; the rules are kelvinc's, which writes the frees.
 
@@ -25,31 +29,38 @@ var z = Bytes(4)             // four zero bytes
 for x in b { print(x, " ") } // each byte, count of them, NULs included
 ```
 
-- **Making one:** `Bytes()` is empty; `Bytes(n)` is n zero bytes;
-  `Bytes("text")`, `Bytes(s)` of a `cstr` or a byte array copies the
-  text up to its NUL; `Bytes(&b)` copies another; `Bytes(p, n)` copies
-  n bytes at `p`. `var b:Bytes` without a value is empty.
+- **Making one:** `Bytes()` is empty; `Bytes(n)` is n zero bytes.
+  - `Bytes("text")`, `Bytes(s)` of a `cstr` or a byte array copies the
+    text up to its NUL.
+  - `Bytes(&b)` copies another; `Bytes(p, n)` copies n bytes at `p`.
+  - `var b:Bytes` without a value is empty.
 - **In C** it is `struct kv_bytes { uint8_t *at; size_t count, cap; }`,
-  with no hidden header, and `at[count]` is always a NUL that `count`
-  does not count, so `b.cstr` is a borrow of its text in O(1), which
-  every C function taking `const char *` accepts; the bytes themselves
-  may hold NULs. An empty `Bytes` has nothing on the heap.
-- **Properties:** `b.count` the bytes, `b.capacity` the room,
-  `b.cstr` the text as a `cstr`, `b.at` the bytes as a `u8^` (a
-  `const u8^` for a let), `b.size` C's `sizeof`, 24. `b.typename` is
-  `Bytes`.
+  with no hidden header.
+  - `at[count]` is always a NUL that `count` does not count, so `b.cstr`
+    is a borrow of its text in O(1), which every C function taking
+    `const char *` accepts.
+  - The bytes themselves may hold NULs.
+  - An empty `Bytes` has nothing on the heap.
+- **Properties:** `b.count` the bytes, `b.capacity` the room.
+  - `b.cstr` the text as a `cstr`.
+  - `b.at` the bytes as a `u8^` (a `const u8^` for a let).
+  - `b.size` C's `sizeof`, 24. `b.typename` is `Bytes`.
 - **Methods:** `append(x)`, also `b += x`, where `x` is a byte, text (a
   literal, a `cstr`, a `[u8]`), a borrow `&other`, or a `Bytes` an
-  expression gives (which is appended and freed); `insert(i, x)` of the
-  same; `remove(i, n)`; `clear()`; `reserve(n)`; `compact()`, which
-  gives back the room beyond the count; `copy()`.
+  expression gives (which is appended and freed).
+  - `insert(i, x)` of the same; `remove(i, n)`; `clear()`;
+    `reserve(n)`.
+  - `compact()`, which gives back the room beyond the count; `copy()`.
 - **`b[i]`** is checked: `i` at or past `b.count` ends the program with
-  a message. `b.at[i]` is C's, unchecked. `b[i] = v` writes, for a var.
+  a message.
+  - `b.at[i]` is C's, unchecked.
+  - `b[i] = v` writes, for a var.
 - **`==` and `!=`** compare the bytes of two `Bytes` in variables. No
   other operator takes one.
-- **Printing:** `print(b)` and `${b}` show the bytes as text; in a
-  template, a struct's text and `.cstr` it is cut as a string is (#44,
-  P35); `print` writes every byte.
+- **Printing:** `print(b)` and `${b}` show the bytes as text.
+  - In a template, a struct's text and `.cstr` it is cut as a string is
+    (#44, P35).
+  - `print` writes every byte.
 - **Growth** doubles the capacity from 16; out of memory ends the
   program with a message, as an index out of range does.
 
@@ -72,32 +83,39 @@ println(s == t, " ", t.cstr)
 let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
 ```
 
-- **Making one:** `String()` is empty; `String("text")`, or `$"text"`
-  for short (#62), `String(s)` of a `cstr` or a byte array, and
-  `String(&b)` of a `Bytes` copy and check the text; `b.string()` is the same as `String(&b)`, and
-  `b.isUTF8` says whether it would pass.
+- **Making one:** `String()` is empty.
+  - `String("text")`, or `$"text"` for short (#62), `String(s)` of a
+    `cstr` or a byte array, and `String(&b)` of a `Bytes` copy and
+    check the text.
+  - `b.string()` is the same as `String(&b)`, and `b.isUTF8` says
+    whether it would pass.
 - **Properties:** `s.count` the codepoints, kept with the text, so it
-  costs nothing; `s.bytes` a read-only borrow of the bytes, a
-  `const Bytes^`, with `s.bytes^.count` the bytes and `s.bytes^[i]` a
-  byte; `s.cstr` the text; `s.size` 32.
-- **Methods:** `append(x)`, also `s += x`, where `x` is text, a
-  `uchr` or a codepoint as a number (a surrogate or a number past
-  U+10FFFF ends the program), a borrow `&other`, or a `String` an
-  expression gives; `clear()`, `reserve(n)`, `compact()`, `copy()`.
-  There is no `insert` or `remove` yet, and no `s[i]`: a position in a
-  `String` is a walk, so write `for c in s`, or index the bytes.
+  costs nothing.
+  - `s.bytes` a read-only borrow of the bytes, a `const Bytes^`, with
+    `s.bytes^.count` the bytes and `s.bytes^[i]` a byte.
+  - `s.cstr` the text; `s.size` 32.
+- **Methods:** `append(x)`, also `s += x`, where `x` is text, a `uchr`
+  or a codepoint as a number (a surrogate or a number past U+10FFFF
+  ends the program), a borrow `&other`, or a `String` an expression
+  gives.
+  - `clear()`, `reserve(n)`, `compact()`, `copy()`.
+  - There is no `insert` or `remove` yet, and no `s[i]`: a position in
+    a `String` is a walk, so write `for c in s`, or index the bytes.
 - **`==` and `!=`** compare two `String`s in variables, by their bytes.
 - A `Bytes` takes a `String` through `s.bytes`; a `String` takes a
-  `Bytes` through `b.string()` or, up to a NUL, `b.cstr`; a borrow of
-  the other kind is an error that says so.
+  `Bytes` through `b.string()` or, up to a NUL, `b.cstr`.
+  - A borrow of the other kind is an error that says so.
 - **`uchr`** is a codepoint on the stack (#56), a value type of four
-  bytes: `for c in s` gives one, `uchr("é")` is the first codepoint of
-  text, `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
-  replacement character, where it is none. `print(c)`, `${c}` and
-  `c.cstr` show it as its UTF-8; `c.utf32`, or `c.codepoint`, is the
-  number, a `u32`, as `u32(c)` and `i64(c)` are. It compares with `==`,
-  `<` and the rest, with a `uchr` or a number (`c == 'a'`), and has no
-  arithmetic: `c.utf32 + 1`. `s += c` appends it.
+  bytes.
+  - `for c in s` gives one; `uchr("é")` is the first codepoint of text.
+  - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
+    replacement character, where it is none.
+  - `print(c)`, `${c}` and `c.cstr` show it as its UTF-8.
+  - `c.utf32`, or `c.codepoint`, is the number, a `u32`, as `u32(c)`
+    and `i64(c)` are.
+  - It compares with `==`, `<` and the rest, with a `uchr` or a number
+    (`c == 'a'`), and has no arithmetic: `c.utf32 + 1`.
+  - `s += c` appends it.
 
 ## `Array<T>`
 
@@ -126,51 +144,60 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
 ```
 
 - **The type** is `Array<T>`, with the element type in angle brackets,
-  or `$[T]` for short (#64): a variable's type, a parameter's
-  (`xs:$[i64]` takes it, `xs:$[i64]^` borrows it), a result's, a
-  struct member's. `Array<Array<i64>>` nests, and so does `$[[i64]]`,
-  where a `[...]` inside is an Array in turn, as it is in `$[[1, 0],
-  [0, 1]]`; a fixed array is never an element. `Array<T>` with no
-  `(...)` after it is a type, not a value.
+  or `$[T]` for short (#64).
+  - A variable's type, a parameter's (`xs:$[i64]` takes it,
+    `xs:$[i64]^` borrows it), a result's, a struct member's.
+  - `Array<Array<i64>>` nests, and so does `$[[i64]]`, where a `[...]`
+    inside is an Array in turn, as it is in `$[[1, 0], [0, 1]]`; a
+    fixed array is never an element.
+  - `Array<T>` with no `(...)` after it is a type, not a value.
 - **Making one:** `Array<T>()` is empty; `Array<T>(n)` is n zero
-  elements (empty owners, for an Array of owners); `Array([a, b, c])`,
-  or `$[a, b, c]` for short (#62), holds the elements written, with `T` inferred from them as a
-  variable's type is (#47, #48), or given, `Array<T>([a, b, c])`; a
-  `[...]` among the elements is an Array in turn, so `Array([[0], [1,
-  2]])` is an `Array<Array<i64>>`, never a fixed array;
-  `Array(a)` of a fixed array `[T](N)` copies its elements;
-  `Array(&other)` copies another; `T` may be written before `(` in
-  every form, and must be when nothing gives it: `Array()` and
-  `Array(n)` are errors. `var xs:Array<T>` without a value is empty.
-  An owner written among the elements is moved in (`Array([String("a")])`);
-  a variable that owns is not copied there, as `=` does not copy it.
+  elements (empty owners, for an Array of owners).
+  - `Array([a, b, c])`, or `$[a, b, c]` for short (#62), holds the
+    elements written, with `T` inferred from them as a variable's type
+    is (#47, #48), or given, `Array<T>([a, b, c])`.
+    - A `[...]` among the elements is an Array in turn, so
+      `Array([[0], [1, 2]])` is an `Array<Array<i64>>`, never a fixed
+      array.
+  - `Array(a)` of a fixed array `[T](N)` copies its elements;
+    `Array(&other)` copies another.
+  - `T` may be written before `(` in every form, and must be when
+    nothing gives it: `Array()` and `Array(n)` are errors.
+  - `var xs:Array<T>` without a value is empty.
+  - An owner written among the elements is moved in
+    (`Array([String("a")])`); a variable that owns is not copied there,
+    as `=` does not copy it.
 - **Properties:** `xs.count`, `xs.capacity`, `xs.at` the elements as a
   `T^` (`const T^` for a let), `xs.size` C's `sizeof`, 24,
   `xs.typename` `Array<T>`.
 - **Methods:** `append(x)`, also `xs += x`, where `x` is an element, a
   borrow `&other` of the same `Array<T>` (its elements are appended, a
   copy each), or an `Array<T>` an expression gives (its elements are
-  moved in); `insert(i, x)` of an element; `remove(i, n)`; `pop()`,
-  the last element, moved out; `clear()`; `reserve(n)`; `compact()`;
-  `copy()`.
+  moved in).
+  - `insert(i, x)` of an element; `remove(i, n)`; `pop()`, the last
+    element, moved out.
+  - `clear()`; `reserve(n)`; `compact()`; `copy()`.
 - **`xs[i]`** is checked; `i` at or past `xs.count` ends the program
-  with a message. It is a place: `xs[i] = v` writes, and frees the
-  element it replaces if it owns; `let y = xs[i]` of an owner is an
-  error (copy it, or borrow it); `xs.at[i]` is C's, unchecked.
-  `xs[lo..<hi]` and friends are slices, copies (#68, [arrays.md](arrays.md)).
+  with a message.
+  - It is a place: `xs[i] = v` writes, and frees the element it
+    replaces if it owns.
+  - `let y = xs[i]` of an owner is an error (copy it, or borrow it).
+  - `xs.at[i]` is C's, unchecked.
+  - `xs[lo..<hi]` and friends are slices, copies (#68,
+    [arrays.md](arrays.md)).
 - **`for x in xs`** gives each element as a let: a copy of a plain
   value, and of an owner a view the Array still owns, which cannot be
   moved or returned, only borrowed (`&x`) or copied.
 - **In C**, each `Array<T>` of a program is one struct `{at, count,
-  cap}` and its functions, from a macro in the prelude, named by its
-  element type (`_kv_array_i64`, `_kv_array_Array_i64`), emitted before
-  the first top-level declaration that uses it: generics for one
-  built-in type, not a language feature.
-- **Not yet:** text (`print(xs)`, `${xs}` and `.cstr` are errors:
-  show the elements), `==` (compare the elements), an element that is
-  an array (`[T](N)`), sorting and searching. An element that is a
-  struct that owns, or an enum with values, is copied and freed with
-  the Array (#61).
+  cap}` and its functions, from a macro in the prelude.
+  - Named by its element type (`_kv_array_i64`, `_kv_array_Array_i64`).
+  - Emitted before the first top-level declaration that uses it:
+    generics for one built-in type, not a language feature.
+- **Not yet:** text (`print(xs)`, `${xs}` and `.cstr` are errors: show
+  the elements), `==` (compare the elements), an element that is an
+  array (`[T](N)`), sorting and searching.
+  - An element that is a struct that owns, or an enum with values, is
+    copied and freed with the Array (#61).
 
 ## `Dictionary<K, V>`
 
@@ -192,35 +219,41 @@ var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 ```
 
-- **The type** is `Dictionary<K, V>`, or `${K: V}` for short. `K` is an
-  integer type, hashed as a number, or `String`: the Dictionary keeps a
-  copy of the text, and is read with a `cstr`, a template or a String.
-  A `cstr` key is an error that says so. `V` is any value an Array may
-  hold, owners included, which the Dictionary then owns.
-- **Making one:** `${k: v, ...}` holds the entries written, `K` and
-  `V` inferred from the first as a variable's type is; `${:}` is empty
-  where the type is known, as in `var d:${String: i64} = ${:}`;
-  `Dictionary<K, V>()`, `Dictionary<K, V>({k: v, ...})`, and
-  `Dictionary<K, V>(&other)`, a copy. A variable declared without a
-  value is empty.
+- **The type** is `Dictionary<K, V>`, or `${K: V}` for short.
+  - `K` is an integer type, hashed as a number, or `String`: the
+    Dictionary keeps a copy of the text, and is read with a `cstr`, a
+    template or a String. A `cstr` key is an error that says so.
+  - `V` is any value an Array may hold, owners included, which the
+    Dictionary then owns.
+- **Making one:** `${k: v, ...}` holds the entries written, `K` and `V`
+  inferred from the first as a variable's type is.
+  - `${:}` is empty where the type is known, as in
+    `var d:${String: i64} = ${:}`.
+  - `Dictionary<K, V>()`, `Dictionary<K, V>({k: v, ...})`, and
+    `Dictionary<K, V>(&other)`, a copy.
+  - A variable declared without a value is empty.
 - **`d[k]`** reads the value, and ends the program with a message if
-  the key is not there, as `xs[i]` does out of range; it is a place, so
-  `d[k] += 1` and `d[k] += "x"` change it. `d[k] = v` adds the entry or
-  replaces its value, freeing what it held if it owns; `=` does not copy
-  an owner in, as it copies none (#54): `d[k] = s.copy()`.
+  the key is not there, as `xs[i]` does out of range.
+  - It is a place, so `d[k] += 1` and `d[k] += "x"` change it.
+  - `d[k] = v` adds the entry or replaces its value, freeing what it
+    held if it owns.
+  - `=` does not copy an owner in, as it copies none (#54):
+    `d[k] = s.copy()`.
 - **Methods:** `has(k)`; `find(k)`, a `V^` to the value or `nullptr`
-  (`const V^` for a let); `get(k, default)`, the value or the default,
-  for a `V` that does not own; `remove(k)`, true if it was there;
-  `clear()`; `reserve(n)`; `copy()`. **Properties:** `count`, `size`,
-  `typename`.
+  (`const V^` for a let).
+  - `get(k, default)`, the value or the default, for a `V` that does
+    not own.
+  - `remove(k)`, true if it was there; `clear()`; `reserve(n)`;
+    `copy()`.
+- **Properties:** `count`, `size`, `typename`.
 - **`for k, v in d`** walks the entries in the order they were added,
   `k` and `v` lets that the Dictionary owns, as an Array's elements are
   in `for x in xs`; `for k in d` walks the keys.
 - **In C**, each `Dictionary<K, V>` is one struct and its functions from
-  the prelude's `KV_DICT`, named `_kv_dict_<K>_<V>`: an entries array
-  in order, a chain per bucket, twice as many buckets as entries, the
-  keys' hashes kept; growth doubles from 16 and compacts removed
-  entries.
+  the prelude's `KV_DICT`, named `_kv_dict_<K>_<V>`.
+  - An entries array in order, a chain per bucket, twice as many
+    buckets as entries, the keys' hashes kept.
+  - Growth doubles from 16 and compacts removed entries.
 - **Not yet:** text (`print(d)` and `${d}` are errors: show the
   entries), `==`, keys of other types, `keys` and `values` as Arrays,
   and `d[k, default]`.
@@ -229,21 +262,31 @@ words["a"] = $[$"apple"]
 
 `Set<T>`, or `${T}`, is a hash set on the heap (#71): a Dictionary with
 no values, under the same rules, keyed as a Dictionary is (an integer
-type or `String`). `${3, 1, 4}` makes one, `s += x` and `s.insert(x)`
-add, `s.has(x)` tests, `s.remove(x)` removes, `s.union(&t)`,
-`s.intersection(&t)` and `s.difference(&t)` make new ones,
-`s.elements` is an Array of copies, and `for x in s` walks it in the
-order added. See [sets.md](sets.md).
+type or `String`).
+
+- `${3, 1, 4}` makes one.
+- `s += x` and `s.insert(x)` add, `s.has(x)` tests, `s.remove(x)`
+  removes.
+- `s.union(&t)`, `s.intersection(&t)` and `s.difference(&t)` make new
+  ones.
+- `s.elements` is an Array of copies, and `for x in s` walks it in the
+  order added.
+
+See [sets.md](sets.md).
 
 ## `IO`
 
-An `IO` (#82) is a file, or a standard stream, as an owner: `IO(path,
-mode)` gives the IO straight, `f.error` the errno when it did not open
-(#109), and it is closed when its block ends, as a `Bytes` is freed.
-It moves by `return` and passing, is borrowed with `&f`, and is not
-copied. `IO.stdin`,
-`IO.stdout` and `IO.stderr` are never closed, only flushed. The rest is
-in [io.md](io.md).
+An `IO` (#82) is a file, or a standard stream, as an owner.
+
+- `IO(path, mode)` gives the IO straight, `f.error` the errno when it
+  did not open (#109).
+- It is closed when its block ends, as a `Bytes` is freed.
+- It moves by `return` and passing, is borrowed with `&f`, and is not
+  copied.
+- `IO.stdin`, `IO.stdout` and `IO.stderr` are never closed, only
+  flushed.
+
+The rest is in [io.md](io.md).
 
 ## The rules
 
