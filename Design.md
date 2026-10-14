@@ -149,6 +149,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 115 | `"""text"""`: a string literal over any number of lines, with the text as written, no escapes, no `${...}`, a `cstr` as any literal; `$"""..."""` a String of it | `"line\n" "line\n"` | `JSON.parse("""{"a": "b\n"}""")` | 2026-10-14 |
 | 116 | `none` as an arm of `?:`: where a `T?` or a Result is expected, each arm is wrapped on its own, `return c ? v : none`, `c ? ok(v) : err(e)`; beside an arm that is one, `c ? Optional<i64>(n) : none`, the other is wrapped to it; an else arm `Optional<i64>(n)` or `Bytes(s)` is a value, not an annotation | `c ? a : b` | `let half(v:i64):i64? { v % 2 == 0 ? v / 2 : none }` | 2026-10-14 |
 | 117 | `v[k]` of an enum with values: through its Dictionary case with text, its Array case with an integer, checked as the case and the index are; so `j["key"]` and `j[i]` on a JSON, a place, a path | — | `j["tags"][1].number`, `j["n"] = JSON.number(4.0)` | 2026-10-14 |
+| 118 | `"""` on its own lines: the line break after the opening run and the one before the closing run are not text, and the closing run's indentation comes off each line; a longer delimiter, `""""`, holds a `"""`, closed by a run as long, the extra quotes of a longer closing run being text | — | `let doc := """` ... `"""` | 2026-10-14 |
 
 Notes:
 
@@ -710,6 +711,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (118) Agreed details: "now add a longer delimiter for `"""` inside
+  `"""`. also use: `"""` / multi-line quotation / `"""` instead of
+  `"""multi-line quotation"""` to emphasize it is truly multi-line
+  through entire documents." The delimiter is a run of three or more
+  quotes, closed by a run as long, as a Markdown fence is; the extra
+  quotes of a longer closing run are text, so a text may end in a
+  quote. For the form on its own lines, Swift's rules, which make it
+  read as the user asked: the line break after the opening run and the
+  one before the closing run are not text, and the indentation of the
+  closing run comes off the start of each line, so the text sits at the
+  code's depth; a line with less is kept as it is. The inline form
+  `"""as it is"""` stays, with everything between the quotes (P130).
 
 - (117) Agreed details: "now add `j["key"]` and `j[i]` straight on a
   JSON". Not JSON's alone: any enum with values that holds a Dictionary
@@ -1282,6 +1296,7 @@ says "as agreed".
 | P127 | Details of #115 | `"""a "b"\nc"""` is the C literal `"a \"b\"\nc"` | `lex_triple` in the lexer, after `lex_template`'s model: a new line is `\n`, a backslash, a quote and a `?` are escaped for C, everything else is copied; the token is a plain TK_STRING, so `.count`, joining, `$` and `Bytes(...)` need nothing |
 | P128 | Details of #116 | `c ? v : none` of an `i64?` is `c ? _kv__kv_opt_i64_make_some(v) : _kv__kv_opt_i64_make_none()` | `optional_of` distributes over an E_TERNARY that is no `??`; `parse_conditional` wraps the arm beside a variant with `optional_of`; `annotation_ahead` refuses a base word followed by `<` or `(` while a ternary's middle arm is parsed, where `ident_annotation_ok` is false |
 | P129 | Details of #117 | `j["name"]` is `_kv_dict_String_JSON_at(&(*_kv_JSON_at_object(&j)), "name")`, the case read and the entry read, each checked; `j["tags"][0] = v` is `_kv_JSON_assign(_kv_array_JSON_at(...), v)` | In the index parse, after `]`, a receiver whose type is a tagged record is replaced by the E_FIELD of its first Dictionary case for text (a literal, a cstr, a String or a Bytes) or its first Array case otherwise, and the parse goes on as for that case; a slice takes the Array case. An enum with no such case, or with the other one only, is an error that says which it has. `_kv_T_assign(T *p, T v)`, free then store, is now written beside `_kv_T_free` for an enum with values and for a struct that owns |
+| P130 | Details of #118 | a `"""` on its own lines is one C string literal of the lines between, each ended by `\n` but the last | `lex_triple` counts the opening run, gathers the raw text up to a run as long, keeping the extra quotes of a longer run, then takes off a first `\n`, a last `\n` and the blanks after it, which it strips from the start of every line that begins with them, and escapes the rest for C. A text that is only the two delimiter lines is `""`. An unterminated one says how many quotes it ends with |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -1,17 +1,16 @@
 
 
-### 149. Quoting text, in one place
+### 150. `"""` on its own lines, and a longer delimiter
 
-> `"""` is not limited to JSON so the snippet in `json.md`. rewrite
-> `grammar.md` and other document on how to quote strings including the
-> explanation on ``.
+> now add a longer delimiter for `"""` inside `"""`. also use `"""` /
+> multi-line quotation / `"""` instead of `"""multi-line quotation"""`
+> to emphasize it is truly multi-line through entire documents
 
-**Claude** wrote a section "Quoting text" into grammar.md with every
-spelling side by side: `"..."`, `'c'`, the template with its own
-escapes, `"""..."""` as written, and the `$` forms and `Bytes(...)`
-that make a String or a Bytes of any of them, with a table of what
-each gives, whether it spans lines, its escapes and whether values go
-in. strings.md, printing.md, json.md and the README now point there
-instead of explaining a spelling each. No code changed.
+**Claude** added #118: the delimiter is a run of three or more quotes,
+closed by a run as long, so `""""` holds a `"""`; and the form on its
+own lines, with Swift's rules: the line breaks beside the delimiters
+are not text, and the closing delimiter's indentation comes off each
+line. The documents write every `"""` that way now; the inline form
+stays. Details are provisional P130.
 
-There are 666 tests, and all pass with clang and with gcc 15.
+There are 667 tests, and all pass with clang and with gcc 15.

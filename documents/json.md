@@ -12,7 +12,9 @@ space)` writes it back, as JS's do.
 ```kelvin
 #import <JSON>
 
-var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11], "ok": true}""")   // """: the text as written (grammar.md)
+var j = JSON.parse("""
+    {"name": "kelvin", "tags": ["c", 11], "ok": true}
+    """)                                      // """: the text as written (grammar.md)
 if j.is(error) { println(j.error) }           // "a key in an object: unexpected end of text at 1"
 println(j["name"].string, " ", j["tags"][1].number, " ", j["ok"].boolean)   // j["key"], j[i]: through the cases (#117)
 j["tags"].array += JSON.number(12.0)          // grown, as any Array

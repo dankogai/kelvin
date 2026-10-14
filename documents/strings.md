@@ -55,9 +55,9 @@ let card:cstr := `${n} items` // a template's text, on the stack too
 - **A string literal** is C's: a `char` array that lives for the whole
   program, which decays to a pointer. `let s:cstr := "hi"` points at
   it; writing through `s` is undefined, as in C. Adjacent literals join,
-  and the escapes are C's. `"""text"""` (#115) is the same over any
-  number of lines, with the text exactly as written, no escapes and no
-  `${...}`. Every way of quoting text, these, the template and the
+  and the escapes are C's. `"""` on its own lines (#115, #118) is the
+  same over any number of lines, with the text exactly as written, no
+  escapes and no `${...}`. Every way of quoting text, these, the template and the
   `$` forms that make a `String`, is in
   [grammar.md](grammar.md#quoting-text).
 - **A byte array**, `[u8](N)` or `[u8]` filled from a literal, is a

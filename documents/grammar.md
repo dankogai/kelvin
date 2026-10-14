@@ -100,11 +100,15 @@ it lives, and whether values go into it:
 let s := "a line\n"                      // C's string literal: C's escapes, a cstr
 let c = 'x'                               // C's character constant: a byte, a u8
 let t := `n = ${n}, half = ${n / 2.0}`    // a template: text with values, on the stack of the block
-let raw := """{"a": "b\n",
-  "c": 'd'}"""                            // as written, over lines: no escapes, no ${...}; a cstr
+let raw := """
+    {"a": "b\n",
+      "c": 'd'}
+    """                                   // as written, over lines: no escapes, no ${...}; a cstr
 var u = $"héllo"                          // a String, on the heap, owned
 var v = $`${n} items`                     // a String built from a template
-var w = $"""also as written"""           // a String of a """ text
+var w = $"""
+    also as written
+    """                                   // a String of a """ text
 var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 ```
 
@@ -135,13 +139,20 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
   each value's longest text, and lives until the block ends, so it is
   not returned or kept in an outer variable: copy it. The limits and
   the rules of the room are in [printing.md](printing.md).
-- **`"""..."""`** (#115) is a string literal over any number of lines,
-  with the text exactly as written: no escapes, so `\n` stays two
-  characters, no `${...}`, the line breaks and the indentation kept,
-  and `"` and `` ` `` inside as they are. It ends at the next `"""`,
-  which it cannot hold. It is a `cstr` as `"..."` is, and joins with a
-  neighbour. It quotes JSON, C, shell or any text that has its own
-  escapes, as it is.
+- **`"""`** (#115) is a string literal over any number of lines, with
+  the text exactly as written: no escapes, so `\n` stays two
+  characters, no `${...}`, and `"` and `` ` `` inside as they are. It
+  is a `cstr` as `"..."` is, and joins with a neighbour. It quotes
+  JSON, C, shell or any text that has its own escapes, as it is. It is
+  written on its own lines (#118): the opening `"""` ends its line, the
+  closing `"""` starts one, and neither line break is text; the
+  indentation of the closing `"""` is taken off every line, so the text
+  sits at the depth of the code and starts at its first line. A longer
+  delimiter holds a `"""`: `""""` opens and `""""` closes, four or more,
+  as long as it began, and the extra quotes of a longer closing run are
+  text. `"""as it is"""` on one line keeps everything between the
+  quotes; the opening run is the whole run of quotes, so a text that
+  starts with a quote goes on its own line.
 - **`$"..."`**, **`` $`...` ``** (#67) and **`$"""..."""`** make a
   `String` of the text, on the heap, owned by its variable and freed
   when the block ends, with no bound on its length: the `$` is

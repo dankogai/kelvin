@@ -267,44 +267,93 @@ static void lex_template(Lexer *lx, Pos pos, Pos start, bool head) {
     lx->toks[lx->len - 1].tpl = kind == TK_STRING;
 }
 
-/* """text""" (#115): the text between the quotes as it is, over any
-   number of lines, with no escapes and no ${...}, as a C string literal;
-   a new line is \n, and a backslash, a quote and a ? are escaped for C.
-   A string literal, a cstr, as any other; adjacent ones join */
+/* """text""" (#115, #118): the text between the quotes as it is, over any
+   number of lines, with no escapes and no ${...}, as a C string literal.
+   The delimiter is a run of three or more quotes, closed by a run as
+   long, so a longer one holds a """; the extra quotes of a longer closing
+   run are text. In the form with the text on its own lines, the line
+   break after the opening run and the one before the closing run are
+   not text, and the closing run's own indentation is taken off each
+   line. A new line is \n, and a backslash, a quote and a ? are escaped
+   for C. A string literal, a cstr, as any other; adjacent ones join */
 static void lex_triple(Lexer *lx) {
     Pos pos = here(lx);
-    step(lx);
-    step(lx);
-    step(lx);
+    int n = 0;
+    while (*lx->p == '"') {
+        step(lx);
+        n++;
+    }
+    Buf raw = {0};
+    buf_puts(&raw, "");
+    for (;;) {
+        if (!*lx->p)
+            error_at(pos, "unterminated \"\"\" string: it ends with %d quotes, as it began", n);
+        if (*lx->p == '"') {
+            int run = 0;
+            while (*lx->p == '"') {
+                step(lx);
+                run++;
+            }
+            if (run >= n) { /* the last n close it; the rest are text */
+                for (int k = 0; k < run - n; k++)
+                    buf_puts(&raw, "\"");
+                break;
+            }
+            for (int k = 0; k < run; k++)
+                buf_puts(&raw, "\"");
+            continue;
+        }
+        if (*lx->p == '\r' && lx->p[1] == '\n') /* a CRLF line end is a new line */
+            step(lx);
+        buf_putn(&raw, lx->p, 1);
+        step(lx);
+    }
+    /* the form on its own lines: the first line break is not text, nor
+       the last one and the indentation before the closing quotes, which
+       comes off the start of every line that has it */
+    char *text = raw.buf;
+    size_t len = raw.len;
+    const char *indent = NULL;
+    size_t indent_len = 0;
+    if (len && text[0] == '\n') {
+        text++;
+        len--;
+        size_t last = len;
+        while (last > 0 && (text[last - 1] == ' ' || text[last - 1] == '\t'))
+            last--;
+        if (last > 0 && text[last - 1] == '\n') {
+            indent = text + last;
+            indent_len = len - last;
+            len = last - 1;
+        } else if (last == 0) {
+            indent = text;
+            indent_len = len;
+            len = 0;
+        }
+    }
     Buf lit = {0};
     buf_puts(&lit, "\"");
-    for (;;) {
-        char c = *lx->p;
-        if (!c)
-            error_at(pos, "unterminated \"\"\" string: it ends with \"\"\"");
-        if (c == '"' && lx->p[1] == '"' && lx->p[2] == '"') {
-            step(lx);
-            step(lx);
-            step(lx);
-            break;
+    bool at_line_start = true;
+    for (size_t i = 0; i < len; i++) {
+        if (at_line_start && indent_len && len - i >= indent_len && !memcmp(text + i, indent, indent_len)) {
+            i += indent_len - 1;
+            at_line_start = false;
+            continue;
         }
-        if (c == '\\') {
+        char c = text[i];
+        at_line_start = c == '\n';
+        if (c == '\\')
             buf_puts(&lit, "\\\\");
-        } else if (c == '"') {
+        else if (c == '"')
             buf_puts(&lit, "\\\"");
-        } else if (c == '\n') {
+        else if (c == '\n')
             buf_puts(&lit, "\\n");
-        } else if (c == '\r' && lx->p[1] == '\n') { /* a CRLF line end is a new line */
-            buf_puts(&lit, "\\n");
-            step(lx);
-        } else if (c == '\r') {
+        else if (c == '\r')
             buf_puts(&lit, "\\r");
-        } else if (c == '?') { /* never a C trigraph */
+        else if (c == '?') /* never a C trigraph */
             buf_puts(&lit, "\\?");
-        } else {
-            buf_putn(&lit, lx->p, 1);
-        }
-        step(lx);
+        else
+            buf_putn(&lit, &c, 1);
     }
     buf_puts(&lit, "\"");
     push(lx, TK_STRING, pos, lit.buf, lit.buf + lit.len);

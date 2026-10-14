@@ -34,7 +34,7 @@ P-numbers in [Design.md](../Design.md).
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static let g():i32`; `static let T.name(...)` is a function of the type, `T.name(...)` (#111) |
-| `"line one\n" "line two\n"` | `"""line one\nline two"""` written over two lines, as it is, no escapes (#115) |
+| `"line one\n" "line two\n"` | `"""`, the two lines, `"""`, each on its own line: the text as it is, no escapes (#115, #118) |
 | a JSON library | `#import <JSON>`; `var j = JSON.parse(text)`, `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113) |
 | `int main(int argc, char **argv)` | `let main(argc:i32, argv:u8^^):i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |

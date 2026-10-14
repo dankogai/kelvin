@@ -1,6 +1,7 @@
-// a """ string ends with """ (#115)
+// a """ string ends with as many quotes as it began (#115, #118); the
+// opening run is the whole run of quotes
 let main():i32 {
     let s := """not closed
     return 0
 }
-// error: unterminated """ string: it ends with """
+// error: string: it ends with 3 quotes, as it began
