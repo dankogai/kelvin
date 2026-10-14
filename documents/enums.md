@@ -124,6 +124,8 @@ println(j.n)                             // ends the program: case 'n' of json i
   - `==` and `!=` are its own (#79) until the program writes them for
     it; any other operator is the program's, and an error that shows
     how to define one where none is written.
+  - `x += y`, `x -= y` and the rest are `x = x + y` by that operator
+    (#128), also for an enum that owns.
   - A function of the type, `static let T.name()`, needs a name to be
     called by, so one with no tag has none.
 - **Not yet:** printing one with `print` or `println` by itself: show

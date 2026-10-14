@@ -159,6 +159,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 125 | `${xs}` of an Array, a Dictionary or a Set in a template: its text by kelvinc's printer (#123), cut to a template's room as a string value is, and whole in `` $`...` ``; one an expression gives is bound first | — | `` `xs = ${xs}` ``, `` $`${d}` `` | 2026-10-14 |
 | 126 | `${v.pretty}` in a template: the value's text indented, by kelvinc's printer, cut to a template's room as a string value is, and whole in `` $`...` `` | — | `` `cfg = ${cfg.pretty}` `` | 2026-10-14 |
 | 127 | `x.pretty(n)`: `n` spaces a level, an integer from 0 to 10, as JS clamps `JSON.stringify`'s space; `x.pretty` stays two; a literal out of range is an error, a computed one clamped | — | `println(cfg.pretty(4))` | 2026-10-15 |
+| 128 | `x += y` on an enum with values by the operator the program defines, `x = x + y`, as for a struct (#42); and `x = v` of a struct or an enum that owns evaluates `v` before it frees what `x` held, so `x = x + y` and `x = f(x)` keep `x`'s value | — | `t += txt.s($"cd")` | 2026-10-15 |
+| 129 | `JSON.stringify(&j, n)` and `JSON.stringify(&j, replacer, n)`: a number as the space, that many spaces a level, 0 to 10, as JS's takes one and as `v.pretty(n)` indents; 0 is compact | `JSON.stringify(v, null, 4)` in JS | `JSON.stringify(&j, 4)` | 2026-10-15 |
 
 Notes:
 
@@ -720,6 +722,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (129) Agreed details: "also add `.pretty(n)` to `JSON.stringify`'s
+  space", read as a number for the space, as `.pretty(n)` takes one and
+  JS's `JSON.stringify` does: two overloads in modules/JSON.k, beside
+  the text ones, with the number clamped to 0 to 10; 0 gives compact
+  text, as in JS (P141).
+
+- (128) Agreed details: "now add `+=` on an enum with values via its
+  operator". `x += y` already became `x = x + y` through the
+  program's operator, by the rule of #42, but for an enum that owns it
+  gave the wrong value: `x = v` of an owning struct or enum freed `x`
+  before it evaluated `v`, so `v` read an emptied `x`. That broke a
+  plain `x = x + y` and `x = f(x)` as well; it now goes through the
+  type's `_kv_T_assign` of #117, which takes the value first (P140).
 
 - (127) Agreed details: "now add `.pretty` with a custom indent width".
   Asked how the width is given, the user chose `x.pretty(n)`, a number
@@ -1401,6 +1417,8 @@ says "as agreed".
 | P137 | Details of #125 | `` `${xs}` `` is `kv_string v = kv_string_new(); { __auto_type _kv_sv = (xs); _kv_show__kv_array_i64(&(kv_out){.s = &v}, &_kv_sv, -1); } KV_TEMPLATE_VALUE(build, KV_TEMPLATE_STR, v); kv_string_free(&v);` inside the template's statement expression; `` $`${xs}` `` appends with the printer straight into the String being built | In `parse_template`, a value that is an Array, a Dictionary or a Set becomes an E_PROPERTY `tpl_show` typed `String`, so its room is `KV_TEMPLATE_STR`; `` $`...` `` turns it into a `tplstr_show` part. The refusal of #123 is gone, and so is its error test; an owner an expression gives is refused, as `print` refuses it |
 | P138 | Details of #126 | `` `${d.pretty}` `` is #125's code with the printer's level 0 | In `parse_template`, a `.pretty` value, an E_PROPERTY `pretty`, becomes `tpl_show`, keeping its text "pretty"; `` $`...` `` keeps that text on its `tplstr_show` part; codegen passes level 0 for it, -1 otherwise. The String a `.pretty` made in a template was never freed before |
 | P139 | Details of #127 | `d.pretty(4)` is #124's code with `.width = 4` in the sink; a computed `w` is `.width = kv_out_width(w)`; plain `.pretty` is `.width = 2` | `kv_out` gains `int width`, which `out_line` writes as that many spaces a level; `kv_out_width` clamps to 0 to 10. The parser takes `.pretty(` ahead of the owners' method tables, which would refuse a method of that name, keeps the width as the node's `b`, and carries it through `print`, `f.println`, both kinds of template and the String form. Tests that pin a printer's C now show `.width = 2` |
+| P140 | Details of #128 | `t += txt.s($"cd")` of an owning `txt` is `_kv_txt_assign(&t, _kv_add_op__txt__txt(_kv_txt_take(&t), ...))`, where it was `_kv_txt_free(&t), t = _kv_add_op__txt__txt(_kv_txt_take(&t), ...)` | `owner_assign` in codegen sends a local owner whose free is a record's to `_kv_T_assign`, written for every struct or enum with values that owns since #117, instead of freeing first; Bytes, Strings, Arrays, Dictionaries and Sets already went through their own `_assign` |
+| P141 | Details of #129 | `JSON.stringify(&j, 4)` is `JSON__stringify__const_JSONp__i64(&j, 4)` | `JSON_spaces(n)` in modules/JSON.k gives the tail of a literal of ten spaces, `n` of them, clamped to 0 to 10, and the two overloads pass it to the text path, so a number and the same spaces as text give the same output |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

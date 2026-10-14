@@ -189,6 +189,9 @@ let main():i32 {
     `m == a` (gcc not where C chooses the operator).
 - `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
   a call *(provisional P53)*.
+  - The same for an enum with values (#128), and for one that owns,
+    `x` is read before what it held is freed, so `x += y` keeps its
+    value; so does `x = f(x)`.
 - Where only C sees an operand's type, C chooses as for functions, and
   a number of another type converts to the one operator that takes a
   number there (C reports `kv_no_such_operator` otherwise).

@@ -1409,8 +1409,8 @@ static bool owner_assign(Expr *e) {
     if (!strncmp(f, "kv_", 3) || !strncmp(f, "_kv_array_", 10) || !strncmp(f, "_kv_dict_", 9) ||
         !strncmp(f, "_kv_set_", 8)) /* kv_bytes_assign, kv_string_assign, an Array's, a Dictionary's, a Set's */
         line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
-    else
-        line("%s(&%s), %s = %s;", f, c_name(e->a->text), c_name(e->a->text), expr(e->b));
+    else /* a struct or an enum with values that owns: the value first, then the free, so that x = x + y reads x (#128) */
+        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
     return true;
 }
 

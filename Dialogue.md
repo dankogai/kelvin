@@ -3752,3 +3752,18 @@ properties.md and flow-controls.md, with links back; the links to
 integers.md elsewhere now point to the right document. No code changed.
 
 There are 689 tests, and all pass with clang and with gcc 15.
+
+### 163. `+=` on an enum with values, and a number as `JSON.stringify`'s space
+
+> now add `+=` on an enum with values via its operator. also add
+> `.pretty(n)` to `JSON.stringify`'s space
+
+**Claude** found `+=` already went through the program's operator, but
+gave the wrong value for an enum that owns: `x = v` freed `x` before it
+read `v`. #128 assigns through the type's assign helper, which takes
+the value first, which also fixes `x = x + y` and `x = f(x)`. #129, read
+as a number for the space: `JSON.stringify(&j, 4)`, that many spaces a
+level, 0 to 10, as JS's and as `v.pretty(n)`. Details are provisional
+P140 and P141.
+
+There are 691 tests, and all pass with clang and with gcc 15.

@@ -19,7 +19,8 @@
 // for each member with its key and for each element with its index as
 // text, and what it gives is written, none leaving a member out and
 // writing null for an element; the space is text, a cstr or a String,
-// that indents each level, at most 10 characters, "" for compact text.
+// that indents each level, at most 10 characters, "" for compact text,
+// or a number, that many spaces a level, 0 to 10, as JS's takes one.
 // Numbers are written as JS writes them, the shortest text that reads
 // back, 3 for 3.0; NaN and the infinities are null. Members are written
 // in the order they were added, as a Dictionary keeps them.
@@ -475,3 +476,13 @@ static let JSON.stringify(j:const JSON^, space:const String^):String { JSON_stri
 static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?):String { JSON_stringify(j, replacer, "") }
 static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:cstr):String { JSON_stringify(j, replacer, space) }
 static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:const String^):String { JSON_stringify(j, replacer, space^.cstr) }
+
+// a number as the space (#129): that many spaces a level, 0 to 10, as JS's
+// JSON.stringify takes one and as v.pretty(n) indents
+static let JSON_spaces(n:i64):cstr {
+    let spaces:cstr := "          "
+    return &spaces[n < 0 ? 10 : n > 10 ? 0 : 10 - n]
+}
+
+static let JSON.stringify(j:const JSON^, space:i64):String { JSON_stringify(j, nullptr, JSON_spaces(space)) }
+static let JSON.stringify(j:const JSON^, replacer:(cstr, const JSON^):JSON?, space:i64):String { JSON_stringify(j, replacer, JSON_spaces(space)) }

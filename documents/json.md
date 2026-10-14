@@ -21,6 +21,7 @@ j["tags"].array += JSON.number(12.0)          // grown, as any Array
 j["new"] = JSON.string($"added")              // a member added, or replaced
 var flat = JSON.stringify(&j)                 // {"name":"kelvin","tags":["c",11,12],"ok":true,"new":"added"}
 var pretty = JSON.stringify(&j, "  ")         // one member or element a line, two spaces a level
+var four = JSON.stringify(&j, 4)              // a number as the space: four spaces a level (#129)
 var v = JSON.array($[JSON.number(1.0), JSON.null, JSON.boolean(false)])   // made by hand, by the cases
 var text = $"[1, 2, 3]"
 var a = JSON.parse(&text)                     // a String, borrowed
@@ -56,6 +57,9 @@ var a = JSON.parse(&text)                     // a String, borrowed
   - **`JSON.stringify(&j, space)`** indents, as JS's does: `space` is
     text, a `cstr` or a borrowed `String`, written once per level after
     a newline, at most 10 characters, `""` for compact text.
+    - Or a number (#129), that many spaces a level, from 0 to 10 as JS
+      clamps it and as `v.pretty(n)` indents: `JSON.stringify(&j, 4)`;
+      `0` is compact.
   - **`JSON.stringify(&j, replacer)`** and **`JSON.stringify(&j,
     replacer, space)`** call `replacer`, a function `(key:cstr,
     value:const JSON^):JSON?`, for the root with the key `""`, for each
@@ -97,9 +101,11 @@ JSON.parse(text: const String^): JSON              // the same of a String, borr
 JSON.stringify(j: const JSON^): String                              // compact
 JSON.stringify(j: const JSON^, space: cstr): String                 // indented by space, at most 10 characters
 JSON.stringify(j: const JSON^, space: const String^): String
+JSON.stringify(j: const JSON^, space: i64): String                  // that many spaces a level, 0 to 10 (#129)
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?): String
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: cstr): String
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: const String^): String
+JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: i64): String
 ```
 
 ## Properties and methods
