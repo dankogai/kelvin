@@ -103,8 +103,11 @@ println(j.n)                             // ends the program: case 'n' of json i
   - A case with no value has nothing to bind: test it with `.is(none)`.
   - This is how a Result's `if let err(e) = r` works; see
     [results.md](results.md).
-- **Not yet:** binding a case's value in a `case` label (Swift's `case
-  .n(let x)`), and an anonymous `enum` with values at the top level.
+- **`switch v { case n(x): ... }`** (#119) binds `x` to the case's value
+  for that case's body, as `if let n(x) = v` does: a let `v` still owns.
+  - A case that binds stands alone, and a case with no value binds
+    nothing; see [flow-controls.md](flow-controls.md).
+- **Not yet:** an anonymous `enum` with values at the top level.
 
 ## A struct that owns
 
@@ -125,6 +128,7 @@ A struct, or an enum with values, that holds an owner is copied with
 | | `v["key"]`, `v[i]` | the Dictionary case's entry, the Array case's element, checked (#117) |
 | | `T.n(x)`, `T.none` | a value, by the type's name |
 | | `switch v { case n: ... }` | by the case, exhaustive (#63) |
+| | `switch v { case n(x): ... }` | the same, with `x` the case's value in that body (#119) |
 | | `.cstr` | `n(1.5)`, `none`, or `T.cstr()`'s text |
 | | `.copy()` | a copy, when a case owns |
 | | `.size`, `.typename` | `sizeof`; the name or spelling |

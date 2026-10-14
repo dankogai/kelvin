@@ -67,11 +67,19 @@ default:
 }
 switch s {                      // an enum with values (#61), by its cases
 case none: return 0.0
-case circle: return 3.0 * s.circle * s.circle
-case rect: return s.rect.w * s.rect.h
+case circle(r): return 3.0 * r * r   // the case's value bound to r (#119)
+case rect(q): return q.w * q.h
 }                               // exhaustive: no default needed
 ```
 
+- **`case n(x):`** (#119) runs its body with `x` bound to the case's
+  value, as `if let n(x) = e` binds it.
+  - `x` is a let the enum still owns, as a loop's element is: borrow it,
+    or copy it, to keep it.
+  - A case that binds stands alone: it cannot share a body with another
+    case, and a case that carries no value binds nothing.
+  - The same name may serve in several cases; a value no place holds,
+    as a call's result, is read once.
 - **The cases** are written at the top of the switch's block, each with
   at least one statement before the next, since a case ends there.
   - A case before another with nothing between them is an error, as a

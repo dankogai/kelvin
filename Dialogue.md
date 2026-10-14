@@ -1,17 +1,12 @@
 
 
-### 151. Documents easier on the eyes
+### 152. A `switch` that binds the case's value
 
-> When you document things, you are squeezing too many sentences in a
-> paragraph. look at `io.md`'s `making one`: AIs may have no problem but
-> it makes the eyes of NIs sore. Don't be afraid to multi-indent like
-> source codes. Make all documents eyeball-easier
+> now add a `switch` that binds the case's value
 
-**Claude** restructured every document and the README: a dense bullet
-is now a lead line of one or two sentences with nested sub-bullets,
-one idea each, indented like code. Nothing was added, dropped or
-reworded beyond the splitting; every code block, table, heading,
-reference and link is as it was, which a checker compared against the
-committed files. No code changed.
+**Claude** added #119: `case n(x):` runs its body with `x` bound to the
+case's value, as `if let n(x) = e` binds it, a let the enum still
+owns; a binding case stands alone, a case with no value binds nothing,
+and a value no place holds is read once. Details are provisional P131.
 
-There are 667 tests, and all pass with clang and with gcc 15.
+There are 671 tests, and all pass with clang and with gcc 15.

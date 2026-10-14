@@ -68,6 +68,7 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
       or an element; for an owner, `if let` or `switch` on it.
 - **Testing:** `r.is(ok)`, `r.is(err)`, `r.case` (0 for ok, 1 for err),
   and `switch r { case ok: ... case err: ... }`, exhaustive.
+  - `case ok(v):` and `case err(e):` bind the value for the body (#119).
   - Of a Result that owns, `.is` and `.case` take a place, since one an
     expression gives would be lost with what it holds: bind it first,
     or `if let` on the call (#99).
@@ -223,6 +224,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `.case` | the tag, a `u8`: 0 for ok, 1 for err |
 | | `r ?? y` | the `ok` value, or `y` |
 | | `switch r { case ok: ... case err: ... }` | by the case |
+| | `switch r { case ok(v): ... case err(e): ... }` | the same, with the value bound in each body (#119) |
 | | `.cstr` | `ok(42)`, `err(empty)` |
 | | `==`, `!=` | the same case and equal values; `r == 42`, `r == err(2)` (#79) |
 | | `.map(f)`, `.map { ... }`, `.mapErr(g)` | a `Result<U, E>` of `f`'s result, or a `Result<T, F>` of `g`'s (#80) |

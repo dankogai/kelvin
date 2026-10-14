@@ -7497,7 +7497,8 @@ static Stmt *parse_declaration(void) {
 /* one label of a case: of an enum with values, a case's bare name (#61);
    otherwise C's constant expression */
 static void parse_case_label(Stmt *s) {
-    if (switch_record && peek()->kind == TK_IDENT && (is_p(peek2(), ":") || is_p(peek2(), ","))) {
+    if (switch_record && peek()->kind == TK_IDENT &&
+        (is_p(peek2(), ":") || is_p(peek2(), ",") || is_p(peek2(), "("))) { /* case n:, case a, b:, case n(x): (#119) */
         int k;
         Var *c = case_named(switch_record, peek()->text, &k);
         if (!c)
@@ -7507,6 +7508,19 @@ static void parse_case_label(Stmt *s) {
         s->expr = new_expr(E_LITERAL, cn->pos);
         s->expr->text = strfmt("%d", k);
         s->name = c->name;
+        if (accept_p("(")) {
+            /* case n(x): (#119) binds x, a let, to the case's value for the
+               case's body, as if let n(x) = e does; a let the enum still owns */
+            if (!c->type)
+                error_at(cn->pos, "case '%s' of %s carries no value: nothing to bind, write 'case %s:'", c->name,
+                         record_spelling(switch_record), c->name);
+            Token *b = peek();
+            reject_kv_name(b);
+            s->name2 = expect_ident(strfmt("a name, as in 'case %s(x):'", c->name));
+            expect_p(")");
+            s->type = c->type;
+            declare_binding(s->name2, c->type, LET_EACH);
+        }
         return;
     }
     bool saved = ident_annotation_ok;
@@ -8094,6 +8108,9 @@ static Stmt *parse_stmt_here(void) {
         case_depth = saved_depth;
         switch_record = saved;
         check_switch(s);
+        for (int k = 0; k < s->body->stmts.len; k++) /* a case that binds (#119): the subject is read in its body */
+            if (((Stmt *)s->body->stmts.data[k])->kind == S_CASE && ((Stmt *)s->body->stmts.data[k])->name2)
+                s->name2 = "binds";
         return s;
     }
     if (accept_kw("case")) {
@@ -8104,6 +8121,10 @@ static Stmt *parse_stmt_here(void) {
         Stmt *s = new_stmt(S_CASE, pos), *last = s;
         for (;;) {
             parse_case_label(last);
+            if (last->name2 && (last != s || is_p(peek(), ",")))
+                error_at(last->pos, "a case that binds a value, 'case %s(%s):', stands alone: it cannot share a body "
+                                    "with another case",
+                         last->name, last->name2);
             if (!accept_p(","))
                 break;
             Stmt *more = new_stmt(S_CASE, peek()->pos); /* case a, b: one body for both */

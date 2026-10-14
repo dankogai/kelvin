@@ -86,8 +86,8 @@ var a = JSON.parse(&text)                     // a String, borrowed
   - `j["tags"].array += x` grows one, `j[1..<3]` slices the array.
   - This is the rule of [enums.md](enums.md) for any enum with values
     that holds a Dictionary or an Array.
-- **Not yet:** a `switch` that binds the case's value, numbers past an
-  `f64`, and comments or trailing commas, which are not JSON.
+- **Not yet:** numbers past an `f64`, and comments or trailing commas,
+  which are not JSON.
 
 ## Functions
 
@@ -108,7 +108,7 @@ JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: cons
 |---|---|---|
 | `JSON` | `.null`, `.boolean`, `.number`, `.string`, `.array`, `.object`, `.error` | the case's value, checked; `JSON.null`, `JSON.number(1.5)`, ... make one |
 | | `j["key"]`, `j[i]` | the member, the element, through the object or the array case, checked; a place (#117) |
-| | `.is(array)`, `.case`, `switch j { case array: ... }` | which case it is |
+| | `.is(array)`, `.case`, `switch j { case array: ... }` | which case it is; `case array(xs):` binds the value (#119) |
 | | `.copy()` | a copy, deep |
 | | `.cstr`, `${j}` | the case and its value, `number(1.5)`, as any enum's; `JSON.stringify(&j)` for JSON text |
 | | `==`, `!=` | none: an Array in a case has no `==`; compare the text |

@@ -67,6 +67,7 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
     declaration would cast it.
 - **Testing:** `x.is(some)`, `x.is(none)`, `x.case` (0 for none, 1 for
   some), `switch x { case some: ... case none: ... }`, exhaustive.
+  - `case some(v):` binds the value for its body (#119).
   - Of an Optional that owns, `.is` and `.case` take a place: bind the
     value first, or `if let` on the call (#99).
 - **`if let v = x { ... } else { ... }`** (#74) runs the block with `v`
@@ -137,6 +138,7 @@ the reason in `err`: [results.md](results.md).
 | | `x ?? y` | the value, or `y` |
 | | `c ? v : none` | each arm wrapped where a `T?` is expected, or beside an arm that is one (#116) |
 | | `switch x { case some: ... case none: ... }` | by the case |
+| | `switch x { case some(v): ... }` | the same, with `v` the value in that body (#119) |
 | | `.cstr` | `some(3)`, `none` |
 | | `==`, `!=` | both `none`, or equal values; `x == none`, `x == 3` (#79) |
 | | `.map(f)`, `.map { ... }` | a `U?` of `f`'s result, or `none` (#80) |

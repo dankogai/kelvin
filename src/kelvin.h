@@ -227,7 +227,8 @@ struct Stmt {
     int each;          /* S_FOR_EACH: EACH_* above */
     Stmt *body, *els;  /* loop body / if-then, else */
     char *name;        /* S_GOTO, S_LABEL, S_FOR_IN */
-    char *name2;       /* S_FOR_EACH: the value's name in for k, v in d (#65) */
+    char *name2;       /* S_FOR_EACH: the value's name in for k, v in d (#65);
+                          S_CASE: the name case n(x): binds to the value (#119) */
 };
 
 typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;

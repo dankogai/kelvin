@@ -56,6 +56,7 @@ static int cur_decl; /* the index of the top-level declaration being emitted */
    its cases (closed) tells C that nothing else reaches it */
 static Stmt *switch_block;
 static bool switch_closed;
+static char *switch_subject; /* the switch's value, for case n(x): (#119) */
 static bool is_jump(Stmt *s) {
     return s && (s->kind == S_BREAK || s->kind == S_RETURN || s->kind == S_CONTINUE || s->kind == S_GOTO);
 }
@@ -1536,6 +1537,9 @@ static void stmt(Stmt *s) {
                 stmt(x);
                 line("{");
                 indent++;
+                if (x->kind == S_CASE && x->name2) /* case n(x): (#119): x is the case's value, a let */
+                    line("__attribute__((unused)) %s = %s.u.%s;", decl(const_type(x->type), x->name2), switch_subject,
+                         x->name);
                 open = true;
                 prev = NULL;
                 continue;
@@ -1888,6 +1892,21 @@ static void stmt(Stmt *s) {
         break;
     }
     case S_SWITCH:
+        if (s->name2 && !c_lvalue(s->expr->a)) { /* a case binds (#119), of a value no place holds: read once */
+            char *h = hidden("switch", "sw");
+            line("{");
+            indent++;
+            line("__auto_type %s = %s;", h, expr(s->expr->a));
+            switch_subject = h;
+            line("switch (%s.tag)", h);
+            switch_block = s->body;
+            switch_closed = s->closed;
+            body(s->body);
+            indent--;
+            line("}");
+            break;
+        }
+        switch_subject = s->name2 ? expr(s->expr->a) : NULL;
         line("switch (%s)", expr(s->expr));
         switch_block = s->body;
         switch_closed = s->closed;

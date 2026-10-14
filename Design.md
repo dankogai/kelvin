@@ -150,6 +150,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 116 | `none` as an arm of `?:`: where a `T?` or a Result is expected, each arm is wrapped on its own, `return c ? v : none`, `c ? ok(v) : err(e)`; beside an arm that is one, `c ? Optional<i64>(n) : none`, the other is wrapped to it; an else arm `Optional<i64>(n)` or `Bytes(s)` is a value, not an annotation | `c ? a : b` | `let half(v:i64):i64? { v % 2 == 0 ? v / 2 : none }` | 2026-10-14 |
 | 117 | `v[k]` of an enum with values: through its Dictionary case with text, its Array case with an integer, checked as the case and the index are; so `j["key"]` and `j[i]` on a JSON, a place, a path | — | `j["tags"][1].number`, `j["n"] = JSON.number(4.0)` | 2026-10-14 |
 | 118 | `"""` on its own lines: the line break after the opening run and the one before the closing run are not text, and the closing run's indentation comes off each line; a longer delimiter, `""""`, holds a `"""`, closed by a run as long, the extra quotes of a longer closing run being text | — | `let doc := """` ... `"""` | 2026-10-14 |
+| 119 | `switch v { case n(x): ... }`: the case's value bound to `x`, a let the enum still owns, for that case's body, as `if let n(x) = v` binds it; a binding case stands alone; a value no place holds is read once | — | `switch r { case ok(v): println(v) case err(e): println(e) }` | 2026-10-14 |
 
 Notes:
 
@@ -711,6 +712,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (119) Agreed details: "now add a `switch` that binds the case's
+  value". Swift's `case .n(let x)` in the spelling `if let n(x) = e`
+  already has (#78): `case n(x):`, with `x` a let the enum still owns,
+  as a loop's element is, so it is borrowed or copied, not moved. A
+  case that binds stands alone, since one body for two cases could not
+  say which value `x` is; a case with no value binds nothing, and says
+  so. The same name may serve several cases, each case being a block
+  of its own in C already (#63). A switch on a value no place holds, a
+  call's result, reads it once into a hidden variable (P131).
 
 - (118) Agreed details: "now add a longer delimiter for `"""` inside
   `"""`. also use: `"""` / multi-line quotation / `"""` instead of
@@ -1297,6 +1308,7 @@ says "as agreed".
 | P128 | Details of #116 | `c ? v : none` of an `i64?` is `c ? _kv__kv_opt_i64_make_some(v) : _kv__kv_opt_i64_make_none()` | `optional_of` distributes over an E_TERNARY that is no `??`; `parse_conditional` wraps the arm beside a variant with `optional_of`; `annotation_ahead` refuses a base word followed by `<` or `(` while a ternary's middle arm is parsed, where `ident_annotation_ok` is false |
 | P129 | Details of #117 | `j["name"]` is `_kv_dict_String_JSON_at(&(*_kv_JSON_at_object(&j)), "name")`, the case read and the entry read, each checked; `j["tags"][0] = v` is `_kv_JSON_assign(_kv_array_JSON_at(...), v)` | In the index parse, after `]`, a receiver whose type is a tagged record is replaced by the E_FIELD of its first Dictionary case for text (a literal, a cstr, a String or a Bytes) or its first Array case otherwise, and the parse goes on as for that case; a slice takes the Array case. An enum with no such case, or with the other one only, is an error that says which it has. `_kv_T_assign(T *p, T v)`, free then store, is now written beside `_kv_T_free` for an enum with values and for a struct that owns |
 | P130 | Details of #118 | a `"""` on its own lines is one C string literal of the lines between, each ended by `\n` but the last | `lex_triple` counts the opening run, gathers the raw text up to a run as long, keeping the extra quotes of a longer run, then takes off a first `\n`, a last `\n` and the blanks after it, which it strips from the start of every line that begins with them, and escapes the rest for C. A text that is only the two delimiter lines is `""`. An unterminated one says how many quotes it ends with |
+| P131 | Details of #119 | `case some(v):` is `case 1: { __attribute__((unused)) const int64_t v = a.u.some; ... break; }`; of a call, `{ __auto_type _kv_switch_sw = half(10); switch (_kv_switch_sw.tag) { ... } }` | `parse_case_label` takes `(name)` after a case name, declares it with `LET_EACH`, the kind of a loop's element, and keeps it in the S_CASE's `name2` and `type`; the block emitter writes the let after the `{` it already opens for each case; the S_SWITCH emitter hoists a subject that is no C lvalue when any case binds. Moving the bound value out gets the message of a value a container still owns |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
