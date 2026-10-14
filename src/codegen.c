@@ -428,8 +428,9 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&b, "kv_string_append_uchr(&_kv_s, %s); ", expr(x->a));
                 } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
                     need_show(x->recv_type);
-                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s}, &_kv_sv, -1); } ",
-                               expr(x->a), show_key(x->recv_type));
+                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s}, &_kv_sv, %s); } ",
+                               expr(x->a), show_key(x->recv_type),
+                               x->text && !strcmp(x->text, "pretty") ? "0" : "-1"); /* ${v.pretty} (#126) */
                 } else {
                     buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x->a));
                 }
@@ -468,8 +469,9 @@ static char *expr_bare(Expr *e) {
                 need_show(x->recv_type);
                 buf_printf(&b,
                            "kv_string %s = kv_string_new(); { __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s}, "
-                           "&_kv_sv, -1); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
-                           v, expr(x->a), show_key(x->recv_type), v, build, v, v);
+                           "&_kv_sv, %s); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
+                           v, expr(x->a), show_key(x->recv_type), v,
+                           x->text && !strcmp(x->text, "pretty") ? "0" : "-1" /* ${v.pretty} (#126) */, build, v, v);
                 buf_puts(&bounds, " + KV_TEMPLATE_STR");
             } else {
                 /* (void)0, v: a bit-field cannot initialize __auto_type */

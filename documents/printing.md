@@ -97,6 +97,8 @@ var text = ages.pretty                   // a String, where print does not show 
     is its text on one line.
   - Where `print`, `println` or `f.println` shows it, it is printed
     where it stands.
+  - In a template, `${v.pretty}` is the same text (#126), cut to the
+    room of `` `...` `` as a string value is, and whole in `` $`...` ``.
   - Elsewhere it is a `String`, bound as any owner is:
     `var text = cfg.pretty`.
   - It is of a struct, an enum with values, an Optional, a Result, an

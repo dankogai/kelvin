@@ -2030,7 +2030,11 @@ static Expr *parse_template(void) {
         if (type_class(value_type(v), &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         Type *ct = value_type(v);
-        if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct)) {
+        if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")) {
+            /* ${v.pretty} (#126): the text indented, by the printer, not a
+               String the template would have to free */
+            v->op = "tpl_show";
+        } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct)) {
             /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
                kelvinc's printer of it (#123), cut as a string value is in a
                template's room, and whole in $`...` */
@@ -2089,6 +2093,7 @@ static Expr *parse_primary(void) {
             if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "tpl_show")) {
                 w->a = v->a; /* ${xs} (#125): the printer appends to the String */
                 w->op = "tplstr_show";
+                w->text = v->text; /* "pretty" for ${v.pretty} (#126) */
                 w->recv_type = v->recv_type;
             } else if (is_string(vt) || is_bytes(vt)) {
                 if (!owner_place(v))
