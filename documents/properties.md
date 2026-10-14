@@ -111,7 +111,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **`x.pretty`** (#124) is the text of a struct, an enum with values, an
   Optional, a Result, an Array, a Dictionary or a Set, indented, a line
   for each item of a `[]` or `{}`: printed where `print` shows it, a
-  `String` elsewhere; see [printing.md](printing.md).
+  `String` elsewhere; see [printing.md](printing.md). **`x.pretty(n)`**
+  (#127) indents `n` spaces a level, 0 to 10; `x.pretty` is two.
   - **C structs and unions** from headers have no `.cstr` of their own.
     - Inside a Kelvin struct they show as `{...}`, as do other C types
       kelvinc cannot print: arrays other than `char` text, and pointers

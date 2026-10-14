@@ -158,6 +158,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 124 | `v.pretty`: the same text indented, each item of a `[]` or `{}` on a line of its own, two spaces a level; printed where `print` shows it, a `String` elsewhere | — | `println(cfg.pretty)`, `var text = cfg.pretty` | 2026-10-14 |
 | 125 | `${xs}` of an Array, a Dictionary or a Set in a template: its text by kelvinc's printer (#123), cut to a template's room as a string value is, and whole in `` $`...` ``; one an expression gives is bound first | — | `` `xs = ${xs}` ``, `` $`${d}` `` | 2026-10-14 |
 | 126 | `${v.pretty}` in a template: the value's text indented, by kelvinc's printer, cut to a template's room as a string value is, and whole in `` $`...` `` | — | `` `cfg = ${cfg.pretty}` `` | 2026-10-14 |
+| 127 | `x.pretty(n)`: `n` spaces a level, an integer from 0 to 10, as JS clamps `JSON.stringify`'s space; `x.pretty` stays two; a literal out of range is an error, a computed one clamped | — | `println(cfg.pretty(4))` | 2026-10-15 |
 
 Notes:
 
@@ -719,6 +720,12 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (127) Agreed details: "now add `.pretty` with a custom indent width".
+  Asked how the width is given, the user chose `x.pretty(n)`, a number
+  of spaces, over text as `JSON.stringify` takes or a program-wide
+  setting. 0 to 10 as JS clamps it; 0 still breaks the lines; plain
+  `.pretty` stays two (P139).
 
 - (126) Agreed details: "now add `${d}.pretty` in a template", read as
   `${d.pretty}`, the indented text inside a template; `${d}.pretty` as
@@ -1393,6 +1400,7 @@ says "as agreed".
 | P136 | Details of #124 | `cfg.pretty` elsewhere is `({ kv_string _kv_ps = kv_string_new(); ...; _kv_show_scene(&(kv_out){.s = &_kv_ps}, &_kv_sv, 0); _kv_ps; })` | `.pretty` is an E_PROPERTY `pretty` typed `String`, with the receiver's type kept; in a print call it turns into `show` at level 0. `kv_out_sep` writes `,` and a line at level + 1, `kv_out_end` a line at the level, before the closing bracket. A field named `pretty` wins, as fields do; `.pretty` of anything else is an error naming `.cstr` |
 | P137 | Details of #125 | `` `${xs}` `` is `kv_string v = kv_string_new(); { __auto_type _kv_sv = (xs); _kv_show__kv_array_i64(&(kv_out){.s = &v}, &_kv_sv, -1); } KV_TEMPLATE_VALUE(build, KV_TEMPLATE_STR, v); kv_string_free(&v);` inside the template's statement expression; `` $`${xs}` `` appends with the printer straight into the String being built | In `parse_template`, a value that is an Array, a Dictionary or a Set becomes an E_PROPERTY `tpl_show` typed `String`, so its room is `KV_TEMPLATE_STR`; `` $`...` `` turns it into a `tplstr_show` part. The refusal of #123 is gone, and so is its error test; an owner an expression gives is refused, as `print` refuses it |
 | P138 | Details of #126 | `` `${d.pretty}` `` is #125's code with the printer's level 0 | In `parse_template`, a `.pretty` value, an E_PROPERTY `pretty`, becomes `tpl_show`, keeping its text "pretty"; `` $`...` `` keeps that text on its `tplstr_show` part; codegen passes level 0 for it, -1 otherwise. The String a `.pretty` made in a template was never freed before |
+| P139 | Details of #127 | `d.pretty(4)` is #124's code with `.width = 4` in the sink; a computed `w` is `.width = kv_out_width(w)`; plain `.pretty` is `.width = 2` | `kv_out` gains `int width`, which `out_line` writes as that many spaces a level; `kv_out_width` clamps to 0 to 10. The parser takes `.pretty(` ahead of the owners' method tables, which would refuse a method of that name, keeps the width as the node's `b`, and carries it through `print`, `f.println`, both kinds of template and the String form. Tests that pin a printer's C now show `.width = 2` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

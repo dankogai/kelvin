@@ -327,10 +327,14 @@ void kv_out_quoted_text(kv_out *o, const void *s) {
         kv_out_quoted(o, (const uint8_t *)s, strlen((const char *)s), false);
 }
 
+int kv_out_width(long long n) { return n < 0 ? 0 : n > 10 ? 10 : (int)n; }
+
+/* a line, indented by width spaces a level (#124, #127) */
 static void out_line(kv_out *o, int level) {
+    static const char spaces[] = "          ";
     kv_out_put(o, "\n");
     for (int i = 0; i < level; i++)
-        kv_out_put(o, "  ");
+        kv_out_put(o, spaces + 10 - (o->width < 0 ? 0 : o->width > 10 ? 10 : o->width));
 }
 
 void kv_out_sep(kv_out *o, int level, bool first) {

@@ -269,6 +269,7 @@ static List show_types;
 static const char *show_sink = "NULL";
 static char *show_key(Type *t);
 static void need_show(Type *t);
+static char *pretty_width(Expr *e);
 
 /* the _Generic associations `<C type>: <function>, ` for a method name */
 static char *dispatch(const char *method) {
@@ -428,8 +429,8 @@ static char *expr_bare(Expr *e) {
                     buf_printf(&b, "kv_string_append_uchr(&_kv_s, %s); ", expr(x->a));
                 } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
                     need_show(x->recv_type);
-                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s}, &_kv_sv, %s); } ",
-                               expr(x->a), show_key(x->recv_type),
+                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s, .width = %s}, &_kv_sv, %s); } ",
+                               expr(x->a), show_key(x->recv_type), pretty_width(x),
                                x->text && !strcmp(x->text, "pretty") ? "0" : "-1"); /* ${v.pretty} (#126) */
                 } else {
                     buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x->a));
@@ -468,9 +469,9 @@ static char *expr_bare(Expr *e) {
                 char *v = hidden(NULL, "value");
                 need_show(x->recv_type);
                 buf_printf(&b,
-                           "kv_string %s = kv_string_new(); { __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s}, "
-                           "&_kv_sv, %s); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
-                           v, expr(x->a), show_key(x->recv_type), v,
+                           "kv_string %s = kv_string_new(); { __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s, "
+                           ".width = %s}, &_kv_sv, %s); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
+                           v, expr(x->a), show_key(x->recv_type), v, pretty_width(x),
                            x->text && !strcmp(x->text, "pretty") ? "0" : "-1" /* ${v.pretty} (#126) */, build, v, v);
                 buf_puts(&bounds, " + KV_TEMPLATE_STR");
             } else {
@@ -784,12 +785,12 @@ static char *expr_bare(Expr *e) {
             need_show(e->recv_type);
             const char *level = strcmp(e->text, "pretty") ? "-1" : "0";
             if (!strcmp(e->op, "show"))
-                return strfmt("({ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.fp = %s}, &_kv_sv, %s); "
+                return strfmt("({ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.fp = %s, .width = %s}, &_kv_sv, %s); "
                               "(const uint8_t *)\"\"; })",
-                              expr(e->a), show_key(e->recv_type), show_sink, level);
+                              expr(e->a), show_key(e->recv_type), show_sink, pretty_width(e), level);
             return strfmt("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (%s); "
-                          "_kv_show_%s(&(kv_out){.s = &_kv_ps}, &_kv_sv, 0); _kv_ps; })",
-                          expr(e->a), show_key(e->recv_type));
+                          "_kv_show_%s(&(kv_out){.s = &_kv_ps, .width = %s}, &_kv_sv, 0); _kv_ps; })",
+                          expr(e->a), show_key(e->recv_type), pretty_width(e));
         }
         /* x.size is sizeof(x). x.cstr, x.hex and friends write into a
            buffer on the caller's stack and return it as u8^. The buffer
@@ -2961,6 +2962,16 @@ static bool has_show(Type *t) {
         return false;
     return is_container(t, "_kv_array_") || is_container(t, "_kv_dict_") || is_container(t, "_kv_set_") ||
            kelvin_record(t->name) != NULL;
+}
+
+/* the spaces a level of .pretty: two, or .pretty(n)'s n, a literal as it
+   is, a value clamped to 0 to 10 (#127) */
+static char *pretty_width(Expr *e) {
+    if (!e->b)
+        return "2";
+    if (e->b->kind == E_LITERAL)
+        return expr(e->b);
+    return strfmt("kv_out_width(%s)", expr(e->b));
 }
 
 /* the printer's name: a record's, or a container's C type */

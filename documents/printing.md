@@ -91,6 +91,11 @@ var text = ages.pretty                   // a String, where print does not show 
   room, and show an Array inside a struct as `[...]`.
 - **`v.pretty`** (#124) is the same text indented: each item of a `[]`
   or `{}` on a line of its own, two spaces a level.
+  - **`v.pretty(n)`** (#127) indents `n` spaces a level, an integer from
+    0 to 10, as JS clamps `JSON.stringify`'s space: `cfg.pretty(4)`.
+  - `0` still breaks the lines, with no indent.
+  - A literal out of 0 to 10 is an error; a computed width is clamped
+    at run time.
   - A case's `()` holds one value and stays on its line; what it holds
     breaks if it is a `[]` or a `{}`: `some({` ... `})`.
   - An empty `[]` or `{}` stays as it is, and a type's own `T.cstr()`

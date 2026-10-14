@@ -1454,6 +1454,57 @@ static Expr *parse_postfix_ops(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
+            if (!strcmp(member, "pretty")) {
+                /* v.pretty (#124): the value's text indented, a line for each
+                   item of a [] or {}, as a String; where print shows it, it
+                   is printed where it stands. A field of that name wins */
+                Decl *record;
+                Type *vt = value_type(e);
+                bool field = type_class(vt, &record) == 's' && record_has_field(record, member);
+                if (!field) {
+                    if (!showable(vt))
+                        error_at(name->pos, "'.pretty' is the text, indented, of a struct, an enum with values, an "
+                                            "Optional, a Result, an Array, a Dictionary or a Set; this is %s, whose text "
+                                            "is '.cstr'",
+                                 vt ? kelvin_type(vt) : "a value kelvinc cannot see");
+                    if (is_owner(vt) && !owner_place(e)) {
+                        bare_tags = true;
+                        char *named = kelvin_type(vt);
+                        bare_tags = false;
+                        error_at(name->pos, "'.pretty' of %s that an expression gives: bind it to a variable first",
+                                 named);
+                    }
+                    Expr *x = new_expr(E_PROPERTY, name->pos);
+                    x->a = e;
+                    x->text = "pretty";
+                    x->op = "pretty";
+                    x->recv_type = unqualified(vt);
+                    x->type = base_type("String", name->pos);
+                    if (call) {
+                        /* x.pretty(n) (#127): n spaces a level, 0 to 10, as JS
+                           clamps JSON.stringify's space; a literal is checked */
+                        advance();
+                        if (is_p(peek(), ")"))
+                            error_at(peek()->pos, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10; "
+                                                  "two is '.pretty'");
+                        Expr *w = parse_assign();
+                        expect_p(")");
+                        Decl *wr;
+                        char wc = expr_class(w, &wr);
+                        if ((wc != 'i' && wc != 'u') || is_text_expr(w))
+                            error_at(w->pos, "'.pretty(n)' takes the spaces a level, an integer from 0 to 10, and this "
+                                             "is %s",
+                                     is_text_expr(w) ? "text" : value_type(w) ? kelvin_type(value_type(w)) : "not one");
+                        if (w->kind == E_LITERAL && (strtoll(w->text, NULL, 0) < 0 || strtoll(w->text, NULL, 0) > 10))
+                            error_at(w->pos, "'.pretty(n)' indents 0 to 10 spaces a level, as JSON.stringify's space "
+                                             "does, and this is %s",
+                                     w->text);
+                        x->b = w;
+                    }
+                    e = x;
+                    continue;
+                }
+            }
             if (call && is_converter(name) && !converter_is_field(e, member))
                 error_at(name->pos, "'.%s' takes no arguments: read text in a base with %s(text, base)", member,
                          member);
@@ -1831,36 +1882,6 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
-            if (!call && !strcmp(member, "pretty")) {
-                /* v.pretty (#124): the value's text indented, a line for each
-                   item of a [] or {}, as a String; where print shows it, it
-                   is printed where it stands. A field of that name wins */
-                Decl *record;
-                Type *vt = value_type(e);
-                bool field = type_class(vt, &record) == 's' && record_has_field(record, member);
-                if (!field) {
-                    if (!showable(vt))
-                        error_at(name->pos, "'.pretty' is the text, indented, of a struct, an enum with values, an "
-                                            "Optional, a Result, an Array, a Dictionary or a Set; this is %s, whose text "
-                                            "is '.cstr'",
-                                 vt ? kelvin_type(vt) : "a value kelvinc cannot see");
-                    if (is_owner(vt) && !owner_place(e)) {
-                        bare_tags = true;
-                        char *named = kelvin_type(vt);
-                        bare_tags = false;
-                        error_at(name->pos, "'.pretty' of %s that an expression gives: bind it to a variable first",
-                                 named);
-                    }
-                    Expr *x = new_expr(E_PROPERTY, name->pos);
-                    x->a = e;
-                    x->text = "pretty";
-                    x->op = "pretty";
-                    x->recv_type = unqualified(vt);
-                    x->type = base_type("String", name->pos);
-                    e = x;
-                    continue;
-                }
-            }
             if (!call) {
                 Expr *x = property(e, name, member);
                 if (x) {
@@ -2094,6 +2115,7 @@ static Expr *parse_primary(void) {
                 w->a = v->a; /* ${xs} (#125): the printer appends to the String */
                 w->op = "tplstr_show";
                 w->text = v->text; /* "pretty" for ${v.pretty} (#126) */
+                w->b = v->b;       /* the width of ${v.pretty(n)} (#127) */
                 w->recv_type = v->recv_type;
             } else if (is_string(vt) || is_bytes(vt)) {
                 if (!owner_place(v))

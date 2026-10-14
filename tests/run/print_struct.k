@@ -39,4 +39,4 @@ let main():i32 {
 // out: {x: 1, y: 2}
 // out: {x: 1, y: 2} (1.5, -2.0)
 // out: <1>
-// c: println(({ __auto_type _kv_sv = (p); _kv_show_point(&(kv_out){.fp = NULL}, &_kv_sv, -1); (const uint8_t *)""; }));
+// c: println(({ __auto_type _kv_sv = (p); _kv_show_point(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1); (const uint8_t *)""; }));

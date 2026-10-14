@@ -97,7 +97,8 @@ void kv_string_append_owned(kv_string *s, kv_string t);
 void kv_string_append_cp(kv_string *s, uint32_t cp);
 /* where kelvinc's printers of a value write (#123): a stream, stdout when
    fp is NULL, or a String that grows, for .pretty (#124) */
-typedef struct kv_out { void *fp; kv_string *s; } kv_out;
+typedef struct kv_out { void *fp; kv_string *s; int width; } kv_out; /* width: spaces a level, for .pretty(n) (#127) */
+int kv_out_width(long long n); /* n clamped to 0 to 10, as JS clamps JSON.stringify's space */
 void kv_out_put(kv_out *o, const void *text);
 void kv_out_quoted(kv_out *o, const uint8_t *at, size_t n, bool bytes); /* "text", escaped; bytes as \xNN past ASCII */
 void kv_out_quoted_text(kv_out *o, const void *s);                         /* a cstr, quoted; (null) for none */

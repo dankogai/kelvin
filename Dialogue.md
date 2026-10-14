@@ -3725,3 +3725,14 @@ file, where the earlier one went through `IO.stdout` only. No code
 changed.
 
 There are 685 tests, and all pass with clang and with gcc 15.
+
+### 161. `.pretty(n)`
+
+> now add `.pretty` with a custom indent width
+
+**Claude** asked how the width is given, and the user chose
+`x.pretty(n)`, a number of spaces. #127: from 0 to 10, as JS clamps
+`JSON.stringify`'s space; 0 still breaks the lines; `x.pretty` stays
+two; it works wherever `.pretty` does. Details are provisional P139.
+
+There are 689 tests, and all pass with clang and with gcc 15.

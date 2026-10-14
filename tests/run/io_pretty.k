@@ -32,4 +32,4 @@ let main():i32 {
 // out: }
 // out: {"a": [1, 2]} {x: 1, y: 2}
 // out: 11 0
-// c: _kv_show__kv_dict_String_Array_i64(&(kv_out){.fp = kv_io_fp((kv_io *)&f)}, &_kv_sv, 0)
+// c: _kv_show__kv_dict_String_Array_i64(&(kv_out){.fp = kv_io_fp((kv_io *)&f), .width = 2}, &_kv_sv, 0)
