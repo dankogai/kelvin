@@ -80,12 +80,12 @@ let main():i32 {
 // out: 3.1415926535897931 0.10000000000000001 0.100000001 1
 // out: 42 -7 255 340282366920938463463374607431768211455
 // out: true text 0x0
-// out: {x: 3, y: 4} {from: {x: 3, y: 4}, to: {x: 7, y: 8}, tag: edge}
-// out: {name: tri, corners: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}], grid: [[1, 2], [3, 4]], scale: 1.5}
+// out: {x: 3, y: 4} {from: {x: 3, y: 4}, to: {x: 7, y: 8}, tag: "edge"}
+// out: {name: "tri", corners: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}], grid: [[1, 2], [3, 4]], scale: 1.5}
 // out: <union number> {x: 5, y: 6}
 // out: {n: 3, a: [...]}
 // out: {t: 7, who: c, o: {...}, z: 1+0i, on: true, next: 0x0}
-// out: {si: hi, text: 012345678901234567890123456789012345678901234567890123456...}
+// out: {si: "hi", text: "0123456789012345678901234567890123456789012345678901234..."}
 // out: {label: hello, world, full: abcd, n: 9} hello, world
 // out: {x: 6, y: 6} 10 8
 // out: {x: 1, y: 2} {x: 1, y: 2} {x: 5, y: 6} 2

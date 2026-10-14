@@ -62,7 +62,7 @@ let main():i32 {
 // out: 5 true false false 1 true true true
 // out: Result<{dev: i64, ino: i64, mode: i32, nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64, ctime: f64, isdir: bool, isfile: bool, islink: bool}, i32>
 // out: 0 true true
-// out: ok(b/f.txt)
+// out: ok("b/f.txt")
 // out: true false 5
 // out: 0 2
 // out: 0 384 0 2

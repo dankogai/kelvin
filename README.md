@@ -87,6 +87,9 @@ So far the changes from C are:
 - anonymous functions enclose nothing, are inline (C's `static inline`),
   and may follow a call as its last argument: `sort(xs, n) { $0 < $1 }`,
   where `$0` and `$1` are the parameters
+- `print` and `println` show any value whole: `println(xs, " ", ages)`
+  prints `[1, 2] {"ann": 31}`, with Strings inside quoted, and
+  `println(cfg.pretty)` the same indented, a line for each item
 - quoting text
   - template literals: `` `Hello, ${name}!` `` may span lines, and
     `${x}` is `x`'s text as `print` shows it, kept on the stack (a string

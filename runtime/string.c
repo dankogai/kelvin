@@ -161,6 +161,75 @@ static uint8_t *put_chars(uint8_t *p, const char *s, size_t limit) {
     return p + n;
 }
 
+/* ---------- text inside a value, quoted (#123) ---------- */
+
+/* the escape of byte c in quoted text, into e; its length */
+static size_t quote_escape(uint8_t c, bool bytes, char e[8]) {
+    switch (c) {
+    case '"': return (size_t)snprintf(e, 8, "\\\"");
+    case '\\': return (size_t)snprintf(e, 8, "\\\\");
+    case '\n': return (size_t)snprintf(e, 8, "\\n");
+    case '\r': return (size_t)snprintf(e, 8, "\\r");
+    case '\t': return (size_t)snprintf(e, 8, "\\t");
+    default: break;
+    }
+    if (c < 0x20 || c == 0x7F)
+        return (size_t)snprintf(e, 8, bytes ? "\\x%02x" : "\\u%04x", c);
+    if (bytes && c >= 0x80)
+        return (size_t)snprintf(e, 8, "\\x%02x", c);
+    e[0] = (char)c;
+    e[1] = 0;
+    return 1;
+}
+
+/* "at", escaped, in at most room bytes and a NUL; cut with ..." where the
+   whole does not fit, never inside a codepoint of text */
+static uint8_t *quoted_into(const uint8_t *at, size_t n, size_t room, bool bytes, uint8_t *p) {
+    char e[8];
+    size_t whole = 2;
+    for (size_t i = 0; i < n; i++)
+        whole += quote_escape(at[i], bytes, e);
+    size_t used = 0;
+    p[used++] = '"';
+    for (size_t i = 0; i < n; i++) {
+        size_t k = quote_escape(at[i], bytes, e);
+        if (whole > room) {
+            bool starts = bytes || (at[i] & 0xC0) != 0x80;
+            if (starts && used + k + 4 > room)
+                break;
+        }
+        memcpy(p + used, e, k);
+        used += k;
+        if (whole > room && i + 1 < n && used + 4 > room)
+            break;
+    }
+    if (whole > room) {
+        while (!bytes && used > 1 && (p[used - 1] & 0xC0) == 0x80) /* not inside a codepoint */
+            used--;
+        if (!bytes && used > 1 && p[used - 1] >= 0xC0)
+            used--;
+        memcpy(p + used, "...", 3);
+        used += 3;
+    }
+    p[used++] = '"';
+    p[used] = 0;
+    return p + used;
+}
+
+uint8_t *kv_cstr_quoted_string(kv_string s, uint8_t *p) {
+    return quoted_into(s.b.at ? s.b.at : (const uint8_t *)"", s.b.count, KV_CSTR_SCALAR - 1, false, p);
+}
+
+uint8_t *kv_cstr_quoted_bytes(kv_bytes b, uint8_t *p) {
+    return quoted_into(b.at ? b.at : (const uint8_t *)"", b.count, KV_CSTR_SCALAR - 1, true, p);
+}
+
+uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p) {
+    if (!s)
+        return kv_cstr_put(p, "(null)");
+    return quoted_into((const uint8_t *)s, strlen(s), KV_CSTR_STR, false, p);
+}
+
 uint8_t *kv_cstr_put_str(uint8_t *p, const char *s) { return s ? put_chars(p, s, SIZE_MAX) : kv_cstr_put(p, "(null)"); }
 
 uint8_t *kv_cstr_put_text(uint8_t *p, const void *s) { return kv_cstr_put_str(p, (const char *)s); }

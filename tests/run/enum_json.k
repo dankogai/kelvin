@@ -33,9 +33,9 @@ let main():i32 {
     }
     return 0
 }
-// out: n(1) s(x) null 3 4
-// out: s(set) s(moved) 5 b(true) 8
-// out: s(xyz) null
+// out: n(1) s("x") null 3 4
+// out: s("set") s("moved") 5 b(true) 8
+// out: s("xyz") null
 // out: n(3) 4.0
 // out: number 1.0
 // c: KV_ARRAY_TYPE(struct json, _kv_array_json)

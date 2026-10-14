@@ -56,7 +56,7 @@ let main():i32 {
 // out: 0
 // out: 0 false true
 // out: true 0
-// out: some(set) cstr? 0 true
+// out: some("set") cstr? 0 true
 // out: 3 0 true
 // out: 0
 // out: / 0

@@ -154,6 +154,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 120 | An enum with values and no tag at the top level, `enum { red; rgb: {r: u8, g: u8, b: u8} }`: the type of its spelling, and its cases words of the program, `red` a value and `rgb({1, 2, 3})` a maker, as C's anonymous enum declares its enumerators; a case named `ok`, `err`, `none`, `some`, a function or an enumerator is an error | `enum { A, B }` declaring A and B | `var c = rgb({1, 2, 3})` | 2026-10-14 |
 | 121 | Methods and operators on a type with no tag, by its spelling: `let enum{nothing, just: i64}.orZero():i64 { }`, `let {x: f64, y: f64}.norm2():f64 { }`, `let +(a:enum{...}, b:enum{...}):enum{...}`; and an operator of any enum with values is the program's, `==` and `!=` included once written | functions named by the record | `just(3).orZero()`, `just(1) + just(2)` | 2026-10-14 |
 | 122 | `print`, `println`, `f.print` and `f.println` show a struct, a union or an enum with values that kelvinc sees as its `.cstr` text, the derived one or the type's own `T.cstr()`, as a template does | — | `println(p)` | 2026-10-14 |
+| 123 | `print`, `println` and `f.println` show a value with brackets whole, on one line, by a printer kelvinc writes for each type: a struct `{x: 1}`, an enum with values `n(v)`, an Optional, a Result, an `Array` `[a, b]`, a `Dictionary` `{"k": v}`, a `Set` `{a, b}`; a `String`, a `Bytes` or a `cstr` inside a value is quoted and escaped, also in `.cstr` and `${v}`, which stay cut to their room | a loop of `printf`s | `println(xs, " ", ages)` | 2026-10-14 |
+| 124 | `v.pretty`: the same text indented, each item of a `[]` or `{}` on a line of its own, two spaces a level; printed where `print` shows it, a `String` elsewhere | — | `println(cfg.pretty)`, `var text = cfg.pretty` | 2026-10-14 |
 
 Notes:
 
@@ -715,6 +717,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (124) Agreed details: from the same request, "add `print` and
+  `println` and option to pretty-print values in `()`, `[]`, and `{}`,
+  indented and line-fed". Asked how the option is spelled, the user
+  chose a property, `x.pretty`, over `pprint` functions or a leading
+  option argument: printed where it stands by `print`, and a `String`
+  elsewhere. Each non-empty `[]` and `{}` breaks, an item a line, two
+  spaces a level; a case's `()` holds one value, so it stays on its
+  line and what it holds breaks; a type's own `T.cstr()` stays as it
+  is (P136).
+
+- (123) Agreed details: "now give println of a struct its .cstr text and
+  Array's elements in `[]` and `Dictionary` key-value pairs in `{}`".
+  The first part was done by #122, in another session the same day;
+  this one extends it to an `Array`, a `Dictionary` and a `Set`, which
+  were refused, and to a struct that holds them, which #122's bounded
+  `.cstr` could not show. kelvinc writes a printer for each type that
+  streams the text, so `print` shows everything at any length; `.cstr`
+  and templates keep their room. Asked how text inside a value shows,
+  the user chose quoted, `["a", "b"]` and `{"ann": 31}`, which also
+  quotes a String inside a struct's or an enum's `.cstr`,
+  `{name: "held"}`, `err("empty")`: sixteen tests' expected text
+  changed so. A float inside a value keeps `.cstr`'s form, `11`, not
+  print's `11.0`. Three error tests that `print(xs)` is refused were
+  removed (P135).
 
 - (122) Agreed details: `println(p)` of a struct, or of an enum with
   values, passed kelvinc and failed in C, as a struct given to the
@@ -1346,6 +1373,8 @@ says "as agreed".
 | P132 | Details of #120 | `rgb({1, 2, 3})` is `_kv__kv_anon1_make_rgb((struct _kv_anon1_rgb){1, 2, 3})` or the like, the maker of the spelling's record, as `T.n(x)`'s is | `parse_record` sees `enum {` with a `:` inside and reads it through `parse_anon_record`, the type-position path, so the record is the one of its spelling, registered once; the record joins `anon_words`, and the top-level loop gets NULL, since the record is in the program's declarations already. In `parse_primary`, an identifier that is no binding, no function and not followed by `.` is looked up in `anon_words`, and `case_maker`, split out of the `T.n(x)` block, makes the value. The clashes are checked where the enum is declared and where a function or an enumerator is |
 | P133 | Details of #121 | `let enum{nothing, just: i64}.orZero()` is the C function `_kv_anon1__orZero(struct _kv_anon1 self)`, dispatched as any method by `_Generic` on `struct _kv_anon1` | `spelled_receiver(i)` finds `enum{...}`, `union{...}`, `struct{...}` or `{...}` followed by `.name(`; `function_shape` gives it shape 5, the top-level loop routes it to `parse_method`, which reads the receiver with `parse_type`, so the record is the one of its spelling, and names it in C by the record, `_kv_anonN`; the method-name scan takes `} . name (` at depth 0. In the binary path, an enum with values and an overloadable operator other than `==` and `!=`, or one of those when `user_operator_on` finds a definition taking the type, goes to `resolve_operator`; with none written, the old message stays, with "or define one" for an enum of the program. Printing such a value by itself with `println(v)` was still a C error, as it was for any struct, until #122 |
 | P134 | Details of #122 | `println(p)` is `println(_kv_point_cstr(p, _kv_p_text))`, the C that `println(p.cstr)` gives | `print_records_as_text`, called by `check_print_args` for `print` and `println` and by the `f.print`/`f.println` branch of the member path, replaces each argument whose `expr_class` is `'s'` with `property(x, "cstr")`, as `parse_template` does for `${x}`; the text's buffer is the one `.cstr` makes in the enclosing block |
+| P135 | Details of #123 | `println(xs)` is `println(({ __auto_type _kv_sv = (xs); _kv_show__kv_array_i64(&(kv_out){.fp = NULL}, &_kv_sv, -1); (const uint8_t *)""; }))`: the printer streams, and the argument prints as an empty text | In the parser, `print_records_as_text` (of #122) now wraps every argument that is a record kelvinc sees, an Array, a Dictionary or a Set in an E_PROPERTY `show`; an owner an expression gives is refused there. In codegen, a pre-pass collects the types, closed over members, elements, keys and case values; each gets `static void _kv_show_<key>(kv_out *, const void *, int)` declared after the includes, since it takes `const void *`, and written after everything; `level < 0` is one line. The runtime's `kv_out` writes to a stream (stdout for NULL) or appends to a String; `kv_out_quoted` escapes in full, and `kv_cstr_quoted_*` escape within `.cstr`'s room, cutting with `..."` outside a codepoint. `f.println` sets the sink to `kv_io_fp`. The refusal of `print(xs)` in `reject_owners_to_c` became unreachable and was removed; `${xs}` in a template still errors, now naming `print` and `.pretty` |
+| P136 | Details of #124 | `cfg.pretty` elsewhere is `({ kv_string _kv_ps = kv_string_new(); ...; _kv_show_scene(&(kv_out){.s = &_kv_ps}, &_kv_sv, 0); _kv_ps; })` | `.pretty` is an E_PROPERTY `pretty` typed `String`, with the receiver's type kept; in a print call it turns into `show` at level 0. `kv_out_sep` writes `,` and a line at level + 1, `kv_out_end` a line at the level, before the closing bracket. A field named `pretty` wins, as fields do; `.pretty` of anything else is an error naming `.cstr` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

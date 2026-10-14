@@ -33,6 +33,6 @@ let main():i32 {
 }
 // out: some(4) none some(3) none
 // out: some(5) some(5) none i64?
-// out: ok(42) err(empty) ok(7) err(empty)
+// out: ok(42) err("empty") ok(7) err("empty")
 // out: some(6) none
-// out: some(text)
+// out: some("text")

@@ -37,7 +37,7 @@ let main():i32 {
 // out: héllo, κόσμε 🌍😀 15 27 String 32
 // out: 8 true héllo, κόσμε 🌍😀 true 104
 // out: plain 5 true
-// out: {name: Ada Lovelace, age: 36} AdA LovelAce!
+// out: {name: "Ada Lovelace", age: 36} AdA LovelAce!
 // out: false
 // out: 0 [] 0
 // c: __attribute__((cleanup(kv_string_free))) kv_string s = KV_STRING_OF("héllo, κόσμε");

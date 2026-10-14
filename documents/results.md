@@ -23,10 +23,10 @@ var r = parse("42")
 var e = parse("")
 println(r.is(ok), " ", r.ok, " ", e.err)       // true 42 empty
 println(r ?? -1, " ", e ?? -1)                 // the ok value, or the default: 42 -1
-println(r.cstr, " ", e.cstr)                   // ok(42) err(empty)
+println(r.cstr, " ", e.cstr)                   // ok(42) err("empty")
 println(r == 42, " ", r == e, " ", r != ok(41))   // true false true: the same case and value (#79)
 var twice = parse("21").map { i64($0 * 2) }    // ok(42), a Result<i64, String> (#80)
-var checked = parse("0").flatMap(positive)     // err(zero): positive gives a Result itself (#81)
+var checked = parse("0").flatMap(positive)     // err("zero"): positive gives a Result itself (#81)
 if let v = r { println(v) } else { println(r.err) }   // binds the ok value (#74)
 if let err(why) = e { println("failed: ", why) }   // binds the err, by the case's name (#78)
 switch e {                                     // exhaustive, as an enum's
@@ -121,7 +121,7 @@ var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   - Of a variable that owns, `map` and `flatMap` would move the value
     out, so map the call itself, `parse(s).map(f)`, or `r.copy()`.
   - Calls chain, `parse(s).map(f).flatMap(g)`.
-- **Text:** `r.cstr` is `ok(42)` or `err(empty)`, the value's text
+- **Text:** `r.cstr` is `ok(42)` or `err("empty")`, the value's text
   inside; `${r}` the same.
 - **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
   tag and a union of the two values, with the functions of an enum with
@@ -225,7 +225,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `r ?? y` | the `ok` value, or `y` |
 | | `switch r { case ok: ... case err: ... }` | by the case |
 | | `switch r { case ok(v): ... case err(e): ... }` | the same, with the value bound in each body (#119) |
-| | `.cstr` | `ok(42)`, `err(empty)` |
+| | `.cstr` | `ok(42)`, `err("empty")`: text inside is quoted (#123) |
 | | `==`, `!=` | the same case and equal values; `r == 42`, `r == err(2)` (#79) |
 | | `.map(f)`, `.map { ... }`, `.mapErr(g)` | a `Result<U, E>` of `f`'s result, or a `Result<T, F>` of `g`'s (#80) |
 | | `.flatMap(f)` | `f`'s own `Result<U, E>`, or the `err` carried over (#81) |

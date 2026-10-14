@@ -50,7 +50,7 @@ let main():i32 {
 // out: hello, Kelvin! 14 true Bytes 24
 // out: true false hello, Kelvin! 14
 // out: 4 7 0 16
-// out: {id: 1, body: body text} 9 14
+// out: {id: 1, body: "body text"} 9 14
 // out: 1258 again
 // out: x 1 2
 // out: block

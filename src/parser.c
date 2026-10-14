@@ -755,6 +755,7 @@ static Type *parse_result_type(Token *kw);
 static Expr *variant_constructor(Token *t, Type *vt);
 static bool starts_operand(Token *t);
 static bool is_set_owner(Type *t);
+static bool showable(Type *t);
 static Type *parse_set_type(Token *kw);
 static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first);
 static Type *parse_dict_types(Token *kw);
@@ -1830,6 +1831,36 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            if (!call && !strcmp(member, "pretty")) {
+                /* v.pretty (#124): the value's text indented, a line for each
+                   item of a [] or {}, as a String; where print shows it, it
+                   is printed where it stands. A field of that name wins */
+                Decl *record;
+                Type *vt = value_type(e);
+                bool field = type_class(vt, &record) == 's' && record_has_field(record, member);
+                if (!field) {
+                    if (!showable(vt))
+                        error_at(name->pos, "'.pretty' is the text, indented, of a struct, an enum with values, an "
+                                            "Optional, a Result, an Array, a Dictionary or a Set; this is %s, whose text "
+                                            "is '.cstr'",
+                                 vt ? kelvin_type(vt) : "a value kelvinc cannot see");
+                    if (is_owner(vt) && !owner_place(e)) {
+                        bare_tags = true;
+                        char *named = kelvin_type(vt);
+                        bare_tags = false;
+                        error_at(name->pos, "'.pretty' of %s that an expression gives: bind it to a variable first",
+                                 named);
+                    }
+                    Expr *x = new_expr(E_PROPERTY, name->pos);
+                    x->a = e;
+                    x->text = "pretty";
+                    x->op = "pretty";
+                    x->recv_type = unqualified(vt);
+                    x->type = base_type("String", name->pos);
+                    e = x;
+                    continue;
+                }
+            }
             if (!call) {
                 Expr *x = property(e, name, member);
                 if (x) {
@@ -2000,9 +2031,9 @@ static Expr *parse_template(void) {
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         v->shown = shown_type(v);
         if (is_array_owner(value_type(v)) || is_dict_owner(value_type(v)) || is_set_owner(value_type(v)))
-            error_at(v->pos, "%s has no text yet: show its %s",
-                     is_dict_owner(value_type(v)) ? "a Dictionary" : is_set_owner(value_type(v)) ? "a Set" : "an Array",
-                     is_dict_owner(value_type(v)) ? "entries" : "elements");
+            error_at(v->pos, "%s has no text in a template, whose room is bounded: print it with print or println, or "
+                             "bind its .pretty, a String, and show that (#123, #124)",
+                     is_dict_owner(value_type(v)) ? "a Dictionary" : is_set_owner(value_type(v)) ? "a Set" : "an Array");
         list_push(&e->items, v);
         part = peek();
         if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
@@ -3742,6 +3773,8 @@ static Type *value_type_of(Expr *e) {
     case E_TEMPLATE: /* its text is a cstr (#39, #52); $`...` a String (#67) */
         return e->op && !strcmp(e->op, "string") ? base_type("String", e->pos) : cstr_type(e->pos);
     case E_PROPERTY: { /* p.next and p.prev have p's type; a text is a cstr */
+        if (e->op && (!strcmp(e->op, "pretty") || !strcmp(e->op, "show"))) /* v.pretty, a String (#124) */
+            return e->type;
         if (e->op && !strcmp(e->op, "bytes") && !strcmp(e->text, "at")) { /* b.at (#54) */
             Type *p = xcalloc(1, sizeof *p);
             p->kind = T_PTR;
@@ -4645,11 +4678,6 @@ static void reject_owners_to_c(Expr *call) {
     if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println"))) {
         for (int k = 0; k < call->items.len; k++) {
             Expr *x = call->items.data[k];
-            if (is_array_owner(value_type(x)) || is_dict_owner(value_type(x)) || is_set_owner(value_type(x)))
-                error_at(x->pos, "%s has no text yet: %s its %s, as in '%s'",
-                         is_dict_owner(value_type(x)) ? "a Dictionary" : is_set_owner(value_type(x)) ? "a Set" : "an Array",
-                         call->a->text, is_dict_owner(value_type(x)) ? "entries" : "elements",
-                         is_dict_owner(value_type(x)) ? "for k, v in d" : "for x in xs");
             if (is_owner(value_type(x)) && !owner_place(x))
                 error_at(x->pos, "%s of an owner that an expression gives, which nothing would free: bind it to a "
                                  "variable first",
@@ -6893,15 +6921,45 @@ static Decl *method_named(Expr *recv, const char *name) {
     return n == 1 ? found : NULL;
 }
 
-/* a struct kelvinc sees, an enum with values too, is shown by print as
-   its .cstr text, as a template shows it (#122) */
+/* Is t a value kelvinc writes a printer for (#123): a struct, a union or
+   an enum with values it sees, an Optional, a Result, an Array, a
+   Dictionary or a Set? */
+static bool showable(Type *t) {
+    Decl *record;
+    return t && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) ||
+                 (type_class(t, &record) == 's' && record));
+}
+
+/* print and println show a struct, an enum with values, an Optional, a
+   Result, an Array, a Dictionary and a Set by kelvinc's printer of it,
+   on one line (#122, #123), and v.pretty indented (#124): each such
+   argument becomes a "show" property the codegen writes */
 static void print_records_as_text(Expr *call) {
     for (int i = 0; i < call->items.len; i++) {
         Expr *x = call->items.data[i];
-        Decl *record;
-        if (type_class(value_type(x), &record) != 's') /* p.cstr keeps p's type, to size its buffer */
+        if (x->kind == E_PROPERTY && x->op && !strcmp(x->op, "pretty")) {
+            x->op = "show"; /* printed where it stands, indented, not made a String */
+            x->type = cstr_type(x->pos);
             continue;
-        call->items.data[i] = property(x, &(Token){.kind = TK_IDENT, .pos = x->pos, .text = "cstr"}, "cstr");
+        }
+        Type *t = value_type(x);
+        if (!showable(t))
+            continue;
+        if (is_owner(t) && !owner_place(x)) {
+            bare_tags = true;
+            char *named = kelvin_type(t);
+            bare_tags = false;
+            error_at(x->pos, "%s that an expression gives, which nothing would free, is not printed: bind it to a "
+                             "variable first",
+                     named);
+        }
+        Expr *s = new_expr(E_PROPERTY, x->pos);
+        s->a = x;
+        s->text = "show";
+        s->op = "show";
+        s->recv_type = unqualified(t);
+        s->type = cstr_type(x->pos);
+        call->items.data[i] = s;
     }
 }
 

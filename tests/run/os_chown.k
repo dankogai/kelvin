@@ -26,7 +26,7 @@ let main():i32 {
 // out: 0 0
 // out: true
 // out: true true
-// out: true true some(root) none String?
+// out: true true some("root") none String?
 // out: true
 // out: 0
 // c: kv_os_chown(path, kv_os_uid(), kv_os_gid())

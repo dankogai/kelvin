@@ -53,7 +53,7 @@ let main():i32 {
 // out: at 2
 // out: true 1
 // out: true ann true String?
-// out: bob some(bob)
+// out: bob some("bob")
 // out: 1 true 4 i64? point?
 // out: 3 4 Array<i64?>
 // out: 1 0 Dictionary<String, i64?>

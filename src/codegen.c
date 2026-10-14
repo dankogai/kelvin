@@ -263,6 +263,12 @@ static char *c_op(const char *op) {
 
 static char *initializer(Expr *e);
 static Decl *kelvin_record(const char *name);
+/* kelvinc's printers of a value (#123): the types that need one, and where
+   a print being written sends its text */
+static List show_types;
+static const char *show_sink = "NULL";
+static char *show_key(Type *t);
+static void need_show(Type *t);
 
 /* the _Generic associations `<C type>: <function>, ` for a method name */
 static char *dispatch(const char *method) {
@@ -756,6 +762,19 @@ static char *expr_bare(Expr *e) {
     case E_INIT:
         return initializer(e);
     case E_PROPERTY: {
+        if (e->op && (!strcmp(e->op, "show") || !strcmp(e->op, "pretty")) && e->recv_type) {
+            /* print's argument printed where it stands (#123), indented for
+               .pretty (#124); .pretty elsewhere is a String of the same text */
+            need_show(e->recv_type);
+            const char *level = strcmp(e->text, "pretty") ? "-1" : "0";
+            if (!strcmp(e->op, "show"))
+                return strfmt("({ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.fp = %s}, &_kv_sv, %s); "
+                              "(const uint8_t *)\"\"; })",
+                              expr(e->a), show_key(e->recv_type), show_sink, level);
+            return strfmt("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (%s); "
+                          "_kv_show_%s(&(kv_out){.s = &_kv_ps}, &_kv_sv, 0); _kv_ps; })",
+                          expr(e->a), show_key(e->recv_type));
+        }
         /* x.size is sizeof(x). x.cstr, x.hex and friends write into a
            buffer on the caller's stack and return it as u8^. The buffer
            is declared at the top of the enclosing block (see S_BLOCK), so
@@ -975,8 +994,11 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(e->text, "print") || !strcmp(e->text, "println")) { /* as print, to the IO (#83) */
                 Buf args = {0};
                 buf_puts(&args, "");
+                const char *saved_sink = show_sink;
+                show_sink = strfmt("kv_io_fp(%s)", recv); /* a value's printer writes to the IO too (#123) */
                 for (int i = 0; i < e->items.len; i++)
                     buf_printf(&args, ", %s", expr(e->items.data[i]));
+                show_sink = saved_sink;
                 return strfmt("%s(%s%s)", e->text[5] ? "KV_FPRINTLN" : "KV_FPRINT", recv, args.buf);
             }
             if (!strcmp(e->text, "glob") && e->type) { /* f.glob(pattern) (#101): under its path, an Array straight (#106) */
@@ -2156,10 +2178,14 @@ static const char *template_bound(Expr *x) {
 /* a C expression that writes the text of `lv` (type t, not an array) at p
    and gives the end */
 static char *text_writer(Type *t, const char *lv) {
-    if (t->kind == T_BASE && !strcmp(t->name, "Bytes")) /* a Bytes member (#54): its bytes, cut as a string is */
-        return strfmt("kv_cstr_end(kv_cstr_bytes(%s, _kv_p))", lv);
-    if (t->kind == T_BASE && !strcmp(t->name, "String")) /* a String member (#55) */
-        return strfmt("kv_cstr_end(kv_cstr_string(%s, _kv_p))", lv);
+    if (t->kind == T_BASE && !strcmp(t->name, "Bytes")) /* a Bytes member (#54): quoted, cut as a string is (#123) */
+        return strfmt("kv_cstr_quoted_bytes(%s, _kv_p)", lv);
+    if (t->kind == T_BASE && !strcmp(t->name, "String")) /* a String member (#55): quoted (#123) */
+        return strfmt("kv_cstr_quoted_string(%s, _kv_p)", lv);
+    if (t->kind == T_BASE && t->cname && !strncmp(t->cname, "_kv_array_", 10)) /* an Array member, cut: print shows it (#123) */
+        return "kv_cstr_put(_kv_p, \"[...]\")";
+    if (t->kind == T_BASE && t->cname && (!strncmp(t->cname, "_kv_dict_", 9) || !strncmp(t->cname, "_kv_set_", 8)))
+        return "kv_cstr_put(_kv_p, \"{...}\")";
     if (t->kind == T_BASE && !strcmp(t->name, "IO")) /* an IO member (#82): no text of its own */
         return "kv_cstr_put(_kv_p, \"<IO>\")";
     /* a function's address: ISO C converts it to an integer, not to a
@@ -2168,7 +2194,7 @@ static char *text_writer(Type *t, const char *lv) {
         return strfmt("kv_cstr_put_address(_kv_p, (const void *)(uintptr_t)%s)", lv);
     if (t->kind == T_PTR) {
         char k = pointer_kind(t);
-        return k == 's'   ? strfmt("kv_cstr_put_str(_kv_p, (const char *)%s)", lv)
+        return k == 's'   ? strfmt("kv_cstr_quoted_str((const char *)%s, _kv_p)", lv) /* quoted (#123) */
                : k == 'a' ? strfmt("kv_cstr_put_address(_kv_p, %s)", lv)
                           : strfmt("kv_cstr_put_pointer(_kv_p, %s)", lv);
     }
@@ -2907,6 +2933,231 @@ static void emit_decl(Decl *d) {
     }
 }
 
+/* ---------- kelvinc's printers of a value (#123, #124) ---------- */
+
+static bool is_container(Type *t, const char *prefix) {
+    return t && t->kind == T_BASE && t->cname && !strncmp(t->cname, prefix, strlen(prefix));
+}
+
+/* a type that has a printer: a Kelvin record, an Array, a Dictionary, a Set */
+static bool has_show(Type *t) {
+    if (!t || t->kind != T_BASE)
+        return false;
+    return is_container(t, "_kv_array_") || is_container(t, "_kv_dict_") || is_container(t, "_kv_set_") ||
+           kelvin_record(t->name) != NULL;
+}
+
+/* the printer's name: a record's, or a container's C type */
+static char *show_key(Type *t) {
+    if (t->cname)
+        return t->cname;
+    Decl *r = kelvin_record(t->name);
+    return r ? r->name : (char *)"unknown";
+}
+
+static void need_show_inside(Type *t) {
+    while (t && t->kind == T_ARRAY)
+        t = t->elem;
+    if (has_show(t))
+        need_show(t);
+}
+
+/* t and every type with a printer inside it */
+static void need_show(Type *t) {
+    if (!has_show(t))
+        return;
+    char *key = show_key(t);
+    for (int i = 0; i < show_types.len; i++)
+        if (!strcmp(show_key(show_types.data[i]), key))
+            return;
+    list_push(&show_types, t);
+    if (t->cname) {
+        need_show_inside(t->key);
+        need_show_inside(t->elem);
+        return;
+    }
+    Decl *r = kelvin_record(t->name);
+    if (r->kind == D_UNION || text_method_of(t->name))
+        return;
+    for (int i = 0; i < r->members.len; i++)
+        need_show_inside(((Var *)r->members.data[i])->type);
+}
+
+static void find_shows_stmt(Stmt *s);
+
+static void find_shows_expr(Expr *e) {
+    if (!e)
+        return;
+    if (e->kind == E_PROPERTY && e->op && (!strcmp(e->op, "show") || !strcmp(e->op, "pretty")) && e->recv_type)
+        need_show(e->recv_type);
+    find_shows_expr(e->a);
+    find_shows_expr(e->b);
+    find_shows_expr(e->c);
+    find_shows_expr(e->d);
+    for (int i = 0; i < e->items.len; i++)
+        if (e->kind != E_STRING)
+            find_shows_expr(e->items.data[i]);
+}
+
+static void find_shows_stmt(Stmt *s) {
+    if (!s)
+        return;
+    for (int i = 0; i < s->stmts.len; i++)
+        find_shows_stmt(s->stmts.data[i]);
+    for (int i = 0; i < s->vars.len; i++)
+        find_shows_expr(((Var *)s->vars.data[i])->init);
+    find_shows_expr(s->expr);
+    find_shows_expr(s->step);
+    find_shows_stmt(s->init);
+    find_shows_stmt(s->body);
+    find_shows_stmt(s->els);
+}
+
+/* the lines that print the value at lv, of type t, inside a printer whose
+   nested level is _kv_nl */
+static void show_value(Type *t, const char *lv, int depth) {
+    if (t->kind == T_ARRAY) { /* a C array inside a struct: [a, b] */
+        if (!t->size) {
+            line("kv_out_put(o, \"[...]\");");
+            return;
+        }
+        char *i = strfmt("_kv_i%d", depth);
+        line("kv_out_put(o, \"[\");");
+        line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
+        line("{");
+        indent++;
+        line("kv_out_sep(o, _kv_nl, %s == 0);", i);
+        show_value(t->elem, strfmt("%s[%s]", lv, i), depth + 1);
+        indent--;
+        line("}");
+        line("kv_out_end(o, _kv_nl);");
+        line("kv_out_put(o, \"]\");");
+        return;
+    }
+    if (t->kind == T_BASE && !strcmp(t->name, "String")) {
+        line("kv_out_quoted(o, (%s).b.at, (%s).b.count, false);", lv, lv);
+        return;
+    }
+    if (t->kind == T_BASE && !strcmp(t->name, "Bytes")) {
+        line("kv_out_quoted(o, (%s).at, (%s).count, true);", lv, lv);
+        return;
+    }
+    if (t->kind == T_PTR && pointer_kind(t) == 's') {
+        line("kv_out_quoted_text(o, (const void *)(%s));", lv);
+        return;
+    }
+    if (has_show(t)) {
+        need_show(t);
+        line("_kv_show_%s(o, &(%s), _kv_nl);", show_key(t), lv);
+        return;
+    }
+    line("{");
+    indent++;
+    line("uint8_t _kv_b[256];");
+    line("uint8_t *_kv_p = _kv_b;");
+    line("_kv_p = %s;", text_writer(t, lv));
+    line("(void)_kv_p;");
+    line("kv_out_put(o, _kv_b);");
+    indent--;
+    line("}");
+}
+
+/* the printer of t: on one line when level is negative, else indented,
+   each item of a [] or {} on a line of its own at level + 1 */
+static void emit_show(Type *t) {
+    line("static void _kv_show_%s(kv_out *o, const void *_kv_v, int level)", show_key(t));
+    line("{");
+    indent++;
+    line("__attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;");
+    if (t->cname) {
+        line("const %s *self = _kv_v;", t->cname);
+        bool dict = is_container(t, "_kv_dict_"), set = is_container(t, "_kv_set_");
+        const char *open = dict || set ? "{" : "[", *close = dict || set ? "}" : "]";
+        line("if (!self->count)");
+        line("{");
+        line("    kv_out_put(o, \"%s%s\");", open, close);
+        line("    return;");
+        line("}");
+        line("kv_out_put(o, \"%s\");", open);
+        if (dict || set) {
+            line("bool _kv_first = true;");
+            line("for (size_t _kv_i = 0; _kv_i < self->len; _kv_i++)");
+            line("{");
+            indent++;
+            line("if (!self->at[_kv_i].live)");
+            line("    continue;");
+            line("kv_out_sep(o, level, _kv_first);");
+            line("_kv_first = false;");
+            show_value(set ? t->elem : t->key, "self->at[_kv_i].key", 0);
+            if (dict) {
+                line("kv_out_put(o, \": \");");
+                show_value(t->elem, "self->at[_kv_i].value", 0);
+            }
+            indent--;
+            line("}");
+        } else {
+            line("for (size_t _kv_i = 0; _kv_i < self->count; _kv_i++)");
+            line("{");
+            indent++;
+            line("kv_out_sep(o, level, _kv_i == 0);");
+            show_value(t->elem, "self->at[_kv_i]", 0);
+            indent--;
+            line("}");
+        }
+        line("kv_out_end(o, level);");
+        line("kv_out_put(o, \"%s\");", close);
+        indent--;
+        line("}");
+        return;
+    }
+    Decl *r = kelvin_record(t->name);
+    char *ctype = decl(t, "");
+    line("const %s *self = _kv_v;", ctype);
+    Decl *own = text_method_of(t->name);
+    if (own) { /* the type's own text (#53), on one line however it is printed */
+        line("uint8_t _kv_b[_kv_%s_cstr_size];", r->name);
+        line("kv_out_put(o, _kv_%s_cstr(*self, _kv_b));", r->name);
+    } else if (r->kind == D_UNION) {
+        line("(void)self;");
+        line("kv_out_put(o, \"<%s>\");", r->spelling ? r->spelling : strfmt("union %s", r->name));
+    } else if (r->tagged) { /* n(v), none */
+        line("switch (self->tag)");
+        line("{");
+        for (int i = 0; i < r->members.len; i++) {
+            Var *m = r->members.data[i];
+            line("case %d:", i);
+            indent++;
+            line("kv_out_put(o, \"%s%s\");", m->name, m->type ? "(" : "");
+            if (m->type) {
+                line("_kv_nl = level;"); /* a case's () holds one value, which breaks if it is a [] or {} */
+                show_value(m->type, strfmt("self->u.%s", m->name), 0);
+                line("kv_out_put(o, \")\");");
+            }
+            line("break;");
+            indent--;
+        }
+        line("default: kv_out_put(o, \"?\"); break;");
+        line("}");
+    } else { /* {x: 1, y: 2} */
+        if (!r->members.len) {
+            line("(void)self;");
+            line("kv_out_put(o, \"{}\");");
+        } else {
+            line("kv_out_put(o, \"{\");");
+            for (int i = 0; i < r->members.len; i++) {
+                Var *m = r->members.data[i];
+                line("kv_out_sep(o, level, %s);", i ? "false" : "true");
+                line("kv_out_put(o, \"%s: \");", m->name);
+                show_value(m->type, strfmt("self->%s", m->name), 0);
+            }
+            line("kv_out_end(o, level);");
+            line("kv_out_put(o, \"}\");");
+        }
+    }
+    indent--;
+    line("}");
+}
+
 char *gen_program(Program *prog, bool with_lines) {
     out = (Buf){0};
     indent = 0;
@@ -2918,12 +3169,20 @@ char *gen_program(Program *prog, bool with_lines) {
     program = prog;
     methods = (List){0};
     cstr_used = (List){0};
+    show_types = (List){0};
     for (int i = 0; i < prog->decls.len; i++) {
         Decl *d = prog->decls.data[i];
         find_cstr_stmt(d->body);
-        for (int j = 0; d->kind == D_VAR && j < d->members.len; j++)
+        find_shows_stmt(d->body);
+        for (int j = 0; d->kind == D_VAR && j < d->members.len; j++) {
             find_cstr_expr(((Var *)d->members.data[j])->init);
+            find_shows_expr(((Var *)d->members.data[j])->init);
+        }
     }
+    /* the printers take a const void *, so that they are declared before
+       any type, and written after all of them (#123) */
+    for (int i = 0; i < show_types.len; i++)
+        buf_printf(&out, "static void _kv_show_%s(kv_out *, const void *, int);\n", show_key(show_types.data[i]));
     text_bufs = NULL;
     hidden_names = (List){0};
     pinned_line.file = NULL;
@@ -2934,6 +3193,10 @@ char *gen_program(Program *prog, bool with_lines) {
         if (i)
             line("%s", "");
         emit_decl(prog->decls.data[i]);
+    }
+    for (int i = 0; i < show_types.len; i++) { /* the printers, which may ask for more (#123) */
+        line("%s", "");
+        emit_show(show_types.data[i]);
     }
     return out.buf ? out.buf : xstrdup("");
 }

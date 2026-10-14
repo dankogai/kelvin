@@ -95,6 +95,14 @@ void kv_string_append_text(kv_string *s, const void *t);
 void kv_string_append_ref(kv_string *s, const kv_string *t);
 void kv_string_append_owned(kv_string *s, kv_string t);
 void kv_string_append_cp(kv_string *s, uint32_t cp);
+/* where kelvinc's printers of a value write (#123): a stream, stdout when
+   fp is NULL, or a String that grows, for .pretty (#124) */
+typedef struct kv_out { void *fp; kv_string *s; } kv_out;
+void kv_out_put(kv_out *o, const void *text);
+void kv_out_quoted(kv_out *o, const uint8_t *at, size_t n, bool bytes); /* "text", escaped; bytes as \xNN past ASCII */
+void kv_out_quoted_text(kv_out *o, const void *s);                         /* a cstr, quoted; (null) for none */
+void kv_out_sep(kv_out *o, int level, bool first);  /* ", " between items, or a line at level + 1 when pretty */
+void kv_out_end(kv_out *o, int level);              /* a line at level before the closing bracket when pretty */
 void kv_string_clear(kv_string *s);
 void kv_string_reserve(kv_string *s, size_t n);
 void kv_string_compact(kv_string *s);
@@ -675,6 +683,11 @@ uint8_t *kv_cstr_unseen_struct(struct kv_cstr_unseen_struct, uint8_t *);
 uint8_t *kv_cstr_end(uint8_t *s);
 uint8_t *kv_cstr_put(uint8_t *p, const char *text);
 uint8_t *kv_cstr_put_str(uint8_t *p, const char *s);
+/* the text of a String, a Bytes or a cstr inside a value's .cstr (#123):
+   quoted and escaped, cut with ..." to fit as the unquoted text was */
+uint8_t *kv_cstr_quoted_string(kv_string s, uint8_t *p);
+uint8_t *kv_cstr_quoted_bytes(kv_bytes b, uint8_t *p);
+uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p);
 uint8_t *kv_cstr_put_text(uint8_t *p, const void *s);
 uint8_t *kv_cstr_put_address(uint8_t *p, const volatile void *v);
 

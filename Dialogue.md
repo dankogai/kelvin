@@ -1,14 +1,19 @@
 
 
-### 156. A template of a struct's .cstr
+### 157. Values whole, and `.pretty`
 
-> `${p.cstr}` segfaults kelvinc
+> now give println of a struct its .cstr text and Array's elements in
+> `[]` and `Dictionary` key-value pairs in `{}`. And add `print` and
+> `println` and option to pretty-print values in `()`, `[]`, and `{}`,
+> indented and line-fed.
 
-**Claude** found that a template showed a struct by its `.cstr`, and
-took `p.cstr`, which keeps the struct's type to size its text, for the
-struct itself, so wrapped it again as `p.cstr.cstr`. The user agreed to
-ask the value's type instead, as print does since #122: a `.cstr` is
-text, and a property that gives a struct, `f.stat` (#104), is still
-one. A bug fix, with no change to the language.
+**Claude** found the struct part done by #122 in another session, and
+asked two things: how the pretty option is spelled, and how text shows
+inside a value. The user chose a property, `x.pretty`, and quoted text.
+#123: kelvinc writes a printer for each type, so `print` shows a
+struct, an enum with values, an Optional, a Result, an Array, a
+Dictionary and a Set whole, with Strings inside quoted, also in
+`.cstr`. #124: `x.pretty`, the same indented, printed where `print`
+shows it and a String elsewhere. Details are provisional P135 and P136.
 
-There are 680 tests, and all pass with clang and with gcc 15.
+There are 682 tests, and all pass with clang and with gcc 15.

@@ -1,6 +1,7 @@
 // print and println show a struct kelvinc sees, an enum with values and
 // a union with T.cstr() too, as its .cstr text, as a template does
-// (#122): the derived text, or the type's own T.cstr(); f.print too
+// (#122): the derived text, or the type's own T.cstr(); f.print too;
+// through kelvinc's printer of the type since #123
 struct point { x: i64; y: i64 }
 struct vector2d { x: f64; y: f64 }
 let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
@@ -38,4 +39,4 @@ let main():i32 {
 // out: {x: 1, y: 2}
 // out: {x: 1, y: 2} (1.5, -2.0)
 // out: <1>
-// c: println(_kv_point_cstr(p, _kv_p_text));
+// c: println(({ __auto_type _kv_sv = (p); _kv_show_point(&(kv_out){.fp = NULL}, &_kv_sv, -1); (const uint8_t *)""; }));

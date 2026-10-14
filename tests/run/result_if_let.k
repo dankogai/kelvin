@@ -53,7 +53,7 @@ let main():i32 {
     println(e.cstr)
     return 0
 }
-// out: true 42 true empty Result<i64, String> ok(42) err(empty)
+// out: true 42 true empty Result<i64, String> ok(42) err("empty")
 // out: ok 43
 // out: err empty
 // out: direct 7
@@ -67,7 +67,7 @@ let main():i32 {
 // out: 2 404 Result<point, i32>
 // out: 3 true 5 Result<i64, cstr>
 // out: 3 4
-// out: err(later)
+// out: err("later")
 // c: /* Result<i64, String> */
 // c: struct _kv_res_i64_String parse(const uint8_t *const s)
 // c: __auto_type _kv_v_opt = &(r);

@@ -37,13 +37,9 @@ let main():i32 {
   - `bool` as `true`/`false`
   - `u8^` and string literals as strings (`(null)` for a null pointer)
   - other pointers as addresses
-  - a struct, a union or an enum with values as its `.cstr` text
-    (#122), as a template shows it:
-    - the derived text, `{x: 1, y: 2}`, `just(7)` or `<union bits>`,
-      or the type's own `T.cstr()` where it defines one
-    - kelvinc must see that the value is one, as for a template: one it
-      cannot see, as `println((q, p))`, is a C error, so assign it to a
-      variable first
+  - a struct, a union, an enum with values, an Optional, a Result, an
+    `Array`, a `Dictionary` and a `Set` whole, on one line (#122, #123):
+    see [Values whole](#values-whole-print-and-pretty) below
 - Comparisons, `&&`, `||` and `!` produce a `bool` (#23), so
   `println(a == b)` prints `true` or `false`, as do `true` and `false`
   themselves *(provisional P23)*.
@@ -54,6 +50,62 @@ let main():i32 {
   *(provisional P22)*. The same library works from C:
   `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's
   `modules/` (#46).
+
+## Values whole: `print` and `.pretty`
+
+`print` and `println` show a value with brackets whole, on one line, and
+`v.pretty` shows it indented, a line for each item (#123, #124):
+
+```kelvin
+struct point { x: i64; y: i64 }
+var xs = $[1, 2, 3]
+var ages = ${"ann": 31, "bob": 42}
+var p:point = {1, 2}
+var r:Result<point, String> = err($"bad")
+println(xs, " ", ages, " ", p, " ", r)   // [1, 2, 3] {"ann": 31, "bob": 42} {x: 1, y: 2} err("bad")
+println(ages.pretty)                     // {
+                                         //   "ann": 31,
+                                         //   "bob": 42
+                                         // }
+var text = ages.pretty                   // a String, where print does not show it
+```
+
+- **The text** of each kind:
+  - A struct is `{x: 1, y: 2}`, the derived text, or the type's own
+    `T.cstr()` where it defines one (#53).
+  - An enum with values is `n(v)` or `none`; an Optional `some(v)` or
+    `none`; a Result `ok(v)` or `err(e)`.
+  - An `Array` is `[a, b]`, a `Dictionary` `{"k": v}` and a `Set`
+    `{a, b}`, in the order added; an empty one `[]` or `{}`.
+  - A union is `<union name>`, an IO `<IO>`.
+- **Text inside a value is quoted** (#123): a `String`, a `Bytes` or a
+  `cstr` there is `"text"`, escaped as `\"`, `\\`, `\n`, `\r`, `\t`,
+  and other control characters as `\u00XX`.
+  - A `Bytes` shows each byte past ASCII as `\xNN`, so the text stays
+    UTF-8.
+  - A value on its own is not quoted: `println(s)` of a String is its
+    text.
+  - The same quoting is in `.cstr` and in a template's `${v}`.
+- **`print` shows everything**, at any length and depth, by a printer
+  kelvinc writes for each type; `.cstr` and `${v}` are cut to their
+  room, and show an Array inside a struct as `[...]`.
+- **`v.pretty`** (#124) is the same text indented: each item of a `[]`
+  or `{}` on a line of its own, two spaces a level.
+  - A case's `()` holds one value and stays on its line; what it holds
+    breaks if it is a `[]` or a `{}`: `some({` ... `})`.
+  - An empty `[]` or `{}` stays as it is, and a type's own `T.cstr()`
+    is its text on one line.
+  - Where `print`, `println` or `f.println` shows it, it is printed
+    where it stands.
+  - Elsewhere it is a `String`, bound as any owner is:
+    `var text = cfg.pretty`.
+  - It is of a struct, an enum with values, an Optional, a Result, an
+    Array, a Dictionary or a Set; a number's or a String's text is
+    `.cstr`.
+- **An owner an expression gives** is not printed, since nothing would
+  free it: bind it first, as `var xs = make(); println(xs)`.
+- **A template** has bounded room, so `${xs}` of an Array, a Dictionary
+  or a Set is an error that says to print it, or to bind its `.pretty`.
 
 ## Template literals: `` `a${x}b` ``
 

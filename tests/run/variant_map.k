@@ -46,10 +46,10 @@ let main():i32 {
 }
 // out: some(6) none i64?
 // out: some(true) some(30) some(1.5) some(true)
-// out: some(#3) 2 String?
-// out: ok(42) err(not a number: x)
+// out: some("#3") 2 String?
+// out: ok(42) err("not a number: x")
 // out: err(15) ok(8) Result<i64, i32>
-// out: ok(#7) Result<String, String>
+// out: ok("#7") Result<String, String>
 // out: ok(10) ok(true) ok(5)
 // out: ok(84) ok(20)
 // out: some(4)

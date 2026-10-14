@@ -15,7 +15,7 @@ enum json { null; b: bool; n: f64; s: String; a: Array<json> }
 var j:json = {.n = 1.5}                  // a case by its name
 j.s = String("text")                     // sets the case; what it held is freed
 var k = json.a(Array([json.n(1.0), json.null]))   // T.case(value), T.case
-println(j.cstr, " ", k.a.count, " ", j.is(s), " ", j.case)   // s(text) 2 true 3
+println(j.cstr, " ", k.a.count, " ", j.is(s), " ", j.case)   // s("text") 2 true 3: text inside is quoted (#123)
 switch k.a[0] {
 case n: println(k.a[0].n)                // a case by its bare name; ends at the next (#63)
 case s: println(k.a[0].s)

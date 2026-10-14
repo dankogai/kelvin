@@ -27,7 +27,7 @@ let main():i32 {
     return 0
 }
 // out: {x: 0, y: 0} {x: 3, y: 4} {x: 5, y: 10} {x: 8, y: 14} 25
-// out: none dot({x: 7, y: 14}) name(seven)
+// out: none dot({x: 7, y: 14}) name("seven")
 // c: point__origin()
 // c: point__of__i64__i64(3, 4)
 // c: point__of__cstr("5")

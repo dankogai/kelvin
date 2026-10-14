@@ -45,8 +45,10 @@ var e:${String} = ${}                    // empty; Set<String>() too
   added; `size`, `typename`.
 - **Walking:** `for x in s` gives each element as a let the Set owns,
   in the order added. A Set is not indexed.
-- **Not yet:** text (`print(s)` is an error: show the elements), `==`,
-  `isSubset`, `-` for the difference, elements of other types.
+- **Text:** `print(s)` shows `{3, 1, 4}`, in the order added, and
+  `s.pretty` the same indented (#123, #124).
+- **Not yet:** `==`, `isSubset`, `-` for the difference, elements of
+  other types.
 
 ## Properties and methods
 
@@ -60,6 +62,7 @@ var e:${String} = ${}                    // empty; Set<String>() too
 | | `s \| t`, `s & t`, `s ~ t` | the union, the intersection, the symmetric difference, new Sets (#73) |
 | | `s \|= t`, `s &= t`, `s ~= t` | the same, in place |
 | | `.clear()`, `.reserve(n)` | changes, in place |
+| | `print(s)`, `s.pretty` | `{3, 1, 4}`; the same indented, a String elsewhere (#123, #124) |
 | | `.copy()` | a new Set, elements copied |
 | | `.elements` | an Array of copies, in the order added |
 | | `for x in s` | each element, in the order added |

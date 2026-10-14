@@ -48,8 +48,10 @@ words["a"] = $[$"apple"]
     which a variable then owns.
 - **Walking:** `for k, v in d` gives each entry's key and value as lets
   the Dictionary owns, in the order added; `for k in d` the keys.
-- **Not yet:** text (`print(d)` is an error: show the entries), `==`,
-  keys of other types, `d[k, default]`.
+- **Text:** `print(d)` shows `{"ann": 31, "bob": 42}`, in the order
+  added, and `d.pretty` the same indented, a line for each entry (#123,
+  #124); String keys and values are quoted.
+- **Not yet:** `==`, keys of other types, `d[k, default]`.
 
 ## Properties and methods
 
@@ -66,8 +68,10 @@ words["a"] = $[$"apple"]
 | | `.copy()` | a new Dictionary, keys and values copied |
 | | `.keys`, `.values` | Arrays of copies, in the order added (#66) |
 | | `for k, v in d`, `for k in d` | each entry, or each key, in the order added |
+| | `print(d)`, `d.pretty` | `{"ann": 31}`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | `sizeof`; `Dictionary<String, i64>` |
 
-No `.cstr`, no `==`, no `+=`. The general properties are in
+No `.cstr`, no `==`, no `+=`: `print` shows a Dictionary, and `.pretty`
+is its text, indented (#123, #124). The general properties are in
 [properties.md](properties.md), the ownership rules in
 [ownership.md](ownership.md).

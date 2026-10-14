@@ -273,3 +273,75 @@ char *kv_template_i128(char *p, size_t max, __int128 v) {
     return put(p, max, t, strlen(t));
 }
 #endif
+
+/* ---------- where kelvinc's printers of a value write (#123, #124) ---------- */
+
+void kv_out_put(kv_out *o, const void *text) {
+    if (o->s)
+        kv_string_append_text(o->s, text);
+    else
+        fputs((const char *)text, o->fp ? (FILE *)o->fp : stdout);
+}
+
+/* "text" in full, escaped as in .cstr: \" \\ \n \r \t, other controls as
+   \u00XX, and for bytes past ASCII \xNN, so the text stays UTF-8 */
+void kv_out_quoted(kv_out *o, const uint8_t *at, size_t n, bool bytes) {
+    char run[256];
+    size_t k = 0;
+    run[k++] = '"';
+    for (size_t i = 0; i < n; i++) {
+        uint8_t c = at[i];
+        char e[8];
+        if (c == '"' || c == '\\')
+            snprintf(e, sizeof e, "\\%c", c);
+        else if (c == '\n')
+            snprintf(e, sizeof e, "\\n");
+        else if (c == '\r')
+            snprintf(e, sizeof e, "\\r");
+        else if (c == '\t')
+            snprintf(e, sizeof e, "\\t");
+        else if (c < 0x20 || c == 0x7F)
+            snprintf(e, sizeof e, bytes ? "\\x%02x" : "\\u%04x", c);
+        else if (bytes && c >= 0x80)
+            snprintf(e, sizeof e, "\\x%02x", c);
+        else
+            e[0] = (char)c, e[1] = 0;
+        size_t m = strlen(e);
+        if (k + m + 2 > sizeof run) {
+            run[k] = 0;
+            kv_out_put(o, run);
+            k = 0;
+        }
+        memcpy(run + k, e, m);
+        k += m;
+    }
+    run[k++] = '"';
+    run[k] = 0;
+    kv_out_put(o, run);
+}
+
+void kv_out_quoted_text(kv_out *o, const void *s) {
+    if (!s)
+        kv_out_put(o, "(null)");
+    else
+        kv_out_quoted(o, (const uint8_t *)s, strlen((const char *)s), false);
+}
+
+static void out_line(kv_out *o, int level) {
+    kv_out_put(o, "\n");
+    for (int i = 0; i < level; i++)
+        kv_out_put(o, "  ");
+}
+
+void kv_out_sep(kv_out *o, int level, bool first) {
+    if (!first)
+        kv_out_put(o, level < 0 ? ", " : ",");
+    if (level >= 0)
+        out_line(o, level + 1);
+}
+
+void kv_out_end(kv_out *o, int level) {
+    if (level >= 0)
+        out_line(o, level);
+}
+

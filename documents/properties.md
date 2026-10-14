@@ -96,14 +96,22 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     addresses (`0x0` for null), but a function has no text (#31).
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs
     and arrays (`[a, b]`).
-    - A string field shows at most 60 bytes, and a longer one is cut
-      with `...` *(provisional P35)*.
+    - A string field is quoted, `{name: "ann"}` (#123), and shows at
+      most 60 bytes; a longer one is cut with `..."`
+      *(provisional P35)*.
+    - An `Array` field is `[...]`, a `Dictionary` or a `Set` field
+      `{...}`: `print` shows them whole (#123).
     - A union is `<union name>`.
     - A struct or union may define its own,
       `let T.cstr():cstr { `...` }`, one template literal (#53); see
       [structs.md](structs.md).
   - **Arrays** have no `.cstr` (C arrays are not values); index them, or
-    put them in a struct.
+    put them in a struct. An `Array<T>`, a `Dictionary` and a `Set` have
+    none either: `print` shows them, and `.pretty` is their text.
+- **`x.pretty`** (#124) is the text of a struct, an enum with values, an
+  Optional, a Result, an Array, a Dictionary or a Set, indented, a line
+  for each item of a `[]` or `{}`: printed where `print` shows it, a
+  `String` elsewhere; see [printing.md](printing.md).
   - **C structs and unions** from headers have no `.cstr` of their own.
     - Inside a Kelvin struct they show as `{...}`, as do other C types
       kelvinc cannot print: arrays other than `char` text, and pointers

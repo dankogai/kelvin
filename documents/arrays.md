@@ -173,8 +173,10 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **Elements** are any value type, owners included, which the Array
   then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
   or an enum with values that owns. A fixed array is not an element.
-- **Not yet:** text (`print(xs)` is an error: show the elements), `==`,
-  sorting and searching.
+- **Text:** `print(xs)` shows `[1, 2, 3]`, and `xs.pretty` the same
+  indented, a line for each element (#123, #124); Strings inside are
+  quoted.
+- **Not yet:** `==`, sorting and searching.
 
 
 ## Properties and methods
@@ -196,8 +198,10 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
 | | `.copy()` | a new Array, each element copied |
 | | `for x in xs` | each element, a let the Array owns |
+| | `print(xs)`, `xs.pretty` | `[1, 2, 3]`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | 24, `Array<i64>` |
 
-No `.cstr` for either: show the elements. The general properties are in
+No `.cstr` for either: `print` shows an `Array<T>`, and `.pretty` is its
+text, indented (#123, #124). The general properties are in
 [properties.md](properties.md), the ownership rules in
 [ownership.md](ownership.md).

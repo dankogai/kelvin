@@ -45,8 +45,8 @@ let main():i32 {
 }
 // out: some(6) none none none i64?
 // out: some(6) some(12)
-// out: ok(42) err(zero) err(not a number: x) Result<i64, String>
-// out: ok(84) err(zero)
+// out: ok(42) err("zero") err("not a number: x") Result<i64, String>
+// out: ok(84) err("zero")
 // out: ok(5) ok(5)
 // c: _kv_t.tag == 1 ? half(_kv_t.u.some) : _kv__kv_opt_i64_make_none();
 // c: _kv_t.tag == 0 ? positive(_kv__kv_res_i64_String_take(&_kv_t).u.ok) : _kv__kv_res_i64_String_make_err(_kv__kv_res_i64_String_take(&_kv_t).u.err);

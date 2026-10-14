@@ -111,5 +111,6 @@ JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: cons
 | | `.is(array)`, `.case`, `switch j { case array: ... }` | which case it is; `case array(xs):` binds the value (#119) |
 | | `.copy()` | a copy, deep |
 | | `.cstr`, `${j}` | the case and its value, `number(1.5)`, as any enum's; `JSON.stringify(&j)` for JSON text |
+| | `println(j)`, `j.pretty` | the whole tree as Kelvin's text, `object({"k": number(1)})`, indented by `.pretty` (#123, #124) |
 | | `==`, `!=` | none: an Array in a case has no `==`; compare the text |
 | | `.size`, `.typename` | `sizeof`; `JSON` |

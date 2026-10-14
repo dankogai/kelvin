@@ -99,7 +99,9 @@ var s = Optional<i64>.some(4)            // the cases by the type's name; Option
     where `half` gives `none` of an odd number.
   - Of a variable that owns, map the call itself, or `x.copy()`. See
     [results.md](results.md).
-- **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same.
+- **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same; text
+  inside is quoted, `some("x")`, and `print(x)` and `x.pretty` show a
+  value with brackets whole (#123, #124).
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
   `_kv_res_<T>_<U>` is.
