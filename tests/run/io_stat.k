@@ -4,6 +4,7 @@
 // where the path is gone (#105), "" with neither;
 // f.isdir and f.isfile from the descriptor. OS.stat(path) stays a Result:
 // a path is checked anew at each call
+#import <IO>
 let main():i32 {
     var f = IO("io_stat.tmp", "w")
     if f.error == 0 {

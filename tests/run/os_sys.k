@@ -3,6 +3,7 @@
 // the environment, files and directories, a shell command, the pid;
 // SYS: the arguments, the platform, and exiting
 #import <string.h> as C
+#import <IO>
 let main():i32 {
     var args = SYS.argv
     println(args.count >= 1, " ", args[0].count > 0, " ", args.typename)

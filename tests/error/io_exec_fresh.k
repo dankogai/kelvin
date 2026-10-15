@@ -1,4 +1,5 @@
 // IO.exec's fifth argument is a bool (#93)
+#import <IO>
 let main():i32 {
     var p = IO.exec(["env"], "r", "", [], 1)
     return 0

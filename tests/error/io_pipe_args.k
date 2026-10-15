@@ -1,4 +1,5 @@
 // IO.pipe takes nothing (#87)
+#import <IO>
 let main():i32 {
     var p = IO.pipe("r")
     return 0

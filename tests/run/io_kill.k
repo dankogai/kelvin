@@ -2,6 +2,7 @@
 // (#100), true when sent; f.pid its pid, -1 for any other IO; after
 // kill, close waits and .signal says which
 #import <signal.h> as C
+#import <IO>
 let main():i32 {
     var p = IO.exec(["sleep", "30"], "r")
     if p.error == 0 {

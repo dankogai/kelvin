@@ -2,6 +2,7 @@
 // the epoch as stat gives them, 0 or errno; OS.touch(path): both now,
 // and the file made if it is missing
 #import <errno.h> as C
+#import <OS>
 let main():i32 {
     let path := "os_utime.tmp"
     println(OS.exists(path), " ", OS.touch(path), " ", OS.isfile(path))

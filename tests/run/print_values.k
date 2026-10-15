@@ -4,6 +4,7 @@
 // cstr inside a value is quoted and escaped, also in .cstr, which is cut
 // to its room while print shows everything; f.println too
 #import <JSON>
+#import <IO>
 struct point { x: i64; y: i64 }
 struct bag { name: String; at: point; tags: Array<String>; label: cstr; raw: Bytes }
 enum shape { none; dot: point; path: Array<point> }

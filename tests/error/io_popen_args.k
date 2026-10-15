@@ -1,4 +1,5 @@
 // IO.popen takes a command and a mode (#87)
+#import <IO>
 let main():i32 {
     var p = IO.popen("ls")
     return 0

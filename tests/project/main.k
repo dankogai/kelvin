@@ -3,10 +3,13 @@
 // ./modules too (#46)
 #import <greet.k>
 #import <complex.k>
+#import <shout>                 // shout.kh, and libkshout.a beside it (#143)
 let main():i32 {
     greet("modules")
     println(abs(complex64(3.0, 4.0)))
+    shout("modules")
     return 0
 }
 // out: hello, modules
 // out: 5.0
+// out: modules!

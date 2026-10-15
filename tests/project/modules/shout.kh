@@ -1,0 +1,4 @@
+// a module with a header and a library (#143): #import <shout> finds this
+// header in ./modules, brings in its C declarations, and links the
+// libkshout.a beside it, with no flag to write
+#import <shout.h> as C

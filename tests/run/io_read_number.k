@@ -2,6 +2,7 @@
 // are read as lines, or the whole text, and converted (#88): scanf is
 // no reader for Kelvin
 #import <stdio.h> as C
+#import <IO>
 let path := "io_read_number.tmp"
 let fill():Result<i64, i32> {
     let f = IO(path, "w")

@@ -173,9 +173,31 @@ static bool imported_already(const char *path) {
 /* The file that #import <name> or "name" means: "name" next to the
    importing file, <name> in ./modules or else in Kelvin's modules/ (#46),
    as <complex.k> is the source tree's modules/complex.k */
+/* The libraries of the modules imported as M.kh (#143), libkM.a beside the
+   header, or -lkM where only a shared libkM is, in the order imported, so
+   that one a later one calls comes after it; linked before libkelvin */
+static List module_libs;
+
+static void module_library(const char *path) {
+    size_t n = strlen(path);
+    if (n < 4 || strcmp(path + n - 3, ".kh"))
+        return;
+    const char *slash = strrchr(path, '/');
+    char *dir = slash ? xstrndup(path, (size_t)(slash - path)) : xstrdup(".");
+    char *name = xstrndup(slash ? slash + 1 : path, (slash ? strlen(slash + 1) : n) - 3);
+    char *a = strfmt("%s/libk%s.a", dir, name);
+    if (file_exists(a)) {
+        list_push(&module_libs, a);
+        return;
+    }
+    if (file_exists(strfmt("%s/libk%s.dylib", dir, name)) || file_exists(strfmt("%s/libk%s.so", dir, name)))
+        list_push(&module_libs, strfmt("-lk%s", name));
+}
+
 static char *import_path(Token *t, const char *argv0) {
     char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
-    if (!strchr(name, '.')) /* <JSON> is <JSON.k> (#112) */
+    bool bare = !strchr(name, '.'); /* <JSON> is <JSON.k> (#112), after <JSON.kh>, a module's header (#143) */
+    if (bare)
         name = strfmt("%s.k", name);
     if (t->text[0] == '"') {
         const char *slash = strrchr(t->pos.file, '/');
@@ -186,11 +208,14 @@ static char *import_path(Token *t, const char *argv0) {
         return path;
     }
     const char *dirs[] = {"./modules", kelvin_modules(argv0)};
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++) {
+        if (bare && dirs[i] && kelvin_file(strfmt("%s/%sh", dirs[i], name)))
+            return strfmt("%s/%sh", dirs[i], name);
         if (dirs[i] && kelvin_file(strfmt("%s/%s", dirs[i], name)))
             return strfmt("%s/%s", dirs[i], name);
-    error_at(t->pos, "cannot find %s (%s) in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
-             t->text, name);
+    }
+    error_at(t->pos, "cannot find %s (%s%s) in ./modules or in Kelvin's modules/ (KELVIN_HOME, or next to kelvinc)",
+             t->text, bare ? strfmt("%sh or ", name) : "", name);
 }
 
 /* The tokens with each #import of a Kelvin file followed by that file's
@@ -223,6 +248,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
         char *path = import_path(&toks[i], argv0);
         if (imported_already(path))
             continue;
+        module_library(path);
         char *src = read_file(path);
         set_source(path, src);
         int m, k;
@@ -382,6 +408,8 @@ int main(int argc, char **argv) {
     char *flags = xstrdup(extra ? extra : "");
     for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
         list_push(&cc_args, tok);
+    for (int i = 0; i < module_libs.len; i++) /* the modules' libraries (#143), before libkelvin, which they use */
+        list_push(&cc_args, module_libs.data[i]);
     const char *tail_args[] = {rt_lib, "-lm", NULL};
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);

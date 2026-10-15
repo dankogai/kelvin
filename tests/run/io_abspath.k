@@ -2,6 +2,7 @@
 // system names it, so a file renamed behind the IO's back answers by its
 // new name and a removed one by the name it had; "" where neither the path
 // nor the descriptor answers, as of a pipe
+#import <IO>
 let main():i32 {
     var f = IO("io_abspath.tmp", "w")
     if f.error == 0 {

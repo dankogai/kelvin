@@ -4,6 +4,7 @@
 // renamed or removed behind the IO; remove and rename by the path while
 // it is there, else by the descriptor's name; false where nothing can be
 // done, as of a pipe
+#import <IO>
 let main():i32 {
     var w = IO("io_ops.tmp", "w")
     if w.error == 0 {

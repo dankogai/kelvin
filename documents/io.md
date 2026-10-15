@@ -6,11 +6,14 @@ it is `stdin`, `stdout` or `stderr`. Opening and reading a whole file
 give a `Result`, with `errno` as the `err`, so `try` passes a failure
 up; reading in chunks and in lines are walked by `for`. The ownership
 rules are in [ownership.md](ownership.md), Results in
-[results.md](results.md).
+[results.md](results.md). IO is a module: a program writes `#import
+<IO>` (#144).
 
-**Where it lives:** the prelude. An IO's functions are in `libkelvin`'s runtime/io.c, declared by `kelvin_prelude.h` and linked without an import; a program needs no `#import <stdio.h>`.
+**Where it lives:** a module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are `libkIO`, built from runtime/io.c and declared by `kIO.h`, which `modules/IO.kh` brings in and links; it is built on OS, so `#import <IO>` brings `OS` and `SYS` in too. A program needs no `#import <stdio.h>`. Without the import, `IO` is an error that says to write it.
 
 ```kelvin
+#import <IO>
+
 let count(path:cstr):Result<i64, i32> {
     let f = IO(path, "r")                // the IO, straight (#109)
     if f.error != 0 { return err(f.error) }   // the errno when it did not open, passed up

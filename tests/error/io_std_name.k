@@ -1,4 +1,5 @@
 // IO's streams are stdin, stdout and stderr (#82)
+#import <IO>
 let main():i32 {
     var f = IO.stdlog
     return 0

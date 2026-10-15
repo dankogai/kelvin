@@ -3,6 +3,7 @@
 // descriptor leaves f.error EBADF (#109)
 #import <errno.h> as C
 #import <stdio.h> as C
+#import <IO>
 let path := "io_fd.tmp"
 let fill():Result<i64, i32> {
     let f = IO(path, "w")

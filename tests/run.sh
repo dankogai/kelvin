@@ -88,6 +88,11 @@ if ! { "$CC" -c -o "$tmp/answer.o" tests/project/answer.c &&
     TMPDIR=$tmp ar rcs "$tmp/project/modules/libanswer.a" "$tmp/answer.o"; } > "$tmp/log" 2>&1; then
     bad tests/project/answer.c "does not build into libanswer.a"
 fi
+# a module with a header and a library, shout.kh and libkshout.a (#143)
+if ! { "$CC" -c -o "$tmp/shout.o" tests/project/shout.c &&
+    TMPDIR=$tmp ar rcs "$tmp/project/modules/libkshout.a" "$tmp/shout.o"; } > "$tmp/log" 2>&1; then
+    bad tests/project/shout.c "does not build into libkshout.a"
+fi
 for f in tests/project/*.k; do
     [ -e "$f" ] || continue
     sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
@@ -111,8 +116,11 @@ done
 # kelvinc and through KELVIN_HOME, from a directory without ./modules (#46)
 mkdir -p "$tmp/inst/bin" "$tmp/inst/lib/kelvin/modules" "$tmp/away"
 cp "$(command -v "$kelvinc_path")" "$tmp/inst/bin/kelvinc"
-cp modules/kelvin_prelude.h modules/libkelvin.a modules/*.k "$tmp/inst/lib/kelvin/modules/"
+cp modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/libkelvin.a modules/libkIO.a modules/libkOS.a \
+    modules/*.k modules/*.kh "$tmp/inst/lib/kelvin/modules/"
 sed -n 's|^[[:space:]]*// out: \{0,1\}||p' examples/complex.k > "$tmp/expected"
+# a program that imports IO, whose IO.kh and libkIO.a are found as the installed modules/ (#143, #144)
+printf '%s\n' '#import <IO>' 'let main():i32 { IO.stdout.println("io"); return 0 }' > "$tmp/away/io.k"
 for how in installed KELVIN_HOME; do
     if [ "$how" = installed ]; then
         set -- env -u KELVIN_HOME "$tmp/inst/bin/kelvinc"
@@ -123,6 +131,12 @@ for how in installed KELVIN_HOME; do
         bad "modules/ ($how)" "does not compile"
     elif ! grep -qF "lib/kelvin/modules/libkelvin.a" "$tmp/log"; then
         bad "modules/ ($how)" "does not link the installed libkelvin.a"
+    elif ! (cd "$tmp/away" && TMPDIR=$tmp "$@" -v -o "$tmp/io" io.k) > "$tmp/log" 2>&1; then
+        bad "modules/ ($how, IO)" "does not compile"
+    elif ! grep -qF "lib/kelvin/modules/libkIO.a" "$tmp/log" || ! grep -qF "lib/kelvin/modules/libkOS.a" "$tmp/log"; then
+        bad "modules/ ($how, IO)" "does not link the installed libkIO.a and libkOS.a"
+    elif [ "$("$tmp/io" 2>&1)" != io ]; then
+        bad "modules/ ($how, IO)" "does not run"
     elif ! "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"; then
         bad "modules/ ($how)" "exits with a failure"
     elif ! cmp -s "$tmp/expected" "$tmp/actual"; then

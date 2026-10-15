@@ -281,6 +281,7 @@ typedef struct {
     List arrays;       /* Type *: each Array<T> (#57), in order of first use */
     List views;        /* DictView *: d.keys and d.values used (#66), the Arrays they give */
     List array_decls;  /* intptr_t: the index of the top-level decl that first uses it */
+    List modules; /* char *: the modules imported, IO, OS, JSON (#143) */
 } Program;
 
 /* ---------- parser.c / codegen.c ---------- */

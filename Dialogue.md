@@ -3987,3 +3987,30 @@ each noting the alone form. The other examples' functions work on
 built-in types or none, and stay. The outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 179. IO and OS as modules: `M.kh` and `libkM`
+
+> Let's separate `IO` and `OS` from prelude. One day it may be used
+> where IO is not available like WASM/WASI environments. you will load
+> them as `#import <IO>`, `#import <OS>`. you may split the
+> implementation with header file and library like C. let header file's
+> extension `.kh` and libraries `libkModule.{a,so,dylyb}`. large modules
+> should be implemented that way instead of putting everything in `.k`.
+> unlike C, `.kh` and `libkM.` are in the `module` folder. And
+> `#import <M>` loads `M.kh` and the linker links the library with
+> `-llibkM`.
+
+**Claude** asked where SYS goes and whether JSON.k and complex.k turn
+into libraries now; the user chose SYS with OS, and later for the
+Kelvin-built libraries. #143 is the module as a header and a library:
+`M.kh` and `libkM` in `modules/`, found by `#import <M>` before `M.k`,
+the library linked by itself. #144 and #145 move IO, and OS with SYS,
+out of the prelude: `kelvin_prelude.h` keeps the core, `kIO.h` and
+`kOS.h` declare `libkIO` and `libkOS`, built by make, and `IO.kh` and
+`OS.kh` bring them in. Without the import, `IO`, `OS` and `SYS` are
+errors that say to write it; `IO.kh` imports `<OS>`, which IO's files
+are built on. 55 tests gained an import, five test the errors, and
+tests/project gained `shout.kh` with `libkshout.a`. Details are
+provisional P155 to P157.
+
+There are 739 tests, and all pass with clang and with gcc 15.

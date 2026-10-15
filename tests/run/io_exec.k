@@ -4,6 +4,7 @@
 // .status and .signal; a program not found leaves f.error ENOENT (#110)
 #import <errno.h> as C
 #import <stdio.h> as C
+#import <IO>
 let path := "io_exec.tmp"
 let main():i32 {
     var p = IO.exec(["printf", "one\\ntwo\\n"], "r")

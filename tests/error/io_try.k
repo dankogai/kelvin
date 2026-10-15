@@ -1,4 +1,5 @@
 // IO(path, mode) is the IO straight (#109), nothing to try: ask f.error
+#import <IO>
 let read(path:cstr):Result<i64, i32> {
     let f = try IO(path)
     return 0

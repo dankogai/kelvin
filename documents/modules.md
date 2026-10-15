@@ -1,12 +1,14 @@
 # Modules: `#import` and `modules/`
 
 A Kelvin file is brought into a program with `#import`, and Kelvin's own
-files, its prelude header and its library live in one directory,
-`modules/`. This document has the import, the search, the layout, and
-the modules so far, `complex.k` and `JSON.k`. C headers are in
+files, its prelude header and its libraries live in one directory,
+`modules/`. A module is a Kelvin source, `M.k`, or a header and a
+library, `M.kh` and `libkM` (#143). This document has the import, the
+search, the layout, and the modules so far: `complex.k` and `JSON.k`,
+and `IO` and `OS`, each a header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
-**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/complex.k`, with `complex64` and `complex32`, comes only with `#import <complex.k>`, and a C header's names only with `#import <x.h> as C`.
+**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/complex.k`, with `complex64` and `complex32`, comes only with `#import <complex.k>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
 
 ## Kelvin files: `#import <complex.k>`
 
@@ -14,8 +16,9 @@ the modules so far, `complex.k` and `JSON.k`. C headers are in
 declarations are compiled with the program as if written where the
 import is (#40), which is at the top level.
 
-- A name with no extension is a Kelvin file too: `#import <JSON>` is
-  `#import <JSON.k>` (#112).
+- A name with no extension is a module: `#import <JSON>` is
+  `#import <JSON.kh>`, a header with a library (#143), where there is
+  one, else `#import <JSON.k>` (#112).
 - `"x.k"` is found next to the importing file, and `<x.k>` in
   `./modules`, of the directory kelvinc runs in, and then in Kelvin's
   own `modules/` (#46), which also holds the runtime,
@@ -31,6 +34,45 @@ import is (#40), which is at the top level.
   they never clash with C's, except the C functions it declares by
   hand, which keep their names.
 
+## A header and a library: `M.kh` and `libkM`
+
+A large module is a header and a library, as a C library is (#143):
+`M.kh`, a Kelvin file of declarations, and `libkM.a`, or a shared
+`libkM.dylib` or `libkM.so`, beside it, both in `modules/`. `#import
+<M>` brings in the header and links the library, with no flag to
+write.
+
+```kelvin
+#import <IO>                    // modules/IO.kh, and libkIO.a beside it
+#import <shout>                 // ./modules/shout.kh, and ./modules/libkshout.a
+
+let main():i32 {
+    IO.stdout.println("io")
+    shout("modules")
+    return 0
+}
+```
+
+- **`M.kh`** is a Kelvin file, read as `M.k` is (#40): declarations,
+  and `#import <kM.h> as C` of the C header its library needs.
+  - It may import other modules: `IO.kh` imports `<OS>`, which IO's
+    files are built on, so `#import <IO>` brings OS in too.
+- **`libkM`** is linked where `M.kh` is found: `libkM.a` by its path,
+  else `-lkM` where only a shared one is, before `libkelvin`, in the
+  order imported, so that a library a later one calls comes after it.
+  - A `.kh` with no library beside it is a header alone, as a C
+    header-only library is.
+- **`#import <M>`** looks for `M.kh` before `M.k`, in `./modules` and
+  then in Kelvin's `modules/`; `#import <M.kh>` and `#import <M.k>`
+  name one or the other.
+- **Kelvin's own** are `IO` ([io.md](io.md)) and `OS`
+  ([os.md](os.md)), built by `make` from runtime/io.c and runtime/os.c
+  into `libkIO` and `libkOS`, with the C headers `kIO.h` and `kOS.h`;
+  a program without them links the core alone, which is why they are
+  modules: one day a program may run where there is no IO.
+  - `complex.k` and `JSON.k` stay Kelvin sources: a mode of kelvinc
+    that builds a Kelvin file into a `libkM` waits.
+
 ## `modules/`
 
 ```
@@ -38,9 +80,14 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     kelvin_prelude.h      the prelude: print, println, the properties
     libkelvin.a           built by make, linked into every program
     libkelvin.dylib|.so   the same, for use from C and other toolchains
+    IO.kh, kIO.h          #import <IO> (#144, io.md): the header, and its C header
+    libkIO.a|.dylib|.so   its library, linked by the import
+    OS.kh, kOS.h          #import <OS> (#145, os.md), with SYS
+    libkOS.a|.dylib|.so   its library
     complex.k             #import <complex.k>
     JSON.k                #import <JSON> (#113, json.md)
 ./modules/                a project's own, looked in first
+    x.kh, libkx.a         #import <x>: the header, and its library linked by the import (#143)
     x.k, x.h, libx.a      #import <x.k>, #import <x.h> as C, KELVIN_CFLAGS=-lx
 ```
 
@@ -54,7 +101,8 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
   its Kelvin files, and `KELVIN_CFLAGS=-lx` links `./modules/libx.a`.
   - `KELVIN_CFLAGS` go after the program's C, as a library must.
 - `make install PREFIX=...` puts `kelvinc` in `$PREFIX/bin` and the whole
-  of `modules/` in `$PREFIX/lib/kelvin/modules`.
+  of `modules/` in `$PREFIX/lib/kelvin/modules`, the `.kh` files, the C
+  headers and the `libkM` libraries too.
 
 ## Complex numbers: `modules/complex.k`
 

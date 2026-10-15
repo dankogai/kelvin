@@ -1,4 +1,5 @@
 // IO(fd, mode) takes the descriptor number, not an IO (#86)
+#import <IO>
 let main():i32 {
     var f = IO.stdin
     var g = IO(f, "r")

@@ -16,6 +16,14 @@
 #include <stdint.h>
 #include <string.h>
 
+static Program *gen_prog; /* the program being generated, for what it imports (#143) */
+static bool imports_module(const char *name) {
+    for (int i = 0; gen_prog && i < gen_prog->modules.len; i++)
+        if (!strcmp(gen_prog->modules.data[i], name))
+            return true;
+    return false;
+}
+
 static Buf out;
 static int indent;
 
@@ -2850,7 +2858,7 @@ static void emit_decl(Decl *d) {
             count_names = (List){0};
             find_counts_stmt(d->body);
             param_caches.len = count_cache.len = owner_locals.len = 0;
-            if (!d->recv && !d->anon && !strcmp(d->name, "main")) /* SYS.argv (#94) */
+            if (!d->recv && !d->anon && !strcmp(d->name, "main") && imports_module("OS")) /* SYS.argv (#94): the OS module's (#145) */
                 list_push(&param_caches, d->params.len >= 2
                                              ? strfmt("kv_sys_init(%s, %s);", c_name(((Var *)d->params.data[0])->name),
                                                       c_name(((Var *)d->params.data[1])->name))
@@ -3225,6 +3233,7 @@ static void emit_show(Type *t) {
 }
 
 char *gen_program(Program *prog, bool with_lines) {
+    gen_prog = prog;
     out = (Buf){0};
     indent = 0;
     line_directives = with_lines;

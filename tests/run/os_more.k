@@ -4,6 +4,7 @@
 // realpath
 #import <errno.h> as C
 #import <string.h> as C
+#import <IO>
 let main():i32 {
     let dir := "os_more.tmpdir"
     println(OS.makedirs("os_more.tmpdir/a/b"), " ", OS.isdir("os_more.tmpdir/a/b"), " ", OS.makedirs("os_more.tmpdir/a"))

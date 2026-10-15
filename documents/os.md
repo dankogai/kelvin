@@ -1,15 +1,17 @@
 # OS and SYS: the system, and the program
 
 `OS` is the system around the program and `SYS` the program itself,
-as the prelude's namespaces (#94), after Python's `os` and `sys`, with
-no import: `OS.cwd`, `OS.listdir(path)`, `SYS.argv`. Each is C's call
+two namespaces (#94), after Python's `os` and `sys`, of one module,
+`#import <OS>` (#145): `OS.cwd`, `OS.listdir(path)`, `SYS.argv`. Each is C's call
 underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
 that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
 so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 
-**Where it lives:** the prelude. `OS` and `SYS` are `libkelvin`'s runtime/os.c, declared by `kelvin_prelude.h` and linked without an import; the calls underneath are POSIX, which the runtime asks for.
+**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` and `SYS` are `libkOS`, built from runtime/os.c and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` and `SYS` are errors that say to write it.
 
 ```kelvin
+#import <IO>                                // brings OS and SYS in too; #import <OS> alone for them
+
 let main():i32 {
     var args = SYS.argv                     // Array<cstr>: the program and its arguments
     if args.count < 2 { IO.stderr.println("usage: ", args[0], " dir"); SYS.exit(2) }

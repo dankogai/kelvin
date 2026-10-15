@@ -3,6 +3,7 @@
 // OS.glob(pattern): the paths a shell pattern matches, sorted, none
 // where none match
 #import <errno.h> as C
+#import <IO>
 let main():i32 {
     println(OS.makedirs("os_walk.tmpdir/a/b"), " ", OS.makedirs("os_walk.tmpdir/c"))
     var files = $["os_walk.tmpdir/a/b/f.txt", "os_walk.tmpdir/a/g.txt", "os_walk.tmpdir/h.txt", "os_walk.tmpdir/c/i.md"]

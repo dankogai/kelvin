@@ -3,6 +3,7 @@
 // path kept, its reads none, and f.error is passed up by hand with
 // err(f.error); reading it by .lines or writing to it ends the program
 #import <errno.h> as C
+#import <IO>
 let count(path:cstr):Result<i64, i32> {
     let f = IO(path)
     if f.error != 0 { return err(f.error) }

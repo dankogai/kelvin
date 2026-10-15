@@ -3,6 +3,7 @@
 // to the parent's, a list or an Array of cstr or of String; a directory
 // that cannot be entered leaves f.error, as a missing program does (#110)
 #import <errno.h> as C
+#import <IO>
 let main():i32 {
     var p = IO.exec(["pwd"], "r", "/")
     for line in p.lines { println(line) }

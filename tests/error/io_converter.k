@@ -1,4 +1,5 @@
 // an IO reads bytes and text; a number is read from the text (#88)
+#import <IO>
 let main():i32 {
     var f = IO.stdin
     var n = f.i64

@@ -2,6 +2,7 @@
 // written, its block waiting for it, and .status its exit code once
 // closed; IO.pipe() a {reader: IO, writer: IO}, each end an IO
 #import <stdio.h> as C
+#import <IO>
 let path := "io_process.tmp"
 let main():i32 {
     var p = IO.popen("printf 'one\\ntwo\\n'", "r")

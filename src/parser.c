@@ -179,6 +179,24 @@ static bool bound_here(const char *name) {
 /* the function or method being parsed, and where its parameters sit in
    scope_names */
 static Decl *parsing_fn;
+static List modules_imported; /* char *: the modules brought in so far, IO, OS, JSON (#143) */
+
+static bool module_imported(const char *name) {
+    for (int i = 0; i < modules_imported.len; i++)
+        if (!strcmp(modules_imported.data[i], name))
+            return true;
+    return false;
+}
+
+/* IO (#144) and OS with SYS (#145) are modules: a program imports them */
+static void require_module(const char *name, Pos pos) {
+    bool sys = !strcmp(name, "SYS");
+    if (module_imported(sys ? "OS" : name))
+        return;
+    if (sys)
+        error_at(pos, "SYS comes with OS, a module: write '#import <OS>' at the top of the file");
+    error_at(pos, "%s is a module: write '#import <%s>' at the top of the file", name, name);
+}
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
@@ -1139,6 +1157,8 @@ static Type *parse_type_in(TypeContext ctx) {
         Token *name = peek();
         if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
             error_at(name->pos, "expected a type, found %s", desc(name));
+        if (is_kw(name, "IO"))
+            require_module("IO", name->pos); /* the type too (#144) */
         reject_kv_name(name); /* _kv_anonN is kelvinc's (#59) */
         advance();
         if (is_kw(name, "cstr")) {
@@ -2569,6 +2589,8 @@ static Expr *parse_primary(void) {
         }
         return e;
     }
+    if (is_kw(t, "IO") && is_p(peek2(), "("))
+        require_module("IO", t->pos);
     if (is_kw(t, "IO") && is_p(peek2(), "(")) {
         /* IO(path, mode) (#82): the IO, straight (#109), with f.error the
            errno when it did not open; path and mode text, a String or a
@@ -2617,6 +2639,11 @@ static Expr *parse_primary(void) {
         e->type = base_type("IO", t->pos);
         return e;
     }
+    if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), "."))
+        require_module(is_kw(t, "OS") ? "OS" : "SYS", t->pos);
+    if (is_kw(t, "OS") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT && !strcmp(peek_at(2)->text, "mkstemp") &&
+        !module_imported("IO"))
+        error_at(t->pos, "OS.mkstemp gives an IO, a module: write '#import <IO>' at the top of the file");
     if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")) {
         /* OS.name(args) and SYS.name (#94): the system around the program,
            and the program itself, as the prelude's namespaces */
@@ -2753,6 +2780,8 @@ static Expr *parse_primary(void) {
             e->type = variant_type(t, "res", base_type("Bytes", t->pos), base_type("i32", t->pos));
         return e; /* "void": SYS.exit, OS.sleep and OS.sync have no value */
     }
+    if (is_kw(t, "IO") && is_p(peek2(), "."))
+        require_module("IO", t->pos);
     if (is_kw(t, "IO") && is_p(peek2(), ".")) {
         /* IO.stdin, IO.stdout, IO.stderr (#82), also written with ();
            IO.popen(command, mode), IO.pipe() (#87) */
@@ -9069,6 +9098,8 @@ static Type *attribute_receiver(Token *recv, Type *spelled, char **recv_name) {
     if (recv->kind == TK_KEYWORD) {
         if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have attributes", recv->text);
+        if (is_kw(recv, "IO"))
+            require_module("IO", recv->pos);
         return base_type(recv->text, recv->pos);
     }
     Decl *r = NULL;
@@ -10299,7 +10330,18 @@ Program *parse(Token *tokens, int ntoks) {
     program = prog;
     while (peek()->kind != TK_EOF) {
         Token *t = peek();
-        if (t->kind == TK_IMPORT_K || t->kind == TK_FILE_END) { /* where an imported file begins and ends (#40) */
+        if (t->kind == TK_IMPORT_K) { /* where an imported file begins (#40): the module is in from here (#143) */
+            char *name = xstrndup(t->text + 1, strlen(t->text) - 2);
+            const char *slash = strrchr(name, '/');
+            if (slash)
+                name = (char *)slash + 1;
+            if (strrchr(name, '.'))
+                *strrchr(name, '.') = 0;
+            list_push(&modules_imported, name);
+            advance();
+            continue;
+        }
+        if (t->kind == TK_FILE_END) { /* where an imported file ends (#40) */
             advance();
             continue;
         }
@@ -10442,5 +10484,6 @@ Program *parse(Token *tokens, int ntoks) {
         }
     }
     name_functions();
+    prog->modules = modules_imported; /* for the codegen (#143) */
     return prog;
 }

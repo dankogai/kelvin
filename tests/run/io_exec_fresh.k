@@ -2,6 +2,7 @@
 // made from nothing but the entries, the program then found on that
 // environment's PATH or the system's default; false, or absent, for the
 // entries added to this program's
+#import <IO>
 let main():i32 {
     var only = IO.exec(["env"], "r", "", ["KELVIN_ONLY=1"], true)
     for line in only.lines { println("[", line, "]") }

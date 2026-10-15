@@ -4,6 +4,7 @@
 // loadavg, urandom, isatty, the constants, terminalsize, diskusage
 #import <errno.h> as C
 #import <string.h> as C
+#import <OS>
 let main():i32 {
     var msg = OS.strerror(ENOENT)
     println(msg, " ", msg.typename)

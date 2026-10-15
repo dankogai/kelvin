@@ -7,6 +7,7 @@
 // when its block ends, or by .close() through the var that owns it
 #import <errno.h> as C
 #import <stdio.h> as C
+#import <IO>
 let path := "io_basics.tmp"
 let write_it():Result<i64, i32> {
     let f = IO(path, "w")

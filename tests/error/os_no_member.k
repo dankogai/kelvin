@@ -1,4 +1,5 @@
 // OS's members (#94)
+#import <OS>
 let main():i32 {
     OS.reboot()
     return 0

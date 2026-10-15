@@ -1,0 +1,6 @@
+// modules/IO.kh - IO (#82), stdio as an owner, as a module (#144): a
+// program writes #import <IO>, which brings in kIO.h, the declarations of
+// libkIO, and links the library, built from runtime/io.c. IO is built on
+// OS, whose functions do its paths, so this imports <OS> too.
+#import <OS>
+#import <kIO.h> as C

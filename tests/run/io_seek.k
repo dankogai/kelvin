@@ -1,6 +1,7 @@
 // an IO's position (#84): .eof once a read has met the end, .position
 // and .count in bytes, .seek(n) from the start (a bool), .rewind()
 #import <stdio.h> as C
+#import <IO>
 let path := "io_seek.tmp"
 let fill():Result<i64, i32> {
     let f = IO(path, "w")

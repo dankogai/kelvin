@@ -2,6 +2,7 @@
 // clamps JSON.stringify's space; x.pretty stays two; 0 still breaks the
 // lines; a computed width is clamped at run time; in print, f.println,
 // templates, and as a String
+#import <IO>
 struct point { x: i64; y: i64 }
 let main():i32 {
     var d = ${"a": $[1, 2]}

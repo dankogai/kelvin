@@ -2,6 +2,7 @@
 // errno; OS.username(uid) and OS.groupname(gid): the names of the ids
 // stat gives, String?, none for an id no one has
 #import <errno.h> as C
+#import <OS>
 let main():i32 {
     let path := "os_chown.tmp"
     println(OS.touch(path))

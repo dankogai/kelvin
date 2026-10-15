@@ -126,16 +126,20 @@ So far the changes from C are:
     `d.keys` and `d.values`
   - `Set<T>` is a hash set, `${3, 1, 4}`: `s += x`, `s.has(x)`, `s | t`,
     `s & t` and `s ~ t`
-- `IO` is a file as an owner, closed when its block ends
+- `IO` is a file as an owner, closed when its block ends, a module:
+  `#import <IO>`
   - `let f = IO(path, "r")`, with `f.error` when it did not open
   - `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
     `let s = f.string`
   - `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `#import <JSON>` is JSON as an enum with values: `var j = JSON.parse(text)`,
   `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113)
-- `OS` and `SYS` are the system and the program, as Python has them, with
-  no import: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`, `OS.isdir(p)`,
-  `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
+- `OS` and `SYS` are the system and the program, as Python has them, one
+  module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
+  `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
+- a module is a Kelvin source, `#import <JSON>`, or a header and a
+  library, `M.kh` and `libkM` in `modules/`, which `#import <M>` brings
+  in and links by itself, as `IO` and `OS` are
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,
@@ -181,7 +185,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 Requires a C11 compiler and make.
 
 ```sh
-make                        # builds ./kelvinc and modules/libkelvin.{a,so|dylib}
+make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib}, libkIO and libkOS
 make test                   # runs tests/run.sh
 make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc hello.k           # builds ./hello

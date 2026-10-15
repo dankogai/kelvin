@@ -4,6 +4,7 @@
 // T.cstr() is its text on one line; where print shows it, it is printed
 // where it stands, and elsewhere it is a String
 #import <JSON>
+#import <IO>
 struct point { x: i64; y: i64 }
 struct vector2d { x: f64; y: f64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }

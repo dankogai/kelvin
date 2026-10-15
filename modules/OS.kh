@@ -1,0 +1,5 @@
+// modules/OS.kh - OS and SYS (#94), the system around the program and the
+// program itself, as a module (#145): a program writes #import <OS>, which
+// brings in kOS.h, the declarations of libkOS, and links the library,
+// built from runtime/os.c.
+#import <kOS.h> as C

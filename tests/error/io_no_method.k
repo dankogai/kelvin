@@ -1,4 +1,5 @@
 // an IO's methods (#82)
+#import <IO>
 let main():i32 {
     var f = IO.stdout
     f.append("x")

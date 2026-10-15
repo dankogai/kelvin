@@ -11,6 +11,7 @@
 #define _XOPEN_SOURCE 700
 #endif
 #include "kelvin_prelude.h"
+#include "kIO.h"
 
 #include <errno.h>
 #include <limits.h>

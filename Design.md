@@ -174,6 +174,9 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 140 | `Self` is the receiver's type, as Swift's: inside `extend T { }` and in a method, an attribute, a subscript or a function of `T` written alone, where a type goes and where `T`'s name goes, `Self.f()`, `Self.x`, `Self(v)`; a type with no tag has no name, so its `Self` is a type only; elsewhere `Self` is an error that says where it belongs | — | `extend point { let moved(dx:i64):Self { var p:Self = self; ... } }` | 2026-10-15 |
 | 141 | `:()` after the parameters says a function gives nothing, C's `void`, written out: on a function, a prototype, a method, an anonymous function and in a function type, `(i64):()`; `:():R` stays a function type as the result | — | `let greet(name:cstr):() { println("hi ", name) }` | 2026-10-15 |
 | 142 | Where there is `self`, a line that starts with `.x` is `self.x`, a statement of its own, whatever follows; a chain over several lines goes inside parentheses there, or on one line; where there is no `self`, a `.member` on a new line goes on with the expression before it (#35). This widens #139's rule, which started a statement only where the line set a member | — | `let k = 10` then `return .is(just) ? .just + k : k` on the next line | 2026-10-15 |
+| 143 | A module as a header and a library, like C's: `M.kh`, a Kelvin file of declarations, and `libkM.a` (or a shared `libkM`) beside it in `modules/`; `#import <M>` looks for `M.kh` before `M.k`, in `./modules` then Kelvin's `modules/`, brings the header in and links the library by itself, before `libkelvin`, in the order imported; a `.kh` with no library is a header alone | — | `#import <IO>` reads `modules/IO.kh` and links `modules/libkIO.a` | 2026-10-16 |
+| 144 | `IO` is a module, `#import <IO>`: `modules/IO.kh`, the C header `kIO.h` and `libkIO`, built from runtime/io.c, out of the prelude; without the import `IO` is an error that says to write it; `IO.kh` imports `<OS>`, which IO's path functions use | — | `#import <IO>` then `let f = IO(path, "r")` | 2026-10-16 |
+| 145 | `OS` with `SYS` is a module, `#import <OS>`: `modules/OS.kh`, `kOS.h` and `libkOS`, built from runtime/os.c, out of the prelude; without the import `OS` and `SYS` are errors that say to write it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`; a program that does not import it has no `kv_sys_init` in its `main` | — | `#import <OS>` then `var args = SYS.argv` | 2026-10-16 |
 
 Notes:
 
@@ -735,6 +738,23 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (143, 144, 145) Agreed details: "Let's separate `IO` and `OS` from
+  prelude. One day it may be used where IO is not available like
+  WASM/WASI environments. you will load them as `#import <IO>`,
+  `#import <OS>`. you may split the implementation with header file and
+  library like C. let header file's extension `.kh` and libraries
+  `libkModule.{a,so,dylyb}`. large modules should be implemented that
+  way instead of putting everything in `.k`. unlike C, `.kh` and
+  `libkM.` are in the `module` folder. And `#import <M>` loads `M.kh`
+  and the linker links the library with `-llibkM`." Claude asked where
+  SYS goes, with OS, and whether JSON.k and complex.k become `.kh` +
+  `libkM` now, later: that needs a mode of kelvinc that builds a Kelvin
+  file into a library. The flag is `-lkM`, since `-l` adds `lib`
+  itself, and a `libkM.a` beside the header is linked by its path.
+  io.c calls OS's path functions, so `IO.kh` imports `<OS>` and
+  `libkIO` links after `libkOS`; `OS.mkstemp` fills an IO, so it asks
+  for `#import <IO>` (P155, P156, P157).
 
 - (142) Agreed details: "now make `.x` work in the top-level anonymous
   enum's methods". Every form Claude tried worked but one: `.is(just)`
@@ -1523,6 +1543,9 @@ says "as agreed".
 | P152 | Details of #140 | `let moved(dx:i64):Self` in `extend point` is `struct point point__moved(const struct point self, const int64_t dx)`, as with `point` written | `rewrite_self` turns each token `Self` into `T`'s over the extend block, from its `{` to the matching `}`, or over a member written alone, to the `}` of its body, a `;`, or a new line that starts a statement, so every lookahead that tells a type from an expression sees `T`. `self_scope`, `self_tok` and `self_spelled` are set by `parse_extend` and the member parsers; outside them `self_word` makes `Self` an error, and for a type with no tag `parse_type_in` reads `Self` as the spelling while an expression's `Self` is an error |
 | P153 | Details of #141 | `let greet(name:cstr):()` is `void greet(const uint8_t *const name)`, as without `:()` | `void_result_ahead` sees `(` `)` not followed by `:` after the result's `:`, in `parse_fn_tail`, `parse_method_of`, `parse_anon_fn` and `parse_fn_type`, and leaves the result NULL, which was void already |
 | P154 | Details of #142 | `let k = 10` then `.is(just) ? ...` on the next line in a method is two statements, where it was `10.is(just)`; `let k = (.xs` then `.count)` is `self.xs.count` | `self_statement_at` is true for any `.member` on a new line at the top of a statement where `self` is bound, not only one followed by an assignment; `line_ends_expression` and `statement_ends_at` ask it, as before |
+| P155 | Details of #143 | `#import <IO>` becomes the tokens of `modules/IO.kh`, and `cc ... ./modules/libkIO.a ./modules/libkOS.a .../libkelvin.a -lm` | `import_path` tries `M.kh` before `M.k` for a bare name, and the lexer reads `<M.kh>` as a Kelvin file; `module_library` records `libkM.a` beside the header, or `-lkM` for a shared one, as each `.kh` is first brought in, and the driver links them before `libkelvin`. The parser lists each imported module's name from its `#import` token, which `prog->modules` hands the codegen |
+| P156 | Details of #144 | `kelvin_prelude.h` ends at the String functions; `kIO.h` holds the `kv_io` struct and the `kv_io_*` prototypes, `#include "kOS.h"` for `kv_stat`, and `IO.kh` is `#import <OS>` and `#import <kIO.h> as C` | `require_module("IO")` at `IO(`, `IO.`, the type `IO` and `extend IO`; the Makefile builds `libkIO.a` and `libkIO.dylib|.so` from io.o, the shared one linked against libkOS and libkelvin |
+| P157 | Details of #145 | `kOS.h` holds `kv_sys_*`, `kv_os_*`, `kv_stat` and the structs of #102, with `struct kv_io;` forward for `kv_os_mkstemp`; a `main` calls `kv_sys_init(argc, argv)` only where OS is imported | `require_module("OS")` at `OS.`, and `SYS.` checks the same module with its own message; os.c includes kIO.h for the IO it fills. tests/run.sh builds `libkshout.a` for tests/project's `shout.kh`, and compiles a program importing IO from the installed layout, checking the libraries it links |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

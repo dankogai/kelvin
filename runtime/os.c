@@ -11,6 +11,8 @@
 #define _DEFAULT_SOURCE 1 /* getloadavg (#102), a BSD extension glibc keeps for this */
 #endif
 #include "kelvin_prelude.h"
+#include "kOS.h"
+#include "kIO.h" /* the IO that OS.mkstemp fills */
 
 #include <dirent.h>
 #include <errno.h>
