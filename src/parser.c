@@ -5457,6 +5457,9 @@ static void reject_let_change(Expr *lhs, Token *t) {
     if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->subscript)
         error_at(t->pos, "a let subscript and a var subscript's getter read self and never change it: a var "
                          "subscript's setter, 'set(v) { ... }', does");
+    if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->attribute && !parsing_fn->setter)
+        error_at(t->pos, "a let attribute and a var attribute's getter read self and never change it: a var "
+                         "attribute's setter, 'set(v) { ... }', does");
     if (let && let_kind(let) == LET_PARAM)
         error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                  let, let);
@@ -8847,10 +8850,11 @@ static Decl *parse_method(Pos pos, const char *storage) {
     }
     open_scope();
     params_start = scope_names.len;
-    declare_typed("self", d->recv);
     /* let T.x:R { ... } (#131): a computed attribute, read as v.x, no
-       parentheses; its body has self, as a method's */
+       parentheses; its body has self, as a method's, which it reads and
+       never changes (#137) */
     d->attribute = !d->text_method && is_p(peek(), ":");
+    declare_binding("self", d->recv, d->attribute ? LET_PARAM : LET_NONE);
     if (d->attribute)
         reject_attribute_member(d->recv, name);
     if (!d->attribute)
@@ -8943,7 +8947,7 @@ static void reject_attribute_member(Type *recv, Token *name) {
 static void attribute_body(Decl *d, Var *param) {
     open_scope();
     params_start = scope_names.len;
-    declare_typed("self", d->recv);
+    declare_binding("self", d->recv, d->setter ? LET_NONE : LET_PARAM); /* a getter never changes self (#137) */
     if (param) {
         param->number = numeric_type(param_type(param->type));
         declare_binding(param->name, param_type(param->type), LET_PARAM);

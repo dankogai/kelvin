@@ -168,6 +168,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 134 | `x.m = v`, `xs[i].m = v` and `p^ = v` of a type that owns free what they held, after the new value is made, as `x = v` of a local does | — | `p.name = $"Grace"` | 2026-10-15 |
 | 135 | Operators in `extend T { }`: `static let +(a:T, b:T):T { }`, as Swift's `static func +`, the same as the top level's `let +`; one of its values is a `T`; a plain `let +` in extend is an error naming `static` | — | `extend money { static let +(a:money, b:money):money { ... } }` | 2026-10-15 |
 | 136 | Subscripts: `let [](i:I):R { }` in `extend T { }`, alone `let T[](i:I):R { }`, read as `v[i]`; `var [](i:I):R { get { } set(v) { } }` also written as `v[i] = y` and `v[i] += y` on the var that holds `v`; several indices read `v[r, c]`, and subscripts overload by the indices' count and types; one of an enum with values wins over #117 | — | `extend grid { var [](r:i64, c:i64):i64 { get { ... } set(v) { ... } } }`, `g[1, 2] = 7` | 2026-10-15 |
+| 137 | A getter's `self` is a `let`: a `let` attribute and a `var` attribute's `get { }` read `self` and never change it, so `self.n += 1` or `self = v` there is an error naming the setter, and `self` is `const` in C, as any `let` is (#27); a method is unchanged | — | `let counter.next:i64 { self.n += 1 }` is an error | 2026-10-15 |
 
 Notes:
 
@@ -729,6 +730,12 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (137) Agreed details: "now make a let attribute's getter reject
+  changing self". Found while testing #136, whose getters already
+  reject it: an attribute's getter changed its own copy of `self`, which
+  did no harm and meant nothing. A `var` attribute's getter is a getter
+  too, so it follows; the setter and methods are unchanged (P149).
 
 - (136) Agreed details: "now add subscripts inside `extend T {}`".
   Claude asked for the spelling; the user chose `let [](i:i64):R { }`
@@ -1475,6 +1482,7 @@ says "as agreed".
 | P146 | Details of #134 | `p.name = $"Grace"` is `kv_string_assign(&(p.name), KV_STRING_OF("Grace"))`, where it was `p.name = KV_STRING_OF("Grace")` | `parse_assign` marks an `=` to a place other than a name, of an owner other than an IO, with the place's type, and `owner_assign` writes the type's `_assign` for it |
 | P147 | Details of #135 | `static let +(a:money, b:money):money` in `extend money` is `_kv_add_op__money__money`, as `let +` at the top level is | `parse_extend` takes `static` `let` and an overloadable operator before `(` to `parse_fn`, the top level's parser of operators, then checks a parameter's type against the receiver's from `attribute_receiver`; without `static`, or another punctuation, it is an error |
 | P148 | Details of #136 | `g[1, 2]` is `grid__subscript__i64__i64(&(g), 1, 2)` and `g[1, 2] = 7` is `grid__subscript_set(&(g), 1, 2, 7)`; a receiver that is no place is a temporary first. The getter takes `const T^`, the setter `T^`, each named `_kv_selfp` with `#define self (*_kv_selfp)` around the body | `function_shape` gives 7 for `T[](`, and `parse_extend` sends `let [` and `var [` to `parse_subscript`, which makes the Decls `T.[]` and `T.[]=`, functions of the type marked `subscript`. The index parse chooses an overload by the count of indices, then their types, a literal as the type it infers to before any of its kind, before #117's cases; `parse_assign` turns `v[i] op= y` into an E_CALL `subscript_set` with the setter of the same index types |
+| P149 | Details of #137 | `let counter.sum:i64 { ... }` is `int64_t counter__sum(const struct counter self)`, so `&self` is a `const struct counter *` and C warns where it is passed to a `counter^`, as of any let parameter | `parse_method` binds `self` with LET_PARAM when it reads a `:` after the name, and `attribute_body` does for a getter, not a setter; `let_target`'s error for `self` in a getter names the setter; `fn_head` writes a getter's receiver with `const` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -3816,3 +3816,16 @@ values that has one is indexed through it, not through its cases
 (#117). Both forms are in properties.md. Details are provisional P148.
 
 There are 718 tests, and all pass with clang and with gcc 15.
+
+### 167. A getter does not change `self`
+
+> now make a let attribute's getter reject changing self
+
+**Claude** added #137: in a `let` attribute and in a `var` attribute's
+`get { }`, `self` is a `let`, so `self.n += 1` or `self = v` is an error
+that names the setter, as a subscript's getter already was (#136).
+`self` is `const` in C there, as any `let` is, so `&self` is a
+`const T^`. A setter and a method are unchanged. Details are
+provisional P149.
+
+There are 721 tests, and all pass with clang and with gcc 15.

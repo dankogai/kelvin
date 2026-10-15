@@ -289,6 +289,10 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   `v.x`, with no parentheses.
   - Its body is a method's, with `self`, and its one expression is the
     result.
+  - `self` is a `let` there (#137): the getter reads it and never
+    changes it, so `self.n += 1` or `self = ...` is an error.
+    - It is `const` in C, as any `let` is, so `&self` is a `const T^`.
+    - A copy changes freely: `var c = self.n`.
   - `v.x()` is an error, and so is `v.x = y`: it has no setter.
   - A member of the struct with the same name is an error, since one is
     stored and the other computed.
@@ -298,6 +302,8 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   (#132), is read as the getter gives it and written through the setter.
   - `v.x = y` calls the setter with `y` as `v`; in its body, `self` is the
     caller's variable, so `self.kelvin = ...` changes it.
+  - The getter, `get { ... }`, reads `self` as a `let` attribute does,
+    and never changes it (#137); only the setter does.
   - The variable is a `var`: a `let` cannot change.
   - `v.x += y` is `v.x = v.x + y`, so `v` is read twice and may not hold
     a call.
