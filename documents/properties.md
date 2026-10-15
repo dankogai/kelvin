@@ -35,7 +35,7 @@ type's own are listed, with its methods, at the end of its document:
 Properties are written without parentheses:
 
 ```kelvin
-let c:i32 = 42
+let c:int32 = 42                            // int32 is i32 by its full name (#151)
 let b:u8 = 255
 let p:point = {3, 4}
 println(c.size, " ", c.cstr, " ", p.cstr)   // 4 42 {x: 3, y: 4}

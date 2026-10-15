@@ -8,7 +8,7 @@ in [ownership.md](ownership.md); this is the summary.
 **Where it lives:** the prelude. A Dictionary's C comes from `kelvin_prelude.h`, instantiated for each `K` and `V`, with hashing and the rest in `libkelvin`, linked without an import.
 
 ```kelvin
-var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>
+var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>, or Dictionary<String, int64> by i64's full name (#151)
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: a missing key ends the program
 println(ages["bob"], " ", ages.count, " ", ages.has("dan"))

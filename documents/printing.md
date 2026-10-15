@@ -14,7 +14,7 @@ Every Kelvin program can use `print` and `println` without an import:
 
 ```kelvin
 let main():i32 {
-    let n:i64 = -42
+    let n:int64 = -42                       // int64 is i64 by its full name (#151)
     println("n = ", n, ", half = ", n / 2.0)   // n = -42, half = -21.0
     println()                                  // just a newline
     return 0

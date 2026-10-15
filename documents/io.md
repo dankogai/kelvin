@@ -17,7 +17,7 @@ rules are in [ownership.md](ownership.md), Results in
 let count(path:cstr):Result<i64, i32> {
     let f = IO(path, "r")                // the IO, straight (#109)
     if f.error != 0 { return err(f.error) }   // the errno when it did not open, passed up
-    var n:i64 = 0
+    var n:int64 = 0                         // int64 is i64 by its full name (#151)
     for line in f.lines { n += 1 }       // each line, a String, without its newline
     return n                              // f closes here
 }

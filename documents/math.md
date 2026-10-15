@@ -19,7 +19,7 @@ let main():i32 {
     let w = exp(z) * z + 1.0                     // operators, and exp of a c64
     println(`${w} ${abs(w)} ${sin(0.5)}`)        // sin of an f64 is C's
     println(abs(exp(i * f64.pi) + 1.0) < 1e-15)  // true: f64.pi, a constant of the type
-    println(2.0.sqrt(), " ", (0.5:f32).sin(), " ", z.exp(), " ", 1.0.i)   // the methods; 1.0.i is c64(0, 1)
+    println(2.0.sqrt(), " ", (0.5:float32).sin(), " ", z.exp(), " ", 1.0.i)   // the methods; 1.0.i is c64(0, 1); float32 is f32 by its full name (#151)
     return 0
 }
 ```

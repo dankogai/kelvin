@@ -126,7 +126,7 @@ a pointer, a `cstr`, a struct that owns nothing, or an owner among
 it, copied by `copy()`, and never copied by `=`.
 
 ```kelvin
-var xs = Array<i64>()            // empty; Array<i64>(n) is n zero elements
+var xs = Array<int64>()            // empty; Array<i64>(n) is n zero elements; int64 is i64 by its full name (#151)
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
 var vb = $[0, 1, 2, 3]            // the same, for short; $"text" is String("text")
 var vc:$[[i64]] = $[[1, 0], [0, 1]]   // $[T] is the type Array<T>, $[[T]] Array<Array<T>>

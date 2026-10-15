@@ -15,7 +15,7 @@ its cases named `none` and `some` (#72); it has its own document,
 **Where it lives:** the prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 ```kelvin
-let parse(s:cstr):Result<i64, String> {
+let parse(s:cstr):Result<int64, String> {   // int64 is i64 by its full name (#151)
     if s.count == 0 { return err($"empty") }   // err(e), a word
     return i64(s)                              // a T becomes ok(T) by itself
 }

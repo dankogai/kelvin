@@ -11,7 +11,7 @@ operators, which are functions of a struct, are in
 ## Declaring
 
 ```kelvin
-let add(a:i64, b:i64):i64 { a + b }        // one expression is the result
+let add(a:int64, b:i64):i64 { a + b }        // one expression is the result; int64 is i64 by its full name (#151)
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
 let shout(name:cstr):() { println(name, "!") }  // the same, written out (#141)
 let move(var p:node^):() { p := p^.next }  // a var parameter may change

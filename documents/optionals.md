@@ -14,7 +14,7 @@ examples.
 **Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 ```kelvin
-var a:i64? = 3                           // some(3): a T becomes a T? where one is expected
+var a:int64? = 3                           // some(3): a T becomes a T? where one is expected; int64 is i64 by its full name (#151)
 var b:i64? = none                        // none, a word that needs the type around it
 println(a.is(some), " ", b.is(none))     // true true
 println(a.some)                          // 3; of none, the program ends with a message

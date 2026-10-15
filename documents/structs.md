@@ -10,7 +10,7 @@ the same rules; see [unions.md](unions.md).
 ## Declaring
 
 ```kelvin
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: i32 }           // int32 is i32 by its full name (#151)
 struct node {
     value: i64
     next:  node^            // the bare name, inside its own struct too

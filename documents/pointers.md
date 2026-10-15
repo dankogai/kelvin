@@ -28,7 +28,7 @@ and `.isNull` are in [properties.md](properties.md).
 pointer needs:
 
 ```kelvin
-var x:i32 = 1
+var x:int32 = 1                             // int32 is i32 by its full name (#151)
 var p:i32^ := &x          // C: int32_t *p = &x;
 let q := &x               // inferred: q is i32^
 let k = 42

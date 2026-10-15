@@ -10,7 +10,7 @@ union in C, with one byte for the tag.
 ```kelvin
 enum color { red, green, blue }          // C's enum: red is 0
 
-enum json { null; b: bool; n: f64; s: String; a: Array<json> }
+enum json { null; b: bool; n: float64; s: String; a: Array<json> } // float64 is f64 by its full name (#151)
 
 var j:json = {.n = 1.5}                  // a case by its name
 j.s = String("text")                     // sets the case; what it held is freed

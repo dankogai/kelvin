@@ -29,7 +29,7 @@ passed to a function is a pointer. Byte arrays that hold text are in
     there is an error: pass the count beside it *(provisional P61)*.
 
 ```kelvin
-var a:[i32](4)                  // C: int32_t a[4]
+var a:[int32](4)                  // C: int32_t a[4]; int32 is i32 by its full name (#151)
 var m:[[i32](3)](2)             // C: int32_t m[2][3], indexed m[1][2]
 var ps:[i32^](4)                // C: int32_t *ps[4], four pointers
 let q:[i32](4)^ := &a           // C: int32_t (*const q)[4]

@@ -7,7 +7,7 @@ than the one last written is C's type punning, with C's rules.
 **Where it lives:** the core. A union is C's, with nothing linked.
 
 ```kelvin
-union bits { u: u64; f: f64 }
+union bits { u: uint64; f: f64 }            // uint64 is u64 by its full name (#151)
 
 extend bits {                                             // Self is bits
     static let ==(a:Self, b:Self):bool { a.u == b.u }      // an operator

@@ -17,7 +17,7 @@ after a colon (#27):
 
 ```kelvin
 let k = 42                 // a let never changes: C's const
-var n:i32 = 0              // a var may change
+var n:int32 = 0              // a var may change; int32 is i32 by its full name (#151)
 var buf := malloc(n):u8^   // := for references (see pointers.md)
 let a:i32 = 1, b:u8^ := p
 static var calls:i32

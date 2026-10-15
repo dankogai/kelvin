@@ -24,7 +24,7 @@ and `` $`...` `` do their work.
 let s:cstr := "hello"        // a pointer to static text: const char * in C
 let t:[u8] = "hello"         // a copy in an array of six bytes, NUL included
 var buf = [u8](64)           // 64 zero bytes to write into
-let n:i64 = 42
+let n:int64 = 42                            // int64 is i64 by its full name (#151)
 let d:cstr := n.cstr         // "42", in a buffer on this block's stack
 let card:cstr := `${n} items` // a template's text, on the stack too
 ```

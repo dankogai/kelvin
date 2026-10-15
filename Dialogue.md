@@ -4125,3 +4125,17 @@ complex64 = c64` and `complex32 = c32` in math.k keeping the old names.
 `float32`, built into the lexer. Details are provisional P161 to P163.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 186. The documents' examples with `c64` and the full names
+
+> now rewrite the documents' examples with `c64` and the full names
+
+**Claude** found the examples saying `c64` and `c32` since #150, and
+asked what the full names should do in them; the user chose to show
+both. One example in each document that declares a number now writes
+the full name once, `var n:int64` beside the `i64`s, with a note that
+it is the short name's, so a reader sees both spellings; where no
+declaration fits, the note is in a comment. The examples' outputs are
+unchanged.
+
+There are 749 tests, and all pass with clang and with gcc 15.
