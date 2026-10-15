@@ -105,7 +105,6 @@ let fmaxf(x:f32, y:f32):f32
 let copysignf(x:f32, y:f32):f32
 let fmaf(x:f32, y:f32, z:f32):f32
 let abs(n:i32):i32
-let llabs(n:i64):i64
 
 // ---------- f32: the functions of math.h by the f32 kind ----------
 
@@ -148,10 +147,11 @@ let fmax(x:f32, y:f32):f32 { fmaxf(x, y) }
 let copysign(x:f32, y:f32):f32 { copysignf(x, y) }
 let fma(x:f32, y:f32, z:f32):f32 { fmaf(x, y, z) }
 
-// |x| of a float, and of an i64, as abs(n) of an i32 is C's
+// |x| of a float, and of an i64, as abs(n) of an i32 is C's; not llabs,
+// whose long long is not int64_t everywhere
 let abs(x:f64):f64 { fabs(x) }
 let abs(x:f32):f32 { fabsf(x) }
-let abs(n:i64):i64 { llabs(n) }
+let abs(n:i64):i64 { n < 0 ? -n : n }
 
 struct complex64 {
     real: f64

@@ -4102,6 +4102,8 @@ constants of each type as attributes, `f64.pi`, `f32.epsilon`, the
 complex functions as methods, and `x.i`. A type attribute may now be
 of a number type, read as `f64.pi`, and a module's header declares
 one. A literal receiver gets its own type, so `1.0.i` is typed. Every
-import of `<complex.k>` is `<math>`. Details are provisional P160.
+import of `<complex.k>` is `<math>`. CI's Linux jobs showed glibc's
+`llabs` is `long long`, not `int64_t`, so `abs` of an `i64` is written
+in Kelvin. Details are provisional P160.
 
 There are 746 tests, and all pass with clang and with gcc 15.
