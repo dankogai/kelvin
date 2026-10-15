@@ -59,14 +59,14 @@ extend list {
     // for n in head walks the nodes along next, up to nullptr
     let sum():i64 {
         var total = 0
-        for n in self.head {
+        for n in .head {                                  // .head is self.head
             total += n^.value
         }
         return total
     }
 
     let contains(value:i64):bool {
-        for n in self.head {
+        for n in .head {
             if n^.value == value {
                 return true
             }
@@ -77,13 +77,13 @@ extend list {
     // print the values as [1 -> 4 -> 9]
     let show() {
         print("[")
-        for n in self.head {
+        for n in .head {
             print(n^.value)
             if n^.next != nullptr {
                 print(" -> ")
             }
         }
-        println("] (", self.length, " values)")
+        println("] (", .length, " values)")
     }
 }
 

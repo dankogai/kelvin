@@ -1,6 +1,7 @@
-// Structs, methods and attributes in extend blocks (#130, #131): self is a
-// copy of the receiver, an attribute is read without parentheses, every
-// struct has derived text (.cstr), and C's <math.h> is a header away.
+// Structs, methods and attributes in extend blocks (#130, #131): .x is
+// self.x (#139) and Self is the type (#140), an attribute is read without
+// parentheses, every struct has derived text (.cstr), and C's <math.h> is
+// a header away.
 #import <math.h> as C
 
 let PI = 3.141592653589793
@@ -10,21 +11,21 @@ struct circle { center: point; radius: f64 }
 struct rect { corner: point; width: f64; height: f64 }
 
 extend point {
-    let distance(to:point):f64 {
-        hypot(to.x - self.x, to.y - self.y)
+    let distance(to:Self):f64 {                                   // Self is point
+        hypot(to.x - .x, to.y - .y)                               // .x is self.x
     }
 }
 
 extend circle {
-    let area:f64 { PI * self.radius * self.radius }               // an attribute: c.area
-    let contains(p:point):bool { self.center.distance(p) <= self.radius }
+    let area:f64 { PI * .radius * .radius }                       // an attribute: c.area
+    let contains(p:point):bool { .center.distance(p) <= .radius }
 }
 
 extend rect {
-    let area:f64 { self.width * self.height }
+    let area:f64 { .width * .height }
     // self is a let (#138): a copy moves, and the caller's rect stays
-    let moved(dx:f64, dy:f64):rect {
-        var r = self
+    let moved(dx:f64, dy:f64):Self {
+        var r:Self = self
         r.corner.x += dx
         r.corner.y += dy
         return r

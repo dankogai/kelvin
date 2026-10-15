@@ -3866,3 +3866,16 @@ prototype, a method, an anonymous function and in a function type.
 Details are provisional P152 and P153.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 170. The examples and modules with `.x` and `Self`
+
+> now rewrite the examples and modules with `.attr` and `Self`
+
+**Claude** rewrote examples/shapes.k and examples/linkedlist.k with
+`.x` for `self.x` (#139) and `Self` for the receiver's type (#140), and
+modules/JSON.k's functions of the type with `Self` for `JSON`, as
+`static let parse(text:cstr):Self` and `j:const Self^`. modules/complex.k
+has plain functions and operators, with no `self`, so it is as it was.
+The outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.
