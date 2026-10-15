@@ -1,6 +1,6 @@
-// Complex numbers from modules/complex.k: functions of one name for several
+// Complex numbers from modules/math.k: functions of one name for several
 // types, with C's own for the numbers, and operators a struct defines.
-#import <complex.k>
+#import <math>
 #import <stdio.h> as C
 
 let PI = 3.141592653589793
@@ -20,7 +20,7 @@ let roots(a:complex64, b:complex64, c:complex64, r:complex64^, s:complex64^):() 
 let main():i32 {
     let i:complex64 = complex64(0.0, 1.0)
 
-    // sin of a number is C's, of a complex64 modules/complex.k's
+    // sin of a number is C's, of a complex64 modules/math.k's
     println(sin(PI / 2.0), " ", abs(exp(i * PI) + 1.0) < 1e-15)
 
     var r:complex64

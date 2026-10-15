@@ -1,8 +1,8 @@
-// modules/complex.k (#43): complex64 and complex32, their arithmetic and
+// modules/math.k (#43, #148): complex64 and complex32, their arithmetic and
 // elementary functions, which overload C's own of the same names (#41)
 // through Kelvin's operators (#42). C's libm may differ in the last bits
 // between systems, so results are compared within a tolerance.
-#import <complex.k>
+#import <math>
 #import <math.h> as C
 #import <stdlib.h> as C
 

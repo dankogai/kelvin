@@ -179,6 +179,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 145 | `OS` with `SYS` is a module, `#import <OS>`: `modules/OS.kh`, `kOS.h` and `libkOS`, built from runtime/os.c, out of the prelude; without the import `OS` and `SYS` are errors that say to write it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`; a program that does not import it has no `kv_sys_init` in its `main` | — | `#import <OS>` then `var args = SYS.argv` | 2026-10-16 |
 | 146 | `kelvinc --lib M.k` builds a Kelvin file into a module: `M.kh`, its declarations with the bodies dropped, and `libkM.a`, in `./modules` or the directory `-o` names; the header holds the imports, the types whole, a prototype of each function, method, function of the type, operator, attribute and subscript in their `extend` blocks, `extern let x:T` for a global, `extern let` for a C function's prototype, and `T.cstr()` with its body; a file's `static let` is left out, a type attribute waits, and `main` is an error. In a `.kh`, a prototype without `extern` is the library's, named by its types, and attributes and subscripts may be prototypes | — | `kelvinc --lib geo.k`, then `#import <geo>` | 2026-10-16 |
 | 147 | `kelvinc --lib M.k` makes the shared library too, `libkM.dylib` on macOS and `libkM.so` elsewhere, beside `libkM.a`: the same object, linked against the shared `libkelvin` and the shared libraries of the modules the file imports, or their static ones where there is no shared one, for C and other toolchains; `#import <M>` links the static one | — | `kelvinc --lib geo.k`, then `cc geo_c.c modules/libkgeo.dylib -Wl,-rpath,...` | 2026-10-16 |
+| 148 | `modules/complex.k` is `modules/math.k`, `#import <math>`: math.h and its complex counterpart, as C's math and cmath. The functions of math.h for `f64`, C's own declared, and for `f32`, their `f` kind; each a method too, `x.sin()`, `x.pow(y)`; the constants as attributes of the type, `f64.pi`, `tau`, `e`, `ln2`, `ln10`, `log2e`, `log10e`, `sqrt2`, `infinity`, `nan`, `epsilon`, `max`, `min`, and of `f32`; `x.isnan`, `x.isinf`, `x.isfinite`; the complex functions as methods, `z.exp()`, `z.pow(w)`; `x.i`, `x` rotated a quarter turn: `1.0.i` is `complex64(0.0, 1.0)`, `z.i` is `z` times i; `abs` of a float and of an `i64`. A type attribute may be of a number type, `static let f64.pi:f64 = ...`, read as `f64.pi`, and a module's header declares one as `static let T.x:R` | — | `f64.pi.sin()`, `2.0.sqrt()`, `(0.5:f32).sin()`, `1.0.i.i` | 2026-10-16 |
 
 Notes:
 
@@ -740,6 +741,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (148) Agreed details: "rename `complex.k` to `math.k` to give all
+  functionalities of `math.h`. sort of like math + cmath. `#include
+  <math.h>` therein. add static attributes to `f64` and `f32`,
+  including constants like `pi` and `e`. give floating point types
+  methods like `f64.sin()` and `f64.exp()`. same there in
+  `complex64.sin()` and other complex functions. kelvin is
+  multi-dispatch so simple `sin()` or `exp()` should suffice most of the
+  cases but if you want to explicitly express which one is used, you can
+  distinguish that way. add a computed attribute `.i` to `f{64,32}` and
+  `complex{64,32}` that rotates `pi/2` on the gausissian plane. `1.0.i`
+  returns `complex64(0.0, 1.0)` for example." Adding `abs(x:f64)` made
+  `abs(3)` ambiguous between `i32`, `f64` and `f32`, which `abs(n:i64)`
+  settles, since an integer literal is an `i64`; the rule of #41 stays.
+  `f32.epsilon` is larger than `f64.epsilon`, as C's are (P160).
 
 - (147) Agreed details: "now add a shared libkM to `kelvinc --lib`
   too". The shared one is for C and other toolchains, as
@@ -1566,6 +1582,7 @@ says "as agreed".
 | P157 | Details of #145 | `kOS.h` holds `kv_sys_*`, `kv_os_*`, `kv_stat` and the structs of #102, with `struct kv_io;` forward for `kv_os_mkstemp`; a `main` calls `kv_sys_init(argc, argv)` only where OS is imported | `require_module("OS")` at `OS.`, and `SYS.` checks the same module with its own message; os.c includes kIO.h for the IO it fills. tests/run.sh builds `libkshout.a` for tests/project's `shout.kh`, and compiles a program importing IO from the installed layout, checking the libraries it links |
 | P158 | Details of #146 | `let norm1:f64` in geo.kh declares `double point__norm1(const struct point self);`, which libkgeo.a defines; `static let of(x:f64, y:f64):Self` is `point__of__f64__f64` on both sides | `gen_header` walks the main file's tokens and copies the raw source text of each declaration up to its body, found by `header_end`, which skips a `{` after `:` or a type word as a type; `kelvin_proto` marks a bodiless function in a `.kh` that is not `extern`, and `name_functions` counts it as defined, so the program names it by its types as the library does, whose tokens `--lib` marks imported; `parse_method_of`, `parse_var_attribute` and `parse_subscript` take a prototype in a `.kh`; the driver compiles with `-c -fPIC`, drops the libraries and `-L`, and runs `ar rcs` |
 | P159 | Details of #147 | `libkgeo.dylib` with `@rpath/libkgeo.dylib` as its install name, depending on `@rpath/libkelvin.dylib` | `link_shared` runs `cc -dynamiclib -install_name @rpath/libkM.dylib` (or `-shared -Wl,-soname`) on the object, with `-L./modules`, `-L` of Kelvin's `modules/`, each library of `module_libs` and `libkelvin` taken as its shared sibling where one exists, and `-lm`; tests/run.sh links tests/project/geo_c.c against `libkgeo.$so` by its path, with rpaths, and runs it |
+| P160 | Details of #148 | `f64.pi` is the global `const double f64__pi = 3.141592653589793;`, `x.sin()` dispatches by `_Generic` to `f64__sin`, `f32__sin`, `complex64__sin` or `complex32__sin`, and `1.0.i` to `f64__i`, giving a `struct complex64` | `parse_type_attribute` takes a converter word as the receiver, and the primary reads `f64.pi` as a type attribute where one is declared; `method_named` and `value_type` give a literal receiver its own type through `arg_type`, so `1.0.i` and `(-1.0).i` are typed; `gen_header` writes a type attribute as `static let x:R` in its block, which `parse_type_attribute` reads in a `.kh` as extern, and moves past the initializer. A method has one form per name, so `z.pow` takes a `Self` only. `z.i` is `Self(0.0 - .imag, .real)`, so that no zero turns negative |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

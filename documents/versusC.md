@@ -64,11 +64,11 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `strtol(s, NULL, 8)`, `atof(s)` | `i64(s, 8)`, `f64(s)` or `s.f64` (#36) |
 | `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
-| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <complex.k>` (#40, #46) |
+| `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <math>` (#40, #46) |
 | `x.h` and `libx.a`, built by `cc -c x.c` and `ar rcs`, linked with `-lx` | `kelvinc --lib x.k` builds `x.kh` and `libkx.a` into `modules/`, which `#import <x>` brings in and links by itself (#143, #146) |
 | `csin(z)` beside `sin(x)` | `let sin(z:complex64):complex64 { ... }` beside C's `sin` (#41) |
 | `cadd(a, b)` | `a + b`, given `let +(a:complex64, b:complex64):complex64 { ... }` (#42) |
-| `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (modules/complex.k, #43) |
+| `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (modules/math.k, #43) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
@@ -103,7 +103,7 @@ Each document says so under its title. In short:
 |---|---|---|
 | the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
 | the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
-| loaded explicitly | `IO`; `OS` and `SYS`; `complex64` and `complex32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <complex.k>`, `#import <JSON>`, sources; `#import <x.h> as C` |
+| loaded explicitly | `IO`; `OS` and `SYS`; `complex64` and `complex32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <math>`, `#import <JSON>`, sources; `#import <x.h> as C` |
 
 ## The documents
 
@@ -132,7 +132,7 @@ Each document says so under its title. In short:
 | [flow-controls.md](flow-controls.md) | `if`, `while`, `do`, `for`, ranges, `for x in s`, conditions are `bool` |
 | [printing.md](printing.md) | `print`, `println`, template literals, `` $`...` `` a String from one |
 | [properties.md](properties.md) | `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull` |
-| [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/complex.k`, a module as `M.kh` and `libkM`, `kelvinc --lib` |
+| [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/math.k`, a module as `M.kh` and `libkM`, `kelvinc --lib` |
 | [c-interfaces.md](c-interfaces.md) | C headers, typedefs, C's functions, `libkelvin` from C, the C compiler |
 
 ## Reserved words
@@ -180,7 +180,7 @@ These are C features without a Kelvin spelling so far:
 - string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - generics: a function over several types is written once per type, as
-  `modules/complex.k` does for `complex32` and `complex64`; `Array<T>`,
+  `modules/math.k` does for `complex32` and `complex64`; `Array<T>`,
   `Dictionary<K, V>` and `Set<T>` are the built-in generics (#57, #65, #71)
 - literal suffixes (on purpose: see [integers.md](integers.md))
 - the preprocessor beyond `#import`

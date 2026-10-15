@@ -148,9 +148,12 @@ So far the changes from C are:
   - `let v = try f()` passes the `err` up
   - `T?` is its special case, a value that may be absent, `none` or
     `some(v)`: `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
-- `#import <complex.k>` brings in a Kelvin file's source, here
-  `complex64` and `complex32` with their arithmetic and elementary
-  functions, from `./modules` or Kelvin's own `modules/`
+- `#import <math>` is `math.h` and its complex counterpart: its
+  functions for `f64` and `f32`, each a method too, `x.sin()`, its
+  constants as attributes of the type, `f64.pi`, and `complex64` and
+  `complex32` with their arithmetic and elementary functions, `x.i` a
+  quarter turn; a Kelvin file's source, from `./modules` or Kelvin's
+  own `modules/`
 
 Everything else is C. Each document says whether what it covers is the
 core, the prelude, or loaded with an `#import`; versusC.md sums that up.
@@ -179,7 +182,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
 | [examples/bfi.k](examples/bfi.k) | a brainfuck interpreter: a struct that owns a `Bytes` and an `Array`, `Result` and `if let err(why)`, a `switch` on bytes, `argv`, `fopen` and `getchar`; `!` ends the program and starts its input |
 | [examples/bfc.k](examples/bfc.k) | a brainfuck compiler to Kelvin source, which kelvinc then compiles: slices, `for c in bytes`, `printf` for escapes, `argv` |
-| [examples/complex.k](examples/complex.k) | `#import <complex.k>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
+| [examples/complex.k](examples/complex.k) | `#import <math>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 
 ## Build and use
 

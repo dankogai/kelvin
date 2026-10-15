@@ -2,7 +2,7 @@
 // ./modules, then in Kelvin's modules/, and C looks for headers in
 // ./modules too (#46)
 #import <greet.k>
-#import <complex.k>
+#import <math>
 #import <shout>                 // shout.kh, and libkshout.a beside it (#143)
 let main():i32 {
     greet("modules")

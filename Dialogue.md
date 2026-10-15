@@ -4081,3 +4081,27 @@ path does not reach a library's own dependencies there, which CI's
 clang jobs showed. Details are provisional P159.
 
 There are 744 tests, and all pass with clang and with gcc 15.
+
+### 184. `math.k`: math.h, its constants, methods and `x.i`
+
+> rename `complex.k` to `math.k` to give all functionalities of
+> `math.h`. sort of like math + cmath. `#include <math.h>` therein. add
+> static attributes to `f64` and `f32`, including constants like `pi`
+> and `e`. give floating point types methods like `f64.sin()` and
+> `f64.exp()`. same there in `complex64.sin()` and other complex
+> functions. kelvin is multi-dispatch so simple `sin()` or `exp()`
+> should suffice most of the cases but if you want to explicitly
+> express which one is used, you can distinguish that way. add a
+> computed attribute `.i` to `f{64,32}` and `complex{64,32}` that
+> rotates `pi/2` on the gausissian plane. `1.0.i` returns
+> `complex64(0.0, 1.0)` for example.
+
+**Claude** made #148: `modules/math.k`, `#import <math>`, holds the
+functions of math.h for `f64` and `f32`, each a method too, the
+constants of each type as attributes, `f64.pi`, `f32.epsilon`, the
+complex functions as methods, and `x.i`. A type attribute may now be
+of a number type, read as `f64.pi`, and a module's header declares
+one. A literal receiver gets its own type, so `1.0.i` is typed. Every
+import of `<complex.k>` is `<math>`. Details are provisional P160.
+
+There are 746 tests, and all pass with clang and with gcc 15.

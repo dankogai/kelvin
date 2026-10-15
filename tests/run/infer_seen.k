@@ -2,7 +2,7 @@
 // Kelvin function's or method's result, a variable, a field, p^, a[i],
 // &x, a compound literal, a text property, a template, an enumerator, a
 // character, sizeof, and a ?: between two values of one type
-#import <complex.k>
+#import <math>
 struct point { x: i64; y: i64 }
 enum color { RED, GREEN }
 let mk(x:i64):point { (point){x, x * 2} }

@@ -1,14 +1,19 @@
-// modules/complex.k - complex numbers, with arithmetic and the elementary
-// functions (#43): complex64 has f64 parts and complex32 f32 parts, named
-// by the size of each part. complex128 waits for f128.
+// modules/math.k - math.h and its complex counterpart, as C's math and
+// cmath are (#43, #148): the functions of math.h for f64 and f32, the
+// constants of each as attributes of the type, f64.pi, and complex
+// numbers with arithmetic and the elementary functions, complex64 with
+// f64 parts and complex32 with f32 parts, named by the size of each part.
+// complex128 waits for f128.
 //
-//     #import <complex.k>
+//     #import <math>
 //     let z:complex64 = complex64(1.0, 2.0)
 //     let w:complex64 = exp(z) * z + 1.0
-//     println(`${w} ${abs(w)}`)
+//     println(`${w} ${abs(w)} ${f64.pi.sin()} ${1.0.i}`)
 //
 // The functions overload C's own of the same name (#41): sin(z) of a
-// complex64 is this file's, sin(x) of an f64 is math.h's. The operators
+// complex64 is this file's, sin(x) of an f64 is math.h's, sin(x) of an
+// f32 sinf's. Each is a method too, x.sin(), z.sin(), which says which
+// where it matters, and x.i is x rotated a quarter turn, complex64(0.0, x). The operators
 // are Kelvin's (#42), in extend blocks with Self (#135, #140). C99's
 // _Complex is not used. The inverse functions
 // take their principal values, with C99's branch cuts and its signs of
@@ -18,14 +23,14 @@
 // does. The special values of C99's Annex G for infinities and NaNs are
 // not attempted, except for sqrt and division by an infinity.
 #import <math.h> as C
+#import <float.h> as C
 
-// C's own functions of the names this file overloads, declared, so that a
-// number reaches them also where only C sees its type, as in
-// tanh(atof(s)) (#41)
+// C's own functions of math.h, declared (#41, #148): a number reaches them
+// also where only C sees its type, as in tanh(atof(s)), and an f32 its
+// f32 kind, sinf, through the overloads below
 let exp(x:f64):f64
 let log(x:f64):f64
 let sqrt(x:f64):f64
-let pow(x:f64, y:f64):f64
 let sin(x:f64):f64
 let cos(x:f64):f64
 let tan(x:f64):f64
@@ -38,7 +43,115 @@ let atan(x:f64):f64
 let asinh(x:f64):f64
 let acosh(x:f64):f64
 let atanh(x:f64):f64
+let exp2(x:f64):f64
+let expm1(x:f64):f64
+let log2(x:f64):f64
+let log10(x:f64):f64
+let log1p(x:f64):f64
+let cbrt(x:f64):f64
+let floor(x:f64):f64
+let ceil(x:f64):f64
+let round(x:f64):f64
+let trunc(x:f64):f64
+let fabs(x:f64):f64
+let erf(x:f64):f64
+let erfc(x:f64):f64
+let tgamma(x:f64):f64
+let lgamma(x:f64):f64
+let pow(x:f64, y:f64):f64
+let hypot(x:f64, y:f64):f64
+let atan2(x:f64, y:f64):f64
+let fmod(x:f64, y:f64):f64
+let fmin(x:f64, y:f64):f64
+let fmax(x:f64, y:f64):f64
+let copysign(x:f64, y:f64):f64
+let fma(x:f64, y:f64, z:f64):f64
+let expf(x:f32):f32
+let logf(x:f32):f32
+let sqrtf(x:f32):f32
+let sinf(x:f32):f32
+let cosf(x:f32):f32
+let tanf(x:f32):f32
+let sinhf(x:f32):f32
+let coshf(x:f32):f32
+let tanhf(x:f32):f32
+let asinf(x:f32):f32
+let acosf(x:f32):f32
+let atanf(x:f32):f32
+let asinhf(x:f32):f32
+let acoshf(x:f32):f32
+let atanhf(x:f32):f32
+let exp2f(x:f32):f32
+let expm1f(x:f32):f32
+let log2f(x:f32):f32
+let log10f(x:f32):f32
+let log1pf(x:f32):f32
+let cbrtf(x:f32):f32
+let floorf(x:f32):f32
+let ceilf(x:f32):f32
+let roundf(x:f32):f32
+let truncf(x:f32):f32
+let fabsf(x:f32):f32
+let erff(x:f32):f32
+let erfcf(x:f32):f32
+let tgammaf(x:f32):f32
+let lgammaf(x:f32):f32
+let powf(x:f32, y:f32):f32
+let hypotf(x:f32, y:f32):f32
+let atan2f(x:f32, y:f32):f32
+let fmodf(x:f32, y:f32):f32
+let fminf(x:f32, y:f32):f32
+let fmaxf(x:f32, y:f32):f32
+let copysignf(x:f32, y:f32):f32
+let fmaf(x:f32, y:f32, z:f32):f32
 let abs(n:i32):i32
+let llabs(n:i64):i64
+
+// ---------- f32: the functions of math.h by the f32 kind ----------
+
+let exp(x:f32):f32 { expf(x) }
+let log(x:f32):f32 { logf(x) }
+let sqrt(x:f32):f32 { sqrtf(x) }
+let sin(x:f32):f32 { sinf(x) }
+let cos(x:f32):f32 { cosf(x) }
+let tan(x:f32):f32 { tanf(x) }
+let sinh(x:f32):f32 { sinhf(x) }
+let cosh(x:f32):f32 { coshf(x) }
+let tanh(x:f32):f32 { tanhf(x) }
+let asin(x:f32):f32 { asinf(x) }
+let acos(x:f32):f32 { acosf(x) }
+let atan(x:f32):f32 { atanf(x) }
+let asinh(x:f32):f32 { asinhf(x) }
+let acosh(x:f32):f32 { acoshf(x) }
+let atanh(x:f32):f32 { atanhf(x) }
+let exp2(x:f32):f32 { exp2f(x) }
+let expm1(x:f32):f32 { expm1f(x) }
+let log2(x:f32):f32 { log2f(x) }
+let log10(x:f32):f32 { log10f(x) }
+let log1p(x:f32):f32 { log1pf(x) }
+let cbrt(x:f32):f32 { cbrtf(x) }
+let floor(x:f32):f32 { floorf(x) }
+let ceil(x:f32):f32 { ceilf(x) }
+let round(x:f32):f32 { roundf(x) }
+let trunc(x:f32):f32 { truncf(x) }
+let fabs(x:f32):f32 { fabsf(x) }
+let erf(x:f32):f32 { erff(x) }
+let erfc(x:f32):f32 { erfcf(x) }
+let tgamma(x:f32):f32 { tgammaf(x) }
+let lgamma(x:f32):f32 { lgammaf(x) }
+let pow(x:f32, y:f32):f32 { powf(x, y) }
+let hypot(x:f32, y:f32):f32 { hypotf(x, y) }
+let atan2(x:f32, y:f32):f32 { atan2f(x, y) }
+let fmod(x:f32, y:f32):f32 { fmodf(x, y) }
+let fmin(x:f32, y:f32):f32 { fminf(x, y) }
+let fmax(x:f32, y:f32):f32 { fmaxf(x, y) }
+let copysign(x:f32, y:f32):f32 { copysignf(x, y) }
+let fma(x:f32, y:f32, z:f32):f32 { fmaf(x, y, z) }
+
+// |x| of a float, and of an i64, as abs(n) of an i32 is C's
+let abs(x:f64):f64 { fabs(x) }
+let abs(x:f32):f32 { fabsf(x) }
+let abs(n:i64):i64 { llabs(n) }
 
 struct complex64 {
     real: f64
@@ -402,3 +515,180 @@ let asinh(z:complex32):complex32 { complex32(asinh(complex64(z))) }
 let acosh(z:complex32):complex32 { complex32(acosh(complex64(z))) }
 let atanh(z:complex32):complex32 { complex32(atanh(complex64(z))) }
 let atan(z:complex32):complex32 { complex32(atan(complex64(z))) }
+
+// ---------- methods and constants (#148) ----------
+
+extend f64 {
+    // the constants of math.h, as attributes of the type (#148): f64.pi, f64.infinity
+    static let pi:Self = 3.141592653589793
+    static let tau:Self = 6.283185307179586
+    static let e:Self = 2.718281828459045
+    static let ln2:Self = 0.6931471805599453
+    static let ln10:Self = 2.302585092994046
+    static let log2e:Self = 1.4426950408889634
+    static let log10e:Self = 0.4342944819032518
+    static let sqrt2:Self = 1.4142135623730951
+    static let infinity:Self = INFINITY
+    static let nan:Self = NAN
+    static let epsilon:Self = DBL_EPSILON
+    static let max:Self = DBL_MAX
+    static let min:Self = DBL_MIN
+
+    // each function of math.h as a method, x.sin(): the function by another name
+    let exp():Self { exp(self) }
+    let log():Self { log(self) }
+    let sqrt():Self { sqrt(self) }
+    let sin():Self { sin(self) }
+    let cos():Self { cos(self) }
+    let tan():Self { tan(self) }
+    let sinh():Self { sinh(self) }
+    let cosh():Self { cosh(self) }
+    let tanh():Self { tanh(self) }
+    let asin():Self { asin(self) }
+    let acos():Self { acos(self) }
+    let atan():Self { atan(self) }
+    let asinh():Self { asinh(self) }
+    let acosh():Self { acosh(self) }
+    let atanh():Self { atanh(self) }
+    let exp2():Self { exp2(self) }
+    let expm1():Self { expm1(self) }
+    let log2():Self { log2(self) }
+    let log10():Self { log10(self) }
+    let log1p():Self { log1p(self) }
+    let cbrt():Self { cbrt(self) }
+    let floor():Self { floor(self) }
+    let ceil():Self { ceil(self) }
+    let round():Self { round(self) }
+    let trunc():Self { trunc(self) }
+    let erf():Self { erf(self) }
+    let erfc():Self { erfc(self) }
+    let tgamma():Self { tgamma(self) }
+    let lgamma():Self { lgamma(self) }
+    let abs():Self { fabs(self) }
+    let pow(y:Self):Self { pow(self, y) }
+    let hypot(y:Self):Self { hypot(self, y) }
+    let fmod(y:Self):Self { fmod(self, y) }
+    let fmin(y:Self):Self { fmin(self, y) }
+    let fmax(y:Self):Self { fmax(self, y) }
+    let copysign(y:Self):Self { copysign(self, y) }
+    let atan2(x:Self):Self { atan2(self, x) }
+    let fma(y:Self, z:Self):Self { fma(self, y, z) }
+
+    let isnan:bool { self != self }
+    let isinf:bool { self == Self.infinity || self == -Self.infinity }
+    let isfinite:bool { !.isnan && !.isinf }
+    let i:complex64 { complex64(0.0, self) }                 // x rotated a quarter turn: complex64(0, x)
+}
+
+extend f32 {
+    // the constants of math.h, as attributes of the type (#148): f32.pi, f32.infinity
+    static let pi:Self = 3.141592653589793:f32
+    static let tau:Self = 6.283185307179586:f32
+    static let e:Self = 2.718281828459045:f32
+    static let ln2:Self = 0.6931471805599453:f32
+    static let ln10:Self = 2.302585092994046:f32
+    static let log2e:Self = 1.4426950408889634:f32
+    static let log10e:Self = 0.4342944819032518:f32
+    static let sqrt2:Self = 1.4142135623730951:f32
+    static let infinity:Self = INFINITY
+    static let nan:Self = NAN
+    static let epsilon:Self = FLT_EPSILON
+    static let max:Self = FLT_MAX
+    static let min:Self = FLT_MIN
+
+    // each function of math.h as a method, x.sin(): the function by another name
+    let exp():Self { exp(self) }
+    let log():Self { log(self) }
+    let sqrt():Self { sqrt(self) }
+    let sin():Self { sin(self) }
+    let cos():Self { cos(self) }
+    let tan():Self { tan(self) }
+    let sinh():Self { sinh(self) }
+    let cosh():Self { cosh(self) }
+    let tanh():Self { tanh(self) }
+    let asin():Self { asin(self) }
+    let acos():Self { acos(self) }
+    let atan():Self { atan(self) }
+    let asinh():Self { asinh(self) }
+    let acosh():Self { acosh(self) }
+    let atanh():Self { atanh(self) }
+    let exp2():Self { exp2(self) }
+    let expm1():Self { expm1(self) }
+    let log2():Self { log2(self) }
+    let log10():Self { log10(self) }
+    let log1p():Self { log1p(self) }
+    let cbrt():Self { cbrt(self) }
+    let floor():Self { floor(self) }
+    let ceil():Self { ceil(self) }
+    let round():Self { round(self) }
+    let trunc():Self { trunc(self) }
+    let erf():Self { erf(self) }
+    let erfc():Self { erfc(self) }
+    let tgamma():Self { tgamma(self) }
+    let lgamma():Self { lgamma(self) }
+    let abs():Self { fabs(self) }
+    let pow(y:Self):Self { pow(self, y) }
+    let hypot(y:Self):Self { hypot(self, y) }
+    let fmod(y:Self):Self { fmod(self, y) }
+    let fmin(y:Self):Self { fmin(self, y) }
+    let fmax(y:Self):Self { fmax(self, y) }
+    let copysign(y:Self):Self { copysign(self, y) }
+    let atan2(x:Self):Self { atan2(self, x) }
+    let fma(y:Self, z:Self):Self { fma(self, y, z) }
+
+    let isnan:bool { self != self }
+    let isinf:bool { self == Self.infinity || self == -Self.infinity }
+    let isfinite:bool { !.isnan && !.isinf }
+    let i:complex32 { complex32(0.0:f32, self) }                 // x rotated a quarter turn: complex32(0, x)
+}
+
+extend complex64 {
+    // the functions as methods, z.exp(), and z.i, z rotated a quarter turn:
+    // z times i, (-imag, real), 0 - imag so that no zero turns negative
+    let exp():Self { exp(self) }
+    let log():Self { log(self) }
+    let sqrt():Self { sqrt(self) }
+    let sin():Self { sin(self) }
+    let cos():Self { cos(self) }
+    let tan():Self { tan(self) }
+    let sinh():Self { sinh(self) }
+    let cosh():Self { cosh(self) }
+    let tanh():Self { tanh(self) }
+    let asin():Self { asin(self) }
+    let acos():Self { acos(self) }
+    let atan():Self { atan(self) }
+    let asinh():Self { asinh(self) }
+    let acosh():Self { acosh(self) }
+    let atanh():Self { atanh(self) }
+    let conj():Self { conj(self) }
+    let abs():f64 { abs(self) }
+    let arg():f64 { arg(self) }
+    let norm():f64 { norm(self) }
+    let pow(w:Self):Self { pow(self, w) }
+    let i:Self { Self(0.0 - .imag, .real) }
+}
+
+extend complex32 {
+    // the functions as methods, z.exp(), and z.i, z rotated a quarter turn
+    let exp():Self { exp(self) }
+    let log():Self { log(self) }
+    let sqrt():Self { sqrt(self) }
+    let sin():Self { sin(self) }
+    let cos():Self { cos(self) }
+    let tan():Self { tan(self) }
+    let sinh():Self { sinh(self) }
+    let cosh():Self { cosh(self) }
+    let tanh():Self { tanh(self) }
+    let asin():Self { asin(self) }
+    let acos():Self { acos(self) }
+    let atan():Self { atan(self) }
+    let asinh():Self { asinh(self) }
+    let acosh():Self { acosh(self) }
+    let atanh():Self { atanh(self) }
+    let conj():Self { conj(self) }
+    let abs():f32 { abs(self) }
+    let arg():f32 { arg(self) }
+    let norm():f32 { norm(self) }
+    let pow(w:Self):Self { pow(self, w) }
+    let i:Self { Self(0.0:f32 - .imag, .real) }
+}

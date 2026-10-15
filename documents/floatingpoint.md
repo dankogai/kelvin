@@ -5,7 +5,7 @@ document has the types, their literals, how they convert, read from
 text, print and show as text. Integers are in
 [integers.md](integers.md) and `bool` in [bool.md](bool.md).
 
-**Where it lives:** the core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`f64("1.5")`) are the prelude's, `libkelvin`, linked without an import. Complex numbers of Kelvin's own come with `#import <complex.k>`.
+**Where it lives:** the core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`f64("1.5")`) are the prelude's, `libkelvin`, linked without an import. Complex numbers of Kelvin's own come with `#import <math>`.
 
 ```kelvin
 let d = 1.5                         // an f64, inferred
@@ -25,7 +25,9 @@ println(1.5.hex, " ", 3.9.i32)      // +0x1.8p+0 3
   - C's `float` and `double` are errors that suggest the Kelvin name.
   - `long double` has no Kelvin spelling yet, and `f128` waits too.
   - `f32 _Complex` and `f64 _Complex` are C's complex types; Kelvin's
-    own `complex64` and `complex32` are in modules/complex.k, see
+    own `complex64` and `complex32` are in modules/math.k, with the
+    functions of `math.h` as functions and methods, `x.sin()`, and the
+    constants as attributes of the type, `f64.pi` (#148); see
     [modules.md](modules.md).
 - **Literals** are C's: `1.5`, exponents `1e9`, and hex floats `0x1p4`.
   - C's suffixes `f` and `L` (`1.5f`, `1.5L`) are errors. The type

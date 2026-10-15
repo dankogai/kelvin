@@ -1272,6 +1272,7 @@ static bool signature_ahead(int i);
 static Type *call_param_type(Expr *callee, int k);
 static int call_arity(Expr *callee);
 static Decl *method_named(Expr *recv, const char *name);
+static Type *arg_type(Expr *e);
 static Expr *parse_dollar(void);
 static bool overloadable_op(Token *t);
 static int function_shape(int i);
@@ -3033,6 +3034,19 @@ static Expr *parse_primary(void) {
                      string ? "b.string() of a Bytes, or String(&b)" : "or Bytes(&b)");
         return e;
     }
+    if (is_converter(t) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT) {
+        /* f64.pi (#148): a type attribute of a number type, the global f64__pi */
+        char *cn = strfmt("%s__%s", t->text, peek_at(2)->text);
+        for (int i = 0; i < type_attrs.len; i++)
+            if (!strcmp(type_attrs.data[i], cn) && binding_index(cn) >= 0) {
+                advance();
+                advance();
+                advance();
+                Expr *e = new_expr(E_IDENT, t->pos);
+                e->text = cn;
+                return e;
+            }
+    }
     if (is_converter(t)) {
         /* T(v): a converter for a built-in type. codegen emits ((T)(v)),
            grouping v even when it is a header macro such as 1.5 + 2.5 */
@@ -4023,6 +4037,8 @@ static Type *value_type_of(Expr *e) {
             return !strcmp(e->text, "copy") ? at : !strcmp(e->text, "pop") ? at->elem : NULL;
         }
         Type *rt = value_type(e->a);
+        if (!rt)
+            rt = arg_type(e->a); /* 1.0.i, (-1.0).i (#148): a literal's own type */
         Decl *m = rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
         if (m) /* the method of the receiver's type */
             return m->ret;
@@ -7299,6 +7315,8 @@ static int call_arity(Expr *callee) {
    kelvinc cannot see that type, the only method so named */
 static Decl *method_named(Expr *recv, const char *name) {
     Type *rt = value_type(recv);
+    if (!rt)
+        rt = arg_type(recv); /* 1.0.i, (-1.0).i (#148): a literal's own type, f64 */
     bool seen = rt && rt->kind == T_BASE;
     Decl *found = NULL;
     int n = 0;
@@ -9265,9 +9283,11 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
 static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *recv, Type *spelled) {
     if (spelled)
         error_at(peek()->pos, "a type attribute is read by the type's name, as T.x, and a type with no tag has none");
-    if (recv->kind == TK_KEYWORD)
-        error_at(recv->pos, "a type attribute is of a struct, union or enum of the program: '%s' is built in", recv->text);
-    if (!record_named(recv->text))
+    if (recv->kind == TK_KEYWORD && !is_converter(recv)) /* f64.pi (#148) */
+        error_at(recv->pos, "a type attribute is of a struct, union or enum of the program, or of a number type: '%s' "
+                            "has none",
+                 recv->text);
+    if (recv->kind != TK_KEYWORD && !record_named(recv->text))
         error_at(recv->pos, "'%s' is not a struct, union or enum declared before this attribute", recv->text);
     bool saved_scope = self_scope;
     Token *saved_self = self_tok;
@@ -9279,7 +9299,8 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
     int before = scope_names.len;
     Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it, by its own name */
     v->is_let = is_let;
-    if (is_let && !v->init)
+    bool declared = !v->init && in_kh(recv->pos); /* a library's, in its header (#146): extern in C */
+    if (is_let && !v->init && !declared)
         error_at(v->pos, "a static let needs a value: write 'static let %s.%s = ...', or 'static var' if it changes",
                  recv->text, v->name);
     char *cn = strfmt("%s__%s", recv->text, v->name);
@@ -9290,7 +9311,7 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
         }
     v->name = cn;
     list_push(&type_attrs, cn);
-    Decl *d = new_decl(D_VAR, pos, NULL);
+    Decl *d = new_decl(D_VAR, pos, declared ? "extern" : NULL);
     list_push(&d->members, v);
     add_top_decl(prog, d);
     end_statement();    self_scope = saved_scope;
@@ -10675,6 +10696,25 @@ static char *raw_text(int i, int end) {
     return xstrndup(src + a, (size_t)(z - a));
 }
 
+/* the declaration of the type attribute at token i for a header (#148):
+   static let T.x:R alone, or static let x:R in its extend block, with
+   the type kelvinc saw; the library defines it */
+static char *type_attribute_decl(Program *prog, int i, bool alone) {
+    for (int j = 0; j < prog->decls.len; j++) {
+        Decl *d = prog->decls.data[j];
+        if (d->kind != D_VAR || d->members.len != 1 || d->pos.line != toks[i].pos.line ||
+            strcmp(d->pos.file, toks[i].pos.file))
+            continue;
+        Var *v = d->members.data[0];
+        const char *sep = strstr(v->name, "__");
+        if (!sep)
+            continue;
+        return strfmt("static %s %.*s%s%s:%s", v->is_let ? "let" : "var", alone ? (int)(sep - v->name) : 0, v->name,
+                      alone ? "." : "", sep + 2, kelvin_type(v->type));
+    }
+    error_at(toks[i].pos, "a type attribute in a library: its declaration was not found");
+}
+
 static bool text_listed(List *l, const char *text) {
     for (int i = 0; i < l->len; i++)
         if (!strcmp(l->data[i], text))
@@ -10758,16 +10798,14 @@ char *gen_header(Program *prog) {
             for (int m = open + 1; m < close;) {
                 int end;
                 char how = header_end(m, &end);
-                if (how == 't')
-                    error_at(toks[m].pos, "a type attribute in a library waits: a program cannot declare one yet");
-                char *text = raw_text(m, end);
+                char *text = how == 't' ? type_attribute_decl(prog, m, false) : raw_text(m, end);
                 if (how == 'b' && is_kw(&toks[m + 1], "cstr"))
                     text = raw_text(m, group_end(end) + 1); /* T.cstr() (#53) is inline: its body too */
                 if (!text_listed(&seen, text)) {
                     list_push(&seen, text);
                     buf_printf(&b, "    %s\n", text);
                 }
-                m = how == 'b' ? group_end(end) + 1 : end;
+                m = how == 'b' ? group_end(end) + 1 : how == 't' ? decl_end(m) : end;
             }
             buf_puts(&b, "}\n");
             i = close + 1;
@@ -10779,9 +10817,7 @@ char *gen_header(Program *prog) {
             if (fn_like(k + 1)) {
                 bool file_local = storage && !strcmp(storage, "static") && toks[k + 1].kind == TK_IDENT &&
                                   is_p(&toks[k + 2], "(");
-                if (how == 't')
-                    error_at(toks[i].pos, "a type attribute in a library waits: a program cannot declare one yet");
-                char *text = raw_text(i, end);
+                char *text = how == 't' ? type_attribute_decl(prog, i, true) : raw_text(i, end);
                 if (how == 'b' && is_p(&toks[k + 2], ".") && is_kw(&toks[k + 3], "cstr"))
                     text = raw_text(i, group_end(end) + 1); /* let T.cstr():cstr { ... } (#53) is inline */
                 if (!file_local && !text_listed(&seen, text)) {

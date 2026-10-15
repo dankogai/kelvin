@@ -175,7 +175,7 @@ static bool imported_already(const char *path) {
 
 /* The file that #import <name> or "name" means: "name" next to the
    importing file, <name> in ./modules or else in Kelvin's modules/ (#46),
-   as <complex.k> is the source tree's modules/complex.k */
+   as <math.k> is the source tree's modules/math.k */
 /* The libraries of the modules imported as M.kh (#143), libkM.a beside the
    header, or -lkM where only a shared libkM is, in the order imported, so
    that one a later one calls comes after it; linked before libkelvin */
@@ -454,7 +454,7 @@ int main(int argc, char **argv) {
         "-Wno-psabi",
         /* a * b + c is rounded twice, as gcc does in ISO C mode, where
            clang would fuse it into one fma(): the same results from both,
-           and z * w == w * z in modules/complex.k (#43) */
+           and z * w == w * z in modules/math.k (#43) */
         "-ffp-contract=off",
     };
     List cc_args = {0};

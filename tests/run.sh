@@ -131,18 +131,18 @@ done
 # Kelvin's own modules built into libraries by kelvinc --lib (#146), used
 # from a directory whose ./modules holds JSON.kh, libkJSON.a and complex's
 mkdir -p "$tmp/libs/modules"
-for m in JSON complex; do
+for m in JSON math; do
     if ! (TMPDIR=$tmp "$kelvinc_path" --lib modules/$m.k -o "$tmp/libs/modules") > "$tmp/log" 2>&1; then
         bad "modules/$m.k" "does not build into libk$m.a"
     elif [ -s "$tmp/log" ]; then
         bad "modules/$m.k" "builds with diagnostics"
     fi
 done
-printf '%s\n' '#import <complex>' 'let main():i32 { println(abs(complex64(3.0, 4.0)), " ", conj(complex64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
+printf '%s\n' '#import <math>' 'let main():i32 { println(abs(complex64(3.0, 4.0)), " ", conj(complex64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
 printf '%s\n' '5.0 {real: 1, imag: -2}' > "$tmp/libs/cx.expected"
 for f in tests/run/json_parse.k tests/run/json_stringify.k "$tmp/libs/cx.k"; do
     case $f in
-    "$tmp"/*) cp "$tmp/libs/cx.expected" "$tmp/expected"; lib=libkcomplex.a; src=$f ;;
+    "$tmp"/*) cp "$tmp/libs/cx.expected" "$tmp/expected"; lib=libkmath.a; src=$f ;;
     *) sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"; lib=libkJSON.a; src=$OLDPWD/$f ;;
     esac
     if ! (cd "$tmp/libs" && TMPDIR=$tmp "$kelvinc_path" -v -o "$tmp/prog" "$src") > "$tmp/log" 2>&1; then
