@@ -48,7 +48,7 @@ let parse(src:Bytes^):Result<program, String> {
     return p
 }
 
-let run(p:program^) {
+let run(p:program^):() {
     var tape = Bytes(65536)
     var sp:i64 = 0
     var ip:i64 = 0

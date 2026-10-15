@@ -10,7 +10,7 @@
 #import <stdio.h> as C
 
 // the input as a Kelvin string literal: C's escapes, octal for the rest
-let literal(input:Bytes^) {
+let literal(input:Bytes^):() {
     putchar('"')
     for c in input^ {
         if c == '"' || c == '\\' {
@@ -29,7 +29,7 @@ let literal(input:Bytes^) {
     putchar('"')
 }
 
-let indent(depth:i64) {
+let indent(depth:i64):() {
     for _ in 0..<depth { fputs("    ", stdout) }
 }
 

@@ -17,7 +17,7 @@ let vowels(s:cstr):i64 {
 
 // reverse in place: a cstr cannot change, so the text comes as u8^, and
 // two cursors meet in the middle
-let reverse(s:u8^) {
+let reverse(s:u8^):() {
     if strlen(s) == 0 {
         return
     }

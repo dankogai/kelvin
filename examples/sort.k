@@ -16,7 +16,7 @@ let sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     }
 }
 
-let show(xs:i64^, n:size_t) {
+let show(xs:i64^, n:size_t):() {
     for i in 0..<n {
         print(i == 0 ? "" : " ", xs[i])
     }

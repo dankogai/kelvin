@@ -3879,3 +3879,14 @@ has plain functions and operators, with no `self`, so it is as it was.
 The outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 171. `:()` in the examples and modules
+
+> now add `:()` to the examples and modules too
+
+**Claude** wrote `:()` (#141) on every function of the examples and
+modules that gives nothing: fifteen of them, in bfc.k, bfi.k,
+complex.k, linkedlist.k, sort.k, strings.k and modules/JSON.k. The
+generated C and the outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.

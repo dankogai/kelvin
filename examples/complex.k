@@ -8,10 +8,10 @@ let PI = 3.141592653589793
 // x, with what rounding leaves around 0 shown as 0
 let tidy(x:f64):f64 { fabs(x) < 5e-10 ? 0.0 : x }
 
-let show(z:complex64) { printf("%.4f%+.4fi", tidy(z.real), tidy(z.imag)) }
+let show(z:complex64):() { printf("%.4f%+.4fi", tidy(z.real), tidy(z.imag)) }
 
 // the roots of a z² + b z + c
-let roots(a:complex64, b:complex64, c:complex64, r:complex64^, s:complex64^) {
+let roots(a:complex64, b:complex64, c:complex64, r:complex64^, s:complex64^):() {
     let d:complex64 = sqrt(b * b - 4.0 * a * c)
     r^ = (-b + d) / (2.0 * a)
     s^ = (-b - d) / (2.0 * a)

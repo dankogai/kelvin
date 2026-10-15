@@ -14,7 +14,7 @@ struct list {
 }
 
 // add a value at the front
-let push(l:list^, value:i64) {
+let push(l:list^, value:i64):() {
     let n := malloc(sizeof(node)) as node^
     if n == nullptr {
         exit(1)
@@ -36,7 +36,7 @@ let pop(l:list^):i64 {
 }
 
 // reverse the list in place by turning each link around
-let reverse(l:list^) {
+let reverse(l:list^):() {
     var done:node^     // a reference starts as nullptr
     var rest:node^ := l^.head
     while rest != nullptr {
@@ -49,7 +49,7 @@ let reverse(l:list^) {
 }
 
 // free every node
-let clear(l:list^) {
+let clear(l:list^):() {
     while l^.head != nullptr {
         pop(l)
     }
@@ -75,7 +75,7 @@ extend list {
     }
 
     // print the values as [1 -> 4 -> 9]
-    let show() {
+    let show():() {
         print("[")
         for n in .head {
             print(n^.value)

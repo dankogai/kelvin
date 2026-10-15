@@ -34,7 +34,7 @@ struct JSONReader { at: cstr; i: i64; count: i64; depth: i64 }
 
 static let JSON_value(var r:JSONReader^):JSON
 
-static let JSON_space(var r:JSONReader^) {
+static let JSON_space(var r:JSONReader^):() {
     while r^.i < r^.count {
         let c = r^.at[r^.i]
         if c != ' ' && c != '\t' && c != '\n' && c != '\r' { return }
@@ -78,7 +78,7 @@ static let JSON_unit(var r:JSONReader^):i64 {
     return v
 }
 
-static let JSON_utf8(var b:Bytes^, cp:i64) {
+static let JSON_utf8(var b:Bytes^, cp:i64):() {
     if cp < 0x80 {
         b^ += cp as u8
     } else if cp < 0x800 {
@@ -358,7 +358,7 @@ static let JSON_show_number(x:f64):String {
     return out
 }
 
-static let JSON_quote(s:const String^, var out:String^) {
+static let JSON_quote(s:const String^, var out:String^):() {
     let hex := "0123456789abcdef"
     out^ += "\""
     for c in s^ {
@@ -388,7 +388,7 @@ static let JSON_quote(s:const String^, var out:String^) {
     out^ += "\""
 }
 
-static let JSON_indent(var out:String^, space:cstr, level:i64) {
+static let JSON_indent(var out:String^, space:cstr, level:i64):() {
     if space.count == 0 { return }
     out^ += "\n"
     for k in 0..<level { out^ += space }
