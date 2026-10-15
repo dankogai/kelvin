@@ -9,7 +9,8 @@
 //
 // The functions overload C's own of the same name (#41): sin(z) of a
 // complex64 is this file's, sin(x) of an f64 is math.h's. The operators
-// are Kelvin's (#42). C99's _Complex is not used. The inverse functions
+// are Kelvin's (#42), in extend blocks with Self (#135, #140). C99's
+// _Complex is not used. The inverse functions
 // take their principal values, with C99's branch cuts and its signs of
 // zero on them. The elementary functions keep their accuracy near 0, ±1
 // and ±i, and none of their steps overflows or loses bits where the
@@ -64,76 +65,82 @@ let polar(r:f32, theta:f32):complex32 { complex32(polar(f64(r), f64(theta))) }
 
 // ---------- arithmetic ----------
 
-let +(a:complex64, b:complex64):complex64 { (complex64){a.real + b.real, a.imag + b.imag} }
-let +(a:complex64, b:f64):complex64 { (complex64){a.real + b, a.imag} }
-let +(a:f64, b:complex64):complex64 { (complex64){a + b.real, b.imag} }
-let -(a:complex64, b:complex64):complex64 { (complex64){a.real - b.real, a.imag - b.imag} }
-let -(a:complex64, b:f64):complex64 { (complex64){a.real - b, a.imag} }
-let -(a:f64, b:complex64):complex64 { (complex64){a - b.real, -b.imag} }
-let -(a:complex64):complex64 { (complex64){-a.real, -a.imag} }
-let *(a:complex64, b:complex64):complex64 {
-    (complex64){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
-}
-let *(a:complex64, b:f64):complex64 { (complex64){a.real * b, a.imag * b} }
-let *(a:f64, b:complex64):complex64 { (complex64){a * b.real, a * b.imag} }
-
-// Smith's algorithm, which does not overflow where |b|² would, in Baudin
-// and Smith's form where the ratio of b's parts is subnormal; by 0 it is
-// infinite, and by an infinity 0, as C's is
-let /(a:complex64, b:complex64):complex64 {
-    if b.real == 0.0 && b.imag == 0.0 {
-        return (complex64){a.real / b.real, a.imag / b.real}
+extend complex64 {
+    // Self is complex64 (#140): each operator is a function of the type (#135)
+    static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
+    static let +(a:Self, b:f64):Self { (Self){a.real + b, a.imag} }
+    static let +(a:f64, b:Self):Self { (Self){a + b.real, b.imag} }
+    static let -(a:Self, b:Self):Self { (Self){a.real - b.real, a.imag - b.imag} }
+    static let -(a:Self, b:f64):Self { (Self){a.real - b, a.imag} }
+    static let -(a:f64, b:Self):Self { (Self){a - b.real, -b.imag} }
+    static let -(a:Self):Self { (Self){-a.real, -a.imag} }
+    static let *(a:Self, b:Self):Self {
+        (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
     }
-    if isinf(b.real) != 0 || isinf(b.imag) != 0 {
-        if isfinite(a.real) == 0 || isfinite(a.imag) == 0 {
-            return (complex64){NAN, NAN}
+    static let *(a:Self, b:f64):Self { (Self){a.real * b, a.imag * b} }
+    static let *(a:f64, b:Self):Self { (Self){a * b.real, a * b.imag} }
+
+    // Smith's algorithm, which does not overflow where |b|² would, in Baudin
+    // and Smith's form where the ratio of b's parts is subnormal; by 0 it is
+    // infinite, and by an infinity 0, as C's is
+    static let /(a:Self, b:Self):Self {
+        if b.real == 0.0 && b.imag == 0.0 {
+            return (Self){a.real / b.real, a.imag / b.real}
         }
-        let c:f64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real)
-        let d:f64 = copysign(isinf(b.imag) != 0 ? 1.0 : 0.0, b.imag)
-        return (complex64){0.0 * (a.real * c + a.imag * d), 0.0 * (a.imag * c - a.real * d)}
-    }
-    if fmax(fabs(b.real), fabs(b.imag)) > 1e300 {
-        return a / (b * 7.888609052210118e-31) * 7.888609052210118e-31  // 2^-100, so d cannot overflow
-    }
-    if fabs(b.real) >= fabs(b.imag) {
-        let r:f64 = b.imag / b.real
-        let d:f64 = b.real + b.imag * r
-        if fabs(r) < 2.2250738585072014e-308 {  // DBL_MIN: r lost bits, or all of them
-            return (complex64){(a.real + a.imag * b.imag / b.real) / d, (a.imag - a.real * b.imag / b.real) / d}
+        if isinf(b.real) != 0 || isinf(b.imag) != 0 {
+            if isfinite(a.real) == 0 || isfinite(a.imag) == 0 {
+                return (Self){NAN, NAN}
+            }
+            let c:f64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real)
+            let d:f64 = copysign(isinf(b.imag) != 0 ? 1.0 : 0.0, b.imag)
+            return (Self){0.0 * (a.real * c + a.imag * d), 0.0 * (a.imag * c - a.real * d)}
         }
-        return (complex64){(a.real + a.imag * r) / d, (a.imag - a.real * r) / d}
+        if fmax(fabs(b.real), fabs(b.imag)) > 1e300 {
+            return a / (b * 7.888609052210118e-31) * 7.888609052210118e-31  // 2^-100, so d cannot overflow
+        }
+        if fabs(b.real) >= fabs(b.imag) {
+            let r:f64 = b.imag / b.real
+            let d:f64 = b.real + b.imag * r
+            if fabs(r) < 2.2250738585072014e-308 {  // DBL_MIN: r lost bits, or all of them
+                return (Self){(a.real + a.imag * b.imag / b.real) / d, (a.imag - a.real * b.imag / b.real) / d}
+            }
+            return (Self){(a.real + a.imag * r) / d, (a.imag - a.real * r) / d}
+        }
+        let r:f64 = b.real / b.imag
+        let d:f64 = b.imag + b.real * r
+        if fabs(r) < 2.2250738585072014e-308 {
+            return (Self){(a.real * b.real / b.imag + a.imag) / d, (a.imag * b.real / b.imag - a.real) / d}
+        }
+        return (Self){(a.real * r + a.imag) / d, (a.imag * r - a.real) / d}
     }
-    let r:f64 = b.real / b.imag
-    let d:f64 = b.imag + b.real * r
-    if fabs(r) < 2.2250738585072014e-308 {
-        return (complex64){(a.real * b.real / b.imag + a.imag) / d, (a.imag * b.real / b.imag - a.real) / d}
+    static let /(a:Self, b:f64):Self { (Self){a.real / b, a.imag / b} }
+    static let /(a:f64, b:Self):Self { Self(a) / b }
+
+    static let ==(a:Self, b:Self):bool { a.real == b.real && a.imag == b.imag }
+    static let !=(a:Self, b:Self):bool { a.real != b.real || a.imag != b.imag }
+}
+
+extend complex32 {
+    // Self is complex32 (#140): each operator is a function of the type (#135)
+    static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
+    static let +(a:Self, b:f32):Self { (Self){a.real + b, a.imag} }
+    static let +(a:f32, b:Self):Self { (Self){a + b.real, b.imag} }
+    static let -(a:Self, b:Self):Self { (Self){a.real - b.real, a.imag - b.imag} }
+    static let -(a:Self, b:f32):Self { (Self){a.real - b, a.imag} }
+    static let -(a:f32, b:Self):Self { (Self){a - b.real, -b.imag} }
+    static let -(a:Self):Self { (Self){-a.real, -a.imag} }
+    static let *(a:Self, b:Self):Self {
+        (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
     }
-    return (complex64){(a.real * r + a.imag) / d, (a.imag * r - a.real) / d}
+    static let *(a:Self, b:f32):Self { (Self){a.real * b, a.imag * b} }
+    static let *(a:f32, b:Self):Self { (Self){a * b.real, a * b.imag} }
+    static let /(a:Self, b:Self):Self { Self(complex64(a) / complex64(b)) }
+    static let /(a:Self, b:f32):Self { (Self){a.real / b, a.imag / b} }
+    static let /(a:f32, b:Self):Self { Self(f64(a) / complex64(b)) }
+
+    static let ==(a:Self, b:Self):bool { a.real == b.real && a.imag == b.imag }
+    static let !=(a:Self, b:Self):bool { a.real != b.real || a.imag != b.imag }
 }
-let /(a:complex64, b:f64):complex64 { (complex64){a.real / b, a.imag / b} }
-let /(a:f64, b:complex64):complex64 { complex64(a) / b }
-
-let ==(a:complex64, b:complex64):bool { a.real == b.real && a.imag == b.imag }
-let !=(a:complex64, b:complex64):bool { a.real != b.real || a.imag != b.imag }
-
-let +(a:complex32, b:complex32):complex32 { (complex32){a.real + b.real, a.imag + b.imag} }
-let +(a:complex32, b:f32):complex32 { (complex32){a.real + b, a.imag} }
-let +(a:f32, b:complex32):complex32 { (complex32){a + b.real, b.imag} }
-let -(a:complex32, b:complex32):complex32 { (complex32){a.real - b.real, a.imag - b.imag} }
-let -(a:complex32, b:f32):complex32 { (complex32){a.real - b, a.imag} }
-let -(a:f32, b:complex32):complex32 { (complex32){a - b.real, -b.imag} }
-let -(a:complex32):complex32 { (complex32){-a.real, -a.imag} }
-let *(a:complex32, b:complex32):complex32 {
-    (complex32){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
-}
-let *(a:complex32, b:f32):complex32 { (complex32){a.real * b, a.imag * b} }
-let *(a:f32, b:complex32):complex32 { (complex32){a * b.real, a * b.imag} }
-let /(a:complex32, b:complex32):complex32 { complex32(complex64(a) / complex64(b)) }
-let /(a:complex32, b:f32):complex32 { (complex32){a.real / b, a.imag / b} }
-let /(a:f32, b:complex32):complex32 { complex32(f64(a) / complex64(b)) }
-
-let ==(a:complex32, b:complex32):bool { a.real == b.real && a.imag == b.imag }
-let !=(a:complex32, b:complex32):bool { a.real != b.real || a.imag != b.imag }
 
 // ---------- parts ----------
 

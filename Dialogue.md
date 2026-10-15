@@ -3940,3 +3940,16 @@ comment that says so, keeping one `self.x` beside a `.x` in structs.md
 to show the two mean the same. Each example compiles and runs.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 176. complex.k with `extend` and `Self`
+
+> now rewrite complex.k with `extend complex64 {}` and `Self`
+
+**Claude** moved modules/complex.k's operators into
+`extend complex64 { }` and `extend complex32 { }` blocks, each written
+`static let +(a:Self, b:Self):Self` (#135, #140), with `(Self){...}`
+for its values. The converters, `complex64(1.0, 2.0)`, and the
+functions that overload C's by name, `sin(z)`, `abs(z)`, stay free,
+since each is called by its own name. The outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.

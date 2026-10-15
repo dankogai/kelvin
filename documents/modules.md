@@ -80,6 +80,9 @@ let main():i32 {
 - **Arithmetic**: `+ - * /` between two of one kind, or one and a real
   number of its parts' type (either way round), unary `-`, `==` and
   `!=`. `complex32` and `complex64` do not mix: convert one.
+  - Each is written in `extend complex64 { }` as
+    `static let +(a:Self, b:Self):Self` (#135, #140), and a mixed one
+    as `static let +(a:Self, b:f64):Self`.
 - **Functions**: `conj`, `abs`, `arg`, `norm` (`abs` squared), `exp`,
   `log`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh` and
   their inverses, which take their principal values, with C99's branch
