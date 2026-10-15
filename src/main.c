@@ -29,7 +29,8 @@ static void usage(FILE *f) {
             "  -v          print the C compiler command\n"
             "  --no-line   omit #line directives from the generated C\n"
             "  --lib       build the file into a module (#146): M.kh, its declarations, and\n"
-            "              libkM.a, in ./modules or the directory given by -o\n"
+            "              libkM.a, with libkM.dylib or .so for C (#147), in ./modules or\n"
+            "              the directory given by -o\n"
             "  --version   print the version\n"
             "\n"
             "environment:\n"
@@ -275,6 +276,53 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
     return all;
 }
 
+/* the shared library beside a static one, libx.dylib or libx.so for
+   libx.a, where there is one; else the static one */
+static char *shared_of(const char *a) {
+    size_t n = strlen(a);
+    if (n < 3 || strcmp(a + n - 2, ".a"))
+        return xstrdup(a);
+    const char *exts[] = {".dylib", ".so"};
+    for (int i = 0; i < 2; i++) {
+        char *so = strfmt("%.*s%s", (int)(n - 2), a, exts[i]);
+        if (file_exists(so))
+            return so;
+    }
+    return xstrdup(a);
+}
+
+/* libkM.dylib or libkM.so from the module's object (#147): linked against
+   the shared libkelvin and the shared libraries of the modules it imports,
+   or their static ones where there is no shared one */
+static int link_shared(const char *cc, const char *lib_dir, const char *lib_name, const char *obj, const char *rt_inc,
+                       const char *rt_lib, bool verbose) {
+    List args = {0};
+    list_push(&args, (void *)cc);
+#ifdef __APPLE__
+    char *so = strfmt("%s/libk%s.dylib", lib_dir, lib_name);
+    list_push(&args, "-dynamiclib");
+    list_push(&args, "-install_name");
+    list_push(&args, strfmt("@rpath/libk%s.dylib", lib_name));
+#else
+    char *so = strfmt("%s/libk%s.so", lib_dir, lib_name);
+    list_push(&args, "-shared");
+    list_push(&args, strfmt("-Wl,-soname,libk%s.so", lib_name));
+#endif
+    list_push(&args, "-o");
+    list_push(&args, so);
+    list_push(&args, (void *)obj);
+    if (is_dir("./modules"))
+        list_push(&args, "-L./modules");
+    list_push(&args, strfmt("-L%s", rt_inc));
+    for (int i = 0; i < module_libs.len; i++)
+        list_push(&args, shared_of(module_libs.data[i]));
+    list_push(&args, shared_of(rt_lib));
+    list_push(&args, "-lm");
+    list_push(&args, NULL);
+    unlink(so);
+    return run((char **)args.data, verbose);
+}
+
 static bool text_in(List *l, const char *s) {
     for (int i = 0; i < l->len; i++)
         if (!strcmp(l->data[i], s))
@@ -477,6 +525,8 @@ int main(int argc, char **argv) {
         unlink(a);
         char *ar_argv[] = {"ar", "rcs", a, obj_path, NULL};
         rc = run(ar_argv, verbose);
+        if (rc == 0) /* and the shared libkM, for C and other toolchains (#147) */
+            rc = link_shared(cc_argv[0], lib_dir, lib_name, obj_path, rt_inc, rt_lib, verbose);
         unlink(obj_path);
         rmdir(dir);
         return rc;

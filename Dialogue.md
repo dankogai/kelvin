@@ -4064,3 +4064,18 @@ builds into `JSON.kh` and `libkJSON.a` where a project wants that.
 modules.md had its section already.
 
 There are 743 tests, and all pass with clang and with gcc 15.
+
+### 183. A shared `libkM` from `kelvinc --lib`
+
+> now add a shared libkM to `kelvinc --lib` too
+
+**Claude** added #147: `kelvinc --lib M.k` links its object into
+`libkM.dylib` on macOS and `libkM.so` elsewhere, beside `libkM.a`,
+against the shared `libkelvin` and the shared libraries of the modules
+the file imports, or their static ones where there is no shared one.
+It is for C and other toolchains, as `libkelvin.dylib` is; a Kelvin
+program's `#import <M>` keeps linking the static one. tests/run.sh
+links a C program against `libkgeo.dylib` and runs it. Details are
+provisional P159.
+
+There are 744 tests, and all pass with clang and with gcc 15.

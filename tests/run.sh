@@ -89,10 +89,20 @@ if ! { "$CC" -c -o "$tmp/answer.o" tests/project/answer.c &&
     bad tests/project/answer.c "does not build into libanswer.a"
 fi
 # a Kelvin file built into a module by kelvinc --lib (#146): geo.kh and libkgeo.a
+case $(uname -s) in Darwin) so=dylib ;; *) so=so ;; esac
 if ! (TMPDIR=$tmp "$kelvinc_path" --lib tests/project/lib/geo.k -o "$tmp/project/modules") > "$tmp/log" 2>&1; then
     bad tests/project/lib/geo.k "does not build into libkgeo.a"
 elif [ -s "$tmp/log" ]; then
     bad tests/project/lib/geo.k "builds with diagnostics"
+elif [ ! -f "$tmp/project/modules/libkgeo.$so" ]; then
+    bad tests/project/lib/geo.k "does not build libkgeo.$so, the shared library (#147)"
+elif ! "$CC" -o "$tmp/geo_c" tests/project/geo_c.c "$tmp/project/modules/libkgeo.$so" \
+        -Wl,-rpath,"$(pwd)/modules" -Wl,-rpath,"$tmp/project/modules" > "$tmp/log" 2>&1; then
+    bad tests/project/geo_c.c "does not link libkgeo.$so"
+elif [ "$("$tmp/geo_c" 2>&1)" != "7 0" ]; then
+    bad tests/project/geo_c.c "does not run against libkgeo.$so"
+else
+    ok
 fi
 # a module with a header and a library, shout.kh and libkshout.a (#143)
 if ! { "$CC" -c -o "$tmp/shout.o" tests/project/shout.c &&

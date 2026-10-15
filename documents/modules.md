@@ -83,11 +83,12 @@ let main():i32 {
 
 `kelvinc --lib M.k` (#146) builds a Kelvin file into a module: `M.kh`,
 its declarations with the bodies dropped, and `libkM.a`, its code,
-both in `./modules`, or in the directory `-o` names.
+with `libkM.dylib` or `libkM.so` beside it (#147), all in `./modules`,
+or in the directory `-o` names.
 
 ```
-kelvinc --lib geo.k                  # ./modules/geo.kh and ./modules/libkgeo.a
-kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh and lib/libkJSON.a
+kelvinc --lib geo.k                  # ./modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
+kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJSON.dylib|.so
 ```
 
 - **The header** holds what a program needs, as the source wrote it:
@@ -109,8 +110,13 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh and lib/libkJSON.a
   object and archived; its functions are named by their types, as a
   program's prototypes of them are, so that the names meet.
   - A library has no `main`, which is an error.
-  - A shared `libkM` is made from the object by hand, as `libkIO`'s is
-    in the Makefile.
+- **The shared library** (#147), `libkM.dylib` on macOS and `libkM.so`
+  elsewhere, is the same object linked against the shared `libkelvin`
+  and the shared libraries of the modules the file imports, or their
+  static ones where there is no shared one, for C and other toolchains:
+  a C program links it and calls the module's functions by the names
+  `--emit-c` shows, with `-Wl,-rpath` for the directories the
+  libraries are in. `#import <M>` links `libkM.a`.
 - **Attributes and subscripts** may be prototypes in a `.kh` only:
   `let norm1:f64`, `var first:f64`, `let [](i:i64):f64`, each declaring
   the getter, and the setter where it is a `var`.
