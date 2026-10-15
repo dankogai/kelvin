@@ -43,6 +43,15 @@ static var calls:i32
 - There is no C-style declaration. `int x;` is an error, and so is `int`
   itself (see [integers.md](integers.md)).
 
+- **`typealias A = T`** (#149), Swift's, names a type anew at the top
+  level: from there on `A` is `T` wherever a name is read, as a type,
+  before a dot, `A.of(1, 2)`, as a converter, `(A){...}`, and as an
+  `extend`'s; `T` is a struct, union or enum with values declared
+  before it, or a built-in type.
+  - `complex64` is `typealias complex64 = c64` in modules/math.k
+    (#150), and `a.typename` is `T`'s name.
+  - The number types have full names built in (#151): `int64` is `i64`,
+    `uint8` `u8`, `float32` `f32`.
 - **Functions** are declared with `let` (#45), as a value that never
   changes is; methods and operators too. See [functions.md](functions.md).
   - The result follows the parameters, `let f(a:i64):i64`; with none,
@@ -78,7 +87,7 @@ infers the type from the value:
   `let s := "hi"`, as is a `"""..."""` or a template (see Quoting text)
 - any other value whose type kelvinc sees is that type (#47):
   - a Kelvin function's or method's result
-    (`var z = complex64(0.0, 1.0)`, `let n = p.norm()`), a variable
+    (`var z = c64(0.0, 1.0)`, `let n = p.norm()`), a variable
     (`var q = p`), a field, `p^`, `a[i]`
   - `&x` (`let r := &q`, which points to `const` when `q` is a let)
   - a compound literal, a text property (`let s := n.cstr` is a `u8^`),

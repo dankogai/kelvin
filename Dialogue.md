@@ -4107,3 +4107,21 @@ import of `<complex.k>` is `<math>`. CI's Linux jobs showed glibc's
 in Kelvin. Details are provisional P160.
 
 There are 746 tests, and all pass with clang and with gcc 15.
+
+### 185. math.md, `c64` and `c32` with aliases, and the full names
+
+> Where is `math.md` which is supposed to be in `modules/`? rename
+> `complex64` to `c64` and `complex32` `c32`. and keep `complex{64,32}`
+> as an alias. And give the 'fullname' to `i{128,64,32,16,8}`
+> `int{128...}`, `u{128...}` `uint{128...}`, `f{64,32}` `float{64,32}`.
+
+**Claude** wrote documents/math.md, which was missing, the module being
+described in modules.md only. Kelvin had no alias, so Claude asked for
+its spelling and the user chose Swift's: #149 `typealias A = T`, from
+where `A` is `T` wherever a name is read, as `Self` is the receiver's.
+#150 names the complex types `c64` and `c32`, with `typealias
+complex64 = c64` and `complex32 = c32` in math.k keeping the old names.
+#151 gives the number types their full names, `int64`, `uint8`,
+`float32`, built into the lexer. Details are provisional P161 to P163.
+
+There are 749 tests, and all pass with clang and with gcc 15.

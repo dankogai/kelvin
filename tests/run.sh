@@ -138,7 +138,7 @@ for m in JSON math; do
         bad "modules/$m.k" "builds with diagnostics"
     fi
 done
-printf '%s\n' '#import <math>' 'let main():i32 { println(abs(complex64(3.0, 4.0)), " ", conj(complex64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
+printf '%s\n' '#import <math>' 'let main():i32 { println(abs(c64(3.0, 4.0)), " ", conj(c64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
 printf '%s\n' '5.0 {real: 1, imag: -2}' > "$tmp/libs/cx.expected"
 for f in tests/run/json_parse.k tests/run/json_stringify.k "$tmp/libs/cx.k"; do
     case $f in

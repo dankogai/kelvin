@@ -99,7 +99,7 @@ So far the changes from C are:
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
 - functions overload by their parameter types, also C's own: with
-  `let sin(z:complex64):complex64` defined, `sin(z)` is Kelvin's and
+  `let sin(z:c64):c64` defined, `sin(z)` is Kelvin's and
   `sin(0.5)` C's
 - a function with no result is `let f() { }`, or `let f():() { }` with
   the result written out; the two mean the same
@@ -150,8 +150,8 @@ So far the changes from C are:
     `some(v)`: `var x:i64? = none`, `x = 3`, `x.some`, `x ?? 0`
 - `#import <math>` is `math.h` and its complex counterpart: its
   functions for `f64` and `f32`, each a method too, `x.sin()`, its
-  constants as attributes of the type, `f64.pi`, and `complex64` and
-  `complex32` with their arithmetic and elementary functions, `x.i` a
+  constants as attributes of the type, `f64.pi`, and `c64` and
+  `c32` with their arithmetic and elementary functions, `x.i` a
   quarter turn; a Kelvin file's source, from `./modules` or Kelvin's
   own `modules/`
 

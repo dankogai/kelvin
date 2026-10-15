@@ -17,6 +17,7 @@ The text of a number (`n.cstr`, `n.hex`) is in
 | `i8` `i16` `i32` `i64` | `int8_t` `int16_t` `int32_t` `int64_t` |
 | `u8` `u16` `u32` `u64` | `uint8_t` `uint16_t` `uint32_t` `uint64_t` |
 | `i128` `u128` | `__int128`, `unsigned __int128` (where the C compiler has them) |
+| `int8` ... `int128`, `uint8` ... `uint128` | the same, by their full names (#151) |
 
 C's `char`, `short`, `int`, `long`, `signed` and `unsigned` are errors
 that suggest the Kelvin name, as `float`, `double` and `_Bool` are (see
@@ -24,6 +25,10 @@ that suggest the Kelvin name, as `float`, `double` and `_Bool` are (see
 
 - There is no plain `char`. Use `u8`, or `i8` for signed bytes; see
   [strings.md](strings.md) for text.
+- Each type has a full name too (#151): `int64` is `i64`, `uint8` is
+  `u8`, the same type by another name, wherever the short one goes,
+  `var n:int64`, `uint8(c)`, `x as int32`; its `.typename` is the short
+  one.
 
 Kelvin's built-in types need no header, and neither does `<stdint.h>`,
 because the generated C includes it itself.

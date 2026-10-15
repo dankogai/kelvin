@@ -93,7 +93,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     Floats are lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`;
     `%.9g` for `f32`), while `print` keeps the shortest form, `0.1`.
   - **`bool`** is `true` or `false`.
-  - **C's `_Complex` numbers** are `1+2i`; `complex64` and `complex32`
+  - **C's `_Complex` numbers** are `1+2i`; `c64` and `c32`
     of modules/math.k are structs, `{real: 1, imag: 2}`.
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are

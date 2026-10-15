@@ -450,6 +450,17 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             for (int i = 0; keywords[i]; i++)
                 if (!strcmp(t->text, keywords[i]))
                     t->kind = TK_KEYWORD;
+            /* the full names of the number types (#151): int64 is i64, uint8 u8,
+               float32 f32, each the keyword by another name */
+            static const struct { const char *full, *name; } full_names[] = {
+                {"int8", "i8"},     {"int16", "i16"},   {"int32", "i32"},   {"int64", "i64"},   {"int128", "i128"},
+                {"uint8", "u8"},    {"uint16", "u16"},  {"uint32", "u32"},  {"uint64", "u64"},  {"uint128", "u128"},
+                {"float32", "f32"}, {"float64", "f64"}};
+            for (size_t i = 0; i < sizeof full_names / sizeof full_names[0]; i++)
+                if (!strcmp(t->text, full_names[i].full)) {
+                    t->text = xstrdup(full_names[i].name);
+                    t->kind = TK_KEYWORD;
+                }
             for (size_t i = 0; i < sizeof foreign_keywords / sizeof foreign_keywords[0]; i++)
                 if (!strcmp(t->text, foreign_keywords[i].word)) {
                     if (foreign_keywords[i].hint)

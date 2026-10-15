@@ -1,4 +1,5 @@
-// modules/math.k (#43, #148): complex64 and complex32, their arithmetic and
+// modules/math.k (#43, #148): complex64 and complex32, the aliases (#150) of
+// c64 and c32, spelled so throughout to try them; their arithmetic and
 // elementary functions, which overload C's own of the same names (#41)
 // through Kelvin's operators (#42). C's libm may differ in the last bits
 // between systems, so results are compared within a tolerance.
@@ -204,7 +205,7 @@ let main():i32 {
 // out: true true true true true
 // out: true true true true true true true
 // out: true 9.0 5 true
-// out: f64 complex64 4.0 2.5 true
+// out: f64 c64 4.0 2.5 true
 // out: {real: 5, imag: 5} {real: 2, imag: 2} 5.0 f32 true true
 // out: 25.0 true true false {real: 0, imag: 2} {real: 2, imag: 4} false
 // out: 82 checked

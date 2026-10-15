@@ -8,7 +8,7 @@ search, the layout, and the modules so far: `math.k` and `JSON.k`,
 and `IO` and `OS`, each a header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
-**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `complex64` and `complex32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
+**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `c64` and `c32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
 
 ## Kelvin files: `#import <math>`
 
@@ -134,7 +134,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkIO.a|.dylib|.so   its library, linked by the import
     OS.kh, kOS.h          #import <OS> (#145, os.md), with SYS
     libkOS.a|.dylib|.so   its library
-    math.k                #import <math> (#148): math.h for f64 and f32, complex64 and complex32
+    math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     JSON.k                #import <JSON> (#113, json.md)
 ./modules/                a project's own, looked in first
     x.kh, libkx.a         #import <x>: the header, and its library linked by the import (#143)
@@ -156,70 +156,11 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
 
 ## Math: `modules/math.k`
 
-`#import <math>` (#148) is `math.h` and its complex counterpart, as C's
-math and cmath are: the functions of `math.h` for `f64` and `f32`, the
-constants of each as attributes of the type, `f64.pi`, every function
-as a method too, `x.sin()`, and `complex64`, whose parts are `f64`, and
-`complex32`, whose parts are `f32`, without C's `_Complex` (#43):
-
-```kelvin
-#import <math>
-
-let main():i32 {
-    let i:complex64 = complex64(0.0, 1.0)
-    let z:complex64 = complex64(1.0, 2.0)
-    let w:complex64 = exp(z) * z + 1.0          // operators, and exp of a complex64
-    println(`${w} ${abs(w)} ${sin(0.5)}`)       // sin of an f64 is C's
-    println(abs(exp(i * f64.pi) + 1.0) < 1e-15)  // true: f64.pi, a constant of the type
-    println(2.0.sqrt(), " ", (0.5:f32).sin(), " ", z.exp(), " ", 1.0.i)   // the methods; 1.0.i is complex64(0, 1)
-    return 0
-}
-```
-
-- **The functions of `math.h`**, each for an `f64` and an `f32`: `sin`,
-  `cos`, `tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `asinh`,
-  `acosh`, `atanh`, `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
-  `log1p`, `sqrt`, `cbrt`, `floor`, `ceil`, `round`, `trunc`, `fabs`,
-  `erf`, `erfc`, `tgamma`, `lgamma`, `pow`, `hypot`, `atan2`, `fmod`,
-  `fmin`, `fmax`, `copysign`, `fma`, and `abs` of a float.
-  - Of an `f64` each is C's own, declared; of an `f32` its `f` kind,
-    `sinf`, so `sin(x)` of an `f32` gives an `f32`.
-  - Each is a method too, `x.sin()`, `x.pow(y)`, `x.atan2(y)`, which
-    says which where it matters; Kelvin's overloading picks the one for
-    the type anyway.
-- **The constants**, as attributes of the type: `f64.pi`, `tau`, `e`,
-  `ln2`, `ln10`, `log2e`, `log10e`, `sqrt2`, `infinity`, `nan`,
-  `epsilon`, `max` and `min`, and the same of `f32`.
-  - `x.isnan`, `x.isinf` and `x.isfinite` test a value.
-- **`x.i`** is `x` rotated a quarter turn on the Gaussian plane:
-  `1.0.i` is `complex64(0.0, 1.0)`, `(0.5:f32).i` a `complex32`, and
-  `z.i` of a complex number is `z` times `i`, so `1.0.i.i` is `-1`.
-- **Making a complex number**: `complex64(re, im)`, `complex64(re)`, `polar(r, theta)`,
-  `(complex64){re, im}`, and `complex64(z)` of a `complex32` (or
-  `complex32(z)` of a `complex64`).
-- **Arithmetic**: `+ - * /` between two of one kind, or one and a real
-  number of its parts' type (either way round), unary `-`, `==` and
-  `!=`. `complex32` and `complex64` do not mix: convert one.
-  - Each is written in `extend complex64 { }` as
-    `static let +(a:Self, b:Self):Self` (#135, #140), and a mixed one
-    as `static let +(a:Self, b:f64):Self`.
-- **Complex functions**: `conj`, `abs`, `arg`, `norm` (`abs` squared),
-  `exp`, `log`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`,
-  `tanh` and their inverses, which take their principal values, with
-  C99's branch cuts and its signs of zero on them; each a method too,
-  `z.exp()`, `z.abs()`, `z.pow(w)`.
-  - They keep their accuracy near 0 and ±1, and no step overflows where
-    the result does not.
-  - C's own functions of these names still take numbers, also ones only
-    C sees, as `tanh(atof(s))`: the file declares them.
-- **The text** of one is its derived `.cstr`, as in
-  `{real: 1, imag: 2}`, also in a template and in `print` (#122).
-- `complex128` waits for `f128`. C99's special values for infinities and
-  NaNs are not attempted, except for `sqrt` and division by an
-  infinity *(provisional P54)*.
-- kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
-  c` with two roundings, as gcc does, and the results are the same with
-  both *(provisional P55)*.
+`#import <math>` brings in `math.h` and its complex counterpart (#148):
+the functions of `math.h` for `f64` and `f32`, each a method too,
+`x.sin()`, the constants as attributes of the type, `f64.pi`, and `c64`
+and `c32`, complex numbers, `complex64` and `complex32` by their
+aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
 ## JSON: `modules/JSON.k`
 

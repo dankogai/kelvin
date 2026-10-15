@@ -4433,7 +4433,7 @@ static char *fn_key(Type *t) {
 }
 
 /* A function's parameter types as Kelvin writes them, without a
-   parameter's own qualifiers: "complex64,f64" */
+   parameter's own qualifiers: "c64,f64" */
 static char *signature(Decl *d) {
     Buf b = {0};
     buf_puts(&b, "");
@@ -4695,7 +4695,7 @@ static int fit(Expr *arg, Type *param) {
 }
 
 /* Does arg, which is no struct where param is one, show that C's own
-   function of the name is meant, as sin(z.real) is in sin(z:complex64)?
+   function of the name is meant, as sin(z.real) is in sin(z:c64)?
    A struct passed where no struct is taken is a mistake C reports. */
 static bool record_mismatch(Expr *arg, Type *param) {
     Type *a = arg_type(arg);
@@ -5054,7 +5054,7 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     return call;
 }
 
-/* A C name made from a type, as complex64, u8p for u8^, a3 for [3], and
+/* A C name made from a type, as c64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
     if (is_set_owner(t)) /* Set<T> is Set_<T> (#71) */
@@ -9594,6 +9594,39 @@ static void rewrite_self(int i, Token *recv) {
     }
 }
 
+/* typealias A = T (#149), Swift's: from here on, A is T wherever a name
+   is read, as a type, before a dot, as a converter or an extend's: each
+   later token A becomes T's, as Self becomes the receiver's (#140). T is
+   a struct, a union or an enum with values of the program, or a built-in
+   type; A is a new name */
+static void parse_typealias(void) {
+    Token *kw = advance();
+    Token *name = peek();
+    if (name->kind == TK_KEYWORD)
+        error_at(name->pos, "'%s' is a type already: an alias is a new name, as in 'typealias real = f64'", name->text);
+    if (name->kind != TK_IDENT)
+        error_at(name->pos, "typealias names the alias, then its type: 'typealias A = T'");
+    if (record_named(name->text) || binding_index(name->text) >= 0 || function_named(name->text))
+        error_at(name->pos, "'%s' is declared already: an alias is a new name", name->text);
+    advance();
+    if (!accept_p("="))
+        error_at(peek()->pos, "expected '=' after the alias's name: 'typealias %s = T'", name->text);
+    Token *target = peek();
+    bool base = is_base_word(target) && !is_kw(target, "any") && !is_kw(target, "_Complex");
+    if (!base && !(target->kind == TK_IDENT && record_named(target->text)))
+        error_at(target->pos, "'%s' is not a type kelvinc sees: an alias is of a struct, union or enum with values "
+                              "declared before it, or of a built-in type",
+                 target->text);
+    advance();
+    end_statement();
+    for (int i = cur; toks[i].kind != TK_EOF; i++)
+        if (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, name->text)) {
+            toks[i].text = target->text;
+            toks[i].kind = target->kind;
+        }
+    (void)kw;
+}
+
 /* extend T { ... } (#130), Swift's extension: the members of T without
    writing T: let f() {} a method, static let f() {} a function of the
    type, let x:R {} a computed attribute, var x:R { get set } one with a
@@ -10469,6 +10502,10 @@ Program *parse(Token *tokens, int ntoks) {
         const char *storage = parse_storage();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");
+        if (!binding && !storage && peek()->kind == TK_IDENT && !strcmp(peek()->text, "typealias")) {
+            parse_typealias(); /* typealias A = T (#149) */
+            continue;
+        }
         if (!binding && !storage && peek()->kind == TK_IDENT && !strcmp(peek()->text, "extend") &&
             (peek2()->kind == TK_IDENT || is_base_word(peek2()) || is_p(peek2(), "{") || is_kw(peek2(), "enum") ||
              is_kw(peek2(), "union") || is_kw(peek2(), "struct"))) {
@@ -10783,6 +10820,12 @@ char *gen_header(Program *prog) {
         if (is_kw(t, "static") || is_kw(t, "extern"))
             storage = toks[k++].text;
         if (is_kw(&toks[k], "struct") || is_kw(&toks[k], "union") || is_kw(&toks[k], "enum")) {
+            int end = decl_end(i);
+            buf_printf(&b, "%s\n", raw_text(i, end));
+            i = end;
+            continue;
+        }
+        if (toks[k].kind == TK_IDENT && !strcmp(toks[k].text, "typealias")) { /* an alias (#149), as written */
             int end = decl_end(i);
             buf_printf(&b, "%s\n", raw_text(i, end));
             i = end;

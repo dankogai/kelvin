@@ -8,7 +8,7 @@ enum color { RED, GREEN }
 let mk(x:i64):point { (point){x, x * 2} }
 let point.norm():i64 { .x * .x + .y * .y }
 let main(argc:i32, argv:[u8^]):i32 {
-    var i = complex64(0.0, 1.0)
+    var i = c64(0.0, 1.0)
     let p = mk(3)
     var q = p
     let n = p.norm()
@@ -40,8 +40,8 @@ let main(argc:i32, argv:[u8^]):i32 {
 // out: 0.0 1.0 3 45 3 6 6
 // out: 2 3 2.0 2 45 5 2
 // out: 3 1 97 16 4
-// out: complex64 point point^ const i32^ cstr (i64):point
+// out: c64 point point^ const i32^ cstr (i64):point
 // out: i32 color u8 size_t i64^ const i64^
-// c: struct complex64 i = complex64__f64__f64(0.0, 1.0);
+// c: struct c64 i = c64__f64__f64(0.0, 1.0);
 // c: const int32_t *const ap = arr;
 // c: const int64_t *cp = &v;
