@@ -179,6 +179,14 @@ static bool bound_here(const char *name) {
 /* the function or method being parsed, and where its parameters sit in
    scope_names */
 static Decl *parsing_fn;
+bool lib_mode;
+
+/* Is the token from a module's header, M.kh (#146), where a prototype is
+   the library's own function? */
+static bool in_kh(Pos p) {
+    size_t n = p.file ? strlen(p.file) : 0;
+    return n > 3 && !strcmp(p.file + n - 3, ".kh");
+}
 static List modules_imported; /* char *: the modules brought in so far, IO, OS, JSON (#143) */
 
 static bool module_imported(const char *name) {
@@ -5103,7 +5111,7 @@ static void name_functions(void) {
             if (e->recv || e->op || strcmp(e->name, d->name))
                 continue;
             imported = imported || e->imported;
-            defined = defined || (e->body && !strcmp(signature(e), signature(d)));
+            defined = defined || ((e->kelvin_proto || e->body) && !strcmp(signature(e), signature(d)));
         }
         bool by_types = overloads_of(d->name, NULL).len > 1 || imported || called_as_c(d->name);
         if (!defined || !strcmp(d->name, "main"))
@@ -8829,6 +8837,8 @@ static Decl *parse_fn(Pos pos, const char *storage) {
     }
     if (!strcmp(d->name, "print") || !strcmp(d->name, "println"))
         error_at(name->pos, "'%s' is part of the Kelvin prelude and cannot be redefined", d->name);
+    if (lib_mode && !strcmp(d->name, "main"))
+        error_at(name->pos, "a library has no main: kelvinc --lib builds the file into libkM, for programs to import");
     Decl *wr;
     int wk;
     if (!d->op && anon_word(d->name, &wr, &wk)) /* (#120) */
@@ -8888,6 +8898,8 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
         implicit_return(d);
         finish_drops(drops_from);
     }
+    if (!d->body && in_kh(name->pos) && !(d->storage && !strcmp(d->storage, "extern")))
+        d->kelvin_proto = true; /* the library's (#146); a C function's is extern let there */
     close_scope();
     return d;
 }
@@ -9065,7 +9077,7 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
                                   "result: write the type itself",
                      kelvin_type(d->ret));
     }
-    if (d->attribute && !is_p(peek(), "{"))
+    if (d->attribute && !is_p(peek(), "{") && !in_kh(name->pos)) /* a prototype in M.kh (#146) */
         error_at(peek()->pos, "an attribute is computed by its body: write 'let %s.%s:%s { ... }'", d->recv_name,
                  d->name, kelvin_type(d->ret));
     list_push(&functions, d);
@@ -9080,8 +9092,10 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         implicit_return(d);
         finish_drops(drops_from);
     }
-    if (d->text_method && !d->body)
+    if (d->text_method && !d->body && !in_kh(name->pos))
         error_at(name->pos, "'.cstr' of %s needs its body here: a prototype is not needed", d->recv_name);
+    if (!d->body && in_kh(name->pos))
+        d->kelvin_proto = true; /* the library's (#146) */
     close_scope();
     return d;
 }
@@ -9171,6 +9185,40 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
                  recv->text, nm);
     advance();
     Type *vt = parse_type();
+    if (!is_p(peek(), "{") && in_kh(name->pos)) {
+        /* var T.x:R in a module's header (#146): the getter's and the
+           setter's prototypes */
+        Decl *g = new_decl(D_FN, pos, NULL);
+        g->imported = name->imported;
+        g->recv = rt;
+        g->recv_name = rname;
+        g->name = nm;
+        g->attribute = true;
+        g->ret = vt;
+        g->kelvin_proto = true;
+        list_push(&functions, g);
+        Decl *s = new_decl(D_FN, pos, NULL);
+        s->imported = name->imported;
+        s->recv = rt;
+        s->recv_name = rname;
+        s->name = nm;
+        s->setter = true;
+        s->kelvin_proto = true;
+        Var *p = xcalloc(1, sizeof *p);
+        p->pos = name->pos;
+        p->name = "v";
+        p->type = vt;
+        p->is_let = true;
+        p->number = numeric_type(param_type(p->type));
+        list_push(&s->params, p);
+        list_push(&functions, s);
+        add_top_decl(prog, g);
+        add_top_decl(prog, s);
+        self_scope = saved_scope;
+        self_tok = saved_self;
+        self_spelled = saved_self_sp;
+        return;
+    }
     expect_p("{");
     if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "get")))
         error_at(peek()->pos, "a var attribute starts with its getter, 'get { ... }', then its setter, 'set(v) { ... }'");
@@ -9378,6 +9426,50 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
     g->ret = parse_type();
     check_overload(g, at);
     list_push(&functions, g);
+    if (!is_p(peek(), "{") && in_kh(at->pos)) {
+        /* let T[](i:I):R and var T[](i:I):R in a module's header (#146):
+           the getter's prototype, and the setter's */
+        g->kelvin_proto = true;
+        close_scope();
+        add_top_decl(prog, g);
+        if (!is_let) {
+            Decl *s = new_decl(D_FN, pos, NULL);
+            s->imported = at->imported;
+            s->type_fn = true;
+            s->subscript = true;
+            s->setter = true;
+            s->recv_name = rname;
+            s->name = set;
+            s->kelvin_proto = true;
+            Type *mself = xcalloc(1, sizeof *mself);
+            mself->kind = T_PTR;
+            mself->pos = at->pos;
+            mself->elem = rt;
+            Var *msp = xcalloc(1, sizeof *msp);
+            *msp = *sp;
+            msp->type = mself;
+            list_push(&s->params, msp);
+            for (int i = 0; i < indices.len; i++) {
+                Var *p = xcalloc(1, sizeof *p);
+                *p = *(Var *)indices.data[i];
+                list_push(&s->params, p);
+            }
+            Var *v = xcalloc(1, sizeof *v);
+            v->pos = at->pos;
+            v->name = "v";
+            v->type = g->ret;
+            v->is_let = true;
+            v->number = numeric_type(param_type(v->type));
+            list_push(&s->params, v);
+            check_overload(s, at);
+            list_push(&functions, s);
+            add_top_decl(prog, s);
+        }
+        self_scope = saved_scope;
+        self_tok = saved_self;
+        self_spelled = saved_self_sp;
+        return;
+    }
     if (!is_let) {
         expect_p("{");
         if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "get")))
@@ -10486,4 +10578,236 @@ Program *parse(Token *tokens, int ntoks) {
     name_functions();
     prog->modules = modules_imported; /* for the codegen (#143) */
     return prog;
+}
+
+/* ---------- kelvinc --lib: the module's header, M.kh (#146) ---------- */
+
+/* the matching close of the group that opens at token i */
+static int group_end(int i) {
+    int depth = 0;
+    for (; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "(") || is_p(&toks[i], "[") || is_p(&toks[i], "{"))
+            depth++;
+        else if ((is_p(&toks[i], ")") || is_p(&toks[i], "]") || is_p(&toks[i], "}")) && --depth == 0)
+            return i;
+    }
+    return i;
+}
+
+/* Where the header of the declaration at token i ends, and what follows:
+   'b' a body { } at token *end, 't' a type attribute's = at *end, 'p' a
+   prototype, ending before *end. A { after a : or a struct, union or enum
+   word is a type, skipped as a group */
+static char header_end(int i, int *end) {
+    int k = i;
+    for (;; k++) {
+        Token *t = &toks[k];
+        if (t->kind == TK_EOF || t->kind == TK_FILE_END || (k > i && is_p(t, ";")) ||
+            (k > i && t->pos.line > toks[k - 1].pos.line && !continues_expression(t))) {
+            *end = k;
+            return 'p';
+        }
+        if (is_p(t, "(") || is_p(t, "[")) {
+            k = group_end(k);
+            continue;
+        }
+        if (is_p(t, "{")) {
+            Token *b = &toks[k - 1];
+            if (is_p(b, ":") || is_kw(b, "struct") || is_kw(b, "union") || is_kw(b, "enum") || is_p(b, "$")) {
+                k = group_end(k);
+                continue;
+            }
+            *end = k;
+            return 'b';
+        }
+        if (is_p(t, "=") || is_p(t, ":=")) {
+            *end = k;
+            return 't';
+        }
+    }
+}
+
+/* the end of the statement at token i: past its body, its initializer or
+   its prototype */
+static int decl_end(int i) {
+    int end;
+    char how = header_end(i, &end);
+    if (how == 'b')
+        return group_end(end) + 1;
+    if (how == 'p')
+        return end;
+    for (int k = end;; k++) { /* an initializer, to the end of its line */
+        Token *t = &toks[k];
+        if (t->kind == TK_EOF || t->kind == TK_FILE_END || is_p(t, ";"))
+            return k;
+        if (is_p(t, "(") || is_p(t, "[") || is_p(t, "{")) {
+            k = group_end(k);
+            continue;
+        }
+        if (k > end && t->pos.line > toks[k - 1].pos.line && !continues_expression(t))
+            return k;
+    }
+}
+
+/* the source text of tokens i to end as written, templates, comments and
+   lines included, for a header that reads as the source does */
+static long offset_of(const char *src, Pos p) {
+    const char *s = src;
+    for (int line = 1; line < p.line && *s; s++)
+        if (*s == '\n')
+            line++;
+    for (int col = 1; col < p.col && *s && *s != '\n'; s++)
+        col++;
+    return s - src;
+}
+
+static char *raw_text(int i, int end) {
+    const char *src = source_text_of(toks[i].pos.file);
+    if (!src || end <= i)
+        return source_text(i, end);
+    long a = offset_of(src, toks[i].pos), z = offset_of(src, toks[end - 1].pos);
+    Token *last = &toks[end - 1];
+    if (last->kind == TK_IDENT || last->kind == TK_KEYWORD) /* as written: Self was rewritten to T (#140) */
+        while (isalnum((unsigned char)src[z]) || src[z] == '_')
+            z++;
+    else
+        z += (long)strlen(last->text);
+    return xstrndup(src + a, (size_t)(z - a));
+}
+
+static bool text_listed(List *l, const char *text) {
+    for (int i = 0; i < l->len; i++)
+        if (!strcmp(l->data[i], text))
+            return true;
+    return false;
+}
+
+/* Is the declaration at token i a function's, a method's, an operator's,
+   an attribute's or a subscript's, after let, var, static let or static
+   var? A global's otherwise */
+static bool fn_like(int i) {
+    Token *t = &toks[i];
+    if (t->kind == TK_PUNCT && !is_p(t, "{") && !is_p(t, "$"))
+        return true; /* an operator */
+    if (is_p(t, "{") || is_kw(t, "enum") || is_kw(t, "struct") || is_kw(t, "union"))
+        return true; /* a type with no tag's member, by its spelling (#121) */
+    if (is_p(&toks[i + 1], "("))
+        return true;
+    if (is_p(&toks[i + 1], ".") && (is_p(&toks[i + 3], "(") || is_p(&toks[i + 3], ":")))
+        return true;
+    if (is_p(&toks[i + 1], "[") && is_p(&toks[i + 2], "]"))
+        return true;
+    return false;
+}
+
+char *gen_header(Program *prog) {
+    const char *file = toks[0].pos.file;
+    Buf b = {0};
+    buf_puts(&b, "");
+    List seen = {0}, defined = {0};
+    /* the headers of the functions defined here, so that a prototype of
+       one is Kelvin's own and any other a C function's */
+    for (int i = 0; toks[i].kind != TK_EOF;) {
+        if (strcmp(toks[i].pos.file, file)) {
+            i++;
+            continue;
+        }
+        int k = i;
+        if (is_kw(&toks[k], "static") || is_kw(&toks[k], "extern"))
+            k++;
+        if ((is_kw(&toks[k], "let") || is_kw(&toks[k], "var")) && fn_like(k + 1)) {
+            int end;
+            if (header_end(k + 1, &end) == 'b')
+                list_push(&defined, raw_text(k, end));
+        }
+        i = toks[i].kind == TK_IMPORT || toks[i].kind == TK_IMPORT_K ? i + 1 : decl_end(i);
+    }
+    for (int i = 0; toks[i].kind != TK_EOF;) {
+        Token *t = &toks[i];
+        if (strcmp(t->pos.file, file)) {
+            i++;
+            continue;
+        }
+        if (t->kind == TK_IMPORT) {
+            buf_printf(&b, "#import %s as C\n", t->text);
+            i++;
+            continue;
+        }
+        if (t->kind == TK_IMPORT_K) {
+            buf_printf(&b, "#import %s\n", t->text);
+            i++;
+            continue;
+        }
+        int k = i;
+        const char *storage = NULL;
+        if (is_kw(t, "static") || is_kw(t, "extern"))
+            storage = toks[k++].text;
+        if (is_kw(&toks[k], "struct") || is_kw(&toks[k], "union") || is_kw(&toks[k], "enum")) {
+            int end = decl_end(i);
+            buf_printf(&b, "%s\n", raw_text(i, end));
+            i = end;
+            continue;
+        }
+        if (toks[k].kind == TK_IDENT && !strcmp(toks[k].text, "extend")) {
+            int open = k + 1;
+            while (!is_p(&toks[open], "{") || is_p(&toks[open - 1], ":") || is_kw(&toks[open - 1], "enum") ||
+                   is_kw(&toks[open - 1], "struct") || is_kw(&toks[open - 1], "union"))
+                open = is_p(&toks[open], "{") ? group_end(open) + 1 : open + 1;
+            int close = group_end(open);
+            buf_printf(&b, "%s\n", raw_text(i, open + 1));
+            for (int m = open + 1; m < close;) {
+                int end;
+                char how = header_end(m, &end);
+                if (how == 't')
+                    error_at(toks[m].pos, "a type attribute in a library waits: a program cannot declare one yet");
+                char *text = raw_text(m, end);
+                if (how == 'b' && is_kw(&toks[m + 1], "cstr"))
+                    text = raw_text(m, group_end(end) + 1); /* T.cstr() (#53) is inline: its body too */
+                if (!text_listed(&seen, text)) {
+                    list_push(&seen, text);
+                    buf_printf(&b, "    %s\n", text);
+                }
+                m = how == 'b' ? group_end(end) + 1 : end;
+            }
+            buf_puts(&b, "}\n");
+            i = close + 1;
+            continue;
+        }
+        if (is_kw(&toks[k], "let") || is_kw(&toks[k], "var")) {
+            int end;
+            char how = header_end(k + 1, &end);
+            if (fn_like(k + 1)) {
+                bool file_local = storage && !strcmp(storage, "static") && toks[k + 1].kind == TK_IDENT &&
+                                  is_p(&toks[k + 2], "(");
+                if (how == 't')
+                    error_at(toks[i].pos, "a type attribute in a library waits: a program cannot declare one yet");
+                char *text = raw_text(i, end);
+                if (how == 'b' && is_p(&toks[k + 2], ".") && is_kw(&toks[k + 3], "cstr"))
+                    text = raw_text(i, group_end(end) + 1); /* let T.cstr():cstr { ... } (#53) is inline */
+                if (!file_local && !text_listed(&seen, text)) {
+                    list_push(&seen, text);
+                    if (how == 'b' || text_listed(&defined, text) || (storage && !strcmp(storage, "extern")))
+                        buf_printf(&b, "%s\n", text);
+                    else
+                        buf_printf(&b, "extern %s\n", text); /* a C function's prototype */
+                }
+            } else if (!(storage && !strcmp(storage, "static"))) {
+                /* a global: extern, with the type kelvinc inferred */
+                for (int j = 0; j < prog->decls.len; j++) {
+                    Decl *d = prog->decls.data[j];
+                    if (d->kind != D_VAR || d->pos.line != toks[i].pos.line || strcmp(d->pos.file, file))
+                        continue;
+                    for (int m = 0; m < d->members.len; m++) {
+                        Var *v = d->members.data[m];
+                        buf_printf(&b, "extern %s %s:%s\n", is_kw(&toks[k], "let") ? "let" : "var", v->name,
+                                   kelvin_type(v->type));
+                    }
+                }
+            }
+            i = decl_end(i);
+            continue;
+        }
+        i = decl_end(i);
+    }
+    return b.buf;
 }

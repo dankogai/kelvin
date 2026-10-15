@@ -89,6 +89,13 @@ void set_source(const char *file, const char *src) {
     list_push(&src_texts, (void *)src);
 }
 
+const char *source_text_of(const char *file) {
+    for (int i = 0; file && i < src_files.len; i++)
+        if (!strcmp(file, src_files.data[i]))
+            return src_texts.data[i];
+    return NULL;
+}
+
 _Noreturn void fatal(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);

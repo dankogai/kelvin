@@ -28,6 +28,8 @@ static void usage(FILE *f) {
             "  -g          include debug info\n"
             "  -v          print the C compiler command\n"
             "  --no-line   omit #line directives from the generated C\n"
+            "  --lib       build the file into a module (#146): M.kh, its declarations, and\n"
+            "              libkM.a, in ./modules or the directory given by -o\n"
             "  --version   print the version\n"
             "\n"
             "environment:\n"
@@ -273,6 +275,13 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
     return all;
 }
 
+static bool text_in(List *l, const char *s) {
+    for (int i = 0; i < l->len; i++)
+        if (!strcmp(l->data[i], s))
+            return true;
+    return false;
+}
+
 static char *default_output(const char *src) {
     const char *base = strrchr(src, '/');
     base = base ? base + 1 : src;
@@ -285,7 +294,7 @@ static char *default_output(const char *src) {
 int main(int argc, char **argv) {
     const char *src_path = NULL, *out_path = NULL;
     bool emit_c = false, run_after = false, optimize = false, debug = false, verbose = false;
-    bool line_directives = true;
+    bool line_directives = true, lib = false;
     int prog_argc = 0;
     char **prog_argv = NULL;
 
@@ -311,6 +320,9 @@ int main(int argc, char **argv) {
             verbose = true;
         } else if (!strcmp(a, "--no-line")) {
             line_directives = false;
+        } else if (!strcmp(a, "--lib")) {
+            lib = true;
+            lib_mode = true;
         } else if (!strcmp(a, "--version")) {
             printf("kelvinc %s\n", KELVIN_VERSION);
             return 0;
@@ -335,10 +347,28 @@ int main(int argc, char **argv) {
     set_source(src_path, src);
     int ntoks;
     Token *toks = lex(src_path, src, &ntoks);
+    if (lib) /* a library's functions are named by their types, as a program's prototypes of them are (#146) */
+        for (int i = 0; i < ntoks; i++)
+            toks[i].imported = true;
     imported_already(src_path); /* the main file is brought in already */
     toks = with_imports(toks, ntoks, &ntoks, argv[0]);
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);
+    char *lib_dir = NULL, *lib_name = NULL;
+    if (lib) {
+        /* M.kh and libkM.a, in ./modules or the directory -o names */
+        lib_dir = out_path ? xstrdup(out_path) : xstrdup("./modules");
+        if (!is_dir(lib_dir) && mkdir(lib_dir, 0777) != 0)
+            fatal("cannot create '%s'", lib_dir);
+        lib_name = default_output(src_path);
+        const char *base = strrchr(lib_name, '/');
+        if (base)
+            lib_name = xstrdup(base + 1);
+        char *kh = strfmt("// %s.kh - the module %s (#146), made by kelvinc --lib from %s: its declarations,\n"
+                          "// the bodies dropped, which libk%s.a beside it defines; #import <%s> brings it in\n%s",
+                          lib_name, lib_name, src_path, lib_name, lib_name, gen_header(prog));
+        write_file(strfmt("%s/%s.kh", lib_dir, lib_name), kh);
+    }
 
     if (emit_c) {
         if (out_path)
@@ -399,8 +429,16 @@ int main(int argc, char **argv) {
     list_push(&cc_args, "-isystem");
     list_push(&cc_args, rt_inc);
     list_push(&cc_args, strfmt("-L%s", rt_inc));
-    list_push(&cc_args, "-o");
-    list_push(&cc_args, exe);
+    char *obj_path = strfmt("%s/libk%s.o", dir, lib_name ? lib_name : "");
+    if (lib) { /* an object, then libkM.a from it (#146) */
+        list_push(&cc_args, "-c");
+        list_push(&cc_args, "-fPIC");
+        list_push(&cc_args, "-o");
+        list_push(&cc_args, obj_path);
+    } else {
+        list_push(&cc_args, "-o");
+        list_push(&cc_args, exe);
+    }
     list_push(&cc_args, c_path);
     /* extra flags, split on whitespace (e.g. -fsanitize=undefined), after
        the program, so that a -lfoo there links what it uses (#46) */
@@ -413,10 +451,33 @@ int main(int argc, char **argv) {
     const char *tail_args[] = {rt_lib, "-lm", NULL};
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);
+    if (lib) { /* no libraries: an object only; the list ends with NULL */
+        if (cc_args.len && !cc_args.data[cc_args.len - 1])
+            cc_args.len--;
+        while (cc_args.len && (cc_args.data[cc_args.len - 1] == (void *)rt_lib ||
+                               !strcmp(cc_args.data[cc_args.len - 1], "-lm") ||
+                               text_in(&module_libs, cc_args.data[cc_args.len - 1])))
+            cc_args.len--;
+        int kept = 0;
+        for (int i = 0; i < cc_args.len; i++) /* and no -L: nothing is linked */
+            if (strncmp(cc_args.data[i], "-L", 2))
+                cc_args.data[kept++] = cc_args.data[i];
+        cc_args.len = kept;
+        list_push(&cc_args, NULL);
+    }
     char **cc_argv = (char **)cc_args.data;
     int rc = run(cc_argv, verbose);
     unlink(c_path);
     if (rc != 0) {
+        rmdir(dir);
+        return rc;
+    }
+    if (lib) {
+        char *a = strfmt("%s/libk%s.a", lib_dir, lib_name);
+        unlink(a);
+        char *ar_argv[] = {"ar", "rcs", a, obj_path, NULL};
+        rc = run(ar_argv, verbose);
+        unlink(obj_path);
         rmdir(dir);
         return rc;
     }

@@ -39,6 +39,7 @@ void buf_putn(Buf *b, const char *s, size_t n);
 void buf_printf(Buf *b, const char *fmt, ...);
 
 void set_source(const char *file, const char *src); /* each file's text, for messages */
+const char *source_text_of(const char *file);       /* that text, or NULL */
 _Noreturn void fatal(const char *fmt, ...);
 _Noreturn void error_at(Pos p, const char *fmt, ...);
 
@@ -259,6 +260,8 @@ struct Decl {
                              _kv_selfp, a pointer self names; T.[]= its setter (#136) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,
                              called as T.name(...) (#111); name is "T.name" */
+    bool kelvin_proto;    /* D_FN: a prototype in a module's header, M.kh (#146): the library's
+                             function, named by its types as its definition is, not C's */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one
                              template, written into the caller's buffer (#53) */
     char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
@@ -283,6 +286,9 @@ typedef struct {
     List array_decls;  /* intptr_t: the index of the top-level decl that first uses it */
     List modules; /* char *: the modules imported, IO, OS, JSON (#143) */
 } Program;
+
+extern bool lib_mode;            /* kelvinc --lib (#146): the file becomes libkM, with no main */
+char *gen_header(Program *prog); /* its M.kh: the declarations, the bodies dropped (#146) */
 
 /* ---------- parser.c / codegen.c ---------- */
 

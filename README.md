@@ -139,7 +139,8 @@ So far the changes from C are:
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
 - a module is a Kelvin source, `#import <JSON>`, or a header and a
   library, `M.kh` and `libkM` in `modules/`, which `#import <M>` brings
-  in and links by itself, as `IO` and `OS` are
+  in and links by itself, as `IO` and `OS` are; `kelvinc --lib M.k`
+  builds a Kelvin file into one
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

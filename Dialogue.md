@@ -4014,3 +4014,23 @@ tests/project gained `shout.kh` with `libkshout.a`. Details are
 provisional P155 to P157.
 
 There are 739 tests, and all pass with clang and with gcc 15.
+
+### 180. `kelvinc --lib`: a Kelvin file into `libkM`
+
+> now add a mode that builds a Kelvin file into `libkM`
+
+**Claude** asked whether the header comes with it, and the user chose
+that it does. #146 is `kelvinc --lib M.k`: `M.kh`, the declarations
+with the bodies dropped, and `libkM.a`, the code, in `./modules` or
+the directory `-o` names. The header keeps the imports, the types
+whole, a prototype of each function, method, function of the type,
+operator, attribute and subscript in their `extend` blocks, `extern
+let x:T` for a global, `extern let` for a C function's prototype, and
+`T.cstr()` with its body, which is inline. A `.kh` may now hold
+prototypes of attributes and subscripts, and a prototype there without
+`extern` is the library's own, named by its types as the library names
+it. tests/run.sh builds JSON.k, complex.k and tests/project's geo.k
+into libraries and compiles programs against them. Details are
+provisional P158.
+
+There are 743 tests, and all pass with clang and with gcc 15.

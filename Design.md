@@ -177,6 +177,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 143 | A module as a header and a library, like C's: `M.kh`, a Kelvin file of declarations, and `libkM.a` (or a shared `libkM`) beside it in `modules/`; `#import <M>` looks for `M.kh` before `M.k`, in `./modules` then Kelvin's `modules/`, brings the header in and links the library by itself, before `libkelvin`, in the order imported; a `.kh` with no library is a header alone | — | `#import <IO>` reads `modules/IO.kh` and links `modules/libkIO.a` | 2026-10-16 |
 | 144 | `IO` is a module, `#import <IO>`: `modules/IO.kh`, the C header `kIO.h` and `libkIO`, built from runtime/io.c, out of the prelude; without the import `IO` is an error that says to write it; `IO.kh` imports `<OS>`, which IO's path functions use | — | `#import <IO>` then `let f = IO(path, "r")` | 2026-10-16 |
 | 145 | `OS` with `SYS` is a module, `#import <OS>`: `modules/OS.kh`, `kOS.h` and `libkOS`, built from runtime/os.c, out of the prelude; without the import `OS` and `SYS` are errors that say to write it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`; a program that does not import it has no `kv_sys_init` in its `main` | — | `#import <OS>` then `var args = SYS.argv` | 2026-10-16 |
+| 146 | `kelvinc --lib M.k` builds a Kelvin file into a module: `M.kh`, its declarations with the bodies dropped, and `libkM.a`, in `./modules` or the directory `-o` names; the header holds the imports, the types whole, a prototype of each function, method, function of the type, operator, attribute and subscript in their `extend` blocks, `extern let x:T` for a global, `extern let` for a C function's prototype, and `T.cstr()` with its body; a file's `static let` is left out, a type attribute waits, and `main` is an error. In a `.kh`, a prototype without `extern` is the library's, named by its types, and attributes and subscripts may be prototypes | — | `kelvinc --lib geo.k`, then `#import <geo>` | 2026-10-16 |
 
 Notes:
 
@@ -738,6 +739,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (146) Agreed details: "now add a mode that builds a Kelvin file into
+  `libkM`". Claude asked whether the header is generated or written by
+  hand, and the user chose generated, so that the prototypes always
+  match the library's C names. A C function's prototype in the source
+  becomes `extern let` in the header, since there a bare prototype is
+  the library's; `T.cstr()` keeps its body, being inline and sized by
+  its template; a type attribute waits (P158).
 
 - (143, 144, 145) Agreed details: "Let's separate `IO` and `OS` from
   prelude. One day it may be used where IO is not available like
@@ -1546,6 +1555,7 @@ says "as agreed".
 | P155 | Details of #143 | `#import <IO>` becomes the tokens of `modules/IO.kh`, and `cc ... ./modules/libkIO.a ./modules/libkOS.a .../libkelvin.a -lm` | `import_path` tries `M.kh` before `M.k` for a bare name, and the lexer reads `<M.kh>` as a Kelvin file; `module_library` records `libkM.a` beside the header, or `-lkM` for a shared one, as each `.kh` is first brought in, and the driver links them before `libkelvin`. The parser lists each imported module's name from its `#import` token, which `prog->modules` hands the codegen |
 | P156 | Details of #144 | `kelvin_prelude.h` ends at the String functions; `kIO.h` holds the `kv_io` struct and the `kv_io_*` prototypes, `#include "kOS.h"` for `kv_stat`, and `IO.kh` is `#import <OS>` and `#import <kIO.h> as C` | `require_module("IO")` at `IO(`, `IO.`, the type `IO` and `extend IO`; the Makefile builds `libkIO.a` and `libkIO.dylib|.so` from io.o, the shared one linked against libkOS and libkelvin |
 | P157 | Details of #145 | `kOS.h` holds `kv_sys_*`, `kv_os_*`, `kv_stat` and the structs of #102, with `struct kv_io;` forward for `kv_os_mkstemp`; a `main` calls `kv_sys_init(argc, argv)` only where OS is imported | `require_module("OS")` at `OS.`, and `SYS.` checks the same module with its own message; os.c includes kIO.h for the IO it fills. tests/run.sh builds `libkshout.a` for tests/project's `shout.kh`, and compiles a program importing IO from the installed layout, checking the libraries it links |
+| P158 | Details of #146 | `let norm1:f64` in geo.kh declares `double point__norm1(const struct point self);`, which libkgeo.a defines; `static let of(x:f64, y:f64):Self` is `point__of__f64__f64` on both sides | `gen_header` walks the main file's tokens and copies the raw source text of each declaration up to its body, found by `header_end`, which skips a `{` after `:` or a type word as a type; `kelvin_proto` marks a bodiless function in a `.kh` that is not `extern`, and `name_functions` counts it as defined, so the program names it by its types as the library does, whose tokens `--lib` marks imported; `parse_method_of`, `parse_var_attribute` and `parse_subscript` take a prototype in a `.kh`; the driver compiles with `-c -fPIC`, drops the libraries and `-L`, and runs `ar rcs` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

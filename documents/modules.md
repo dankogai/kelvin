@@ -70,8 +70,45 @@ let main():i32 {
   into `libkIO` and `libkOS`, with the C headers `kIO.h` and `kOS.h`;
   a program without them links the core alone, which is why they are
   modules: one day a program may run where there is no IO.
-  - `complex.k` and `JSON.k` stay Kelvin sources: a mode of kelvinc
-    that builds a Kelvin file into a `libkM` waits.
+  - `complex.k` and `JSON.k` ship as Kelvin sources, which
+    `kelvinc --lib` builds into `JSON.kh` and `libkJSON.a` where a
+    project wants them so.
+
+## Building a module: `kelvinc --lib M.k`
+
+`kelvinc --lib M.k` (#146) builds a Kelvin file into a module: `M.kh`,
+its declarations with the bodies dropped, and `libkM.a`, its code,
+both in `./modules`, or in the directory `-o` names.
+
+```
+kelvinc --lib geo.k                  # ./modules/geo.kh and ./modules/libkgeo.a
+kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh and lib/libkJSON.a
+```
+
+- **The header** holds what a program needs, as the source wrote it:
+  its imports, its structs, unions and enums whole, and a prototype of
+  each function, method, function of the type, operator, attribute
+  and subscript, in their `extend` blocks.
+  - A global is `extern let x:T` or `extern var x:T`, with the type
+    kelvinc inferred.
+  - A C function's prototype, `let exp(x:f64):f64` with no body, is
+    `extern let exp(x:f64):f64` there: in a `.kh`, a prototype without
+    `extern` is the library's own function.
+  - `T.cstr()` is copied with its body: a text method is inline, sized
+    by its template, in each file that uses the type.
+  - A `static let f()` of the file, C's static, is left out; a
+    `static let` of a type is a function of the type, and kept.
+  - A type attribute, `static var T.x = v`, waits: a program cannot
+    declare one yet, so a library may not hold one.
+- **The library** is the file's C, compiled with `-fPIC` into one
+  object and archived; its functions are named by their types, as a
+  program's prototypes of them are, so that the names meet.
+  - A library has no `main`, which is an error.
+  - A shared `libkM` is made from the object by hand, as `libkIO`'s is
+    in the Makefile.
+- **Attributes and subscripts** may be prototypes in a `.kh` only:
+  `let norm1:f64`, `var first:f64`, `let [](i:i64):f64`, each declaring
+  the getter, and the setter where it is a `var`.
 
 ## `modules/`
 
