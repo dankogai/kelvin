@@ -7,7 +7,7 @@ struct point {
 }
 struct node { value:i64; next:node^ }
 
-var total:i64 = 0
+var total:int64 = 0
 
 let square(x:i64):i64 { x * x }
 let point.dist2():i64 {

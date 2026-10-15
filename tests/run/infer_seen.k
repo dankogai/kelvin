@@ -3,7 +3,7 @@
 // &x, a compound literal, a text property, a template, an enumerator, a
 // character, sizeof, and a ?: between two values of one type
 #import <math>
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 enum color { RED, GREEN }
 let mk(x:i64):point { (point){x, x * 2} }
 let point.norm():i64 { .x * .x + .y * .y }

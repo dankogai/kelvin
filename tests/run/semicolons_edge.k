@@ -5,7 +5,7 @@
 struct point { x:i64; y:i64 }
 struct box { scale:i64 }
 
-var g:i64 = 0
+var g:int64 = 0
 let mask:u32 = (1 << 4)
 
 // a prototype of a method ends at its line

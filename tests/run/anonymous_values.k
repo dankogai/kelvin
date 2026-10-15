@@ -29,7 +29,7 @@ let table:[entry](2) = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}];
 
 let inc(x:i64):i64 { return x + 1; }
 let sum(n:size_t, xs:[i64](n)):i64 {
-    var t:i64 = 0;
+    var t:int64 = 0;
     for i in 0..<n {
         t += xs[i];
     }

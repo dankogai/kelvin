@@ -6,7 +6,7 @@ struct temp { kelvin: f64; log: Array<f64> }
 struct grid { w: i64; cells: [i64](4) }
 enum maybe { nothing; just: i64 }
 extend rect {
-    let area:f64 { .w * .h }                                  // members
+    let area:float64 { .w * .h }                                  // members
     let perimeter:f64 { 2.0 * (.w + .h) }
     let scaled(k:f64):rect { return {.w * k, .h * k} }         // in an initializer
     let wider():rect { return {.w = .w + 1.0, .h = .h} }       // after a designator

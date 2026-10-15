@@ -3,7 +3,7 @@
 // and the file made if it is missing
 #import <errno.h> as C
 #import <OS>
-let main():i32 {
+let main():int32 {
     let path := "os_utime.tmp"
     println(OS.exists(path), " ", OS.touch(path), " ", OS.isfile(path))
     var s0 = OS.stat(path)

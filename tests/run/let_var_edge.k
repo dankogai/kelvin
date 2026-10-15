@@ -6,7 +6,7 @@ let jump(env:jmp_buf);
 
 // a range up to a const bound: only the loop variable is const
 let total(lens:const i32^, n:i32):i32 {
-    var t:i32 = 0;
+    var t:int32 = 0;
     for k in 0..<n {
         for _ in 0..<lens[k] {
             t += 1;

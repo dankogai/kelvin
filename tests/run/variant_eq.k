@@ -8,7 +8,7 @@ let parse(s:cstr):Result<i64, String> {
     return i64(s)
 }
 let main():i32 {
-    var a:i64? = 3
+    var a:int64? = 3
     var b:i64? = 3
     var c:i64? = none
     println(a == b, " ", a != b, " ", a == c, " ", c == none, " ", a == none, " ", a == 3, " ", 4 == a, " ", c != 3)

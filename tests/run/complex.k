@@ -8,7 +8,7 @@
 #import <stdlib.h> as C
 
 let PI = 3.141592653589793
-var checked:i64 = 0
+var checked:int64 = 0
 
 // got is want, within 1e-12 of want's size
 let check(what:cstr, got:complex64, want:complex64) {

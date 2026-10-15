@@ -1,7 +1,7 @@
 // $[T] is the type Array<T> (#64), and $[[T]] Array<Array<T>>: in
 // variables, parameters, results, members, pointers and signatures
 let total(xs:$[i64]^):i64 {
-    var n:i64 = 0
+    var n:int64 = 0
     for x in xs^ { n += x }
     return n
 }

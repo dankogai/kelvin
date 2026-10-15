@@ -45,7 +45,7 @@ let main():i32 {
     var w = Result<i64, cstr>.ok(5)
     println(o.some, " ", z.is(none), " ", w.ok, " ", w.typename)
     var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]
-    var sum:i64 = 0
+    var sum:int64 = 0
     for x in rs { if let v = x { sum += v } }
     println(rs.count, " ", sum)
     e = 5

@@ -7,7 +7,7 @@ struct node {
 };
 
 let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
-    var total:i32 = 0;
+    var total:int32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
         n := n^.next;

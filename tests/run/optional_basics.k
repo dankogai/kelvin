@@ -11,7 +11,7 @@ let first(names:$[String]^):String? {
     return names^[0].copy()
 }
 let main():i32 {
-    var a:i64? = 3
+    var a:int64? = 3
     var b:i64? = none
     println(a.is(some), " ", b.is(none), " ", a.some, " ", a ?? 0, " ", b ?? -1, " ", a.typename, " ", a.cstr, " ", b.cstr)
     a = none

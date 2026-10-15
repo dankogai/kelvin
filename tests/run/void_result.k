@@ -1,7 +1,7 @@
 // :() after the parameters says a function gives nothing, C's void,
 // written out (#141): on a function, a prototype, a method, an
 // anonymous function and in a function type
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 let greet(name:cstr):() { println("hi ", name) }
 let later():()                                            // a prototype
 let point.show():() { println(self) }

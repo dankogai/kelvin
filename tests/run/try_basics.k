@@ -2,7 +2,7 @@
 // returns the err (none) as it is: of a call and of a place, in an
 // Optional, with owners as the value and as the err, in an expression,
 // and alone as a statement
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: i32 }
 let parse(s:cstr):Result<i64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s { if c < '0' || c > '9' { return err($`not a number: ${s}`) } }

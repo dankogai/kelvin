@@ -1,7 +1,7 @@
 // x += y on an enum with values, by the operator the program defines
 // (#128): x = x + y, as for a struct (#42); for one that owns, x is read
 // before what it held is freed, so x = x + y and x = f(x) keep its value
-enum maybe { none; some: i64 }
+enum maybe { none; some: int64 }
 let +(a:maybe, b:maybe):maybe {
     if a.is(some) && b.is(some) { return {.some = a.some + b.some} }
     return {.none}

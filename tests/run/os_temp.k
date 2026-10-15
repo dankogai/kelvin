@@ -3,7 +3,7 @@
 // names a place; OS.mkdtemp(prefix): a temporary directory, its path
 #import <errno.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var t = OS.mkstemp("kelvin_test_")
     println(t.typename)
     if t.is(ok) {

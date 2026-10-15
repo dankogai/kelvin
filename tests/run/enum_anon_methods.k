@@ -2,7 +2,7 @@
 // receiver by the type's spelling, let enum{...}.name(), with self as any
 // method's; an operator takes it by its spelling too; and an operator of
 // an enum with values, named or not, is the program's when it defines one
-enum { nothing; just: i64 }
+enum { nothing; just: int64 }
 let enum{nothing, just: i64}.orZero():i64 { .is(just) ? .just : 0 }
 let enum{nothing, just: i64}.or(v:i64):i64 { .is(just) ? .just : v }
 let enum{nothing, just: i64}.twice():i64 { .orZero() * 2 }      // one method calls another

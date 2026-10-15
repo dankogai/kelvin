@@ -11,7 +11,7 @@ struct money { cents: i64 }
 
 // a value may go on with an annotated operand on the next line, and a
 // definition starts with let (#45)
-let rate:f64 = (3:f64)
+let rate:float64 = (3:f64)
     / (2:f64)
 let +(var a:money, n:i64):money {
     a.cents += n

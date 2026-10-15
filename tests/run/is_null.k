@@ -5,7 +5,7 @@ struct node { v: i64; next: node^ }
 struct odd { isNull: i64 }
 let twice(n:i64):i64 { n * 2 }
 let main():i32 {
-    var p:i64^
+    var p:int64^
     let n:node = {1, nullptr}
     var q := &n
     var f:(i64):i64

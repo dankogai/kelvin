@@ -12,7 +12,7 @@ var temp.celsius:f64 {
 }
 static var rect.made:i64 = 0
 extend rect {
-    let perimeter:f64 { 2.0 * (.w + .h) }        // an attribute
+    let perimeter:float64 { 2.0 * (.w + .h) }        // an attribute
     let scaled(k:f64):Self { (Self){.w * k, .h * k} }   // a method
     let doubled():Self { .scaled(2.0) }              // which calls another
     static let unit:Self = {1.0, 1.0}                     // a type attribute

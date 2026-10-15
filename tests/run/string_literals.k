@@ -1,7 +1,7 @@
 // a string literal where a String is expected becomes a String (#70): a
 // typed declaration, an assignment, an element, an entry, a member
 struct bag { name: String }
-let main():i32 {
+let main():int32 {
     var s:String = "x"
     s = "y"
     var xs = Array<String>(["a", "b"])

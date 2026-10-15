@@ -3,7 +3,7 @@
 // for k, v in d in the order added; String and integer keys; owners as
 // values, nested
 let total(d:${String: i64}^):i64 {
-    var n:i64 = 0
+    var n:int64 = 0
     for k, v in d^ { n += v }
     return n
 }

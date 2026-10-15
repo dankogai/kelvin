@@ -20,7 +20,7 @@ let keep(n:i64):Result<i64, i32> {
     return n
 }
 let main():i32 {
-    var a:i64? = 12
+    var a:int64? = 12
     var b:i64? = 3
     var c:i64? = none
     var a1 = a.flatMap(half)

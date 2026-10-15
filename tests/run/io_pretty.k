@@ -2,7 +2,7 @@
 // writes to the IO's own stream, so the file holds the indented text, as
 // println shows it, and whole values on one line beside it (#123)
 #import <IO>
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 let main():i32 {
     var d = ${"a": $[1, 2]}
     let p:point = {1, 2}

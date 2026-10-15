@@ -2,7 +2,7 @@
 // from text, appended with text, a codepoint or another String, walked by
 // codepoint, counted, compared, copied, held by a struct, and borrowed
 #import <string.h> as C
-struct person { name: String; age: i64 }
+struct person { name: String; age: int64 }
 let shout(s:String^):String {
     var r = String()
     for c in s^ {

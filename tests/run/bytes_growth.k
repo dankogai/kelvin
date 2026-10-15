@@ -1,6 +1,6 @@
 // a Bytes grows by doubling, holds any count, and takes a template's text
 // and a byte (#54)
-let main():i32 {
+let main():int32 {
     var b = Bytes()
     for i in 0..<100000 { b += "0123456789" }
     println(b.count, " ", b.capacity, " ", b[999999])

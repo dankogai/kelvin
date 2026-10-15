@@ -1,7 +1,7 @@
 // the complex functions of modules/math.k as methods (#148), z.exp(),
 // z.abs(), z.pow(w), and z.i, z times i
 #import <math>
-let main():i32 {
+let main():int32 {
     let z = c64(1.0, 2.0)
     let i = c64(0.0, 1.0)
     println(z.conj(), " ", z.abs() * z.abs() - z.norm() < 1e-12, " ", z.arg() == arg(z), " ", z.i, " ", z.i == z * i, " ", i.i)

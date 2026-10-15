@@ -1,7 +1,7 @@
 // a Dictionary type in braces (#70): ${K: V}, nested, as a parameter, a
 // member, with Array and struct values
 let total(d:${String: i64}^):i64 {
-    var n:i64 = 0
+    var n:int64 = 0
     for k, v in d^ { n += v }
     return n
 }

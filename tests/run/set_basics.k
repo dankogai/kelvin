@@ -3,7 +3,7 @@
 // elements, for x in s in the order added; integer and String elements
 struct tags { names: ${String}; ids: Set<i64> }
 let count_odd(s:${i64}^):i64 {
-    var n:i64 = 0
+    var n:int64 = 0
     for x in s^ { if x % 2 == 1 { n += 1 } }
     return n
 }

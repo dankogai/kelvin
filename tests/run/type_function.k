@@ -2,7 +2,7 @@
 // static func, with no self, called as T.name(...); T a struct, union or
 // enum with values of the program; the overloads of one name by their
 // parameter types, as any function's; one may call another
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 static let point.origin():Self { (Self){0, 0} }
 static let point.of(x:i64, y:i64):Self { (Self){x, y} }
 static let point.of(s:cstr):Self { Self.of(i64(s), i64(s) * 2) }

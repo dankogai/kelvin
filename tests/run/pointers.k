@@ -6,7 +6,7 @@ struct node {
 };
 
 let sum(var n:struct node^):i32 {
-    var total:i32 = 0;
+    var total:int32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
         n := n^.next;

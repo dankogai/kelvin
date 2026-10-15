@@ -13,7 +13,7 @@ let onlyStrings(key:cstr, v:const JSON^):JSON? {
     if v^.is(string) || v^.is(array) || v^.is(object) || key[0] == 0 { return v^.copy() }
     return none
 }
-let main():i32 {
+let main():int32 {
     var j = JSON.parse("{\"user\": \"ann\", \"password\": \"hunter2\", \"age\": 21, \"scores\": [1, 2, \"x\"]}")
     var a = JSON.stringify(&j, noSecrets)
     println(a)

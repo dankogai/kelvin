@@ -22,7 +22,7 @@ let main():i32 {
     var p:struct point = {1, 2};
     println(p.sum(), " ", p.fact(10));
     (42:i64).write(stdout);
-    var x:i64 = 0;
+    var x:int64 = 0;
     println(x.inc().inc().inc().inc().inc().inc().inc().inc());   // receivers evaluated once
     var t:struct timespec = {2, 500000000};
     println(t.ms());

@@ -3,7 +3,7 @@
 struct counter { n: i64; xs: Array<i64> }
 let total(c:const counter^):i64 { c^.n + c^.xs.count as i64 }
 extend counter {
-    let sum:i64 { total(&self) }                         // a const borrow
+    let sum:int64 { total(&self) }                         // a const borrow
     let next:i64 {
         var c = self.n                                   // a copy changes
         c += 1

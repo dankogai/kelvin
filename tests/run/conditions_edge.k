@@ -17,7 +17,7 @@ let main():i32 {
     println(b, " ", z);
 
     // sizeof(T) and a compound literal before a condition's {
-    var n:u64 = 16;
+    var n:uint64 = 16;
     if n > sizeof(i64) {
         println("big");
     }

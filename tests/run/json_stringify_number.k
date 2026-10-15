@@ -16,7 +16,7 @@ let main():i32 {
     println(big == ten, " ", big.count)
     var r = JSON.stringify(&j, keep, 1)
     println(r)
-    let n:i64 = 3
+    let n:int64 = 3
     var three = JSON.stringify(&j, n)
     var text = JSON.stringify(&j, "   ")
     println(three == text)

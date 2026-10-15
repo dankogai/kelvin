@@ -3,7 +3,7 @@
 // body, and every value is handled: every case of an enum with values,
 // every enumerator of an enum, or default:
 enum color { red, green, blue }
-enum shape { none; circle: f64; rect: {w:f64, h:f64} }
+enum shape { none; circle: float64; rect: {w:f64, h:f64} }
 let name(c:color):cstr {
     switch c {
     case red: return "red"

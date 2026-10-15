@@ -1,7 +1,7 @@
 // array initializers are [...] (#48): in declarations, nested in structs,
 // designated, as compound literals (T[] counts its items), and inferred
 // from items of one type; structs and unions keep {...}
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 struct bag { n: i64; xs: [i64](3); p: point }
 let sum(a:[const i64], n:i64):i64 { var s = 0; for i in 0..<n { s += a[i] }; return s }
 let main():i32 {

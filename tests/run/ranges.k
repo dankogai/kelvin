@@ -30,7 +30,7 @@ let main():i32 {
     println(sum, " ", evaluations, " ", count);
 
     // a closed range up to the type's maximum ends
-    var last:u8 = 0;
+    var last:uint8 = 0;
     var steps = 0;
     for b:u8 in 250...255 {
         last = b;

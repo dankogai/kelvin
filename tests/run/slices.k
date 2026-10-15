@@ -23,7 +23,7 @@ let main():i32 {
     var two = names[1...]
     two[0] += "!"
     println(two[0], " ", names[1], " ", two.count)
-    let n:i64 = 1
+    let n:int64 = 1
     var g = xs[n..<n + 2]
     println(g[1])
     return 0

@@ -31,7 +31,7 @@ let main():i32 {
 
     // template literals show what print shows
     let x = 1500.0
-    let y:f32 = 0.00001
+    let y:float32 = 0.00001
     println(`${x} ${10.0} ${top} ${top * 2} ${y} ${0.0001}`)
 }
 // out: 10.0 100.0 1500.0 123456.0 -2500.0

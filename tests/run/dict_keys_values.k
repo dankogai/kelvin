@@ -1,6 +1,6 @@
 // d.keys and d.values (#66): Arrays of copies of a Dictionary's keys and
 // values, in the order the entries were added, which a variable owns
-let main():i32 {
+let main():int32 {
     var ages = ${"ann": 31, "bob": 42, "cy": 7}
     ages.remove("bob")
     var ks = ages.keys

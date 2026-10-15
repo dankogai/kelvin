@@ -17,7 +17,7 @@ let main():i32 {
     // floats: the shortest text that reads back the same, with a point
     println(1.0, " ", 0.1, " ", -0.5, " ", 1.0 / 3, " ", 1e300, " ", 2.5e-8);
     println(0.1:f32, " ", 16777216:f32, " ", 1.0:f32 / 3);
-    var zero:f64 = 0.0;
+    var zero:float64 = 0.0;
     println(zero / zero, " ", -(zero / zero), " ", 1 / zero, " ", -1 / zero);   // NaN's sign is not shown
 
     // bool, strings, null strings

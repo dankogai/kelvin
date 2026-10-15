@@ -26,7 +26,7 @@ let main(argc:i32, argv:u8^^):i32 {
     println(a, " ", kept, " ", low, " ", e1, " ", neg, " ", e2, " ", high, " ", e3)
 
     // a base outside 2 to 36 at run time, a NULL text, and a written octal base
-    var base:i64 = 0
+    var base:int64 = 0
     let b0 = i32("0x10", base)
     base = 37
     let b37 = i32("10", base)

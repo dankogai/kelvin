@@ -1,7 +1,7 @@
 #import <stdio.h> as C
 
 let main():i32 {
-    var val:u64 = 10;              // C: 10UL
+    var val:uint64 = 10;              // C: 10UL
     var f:f32 = 1.5;               // C: 1.5f
     var big:u64 = 0xffffffffffffffff;
     var mask:u32 = 0xff;           // hex digits a-f are not suffixes

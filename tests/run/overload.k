@@ -81,7 +81,7 @@ let once(n:i64):i64 { n }
 
 let main():i32 {
     let v:vec = {3.0, -4.0}
-    let small:i32 = 21
+    let small:int32 = 21
     let quarter:f32 = 0.25
     let name:u8^ := "abc" as u8^
     let n:i64 = 3

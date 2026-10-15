@@ -1,6 +1,6 @@
 // a Dictionary literal in braces (#69): ${k: v}, ${:}, {k: v} where the type
 // is written, Dictionary<K, V>({k: v}), nested, with struct and Array values
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: i32 }
 let main():i32 {
     var d = ${"a": 1, "b": 2}
     var e:${String: i64} = ${:}

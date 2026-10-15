@@ -5,7 +5,7 @@
 #import <errno.h> as C
 #import <string.h> as C
 #import <OS>
-let main():i32 {
+let main():int32 {
     var msg = OS.strerror(ENOENT)
     println(msg, " ", msg.typename)
     println(OS.setenv("KELVIN_BEYOND", "1"))

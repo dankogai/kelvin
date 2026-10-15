@@ -10,7 +10,7 @@ let main(argc:i32, argv:[cstr]):i32 {
     var a = [0, 1, 2, 3]
     let b:[f64] = [1.5, 2.5]
     var z = [u8](5)
-    let n:i64 = i64(argc) * 9             // 9: a count C computes, a VLA
+    let n:int64 = i64(argc) * 9             // 9: a count C computes, a VLA
     var line = [u8](n)
     line[n - 1] = 7
     var g:bag = {1, [7, 8, 9], "hey"}

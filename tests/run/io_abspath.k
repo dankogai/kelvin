@@ -3,7 +3,7 @@
 // new name and a removed one by the name it had; "" where neither the path
 // nor the descriptor answers, as of a pipe
 #import <IO>
-let main():i32 {
+let main():int32 {
     var f = IO("io_abspath.tmp", "w")
     if f.error == 0 {
         f.write("x")

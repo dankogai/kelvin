@@ -2,7 +2,7 @@
 // with x bound to the value, a let the enum still owns, as if let n(x)
 // binds it; of an Optional, a Result, an enum with values; the same
 // name may serve several cases; a value no place holds is read once
-enum shape { none; dot: i64; name: String; pair: {x: i64, y: i64} }
+enum shape { none; dot: int64; name: String; pair: {x: i64, y: i64} }
 let half(v:i64):i64? { v % 2 == 0 ? v / 2 : none }
 let show(s:const shape^) {
     switch s^ {

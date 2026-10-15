@@ -14,7 +14,7 @@ let square(x:i64):i64 { x * x }
 let where(p:i32^):uintptr_t { p.addr }      // a number, which may be returned
 
 let main():i32 {
-    var x:i32 = 7
+    var x:int32 = 7
     let p:i32^ := &x
     let s:cstr := "abc"
     let q:any^ := nullptr

@@ -2,7 +2,7 @@
 // enum with values: null, boolean, number, string, array, object; a text
 // that is not JSON gives the case error with the message and the offset
 #import <JSON>
-let main():i32 {
+let main():int32 {
     var j = JSON.parse("{\"name\": \"kelvin\", \"tags\": [\"c\", 11, -2.5e3, true, null], \"ok\": false, \"nested\": {\"a\": [], \"b\": {}}}")
     println(j.is(object), " ", j.object.count, " ", j.object["name"].string, " ", j.object["tags"].array.count)
     println(j.object["tags"].array[1].number, " ", j.object["tags"].array[2].number, " ", j.object["tags"].array[3].boolean, " ", j.object["tags"].array[4].is(null))

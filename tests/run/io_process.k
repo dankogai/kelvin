@@ -4,7 +4,7 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_process.tmp"
-let main():i32 {
+let main():int32 {
     var p = IO.popen("printf 'one\\ntwo\\n'", "r")
     if p.error == 0 {
         for line in p.lines { println("[", line, "]") }

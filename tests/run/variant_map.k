@@ -12,7 +12,7 @@ let parse(s:cstr):Result<i64, String> {
 }
 let code(s:String):i32 { return s.count as i32 }
 let main():i32 {
-    var a:i64? = 3
+    var a:int64? = 3
     var n:i64? = none
     var b = a.map(twice)
     var c = n.map(twice)

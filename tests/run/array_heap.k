@@ -1,7 +1,7 @@
 // Array<T> (#57): a growable array of T on the heap, an owner: made,
 // grown, indexed (checked), walked, copied, moved by return and by
 // passing, held by a struct, borrowed, nested, and freed by its block
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 struct bag { tag: i64; items: Array<i64> }
 let squares(n:i64):Array<i64> {
     var xs = Array<i64>()

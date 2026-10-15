@@ -4,7 +4,7 @@
 enum json { null; b: bool; n: f64; s: String; a: Array<json> }
 let count(j:const json^):i64 {
     if j^.is(a) {
-        var n:i64 = 1
+        var n:int64 = 1
         for x in j^.a { n += count(&x) }
         return n
     }

@@ -9,7 +9,7 @@ struct box { xs:[i32](len); };
 struct point { x:i32; y:i32; };
 
 // a prelude without <limits.h> leaves its names free
-let CHAR_BIT:i64 = 7;
+let CHAR_BIT:int64 = 7;
 let INT_MAX:i64 = 100;
 
 var calls:i64 = 0;

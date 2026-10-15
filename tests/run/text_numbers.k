@@ -22,7 +22,7 @@ let main():i32 {
 
     // out of range clamps to the type's limits, with errno set
     errno = 0
-    let small:i8 = i8("300")
+    let small:int8 = i8("300")
     let big_errno = errno == ERANGE
     println(small, " ", i8("-300"), " ", u8("-1"), " ", u8("256"), " ", big_errno)
     println(i64("9223372036854775807"), " ", i64("-9223372036854775808"), " ", i64("99999999999999999999"), " ",

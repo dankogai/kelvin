@@ -2,7 +2,7 @@
 // as print shows it (#123), Strings inside quoted; in a template's room it
 // is cut as a string value is, past KV_TEMPLATE_STR bytes, and in $`...`
 // it is whole
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2, 3]
     var names = $[$"ann", $"b\"c"]
     var d = ${"k": $[1]}

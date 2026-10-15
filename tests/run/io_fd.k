@@ -16,7 +16,7 @@ let main():i32 {
     println(w.cstr)
     var f = IO(path, "r")
     if f.error == 0 {
-        let fd:i32 = f.fd
+        let fd:int32 = f.fd
         var g = IO(fd, "r")                      // a second IO on the same descriptor
         if g.error == 0 {
             println(g.fd == fd, " ", g.typename)

@@ -1,6 +1,6 @@
 // declaration lists and globals with := (review of #19); a list either
 // declares, with let or var, or assigns (#27)
-var x:i32 = 7;
+var x:int32 = 7;
 var y:i32 = 1;
 var g := 0 as i32^;                     // a global reference, inferred
 static var h := 0 as i32^;

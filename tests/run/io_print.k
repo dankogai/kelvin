@@ -3,7 +3,7 @@
 // up to 16 values, nothing at all; to a file, to IO.stderr, to IO.stdout
 #import <stdio.h> as C
 #import <IO>
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: i32 }
 let path := "io_print.tmp"
 let write_it():Result<i64, i32> {
     let f = IO(path, "w")

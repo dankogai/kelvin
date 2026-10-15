@@ -7,7 +7,7 @@
 // IO(path) alone opens for reading, a directory too
 #import <errno.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     println(OS.makedirs("io_path.tmpdir/sub"))
     var f = IO("io_path.tmpdir/sub/f.txt", "w")
     if f.error == 0 {

@@ -22,7 +22,7 @@ let main():i32 {
     var out:FILE^ := stdout;                // so does FILE, and macros like stdout
     fprintf(out, "%d\n", greet_answer());
 
-    var p:i32^ := malloc(4 * sizeof(i32)) as i32^;
+    var p:int32^ := malloc(4 * sizeof(i32)) as i32^;
     if p == NULL {
         return 1;
     }

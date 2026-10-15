@@ -6,7 +6,7 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_exec.tmp"
-let main():i32 {
+let main():int32 {
     var p = IO.exec(["printf", "one\\ntwo\\n"], "r")
     if p.error == 0 {
         for line in p.lines { println("[", line, "]") }

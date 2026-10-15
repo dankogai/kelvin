@@ -4,7 +4,7 @@ enum { nothing; just: i64 }
 extend enum{nothing, just: i64} {
     let orZero():i64 { .is(just) ? .just : 0 }
     let isJust:bool { .is(just) }
-    var value:i64 {
+    var value:int64 {
         get { .orZero() }
         set(v) { self = just(v) }
     }

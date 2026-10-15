@@ -7,7 +7,7 @@ let say(s:cstr):bool { puts(s); return true; }
 var table:[i32](4) = [1, 2, 3, 4];
 
 let main():i32 {
-    var n:i32 = 2, best:i32 = 0, flag:i32 = 1;
+    var n:int32 = 2, best:i32 = 0, flag:i32 = 1;
     var a:[i32](3) = [1, 2, 3];
 
     // products whose values are used are expressions, not C declarations

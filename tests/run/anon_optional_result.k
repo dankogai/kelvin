@@ -2,7 +2,7 @@
 // is read as a signature, the ? being the type's, since `in` follows;
 // and its one-expression body is wrapped as `return` wraps it: a U, or
 // none
-let apply(f:(cstr, i64):i64?, n:i64):i64 {
+let apply(f:(cstr, int64):i64?, n:i64):i64 {
     var r = f("k", n)
     return r ?? -1
 }

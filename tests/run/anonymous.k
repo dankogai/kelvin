@@ -5,7 +5,7 @@
 
 struct counter { hits:[i64](3); };
 
-var total:i64 = 0;
+var total:int64 = 0;
 let step = 10;
 
 let apply(x:i64, f:(i64):i64):i64 { return f(x); }

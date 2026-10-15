@@ -1,7 +1,7 @@
 // an Array of owners (#57): Strings, Bytes and Arrays as elements, freed
 // with it; xs[i] = v frees the old element; copy() copies them; append of
 // a borrow copies them; each element in turn is borrowed, not moved
-let main():i32 {
+let main():int32 {
     var names = Array<String>()
     names += String("ada")
     names += String("linus")

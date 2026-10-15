@@ -15,7 +15,7 @@ let main():i32 {
     if let ok(v) = k { println("ok ", v + 1) }
     if let err(e) = parse("x") { println("call err ", e, " ", e.count) }
     if let ok(v) = r { println(v) } else if let err(e) = r { println("chained ", e) }
-    var o:i64? = 3
+    var o:int64? = 3
     if let some(v) = o { println("some ", v) }
     var j = json.s($"txt")
     if let s(t) = j { println("s ", t, " ", t.count) } else { println("not s") }

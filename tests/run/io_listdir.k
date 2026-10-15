@@ -4,7 +4,7 @@
 // the descriptor's name (#105); an IO that is no readable directory, or
 // nothing, gives none
 #import <IO>
-let main():i32 {
+let main():int32 {
     println(OS.makedirs("io_listdir.tmpdir/sub"))
     var f = IO("io_listdir.tmpdir/sub/f.txt", "w")
     if f.error == 0 {

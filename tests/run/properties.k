@@ -3,7 +3,7 @@ struct point { x:i32; y:i32; };
 struct sized { size:u64; hex:i32; };       // fields win over properties
 
 let main():i32 {
-    var a:i8 = -1;
+    var a:int8 = -1;
     var b:u8 = 255;
     var c:i32 = 42;
     var d:u64 = 18446744073709551615;

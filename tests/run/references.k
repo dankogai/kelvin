@@ -22,7 +22,7 @@ let main():i32 {
     var a:struct node = {1, &b};
     println(sum(&a));
 
-    var p:i32^ := &a.value;                    // typed declarations use := too
+    var p:int32^ := &a.value;                    // typed declarations use := too
     var q:i32^ := p;
     q := &b.value;                          // reassigning a reference
     q^ = 20;                                // assigning the value it refers to

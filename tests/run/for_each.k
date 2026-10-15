@@ -1,7 +1,7 @@
 // for x in s (#30): each element of a sequence that ends at a terminator
 #import <stdlib.h> as C
 #import <string.h> as C
-struct node { value:i64; next:node^; };
+struct node { value:int64; next:node^; };
 struct point { x:i32; y:i32; };
 
 let vowels(s:cstr):i64 {

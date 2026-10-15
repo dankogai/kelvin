@@ -2,7 +2,7 @@
 // setter's new value moves in, and the type's owners are freed as ever
 struct Names { xs: Array<String> }
 extend Names {
-    var [](i:i64):String {
+    var [](i:int64):String {
         get { .xs[i].copy() }
         set(v) { .xs[i] = v.copy() }
     }

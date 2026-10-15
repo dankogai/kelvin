@@ -46,7 +46,7 @@ let main():i32 {
         printf("%d:%ld ", i, j);
     printf("\n");
 
-    var n:i32 = 0;
+    var n:int32 = 0;
     do {
         n += 2;
     } while n < 5;

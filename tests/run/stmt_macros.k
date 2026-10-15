@@ -4,7 +4,7 @@
 #import "include/stmt_macros.h" as C
 
 let main():i32 {
-    var x:i32 = 1, y:i32 = 2;
+    var x:int32 = 1, y:i32 = 2;
     SWAP(x, y);
     LOG(x);
     CHECK(x == 1);

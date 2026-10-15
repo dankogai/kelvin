@@ -1,6 +1,6 @@
 // a method's self is a let (#138), const in C as any let (#27): it is
 // read and borrowed as const T^, and a var copy of it changes
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 let norm1(p:const point^):i64 { (p^.x < 0 ? -p^.x : p^.x) + (p^.y < 0 ? -p^.y : p^.y) }
 extend point {
     let moved(dx:i64):point {

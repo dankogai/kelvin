@@ -5,7 +5,7 @@ struct node { v: i64; next: node^ }
 struct cur { p: u8^ }
 let main():i32 {
     let s:cstr := "hello"
-    var p:u8^ := s                  // a cstr does not step: a u8^ cursor does (#52)
+    var p:uint8^ := s                  // a cstr does not step: a u8^ cursor does (#52)
     p++
     p++; p--
     var c:cur = {s}

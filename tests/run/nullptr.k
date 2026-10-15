@@ -5,7 +5,7 @@
 
 struct node { value:i32; next:struct node^; };
 
-var g:i32^;                                // a global reference: nullptr
+var g:int32^;                                // a global reference: nullptr
 
 let fill(p:any^, n:u64):any^ {
     return memset(p, 7, n);

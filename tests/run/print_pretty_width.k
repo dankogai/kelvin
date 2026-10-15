@@ -9,7 +9,7 @@ let main():i32 {
     let p:point = {1, 2}
     println(d.pretty(4))
     println(p.pretty(0))
-    let w:i64 = 99
+    let w:int64 = 99
     var s = d.pretty(w)
     println(s.count, " ", s.typename)
     println(`t = ${p.pretty(3)}`)

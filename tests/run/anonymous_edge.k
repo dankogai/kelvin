@@ -6,7 +6,7 @@ struct ops {
     name:cstr;
 };
 
-var total:i64 = 0;
+var total:int64 = 0;
 var other:i64 = 0;
 
 let apply(x:i64, f:(i64):i64):i64 { return f(x); }

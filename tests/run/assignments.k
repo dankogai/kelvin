@@ -27,7 +27,7 @@ let main():i32 {
     println(buf);
 
     var xs:[i32](3) = [10, 20, 30];
-    var p:i32^ := &xs[0];
+    var p:int32^ := &xs[0];
     println(p.next^, " ", p.next.next^, " ", p.next.next.prev^, " ", (p.next - p) as i64);
 
     // a field named next is a field: n^.next

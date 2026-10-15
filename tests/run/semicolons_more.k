@@ -39,7 +39,7 @@ let describe(n:i64) {
         println("big")
     }
 }
-var calls:i64 = 0
+var calls:int64 = 0
 let none_first(xs:i64^, n:i64) {
     for (var i:i64 = 0; i < n && xs[i] != 0; i += 1)
         return

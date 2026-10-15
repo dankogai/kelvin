@@ -1,7 +1,7 @@
 // uchr (#56): a codepoint on the stack, shown as its UTF-8 by print, a
 // template and .cstr; for c in s gives one; .utf32 and .codepoint are the
 // number, n.uchr and uchr(x) make one, U+FFFD where x is no codepoint
-let main():i32 {
+let main():int32 {
     var s = String("コガイ ダン")
     for c in s { print(c, "|") }
     println()

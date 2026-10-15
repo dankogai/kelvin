@@ -3,7 +3,7 @@
 // (#122): the derived text, or the type's own T.cstr(); f.print too;
 // through kelvinc's printer of the type since #123
 #import <IO>
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 struct vector2d { x: f64; y: f64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }
 enum maybe { nothing; just: i64 }

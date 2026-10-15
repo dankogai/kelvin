@@ -8,7 +8,7 @@ extend money {
     static let -(a:Self):Self { (Self){-a.cents} }
     static let <(a:Self, b:Self):bool { a.cents < b.cents }
     static let ==(a:Self, b:Self):bool { a.cents == b.cents }
-    let dollars:f64 { .cents / 100.0 }
+    let dollars:float64 { .cents / 100.0 }
 }
 enum maybe { none; some: i64 }
 extend maybe {

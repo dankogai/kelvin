@@ -3,7 +3,7 @@
 // then .status is -1 for a process a signal ended
 #import <stdio.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var k = IO.popen("kill -9 $$", "r")
     if k.error == 0 {
         println(k.signal, " ", k.status)

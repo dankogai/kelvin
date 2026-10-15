@@ -28,7 +28,7 @@ again:
     }
     println(strlen(g), " ", &g[strlen(g) - 7])
     // numbers at their longest, also where C converts them to int
-    let a:i8 = -128
+    let a:int8 = -128
     let u:u8 = 200
     let low:i128 = i128("-170141183460469231731687303715884105728")
     println(`${a * a} ${-u} ${~u} ${true ? a : a} ${low} ${-2.2250738585072014e-308} ${'A'} ${a < a}`)

@@ -11,7 +11,7 @@ let main(argc:i32, argv:[cstr]):i32 {
     var t:[u8](32)
     strcpy(t, s)
     t[0] = 'U'
-    var p:u8^ := s                 // allowed, not encouraged: writing through p is C's undefined behavior
+    var p:uint8^ := s                 // allowed, not encouraged: writing through p is C's undefined behavior
     shout(t)
     let first = s[0]
     s := "short"

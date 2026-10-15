@@ -22,7 +22,7 @@ extend bag {
         .bump(&k)                                         // a statement too: self.bump(&k)
         return k
     }
-    var count:i64 {
+    var count:int64 {
         get { .n }
         set(v) {
             .n = v * 2

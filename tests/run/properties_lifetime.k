@@ -4,7 +4,7 @@ let i32.pass(p:u8^):u8^ { return p; }
 let i32.same():Self { return self; }
 
 let main():i32 {
-    var a:i32 = 1;
+    var a:int32 = 1;
     var b:u64 = 255;
     var c:u64 = 4096;
     var v:u8^ := a.pass(b.dec);

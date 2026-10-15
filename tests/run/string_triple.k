@@ -5,7 +5,7 @@
 // delimiter's indentation comes off each line; a longer delimiter, """",
 // holds a """ inside; the inline form """as it is""" keeps everything
 #import <JSON>
-let main():i32 {
+let main():int32 {
     let text := """
         {"name": "kelvin",
           "tags": ["c", 11], "esc": "a\"b\\c\n", "q": "what?"}

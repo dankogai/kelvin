@@ -11,7 +11,7 @@ let add(a:i64, b:i64):i64 { return a + b; }
 let mul(a:i64, b:i64):i64 { return a * b; }
 
 let fold(xs:i64^, n:size_t, start:i64, f:(i64, i64):i64):i64 {
-    var acc:i64 = start;
+    var acc:int64 = start;
     for i in 0..<n {
         acc = f(acc, xs[i]);
     }

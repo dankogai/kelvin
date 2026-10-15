@@ -9,7 +9,7 @@ let main():i32 {
     printf("%d %d\n", i32(sizeof answer), i32(sizeof i));
     printf("%d\n", big > 0);
 
-    var b:u8 = 255;
+    var b:uint8 = 255;
     b = b + 1;                  // C semantics: converts back to u8, wraps
     printf("%d\n", b);
 

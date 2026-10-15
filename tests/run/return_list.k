@@ -3,7 +3,7 @@
 // an enum with values' {.n = v}, and the value of a Result or an
 // Optional, wrapped
 #import <time.h> as C
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: i32 }
 union num { i: i32; f: f32 }
 enum json { n: f64; s: cstr }
 struct timespec;

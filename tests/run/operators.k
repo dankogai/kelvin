@@ -1,7 +1,7 @@
 let printf(fmt:const u8^, ...):i32;
 
 let main():i32 {
-    var a:u32 = 12, b:u32 = 10;
+    var a:uint32 = 12, b:u32 = 10;
     printf("%u %u %u\n", a & b, a | b, a ~ b);   // ~ is XOR
     printf("%u\n", ~a & 0xff);                    // unary ~ is still NOT
     a ~= b;                                        // XOR-assign

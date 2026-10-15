@@ -2,7 +2,7 @@
 // walked, compared, copied, moved by return and by passing, held by a
 // struct, borrowed, and freed when its block ends
 #import <string.h> as C
-struct msg { id: i64; body: Bytes }
+struct msg { id: int64; body: Bytes }
 let greeting(name:cstr):Bytes {
     var b = Bytes("hello, ")
     b += name

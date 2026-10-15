@@ -5,7 +5,7 @@
 let twice(v:i32):i32 { return v * 2; }
 
 let main():i32 {
-    var x:i32 = 3;
+    var x:int32 = 3;
     var n:size_t = 2;
 
     // `*` after the type of `as` is multiplication

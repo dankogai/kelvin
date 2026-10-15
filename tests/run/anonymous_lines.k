@@ -22,7 +22,7 @@ let tick(n:i64) { print(n, " "); }
 // a function in a member's length, and globals of one declaration
 struct holder { buf:[u8](sizeof(apply(1) { $0 })); };
 var buf:[u8](16), fill := { (a:[u8](sizeof(buf))) in a[0] = 1 };
-let N:i64 = 3;
+let N:int64 = 3;
 let total(xs:i64^, f:([i64](N)):i64):i64 { return f(xs); }
 
 let main():i32 {

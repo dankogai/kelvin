@@ -2,7 +2,7 @@
 // one, p.cstr, as it is, not as p.cstr.cstr, which crashed kelvinc; a
 // property that gives a struct, f.stat (#104), is still a struct
 #import <IO>
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 struct line { a: point; b: point }
 let mid(l:line):point { return {(l.a.x + l.b.x) / 2, (l.a.y + l.b.y) / 2} }
 let main():i32 {

@@ -1,6 +1,6 @@
 // |, & and ~ on Sets (#73): the union, the intersection and the symmetric
 // difference, new Sets; |=, &= and ~= in place
-let main():i32 {
+let main():int32 {
     var s = ${1, 2, 3}
     var t = ${3, 4}
     var u = s | t

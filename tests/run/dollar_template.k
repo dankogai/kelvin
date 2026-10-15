@@ -4,7 +4,7 @@
 struct point { x: i32; y: i32 }
 let main():i32 {
     let name:cstr := "Kelvin"
-    let n:i64 = 42
+    let n:int64 = 42
     var s = $`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`
     println(s, " ", s.count, " ", s.typename)
     var big = $"x"

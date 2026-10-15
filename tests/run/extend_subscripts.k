@@ -2,7 +2,7 @@
 // { get { } set(v) { } } also written as v[i] = y and v[i] += y on the
 // var that holds v; several indices read v[r, c], and subscripts
 // overload by the indices' types; alone, let T[](i:I):R { }
-struct Grid { w: i64; cells: [i64](6) }
+struct Grid { w: int64; cells: [i64](6) }
 extend Grid {
     let [](i:i64):i64 { .cells[i] }                  // read only
     var [](r:i64, c:i64):i64 {                           // read and written

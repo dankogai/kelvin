@@ -6,7 +6,7 @@
 #import <stdlib.h> as C
 
 let kind(b:bool):cstr { "bool" }
-let kind(n:i8):cstr { "i8" }
+let kind(n:int8):cstr { "i8" }
 let kind(n:u8):cstr { "u8" }
 let kind(n:i16):cstr { "i16" }
 let kind(n:u16):cstr { "u16" }

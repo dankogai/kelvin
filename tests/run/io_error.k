@@ -7,7 +7,7 @@
 let count(path:cstr):Result<i64, i32> {
     let f = IO(path)
     if f.error != 0 { return err(f.error) }
-    var n:i64 = 0
+    var n:int64 = 0
     for line in f.lines { n += 1 }
     return n
 }

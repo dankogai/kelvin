@@ -4,7 +4,7 @@
 // SYS: the arguments, the platform, and exiting
 #import <string.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var args = SYS.argv
     println(args.count >= 1, " ", args[0].count > 0, " ", args.typename)
     let p := SYS.platform

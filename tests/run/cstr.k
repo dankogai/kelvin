@@ -61,7 +61,7 @@ let main():i32 {
     println(c.cstr);
 
     // a pointer to volatile bytes is an address
-    var v:u8 volatile^ := "text";
+    var v:uint8 volatile^ := "text";
     println(v.cstr[0] == '0');
 
     // cstr is u8^

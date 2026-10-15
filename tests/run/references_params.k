@@ -1,6 +1,6 @@
 // an array parameter is a pointer, as in C: reassign it with :=
 let sum(var a:[i32](4), n:i32):i32 {
-    var t:i32 = 0;
+    var t:int32 = 0;
     var end:i32^ := a + n;
     for (; a < end; a := a + 1)
         t += a^;

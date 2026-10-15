@@ -13,7 +13,7 @@ let main():i32 {
     var c = third(9)
     var d = third(8)
     println(a.cstr, " ", b.cstr, " ", c.cstr, " ", d.cstr)
-    let n:i64 = 5
+    let n:int64 = 5
     var e = n > 2 ? Optional<i64>(n) : none
     var f = n > 9 ? none : Optional<i64>(n)
     var g:i64? = n > 9 ? n : none

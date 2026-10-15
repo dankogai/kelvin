@@ -5,7 +5,7 @@
 #import <errno.h> as C
 #import "include/event.h" as C
 
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:i32; };
 struct tagged { type:i32; v:i64; };
 
 let k = 3;

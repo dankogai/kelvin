@@ -1,7 +1,7 @@
 // struct, union and enum tags are types by their bare name (#29)
 #import <stdlib.h> as C
 #import <time.h> as C
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:i32; };
 struct node { value:i64; next:node^; };      // the struct's own name, inside it
 union number { i:i32; f:f32; };
 enum color { RED, GREEN, BLUE };

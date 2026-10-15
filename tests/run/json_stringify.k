@@ -2,7 +2,7 @@
 // space, text that indents each level; numbers as JS writes them;
 // strings escaped; members in the order added
 #import <JSON>
-let main():i32 {
+let main():int32 {
     var j = JSON.parse("{\"name\": \"kelvin\", \"tags\": [\"c\", 11, -2.5e3, true, null], \"nested\": {\"a\": [], \"b\": {}}, \"esc\": \"q\\\"b\\\\\\n\\u00e9\\t\\u0001\"}")
     var flat = JSON.stringify(&j)
     println(flat)

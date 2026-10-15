@@ -2,7 +2,7 @@
 // struct per spelling, so two written alike are one type; members,
 // initializers, compound literals, text, parameters and results, nesting,
 // arrays, pointers, Array<T> and owners as members
-let norm(v:{x:f64, y:f64}):f64 { return v.x * v.x + v.y * v.y }
+let norm(v:{x:float64, y:f64}):f64 { return v.x * v.x + v.y * v.y }
 let origin():{x:f64, y:f64} {
     var o:{x:f64, y:f64} = {0.0, 0.0}
     return o

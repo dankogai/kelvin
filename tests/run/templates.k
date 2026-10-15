@@ -26,7 +26,7 @@ let jump(n:i64) {
 }
 let apply(x:i64, f:(i64):i64):i64 { f(x) }
 
-var calls:i64 = 0
+var calls:int64 = 0
 let next():i64 {
     calls += 1
     return calls

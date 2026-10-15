@@ -23,7 +23,7 @@ let main():i32 {
         println("grouped");
     }
 
-    var n:i32 = 3;
+    var n:int32 = 3;
     var steps = 0;
     while n > 0 {
         n -= 1;

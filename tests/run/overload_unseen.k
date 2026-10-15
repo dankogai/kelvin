@@ -9,7 +9,7 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 
-struct vec { x: f64; y: f64 }
+struct vec { x: float64; y: f64 }
 
 let kind(n:i64):cstr { "i64" }
 let kind(n:i32):cstr { "i32" }

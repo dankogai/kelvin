@@ -3,7 +3,7 @@
 // of math.k, complex64 for c64 (#150); and the full names of the number
 // types, int64 for i64, uint8 for u8, float32 for f32 (#151)
 #import <math>
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 typealias pt = point
 typealias real = f64
 typealias count = int32

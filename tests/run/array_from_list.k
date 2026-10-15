@@ -1,7 +1,7 @@
 // Array([...]) (#58): the elements written, T inferred from them, or
 // given as Array<T>([...]); Array(a) of a fixed array and Array(&other)
 // infer T too
-let squares(n:i64):Array<i64> {
+let squares(n:int64):Array<i64> {
     var xs = Array<i64>()
     for i in 0..<n { xs += i * i }
     return xs

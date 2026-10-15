@@ -4,7 +4,7 @@
 // that cannot be entered leaves f.error, as a missing program does (#110)
 #import <errno.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var p = IO.exec(["pwd"], "r", "/")
     for line in p.lines { println(line) }
     var e = IO.exec(["sh", "-c", "echo $KELVIN_A-$KELVIN_B"], "r", "", ["KELVIN_A=hello", "KELVIN_B=world"])

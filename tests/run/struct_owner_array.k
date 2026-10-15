@@ -1,6 +1,6 @@
 // a struct that owns is copied with .copy() and may be an Array's
 // element (#61), copied and freed with it
-struct bag { name: String; items: Array<i64> }
+struct bag { name: String; items: Array<int64> }
 let main():i32 {
     var b:bag = {String("b"), Array([1, 2, 3])}
     var c = b.copy()

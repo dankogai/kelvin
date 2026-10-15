@@ -3,7 +3,7 @@
 // kill, close waits and .signal says which
 #import <signal.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var p = IO.exec(["sleep", "30"], "r")
     if p.error == 0 {
         println(p.pid > 0, " ", p.kill(SIGTERM))

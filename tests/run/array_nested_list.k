@@ -1,7 +1,7 @@
 // a [...] among the elements of Array([...]) is an Array in turn (#58):
 // Array([[0], [0]]) is Array([Array([0]), Array([0])]), an Array<Array<i64>>,
 // inferred or of the written type; Array<T>([]) is empty
-struct point { x: i32, y: i32 }
+struct point { x: int32, y: i32 }
 let main():i32 {
     var m = Array([ [0], [0] ])
     println(m.count, " ", m[1].count, " ", m.typename)

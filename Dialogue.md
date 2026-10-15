@@ -4139,3 +4139,16 @@ declaration fits, the note is in a comment. The examples' outputs are
 unchanged.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 187. The tests with the full names
+
+> now rewrite the tests with the full names too
+
+**Claude** did for the run tests what #186 did for the documents: in
+each that declares a number, one declaration writes the full name,
+`var total:int64`, a parameter, a member or an element where no
+declaration fits, so the synonyms of #151 are read across the suite
+while the outputs stay the same. The error tests are as they were,
+since they check messages.
+
+There are 749 tests, and all pass with clang and with gcc 15.

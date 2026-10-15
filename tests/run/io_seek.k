@@ -3,7 +3,7 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_seek.tmp"
-let fill():Result<i64, i32> {
+let fill():Result<int64, i32> {
     let f = IO(path, "w")
     f.print("0123456789\n")
     println(f.position, " ", f.count)

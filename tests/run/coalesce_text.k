@@ -12,7 +12,7 @@ let main():i32 {
     println(unset ?? "unset")
     let d:cstr := "dflt"
     println(unset ?? d)
-    var n:i64 = 42
+    var n:int64 = 42
     println(unset ?? n.cstr, " ", unset ?? n.hex)
     var p:u8^? = none
     println(p ?? "bytes")

@@ -12,7 +12,7 @@ let row():i64 {
 
 // a let array parameter has its declared length; a var one is a pointer
 let sum4(xs:[i32](four)):i64 {
-    var t:i64 = 0;
+    var t:int64 = 0;
     for x in xs {
         t += x;
     }

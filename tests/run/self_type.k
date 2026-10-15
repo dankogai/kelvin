@@ -17,7 +17,7 @@ extend point {
     let wide():bool { sizeof(Self) > 8 }                  // sizeof
     static let +(a:Self, b:Self):Self { a.plus(b) }       // an operator
     let [](i:i64):i64 { i == 0 ? .x : .y }
-    var first:i64 {
+    var first:int64 {
         get { .x }
         set(v) { .x = v; let u:Self = Self.unit; .y = u.y }
     }

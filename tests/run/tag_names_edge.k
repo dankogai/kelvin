@@ -15,7 +15,7 @@ let node(v:i64):node^ {                      // a constructor named like its str
 
 let main():i32 {
     let n:node^ := node(4);
-    let point:i16 = sizeof(node) as i16;
+    let point:int16 = sizeof(node) as i16;
     let size:i16 = sizeof(point) as i16;    // the variable, in scope from its declarator
     let big:big^ := malloc(sizeof(big^)) as big^;   // C's p = malloc(sizeof *p)
     big^.c = 42;

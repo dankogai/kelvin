@@ -1,7 +1,7 @@
 // an enum with values (#61): a union that knows its case; made by {.n = x},
 // T.n(x) and T.none, set by v.n = x, read checked, tested with .is() and
 // .case, switched on by name; its text; without a tag; in an Array
-enum shape { none; circle: f64; rect: {w:f64, h:f64} }
+enum shape { none; circle: float64; rect: {w:f64, h:f64} }
 let area(s:shape):f64 {
     switch (s) {
     case circle: return 3.0 * s.circle * s.circle

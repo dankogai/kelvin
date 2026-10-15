@@ -6,7 +6,7 @@ let main():i32 {
     printf("%d %d %.1f %d\n", i32(3.9), u8(300), f64(7) / 2, bool(5));
 
     // v as T for any type; malloc(...) as T is the typical use
-    var p:i32^ := malloc(3 * sizeof(i32)) as i32^;
+    var p:int32^ := malloc(3 * sizeof(i32)) as i32^;
     p[0] = 10; p[1] = 20; p[2] = 30;
     var bytes:u8^ := p as u8^;
     printf("%d %d\n", (p as i32^)[2], i32(bytes[0] == 10 || bytes[3] == 10));

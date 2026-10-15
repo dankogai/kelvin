@@ -1,6 +1,6 @@
 // attributes of a type that owns (#131, #132): a getter gives a copy of a
 // String, a setter takes one, which moves in, and the old one is freed
-struct person { name: String; age: i64 }
+struct person { name: String; age: int64 }
 extend person {
     var title:String {
         get {

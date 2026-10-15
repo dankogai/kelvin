@@ -1,6 +1,6 @@
 // $"text" is String("text") and $[a, b, c] is Array([a, b, c]) (#62),
 // nested lists included; in an anonymous function $[k] is its parameter
-let apply(f:(i64):i64, x:i64):i64 { return f(x) }
+let apply(f:(int64):i64, x:i64):i64 { return f(x) }
 let main():i32 {
     var s = $"I needed it"
     var m = $[[1, 0], [0, 1]]

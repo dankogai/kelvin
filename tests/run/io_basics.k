@@ -53,7 +53,7 @@ let main():i32 {
     var t = read_text()
     if let ok(s) = t { print(s) }
     var f1 = IO(path, "r")
-    var k:i64 = 0
+    var k:int64 = 0
     if f1.error == 0 {
         for line in f1.lines {
             k += 1

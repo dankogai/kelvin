@@ -4,7 +4,7 @@
 struct point { x:i32; y:i32; };
 
 let LIMIT = 3;                          // a global let
-var calls:i32 = 0;
+var calls:int32 = 0;
 
 let length(var p:const u8^):i64 {       // a var parameter may change
     var n = 0;

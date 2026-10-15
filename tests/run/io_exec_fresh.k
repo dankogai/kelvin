@@ -7,7 +7,7 @@ let main():i32 {
     var only = IO.exec(["env"], "r", "", ["KELVIN_ONLY=1"], true)
     for line in only.lines { println("[", line, "]") }
     var none = IO.exec(["env"], "r", "", [], true)
-    var n:i64 = 0
+    var n:int64 = 0
     for _ in none.lines { n += 1 }
     println(n)
     var env = $["KELVIN_A=a", "KELVIN_B=b"]

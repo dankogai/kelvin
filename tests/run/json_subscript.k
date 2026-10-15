@@ -3,7 +3,7 @@
 // integer, so j["a"]["b"][0] reads a path, is a place to assign to, and
 // is checked as the case and the index are
 #import <JSON>
-let main():i32 {
+let main():int32 {
     var j = JSON.parse("""{"name": "kelvin", "tags": ["c", 11, {"deep": true}], "n": 3}""")
     println(j["name"].string, " ", j["tags"][1].number, " ", j["tags"][2]["deep"].boolean, " ", j["n"].number)
     j["n"] = JSON.number(4.0)                    // replaces

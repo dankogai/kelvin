@@ -1,7 +1,7 @@
 // a function whose one expression gives an owner returns it (#81), as a
 // written anonymous function, a trailing one, and a named one; an owner
 // dropped elsewhere is still freed at once, or refused for a struct
-let positive(n:i64):Result<i64, String> {
+let positive(n:int64):Result<i64, String> {
     if n == 0 { return err($"zero") }
     return n
 }

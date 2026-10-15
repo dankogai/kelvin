@@ -3,7 +3,7 @@
 // tests' stdout is; IO.strerror(err): the message for an err, a String
 #import <errno.h> as C
 #import <IO>
-let main():i32 {
+let main():int32 {
     var f = IO("io_isatty.k.none", "r")
     if f.error != 0 {                            // the IO straight; the open's errno (#109)
         var why = IO.strerror(f.error)

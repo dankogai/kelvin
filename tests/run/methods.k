@@ -1,5 +1,5 @@
 // methods (#18): your own, on structs and built-in types
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:i32; };
 
 let point.dist2():i64 {
     return .x * .x + .y * .y;

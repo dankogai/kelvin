@@ -18,7 +18,7 @@ let main():i32 {
         var b2 = f.byte
         var b3 = f.byte
         println(b1.cstr, " ", b2.cstr, " ", b3.cstr, " ", b1.typename)
-        var sum:i64 = 0
+        var sum:int64 = 0
         var total = 0.0
         for line in f.lines {
             sum += i64(line)                 // 0 for a line with no number

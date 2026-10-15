@@ -9,7 +9,7 @@ let main():i32 {
     println(2.0.sqrt(), " ", 4.0.sqrt() == sqrt(4.0), " ", 8.0.cbrt(), " ", 3.7.floor(), " ", 3.2.ceil(), " ", 2.5.round(), " ", (-2.5).trunc())
     println(2.0.pow(10.0), " ", 7.0.fmod(3.0), " ", 3.0.hypot(4.0), " ", 1.0.atan2(1.0) == f64.pi / 4.0, " ", 1.0.fmin(2.0), " ", 1.0.fmax(2.0), " ", 2.0.fma(3.0, 1.0))
     println(abs(-2.5), " ", (-2.5).abs(), " ", abs(-2.5:f32), " ", (-2.5:f32).abs(), " ", abs(-2.5).typename, " ", abs(-2.5:f32).typename)
-    let x:f32 = 0.5
+    let x:float32 = 0.5
     println(sin(x) == x.sin(), " ", sin(x).typename, " ", x.exp().typename, " ", sin(0.5).typename, " ", exp(1.0:f32) == f32.e, " ", x.pow(2.0:f32))
     println(0.0.sin(), " ", 1.0.log(), " ", 0.0.exp(), " ", 8.0.log2(), " ", 100.0.log10(), " ", 0.0.erf())
     println(1.0.tgamma(), " ", (-1.0).copysign(1.0), " ", abs(-3), " ", abs(-3:i64), " ", abs(-3).typename, " ", abs(-3:i64).typename)

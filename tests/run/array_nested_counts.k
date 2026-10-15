@@ -1,6 +1,6 @@
 // [[T]] with a value counts every dimension from the rows (#49): the first
 // row's count, which every row matches, so C gets the inner counts it needs
-let main():i32 {
+let main():int32 {
     var array3d:[[[i32]]] = [[[0, 1], [0, 1]], [[0, 1], [0, 1]]]
     var m:[[i64]] = [[1, 2, 3], [4, 5, 6]]
     let c = ([[i32]])[[7, 8], [9, 10]]
