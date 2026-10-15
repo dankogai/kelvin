@@ -2,14 +2,14 @@
 struct point { x:i32; y:i32; };
 
 let point.dist2():i64 {
-    return self.x * self.x + self.y * self.y;
+    return .x * .x + .y * .y;
 }
 
 let point.scaled(k:i32):struct point {
-    return (struct point){self.x * k, self.y * k};
+    return (struct point){.x * k, .y * k};
 }
 
-let f64.half():f64 {
+let f64.half():Self {
     return self / 2;
 }
 

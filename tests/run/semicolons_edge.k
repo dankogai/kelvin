@@ -10,7 +10,7 @@ let mask:u32 = (1 << 4)
 
 // a prototype of a method ends at its line
 let point.twice():i64
-let point.twice():i64 { self.x * 2 }
+let point.twice():i64 { .x * 2 }
 
 // a `{` on the line after a head is the body
 let square(x:i64):i64

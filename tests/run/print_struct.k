@@ -4,13 +4,13 @@
 // through kelvinc's printer of the type since #123
 struct point { x: i64; y: i64 }
 struct vector2d { x: f64; y: f64 }
-let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
+let vector2d.cstr():cstr { `(${.x}, ${.y})` }
 enum maybe { nothing; just: i64 }
 let maybe.orZero():i64 { if let just(n) = self { return n }; return 0 }
-let maybe.cstr():cstr { `<${self.orZero()}>` }
+let maybe.cstr():cstr { `<${.orZero()}>` }
 enum shape { dot; circle: f64 }
 union bits { u: u64; f: f64 }
-let bits.cstr():cstr { `bits ${self.u.hex}` }
+let bits.cstr():cstr { `bits ${.u.hex}` }
 let origin():point { return {0, 0} }
 let main():i32 {
     let p:point = {1, 2}

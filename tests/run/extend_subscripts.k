@@ -4,10 +4,10 @@
 // overload by the indices' types; alone, let T[](i:I):R { }
 struct Grid { w: i64; cells: [i64](6) }
 extend Grid {
-    let [](i:i64):i64 { self.cells[i] }                  // read only
+    let [](i:i64):i64 { .cells[i] }                  // read only
     var [](r:i64, c:i64):i64 {                           // read and written
-        get { self.cells[r * self.w + c] }
-        set(v) { self.cells[r * self.w + c] = v }
+        get { .cells[r * .w + c] }
+        set(v) { .cells[r * .w + c] = v }
     }
     let total():i64 {                                    // self[i] in a method
         var t = 0
@@ -20,7 +20,7 @@ let Grid[](i:i32):i64 { -1 }                             // i32, against i64
 struct Row { g: Grid }
 let bump(p:Grid^) { p^[0, 1] += 10 }
 enum Box { many: Array<i64>; one: i64 }                  // over #117's indexing
-let Box[](i:i64):i64 { self.is(many) ? self.many[i] : self.one }
+let Box[](i:i64):i64 { .is(many) ? .many[i] : .one }
 let corner():Grid { var g:Grid = {2}; g[1, 1] = 4; return g }
 let main():i32 {
     var g:Grid = {3}

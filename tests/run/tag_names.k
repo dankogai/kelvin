@@ -8,7 +8,7 @@ enum color { RED, GREEN, BLUE };
 struct timespec;                               // a C struct, declared in Kelvin
 
 let origin():point { return (point){0, 0}; }
-let point.moved(dx:i32):point { var p = self; p.x += dx; return p; }
+let point.moved(dx:i32):Self { var p = self; p.x += dx; return p; }
 let name(c:color):cstr { return c == RED ? "red" : "other"; }
 
 let main():i32 {

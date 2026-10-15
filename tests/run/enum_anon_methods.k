@@ -3,10 +3,10 @@
 // method's; an operator takes it by its spelling too; and an operator of
 // an enum with values, named or not, is the program's when it defines one
 enum { nothing; just: i64 }
-let enum{nothing, just: i64}.orZero():i64 { self.is(just) ? self.just : 0 }
-let enum{nothing, just: i64}.or(v:i64):i64 { self.is(just) ? self.just : v }
-let enum{nothing, just: i64}.twice():i64 { self.orZero() * 2 }      // one method calls another
-let enum{nothing, just: i64}.cstr():cstr { `<${self.orZero()}>` }  // its own text, as a struct's (#53)
+let enum{nothing, just: i64}.orZero():i64 { .is(just) ? .just : 0 }
+let enum{nothing, just: i64}.or(v:i64):i64 { .is(just) ? .just : v }
+let enum{nothing, just: i64}.twice():i64 { .orZero() * 2 }      // one method calls another
+let enum{nothing, just: i64}.cstr():cstr { `<${.orZero()}>` }  // its own text, as a struct's (#53)
 let +(a:enum{nothing, just: i64}, b:enum{nothing, just: i64}):enum{nothing, just: i64} {
     if a.is(just) && b.is(just) { return {.just = a.just + b.just} }
     return {.nothing}
@@ -18,7 +18,7 @@ let -(a:maybe, b:maybe):maybe {
     return {.none}
 }
 let ==(a:maybe, b:maybe):bool { a.is(some) == b.is(some) }       // only whether both hold a value
-let {x: f64, y: f64}.norm2():f64 { self.x * self.x + self.y * self.y }   // a struct with no tag: the same form
+let {x: f64, y: f64}.norm2():f64 { .x * .x + .y * .y }   // a struct with no tag: the same form
 let main():i32 {
     var a = just(3)
     var n = nothing

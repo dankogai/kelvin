@@ -11,7 +11,7 @@ var total:i64 = 0
 
 let square(x:i64):i64 { x * x }
 let point.dist2():i64 {
-    self.x * self.x + self.y * self.y
+    .x * .x + .y * .y
 }
 let proto(x:i64):i64
 let proto(x:i64):i64 { x + 1 }

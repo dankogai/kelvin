@@ -3,9 +3,9 @@
 // with no source from 0 (#38)
 struct point { x: i64; y: i64 }
 
-let point.scaled(k:i64):point {
+let point.scaled(k:i64):Self {
     let f:(i64):i64 := { $0 * 2 }
-    return (point){f(self.x) * k, f(self.y) * k}
+    return (point){f(.x) * k, f(.y) * k}
 }
 
 let apply(x:i64, f:(i64):i64):i64 { f(x) }

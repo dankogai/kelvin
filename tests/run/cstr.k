@@ -19,7 +19,7 @@ let first():struct point^ { return &pts[0]; }
 let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 
 let get():struct point { return (struct point){5, 6}; }
-let point.moved():struct point { return (struct point){self.x + 1, self.y}; }
+let point.moved():struct point { return (struct point){.x + 1, .y}; }
 
 let main():i32 {
     // numbers: plain decimal; floats lossless; bool; a string is itself

@@ -3,11 +3,11 @@
 // buffer is sized from the template
 struct vector2d { x: f64; y: f64 }
 let vector2d.cstr():cstr {
-    `(${self.x}, ${self.y})`
+    `(${.x}, ${.y})`
 }
 struct line { a: vector2d; b: vector2d }
 union bits { u: u64; f: f64 }
-let bits.cstr():cstr { `bits ${self.u.hex}` }
+let bits.cstr():cstr { `bits ${.u.hex}` }
 let main():i32 {
     let v:vector2d = {1.5, -2.0}
     let l:line = {{0.0, 0.0}, v}

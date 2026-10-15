@@ -2,10 +2,10 @@
 // a method, an attribute and a var attribute; its cases are words (#120)
 enum { nothing; just: i64 }
 extend enum{nothing, just: i64} {
-    let orZero():i64 { self.is(just) ? self.just : 0 }
-    let isJust:bool { self.is(just) }
+    let orZero():i64 { .is(just) ? .just : 0 }
+    let isJust:bool { .is(just) }
     var value:i64 {
-        get { self.orZero() }
+        get { .orZero() }
         set(v) { self = just(v) }
     }
 }

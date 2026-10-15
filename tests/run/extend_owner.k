@@ -5,12 +5,12 @@ extend person {
     var title:String {
         get {
             var t = $"Dr. "
-            t += &self.name
+            t += &.name
             return t
         }
-        set(v) { self.name = v.copy() }
+        set(v) { .name = v.copy() }
     }
-    let older:person { (person){self.name.copy(), self.age + 1} }
+    let older:Self { (Self){.name.copy(), .age + 1} }
 }
 let main():i32 {
     var p:person = {$"Ada", 36}

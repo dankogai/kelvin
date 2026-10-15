@@ -3,20 +3,20 @@
 #import <time.h> as C
 
 struct point { x:i32; y:i32; };
-let point.sum():i32 { return self.x + self.y; }          // was a C-static method; static let T.name() is now a function of the type (#111)
+let point.sum():i32 { return .x + .y; }          // was a C-static method; static let T.name() is now a function of the type (#111)
 
 let point.fact(n:i64):i64 {                   // recursion needs no prototype
     if n <= 1 {
         return 1;
     }
-    return n * self.fact(n - 1);
+    return n * .fact(n - 1);
 }
 
-let i64.write(f:FILE^):i32 { fputs(self.cstr, f); return fputs("\n", f); }   // header type in a signature
-let i64.inc():i64 { return self + 1; }
+let i64.write(f:FILE^):i32 { fputs(.cstr, f); return fputs("\n", f); }   // header type in a signature
+let i64.inc():Self { return self + 1; }
 
 struct timespec;                              // a method on a header struct
-let timespec.ms():i64 { return self.tv_sec * 1000 + self.tv_nsec / 1000000; }
+let timespec.ms():i64 { return .tv_sec * 1000 + .tv_nsec / 1000000; }
 
 let main():i32 {
     var p:struct point = {1, 2};

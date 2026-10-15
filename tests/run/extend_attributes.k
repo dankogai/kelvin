@@ -5,31 +5,31 @@
 // written as T.x (#133); each written outside, with T., or inside extend
 struct rect { w: f64; h: f64 }
 struct temp { kelvin: f64 }
-let rect.area:f64 { self.w * self.h }                    // outside extend
+let rect.area:f64 { .w * .h }                    // outside extend
 var temp.celsius:f64 {
-    get { self.kelvin - 273.15 }
-    set(v) { self.kelvin = v + 273.15 }
+    get { .kelvin - 273.15 }
+    set(v) { .kelvin = v + 273.15 }
 }
 static var rect.made:i64 = 0
 extend rect {
-    let perimeter:f64 { 2.0 * (self.w + self.h) }        // an attribute
-    let scaled(k:f64):rect { (rect){self.w * k, self.h * k} }   // a method
-    let doubled():rect { self.scaled(2.0) }              // which calls another
-    static let unit:rect = {1.0, 1.0}                     // a type attribute
-    static let square(s:f64):rect {                       // a function of the type (#111)
-        rect.made += 1
+    let perimeter:f64 { 2.0 * (.w + .h) }        // an attribute
+    let scaled(k:f64):Self { (Self){.w * k, .h * k} }   // a method
+    let doubled():Self { .scaled(2.0) }              // which calls another
+    static let unit:Self = {1.0, 1.0}                     // a type attribute
+    static let square(s:f64):Self {                       // a function of the type (#111)
+        Self.made += 1
         return {s, s}
     }
-    let cstr():cstr { `${self.w}x${self.h}` }             // its own text (#53)
+    let cstr():cstr { `${.w}x${.h}` }             // its own text (#53)
 }
 extend temp {
     var fahrenheit:f64 {
-        get { self.celsius * 9.0 / 5.0 + 32.0 }
-        set(v) { self.celsius = (v - 32.0) * 5.0 / 9.0 }
+        get { .celsius * 9.0 / 5.0 + 32.0 }
+        set(v) { .celsius = (v - 32.0) * 5.0 / 9.0 }
     }
 }
 extend f64 {
-    let half:f64 { self / 2.0 }                           // a built-in type too
+    let half:Self { self / 2.0 }                           // a built-in type too
 }
 let main():i32 {
     let r:rect = {2.0, 3.0}

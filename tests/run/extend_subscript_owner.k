@@ -3,15 +3,15 @@
 struct Names { xs: Array<String> }
 extend Names {
     var [](i:i64):String {
-        get { self.xs[i].copy() }
-        set(v) { self.xs[i] = v.copy() }
+        get { .xs[i].copy() }
+        set(v) { .xs[i] = v.copy() }
     }
 }
 struct Counts { d: Dictionary<String, i64> }
 extend Counts {
     var [](k:cstr):i64 {
-        get { self.d.has(k) ? self.d[k] : 0 }
-        set(v) { self.d[k] = v }
+        get { .d.has(k) ? .d[k] : 0 }
+        set(v) { .d[k] = v }
     }
 }
 let main():i32 {

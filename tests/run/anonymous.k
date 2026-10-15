@@ -16,7 +16,7 @@ let each(xs:i64^, n:size_t, f:(i64)) {
 }
 
 let counter.each(f:(i64)) {
-    for h in self.hits {
+    for h in .hits {
         f(h);
     }
 }

@@ -9,10 +9,10 @@ struct bag { xs:[i64](3); };
 struct point { x:i32; y:i32; };
 
 let apply(x:i64, f:(i64):i64):i64 { return f(x); }
-let box.map(f:(i64):i64):box { return (box){f(self.v)}; }
+let box.map(f:(i64):i64):Self { return (Self){f(.v)}; }
 let bag.each(f:(i64));                               // a prototype, then the method
 let bag.each(f:(i64)) {
-    for x in self.xs {
+    for x in .xs {
         f(x);
     }
 }

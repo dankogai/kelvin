@@ -3,16 +3,16 @@
 // number on one side, unary -, comparisons, and x += y by them (#42, #128)
 struct money { cents: i64 }
 extend money {
-    static let +(a:money, b:money):money { (money){a.cents + b.cents} }
-    static let *(a:money, k:i64):money { (money){a.cents * k} }
-    static let -(a:money):money { (money){-a.cents} }
-    static let <(a:money, b:money):bool { a.cents < b.cents }
-    static let ==(a:money, b:money):bool { a.cents == b.cents }
-    let dollars:f64 { self.cents / 100.0 }
+    static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
+    static let *(a:Self, k:i64):Self { (Self){a.cents * k} }
+    static let -(a:Self):Self { (Self){-a.cents} }
+    static let <(a:Self, b:Self):bool { a.cents < b.cents }
+    static let ==(a:Self, b:Self):bool { a.cents == b.cents }
+    let dollars:f64 { .cents / 100.0 }
 }
 enum maybe { none; some: i64 }
 extend maybe {
-    static let +(a:maybe, b:maybe):maybe {
+    static let +(a:Self, b:Self):Self {
         if a.is(some) && b.is(some) { return {.some = a.some + b.some} }
         return {.none}
     }

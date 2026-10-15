@@ -3916,3 +3916,15 @@ lines goes inside parentheses there, and #35 holds where there is no
 `self`. Details are provisional P154.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 174. The tests with `.x` and `Self`
+
+> now rewrite the tests with `.x` and `Self`
+
+**Claude** rewrote 23 of the run tests with `.x` for `self.x` (#139)
+and `Self` for the receiver's type (#140) in their methods, attributes,
+subscripts, operators and functions of the type, keeping the five
+tests that are about `self` and `Self` themselves, and the error tests,
+as they were. The generated C and the outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.

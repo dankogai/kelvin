@@ -6,7 +6,7 @@
 #import <stdlib.h> as C
 
 struct box { n:i64 }
-let box.show() { println("box ", self.n) }
+let box.show() { println("box ", .n) }
 
 // one expression that starts with a name kelvinc cannot see, or with an
 // annotation to a C typedef, before `?` or before `as`

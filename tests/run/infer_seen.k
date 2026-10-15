@@ -6,7 +6,7 @@
 struct point { x: i64; y: i64 }
 enum color { RED, GREEN }
 let mk(x:i64):point { (point){x, x * 2} }
-let point.norm():i64 { self.x * self.x + self.y * self.y }
+let point.norm():i64 { .x * .x + .y * .y }
 let main(argc:i32, argv:[u8^]):i32 {
     var i = complex64(0.0, 1.0)
     let p = mk(3)
