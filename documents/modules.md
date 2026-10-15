@@ -114,9 +114,11 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   elsewhere, is the same object linked against the shared `libkelvin`
   and the shared libraries of the modules the file imports, or their
   static ones where there is no shared one, for C and other toolchains:
-  a C program links it and calls the module's functions by the names
-  `--emit-c` shows, with `-Wl,-rpath` for the directories the
-  libraries are in. `#import <M>` links `libkM.a`.
+  a C program links it, and the shared `libkelvin` with it, and calls
+  the module's functions by the names `--emit-c` shows, with
+  `-Wl,-rpath` for the directories the libraries are in, since on Linux
+  a program's run path does not reach a library's own dependencies.
+  `#import <M>` links `libkM.a`.
 - **Attributes and subscripts** may be prototypes in a `.kh` only:
   `let norm1:f64`, `var first:f64`, `let [](i:i64):f64`, each declaring
   the getter, and the setter where it is a `var`.

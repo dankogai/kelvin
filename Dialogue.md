@@ -4075,7 +4075,9 @@ against the shared `libkelvin` and the shared libraries of the modules
 the file imports, or their static ones where there is no shared one.
 It is for C and other toolchains, as `libkelvin.dylib` is; a Kelvin
 program's `#import <M>` keeps linking the static one. tests/run.sh
-links a C program against `libkgeo.dylib` and runs it. Details are
-provisional P159.
+links a C program against `libkgeo.dylib` and runs it; on Linux it
+links `libkelvin.so` with it and sets `LD_LIBRARY_PATH`, since a run
+path does not reach a library's own dependencies there, which CI's
+clang jobs showed. Details are provisional P159.
 
 There are 744 tests, and all pass with clang and with gcc 15.
