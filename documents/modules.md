@@ -62,17 +62,22 @@ let main():i32 {
   order imported, so that a library a later one calls comes after it.
   - A `.kh` with no library beside it is a header alone, as a C
     header-only library is.
-- **`#import <M>`** looks for `M.kh` before `M.k`, in `./modules` and
-  then in Kelvin's `modules/`; `#import <M.kh>` and `#import <M.k>`
-  name one or the other.
+- **`#import <M>`** takes, in `./modules` and then in Kelvin's
+  `modules/`, the first of:
+  1. `M.kh`, with `libkM.a`, `.so` or `.dylib` beside it: the header is
+     read, and the library linked;
+  2. `M.k`: the source, included in the importing program as if written
+     there (#40).
+  - `#import <M.kh>` and `#import <M.k>` name one or the other.
 - **Kelvin's own** are `IO` ([io.md](io.md)) and `OS`
   ([os.md](os.md)), built by `make` from runtime/io.c and runtime/os.c
   into `libkIO` and `libkOS`, with the C headers `kIO.h` and `kOS.h`;
   a program without them links the core alone, which is why they are
   modules: one day a program may run where there is no IO.
-  - `complex.k` and `JSON.k` ship as Kelvin sources, which
-    `kelvinc --lib` builds into `JSON.kh` and `libkJSON.a` where a
-    project wants them so.
+  - `complex.k` and `JSON.k` stay Kelvin sources, included where they
+    are imported: `JSON.k` is the example of how a module is written in
+    Kelvin. `kelvinc --lib` builds either into a `.kh` and a `libkM.a`
+    where a project wants that.
 
 ## Building a module: `kelvinc --lib M.k`
 

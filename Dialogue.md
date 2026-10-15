@@ -4034,3 +4034,20 @@ into libraries and compiles programs against them. Details are
 provisional P158.
 
 There are 743 tests, and all pass with clang and with gcc 15.
+
+### 181. The order of `#import <M>`
+
+> Here is the precedence order of what is loaded on `#import M`.
+> presense of `module/M.kh`. That will use `M.kh` and
+> `libkM.{a,so,dylib}`. presense of `modules.M.k`. That will simply be
+> included in the calleer. So `modules/JSON.k` should stay the way it
+> is. It also makes a good example of how to write a module in kelvin.
+
+**Claude** confirmed that #143 does this: for `#import <M>`, each
+directory, `./modules` then Kelvin's `modules/`, is tried for `M.kh`
+first, whose library is linked, and then for `M.k`, which is included
+in the importing program. modules.md now states the order as a rule,
+and that `JSON.k` stays a Kelvin source, the example of a module
+written in Kelvin.
+
+There are 743 tests, and all pass with clang and with gcc 15.
