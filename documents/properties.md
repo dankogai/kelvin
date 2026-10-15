@@ -277,7 +277,7 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
 
 - **`extend T { }`** (#130) holds any of these, and names `T` once.
   - `T` is a struct, a union or an enum with values declared before it,
-    a built-in type, as `extend f64 { let half:f64 { self / 2.0 } }`,
+    a built-in type, as `extend f64 { let half:Self { self / 2.0 } }`,
     or a type with no tag by its spelling,
     `extend enum{nothing, just: i64} { ... }` (#121).
   - A member and its alone form are the same thing: either may be used,

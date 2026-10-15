@@ -59,7 +59,7 @@ So far the changes from C are:
 - every type can have methods, such as `let point.area():f64 { ... }`
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
   - a struct's is derived, as `{x: 3, y: 4}`, or defined as one template,
-    `let point.cstr():cstr { `(${self.x}, ${self.y})` }`
+    `let point.cstr():cstr { `(${.x}, ${.y})` }`, where `.x` is `self.x`
   - `cstr` is immutable text, C's `const uint8_t *`, with `s.count` for
     its length
   - `toString()` waits for a true string type

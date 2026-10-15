@@ -3928,3 +3928,15 @@ tests that are about `self` and `Self` themselves, and the error tests,
 as they were. The generated C and the outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 175. The documents' examples with `.x` and `Self`
+
+> now rewrite the documents' examples with `.x` and `Self`
+
+**Claude** rewrote the remaining method examples of functions.md,
+structs.md, unions.md, properties.md and the README with `.x` for
+`self.x` (#139) and `Self` for the receiver's type (#140), each with a
+comment that says so, keeping one `self.x` beside a `.x` in structs.md
+to show the two mean the same. Each example compiles and runs.
+
+There are 734 tests, and all pass with clang and with gcc 15.

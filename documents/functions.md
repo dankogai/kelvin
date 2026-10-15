@@ -70,10 +70,10 @@ function's do, and one may call another:
 
 ```kelvin
 struct point { x: i64; y: i64 }
-static let point.origin():point { (point){0, 0} }
-static let point.of(x:i64, y:i64):point { (point){x, y} }
-static let point.of(s:cstr):point { point.of(i64(s), 0) }
-let point.dist2():i64 { self.x * self.x + self.y * self.y }   // a method, with self, beside them
+static let point.origin():Self { (Self){0, 0} }             // Self is point (#140)
+static let point.of(x:i64, y:i64):Self { (Self){x, y} }
+static let point.of(s:cstr):Self { Self.of(i64(s), 0) }
+let point.dist2():i64 { .x * .x + .y * .y }                 // a method, with self, beside them: .x is self.x
 
 let o = point.origin()
 let p = point.of(3, 4)

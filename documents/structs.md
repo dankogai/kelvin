@@ -101,7 +101,7 @@ struct the same way, and so do `print` and `println` (#122):
 
 ```kelvin
 struct vector2d { x: f64; y: f64 }
-let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
+let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
 ```
 
 - The body is one template literal (a plain string literal counts),
@@ -125,14 +125,14 @@ Attributes read without parentheses, type attributes, and an
 ```kelvin
 struct point { x: i32; y: i32 }
 
-let point.dist2():i64 { self.x * self.x + self.y * self.y }
-let point.sum():i64 { .x + .y }                         // .x is self.x
+let point.dist2():i64 { .x * .x + .y * .y }             // .x is self.x
+let point.sum():i64 { self.x + self.y }                 // the same, self written
 let point.moved(dx:i32):Self {                          // Self is point
     var p:Self = self                                    // self is a let: a copy changes
     p.x += dx
     return p
 }
-let f64.half():f64 { self / 2 }
+let f64.half():Self { self / 2 }                        // Self is f64
 
 let main():i32 {
     let p:point = {3, 4}

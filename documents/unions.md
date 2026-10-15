@@ -10,7 +10,7 @@ than the one last written is C's type punning, with C's rules.
 union bits { u: u64; f: f64 }
 
 let ==(a:bits, b:bits):bool { a.u == b.u }
-let bits.flipped():bits { var r = self; r.u = ~r.u; return r }
+let bits.flipped():Self { var r:Self = self; r.u = ~r.u; return r }   // Self is bits; self is a let
 
 let main():i32 {
     var b:bits = {.f = 1.5}        // a designator picks the member
@@ -30,7 +30,7 @@ let main():i32 {
 - **Text**: `b.cstr` is `<union bits>`, since kelvinc cannot tell which
   member holds the value.
   - Define it as one template to say which:
-    `let bits.cstr():cstr { `bits ${self.u.hex}` }` (#53), or show a
+    `let bits.cstr():cstr { `bits ${.u.hex}` }` (#53), or show a
     member, `b.u.hex`.
 - **Methods and operators** are defined on a union as on a struct: an
   implicit `self`, passed by value, and `let ==(a:bits, b:bits):bool`.
