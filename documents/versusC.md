@@ -65,6 +65,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `snprintf(buf, n, "%s: %d", name, n)` | `` `${name}: ${n}` `` (#39) |
 | `(uintptr_t)p`, `printf("%p", p)` | `p.addr`, `print(p.hex)` (#37) |
 | `#include "x.h"` and a separately compiled `x.c` | `#import "x.k"`, `#import <complex.k>` (#40, #46) |
+| `x.h` and `libx.a`, built by `cc -c x.c` and `ar rcs`, linked with `-lx` | `kelvinc --lib x.k` builds `x.kh` and `libkx.a` into `modules/`, which `#import <x>` brings in and links by itself (#143, #146) |
 | `csin(z)` beside `sin(x)` | `let sin(z:complex64):complex64 { ... }` beside C's `sin` (#41) |
 | `cadd(a, b)` | `a + b`, given `let +(a:complex64, b:complex64):complex64 { ... }` (#42) |
 | `double complex z = 1.0 + 2.0 * I;` | `let z:complex64 = complex64(1.0, 2.0)` (modules/complex.k, #43) |
@@ -101,8 +102,8 @@ Each document says so under its title. In short:
 | Home | What | Needs |
 |---|---|---|
 | the core | numbers, `bool`, pointers, `cstr`, fixed arrays, structs, unions, enums, functions, operators, the statements, `#import` | kelvinc alone: the C is C's own, nothing linked |
-| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, `OS`, `SYS`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
-| loaded explicitly | `complex64` and `complex32`; a C header's names | `#import <complex.k>`; `#import <x.h> as C` |
+| the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
+| loaded explicitly | `IO`; `OS` and `SYS`; `complex64` and `complex32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <complex.k>`, `#import <JSON>`, sources; `#import <x.h> as C` |
 
 ## The documents
 
@@ -131,7 +132,7 @@ Each document says so under its title. In short:
 | [flow-controls.md](flow-controls.md) | `if`, `while`, `do`, `for`, ranges, `for x in s`, conditions are `bool` |
 | [printing.md](printing.md) | `print`, `println`, template literals, `` $`...` `` a String from one |
 | [properties.md](properties.md) | `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull` |
-| [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/complex.k` |
+| [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/complex.k`, a module as `M.kh` and `libkM`, `kelvinc --lib` |
 | [c-interfaces.md](c-interfaces.md) | C headers, typedefs, C's functions, `libkelvin` from C, the C compiler |
 
 ## Reserved words

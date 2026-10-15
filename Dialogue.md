@@ -4051,3 +4051,16 @@ and that `JSON.k` stays a Kelvin source, the example of a module
 written in Kelvin.
 
 There are 743 tests, and all pass with clang and with gcc 15.
+
+### 182. `kelvinc --lib` in the documents
+
+> now add `kelvinc --lib` to the documents too
+
+**Claude** added `kelvinc --lib` where the documents show how kelvinc
+is run and what it makes: the README's usage block, c-interfaces.md's
+options, versusC.md's table against C's `ar rcs` and its index, and
+json.md's note that JSON.k, the example of a module written in Kelvin,
+builds into `JSON.kh` and `libkJSON.a` where a project wants that.
+modules.md had its section already.
+
+There are 743 tests, and all pass with clang and with gcc 15.

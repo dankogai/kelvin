@@ -88,6 +88,11 @@ errors also carry hints for C habits, such as `*p`, `p->m`, `int x;`,
   `libkelvin.a`.
 - `KELVIN_CFLAGS` adds flags, and `kelvinc -v` prints the command.
 - `kelvinc --emit-c` writes the C instead of compiling it.
+- `kelvinc --lib M.k` builds a module instead of a program: `M.kh` and
+  `libkM.a` in `./modules`, which `#import <M>` brings in and links
+  (#146, [modules.md](modules.md)). The library is C, so a C program
+  may link it too, calling its functions by the names `--emit-c`
+  shows.
 
 For the C features Kelvin cannot spell yet, see
 [versusC.md](versusC.md).

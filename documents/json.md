@@ -7,7 +7,7 @@ JSON, and one more case, `error`, for a text that was not JSON.
 `JSON.parse(text)` reads one from text and `JSON.stringify(&j, replacer,
 space)` writes it back, as JS's do.
 
-**Where it lives:** `modules/JSON.k`, brought in by `#import <JSON>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in two `extend JSON { }` blocks (#130), the parsing and the writing, with `Self` for `JSON` (#140), and C's `snprintf` for the numbers. Nothing of it is in the prelude or the runtime.
+**Where it lives:** `modules/JSON.k`, brought in by `#import <JSON>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in two `extend JSON { }` blocks (#130), the parsing and the writing, with `Self` for `JSON` (#140), and C's `snprintf` for the numbers. Nothing of it is in the prelude or the runtime. It is the example of a module written in Kelvin, and `kelvinc --lib modules/JSON.k` builds it into `JSON.kh` and `libkJSON.a` where a project wants that (#146).
 
 ```kelvin
 #import <JSON>
