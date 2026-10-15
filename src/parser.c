@@ -161,36 +161,14 @@ static bool designator_ahead(int i) {
 }
 
 static bool at_statement_level(void);
-static bool is_assign_op(const char *op);
 
-/* Does the new line at token i start a statement that sets a member of
-   self, .x = v, .x[i] += v, .p++ (#139)? A .member on a new line goes on
-   with the expression before it (#35), but setting a member of that would
-   mean nothing, so where there is self, it is self's */
+/* Does the new line at token i start a statement, .x being self.x (#139,
+   #142)? A .member on a new line goes on with the expression before it
+   (#35), but where there is self, a line that starts with .x is self's: a
+   chain over several lines goes inside parentheses there */
 static bool self_statement_at(int i) {
-    if (i == 0 || i == implicit_self_at || !self_member_ahead(i) || !line_break(&toks[i - 1], &toks[i]) ||
-        !at_statement_level())
-        return false;
-    int j = i;
-    for (;;) {
-        if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, ".") && member_name_token(&toks[j + 1]))
-            j += 2;
-        else if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, "["))
-            j = skip_group(j);
-        else
-            break;
-    }
-    return toks[j].kind == TK_PUNCT &&
-           (is_assign_op(toks[j].text) || !strcmp(toks[j].text, "++") || !strcmp(toks[j].text, "--"));
-}
-
-/* Is op one of the assignment operators, = := += ... |=? */
-static bool is_assign_op(const char *op) {
-    static const char *ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
-    for (int i = 0; ops[i]; i++)
-        if (!strcmp(op, ops[i]))
-            return true;
-    return false;
+    return i > 0 && i != implicit_self_at && self_member_ahead(i) && line_break(&toks[i - 1], &toks[i]) &&
+           at_statement_level();
 }
 
 /* Is name declared in the innermost scope? */

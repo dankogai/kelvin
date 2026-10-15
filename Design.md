@@ -173,6 +173,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 139 | `.x` is `self.x` in every body that has `self`: a method, an attribute, a setter, a subscript; in an initializer `.x = v` is still a designator and `.x` alone is `self.x`; a new line that sets a member, `.n = v`, starts a statement there, while any other `.member` on a new line goes on with the expression (#35) | — | `let area:f64 { .w * .h }`, `set(v) { .kelvin = v + 273.15 }` | 2026-10-15 |
 | 140 | `Self` is the receiver's type, as Swift's: inside `extend T { }` and in a method, an attribute, a subscript or a function of `T` written alone, where a type goes and where `T`'s name goes, `Self.f()`, `Self.x`, `Self(v)`; a type with no tag has no name, so its `Self` is a type only; elsewhere `Self` is an error that says where it belongs | — | `extend point { let moved(dx:i64):Self { var p:Self = self; ... } }` | 2026-10-15 |
 | 141 | `:()` after the parameters says a function gives nothing, C's `void`, written out: on a function, a prototype, a method, an anonymous function and in a function type, `(i64):()`; `:():R` stays a function type as the result | — | `let greet(name:cstr):() { println("hi ", name) }` | 2026-10-15 |
+| 142 | Where there is `self`, a line that starts with `.x` is `self.x`, a statement of its own, whatever follows; a chain over several lines goes inside parentheses there, or on one line; where there is no `self`, a `.member` on a new line goes on with the expression before it (#35). This widens #139's rule, which started a statement only where the line set a member | — | `let k = 10` then `return .is(just) ? .just + k : k` on the next line | 2026-10-15 |
 
 Notes:
 
@@ -734,6 +735,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (142) Agreed details: "now make `.x` work in the top-level anonymous
+  enum's methods". Every form Claude tried worked but one: `.is(just)`
+  at the start of a line after a `let`, which #35 read as `10.is(just)`,
+  in any type's method. Claude asked which rule to take, and the user
+  chose that a line starting with `.x` is `self.x` wherever there is
+  `self`, with a chain over lines inside parentheses; #35 holds where
+  there is no `self` (P154).
 
 - (140, 141) Agreed details: "Also note inside `extend T`, `T` can also
   be referred as `Self` like swift. That goes to `let T.meth(){...}`.
@@ -1513,6 +1522,7 @@ says "as agreed".
 | P151 | Details of #139 | `.w * .h` is `self.w * self.h` | `parse_primary` reads `.` and a member's name as the identifier `self` where `self` is bound, and leaves `.x` to the postfix; with no self, in a function, it is an error that says so, and of the function around an anonymous one, the error of #32. An initializer's `.` is a designator where `designator_ahead` finds `=` after the chain, or outside a function. `self_statement_at` ends an expression before a new line's `.x`, `.x.y` or `.x[i]` followed by an assignment, `++` or `--`, both in `line_ends_expression` and in `statement_ends_at` |
 | P152 | Details of #140 | `let moved(dx:i64):Self` in `extend point` is `struct point point__moved(const struct point self, const int64_t dx)`, as with `point` written | `rewrite_self` turns each token `Self` into `T`'s over the extend block, from its `{` to the matching `}`, or over a member written alone, to the `}` of its body, a `;`, or a new line that starts a statement, so every lookahead that tells a type from an expression sees `T`. `self_scope`, `self_tok` and `self_spelled` are set by `parse_extend` and the member parsers; outside them `self_word` makes `Self` an error, and for a type with no tag `parse_type_in` reads `Self` as the spelling while an expression's `Self` is an error |
 | P153 | Details of #141 | `let greet(name:cstr):()` is `void greet(const uint8_t *const name)`, as without `:()` | `void_result_ahead` sees `(` `)` not followed by `:` after the result's `:`, in `parse_fn_tail`, `parse_method_of`, `parse_anon_fn` and `parse_fn_type`, and leaves the result NULL, which was void already |
+| P154 | Details of #142 | `let k = 10` then `.is(just) ? ...` on the next line in a method is two statements, where it was `10.is(just)`; `let k = (.xs` then `.count)` is `self.xs.count` | `self_statement_at` is true for any `.member` on a new line at the top of a statement where `self` is bound, not only one followed by an assignment; `line_ends_expression` and `statement_ends_at` ask it, as before |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

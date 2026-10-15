@@ -156,12 +156,13 @@ let main():i32 {
   - A function with no `self`, and a function of the type, say so.
   - An anonymous function in a method encloses nothing, so `.x` there
     is an error, as `self.x` is (#32).
-  - A `.member` on a new line goes on with the expression before it, as
-    always (#35): `.xs` then `.count` on the next line is `.xs.count`.
-    - A new line that sets a member, `.n = v`, `.xs += v`,
-      `.cells[i] = v`, starts a statement where there is `self`, since
-      setting a member of what went before would mean nothing.
-    - Write `self.f()` to start a line with a method call.
+  - A line that starts with `.x` is `self.x`, a statement of its own
+    (#142), so `.is(just) ? .just : 0` may follow a `let` on the line
+    before.
+    - A chain over several lines goes inside parentheses there,
+      `(.xs\n    .count)`, or on one line.
+    - Where there is no `self`, a `.member` on a new line goes on with
+      the expression before it, as always (#35).
 - **`Self` is the type** (#140), Swift's `Self`, in a method and in
   every member of `T`: `let moved(dx:i32):Self`, `var p:Self = self`,
   `Self.origin()`; the details are in

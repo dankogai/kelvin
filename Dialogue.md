@@ -3902,3 +3902,17 @@ and `t:()` and `u:():()` for a function type, and said in functions.md
 and grammar.md that the two spellings mean the same.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 173. A line that starts with `.x`
+
+> now make `.x` work in the top-level anonymous enum's methods
+
+**Claude** found every form working but one, in any type's method:
+`.is(just)` at the start of a line after another statement, which #35
+read as going on with the line before, `10.is(just)`. Asked which rule
+to take, the user chose #142: where there is `self`, a line that starts
+with `.x` is `self.x`, a statement of its own; a chain over several
+lines goes inside parentheses there, and #35 holds where there is no
+`self`. Details are provisional P154.
+
+There are 734 tests, and all pass with clang and with gcc 15.
