@@ -3801,3 +3801,18 @@ as Swift's `static func +`, the same operator as the top level's
 error that says to write `static`. Details are provisional P147.
 
 There are 706 tests, and all pass with clang and with gcc 15.
+
+### 166. Subscripts in `extend`
+
+> now add subscripts inside `extend T {}`
+
+**Claude** asked for the spelling, and the user chose `let [](i:i64):R`
+and `var [](...)`. #136 adds them: `let [](i:I):R { }` is read as
+`v[i]`, and `var [](i:I):R { get { } set(v) { } }` is also written as
+`v[i] = y` and `v[i] += y` on the var that holds `v`. Several indices
+read `v[r, c]`, subscripts overload by the indices' count and types,
+and alone they are `let T[](...)` and `var T[](...)`. An enum with
+values that has one is indexed through it, not through its cases
+(#117). Both forms are in properties.md. Details are provisional P148.
+
+There are 718 tests, and all pass with clang and with gcc 15.

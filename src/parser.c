@@ -173,6 +173,8 @@ static Type *ext_spelled;  /* or its spelling, extend enum{...} { } */
 static List type_attrs;    /* char *: the C names of the type attributes, point__count (#133) */
 static void add_top_decl(Program *prog, Decl *d);
 static void reject_attribute_member(Type *recv, Token *name);
+static void flatten_commas(Expr *e, List *out);
+static Decl *choose_subscript(const char *name, List *args, Pos pos, const char *type);
 static Var *case_named(Decl *r, const char *name, int *k);
 static Expr *case_maker(Token *t, Token *cn, Decl *r, Var *c);
 
@@ -1332,6 +1334,42 @@ static Expr *parse_postfix_ops(Expr *e) {
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p("]");
+            {
+                /* v[i], v[r, c] of a type with a subscript (#136): its getter,
+                   chosen by the indices' types; it wins over #117's indexing */
+                Decl *sr;
+                Type *vt0 = value_type(e);
+                char *gname = vt0 && type_class(unqualified(vt0), &sr) == 's' && sr && sr->name
+                                  ? strfmt("%s.[]", sr->name)
+                                  : NULL;
+                if (gname && function_named(gname)) {
+                    if (slice)
+                        error_at(t->pos, "a slice is no subscript of %s: index it with v[i]", sr->name);
+                    if (is_owner(vt0) && !owner_place(e))
+                        error_at(t->pos, "a subscript of %s that an expression gives, which nothing would free: bind it "
+                                         "to a variable first",
+                                 sr->name);
+                    List args = {0};
+                    flatten_commas(x->b, &args);
+                    Decl *chosen = choose_subscript(gname, &args, t->pos, sr->name);
+                    for (int k = 0; k < args.len; k++) {
+                        Type *pt = ((Var *)chosen->params.data[k + 1])->type;
+                        Expr *a = args.data[k];
+                        pick_overload(a, pt);
+                        a = optional_of(string_of_literal(a, pt), pt, a->pos);
+                        move_argument(a, pt, strfmt("the subscript of %s", sr->name));
+                        args.data[k] = a;
+                    }
+                    Expr *c = new_expr(E_CALL, t->pos);
+                    c->a = e;
+                    c->op = "subscript_get";
+                    c->target = chosen;
+                    c->items = args;
+                    c->type = chosen->ret;
+                    e = c;
+                    continue;
+                }
+            }
             Decl *jr = tagged_record(value_type(e));
             if (jr) {
                 /* v[k] of an enum with values (#117): through its case that is a
@@ -2250,7 +2288,8 @@ static Expr *parse_primary(void) {
         advance();
         Expr *e = new_expr(t->kind == TK_IDENT ? E_IDENT : E_LITERAL, t->pos);
         e->text = t->text;
-        if (t->kind == TK_IDENT && !strcmp(t->text, "self") && parsing_fn && parsing_fn->type_fn)
+        if (t->kind == TK_IDENT && !strcmp(t->text, "self") && parsing_fn && parsing_fn->type_fn &&
+            !parsing_fn->subscript) /* a subscript has self (#136) */
             error_at(t->pos, "a function of a type has no self: '%s' is called as %s(...), with no value before it; "
                              "a method, 'let %s.name()', has one",
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
@@ -4904,7 +4943,7 @@ static void name_functions(void) {
             continue;
         Buf types = {0};
         buf_puts(&types, "");
-        for (int k = 0; k < d->params.len; k++)
+        for (int k = d->subscript ? 1 : 0; k < d->params.len; k++) /* a subscript's self is in its name (#136) */
             buf_printf(&types, "__%s", mangled_type(((Var *)d->params.data[k])->type));
         if (d->variadic)
             buf_puts(&types, "__va");
@@ -4931,7 +4970,10 @@ static void name_functions(void) {
             by_types = false;
         const char *base = d->name;
         if (d->type_fn) /* T.name is T__name in C (#111) */
-            base = strfmt("%s__%s", d->recv_name, d->name + strlen(d->recv_name) + 1);
+            base = strfmt("%s__%s", d->recv_name,
+                          !strcmp(d->name + strlen(d->recv_name) + 1, "[]")    ? "subscript"
+                          : !strcmp(d->name + strlen(d->recv_name) + 1, "[]=") ? "subscript_set" /* (#136) */
+                                                                                : d->name + strlen(d->recv_name) + 1);
         d->cname = by_types ? strfmt("%s%s", base, types.buf) : (char *)base;
     }
     for (int i = 0; i < functions.len; i++) {
@@ -5412,6 +5454,9 @@ static void reject_let_change(Expr *lhs, Token *t) {
                  let);
     if (let && let[0] == '$')
         error_at(t->pos, "'%s' is a parameter and cannot change; copy it into a var", let);
+    if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->subscript)
+        error_at(t->pos, "a let subscript and a var subscript's getter read self and never change it: a var "
+                         "subscript's setter, 'set(v) { ... }', does");
     if (let && let_kind(let) == LET_PARAM)
         error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                  let, let);
@@ -5460,6 +5505,64 @@ static Expr *parse_assign(void) {
             if (!ok)
                 error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
             advance();
+            if (lhs->kind == E_CALL && lhs->op && !strcmp(lhs->op, "subscript_get")) {
+                /* v[i] = y and v[i] += y (#136): the setter of the subscript
+                   the read chose, on the var that holds v */
+                Decl *g = lhs->target;
+                char *sname = strfmt("%s=", g->name);
+                Decl *setter = NULL;
+                List cands = function_named(sname) ? overloads_of(sname, NULL) : (List){0};
+                for (int k = 0; k < cands.len && !setter; k++) {
+                    Decl *d = cands.data[k];
+                    bool same = d->params.len == g->params.len + 1;
+                    for (int q = 1; same && q < g->params.len; q++)
+                        same = !strcmp(kelvin_type(unqualified(((Var *)d->params.data[q])->type)),
+                                       kelvin_type(unqualified(((Var *)g->params.data[q])->type)));
+                    if (same)
+                        setter = d;
+                }
+                if (!setter)
+                    error_at(t->pos, "this subscript of %s is a let, read and never set: a var subscript has a setter, "
+                                     "'var [](i:I):R { get { ... } set(v) { ... } }'",
+                             g->recv_name);
+                if (!strcmp(t->text, ":="))
+                    error_at(t->pos, "':=' sets a reference: a subscript is set with '='");
+                if (let_target(lhs->a))
+                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+                if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
+                    lhs->a->kind != E_DEREF)
+                    error_at(t->pos, "a subscript's setter changes the value it is called on, so that value is a variable");
+                Expr *v = parse_assign();
+                assign_ok = ok;
+                if (strcmp(t->text, "=")) {
+                    bool twice = repeatable(lhs->a);
+                    for (int k = 0; twice && k < lhs->items.len; k++)
+                        twice = repeatable(lhs->items.data[k]);
+                    if (!twice)
+                        error_at(t->pos, "'v[i] %s y' is 'v[i] = v[i] %.*s y', which reads v and i twice, so neither may "
+                                         "hold a call",
+                                 t->text, (int)strlen(t->text) - 1, t->text);
+                    Expr *bin = new_expr(E_BINARY, t->pos);
+                    bin->op = strfmt("%.*s", (int)strlen(t->text) - 1, t->text);
+                    bin->a = lhs;
+                    bin->b = v;
+                    v = overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
+                            ? resolve_operator(bin, bin->op, lhs, v)
+                            : bin;
+                }
+                Type *pt = ((Var *)setter->params.data[setter->params.len - 1])->type;
+                pick_overload(v, pt);
+                v = optional_of(string_of_literal(v, pt), pt, v->pos);
+                move_argument(v, pt, strfmt("the subscript of %s", g->recv_name));
+                Expr *c = new_expr(E_CALL, t->pos);
+                c->a = lhs->a;
+                c->op = "subscript_set";
+                c->target = setter;
+                for (int k = 0; k < lhs->items.len; k++)
+                    list_push(&c->items, lhs->items.data[k]);
+                list_push(&c->items, v);
+                return c;
+            }
             if (lhs->kind == E_METHOD && lhs->attr) {
                 /* v.x = y and v.x += y of a computed attribute (#132): its
                    setter, on the var that holds v */
@@ -8536,6 +8639,8 @@ static int function_shape(int i) {
     if ((t->kind == TK_IDENT || is_base_word(t)) && is_p(t + 1, ".") && t[2].kind == TK_IDENT &&
         (is_p(t + 3, ":") || is_p(t + 3, "=")))
         return 6; /* T.x:R { }, an attribute (#131-#133) */
+    if ((t->kind == TK_IDENT || t->kind == TK_KEYWORD) && is_p(t + 1, "[") && is_p(t + 2, "]") && is_p(t + 3, "("))
+        return 7; /* T[](i:I):R { }, a subscript (#136) */
     if (t->kind == TK_IDENT && is_p(t + 1, "("))
         return 2;
     if (overloadable_op(t) && is_p(t + 1, "("))
@@ -8938,6 +9043,194 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
     end_statement();
 }
 
+/* the items of a comma expression, v[r, c]'s indices (#136) */
+static void flatten_commas(Expr *e, List *out) {
+    if (e && e->kind == E_BINARY && !strcmp(e->op, ",")) {
+        flatten_commas(e->a, out);
+        flatten_commas(e->b, out);
+        return;
+    }
+    if (e)
+        list_push(out, e);
+}
+
+/* the subscript among name's overloads that the indices fit (#136): the
+   one of their count, else the one their types match */
+static Decl *choose_subscript(const char *name, List *args, Pos pos, const char *type) {
+    List all = overloads_of(name, NULL), fit = {0};
+    for (int i = 0; i < all.len; i++)
+        if (((Decl *)all.data[i])->params.len == args->len + 1)
+            list_push(&fit, all.data[i]);
+    if (!fit.len)
+        error_at(pos, "no subscript of %s takes %d ind%s", type, args->len, args->len == 1 ? "ex" : "ices");
+    if (fit.len == 1)
+        return fit.data[0];
+    /* first a literal as the type it infers to, i64, f64 or cstr; then as
+       any type of its kind */
+    Decl *exact = NULL;
+    int n = 0;
+    for (int strict = 1; strict >= 0 && !n; strict--)
+        for (int i = 0; i < fit.len; i++) {
+            Decl *d = fit.data[i];
+            bool same = true;
+            for (int k = 0; same && k < args->len; k++) {
+                Expr *a = args->data[k];
+                Type *pt = unqualified(((Var *)d->params.data[k + 1])->type);
+                Type *at = value_type(a);
+                Decl *r;
+                bool fl = a->text && strpbrk(a->text, ".eEpP") && strncmp(a->text, "0x", 2);
+                if (at)
+                    same = !strcmp(kelvin_type(unqualified(at)), kelvin_type(pt));
+                else if (a->kind == E_STRING)
+                    same = strict ? is_cstr(pt) : is_cstr(pt) || is_string(pt);
+                else if (a->kind != E_LITERAL || !a->text || a->text[0] == '\'')
+                    same = false;
+                else if (strict)
+                    same = !strcmp(kelvin_type(pt), fl ? "f64" : "i64");
+                else
+                    same = type_class(pt, &r) == (fl ? 'f' : 'i');
+            }
+            if (same)
+                exact = d, n++;
+        }
+    if (n != 1)
+        error_at(pos, "the indices fit %s subscript of %s: write their types, as in 'v[i as i64]'",
+                 n ? "more than one" : "no", type);
+    return exact;
+}
+
+/* let T[](i:I, ...):R { } and var T[](i:I, ...):R { get { } set(v) { } }
+   (#136): a subscript, read as v[i], written as v[i] = y on the var that
+   holds v. Each is a function of the type, T.[] and T.[]=, whose first
+   parameter is _kv_selfp, a pointer to the receiver that self names, so
+   overloads differ by the indices' types and nothing is moved; at the
+   [, the receiver read */
+static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Type *spelled) {
+    char *rname;
+    Type *rt = attribute_receiver(recv, spelled, &rname);
+    Decl *rec;
+    if (rt->kind != T_BASE || type_class(rt, &rec) != 's')
+        error_at(recv->pos, "a subscript is of a struct, a union or an enum with values of the program: '%s' has its "
+                            "own indexing",
+                 recv->text);
+    Token *at = peek();
+    expect_p("[");
+    expect_p("]");
+    char *get = strfmt("%s.[]", rname), *set = strfmt("%s.[]=", rname);
+    declare_name(get);
+    declare_name(set);
+    Decl *g = new_decl(D_FN, pos, NULL);
+    g->imported = at->imported;
+    g->type_fn = true;
+    g->subscript = true;
+    g->recv_name = rname;
+    g->name = get;
+    Type *cself = xcalloc(1, sizeof *cself); /* const T^, the getter's view of the receiver */
+    cself->kind = T_PTR;
+    cself->pos = at->pos;
+    cself->elem = xcalloc(1, sizeof *cself->elem);
+    *cself->elem = *rt;
+    cself->elem->is_const = true;
+    Var *sp = xcalloc(1, sizeof *sp);
+    sp->pos = at->pos;
+    sp->name = "_kv_selfp";
+    sp->type = cself;
+    sp->is_let = true;
+    list_push(&g->params, sp);
+    open_scope();
+    params_start = scope_names.len;
+    declare_binding("self", rt, LET_PARAM); /* a getter reads its receiver: self does not change */
+    List indices = {0};
+    expect_p("(");
+    while (!is_p(peek(), ")")) {
+        reject_c_fn_pointer(cur, "");
+        Var *p = parse_var(false, LET_NONE);
+        p->is_let = true;
+        p->number = numeric_type(param_type(p->type));
+        declare_binding(p->name, param_type(p->type), LET_PARAM);
+        list_push(&g->params, p);
+        list_push(&indices, p);
+        if (!accept_p(","))
+            break;
+    }
+    expect_p(")");
+    if (!indices.len)
+        error_at(at->pos, "a subscript takes at least one index, as in 'let [](i:i64):R { ... }'");
+    params_end = scope_names.len;
+    if (!accept_p(":"))
+        error_at(peek()->pos, "a subscript gives a value: write its type, as in 'let [](i:i64):R { ... }'");
+    g->ret = parse_type();
+    check_overload(g, at);
+    list_push(&functions, g);
+    if (!is_let) {
+        expect_p("{");
+        if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "get")))
+            error_at(peek()->pos, "a var subscript starts with its getter, 'get { ... }', then its setter, 'set(v) { ... }'");
+        advance();
+    }
+    parsing_fn = g;
+    int drops_from = pending_drops.len;
+    g->body = parse_fn_body(expect_p("{"));
+    parsing_fn = NULL;
+    implicit_return(g);
+    finish_drops(drops_from);
+    close_scope();
+    add_top_decl(prog, g);
+    if (is_let)
+        return;
+    if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "set")))
+        error_at(peek()->pos, "after the getter comes the setter, 'set(v) { ... }', with v the new value");
+    advance();
+    expect_p("(");
+    Token *vn = peek();
+    reject_kv_name(vn);
+    char *vname = expect_ident("the new value's name, as in 'set(v)'");
+    expect_p(")");
+    Decl *s = new_decl(D_FN, pos, NULL);
+    s->imported = at->imported;
+    s->type_fn = true;
+    s->subscript = true;
+    s->setter = true;
+    s->recv_name = rname;
+    s->name = set;
+    Type *mself = xcalloc(1, sizeof *mself); /* T^, the setter's: the caller's var */
+    mself->kind = T_PTR;
+    mself->pos = at->pos;
+    mself->elem = rt;
+    Var *msp = xcalloc(1, sizeof *msp);
+    *msp = *sp;
+    msp->type = mself;
+    list_push(&s->params, msp);
+    open_scope();
+    params_start = scope_names.len;
+    declare_binding("self", rt, LET_NONE); /* a setter changes the caller's var */
+    for (int i = 0; i < indices.len; i++) {
+        Var *p = xcalloc(1, sizeof *p);
+        *p = *(Var *)indices.data[i];
+        declare_binding(p->name, param_type(p->type), LET_PARAM);
+        list_push(&s->params, p);
+    }
+    Var *v = xcalloc(1, sizeof *v);
+    v->pos = vn->pos;
+    v->name = vname;
+    v->type = g->ret;
+    v->is_let = true;
+    v->number = numeric_type(param_type(v->type));
+    declare_binding(vname, param_type(v->type), LET_PARAM);
+    list_push(&s->params, v);
+    params_end = scope_names.len;
+    check_overload(s, vn);
+    list_push(&functions, s);
+    parsing_fn = s;
+    drops_from = pending_drops.len;
+    s->body = parse_fn_body(expect_p("{"));
+    parsing_fn = NULL;
+    finish_drops(drops_from);
+    close_scope();
+    expect_p("}");
+    add_top_decl(prog, s);
+}
+
 /* extend T { ... } (#130), Swift's extension: the members of T without
    writing T: let f() {} a method, static let f() {} a function of the
    type, let x:R {} a computed attribute, var x:R { get set } one with a
@@ -8976,6 +9269,15 @@ static void parse_extend(Program *prog) {
                      desc(peek()));
         bool is_let = is_kw(peek(), "let");
         Token *nm = peek_at(1), *after = peek_at(2);
+        if (is_p(nm, "[") && is_p(after, "]")) {
+            /* let [](i:I):R { } and var [](i:I):R { get set } (#136) */
+            if (storage)
+                error_at(m->pos, "a subscript has self, so it is not static: write '%s [](i:I):R { ... }'",
+                         is_let ? "let" : "var");
+            advance(); /* let or var */
+            parse_subscript(prog, m->pos, is_let, recv, spelled);
+            continue;
+        }
         if (nm->kind == TK_PUNCT) {
             /* static let +(a:T, b:T):T { } (#135): an operator, as Swift's
                static func +, which is the top level's let + */
@@ -9789,6 +10091,17 @@ Program *parse(Token *tokens, int ntoks) {
             continue;
         }
         int shape = function_shape(cur + binding);
+        if (shape == 7) {
+            /* let T[](i:I):R { } and var T[](i:I):R { get set } (#136) */
+            if (!binding)
+                error_at(peek()->pos, "a subscript is declared with let or var, as 'let %s[](i:I):R { ... }'", peek()->text);
+            if (storage)
+                error_at(t->pos, "a subscript has self, so it is not %s", storage);
+            bool is_let = is_kw(advance(), "let");
+            Token *recv = advance();
+            parse_subscript(prog, t->pos, is_let, recv, NULL);
+            continue;
+        }
         if (shape == 6) {
             /* let T.x:R { }, var T.x:R { get set }, static let T.x = v (#131-#133) */
             if (!binding)

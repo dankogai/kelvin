@@ -523,6 +523,18 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->op && (!strcmp(e->op, "subscript_get") || !strcmp(e->op, "subscript_set")) && e->target) {
+            /* v[i], v[i] = y through the subscript (#136): the receiver by its
+               address, a temporary's where it is no place */
+            Buf args = {0};
+            buf_puts(&args, "");
+            for (int i = 0; i < e->items.len; i++)
+                buf_printf(&args, ", %s", expr(e->items.data[i]));
+            const char *fn = e->target->cname ? e->target->cname : e->target->name;
+            if (c_lvalue(e->a) || !strcmp(e->op, "subscript_set"))
+                return strfmt("%s(&(%s)%s)", fn, expr(e->a), args.buf);
+            return strfmt("({ __auto_type _kv_sr = (%s); %s(&_kv_sr%s); })", expr(e->a), fn, args.buf);
+        }
         if (e->op && !strcmp(e->op, "attr_set") && e->target) /* v.x = y through x's setter (#132) */
             return strfmt("%s(&(%s), %s)", method_cname(e->target), expr(e->a), expr(e->items.data[0]));
         if (e->op && !strcmp(e->op, "bytes")) { /* Bytes(...) (#54) */
@@ -2854,10 +2866,10 @@ static void emit_decl(Decl *d) {
                     list_push(&count_cache, cache);
                 }
             }
-            if (d->setter)
-                line("#define self (*_kv_selfp)"); /* self is the caller's var (#132) */
+            if (d->setter || d->subscript)
+                line("#define self (*_kv_selfp)"); /* self is the caller's var (#132), or a subscript's receiver (#136) */
             stmt(d->body);
-            if (d->setter)
+            if (d->setter || d->subscript)
                 line("#undef self");
         }
         break;

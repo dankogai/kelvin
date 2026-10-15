@@ -202,8 +202,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 
 ## Attributes of your own, and `extend`
 
-A type of the program gets methods, attributes and type attributes of
-its own (#130 to #133). Each is written alone, naming its type, `T.x`,
+A type of the program gets methods, attributes, type attributes and
+subscripts of its own (#130 to #133, #136). Each is written alone, naming its type, `T.x`,
 or with others in an `extend T { }` block, Swift's `extension`, which
 names the type once:
 
@@ -240,6 +240,27 @@ let s = rect.square(4.0)
 println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
 ```
 
+Subscripts (#136) read and write a value by indices, as an Array's
+`v[i]` does:
+
+```kelvin
+struct grid { w: i64; cells: [i64](6) }
+
+extend grid {
+    let [](i:i64):i64 { self.cells[i] }                  // read only
+    var [](r:i64, c:i64):i64 {                           // read and written
+        get { self.cells[r * self.w + c] }
+        set(v) { self.cells[r * self.w + c] = v }
+    }
+}
+let grid[](name:cstr):i64 { name[0] as i64 }             // alone, by another type
+
+var g:grid = {3}
+g[1, 2] = 7                                              // the setter, on g
+g[0, 0] += 5
+println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
+```
+
 | Alone | In `extend T { }` | Is | Used as |
 |---|---|---|---|
 | `let T.f(a:A):R { }` | `let f(a:A):R { }` | a method, with `self` | `v.f(a)` |
@@ -250,6 +271,8 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
 | `static var T.x:R = v` | `static var x:R = v` | a type attribute, a variable (#133) | `T.x`, `T.x = y` |
 | `let T.cstr():cstr { `...` }` | `let cstr():cstr { `...` }` | the type's own text (#53) | `v.cstr`, `print(v)` |
 | `let +(a:T, b:T):T { }` | `static let +(a:T, b:T):T { }` | an operator (#42, #135) | `a + b`, `a += b` |
+| `let T[](i:I):R { }` | `let [](i:I):R { }` | a subscript, its getter (#136) | `v[i]`, `v[r, c]` |
+| `var T[](i:I):R { get { } set(v) { } }` | `var [](i:I):R { get { } set(v) { } }` | a subscript with a setter (#136) | `v[i]`, `v[i] = y`, `v[i] += y` |
 
 - **`extend T { }`** (#130) holds any of these, and names `T` once.
   - `T` is a struct, a union or an enum with values declared before it,
@@ -278,6 +301,36 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
   - The variable is a `var`: a `let` cannot change.
   - `v.x += y` is `v.x = v.x + y`, so `v` is read twice and may not hold
     a call.
+- **A subscript**, `let T[](i:I):R { ... }` (#136), is read as `v[i]`.
+  - Its body is a getter's, with `self`, which it reads and never
+    changes; its one expression is the result.
+  - It takes one index or more, of any types: `v[r, c]` reads one with
+    two.
+  - Subscripts overload by their indices: the count of them chooses
+    first, then their types.
+    - A literal index is the type it infers to first, `1` an `i64`,
+      `1.5` an `f64`, `"a"` a `cstr`, then any type of its kind;
+      `v[k as i32]` says which where that is not enough.
+  - It is of a struct, a union or an enum with values of the program;
+    a built-in type has its own indexing.
+    - An enum with values that holds an Array or a Dictionary is
+      indexed through its cases (#117) unless it has a subscript, which
+      wins.
+  - `v[i]` of an owner that an expression gives is an error, since
+    nothing would free it: bind it to a variable first.
+  - A slice, `v[a..<b]`, is no subscript.
+  - It has `self`, so `static let []` is an error.
+- **A subscript with a setter**, `var T[](i:I):R { get { ... } set(v) {
+  ... } }` (#136), is written through the setter as an attribute is.
+  - `v[i] = y` calls the setter with the indices and `y` as `v`; `self`
+    is the caller's variable, which is a `var`.
+  - `v[i] += y` is `v[i] = v[i] + y`, so neither `v` nor `i` may hold a
+    call.
+  - The setter is the one with the same index types as the getter that
+    `v[i]` chooses; a `let` subscript has none, and `v[i] = y` of it is
+    an error.
+  - The new value is the setter's own: an owner moves in, and the
+    setter copies what it keeps, `self.xs[i] = v.copy()`.
 - **A type attribute**, `static let T.x = v` or `static var T.x = v`
   (#133), is one value of the type, a global, read as `T.x`.
   - A `static let` needs its value and never changes; a `static var`
@@ -288,4 +341,7 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
 - **In C**, a method is `T__f`, a getter `T__x`, a setter `T__set_x`,
   which takes a pointer to the caller's variable, and a type attribute
   the global `T__x`.
+  - A subscript is `T__subscript`, and its setter `T__subscript_set`;
+    each takes a pointer to the receiver first, and overloads add the
+    indices' types, `T__subscript__i64__i64`.
 

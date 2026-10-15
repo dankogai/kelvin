@@ -72,6 +72,9 @@ println(j.n)                             // ends the program: case 'n' of json i
   - `j["key"]` is `j.object["key"]` and `j[0]` is `j.array[0]`: a
     place, checked as the case and the index are.
   - An enum with no such case says so.
+  - An enum with a subscript of its own, `let T[](i:I):R { ... }`
+    (#136), is indexed through it instead; see
+    [properties.md](properties.md#attributes-of-your-own-and-extend).
 - **Testing:** `v.is(n)` is a bool; `v.case` is the tag, a `u8`, the
   case's index from 0.
   - `switch v { case n: ... case none: ... }` branches on the case by

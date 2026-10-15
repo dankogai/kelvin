@@ -255,6 +255,8 @@ struct Decl {
                              overloaded or imported (#41), as sin__complex64 */
     bool attribute;       /* D_FN: let T.x:R { }, a computed attribute read as v.x, its getter (#131) */
     bool setter;          /* D_FN: the set(v) { } of var T.x:R { get set }, self the caller's var (#132) */
+    bool subscript;       /* D_FN: let T[](i):R { }, a function of the type T.[] whose first parameter is
+                             _kv_selfp, a pointer self names; T.[]= its setter (#136) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,
                              called as T.name(...) (#111); name is "T.name" */
     bool text_method;     /* D_FN: T.cstr(), the text of a struct or union, one
