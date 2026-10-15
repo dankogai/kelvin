@@ -3953,3 +3953,18 @@ functions that overload C's by name, `sin(z)`, `abs(z)`, stay free,
 since each is called by its own name. The outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 177. JSON.k's helpers in `extend JSON { }`
+
+> now rewrite JSON.k's helpers with `extend JSON {}` and `Self`
+
+**Claude** moved modules/JSON.k's helpers into its two
+`extend JSON { }` blocks, the parsing and the writing, as functions of
+the type (#111) with `Self` for `JSON` (#140): `JSON_value` is
+`Self.readValue`, `JSON_space` `Self.skipSpace`, and so on, the ones
+named as a case, `JSON_number`, `JSON_string`, `JSON_array`,
+`JSON_object`, as `readNumber` and the like, since `Self.number(x)`
+makes a value. `JSON_stringify` is the `stringify` overload that takes
+a replacer and text, which the others call. The outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.
