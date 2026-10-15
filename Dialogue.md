@@ -3968,3 +3968,22 @@ makes a value. `JSON_stringify` is the `stringify` overload that takes
 a replacer and text, which the others call. The outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 178. Free functions on a type into `extend T { }`
+
+> now rewrite linkedlist.k's free functions with `extend list {}` and
+> `Self`. If you find other codes and documents, do so to them as well
+> instead of proposing it one by one
+
+**Claude** moved examples/linkedlist.k's `push`, `pop`, `reverse` and
+`clear`, which change a list through a pointer, into its `extend list { }`
+block as functions of the type, `static let push(l:Self^, value:i64)`,
+called `list.push(&l, v)`, since a method's `self` is a let (#138); and
+examples/bfi.k's `parse` into `extend program { }` as a function of the
+type giving `Result<Self, String>`, with `run` a method that reads
+`.code`. The operator examples of structs.md, operators.md and
+unions.md are `extend` blocks with `static let +(a:Self, b:Self):Self`,
+each noting the alone form. The other examples' functions work on
+built-in types or none, and stay. The outputs are unchanged.
+
+There are 734 tests, and all pass with clang and with gcc 15.

@@ -12,81 +12,83 @@ struct program {
     embedded: bool       // whether there was one: then , reads input, else stdin
 }
 
-// the commands of src and their matching brackets, or why there are none
-let parse(src:Bytes^):Result<program, String> {
-    var p:program = {Bytes(), $[], Bytes(), false}
-    var offsets:$[i64] = $[]       // where each command came from, for messages
-    var stack:$[i64] = $[]
-    let n = src^.count as i64
-    var i:i64 = 0
-    while i < n {
-        let c = src^[i]
-        if c == '!' {
-            p.input = src^[i + 1...]
-            p.embedded = true
-            break
-        }
-        if c == '>' || c == '<' || c == '+' || c == '-' || c == '.' || c == ',' || c == '[' || c == ']' {
-            p.code += c
-            offsets += i
-        }
-        i += 1
-    }
-    p.jump = Array<i64>(p.code.count)
-    for k in 0..<p.code.count as i64 {
-        let c = p.code[k]
-        if c == '[' {
-            stack += k
-        } else if c == ']' {
-            if stack.count == 0 { return err($`unmatched ] at offset ${offsets[k]}`) }
-            let open = stack.pop()
-            p.jump[open] = k
-            p.jump[k] = open
-        }
-    }
-    if stack.count > 0 { return err($`unmatched [ at offset ${offsets[stack[0]]}`) }
-    return p
-}
-
-let run(p:program^):() {
-    var tape = Bytes(65536)
-    var sp:i64 = 0
-    var ip:i64 = 0
-    var at:i64 = 0                 // the next byte of the embedded input
-    let n = p^.code.count as i64
-    while ip < n {
-        switch p^.code[ip] {
-        case '>': sp = (sp + 1) % 65536
-        case '<': sp = (sp + 65535) % 65536
-        case '+': tape[sp] += 1
-        case '-': tape[sp] -= 1
-        case '.': putchar(tape[sp])
-        case ',':
-            if p^.embedded {
-                if at >= p^.input.count as i64 { return }
-                tape[sp] = p^.input[at]
-                at += 1
-            } else {
-                let c:i32 = getchar()
-                if c < 0 { return }
-                tape[sp] = c as u8
+extend program {
+    // the commands of src and their matching brackets, or why there are none
+    static let parse(src:Bytes^):Result<Self, String> {   // a function of the type (#111)
+        var p:Self = {Bytes(), $[], Bytes(), false}
+        var offsets:$[i64] = $[]       // where each command came from, for messages
+        var stack:$[i64] = $[]
+        let n = src^.count as i64
+        var i:i64 = 0
+        while i < n {
+            let c = src^[i]
+            if c == '!' {
+                p.input = src^[i + 1...]
+                p.embedded = true
+                break
             }
-        case '[': if tape[sp] == 0 { ip = p^.jump[ip] }
-        case ']': if tape[sp] != 0 { ip = p^.jump[ip] }
-        default:
+            if c == '>' || c == '<' || c == '+' || c == '-' || c == '.' || c == ',' || c == '[' || c == ']' {
+                p.code += c
+                offsets += i
+            }
+            i += 1
         }
-        ip += 1
+        p.jump = Array<i64>(p.code.count)
+        for k in 0..<p.code.count as i64 {
+            let c = p.code[k]
+            if c == '[' {
+                stack += k
+            } else if c == ']' {
+                if stack.count == 0 { return err($`unmatched ] at offset ${offsets[k]}`) }
+                let open = stack.pop()
+                p.jump[open] = k
+                p.jump[k] = open
+            }
+        }
+        if stack.count > 0 { return err($`unmatched [ at offset ${offsets[stack[0]]}`) }
+        return p
+    }
+
+    let run():() {                                        // a method: .code is self.code (#139)
+        var tape = Bytes(65536)
+        var sp:i64 = 0
+        var ip:i64 = 0
+        var at:i64 = 0                 // the next byte of the embedded input
+        let n = .code.count as i64
+        while ip < n {
+            switch .code[ip] {
+            case '>': sp = (sp + 1) % 65536
+            case '<': sp = (sp + 65535) % 65536
+            case '+': tape[sp] += 1
+            case '-': tape[sp] -= 1
+            case '.': putchar(tape[sp])
+            case ',':
+                if .embedded {
+                    if at >= .input.count as i64 { return }
+                    tape[sp] = .input[at]
+                    at += 1
+                } else {
+                    let c:i32 = getchar()
+                    if c < 0 { return }
+                    tape[sp] = c as u8
+                }
+            case '[': if tape[sp] == 0 { ip = .jump[ip] }
+            case ']': if tape[sp] != 0 { ip = .jump[ip] }
+            default:
+            }
+            ip += 1
+        }
     }
 }
 
 // parses and runs src; 1 and a message on stderr if it does not parse
 let interpret(src:Bytes^):i32 {
-    var parsed = parse(src)
+    var parsed = program.parse(src)
     if let err(why) = parsed {
         fprintf(stderr, "%s\n", why.cstr)
         return 1
     }
-    run(&parsed.ok)
+    parsed.ok.run()
     fflush(stdout)
     return 0
 }

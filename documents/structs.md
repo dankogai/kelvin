@@ -199,10 +199,12 @@ operator, overloaded by their types as other functions are (#42):
 ```kelvin
 struct money { cents: i64 }
 
-let +(a:money, b:money):money { (money){a.cents + b.cents} }
-let *(a:money, k:i64):money { (money){a.cents * k} }
-let -(a:money):money { (money){-a.cents} }
-let <(a:money, b:money):bool { a.cents < b.cents }
+extend money {                                            // or alone: let +(a:money, b:money):money
+    static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
+    static let *(a:Self, k:i64):Self { (Self){a.cents * k} }
+    static let -(a:Self):Self { (Self){-a.cents} }
+    static let <(a:Self, b:Self):bool { a.cents < b.cents }
+}
 
 let main():i32 {
     let a:money = {150}

@@ -169,7 +169,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/primes.k](examples/primes.k) | a `bool` array, nested ranges, `continue` |
 | [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, a `u8^` cursor with `p++`, C's string functions, `.hex` and friends |
 | [examples/shapes.k](examples/shapes.k) | structs, `extend` blocks of methods and attributes, derived `.cstr` text, `<math.h>` |
-| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, changing a list through a pointer, `for n in head` |
+| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, an `extend list` block whose functions of the type change a list through a pointer, `list.push(&l, v)`, and whose methods read it, `for n in head` |
 | [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
 | [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
 | [examples/bfi.k](examples/bfi.k) | a brainfuck interpreter: a struct that owns a `Bytes` and an `Array`, `Result` and `if let err(why)`, a `switch` on bytes, `argv`, `fopen` and `getchar`; `!` ends the program and starts its input |

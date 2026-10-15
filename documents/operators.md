@@ -75,8 +75,10 @@ A struct or union may define `+ - * / % == != < <= > >=` and unary `-`
 
 ```kelvin
 struct money { cents: i64 }
-let +(a:money, b:money):money { (money){a.cents + b.cents} }
-let <(a:money, b:money):bool { a.cents < b.cents }
+extend money {
+    static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
+    static let <(a:Self, b:Self):bool { a.cents < b.cents }
+}
 ```
 
 Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
