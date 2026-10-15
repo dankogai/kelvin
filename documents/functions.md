@@ -13,6 +13,7 @@ operators, which are functions of a struct, are in
 ```kelvin
 let add(a:i64, b:i64):i64 { a + b }        // one expression is the result
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
+let shout(name:cstr):() { println(name, "!") }  // the same, written out (#141)
 let move(var p:node^) { p := p^.next }     // a var parameter may change
 extern let labs(n:i64):i64                 // a prototype, no body
 static let helper():i32 { 1 }
@@ -30,11 +31,16 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
   - A prototype ends with `;` or the end of its line instead of a body.
   - With no `: type`, the function returns nothing (C's `void`)
     *(provisional P5)*.
+    - `:()` says so in writing (#141): `let shout(name:cstr):() { ... }`.
+      It goes on a prototype, a method, an anonymous function,
+      `{ (n:i64):() in ... }`, and in a function type, `(i64):()`.
+    - `:():R` is a function type as the result, as before.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
 - **Parameters** are lets unless written `var`.
   - In `let f(p:u8^)`, `p` cannot change, while
     `let f(var p:u8^) { p := p.next }` may move `p`.
-  - A method's `self` is a mutable copy.
+  - A method's `self` is a let too (#138): a copy, `var p = self`,
+    changes; see [structs.md](structs.md#methods).
   - Parameters must be named: C's unnamed `f(int)` is not available
     yet.
 - **`return {...}`** (#77) takes the function's result type, as a
@@ -75,6 +81,9 @@ println(p.dist2())                        // 25; p.origin() is an error: it is c
 
 - `self` in its body is an error that says so, and so is calling it on
   a value, `p.origin()`.
+- `Self` is `T` in its body and its types (#140): `static let
+  point.origin():Self { return {0, 0} }`; see
+  [properties.md](properties.md#attributes-of-your-own-and-extend).
   - A function of a type is not a method, and a method,
     `let T.name()`, is not called by the type's name.
 - A `static let T.name()` used to be a method with C's `static`; a

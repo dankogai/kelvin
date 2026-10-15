@@ -203,31 +203,32 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 ## Attributes of your own, and `extend`
 
 A type of the program gets methods, attributes, type attributes and
-subscripts of its own (#130 to #133, #136). Each is written alone, naming its type, `T.x`,
-or with others in an `extend T { }` block, Swift's `extension`, which
-names the type once:
+subscripts of its own (#130 to #133, #136). Each is written alone,
+naming its type, `T.x`, or with others in an `extend T { }` block,
+Swift's `extension`, which names the type once. In every body, `.x` is
+`self.x` (#139), and `Self` is the type (#140):
 
 ```kelvin
 struct rect { w: f64; h: f64 }
 struct temp { kelvin: f64 }
 
-let rect.area:f64 { self.w * self.h }       // an attribute, alone
+let rect.area:f64 { .w * .h }               // an attribute, alone: .w is self.w
 static var rect.made:i64 = 0                // a type attribute, alone
 
 extend rect {
-    let perimeter:f64 { 2.0 * (self.w + self.h) }        // an attribute
-    let scaled(k:f64):rect { (rect){self.w * k, self.h * k} }   // a method
-    static let unit:rect = {1.0, 1.0}                     // a type attribute
-    static let square(s:f64):rect {                       // a function of the type
-        rect.made += 1
+    let perimeter:f64 { 2.0 * (.w + .h) }                 // an attribute
+    let scaled(k:f64):Self { (Self){.w * k, .h * k} }     // a method; Self is rect
+    static let unit:Self = {1.0, 1.0}                     // a type attribute
+    static let square(s:f64):Self {                       // a function of the type
+        Self.made += 1
         return {s, s}
     }
 }
 
 extend temp {
     var celsius:f64 {                                     // an attribute with a setter
-        get { self.kelvin - 273.15 }
-        set(v) { self.kelvin = v + 273.15 }
+        get { .kelvin - 273.15 }
+        set(v) { .kelvin = v + 273.15 }
     }
 }
 
@@ -247,10 +248,10 @@ Subscripts (#136) read and write a value by indices, as an Array's
 struct grid { w: i64; cells: [i64](6) }
 
 extend grid {
-    let [](i:i64):i64 { self.cells[i] }                  // read only
+    let [](i:i64):i64 { .cells[i] }                      // read only
     var [](r:i64, c:i64):i64 {                           // read and written
-        get { self.cells[r * self.w + c] }
-        set(v) { self.cells[r * self.w + c] = v }
+        get { .cells[r * .w + c] }
+        set(v) { .cells[r * .w + c] = v }
     }
 }
 let grid[](name:cstr):i64 { name[0] as i64 }             // alone, by another type
@@ -281,6 +282,19 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
     `extend enum{nothing, just: i64} { ... }` (#121).
   - A member and its alone form are the same thing: either may be used,
     and a program may mix them.
+  - In every body that has `self`, `.x` is `self.x` (#139): `let area:f64
+    { .w * .h }`, `set(v) { .kelvin = v + 273.15 }`; see
+    [structs.md](structs.md#methods).
+  - **`Self` is `T`** (#140), as Swift's `Self`, in the block and in
+    each member written alone.
+    - It goes where a type goes: `let scaled(k:f64):Self`, `var p:Self
+      = self`, `(Self){...}`, `sizeof(Self)`, `Array<Self>`.
+    - And where the type's name goes: `Self.of(1, 2)` calls a function
+      of the type, `Self.unit` reads a type attribute, and `Self(v)`
+      converts in `extend f64 { }`.
+    - A type with no tag has no name, so its `Self` is a type only:
+      `let s:Self = self` works and `Self.f()` is an error.
+    - Outside these, `Self` is an error that says where it belongs.
   - An operator in `extend` is `static let +(a:T, b:T):T` (#135), as
     Swift's `static func +`, the same as the top level's `let +`; one of
     its values is a `T`, and a plain `let +` there is an error that says
@@ -289,8 +303,9 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   `v.x`, with no parentheses.
   - Its body is a method's, with `self`, and its one expression is the
     result.
-  - `self` is a `let` there (#137): the getter reads it and never
-    changes it, so `self.n += 1` or `self = ...` is an error.
+  - `self` is a `let` there (#137), as in a method (#138): the getter
+    reads it and never changes it, so `self.n += 1` or `self = ...` is
+    an error.
     - It is `const` in C, as any `let` is, so `&self` is a `const T^`.
     - A copy changes freely: `var c = self.n`.
   - `v.x()` is an error, and so is `v.x = y`: it has no setter.

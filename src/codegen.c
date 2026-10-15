@@ -2040,7 +2040,7 @@ static char *fn_head(Decl *d) {
         p->pos = d->recv->pos;
         p->elem = d->recv;
         buf_puts(&params, decl(p, "_kv_selfp"));
-    } else if (d->recv && d->attribute) { /* a getter's self is a let, const in C as any let (#27, #137) */
+    } else if (d->recv) { /* a method's or a getter's self is a let, const in C as any let (#27, #137, #138) */
         Type *c = xcalloc(1, sizeof *c);
         *c = *d->recv;
         c->is_const = true;

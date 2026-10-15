@@ -169,6 +169,10 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 135 | Operators in `extend T { }`: `static let +(a:T, b:T):T { }`, as Swift's `static func +`, the same as the top level's `let +`; one of its values is a `T`; a plain `let +` in extend is an error naming `static` | — | `extend money { static let +(a:money, b:money):money { ... } }` | 2026-10-15 |
 | 136 | Subscripts: `let [](i:I):R { }` in `extend T { }`, alone `let T[](i:I):R { }`, read as `v[i]`; `var [](i:I):R { get { } set(v) { } }` also written as `v[i] = y` and `v[i] += y` on the var that holds `v`; several indices read `v[r, c]`, and subscripts overload by the indices' count and types; one of an enum with values wins over #117 | — | `extend grid { var [](r:i64, c:i64):i64 { get { ... } set(v) { ... } } }`, `g[1, 2] = 7` | 2026-10-15 |
 | 137 | A getter's `self` is a `let`: a `let` attribute and a `var` attribute's `get { }` read `self` and never change it, so `self.n += 1` or `self = v` there is an error naming the setter, and `self` is `const` in C, as any `let` is (#27); a method is unchanged | — | `let counter.next:i64 { self.n += 1 }` is an error | 2026-10-15 |
+| 138 | A method's `self` is a `let`, as a getter's (#137): `self.x += 1` or `self = v` in a method is an error that names a setter and `T^`, and `self` is `const` in C; a copy, `var p = self`, changes. This replaces #27's "self is a mutable copy" | — | `let point.moved(dx:i64):point { var p = self; p.x += dx; return p }` | 2026-10-15 |
+| 139 | `.x` is `self.x` in every body that has `self`: a method, an attribute, a setter, a subscript; in an initializer `.x = v` is still a designator and `.x` alone is `self.x`; a new line that sets a member, `.n = v`, starts a statement there, while any other `.member` on a new line goes on with the expression (#35) | — | `let area:f64 { .w * .h }`, `set(v) { .kelvin = v + 273.15 }` | 2026-10-15 |
+| 140 | `Self` is the receiver's type, as Swift's: inside `extend T { }` and in a method, an attribute, a subscript or a function of `T` written alone, where a type goes and where `T`'s name goes, `Self.f()`, `Self.x`, `Self(v)`; a type with no tag has no name, so its `Self` is a type only; elsewhere `Self` is an error that says where it belongs | — | `extend point { let moved(dx:i64):Self { var p:Self = self; ... } }` | 2026-10-15 |
+| 141 | `:()` after the parameters says a function gives nothing, C's `void`, written out: on a function, a prototype, a method, an anonymous function and in a function type, `(i64):()`; `:():R` stays a function type as the result | — | `let greet(name:cstr):() { println("hi ", name) }` | 2026-10-15 |
 
 Notes:
 
@@ -730,6 +734,28 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (140, 141) Agreed details: "Also note inside `extend T`, `T` can also
+  be referred as `Self` like swift. That goes to `let T.meth(){...}`.
+  in `...` `Self` refers to `T`." and "Just to be more explicit
+  functions without return values (C's void f()...), you can optionally
+  add `:()`". Claude read `Self` in every member of `T`, the attributes,
+  subscripts and functions of the type too, and where `T`'s name goes
+  as well as where a type goes, since Swift's does both; a type with no
+  tag keeps `Self` as a type only. `:()` is read wherever a result is
+  written, and `:():R` keeps its old reading (P152, P153).
+
+- (138, 139) Agreed details: "now make a method reject changing self.
+  Also make `.attr` mean `self.attr` in the method definitions." #138
+  ends #27's "self is a mutable copy", which changed only the method's
+  own copy: three programs that moved a copy now write `var p = self`.
+  #139 is read in every body with `self`, the attributes, setters and
+  subscripts too, since their bodies are a method's. Claude chose how
+  `.x` meets the rule of #35 that a `.member` on a new line goes on with
+  the expression: that stays, except that a new line that sets a
+  member starts a statement where there is self, so a setter's lines
+  `.n = v` and `.xs += v` work; `self.f()` starts a line with a call
+  (P150, P151).
 
 - (137) Agreed details: "now make a let attribute's getter reject
   changing self". Found while testing #136, whose getters already
@@ -1483,6 +1509,10 @@ says "as agreed".
 | P147 | Details of #135 | `static let +(a:money, b:money):money` in `extend money` is `_kv_add_op__money__money`, as `let +` at the top level is | `parse_extend` takes `static` `let` and an overloadable operator before `(` to `parse_fn`, the top level's parser of operators, then checks a parameter's type against the receiver's from `attribute_receiver`; without `static`, or another punctuation, it is an error |
 | P148 | Details of #136 | `g[1, 2]` is `grid__subscript__i64__i64(&(g), 1, 2)` and `g[1, 2] = 7` is `grid__subscript_set(&(g), 1, 2, 7)`; a receiver that is no place is a temporary first. The getter takes `const T^`, the setter `T^`, each named `_kv_selfp` with `#define self (*_kv_selfp)` around the body | `function_shape` gives 7 for `T[](`, and `parse_extend` sends `let [` and `var [` to `parse_subscript`, which makes the Decls `T.[]` and `T.[]=`, functions of the type marked `subscript`. The index parse chooses an overload by the count of indices, then their types, a literal as the type it infers to before any of its kind, before #117's cases; `parse_assign` turns `v[i] op= y` into an E_CALL `subscript_set` with the setter of the same index types |
 | P149 | Details of #137 | `let counter.sum:i64 { ... }` is `int64_t counter__sum(const struct counter self)`, so `&self` is a `const struct counter *` and C warns where it is passed to a `counter^`, as of any let parameter | `parse_method` binds `self` with LET_PARAM when it reads a `:` after the name, and `attribute_body` does for a getter, not a setter; `let_target`'s error for `self` in a getter names the setter; `fn_head` writes a getter's receiver with `const` |
+| P150 | Details of #138 | `let point.moved(dx:i64):point` is `struct point point__moved(const struct point self, const int64_t dx)` | `parse_method` binds `self` with LET_PARAM for every method; `let_target`'s error for `self` in a method names a setter and `T^`; `fn_head` writes every receiver but a setter's with `const`. tests/run/let_var.k, tag_names.k and examples/shapes.k change a `var` copy now |
+| P151 | Details of #139 | `.w * .h` is `self.w * self.h` | `parse_primary` reads `.` and a member's name as the identifier `self` where `self` is bound, and leaves `.x` to the postfix; with no self, in a function, it is an error that says so, and of the function around an anonymous one, the error of #32. An initializer's `.` is a designator where `designator_ahead` finds `=` after the chain, or outside a function. `self_statement_at` ends an expression before a new line's `.x`, `.x.y` or `.x[i]` followed by an assignment, `++` or `--`, both in `line_ends_expression` and in `statement_ends_at` |
+| P152 | Details of #140 | `let moved(dx:i64):Self` in `extend point` is `struct point point__moved(const struct point self, const int64_t dx)`, as with `point` written | `rewrite_self` turns each token `Self` into `T`'s over the extend block, from its `{` to the matching `}`, or over a member written alone, to the `}` of its body, a `;`, or a new line that starts a statement, so every lookahead that tells a type from an expression sees `T`. `self_scope`, `self_tok` and `self_spelled` are set by `parse_extend` and the member parsers; outside them `self_word` makes `Self` an error, and for a type with no tag `parse_type_in` reads `Self` as the spelling while an expression's `Self` is an error |
+| P153 | Details of #141 | `let greet(name:cstr):()` is `void greet(const uint8_t *const name)`, as without `:()` | `void_result_ahead` sees `(` `)` not followed by `:` after the result's `:`, in `parse_fn_tail`, `parse_method_of`, `parse_anon_fn` and `parse_fn_type`, and leaves the result NULL, which was void already |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

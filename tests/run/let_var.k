@@ -1,5 +1,5 @@
 // let and var (#27): a let never changes, and is C's const; parameters
-// are lets unless written var; self is a mutable copy
+// are lets unless written var; self is a let too (#138)
 #import <string.h> as C
 struct point { x:i32; y:i32; };
 
@@ -15,9 +15,10 @@ let length(var p:const u8^):i64 {       // a var parameter may change
     return n;
 }
 
-let point.moved(dx:i32):struct point {  // self is a mutable copy
-    self.x += dx;
-    return self;
+let point.moved(dx:i32):struct point {  // self is a let: a var copy changes
+    var p = self;
+    p.x += dx;
+    return p;
 }
 
 let twice(n:i64):i64 { return n * 2; }    // n is a let

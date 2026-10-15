@@ -3829,3 +3829,40 @@ that names the setter, as a subscript's getter already was (#136).
 provisional P149.
 
 There are 721 tests, and all pass with clang and with gcc 15.
+
+### 168. A method does not change `self`, and `.x` is `self.x`
+
+> now make a method reject changing self.  Also make `.attr` mean
+> `self.attr` in the method definitions.
+
+**Claude** added #138: a method's `self` is a `let`, as a getter's is
+(#137), so changing it is an error, and it is `const` in C. This ends
+#27's mutable copy; three programs that moved a copy now write
+`var p = self`. #139 reads `.x` as `self.x` in every body with `self`:
+methods, attributes, setters and subscripts. In an initializer,
+`.x = v` is still a designator. A `.member` on a new line still goes on
+with the expression (#35), except a line that sets a member, `.n = v`,
+which starts a statement where there is `self`. Details are
+provisional P150 and P151.
+
+There are 729 tests, and all pass with clang and with gcc 15.
+
+### 169. `Self`, and `:()` for no result
+
+> edit documents reflecting the changes above. Also note inside
+> `extend T`, `T` can also be referred as `Self` like swift. That goes
+> to `let T.meth(){...}`. in `...` `Self` refers to `T`. Just to be more
+> explicit functions without return values (C's void f()...), you can
+> optionally add `:()`
+
+**Claude** rewrote the examples of properties.md with `.x` and `Self`,
+and added #140 and #141. `Self` is the receiver's type inside
+`extend T { }` and in every member of `T` written alone, as Swift's:
+where a type goes, `let moved(dx:i64):Self`, `var p:Self = self`, and
+where the type's name goes, `Self.of(1, 2)`, `Self.unit`, `Self(v)`; a
+type with no tag has no name, so its `Self` is a type only. `:()`
+after the parameters says a function gives nothing, on a function, a
+prototype, a method, an anonymous function and in a function type.
+Details are provisional P152 and P153.
+
+There are 734 tests, and all pass with clang and with gcc 15.

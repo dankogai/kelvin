@@ -116,7 +116,8 @@ let vector2d.cstr():cstr { `(${self.x}, ${self.y})` }
 ## Methods
 
 Every type can have methods. You define them Swift-style on a struct or
-union, or on a built-in type, with an implicit `self` (passed by value).
+union, or on a built-in type, with an implicit `self` (passed by value);
+`.x` is `self.x` in them, and `Self` is the type.
 Attributes read without parentheses, type attributes, and an
 `extend T { }` block that holds them all are in
 [properties.md](properties.md#attributes-of-your-own-and-extend) (#130 to #133):
@@ -125,6 +126,12 @@ Attributes read without parentheses, type attributes, and an
 struct point { x: i32; y: i32 }
 
 let point.dist2():i64 { self.x * self.x + self.y * self.y }
+let point.sum():i64 { .x + .y }                         // .x is self.x
+let point.moved(dx:i32):Self {                          // Self is point
+    var p:Self = self                                    // self is a let: a copy changes
+    p.x += dx
+    return p
+}
 let f64.half():f64 { self / 2 }
 
 let main():i32 {
@@ -134,6 +141,31 @@ let main():i32 {
 }
 ```
 
+- **`self` is a let** (#138): a method reads it and never changes it.
+  - `self.x += 1` or `self = v` in a method is an error.
+  - It is `const` in C, as any `let` is, so `&self` is a `const T^`.
+  - A copy changes: `var p = self`, then `p.x += dx`.
+  - What changes the caller's value is a `var` attribute's setter
+    ([properties.md](properties.md#attributes-of-your-own-and-extend)),
+    or a function that takes `T^`.
+- **`.x` is `self.x`** (#139) in a method, an attribute, a setter and a
+  subscript: a member, an attribute or a method, `.w * .h`,
+  `.scaled(2.0)`, `.is(just)`.
+  - In an initializer, `.x = v` is still a designator, and `.x` with no
+    `=` is `self.x`: `return {.w * k, .h * k}`.
+  - A function with no `self`, and a function of the type, say so.
+  - An anonymous function in a method encloses nothing, so `.x` there
+    is an error, as `self.x` is (#32).
+  - A `.member` on a new line goes on with the expression before it, as
+    always (#35): `.xs` then `.count` on the next line is `.xs.count`.
+    - A new line that sets a member, `.n = v`, `.xs += v`,
+      `.cells[i] = v`, starts a statement where there is `self`, since
+      setting a member of what went before would mean nothing.
+    - Write `self.f()` to start a line with a method call.
+- **`Self` is the type** (#140), Swift's `Self`, in a method and in
+  every member of `T`: `let moved(dx:i32):Self`, `var p:Self = self`,
+  `Self.origin()`; the details are in
+  [properties.md](properties.md#attributes-of-your-own-and-extend).
 - **Literals** take methods and properties too: `2.cstr`, `1.5.hex`,
   `(7:i64).inc()` *(provisional P30)*.
   - Hex floats like `0x1.f4p+9` are still numbers.

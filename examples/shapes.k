@@ -22,11 +22,12 @@ extend circle {
 
 extend rect {
     let area:f64 { self.width * self.height }
-    // self is a mutable copy: moving it here leaves the caller's rect alone
+    // self is a let (#138): a copy moves, and the caller's rect stays
     let moved(dx:f64, dy:f64):rect {
-        self.corner.x += dx
-        self.corner.y += dy
-        return self
+        var r = self
+        r.corner.x += dx
+        r.corner.y += dy
+        return r
     }
 }
 

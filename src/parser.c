@@ -126,6 +126,73 @@ static int binding_index(const char *name) {
     return -1;
 }
 
+static bool is_kw(Token *t, const char *kw);
+static bool is_converter(Token *t);
+static int skip_group(int i);
+
+/* Is the token a member's name after `.`: a name, or cstr, a converter's
+   name, case or union, which are keywords? */
+static bool member_name_token(Token *t) {
+    return t->kind == TK_IDENT || is_kw(t, "cstr") || is_converter(t) || is_kw(t, "case") || is_kw(t, "union");
+}
+
+/* Is `.x` at token i self.x (#139): a member's name after the `.`, in a
+   body that has self? */
+static int implicit_self_at = -1; /* the token of the `.` that an implicit self begins (#139) */
+static bool self_member_ahead(int i) {
+    return toks[i].kind == TK_PUNCT && !strcmp(toks[i].text, ".") && member_name_token(&toks[i + 1]) &&
+           binding_index("self") >= 0;
+}
+
+/* Is the item of an initializer at token i a designator, `.x = v` or
+   `[2] = v`, the chain followed by `=`? In a function, `.x` that is not
+   one is self.x, or an error where there is no self (#139) */
+static bool designator_ahead(int i) {
+    int j = i;
+    for (;;) {
+        if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, ".") && member_name_token(&toks[j + 1]))
+            j += 2;
+        else if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, "["))
+            j = skip_group(j);
+        else
+            break;
+    }
+    return j > i && toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, "=");
+}
+
+static bool at_statement_level(void);
+static bool is_assign_op(const char *op);
+
+/* Does the new line at token i start a statement that sets a member of
+   self, .x = v, .x[i] += v, .p++ (#139)? A .member on a new line goes on
+   with the expression before it (#35), but setting a member of that would
+   mean nothing, so where there is self, it is self's */
+static bool self_statement_at(int i) {
+    if (i == 0 || i == implicit_self_at || !self_member_ahead(i) || !line_break(&toks[i - 1], &toks[i]) ||
+        !at_statement_level())
+        return false;
+    int j = i;
+    for (;;) {
+        if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, ".") && member_name_token(&toks[j + 1]))
+            j += 2;
+        else if (toks[j].kind == TK_PUNCT && !strcmp(toks[j].text, "["))
+            j = skip_group(j);
+        else
+            break;
+    }
+    return toks[j].kind == TK_PUNCT &&
+           (is_assign_op(toks[j].text) || !strcmp(toks[j].text, "++") || !strcmp(toks[j].text, "--"));
+}
+
+/* Is op one of the assignment operators, = := += ... |=? */
+static bool is_assign_op(const char *op) {
+    static const char *ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
+    for (int i = 0; ops[i]; i++)
+        if (!strcmp(op, ops[i]))
+            return true;
+    return false;
+}
+
 /* Is name declared in the innermost scope? */
 static bool bound_here(const char *name) {
     return scope_marks.len && binding_index(name) >= (int)(intptr_t)scope_marks.data[scope_marks.len - 1];
@@ -167,6 +234,9 @@ static void finish_drops(int from);
 /* the structs with no tag (#59), Decl *, one per spelling, in order of first use */
 static List anon_records;
 static List anon_words; /* Decl *: the top-level enums with values that have no tag, whose cases are words (#120) */
+static bool self_scope;    /* Self names the receiver's type (#140): in extend T { } and in a member of T */
+static Token *self_tok;    /* that T, or NULL */
+static Type *self_spelled; /* or its spelling, a type with no tag */
 static bool in_extend;     /* inside extend T { } (#130): its members name no receiver */
 static Token *ext_tok;     /* that T */
 static Type *ext_spelled;  /* or its spelling, extend enum{...} { } */
@@ -874,6 +944,31 @@ static bool has_local_size(Type *t) {
    `bool (*)(int64_t, int64_t)` for (i64, i64):bool. (T) has no result, as
    a function without `:R` has none. The result takes every suffix after
    it: (i64):i64^ returns a pointer. */
+/* Self is the receiver's type, T, inside extend T { } and in a method,
+   an attribute or a subscript of T, as Swift's Self (#140): the token
+   becomes T's. A type with no tag has no name, so Self there is only a
+   type, read in parse_type_in */
+static void self_word(Token *t) {
+    if (t->kind != TK_IDENT || strcmp(t->text, "Self"))
+        return;
+    if (!self_scope)
+        error_at(t->pos, "'Self' is the type's name inside 'extend T { }' and in a method, an attribute or a subscript "
+                         "of T: here there is no T");
+    if (self_spelled)
+        error_at(t->pos, "'Self' here is a type with no tag, which has no name to call a function by: write a method, "
+                         "or the type's spelling");
+    t->text = self_tok->text;
+    t->kind = self_tok->kind;
+}
+
+static void rewrite_self(int i, Token *recv);
+
+/* `:()` after the parameters: no result, C's void, written out (#141);
+   `:():R` is a function type as the result */
+static bool void_result_ahead(void) {
+    return is_p(peek(), "(") && is_p(peek2(), ")") && !is_p(peek_at(2), ":");
+}
+
 static Type *parse_fn_type(TypeContext ctx) {
     Token *open = expect_p("(");
     Type *t = xcalloc(1, sizeof *t);
@@ -900,10 +995,15 @@ static Type *parse_fn_type(TypeContext ctx) {
     bool result = is_p(peek(), ":") &&
                   (ident_annotation_ok || ((is_base_word(n) && !(is_converter(n) && is_p(peek_at(2), "("))) ||
                                            is_qualifier(n) || is_kw(n, "struct") || is_kw(n, "union") ||
-                                           is_kw(n, "enum")));
+                                           is_kw(n, "enum") ||
+                                           (is_p(n, "(") && is_p(peek_at(2), ")") && !is_p(peek_at(3), ":"))));
     if (result) {
         advance();
-        t->elem = parse_type_in(ctx);
+        if (void_result_ahead()) { /* (T):() gives nothing (#141) */
+            advance();
+            advance();
+        } else
+            t->elem = parse_type_in(ctx);
     } else if (is_p(peek(), "^") || is_p(peek(), "[")) {
         error_at(peek()->pos, "a pointer to a function type, or an array of functions, has no spelling yet (#31): "
                               "a function type is already a pointer, and several can go in a struct");
@@ -1045,6 +1145,18 @@ static Type *parse_type_in(TypeContext ctx) {
     } else {
         /* one built-in type name, or a C typedef name such as FILE or
            size_t from an imported header; f32 and f64 may be _Complex */
+        if (peek()->kind == TK_IDENT && !strcmp(peek()->text, "Self") && self_scope && self_spelled) {
+            /* Self of a type with no tag (#140): its spelling */
+            advance();
+            Type *t = xcalloc(1, sizeof *t);
+            *t = *self_spelled;
+            t->is_const = base->is_const;
+            t->is_volatile = base->is_volatile;
+            parse_qualifiers(t);
+            type_start = cur;
+            return parse_type_suffixes(t, ctx);
+        }
+        self_word(peek()); /* Self is T (#140) */
         reject_c_int_name(peek());
         Token *name = peek();
         if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
@@ -1225,7 +1337,10 @@ static bool bracket_is_slice(int i) {
 /* At the top level of a statement, a `(` on a new line starts the next
    statement, as in Swift, rather than calling what went before (#35);
    an operator, `.member` or `[` there goes on with the expression */
-static bool line_ends_expression(void) { return is_p(peek(), "(") && newline_before() && at_statement_level(); }
+static bool self_statement_at(int i);
+static bool line_ends_expression(void) {
+    return (is_p(peek(), "(") && newline_before() && at_statement_level()) || self_statement_at(cur);
+}
 
 /* Does the token at the cursor start the next statement, being on a new
    line at the top level of a statement (#35)? There a `{` starts a block,
@@ -2152,6 +2267,24 @@ static bool zero_array_ahead(int i) {
 
 static Expr *parse_primary(void) {
     Token *t = peek();
+    self_word(t); /* Self.f(), Self.x, Self(v) (#140) */
+    if (self_member_ahead(cur)) {
+        /* .x is self.x where self is (#139): self, and the postfix reads .x */
+        int si = binding_index("self");
+        int locals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (anon_start >= 0 && si >= locals && si < anon_start)
+            error_at(t->pos, "'.%s' is self.%s, and an anonymous function cannot use 'self' of the function around "
+                             "it: C has no closures, so pass it as an argument",
+                     peek2()->text, peek2()->text);
+        Expr *e = new_expr(E_IDENT, t->pos);
+        e->text = "self";
+        implicit_self_at = cur;
+        return e;
+    }
+    if (is_p(t, ".") && member_name_token(peek2()) && parsing_fn) /* .x with no self (#139) */
+        error_at(t->pos, "'.%s' is self.%s in a method, an attribute or a subscript, and %s has no self",
+                 peek2()->text, peek2()->text,
+                 parsing_fn->type_fn ? "a function of a type, called as T.name(...)," : "a function");
     if (zero_array_ahead(cur)) {
         Expr *e = new_expr(E_COMPOUND, t->pos);
         e->type = parse_type_in(TYPE_DECL);
@@ -5460,6 +5593,10 @@ static void reject_let_change(Expr *lhs, Token *t) {
     if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->attribute && !parsing_fn->setter)
         error_at(t->pos, "a let attribute and a var attribute's getter read self and never change it: a var "
                          "attribute's setter, 'set(v) { ... }', does");
+    if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->recv && !parsing_fn->setter)
+        error_at(t->pos, "a method reads self and never changes it: a var attribute's setter, 'set(v) { ... }', "
+                         "changes the caller's var, and so does a function that takes '%s^'",
+                 parsing_fn->recv_name);
     if (let && let_kind(let) == LET_PARAM)
         error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                  let, let);
@@ -5855,7 +5992,8 @@ static Expr *parse_initializer_for(Type *t) {
         int links = 0;
         /* an item that starts with `[` is a nested array unless `=`
            follows the group: a designator, [2] = 5 (#48) */
-        while (is_p(peek(), ".") || (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "="))) {
+        while ((is_p(peek(), ".") && (!parsing_fn || designator_ahead(cur))) ||
+               (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "="))) {
             links++;
             Token *tok = advance();
             Expr *x = new_expr(is_p(tok, ".") ? E_FIELD : E_INDEX, tok->pos);
@@ -5999,7 +6137,8 @@ static Expr *array_of_list(Token *t, Type *at) {
     list->bracket = true;
     init_depth++;
     while (!is_p(peek(), "]")) {
-        if (is_p(peek(), ".") || (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "=")))
+        if ((is_p(peek(), ".") && (!parsing_fn || designator_ahead(cur))) ||
+            (is_p(peek(), "[") && is_p(&toks[skip_group(cur)], "=")))
             error_at(peek()->pos, "the elements of an Array are written in order, without designators");
         Expr *x;
         if (is_p(peek(), "[")) {
@@ -6897,7 +7036,8 @@ static bool statement_ends_at(int i) {
     Token *t = &toks[i];
     if (is_p(t, "}") || t->kind == TK_EOF || t->kind == TK_FILE_END)
         return true;
-    return line_break(t - 1, t) && (!continues_expression(t) || (is_p(t, "(") && at_statement_level()));
+    return line_break(t - 1, t) &&
+           (!continues_expression(t) || (is_p(t, "(") && at_statement_level()) || self_statement_at(i));
 }
 
 static void reject_c_declaration(void) {
@@ -7612,7 +7752,12 @@ static Expr *parse_anon_fn(Type *ctx) {
         }
         expect_p(")");
         bool result = accept_p(":");
-        d->ret = result ? parse_type() : ctx ? ctx->elem : NULL;
+        if (result && void_result_ahead()) { /* :() (#141) */
+            advance();
+            advance();
+            d->ret = NULL;
+        } else
+            d->ret = result ? parse_type() : ctx ? ctx->elem : NULL;
         if (!result && has_local_size(d->ret))
             error_at(open->pos, "the result type, %s, has an array length or a .type written in another scope, which kelvinc "
                                 "cannot carry into this function: write the result",
@@ -8714,11 +8859,16 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     expect_p(")");
     params_end = scope_names.len;
     if (accept_p(":")) {
-        d->ret = parse_type();
-        if (typeof_names_local(d->ret))
-            error_at(d->ret->pos, "the result type, %s, names a parameter, which C has not seen where it writes the "
-                                  "result: write the type itself",
-                     kelvin_type(d->ret));
+        if (void_result_ahead()) { /* :() is no result, written out (#141) */
+            advance();
+            advance();
+        } else {
+            d->ret = parse_type();
+            if (typeof_names_local(d->ret))
+                error_at(d->ret->pos, "the result type, %s, names a parameter, which C has not seen where it writes "
+                                      "the result: write the type itself",
+                         kelvin_type(d->ret));
+        }
     }
     check_overload(d, name);
     list_push(&functions, d);
@@ -8771,7 +8921,21 @@ static void check_overload(Decl *d, Token *name) {
    receiver is a struct or union declared earlier, or a built-in type. */
 static void check_text_method(Decl *d, Token *name);
 
+static Decl *parse_method_of(Pos pos, const char *storage);
+
+/* a method, with Self in scope as its receiver's type (#140) */
 static Decl *parse_method(Pos pos, const char *storage) {
+    bool saved_scope = self_scope;
+    Token *saved_self = self_tok;
+    Type *saved_self_sp = self_spelled;
+    Decl *d = parse_method_of(pos, storage);
+    self_scope = saved_scope;
+    self_tok = saved_self;
+    self_spelled = saved_self_sp;
+    return d;
+}
+
+static Decl *parse_method_of(Pos pos, const char *storage) {
     Type *spelled = NULL;
     Token *recv = peek();
     if (in_extend) {
@@ -8793,6 +8957,11 @@ static Decl *parse_method(Pos pos, const char *storage) {
     }
     if (!in_extend)
         advance(); /* . */
+    self_scope = true; /* Self is the receiver's type (#140) */
+    self_tok = recv;
+    self_spelled = spelled;
+    if (!spelled)
+        rewrite_self(cur, recv);
     Token *name = peek();
     if (storage && !strcmp(storage, "static")) {
         /* static let T.name(params):R { ... } (#111): a function of the
@@ -8851,10 +9020,10 @@ static Decl *parse_method(Pos pos, const char *storage) {
     open_scope();
     params_start = scope_names.len;
     /* let T.x:R { ... } (#131): a computed attribute, read as v.x, no
-       parentheses; its body has self, as a method's, which it reads and
-       never changes (#137) */
+       parentheses; its body has self, as a method's, which both read and
+       never change (#137, #138) */
     d->attribute = !d->text_method && is_p(peek(), ":");
-    declare_binding("self", d->recv, d->attribute ? LET_PARAM : LET_NONE);
+    declare_binding("self", d->recv, LET_PARAM);
     if (d->attribute)
         reject_attribute_member(d->recv, name);
     if (!d->attribute)
@@ -8878,7 +9047,12 @@ static Decl *parse_method(Pos pos, const char *storage) {
         expect_p(")");
     params_end = scope_names.len;
     if (accept_p(":")) {
-        d->ret = parse_type();
+        if (void_result_ahead()) { /* :() (#141) */
+            advance();
+            advance();
+            d->ret = NULL;
+        } else
+            d->ret = parse_type();
         if (typeof_names_local(d->ret))
             error_at(d->ret->pos, "the result type, %s, names a parameter, which C has not seen where it writes the "
                                   "result: write the type itself",
@@ -8970,6 +9144,14 @@ static void attribute_body(Decl *d, Var *param) {
 static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spelled) {
     char *rname;
     Type *rt = attribute_receiver(recv, spelled, &rname);
+    bool saved_scope = self_scope;
+    Token *saved_self = self_tok;
+    Type *saved_self_sp = self_spelled;
+    self_scope = true; /* Self (#140) */
+    self_tok = recv;
+    self_spelled = spelled;
+    if (!spelled)
+        rewrite_self(cur, recv);
     Token *name = peek();
     reject_kv_name(name);
     reject_attribute_member(rt, name);
@@ -9015,7 +9197,10 @@ static void parse_var_attribute(Program *prog, Pos pos, Token *recv, Type *spell
     attribute_body(s, p);
     expect_p("}");
     add_top_decl(prog, g);
-    add_top_decl(prog, s);
+    add_top_decl(prog, s);    self_scope = saved_scope;
+    self_tok = saved_self;
+    self_spelled = saved_self_sp;
+
 }
 
 /* static let T.x:R = v and static var T.x = v (#133): a type attribute, a
@@ -9027,6 +9212,13 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
         error_at(recv->pos, "a type attribute is of a struct, union or enum of the program: '%s' is built in", recv->text);
     if (!record_named(recv->text))
         error_at(recv->pos, "'%s' is not a struct, union or enum declared before this attribute", recv->text);
+    bool saved_scope = self_scope;
+    Token *saved_self = self_tok;
+    Type *saved_self_sp = self_spelled;
+    self_scope = true; /* Self (#140) */
+    self_tok = recv;
+    self_spelled = NULL;
+    rewrite_self(cur, recv);
     int before = scope_names.len;
     Var *v = parse_var(true, is_let ? LET_VALUE : LET_NONE); /* declares it, by its own name */
     v->is_let = is_let;
@@ -9044,7 +9236,10 @@ static void parse_type_attribute(Program *prog, Pos pos, bool is_let, Token *rec
     Decl *d = new_decl(D_VAR, pos, NULL);
     list_push(&d->members, v);
     add_top_decl(prog, d);
-    end_statement();
+    end_statement();    self_scope = saved_scope;
+    self_tok = saved_self;
+    self_spelled = saved_self_sp;
+
 }
 
 /* the items of a comma expression, v[r, c]'s indices (#136) */
@@ -9120,6 +9315,14 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
     Token *at = peek();
     expect_p("[");
     expect_p("]");
+    bool saved_scope = self_scope;
+    Token *saved_self = self_tok;
+    Type *saved_self_sp = self_spelled;
+    self_scope = true; /* Self (#140) */
+    self_tok = recv;
+    self_spelled = spelled;
+    if (!spelled)
+        rewrite_self(cur, recv);
     char *get = strfmt("%s.[]", rname), *set = strfmt("%s.[]=", rname);
     declare_name(get);
     declare_name(set);
@@ -9181,7 +9384,12 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
     close_scope();
     add_top_decl(prog, g);
     if (is_let)
+    {
+        self_scope = saved_scope;
+        self_tok = saved_self;
+        self_spelled = saved_self_sp;
         return;
+    }
     if (!(peek()->kind == TK_IDENT && !strcmp(peek()->text, "set")))
         error_at(peek()->pos, "after the getter comes the setter, 'set(v) { ... }', with v the new value");
     advance();
@@ -9232,7 +9440,36 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
     finish_drops(drops_from);
     close_scope();
     expect_p("}");
-    add_top_decl(prog, s);
+    add_top_decl(prog, s);    self_scope = saved_scope;
+    self_tok = saved_self;
+    self_spelled = saved_self_sp;
+
+}
+
+/* Self is T from token i to the end of the declaration or the block
+   there (#140): each token Self becomes T's, so that the lookaheads that
+   tell a type from an expression, sizeof(Self), (Self){...}, see T. The
+   span ends at the `}` that closes the group opened at or after i, at a
+   `;` at the top, or at a new line there that starts a statement */
+static void rewrite_self(int i, Token *recv) {
+    int depth = 0, start = i;
+    for (; toks[i].kind != TK_EOF && toks[i].kind != TK_FILE_END; i++) {
+        Token *t = &toks[i];
+        if (is_p(t, "(") || is_p(t, "[") || is_p(t, "{")) {
+            depth++;
+        } else if (is_p(t, ")") || is_p(t, "]") || is_p(t, "}")) {
+            if (--depth < 0 || (depth == 0 && is_p(t, "}")))
+                return;
+        } else if (depth == 0 && is_p(t, ";")) {
+            return;
+        } else if (depth == 0 && i > start && line_break(t - 1, t) && !continues_expression(t)) {
+            return;
+        }
+        if (t->kind == TK_IDENT && !strcmp(t->text, "Self")) {
+            t->text = recv->text;
+            t->kind = recv->kind;
+        }
+    }
 }
 
 /* extend T { ... } (#130), Swift's extension: the members of T without
@@ -9258,6 +9495,14 @@ static void parse_extend(Program *prog) {
     in_extend = true;
     ext_tok = recv;
     ext_spelled = spelled;
+    bool saved_scope = self_scope;
+    Token *saved_self = self_tok;
+    Type *saved_self_sp = self_spelled;
+    self_scope = true; /* Self is T in the block (#140) */
+    self_tok = recv;
+    self_spelled = spelled;
+    if (!spelled)
+        rewrite_self(cur - 1, recv); /* from the { */
     char *rname = spelled ? anon_record_of(spelled)->name : recv->text;
     while (!is_p(peek(), "}")) {
         Token *m = peek();
@@ -9336,6 +9581,9 @@ static void parse_extend(Program *prog) {
     in_extend = saved;
     ext_tok = saved_tok;
     ext_spelled = saved_spelled;
+    self_scope = saved_scope;
+    self_tok = saved_self;
+    self_spelled = saved_self_sp;
 }
 
 /* T.cstr() (#53): no parameters, a cstr result, a body that is one
