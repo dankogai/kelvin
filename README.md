@@ -101,6 +101,8 @@ So far the changes from C are:
 - functions overload by their parameter types, also C's own: with
   `let sin(z:complex64):complex64` defined, `sin(z)` is Kelvin's and
   `sin(0.5)` C's
+- a function with no result is `let f() { }`, or `let f():() { }` with
+  the result written out; the two mean the same
 - `extend T { }`, as Swift's `extension`, holds a type's methods
   `let f()`, functions `static let f()`, computed attributes
   `let area:f64 { ... }` read as `r.area`, attributes with a setter

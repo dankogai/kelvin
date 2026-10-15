@@ -3890,3 +3890,15 @@ complex.k, linkedlist.k, sort.k, strings.k and modules/JSON.k. The
 generated C and the outputs are unchanged.
 
 There are 734 tests, and all pass with clang and with gcc 15.
+
+### 172. `:()` in the documents
+
+> now add `:()` to the documents too. making sure it is optional.
+
+**Claude** wrote `:()` (#141) beside the documents' functions that give
+nothing, keeping one of each pair without it, `greet` and `shout` in
+functions.md, `let f()` and `let f():()` in versusC.md and the README,
+and `t:()` and `u:():()` for a function type, and said in functions.md
+and grammar.md that the two spellings mean the same.
+
+There are 734 tests, and all pass with clang and with gcc 15.

@@ -45,6 +45,9 @@ static var calls:i32
 
 - **Functions** are declared with `let` (#45), as a value that never
   changes is; methods and operators too. See [functions.md](functions.md).
+  - The result follows the parameters, `let f(a:i64):i64`; with none,
+    the function gives nothing, which `:()` may say, `let f(a:i64):()`
+    (#141). The two spellings mean the same.
 - **Struct and union members** are written `name: type`, and a struct,
   union or enum is a type by its bare name (#29). See
   [structs.md](structs.md) and [unions.md](unions.md).

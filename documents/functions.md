@@ -14,7 +14,7 @@ operators, which are functions of a struct, are in
 let add(a:i64, b:i64):i64 { a + b }        // one expression is the result
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
 let shout(name:cstr):() { println(name, "!") }  // the same, written out (#141)
-let move(var p:node^) { p := p^.next }     // a var parameter may change
+let move(var p:node^):() { p := p^.next }  // a var parameter may change
 extern let labs(n:i64):i64                 // a prototype, no body
 static let helper():i32 { 1 }
 let main(argc:i32, argv:[cstr]):i32 { return 0 }
@@ -34,11 +34,13 @@ let main(argc:i32, argv:[cstr]):i32 { return 0 }
     - `:()` says so in writing (#141): `let shout(name:cstr):() { ... }`.
       It goes on a prototype, a method, an anonymous function,
       `{ (n:i64):() in ... }`, and in a function type, `(i64):()`.
+    - It is optional: `greet` and `shout` above mean the same, and
+      either spelling goes anywhere a function is written.
     - `:():R` is a function type as the result, as before.
   - Empty parentheses mean no parameters, i.e. C's `(void)` *(provisional P4)*.
 - **Parameters** are lets unless written `var`.
   - In `let f(p:u8^)`, `p` cannot change, while
-    `let f(var p:u8^) { p := p.next }` may move `p`.
+    `let f(var p:u8^):() { p := p.next }` may move `p`.
   - A method's `self` is a let too (#138): a copy, `var p = self`,
     changes; see [structs.md](structs.md#methods).
   - Parameters must be named: C's unnamed `f(int)` is not available
@@ -103,6 +105,7 @@ let pick(product:bool):(i64, i64):i64 { ... }   // returns a function
 var f:(i64, i64):i64       // C: int64_t (*f)(int64_t, int64_t) = 0;
 f := add                   // a reference: assigned with :=
 let t:() := tick           // no parameters, no result
+let u:():() := tick        // the same, the result written out (#141)
 ```
 
 - `(T)` has no result, as a function without `:R` has none, and `...`

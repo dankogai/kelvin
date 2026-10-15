@@ -31,7 +31,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `int (*p)[4];` | `var p:[i32](4)^` |
 | `const char *const s = t;` | `let s:const u8^ := t` |
 | `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
-| `void f(void);` | `let f()` |
+| `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
 | `static int g(void);` | `static let g():i32`; `static let T.name(...)` is a function of the type, `T.name(...)` (#111) |
