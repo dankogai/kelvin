@@ -1,6 +1,6 @@
 // a function of a type is called by the type's name, not on a value (#111)
 struct point { x: i64; y: i64 }
-static let point.origin():point { (point){0, 0} }
+static let point.origin():Self { (Self){0, 0} }
 let main():i32 {
     let p = point.origin()
     println(p.origin().x)

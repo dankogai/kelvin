@@ -29,7 +29,7 @@ extend point {
     static let ==(a:Self, b:Self):bool { a.x == b.x && a.y == b.y }
     let cstr():cstr { `(${.x}, ${.y})` }                  // its text
 }
-let point.dist(to:point):f64 { hypot(to.x - .x, to.y - .y) }   // alone
+let point.dist(to:Self):f64 { hypot(to.x - .x, to.y - .y) }   // alone
 let shape.area():f64 {
     switch self {
     case circle(r): return 3.0 * r * r

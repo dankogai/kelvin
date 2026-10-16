@@ -4175,3 +4175,19 @@ one spot left: the literal annotations of `extend f32` in math.k,
 `self.` the scan showed were comments saying what `.x` is.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 190. The error and project tests with `.x` and `Self`
+
+> now rewrite the tests with `.attr` and `Self` too, as well as
+> wherever applicable.
+
+**Claude** found the run tests, examples, modules and documents
+rewritten already (#174 to #178, #186 to #189), and the error tests and
+tests/project not: 25 error tests and geo.k now read `.x` for `self.x`
+and `Self` for the receiver's type, their expected messages unchanged,
+since a message names the form, not the spelling. The tests that are
+about `self` and `Self` themselves, and the ones that try the long
+`struct point`, keep their spellings on purpose, as does structs.md's
+one `self.x` beside a `.x`.
+
+There are 749 tests, and all pass with clang and with gcc 15.
