@@ -2,33 +2,33 @@
 // struct per spelling, so two written alike are one type; members,
 // initializers, compound literals, text, parameters and results, nesting,
 // arrays, pointers, Array<T> and owners as members
-let norm(v:{x:float64, y:f64}):f64 { return v.x * v.x + v.y * v.y }
-let origin():{x:f64, y:f64} {
-    var o:{x:f64, y:f64} = {0.0, 0.0}
+let norm(v:{x:float64, y:float64}):float64 { return v.x * v.x + v.y * v.y }
+let origin():{x:float64, y:float64} {
+    var o:{x:float64, y:float64} = {0.0, 0.0}
     return o
 }
-struct tagged { p: {x:f64, y:f64}; id: i32 }
-let main():i32 {
-    var v:{x:f64, y:f64} = {3.0, 4.0}
+struct tagged { p: {x:float64, y:float64}; id: int32 }
+let main():int32 {
+    var v:{x:float64, y:float64} = {3.0, 4.0}
     println(v.x, " ", v.y, " ", norm(v), " ", v.typename)
-    let w:{x:f64, y:f64} = v
-    var a = ({x:f64, y:f64}){1.0, 2.0}
+    let w:{x:float64, y:float64} = v
+    var a = ({x:float64, y:float64}){1.0, 2.0}
     println(`${a} ${w.x} ${origin()}`)
-    var n:{p:{x:f64, y:f64}, tag:i32} = {{5.0, 6.0}, 7}
+    var n:{p:{x:float64, y:float64}, tag:int32} = {{5.0, 6.0}, 7}
     println(n.p.y, " ", n.tag, " ", n.typename)
     var t:tagged = {v, 9}
     println(t.p.x, " ", t.id)
-    var ps:[{x:f64, y:f64}](2)
+    var ps:[{x:float64, y:float64}](2)
     ps[1] = v
     println(ps[1].x, " ", ps.typename)
-    var q:{x:f64, y:f64}^ := &v
+    var q:{x:float64, y:float64}^ := &v
     println(q^.y, " ", q.typename)
-    var xs = Array<{x:f64, y:f64}>()
+    var xs = Array<{x:float64, y:float64}>()
     xs += v
     println(xs[0].x, " ", xs.typename)
-    var o:{b:Bytes, n:i32} = {Bytes("hi"), 2}
+    var o:{b:Bytes, n:int32} = {Bytes("hi"), 2}
     println(o.b, " ", o.n, " ", o.typename)
-    var m:{x:f64; y:f64} = {1.5, 2.5}
+    var m:{x:float64; y:float64} = {1.5, 2.5}
     println(m.cstr, " ", m.size)
     return 0
 }

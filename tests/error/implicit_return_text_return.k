@@ -2,7 +2,7 @@
 let hx(x:int64):cstr {
     return x.hex
 }
-let main():i32 {
+let main():int32 {
     println(hx(255))
     return 0
 }

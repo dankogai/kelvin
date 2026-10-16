@@ -1,19 +1,19 @@
 // .cstr (#22): every type's text as cstr (u8^), on the caller's stack
 #import "include/cstr_types.h" as C
 
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:int32; };
 struct segment { from:struct point; to:struct point; tag:cstr; };
-struct poly { name:u8^; corners:[struct point](3); grid:[[u8](2)](2); scale:f64; };
-union number { i:i32; f:f32; };
-struct buf { n:i32; a:[i32]; };            // flexible array member
-struct mixed { t:ticks_t; who:name_t; o:struct opaque; z:f64 _Complex; on:bool; next:struct mixed^; };
-struct named { si:i8^; text:cstr; };
-struct labeled { label:label_t; full:full_t; n:i32; };
-struct image { w:i32; h:i32; px:[u8](1048576); };   // its text would be megabytes
+struct poly { name:uint8^; corners:[struct point](3); grid:[[uint8](2)](2); scale:float64; };
+union number { i:int32; f:float32; };
+struct buf { n:int32; a:[int32]; };            // flexible array member
+struct mixed { t:ticks_t; who:name_t; o:struct opaque; z:float64 _Complex; on:bool; next:struct mixed^; };
+struct named { si:int8^; text:cstr; };
+struct labeled { label:label_t; full:full_t; n:int32; };
+struct image { w:int32; h:int32; px:[uint8](1048576); };   // its text would be megabytes
 struct cnames { name:xmlChar^; u:uint8_t^; h:handle_t; r:rstr_t; z:dc_t; b:bytes_t; };
 struct seg { a:struct point; b:struct point; };
-struct msg { len:u32; text:flex_t; };    // never printed, so it needs no .cstr
-let seg.cstr_size():i32 { return 2; }         // no clash with kelvinc's size constant
+struct msg { len:uint32; text:flex_t; };    // never printed, so it needs no .cstr
+let seg.cstr_size():int32 { return 2; }         // no clash with kelvinc's size constant
 var pts:[struct point](2) = [{1, 2}, {3, 4}];
 let first():struct point^ { return &pts[0]; }
 let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
@@ -21,11 +21,11 @@ let segment():struct seg { return (struct seg){{1, 2}, {3, 4}}; }
 let get():struct point { return (struct point){5, 6}; }
 let point.moved():struct point { return (struct point){.x + 1, .y}; }
 
-let main():i32 {
+let main():int32 {
     // numbers: plain decimal; floats lossless; bool; a string is itself
     var pi = 3.141592653589793;
-    println(pi.cstr, " ", 0.1.cstr, " ", (0.1:f32).cstr, " ", 1.0.cstr);
-    println(42.cstr, " ", (-7:i8).cstr, " ", (255:u8).cstr, " ", (~(0:u128)).cstr);
+    println(pi.cstr, " ", 0.1.cstr, " ", (0.1:float32).cstr, " ", 1.0.cstr);
+    println(42.cstr, " ", (-7:int8).cstr, " ", (255:uint8).cstr, " ", (~(0:u128)).cstr);
     println(true.cstr, " ", "text".cstr, " ", nullptr.cstr);
 
     // structs: derived text, nested, with arrays; unions by name
@@ -42,14 +42,14 @@ let main():i32 {
     // members of types kelvinc cannot see; long strings are cut
     var m:struct mixed = {7, "c", make_opaque(), 1.0, true, nullptr};
     println(m.cstr);
-    var n:struct named = {"hi" as i8^, "0123456789012345678901234567890123456789012345678901234567890123456789"};
+    var n:struct named = {"hi" as int8^, "0123456789012345678901234567890123456789012345678901234567890123456789"};
     println(n.cstr);
     var l:struct labeled = {"hello, world", {'a', 'b', 'c', 'd'}, 9};
     println(l.cstr, " ", l.label.cstr);
 
     // results of Kelvin functions and methods are seen; a scalar's buffer
     // stays small however large some struct is
-    println(get().moved().cstr, " ", (get().x * 2).cstr, " ", (-1:i32).cstr.size);
+    println(get().moved().cstr, " ", (get().x * 2).cstr, " ", (-1:int32).cstr.size);
     println(segment().a.cstr, " ", first()^.cstr, " ", (get)().cstr, " ", segment().cstr_size());
 
     // members whose types are spelled in C
@@ -67,12 +67,12 @@ let main():i32 {
     // cstr is u8^
     var name:cstr := "kelvin";
     var q:cstr const := name;
-    var names:[u8^](2) = ["a", "b"];
+    var names:[uint8^](2) = ["a", "b"];
     println(name.cstr, " ", q, " ", names[1].cstr, " ", name.size == (8 as size_t));
 
     // the text lives until the enclosing block ends
     var t:cstr;
-    for (var k:i32 = 0; k < 1; k += 1)
+    for (var k:int32 = 0; k < 1; k += 1)
         t := p.cstr;
     println(t);
     return 0;

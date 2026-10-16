@@ -3,17 +3,17 @@
 // (#122): the derived text, or the type's own T.cstr(); f.print too;
 // through kelvinc's printer of the type since #123
 #import <IO>
-struct point { x: int64; y: i64 }
-struct vector2d { x: f64; y: f64 }
+struct point { x: int64; y: int64 }
+struct vector2d { x: float64; y: float64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }
-enum maybe { nothing; just: i64 }
-let maybe.orZero():i64 { if let just(n) = self { return n }; return 0 }
+enum maybe { nothing; just: int64 }
+let maybe.orZero():int64 { if let just(n) = self { return n }; return 0 }
 let maybe.cstr():cstr { `<${.orZero()}>` }
-enum shape { dot; circle: f64 }
-union bits { u: u64; f: f64 }
+enum shape { dot; circle: float64 }
+union bits { u: uint64; f: float64 }
 let bits.cstr():cstr { `bits ${.u.hex}` }
 let origin():point { return {0, 0} }
-let main():i32 {
+let main():int32 {
     let p:point = {1, 2}
     let v:vector2d = {1.5, -2.0}
     let pp := &p

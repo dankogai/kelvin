@@ -4,14 +4,14 @@
 // err(f.error); reading it by .lines or writing to it ends the program
 #import <errno.h> as C
 #import <IO>
-let count(path:cstr):Result<i64, i32> {
+let count(path:cstr):Result<int64, int32> {
     let f = IO(path)
     if f.error != 0 { return err(f.error) }
     var n:int64 = 0
     for line in f.lines { n += 1 }
     return n
 }
-let main():i32 {
+let main():int32 {
     var w = IO("io_error.tmp", "w")
     w.println("one")
     w.println("two")

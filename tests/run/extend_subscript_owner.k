@@ -7,14 +7,14 @@ extend Names {
         set(v) { .xs[i] = v.copy() }
     }
 }
-struct Counts { d: Dictionary<String, i64> }
+struct Counts { d: Dictionary<String, int64> }
 extend Counts {
-    var [](k:cstr):i64 {
+    var [](k:cstr):int64 {
         get { .d.has(k) ? .d[k] : 0 }
         set(v) { .d[k] = v }
     }
 }
-let main():i32 {
+let main():int32 {
     var n:Names = {$[$"a", $"b"]}
     n[1] = $"bee"
     let s = n[1]

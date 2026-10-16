@@ -13,8 +13,8 @@ way. This document has both. The text of a single value, `n.cstr`, is in
 Every Kelvin program can use `print` and `println` without an import:
 
 ```kelvin
-let main():i32 {
-    let n:int64 = -42                       // int64 is i64 by its full name (#151)
+let main():int32 {
+    let n:int64 = -42
     println("n = ", n, ", half = ", n / 2.0)   // n = -42, half = -21.0
     println()                                  // just a newline
     return 0
@@ -58,7 +58,7 @@ let main():i32 {
 `v.pretty` shows it indented, a line for each item (#123, #124):
 
 ```kelvin
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: int64 }
 var xs = $[1, 2, 3]
 var ages = ${"ann": 31, "bob": 42}
 var p:point = {1, 2}
@@ -127,7 +127,7 @@ A template literal, between backquotes, may span lines, and each
 
 ```kelvin
 let name:cstr := "Kelvin"
-let n:i64 = 42
+let n:int64 = 42
 println(`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`)   // Hello, Kelvin! 42 / 4.0 = 10.5
 let card:cstr := `name: ${name}
   answer: ${n}`

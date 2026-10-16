@@ -9,13 +9,13 @@ let greeting(name:cstr):Bytes {
     b.append('!')
     return b
 }
-let total(data:Bytes):i64 {           // data moves in, and is freed here
+let total(data:Bytes):int64 {           // data moves in, and is freed here
     var n = 0
-    for x in data { n += i64(x) }
+    for x in data { n += int64(x) }
     return n
 }
-let longer(a:Bytes^, b:Bytes^):i64 { a^.count > b^.count ? i64(a^.count) : i64(b^.count) }
-let main():i32 {
+let longer(a:Bytes^, b:Bytes^):int64 { a^.count > b^.count ? int64(a^.count) : int64(b^.count) }
+let main():int32 {
     var b = greeting("Kelvin")
     println(b, " ", b.count, " ", b.capacity >= b.count, " ", b.typename, " ", b.size)
     let c = b.copy()

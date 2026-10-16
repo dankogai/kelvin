@@ -2,15 +2,15 @@
 // same case, and equal values; a value, none, ok(v) or err(e) on the
 // other side is wrapped (an err($"x") made on the spot is not, as nothing
 // would free it); Strings by their bytes, nested variants by their own ==
-enum json { n: f64; s: String; none }
-let parse(s:cstr):Result<i64, String> {
+enum json { n: float64; s: String; none }
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
-    return i64(s)
+    return int64(s)
 }
-let main():i32 {
+let main():int32 {
     var a:int64? = 3
-    var b:i64? = 3
-    var c:i64? = none
+    var b:int64? = 3
+    var c:int64? = none
     println(a == b, " ", a != b, " ", a == c, " ", c == none, " ", a == none, " ", a == 3, " ", 4 == a, " ", c != 3)
     var r = parse("42")
     var s = parse("42")
@@ -25,11 +25,11 @@ let main():i32 {
     var k = json.n(1.5)
     var l = json.none
     println(j == k, " ", j == l, " ", l == json.none, " ", j != json.n(2.5))
-    var nn:i64?? = a
-    var mm:i64?? = b
+    var nn:int64?? = a
+    var mm:int64?? = b
     println(nn == mm, " ", nn == none)
-    var p:Result<cstr, i32> = "x"
-    var q:Result<cstr, i32> = err(2)
+    var p:Result<cstr, int32> = "x"
+    var q:Result<cstr, int32> = err(2)
     println(p == q, " ", q == err(2), " ", p != p)
     return 0
 }

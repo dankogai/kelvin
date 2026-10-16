@@ -3,13 +3,13 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_seek.tmp"
-let fill():Result<int64, i32> {
+let fill():Result<int64, int32> {
     let f = IO(path, "w")
     f.print("0123456789\n")
     println(f.position, " ", f.count)
     return 0
 }
-let main():i32 {
+let main():int32 {
     var w = fill()
     println(w.cstr)
     var f = IO(path, "r")

@@ -1,5 +1,5 @@
 // error: for over xs: its declared length uses a call, a var or a name that a local hides
-let sum(n:i64, xs:[i32](n)):i64 {
+let sum(n:int64, xs:[int32](n)):int64 {
     let n = 99;
     var t:int64 = 0;
     for x in xs {
@@ -7,4 +7,4 @@ let sum(n:i64, xs:[i32](n)):i64 {
     }
     return t;
 }
-let main():i32 { return 0; }
+let main():int32 { return 0; }

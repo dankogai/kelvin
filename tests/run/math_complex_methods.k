@@ -8,8 +8,8 @@ let main():int32 {
     println(z.exp() == exp(z), " ", z.log() == log(z), " ", z.sqrt() == sqrt(z), " ", z.pow(c64(2.0)) == pow(z, c64(2.0)))
     println(z.sin() == sin(z), " ", z.cos() == cos(z), " ", z.tan() == tan(z), " ", z.sinh() == sinh(z), " ", z.cosh() == cosh(z), " ", z.tanh() == tanh(z))
     println(z.asin() == asin(z), " ", z.acos() == acos(z), " ", z.atan() == atan(z), " ", z.asinh() == asinh(z), " ", z.acosh() == acosh(z), " ", z.atanh() == atanh(z))
-    let w = c32(1.0:f32, 2.0:f32)
-    println(w.exp() == exp(w), " ", w.abs() == abs(w), " ", w.i, " ", w.norm().typename, " ", abs(w.sqrt() * w.sqrt() - w) < 1e-6:f32)
+    let w = c32(1.0:float32, 2.0:float32)
+    println(w.exp() == exp(w), " ", w.abs() == abs(w), " ", w.i, " ", w.norm().typename, " ", abs(w.sqrt() * w.sqrt() - w) < 1e-6:float32)
     return 0
 }
 // out: {real: 1, imag: -2} true true {real: -2, imag: 1} true {real: -1, imag: 0}

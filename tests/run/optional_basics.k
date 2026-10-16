@@ -1,8 +1,8 @@
 // Optional<T>, T? (#72): none and some, a T wrapped where a T? is expected,
 // .some checked, ??, .is, .case, switch, results, members, elements,
 // entries, owners, Optional<T>(), T??
-struct point { x: i32; y: i32 }
-let find(xs:$[i64]^, v:i64):i64? {
+struct point { x: int32; y: int32 }
+let find(xs:$[int64]^, v:int64):int64? {
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }
@@ -10,9 +10,9 @@ let first(names:$[String]^):String? {
     if names^.count == 0 { return none }
     return names^[0].copy()
 }
-let main():i32 {
+let main():int32 {
     var a:int64? = 3
-    var b:i64? = none
+    var b:int64? = none
     println(a.is(some), " ", b.is(none), " ", a.some, " ", a ?? 0, " ", b ?? -1, " ", a.typename, " ", a.cstr, " ", b.cstr)
     a = none
     b = 9
@@ -36,15 +36,15 @@ let main():i32 {
     println(n.some, " ", n.cstr)
     var p:point? = {1, 2}
     var q = Optional<point>()
-    var r = Optional<i64>(4)
+    var r = Optional<int64>(4)
     println(p.some.x, " ", q.is(none), " ", r.some, " ", r.typename, " ", p.typename)
-    var opts:$[i64?] = $[1, none, 3]
-    var cnt:i64 = 0
+    var opts:$[int64?] = $[1, none, 3]
+    var cnt:int64 = 0
     for o in opts { if o.is(some) { cnt += o.some } }
     println(opts.count, " ", cnt, " ", opts.typename)
-    var d:${String: i64?} = ${"a": 1, "b": none}
+    var d:${String: int64?} = ${"a": 1, "b": none}
     println(d["a"] ?? 0, " ", d["b"] ?? 0, " ", d.typename)
-    var nested:i64?? = 5
+    var nested:int64?? = 5
     println(nested.some.some, " ", nested.typename)
     return 0
 }

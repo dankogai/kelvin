@@ -2,19 +2,19 @@
 // static func, with no self, called as T.name(...); T a struct, union or
 // enum with values of the program; the overloads of one name by their
 // parameter types, as any function's; one may call another
-struct point { x: int64; y: i64 }
+struct point { x: int64; y: int64 }
 static let point.origin():Self { (Self){0, 0} }
-static let point.of(x:i64, y:i64):Self { (Self){x, y} }
-static let point.of(s:cstr):Self { Self.of(i64(s), i64(s) * 2) }
+static let point.of(x:int64, y:int64):Self { (Self){x, y} }
+static let point.of(s:cstr):Self { Self.of(int64(s), int64(s) * 2) }
 static let point.sum(a:Self^, b:Self^):Self { Self.of(a^.x + b^.x, a^.y + b^.y) }
-let point.dist2():i64 { .x * .x + .y * .y }      // a method, with self, beside them
+let point.dist2():int64 { .x * .x + .y * .y }      // a method, with self, beside them
 enum shape { none; dot: point; name: String }
 static let shape.parse(s:cstr):Self {
     if s.count == 0 { return shape.none }
     if s[0] >= '0' && s[0] <= '9' { return shape.dot(point.of(s)) }
     return shape.name(String(s))
 }
-let main():i32 {
+let main():int32 {
     let o = point.origin()
     var p = point.of(3, 4)
     var q = point.of("5")

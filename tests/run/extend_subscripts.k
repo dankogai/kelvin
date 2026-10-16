@@ -2,32 +2,32 @@
 // { get { } set(v) { } } also written as v[i] = y and v[i] += y on the
 // var that holds v; several indices read v[r, c], and subscripts
 // overload by the indices' types; alone, let T[](i:I):R { }
-struct Grid { w: int64; cells: [i64](6) }
+struct Grid { w: int64; cells: [int64](6) }
 extend Grid {
-    let [](i:i64):i64 { .cells[i] }                  // read only
-    var [](r:i64, c:i64):i64 {                           // read and written
+    let [](i:int64):int64 { .cells[i] }                  // read only
+    var [](r:int64, c:int64):int64 {                           // read and written
         get { .cells[r * .w + c] }
         set(v) { .cells[r * .w + c] = v }
     }
-    let total():i64 {                                    // self[i] in a method
+    let total():int64 {                                    // self[i] in a method
         var t = 0
         for i in 0..<6 { t += self[i] }
         return t
     }
 }
-let Grid[](name:cstr):i64 { name[0] as i64 }             // alone, by another type
-let Grid[](i:i32):i64 { -1 }                             // i32, against i64
+let Grid[](name:cstr):int64 { name[0] as int64 }             // alone, by another type
+let Grid[](i:int32):int64 { -1 }                             // i32, against i64
 struct Row { g: Grid }
 let bump(p:Grid^) { p^[0, 1] += 10 }
-enum Box { many: Array<i64>; one: i64 }                  // over #117's indexing
-let Box[](i:i64):i64 { .is(many) ? .many[i] : .one }
+enum Box { many: Array<int64>; one: int64 }                  // over #117's indexing
+let Box[](i:int64):int64 { .is(many) ? .many[i] : .one }
 let corner():Grid { var g:Grid = {2}; g[1, 1] = 4; return g }
-let main():i32 {
+let main():int32 {
     var g:Grid = {3}
     g[1, 2] = 7
     g[0, 0] += 5
     g[0, 0] *= 2
-    println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"], " ", g[0 as i32], " ", g.total())
+    println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"], " ", g[0 as int32], " ", g.total())
     var row:Row = {}
     row.g[0, 1] = 1
     bump(&row.g)

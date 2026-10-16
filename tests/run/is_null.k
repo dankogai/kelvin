@@ -1,14 +1,14 @@
 // p.isNull is p == nullptr, a bool, of every pointer and function value
 // (#50); a field named isNull wins, and a value only C sees keeps its field
 #import <stdlib.h> as C
-struct node { v: i64; next: node^ }
-struct odd { isNull: i64 }
-let twice(n:i64):i64 { n * 2 }
-let main():i32 {
+struct node { v: int64; next: node^ }
+struct odd { isNull: int64 }
+let twice(n:int64):int64 { n * 2 }
+let main():int32 {
     var p:int64^
     let n:node = {1, nullptr}
     var q := &n
-    var f:(i64):i64
+    var f:(int64):int64
     let o:odd = {7}
     let env:cstr := getenv("KELVIN_NO_SUCH_VARIABLE")
     let s:cstr := "hi"

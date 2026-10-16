@@ -10,14 +10,14 @@
 struct timespec;
 
 // int timespec_get(struct timespec *ts, int base): fills ts, 0 on failure
-let now():Result<timespec, i32> {
+let now():Result<timespec, int32> {
     var ts:timespec
     if timespec_get(&ts, TIME_UTC) == 0 { return err(EINVAL) }
     return ts                              // a T becomes ok(T)
 }
 
 // FILE *fopen(...): NULL and errno on failure
-let open(path:cstr, mode:cstr):Result<FILE^, i32> {
+let open(path:cstr, mode:cstr):Result<FILE^, int32> {
     let f:FILE^ := fopen(path, mode)
     if f.isNull { return err(errno) }
     return f
@@ -32,22 +32,22 @@ let env(name:cstr):cstr? {
 
 // i64(s) reads as strtol does, 0 for no digits and errno for a range;
 // the reason is text, so the error is a String
-let number(s:cstr):Result<i64, String> {
+let number(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s {
         if c < '0' || c > '9' { return err($`not a number: ${s}`) }
     }
     errno = 0
-    let n = i64(s)
+    let n = int64(s)
     if errno == ERANGE { return err($`out of range: ${s}`) }
     return n
 }
 
 // try passes an err up: the FILE^, or return err(errno) for the caller
-let sumOf(path:cstr):Result<i64, i32> {
+let sumOf(path:cstr):Result<int64, int32> {
     let f := try open(path, "r")
-    var sum:int64 = 0                       // int64 is i64 by its full name (#151)
-    var line = [u8](64)
+    var sum:int64 = 0
+    var line = [uint8](64)
     while fgets(line, line.size, f) != nullptr {
         line[strcspn(line, "\n")] = 0
         if let n = number(line) { sum += n }
@@ -56,7 +56,7 @@ let sumOf(path:cstr):Result<i64, i32> {
     return sum
 }
 
-let main():i32 {
+let main():int32 {
     if let ts = now() { println("clock ", ts.tv_sec > 0) }
     var missing = sumOf("/no/such/file")
     switch missing {
@@ -68,8 +68,8 @@ let main():i32 {
     var f:FILE^ := tmpfile()
     fputs("40\n2\nx\n9 lives\n99999999999999999999\n", f)
     rewind(f)
-    var total:i64 = 0
-    var line = [u8](64)
+    var total:int64 = 0
+    var line = [uint8](64)
     while fgets(line, line.size, f) != nullptr {
         line[strcspn(line, "\n")] = 0
         var r = number(line)

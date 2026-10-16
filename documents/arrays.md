@@ -29,12 +29,12 @@ passed to a function is a pointer. Byte arrays that hold text are in
     there is an error: pass the count beside it *(provisional P61)*.
 
 ```kelvin
-var a:[int32](4)                  // C: int32_t a[4]; int32 is i32 by its full name (#151)
-var m:[[i32](3)](2)             // C: int32_t m[2][3], indexed m[1][2]
-var ps:[i32^](4)                // C: int32_t *ps[4], four pointers
-let q:[i32](4)^ := &a           // C: int32_t (*const q)[4]
+var a:[int32](4)                  // C: int32_t a[4]
+var m:[[int32](3)](2)             // C: int32_t m[2][3], indexed m[1][2]
+var ps:[int32^](4)                // C: int32_t *ps[4], four pointers
+let q:[int32](4)^ := &a           // C: int32_t (*const q)[4]
 let names:[cstr] = ["ab", "cd"] // the count, 2, comes from the value
-struct bag { n: i64; xs: [i64](3) }
+struct bag { n: int64; xs: [int64](3) }
 ```
 
 - `[[T]]` with a value counts every dimension: the outer from the rows,
@@ -53,13 +53,13 @@ An array is initialized with `[...]`, and a struct or union keeps
 `{...}` (#48), nested too:
 
 ```kelvin
-let a:[i32](3) = [1, 2, 3]
+let a:[int32](3) = [1, 2, 3]
 let b = [1, 2, 3]                       // [i64](3), inferred
 let m = [[1, 2], [3, 4]]                // [[i64](2)](2)
 var g:bag = {1, [7, 8, 9]}              // an array inside a struct
 let h:[point](2) = [{1, 2}, {3, 4}]     // structs inside an array
-let sp:[i64](4) = [[2] = 9, [0] = 1]    // C's designators: [2] = 9
-let s:[u8] = "hi"                       // a string fills a byte array
+let sp:[int64](4) = [[2] = 9, [0] = 1]    // C's designators: [2] = 9
+let s:[uint8] = "hi"                       // a string fills a byte array
 ```
 
 - Where kelvinc sees the type, `{...}` for an array and `[...]` for a
@@ -82,9 +82,9 @@ or, for a local `var`, a value C computes at run time (C's variable
 length array, declared and then zeroed with `memset`):
 
 ```kelvin
-var z = [u8](256)              // uint8_t z[256] = {0}
-var line = [u8](n)             // uint8_t line[n]; memset(line, 0, sizeof line)
-let t = [f64](3)               // a let of a constant count is fine
+var z = [uint8](256)              // uint8_t z[256] = {0}
+var line = [uint8](n)             // uint8_t line[n]; memset(line, 0, sizeof line)
+let t = [float64](3)               // a let of a constant count is fine
 ```
 
 A `let` of a count computed at run time is an error, since C cannot fill
@@ -152,7 +152,7 @@ xs += &ys                        // ys's elements, copied; xs += make() moves an
 xs.insert(0, 100); xs.remove(1, 2); let last = xs.pop()
 println(xs.count, " ", xs[0], " ", xs.capacity)   // xs[i] is checked: out of range ends the program
 for x in xs { }                  // each element, a let
-var m:$[[i64]] = $[[1, 0], [0, 1]]   // Arrays of Arrays; of Strings, Bytes, Dictionaries, structs that own
+var m:$[[int64]] = $[[1, 0], [0, 1]]   // Arrays of Arrays; of Strings, Bytes, Dictionaries, structs that own
 let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy of an Array
 ```
 

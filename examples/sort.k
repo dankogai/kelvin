@@ -4,11 +4,11 @@
 #import <string.h> as C
 
 // insertion sort: stable, ordered by `before`
-let sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
+let sort(xs:int64^, n:size_t, before:(int64, int64):bool) {
     for i in 1..<n {
         var j:size_t = i
         while j > 0 && before(xs[j], xs[j - 1]) {
-            let t:int64 = xs[j]             // int64 is i64 by its full name (#151)
+            let t:int64 = xs[j]
             xs[j] = xs[j - 1]
             xs[j - 1] = t
             j -= 1
@@ -16,21 +16,21 @@ let sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     }
 }
 
-let show(xs:i64^, n:size_t):() {
+let show(xs:int64^, n:size_t):() {
     for i in 0..<n {
         print(i == 0 ? "" : " ", xs[i])
     }
     println()
 }
 
-let descending(a:i64, b:i64):bool { a > b }
+let descending(a:int64, b:int64):bool { a > b }
 
 // an anonymous function encloses nothing, so what it shares is global
 let target = 5
-let distance(x:i64):i64 { x > target ? x - target : target - x }
+let distance(x:int64):int64 { x > target ? x - target : target - x }
 
-let main():i32 {
-    var xs:[i64](8) = [5, 3, 8, 1, 9, 2, 7, 4]
+let main():int32 {
+    var xs:[int64](8) = [5, 3, 8, 1, 9, 2, 7, 4]
     sort(xs, 8) { $0 < $1 }                     // the last argument, after the call
     show(xs, 8)
     sort(xs, 8, descending)                     // a named function works too
@@ -40,15 +40,15 @@ let main():i32 {
     sort(xs, 8) { distance($[0]) < distance($[1]) }
     show(xs, 8)
 
-    let by_last_digit:(i64, i64):bool := { $0 % 10 < $1 % 10 }
-    var ys:[i64](4) = [31, 12, 43, 20]
+    let by_last_digit:(int64, int64):bool := { $0 % 10 < $1 % 10 }
+    var ys:[int64](4) = [31, 12, 43, 20]
     sort(ys, 4, by_last_digit)
     show(ys, 4)
 
     // kelvinc cannot see qsort's comparator type, which is C's, so the
     // function writes its parameters and result
-    var names:[u8^](4) = ["kelvin", "celsius", "rankine", "fahrenheit"]
-    qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
+    var names:[uint8^](4) = ["kelvin", "celsius", "rankine", "fahrenheit"]
+    qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
         strcmp((a as const cstr^)^, (b as const cstr^)^)
     }
     for name in names {

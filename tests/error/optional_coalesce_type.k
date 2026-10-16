@@ -1,5 +1,5 @@
 // ?? takes an Optional on its left (#72)
-let main():i32 {
+let main():int32 {
     var n:int64 = 1
     var y = n ?? 1
     return 0

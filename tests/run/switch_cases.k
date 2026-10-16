@@ -3,21 +3,21 @@
 // body, and every value is handled: every case of an enum with values,
 // every enumerator of an enum, or default:
 enum color { red, green, blue }
-enum shape { none; circle: float64; rect: {w:f64, h:f64} }
+enum shape { none; circle: float64; rect: {w:float64, h:float64} }
 let name(c:color):cstr {
     switch c {
     case red: return "red"
     case green, blue: return "greenish"
     }
 }
-let area(s:shape):f64 {
+let area(s:shape):float64 {
     switch s {
     case none: return 0.0
     case circle: return 3.0 * s.circle * s.circle
     case rect: return s.rect.w * s.rect.h
     }
 }
-let main():i32 {
+let main():int32 {
     for n in 0..<5 {
         switch n {
         case 0:

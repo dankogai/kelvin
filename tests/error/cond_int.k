@@ -1,5 +1,5 @@
 // error: a condition must be a bool, not i32: compare it, as in 'x != 0'
-let main():i32 {
+let main():int32 {
     var n:int32 = 1;
     if n {
         n = 0;

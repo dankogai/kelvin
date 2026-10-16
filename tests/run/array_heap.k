@@ -1,24 +1,24 @@
 // Array<T> (#57): a growable array of T on the heap, an owner: made,
 // grown, indexed (checked), walked, copied, moved by return and by
 // passing, held by a struct, borrowed, nested, and freed by its block
-struct point { x: int64; y: i64 }
-struct bag { tag: i64; items: Array<i64> }
-let squares(n:i64):Array<i64> {
-    var xs = Array<i64>()
+struct point { x: int64; y: int64 }
+struct bag { tag: int64; items: Array<int64> }
+let squares(n:int64):Array<int64> {
+    var xs = Array<int64>()
     for i in 0..<n { xs += i * i }
     return xs
 }
-let sum(xs:Array<i64>^):i64 { var s = 0; for x in xs^ { s += x }; return s }
-let take(xs:Array<i64>):i64 { i64(xs.count) }
-let main():i32 {
+let sum(xs:Array<int64>^):int64 { var s = 0; for x in xs^ { s += x }; return s }
+let take(xs:Array<int64>):int64 { int64(xs.count) }
+let main():int32 {
     var xs = squares(5)
     println(xs.count, " ", xs[4], " ", xs.typename, " ", xs.size, " ", sum(&xs))
     xs.insert(0, 100)
     xs.remove(1, 2)
     let last = xs.pop()
     println(xs.count, " ", xs[0], " ", last, " ", xs.capacity >= xs.count)
-    let fixed:[i64](3) = [7, 8, 9]
-    var ys = Array<i64>(fixed)
+    let fixed:[int64](3) = [7, 8, 9]
+    var ys = Array<int64>(fixed)
     ys += &xs
     ys.append(ys.copy())
     println(ys.count, " ", ys[3], " ", ys[ys.count - 1])
@@ -27,15 +27,15 @@ let main():i32 {
     ps += (point){5, 6}
     for p in ps { print(p.cstr, " ") }
     println()
-    var b:bag = {1, Array<i64>()}
+    var b:bag = {1, Array<int64>()}
     b.items += 42
     println(b.items[0], " ", b.items.count)
-    var m = Array<Array<i64>>()
+    var m = Array<Array<int64>>()
     m += squares(3)
     m += squares(2)
     println(m.count, " ", m[0][2], " ", m[1].count, " ", m.typename)
     let n = take(xs)
-    xs = Array<i64>(4)
+    xs = Array<int64>(4)
     println(n, " ", xs.count, " ", xs[3])
     var cs = Array<cstr>()
     cs += "a"

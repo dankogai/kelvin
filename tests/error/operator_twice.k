@@ -1,9 +1,9 @@
 // x op= y with a struct's operator is x = x op y (#42)
-struct vec { x: f64; y: f64 }
+struct vec { x: float64; y: float64 }
 let +(a:vec, b:vec):vec { (vec){a.x + b.x, a.y + b.y} }
 var at:int64 = 0
-let next():i64 { at += 1; return at - 1 }
-let main():i32 {
+let next():int64 { at += 1; return at - 1 }
+let main():int32 {
     var vs:[struct vec](2) = [{1.0, 2.0}, {3.0, 4.0}]
     vs[next()] += vs[1]
     return 0

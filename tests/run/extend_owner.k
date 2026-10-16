@@ -12,7 +12,7 @@ extend person {
     }
     let older:Self { (Self){.name.copy(), .age + 1} }
 }
-let main():i32 {
+let main():int32 {
     var p:person = {$"Ada", 36}
     var t = p.title
     println(t)

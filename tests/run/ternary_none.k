@@ -3,27 +3,27 @@
 // wraps each arm on its own; c ? Optional<i64>(v) : none infers the type
 // from the arm that has one; a Result's arms take ok(v) and err(e), or a
 // value, the same way
-let half(v:i64):i64? { return v % 2 == 0 ? v / 2 : none }
-let third(v:i64):i64? { v % 3 == 0 ? v / 3 : none }
-let parse(s:cstr):Result<i64, cstr> { return s.count > 0 ? ok(i64(s)) : err("empty") }
-let pick(s:cstr):Result<i64, cstr> { s.count > 0 ? i64(s) : err("empty") }
-let main():i32 {
+let half(v:int64):int64? { return v % 2 == 0 ? v / 2 : none }
+let third(v:int64):int64? { v % 3 == 0 ? v / 3 : none }
+let parse(s:cstr):Result<int64, cstr> { return s.count > 0 ? ok(int64(s)) : err("empty") }
+let pick(s:cstr):Result<int64, cstr> { s.count > 0 ? int64(s) : err("empty") }
+let main():int32 {
     var a = half(8)
     var b = half(7)
     var c = third(9)
     var d = third(8)
     println(a.cstr, " ", b.cstr, " ", c.cstr, " ", d.cstr)
     let n:int64 = 5
-    var e = n > 2 ? Optional<i64>(n) : none
-    var f = n > 9 ? none : Optional<i64>(n)
-    var g:i64? = n > 9 ? n : none
+    var e = n > 2 ? Optional<int64>(n) : none
+    var f = n > 9 ? none : Optional<int64>(n)
+    var g:int64? = n > 9 ? n : none
     println(e.cstr, " ", f.cstr, " ", g.cstr, " ", e.typename)
     var p = parse("42")
     var q = parse("")
     var r = pick("7")
     var s = pick("")
     println(p.cstr, " ", q.cstr, " ", r.cstr, " ", s.cstr)
-    let twice := { (v:i64):i64? in v > 2 ? v * 2 : none }
+    let twice := { (v:int64):int64? in v > 2 ? v * 2 : none }
     var t = twice(3)
     var u = twice(1)
     println(t.cstr, " ", u.cstr)

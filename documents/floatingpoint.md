@@ -9,11 +9,11 @@ text, print and show as text. Integers are in
 
 ```kelvin
 let d = 1.5                         // an f64, inferred
-var f:float32 = 1.5                     // no 1.5f: the type is on the declaration; float32 is f32 by its full name (#151)
-let half = f64(n) / 2               // a converter, as C's cast
-let x = f64("0x1.8p1")              // read from text: 3.0
+var f:float32 = 1.5                     // no 1.5f: the type is on the declaration
+let half = float64(n) / 2               // a converter, as C's cast
+let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", 0.1.cstr)         // 0.1 0.10000000000000001
-println(1.5.hex, " ", 3.9.i32)      // +0x1.8p+0 3
+println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 ```
 
 | Kelvin | C |

@@ -1,6 +1,6 @@
 // error: a template cannot show a function: a function has no text
 let f():int64 { 1 }
-let main():i32 {
+let main():int32 {
     println(`${f}`)
     return 0
 }

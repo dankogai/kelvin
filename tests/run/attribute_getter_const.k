@@ -1,15 +1,15 @@
 // a getter's self is a let (#137), const in C as any let (#27): it is
 // read, borrowed as const T^, and copied into a var that may change
-struct counter { n: i64; xs: Array<i64> }
-let total(c:const counter^):i64 { c^.n + c^.xs.count as i64 }
+struct counter { n: int64; xs: Array<int64> }
+let total(c:const counter^):int64 { c^.n + c^.xs.count as int64 }
 extend counter {
     let sum:int64 { total(&self) }                         // a const borrow
-    let next:i64 {
+    let next:int64 {
         var c = self.n                                   // a copy changes
         c += 1
         return c
     }
-    var value:i64 {
+    var value:int64 {
         get { self.n }
         set(v) {                                         // the setter changes self
             self.n = v
@@ -17,7 +17,7 @@ extend counter {
         }
     }
 }
-let main():i32 {
+let main():int32 {
     var c:counter = {1, $[]}
     c.value = 5
     c.value += 2

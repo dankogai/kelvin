@@ -1,6 +1,6 @@
 // a case that binds a value stands alone (#119)
 enum shape { none; dot: int64; name: String }
-let main():i32 {
+let main():int32 {
     var s = shape.dot(1)
     switch s {
     case dot(n), name: println("either")

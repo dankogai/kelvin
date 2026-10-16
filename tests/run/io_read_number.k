@@ -4,12 +4,12 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_read_number.tmp"
-let fill():Result<i64, i32> {
+let fill():Result<int64, int32> {
     let f = IO(path, "w")
     f.print("ab\n42\n-7\n3.5\nx\n9")
     return 0
 }
-let main():i32 {
+let main():int32 {
     var w = fill()
     println(w.cstr)
     var f = IO(path, "r")
@@ -21,8 +21,8 @@ let main():i32 {
         var sum:int64 = 0
         var total = 0.0
         for line in f.lines {
-            sum += i64(line)                 // 0 for a line with no number
-            total += f64(line)
+            sum += int64(line)                 // 0 for a line with no number
+            total += float64(line)
         }
         println(sum, " ", total)
         var end = f.byte

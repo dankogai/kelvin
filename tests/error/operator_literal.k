@@ -1,7 +1,7 @@
 // a literal has its type in the message too (#42)
-struct vec { x: float64; y: f64 }
+struct vec { x: float64; y: float64 }
 let +(a:vec, b:vec):vec { (vec){a.x + b.x, a.y + b.y} }
-let main():i32 {
+let main():int32 {
     let v:vec = {1.0, 2.0}
     let w:vec = v + 5
     return 0

@@ -5,13 +5,13 @@
 
 let main():int32 {
     // a converter groups its whole argument, even an unparenthesized macro
-    printf("%d %d %d\n", i32(TOTAL), u8(WRAP), i32(TERN));
+    printf("%d %d %d\n", int32(TOTAL), uint8(WRAP), int32(TERN));
 
     // compound literals of typedef types with suffixes and qualifiers
     var a:size_t^ := ([size_t](2))[1, 2];
     var d:div_t^ := ([div_t](2))[{1, 2}, {3, 4}];
     var c:size_t = (size_t const){3};
-    printf("%d %d %d %d\n", i32(a[1]), d[1].quot, i32(c), i32(sizeof ([size_t](2))[1, 2]));
+    printf("%d %d %d %d\n", int32(a[1]), d[1].quot, int32(c), int32(sizeof ([size_t](2))[1, 2]));
     return 0;
 }
 // out: 4 0 7

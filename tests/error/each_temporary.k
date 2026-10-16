@@ -4,7 +4,7 @@ let make():holder {
     let h:holder = {[7, 8, 0]};
     return h;
 }
-let main():i32 {
+let main():int32 {
     for x in make().xs {
         println(x);
     }

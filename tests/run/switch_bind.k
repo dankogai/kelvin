@@ -2,8 +2,8 @@
 // with x bound to the value, a let the enum still owns, as if let n(x)
 // binds it; of an Optional, a Result, an enum with values; the same
 // name may serve several cases; a value no place holds is read once
-enum shape { none; dot: int64; name: String; pair: {x: i64, y: i64} }
-let half(v:i64):i64? { v % 2 == 0 ? v / 2 : none }
+enum shape { none; dot: int64; name: String; pair: {x: int64, y: int64} }
+let half(v:int64):int64? { v % 2 == 0 ? v / 2 : none }
 let show(s:const shape^) {
     switch s^ {
     case none: println("none")
@@ -12,7 +12,7 @@ let show(s:const shape^) {
     case pair(p): println("pair ", p.x, ",", p.y)
     }
 }
-let main():i32 {
+let main():int32 {
     var a = half(8)
     var b = half(7)
     switch a {
@@ -27,7 +27,7 @@ let main():i32 {
     case some(v): println("of a call ", v)
     case none: println("none")
     }
-    var r:Result<i64, String> = ok(3)
+    var r:Result<int64, String> = ok(3)
     switch r {
     case ok(v): println("ok ", v)
     case err(e): println("err ", e)

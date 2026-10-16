@@ -1,6 +1,6 @@
 // a switch on an enum with values lists every case, or has a default (#63)
-enum shape { none; circle: float64; rect: {w:f64, h:f64} }
-let main():i32 {
+enum shape { none; circle: float64; rect: {w:float64, h:float64} }
+let main():int32 {
     var s:shape
     switch s {
     case none:

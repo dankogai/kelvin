@@ -5,24 +5,24 @@
 #import <errno.h> as C
 #import "include/event.h" as C
 
-struct point { x:int32; y:i32; };
-struct tagged { type:i32; v:i64; };
+struct point { x:int32; y:int32; };
+struct tagged { type:int32; v:int64; };
 
 let k = 3;
 var origin:point;
 
-let inc(x:i64):i64 { return x + 1; }
-let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let inc(x:int64):int64 { return x + 1; }
+let apply(x:int64, f:(int64):int64):int64 { return f(x); }
 let far(p:origin.type):origin.x.type { return p.x; }
 
-let main():i32 {
+let main():int32 {
     // the type kelvinc sees, without a let's own const
     var w:k.type = 4;
     w += 1;
     let p := &w as w.type^;
     var pt:point = {1, 2};
     var q:pt.type = {3, 4};
-    var xs:[i32](4) = [1, 2, 3, 4];
+    var xs:[int32](4) = [1, 2, 3, 4];
     var ys:xs.type = [5, 6, 7, 8];
     let r:pt.x.type = 7;
     var pp:point^ := &pt;

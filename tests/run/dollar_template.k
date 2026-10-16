@@ -1,8 +1,8 @@
 // $`a${x}b` (#67): a template built as a String on the heap, with no
 // bound: a String's text whole, a uchr as its character, a struct's text,
 // numbers and properties as the bounded template shows them
-struct point { x: i32; y: i32 }
-let main():i32 {
+struct point { x: int32; y: int32 }
+let main():int32 {
     let name:cstr := "Kelvin"
     let n:int64 = 42
     var s = $`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`

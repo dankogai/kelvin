@@ -1,5 +1,5 @@
 // an Optional has none and some, not err (#75)
-let main():i32 {
+let main():int32 {
     var o:int64? = err(3)
     return 0
 }

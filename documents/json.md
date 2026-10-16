@@ -101,11 +101,11 @@ JSON.parse(text: const String^): JSON              // the same of a String, borr
 JSON.stringify(j: const JSON^): String                              // compact
 JSON.stringify(j: const JSON^, space: cstr): String                 // indented by space, at most 10 characters
 JSON.stringify(j: const JSON^, space: const String^): String
-JSON.stringify(j: const JSON^, space: i64): String                  // that many spaces a level, 0 to 10 (#129)
+JSON.stringify(j: const JSON^, space: int64): String                  // that many spaces a level, 0 to 10 (#129)
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?): String
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: cstr): String
 JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: const String^): String
-JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: i64): String
+JSON.stringify(j: const JSON^, replacer: (cstr, const JSON^): JSON?, space: int64): String
 ```
 
 ## Properties and methods

@@ -8,7 +8,7 @@ let main():int32 {
     b.size = 9;
     println(make_blob().size, " ", b.size);
     // a bit-field is converted first: gcc's _Generic cannot see its type
-    println(u32(bb.bf).hex, " ", i32(bb.sbf).dec);
+    println(uint32(bb.bf).hex, " ", int32(bb.sbf).dec);
     return 0;
 }
 // out: 5 6 5

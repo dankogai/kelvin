@@ -5,11 +5,11 @@
 // where it stands, and elsewhere it is a String
 #import <JSON>
 #import <IO>
-struct point { x: int64; y: i64 }
-struct vector2d { x: f64; y: f64 }
+struct point { x: int64; y: int64 }
+struct vector2d { x: float64; y: float64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }
-struct scene { name: String; points: Array<point>; tags: ${String: i64}; empty: $[i64]; v: vector2d }
-let main():i32 {
+struct scene { name: String; points: Array<point>; tags: ${String: int64}; empty: $[int64]; v: vector2d }
+let main():int32 {
     var sc:scene = {$"demo", $[{1, 2}, {3, 4}], ${"a": 1}, $[], {0.5, 1.0}}
     println(sc.pretty)
     var grid = $[$[1, 2], $[3]]

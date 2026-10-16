@@ -1,5 +1,5 @@
 // map's anonymous function needs a result kelvinc sees (#80)
-let main():i32 {
+let main():int32 {
     var a:int64? = 3
     var m = a.map { $0 * 2 }
     return 0

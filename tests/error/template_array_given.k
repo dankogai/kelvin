@@ -1,6 +1,6 @@
 // an Array that an expression gives is bound before a template shows it (#125)
 let make():$[int64] { $[1, 2] }
-let main():i32 {
+let main():int32 {
     let t := `xs = ${make()}`
     return 0
 }

@@ -1,12 +1,12 @@
-let printf(fmt:const u8^, ...):i32;
+let printf(fmt:const uint8^, ...):int32;
 
 var answer = 42;                // inferred: i64
 
-let main():i32 {
+let main():int32 {
     var i = -1;                 // inferred: i64
     var big = 0x7fffffffffffffff;
-    printf("%d %d %d %d\n", i32(sizeof(i8)), i32(sizeof(i16)), i32(sizeof(i32)), i32(sizeof(i64)));
-    printf("%d %d\n", i32(sizeof answer), i32(sizeof i));
+    printf("%d %d %d %d\n", int32(sizeof(int8)), int32(sizeof(int16)), int32(sizeof(int32)), int32(sizeof(int64)));
+    printf("%d %d\n", int32(sizeof answer), int32(sizeof i));
     printf("%d\n", big > 0);
 
     var b:uint8 = 255;
@@ -15,9 +15,9 @@ let main():i32 {
 
     var w:u128 = 1;
     w = w << 100;
-    printf("%d %d\n", i32(sizeof(u128)), i32(w >> 99));
+    printf("%d %d\n", int32(sizeof(u128)), int32(w >> 99));
 
-    var s:u8^ := "bytes";       // string literals are u8 arrays in Kelvin
+    var s:uint8^ := "bytes";       // string literals are u8 arrays in Kelvin
     printf("%s %c\n", s, s[1]);
     return 0;
 }

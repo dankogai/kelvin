@@ -7,12 +7,12 @@ let main():int32 {
     var names = $[$"ann", $"b\"c"]
     var d = ${"k": $[1]}
     var s = ${3, 1}
-    var empty:$[i64] = $[]
+    var empty:$[int64] = $[]
     let t := `xs = ${xs}, names = ${names}, d = ${d}, s = ${s}, empty = ${empty}`
     println(t)
     var u = $`whole: ${xs} ${d} ${s}`
     println(u, " ", u.count, " ", u.typename)
-    var big = Array<i64>()
+    var big = Array<int64>()
     for i in 0..<200 { big += i }
     let cut := `${big}`
     var all = $`${big}`

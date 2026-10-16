@@ -6,7 +6,7 @@ let show(x:int64) {
     }
     println("other")
 }
-let main():i32 {
+let main():int32 {
     show(1)
     return 0
 }

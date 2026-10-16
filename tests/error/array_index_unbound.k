@@ -3,7 +3,7 @@ let rows():$[int64] {
     var r = $[1, 2]
     return r
 }
-let main():i32 {
+let main():int32 {
     println(rows()[0])
     return 0
 }

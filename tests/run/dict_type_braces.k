@@ -1,17 +1,17 @@
 // a Dictionary type in braces (#70): ${K: V}, nested, as a parameter, a
 // member, with Array and struct values
-let total(d:${String: i64}^):i64 {
+let total(d:${String: int64}^):int64 {
     var n:int64 = 0
     for k, v in d^ { n += v }
     return n
 }
-struct bag { m: ${i64: $[String]}; name: String }
-let main():i32 {
-    var d:${String: i64} = ${:}
+struct bag { m: ${int64: $[String]}; name: String }
+let main():int32 {
+    var d:${String: int64} = ${:}
     d["a"] = 1; d["b"] = 2
-    var n:${String: ${String: i64}} = ${"x": {"y": 3}}
+    var n:${String: ${String: int64}} = ${"x": {"y": 3}}
     var b:bag = {${1: $["one"]}, $"b"}
-    var p:${String: {x:f64, y:f64}} = ${"o": {1.0, 2.0}}
+    var p:${String: {x:float64, y:float64}} = ${"o": {1.0, 2.0}}
     println(total(&d), " ", d.typename, " ", n["x"]["y"], " ", n.typename, " ", b.m[1][0], " ", p["o"].y, " ", p.typename)
     return 0
 }

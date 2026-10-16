@@ -1,5 +1,5 @@
 // error: C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type; pointer types are written with a postfix '^', as in 'i32^'
 #import <stdio.h> as C
-let f(x:i32, n:size_t, p:i32^) {
-    var q:uint8^ := (u8 *)p;
+let f(x:int32, n:size_t, p:int32^) {
+    var q:uint8^ := (uint8 *)p;
 }

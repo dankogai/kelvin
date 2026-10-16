@@ -1,5 +1,5 @@
 // a case ends at the next, so an empty one before another is a mistake (#63)
-let main():i32 {
+let main():int32 {
     var n:int32 = 1
     switch n {
     case 1:

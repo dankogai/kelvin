@@ -17,10 +17,10 @@ after a colon (#27):
 
 ```kelvin
 let k = 42                 // a let never changes: C's const
-var n:int32 = 0              // a var may change; int32 is i32 by its full name (#151)
-var buf := malloc(n):u8^   // := for references (see pointers.md)
-let a:i32 = 1, b:u8^ := p
-static var calls:i32
+var n:int32 = 0              // a var may change
+var buf := malloc(n):uint8^   // := for references (see pointers.md)
+let a:int32 = 1, b:uint8^ := p
+static var calls:int32
 ```
 
 - **`let` never changes.** `let i = 42; i += 1` is an error, and in the
@@ -221,12 +221,12 @@ compound literals and designated initializers, except that:
 As in Swift, a `;` may be left out at the end of a line (#35):
 
 ```kelvin
-let total:i64 = price
+let total:int64 = price
     * count               // goes on: price * count
 println(total)
-(p as i64^)^ = 1          // a new statement
+(p as int64^)^ = 1          // a new statement
 let a = 1; let b = 2      // ; between statements on one line
-let square(x:i64):i64 { x * x }
+let square(x:int64):int64 { x * x }
 ```
 
 - A new line ends a statement, a declaration, a struct member or a

@@ -3,13 +3,13 @@
 #import <assert.h> as C
 #import "include/stmt_macros.h" as C
 
-let main():i32 {
-    var x:int32 = 1, y:i32 = 2;
+let main():int32 {
+    var x:int32 = 1, y:int32 = 2;
     SWAP(x, y);
     LOG(x);
     CHECK(x == 1);
     BLOCK(y);
-    static_assert(sizeof(i32) == 4, "i32 is 4 bytes");
+    static_assert(sizeof(int32) == 4, "i32 is 4 bytes");
     __asm__("nop");
     printf("%d %d\n", x, y);
     return 0;

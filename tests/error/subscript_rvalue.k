@@ -1,8 +1,8 @@
 // an owner that an expression gives is bound before its subscript (#136)
 struct bag { d: Dictionary<String, int64> }
-let bag[](k:cstr):i64 { 0 }
+let bag[](k:cstr):int64 { 0 }
 let make():bag { return {${:}} }
-let main():i32 {
+let main():int32 {
     println(make()["k"])
     return 0
 }

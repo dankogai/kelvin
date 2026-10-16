@@ -1,7 +1,7 @@
 // flatMap's function gives a Result with the same err (#81)
-let parse(s:cstr):Result<int64, String> { return i64(s) }
-let keep(n:i64):Result<i64, i32> { return n }
-let main():i32 {
+let parse(s:cstr):Result<int64, String> { return int64(s) }
+let keep(n:int64):Result<int64, int32> { return n }
+let main():int32 {
     var m = parse("1").flatMap(keep)
     return 0
 }

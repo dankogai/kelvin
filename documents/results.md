@@ -15,9 +15,9 @@ its cases named `none` and `some` (#72); it has its own document,
 **Where it lives:** the prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 ```kelvin
-let parse(s:cstr):Result<int64, String> {   // int64 is i64 by its full name (#151)
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }   // err(e), a word
-    return i64(s)                              // a T becomes ok(T) by itself
+    return int64(s)                              // a T becomes ok(T) by itself
 }
 var r = parse("42")
 var e = parse("")
@@ -25,7 +25,7 @@ println(r.is(ok), " ", r.ok, " ", e.err)       // true 42 empty
 println(r ?? -1, " ", e ?? -1)                 // the ok value, or the default: 42 -1
 println(r.cstr, " ", e.cstr)                   // ok(42) err("empty")
 println(r == 42, " ", r == e, " ", r != ok(41))   // true false true: the same case and value (#79)
-var twice = parse("21").map { i64($0 * 2) }    // ok(42), a Result<i64, String> (#80)
+var twice = parse("21").map { int64($0 * 2) }    // ok(42), a Result<i64, String> (#80)
 var checked = parse("0").flatMap(positive)     // err("zero"): positive gives a Result itself (#81)
 if let v = r { println(v) } else { println(r.err) }   // binds the ok value (#74)
 if let err(why) = e { println("failed: ", why) }   // binds the err, by the case's name (#78)
@@ -36,10 +36,10 @@ case err: println("failed: ", e.err)
 e = 5                                          // ok(5): sets the case
 e.err = $"later"                               // err(later)
 e.ok += 1                                      // a place, checked: of err, the program ends
-var q:Result<point, i32> = {1, 2}             // the T's initializer, wrapped; so is return {1, 2} (#77) as ok
-var bad:Result<point, i32> = err(404)
-var w = Result<i64, cstr>.ok(5)                // the cases by the type's name
-var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
+var q:Result<point, int32> = {1, 2}             // the T's initializer, wrapped; so is return {1, 2} (#77) as ok
+var bad:Result<point, int32> = err(404)
+var w = Result<int64, cstr>.ok(5)                // the cases by the type's name
+var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
 ```
 
 - **The type** is `Result<T, U>`, `T` and `U` any value types but an
@@ -142,12 +142,12 @@ cannot take the value without facing the case:
 #import <errno.h> as C
 #import <string.h> as C
 struct stat;                                 // the C struct, by its bare name
-let statOf(path:cstr):Result<stat, i32> {    // the struct, or errno
+let statOf(path:cstr):Result<stat, int32> {    // the struct, or errno
     var buf:stat
     if lstat(path, &buf) != 0 { return err(errno) }
     return buf                               // a T becomes ok(T)
 }
-let sizeOf(path:cstr):Result<i64, i32> {     // an err passed up
+let sizeOf(path:cstr):Result<int64, int32> {     // an err passed up
     let st = try statOf(path)                // the struct, or return the err
     return st.st_size
 }
@@ -204,7 +204,7 @@ other. The details, and the examples, are in
 [optionals.md](optionals.md).
 
 ```kelvin
-let find(xs:$[i64]^, v:i64):i64? {       // a result that may be absent
+let find(xs:$[int64]^, v:int64):int64? {       // a result that may be absent
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }

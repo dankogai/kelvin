@@ -1,6 +1,6 @@
 // the C tag of a struct with no tag is kelvinc's, not a Kelvin type (#59)
 let main():int32 {
-    var f:{x:f64} = {1.0}
+    var f:{x:float64} = {1.0}
     var u:{x:_kv_anon1} = {f}
     return 0
 }

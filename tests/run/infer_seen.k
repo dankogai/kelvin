@@ -3,11 +3,11 @@
 // &x, a compound literal, a text property, a template, an enumerator, a
 // character, sizeof, and a ?: between two values of one type
 #import <math>
-struct point { x: int64; y: i64 }
+struct point { x: int64; y: int64 }
 enum color { RED, GREEN }
-let mk(x:i64):point { (point){x, x * 2} }
-let point.norm():i64 { .x * .x + .y * .y }
-let main(argc:i32, argv:[u8^]):i32 {
+let mk(x:int64):point { (point){x, x * 2} }
+let point.norm():int64 { .x * .x + .y * .y }
+let main(argc:int32, argv:[uint8^]):int32 {
     var i = c64(0.0, 1.0)
     let p = mk(3)
     var q = p
@@ -16,11 +16,11 @@ let main(argc:i32, argv:[u8^]):i32 {
     let r := &q
     var y = r^.y
     var ref := &q.y
-    let arr:[i32](3) = [1, 2, 3]
+    let arr:[int32](3) = [1, 2, 3]
     let a0 = arr[1]
     let ap := arr                     // an array is not copied: a pointer, to const for a let
     var k = i * 2.0                   // a struct's operator is a call, not C's arithmetic
-    let c = argc > 1 ? 1:i32 : 2:i32
+    let c = argc > 1 ? 1:int32 : 2:int32
     let t := `${n}`
     let m = (point){4, 5}
     var f := mk

@@ -2,21 +2,21 @@
 #import <string.h> as C
 
 struct ops {
-    add:(i64, i64):i64;
+    add:(int64, int64):int64;
     name:cstr;
 };
 
 var total:int64 = 0;
-var other:i64 = 0;
+var other:int64 = 0;
 
-let apply(x:i64, f:(i64):i64):i64 { return f(x); }
-let each(n:i64, f:(i64)) {
+let apply(x:int64, f:(int64):int64):int64 { return f(x); }
+let each(n:int64, f:(int64)) {
     for i in 0..<n {
         f(i);
     }
 }
 let run(f:()) { f(); }
-let some(n:i64, f:(i64):bool):bool {
+let some(n:int64, f:(int64):bool):bool {
     for i in 0..<n {
         if f(i) {
             return true;
@@ -24,23 +24,23 @@ let some(n:i64, f:(i64):bool):bool {
     }
     return false;
 }
-let size_of(x:i64, f:(i64):size_t):size_t { return f(x); }
+let size_of(x:int64, f:(int64):size_t):size_t { return f(x); }
 
 // globals of the same declaration, and the global itself, are in sight
-let base:i64 = 10, plus_base:(i64):i64 := { $0 + base };
-let fact:(i64):i64 := { $0 <= 1 ? 1 : $0 * fact($0 - 1) };
+let base:int64 = 10, plus_base:(int64):int64 := { $0 + base };
+let fact:(int64):int64 := { $0 <= 1 ? 1 : $0 * fact($0 - 1) };
 
-let main():i32 {
+let main():int32 {
     // statements that end with trailing functions need no ';', and a new
     // line ends them, also before a '('
     run() {
         each(2) { total += $0 + 1 }
         each(1) { total += 10 }
     }
-    var x:i64 = 0;
+    var x:int64 = 0;
     var p:any^ := &x;
     each(1) { other += 1 }
-    (p as i64^)^ = 42;
+    (p as int64^)^ = 42;
     println(total, " ", x, " ", other);
 
     // in an initializer list, a member's function type types the function
@@ -54,19 +54,19 @@ let main():i32 {
     if some(5, { $0 > 3 }) && (some(5) { $0 > 9 }) == false {
         println("some");
     }
-    for i in 0..<i64(apply(1) { $0 + 1 }) {
+    for i in 0..<int64(apply(1) { $0 + 1 }) {
         print(i);
     }
     println();
 
     // a declaration may end with one; a written signature takes the
     // result from the context when it has none; $0 names a written one
-    let y:i64 = apply(1) { $0 + 1 }
-    let ap:(i64, (i64):i64):i64 := apply;
-    println(y, " ", ap(1) { $0 + 10 }, " ", apply(3) { (a:i64) in a * 2 }, " ", apply(4) { (a:i64):i64 in $0 + a });
+    let y:int64 = apply(1) { $0 + 1 }
+    let ap:(int64, (int64):int64):int64 := apply;
+    println(y, " ", ap(1) { $0 + 10 }, " ", apply(3) { (a:int64) in a * 2 }, " ", apply(4) { (a:int64):int64 in $0 + a });
 
     // a C function with char parameters, wrapped; sizeof of a parameter
-    let cmp:(cstr, cstr):i32 := { strcmp($0, $1) };
+    let cmp:(cstr, cstr):int32 := { strcmp($0, $1) };
     println(cmp("a", "b") < 0, " ", size_of(1) { sizeof($0) });
     return 0;
 }

@@ -1,6 +1,6 @@
 // map's function takes the value (#80)
-let half(x:f64):f64 { return x / 2.0 }
-let main():i32 {
+let half(x:float64):float64 { return x / 2.0 }
+let main():int32 {
     var a:int64? = 3
     var m = a.map(half)
     return 0

@@ -3,8 +3,8 @@
 // the program, as C's anonymous enum declares its enumerators: red is a
 // value, rgb({1, 2, 3}) and named($"teal") make one, and a declaration
 // infers the type from them
-enum { red; rgb: {r: uint8, g: u8, b: u8}; named: String }
-let show(c:const enum{red, rgb: {r: u8, g: u8, b: u8}, named: String}^) {
+enum { red; rgb: {r: uint8, g: uint8, b: uint8}; named: String }
+let show(c:const enum{red, rgb: {r: uint8, g: uint8, b: uint8}, named: String}^) {
     switch c^ {
     case red: println("red")
     case rgb(p): println("rgb ", p.r, " ", p.g, " ", p.b)
@@ -12,7 +12,7 @@ let show(c:const enum{red, rgb: {r: u8, g: u8, b: u8}, named: String}^) {
     }
 }
 enum { crimson, blue }               // C's anonymous enum, as before: constants
-let main():i32 {
+let main():int32 {
     var a = red
     var b = rgb({1, 2, 3})
     var c = named($"teal")
@@ -22,7 +22,7 @@ let main():i32 {
     show(&c)
     var xs = $[rgb({4, 5, 6}), red]
     println(xs.count, " ", xs[0].rgb.b, " ", xs[1].is(red))
-    var d:enum{red, rgb: {r: u8, g: u8, b: u8}, named: String} = {.named = $"by initializer"}
+    var d:enum{red, rgb: {r: uint8, g: uint8, b: uint8}, named: String} = {.named = $"by initializer"}
     println(d.named, " ", d.is(named), " ", blue)
     d = red
     println(d.cstr)

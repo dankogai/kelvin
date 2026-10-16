@@ -1,6 +1,6 @@
 // .is of a Result that owns, given by an expression, would lose what it holds (#99)
-let parse(s:cstr):Result<int64, String> { return i64(s) }
-let main():i32 {
+let parse(s:cstr):Result<int64, String> { return int64(s) }
+let main():int32 {
     println(parse("1").is(ok))
     return 0
 }

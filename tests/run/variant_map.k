@@ -3,23 +3,23 @@
 // case carried over; f a function by name, a function value, or an
 // anonymous function whose result kelvinc sees or which writes it; of
 // a call that gives an owner, or of a copy, and chained
-let twice(n:i64):i64 { return n * 2 }
-let text(n:i64):String { return $`#${n}` }
-let parse(s:cstr):Result<i64, String> {
+let twice(n:int64):int64 { return n * 2 }
+let text(n:int64):String { return $`#${n}` }
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s { if c < '0' || c > '9' { return err($`not a number: ${s}`) } }
-    return i64(s)
+    return int64(s)
 }
-let code(s:String):i32 { return s.count as i32 }
-let main():i32 {
+let code(s:String):int32 { return s.count as int32 }
+let main():int32 {
     var a:int64? = 3
-    var n:i64? = none
+    var n:int64? = none
     var b = a.map(twice)
     var c = n.map(twice)
     println(b.cstr, " ", c.cstr, " ", b.typename)
     var d = a.map { $0 > 2 }
-    var e = a.map { i64($0 * 10) }
-    var g = a.map { (v:i64):f64 in v / 2.0 }
+    var e = a.map { int64($0 * 10) }
+    var g = a.map { (v:int64):float64 in v / 2.0 }
     var h = a.map({ $0 == 3 })
     println(d.cstr, " ", e.cstr, " ", g.cstr, " ", h.cstr)
     var s = a.map(text)
@@ -32,14 +32,14 @@ let main():i32 {
     println(k.cstr, " ", l.cstr, " ", k.typename)
     var t = parse("7").map(text)
     println(t.cstr, " ", t.typename)
-    var p:Result<i64, i32> = 5
+    var p:Result<int64, int32> = 5
     var q = p.map(twice)
     var q2 = p.map { $0 > 4 }
     println(q.cstr, " ", q2.cstr, " ", p.cstr)
     var w = r.copy().map(twice)
     var w2 = parse("5").map(twice).map(twice)
     println(w.cstr, " ", w2.cstr)
-    let inc:(i64):i64 := { $0 + 1 }
+    let inc:(int64):int64 := { $0 + 1 }
     var i = a.map(inc)
     println(i.cstr)
     return 0

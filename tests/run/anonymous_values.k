@@ -3,32 +3,32 @@
 #import <stddef.h> as C
 
 struct entry {
-    name:[u8](8);
-    run:(i64):i64;
+    name:[uint8](8);
+    run:(int64):int64;
 };
-struct pair { a:i64; b:i64; };
+struct pair { a:int64; b:int64; };
 struct holder {
     at:pair;
-    f:(i64):i64;
+    f:(int64):int64;
 };
 struct sized {
     n:size_t;
-    f:(i64):i64;
+    f:(int64):int64;
 };
 
 // placed in a union, an enum, and a struct that names itself
-let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let apply(x:int64, f:(int64):int64):int64 { return f(x); }
 union u {
-    buf:[u8](sizeof(apply(1) { $0 }));
-    n:i32;
+    buf:[uint8](sizeof(apply(1) { $0 }));
+    n:int32;
 };
 enum e { WIDE = sizeof(apply(1) { $0 + 1 }) };
-struct s { a:[u8](sizeof({ (p:s^):i64 in 1 }(nullptr))); };
+struct s { a:[uint8](sizeof({ (p:s^):int64 in 1 }(nullptr))); };
 
 let table:[entry](2) = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}];
 
-let inc(x:i64):i64 { return x + 1; }
-let sum(n:size_t, xs:[i64](n)):i64 {
+let inc(x:int64):int64 { return x + 1; }
+let sum(n:size_t, xs:[int64](n)):int64 {
     var t:int64 = 0;
     for i in 0..<n {
         t += xs[i];
@@ -36,10 +36,10 @@ let sum(n:size_t, xs:[i64](n)):i64 {
     return t;
 }
 // a parameter's length names another parameter: $0 is then a pointer
-let third(n:i64, a:[i64](n), f:([i64](n)):i64):i64 { return f(a); }
+let third(n:int64, a:[int64](n), f:([int64](n)):int64):int64 { return f(a); }
 // a length inside a function type's parameter never reaches C
-let run(n:size_t, xs:i64^, f:((size_t, [i64](n)):i64, size_t, i64^):i64):i64 { return f(sum, n, xs); }
-let some(n:i64, f:(i64):bool):bool {
+let run(n:size_t, xs:int64^, f:((size_t, [int64](n)):int64, size_t, int64^):int64):int64 { return f(sum, n, xs); }
+let some(n:int64, f:(int64):bool):bool {
     for i in 0..<n {
         if f(i) {
             return true;
@@ -47,14 +47,14 @@ let some(n:i64, f:(i64):bool):bool {
     }
     return false;
 }
-let seven():i64 { return { (x:i64):i64 in x + 4 }(3); }
+let seven():int64 { return { (x:int64):int64 in x + 4 }(3); }
 
-let main():i32 {
+let main():int32 {
     // one that writes its parameters is a value: called where it stands
-    let r:i64 = { (a:i64):i64 in a * 2 }(3);
+    let r:int64 = { (a:int64):int64 in a * 2 }(3);
     let hi := { () in print("hi ") };
     hi();
-    println(r, " ", { (x:i64):i64 in x * 2 }(21), " ", seven());
+    println(r, " ", { (x:int64):int64 in x * 2 }(21), " ", seven());
 
     // a string or a struct value fills its member, so the next one is typed
     let p:pair = {1, 2};
@@ -66,12 +66,12 @@ let main():i32 {
     println(h.f(2), " ", z.f(1));
 
     // sizes of functions are a pointer's
-    var fp:(i64):i64 := inc;
-    let mul:(i32, i32):i64 := { $0 as i64 * $1 };
+    var fp:(int64):int64 := inc;
+    let mul:(int32, int32):int64 := { $0 as int64 * $1 };
     println(inc.size == sizeof(any^), " ", sizeof(inc) == sizeof(any^), " ",
-            ({ (x:i64):i64 in x }).size == sizeof(any^), " ", (&fp as any^) != nullptr, " ", mul(100000, 100000));
+            ({ (x:int64):int64 in x }).size == sizeof(any^), " ", (&fp as any^) != nullptr, " ", mul(100000, 100000));
 
-    var xs:[i64](3) = [1, 2, 3];
+    var xs:[int64](3) = [1, 2, 3];
     var v:u;
     var w:s;
     while some(5, { $0 > 9 }) {

@@ -1,13 +1,13 @@
 // Set<T> (#71): a hash set on the heap, an owner; ${a, b, c} and ${T};
 // insert (also +=), has, remove, union, intersection, difference, copy,
 // elements, for x in s in the order added; integer and String elements
-struct tags { names: ${String}; ids: Set<i64> }
-let count_odd(s:${i64}^):i64 {
+struct tags { names: ${String}; ids: Set<int64> }
+let count_odd(s:${int64}^):int64 {
     var n:int64 = 0
     for x in s^ { if x % 2 == 1 { n += 1 } }
     return n
 }
-let main():i32 {
+let main():int32 {
     var s = ${3, 1, 4, 1, 5}
     println(s.count, " ", s.has(4), " ", s.has(2), " ", s.typename, " ", count_odd(&s))
     s += 9
@@ -15,7 +15,7 @@ let main():i32 {
     println(s.insert(2), " ", s.insert(2), " ", s.remove(1), " ", s.remove(1), " ", s.count)
     for x in s { print(x, " ") }
     println()
-    var t:${i64} = ${}
+    var t:${int64} = ${}
     t += &s
     t += 100
     var u = s.union(&t)
@@ -34,7 +34,7 @@ let main():i32 {
     var g:tags = {{"a", "b"}, ${7}}
     g.names += "c"
     println(g.names.count, " ", g.ids.has(7))
-    var sets = $[${1, 2}, Set<i64>({3})]
+    var sets = $[${1, 2}, Set<int64>({3})]
     println(sets[1].has(3), " ", sets.typename)
     var e = Set<String>()
     var f = Set<String>(&words)

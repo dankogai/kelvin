@@ -126,10 +126,10 @@ a pointer, a `cstr`, a struct that owns nothing, or an owner among
 it, copied by `copy()`, and never copied by `=`.
 
 ```kelvin
-var xs = Array<int64>()            // empty; Array<i64>(n) is n zero elements; int64 is i64 by its full name (#151)
+var xs = Array<int64>()            // empty; Array<i64>(n) is n zero elements
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
 var vb = $[0, 1, 2, 3]            // the same, for short; $"text" is String("text")
-var vc:$[[i64]] = $[[1, 0], [0, 1]]   // $[T] is the type Array<T>, $[[T]] Array<Array<T>>
+var vc:$[[int64]] = $[[1, 0], [0, 1]]   // $[T] is the type Array<T>, $[[T]] Array<Array<T>>
 var m = Array([[0], [1, 2]])     // a [...] among the elements is an Array in turn: an Array<Array<i64>>
 for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
 xs.insert(0, 100)
@@ -138,8 +138,8 @@ let last = xs.pop()
 println(xs.count, " ", xs[0], " ", xs.capacity)
 let ys = Array(fixed)            // a copy of a fixed array, [i64](3); Array(&xs) a copy of an Array
 for x in xs { ... }              // each element, a let
-var rows = Array<Array<i64>>()   // Arrays of Arrays, of Strings, of Bytes
-rows += Array<i64>(3)            // moved in
+var rows = Array<Array<int64>>()   // Arrays of Arrays, of Strings, of Bytes
+rows += Array<int64>(3)            // moved in
 rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if it owns
 ```
 
@@ -309,9 +309,9 @@ let greeting(name:cstr):Bytes {      // the caller owns the result
     b += name
     return b                         // moves out
 }
-let total(data:Bytes):i64 {          // data moves in, and is freed here
+let total(data:Bytes):int64 {          // data moves in, and is freed here
     var n = 0
-    for x in data { n += i64(x) }
+    for x in data { n += int64(x) }
     return n
 }
 let longest(a:Bytes^, b:Bytes^):Bytes^ { a^.count >= b^.count ? a : b }   // borrows

@@ -7,7 +7,7 @@ let name(n:int64):cstr {
         "many"
     }
 }
-let main():i32 {
+let main():int32 {
     println(name(0))
     return 0
 }

@@ -1,8 +1,8 @@
 // ${v.pretty} in a template (#126): the value's text indented, by
 // kelvinc's printer, as print shows .pretty; in a template's room it is
 // cut as a string value is, and in $`...` it is whole
-struct point { x: int64; y: i64 }
-let main():i32 {
+struct point { x: int64; y: int64 }
+let main():int32 {
     var d = ${"a": $[1, 2]}
     let p:point = {1, 2}
     let t := `d = ${d.pretty}`

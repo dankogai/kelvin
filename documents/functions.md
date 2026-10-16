@@ -11,13 +11,13 @@ operators, which are functions of a struct, are in
 ## Declaring
 
 ```kelvin
-let add(a:int64, b:i64):i64 { a + b }        // one expression is the result; int64 is i64 by its full name (#151)
+let add(a:int64, b:int64):int64 { a + b }        // one expression is the result
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
 let shout(name:cstr):() { println(name, "!") }  // the same, written out (#141)
 let move(var p:node^):() { p := p^.next }  // a var parameter may change
-extern let labs(n:i64):i64                 // a prototype, no body
-static let helper():i32 { 1 }
-let main(argc:i32, argv:[cstr]):i32 { return 0 }
+extern let labs(n:int64):int64                 // a prototype, no body
+static let helper():int32 { 1 }
+let main(argc:int32, argv:[cstr]):int32 { return 0 }
 ```
 
 - **Functions** are declared with `let` (#45), as a value that never
@@ -69,11 +69,11 @@ The overloads of one name differ by their parameter types, as any
 function's do, and one may call another:
 
 ```kelvin
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: int64 }
 static let point.origin():Self { (Self){0, 0} }             // Self is point (#140)
-static let point.of(x:i64, y:i64):Self { (Self){x, y} }
-static let point.of(s:cstr):Self { Self.of(i64(s), 0) }
-let point.dist2():i64 { .x * .x + .y * .y }                 // a method, with self, beside them: .x is self.x
+static let point.of(x:int64, y:int64):Self { (Self){x, y} }
+static let point.of(s:cstr):Self { Self.of(int64(s), 0) }
+let point.dist2():int64 { .x * .x + .y * .y }                 // a method, with self, beside them: .x is self.x
 
 let o = point.origin()
 let p = point.of(3, 4)
@@ -99,10 +99,10 @@ A function type is written as a function's head without names (#31), as
 Swift writes `(T, U) -> R`. In C it is a pointer to a function:
 
 ```kelvin
-let fold(xs:i64^, n:size_t, f:(i64, i64):i64):i64 { ... f(acc, xs[i]) ... }
-let pick(product:bool):(i64, i64):i64 { ... }   // returns a function
+let fold(xs:int64^, n:size_t, f:(int64, int64):int64):int64 { ... f(acc, xs[i]) ... }
+let pick(product:bool):(int64, int64):int64 { ... }   // returns a function
 
-var f:(i64, i64):i64       // C: int64_t (*f)(int64_t, int64_t) = 0;
+var f:(int64, int64):int64       // C: int64_t (*f)(int64_t, int64_t) = 0;
 f := add                   // a reference: assigned with :=
 let t:() := tick           // no parameters, no result
 let u:():() := tick        // the same, the result written out (#141)
@@ -145,8 +145,8 @@ function such as `qsort` stays a function, whose address C needs.
 sort(xs, 8) { $0 < $1 }                 // the last argument, after the call
 sort(xs, 8, { $[0] > $[1] })            // or inside the parentheses
 each(xs, 3) { total += $0 }             // no result: one assignment is fine
-let inc:(i64):i64 := { $0 + 1 }
-qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
+let inc:(int64):int64 := { $0 + 1 }
+qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
     strcmp((a as const cstr^)^, (b as const cstr^)^)
 }
 ```
@@ -234,13 +234,13 @@ function's name overloads C's, which still takes the numbers:
 ```kelvin
 #import <math.h> as C
 
-struct vec { x: f64; y: f64 }
+struct vec { x: float64; y: float64 }
 
-let twice(n:i64):i64 { n * 2 }
-let twice(x:f64):f64 { x * 2.0 }
-let sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
+let twice(n:int64):int64 { n * 2 }
+let twice(x:float64):float64 { x * 2.0 }
+let sqrt(v:vec):float64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
 
-let main():i32 {
+let main():int32 {
     let v:vec = {3.0, 4.0}
     println(twice(4), " ", twice(1.5), " ", sqrt(v), " ", sqrt(2.0))   // 8 3.0 5.0 1.4142135623730951
     return 0

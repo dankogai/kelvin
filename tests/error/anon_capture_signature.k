@@ -2,6 +2,6 @@
 let k = 2;
 let main():int32 {
     let k = 3;
-    let sum := { (a:i64[k]):i64 in a[0] };
+    let sum := { (a:int64[k]):int64 in a[0] };
     return 0;
 }

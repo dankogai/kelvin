@@ -6,7 +6,7 @@ let main():int32 {
     println(b.count, " ", b.capacity, " ", b[999999])
     var s = Bytes()
     s += `${b.count}`
-    s += 7:u8
+    s += 7:uint8
     println(s.count, " ", s[0], " ", s[s.count - 1])
     var big = Bytes(1000000)
     println(big.count)

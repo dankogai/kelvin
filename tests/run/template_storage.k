@@ -2,11 +2,11 @@
 // its longest text, and a string value shows at most KV_TEMPLATE_STR
 // (256) bytes
 #import <string.h> as C
-struct rec { id: i64; name: cstr }
-struct tagged { id: i64; tag: [u8](8) }
+struct rec { id: int64; name: cstr }
+struct tagged { id: int64; tag: [uint8](8) }
 let mk():tagged { (tagged){1, ['t', 'a', 'g', 's', 'a', 'n', 'd', 's']} }
-let main():i32 {
-    var text:[u8](400)
+let main():int32 {
+    var text:[uint8](400)
     for i in 0..<399 {
         text[i] = 'a' + (i % 26)
     }
@@ -29,7 +29,7 @@ again:
     println(strlen(g), " ", &g[strlen(g) - 7])
     // numbers at their longest, also where C converts them to int
     let a:int8 = -128
-    let u:u8 = 200
+    let u:uint8 = 200
     let low:i128 = i128("-170141183460469231731687303715884105728")
     println(`${a * a} ${-u} ${~u} ${true ? a : a} ${low} ${-2.2250738585072014e-308} ${'A'} ${a < a}`)
     // a struct's string member is cut at 60, as its .cstr is
@@ -45,19 +45,19 @@ again:
     println(strlen(longer), " ", &longer[strlen(longer) - 6])
     // a byte array is read up to a NUL or its end, never past it, and shown
     // whole up to 256 bytes; a longer one is cut as a string is
-    var big:[u8](600)
+    var big:[uint8](600)
     for i in 0..<500 {
         big[i] = 'b'
     }
     big[500] = 0
-    var mid:[u8](200)
+    var mid:[uint8](200)
     for i in 0..<199 {
         mid[i] = 'm'
     }
     mid[199] = 0
-    var four:[u8](4) = ['a', 'b', 'c', 'd']
+    var four:[uint8](4) = ['a', 'b', 'c', 'd']
     let N = 8
-    var eight:[u8](N)
+    var eight:[uint8](N)
     for i in 0..<N {
         eight[i] = 'e'
     }

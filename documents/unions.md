@@ -7,14 +7,14 @@ than the one last written is C's type punning, with C's rules.
 **Where it lives:** the core. A union is C's, with nothing linked.
 
 ```kelvin
-union bits { u: uint64; f: f64 }            // uint64 is u64 by its full name (#151)
+union bits { u: uint64; f: float64 }
 
 extend bits {                                             // Self is bits
     static let ==(a:Self, b:Self):bool { a.u == b.u }      // an operator
     let flipped():Self { var r:Self = self; r.u = ~r.u; return r }   // a method: self is a let
 }
 
-let main():i32 {
+let main():int32 {
     var b:bits = {.f = 1.5}        // a designator picks the member
     var c:bits = {7}               // the first member, as in C
     println(b.u.hex, " ", b.size, " ", b == c, " ", b.flipped().u.hex)

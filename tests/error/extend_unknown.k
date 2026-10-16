@@ -2,5 +2,5 @@
 extend shape {
     let f():int64 { 1 }
 }
-let main():i32 { return 0 }
+let main():int32 { return 0 }
 // error: 'shape' is not a struct, union or enum declared before this extend

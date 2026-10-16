@@ -6,36 +6,36 @@
 #import <string.h> as C
 #import "include/fields.h" as C
 
-struct host { addr: u32; port: u16 }
-struct pair { x: i32; y: i32 }
-let point_of(x:i32, y:i32):pair { (pair){x, y} }
+struct host { addr: uint32; port: uint16 }
+struct pair { x: int32; y: int32 }
+let point_of(x:int32, y:int32):pair { (pair){x, y} }
 
-let square(x:i64):i64 { x * x }
-let where(p:i32^):uintptr_t { p.addr }      // a number, which may be returned
+let square(x:int64):int64 { x * x }
+let where(p:int32^):uintptr_t { p.addr }      // a number, which may be returned
 
-let main():i32 {
+let main():int32 {
     var x:int32 = 7
-    let p:i32^ := &x
+    let p:int32^ := &x
     let s:cstr := "abc"
     let q:any^ := nullptr
-    let width:u64 = 2 + 2 * sizeof(any^)    // 0x and two digits a byte
+    let width:uint64 = 2 + 2 * sizeof(any^)    // 0x and two digits a byte
 
     // .addr is the address as a number
     println(p.addr == p as uintptr_t, " ", s.addr == s as uintptr_t, " ", q.addr, " ", nullptr.addr, " ",
-            p.next.addr - p.addr == sizeof(i32))
+            p.next.addr - p.addr == sizeof(int32))
 
     // .hex is 0x and all the digits, which #36 reads back
-    println(strlen(p.hex) == width, " ", strlen(q.hex) == width, " ", u64(p.hex, 16) == p.addr, " ",
-            u64(s.hex, 16) == s.addr, " ", strncmp(p.hex, "0x", 2) == 0, " ", u64(nullptr.hex, 16))
+    println(strlen(p.hex) == width, " ", strlen(q.hex) == width, " ", uint64(p.hex, 16) == p.addr, " ",
+            uint64(s.hex, 16) == s.addr, " ", strncmp(p.hex, "0x", 2) == 0, " ", uint64(nullptr.hex, 16))
 
     // functions and function values
-    let f:(i64):i64 := square
-    println(f.addr == square.addr, " ", square.addr != 0, " ", u64(f.hex, 16) == f.addr, " ",
-            u64({ (n:i64):i64 in n + 1 }.hex, 16) != 0)
+    let f:(int64):int64 := square
+    println(f.addr == square.addr, " ", square.addr != 0, " ", uint64(f.hex, 16) == f.addr, " ",
+            uint64({ (n:int64):int64 in n + 1 }.hex, 16) != 0)
 
     // a pointer kelvinc cannot see
     let b:cstr := strchr(s, 'b')
-    println(u64(strchr(s, 'b').hex, 16) == b.addr, " ", strlen(strchr(s, 'b').hex) == width)
+    println(uint64(strchr(s, 'b').hex, 16) == b.addr, " ", strlen(strchr(s, 'b').hex) == width)
 
     // .addr is unsigned and as wide as a pointer; .hex has lowercase digits
     let digits:cstr := p.addr.hex
@@ -44,10 +44,10 @@ let main():i32 {
 
     // pointers kelvinc sees by their shape: a string, &x of a C name, a
     // step, a ?:, and text, which is u8^
-    let n:i64 = 255
+    let n:int64 = 255
     let t:cstr := n.hex
     println("abc".addr != 0, " ", strlen("abc".hex) == width, " ", (&errno).addr == &errno as uintptr_t, " ",
-            (p + 1).addr - p.addr == sizeof(i32), " ", (n > 0 ? p : nullptr as i32^).addr == p.addr, " ",
+            (p + 1).addr - p.addr == sizeof(int32), " ", (n > 0 ? p : nullptr as int32^).addr == p.addr, " ",
             n.hex.addr != 0, " ", strlen(t.hex) == width)
 
     // a compound literal's member keeps its own .hex and .typename, also

@@ -1,28 +1,28 @@
 // $[T] is the type Array<T> (#64), and $[[T]] Array<Array<T>>: in
 // variables, parameters, results, members, pointers and signatures
-let total(xs:$[i64]^):i64 {
+let total(xs:$[int64]^):int64 {
     var n:int64 = 0
     for x in xs^ { n += x }
     return n
 }
-let rows():$[[i64]] {
-    var r:$[[i64]] = $[[1, 0], [0, 1]]
+let rows():$[[int64]] {
+    var r:$[[int64]] = $[[1, 0], [0, 1]]
     return r
 }
-struct grid { cells: $[[i64]]; name: String }
-let main():i32 {
-    var va:$[[i64]] = $[[1, 0], [0, 1]]
-    var vb:$[i64]
+struct grid { cells: $[[int64]]; name: String }
+let main():int32 {
+    var va:$[[int64]] = $[[1, 0], [0, 1]]
+    var vb:$[int64]
     vb += 3; vb += 4
     println(va.typename, " ", va[1][1], " ", vb.typename, " ", total(&vb))
-    var p:$[i64]^ := &vb
+    var p:$[int64]^ := &vb
     var r = rows()
     println(p^.count, " ", r[0][0], " ", rows().typename)
     var s:$[String] = $[$"a", $"b"]
     println(s[1], " ", s.typename, " ", s.count)
     var g:grid = {rows(), $"g"}
     println(g.cells[1][1], " ", g.name, " ", g.typename)
-    let f := { (xs:$[i64]^):i64 in xs^.count }
+    let f := { (xs:$[int64]^):int64 in xs^.count }
     println(f(&vb))
     return 0
 }

@@ -1,9 +1,9 @@
 // regressions from the review of #23-#26
-struct point { x:i32; y:i32; };
-let f():i32 { return 1; }
-let isodd(n:i32):bool { return n % 2 == 1; }
+struct point { x:int32; y:int32; };
+let f():int32 { return 1; }
+let isodd(n:int32):bool { return n % 2 == 1; }
 
-let main():i32 {
+let main():int32 {
     // ?: between two bools kelvinc sees is a bool, not C's int
     var c = true;
     var x = true;
@@ -18,13 +18,13 @@ let main():i32 {
 
     // sizeof(T) and a compound literal before a condition's {
     var n:uint64 = 16;
-    if n > sizeof(i64) {
+    if n > sizeof(int64) {
         println("big");
     }
-    while n > sizeof(i64) {
+    while n > sizeof(int64) {
         n -= 1;
     }
-    if n == sizeof(i32) {
+    if n == sizeof(int32) {
     }
     {
         println("a block of its own");

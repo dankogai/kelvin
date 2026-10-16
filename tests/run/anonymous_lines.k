@@ -1,54 +1,54 @@
 // anonymous functions (#32): lines, initializers and placement, from the
 // second review
 struct op {
-    f:(i64):i64;
-    g:(i64):i64;
+    f:(int64):int64;
+    g:(int64):int64;
 };
-struct box { v:i64; };
-struct bag { xs:[i64](3); };
-struct point { x:i32; y:i32; };
+struct box { v:int64; };
+struct bag { xs:[int64](3); };
+struct point { x:int32; y:int32; };
 
-let apply(x:i64, f:(i64):i64):i64 { return f(x); }
-let box.map(f:(i64):i64):Self { return (Self){f(.v)}; }
-let bag.each(f:(i64));                               // a prototype, then the method
-let bag.each(f:(i64)) {
+let apply(x:int64, f:(int64):int64):int64 { return f(x); }
+let box.map(f:(int64):int64):Self { return (Self){f(.v)}; }
+let bag.each(f:(int64));                               // a prototype, then the method
+let bag.each(f:(int64)) {
     for x in .xs {
         f(x);
     }
 }
-let below(n:i64, f:(i64):bool):bool { return f(n); }
-let tick(n:i64) { print(n, " "); }
+let below(n:int64, f:(int64):bool):bool { return f(n); }
+let tick(n:int64) { print(n, " "); }
 
 // a function in a member's length, and globals of one declaration
-struct holder { buf:[u8](sizeof(apply(1) { $0 })); };
-var buf:[u8](16), fill := { (a:[u8](sizeof(buf))) in a[0] = 1 };
+struct holder { buf:[uint8](sizeof(apply(1) { $0 })); };
+var buf:[uint8](16), fill := { (a:[uint8](sizeof(buf))) in a[0] = 1 };
 let N:int64 = 3;
-let total(xs:i64^, f:([i64](N)):i64):i64 { return f(xs); }
+let total(xs:int64^, f:([int64](N)):int64):int64 { return f(xs); }
 
-let main():i32 {
+let main():int32 {
     // an operator or .member on the next line goes on with the expression
-    let a:i64 = apply(3) { $0 * 2 }
+    let a:int64 = apply(3) { $0 * 2 }
         - apply(4) { $0 + 1 };
     let b:box = {1};
-    let c:i64 = b.map() { $0 * 2 }
+    let c:int64 = b.map() { $0 * 2 }
                  .map() { $0 + 1 }
                  .v;
-    let d:i64 = (apply(3) { $0 * 2 }
+    let d:int64 = (apply(3) { $0 * 2 }
                  + apply(4) { $0 + 1 });
     println(a, " ", c, " ", d);
 
     // initializer items that start with an annotation stay values
-    let n:i32 = 4;
-    let xs:[i64](2) = [ (n:i64) * 2, 3 ];
-    let ys:[i64](2) = [ (n:u8):i64, 2 ];
+    let n:int32 = 4;
+    let xs:[int64](2) = [ (n:int64) * 2, 3 ];
+    let ys:[int64](2) = [ (n:uint8):int64, 2 ];
     let ops:[op](2) = [{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}];
     println(xs[0], " ", ys[0], " ", ops[1].f(5), " ", ops[0].g(5));
 
     // ?: picks functions, also nullptr; a compound literal ends a line
     let on = true;
-    let t:(i64) := on ? tick as (i64) : nullptr;
-    let pick:(i64):i64 := on ? { (x:i64):i64 in x + 1 } : { (x:i64):i64 in x - 1 };
-    let mk:(i64):point := {
+    let t:(int64) := on ? tick as (int64) : nullptr;
+    let pick:(int64):int64 := on ? { (x:int64):int64 in x + 1 } : { (x:int64):int64 in x - 1 };
+    let mk:(int64):point := {
         $0 > 0 ? (point){1, 2}
                : (point){3, 4}
     };
@@ -62,7 +62,7 @@ let main():i32 {
     var o:op;
     var p:any^ := &o;
     (p as op^)^.f := { $0 * 10 };
-    var k:i64 = 0;
+    var k:int64 = 0;
     do {
         k += 1;
     } while below(k) { $0 < 3 };
@@ -71,9 +71,9 @@ let main():i32 {
     // placement, sizes, and a length of global names, which is kept
     var h:holder;
     fill(buf);
-    var six:[i64](6) = [1, 2, 3, 4, 5, 0];
+    var six:[int64](6) = [1, 2, 3, 4, 5, 0];
     println(h.size, " ", buf[0], " ", apply.size == sizeof(any^), " ", total(six) {
-        var s:i64 = 0;
+        var s:int64 = 0;
         for x in $0 {
             s += x;
         }

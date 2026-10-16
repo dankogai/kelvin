@@ -14,7 +14,7 @@ let main():int32 {
     w += e
     w.append(x)
     w += ' '.uchr
-    println(n, " ", e, " ", x, " ", bad.utf32.hex, " ", e.utf32, " ", e.codepoint, " ", u32(e) + 1, " ", i64(x))
+    println(n, " ", e, " ", x, " ", bad.utf32.hex, " ", e.utf32, " ", e.codepoint, " ", uint32(e) + 1, " ", int64(x))
     println(e.cstr, " ", `[${x}] ${e}`, " ", e.typename, " ", e.size, " ", w, " ", w.count)
     println(e < x, " ", e == 0xE9, " ", uchr(233) == e, " ", s.count)
     let s0:cstr := "日本"

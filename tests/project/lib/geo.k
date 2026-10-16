@@ -2,35 +2,35 @@
 // tests/project, as geo.kh and libkgeo.a (#146): every kind of member a
 // header declares, and a global, a C prototype and a file-local helper
 #import <math.h> as C
-let fabs(x:f64):f64                                       // a C function's prototype
+let fabs(x:float64):float64                                       // a C function's prototype
 
-struct point { x: f64; y: f64 }
-enum shape { dot: point; circle: f64; none }
+struct point { x: float64; y: float64 }
+enum shape { dot: point; circle: float64; none }
 
 let origin:point = {0.0, 0.0}                             // a global, extern in the header
 var made:int64 = 0
 
-static let twice(x:f64):f64 { x * 2.0 }                   // file-local: not in the header
+static let twice(x:float64):float64 { x * 2.0 }                   // file-local: not in the header
 
 extend point {
-    static let of(x:f64, y:f64):Self { made += 1; return {x, y} }
-    let norm1:f64 { fabs(.x) + fabs(.y) }                 // an attribute
-    var first:f64 {                                       // one with a setter
+    static let of(x:float64, y:float64):Self { made += 1; return {x, y} }
+    let norm1:float64 { fabs(.x) + fabs(.y) }                 // an attribute
+    var first:float64 {                                       // one with a setter
         get { .x }
         set(v) { .x = v }
     }
-    let [](i:i64):f64 { i == 0 ? .x : .y }                // a subscript
-    var [](name:cstr):f64 {
+    let [](i:int64):float64 { i == 0 ? .x : .y }                // a subscript
+    var [](name:cstr):float64 {
         get { name[0] == 'x' ? .x : .y }
         set(v) { if name[0] == 'x' { .x = v } else { .y = v } }
     }
-    let scaled(k:f64):Self { return {twice(.x) * k / 2.0, .y * k} }   // a method, using the helper
+    let scaled(k:float64):Self { return {twice(.x) * k / 2.0, .y * k} }   // a method, using the helper
     static let +(a:Self, b:Self):Self { return {a.x + b.x, a.y + b.y} }
     static let ==(a:Self, b:Self):bool { a.x == b.x && a.y == b.y }
     let cstr():cstr { `(${.x}, ${.y})` }                  // its text
 }
-let point.dist(to:Self):f64 { hypot(to.x - .x, to.y - .y) }   // alone
-let shape.area():f64 {
+let point.dist(to:Self):float64 { hypot(to.x - .x, to.y - .y) }   // alone
+let shape.area():float64 {
     switch self {
     case circle(r): return 3.0 * r * r
     default: return 0.0

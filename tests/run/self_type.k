@@ -1,12 +1,12 @@
 // Self is the receiver's type (#140), as Swift's: in extend T { } and in
 // a method, an attribute, a subscript or a function of T written alone;
 // in types, as T itself, Self.f(), Self.x, Self(v), (Self){...}
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: int64 }
 extend point {
     static let origin():Self { return {0, 0} }
-    static let of(x:i64, y:i64):Self { return {x, y} }
+    static let of(x:int64, y:int64):Self { return {x, y} }
     static let unit:Self = {1, 1}                        // a type attribute
-    let moved(dx:i64):Self {
+    let moved(dx:int64):Self {
         var p:Self = self                                 // a declaration
         p.x += dx
         return p
@@ -16,7 +16,7 @@ extend point {
     let swapped():Self { (Self){.y, .x} }                 // a compound literal
     let wide():bool { sizeof(Self) > 8 }                  // sizeof
     static let +(a:Self, b:Self):Self { a.plus(b) }       // an operator
-    let [](i:i64):i64 { i == 0 ? .x : .y }
+    let [](i:int64):int64 { i == 0 ? .x : .y }
     var first:int64 {
         get { .x }
         set(v) { .x = v; let u:Self = Self.unit; .y = u.y }
@@ -28,17 +28,17 @@ static let point.farthest(ps:Array<Self>^):Self {
     for p in ps^ { if p[0] > best[0] { best = p } }
     return best
 }
-let point.sum():i64                                       // a prototype
-let point.sum():i64 { .x + .y }
-extend f64 {
+let point.sum():int64                                       // a prototype
+let point.sum():int64 { .x + .y }
+extend float64 {
     let doubled:Self { self * 2.0 }                       // a built-in type
     let plus2:Self { self + Self(2) }                     // its converter
 }
-enum { nothing; just: i64 }
-extend enum{nothing, just: i64} {
-    let orZero():i64 { let s:Self = self; return s.is(just) ? s.just : 0 }   // a type with no tag: a type only
+enum { nothing; just: int64 }
+extend enum{nothing, just: int64} {
+    let orZero():int64 { let s:Self = self; return s.is(just) ? s.just : 0 }   // a type with no tag: a type only
 }
-let main():i32 {
+let main():int32 {
     let o = point.origin()
     var p = point.of(3, 4)
     println(o, " ", p, " ", point.unit, " ", p.moved(1), " ", p.plus(o))

@@ -1,13 +1,13 @@
 // if let err(e) = r (#78): the case by its name binds its value: a
 // Result's ok and err, an Optional's some, and an enum with values'
 // case, of a place or of a value a call gives, chained with else if
-enum json { n: f64; s: String; none }
-let parse(s:cstr):Result<i64, String> {
+enum json { n: float64; s: String; none }
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s { if c < '0' || c > '9' { return err($`not a number: ${s}`) } }
-    return i64(s)
+    return int64(s)
 }
-let main():i32 {
+let main():int32 {
     var r = parse("")
     var k = parse("42")
     if let err(e) = r { println("err ", e) } else { println("ok") }

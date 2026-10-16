@@ -11,7 +11,7 @@ let shout(s:String^):String {
     r += "!"
     return r
 }
-let main():i32 {
+let main():int32 {
     var s = String("héllo, κόσμε")
     s += " 🌍"
     s.append(0x1F600)

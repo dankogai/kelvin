@@ -1,12 +1,12 @@
 // array initializers are [...] (#48): in declarations, nested in structs,
 // designated, as compound literals (T[] counts its items), and inferred
 // from items of one type; structs and unions keep {...}
-struct point { x: int64; y: i64 }
-struct bag { n: i64; xs: [i64](3); p: point }
-let sum(a:[const i64], n:i64):i64 { var s = 0; for i in 0..<n { s += a[i] }; return s }
-let main():i32 {
-    let a:[i32](3) = [1, 2, 3]
-    var b:[i64] = [4, 5, 6, 7]
+struct point { x: int64; y: int64 }
+struct bag { n: int64; xs: [int64](3); p: point }
+let sum(a:[const int64], n:int64):int64 { var s = 0; for i in 0..<n { s += a[i] }; return s }
+let main():int32 {
+    let a:[int32](3) = [1, 2, 3]
+    var b:[int64] = [4, 5, 6, 7]
     let c = [1, 2, 3]
     let d = [1.5, 2.5]
     let e = [true, false]
@@ -15,13 +15,13 @@ let main():i32 {
     let ps = [p, (point){3, 4}]
     let g:bag = {1, [7, 8, 9], {5, 6}}
     let h:[struct point](2) = [{1, 2}, {3, 4}]
-    let sp:[i64](4) = [[2] = 9, [0] = 1]
-    let q = ([i32])[10, 20, 30]                // a compound literal declares the array itself (#49)
-    let n = sizeof ([i64])[1, 2, 3, 4]
-    let s:[u8] = "hi"
+    let sp:[int64](4) = [[2] = 9, [0] = 1]
+    let q = ([int32])[10, 20, 30]                // a compound literal declares the array itself (#49)
+    let n = sizeof ([int64])[1, 2, 3, 4]
+    let s:[uint8] = "hi"
     let names:[cstr](2) = ["ab", "cd"]
     var k = 1
-    for x in ([i32])[5, 6, 7] { k = k * x }
+    for x in ([int32])[5, 6, 7] { k = k * x }
     println(a[2], " ", b[3], " ", c[1], " ", d[1], " ", e[0], " ", m[1][0], " ", ps[1].y)
     println(g.xs[2], " ", g.p.y, " ", h[1].x, " ", sp[2], " ", sp[1], " ", q[2], " ", n)
     println(s, " ", names[1], " ", k, " ", sum(c, 3), " ", b.size, " ", q.size)

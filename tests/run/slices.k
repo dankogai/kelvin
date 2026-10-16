@@ -1,7 +1,7 @@
 // slices (#68): xs[lo..<hi], xs[lo...hi], xs[lo...], xs[..<hi], xs[...hi] of
 // an Array, a String (by codepoint) and a Bytes, each a new copy, which a
 // variable owns; the range is checked at run time
-let main():i32 {
+let main():int32 {
     var xs = $[10, 20, 30, 40, 50]
     var a = xs[1..<3]
     var b = xs[1...3]

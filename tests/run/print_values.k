@@ -5,22 +5,22 @@
 // to its room while print shows everything; f.println too
 #import <JSON>
 #import <IO>
-struct point { x: int64; y: i64 }
+struct point { x: int64; y: int64 }
 struct bag { name: String; at: point; tags: Array<String>; label: cstr; raw: Bytes }
 enum shape { none; dot: point; path: Array<point> }
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2, 3]
-    var empty0:$[i64] = $[]
+    var empty0:$[int64] = $[]
     var names = $[$"ann", $"bob"]
     var grid = $[$[1, 2], $[3]]
     println(xs, " ", empty0, " ", names, " ", grid)
     var ages = ${"ann": 31, "bob": 42}
     var byId = ${7: $"seven", 1: $"one"}
-    var empty:${String: i64} = ${:}
+    var empty:${String: int64} = ${:}
     var s = ${3, 1, 4}
     println(ages, " ", byId, " ", empty, " ", s)
     var raw = Bytes("a\tb")
-    raw += 255 as u8
+    raw += 255 as uint8
     var b:bag = {$"say \"hi\"\n", {1, 2}, $[$"x", $"y"], "c\\d", raw.copy()}
     println(b)
     println(b.cstr)
@@ -28,7 +28,7 @@ let main():i32 {
     var q = shape.dot({5, 6})
     var z = shape.none
     println(p, " ", q, " ", z)
-    var r:Result<Array<i64>, String> = ok($[1, 2])
+    var r:Result<Array<int64>, String> = ok($[1, 2])
     var o:String? = $"x"
     var n:String? = none
     println(r, " ", o, " ", n)

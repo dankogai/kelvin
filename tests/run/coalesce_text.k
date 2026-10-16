@@ -7,22 +7,22 @@ let env(name:cstr):cstr? {
     if v.isNull { return none }
     return v
 }
-let main():i32 {
+let main():int32 {
     var unset = env("KELVIN_NO_SUCH_VARIABLE")
     println(unset ?? "unset")
     let d:cstr := "dflt"
     println(unset ?? d)
     var n:int64 = 42
     println(unset ?? n.cstr, " ", unset ?? n.hex)
-    var p:u8^? = none
+    var p:uint8^? = none
     println(p ?? "bytes")
-    var r:Result<cstr, i32> = err(1)
+    var r:Result<cstr, int32> = err(1)
     println(r ?? "failed")
     var t := unset ?? "typed"
     println(t.typename, " ", t)
     var s:cstr? = "set"
     println(s ?? "unset", " ", s ?? d)
-    var m:u8^? = none
+    var m:uint8^? = none
     println(m ?? d)
     return 0
 }

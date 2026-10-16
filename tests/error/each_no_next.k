@@ -1,6 +1,6 @@
 // error: a list is followed through a pointer field named next, and struct p has none
 struct p { x:int32; };
-let main():i32 {
+let main():int32 {
     var a:p;
     for q in &a {
     }

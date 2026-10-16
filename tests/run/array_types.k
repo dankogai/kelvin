@@ -2,25 +2,25 @@
 // arrays, parameters (pointers in C), [T](n) zero-filled, also as a VLA,
 // .count and .size, compound literals, and the pointer C makes of an array
 #import <stdlib.h> as C
-struct bag { n: i64; xs: [i64](3); name: [u8](8) }
-var table:[i32](4)
-let sum(a:[const i64], n:i64):i64 { var s = 0; for i in 0..<n { s += a[i] }; return s }
-let head(a:[i64](4)^):i64 { a^[0] }
-let main(argc:i32, argv:[cstr]):i32 {
+struct bag { n: int64; xs: [int64](3); name: [uint8](8) }
+var table:[int32](4)
+let sum(a:[const int64], n:int64):int64 { var s = 0; for i in 0..<n { s += a[i] }; return s }
+let head(a:[int64](4)^):int64 { a^[0] }
+let main(argc:int32, argv:[cstr]):int32 {
     var a = [0, 1, 2, 3]
-    let b:[f64] = [1.5, 2.5]
-    var z = [u8](5)
-    let n:int64 = i64(argc) * 9             // 9: a count C computes, a VLA
-    var line = [u8](n)
+    let b:[float64] = [1.5, 2.5]
+    var z = [uint8](5)
+    let n:int64 = int64(argc) * 9             // 9: a count C computes, a VLA
+    var line = [uint8](n)
     line[n - 1] = 7
     var g:bag = {1, [7, 8, 9], "hey"}
     var m = [[1, 2, 3], [4, 5, 6]]
     var p := a
-    let q:[i64](4)^ := &a
-    let s:[u8] = "hello"
-    var c = ([i32])[10, 20, 30]
-    let d = ([i32](4))[1, 2]
-    let e = sizeof([i64](6))
+    let q:[int64](4)^ := &a
+    let s:[uint8] = "hello"
+    var c = ([int32])[10, 20, 30]
+    let d = ([int32](4))[1, 2]
+    let e = sizeof([int64](6))
     for i in 0..<a.count { a[i] = a[i] * 2 }
     println(a.count, " ", a.size, " ", b.count, " ", z.count, " ", z[4], " ", line.count, " ", line[0], " ", line[n - 1])
     println(g.xs.count, " ", g.name.count, " ", m.count, " ", m[1].count, " ", p^, " ", q^[3], " ", s.count, " ", c.count)

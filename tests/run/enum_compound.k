@@ -27,13 +27,13 @@ let shout(t:txt):txt {
     }
     return {.none}
 }
-struct bag { name: String; n: i64 }
+struct bag { name: String; n: int64 }
 let +(a:bag, b:bag):bag {
     var c = a.name.copy()
     c += &b.name
     return {.name = String(c.cstr), .n = a.n + b.n}
 }
-let main():i32 {
+let main():int32 {
     var x = maybe.some(1)
     x += maybe.some(2)
     x -= maybe.some(10)

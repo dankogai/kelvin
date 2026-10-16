@@ -9,57 +9,57 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 
-struct vec { x: float64; y: f64 }
+struct vec { x: float64; y: float64 }
 
-let kind(n:i64):cstr { "i64" }
-let kind(n:i32):cstr { "i32" }
-let kind(x:f64):cstr { "f64" }
-let kind(x:f32):cstr { "f32" }
-let kind(n:u8):cstr { "u8" }
-let kind(s:const u8^):cstr { "text" }
+let kind(n:int64):cstr { "i64" }
+let kind(n:int32):cstr { "i32" }
+let kind(x:float64):cstr { "f64" }
+let kind(x:float32):cstr { "f32" }
+let kind(n:uint8):cstr { "u8" }
+let kind(s:const uint8^):cstr { "text" }
 let kind(v:vec):cstr { "vec" }
 
-let len(s:const u8^):i64 { i64(strlen(s)) }
-let len(n:i64):i64 { n }
+let len(s:const uint8^):int64 { int64(strlen(s)) }
+let len(n:int64):int64 { n }
 
-let out(f:FILE^, n:i64) { fprintf(f, "%s\n", n.cstr) }
-let out(f:FILE^, s:const u8^) { fprintf(f, "%s\n", s) }
+let out(f:FILE^, n:int64) { fprintf(f, "%s\n", n.cstr) }
+let out(f:FILE^, s:const uint8^) { fprintf(f, "%s\n", s) }
 
 let release(p:any^):cstr {
     free(p)
     return "freed"
 }
-let release(n:i64):cstr { "number" }
+let release(n:int64):cstr { "number" }
 
-let measure(n:i64):i64 { n }
-let measure(n:size_t):i64 { i64(n) * 10 }
+let measure(n:int64):int64 { n }
+let measure(n:size_t):int64 { int64(n) * 10 }
 
 // C's sqrt, declared so that a number only C sees reaches it
-let sqrt(x:f64):f64
-let sqrt(v:vec):f64 { hypot(v.x, v.y) }
+let sqrt(x:float64):float64
+let sqrt(v:vec):float64 { hypot(v.x, v.y) }
 
 // C's abs and hypot, which the program calls, take what no overload does,
 // and their results have C's types
-struct vec2 { x: i64; y: i64 }
-let abs(v:vec):i64 { i64(hypot(v.x, v.y)) }
-let abs(w:vec2):i64 { w.x * w.x + w.y * w.y }
-let hypot(v:vec, w:vec):f64 { hypot(v.x - w.x, v.y - w.y) }
-let hypot(v:vec, k:f64):f64 { hypot(v.x, v.y) * k }
-let half(n:i64):i64 { n / 2 }
-let half(x:f64):f64 { x / 2.0 }
+struct vec2 { x: int64; y: int64 }
+let abs(v:vec):int64 { int64(hypot(v.x, v.y)) }
+let abs(w:vec2):int64 { w.x * w.x + w.y * w.y }
+let hypot(v:vec, w:vec):float64 { hypot(v.x - w.x, v.y - w.y) }
+let hypot(v:vec, k:float64):float64 { hypot(v.x, v.y) * k }
+let half(n:int64):int64 { n / 2 }
+let half(x:float64):float64 { x / 2.0 }
 
 // the overload kelvinc sees fits best, C choosing where only it sees
-let pair(a:i64, b:size_t):cstr { "i64" }
-let pair(a:f64, b:size_t):cstr { "f64" }
-let total(n:i64, ...):cstr { "va" }
-let total(n:i64, x:f64):cstr { "f64" }
+let pair(a:int64, b:size_t):cstr { "i64" }
+let pair(a:float64, b:size_t):cstr { "f64" }
+let total(n:int64, ...):cstr { "va" }
+let total(n:int64, x:float64):cstr { "f64" }
 enum sign { NEGATIVE = -1, ZERO, POSITIVE }
 let describe(s:sign):cstr { "sign" }
-let describe(n:i32):cstr { "i32" }
+let describe(n:int32):cstr { "i32" }
 
-let main():i32 {
+let main():int32 {
     println(kind(strtol("1", nullptr, 10)), " ", kind(strtoll("1", nullptr, 10)), " ", kind(atan2(1.0, 1.0)), " ",
-            kind(floorf(1.5:f32)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
+            kind(floorf(1.5:float32)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
     println(len(strchr("hello", 'l')), " ", len(strtol("7", nullptr, 10)), " ", len(strtoll("8", nullptr, 10)), " ",
             release(malloc(8)), " ", release(labs(-3)), " ", measure(strlen("abc")), " ", measure(4))
     out(stdout, 5)

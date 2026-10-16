@@ -29,7 +29,7 @@ let show(j:const json^) {
         print("}")
     }
 }
-let main():i32 {
+let main():int32 {
     var doc = json.o(${"name": json.s($"kelvin"), "tags": json.a($[json.s($"c"), json.n(11.0)]), "ok": json.b(true), "nil": json.null})
     show(&doc)
     println()

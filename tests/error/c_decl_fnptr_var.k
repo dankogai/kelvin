@@ -2,7 +2,7 @@
 // function declared there (#31, #45)
 #import <stddef.h> as C
 let main():int32 {
-    var size_t (*fp)(i32)
+    var size_t (*fp)(int32)
     return 0
 }
 // error: 'fp' looks like a C function-pointer declaration: write 'var fp:(...):size_t' (#31)

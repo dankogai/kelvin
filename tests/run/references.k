@@ -1,17 +1,17 @@
 // references (#19): `:=` assigns pointers, `=` assigns values
 #import <stdlib.h> as C
 
-struct node { value:i32; next:struct node^; };
+struct node { value:int32; next:struct node^; };
 
-let sum(list:struct node^):i64 {
+let sum(list:struct node^):int64 {
     var total = 0;
     for (var n:struct node^ := list; n != nullptr; n := n^.next)   // := also works inside expressions
         total += n^.value;
     return total;
 }
 
-let main():i32 {
-    var buffer := malloc(8 * 1024):i64^;        // declares buffer: i64^
+let main():int32 {
+    var buffer := malloc(8 * 1024):int64^;        // declares buffer: i64^
     buffer[0] = 42;                         // a value, through the reference
     buffer^ = buffer^ + 1;
     println(buffer[0]);
@@ -23,7 +23,7 @@ let main():i32 {
     println(sum(&a));
 
     var p:int32^ := &a.value;                    // typed declarations use := too
-    var q:i32^ := p;
+    var q:int32^ := p;
     q := &b.value;                          // reassigning a reference
     q^ = 20;                                // assigning the value it refers to
     println(b.value, " ", p^);
@@ -32,11 +32,11 @@ let main():i32 {
     a.next^.value = 30;
     println(sum(&a));
 
-    var refs:[i32^](2) = [p, q];                 // an array of references is a value
+    var refs:[int32^](2) = [p, q];                 // an array of references is a value
     refs[1] := &c.value;
     println(refs[1]^);
 
-    var pp:i32^^ := &p;
+    var pp:int32^^ := &p;
     pp^ := q;                               // pp^ is a reference
     println(p^);
 

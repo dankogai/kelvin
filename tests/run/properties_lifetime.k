@@ -1,24 +1,24 @@
 // text from a property lives until the enclosing block ends (#21):
 // also in a brace-less for body and among a method call's arguments
-let i32.pass(p:u8^):u8^ { return p; }
-let i32.same():Self { return self; }
+let int32.pass(p:uint8^):uint8^ { return p; }
+let int32.same():Self { return self; }
 
-let main():i32 {
+let main():int32 {
     var a:int32 = 1;
-    var b:u64 = 255;
-    var c:u64 = 4096;
-    var v:u8^ := a.pass(b.dec);
-    var w:u8^ := a.pass(c.hex);
-    var t:u8^;
-    for (var k:i32 = 0; k < 1; k += 1)
+    var b:uint64 = 255;
+    var c:uint64 = 4096;
+    var v:uint8^ := a.pass(b.dec);
+    var w:uint8^ := a.pass(c.hex);
+    var t:uint8^;
+    for (var k:int32 = 0; k < 1; k += 1)
         t := b.hex;
-    var u:u8^;
-    for (var i:i32 = 0; i < 3; i += 1)
+    var u:uint8^;
+    for (var i:int32 = 0; i < 3; i += 1)
         u := i.bin;
     println(v, " ", w, " ", t, " ", u);
 
     // nesting: each level is a temporary, not a copy of the one inside
-    var x:i32 = 42;
+    var x:int32 = 42;
     println(x.hex[2].hex[2].hex[2].hex, " ", a.same().pass(c.oct));
     return 0;
 }

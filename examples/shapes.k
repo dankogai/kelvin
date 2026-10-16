@@ -6,25 +6,25 @@
 
 let PI = 3.141592653589793
 
-struct point { x: f64; y: f64 }
-struct circle { center: point; radius: f64 }
-struct rect { corner: point; width: f64; height: f64 }
+struct point { x: float64; y: float64 }
+struct circle { center: point; radius: float64 }
+struct rect { corner: point; width: float64; height: float64 }
 
 extend point {
-    let distance(to:Self):f64 {                                   // Self is point
+    let distance(to:Self):float64 {                                   // Self is point
         hypot(to.x - .x, to.y - .y)                               // .x is self.x
     }
 }
 
 extend circle {
-    let area:float64 { PI * .radius * .radius }                       // an attribute: c.area; float64 is f64 by its full name (#151)
+    let area:float64 { PI * .radius * .radius }                       // an attribute: c.area
     let contains(p:point):bool { .center.distance(p) <= .radius }
 }
 
 extend rect {
-    let area:f64 { .width * .height }
+    let area:float64 { .width * .height }
     // self is a let (#138): a copy moves, and the caller's rect stays
-    let moved(dx:f64, dy:f64):Self {
+    let moved(dx:float64, dy:float64):Self {
         var r:Self = self
         r.corner.x += dx
         r.corner.y += dy
@@ -32,7 +32,7 @@ extend rect {
     }
 }
 
-let main():i32 {
+let main():int32 {
     let origin:point = {0, 0}
     let c:circle = {origin, 2}
     let r:rect = {{1, 1}, 3, 4}

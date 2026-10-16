@@ -28,8 +28,8 @@ and `.isNull` are in [properties.md](properties.md).
 pointer needs:
 
 ```kelvin
-var x:int32 = 1                             // int32 is i32 by its full name (#151)
-var p:i32^ := &x          // C: int32_t *p = &x;
+var x:int32 = 1
+var p:int32^ := &x          // C: int32_t *p = &x;
 let q := &x               // inferred: q is i32^
 let k = 42
 let r := &k               // const i32^: a let's address points to const
@@ -52,9 +52,9 @@ let f := &twice           // a function's address is the function itself
 Assigning a pointer (a reference) uses `:=`, and `=` is for values:
 
 ```kelvin
-var buffer := malloc(8 * 1024):i64^   // declares buffer: i64^
+var buffer := malloc(8 * 1024):int64^   // declares buffer: i64^
 buffer[0] = 42                        // a value, through the reference
-var p:i32^ := &x                      // typed declarations too
+var p:int32^ := &x                      // typed declarations too
 p := &y                               // reassigning the reference
 p^ = 7                                // assigning the value it refers to
 for (var n:node^ := list; n != nullptr; n := n^.next) { ... }

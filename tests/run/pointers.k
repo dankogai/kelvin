@@ -1,11 +1,11 @@
-let printf(fmt:const u8^, ...):i32;
+let printf(fmt:const uint8^, ...):int32;
 
 struct node {
-    value:i32;
+    value:int32;
     next:struct node^;
 };
 
-let sum(var n:struct node^):i32 {
+let sum(var n:struct node^):int32 {
     var total:int32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
@@ -14,39 +14,39 @@ let sum(var n:struct node^):i32 {
     return total;
 }
 
-let swap(a:i32^, b:i32^) {
-    var t:i32 = a^;            // C: *a
+let swap(a:int32^, b:int32^) {
+    var t:int32 = a^;            // C: *a
     a^ = b^;
     b^ = t;
 }
 
-let main(argc:i32, argv:u8^^):i32 {
+let main(argc:int32, argv:uint8^^):int32 {
     var c:struct node = {3, 0};
     var b:struct node = {2, &c};
     var a:struct node = {1, &b};
     printf("%d\n", sum(&a));
 
-    var x:i32 = 1, y:i32 = 2;
+    var x:int32 = 1, y:int32 = 2;
     swap(&x, &y);
     printf("%d %d\n", x, y);
 
-    var p:i32^ := &x;
-    var pp:i32^^ := &p;
+    var p:int32^ := &x;
+    var pp:int32^^ := &p;
     pp^^ = 42;                  // C: **pp
     printf("%d\n", x);
 
-    var arr:[i32](3) = [10, 20, 30];
-    var q:i32^ := arr;
+    var arr:[int32](3) = [10, 20, 30];
+    var q:int32^ := arr;
     printf("%d %d\n", q[1], (q + 2)^);
     printf("%d\n", q^);         // C: *q++ is two statements (#26)
     q := q.next;
     printf("%d\n", q^);
 
-    var rows:[[i32](3)](2) = [[1, 2, 3], [4, 5, 6]];
-    var row:[i32](3)^ := &rows[1];     // pointer to array of 3 i32
-    printf("%d %d\n", row^[2], i32(sizeof rows / sizeof rows[0]));
+    var rows:[[int32](3)](2) = [[1, 2, 3], [4, 5, 6]];
+    var row:[int32](3)^ := &rows[1];     // pointer to array of 3 i32
+    printf("%d %d\n", row^[2], int32(sizeof rows / sizeof rows[0]));
 
-    var names:[const u8^](2) = ["alpha", "beta"];   // array of 2 pointers
+    var names:[const uint8^](2) = ["alpha", "beta"];   // array of 2 pointers
     printf("%s %s\n", names[0], argv[0] != nullptr ? "argv ok" : "no argv");
     return 0;
 }

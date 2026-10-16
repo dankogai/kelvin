@@ -1,14 +1,14 @@
 // T.cstr() defines a struct or union text as one template (#53): v.cstr,
 // ${v} and the derived text of a struct that holds a T use it, and its
 // buffer is sized from the template
-struct vector2d { x: float64; y: f64 }
+struct vector2d { x: float64; y: float64 }
 let vector2d.cstr():cstr {
     `(${.x}, ${.y})`
 }
 struct line { a: vector2d; b: vector2d }
-union bits { u: u64; f: f64 }
+union bits { u: uint64; f: float64 }
 let bits.cstr():cstr { `bits ${.u.hex}` }
-let main():i32 {
+let main():int32 {
     let v:vector2d = {1.5, -2.0}
     let l:line = {{0.0, 0.0}, v}
     var b:bits = {.f = 1.0}

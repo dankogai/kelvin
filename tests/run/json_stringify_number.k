@@ -3,7 +3,7 @@
 // indents; 0 is compact; a replacer takes one too
 #import <JSON>
 let keep(key:cstr, v:const JSON^):JSON? { return v^.copy() }
-let main():i32 {
+let main():int32 {
     var j = JSON.parse("""
         {"a": [1, 2], "b": true}
         """)

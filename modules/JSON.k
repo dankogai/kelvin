@@ -2,7 +2,7 @@
 // JSON is an enum with values, a tagged union of a null, a bool, an f64,
 // a String, an Array<JSON> or a Dictionary<String, JSON>, with one more
 // case, error, for a text that is not JSON.
-//
+
 //     #import <JSON>
 //     var j = JSON.parse(`{"name": "kelvin", "tags": ["c", 11], "ok": true}`)
 //     if j.is(error) { println(j.error) }
@@ -10,7 +10,7 @@
 //     j.object["tags"].array += JSON.number(12.0)
 //     var text = JSON.stringify(&j, "  ")           // pretty, two spaces a level
 //     var flat = JSON.stringify(&j)                 // compact
-//
+
 // JSON.parse takes a cstr or a String (borrowed, &s), and gives a JSON
 // straight: the value, or error("unexpected ']' at 12") with the message
 // and the offset. JSON.stringify takes a borrow of the value, &j, and, as
@@ -26,11 +26,11 @@
 // in the order they were added, as a Dictionary keeps them.
 #import <stdio.h> as C
 
-enum JSON { null; boolean: bool; number: f64; string: String; array: Array<JSON>; object: Dictionary<String, JSON>; error: String }
+enum JSON { null; boolean: bool; number: float64; string: String; array: Array<JSON>; object: Dictionary<String, JSON>; error: String }
 
 // ---------- parsing ----------
 
-struct JSONReader { at: cstr; i: i64; count: i64; depth: i64 }
+struct JSONReader { at: cstr; i: int64; count: int64; depth: int64 }
 
 // the parsing, as functions of the type (#111) in one block (#130), Self being JSON (#140)
 extend JSON {
@@ -52,25 +52,25 @@ extend JSON {
     }
 
     static let word(var r:JSONReader^, word:cstr):bool {
-        if r^.i + word.count as i64 > r^.count { return false }
-        for k in 0..<word.count as i64 {
+        if r^.i + word.count as int64 > r^.count { return false }
+        for k in 0..<word.count as int64 {
             if r^.at[r^.i + k] != word[k] { return false }
         }
-        r^.i += word.count as i64
+        r^.i += word.count as int64
         return true
     }
 
-    static let hex(c:u8):i64 {
-        if c >= '0' && c <= '9' { return (c - '0') as i64 }
-        if c >= 'a' && c <= 'f' { return (c - 'a') as i64 + 10 }
-        if c >= 'A' && c <= 'F' { return (c - 'A') as i64 + 10 }
+    static let hex(c:uint8):int64 {
+        if c >= '0' && c <= '9' { return (c - '0') as int64 }
+        if c >= 'a' && c <= 'f' { return (c - 'a') as int64 + 10 }
+        if c >= 'A' && c <= 'F' { return (c - 'A') as int64 + 10 }
         return -1
     }
 
     // four hex digits after \u, or -1
-    static let unit(var r:JSONReader^):i64 {
+    static let unit(var r:JSONReader^):int64 {
         if r^.i + 4 > r^.count { return -1 }
-        var v:int64 = 0                     // int64 is i64 by its full name (#151)
+        var v:int64 = 0
         for k in 0..<4 {
             let d = Self.hex(r^.at[r^.i + k])
             if d < 0 { return -1 }
@@ -80,21 +80,21 @@ extend JSON {
         return v
     }
 
-    static let utf8(var b:Bytes^, cp:i64):() {
+    static let utf8(var b:Bytes^, cp:int64):() {
         if cp < 0x80 {
-            b^ += cp as u8
+            b^ += cp as uint8
         } else if cp < 0x800 {
-            b^ += (0xC0 | (cp >> 6)) as u8
-            b^ += (0x80 | (cp & 0x3F)) as u8
+            b^ += (0xC0 | (cp >> 6)) as uint8
+            b^ += (0x80 | (cp & 0x3F)) as uint8
         } else if cp < 0x10000 {
-            b^ += (0xE0 | (cp >> 12)) as u8
-            b^ += (0x80 | ((cp >> 6) & 0x3F)) as u8
-            b^ += (0x80 | (cp & 0x3F)) as u8
+            b^ += (0xE0 | (cp >> 12)) as uint8
+            b^ += (0x80 | ((cp >> 6) & 0x3F)) as uint8
+            b^ += (0x80 | (cp & 0x3F)) as uint8
         } else {
-            b^ += (0xF0 | (cp >> 18)) as u8
-            b^ += (0x80 | ((cp >> 12) & 0x3F)) as u8
-            b^ += (0x80 | ((cp >> 6) & 0x3F)) as u8
-            b^ += (0x80 | (cp & 0x3F)) as u8
+            b^ += (0xF0 | (cp >> 18)) as uint8
+            b^ += (0x80 | ((cp >> 12) & 0x3F)) as uint8
+            b^ += (0x80 | ((cp >> 6) & 0x3F)) as uint8
+            b^ += (0x80 | (cp & 0x3F)) as uint8
         }
     }
 
@@ -122,9 +122,9 @@ extend JSON {
             if e == '"' || e == '\\' || e == '/' {
                 b^ += e
             } else if e == 'b' {
-                b^ += 8 as u8
+                b^ += 8 as uint8
             } else if e == 'f' {
-                b^ += 12 as u8
+                b^ += 12 as uint8
             } else if e == 'n' {
                 b^ += '\n'
             } else if e == 'r' {
@@ -210,7 +210,7 @@ extend JSON {
             }
             if !Self.digits(r, &b) { return Self.fail(r, "a digit in the exponent") }
         }
-        return Self.number(f64(b))
+        return Self.number(float64(b))
     }
 
     static let readArray(var r:JSONReader^):Self {
@@ -284,7 +284,7 @@ extend JSON {
     }
 
     static let parse(text:cstr):Self {                      // Self is JSON (#140)
-        var r:JSONReader = {text, 0, text.count as i64, 0}
+        var r:JSONReader = {text, 0, text.count as int64, 0}
         var v = Self.readValue(&r)
         if !v.is(error) {
             Self.skipSpace(&r)
@@ -304,19 +304,19 @@ extend JSON {
     // a number as JS writes it: the shortest text that reads back, no point
     // for a whole number, exponents past 1e21 and below 1e-6; NaN and the
     // infinities are null
-    static let showNumber(x:f64):String {
+    static let showNumber(x:float64):String {
         if x != x || x > 1.7976931348623157e308 || x < -1.7976931348623157e308 { return $"null" }
         if x == 0.0 { return $"0" }
         var b = Bytes(40)
-        var p:i32 = 15
+        var p:int32 = 15
         while p <= 17 {
             snprintf(b.at, 40, "%.*g", p, x)
-            if f64(b.at) == x { break }
+            if float64(b.at) == x { break }
             p += 1
         }
         let text:cstr := b.at
-        var e:i64 = -1
-        for k in 0..<text.count as i64 {
+        var e:int64 = -1
+        for k in 0..<text.count as int64 {
             if text[k] == 'e' { e = k }
         }
         if e < 0 { return String(text) }
@@ -327,12 +327,12 @@ extend JSON {
             if text[k] == '-' { negative = true }
             else if text[k] != '.' { digits += text[k] }
         }
-        var exponent:i64 = 0
+        var exponent:int64 = 0
         var negativeExponent = false
-        for k in (e + 1)..<text.count as i64 {
+        for k in (e + 1)..<text.count as int64 {
             let c = text[k]
             if c == '-' { negativeExponent = true }
-            else if c >= '0' && c <= '9' { exponent = exponent * 10 + (c - '0') as i64 }
+            else if c >= '0' && c <= '9' { exponent = exponent * 10 + (c - '0') as int64 }
         }
         if negativeExponent { exponent = -exponent }
         var out = $""
@@ -341,22 +341,22 @@ extend JSON {
             out += digits[0]
             if digits.count > 1 {
                 out += "."
-                for k in 1..<digits.count as i64 { out += digits[k] }
+                for k in 1..<digits.count as int64 { out += digits[k] }
             }
             out += exponent < 0 ? "e-" : "e+"
-            var m:i64 = exponent < 0 ? -exponent : exponent
+            var m:int64 = exponent < 0 ? -exponent : exponent
             out += m.cstr
         } else if exponent < 0 {
             out += "0."
             for k in 0..<(-exponent - 1) { out += "0" }
-            for k in 0..<digits.count as i64 { out += digits[k] }
+            for k in 0..<digits.count as int64 { out += digits[k] }
         } else {
             for k in 0...exponent {
-                out += k < digits.count as i64 ? digits[k] : '0'
+                out += k < digits.count as int64 ? digits[k] : '0'
             }
-            if digits.count as i64 > exponent + 1 {
+            if digits.count as int64 > exponent + 1 {
                 out += "."
-                for k in (exponent + 1)..<digits.count as i64 { out += digits[k] }
+                for k in (exponent + 1)..<digits.count as int64 { out += digits[k] }
             }
         }
         return out
@@ -383,8 +383,8 @@ extend JSON {
                 out^ += "\\f"
             } else if n < 0x20 {
                 out^ += "\\u00"
-                out^ += hex[(n >> 4) as i64]
-                out^ += hex[(n & 15) as i64]
+                out^ += hex[(n >> 4) as int64]
+                out^ += hex[(n & 15) as int64]
             } else {
                 out^ += c
             }
@@ -392,16 +392,16 @@ extend JSON {
         out^ += "\""
     }
 
-    static let indent(var out:String^, space:cstr, level:i64):() {
+    static let indent(var out:String^, space:cstr, level:int64):() {
         if space.count == 0 { return }
         out^ += "\n"
         for k in 0..<level { out^ += space }
     }
 
-    static let write(j:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:i64, var out:String^):()
+    static let write(j:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:int64, var out:String^):()
 
     // the value a member or an element is written as: the replacer's, or itself
-    static let writeItem(key:cstr, v:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:i64, var out:String^):bool {
+    static let writeItem(key:cstr, v:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:int64, var out:String^):bool {
         if replacer.isNull {
             Self.write(v, replacer, space, level, out)
             return true
@@ -414,7 +414,7 @@ extend JSON {
         return false
     }
 
-    static let write(j:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:i64, var out:String^):() {
+    static let write(j:const Self^, replacer:(cstr, const Self^):Self?, space:cstr, level:int64, var out:String^):() {
         switch j^ {
         case null: out^ += "null"
         case boolean: out^ += j^.boolean ? "true" : "false"
@@ -429,7 +429,7 @@ extend JSON {
                 return
             }
             out^ += "["
-            var i:i64 = 0
+            var i:int64 = 0
             for x in j^.array {
                 if i > 0 { out^ += "," }
                 Self.indent(out, space, level + 1)
@@ -468,7 +468,7 @@ extend JSON {
     static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?, space:cstr):String {
         var out = $""
         var unit = Bytes()
-        for k in 0..<space.count as i64 {
+        for k in 0..<space.count as int64 {
             if k >= 10 { break }   // as JS's, at most 10 characters
             unit += space[k]
         }
@@ -478,7 +478,7 @@ extend JSON {
 
     // a number as the space (#129): that many spaces a level, 0 to 10, as JS's
     // JSON.stringify takes one and as v.pretty(n) indents
-    static let spaces(n:i64):cstr {
+    static let spaces(n:int64):cstr {
         let spaces:cstr := "          "
         return &spaces[n < 0 ? 10 : n > 10 ? 0 : 10 - n]
     }
@@ -486,12 +486,12 @@ extend JSON {
     static let stringify(j:const Self^):String { Self.stringify(j, nullptr, "") }
     static let stringify(j:const Self^, space:cstr):String { Self.stringify(j, nullptr, space) }
     static let stringify(j:const Self^, space:const String^):String { Self.stringify(j, nullptr, space^.cstr) }
-    static let stringify(j:const Self^, space:i64):String { Self.stringify(j, nullptr, Self.spaces(space)) }
+    static let stringify(j:const Self^, space:int64):String { Self.stringify(j, nullptr, Self.spaces(space)) }
     static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?):String { Self.stringify(j, replacer, "") }
     static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?, space:const String^):String {
         Self.stringify(j, replacer, space^.cstr)
     }
-    static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?, space:i64):String {
+    static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?, space:int64):String {
         Self.stringify(j, replacer, Self.spaces(space))
     }
 }

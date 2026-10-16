@@ -3,31 +3,31 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 
-struct node { value:i32; next:struct node^; };
+struct node { value:int32; next:struct node^; };
 
 var g:int32^;                                // a global reference: nullptr
 
-let fill(p:any^, n:u64):any^ {
+let fill(p:any^, n:uint64):any^ {
     return memset(p, 7, n);
 }
 
-let main():i32 {
+let main():int32 {
     var p:any^;                            // means p := nullptr
-    var q:i32^;
+    var q:int32^;
     var n:struct node^;
     println(p == nullptr, " ", q == nullptr, " ", n == nullptr, " ", g == nullptr);
 
     var r := nullptr;                       // inferred: any^
     var buf := malloc(16):any^;
     r := buf;
-    var bytes:u8^ := fill(r, 16) as u8^;
+    var bytes:uint8^ := fill(r, 16) as uint8^;
     println(bytes[0], " ", bytes[15], " ", r != nullptr);
     free(buf);
 
-    var x:i32 = 5;
+    var x:int32 = 5;
     q := &x;
     q := nullptr;
-    println(q == nullptr, " ", sizeof(any^) == sizeof(i32^));
+    println(q == nullptr, " ", sizeof(any^) == sizeof(int32^));
     return 0;
 }
 // out: true true true true

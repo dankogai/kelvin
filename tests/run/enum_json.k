@@ -1,8 +1,8 @@
 // an enum with values that owns and holds an Array of itself (#61): JSON;
 // freed by its block, moved into a case by T.n(x), copied by .copy(),
 // walked, set (freeing what it held), switched on
-enum json { null; b: bool; n: f64; s: String; a: Array<json> }
-let count(j:const json^):i64 {
+enum json { null; b: bool; n: float64; s: String; a: Array<json> }
+let count(j:const json^):int64 {
     if j^.is(a) {
         var n:int64 = 1
         for x in j^.a { n += count(&x) }
@@ -10,7 +10,7 @@ let count(j:const json^):i64 {
     }
     return 1
 }
-let main():i32 {
+let main():int32 {
     var j = json.a(Array([json.n(1.0), json.s(String("x")), json.null]))
     for x in j.a { print(x.cstr, " ") }
     println(j.a.count, " ", count(&j))

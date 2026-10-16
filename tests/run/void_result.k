@@ -1,17 +1,17 @@
 // :() after the parameters says a function gives nothing, C's void,
 // written out (#141): on a function, a prototype, a method, an
 // anonymous function and in a function type
-struct point { x: int64; y: i64 }
+struct point { x: int64; y: int64 }
 let greet(name:cstr):() { println("hi ", name) }
 let later():()                                            // a prototype
 let point.show():() { println(self) }
-let twice(f:(i64):(), n:i64):() { f(n); f(n) }
+let twice(f:(int64):(), n:int64):() { f(n); f(n) }
 let later():() { println("later") }
-let main():i32 {
+let main():int32 {
     greet("kelvin")
     let p:point = {1, 2}
     p.show()
-    let k:(i64):() := { (n:i64):() in println(n) }
+    let k:(int64):() := { (n:int64):() in println(n) }
     twice(k, 2)
     var g:(cstr):() := greet
     g("again")

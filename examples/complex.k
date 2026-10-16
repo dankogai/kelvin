@@ -6,7 +6,7 @@
 let PI = 3.141592653589793
 
 // x, with what rounding leaves around 0 shown as 0
-let tidy(x:float64):f64 { fabs(x) < 5e-10 ? 0.0 : x } // float64 is f64 by its full name (#151)
+let tidy(x:float64):float64 { fabs(x) < 5e-10 ? 0.0 : x }
 
 let show(z:c64):() { printf("%.4f%+.4fi", tidy(z.real), tidy(z.imag)) }
 
@@ -17,7 +17,7 @@ let roots(a:c64, b:c64, c:c64, r:c64^, s:c64^):() {
     s^ = (-b - d) / (2.0 * a)
 }
 
-let main():i32 {
+let main():int32 {
     let i:c64 = c64(0.0, 1.0)
 
     // sin of a number is C's, of a c64 modules/math.k's
@@ -31,18 +31,18 @@ let main():i32 {
     // the fifth roots of unity, and their sum
     var sum:c64 = c64(0.0)
     for k in 0..<5 {
-        let w:c64 = polar(1.0, 2.0 * PI * f64(k) / 5.0)
+        let w:c64 = polar(1.0, 2.0 * PI * float64(k) / 5.0)
         show(w); printf(k < 4 ? " " : "\n")
         sum += w
     }
     show(sum); printf("\n")
 
     // a discrete Fourier transform of 1, 2, 3, 4
-    let x:[f64](4) = [1.0, 2.0, 3.0, 4.0]
+    let x:[float64](4) = [1.0, 2.0, 3.0, 4.0]
     for k in 0..<4 {
         var X:c64 = c64(0.0)
         for n in 0..<4 {
-            X += x[n] * exp(-2.0 * PI * i * f64(k * n) / 4.0)
+            X += x[n] * exp(-2.0 * PI * i * float64(k * n) / 4.0)
         }
         show(X); printf(k < 3 ? " " : "\n")
     }

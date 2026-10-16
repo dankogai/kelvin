@@ -5,13 +5,13 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_fd.tmp"
-let fill():Result<i64, i32> {
+let fill():Result<int64, int32> {
     let f = IO(path, "w")
     f.println("through a descriptor")
     println(f.fd > 2)
     return 0
 }
-let main():i32 {
+let main():int32 {
     var w = fill()
     println(w.cstr)
     var f = IO(path, "r")

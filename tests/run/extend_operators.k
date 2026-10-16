@@ -1,23 +1,23 @@
 // operators inside extend T { } (#135): static let +(a:T, b:T):T { },
 // as Swift's static func +, the same as the top level's let +; with a
 // number on one side, unary -, comparisons, and x += y by them (#42, #128)
-struct money { cents: i64 }
+struct money { cents: int64 }
 extend money {
     static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
-    static let *(a:Self, k:i64):Self { (Self){a.cents * k} }
+    static let *(a:Self, k:int64):Self { (Self){a.cents * k} }
     static let -(a:Self):Self { (Self){-a.cents} }
     static let <(a:Self, b:Self):bool { a.cents < b.cents }
     static let ==(a:Self, b:Self):bool { a.cents == b.cents }
     let dollars:float64 { .cents / 100.0 }
 }
-enum maybe { none; some: i64 }
+enum maybe { none; some: int64 }
 extend maybe {
     static let +(a:Self, b:Self):Self {
         if a.is(some) && b.is(some) { return {.some = a.some + b.some} }
         return {.none}
     }
 }
-let main():i32 {
+let main():int32 {
     let a:money = {150}
     var b:money = {275}
     b += a

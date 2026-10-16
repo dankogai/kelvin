@@ -3,12 +3,12 @@
 // take a cstr, with the cast written by kelvinc, but not the other way
 #import <stdlib.h> as C
 #import <string.h> as C
-let shout(var p:u8^) { p[0] = 'U' }
-let len(s:cstr):i64 { var n = 0; for i in 0..<s.count { n += 1 }; return n + i64(s.count) }
-let main(argc:i32, argv:[cstr]):i32 {
+let shout(var p:uint8^) { p[0] = 'U' }
+let len(s:cstr):int64 { var n = 0; for i in 0..<s.count { n += 1 }; return n + int64(s.count) }
+let main(argc:int32, argv:[cstr]):int32 {
     var s:cstr := "I love to hate C"
     let n = s.count
-    var t:[u8](32)
+    var t:[uint8](32)
     strcpy(t, s)
     t[0] = 'U'
     var p:uint8^ := s                 // allowed, not encouraged: writing through p is C's undefined behavior

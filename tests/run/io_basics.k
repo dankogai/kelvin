@@ -9,7 +9,7 @@
 #import <stdio.h> as C
 #import <IO>
 let path := "io_basics.tmp"
-let write_it():Result<i64, i32> {
+let write_it():Result<int64, int32> {
     let f = IO(path, "w")
     f.write("héllo\n")
     var s = $"wörld"
@@ -22,19 +22,19 @@ let write_it():Result<i64, i32> {
     f.flush()
     return 3                            // f closes here
 }
-let read_all():Result<i64, i32> {
+let read_all():Result<int64, int32> {
     let f = IO(path, "r")
     if f.error != 0 { return err(f.error) }   // the errno, passed up by hand (#109)
     let b = f.bytes                     // a Bytes straight (#107)
-    return b.count as i64
+    return b.count as int64
 }
-let read_text():Result<String, i32> {
+let read_text():Result<String, int32> {
     var p = $"io_basics"
     p += ".tmp"
     let f = IO(p, "r")                  // a String path
     return f.string                     // a String, wrapped as ok
 }
-let bad_text():Result<bool, i32> {
+let bad_text():Result<bool, int32> {
     var w = IO("io_bad.tmp", "w")
     var b = Bytes("x")
     b += 255
@@ -45,7 +45,7 @@ let bad_text():Result<bool, i32> {
     return raw.isUTF8
 }
 struct holder { name: String; f: IO }
-let main():i32 {
+let main():int32 {
     var w = write_it()
     println(w.cstr)
     var n = read_all()

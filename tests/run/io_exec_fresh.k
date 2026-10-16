@@ -3,7 +3,7 @@
 // environment's PATH or the system's default; false, or absent, for the
 // entries added to this program's
 #import <IO>
-let main():i32 {
+let main():int32 {
     var only = IO.exec(["env"], "r", "", ["KELVIN_ONLY=1"], true)
     for line in only.lines { println("[", line, "]") }
     var none = IO.exec(["env"], "r", "", [], true)

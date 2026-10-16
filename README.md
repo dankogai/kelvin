@@ -13,12 +13,12 @@ one.
 #import <stdio.h> as C
 
 struct node {
-    value: i32
+    value: int32
     next:  node^
 }
 
-let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
-    var total:i32 = 0
+let sum(var n:node^):int32 {      // n may move; parameters are lets otherwise
+    var total:int32 = 0
     while n != nullptr {
         total += n^.value       // C: n->value
         n := n^.next

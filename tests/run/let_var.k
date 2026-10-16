@@ -1,12 +1,12 @@
 // let and var (#27): a let never changes, and is C's const; parameters
 // are lets unless written var; self is a let too (#138)
 #import <string.h> as C
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:int32; };
 
 let LIMIT = 3;                          // a global let
 var calls:int32 = 0;
 
-let length(var p:const u8^):i64 {       // a var parameter may change
+let length(var p:const uint8^):int64 {       // a var parameter may change
     var n = 0;
     while p^ != 0 {
         n += 1;
@@ -15,27 +15,27 @@ let length(var p:const u8^):i64 {       // a var parameter may change
     return n;
 }
 
-let point.moved(dx:i32):struct point {  // self is a let: a var copy changes
+let point.moved(dx:int32):struct point {  // self is a let: a var copy changes
     var p = self;
     p.x += dx;
     return p;
 }
 
-let twice(n:i64):i64 { return n * 2; }    // n is a let
+let twice(n:int64):int64 { return n * 2; }    // n is a let
 
-let main():i32 {
+let main():int32 {
     let name:cstr := "kelvin";
     let k = 42;
     let ok = k > LIMIT;
     let origin:struct point = {1, 2};
-    let primes:[i32](3) = [2, 3, 5];
+    let primes:[int32](3) = [2, 3, 5];
     var total = 0;
     total += k;
     calls += 1;
 
     // a let pointer is fixed; what it points to is not
-    var cell:i64 = 1;
-    let p:i64^ := &cell;
+    var cell:int64 = 1;
+    let p:int64^ := &cell;
     p^ = 7;
 
     println(length(name), " ", strlen(name), " ", twice(k), " ", ok, " ", total, " ", calls);

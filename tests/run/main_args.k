@@ -1,6 +1,6 @@
-let printf(fmt:const u8^, ...):i32;
+let printf(fmt:const uint8^, ...):int32;
 
-let main(argc:i32, argv:u8^^):i32 {
+let main(argc:int32, argv:uint8^^):int32 {
     var name:uint8^ := argv[0];
     printf("%d %d\n", argc, name != 0);
     return 0;

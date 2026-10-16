@@ -1,25 +1,25 @@
-let printf(fmt:const u8^, ...):i32;
+let printf(fmt:const uint8^, ...):int32;
 
 enum color { RED, GREEN = 5, BLUE };
 enum { LIMIT = 3 };
 
 union number {
-    i:i32;
-    f:f32;
+    i:int32;
+    f:float32;
 };
 
-struct point { x:i32; y:i32; };
+struct point { x:int32; y:int32; };
 
-static var counter:i32 = 0;
+static var counter:int32 = 0;
 
-static let bump():i32 {
-    static var calls:i32;
+static let bump():int32 {
+    static var calls:int32;
     calls += 1;
     counter += 1;
     return counter + calls * 0;
 }
 
-let name(c:enum color):const u8^ {
+let name(c:enum color):const uint8^ {
     switch (c) {
     case RED:
         return "red";
@@ -35,14 +35,14 @@ let origin():struct point {
     return (struct point){.y = 7};
 }
 
-let main():i32 {
+let main():int32 {
     printf("%s %s %s %d\n", name(RED), name(GREEN), name(BLUE), BLUE);
 
-    for (var i:i32 = 0; i < LIMIT; i += 1)
+    for (var i:int32 = 0; i < LIMIT; i += 1)
         printf("%d", i);
     printf("\n");
 
-    for (var i:i32 = 0, j:i64 = 10; i < 2; i += 1, j -= 1)
+    for (var i:int32 = 0, j:int64 = 10; i < 2; i += 1, j -= 1)
         printf("%d:%ld ", i, j);
     printf("\n");
 
@@ -52,7 +52,7 @@ let main():i32 {
     } while n < 5;
     printf("%d\n", n);
 
-    var k:i32 = 0;
+    var k:int32 = 0;
 again:
     k += 1;
     if k < 3 {

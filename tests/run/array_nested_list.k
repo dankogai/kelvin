@@ -1,15 +1,15 @@
 // a [...] among the elements of Array([...]) is an Array in turn (#58):
 // Array([[0], [0]]) is Array([Array([0]), Array([0])]), an Array<Array<i64>>,
 // inferred or of the written type; Array<T>([]) is empty
-struct point { x: int32, y: i32 }
-let main():i32 {
+struct point { x: int32, y: int32 }
+let main():int32 {
     var m = Array([ [0], [0] ])
     println(m.count, " ", m[1].count, " ", m.typename)
     var n = Array([[[1, 2, 3]], [[4], [5, 6]]])
     println(n.count, " ", n[1].count, " ", n[1][1][1], " ", n.typename)
-    var q = Array<Array<i64>>([[7, 8], []])
+    var q = Array<Array<int64>>([[7, 8], []])
     println(q.count, " ", q[0][1], " ", q[1].count)
-    var e = Array<i64>([])
+    var e = Array<int64>([])
     println(e.count)
     var ps = Array<Array<point>>([[{1, 2}, {.x = 3}]])
     println(ps[0][1].cstr, " ", ps[0].count)

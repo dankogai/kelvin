@@ -18,8 +18,8 @@ let main():int32 {
     bs[1] += "xyz"
     bs.clear()
     bs += Bytes("q")
-    var rows = Array<Array<i64>>()
-    rows += Array<i64>(3)
+    var rows = Array<Array<int64>>()
+    rows += Array<int64>(3)
     rows[0][1] = 5
     rows += rows[0].copy()
     rows[1] += 9

@@ -2,12 +2,12 @@
 // ${K: V}; d[k] checked, d[k] = v, has, find, get, remove, clear, copy;
 // for k, v in d in the order added; String and integer keys; owners as
 // values, nested
-let total(d:${String: i64}^):i64 {
+let total(d:${String: int64}^):int64 {
     var n:int64 = 0
     for k, v in d^ { n += v }
     return n
 }
-let main():i32 {
+let main():int32 {
     var ages = ${"ann": 31, "bob": 42}
     ages["cy"] = 7
     ages["ann"] += 1
@@ -21,7 +21,7 @@ let main():i32 {
     let p := ages.find("cy")
     let q := ages.find("zed")
     println(p.isNull, " ", p^, " ", q.isNull)
-    var squares:${i64: i64}
+    var squares:${int64: int64}
     for i in 0..<100 { squares[i] = i * i }
     println(squares.count, " ", squares[99], " ", squares.has(100), " ", squares.typename)
     var copy = ages.copy()
@@ -39,7 +39,7 @@ let main():i32 {
     println(names[s], " ", names["y"].count, " ", names.typename)
     var nested = ${1: ${2: $"two"}}
     println(nested[1][2], " ", nested.typename)
-    var e:Dictionary<i64, i64> = Dictionary<i64, i64>()
+    var e:Dictionary<int64, int64> = Dictionary<int64, int64>()
     println(e.count, " ", e.size)
     squares.clear()
     println(squares.count)

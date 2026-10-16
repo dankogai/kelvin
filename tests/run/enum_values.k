@@ -1,15 +1,15 @@
 // an enum with values (#61): a union that knows its case; made by {.n = x},
 // T.n(x) and T.none, set by v.n = x, read checked, tested with .is() and
 // .case, switched on by name; its text; without a tag; in an Array
-enum shape { none; circle: float64; rect: {w:f64, h:f64} }
-let area(s:shape):f64 {
+enum shape { none; circle: float64; rect: {w:float64, h:float64} }
+let area(s:shape):float64 {
     switch (s) {
     case circle: return 3.0 * s.circle * s.circle
     case rect: return s.rect.w * s.rect.h
     default: return 0.0
     }
 }
-let main():i32 {
+let main():int32 {
     var s:shape = {.circle = 2.0}
     println(s.cstr, " ", s.case, " ", s.is(circle), " ", s.is(none), " ", area(s))
     s.rect = {3.0, 4.0}
@@ -19,7 +19,7 @@ let main():i32 {
     var t = shape.circle(1.0)
     var n = shape.none
     println(t.cstr, " ", n.cstr, " ", n.typename, " ", t.size)
-    var a:enum{i:i32, f:f32} = {.f = 1.5}
+    var a:enum{i:int32, f:float32} = {.f = 1.5}
     println(a.cstr, " ", a.typename, " ", a.f)
     a.i = 7
     println(a.cstr, " ", a.i)

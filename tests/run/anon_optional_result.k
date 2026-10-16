@@ -2,25 +2,25 @@
 // is read as a signature, the ? being the type's, since `in` follows;
 // and its one-expression body is wrapped as `return` wraps it: a U, or
 // none
-let apply(f:(cstr, int64):i64?, n:i64):i64 {
+let apply(f:(cstr, int64):int64?, n:int64):int64 {
     var r = f("k", n)
     return r ?? -1
 }
-let main():i32 {
-    println(apply({ (k:cstr, v:i64):i64? in none }, 3))
-    println(apply({ (k:cstr, v:i64):i64? in v * 2 }, 3))
-    println(apply({ (k:cstr, v:i64):i64? in
+let main():int32 {
+    println(apply({ (k:cstr, v:int64):int64? in none }, 3))
+    println(apply({ (k:cstr, v:int64):int64? in v * 2 }, 3))
+    println(apply({ (k:cstr, v:int64):int64? in
         if v > 2 { return v }
         return none
     }, 3))
-    let half := { (v:i64):i64? in
+    let half := { (v:int64):int64? in
         if v % 2 == 0 { return v / 2 }
         return none
     }
     var h = half(8)
     var o = half(7)
     println(h.cstr, " ", o.cstr)
-    var r = Optional<i64>(4).map { (v:i64):f64? in v / 2.0 }
+    var r = Optional<int64>(4).map { (v:int64):float64? in v / 2.0 }
     println(r.cstr)
     return 0
 }

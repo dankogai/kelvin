@@ -1,9 +1,9 @@
 // a union with no tag (#60): union{i:i32, f:f32} where a type goes, one
 // type per spelling, its text its spelling
 let main():int32 {
-    var u:union{i:i32, f:f32} = {.i = 0x3f800000}
+    var u:union{i:int32, f:float32} = {.i = 0x3f800000}
     println(u.f, " ", u.typename, " ", u.size)
-    var w:union{i:i32, f:f32} = u
+    var w:union{i:int32, f:float32} = u
     println(w.i, " ", w.cstr)
     return 0
 }

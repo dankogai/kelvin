@@ -13,13 +13,13 @@ turn on the Gaussian plane.
 ```kelvin
 #import <math>
 
-let main():i32 {
+let main():int32 {
     let i = c64(0.0, 1.0)                        // or complex64(0.0, 1.0), by the alias
     let z = c64(1.0, 2.0)
     let w = exp(z) * z + 1.0                     // operators, and exp of a c64
     println(`${w} ${abs(w)} ${sin(0.5)}`)        // sin of an f64 is C's
-    println(abs(exp(i * f64.pi) + 1.0) < 1e-15)  // true: f64.pi, a constant of the type
-    println(2.0.sqrt(), " ", (0.5:float32).sin(), " ", z.exp(), " ", 1.0.i)   // the methods; 1.0.i is c64(0, 1); float32 is f32 by its full name (#151)
+    println(abs(exp(i * float64.pi) + 1.0) < 1e-15)  // true: f64.pi, a constant of the type
+    println(2.0.sqrt(), " ", (0.5:float32).sin(), " ", z.exp(), " ", 1.0.i)   // the methods; 1.0.i is c64(0, 1)
     return 0
 }
 ```
@@ -89,11 +89,11 @@ let main():i32 {
 ## Functions
 
 ```kelvin
-sin(x:f64):f64, sin(x:f32):f32, sin(z:c64):c64, sin(z:c32):c32   // and so for each function above
-pow(x:f64, y:f64):f64, pow(z:c64, w:c64):c64, pow(z:c64, x:f64):c64
-abs(x:f64):f64, abs(x:f32):f32, abs(n:i64):i64, abs(z:c64):f64, abs(z:c32):f32
-conj(z:c64):c64, arg(z:c64):f64, norm(z:c64):f64                   // and of a c32
-c64(real:f64, imag:f64):c64, c64(real:f64):c64, c64(z:c32):c64, polar(r:f64, theta:f64):c64
+sin(x:float64):float64, sin(x:float32):float32, sin(z:c64):c64, sin(z:c32):c32   // and so for each function above
+pow(x:float64, y:float64):float64, pow(z:c64, w:c64):c64, pow(z:c64, x:float64):c64
+abs(x:float64):float64, abs(x:float32):float32, abs(n:int64):int64, abs(z:c64):float64, abs(z:c32):float32
+conj(z:c64):c64, arg(z:c64):float64, norm(z:c64):float64                   // and of a c32
+c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, polar(r:float64, theta:float64):c64
 ```
 
 ## Properties and methods

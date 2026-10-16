@@ -1,8 +1,8 @@
 // error: this has no value, but this function has a result, of type i64
 struct box { n:int64 }
 let box.show() { println(.n) }
-let shown(b:box):i64 { b.show() }
-let main():i32 {
+let shown(b:box):int64 { b.show() }
+let main():int32 {
     let b:box = {1}
     println(shown(b))
     return 0

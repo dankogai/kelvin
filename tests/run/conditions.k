@@ -4,9 +4,9 @@
 #import <string.h> as C
 #import "include/conditions.h" as C
 
-let positive(n:i32):bool { return n > 0; }
+let positive(n:int32):bool { return n > 0; }
 
-let main():i32 {
+let main():int32 {
     var a = 1;
     var b = 2;
     println(a == b, " ", a < b, " ", !(a < b), " ", a < b && b > 0, " ", sizeof(a < b));
@@ -38,7 +38,7 @@ let main():i32 {
     while !done {
         done = true;
     }
-    for (var i:i32 = 0; i < 3 && !done; i += 1) println("never");
+    for (var i:int32 = 0; i < 3 && !done; i += 1) println("never");
 
     // C functions: a bool result is a condition, an int result is compared
     if is_even(4) && count_of(2) != 0 && strlen("abc") == 3 {

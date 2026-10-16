@@ -1,17 +1,17 @@
 // struct, union and enum tags are types by their bare name (#29)
 #import <stdlib.h> as C
 #import <time.h> as C
-struct point { x:int32; y:i32; };
-struct node { value:i64; next:node^; };      // the struct's own name, inside it
-union number { i:i32; f:f32; };
+struct point { x:int32; y:int32; };
+struct node { value:int64; next:node^; };      // the struct's own name, inside it
+union number { i:int32; f:float32; };
 enum color { RED, GREEN, BLUE };
 struct timespec;                               // a C struct, declared in Kelvin
 
 let origin():point { return (point){0, 0}; }
-let point.moved(dx:i32):Self { var p = self; p.x += dx; return p; }
+let point.moved(dx:int32):Self { var p = self; p.x += dx; return p; }
 let name(c:color):cstr { return c == RED ? "red" : "other"; }
 
-let main():i32 {
+let main():int32 {
     var p:point = {1, 2};
     let q:struct point = p.moved(3);          // the long form still works
     let n := malloc(sizeof(node)) as node^;

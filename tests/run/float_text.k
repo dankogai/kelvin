@@ -1,7 +1,7 @@
 // how print and ${x} show floats: the shortest text that reads back the
 // same, as in Swift. Plain decimal from 0.0001 up to 2^53 for f64 and
 // 2^24 for f32, where every integer is exact, and an exponent otherwise
-let main():i32 {
+let main():int32 {
     // whole numbers keep their digits and get a .0
     println(10.0, " ", 100.0, " ", 1500.0, " ", 123456.0, " ", -2500.0)
     println(0.0, " ", -0.0, " ", 1e15, " ", 1.5e15)
@@ -16,14 +16,14 @@ let main():i32 {
 
     // negative numbers keep their sign in front, in both forms
     println(-1500.25, " ", -0.5, " ", -0.0015, " ", -0.0001, " ", -0.00001)
-    println(-1.25e-300, " ", -1.5e16, " ", -0.0015:f32, " ", -1e8:f32)
+    println(-1.25e-300, " ", -1.5e16, " ", -0.0015:float32, " ", -1e8:float32)
 
     // the extremes keep every digit of their exponents
-    println(5e-324, " ", 1.7976931348623157e308, " ", 1e-45:f32, " ", 3.4028235e38:f32)
+    println(5e-324, " ", 1.7976931348623157e308, " ", 1e-45:float32, " ", 3.4028235e38:float32)
 
     // f32 has its own range, up to 2^24
-    println(10:f32, " ", 1500.5:f32, " ", 16777216:f32, " ", 16777218:f32)
-    println(1e8:f32, " ", 0.0001:f32, " ", 0.00001:f32, " ", 1e38:f32)
+    println(10:float32, " ", 1500.5:float32, " ", 16777216:float32, " ", 16777218:float32)
+    println(1e8:float32, " ", 0.0001:float32, " ", 0.00001:float32, " ", 1e38:float32)
 
     // nan and the infinities are as they were
     var zero = 0.0

@@ -1,7 +1,7 @@
 // == compares two of the same type (#79)
-let main():i32 {
+let main():int32 {
     var a:int64? = 1
-    var b:i32? = 1
+    var b:int32? = 1
     println(a == b)
     return 0
 }

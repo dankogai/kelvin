@@ -2,43 +2,43 @@
 // returns the err (none) as it is: of a call and of a place, in an
 // Optional, with owners as the value and as the err, in an expression,
 // and alone as a statement
-struct point { x: int32; y: i32 }
-let parse(s:cstr):Result<i64, String> {
+struct point { x: int32; y: int32 }
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s { if c < '0' || c > '9' { return err($`not a number: ${s}`) } }
-    return i64(s)
+    return int64(s)
 }
-let twice(s:cstr):Result<i64, String> {
+let twice(s:cstr):Result<int64, String> {
     let n = try parse(s)                 // the value, or the err passed up
     return n * 2
 }
-let sum(a:cstr, b:cstr):Result<i64, String> {
+let sum(a:cstr, b:cstr):Result<int64, String> {
     return try parse(a) + try parse(b)   // (try parse(a)) + (try parse(b))
 }
-let fromPlace(s:cstr):Result<i64, String> {
+let fromPlace(s:cstr):Result<int64, String> {
     var r = parse(s)
     let n = try r                        // of a place: the err moves out of r
     return n + 1
 }
-let find(xs:$[i64]^, v:i64):i64? {
+let find(xs:$[int64]^, v:int64):int64? {
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }
-let after(xs:$[i64]^, v:i64):i64? {      // an Optional passes none up
+let after(xs:$[int64]^, v:int64):int64? {      // an Optional passes none up
     let i = try find(xs, v)
-    if i + 1 >= xs^.count as i64 { return none }
+    if i + 1 >= xs^.count as int64 { return none }
     return xs^[i + 1]
 }
-let name(n:i64):Result<String, i32> {
+let name(n:int64):Result<String, int32> {
     if n < 0 { return err(1) }
     return $`#${n}`
 }
-let greet(n:i64):Result<String, i32> {
+let greet(n:int64):Result<String, int32> {
     var s = try name(n)                  // an owner value moves out of the call
     s += "!"
     return s
 }
-let check(n:i64):Result<i64, i32> {
+let check(n:int64):Result<int64, int32> {
     try name(n)                          // alone: the value is dropped, the err passed up
     return n
 }
@@ -51,7 +51,7 @@ let shifted(ok:bool):Result<point, cstr> {
     p.x += 1
     return p
 }
-let main():i32 {
+let main():int32 {
     var d1 = twice("21")
     var d2 = twice("x")
     var d3 = twice("")

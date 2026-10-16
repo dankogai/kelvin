@@ -1,23 +1,23 @@
-let printf(fmt:const u8^, ...):i32;
+let printf(fmt:const uint8^, ...):int32;
 
 struct sample {
     ok:bool;
-    x:f32;
-    y:f64;
+    x:float32;
+    y:float64;
 };
 
-let is_even(n:i64):bool {
+let is_even(n:int64):bool {
     return n % 2 == 0;
 }
 
-let main():i32 {
+let main():int32 {
     var s:struct sample = {true, 1.5, 2.25};
     var done:bool = false;
-    printf("%d %d %d\n", i32(sizeof(f32)), i32(sizeof(f64)), i32(sizeof(bool)));
+    printf("%d %d %d\n", int32(sizeof(float32)), int32(sizeof(float64)), int32(sizeof(bool)));
     printf("%.2f %.2f\n", s.x * 2, s.y / 3);
     printf("%d %d %d\n", s.ok, done, is_even(10) && !is_even(7));
     var third:float64 = 1.0 / 3;
-    printf("%.4f\n", f32(third));
+    printf("%.4f\n", float32(third));
 
     // true and false infer bool (#24), so `flag` is a condition as it is
     var flag = true;

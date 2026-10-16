@@ -1,6 +1,6 @@
 // error: this value would be dropped: a body returns its value without 'return' only when it is one expression
-let twice(x:int64):i64 { x * 2 }
-let pick(n:i64):i64 {
+let twice(x:int64):int64 { x * 2 }
+let pick(n:int64):int64 {
     switch (n) {
     case 0:
         return 0
@@ -8,7 +8,7 @@ let pick(n:i64):i64 {
         twice(n)
     }
 }
-let main():i32 {
+let main():int32 {
     println(pick(1))
     return 0
 }

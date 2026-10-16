@@ -1,12 +1,12 @@
 // a Dictionary literal in braces (#69): ${k: v}, ${:}, {k: v} where the type
 // is written, Dictionary<K, V>({k: v}), nested, with struct and Array values
-struct point { x: int32; y: i32 }
-let main():i32 {
+struct point { x: int32; y: int32 }
+let main():int32 {
     var d = ${"a": 1, "b": 2}
-    var e:${String: i64} = ${:}
-    var f:${String: i64} = {"x": 9}
-    var g = Dictionary<i64, String>({1: $"one"})
-    var h = Dictionary<String, ${String: i64}>({"in": {"k": 1}})
+    var e:${String: int64} = ${:}
+    var f:${String: int64} = {"x": 9}
+    var g = Dictionary<int64, String>({1: $"one"})
+    var h = Dictionary<String, ${String: int64}>({"in": {"k": 1}})
     var p = ${"o": (point){1, 2}}
     var q:${String: point} = ${"o": {3, 4}}
     var r = ${"xs": [1, 2], "ys": [3]}

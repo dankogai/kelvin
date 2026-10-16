@@ -3,13 +3,13 @@
 // an enum with values' {.n = v}, and the value of a Result or an
 // Optional, wrapped
 #import <time.h> as C
-struct point { x: int32; y: i32 }
-union num { i: i32; f: f32 }
-enum json { n: f64; s: cstr }
+struct point { x: int32; y: int32 }
+union num { i: int32; f: float32 }
+enum json { n: float64; s: cstr }
 struct timespec;
 let origin():point { return {0, 0} }
 let corner():point { return {.y = 7} }
-let asInt(v:i32):num { return {.i = v} }
+let asInt(v:int32):num { return {.i = v} }
 let half():json { return {.n = 0.5} }
 let moment():timespec { return {1, 2} }
 let maybe(ok:bool):point? {
@@ -20,8 +20,8 @@ let res(ok:bool):Result<point, cstr> {
     if !ok { return err("no") }
     return {5, 6}
 }
-let one():Result<i64, cstr> { return {1} }
-let main():i32 {
+let one():Result<int64, cstr> { return {1} }
+let main():int32 {
     let o = origin()
     let c = corner()
     let u = asInt(9)

@@ -1,15 +1,15 @@
 // Array([...]) (#58): the elements written, T inferred from them, or
 // given as Array<T>([...]); Array(a) of a fixed array and Array(&other)
 // infer T too
-let squares(n:int64):Array<i64> {
-    var xs = Array<i64>()
+let squares(n:int64):Array<int64> {
+    var xs = Array<int64>()
     for i in 0..<n { xs += i * i }
     return xs
 }
-let main():i32 {
+let main():int32 {
     var va = Array([0, 1, 2, 3])
     println(va.count, " ", va[3], " ", va.typename)
-    var vb = Array<f64>([1, 2.5])
+    var vb = Array<float64>([1, 2.5])
     println(vb.count, " ", vb[1], " ", vb.typename)
     var a = [7, 8, 9]
     var vc = Array(a)

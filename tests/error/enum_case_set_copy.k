@@ -1,6 +1,6 @@
 // = does not copy an owner into a case (#54, #61): copy it, or move with T.n(x)
 enum pair { b: Bytes; n: int32 }
-let main():i32 {
+let main():int32 {
     var p:pair
     var bb = Bytes("x")
     p.b = bb

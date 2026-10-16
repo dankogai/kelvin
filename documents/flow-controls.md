@@ -114,7 +114,7 @@ for i in 0..<count {          // C: for (int i = 0; i < count; i++)
 }
 for i in 1...n { ... }     // C: for (int i = 1; i <= n; i++)
 for _ in 0..<3 { ... }     // a loop that needs no counter
-for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would; uint8 is u8 by its full name (#151)
+for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would
 ```
 
 - `i` is a `let` in the body, and `a` and `b` are evaluated once.

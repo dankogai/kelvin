@@ -2,10 +2,10 @@
 // the expression's text as print shows it
 #import <string.h> as C
 
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: int32 }
 
 // a template in a switch case, and in a block that a goto jumps into
-let describe(n:i64) {
+let describe(n:int64) {
     switch (n) {
     case 0:
         println("zero")
@@ -14,7 +14,7 @@ let describe(n:i64) {
         println(`n is ${n}`)
     }
 }
-let jump(n:i64) {
+let jump(n:int64) {
     if n > 5 {
         goto big
     }
@@ -24,10 +24,10 @@ let jump(n:i64) {
         println(`done ${n}`)
     }
 }
-let apply(x:i64, f:(i64):i64):i64 { f(x) }
+let apply(x:int64, f:(int64):int64):int64 { f(x) }
 
 var calls:int64 = 0
-let next():i64 {
+let next():int64 {
     calls += 1
     return calls
 }
@@ -38,8 +38,8 @@ let greet(name:cstr) {
 
 // the text lives until its block ends, also when the function returns
 // early or a loop breaks
-let count_up(n:i64):i64 {
-    var total:i64 = 0
+let count_up(n:int64):int64 {
+    var total:int64 = 0
     for i in 0..<10 {
         let text:cstr := `${i}`
         if i == n {
@@ -53,9 +53,9 @@ let count_up(n:i64):i64 {
     return total
 }
 
-let main():i32 {
-    let n:i64 = 42
-    let x:f64 = 0.1
+let main():int32 {
+    let n:int64 = 42
+    let x:float64 = 0.1
     let p:point = {3, 4}
     greet("Kelvin")
     println(`n = ${n}, n / 4.0 = ${n / 4.0}, x = ${x}, ${n > 40}, ${-7:i8}, ${255:u8}, ${2.5:f32}`)
@@ -69,7 +69,7 @@ nine\tten`
     println(multi)
 
     // with no ${...}, a template is a plain string literal
-    println(`plain`, " ", strlen(`a${n}b`), " ", i64(`${n}${n}`) + 1, " ", count_up(5))
+    println(`plain`, " ", strlen(`a${n}b`), " ", int64(`${n}${n}`) + 1, " ", count_up(5))
 
     // each evaluation makes its text again
     for i in 0..<3 {
@@ -93,7 +93,7 @@ again:
     if strlen(s) < 4 {
         goto again
     }
-    var m:i64 = 1
+    var m:int64 = 1
     var rounds = 0
     while strlen(`${m}`) < 4 {
         m *= 10
@@ -102,15 +102,15 @@ again:
     println(s, " ", m, " ", rounds, " ", m > 5 ? `${m} items` : `none`, " ", m < 5 ? `${m} items` : `none`)
 
     // values of more types, as print shows them
-    let tiny:f32 = 0.1
-    let big:u64 = 18446744073709551615
+    let tiny:float32 = 0.1
+    let big:uint64 = 18446744073709551615
     let low:i128 = i128("-170141183460469231731687303715884105728")
-    var letters:[i8](3) = ['h', 'i', 0]
-    let ip:i8^ := &letters[0]
+    var letters:[int8](3) = ['h', 'i', 0]
+    let ip:int8^ := &letters[0]
     let none:cstr := nullptr
-    var z:i32 = 1
-    let pz:i32^ := &z
-    let c:u8 = 'A'
+    var z:int32 = 1
+    let pz:int32^ := &z
+    let c:uint8 = 'A'
     println(`${tiny} ${big} ${low} ${ip} ${none} ${c} ${strcmp(`${pz}`, pz.cstr) == 0}`)
 
     // braces, an anonymous function and a new line inside ${...}, and

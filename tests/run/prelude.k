@@ -1,14 +1,14 @@
 // the prelude: print() and println() need no import (#17)
-let main():i32 {
+let main():int32 {
     println("Hello, Kelvin!");
     println();
     print("a", 1, "b");
     println();
 
     // every integer size prints portably, including i64 and 128-bit
-    println(i8(-128), " ", u8(255), " ", i16(-32768), " ", u16(65535));
-    println(-2147483648:i32, " ", 4294967295:u32);
-    println(-9223372036854775807:i64 - 1, " ", 18446744073709551615:u64);
+    println(int8(-128), " ", uint8(255), " ", int16(-32768), " ", uint16(65535));
+    println(-2147483648:int32, " ", 4294967295:uint32);
+    println(-9223372036854775807:int64 - 1, " ", 18446744073709551615:uint64);
     var big:u128 = ~(0:u128);
     var small:i128 = -(big >> 1) - 1;
     println(big);
@@ -16,14 +16,14 @@ let main():i32 {
 
     // floats: the shortest text that reads back the same, with a point
     println(1.0, " ", 0.1, " ", -0.5, " ", 1.0 / 3, " ", 1e300, " ", 2.5e-8);
-    println(0.1:f32, " ", 16777216:f32, " ", 1.0:f32 / 3);
+    println(0.1:float32, " ", 16777216:float32, " ", 1.0:float32 / 3);
     var zero:float64 = 0.0;
     println(zero / zero, " ", -(zero / zero), " ", 1 / zero, " ", -1 / zero);   // NaN's sign is not shown
 
     // bool, strings, null strings
     var ok:bool = true;
-    var s:u8^ := "bytes";
-    var none:u8^ := 0 as u8^;
+    var s:uint8^ := "bytes";
+    var none:uint8^ := 0 as uint8^;
     println(ok, " ", bool(!ok), " ", !ok, " ", s, " ", none);   // !ok is a bool (#23)
     println(true, " ", false, " ", true + 1);                   // true is a bool
 
@@ -32,8 +32,8 @@ let main():i32 {
 
     // other pointers print as addresses
     var x = 42;
-    var p:i64^ := &x;
-    println(p != 0 as i64^);
+    var p:int64^ := &x;
+    println(p != 0 as int64^);
     return 0;
 }
 // out: Hello, Kelvin!

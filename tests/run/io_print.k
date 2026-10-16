@@ -3,14 +3,14 @@
 // up to 16 values, nothing at all; to a file, to IO.stderr, to IO.stdout
 #import <stdio.h> as C
 #import <IO>
-struct point { x: int32; y: i32 }
+struct point { x: int32; y: int32 }
 let path := "io_print.tmp"
-let write_it():Result<i64, i32> {
+let write_it():Result<int64, int32> {
     let f = IO(path, "w")
     let p:point = {3, 4}
     var s = $"héllo"
     var b = Bytes("raw")
-    f.println("n = ", 42, ", half = ", 42 / 2.0, " ", true, " ", 'x', " ", 255 as u8)   // 'x' is a u8, 120
+    f.println("n = ", 42, ", half = ", 42 / 2.0, " ", true, " ", 'x', " ", 255 as uint8)   // 'x' is a u8, 120
     f.println(s, " ", b, " ", p.cstr, " ", s.count)
     for c in s { f.print(c, "|") }
     f.println()
@@ -18,7 +18,7 @@ let write_it():Result<i64, i32> {
     f.print("no newline")
     return 0
 }
-let main():i32 {
+let main():int32 {
     var w = write_it()
     println(w.cstr)
     var f = IO(path, "r")

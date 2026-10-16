@@ -1,7 +1,7 @@
 // a let attribute is computed and never set (#131, #132)
-struct rect { w: float64; h: f64 }
-let rect.area:f64 { .w * .h }
-let main():i32 {
+struct rect { w: float64; h: float64 }
+let rect.area:float64 { .w * .h }
+let main():int32 {
     var r:rect = {2.0, 3.0}
     r.area = 1.0
     return 0

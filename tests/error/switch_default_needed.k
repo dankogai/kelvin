@@ -1,5 +1,5 @@
 // a switch handles every value (#63)
-let main():i32 {
+let main():int32 {
     var n:int32 = 1
     switch n {
     case 1:

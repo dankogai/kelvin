@@ -4232,3 +4232,19 @@ now give `int32` from `main`. The documents, README, run tests and
 error tests had theirs since #186, #187 and #192.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 194. The full names throughout
+
+> now rewrite the documents' examples with the full names too, and
+> rewrite anywhere else where you can
+
+**Claude** asked whether the full names should now go throughout, where
+#186 to #193 had shown each once, and the user said yes. Every short
+name in a type or converter position in Kelvin code, the documents' and
+README's examples, the tests, the examples and the modules, is now the
+full one, `int64`, `uint8`, `float64`; comments, strings, templates,
+the expected outputs and the C names keep the short ones, which
+`.typename` and the C give. The one-off notes of #186 are gone. One
+test keeps `i32`, whose hint echoes the source's spelling.
+
+There are 749 tests, and all pass with clang and with gcc 15.

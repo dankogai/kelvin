@@ -1,6 +1,6 @@
 // an enum with an Array case only is indexed with an integer (#117)
 enum list { none; items: Array<int64> }
-let main():i32 {
+let main():int32 {
     var l = list.items($[1, 2])
     println(l["x"])
     return 0

@@ -14,22 +14,22 @@ rules are in [ownership.md](ownership.md), Results in
 ```kelvin
 #import <IO>
 
-let count(path:cstr):Result<i64, i32> {
+let count(path:cstr):Result<int64, int32> {
     let f = IO(path, "r")                // the IO, straight (#109)
     if f.error != 0 { return err(f.error) }   // the errno when it did not open, passed up
-    var n:int64 = 0                         // int64 is i64 by its full name (#151)
+    var n:int64 = 0
     for line in f.lines { n += 1 }       // each line, a String, without its newline
     return n                              // f closes here
 }
-let copy(from:cstr, to:cstr):Result<i64, i32> {
+let copy(from:cstr, to:cstr):Result<int64, int32> {
     let src = IO(from, "r")
     let dst = IO(to, "w")
     if src.error != 0 { return err(src.error) }
     if dst.error != 0 { return err(dst.error) }
-    var total:i64 = 0
+    var total:int64 = 0
     for chunk in src.read(4096) {        // the next 4096 bytes at most, a Bytes
         dst.write(&chunk)
-        total += chunk.count as i64
+        total += chunk.count as int64
     }
     return total
 }
@@ -40,7 +40,7 @@ f.write($`${n} items\n`)                  // a String an expression gives, writt
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 if let b = f.byte { println(b) }              // the next byte, or none (#85)
-for line in f.lines { sum += i64(line) }      // a number is read from the text (#88)
+for line in f.lines { sum += int64(line) }      // a number is read from the text (#88)
 var ls = IO.popen("ls -l", "r")               // a shell command's output, straight (#87, #110); IO.pipe() a pipe's two ends
 var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90); wc.error is ENOENT when there is no such program
 if wc.error == 0 { wc.kill(15) }              // a signal to it (#91); wc.pid its process id
@@ -284,7 +284,7 @@ the `T` or that `errno`. `Stat` is the struct of [os.md](os.md).
 
 ```kelvin
 IO(path: text, mode: text): IO                     // fopen, straight; "r" when the mode is left out; f.error when it did not open (#109)
-IO(fd: i32, mode: text): IO                        // fdopen; the IO owns the descriptor
+IO(fd: int32, mode: text): IO                        // fdopen; the IO owns the descriptor
 IO.stdin: IO                                        // the streams, never closed, only flushed
 IO.stdout: IO
 IO.stderr: IO
@@ -294,13 +294,13 @@ IO.exec(args: [text], mode: text, dir: text): IO   // run in a directory, "" for
 IO.exec(args: [text], mode: text, dir: text, env: [text]): IO   // with "NAME=value" entries added
 IO.exec(args: [text], mode: text, dir: text, env: [text], fresh: bool): IO   // true: those entries alone
 IO.pipe(): {reader: IO, writer: IO}                // a pipe's two ends; both carry the error of a pipe not made
-IO.strerror(code: i32): String                    // the message for an err
+IO.strerror(code: int32): String                    // the message for an err
 
 f.bytes: Bytes                           // the rest of the file, straight (#107)
 f.string: String                         // the same as UTF-8; not UTF-8 ends the program
-for chunk in f.read(n: i64) { }          // each next n bytes at most, a Bytes the loop owns
+for chunk in f.read(n: int64) { }          // each next n bytes at most, a Bytes the loop owns
 for line in f.lines { }                  // each line without its newline, a String the loop owns
-f.byte: u8?                              // the next byte, none at the end
+f.byte: uint8?                              // the next byte, none at the end
 f.write(x: text | &String | &Bytes | String | Bytes)   // text, a borrow, or an owner given, freed after
 f.print(a, b, ...)                       // as print, up to 16 values
 f.println(a, b, ...)                     // as println
@@ -308,16 +308,16 @@ f.flush()
 f.close()                                // now; needs the var that owns the IO
 f.eof: bool                              // true once a read has met the end
 f.isatty: bool                           // its descriptor is a terminal
-f.position: i64                          // the offset in bytes, -1 where the stream has none
-f.count: i64                             // the length in bytes, -1 where the stream has none
-f.seek(offset: i64): bool                // from the start; false where it could not
+f.position: int64                          // the offset in bytes, -1 where the stream has none
+f.count: int64                             // the length in bytes, -1 where the stream has none
+f.seek(offset: int64): bool                // from the start; false where it could not
 f.rewind()                               // to the start, the end cleared
-f.fd: i32                                // the descriptor, -1 once closed
-f.error: i32                             // the errno of an open that failed, 0 otherwise (#109)
-f.status: i32                            // a process's exit code once closed, else -1
-f.signal: i32                            // the signal that ended a process, 0 when none, else -1
-f.pid: i32                               // a process's id, -1 for any other IO
-f.kill(signal: i32): bool                // to a process; true when sent
+f.fd: int32                                // the descriptor, -1 once closed
+f.error: int32                             // the errno of an open that failed, 0 otherwise (#109)
+f.status: int32                            // a process's exit code once closed, else -1
+f.signal: int32                            // the signal that ended a process, 0 when none, else -1
+f.pid: int32                               // a process's id, -1 for any other IO
+f.kill(signal: int32): bool                // to a process; true when sent
 
 f.path: cstr                             // as opened with; "" for a stream, a descriptor or a process
 f.abspath: String                        // absolute, every link followed; the descriptor's where the path is gone; "" with neither (#104, #105)
@@ -333,12 +333,12 @@ f.exists: bool
 f.listdir: Array<String>                 // a directory's names, sorted; none where it is no directory (#106)
 f.walk: Array<String>                    // every path under it, depth first
 f.glob(pattern: text): Array<String>     // the matches of the pattern under it
-f.chmod(mode: i32): bool                 // on the open file; true when done (#108)
-f.chown(uid: i32, gid: i32): bool        // on the open file; -1 leaves an id
-f.truncate(size: i64): bool              // on the open file
+f.chmod(mode: int32): bool                 // on the open file; true when done (#108)
+f.chown(uid: int32, gid: int32): bool        // on the open file; -1 leaves an id
+f.truncate(size: int64): bool              // on the open file
 f.remove(): bool                         // the path, else the descriptor's name; the open file stays readable until closed
 f.rename(to: text): bool                 // the same, and the path then follows; needs the var that owns the IO
-f.utime(atime: f64, mtime: f64): bool    // the open file's times, in seconds since the epoch
+f.utime(atime: float64, mtime: float64): bool    // the open file's times, in seconds since the epoch
 f.touch(): bool                          // both now
 ```
 

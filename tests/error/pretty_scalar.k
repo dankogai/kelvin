@@ -1,5 +1,5 @@
 // .pretty is of a value with brackets; a number's text is .cstr (#124)
-let main():i32 {
+let main():int32 {
     let n:int64 = 3
     println(n.pretty)
     return 0

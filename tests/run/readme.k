@@ -2,11 +2,11 @@
 #import <stdio.h> as C
 
 struct node {
-    value:i32;
+    value:int32;
     next:node^;
 };
 
-let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
+let sum(var n:node^):int32 {      // n may move; parameters are lets otherwise
     var total:int32 = 0;
     while n != nullptr {
         total += n^.value;      // C: n->value
@@ -15,7 +15,7 @@ let sum(var n:node^):i32 {      // n may move; parameters are lets otherwise
     return total;
 }
 
-let main():i32 {
+let main():int32 {
     var c:node = {3, nullptr};
     var b:node = {2, &c};
     var a:node = {1, &b};

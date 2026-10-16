@@ -2,21 +2,21 @@
 // one expression returns it (#35)
 
 struct point {
-    x:i32
-    y:i32
+    x:int32
+    y:int32
 }
-struct node { value:i64; next:node^ }
+struct node { value:int64; next:node^ }
 
 var total:int64 = 0
 
-let square(x:i64):i64 { x * x }
-let point.dist2():i64 {
+let square(x:int64):int64 { x * x }
+let point.dist2():int64 {
     .x * .x + .y * .y
 }
-let proto(x:i64):i64
-let proto(x:i64):i64 { x + 1 }
-let apply(x:i64, f:(i64):i64):i64 { f(x) }
-let each(n:i64, f:(i64)) {
+let proto(x:int64):int64
+let proto(x:int64):int64 { x + 1 }
+let apply(x:int64, f:(int64):int64):int64 { f(x) }
+let each(n:int64, f:(int64)) {
     for i in 0..<n {
         f(i)
     }
@@ -25,18 +25,18 @@ let nothing() {
     return
 }
 
-let main():i32 {
+let main():int32 {
     let price = 5
     let count = 3
-    let t:i64 = price
+    let t:int64 = price
         * count
-    let u:i64 = price -
+    let u:int64 = price -
         count
     var p:point = {3, 4}
     println(t, " ", u, " ", square(4), " ", p.dist2(), " ", proto(1))
-    var xs:[i32](3) = [3, 1, 2]
+    var xs:[int32](3) = [3, 1, 2]
     var q:any^ := &xs[0]
-    (q as i32^)^ = 9
+    (q as int32^)^ = 9
     println(xs[0])
     each(3) { total += $0 }
     each(2) {
@@ -54,15 +54,15 @@ let main():i32 {
     do {
         n -= 1
     } while n > 0
-    let len:i64 = p
+    let len:int64 = p
         .dist2()
     println(n, " ", len)
     var a = 1; var b = 2
     a += b; b += a
     println(a, " ", b)
     nothing()
-    let w := { (x:i64):i64 in
-        let y:i64 = x * 2
+    let w := { (x:int64):int64 in
+        let y:int64 = x * 2
         return y + 1
     }
     println(w(3))

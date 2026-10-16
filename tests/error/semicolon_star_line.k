@@ -1,7 +1,7 @@
 // error: dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'
-let main():i32 {
+let main():int32 {
     var x:int32 = 0
-    var p:i32^ := &x
+    var p:int32^ := &x
     println(x)
     *p = 1
     return 0

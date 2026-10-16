@@ -5,7 +5,7 @@
 let jump(env:jmp_buf);
 
 // a range up to a const bound: only the loop variable is const
-let total(lens:const i32^, n:i32):i32 {
+let total(lens:const int32^, n:int32):int32 {
     var t:int32 = 0;
     for k in 0..<n {
         for _ in 0..<lens[k] {
@@ -15,7 +15,7 @@ let total(lens:const i32^, n:i32):i32 {
     return t;
 }
 
-let count(n:const i32):i32 {
+let count(n:const int32):int32 {
     var c = 0;
     for _ in 1...n {
         c += 1;
@@ -23,12 +23,12 @@ let count(n:const i32):i32 {
     return c;
 }
 
-let main():i32 {
+let main():int32 {
     var env:jmp_buf;
     if setjmp(env) == 0 {
         jump(env);
     }
-    let lens:[i32](3) = [1, 2, 3];
+    let lens:[int32](3) = [1, 2, 3];
     println("back ", total(lens, 3), " ", count(4));
     return 0;
 }

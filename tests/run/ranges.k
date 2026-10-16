@@ -3,9 +3,9 @@
 #import <string.h> as C
 
 var evaluations = 0;
-let limit(n:i64):i64 { evaluations += 1; return n; }
+let limit(n:int64):int64 { evaluations += 1; return n; }
 
-let main():i32 {
+let main():int32 {
     for i in 0..<3 {
         print(i, " ");
     }
@@ -32,7 +32,7 @@ let main():i32 {
     // a closed range up to the type's maximum ends
     var last:uint8 = 0;
     var steps = 0;
-    for b:u8 in 250...255 {
+    for b:uint8 in 250...255 {
         last = b;
         steps += 1;
     }

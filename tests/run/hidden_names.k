@@ -1,21 +1,21 @@
 // what kelvinc writes into the C is named _kv_, the name it comes from,
 // and its kind; a repeat in a function is numbered from 1, and a name
 // with no source from 0 (#38)
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: int64 }
 
-let point.scaled(k:i64):Self {
-    let f:(i64):i64 := { $0 * 2 }
+let point.scaled(k:int64):Self {
+    let f:(int64):int64 := { $0 * 2 }
     return (point){f(.x) * k, f(.y) * k}
 }
 
-let apply(x:i64, f:(i64):i64):i64 { f(x) }
-let twice:(i64):i64 := { $0 * 2 }
-struct holder { a: [u8](sizeof(apply(1) { $0 + 1 })) }
+let apply(x:int64, f:(int64):int64):int64 { f(x) }
+let twice:(int64):int64 := { $0 * 2 }
+struct holder { a: [uint8](sizeof(apply(1) { $0 + 1 })) }
 
-let main():i32 {
+let main():int32 {
     let n:int64 = 255
     let p:point = {1, 2}
-    var xs:[i64](3) = [1, 2, 3]
+    var xs:[int64](3) = [1, 2, 3]
     print(n.hex, " ", n.dec, " ", (n + 1).hex, " ", p.cstr, " ", p.scaled(2).x)
     for i in 0..<2 {
         print(" ", i)

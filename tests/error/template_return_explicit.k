@@ -2,7 +2,7 @@
 let label(n:int64):cstr {
     return `#${n}`
 }
-let main():i32 {
+let main():int32 {
     println(label(1))
     return 0
 }

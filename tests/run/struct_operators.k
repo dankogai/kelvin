@@ -7,24 +7,24 @@
 struct money;
 // for a struct declared without its body yet, as for a function
 let +(a:money, b:money):money
-struct money { cents: i64 }
+struct money { cents: int64 }
 
 // a value may go on with an annotated operand on the next line, and a
 // definition starts with let (#45)
-let rate:float64 = (3:f64)
-    / (2:f64)
-let +(var a:money, n:i64):money {
+let rate:float64 = (3:float64)
+    / (2:float64)
+let +(var a:money, n:int64):money {
     a.cents += n
     return a
 }
 let half(a:money):money
-let *(a:money, k:i64):money { (money){a.cents * k} }
+let *(a:money, k:int64):money { (money){a.cents * k} }
 let -(a:money, b:money):money { (money){a.cents - b.cents} }
 let -(a:money):money { (money){-a.cents} }
-let *(k:i64, a:money):money { a * k }
-let *(a:money, x:f64):money { (money){i64(round(f64(a.cents) * x))} }
-let /(a:money, k:i64):money { (money){a.cents / k} }
-let %(a:money, k:i64):money { (money){a.cents % k} }
+let *(k:int64, a:money):money { a * k }
+let *(a:money, x:float64):money { (money){int64(round(float64(a.cents) * x))} }
+let /(a:money, k:int64):money { (money){a.cents / k} }
+let %(a:money, k:int64):money { (money){a.cents % k} }
 let ==(a:money, b:money):bool { a.cents == b.cents }
 let !=(a:money, b:money):bool { !(a == b) }
 let <(a:money, b:money):bool { a.cents < b.cents }
@@ -35,10 +35,10 @@ let +(a:money, b:money):money { (money){a.cents + b.cents} }
 let half(a:money):money { a / 2 }
 
 // a union may define operators too
-union bits { u: u64; f: f64 }
+union bits { u: uint64; f: float64 }
 let ==(a:bits, b:bits):bool { a.u == b.u }
 
-let main():i32 {
+let main():int32 {
     let a:money = {150}
     let b:money = {275}
     println((a + b).cents, " ", (b - a).cents, " ", (-a).cents, " ", (a * 3).cents, " ", (2 * a).cents, " ", (a * rate).cents)
@@ -57,7 +57,7 @@ let main():i32 {
     m %= 300
     m /= 2
     var ms:[struct money](2) = [a, b]
-    let i:i64 = 1
+    let i:int64 = 1
     ms[i] += a
     ms[i - 1] += 1
     println(m.cents, " ", ms[0].cents, " ", ms[1].cents)

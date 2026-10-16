@@ -12,7 +12,7 @@ so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 ```kelvin
 #import <IO>                                // brings OS and SYS in too; #import <OS> alone for them
 
-let main():i32 {
+let main():int32 {
     var args = SYS.argv                     // Array<cstr>: the program and its arguments
     if args.count < 2 { IO.stderr.println("usage: ", args[0], " dir"); SYS.exit(2) }
     let dir := args[1]
@@ -218,82 +218,82 @@ struct of the next section.
 
 ```kelvin
 SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it
-SYS.exit(code: i32)                      // ends the program; no value
+SYS.exit(code: int32)                      // ends the program; no value
 SYS.platform: cstr                       // "macos", "linux", "freebsd", "openbsd", "netbsd", "windows", "unknown"
 
-OS.cwd: Result<String, i32>              // the working directory
-OS.chdir(path: text): i32                // 0 or errno
+OS.cwd: Result<String, int32>              // the working directory
+OS.chdir(path: text): int32                // 0 or errno
 OS.env(name: text): cstr?                // the variable's value, or none; a borrow of C's, copy it to keep it
-OS.setenv(name: text, value: text): i32  // 0 or errno
-OS.unsetenv(name: text): i32
+OS.setenv(name: text, value: text): int32  // 0 or errno
+OS.unsetenv(name: text): int32
 OS.exists(path: text): bool              // anything is there
 OS.isdir(path: text): bool               // a directory, a link to one too
 OS.isfile(path: text): bool              // a regular file, a link to one too
 OS.islink(path: text): bool              // a symbolic link itself
-OS.stat(path: text): Result<Stat, i32>   // of what the path reaches, links followed
-OS.lstat(path: text): Result<Stat, i32>  // of the path itself, a link's own
-OS.remove(path: text): i32               // a file, or an empty directory
-OS.unlink(path: text): i32               // a file
-OS.rename(from: text, to: text): i32     // replaces `to` if it is a file
-OS.mkdir(path: text): i32                // one directory, mode 0777 as the umask leaves it
-OS.makedirs(path: text): i32             // every directory on the way, those there already left alone
-OS.rmdir(path: text): i32                // an empty directory
-OS.listdir(path: text): Result<Array<String>, i32>   // the names, . and .. left out, sorted by bytes
-OS.walk(path: text): Result<Array<String>, i32>      // every path under it, depth first, links not followed
-OS.glob(pattern: text): Result<Array<String>, i32>   // the matches, sorted; none is an empty Array
-OS.symlink(target: text, path: text): i32            // makes `path` a link to `target`
-OS.readlink(path: text): Result<String, i32>         // what a link points at, as written
-OS.link(from: text, to: text): i32                   // a hard link
-OS.chmod(path: text, mode: i32): i32                 // C's permission bits, as 0644
-OS.chown(path: text, uid: i32, gid: i32): i32        // -1 leaves an id as it is
-OS.lchown(path: text, uid: i32, gid: i32): i32       // of a link itself
-OS.truncate(path: text, size: i64): i32              // cuts, or extends with zeros
-OS.utime(path: text, atime: f64, mtime: f64): i32    // seconds since the epoch, a fraction allowed
-OS.touch(path: text): i32                            // both times now; makes the file, empty, if missing
-OS.realpath(path: text): Result<String, i32>         // absolute, every link followed, no . or ..
+OS.stat(path: text): Result<Stat, int32>   // of what the path reaches, links followed
+OS.lstat(path: text): Result<Stat, int32>  // of the path itself, a link's own
+OS.remove(path: text): int32               // a file, or an empty directory
+OS.unlink(path: text): int32               // a file
+OS.rename(from: text, to: text): int32     // replaces `to` if it is a file
+OS.mkdir(path: text): int32                // one directory, mode 0777 as the umask leaves it
+OS.makedirs(path: text): int32             // every directory on the way, those there already left alone
+OS.rmdir(path: text): int32                // an empty directory
+OS.listdir(path: text): Result<Array<String>, int32>   // the names, . and .. left out, sorted by bytes
+OS.walk(path: text): Result<Array<String>, int32>      // every path under it, depth first, links not followed
+OS.glob(pattern: text): Result<Array<String>, int32>   // the matches, sorted; none is an empty Array
+OS.symlink(target: text, path: text): int32            // makes `path` a link to `target`
+OS.readlink(path: text): Result<String, int32>         // what a link points at, as written
+OS.link(from: text, to: text): int32                   // a hard link
+OS.chmod(path: text, mode: int32): int32                 // C's permission bits, as 0644
+OS.chown(path: text, uid: int32, gid: int32): int32        // -1 leaves an id as it is
+OS.lchown(path: text, uid: int32, gid: int32): int32       // of a link itself
+OS.truncate(path: text, size: int64): int32              // cuts, or extends with zeros
+OS.utime(path: text, atime: float64, mtime: float64): int32    // seconds since the epoch, a fraction allowed
+OS.touch(path: text): int32                            // both times now; makes the file, empty, if missing
+OS.realpath(path: text): Result<String, int32>         // absolute, every link followed, no . or ..
 OS.basename(path: text): String          // after the last /: basename("a/b/") is ""
 OS.dirname(path: text): String           // before it: dirname("a") is "", dirname("/a") is "/"
 OS.join(a: text, b: text): String        // a/b, with one /; b alone when b is absolute
-OS.mkstemp(prefix: text): Result<{io: IO, path: String}, i32>   // a new file, open for "w+"
-OS.mkdtemp(prefix: text): Result<String, i32>                   // a new directory
+OS.mkstemp(prefix: text): Result<{io: IO, path: String}, int32>   // a new file, open for "w+"
+OS.mkdtemp(prefix: text): Result<String, int32>                   // a new directory
 OS.tmpdir: cstr                          // TMPDIR, or /tmp, without a trailing /
-OS.system(command: text): i32            // the shell command's exit code, -1 where it did not exit
-OS.kill(pid: i32, signal: i32): i32      // 0 or errno
-OS.umask(mask: i32): i32                 // sets the mask, gives the old one
-OS.pid: i32                              // this process
-OS.ppid: i32                             // its parent
-OS.uid: i32                              // the user running it
-OS.gid: i32                              // the user's group
+OS.system(command: text): int32            // the shell command's exit code, -1 where it did not exit
+OS.kill(pid: int32, signal: int32): int32      // 0 or errno
+OS.umask(mask: int32): int32                 // sets the mask, gives the old one
+OS.pid: int32                              // this process
+OS.ppid: int32                             // its parent
+OS.uid: int32                              // the user running it
+OS.gid: int32                              // the user's group
 OS.user: String?                         // the user's name, none when the system has none
-OS.username(uid: i32): String?           // the name of an id, none for an id no one has
-OS.groupname(gid: i32): String?
-OS.host: Result<String, i32>             // the host's name
-OS.time: f64                             // seconds since the epoch, with a fraction
-OS.sleep(seconds: f64)                   // no value
+OS.username(uid: int32): String?           // the name of an id, none for an id no one has
+OS.groupname(gid: int32): String?
+OS.host: Result<String, int32>             // the host's name
+OS.time: float64                             // seconds since the epoch, with a fraction
+OS.sleep(seconds: float64)                   // no value
 
-OS.strerror(code: i32): String           // the message for an errno
-OS.environ: Result<Array<String>, i32>   // every "NAME=value"
-OS.euid: i32                             // the effective user id
-OS.egid: i32                             // the effective group id
-OS.groups: Result<Array<i32>, i32>       // the groups the user is in
-OS.uname: Result<Uname, i32>             // {sysname, nodename, release, version, machine}, Strings
+OS.strerror(code: int32): String           // the message for an errno
+OS.environ: Result<Array<String>, int32>   // every "NAME=value"
+OS.euid: int32                             // the effective user id
+OS.egid: int32                             // the effective group id
+OS.groups: Result<Array<int32>, int32>       // the groups the user is in
+OS.uname: Result<Uname, int32>             // {sysname, nodename, release, version, machine}, Strings
 OS.readable(path: text): bool            // access for this user
 OS.writable(path: text): bool
 OS.executable(path: text): bool
 OS.isabs(path: text): bool               // begins with /
-OS.splitext(path: text): Result<{root: String, ext: String}, i32>   // never fails: a Result for the struct
+OS.splitext(path: text): Result<{root: String, ext: String}, int32>   // never fails: a Result for the struct
 OS.normpath(path: text): String          // ., .. and // resolved by the text alone
 OS.relpath(path: text, start: text): String   // path from start
 OS.expanduser(path: text): String        // ~ and ~user replaced
 OS.samefile(a: text, b: text): bool      // one file by device and inode
-OS.mkfifo(path: text): i32               // a named pipe, mode 0666 as the umask leaves it
+OS.mkfifo(path: text): int32               // a named pipe, mode 0666 as the umask leaves it
 OS.sync()                                // no value
-OS.cpus: i32                             // processors online
-OS.loadavg: Result<{one: f64, five: f64, fifteen: f64}, i32>
-OS.urandom(n: i64): Result<Bytes, i32>   // n random bytes
-OS.isatty(fd: i32): bool
-OS.terminalsize: Result<{columns: i64, lines: i64}, i32>   // of stdout; ENOTTY otherwise
-OS.diskusage(path: text): Result<{total: i64, used: i64, free: i64}, i32>   // bytes
+OS.cpus: int32                             // processors online
+OS.loadavg: Result<{one: float64, five: float64, fifteen: float64}, int32>
+OS.urandom(n: int64): Result<Bytes, int32>   // n random bytes
+OS.isatty(fd: int32): bool
+OS.terminalsize: Result<{columns: int64, lines: int64}, int32>   // of stdout; ENOTTY otherwise
+OS.diskusage(path: text): Result<{total: int64, used: int64, free: int64}, int32>   // bytes
 OS.sep: cstr                             // "/"
 OS.linesep: cstr                         // "\n"
 OS.devnull: cstr                         // "/dev/null"
@@ -312,8 +312,8 @@ the same kind may replace, so copy it with `String(...)` to keep it.
 struct itself, since it has no name:
 
 ```kelvin
-{dev: i64, ino: i64, mode: i32, nlink: i64, uid: i32, gid: i32, size: i64,
- atime: f64, mtime: f64, ctime: f64, isdir: bool, isfile: bool, islink: bool}
+{dev: int64, ino: int64, mode: int32, nlink: int64, uid: int32, gid: int32, size: int64,
+ atime: float64, mtime: float64, ctime: float64, isdir: bool, isfile: bool, islink: bool}
 ```
 
 | Member | Type | What it is |

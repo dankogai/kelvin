@@ -7,21 +7,21 @@
 
 let kind(b:bool):cstr { "bool" }
 let kind(n:int8):cstr { "i8" }
-let kind(n:u8):cstr { "u8" }
-let kind(n:i16):cstr { "i16" }
-let kind(n:u16):cstr { "u16" }
-let kind(n:i32):cstr { "i32" }
-let kind(n:u32):cstr { "u32" }
-let kind(n:i64):cstr { "i64" }
-let kind(n:u64):cstr { "u64" }
-let kind(x:f32):cstr { "f32" }
-let kind(x:f64):cstr { "f64" }
+let kind(n:uint8):cstr { "u8" }
+let kind(n:int16):cstr { "i16" }
+let kind(n:uint16):cstr { "u16" }
+let kind(n:int32):cstr { "i32" }
+let kind(n:uint32):cstr { "u32" }
+let kind(n:int64):cstr { "i64" }
+let kind(n:uint64):cstr { "u64" }
+let kind(x:float32):cstr { "f32" }
+let kind(x:float64):cstr { "f64" }
 
 let measure(n:size_t):cstr { "size_t" }
 let measure(p:uintptr_t):cstr { "uintptr_t" }
-let measure(x:f64):cstr { "f64" }
+let measure(x:float64):cstr { "f64" }
 
-let main():i32 {
+let main():int32 {
     println(kind(c_bool()), " ", kind(c_char()), " ", kind(c_schar()), " ", kind(c_uchar()), " ", kind(c_short()), " ",
             kind(c_ushort()), " ", kind(c_int()), " ", kind(c_uint()))
     println(kind(c_long()), " ", kind(c_ulong()), " ", kind(c_llong()), " ", kind(c_ullong()), " ", kind(c_float()), " ",

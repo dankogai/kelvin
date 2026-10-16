@@ -5,7 +5,7 @@
 #import <string.h> as C
 
 // count the vowels: for c in s walks the string up to its NUL
-let vowels(s:cstr):i64 {
+let vowels(s:cstr):int64 {
     var n = 0
     for c in s {
         if strchr("aeiouAEIOU", c) != nullptr {
@@ -17,14 +17,14 @@ let vowels(s:cstr):i64 {
 
 // reverse in place: a cstr cannot change, so the text comes as u8^, and
 // two cursors meet in the middle
-let reverse(s:u8^):() {
+let reverse(s:uint8^):() {
     if strlen(s) == 0 {
         return
     }
-    var lo:uint8^ := s                      // uint8 is u8 by its full name (#151)
-    var hi:u8^ := &s[strlen(s) - 1]
+    var lo:uint8^ := s
+    var hi:uint8^ := &s[strlen(s) - 1]
     while lo < hi {
-        let c:u8 = lo^
+        let c:uint8 = lo^
         lo^ = hi^
         hi^ = c
         lo++
@@ -32,19 +32,19 @@ let reverse(s:u8^):() {
     }
 }
 
-let main():i32 {
-    var buf:[u8](32)
+let main():int32 {
+    var buf:[uint8](32)
     strcpy(buf, "Hello, Kelvin")
     println(buf, ": ", strlen(buf), " bytes, ", vowels(buf), " vowels")
     reverse(buf)
     println(buf)
     for i in 0..<strlen(buf) {
-        buf[i] = toupper(buf[i]) as u8
+        buf[i] = toupper(buf[i]) as uint8
     }
     println(buf)
 
-    let answer:i32 = 42
-    println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:u8).oct)
+    let answer:int32 = 42
+    println(answer.cstr, " ", answer.hex, " ", answer.bin, " ", (255:uint8).oct)
     return 0
 }
 // out: Hello, Kelvin: 13 bytes, 4 vowels

@@ -8,105 +8,105 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 
-struct vec { x: f64; y: f64 }
-struct node { v: i64; next: node^ }
+struct vec { x: float64; y: float64 }
+struct node { v: int64; next: node^ }
 enum color { RED, GREEN, BLUE }
 
-let twice(n:i64):i64 { n * 2 }
-let twice(x:f64):f64 { x * 2.0 }
-let twice(s:const u8^):i64 { i64(strlen(s)) * 2 }
+let twice(n:int64):int64 { n * 2 }
+let twice(x:float64):float64 { x * 2.0 }
+let twice(s:const uint8^):int64 { int64(strlen(s)) * 2 }
 let twice(v:vec):vec { (vec){v.x * 2.0, v.y * 2.0} }
 
 // a prototype and its definition are one overload, also with a const
 // on a parameter itself
-let scale(v:vec, k:f64):vec
-let scale(v:const vec, k:f64):vec { (vec){v.x * k, v.y * k} }
-let scale(k:f64, v:vec):vec { scale(v, k) }
+let scale(v:vec, k:float64):vec
+let scale(v:const vec, k:float64):vec { (vec){v.x * k, v.y * k} }
+let scale(k:float64, v:vec):vec { scale(v, k) }
 
 // recursion through arithmetic, which has the type C gives it
-let fact(n:i64):i64 { n <= 1 ? 1 : n * fact(n - 1) }
-let fact(x:f64):f64 { x <= 1.0 ? 1.0 : x * fact(x - 1.0) }
+let fact(n:int64):int64 { n <= 1 ? 1 : n * fact(n - 1) }
+let fact(x:float64):float64 { x <= 1.0 ? 1.0 : x * fact(x - 1.0) }
 
-let pick(b:bool):i64 { 1 }
-let pick(n:i64):i64 { 2 }
-let count(p:node^):i64 { p == nullptr ? 0 : 1 + count(p^.next) }
-let count(n:i64):i64 { n }
-let show(c:color):i64 { 100 + i64(c) }
-let show(n:i64):i64 { n }
+let pick(b:bool):int64 { 1 }
+let pick(n:int64):int64 { 2 }
+let count(p:node^):int64 { p == nullptr ? 0 : 1 + count(p^.next) }
+let count(n:int64):int64 { n }
+let show(c:color):int64 { 100 + int64(c) }
+let show(n:int64):int64 { n }
 
 // the overload every argument kelvinc sees fits best
-let mix(a:i64, b:f64):i64 { 1 }
-let mix(a:f64, b:f64):i64 { 2 }
+let mix(a:int64, b:float64):int64 { 1 }
+let mix(a:float64, b:float64):int64 { 2 }
 
 // a pointer may gain const, never lose it
-let put(p:u8^):i64 { 1 }
-let put(p:const any^):i64 { 2 }
+let put(p:uint8^):int64 { 1 }
+let put(p:const any^):int64 { 2 }
 
 // function types and variadic functions have names of their own in C, and an
 // array parameter is a pointer
-let run(a:(i64), b:(i64):i64):i64 { b(1) }
-let run(g:(i64, (i64):i64)):i64 { 2 }
-let total(n:i64, ...):i64 { n }
-let total(s:const u8^):i64 { -1 }
-let first(a:[i64](3)):i64 { a[0] }
-let first(x:f64):i64 { 0 }
+let run(a:(int64), b:(int64):int64):int64 { b(1) }
+let run(g:(int64, (int64):int64)):int64 { 2 }
+let total(n:int64, ...):int64 { n }
+let total(s:const uint8^):int64 { -1 }
+let first(a:[int64](3)):int64 { a[0] }
+let first(x:float64):int64 { 0 }
 
 // C's sqrt and fabs still take numbers
-let sqrt(v:vec):f64 { sqrt(v.x * v.x + v.y * v.y) }
+let sqrt(v:vec):float64 { sqrt(v.x * v.x + v.y * v.y) }
 let fabs(v:vec):vec { (vec){fabs(v.x), fabs(v.y)} }
 
 // C's abs, declared by hand, keeps its name beside an overload, and so does
 // C's sin, called before Kelvin overloads it
-let abs(n:i32):i32
-let abs(v:vec):f64 { sqrt(v) }
-let half_sin(x:f64):f64 { sin(x) / 2.0 }
+let abs(n:int32):int32
+let abs(v:vec):float64 { sqrt(v) }
+let half_sin(x:float64):float64 { sin(x) / 2.0 }
 let sin(v:vec):vec { (vec){sin(v.x), sin(v.y)} }
 
 // anonymous functions take the parameter types the overloads agree on
-let each(n:i64, f:(i64):i64):i64 { f(n) }
-let each(s:const u8^, f:(i64):i64):i64 { f(i64(strlen(s))) }
-let zero():i64 { 0 }
-let zero(n:i64):i64 { n - n }
+let each(n:int64, f:(int64):int64):int64 { f(n) }
+let each(s:const uint8^, f:(int64):int64):int64 { f(int64(strlen(s))) }
+let zero():int64 { 0 }
+let zero(n:int64):int64 { n - n }
 
 // an overloaded name as a value: the overload of the type wanted, and
 // an overloaded function given one: the one taking that type
-let apply(f:(i64):i64, n:i64):i64 { f(n) }
-let apply(f:(f64):f64, x:f64):f64 { f(x) }
-let halver():(f64):f64 { twice }
-let doubler():(i64):i64 {
+let apply(f:(int64):int64, n:int64):int64 { f(n) }
+let apply(f:(float64):float64, x:float64):float64 { f(x) }
+let halver():(float64):float64 { twice }
+let doubler():(int64):int64 {
     return twice
 }
-let nothing(n:i64) { }
-let once(n:i64):i64 { n }
+let nothing(n:int64) { }
+let once(n:int64):int64 { n }
 
-let main():i32 {
+let main():int32 {
     let v:vec = {3.0, -4.0}
     let small:int32 = 21
-    let quarter:f32 = 0.25
-    let name:u8^ := "abc" as u8^
-    let n:i64 = 3
-    let x:f64 = 1.5
+    let quarter:float32 = 0.25
+    let name:uint8^ := "abc" as uint8^
+    let n:int64 = 3
+    let x:float64 = 1.5
     println(twice(4), " ", twice(1.5), " ", twice("abc"), " ", twice(name), " ", twice(v).y)
     println(twice(-3), " ", twice(-x), " ", twice(n * n), " ", twice(x * 2.0 - 1.0), " ", twice(n > 2 ? n : -n))
     println(fact(5), " ", fact(4.0), " ", pick(true), " ", pick(n < 2), " ", pick(!(n > 3)), " ", pick(-4))
     var tail:node = {2, nullptr}
     var head:node = {1, &tail}
-    println(count(&head), " ", count(nullptr), " ", count(7), " ", show(GREEN), " ", show(BLUE as i64))
+    println(count(&head), " ", count(nullptr), " ", count(7), " ", show(GREEN), " ", show(BLUE as int64))
     // a number of another type converts, as C converts it, to the one
     // overload that takes it
-    println(scale(v, small).x, " ", scale(quarter, v).y, " ", twice(small as i64), " ", mix(n, 2.0), " ", mix(x, 2.0))
-    let cs:const u8^ := "hello"
-    var three:[i64](3) = [7, 8, 9]
-    println(put(name), " ", put(cs), " ", run({ (k:i64) in nothing(k) }, once), " ", total(1, 2, 3), " ", first(three))
+    println(scale(v, small).x, " ", scale(quarter, v).y, " ", twice(small as int64), " ", mix(n, 2.0), " ", mix(x, 2.0))
+    let cs:const uint8^ := "hello"
+    var three:[int64](3) = [7, 8, 9]
+    println(put(name), " ", put(cs), " ", run({ (k:int64) in nothing(k) }, once), " ", total(1, 2, 3), " ", first(three))
     println(sqrt(v), " ", sqrt(16.0), " ", fabs(v).y, " ", fabs(-2.5), " ", scale(2.0, v).x, " ", (once)(5))
 
     // function values
-    let f:(i64):i64 := twice
-    var g:(f64):f64 := halver()
-    let root:(f64):f64 := sqrt
+    let f:(int64):int64 := twice
+    var g:(float64):float64 := halver()
+    let root:(float64):float64 := sqrt
     println(f(5), " ", g(0.75), " ", doubler()(4), " ", apply(twice, 7), " ", apply(twice, 0.25), " ", root(16.0))
     g := twice
-    println(g(0.5), " ", apply({ (y:f64):f64 in y * 3.0 }, x), " ", mix(n, 2), " ", each(4) { $0 + 1 }, " ",
+    println(g(0.5), " ", apply({ (y:float64):float64 in y * 3.0 }, x), " ", mix(n, 2), " ", each(4) { $0 + 1 }, " ",
             each("abc") { $0 * 10 })
     println(abs(-3), " ", abs(v), " ", half_sin(0.0), " ", zero(), " ", zero(7))
     return 0

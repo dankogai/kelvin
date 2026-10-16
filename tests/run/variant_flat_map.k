@@ -1,28 +1,28 @@
 // x.flatMap(f) (#81): f's own U? or Result<U, E> of the value when that
 // is the case, else none or the err carried over; chained, mixed with
 // map, of a call that gives an owner, by name and as a trailing function
-let half(n:i64):i64? {
+let half(n:int64):int64? {
     if n % 2 != 0 { return none }
     return n / 2
 }
-let parse(s:cstr):Result<i64, String> {
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
     for c in s { if c < '0' || c > '9' { return err($`not a number: ${s}`) } }
-    return i64(s)
+    return int64(s)
 }
-let positive(n:i64):Result<i64, String> {
+let positive(n:int64):Result<int64, String> {
     if n == 0 { return err($"zero") }
     return n
 }
-let twice(n:i64):i64 { return n * 2 }
-let keep(n:i64):Result<i64, i32> {
+let twice(n:int64):int64 { return n * 2 }
+let keep(n:int64):Result<int64, int32> {
     if n > 9 { return err(9) }
     return n
 }
-let main():i32 {
+let main():int32 {
     var a:int64? = 12
-    var b:i64? = 3
-    var c:i64? = none
+    var b:int64? = 3
+    var c:int64? = none
     var a1 = a.flatMap(half)
     var a2 = a.flatMap(half).flatMap(half).flatMap(half)
     var b1 = b.flatMap(half)
@@ -38,7 +38,7 @@ let main():i32 {
     var r4 = parse("21").map(twice).flatMap(positive).map(twice)
     var r5 = parse("0").flatMap { positive($0) }
     println(r4.cstr, " ", r5.cstr)
-    var p:Result<i64, i32> = 5
+    var p:Result<int64, int32> = 5
     var p1 = p.flatMap(keep)
     println(p1.cstr, " ", p.cstr)
     return 0

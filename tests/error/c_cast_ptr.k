@@ -1,4 +1,4 @@
 // error: C casts are not Kelvin: write 'v as T', or 'T(v)' for a built-in type
-let f(x:i32, n:u64) {
-    var p:uint8^ := (u8^)0;
+let f(x:int32, n:uint64) {
+    var p:uint8^ := (uint8^)0;
 }

@@ -2,22 +2,22 @@
 // of its own (#139, #142), where a .member on a new line went on with the
 // expression before it (#35); a chain over several lines goes inside
 // parentheses there, and #35 holds where there is no self
-struct bag { n: i64; xs: Array<i64> }
-enum { nothing; just: i64 }
-extend enum{nothing, just: i64} {
-    let orTen():i64 {
+struct bag { n: int64; xs: Array<int64> }
+enum { nothing; just: int64 }
+extend enum{nothing, just: int64} {
+    let orTen():int64 {
         let k = 10
         return .is(just) ? .just + k : k                  // a statement: self.is(just)
     }
 }
 extend bag {
-    let total():i64 {
+    let total():int64 {
         let k = (.xs
             .count)                                       // in parentheses: .xs.count
-        return k as i64 + .n
+        return k as int64 + .n
     }
-    let bump(p:i64^):() { p^ += 100 }
-    let first():i64 {
+    let bump(p:int64^):() { p^ += 100 }
+    let first():int64 {
         var k = .n
         .bump(&k)                                         // a statement too: self.bump(&k)
         return k
@@ -32,7 +32,7 @@ extend bag {
         }
     }
 }
-let main():i32 {
+let main():int32 {
     var b:bag = {0, $[]}
     b.count = 3
     b.count = 4

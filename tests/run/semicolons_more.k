@@ -5,21 +5,21 @@
 #import <stdint.h> as C
 #import <stdlib.h> as C
 
-struct box { n:i64 }
+struct box { n:int64 }
 let box.show() { println("box ", .n) }
 
 // one expression that starts with a name kelvinc cannot see, or with an
 // annotation to a C typedef, before `?` or before `as`
-let buffer_bytes(n:i64):i64 { BUFSIZ * n }
-let buffer_bytes2(n:i64):i64 { BUFSIZ * n; }
-let max_rand():f64 { RAND_MAX:f64 }
-let to_u(n:i64):uint8_t { n:uint8_t }
-let pick(flags:i32, a:i64, b:i64):i64 { flags:bool ? a : b }
-let half(n:i32):f64 { n:i64 as f64 / 2.0 }
-let twice(x:i64):i64 { x * 2 }
+let buffer_bytes(n:int64):int64 { BUFSIZ * n }
+let buffer_bytes2(n:int64):int64 { BUFSIZ * n; }
+let max_rand():float64 { RAND_MAX:float64 }
+let to_u(n:int64):uint8_t { n:uint8_t }
+let pick(flags:int32, a:int64, b:int64):int64 { flags:bool ? a : b }
+let half(n:int32):float64 { n:int64 as float64 / 2.0 }
+let twice(x:int64):int64 { x * 2 }
 
 // `return` at the end of a line, before a case, a default or a label
-let describe(n:i64) {
+let describe(n:int64) {
     switch (n) {
     case 0:
         println("zero")
@@ -40,8 +40,8 @@ let describe(n:i64) {
     }
 }
 var calls:int64 = 0
-let none_first(xs:i64^, n:i64) {
-    for (var i:i64 = 0; i < n && xs[i] != 0; i += 1)
+let none_first(xs:int64^, n:int64) {
+    for (var i:int64 = 0; i < n && xs[i] != 0; i += 1)
         return
     calls += 1
 }
@@ -62,9 +62,9 @@ let quiet() {
 }
 
 // a case ends at the next (#63): each case returns on its own
-var hits:i64 = 0
-let bump():i64 { hits += 1; return hits }
-let count_down(n:i64):i64 {
+var hits:int64 = 0
+let bump():int64 { hits += 1; return hits }
+let count_down(n:int64):int64 {
     switch (n) {
     case 2:
         bump()
@@ -81,12 +81,12 @@ let count_down(n:i64):i64 {
 // a `*` at the start of a line goes on with a product, unless what it
 // touches is assigned
 let PI = 3.141592653589793
-let sphere(r:f64):f64 {
+let sphere(r:float64):float64 {
     return 4.0 / 3.0
         *PI*r*r*r
 }
 
-let main():i32 {
+let main():int32 {
     println(buffer_bytes(2) == buffer_bytes2(2), " ", max_rand() > 0.0, " ", to_u(300), " ", pick(1, 10, 20), " ",
             half(5))
     describe(0)
@@ -125,8 +125,8 @@ again:
     // inside brackets, lines do not matter
     let a = 3
     let c = 4
-    let total:f64 = 2.0
-    let rate:f64 = 0.5
+    let total:float64 = 2.0
+    let rate:float64 = 0.5
     println(twice
         (3), " ", a
         *c, " ", total
@@ -160,7 +160,7 @@ again:
     if k > 0 { k = 10 } k += 1
     if true { _Pragma("GCC diagnostic push") }
     _Pragma("GCC diagnostic pop")
-    let to_size := { (m:i64):size_t in m:size_t * 2 }
+    let to_size := { (m:int64):size_t in m:size_t * 2 }
     println(k, " ", to_size(4))
     return 0
 }

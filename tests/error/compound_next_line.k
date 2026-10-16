@@ -1,5 +1,5 @@
 // error: a compound literal's '{' starts on the line of its '(type)': on the next line, '{' starts a block
-struct point { x:int32; y:i32 }
+struct point { x:int32; y:int32 }
 let origin():point {
     return (point)
     {
@@ -7,7 +7,7 @@ let origin():point {
         .y = 0
     }
 }
-let main():i32 {
+let main():int32 {
     println(origin().x)
     return 0
 }

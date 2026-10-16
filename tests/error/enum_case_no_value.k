@@ -1,6 +1,6 @@
 // a case with no value cannot be read (#61)
 enum shape { none; circle: float64 }
-let main():i32 {
+let main():int32 {
     var s:shape = {.none}
     println(s.none)
     return 0

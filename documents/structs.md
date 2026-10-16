@@ -10,9 +10,9 @@ the same rules; see [unions.md](unions.md).
 ## Declaring
 
 ```kelvin
-struct point { x: int32; y: i32 }           // int32 is i32 by its full name (#151)
+struct point { x: int32; y: int32 }
 struct node {
-    value: i64
+    value: int64
     next:  node^            // the bare name, inside its own struct too
 }
 var p:point = {3, 4}        // C: struct point p = {3, 4};
@@ -44,11 +44,11 @@ let q = (point){.y = 7}     // a compound literal; q is a point
 A struct may be written where a type goes, by its members alone (#59):
 
 ```kelvin
-var v:{x:f64, y:f64} = {3.0, 4.0}
-let norm(v:{x:f64, y:f64}):f64 { return v.x * v.x + v.y * v.y }
-var a = ({x:f64, y:f64}){1.0, 2.0}      // a compound literal
-var n:{p:{x:f64, y:f64}, tag:i32} = {{5.0, 6.0}, 7}
-var xs = Array<{x:f64, y:f64}>()
+var v:{x:float64, y:float64} = {3.0, 4.0}
+let norm(v:{x:float64, y:float64}):float64 { return v.x * v.x + v.y * v.y }
+var a = ({x:float64, y:float64}){1.0, 2.0}      // a compound literal
+var n:{p:{x:float64, y:float64}, tag:int32} = {{5.0, 6.0}, 7}
+var xs = Array<{x:float64, y:float64}>()
 println(v.typename)                     // {x: f64, y: f64}
 ```
 
@@ -100,7 +100,7 @@ struct the same way, and so do `print` and `println` (#122):
 (#53):
 
 ```kelvin
-struct vector2d { x: f64; y: f64 }
+struct vector2d { x: float64; y: float64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
 ```
 
@@ -123,18 +123,18 @@ Attributes read without parentheses, type attributes, and an
 [properties.md](properties.md#attributes-of-your-own-and-extend) (#130 to #133):
 
 ```kelvin
-struct point { x: i32; y: i32 }
+struct point { x: int32; y: int32 }
 
-let point.dist2():i64 { .x * .x + .y * .y }             // .x is self.x
-let point.sum():i64 { self.x + self.y }                 // the same, self written
-let point.moved(dx:i32):Self {                          // Self is point
+let point.dist2():int64 { .x * .x + .y * .y }             // .x is self.x
+let point.sum():int64 { self.x + self.y }                 // the same, self written
+let point.moved(dx:int32):Self {                          // Self is point
     var p:Self = self                                    // self is a let: a copy changes
     p.x += dx
     return p
 }
-let f64.half():Self { self / 2 }                        // Self is f64
+let float64.half():Self { self / 2 }                        // Self is f64
 
-let main():i32 {
+let main():int32 {
     let p:point = {3, 4}
     println(p.dist2(), " ", p.cstr, " ", 3.0.half())   // 25 {x: 3, y: 4} 1.5
     return 0
@@ -197,16 +197,16 @@ A struct, a union or an enum with values (#121) may define
 operator, overloaded by their types as other functions are (#42):
 
 ```kelvin
-struct money { cents: i64 }
+struct money { cents: int64 }
 
 extend money {                                            // or alone: let +(a:money, b:money):money
     static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
-    static let *(a:Self, k:i64):Self { (Self){a.cents * k} }
+    static let *(a:Self, k:int64):Self { (Self){a.cents * k} }
     static let -(a:Self):Self { (Self){-a.cents} }
     static let <(a:Self, b:Self):bool { a.cents < b.cents }
 }
 
-let main():i32 {
+let main():int32 {
     let a:money = {150}
     var b:money = {275}
     b += a                                                // b = b + a

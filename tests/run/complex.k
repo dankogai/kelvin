@@ -17,7 +17,7 @@ let check(what:cstr, got:complex64, want:complex64) {
         println(what, ": ", got.cstr, " is not ", want.cstr)
     }
 }
-let check(what:cstr, got:f64, want:f64) { check(what, complex64(got), complex64(want)) }
+let check(what:cstr, got:float64, want:float64) { check(what, complex64(got), complex64(want)) }
 // a complex32 is within 1e-6
 let check(what:cstr, got:complex32, want:complex64) {
     checked += 1
@@ -26,7 +26,7 @@ let check(what:cstr, got:complex32, want:complex64) {
     }
 }
 
-let main():i32 {
+let main():int32 {
     let i:complex64 = complex64(0.0, 1.0)
     let z:complex64 = complex64(1.0, 2.0)
     let w:complex64 = complex64(3.0, -1.0)
@@ -140,37 +140,37 @@ let main():i32 {
             fabs(atanh(atof("0.5")) - 0.5493061443340549) < 1e-15)
 
     // the result of a call that C's _Generic chooses is still a complex64
-    let x:f64 = 3.0
-    let y:f64 = 4.0
+    let x:float64 = 3.0
+    let y:float64 = 4.0
     check("polar * 2", polar(hypot(x, y), atan2(y, x)) * 2.0, complex64(6.0, 8.0))
     check("-polar", -polar(hypot(x, y), atan2(y, x)), complex64(-3.0, -4.0))
 
     // C's own functions of these names take the numbers
-    println(sin(0.5).typename, " ", sin(z).typename, " ", sqrt(16.0), " ", fabs(-2.5), " ", sin(0.5) == sin(0.5 as f64))
+    println(sin(0.5).typename, " ", sin(z).typename, " ", sqrt(16.0), " ", fabs(-2.5), " ", sin(0.5) == sin(0.5 as float64))
 
     // where only C sees a value's type, _Generic chooses
     check("exp(1.0) * i", exp(1.0) * i, complex64(0.0, exp(1.0)))
     check("atan2 + z", atan2(1.0, 1.0) + z, complex64(1.0 + PI / 4.0, 2.0))
 
     // complex32, through complex64
-    let z32:complex32 = complex32(1.0:f32, 2.0:f32)
+    let z32:complex32 = complex32(1.0:float32, 2.0:float32)
     let w32:complex32 = complex32(w)
-    println((z32 * w32).cstr, " ", (z32 + 1.0:f32).cstr, " ", abs(complex32(3.0:f32, 4.0:f32)), " ",
+    println((z32 * w32).cstr, " ", (z32 + 1.0:float32).cstr, " ", abs(complex32(3.0:float32, 4.0:float32)), " ",
             abs(z32).typename, " ", complex64(z32) == z, " ", z32 == complex32(z))
     check("exp32", exp(z32), exp(z))
     check("sin32", sin(z32), sin(z))
     check("sqrt32", sqrt(z32), sqrt(z))
-    check("pow32", pow(z32, 0.5:f32), sqrt(z))
+    check("pow32", pow(z32, 0.5:float32), sqrt(z))
     check("div32", z32 / w32, z / w)
     check("atanh32", atanh(complex32(u)), atanh(u))
-    check("polar32", polar(2.0:f32, PI as f32 / 2.0:f32), complex64(0.0, 2.0))
+    check("polar32", polar(2.0:float32, PI as float32 / 2.0:float32), complex64(0.0, 2.0))
     check("cos32", cos(z32), complex64(2.0327230070196656, -3.0518977991517997))
     check("log32", log(z32), complex64(0.8047189562170503, 1.1071487177940904))
     check("conj32", conj(z32), conj(z))
-    check("real32", complex32(2.5:f32), complex64(2.5))
-    check("f32 - z", 1.0:f32 - z32, 1.0 - z)
-    check("f32 / z", 1.0:f32 / z32, 1.0 / z)
-    check("z / f32", z32 / 2.0:f32, z / 2.0)
+    check("real32", complex32(2.5:float32), complex64(2.5))
+    check("f32 - z", 1.0:float32 - z32, 1.0 - z)
+    check("f32 / z", 1.0:float32 / z32, 1.0 / z)
+    check("z / f32", z32 / 2.0:float32, z / 2.0)
     let small:complex32 = complex32(u)
     check("sinh32", sinh(small), complex64(0.4978213596502317, 0.3332362582744821))
     check("cosh32", cosh(small), complex64(1.0772622306471364, 0.15399419236976608))
@@ -181,15 +181,15 @@ let main():i32 {
     check("asinh32", asinh(small), complex64(0.49790294283028763, 0.26955564142495025))
     check("acosh32", acosh(small), complex64(0.3342998177749379, 1.0777570862092782))
     check("atan32", atan(small), complex64(0.49371165990052035, 0.2409482664647896))
-    check("pow32 z w", pow(z32, complex32(0.5:f32, -0.25:f32)), complex64(1.8510005834756955, 0.6806954081557204))
-    check("pow32 x w", pow(1.5:f32, z32), complex64(1.0332365865926958, 1.0873923653062287))
-    check("+32", z32 + w32 + 1.0:f32, z + w + 1.0)
-    check("-32", z32 - w32 - 1.0:f32, z - w - 1.0)
+    check("pow32 z w", pow(z32, complex32(0.5:float32, -0.25:float32)), complex64(1.8510005834756955, 0.6806954081557204))
+    check("pow32 x w", pow(1.5:float32, z32), complex64(1.0332365865926958, 1.0873923653062287))
+    check("+32", z32 + w32 + 1.0:float32, z + w + 1.0)
+    check("-32", z32 - w32 - 1.0:float32, z - w - 1.0)
     check("neg32", -z32, -z)
-    check("*32", z32 * 3.0:f32, z * 3.0)
-    println(norm(complex32(3.0:f32, 4.0:f32)), " ", arg(complex32(-1.0:f32, 0.0:f32)) > 3.14:f32, " ",
-            z32 != complex32(1.0:f32, 3.0:f32), " ", z32 != z32, " ", (z32 - 1.0:f32).cstr, " ", (2.0:f32 * z32).cstr, " ",
-            z32 == complex32(1.0:f32, 3.0:f32))
+    check("*32", z32 * 3.0:float32, z * 3.0)
+    println(norm(complex32(3.0:float32, 4.0:float32)), " ", arg(complex32(-1.0:float32, 0.0:float32)) > 3.14:float32, " ",
+            z32 != complex32(1.0:float32, 3.0:float32), " ", z32 != z32, " ", (z32 - 1.0:float32).cstr, " ", (2.0:float32 * z32).cstr, " ",
+            z32 == complex32(1.0:float32, 3.0:float32))
 
     println(checked, " checked")
     return 0

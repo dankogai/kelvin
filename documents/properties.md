@@ -35,8 +35,8 @@ type's own are listed, with its methods, at the end of its document:
 Properties are written without parentheses:
 
 ```kelvin
-let c:int32 = 42                            // int32 is i32 by its full name (#151)
-let b:u8 = 255
+let c:int32 = 42
+let b:uint8 = 255
 let p:point = {3, 4}
 println(c.size, " ", c.cstr, " ", p.cstr)   // 4 42 {x: 3, y: 4}
 println(c.dec, " ", c.hex, " ", c.bin)      // +42 +0x2a +0b101010
@@ -209,24 +209,24 @@ Swift's `extension`, which names the type once. In every body, `.x` is
 `self.x` (#139), and `Self` is the type (#140):
 
 ```kelvin
-struct rect { w: f64; h: f64 }
-struct temp { kelvin: f64 }
+struct rect { w: float64; h: float64 }
+struct temp { kelvin: float64 }
 
-let rect.area:f64 { .w * .h }               // an attribute, alone: .w is self.w
-static var rect.made:i64 = 0                // a type attribute, alone
+let rect.area:float64 { .w * .h }               // an attribute, alone: .w is self.w
+static var rect.made:int64 = 0                // a type attribute, alone
 
 extend rect {
-    let perimeter:f64 { 2.0 * (.w + .h) }                 // an attribute
-    let scaled(k:f64):Self { (Self){.w * k, .h * k} }     // a method; Self is rect
+    let perimeter:float64 { 2.0 * (.w + .h) }                 // an attribute
+    let scaled(k:float64):Self { (Self){.w * k, .h * k} }     // a method; Self is rect
     static let unit:Self = {1.0, 1.0}                     // a type attribute
-    static let square(s:f64):Self {                       // a function of the type
+    static let square(s:float64):Self {                       // a function of the type
         Self.made += 1
         return {s, s}
     }
 }
 
 extend temp {
-    var celsius:f64 {                                     // an attribute with a setter
+    var celsius:float64 {                                     // an attribute with a setter
         get { .kelvin - 273.15 }
         set(v) { .kelvin = v + 273.15 }
     }
@@ -245,16 +245,16 @@ Subscripts (#136) read and write a value by indices, as an Array's
 `v[i]` does:
 
 ```kelvin
-struct grid { w: i64; cells: [i64](6) }
+struct grid { w: int64; cells: [int64](6) }
 
 extend grid {
-    let [](i:i64):i64 { .cells[i] }                      // read only
-    var [](r:i64, c:i64):i64 {                           // read and written
+    let [](i:int64):int64 { .cells[i] }                      // read only
+    var [](r:int64, c:int64):int64 {                           // read and written
         get { .cells[r * .w + c] }
         set(v) { .cells[r * .w + c] = v }
     }
 }
-let grid[](name:cstr):i64 { name[0] as i64 }             // alone, by another type
+let grid[](name:cstr):int64 { name[0] as int64 }             // alone, by another type
 
 var g:grid = {3}
 g[1, 2] = 7                                              // the setter, on g

@@ -2,21 +2,21 @@
 // a Result is expected, ok(v) and err(e) as words, .ok and .err checked,
 // ??, switch, if let binding the value of an Optional or a Result, with an
 // else, of a place or of a value a call gives, owners included
-struct point { x: i32; y: i32 }
-let parse(s:cstr):Result<i64, String> {
+struct point { x: int32; y: int32 }
+let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }
-    if s[0] == '-' { return Result<i64, String>.err($"negative") }
-    return i64(s)
+    if s[0] == '-' { return Result<int64, String>.err($"negative") }
+    return int64(s)
 }
 let first(xs:$[String]^):String? {
     if xs^.count == 0 { return none }
     return xs^[0].copy()
 }
-let find(xs:$[i64]^, v:i64):i64? {
+let find(xs:$[int64]^, v:int64):int64? {
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }
-let main():i32 {
+let main():int32 {
     var r = parse("42")
     var e = parse("")
     println(r.is(ok), " ", r.ok, " ", e.is(err), " ", e.err, " ", r.typename, " ", r.cstr, " ", e.cstr)
@@ -37,14 +37,14 @@ let main():i32 {
     var i = find(&xs, 6)
     if let k = i { println("at ", k, " ", xs[k]) }
     if let k = find(&xs, 9) { println(k) } else if let k2 = find(&xs, 5) { println("first at ", k2) }
-    var q:Result<point, i32> = {1, 2}
-    var bad:Result<point, i32> = err(404)
+    var q:Result<point, int32> = {1, 2}
+    var bad:Result<point, int32> = err(404)
     println(q.ok.y, " ", bad.err, " ", q.typename)
-    var o = Optional<i64>.some(3)
-    var z = Optional<i64>.none
-    var w = Result<i64, cstr>.ok(5)
+    var o = Optional<int64>.some(3)
+    var z = Optional<int64>.none
+    var w = Result<int64, cstr>.ok(5)
     println(o.some, " ", z.is(none), " ", w.ok, " ", w.typename)
-    var rs:$[Result<i64, String>] = $[1, err($"x"), ok(3)]
+    var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]
     var sum:int64 = 0
     for x in rs { if let v = x { sum += v } }
     println(rs.count, " ", sum)

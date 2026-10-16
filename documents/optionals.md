@@ -14,8 +14,8 @@ examples.
 **Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 ```kelvin
-var a:int64? = 3                           // some(3): a T becomes a T? where one is expected; int64 is i64 by its full name (#151)
-var b:i64? = none                        // none, a word that needs the type around it
+var a:int64? = 3                           // some(3): a T becomes a T? where one is expected
+var b:int64? = none                        // none, a word that needs the type around it
 println(a.is(some), " ", b.is(none))     // true true
 println(a.some)                          // 3; of none, the program ends with a message
 println(a ?? 0, " ", b ?? -1)            // the value, or the default: 3 -1
@@ -30,13 +30,13 @@ case some: println(a.some)
 case none: println("absent")
 }
 if let v = a { println(v) } else { println("absent") }   // binds the value when present (#74)
-let find(xs:$[i64]^, v:i64):i64? {       // a result that may be absent
+let find(xs:$[int64]^, v:int64):int64? {       // a result that may be absent
     for i in 0..<xs^.count { if xs^[i] == v { return i } }
     return none
 }
 var p:point? = {1, 2}                    // the T's initializer, wrapped; so is return {1, 2} (#77)
-var r = Optional<i64>(4)                 // explicit: some(4); Optional<i64>() is none
-var s = Optional<i64>.some(4)            // the cases by the type's name; Optional<i64>.none
+var r = Optional<int64>(4)                 // explicit: some(4); Optional<i64>() is none
+var s = Optional<int64>.some(4)            // the cases by the type's name; Optional<i64>.none
 ```
 
 - **The type** is `T?`, or `Optional<T>`, for any value type: `i64?`,

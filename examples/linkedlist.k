@@ -5,19 +5,19 @@
 #import <stdlib.h> as C
 
 struct node {
-    value: i64
+    value: int64
     next:  node^       // a field, read as n^.next (n.next would be n + 1)
 }
 
 struct list {
     head:   node^
-    length: i64
+    length: int64
 }
 
 extend list {
     // add a value at the front: a function of the type (#111), since it changes
     // the list through a pointer, while a method's self is a let (#138)
-    static let push(l:Self^, value:i64):() {
+    static let push(l:Self^, value:int64):() {
         let n := malloc(sizeof(node)) as node^
         if n == nullptr {
             exit(1)
@@ -29,9 +29,9 @@ extend list {
     }
 
     // remove the front value; the list must not be empty
-    static let pop(l:Self^):i64 {
+    static let pop(l:Self^):int64 {
         let first:node^ := l^.head
-        let value:int64 = first^.value      // int64 is i64 by its full name (#151)
+        let value:int64 = first^.value
         l^.head := first^.next
         l^.length -= 1
         free(first)
@@ -59,7 +59,7 @@ extend list {
     }
 
     // for n in head walks the nodes along next, up to nullptr
-    let sum():i64 {
+    let sum():int64 {
         var total = 0
         for n in .head {                                  // .head is self.head
             total += n^.value
@@ -67,7 +67,7 @@ extend list {
         return total
     }
 
-    let contains(value:i64):bool {
+    let contains(value:int64):bool {
         for n in .head {
             if n^.value == value {
                 return true
@@ -89,7 +89,7 @@ extend list {
     }
 }
 
-let main():i32 {
+let main():int32 {
     var squares:list = {nullptr, 0}
     for i in 1...5 {
         list.push(&squares, i * i)

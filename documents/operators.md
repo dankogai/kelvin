@@ -74,7 +74,7 @@ A struct or union may define `+ - * / % == != < <= > >=` and unary `-`
 (#42), as functions named by the operator and chosen by their types:
 
 ```kelvin
-struct money { cents: int64 }               // int64 is i64 by its full name (#151)
+struct money { cents: int64 }
 extend money {
     static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
     static let <(a:Self, b:Self):bool { a.cents < b.cents }

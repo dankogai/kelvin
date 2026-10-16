@@ -1,6 +1,6 @@
 // error: in the head of if, while or for, a '{' after a call starts the body
 let some(f:(int64):bool):bool { return f(1); }
-let main():i32 {
+let main():int32 {
     if some() { $0 > 0 } {
         println(1);
     }

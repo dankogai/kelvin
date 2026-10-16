@@ -46,7 +46,7 @@ write.
 #import <IO>                    // modules/IO.kh, and libkIO.a beside it
 #import <shout>                 // ./modules/shout.kh, and ./modules/libkshout.a
 
-let main():i32 {
+let main():int32 {
     IO.stdout.println("io")
     shout("modules")
     return 0
