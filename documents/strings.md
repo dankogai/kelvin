@@ -200,9 +200,18 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   - `` $`a${x}b` `` from a template, with no bound on its length.
   - `Bytes("text")`, `Bytes(n)` of n zero bytes, `Bytes(p, n)` of bytes
     and their count.
+  - `Bytes.fromBase64(text)` (#155) decodes base64, of a `cstr` or of a
+    String borrowed, `&s`: either alphabet, standard or URL-safe, with
+    or without the `=` padding, blanks skipped; a letter that is neither
+    ends the program.
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
   or a String an expression gives), `clear`, `reserve`, `compact`,
-  `copy`; a `Bytes` also `insert`, `remove` and `string()`.
+  `copy`; a `Bytes` also `insert`, `remove`, `string()` and
+  `toBase64()`.
+  - `b.toBase64()` (#155) gives the base64 text as a String, standard
+    and padded; the words `url` and `nopad`, in either order, pick the
+    URL-safe alphabet, `-` and `_` for `+` and `/`, and no `=` at the
+    end: `b.toBase64(url, nopad)`.
 - **Properties:** `count` (codepoints of a String, bytes of a Bytes),
   `cstr` (a borrow of the text), `bytes` (a String's Bytes, read only),
   `capacity`, `at` and `isUTF8` of a Bytes, `size`, `typename`.
@@ -238,6 +247,8 @@ UTF-8 are to come.
 | | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
 | | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
 | `Bytes` | `.count`, `.capacity` | the bytes held, and the room |
+| | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
+| | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not |
 | | `.at` | the bytes, a `u8^` borrow; `b[i]` is checked |
 | | `.cstr` | a borrow of the text, NUL-ended |
 | | `.isUTF8` | whether it would pass as a String |

@@ -223,3 +223,83 @@ char *kv_template_bytes_owner(char *p, size_t max, kv_bytes b) { return kv_templ
 
 /* a Bytes an expression gave, dropped as a statement */
 void kv_bytes_discard(kv_bytes v) { free(v.at); }
+
+/* ---------- Base64 (#155) ---------- */
+
+kv_string kv_bytes_base64(const kv_bytes *b, bool url, bool pad) {
+    static const char std[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    static const char web[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const char *letters = url ? web : std;
+    kv_bytes out = {0};
+    kv_bytes_reserve(&out, (b->count + 2) / 3 * 4);
+    size_t i = 0;
+    for (; i + 2 < b->count; i += 3) {
+        uint32_t v = ((uint32_t)b->at[i] << 16) | ((uint32_t)b->at[i + 1] << 8) | b->at[i + 2];
+        kv_bytes_push(&out, (uint8_t)letters[v >> 18]);
+        kv_bytes_push(&out, (uint8_t)letters[(v >> 12) & 63]);
+        kv_bytes_push(&out, (uint8_t)letters[(v >> 6) & 63]);
+        kv_bytes_push(&out, (uint8_t)letters[v & 63]);
+    }
+    if (i + 1 == b->count) {
+        uint32_t v = (uint32_t)b->at[i] << 16;
+        kv_bytes_push(&out, (uint8_t)letters[v >> 18]);
+        kv_bytes_push(&out, (uint8_t)letters[(v >> 12) & 63]);
+        if (pad)
+            kv_bytes_append(&out, "==", 2);
+    } else if (i + 2 == b->count) {
+        uint32_t v = ((uint32_t)b->at[i] << 16) | ((uint32_t)b->at[i + 1] << 8);
+        kv_bytes_push(&out, (uint8_t)letters[v >> 18]);
+        kv_bytes_push(&out, (uint8_t)letters[(v >> 12) & 63]);
+        kv_bytes_push(&out, (uint8_t)letters[(v >> 6) & 63]);
+        if (pad)
+            kv_bytes_push(&out, '=');
+    }
+    kv_string s = kv_string_from_bytes(&out);
+    kv_bytes_free(&out);
+    return s;
+}
+
+/* a letter of either alphabet as its value, -1 for a blank, -2 otherwise */
+static int kv_base64_value(uint8_t c) {
+    if (c >= 'A' && c <= 'Z')
+        return c - 'A';
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 26;
+    if (c >= '0' && c <= '9')
+        return c - '0' + 52;
+    if (c == '+' || c == '-')
+        return 62;
+    if (c == '/' || c == '_')
+        return 63;
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+        return -1;
+    return -2;
+}
+
+kv_bytes kv_bytes_from_base64(const void *p, size_t n) {
+    const uint8_t *s = p;
+    kv_bytes out = {0};
+    kv_bytes_reserve(&out, n / 4 * 3 + 2);
+    uint32_t acc = 0;
+    int bits = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '=')
+            break; /* the padding, and nothing after it */
+        int v = kv_base64_value(s[i]);
+        if (v == -1)
+            continue;
+        if (v < 0) {
+            kv_bytes_free(&out);
+            kv_bytes_fail("Bytes.fromBase64 of text that is not base64");
+        }
+        acc = (acc << 6) | (uint32_t)v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            kv_bytes_push(&out, (uint8_t)((acc >> bits) & 0xFF));
+        }
+    }
+    return out;
+}
+
+kv_bytes kv_bytes_from_base64_text(const void *s) { return s ? kv_bytes_from_base64(s, strlen(s)) : (kv_bytes){0}; }

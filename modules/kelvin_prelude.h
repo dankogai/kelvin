@@ -86,6 +86,12 @@ uint32_t kv_utf8_next(const uint8_t **p);
 kv_string kv_string_new(void);
 kv_string kv_string_text(const void *s);
 kv_string kv_string_from_bytes(const kv_bytes *b);
+/* Base64 (#155): b.toBase64(url, nopad) and Bytes.fromBase64(text), which takes
+   either alphabet, with or without padding, and skips blanks; a letter that is
+   neither ends the program */
+kv_string kv_bytes_base64(const kv_bytes *b, bool url, bool pad);
+kv_bytes kv_bytes_from_base64(const void *p, size_t n);
+kv_bytes kv_bytes_from_base64_text(const void *s);
 kv_string kv_string_copy(const kv_string *s);
 kv_string kv_string_take(kv_string *s);
 void kv_string_free(kv_string *s);

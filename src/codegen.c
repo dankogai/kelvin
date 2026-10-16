@@ -545,6 +545,13 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "attr_set") && e->target) /* v.x = y through x's setter (#132) */
             return strfmt("%s(&(%s), %s)", method_cname(e->target), expr(e->a), expr(e->items.data[0]));
+        if (e->op && !strcmp(e->op, "bytes_from_base64")) { /* Bytes.fromBase64(text) (#155) */
+            Expr *arg = e->items.data[0];
+            if (!strcmp(e->text, "string"))
+                return strfmt("({ const kv_string *_kv_s = %s; kv_bytes_from_base64(kv_bytes_cstr(&_kv_s->b), _kv_s->b.count); })",
+                              expr(arg));
+            return strfmt("kv_bytes_from_base64_text(%s)", expr(arg));
+        }
         if (e->op && !strcmp(e->op, "bytes")) { /* Bytes(...) (#54) */
             if (!e->items.len)
                 return "kv_bytes_new()";
@@ -1056,6 +1063,16 @@ static char *expr_bare(Expr *e) {
             char *recv = strfmt("&%s", expr(e->a));
             if (!strcmp(e->text, "string"))
                 return strfmt("kv_string_from_bytes(%s)", recv);
+            if (!strcmp(e->text, "toBase64")) { /* (#155): the words url and nopad */
+                bool url = false, pad = true;
+                for (int i = 0; i < e->items.len; i++) {
+                    if (!strcmp(((Expr *)e->items.data[i])->text, "url"))
+                        url = true;
+                    else
+                        pad = false;
+                }
+                return strfmt("kv_bytes_base64(%s, %s, %s)", recv, url ? "true" : "false", pad ? "true" : "false");
+            }
             if (!strcmp(e->text, "append"))
                 return strfmt("KV_BYTES_APPEND(%s, %s)", recv, expr(e->items.data[0]));
             if (!strcmp(e->text, "insert"))

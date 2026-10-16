@@ -1824,6 +1824,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"append", 1, true, "bsa"}, {"insert", 2, true, "ba"}, {"remove", 2, true, "ba"},
                     {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
                     {"copy", 0, false, "bsadt"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
+                    {"toBase64", -1, false, "b"},
                     {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
                     {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
@@ -1841,8 +1842,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (which < 0)
                     error_at(name->pos, ok == 'b'
                                             ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, "
-                                              "compact, copy and string, and the properties count, capacity, at, cstr "
-                                              "and isUTF8"
+                                              "compact, copy, string and toBase64, and the properties count, capacity, "
+                                              "at, cstr and isUTF8"
                                         : ok == 's'
                                             ? "a String has no method '%s': append, clear, reserve, compact and copy, "
                                               "and the properties count, bytes and cstr"
@@ -1890,6 +1891,19 @@ static Expr *parse_postfix_ops(Expr *e) {
                              methods[which].arity == 1 ? "" : "s");
                 if (ok == 'i' && (!strcmp(member, "seek") || !strcmp(member, "kill"))) /* a bool: whether it could (#84, #91) */
                     x->is_bool = true;
+                if (ok == 'b' && !strcmp(member, "toBase64")) {
+                    /* b.toBase64(url, nopad) (#155): the words, in either order */
+                    if (x->items.len > 2)
+                        error_at(name->pos, "'.toBase64' takes the words url and nopad, in either order, or nothing");
+                    for (int i = 0; i < x->items.len; i++) {
+                        Expr *w = x->items.data[i];
+                        if (w->kind != E_IDENT || (strcmp(w->text, "url") && strcmp(w->text, "nopad")) ||
+                            (i == 1 && !strcmp(w->text, ((Expr *)x->items.data[0])->text)))
+                            error_at(w->pos, "'.toBase64' takes the words url and nopad, in either order, or nothing: "
+                                             "url for the URL-safe alphabet, nopad for no '=' at the end");
+                    }
+                    x->type = base_type("String", name->pos);
+                }
                 if (ok == 'i') { /* the OS's work on its path (#101): the arguments by kind, and what each gives */
                     static const struct { const char *name, *args, *gives; } ops[] = {
                         {"glob", "t", "listdir"}, {"chmod", "i", "bool"},   {"chown", "ii", "bool"}, {"truncate", "i", "bool"},
@@ -3014,6 +3028,41 @@ static Expr *parse_primary(void) {
         e->type = base_type("IO", t->pos);
         return e;
     }
+    if (is_kw(t, "Bytes") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
+        !strcmp(peek_at(2)->text, "fromBase64") && is_p(peek_at(3), "(")) {
+        /* Bytes.fromBase64(text) (#155): of a cstr, or of a String borrowed,
+           &s; either alphabet, the padding optional */
+        advance();
+        advance();
+        advance();
+        advance();
+        Expr *e = new_expr(E_CALL, t->pos);
+        e->a = new_expr(E_IDENT, t->pos);
+        e->a->text = "Bytes.fromBase64";
+        e->op = "bytes_from_base64";
+        bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = false;
+        if (is_p(peek(), ")"))
+            error_at(peek()->pos, "Bytes.fromBase64 takes text, a cstr, or a String borrowed, '&s'");
+        Expr *arg = parse_assign();
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        expect_p(")");
+        Type *at = value_type(arg);
+        bool borrow = arg->kind == E_PREFIX && !strcmp(arg->op, "&") && is_string(value_type(arg->a));
+        if (borrow)
+            e->text = "string";
+        else if (is_text_expr(arg) || (at && is_cstr(at)))
+            e->text = "text";
+        else if (at && is_string(at))
+            error_at(arg->pos, "Bytes.fromBase64 of a String takes a borrow: write '&%s'",
+                     arg->kind == E_IDENT ? arg->text : "s");
+        else
+            error_at(arg->pos, "Bytes.fromBase64 takes text, a cstr, or a String borrowed, '&s', and this is %s",
+                     at ? kelvin_type(at) : "no text");
+        list_push(&e->items, arg);
+        return e;
+    }
     if ((is_kw(t, "Bytes") || is_kw(t, "String")) && is_p(peek2(), "(")) {
         /* Bytes(), Bytes(n), Bytes(text), Bytes(&b), Bytes(p, n) (#54);
            String(), String(text), String(&b) of a Bytes, validated (#55) */
@@ -3942,7 +3991,7 @@ static Type *value_type_of(Expr *e) {
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
-        if (e->op && !strcmp(e->op, "bytes")) /* Bytes(...) (#54) */
+        if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64"))) /* Bytes(...) (#54, #155) */
             return base_type("Bytes", e->pos);
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return base_type("String", e->pos);
@@ -3994,8 +4043,9 @@ static Type *value_type_of(Expr *e) {
     }
     case E_METHOD: {
         if (e->op && !strcmp(e->op, "bytes")) /* a Bytes method (#54): copy gives a Bytes, string a String */
-            return !strcmp(e->text, "copy") ? base_type("Bytes", e->pos)
-                   : !strcmp(e->text, "string") ? base_type("String", e->pos) : NULL;
+            return !strcmp(e->text, "copy")                                         ? base_type("Bytes", e->pos)
+                   : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") ? base_type("String", e->pos)
+                                                                                : NULL;
         if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy gives a String */
             return !strcmp(e->text, "copy") ? base_type("String", e->pos) : NULL;
         if (e->op && !strcmp(e->op, "case_is")) /* v.is(n) (#61) */

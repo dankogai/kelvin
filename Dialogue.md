@@ -4294,3 +4294,20 @@ attribute_static_value.k, `static let rect.unit:rect`, now
 `static let rect.unit:Self`, its message unchanged.
 
 There are 755 tests, and all pass with clang and with gcc 15.
+
+### 198. Base64 in the prelude
+
+> Add Base64 handler in the prelude: `Bytes.fromBase64()` takes `cstr`
+> or `String` and return `Bytes`. Padding can be omitted and URL-safe
+> versions are accepted. `b.toBase64()` that returns `String`. You can
+> choose with or without paddings, ordinary or URL-safe. cf.
+> https://en.wikipedia.org/wiki/Base64
+
+**Claude** asked how the options are spelled, and the user chose the
+words. #155 adds `b.toBase64()`, standard and padded, with `url` and
+`nopad` in either order, and `Bytes.fromBase64(text)` of a `cstr` or a
+String borrowed, `&s`, which takes either alphabet, with or without
+padding, and skips blanks, both in `libkelvin`, runtime/bytes.c.
+Details are provisional P167.
+
+There are 758 tests, and all pass with clang and with gcc 15.

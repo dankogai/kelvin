@@ -58,6 +58,8 @@ So far the changes from C are:
 - `print()` and `println()` come from a small prelude in `libkelvin`, so
   `println("n = ", n)` works for any type with no import
 - every type can have methods, such as `let point.area():f64 { ... }`
+- `Bytes` and `String` are owned text on the heap, with
+  `b.toBase64(url, nopad)` and `Bytes.fromBase64(text)` built in
 - every number, bool, pointer and Kelvin struct has its text as `x.cstr`
   - a struct's is derived, as `{x: 3, y: 4}`, or defined as one template,
     `let point.cstr():cstr { `(${.x}, ${.y})` }`, where `.x` is `self.x`

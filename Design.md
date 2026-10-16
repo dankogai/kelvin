@@ -186,6 +186,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 152 | `#import <SION>`: `enum SION { nil; boolean: bool; integer: i64; number: f64; string: String; data: Bytes; date: f64; ext: Bytes; array: Array<SION>; dictionary: Array<SION>; error: String }`, a dictionary its keys and values in turn, keyed by any value; `SION.parse(text)` reads SION's text, integers in four bases, doubles with hex floats, nan and inf, Swift's escapes, `.Data`, `.Ext`, `.Date`, `[:]`, trailing commas and `//` comments; `SION.stringify(&s, space)` writes doubles as `%a`; `s["key"]` and `s[i]` give copies and set; `SION.same`, `SION.find`, `s.count` | — | `SION.parse("[0: nil, \"pi\": 0x1.921fb54442d18p+1]")` | 2026-10-16 |
 | 153 | `#import <MsgPack>`: `MsgPack.pack(&s)` packs a `SION` into MessagePack in each value's smallest form, a date as timestamp 64 or 96, an ext as its whole encoding kept; `MsgPack.unpack(&b)` reads every format, uints and float 32 included, timestamps as dates, other exts as exts, with `error` for bytes that are not MessagePack and an uint 64 past an `i64` | — | `MsgPack.unpack(&MsgPack.pack(&s))` is `s` | 2026-10-16 |
 | 154 | Reading a case's value, `v.n`, or an attribute, `v.x`, of an owner that an expression gives is an error that says to bind it first, as `.is` and `.case` were (#99): the copy would be lost with what it holds | — | `s["a"].string` is an error; `var a = s["a"]`, then `a.string` | 2026-10-16 |
+| 155 | Base64 in the prelude: `b.toBase64()` gives a String, standard and padded, and the words `url` and `nopad`, in either order, pick the URL-safe alphabet and no padding; `Bytes.fromBase64(text)` takes a `cstr` or a String borrowed, `&s`, either alphabet, with or without padding, blanks skipped, and a letter that is neither ends the program | — | `b.toBase64(url, nopad)`, `Bytes.fromBase64("TWFu")` | 2026-10-16 |
 
 Notes:
 
@@ -747,6 +748,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (155) Agreed details: "Add Base64 handler in the prelude:
+  `Bytes.fromBase64()` takes `cstr` or `String` and return `Bytes`.
+  Padding can be omitted and URL-safe versions are accepted.
+  `b.toBase64()` that returns `String`. You can choose with or without
+  paddings, ordinary or URL-safe." Claude asked how the options are
+  spelled, and the user chose words, `url` and `nopad`, read inside the
+  call as `.is(case)` reads a case. A String goes in as a borrow,
+  `&s`, as the prelude's `String(&b)` takes one, so that nothing moves;
+  text that is not base64 ends the program, as `b.string()` of bytes
+  that are not UTF-8 does, while blanks are skipped (P167).
 
 - (154) Agreed details: found by ASan on the tests of #152: `s[0].string`
   compiled, reading the case of the copy a subscript gives, and the
@@ -1627,6 +1639,7 @@ says "as agreed".
 | P164 | Details of #152 | `["a":1,0:nil]` is `SION.dictionary` of four values, `string("a")`, `integer(1)`, `integer(0)`, `nil`; `s["a"]` is `SION__subscript__cstr(&s, "a")`, a copy | modules/SION.k follows JSON.k: a reader struct and functions of the type; a collection is a dictionary where `:` follows its first value; a moved owner that a second branch would take is assigned anew in the first, since the move check is flow-insensitive; `SION.same` compares member by member, and the subscripts copy and copy in, since a setter's value is a borrow |
 | P165 | Details of #153 | `MsgPack.pack` of `.Date(1.5)` is `d7 ff 77 35 94 00 00 00 00 01`, the nanoseconds shifted 34 over the seconds | modules/MsgPack.k: `struct MsgPack { packed: Bytes }` is the functions' name only; a double's bits go through `memcpy`; counts take the fix byte, else the 8-, 16- or 32-bit code of the kind; signed ints are sign-extended by a shift; an ext's reader starts from its format byte so that the ext keeps its whole encoding |
 | P166 | Details of #154 | `println(s["a"].integer)` compiled and leaked the copy `s["a"]` gives; now it is the error `.is` gives | the checks of `.is` and `.case` in the member parse, `is_owner(value_type(e)) && !owner_place(e)`, now guard the read of a case's value and of an attribute too; ASan on the SION tests showed the leak |
+| P167 | Details of #155 | `b.toBase64(url)` is `kv_bytes_base64(&b, true, true)`, and `Bytes.fromBase64(&s)` reads the String's bytes through `kv_bytes_from_base64(p, n)` | runtime/bytes.c holds the two, declared by kelvin_prelude.h; the parser lists `toBase64` among a Bytes's methods, reading its arguments as the two words, and reads `Bytes.fromBase64(` before the converters, taking text or `&s`; a String place without `&` is an error that says to borrow it |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
