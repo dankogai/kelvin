@@ -138,7 +138,7 @@ for m in JSON math; do
         bad "modules/$m.k" "builds with diagnostics"
     fi
 done
-printf '%s\n' '#import <math>' 'let main():i32 { println(abs(c64(3.0, 4.0)), " ", conj(c64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
+printf '%s\n' '#import <math>' 'let main():int32 { println(abs(c64(3.0, 4.0)), " ", conj(c64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
 printf '%s\n' '5.0 {real: 1, imag: -2}' > "$tmp/libs/cx.expected"
 for f in tests/run/json_parse.k tests/run/json_stringify.k "$tmp/libs/cx.k"; do
     case $f in
@@ -167,7 +167,7 @@ cp modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/libkelvin.a modu
     modules/*.k modules/*.kh "$tmp/inst/lib/kelvin/modules/"
 sed -n 's|^[[:space:]]*// out: \{0,1\}||p' examples/complex.k > "$tmp/expected"
 # a program that imports IO, whose IO.kh and libkIO.a are found as the installed modules/ (#143, #144)
-printf '%s\n' '#import <IO>' 'let main():i32 { IO.stdout.println("io"); return 0 }' > "$tmp/away/io.k"
+printf '%s\n' '#import <IO>' 'let main():int32 { IO.stdout.println("io"); return 0 }' > "$tmp/away/io.k"
 for how in installed KELVIN_HOME; do
     if [ "$how" = installed ]; then
         set -- env -u KELVIN_HOME "$tmp/inst/bin/kelvinc"

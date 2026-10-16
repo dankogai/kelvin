@@ -4219,3 +4219,16 @@ openings, in grammar.md since #151, in versusC.md's table against C's
 README's list of the types.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 193. The full names anywhere else
+
+> now rewrite the examples and modules with the full names too. and
+> anywhere else that may apply.
+
+**Claude** found the examples and modules done since #188, every one
+with a full name, and `IO.kh` and `OS.kh` declaring no type; the two
+programs tests/run.sh writes for its library and installation checks
+now give `int32` from `main`. The documents, README, run tests and
+error tests had theirs since #186, #187 and #192.
+
+There are 749 tests, and all pass with clang and with gcc 15.
