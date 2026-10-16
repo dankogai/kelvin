@@ -4311,3 +4311,32 @@ padding, and skips blanks, both in `libkelvin`, runtime/bytes.c.
 Details are provisional P167.
 
 There are 758 tests, and all pass with clang and with gcc 15.
+
+### 199. UnicodeData: normalization, graphemes and the database
+
+> let's add two big modules for `String`: `<RegExp>` yes, regular
+> expression! add `$/regexp/` literal to support it but you still need
+> to `#import <RegExp>` to use it. support Unicode strings to the level
+> modern JS does PLUS `\X` that matches a grapheme cluster.
+> `<UnicodeData>` like python's `unicodedata` which adds features
+> missing from the prelude String: `.graphemes` which returns a stream
+> of graphemes, unlike String's default which returns codepoints;
+> `.normalize()` which returns the normalized String by nfc, nfd, nfkc,
+> and nfkd
+
+**Claude** asked where the data comes from, what `.graphemes` gives,
+and how far to go at once; the user chose the database downloaded from
+unicode.org, an `Array<String>`, and all of it in two steps. #156 is
+the first: tools/ucd/ holds Unicode 18.0.0, tools/gen_unicode.py makes
+the tables, runtime/unicode_data.c normalizes, segments and maps the
+case over them, and modules/UnicodeData.k, written in Kelvin, is built
+by `make` with `kelvinc --lib` into `UnicodeData.kh` and
+`libkUnicodeData`: `s.normalize(nfc)`, `s.graphemes`, `s.upper()`,
+`s.lower()`, `s.fold()`, and a `uchr`'s `.name`, `.category`,
+`.combining`, the case and the decompositions. The database's own
+conformance tests pass whole. ASan found a String literal leaking
+under `.fold()`, so a method of the program on an owner that an
+expression gives is an error now, as a case read is. `<RegExp>` and
+`$/.../` are the next step. Details are provisional P168.
+
+There are 762 tests, and all pass with clang and with gcc 15.

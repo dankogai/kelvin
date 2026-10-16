@@ -142,6 +142,10 @@ So far the changes from C are:
   value as a key: `SION.parse(text)`, `s["key"]`, `SION.stringify(&s, 2)`;
   `#import <MsgPack>` packs one into MessagePack, `MsgPack.pack(&s)`,
   and back, `MsgPack.unpack(&b)`
+- `#import <UnicodeData>` is the Unicode Character Database:
+  `s.normalize(nfc)`, `s.graphemes`, the clusters a reader sees as
+  characters, `s.upper()`, `s.fold()`, `uchr("é").name` and
+  `.category` (#156)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

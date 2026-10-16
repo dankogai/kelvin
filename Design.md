@@ -187,6 +187,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 153 | `#import <MsgPack>`: `MsgPack.pack(&s)` packs a `SION` into MessagePack in each value's smallest form, a date as timestamp 64 or 96, an ext as its whole encoding kept; `MsgPack.unpack(&b)` reads every format, uints and float 32 included, timestamps as dates, other exts as exts, with `error` for bytes that are not MessagePack and an uint 64 past an `i64` | — | `MsgPack.unpack(&MsgPack.pack(&s))` is `s` | 2026-10-16 |
 | 154 | Reading a case's value, `v.n`, or an attribute, `v.x`, of an owner that an expression gives is an error that says to bind it first, as `.is` and `.case` were (#99): the copy would be lost with what it holds | — | `s["a"].string` is an error; `var a = s["a"]`, then `a.string` | 2026-10-16 |
 | 155 | Base64 in the prelude: `b.toBase64()` gives a String, standard and padded, and the words `url` and `nopad`, in either order, pick the URL-safe alphabet and no padding; `Bytes.fromBase64(text)` takes a `cstr` or a String borrowed, `&s`, either alphabet, with or without padding, blanks skipped, and a letter that is neither ends the program | — | `b.toBase64(url, nopad)`, `Bytes.fromBase64("TWFu")` | 2026-10-16 |
+| 156 | `#import <UnicodeData>`, the Unicode Character Database as a module written in Kelvin over C tables (Unicode 18.0.0, from tools/ucd/): `s.normalize(nfc)`, `nfd`, `nfkc`, `nfkd`, the words of `enum NormalForm`; `s.graphemes`, the grapheme clusters, an `Array<String>`; `s.upper()`, `s.lower()`, `s.fold()`, the simple case mappings; a `uchr`'s `.name`, `.category`, `.isLetter` and the other classes, `.combining`, `.upper`, `.lower`, `.fold`, `.decomposition`, `.compatibility`. A method of the program on an owner that an expression gives is an error, bind it first; `kelvinc --lib M.k x.o` adds objects to the library; a user method on a String or a Bytes comes before the built-in ones | — | `s.normalize(nfc)`, `var gs = s.graphemes`, `uchr("é").name` | 2026-10-17 |
 
 Notes:
 
@@ -748,6 +749,25 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (156) Agreed details: "let's add two big modules for `String`:
+  `<RegExp>` ... and `<UnicodeData>` like python's `unicodedata` which
+  adds features missing from the prelude String: `.graphemes` which
+  returns a stream of graphemes, unlike String's default which returns
+  codepoints; `.normalize()` which returns the normalized String by
+  nfc, nfd, nfkc, and nfkd". The user chose to download the database
+  from unicode.org, `s.graphemes` as an `Array<String>`, and the whole
+  in two steps, UnicodeData first and `<RegExp>` with the `$/.../`
+  literal next, each with its tests and documents. The tables are made
+  by tools/gen_unicode.py into runtime/unicode_tables.c and
+  unicode_names.c, two-level tables of the category, the combining
+  class, the grapheme break property and the Indic conjunct break, the
+  decompositions and the composition pairs, the case maps and the
+  names; the database's own NormalizationTest.txt and
+  GraphemeBreakTest.txt are the conformance tests, read through
+  `<IO>`. ASan found `$"Straße".fold()` leaking the literal, so a
+  method of the program on an owner an expression gives is an error,
+  as #154 made a case read and an attribute (P168).
 
 - (155) Agreed details: "Add Base64 handler in the prelude:
   `Bytes.fromBase64()` takes `cstr` or `String` and return `Bytes`.
@@ -1640,6 +1660,7 @@ says "as agreed".
 | P165 | Details of #153 | `MsgPack.pack` of `.Date(1.5)` is `d7 ff 77 35 94 00 00 00 00 01`, the nanoseconds shifted 34 over the seconds | modules/MsgPack.k: `struct MsgPack { packed: Bytes }` is the functions' name only; a double's bits go through `memcpy`; counts take the fix byte, else the 8-, 16- or 32-bit code of the kind; signed ints are sign-extended by a shift; an ext's reader starts from its format byte so that the ext keeps its whole encoding |
 | P166 | Details of #154 | `println(s["a"].integer)` compiled and leaked the copy `s["a"]` gives; now it is the error `.is` gives | the checks of `.is` and `.case` in the member parse, `is_owner(value_type(e)) && !owner_place(e)`, now guard the read of a case's value and of an attribute too; ASan on the SION tests showed the leak |
 | P167 | Details of #155 | `b.toBase64(url)` is `kv_bytes_base64(&b, true, true)`, and `Bytes.fromBase64(&s)` reads the String's bytes through `kv_bytes_from_base64(p, n)` | runtime/bytes.c holds the two, declared by kelvin_prelude.h; the parser lists `toBase64` among a Bytes's methods, reading its arguments as the two words, and reads `Bytes.fromBase64(` before the converters, taking text or `&s`; a String place without `&` is an error that says to borrow it |
+| P168 | Details of #156 | `#import <UnicodeData>` reads `modules/UnicodeData.kh`, which `make` builds by `./kelvinc --lib modules/UnicodeData.k build/runtime/unicode_*.o -o modules` | `--lib` takes `.o` and `.a` files after the source and archives them into `libkM.a` and links them into the shared one; the C API is `ucd_*`, since `kv_` names are reserved in Kelvin source; the parser lets a method of the program on a String or a Bytes win over the built-in table, and `.utf32`, `.codepoint` and `.capacity` are not buffer text in an attribute's body; the enum `NormalForm` is C's, as a top-level enum of bare cases; a long table literal is compiled with `-Wno-overlength-strings` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

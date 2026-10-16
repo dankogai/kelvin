@@ -41,6 +41,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | a loop of `printf` to show an array or a struct | `println(xs)`, `println(p)`, `println(d)`: the value whole, `[1, 2]`, `{x: 1}`, `{"k": 1}`; `println(v.pretty)` indented (#123, #124) |
 | a JSON library | `#import <JSON>`; `var j = JSON.parse(text)`, `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113) |
 | a MessagePack library, and a text form of its values | `#import <SION>`, `SION.parse(text)`, `s["key"]`, `SION.stringify(&s, 2)` (#152); `#import <MsgPack>`, `MsgPack.pack(&s)`, `MsgPack.unpack(&b)` (#153) |
+| ICU, for normalization and grapheme clusters | `#import <UnicodeData>`: `s.normalize(nfc)`, `s.graphemes`, `s.upper()`, `s.fold()`, `uchr("é").name`, `.category` (#156) |
 | `int main(int argc, char **argv)` | `let main(argc:i32, argv:u8^^):i32` |
 | `struct p { int x, y; };` | `struct p { x: i32, y: i32 }` |
 | `struct p q;`, `typedef struct p p;` | `var q:p` (a tag is a type by its bare name, #29) |
@@ -122,6 +123,7 @@ Each document says so under its title. In short:
 | [json.md](json.md) | `#import <JSON>`: `JSON` as an enum with values, `JSON.parse(text)`, `JSON.stringify(&j, replacer, space)` as JS's (#113) |
 | [sion.md](sion.md) | `#import <SION>`: SION values, JSON with more, keyed by any value, `SION.parse`, `SION.stringify`, `s["key"]` (#152) |
 | [msgpack.md](msgpack.md) | `#import <MsgPack>`: `MsgPack.pack(&s)` and `MsgPack.unpack(&b)` of a `SION` (#153) |
+| [unicodedata.md](unicodedata.md) | `#import <UnicodeData>`: `s.normalize(nfc)`, `s.graphemes`, the case mappings, a `uchr`'s `.name`, `.category`, `.combining` and decompositions (#156) |
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` straight with `f.error`, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
 | [os.md](os.md) | `OS` and `SYS`: the working directory, the environment, files and directories, a shell command, the pid; the arguments, the platform, exiting |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |

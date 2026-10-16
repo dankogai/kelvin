@@ -1813,7 +1813,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                     continue;
                 }
             }
-            const char *okind = call ? builtin_owner(value_type(e)) : NULL;
+            /* a method of the program on a String or a Bytes, extend String { } (#156), before the built-in ones */
+            const char *okind = call && !method_named(e, member) ? builtin_owner(value_type(e)) : NULL;
             if (okind) {
                 char ok = owner_letter(okind);
                 /* a Bytes method (#54): append, insert, remove, clear,
@@ -2020,6 +2021,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 x->a = e;
                 x->text = member;
                 Decl *m = method_named(e, member);
+                if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) /* the receiver would be lost (#156) */
+                    error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it to a "
+                                        "variable first",
+                             member, kelvin_type(value_type(e)));
                 int arity = m && !m->variadic ? m->params.len : -1;
                 while (!is_p(peek(), ")")) {
                     int k = x->items.len;
@@ -7739,8 +7744,9 @@ static Expr *text_in_buffer(Expr *e) {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
         if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
             !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull") ||
-            !strcmp(e->text, "keys") || !strcmp(e->text, "values") || (e->op && !strcmp(e->op, "tagged")))
-            return NULL; /* .count and .isNull are numbers too (#49, #50) */
+            !strcmp(e->text, "keys") || !strcmp(e->text, "values") || !strcmp(e->text, "utf32") ||
+            !strcmp(e->text, "codepoint") || !strcmp(e->text, "capacity") || (e->op && !strcmp(e->op, "tagged")))
+            return NULL; /* .count and .isNull are numbers too (#49, #50), and a uchr's codepoint (#156) */
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
         if (strcmp(e->text, "cstr") || e->a->kind == E_STRING)

@@ -5,8 +5,8 @@ files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
 search, the layout, and the modules so far: `math.k`, `JSON.k`, `SION.k`
-and `MsgPack.k`,
-and `IO` and `OS`, each a header and a library. C headers are in
+and `MsgPack.k`, and `IO`, `OS` and `UnicodeData`, each a header and a
+library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
 **Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `c64` and `c32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
@@ -75,6 +75,10 @@ let main():int32 {
   into `libkIO` and `libkOS`, with the C headers `kIO.h` and `kOS.h`;
   a program without them links the core alone, which is why they are
   modules: one day a program may run where there is no IO.
+  - `UnicodeData` ([unicodedata.md](unicodedata.md), #156) is written in
+    Kelvin, modules/UnicodeData.k over its C tables, and `make` builds
+    it with `kelvinc --lib` into `UnicodeData.kh` and `libkUnicodeData`:
+    the example of a large module built that way.
   - `math.k` and `JSON.k` stay Kelvin sources, included where they
     are imported: `JSON.k` is the example of how a module is written in
     Kelvin. `kelvinc --lib` builds either into a `.kh` and a `libkM.a`
@@ -135,6 +139,8 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkIO.a|.dylib|.so   its library, linked by the import
     OS.kh, kOS.h          #import <OS> (#145, os.md), with SYS
     libkOS.a|.dylib|.so   its library
+    UnicodeData.kh        #import <UnicodeData> (#156, unicodedata.md), built by make from UnicodeData.k
+    kUnicodeData.h, libkUnicodeData.a|.dylib|.so   its C header and its library, the Unicode tables
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
@@ -164,6 +170,15 @@ the functions of `math.h` for `f64` and `f32`, each a method too,
 `x.sin()`, the constants as attributes of the type, `f64.pi`, and `c64`
 and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
+
+## UnicodeData: `modules/UnicodeData.k`
+
+`#import <UnicodeData>` (#156) brings in the Unicode Character Database:
+`s.normalize(nfc)`, `nfd`, `nfkc` and `nfkd`, `s.graphemes`, the
+grapheme clusters as an `Array<String>`, bound before it is walked, the case mappings `s.upper()`,
+`s.lower()` and `s.fold()`, and a `uchr`'s `.name`, `.category`,
+`.combining`, `.decomposition` and the rest: see
+[unicodedata.md](unicodedata.md).
 
 ## SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 

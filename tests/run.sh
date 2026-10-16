@@ -163,7 +163,7 @@ done
 # kelvinc and through KELVIN_HOME, from a directory without ./modules (#46)
 mkdir -p "$tmp/inst/bin" "$tmp/inst/lib/kelvin/modules" "$tmp/away"
 cp "$(command -v "$kelvinc_path")" "$tmp/inst/bin/kelvinc"
-cp modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/libkelvin.a modules/libkIO.a modules/libkOS.a \
+cp modules/kelvin_prelude.h modules/k*.h modules/libkelvin.a modules/libk*.a \
     modules/*.k modules/*.kh "$tmp/inst/lib/kelvin/modules/"
 sed -n 's|^[[:space:]]*// out: \{0,1\}||p' examples/complex.k > "$tmp/expected"
 # a program that imports IO, whose IO.kh and libkIO.a are found as the installed modules/ (#143, #144)

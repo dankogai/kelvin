@@ -14,7 +14,10 @@ This document says how Kelvin spells each kind, makes it, reads it,
 walks it, compares it and prints it, and where it lives; the ownership
 rules of `String` and `Bytes` are in [ownership.md](ownership.md).
 `toString()` and `fmt()` stay shelved (#22): `.cstr`, a template literal
-and `` $`...` `` do their work.
+and `` $`...` `` do their work. What the Unicode Character Database
+adds, `s.normalize(nfc)`, `s.graphemes`, the case mappings and a
+codepoint's name and category, is a module, `#import <UnicodeData>`
+(#156): [unicodedata.md](unicodedata.md).
 
 **Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `Bytes`, `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
 
@@ -263,6 +266,7 @@ UTF-8 are to come.
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | as a Bytes's |
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
+| | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
 | | `==`, `!=` | by the bytes |
 | `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |

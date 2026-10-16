@@ -30,7 +30,8 @@ static void usage(FILE *f) {
             "  --no-line   omit #line directives from the generated C\n"
             "  --lib       build the file into a module (#146): M.kh, its declarations, and\n"
             "              libkM.a, with libkM.dylib or .so for C (#147), in ./modules or\n"
-            "              the directory given by -o\n"
+            "              the directory given by -o; .o and .a files after the source go\n"
+            "              into the library too (#156)\n"
             "  --version   print the version\n"
             "\n"
             "environment:\n"
@@ -276,6 +277,13 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
     return all;
 }
 
+static List lib_objects; /* --lib: the .o and .a files given after the source, into libkM too (#156) */
+
+static bool ends_with(const char *s, const char *suffix) {
+    size_t n = strlen(s), m = strlen(suffix);
+    return n >= m && !strcmp(s + n - m, suffix);
+}
+
 /* the shared library beside a static one, libx.dylib or libx.so for
    libx.a, where there is one; else the static one */
 static char *shared_of(const char *a) {
@@ -311,6 +319,8 @@ static int link_shared(const char *cc, const char *lib_dir, const char *lib_name
     list_push(&args, "-o");
     list_push(&args, so);
     list_push(&args, (void *)obj);
+    for (int i = 0; i < lib_objects.len; i++)
+        list_push(&args, lib_objects.data[i]);
     if (is_dir("./modules"))
         list_push(&args, "-L./modules");
     list_push(&args, strfmt("-L%s", rt_inc));
@@ -380,6 +390,8 @@ int main(int argc, char **argv) {
         } else if (a[0] == '-') {
             usage(stderr);
             fatal("unknown option '%s'", a);
+        } else if (src_path && lib && (ends_with(a, ".o") || ends_with(a, ".a"))) {
+            list_push(&lib_objects, a); /* an object or an archive the library holds too (#156) */
         } else if (src_path) {
             fatal("only one source file is supported for now");
         } else {
@@ -523,8 +535,16 @@ int main(int argc, char **argv) {
     if (lib) {
         char *a = strfmt("%s/libk%s.a", lib_dir, lib_name);
         unlink(a);
-        char *ar_argv[] = {"ar", "rcs", a, obj_path, NULL};
-        rc = run(ar_argv, verbose);
+        List ar_args = {0};
+        list_push(&ar_args, "ar");
+        list_push(&ar_args, "rcs");
+        list_push(&ar_args, a);
+        list_push(&ar_args, obj_path);
+        for (int i = 0; i < lib_objects.len; i++)
+            if (ends_with(lib_objects.data[i], ".o"))
+                list_push(&ar_args, lib_objects.data[i]);
+        list_push(&ar_args, NULL);
+        rc = run((char **)ar_args.data, verbose);
         if (rc == 0) /* and the shared libkM, for C and other toolchains (#147) */
             rc = link_shared(cc_argv[0], lib_dir, lib_name, obj_path, rt_inc, rt_lib, verbose);
         unlink(obj_path);
