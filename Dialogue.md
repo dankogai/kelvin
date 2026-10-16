@@ -4164,3 +4164,14 @@ each with a note that it is the short name's. JSON.k and math.k, the
 modules, build into libraries as before, and the outputs are unchanged.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 189. The examples and modules with `.x` and `Self`, again
+
+> now rewrite the examples and modules with `.x` and `Self` too
+
+**Claude** found them rewritten since #170, #176, #177 and #178, and
+one spot left: the literal annotations of `extend f32` in math.k,
+`3.14:f32`, which now read `:Self`, as the block's other types do. The
+`self.` the scan showed were comments saying what `.x` is.
+
+There are 749 tests, and all pass with clang and with gcc 15.

@@ -587,14 +587,14 @@ extend f64 {
 
 extend f32 {
     // the constants of math.h, as attributes of the type (#148): f32.pi, f32.infinity
-    static let pi:Self = 3.141592653589793:f32
-    static let tau:Self = 6.283185307179586:f32
-    static let e:Self = 2.718281828459045:f32
-    static let ln2:Self = 0.6931471805599453:f32
-    static let ln10:Self = 2.302585092994046:f32
-    static let log2e:Self = 1.4426950408889634:f32
-    static let log10e:Self = 0.4342944819032518:f32
-    static let sqrt2:Self = 1.4142135623730951:f32
+    static let pi:Self = 3.141592653589793:Self
+    static let tau:Self = 6.283185307179586:Self
+    static let e:Self = 2.718281828459045:Self
+    static let ln2:Self = 0.6931471805599453:Self
+    static let ln10:Self = 2.302585092994046:Self
+    static let log2e:Self = 1.4426950408889634:Self
+    static let log10e:Self = 0.4342944819032518:Self
+    static let sqrt2:Self = 1.4142135623730951:Self
     static let infinity:Self = INFINITY
     static let nan:Self = NAN
     static let epsilon:Self = FLT_EPSILON
@@ -644,7 +644,7 @@ extend f32 {
     let isnan:bool { self != self }
     let isinf:bool { self == Self.infinity || self == -Self.infinity }
     let isfinite:bool { !.isnan && !.isinf }
-    let i:c32 { c32(0.0:f32, self) }                 // x rotated a quarter turn: c32(0, x)
+    let i:c32 { c32(0.0:Self, self) }                 // x rotated a quarter turn: c32(0, x)
 }
 
 extend c64 {
