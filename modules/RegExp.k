@@ -1,0 +1,196 @@
+// modules/RegExp.k - regular expressions (#157), JS's with the u flag, over
+// Kelvin's Strings: `$/pattern/flags` is a literal, read where this module is
+// imported, and RegExp.compile(pattern, flags) the same from text. Written in
+// Kelvin over libkRegExp, runtime/regexp.c, with libkUnicodeData under it for
+// \p{...}, the case folding of the i flag and \X, a grapheme cluster; built by
+// kelvinc --lib into RegExp.kh and the library that #import <RegExp> links.
+//
+//     #import <RegExp>
+//     let re = $/(\d{4})-(?<month>\d\d)/g
+//     var s = $"2026-10-17 and 2027-01-02"
+//     println(re.test(&s))                              // true
+//     var ms = s.match(&re)                             // every match, with the g flag
+//     for m in ms { println(m[0], " ", m[1], " ", m["month"], " ", m.start) }
+//     var t = s.replace(&re, "$<month>/$1")             // "10/2026 and 01/2027"
+//     var parts = s.split(&$/\s+/)                      // hmm: bind the literal first
+#import <kRegExp.h> as C
+#import <string.h> as C
+#import <UnicodeData>
+
+// the engine's functions, by their C names
+let rx_compile(pattern:cstr, flags:cstr):Bytes
+let rx_groups(prog:const Bytes^):i64
+let rx_group_name(prog:const Bytes^, i:i64):cstr
+let rx_group_named(prog:const Bytes^, name:cstr):i64
+let rx_flag(prog:const Bytes^, flag:u8):bool
+let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i64^):bool
+let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
+let rx_slice(s:const String^, lo:i64, hi:i64):String
+let rx_cp_index(s:const String^, byte:i64):i64
+let rx_byte_index(s:const String^, cp:i64):i64
+let rx_next(s:const String^, byte:i64):i64
+
+// a compiled pattern: its program, an owner, with the text it came from
+struct RegExp {
+    program: Bytes
+    source: String
+    flags: String
+}
+
+// one match: the text of the whole and of each group, "" where a group took
+// no part, their codepoint offsets, -1 where none, and the groups' names
+struct Match {
+    text: Array<String>
+    at: Array<i64>
+    names: Array<String>
+}
+
+extend RegExp {
+    // RegExp.compile("a+", "gi"), what $/a+/gi is; a pattern that is not
+    // one ends the program, saying what is wrong and where
+    static let compile(pattern:cstr, flags:cstr):Self {
+        var re:Self = {.program = rx_compile(pattern, flags), .source = String(pattern), .flags = String(flags)}
+        return re
+    }
+    static let compile(pattern:const String^, flags:cstr):Self { Self.compile(pattern^.cstr, flags) }
+
+    let groups:i64 { rx_groups(&self.program) }               // the capturing groups
+    let global:bool { rx_flag(&self.program, 'g') }
+    let sticky:bool { rx_flag(&self.program, 'y') }
+    let ignoreCase:bool { rx_flag(&self.program, 'i') }
+    let multiline:bool { rx_flag(&self.program, 'm') }
+    let dotAll:bool { rx_flag(&self.program, 's') }
+
+    // the match found from byte offset from, as a Match
+    static let matchAt(re:const RegExp^, s:const String^, caps:const i64^):Match {
+        var m:Match = {.text = Array<String>(), .at = Array<i64>(), .names = Array<String>()}
+        let n:i64 = rx_groups(&re^.program) + 1
+        for g in 0..<n {
+            let lo = caps[2 * g]
+            let hi = caps[2 * g + 1]
+            if lo < 0 {
+                m.text += String("")
+                m.at += -1
+                m.at += -1
+            } else {
+                m.text += rx_slice(s, lo, hi)
+                m.at += rx_cp_index(s, lo)
+                m.at += rx_cp_index(s, hi)
+            }
+            m.names += String(rx_group_name(&re^.program, g))
+        }
+        return m
+    }
+
+    // does s have a match? at its start alone with the y flag
+    let test(s:const String^):bool {
+        var caps:[i64](256)
+        return rx_search(&self.program, s, 0, self.sticky, caps)
+    }
+
+    // the first match at or after codepoint from, or none
+    let execFrom(s:const String^, from:i64):Match? {
+        var caps:[i64](256)
+        if !rx_search(&self.program, s, rx_byte_index(s, from), self.sticky, caps) { return none }
+        return Self.matchAt(&self, s, caps)
+    }
+
+    // the first match, or none
+    let exec(s:const String^):Match? { self.execFrom(s, 0) }
+
+    // the codepoint offset of the first match, or -1
+    let search(s:const String^):i64 {
+        var caps:[i64](256)
+        if !rx_search(&self.program, s, 0, self.sticky, caps) { return -1 }
+        return rx_cp_index(s, caps[0])
+    }
+
+    // every match with the g flag, else the first alone: an Array of them
+    let match(s:const String^):Array<Match> {
+        var out:Array<Match> = Array<Match>()
+        var caps:[i64](256)
+        var from:i64 = 0
+        while rx_search(&self.program, s, from, self.sticky, caps) {
+            out += Self.matchAt(&self, s, caps)
+            if !self.global { break }
+            from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])   // an empty match moves on by one
+            if caps[1] >= s^.bytes^.count as i64 && caps[1] == caps[0] { break }
+        }
+        return out
+    }
+
+    // s with each match (the first alone without g) replaced by with, where
+    // $& is the match, $1 and $<name> a group, $` and $' the text around, $$ a $
+    let replace(s:const String^, with:cstr):String {
+        var out = String("")
+        var caps:[i64](256)
+        var from:i64 = 0
+        var copied:i64 = 0
+        while from <= s^.bytes^.count as i64 && rx_search(&self.program, s, from, self.sticky, caps) {
+            out += rx_slice(s, copied, caps[0])
+            rx_expand(&self.program, s, caps, with, &out)
+            copied = caps[1]
+            if !self.global { break }
+            if caps[1] > caps[0] {
+                from = caps[1]
+            } else {
+                if caps[1] >= s^.bytes^.count as i64 { break }   // an empty match at the end: done
+                from = rx_next(s, caps[1])
+                out += rx_slice(s, caps[1], from)                // the codepoint it moves over
+                copied = from
+            }
+        }
+        out += rx_slice(s, copied, s^.bytes^.count as i64)
+        return out
+    }
+
+    // s cut at each match, JS's split: the pieces between, an empty match
+    // between codepoints
+    let split(s:const String^):Array<String> {
+        var out:Array<String> = Array<String>()
+        var caps:[i64](256)
+        let n = s^.bytes^.count as i64
+        if n == 0 {
+            if !rx_search(&self.program, s, 0, true, caps) { out += String("") }
+        } else {
+            var piece:i64 = 0
+            var from:i64 = 0
+            while from < n {
+                if !rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from = rx_next(s, from)
+                    continue
+                }
+                if caps[1] == caps[0] && caps[0] >= n { break }
+                out += rx_slice(s, piece, caps[0])
+                piece = caps[1]
+                from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])
+            }
+            out += rx_slice(s, piece, n)
+        }
+        return out
+    }
+}
+
+extend Match {
+    let count:i64 { self.text.count as i64 }                   // the groups and the whole
+    let start:i64 { self.at[0] }                               // the codepoint offset of the match
+    let end:i64 { self.at[1] }
+    let [](i:i64):String { self.text[i].copy() }               // the text of group i, 0 the whole
+    let [](name:cstr):String {                                 // the text of a named group, "" where there is none
+        for i in 0..<self.names.count {
+            if strcmp(self.names[i].cstr, name) == 0 { return self.text[i].copy() }
+        }
+        return String("")
+    }
+    let has(i:i64):bool { self.at[2 * i] >= 0 }                // did group i take part?
+    let startOf(i:i64):i64 { self.at[2 * i] }
+    let endOf(i:i64):i64 { self.at[2 * i + 1] }
+}
+
+extend String {
+    let test(re:const RegExp^):bool { re^.test(&self) }
+    let match(re:const RegExp^):Array<Match> { re^.match(&self) }
+    let search(re:const RegExp^):i64 { re^.search(&self) }
+    let replace(re:const RegExp^, with:cstr):String { re^.replace(&self, with) }
+    let split(re:const RegExp^):Array<String> { re^.split(&self) }
+}

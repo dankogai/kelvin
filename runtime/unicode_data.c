@@ -305,3 +305,61 @@ kv_string ucd_name_of(uint32_t cp) {
     char buf[64];
     return kv_string_text(kv_ud_name(cp, buf, sizeof buf));
 }
+
+/* ---------- scripts and properties (#157) ---------- */
+
+int ucd_script(uint32_t cp) { return kv_ud_script(cp); }
+
+int ucd_script_id(const uint8_t *name) {
+    for (size_t i = 0; i < kv_ud_script_count; i++)
+        if (!strcmp((const char *)name, kv_ud_script_names[i][0]) || !strcmp((const char *)name, kv_ud_script_names[i][1]))
+            return (int)i;
+    return -1;
+}
+
+const uint8_t *ucd_script_name(int id) {
+    return (const uint8_t *)(id >= 0 && (size_t)id < kv_ud_script_count ? kv_ud_script_names[id][0] : "Unknown");
+}
+
+bool ucd_scx_has(uint32_t cp, int id) {
+    size_t lo = 0, hi = kv_ud_scx_range_count;
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        const kv_ud_scx_range *r = &kv_ud_scx_ranges[mid];
+        if (cp < r->lo) hi = mid;
+        else if (cp > r->hi) lo = mid + 1;
+        else {
+            for (uint32_t k = 0; k < r->count; k++)
+                if (kv_ud_scx_pool[r->offset + k] == id) return true;
+            return false;
+        }
+    }
+    return kv_ud_script(cp) == id;
+}
+
+int ucd_property_id(const uint8_t *name) {
+    for (size_t i = 0; i < kv_ud_prop_count; i++)
+        if (!strcmp((const char *)name, kv_ud_props[i].name) || (*kv_ud_props[i].alias && !strcmp((const char *)name, kv_ud_props[i].alias)))
+            return (int)i;
+    return -1;
+}
+
+bool ucd_has_property(uint32_t cp, int id) {
+    if (id < 0 || (size_t)id >= kv_ud_prop_count) return false;
+    const kv_ud_span *rs = kv_ud_prop_ranges + kv_ud_props[id].offset;
+    size_t lo = 0, hi = kv_ud_props[id].count;
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        if (cp < rs[mid].lo) hi = mid;
+        else if (cp > rs[mid].hi) lo = mid + 1;
+        else return true;
+    }
+    return false;
+}
+
+uint32_t ucd_category_mask(const uint8_t *name) {
+    for (size_t i = 0; i < kv_ud_gc_name_count; i++)
+        if (!strcmp((const char *)name, kv_ud_gc_names[i].name))
+            return kv_ud_gc_names[i].mask;
+    return 0;
+}

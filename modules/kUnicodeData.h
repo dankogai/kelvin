@@ -18,6 +18,22 @@ uint8_t kv_ud_gcb(uint32_t cp);  /* the grapheme cluster break property, an inde
 uint8_t kv_ud_incb(uint32_t cp); /* the Indic conjunct break: 0 none, 1 consonant, 2 extend, 3 linker */
 extern const char *const kv_ud_categories[30];
 extern const char *const kv_ud_gcb_names[15];
+/* scripts, script extensions and the binary properties (#157), for \p{...} */
+typedef struct { uint32_t lo, hi; } kv_ud_span;
+typedef struct { uint32_t lo, hi, offset, count; } kv_ud_scx_range; /* the set is kv_ud_scx_pool[offset..] */
+typedef struct { const char *name, *alias; uint32_t offset, count; } kv_ud_prop; /* kv_ud_prop_ranges[offset..] */
+typedef struct { const char *name; uint32_t mask; } kv_ud_gc_name; /* a bit per index of kv_ud_categories */
+uint8_t kv_ud_script(uint32_t cp); /* an index into kv_ud_script_names, 0 Unknown */
+extern const char *const kv_ud_script_names[][2]; /* the long name and the short one */
+extern const size_t kv_ud_script_count;
+extern const uint8_t kv_ud_scx_pool[];
+extern const kv_ud_scx_range kv_ud_scx_ranges[];
+extern const size_t kv_ud_scx_range_count;
+extern const kv_ud_span kv_ud_prop_ranges[];
+extern const kv_ud_prop kv_ud_props[];
+extern const size_t kv_ud_prop_count;
+extern const kv_ud_gc_name kv_ud_gc_names[];
+extern const size_t kv_ud_gc_name_count;
 enum { KV_GCB_OTHER, KV_GCB_CR, KV_GCB_LF, KV_GCB_CONTROL, KV_GCB_EXTEND, KV_GCB_ZWJ, KV_GCB_RI, KV_GCB_PREPEND,
        KV_GCB_SPACINGMARK, KV_GCB_L, KV_GCB_V, KV_GCB_T, KV_GCB_LV, KV_GCB_LVT, KV_GCB_PICTOGRAPHIC };
 
@@ -56,6 +72,15 @@ uint32_t ucd_to_fold(uint32_t cp);
 /* of a codepoint: its category as text, "Lu"; its name as a String; its combining class */
 const uint8_t *ucd_category(uint32_t cp);
 uint8_t ucd_category_index(uint32_t cp); /* kv_ud_cat, by a name a Kelvin file may declare */
+/* the script, the script extensions and the binary properties (#157): ids
+   by name, -1 where there is none, long or short names as Unicode spells them */
+int ucd_script(uint32_t cp);
+int ucd_script_id(const uint8_t *name);
+const uint8_t *ucd_script_name(int id);
+bool ucd_scx_has(uint32_t cp, int id);
+int ucd_property_id(const uint8_t *name);
+bool ucd_has_property(uint32_t cp, int id);
+uint32_t ucd_category_mask(const uint8_t *name); /* the categories a name covers, 0 where there is none */
 kv_string ucd_name_of(uint32_t cp);
 int ucd_combining(uint32_t cp);
 /* the decomposition of a codepoint, canonical or with compatibility ones, as a String; "" where none */

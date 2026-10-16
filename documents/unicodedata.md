@@ -65,6 +65,8 @@ header and the library.
 | `.upper`, `.lower`, `.fold` | the simple case mapping, a `uchr`; itself where there is none |
 | `.decomposition` | the canonical decomposition, a String: `é` gives `e` and the acute; `""` where there is none |
 | `.compatibility` | the decomposition with the compatibility mappings: `ﬁ` gives `fi` |
+| `.script` | the Script, a `cstr` by its long name: `Latin`, `Han`, `Common`, `Unknown` (#157) |
+| `.hasProperty("Alphabetic")` | a binary property by its name or its alias, the ones JS's `\p{...}` has: `White_Space`, `Emoji`, `Alpha`; false for a name there is none of (#157) |
 
 - The prelude's `uchr` has `.utf32`, its number, which these look up.
 
@@ -78,6 +80,8 @@ header and the library.
   once; to move to a newer Unicode, replace the files there and run
   `make`. The database is Unicode, Inc.'s, under the Unicode License v3,
   tools/ucd/LICENSE.txt.
-- Not here yet: the full case mappings that change the length,
-  `ß` to `SS`, and the properties of UAX #44 beyond the category, which
-  `<RegExp>` will bring for `\p{...}`.
+- The tables of the scripts, the script extensions and the binary
+  properties (#157) serve `<RegExp>`'s `\p{...}` too:
+  [regexp.md](regexp.md).
+- Not here yet: the full case mappings that change the length, `ß` to
+  `SS`.

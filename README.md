@@ -146,6 +146,10 @@ So far the changes from C are:
   `s.normalize(nfc)`, `s.graphemes`, the clusters a reader sees as
   characters, `s.upper()`, `s.fold()`, `uchr("é").name` and
   `.category` (#156)
+- `#import <RegExp>` is regular expressions, JS's over Strings, with the
+  `$/pattern/flags` literal: `re.test(&s)`, `s.match(&re)`,
+  `s.replace(&re, "$1")`, `s.split(&re)`, `\p{Script=Greek}` and `\X`
+  for a grapheme cluster (#157)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

@@ -4340,3 +4340,25 @@ expression gives is an error now, as a case read is. `<RegExp>` and
 `$/.../` are the next step. Details are provisional P168.
 
 There are 762 tests, and all pass with clang and with gcc 15.
+
+### 200. RegExp: `$/.../` and JS's regular expressions
+
+> now step 2: the `<RegExp>` module and the `$/.../` literal
+
+**Claude** built the second half of #156's request as #157: a
+backtracking engine in runtime/regexp.c, JS's syntax with the `u`
+flag, over Kelvin's Strings by codepoint, with `\X` for a grapheme
+cluster and `\p{...}` by category, script and property from tables
+that tools/gen_unicode.py now makes too; modules/RegExp.k, written in
+Kelvin, wraps it as `RegExp` and `Match`, with `test`, `exec`,
+`search`, `match`, `replace` and `split` on a RegExp and on a String,
+and `make` builds it with `kelvinc --lib` on `UnicodeData`. The lexer
+reads `$/pattern/flags` as `RegExp.compile("pattern", "flags")`, and
+the parser says that a file without `#import <RegExp>` cannot write
+one. A differential run of 157 patterns, inputs and replacements
+against node agreed on every one, which also caught that modern JS has
+`(?i:...)` modifiers, now here. A borrow of an owner an expression
+gives, `&$/x/`, is an error, as the C it made was. Details are
+provisional P169.
+
+There are 767 tests, and all pass with clang and with gcc 15.

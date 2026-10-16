@@ -72,6 +72,7 @@ typedef struct {
     int end_line;  /* the line the token ends on, after a multi-line template (#39) */
     bool tpl;      /* a template literal without ${...}, lexed as a TK_STRING */
     bool imported; /* from a Kelvin file that #import brought in (#40) */
+    bool regexp;   /* the RegExp of a $/.../ literal (#157), which needs #import <RegExp> */
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);

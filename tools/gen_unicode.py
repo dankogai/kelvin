@@ -48,6 +48,7 @@ upper = {}; lower = {}; title = {}
 decomp = {}                   # cp -> (compat, [cps])
 names = {}                    # cp -> name
 ranged = []                   # (lo, hi, kind)
+mirrored = []                 # Bidi_Mirrored (#157)
 first = None
 for f in lines('UnicodeData.txt'):
     cp = int(f[0], 16); name = f[1]; gc = f[2]
@@ -69,6 +70,7 @@ for f in lines('UnicodeData.txt'):
     if f[12]: upper[cp] = int(f[12], 16)
     if f[13]: lower[cp] = int(f[13], 16)
     if f[14]: title[cp] = int(f[14], 16)
+    if f[9] == 'Y': mirrored.append(cp)
     if not name.startswith('<'):
         names[cp] = name
 
@@ -158,6 +160,91 @@ def mapping(name, m):
     src.append(f'const size_t {name}_count = {len(items)};')
 mapping('kv_ud_upper', upper); mapping('kv_ud_lower', lower); mapping('kv_ud_title', title); mapping('kv_ud_fold', fold)
 
+# ---------- scripts, script extensions and the binary properties (#157, for \p{...}) ----------
+sc_long = {}; sc_short = {}; gc_names = []
+for f in lines('PropertyValueAliases.txt'):
+    if f[0] == 'sc': sc_long[f[1]] = f[2]; sc_short[f[2]] = f[1]
+    if f[0] == 'gc': gc_names.append(f[1:])
+script_names = ['Unknown'] + sorted(n for n in sc_short if n != 'Unknown')
+script_index = {n: i for i, n in enumerate(script_names)}
+assert len(script_names) < 256
+script = bytearray(MAX)
+for lo, hi, val in ranges('Scripts.txt'):
+    for x in range(lo, hi + 1): script[x] = script_index[val]
+text, n = two_level(script, 'kv_ud_script')
+src.append(text)
+src.append('uint8_t kv_ud_script(uint32_t cp) { return cp < 0x110000 ? kv_ud_script_data[kv_ud_script_index[cp >> 8]][cp & 255] : 0; }')
+src.append('const char *const kv_ud_script_names[%d][2] = {%s};' % (len(script_names), ','.join('{"%s","%s"}' % (n, sc_short[n]) for n in script_names)))
+src.append(f'const size_t kv_ud_script_count = {len(script_names)};')
+scx_sets = []; scx_ranges = []
+for lo, hi, val in ranges('ScriptExtensions.txt'):
+    ids = sorted(script_index[sc_long[x]] for x in val.split())
+    if ids not in scx_sets: scx_sets.append(ids)
+    scx_ranges.append((lo, hi, scx_sets.index(ids)))
+scx_ranges.sort()
+scx_pool = []; scx_entries = []
+for ids in scx_sets:
+    scx_entries.append((len(scx_pool), len(ids))); scx_pool.extend(ids)
+src.append(f'const uint8_t kv_ud_scx_pool[{len(scx_pool)}] = {{' + ','.join(str(x) for x in scx_pool) + '};')
+src.append(f'const kv_ud_scx_range kv_ud_scx_ranges[{len(scx_ranges)}] = {{' + ','.join('{%d,%d,%d,%d}' % (lo, hi, scx_entries[k][0], scx_entries[k][1]) for lo, hi, k in scx_ranges) + '};')
+src.append(f'const size_t kv_ud_scx_range_count = {len(scx_ranges)};')
+
+props = {}
+def add_prop(name, lo, hi): props.setdefault(name, []).append((lo, hi))
+for lo, hi, val in ranges('PropList.txt'): add_prop(val, lo, hi)
+for lo, hi, val in ranges('emoji-data.txt'): add_prop(val, lo, hi)
+for f in lines('DerivedCoreProperties.txt'):
+    if len(f) == 2:
+        lo, hi = (f[0].split('..') + [None])[:2]
+        add_prop(f[1], int(lo, 16), int(hi, 16) if hi else int(lo, 16))
+for f in lines('DerivedNormalizationProps.txt'):
+    if len(f) == 2 and f[1] == 'Changes_When_NFKC_Casefolded':
+        lo, hi = (f[0].split('..') + [None])[:2]
+        add_prop(f[1], int(lo, 16), int(hi, 16) if hi else int(lo, 16))
+for cp in mirrored: add_prop('Bidi_Mirrored', cp, cp)
+add_prop('ASCII', 0, 0x7F); add_prop('Any', 0, 0x10FFFF)
+start = None
+for x in range(MAX + 1):
+    assigned = x < MAX and cat[x] != 0
+    if assigned and start is None: start = x
+    if not assigned and start is not None: add_prop('Assigned', start, x - 1); start = None
+# ECMA-262's binary properties, with their aliases
+js_binary = [('ASCII', ''), ('ASCII_Hex_Digit', 'AHex'), ('Alphabetic', 'Alpha'), ('Any', ''), ('Assigned', ''),
+    ('Bidi_Control', 'Bidi_C'), ('Bidi_Mirrored', 'Bidi_M'), ('Case_Ignorable', 'CI'), ('Cased', ''),
+    ('Changes_When_Casefolded', 'CWCF'), ('Changes_When_Casemapped', 'CWCM'), ('Changes_When_Lowercased', 'CWL'),
+    ('Changes_When_NFKC_Casefolded', 'CWKCF'), ('Changes_When_Titlecased', 'CWT'), ('Changes_When_Uppercased', 'CWU'),
+    ('Dash', ''), ('Default_Ignorable_Code_Point', 'DI'), ('Deprecated', 'Dep'), ('Diacritic', 'Dia'), ('Emoji', ''),
+    ('Emoji_Component', 'EComp'), ('Emoji_Modifier', 'EMod'), ('Emoji_Modifier_Base', 'EBase'), ('Emoji_Presentation', 'EPres'),
+    ('Extended_Pictographic', 'ExtPict'), ('Extender', 'Ext'), ('Grapheme_Base', 'Gr_Base'), ('Grapheme_Extend', 'Gr_Ext'),
+    ('Hex_Digit', 'Hex'), ('IDS_Binary_Operator', 'IDSB'), ('IDS_Trinary_Operator', 'IDST'), ('ID_Continue', 'IDC'),
+    ('ID_Start', 'IDS'), ('Ideographic', 'Ideo'), ('Join_Control', 'Join_C'), ('Logical_Order_Exception', 'LOE'),
+    ('Lowercase', 'Lower'), ('Math', ''), ('Noncharacter_Code_Point', 'NChar'), ('Pattern_Syntax', 'Pat_Syn'),
+    ('Pattern_White_Space', 'Pat_WS'), ('Quotation_Mark', 'QMark'), ('Radical', ''), ('Regional_Indicator', 'RI'),
+    ('Sentence_Terminal', 'STerm'), ('Soft_Dotted', 'SD'), ('Terminal_Punctuation', 'Term'), ('Unified_Ideograph', 'UIdeo'),
+    ('Uppercase', 'Upper'), ('Variation_Selector', 'VS'), ('White_Space', 'space'), ('XID_Continue', 'XIDC'), ('XID_Start', 'XIDS')]
+prop_ranges = []; prop_entries = []
+for name, alias in js_binary:
+    rs = sorted(props[name]); merged = []
+    for lo, hi in rs:
+        if merged and lo <= merged[-1][1] + 1: merged[-1] = (merged[-1][0], max(hi, merged[-1][1]))
+        else: merged.append((lo, hi))
+    prop_entries.append((name, alias, len(prop_ranges), len(merged))); prop_ranges.extend(merged)
+src.append(f'const kv_ud_span kv_ud_prop_ranges[{len(prop_ranges)}] = {{' + ','.join('{%d,%d}' % r for r in prop_ranges) + '};')
+src.append(f'const kv_ud_prop kv_ud_props[{len(prop_entries)}] = {{' + ','.join('{"%s","%s",%d,%d}' % e for e in prop_entries) + '};')
+src.append(f'const size_t kv_ud_prop_count = {len(prop_entries)};')
+# the general category by its names: each value, and the groups, as masks over kv_ud_categories
+gc_groups = {'L': 'Lu Ll Lt Lm Lo', 'LC': 'Lu Ll Lt', 'M': 'Mn Mc Me', 'N': 'Nd Nl No', 'P': 'Pc Pd Ps Pe Pi Pf Po',
+             'S': 'Sm Sc Sk So', 'Z': 'Zs Zl Zp', 'C': 'Cc Cf Cs Co Cn'}
+gc_entries = []
+for f in gc_names:
+    short = f[0]
+    members = gc_groups[short].split() if short in gc_groups else [short]
+    mask = sum(1 << cat_index[m] for m in members)
+    for nm in f:
+        gc_entries.append((nm, mask))
+src.append(f'const kv_ud_gc_name kv_ud_gc_names[{len(gc_entries)}] = {{' + ','.join('{"%s",%du}' % e for e in gc_entries) + '};')
+src.append(f'const size_t kv_ud_gc_name_count = {len(gc_entries)};')
+
 with open(os.path.join(out_dir, 'unicode_tables.c'), 'w') as f:
     f.write('\n'.join(src) + '\n')
 
@@ -210,4 +297,5 @@ const char *kv_ud_name(uint32_t cp, char *buf, size_t max) {
 }''')
 with open(os.path.join(out_dir, 'unicode_names.c'), 'w') as f:
     f.write('\n'.join(ns) + '\n')
-print('Unicode', version, 'names', len(names), 'decomps', len(entries), 'pairs', len(pairs), 'fold', len(fold), 'ranges', len(ranged))
+print('Unicode', version, 'names', len(names), 'decomps', len(entries), 'pairs', len(pairs), 'fold', len(fold), 'ranges', len(ranged),
+      'scripts', len(script_names), 'scx', len(scx_ranges), 'props', len(prop_entries), 'gc names', len(gc_entries))

@@ -2301,6 +2301,8 @@ static bool zero_array_ahead(int i) {
 
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (t->regexp && !record_named("RegExp")) /* $/.../ (#157) is RegExp.compile(...), of the module */
+        error_at(t->pos, "a $/.../ literal is a RegExp, which needs #import <RegExp>");
     self_word(t); /* Self.f(), Self.x, Self(v) (#140) */
     if (self_member_ahead(cur)) {
         /* .x is self.x where self is (#139): self, and the postfix reads .x */
@@ -3301,6 +3303,10 @@ static Expr *parse_unary(void) {
         e->a = parse_unary();
         if (!strcmp(e->op, "!"))
             require_bool(e->a);
+        if (!strcmp(e->op, "&") && is_owner(value_type(e->a)) && !owner_place(e->a)) /* &$/x/ (#157): nothing frees it */
+            error_at(t->pos, "a borrow of a %s that an expression gives, which nothing would free: bind it to a "
+                             "variable first",
+                     kelvin_type(value_type(e->a)));
         return !strcmp(e->op, "-") ? resolve_operator(e, "-", e->a, NULL) : e; /* -z (#42) */
     }
     if (is_p(t, "*"))

@@ -5,6 +5,7 @@
 #include "kelvin.h"
 
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false,
@@ -82,7 +83,68 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false};
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false};
+}
+
+/* a token kelvinc writes itself, for a literal that becomes a call (#157) */
+static void push_text(Lexer *lx, TokKind kind, Pos pos, const char *text) {
+    push(lx, kind, pos, text, text + strlen(text));
+}
+
+/* $/pattern/flags (#157): a regular expression, as JS writes one, which
+   becomes RegExp.compile("pattern", "flags") and so needs #import <RegExp>.
+   The pattern ends at the first '/' that is not escaped and not in [...],
+   on the same line, and is written into the C literal as it is, with \,
+   " and ? escaped (?? would start a trigraph); the flags are the letters
+   after it. */
+static void lex_regexp(Lexer *lx, Pos pos) {
+    step(lx);
+    step(lx);
+    const char *start = lx->p;
+    bool in_class = false;
+    for (;;) {
+        char d = *lx->p;
+        if (!d || d == '\n')
+            error_at(pos, "unterminated $/.../: a regular expression ends with '/' on its line");
+        if (d == '\\' && lx->p[1] && lx->p[1] != '\n') {
+            step(lx);
+            step(lx);
+            continue;
+        }
+        if (d == '[')
+            in_class = true;
+        else if (d == ']')
+            in_class = false;
+        else if (d == '/' && !in_class)
+            break;
+        step(lx);
+    }
+    const char *end = lx->p;
+    step(lx);
+    const char *fstart = lx->p;
+    while (isalpha((unsigned char)*lx->p))
+        step(lx);
+    char *lit = xmalloc(2 * (size_t)(end - start) + 3), *q = lit;
+    *q++ = '"';
+    for (const char *s = start; s < end; s++) {
+        if (*s == '\\' || *s == '"' || *s == '?')
+            *q++ = '\\';
+        *q++ = *s;
+    }
+    *q++ = '"';
+    *q = 0;
+    char *flags = strfmt("\"%.*s\"", (int)(lx->p - fstart), fstart);
+    push_text(lx, TK_IDENT, pos, "RegExp");
+    lx->toks[lx->len - 1].regexp = true;
+    push_text(lx, TK_PUNCT, pos, ".");
+    push_text(lx, TK_IDENT, pos, "compile");
+    push_text(lx, TK_PUNCT, pos, "(");
+    push_text(lx, TK_STRING, pos, lit);
+    push_text(lx, TK_PUNCT, pos, ",");
+    push_text(lx, TK_STRING, pos, flags);
+    push_text(lx, TK_PUNCT, pos, ")");
+    free(lit);
+    free(flags);
 }
 
 static void skip_space(Lexer *lx) {
@@ -488,6 +550,10 @@ Token *lex(const char *file, const char *src, int *ntoks) {
         if (c == '`') {
             step(&lx);
             lex_template(&lx, pos, pos, true);
+            continue;
+        }
+        if (c == '$' && lx.p[1] == '/') {
+            lex_regexp(&lx, pos); /* $/pattern/flags (#157) */
             continue;
         }
         if (c == '$') {

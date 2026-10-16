@@ -267,7 +267,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
             list_push(&out, u);
         }
         Token *end = xmalloc(sizeof *end);
-        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true};
+        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false};
         list_push(&out, end);
     }
     Token *all = xmalloc(sizeof(Token) * (size_t)(out.len + 1));

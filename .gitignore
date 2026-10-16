@@ -68,3 +68,4 @@ dkms.conf
 modules/UnicodeData.kh
 runtime/unicode_tables.c
 runtime/unicode_names.c
+modules/RegExp.kh

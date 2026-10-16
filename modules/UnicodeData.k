@@ -33,6 +33,10 @@ let ucd_name_of(cp:u32):String
 let ucd_combining(cp:u32):i32
 let ucd_decomposition(cp:u32, compat:bool):String
 let ucd_category_index(cp:u32):u8
+let ucd_script(cp:u32):i32
+let ucd_script_name(id:i32):cstr
+let ucd_property_id(name:cstr):i32
+let ucd_has_property(cp:u32, id:i32):bool
 
 extend String {
     // the String normalized: s.normalize(nfc), nfd, nfkc or nfkd (UAX #15)
@@ -72,4 +76,7 @@ extend uchr {
     let isPunctuation:bool { ucd_category_index(self.utf32) >= 12 && ucd_category_index(self.utf32) <= 18 }
     let isSymbol:bool { ucd_category_index(self.utf32) >= 19 && ucd_category_index(self.utf32) <= 22 }
     let isSpace:bool { ucd_category_index(self.utf32) >= 23 && ucd_category_index(self.utf32) <= 25 }
+    let script:cstr { ucd_script_name(ucd_script(self.utf32)) }   // "Latin", "Han", "Common", ... (#157)
+    // a binary property by its name, "Alphabetic", "White_Space", "Emoji", ...; false for a name there is none of
+    let hasProperty(name:cstr):bool { ucd_has_property(self.utf32, ucd_property_id(name)) }
 }

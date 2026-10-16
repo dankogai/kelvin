@@ -17,7 +17,9 @@ rules of `String` and `Bytes` are in [ownership.md](ownership.md).
 and `` $`...` `` do their work. What the Unicode Character Database
 adds, `s.normalize(nfc)`, `s.graphemes`, the case mappings and a
 codepoint's name and category, is a module, `#import <UnicodeData>`
-(#156): [unicodedata.md](unicodedata.md).
+(#156): [unicodedata.md](unicodedata.md); regular expressions, JS's,
+with the `$/.../` literal, are `#import <RegExp>` (#157):
+[regexp.md](regexp.md).
 
 **Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `Bytes`, `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
 
@@ -267,6 +269,7 @@ UTF-8 are to come.
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
+| | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with `#import <RegExp>` (#157), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes |
 | `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |
