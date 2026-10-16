@@ -4191,3 +4191,15 @@ about `self` and `Self` themselves, and the ones that try the long
 one `self.x` beside a `.x`.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 191. The README's examples with `.x` and `Self`
+
+> now rewrite the README's examples with `.attr` and `Self` too
+
+**Claude** found the README's one code block and its snippets already
+free of `self.x`, its text method reading `${.x}` since #175, and
+rewrote the `extend` bullet: the attribute reads `.w * .h`, the operator
+`static let +(a:Self, b:Self):Self`, subscripts are listed, and a line
+says that in every member `.w` is `self.w` and `Self` is `T`.
+
+There are 749 tests, and all pass with clang and with gcc 15.

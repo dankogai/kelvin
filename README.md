@@ -105,11 +105,12 @@ So far the changes from C are:
   the result written out; the two mean the same
 - `extend T { }`, as Swift's `extension`, holds a type's methods
   `let f()`, functions `static let f()`, computed attributes
-  `let area:f64 { ... }` read as `r.area`, attributes with a setter
-  `var celsius:f64 { get { ... } set(v) { ... } }`, and type attributes
-  `static var count:i64 = 0` read as `T.count`, and operators
-  `static let +(a:T, b:T):T`; each also written alone,
-  `let T.area:f64 { ... }`
+  `let area:f64 { .w * .h }` read as `r.area`, attributes with a setter
+  `var celsius:f64 { get { ... } set(v) { ... } }`, type attributes
+  `static var count:i64 = 0` read as `T.count`, operators
+  `static let +(a:Self, b:Self):Self`, and subscripts `let [](i:i64):R`;
+  in every member `.w` is `self.w` and `Self` is `T`; each also written
+  alone, `let T.area:f64 { ... }`
 - structs and unions may define operators:
   `let +(a:money, b:money):money { ... }`, then `a + b`
 - owners on the heap, each freed when its block ends, moved by `return`
