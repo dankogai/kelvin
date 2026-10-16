@@ -4282,3 +4282,15 @@ an owner an expression gives too. Details are provisional P164 to
 P166.
 
 There are 755 tests, and all pass with clang and with gcc 15.
+
+### 197. One more test with `Self`
+
+> now rewrite the tests with `.x` and `Self` too
+
+**Claude** found the tests rewritten since #174 and #190, the new SION
+and MsgPack tests being usage code with no methods, and one line the
+scans had passed over: the type attribute of tests/error/
+attribute_static_value.k, `static let rect.unit:rect`, now
+`static let rect.unit:Self`, its message unchanged.
+
+There are 755 tests, and all pass with clang and with gcc 15.
