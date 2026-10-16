@@ -4,7 +4,8 @@ A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
 library, `M.kh` and `libkM` (#143). This document has the import, the
-search, the layout, and the modules so far: `math.k` and `JSON.k`,
+search, the layout, and the modules so far: `math.k`, `JSON.k`, `SION.k`
+and `MsgPack.k`,
 and `IO` and `OS`, each a header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
@@ -136,6 +137,8 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkOS.a|.dylib|.so   its library
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     JSON.k                #import <JSON> (#113, json.md)
+    SION.k                #import <SION> (#152, sion.md): SION values, text in and out
+    MsgPack.k             #import <MsgPack> (#153, msgpack.md): MessagePack of a SION
 ./modules/                a project's own, looked in first
     x.kh, libkx.a         #import <x>: the header, and its library linked by the import (#143)
     x.k, x.h, libx.a      #import <x.k>, #import <x.h> as C, KELVIN_CFLAGS=-lx
@@ -161,6 +164,14 @@ the functions of `math.h` for `f64` and `f32`, each a method too,
 `x.sin()`, the constants as attributes of the type, `f64.pi`, and `c64`
 and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
+
+## SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
+
+`#import <SION>` (#152) brings in `SION`, a SION value, JSON with more,
+as an enum with values keyed by any value, with `SION.parse(text)` and
+`SION.stringify(&s, space)`: see [sion.md](sion.md). `#import <MsgPack>`
+(#153) packs one into MessagePack and back, `MsgPack.pack(&s)` and
+`MsgPack.unpack(&b)`: see [msgpack.md](msgpack.md).
 
 ## JSON: `modules/JSON.k`
 

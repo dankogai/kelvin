@@ -2058,6 +2058,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                     if (call)
                         error_at(name->pos, "'%s' is an attribute of %s: read it as '.%s', with no parentheses", member,
                                  g->recv_name, member);
+                    if (is_owner(value_type(e)) && !owner_place(e)) /* the receiver would be lost (#152) */
+                        error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it "
+                                            "to a variable first",
+                                 member, kelvin_type(value_type(e)));
                     Expr *x = new_expr(E_METHOD, name->pos);
                     x->a = e;
                     x->text = member;
@@ -2081,6 +2085,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (!c->type)
                     error_at(name->pos, "case '%s' of %s carries no value: test it with '.is(%s)', or set it with {.%s}",
                              member, record_spelling(tr), member, member);
+                if (is_owner(value_type(e)) && !owner_place(e)) /* as .is (#99): the value would be lost (#152) */
+                    error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it to a "
+                                        "variable first",
+                             member, kelvin_type(value_type(e)));
                 Expr *x = new_expr(E_FIELD, t->pos);
                 x->a = e;
                 x->text = member;

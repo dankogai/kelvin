@@ -183,6 +183,9 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 149 | `typealias A = T`, Swift's, at the top level: from there on `A` is `T` wherever a name is read, as a type, before a dot, as a converter, as an `extend`'s; `T` is a struct, union or enum with values declared before it, or a built-in type, and `A` a new name; a module's header keeps the line | — | `typealias real = f64`, `typealias pt = point`, then `pt.of(1, 2)`, `real.pi` | 2026-10-16 |
 | 150 | `complex64` and `complex32` are `c64` and `c32`, named by the size of each part, in `modules/math.k`; `typealias complex64 = c64` and `typealias complex32 = c32` there keep the old names, so `complex64(1.0, 2.0)` is `c64(1.0, 2.0)`; `.typename` is `c64` | — | `let z:complex64 = c64(1.0, 2.0)` | 2026-10-16 |
 | 151 | The number types have full names: `int8` ... `int128` are `i8` ... `i128`, `uint8` ... `uint128` `u8` ... `u128`, `float32` and `float64` `f32` and `f64`, each the keyword by another name wherever the short one goes; `.typename` is the short one | — | `var n:int64 = 5`, `float64(3)`, `uint8(c)`, `float64.pi` | 2026-10-16 |
+| 152 | `#import <SION>`: `enum SION { nil; boolean: bool; integer: i64; number: f64; string: String; data: Bytes; date: f64; ext: Bytes; array: Array<SION>; dictionary: Array<SION>; error: String }`, a dictionary its keys and values in turn, keyed by any value; `SION.parse(text)` reads SION's text, integers in four bases, doubles with hex floats, nan and inf, Swift's escapes, `.Data`, `.Ext`, `.Date`, `[:]`, trailing commas and `//` comments; `SION.stringify(&s, space)` writes doubles as `%a`; `s["key"]` and `s[i]` give copies and set; `SION.same`, `SION.find`, `s.count` | — | `SION.parse("[0: nil, \"pi\": 0x1.921fb54442d18p+1]")` | 2026-10-16 |
+| 153 | `#import <MsgPack>`: `MsgPack.pack(&s)` packs a `SION` into MessagePack in each value's smallest form, a date as timestamp 64 or 96, an ext as its whole encoding kept; `MsgPack.unpack(&b)` reads every format, uints and float 32 included, timestamps as dates, other exts as exts, with `error` for bytes that are not MessagePack and an uint 64 past an `i64` | — | `MsgPack.unpack(&MsgPack.pack(&s))` is `s` | 2026-10-16 |
+| 154 | Reading a case's value, `v.n`, or an attribute, `v.x`, of an owner that an expression gives is an error that says to bind it first, as `.is` and `.case` were (#99): the copy would be lost with what it holds | — | `s["a"].string` is an error; `var a = s["a"]`, then `a.string` | 2026-10-16 |
 
 Notes:
 
@@ -744,6 +747,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (154) Agreed details: found by ASan on the tests of #152: `s[0].string`
+  compiled, reading the case of the copy a subscript gives, and the
+  copy was never freed, where `.is` of the same value was an error.
+  The rule of #99 now covers a case's value and an attribute; a
+  codegen that freed such a temporary would be the other way, kept
+  for later (P166).
+
+- (152, 153) Agreed details: "Implement SION handler and msgpack
+  handler like JSON module." Claude read SION's page and swift-sion's
+  source, and the MessagePack spec. A SION dictionary is keyed by any
+  value, which Kelvin's Dictionary cannot be, so it is an Array of keys
+  and values in turn, with subscripts by a string or an integer key
+  and `SION.find` for any; the subscripts give copies, which Kelvin's
+  rules bind before a method call. The case names are `boolean`,
+  `integer` and `number`, since `bool`, `int` and `double` are words of
+  C or Kelvin. MsgPack has no value type of its own: SION's model is
+  MessagePack's, as swift-sion has it, so a struct is the functions'
+  name. An ext holds its whole encoding, as swift-sion keeps it, so
+  that it goes out as it came in (P164, P165).
 
 - (149, 150, 151) Agreed details: "Where is `math.md` which is supposed
   to be in `modules/`? rename `complex64` to `c64` and `complex32`
@@ -1601,6 +1624,9 @@ says "as agreed".
 | P161 | Details of #149 | `typealias pt = point` then `let p:pt` is `struct point p`, and `pt.of(1, 2)` is `point__of__i64__i64(1, 2)` | `parse_typealias` checks the names and rewrites every later token spelled `A` to `T`'s text and kind, as `rewrite_self` does for `Self`, so every reading of a name sees `T`; `gen_header` copies the line as written |
 | P162 | Details of #150 | `complex64__f64__f64` is `c64__f64__f64` in C, and `_kv_show_c64` prints one | the structs, converters, operators, functions and methods of math.k are named `c64` and `c32`, with the two `typealias` lines after the structs; the tests, examples and documents say `c64`, but tests/run/complex.k, which spells `complex64` throughout to try the alias |
 | P163 | Details of #151 | `var n:int64` is `int64_t n`, as `var n:i64` is | the lexer gives a token spelled `int64` the text `i64` and the keyword kind, from a table of the twelve names, so that the parser and messages see the short name |
+| P164 | Details of #152 | `["a":1,0:nil]` is `SION.dictionary` of four values, `string("a")`, `integer(1)`, `integer(0)`, `nil`; `s["a"]` is `SION__subscript__cstr(&s, "a")`, a copy | modules/SION.k follows JSON.k: a reader struct and functions of the type; a collection is a dictionary where `:` follows its first value; a moved owner that a second branch would take is assigned anew in the first, since the move check is flow-insensitive; `SION.same` compares member by member, and the subscripts copy and copy in, since a setter's value is a borrow |
+| P165 | Details of #153 | `MsgPack.pack` of `.Date(1.5)` is `d7 ff 77 35 94 00 00 00 00 01`, the nanoseconds shifted 34 over the seconds | modules/MsgPack.k: `struct MsgPack { packed: Bytes }` is the functions' name only; a double's bits go through `memcpy`; counts take the fix byte, else the 8-, 16- or 32-bit code of the kind; signed ints are sign-extended by a shift; an ext's reader starts from its format byte so that the ext keeps its whole encoding |
+| P166 | Details of #154 | `println(s["a"].integer)` compiled and leaked the copy `s["a"]` gives; now it is the error `.is` gives | the checks of `.is` and `.case` in the member parse, `is_owner(value_type(e)) && !owner_place(e)`, now guard the read of a case's value and of an attribute too; ASan on the SION tests showed the leak |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

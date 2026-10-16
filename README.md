@@ -136,6 +136,10 @@ So far the changes from C are:
   - `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `#import <JSON>` is JSON as an enum with values: `var j = JSON.parse(text)`,
   `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113)
+- `#import <SION>` is SION, JSON with more, data, dates, exts and any
+  value as a key: `SION.parse(text)`, `s["key"]`, `SION.stringify(&s, 2)`;
+  `#import <MsgPack>` packs one into MessagePack, `MsgPack.pack(&s)`,
+  and back, `MsgPack.unpack(&b)`
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

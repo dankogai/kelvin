@@ -4260,3 +4260,25 @@ math.k's `:Self` annotations of #189: the two modules are the examples
 of a module written in Kelvin, and read as Kelvin's own names read.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 196. SION and MessagePack modules
+
+> Implement SION handler and msgpack handler like JSON module.
+> https://dankogai.github.io/SION/ https://msgpack.org
+
+**Claude** added #152, modules/SION.k: `enum SION`, JSON with more, an
+integer and a double apart, data, a date, an ext, and a dictionary keyed
+by any value, kept as its keys and values in turn; `SION.parse` reads
+SION's text, with its bases, hex floats, nan and inf, Swift's escapes,
+`.Data`, `.Ext`, `.Date` and `//` comments, `SION.stringify` writes it
+back with doubles as `%a`, `s["key"]` and `s[i]` read copies and set,
+and `SION.same` compares. And #153, modules/MsgPack.k: `MsgPack.pack`
+and `MsgPack.unpack` between a SION and MessagePack, every format, a
+date as a timestamp, an ext kept whole. documents/sion.md and
+msgpack.md describe them. ASan on the new tests showed a leak the
+compiler allowed: `s[0].string` of the copy a subscript gives, which
+`.is` already refused; #154 refuses a case's value and an attribute of
+an owner an expression gives too. Details are provisional P164 to
+P166.
+
+There are 755 tests, and all pass with clang and with gcc 15.
