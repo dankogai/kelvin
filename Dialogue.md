@@ -4152,3 +4152,15 @@ while the outputs stay the same. The error tests are as they were,
 since they check messages.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 188. The examples and modules with the full names
+
+> now rewrite the examples and modules with the full names too
+
+**Claude** gave each example and module one full name, as #186 and
+#187 did: a declaration, `var sum:int64`, a parameter, an attribute's
+type or `main`'s result in the three examples that declare no number,
+each with a note that it is the short name's. JSON.k and math.k, the
+modules, build into libraries as before, and the outputs are unchanged.
+
+There are 749 tests, and all pass with clang and with gcc 15.

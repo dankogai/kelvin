@@ -46,7 +46,7 @@ let number(s:cstr):Result<i64, String> {
 // try passes an err up: the FILE^, or return err(errno) for the caller
 let sumOf(path:cstr):Result<i64, i32> {
     let f := try open(path, "r")
-    var sum:i64 = 0
+    var sum:int64 = 0                       // int64 is i64 by its full name (#151)
     var line = [u8](64)
     while fgets(line, line.size, f) != nullptr {
         line[strcspn(line, "\n")] = 0

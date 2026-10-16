@@ -1,5 +1,5 @@
 // FizzBuzz: a range, bool conditions without parentheses, and else if.
-let main():i32 {
+let main():int32 {                          // int32 is i32 by its full name (#151)
     for i in 1...15 {
         let fizz = i % 3 == 0       // a comparison is a bool
         let buzz = i % 5 == 0

@@ -6,7 +6,7 @@
 let PI = 3.141592653589793
 
 // x, with what rounding leaves around 0 shown as 0
-let tidy(x:f64):f64 { fabs(x) < 5e-10 ? 0.0 : x }
+let tidy(x:float64):f64 { fabs(x) < 5e-10 ? 0.0 : x } // float64 is f64 by its full name (#151)
 
 let show(z:c64):() { printf("%.4f%+.4fi", tidy(z.real), tidy(z.imag)) }
 

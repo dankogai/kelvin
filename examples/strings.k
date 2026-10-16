@@ -21,7 +21,7 @@ let reverse(s:u8^):() {
     if strlen(s) == 0 {
         return
     }
-    var lo:u8^ := s
+    var lo:uint8^ := s                      // uint8 is u8 by its full name (#151)
     var hi:u8^ := &s[strlen(s) - 1]
     while lo < hi {
         let c:u8 = lo^

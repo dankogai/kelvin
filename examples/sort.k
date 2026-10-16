@@ -8,7 +8,7 @@ let sort(xs:i64^, n:size_t, before:(i64, i64):bool) {
     for i in 1..<n {
         var j:size_t = i
         while j > 0 && before(xs[j], xs[j - 1]) {
-            let t:i64 = xs[j]
+            let t:int64 = xs[j]             // int64 is i64 by its full name (#151)
             xs[j] = xs[j - 1]
             xs[j - 1] = t
             j -= 1

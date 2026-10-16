@@ -31,7 +31,7 @@ extend list {
     // remove the front value; the list must not be empty
     static let pop(l:Self^):i64 {
         let first:node^ := l^.head
-        let value:i64 = first^.value
+        let value:int64 = first^.value      // int64 is i64 by its full name (#151)
         l^.head := first^.next
         l^.length -= 1
         free(first)

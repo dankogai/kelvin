@@ -38,7 +38,7 @@ let indent(depth:i64):() {
 let compile(src:Bytes^):i32 {
     let n = src^.count as i64
     var end = n                          // where the program ends: the first !
-    var i:i64 = 0
+    var i:int64 = 0                         // int64 is i64 by its full name (#151)
     while i < n {
         if src^[i] == '!' {
             end = i

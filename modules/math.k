@@ -209,7 +209,7 @@ extend c64 {
             if isfinite(a.real) == 0 || isfinite(a.imag) == 0 {
                 return (Self){NAN, NAN}
             }
-            let c:f64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real)
+            let c:float64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real) // float64 is f64 by its full name (#151)
             let d:f64 = copysign(isinf(b.imag) != 0 ? 1.0 : 0.0, b.imag)
             return (Self){0.0 * (a.real * c + a.imag * d), 0.0 * (a.imag * c - a.real * d)}
         }

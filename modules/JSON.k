@@ -70,7 +70,7 @@ extend JSON {
     // four hex digits after \u, or -1
     static let unit(var r:JSONReader^):i64 {
         if r^.i + 4 > r^.count { return -1 }
-        var v:i64 = 0
+        var v:int64 = 0                     // int64 is i64 by its full name (#151)
         for k in 0..<4 {
             let d = Self.hex(r^.at[r^.i + k])
             if d < 0 { return -1 }

@@ -19,7 +19,7 @@ extend program {
         var offsets:$[i64] = $[]       // where each command came from, for messages
         var stack:$[i64] = $[]
         let n = src^.count as i64
-        var i:i64 = 0
+        var i:int64 = 0                     // int64 is i64 by its full name (#151)
         while i < n {
             let c = src^[i]
             if c == '!' {

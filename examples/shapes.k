@@ -17,7 +17,7 @@ extend point {
 }
 
 extend circle {
-    let area:f64 { PI * .radius * .radius }                       // an attribute: c.area
+    let area:float64 { PI * .radius * .radius }                       // an attribute: c.area; float64 is f64 by its full name (#151)
     let contains(p:point):bool { .center.distance(p) <= .radius }
 }
 
