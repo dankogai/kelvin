@@ -4248,3 +4248,15 @@ the expected outputs and the C names keep the short ones, which
 test keeps `i32`, whose hint echoes the source's spelling.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 195. JSON.k and math.k keep the short names
+
+> leave JSON.k as is since it is also a good example of a kelvin module
+> written in kelvin. ditto for math.k
+
+**Claude** restored modules/JSON.k and modules/math.k to the short
+names, `i64` and `f64`, as they were before #188 and #194, keeping
+math.k's `:Self` annotations of #189: the two modules are the examples
+of a module written in Kelvin, and read as Kelvin's own names read.
+
+There are 749 tests, and all pass with clang and with gcc 15.

@@ -5,12 +5,12 @@
 // parts and c32 with f32 parts, named by the size of each part, also as
 // complex64 and complex32, aliases by the size of the whole (#150).
 // c128 waits for f128.
-
+//
 //     #import <math>
 //     let z:c64 = c64(1.0, 2.0)                  // or complex64(1.0, 2.0)
 //     let w:c64 = exp(z) * z + 1.0
 //     println(`${w} ${abs(w)} ${f64.pi.sin()} ${1.0.i}`)
-
+//
 // The functions overload C's own of the same name (#41): sin(z) of a
 // c64 is this file's, sin(x) of an f64 is math.h's, sin(x) of an
 // f32 sinf's. Each is a method too, x.sin(), z.sin(), which says which
@@ -29,139 +29,139 @@
 // C's own functions of math.h, declared (#41, #148): a number reaches them
 // also where only C sees its type, as in tanh(atof(s)), and an f32 its
 // f32 kind, sinf, through the overloads below
-let exp(x:float64):float64
-let log(x:float64):float64
-let sqrt(x:float64):float64
-let sin(x:float64):float64
-let cos(x:float64):float64
-let tan(x:float64):float64
-let sinh(x:float64):float64
-let cosh(x:float64):float64
-let tanh(x:float64):float64
-let asin(x:float64):float64
-let acos(x:float64):float64
-let atan(x:float64):float64
-let asinh(x:float64):float64
-let acosh(x:float64):float64
-let atanh(x:float64):float64
-let exp2(x:float64):float64
-let expm1(x:float64):float64
-let log2(x:float64):float64
-let log10(x:float64):float64
-let log1p(x:float64):float64
-let cbrt(x:float64):float64
-let floor(x:float64):float64
-let ceil(x:float64):float64
-let round(x:float64):float64
-let trunc(x:float64):float64
-let fabs(x:float64):float64
-let erf(x:float64):float64
-let erfc(x:float64):float64
-let tgamma(x:float64):float64
-let lgamma(x:float64):float64
-let pow(x:float64, y:float64):float64
-let hypot(x:float64, y:float64):float64
-let atan2(x:float64, y:float64):float64
-let fmod(x:float64, y:float64):float64
-let fmin(x:float64, y:float64):float64
-let fmax(x:float64, y:float64):float64
-let copysign(x:float64, y:float64):float64
-let fma(x:float64, y:float64, z:float64):float64
-let expf(x:float32):float32
-let logf(x:float32):float32
-let sqrtf(x:float32):float32
-let sinf(x:float32):float32
-let cosf(x:float32):float32
-let tanf(x:float32):float32
-let sinhf(x:float32):float32
-let coshf(x:float32):float32
-let tanhf(x:float32):float32
-let asinf(x:float32):float32
-let acosf(x:float32):float32
-let atanf(x:float32):float32
-let asinhf(x:float32):float32
-let acoshf(x:float32):float32
-let atanhf(x:float32):float32
-let exp2f(x:float32):float32
-let expm1f(x:float32):float32
-let log2f(x:float32):float32
-let log10f(x:float32):float32
-let log1pf(x:float32):float32
-let cbrtf(x:float32):float32
-let floorf(x:float32):float32
-let ceilf(x:float32):float32
-let roundf(x:float32):float32
-let truncf(x:float32):float32
-let fabsf(x:float32):float32
-let erff(x:float32):float32
-let erfcf(x:float32):float32
-let tgammaf(x:float32):float32
-let lgammaf(x:float32):float32
-let powf(x:float32, y:float32):float32
-let hypotf(x:float32, y:float32):float32
-let atan2f(x:float32, y:float32):float32
-let fmodf(x:float32, y:float32):float32
-let fminf(x:float32, y:float32):float32
-let fmaxf(x:float32, y:float32):float32
-let copysignf(x:float32, y:float32):float32
-let fmaf(x:float32, y:float32, z:float32):float32
-let abs(n:int32):int32
+let exp(x:f64):f64
+let log(x:f64):f64
+let sqrt(x:f64):f64
+let sin(x:f64):f64
+let cos(x:f64):f64
+let tan(x:f64):f64
+let sinh(x:f64):f64
+let cosh(x:f64):f64
+let tanh(x:f64):f64
+let asin(x:f64):f64
+let acos(x:f64):f64
+let atan(x:f64):f64
+let asinh(x:f64):f64
+let acosh(x:f64):f64
+let atanh(x:f64):f64
+let exp2(x:f64):f64
+let expm1(x:f64):f64
+let log2(x:f64):f64
+let log10(x:f64):f64
+let log1p(x:f64):f64
+let cbrt(x:f64):f64
+let floor(x:f64):f64
+let ceil(x:f64):f64
+let round(x:f64):f64
+let trunc(x:f64):f64
+let fabs(x:f64):f64
+let erf(x:f64):f64
+let erfc(x:f64):f64
+let tgamma(x:f64):f64
+let lgamma(x:f64):f64
+let pow(x:f64, y:f64):f64
+let hypot(x:f64, y:f64):f64
+let atan2(x:f64, y:f64):f64
+let fmod(x:f64, y:f64):f64
+let fmin(x:f64, y:f64):f64
+let fmax(x:f64, y:f64):f64
+let copysign(x:f64, y:f64):f64
+let fma(x:f64, y:f64, z:f64):f64
+let expf(x:f32):f32
+let logf(x:f32):f32
+let sqrtf(x:f32):f32
+let sinf(x:f32):f32
+let cosf(x:f32):f32
+let tanf(x:f32):f32
+let sinhf(x:f32):f32
+let coshf(x:f32):f32
+let tanhf(x:f32):f32
+let asinf(x:f32):f32
+let acosf(x:f32):f32
+let atanf(x:f32):f32
+let asinhf(x:f32):f32
+let acoshf(x:f32):f32
+let atanhf(x:f32):f32
+let exp2f(x:f32):f32
+let expm1f(x:f32):f32
+let log2f(x:f32):f32
+let log10f(x:f32):f32
+let log1pf(x:f32):f32
+let cbrtf(x:f32):f32
+let floorf(x:f32):f32
+let ceilf(x:f32):f32
+let roundf(x:f32):f32
+let truncf(x:f32):f32
+let fabsf(x:f32):f32
+let erff(x:f32):f32
+let erfcf(x:f32):f32
+let tgammaf(x:f32):f32
+let lgammaf(x:f32):f32
+let powf(x:f32, y:f32):f32
+let hypotf(x:f32, y:f32):f32
+let atan2f(x:f32, y:f32):f32
+let fmodf(x:f32, y:f32):f32
+let fminf(x:f32, y:f32):f32
+let fmaxf(x:f32, y:f32):f32
+let copysignf(x:f32, y:f32):f32
+let fmaf(x:f32, y:f32, z:f32):f32
+let abs(n:i32):i32
 
 // ---------- f32: the functions of math.h by the f32 kind ----------
 
-let exp(x:float32):float32 { expf(x) }
-let log(x:float32):float32 { logf(x) }
-let sqrt(x:float32):float32 { sqrtf(x) }
-let sin(x:float32):float32 { sinf(x) }
-let cos(x:float32):float32 { cosf(x) }
-let tan(x:float32):float32 { tanf(x) }
-let sinh(x:float32):float32 { sinhf(x) }
-let cosh(x:float32):float32 { coshf(x) }
-let tanh(x:float32):float32 { tanhf(x) }
-let asin(x:float32):float32 { asinf(x) }
-let acos(x:float32):float32 { acosf(x) }
-let atan(x:float32):float32 { atanf(x) }
-let asinh(x:float32):float32 { asinhf(x) }
-let acosh(x:float32):float32 { acoshf(x) }
-let atanh(x:float32):float32 { atanhf(x) }
-let exp2(x:float32):float32 { exp2f(x) }
-let expm1(x:float32):float32 { expm1f(x) }
-let log2(x:float32):float32 { log2f(x) }
-let log10(x:float32):float32 { log10f(x) }
-let log1p(x:float32):float32 { log1pf(x) }
-let cbrt(x:float32):float32 { cbrtf(x) }
-let floor(x:float32):float32 { floorf(x) }
-let ceil(x:float32):float32 { ceilf(x) }
-let round(x:float32):float32 { roundf(x) }
-let trunc(x:float32):float32 { truncf(x) }
-let fabs(x:float32):float32 { fabsf(x) }
-let erf(x:float32):float32 { erff(x) }
-let erfc(x:float32):float32 { erfcf(x) }
-let tgamma(x:float32):float32 { tgammaf(x) }
-let lgamma(x:float32):float32 { lgammaf(x) }
-let pow(x:float32, y:float32):float32 { powf(x, y) }
-let hypot(x:float32, y:float32):float32 { hypotf(x, y) }
-let atan2(x:float32, y:float32):float32 { atan2f(x, y) }
-let fmod(x:float32, y:float32):float32 { fmodf(x, y) }
-let fmin(x:float32, y:float32):float32 { fminf(x, y) }
-let fmax(x:float32, y:float32):float32 { fmaxf(x, y) }
-let copysign(x:float32, y:float32):float32 { copysignf(x, y) }
-let fma(x:float32, y:float32, z:float32):float32 { fmaf(x, y, z) }
+let exp(x:f32):f32 { expf(x) }
+let log(x:f32):f32 { logf(x) }
+let sqrt(x:f32):f32 { sqrtf(x) }
+let sin(x:f32):f32 { sinf(x) }
+let cos(x:f32):f32 { cosf(x) }
+let tan(x:f32):f32 { tanf(x) }
+let sinh(x:f32):f32 { sinhf(x) }
+let cosh(x:f32):f32 { coshf(x) }
+let tanh(x:f32):f32 { tanhf(x) }
+let asin(x:f32):f32 { asinf(x) }
+let acos(x:f32):f32 { acosf(x) }
+let atan(x:f32):f32 { atanf(x) }
+let asinh(x:f32):f32 { asinhf(x) }
+let acosh(x:f32):f32 { acoshf(x) }
+let atanh(x:f32):f32 { atanhf(x) }
+let exp2(x:f32):f32 { exp2f(x) }
+let expm1(x:f32):f32 { expm1f(x) }
+let log2(x:f32):f32 { log2f(x) }
+let log10(x:f32):f32 { log10f(x) }
+let log1p(x:f32):f32 { log1pf(x) }
+let cbrt(x:f32):f32 { cbrtf(x) }
+let floor(x:f32):f32 { floorf(x) }
+let ceil(x:f32):f32 { ceilf(x) }
+let round(x:f32):f32 { roundf(x) }
+let trunc(x:f32):f32 { truncf(x) }
+let fabs(x:f32):f32 { fabsf(x) }
+let erf(x:f32):f32 { erff(x) }
+let erfc(x:f32):f32 { erfcf(x) }
+let tgamma(x:f32):f32 { tgammaf(x) }
+let lgamma(x:f32):f32 { lgammaf(x) }
+let pow(x:f32, y:f32):f32 { powf(x, y) }
+let hypot(x:f32, y:f32):f32 { hypotf(x, y) }
+let atan2(x:f32, y:f32):f32 { atan2f(x, y) }
+let fmod(x:f32, y:f32):f32 { fmodf(x, y) }
+let fmin(x:f32, y:f32):f32 { fminf(x, y) }
+let fmax(x:f32, y:f32):f32 { fmaxf(x, y) }
+let copysign(x:f32, y:f32):f32 { copysignf(x, y) }
+let fma(x:f32, y:f32, z:f32):f32 { fmaf(x, y, z) }
 
 // |x| of a float, and of an i64, as abs(n) of an i32 is C's; not llabs,
 // whose long long is not int64_t everywhere
-let abs(x:float64):float64 { fabs(x) }
-let abs(x:float32):float32 { fabsf(x) }
-let abs(n:int64):int64 { n < 0 ? -n : n }
+let abs(x:f64):f64 { fabs(x) }
+let abs(x:f32):f32 { fabsf(x) }
+let abs(n:i64):i64 { n < 0 ? -n : n }
 
 struct c64 {
-    real: float64
-    imag: float64
+    real: f64
+    imag: f64
 }
 
 struct c32 {
-    real: float32
-    imag: float32
+    real: f32
+    imag: f32
 }
 
 // the same by the size of the whole, as aliases (#149, #150)
@@ -170,33 +170,33 @@ typealias complex32 = c32
 
 // ---------- making one ----------
 
-let c64(real:float64, imag:float64):c64 { (c64){real, imag} }
-let c64(real:float64):c64 { (c64){real, 0.0} }
+let c64(real:f64, imag:f64):c64 { (c64){real, imag} }
+let c64(real:f64):c64 { (c64){real, 0.0} }
 let c64(z:c32):c64 { (c64){z.real, z.imag} }
-let c32(real:float32, imag:float32):c32 { (c32){real, imag} }
-let c32(real:float32):c32 { (c32){real, 0.0:float32} }
-let c32(z:c64):c32 { (c32){float32(z.real), float32(z.imag)} }
+let c32(real:f32, imag:f32):c32 { (c32){real, imag} }
+let c32(real:f32):c32 { (c32){real, 0.0:f32} }
+let c32(z:c64):c32 { (c32){f32(z.real), f32(z.imag)} }
 
 // r (cos θ + i sin θ)
-let polar(r:float64, theta:float64):c64 { (c64){r * cos(theta), r * sin(theta)} }
-let polar(r:float32, theta:float32):c32 { c32(polar(float64(r), float64(theta))) }
+let polar(r:f64, theta:f64):c64 { (c64){r * cos(theta), r * sin(theta)} }
+let polar(r:f32, theta:f32):c32 { c32(polar(f64(r), f64(theta))) }
 
 // ---------- arithmetic ----------
 
 extend c64 {
     // Self is c64 (#140): each operator is a function of the type (#135)
     static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
-    static let +(a:Self, b:float64):Self { (Self){a.real + b, a.imag} }
-    static let +(a:float64, b:Self):Self { (Self){a + b.real, b.imag} }
+    static let +(a:Self, b:f64):Self { (Self){a.real + b, a.imag} }
+    static let +(a:f64, b:Self):Self { (Self){a + b.real, b.imag} }
     static let -(a:Self, b:Self):Self { (Self){a.real - b.real, a.imag - b.imag} }
-    static let -(a:Self, b:float64):Self { (Self){a.real - b, a.imag} }
-    static let -(a:float64, b:Self):Self { (Self){a - b.real, -b.imag} }
+    static let -(a:Self, b:f64):Self { (Self){a.real - b, a.imag} }
+    static let -(a:f64, b:Self):Self { (Self){a - b.real, -b.imag} }
     static let -(a:Self):Self { (Self){-a.real, -a.imag} }
     static let *(a:Self, b:Self):Self {
         (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
     }
-    static let *(a:Self, b:float64):Self { (Self){a.real * b, a.imag * b} }
-    static let *(a:float64, b:Self):Self { (Self){a * b.real, a * b.imag} }
+    static let *(a:Self, b:f64):Self { (Self){a.real * b, a.imag * b} }
+    static let *(a:f64, b:Self):Self { (Self){a * b.real, a * b.imag} }
 
     // Smith's algorithm, which does not overflow where |b|² would, in Baudin
     // and Smith's form where the ratio of b's parts is subnormal; by 0 it is
@@ -209,30 +209,30 @@ extend c64 {
             if isfinite(a.real) == 0 || isfinite(a.imag) == 0 {
                 return (Self){NAN, NAN}
             }
-            let c:float64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real)
-            let d:float64 = copysign(isinf(b.imag) != 0 ? 1.0 : 0.0, b.imag)
+            let c:f64 = copysign(isinf(b.real) != 0 ? 1.0 : 0.0, b.real)
+            let d:f64 = copysign(isinf(b.imag) != 0 ? 1.0 : 0.0, b.imag)
             return (Self){0.0 * (a.real * c + a.imag * d), 0.0 * (a.imag * c - a.real * d)}
         }
         if fmax(fabs(b.real), fabs(b.imag)) > 1e300 {
             return a / (b * 7.888609052210118e-31) * 7.888609052210118e-31  // 2^-100, so d cannot overflow
         }
         if fabs(b.real) >= fabs(b.imag) {
-            let r:float64 = b.imag / b.real
-            let d:float64 = b.real + b.imag * r
+            let r:f64 = b.imag / b.real
+            let d:f64 = b.real + b.imag * r
             if fabs(r) < 2.2250738585072014e-308 {  // DBL_MIN: r lost bits, or all of them
                 return (Self){(a.real + a.imag * b.imag / b.real) / d, (a.imag - a.real * b.imag / b.real) / d}
             }
             return (Self){(a.real + a.imag * r) / d, (a.imag - a.real * r) / d}
         }
-        let r:float64 = b.real / b.imag
-        let d:float64 = b.imag + b.real * r
+        let r:f64 = b.real / b.imag
+        let d:f64 = b.imag + b.real * r
         if fabs(r) < 2.2250738585072014e-308 {
             return (Self){(a.real * b.real / b.imag + a.imag) / d, (a.imag * b.real / b.imag - a.real) / d}
         }
         return (Self){(a.real * r + a.imag) / d, (a.imag * r - a.real) / d}
     }
-    static let /(a:Self, b:float64):Self { (Self){a.real / b, a.imag / b} }
-    static let /(a:float64, b:Self):Self { Self(a) / b }
+    static let /(a:Self, b:f64):Self { (Self){a.real / b, a.imag / b} }
+    static let /(a:f64, b:Self):Self { Self(a) / b }
 
     static let ==(a:Self, b:Self):bool { a.real == b.real && a.imag == b.imag }
     static let !=(a:Self, b:Self):bool { a.real != b.real || a.imag != b.imag }
@@ -241,20 +241,20 @@ extend c64 {
 extend c32 {
     // Self is c32 (#140): each operator is a function of the type (#135)
     static let +(a:Self, b:Self):Self { (Self){a.real + b.real, a.imag + b.imag} }
-    static let +(a:Self, b:float32):Self { (Self){a.real + b, a.imag} }
-    static let +(a:float32, b:Self):Self { (Self){a + b.real, b.imag} }
+    static let +(a:Self, b:f32):Self { (Self){a.real + b, a.imag} }
+    static let +(a:f32, b:Self):Self { (Self){a + b.real, b.imag} }
     static let -(a:Self, b:Self):Self { (Self){a.real - b.real, a.imag - b.imag} }
-    static let -(a:Self, b:float32):Self { (Self){a.real - b, a.imag} }
-    static let -(a:float32, b:Self):Self { (Self){a - b.real, -b.imag} }
+    static let -(a:Self, b:f32):Self { (Self){a.real - b, a.imag} }
+    static let -(a:f32, b:Self):Self { (Self){a - b.real, -b.imag} }
     static let -(a:Self):Self { (Self){-a.real, -a.imag} }
     static let *(a:Self, b:Self):Self {
         (Self){a.real * b.real - a.imag * b.imag, a.real * b.imag + a.imag * b.real}
     }
-    static let *(a:Self, b:float32):Self { (Self){a.real * b, a.imag * b} }
-    static let *(a:float32, b:Self):Self { (Self){a * b.real, a * b.imag} }
+    static let *(a:Self, b:f32):Self { (Self){a.real * b, a.imag * b} }
+    static let *(a:f32, b:Self):Self { (Self){a * b.real, a * b.imag} }
     static let /(a:Self, b:Self):Self { Self(c64(a) / c64(b)) }
-    static let /(a:Self, b:float32):Self { (Self){a.real / b, a.imag / b} }
-    static let /(a:float32, b:Self):Self { Self(float64(a) / c64(b)) }
+    static let /(a:Self, b:f32):Self { (Self){a.real / b, a.imag / b} }
+    static let /(a:f32, b:Self):Self { Self(f64(a) / c64(b)) }
 
     static let ==(a:Self, b:Self):bool { a.real == b.real && a.imag == b.imag }
     static let !=(a:Self, b:Self):bool { a.real != b.real || a.imag != b.imag }
@@ -266,17 +266,17 @@ let conj(z:c64):c64 { (c64){z.real, -z.imag} }
 let conj(z:c32):c32 { (c32){z.real, -z.imag} }
 
 // the magnitude |z|, without overflow where z.real² would
-let abs(z:c64):float64 { hypot(z.real, z.imag) }
-let abs(z:c32):float32 { float32(abs(c64(z))) }
+let abs(z:c64):f64 { hypot(z.real, z.imag) }
+let abs(z:c32):f32 { f32(abs(c64(z))) }
 
 // the angle from the positive real axis, from -π (just below the negative
 // real axis, where imag is -0) to π
-let arg(z:c64):float64 { atan2(z.imag, z.real) }
-let arg(z:c32):float32 { float32(arg(c64(z))) }
+let arg(z:c64):f64 { atan2(z.imag, z.real) }
+let arg(z:c32):f32 { f32(arg(c64(z))) }
 
 // |z|²
-let norm(z:c64):float64 { z.real * z.real + z.imag * z.imag }
-let norm(z:c32):float32 { z.real * z.real + z.imag * z.imag }
+let norm(z:c64):f64 { z.real * z.real + z.imag * z.imag }
+let norm(z:c32):f32 { z.real * z.real + z.imag * z.imag }
 
 // ---------- exponentials and logarithms ----------
 
@@ -287,7 +287,7 @@ let exp(z:c64):c64 {
     }
     if z.real > 709.0 {
         // exp(z.real) overflows where a part need not: its half, twice
-        let h:float64 = exp(z.real / 2.0)
+        let h:f64 = exp(z.real / 2.0)
         return (c64){h * cos(z.imag) * h, h * sin(z.imag) * h}
     }
     return exp(z.real) * (c64){cos(z.imag), sin(z.imag)}
@@ -296,8 +296,8 @@ let exp(z:c64):c64 {
 // the principal value, log|z| + i arg z, with log1p where a part is near
 // ±1, and |z| scaled where it would overflow or lose bits
 let log(z:c64):c64 {
-    let a:float64 = fmax(fabs(z.real), fabs(z.imag))
-    let b:float64 = fmin(fabs(z.real), fabs(z.imag))
+    let a:f64 = fmax(fabs(z.real), fabs(z.imag))
+    let b:f64 = fmin(fabs(z.real), fabs(z.imag))
     if a > 0.5 && a < 2.0 {
         return (c64){0.5 * log1p((a - 1.0) * (a + 1.0) + b * b), arg(z)}
     }
@@ -327,8 +327,8 @@ let sqrt(z:c64):c64 {
     }
     // t = √((|z.real| + |z|) / 2), its sum scaled by an even power of 2
     // where it would overflow or lose bits; the other part from z itself
-    let big:float64 = fmax(fabs(z.real), fabs(z.imag))
-    var t:float64 = 0.0
+    let big:f64 = fmax(fabs(z.real), fabs(z.imag))
+    var t:f64 = 0.0
     if big > 1e300 {
         let s:c64 = z * 7.888609052210118e-31  // 2^-100
         t = sqrt((fabs(s.real) + abs(s)) / 2.0) * 1125899906842624.0  // 2^50
@@ -360,18 +360,18 @@ let pow(z:c64, w:c64):c64 {
     }
     return exp(w * log(z))
 }
-let pow(z:c64, x:float64):c64 { pow(z, c64(x)) }
-let pow(x:float64, w:c64):c64 { pow(c64(x), w) }
+let pow(z:c64, x:f64):c64 { pow(z, c64(x)) }
+let pow(x:f64, w:c64):c64 { pow(c64(x), w) }
 
 let exp(z:c32):c32 { c32(exp(c64(z))) }
 let log(z:c32):c32 { c32(log(c64(z))) }
 let sqrt(z:c32):c32 { c32(sqrt(c64(z))) }
 let pow(z:c32, w:c32):c32 { c32(pow(c64(z), c64(w))) }
-let pow(z:c32, x:float32):c32 { c32(pow(c64(z), float64(x))) }
-let pow(x:float32, w:c32):c32 { c32(pow(float64(x), c64(w))) }
+let pow(z:c32, x:f32):c32 { c32(pow(c64(z), f64(x))) }
+let pow(x:f32, w:c32):c32 { c32(pow(f64(x), c64(w))) }
 
 // ---------- hyperbolic and trigonometric functions ----------
-
+//
 // The inverses take their principal values, with C's branch cuts and signs
 // of zero on them. The trigonometric functions are the hyperbolic ones at
 // iz, as C99 defines them: sin z = -i sinh(iz), cos z = cosh(iz),
@@ -384,7 +384,7 @@ let sinh(z:c64):c64 {
         return (c64){sinh(z.real), z.imag}
     }
     if fabs(z.real) > 709.0 {
-        let h:float64 = exp(fabs(z.real) / 2.0)
+        let h:f64 = exp(fabs(z.real) / 2.0)
         return (c64){copysign(1.0, z.real) * (h * cos(z.imag) * 0.5) * h, h * sin(z.imag) * 0.5 * h}
     }
     return (c64){sinh(z.real) * cos(z.imag), cosh(z.real) * sin(z.imag)}
@@ -396,7 +396,7 @@ let cosh(z:c64):c64 {
         return (c64){cosh(z.real), copysign(1.0, z.real) * z.imag}
     }
     if fabs(z.real) > 709.0 {
-        let h:float64 = exp(fabs(z.real) / 2.0)
+        let h:f64 = exp(fabs(z.real) / 2.0)
         return (c64){h * cos(z.imag) * 0.5 * h, copysign(1.0, z.real) * (h * sin(z.imag) * 0.5) * h}
     }
     return (c64){cosh(z.real) * cos(z.imag), sinh(z.real) * sin(z.imag)}
@@ -407,14 +407,14 @@ let cosh(z:c64):c64 {
 let tanh(z:c64):c64 {
     if fabs(z.real) > 22.0 {
         // tanh a is ±1 to the last bit, and the rest falls as e^-2|a|
-        let e:float64 = exp(-fabs(z.real))
+        let e:f64 = exp(-fabs(z.real))
         return (c64){copysign(1.0, z.real), 4.0 * sin(z.imag) * cos(z.imag) * e * e}
     }
-    let t:float64 = tan(z.imag)
-    let beta:float64 = 1.0 + t * t  // 1 / cos² b
-    let s:float64 = sinh(z.real)
-    let rho:float64 = sqrt(1.0 + s * s)  // cosh a
-    let d:float64 = 1.0 + beta * s * s
+    let t:f64 = tan(z.imag)
+    let beta:f64 = 1.0 + t * t  // 1 / cos² b
+    let s:f64 = sinh(z.real)
+    let rho:f64 = sqrt(1.0 + s * s)  // cosh a
+    let d:f64 = 1.0 + beta * s * s
     return (c64){beta * rho * s / d, t / d}
 }
 
@@ -487,18 +487,18 @@ let atanh(z:c64):c64 {
     if signbit(z.real) != 0 {
         return -atanh(-z)  // atanh is odd
     }
-    let x:float64 = z.real
-    let y:float64 = z.imag
+    let x:f64 = z.real
+    let y:f64 = z.imag
     if x > 1e150 || fabs(y) > 1e150 {
         // 1/z + iπ/2, its sign that of y
-        let h:float64 = abs(z)
+        let h:f64 = abs(z)
         return (c64){x / h / h, copysign(1.5707963267948966, y)}
     }
     if x == 1.0 && y != 0.0 && fabs(y) < 1e-150 {
         // y² would underflow: log(2 / |y|) / 2 + iπ/4, its sign that of y
         return (c64){0.5 * (0.6931471805599453 - log(fabs(y))), copysign(0.7853981633974483, y)}
     }
-    let d:float64 = (1.0 - x) * (1.0 - x) + y * y
+    let d:f64 = (1.0 - x) * (1.0 - x) + y * y
     return (c64){0.25 * log1p(4.0 * x / d), 0.5 * atan2(2.0 * y, (1.0 - x) * (1.0 + x) - y * y)}
 }
 
@@ -523,7 +523,7 @@ let atan(z:c32):c32 { c32(atan(c64(z))) }
 
 // ---------- methods and constants (#148) ----------
 
-extend float64 {
+extend f64 {
     // the constants of math.h, as attributes of the type (#148): f64.pi, f64.infinity
     static let pi:Self = 3.141592653589793
     static let tau:Self = 6.283185307179586
@@ -585,7 +585,7 @@ extend float64 {
     let i:c64 { c64(0.0, self) }                 // x rotated a quarter turn: c64(0, x)
 }
 
-extend float32 {
+extend f32 {
     // the constants of math.h, as attributes of the type (#148): f32.pi, f32.infinity
     static let pi:Self = 3.141592653589793:Self
     static let tau:Self = 6.283185307179586:Self
@@ -666,9 +666,9 @@ extend c64 {
     let acosh():Self { acosh(self) }
     let atanh():Self { atanh(self) }
     let conj():Self { conj(self) }
-    let abs():float64 { abs(self) }
-    let arg():float64 { arg(self) }
-    let norm():float64 { norm(self) }
+    let abs():f64 { abs(self) }
+    let arg():f64 { arg(self) }
+    let norm():f64 { norm(self) }
     let pow(w:Self):Self { pow(self, w) }
     let i:Self { Self(0.0 - .imag, .real) }
 }
@@ -691,9 +691,9 @@ extend c32 {
     let acosh():Self { acosh(self) }
     let atanh():Self { atanh(self) }
     let conj():Self { conj(self) }
-    let abs():float32 { abs(self) }
-    let arg():float32 { arg(self) }
-    let norm():float32 { norm(self) }
+    let abs():f32 { abs(self) }
+    let arg():f32 { arg(self) }
+    let norm():f32 { norm(self) }
     let pow(w:Self):Self { pow(self, w) }
-    let i:Self { Self(0.0:float32 - .imag, .real) }
+    let i:Self { Self(0.0:f32 - .imag, .real) }
 }
