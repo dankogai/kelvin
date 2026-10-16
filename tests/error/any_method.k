@@ -1,2 +1,2 @@
 // error: 'any' cannot have methods
-let any.size():u64 { return 0; }
+let any.size():uint64 { return 0; }

@@ -1,6 +1,6 @@
 // f.print takes up to 16 values (#83)
 #import <IO>
-let main():i32 {
+let main():int32 {
     IO.stdout.print(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     return 0
 }

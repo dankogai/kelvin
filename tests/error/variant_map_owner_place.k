@@ -1,5 +1,5 @@
 // map of a place that owns would move its value out (#80)
-let twice(n:i64):i64 { return n * 2 }
+let twice(n:int64):i64 { return n * 2 }
 let parse(s:cstr):Result<i64, String> { return i64(s) }
 let main():i32 {
     var r = parse("1")

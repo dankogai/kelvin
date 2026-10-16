@@ -1,5 +1,5 @@
 // | takes two Sets of the same elements, in variables (#73)
-let main():i32 {
+let main():int32 {
     var s = ${1, 2}
     var t = ${"a"}
     var u = s | t

@@ -1,5 +1,5 @@
 // ++ and -- are postfix only (#51)
-let main():i32 {
+let main():int32 {
     var p:cstr := "hi"
     ++p
     return 0

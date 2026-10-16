@@ -1,6 +1,6 @@
 // C sees pointers, not owners (#54, O8)
 #import <string.h> as C
-let main():i32 {
+let main():int32 {
     var a = Bytes("x")
     strlen(a)
     return 0

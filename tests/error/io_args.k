@@ -1,6 +1,6 @@
 // IO takes a path, and a mode or none (#82, #101)
 #import <IO>
-let main():i32 {
+let main():int32 {
     var f = IO()
     return 0
 }

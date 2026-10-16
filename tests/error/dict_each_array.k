@@ -1,5 +1,5 @@
 // two loop variables walk a Dictionary, not an Array (#65)
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2]
     for k, v in xs { }
     return 0

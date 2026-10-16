@@ -1,5 +1,5 @@
 // a cstr is text, not a cursor (#52): no pointer arithmetic on it
-let main():i32 {
+let main():int32 {
     let s:cstr := "hello"
     let t:cstr := s + 2
     return 0

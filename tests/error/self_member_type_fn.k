@@ -1,5 +1,5 @@
 // a function of the type has no self, so no .x (#111, #139)
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 static let point.origin():point {
     return {.x, 0}
 }

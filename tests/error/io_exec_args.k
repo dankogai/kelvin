@@ -1,6 +1,6 @@
 // IO.exec takes a list of arguments, or an Array of them (#90)
 #import <IO>
-let main():i32 {
+let main():int32 {
     var p = IO.exec("ls -l", "r")
     return 0
 }

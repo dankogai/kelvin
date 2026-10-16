@@ -1,5 +1,5 @@
 // IO is a module (#144): a program imports it
-let main():i32 {
+let main():int32 {
     var f = IO("/dev/null", "r")
     return 0
 }

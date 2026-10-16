@@ -2,6 +2,6 @@
 #import <stdio.h> as C
 struct pt { x:i32; y:i32; };
 let f(x:i32, n:size_t, p:i32^, d:f64, vp:any^):i32 {
-    var e:f64 = (long double)d;
+    var e:float64 = (long double)d;
     return 0;
 }

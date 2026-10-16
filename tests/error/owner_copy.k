@@ -1,5 +1,5 @@
 // an owner is never copied by = (#54, O3)
-let main():i32 {
+let main():int32 {
     var a = Bytes("x")
     var b = a
     return 0

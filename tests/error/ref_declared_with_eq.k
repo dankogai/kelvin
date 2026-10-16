@@ -2,5 +2,5 @@
 #import <stdlib.h> as C
 struct node { value:i32; next:struct node^; };
 let f(x:i32, p:i32^, n:struct node^) {
-    var q:i32^ = p;
+    var q:int32^ = p;
 }

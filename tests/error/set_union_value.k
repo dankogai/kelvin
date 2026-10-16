@@ -1,5 +1,5 @@
 // the set algebra takes a borrow of another Set (#71)
-let main():i32 {
+let main():int32 {
     var s = ${1, 2}
     var t = ${3}
     var u = s.union(t)

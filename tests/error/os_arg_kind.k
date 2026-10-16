@@ -1,6 +1,6 @@
 // OS.chmod takes the mode as an integer (#95)
 #import <OS>
-let main():i32 {
+let main():int32 {
     OS.chmod("x", "600")
     return 0
 }

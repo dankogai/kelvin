@@ -1,5 +1,5 @@
 // $[] has no element type to infer, as Array([]) has none (#62)
-let main():i32 {
+let main():int32 {
     var xs = $[]
     return 0
 }

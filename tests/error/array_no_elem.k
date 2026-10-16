@@ -1,5 +1,5 @@
 // Array(n) has no element type to infer: Array<T>(n), or the elements (#58)
-let main():i32 {
+let main():int32 {
     var xs = Array(3)
     return 0
 }

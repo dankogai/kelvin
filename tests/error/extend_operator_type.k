@@ -1,5 +1,5 @@
 // an operator in extend T takes a T (#135)
-struct money { cents: i64 }
+struct money { cents: int64 }
 struct other { n: i64 }
 extend money {
     static let +(a:other, b:other):other { (other){a.n + b.n} }

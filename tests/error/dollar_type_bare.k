@@ -1,5 +1,5 @@
 // $ before a type is $[T] or ${K: V} (#64, #70)
-let main():i32 {
+let main():int32 {
     var x:$i64
     return 0
 }

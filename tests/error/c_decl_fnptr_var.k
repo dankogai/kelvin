@@ -1,7 +1,7 @@
 // a C function-pointer declaration after var in a body is one, not a
 // function declared there (#31, #45)
 #import <stddef.h> as C
-let main():i32 {
+let main():int32 {
     var size_t (*fp)(i32)
     return 0
 }

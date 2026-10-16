@@ -1,5 +1,5 @@
 // error: an any^ has no elements to walk
-let main():i32 {
+let main():int32 {
     var v:any^;
     for x in v {
     }

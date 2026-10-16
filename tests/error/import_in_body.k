@@ -1,5 +1,5 @@
 // #import is for the top level (#40)
-let main():i32 {
+let main():int32 {
     #import "lib/bad.k"
     return 0
 }

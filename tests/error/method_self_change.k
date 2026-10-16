@@ -1,5 +1,5 @@
 // a method reads self and never changes it (#138)
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 let point.moved(dx:i64):Self {
     .x += dx
     return self

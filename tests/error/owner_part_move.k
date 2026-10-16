@@ -1,7 +1,7 @@
 // a part of an owner does not move alone (#54, O5)
 struct m { b: Bytes }
 let take(d:Bytes) {}
-let main():i32 {
+let main():int32 {
     var v:m = {Bytes("x")}
     take(v.b)
     return 0

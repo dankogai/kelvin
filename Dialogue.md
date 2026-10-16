@@ -4203,3 +4203,19 @@ rewrote the `extend` bullet: the attribute reads `.w * .h`, the operator
 says that in every member `.w` is `self.w` and `Self` is `T`.
 
 There are 749 tests, and all pass with clang and with gcc 15.
+
+### 192. The error tests with the full names, and the documents
+
+> now rewrite the tests with the full names too. Also DOCUMENT about
+> full names in interger.md, floatingpoint.md, and any other relevant
+> files.
+
+**Claude** gave each error and project test one full name, as #187 did
+for the run tests: 539 of them, their messages unchanged, but one that
+echoes the source's spelling of an array type, kept short. The full
+names are now in integers.md's and floatingpoint.md's tables and
+openings, in grammar.md since #151, in versusC.md's table against C's
+`int64_t`, in c-interfaces.md beside C's typedef names, and in the
+README's list of the types.
+
+There are 749 tests, and all pass with clang and with gcc 15.

@@ -1,7 +1,7 @@
 // x op= y is x = x op y, so x may not hold a call, also in ?: (#42)
 struct vec { x: f64; y: f64 }
 let *(a:vec, k:f64):vec { (vec){a.x * k, a.y * k} }
-var n:i64 = 0
+var n:int64 = 0
 let next():i64 {
     n += 1
     return n

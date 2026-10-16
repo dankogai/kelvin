@@ -2,5 +2,5 @@
 #import <stdio.h> as C
 #import "include_types.h" as C
 let f(x:i32, n:size_t, p:i32^, np:size_t^, vp:any^, c:bool) {
-    var r:u8^ := c ? p as u8* : vp;
+    var r:uint8^ := c ? p as u8* : vp;
 }

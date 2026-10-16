@@ -1,5 +1,5 @@
 // a key type is String, which keeps a copy of the text, not cstr (#65)
-let main():i32 {
+let main():int32 {
     var d:${cstr: i64}
     return 0
 }

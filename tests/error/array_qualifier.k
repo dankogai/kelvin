@@ -1,5 +1,5 @@
 // a qualifier of an array is its elements', inside the brackets (#49)
-let main():i32 {
+let main():int32 {
     let s:const [u8] = "hi"
     return 0
 }

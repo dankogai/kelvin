@@ -1,5 +1,5 @@
 // a Dictionary's entries are in braces since #69
-let main():i32 {
+let main():int32 {
     var d = $["a": 1]
     return 0
 }

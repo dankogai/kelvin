@@ -1,5 +1,5 @@
 // a Result's cases are ok and err (#75)
-let main():i32 {
+let main():int32 {
     var w = Result<i64, String>.nope(1)
     return 0
 }

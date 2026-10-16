@@ -1,5 +1,5 @@
 // a Dictionary's type is in braces since #70
-let main():i32 {
+let main():int32 {
     var d:$[String: i64]
     return 0
 }

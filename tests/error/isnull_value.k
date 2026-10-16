@@ -1,5 +1,5 @@
 // .isNull is for pointers and functions, which may be nullptr (#50)
-let main():i32 {
+let main():int32 {
     let k = 3
     println(k.isNull)
     return 0

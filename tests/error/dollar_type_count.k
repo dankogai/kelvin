@@ -1,5 +1,5 @@
 // an Array has no count in its type (#64)
-let main():i32 {
+let main():int32 {
     var x:$[[i64](3)]
     return 0
 }

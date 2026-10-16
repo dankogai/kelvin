@@ -1,6 +1,6 @@
 // .pretty is of a value with brackets; a number's text is .cstr (#124)
 let main():i32 {
-    let n:i64 = 3
+    let n:int64 = 3
     println(n.pretty)
     return 0
 }

@@ -1,5 +1,5 @@
 // a type with no tag has no name to read a type attribute by (#133)
-enum { nothing; just: i64 }
+enum { nothing; just: int64 }
 extend enum{nothing, just: i64} {
     static let zero = 0
 }

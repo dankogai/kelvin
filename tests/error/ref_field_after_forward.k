@@ -1,5 +1,5 @@
 // error: this target is a reference (i32^): assign it with ':=', not '='
-var x:i32 = 1;
+var x:int32 = 1;
 struct inner { p:i32^; v:i32; };
 struct inner;
 let main():i32 {

@@ -2,7 +2,7 @@
 // C: while ((c = getchar()) != EOF)
 #import <stdio.h> as C
 let main():i32 {
-    var c:i32 = 0;
+    var c:int32 = 0;
     while (c = getchar()) != EOF {
         putchar(c);
     }

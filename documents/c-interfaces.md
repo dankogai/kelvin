@@ -58,6 +58,11 @@ imported headers work: `let f:FILE^ := stdout` and
 `let n:size_t = strlen(s)`. The same holds after `as`: `n as size_t`,
 `p as FILE^`.
 
+- C's `int64_t`, `uint8_t` and `double` are Kelvin's `i64`, `u8` and
+  `f64`, or `int64`, `uint8` and `float64` by their full names (#151),
+  each the same C type; a header's own typedef of those names, where
+  one has it, is shadowed by Kelvin's.
+
 Where only C sees a type, the C compiler decides what kelvinc could not:
 which overload a call takes, whether a condition is a `bool`, which
 property a value has. Its errors then name `kv_no_such_overload`,

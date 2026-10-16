@@ -1,5 +1,5 @@
 // a subscript is set on the var that holds the value (#136)
-struct pair { a: i64; b: i64 }
+struct pair { a: int64; b: i64 }
 var pair[](i:i64):i64 {
     get { i == 0 ? .a : .b }
     set(v) { if i == 0 { .a = v } else { .b = v } }

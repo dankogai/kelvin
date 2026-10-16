@@ -1,5 +1,5 @@
 // try of a place whose value owns would move it out (#76)
-let name(n:i64):Result<String, i32> { return $`#${n}` }
+let name(n:int64):Result<String, i32> { return $`#${n}` }
 let f(n:i64):Result<String, i32> {
     var r = name(n)
     var s = try r

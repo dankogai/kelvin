@@ -1,5 +1,5 @@
 // a [...] among the elements makes an Array, which Array<i64> cannot hold (#58)
-let main():i32 {
+let main():int32 {
     var xs = Array<i64>([[1], [2]])
     return 0
 }

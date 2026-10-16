@@ -1,5 +1,5 @@
 // the err passes up as it is, so its type must be the function's (#76)
-let f(n:i64):Result<i64, i32> { return err(1) }
+let f(n:int64):Result<i64, i32> { return err(1) }
 let g(n:i64):Result<i64, String> {
     return try f(n)
 }

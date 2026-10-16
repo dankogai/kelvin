@@ -1,6 +1,6 @@
 // error: declarations are written 'var name:type', as in 'var head:node^'
 #import <stdlib.h> as C
-struct node { value:i64; next:node^ }
+struct node { value:int64; next:node^ }
 let node(v:i64):node^ {
     let n := malloc(sizeof(node)) as node^
     n^.value = v

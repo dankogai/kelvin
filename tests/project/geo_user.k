@@ -2,7 +2,7 @@
 // kelvinc --lib: geo.kh brings in its declarations, and libkgeo.a is
 // linked by the import (#146)
 #import <geo>
-let main():i32 {
+let main():int32 {
     var p = point.of(3.0, 4.0)
     println(p, " ", p.norm1, " ", p[1], " ", p["x"], " ", p.scaled(2.0), " ", p.dist(origin), " ", made)
     p.first = 1.0

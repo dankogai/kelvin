@@ -1,5 +1,5 @@
 // a cstr's bytes never change (#52)
-let main():i32 {
+let main():int32 {
     var s:cstr := "I love to hate C"
     s[0] = 'U'
     return 0

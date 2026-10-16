@@ -1,5 +1,5 @@
 // two structs with no tag are one type only when written alike (#59)
-let main():i32 {
+let main():int32 {
     var f:{x:f64} = {1.0}
     var g:{x:f32} = f
     return 0

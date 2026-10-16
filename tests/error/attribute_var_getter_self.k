@@ -1,5 +1,5 @@
 // a var attribute's getter reads self; its setter changes it (#137)
-struct counter { n: i64 }
+struct counter { n: int64 }
 var counter.value:i64 {
     get {
         self = {0}

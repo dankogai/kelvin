@@ -1,7 +1,7 @@
 // close changes the IO itself, so it needs the var that owns it: a let
 // cannot change (#82)
 #import <IO>
-let main():i32 {
+let main():int32 {
     let f = IO("x", "r")
     f.close()
     return 0

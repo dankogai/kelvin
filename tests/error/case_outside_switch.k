@@ -1,5 +1,5 @@
 // case belongs to a switch (#63)
-let main():i32 {
+let main():int32 {
     case 1:
     return 0
 }

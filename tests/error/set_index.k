@@ -1,5 +1,5 @@
 // a Set is not indexed (#71)
-let main():i32 {
+let main():int32 {
     var s = ${1, 2}
     var y = s[0]
     return 0

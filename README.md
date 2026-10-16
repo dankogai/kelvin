@@ -48,8 +48,9 @@ So far the changes from C are:
 - there is no `void`: `any^` is C's `void *` and `nullptr` its null, and a
   reference declared without a value is `nullptr`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
-  `i128`/`u128`, `f32`, `f64`), so `char`, `int`, `long`, `float` and
-  `double` are gone, and `let i = 42` is an `i64`
+  `i128`/`u128`, `f32`, `f64`, or by their full names `uint8`, `int64`,
+  `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
+  and `let i = 42` is an `i64`
 - `bool`, `true` and `false` are built in
 - C headers are imported with `#import <stdio.h> as C`
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or

@@ -1,7 +1,7 @@
 // the value a case binds is a let the enum still owns: not moved (#119)
 enum shape { none; name: String }
 let take(s:String) { println(s) }
-let main():i32 {
+let main():int32 {
     var s = shape.name($"x")
     switch s {
     case name(t): take(t)

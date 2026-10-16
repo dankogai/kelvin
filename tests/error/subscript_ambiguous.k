@@ -1,5 +1,5 @@
 // a subscript is chosen by the types of its indices (#136)
-struct pair { a: i64; b: i64 }
+struct pair { a: int64; b: i64 }
 let pair[](i:i32):i64 { .a }
 let pair[](i:i16):i64 { .b }
 let main():i32 {

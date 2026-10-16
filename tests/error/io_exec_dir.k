@@ -1,6 +1,6 @@
 // IO.exec's directory is text or a String (#92)
 #import <IO>
-let main():i32 {
+let main():int32 {
     var p = IO.exec(["pwd"], "r", 3)
     return 0
 }

@@ -1,5 +1,5 @@
 // .x is self.x (#139), which a method never changes (#138)
-struct point { x: i64; y: i64 }
+struct point { x: int64; y: i64 }
 let point.reset() {
     .x = 0
 }

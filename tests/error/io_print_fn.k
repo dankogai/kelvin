@@ -1,6 +1,6 @@
 // f.print cannot show a function (#83)
 #import <IO>
-let twice(n:i64):i64 { return n * 2 }
+let twice(n:int64):i64 { return n * 2 }
 let main():i32 {
     IO.stdout.println(twice)
     return 0

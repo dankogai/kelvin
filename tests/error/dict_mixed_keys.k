@@ -1,5 +1,5 @@
 // every key of a Dictionary literal has one type (#65)
-let main():i32 {
+let main():int32 {
     var d = ${"a": 1, 2: 3}
     return 0
 }

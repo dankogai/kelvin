@@ -1,5 +1,5 @@
 // a borrow of a local owner dies with it (#54, O6)
-let main():i32 {
+let main():int32 {
     var r:Bytes^
     {
         var a = Bytes("x")

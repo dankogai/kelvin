@@ -1,5 +1,5 @@
 // extend holds methods and attributes (#130)
-struct rect { w: f64; h: f64 }
+struct rect { w: float64; h: f64 }
 extend rect {
     struct inner { a: i64 }
 }

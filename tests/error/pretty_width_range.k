@@ -1,5 +1,5 @@
 // .pretty(n) indents 0 to 10 spaces a level (#127)
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2]
     println(xs.pretty(11))
     return 0

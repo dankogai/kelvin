@@ -19,6 +19,7 @@ println(1.5.hex, " ", 3.9.i32)      // +0x1.8p+0 3
 | Kelvin | C |
 |--------|---|
 | `f32` `f64` | `float`, `double` |
+| `float32` `float64` | the same, by their full names (#151) |
 | `f32 _Complex` `f64 _Complex` | C's complex types |
 
 - **The types:** `f32` and `f64`, also by their full names `float32`

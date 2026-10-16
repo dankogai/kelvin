@@ -1,5 +1,5 @@
 // error: this never runs: in a function with no result, 'return' ends at the end of its line
-let show(x:i64) {
+let show(x:int64) {
     if x > 0 {
         return
             println("pos")

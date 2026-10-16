@@ -1,5 +1,5 @@
 // OS is a module (#145): a program imports it
-let main():i32 {
+let main():int32 {
     println(OS.pid())
     return 0
 }

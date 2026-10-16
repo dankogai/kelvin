@@ -1,5 +1,5 @@
 // ${} needs the type written (#71)
-let main():i32 {
+let main():int32 {
     var x = ${}
     return 0
 }

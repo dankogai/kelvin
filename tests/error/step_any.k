@@ -1,5 +1,5 @@
 // an any^ has no element size to step by (#26, #51)
-let main():i32 {
+let main():int32 {
     var v:any^
     v++
     return 0

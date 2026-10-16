@@ -1,5 +1,5 @@
 // a longer delimiter closes with a run as long (#118): """ does not close """"
-let main():i32 {
+let main():int32 {
     let s := """"
         holds a """ inside
         """

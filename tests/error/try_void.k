@@ -1,5 +1,5 @@
 // try in a function with no result (#76)
-let parse(s:cstr):Result<i64, String> { return i64(s) }
+let parse(s:cstr):Result<int64, String> { return i64(s) }
 let show(s:cstr) {
     println(try parse(s))
 }

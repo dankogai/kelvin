@@ -1,5 +1,5 @@
 // a Set holds elements, a Dictionary entries (#71)
-let main():i32 {
+let main():int32 {
     var x = ${"a", "b": 1}
     return 0
 }

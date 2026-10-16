@@ -1,5 +1,5 @@
 // error: '.next' is a property of pointers to data, and (i64):i64 is a function
-let main():i32 {
+let main():int32 {
     var f:(i64):i64;
     f := f.next;
     return 0;

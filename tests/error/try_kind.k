@@ -1,5 +1,5 @@
 // an Optional's none cannot pass up through a Result (#76)
-let find(n:i64):i64? { return none }
+let find(n:int64):i64? { return none }
 let f(n:i64):Result<i64, String> {
     return try find(n)
 }

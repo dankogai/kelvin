@@ -2,7 +2,7 @@
 let twice(n:i64):i64 { n * 2 }
 let twice(x:f64):f64 { x * 2.0 }
 let main():i32 {
-    let n:i32 = 3
+    let n:int32 = 3
     println(twice(n))
     return 0
 }

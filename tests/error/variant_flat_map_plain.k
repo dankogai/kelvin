@@ -1,7 +1,7 @@
 // flatMap's function gives the Optional itself (#81)
 let twice(n:i64):i64 { return n * 2 }
 let main():i32 {
-    var a:i64? = 3
+    var a:int64? = 3
     var m = a.flatMap(twice)
     return 0
 }

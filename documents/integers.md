@@ -12,6 +12,9 @@ The text of a number (`n.cstr`, `n.hex`) is in
 
 ## Integer types always say their size
 
+Each has a short name, `i64`, and a full one, `int64` (#151); the two
+are one type, and either goes wherever a type does.
+
 | Kelvin | C |
 |--------|---|
 | `i8` `i16` `i32` `i64` | `int8_t` `int16_t` `int32_t` `int64_t` |

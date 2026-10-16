@@ -1,6 +1,6 @@
 // OS.mkstemp gives an IO, which is the IO module's (#144, #145)
 #import <OS>
-let main():i32 {
+let main():int32 {
     var f = OS.mkstemp("kelvin")
     return 0
 }

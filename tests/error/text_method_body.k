@@ -1,6 +1,6 @@
 // the body of T.cstr() is one template literal, whose text goes into the
 // caller's buffer (#53)
-struct p { x: i64 }
+struct p { x: int64 }
 let p.cstr():cstr {
     var s:cstr := "x"
     s

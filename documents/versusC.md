@@ -22,6 +22,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `p = q;` (pointers) | `p := q` |
 | `double d = 1.5;` | `let d = 1.5` (inferred as `f64`) |
 | `unsigned long v = 10UL;` | `var v:u64 = 10` |
+| `int64_t n; uint8_t b; double x;` | `var n:i64; var b:u8; var x:f64`, or by the full names, `int64`, `uint8`, `float64` (#151) |
 | `float f = 1.5f;` | `var f:f32 = 1.5` |
 | `1UL << 40` | `1:u64 << 40` |
 | `uint16_t u = 0xdead;` | `var u = 0xdead:u16` (inferred as `u16`) |

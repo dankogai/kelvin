@@ -1,5 +1,5 @@
 // error: a condition must be a bool, not a number: write 'true' or 'false'
-let main():i32 {
+let main():int32 {
     while 1 {
         break;
     }

@@ -8,7 +8,7 @@ struct point { x: f64; y: f64 }
 enum shape { dot: point; circle: f64; none }
 
 let origin:point = {0.0, 0.0}                             // a global, extern in the header
-var made:i64 = 0
+var made:int64 = 0
 
 static let twice(x:f64):f64 { x * 2.0 }                   // file-local: not in the header
 

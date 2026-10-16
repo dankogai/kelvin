@@ -2,5 +2,5 @@
 #import <stdio.h> as C
 #import "include_types.h" as C
 let f(x:i32, n:size_t, p:i32^, np:size_t^, vp:any^, c:bool) {
-    var t:i32 = (x + 1) { x = 3; }
+    var t:int32 = (x + 1) { x = 3; }
 }

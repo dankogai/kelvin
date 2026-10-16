@@ -1,6 +1,6 @@
 // a case is at the top of the switch block: no Duff's device (#63)
 let main():i32 {
-    var n:i32 = 1
+    var n:int32 = 1
     switch n {
     case 1:
         if n > 0 {

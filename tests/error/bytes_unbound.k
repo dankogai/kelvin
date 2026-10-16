@@ -1,5 +1,5 @@
 // a Bytes an expression gives is bound before it is used (#54, O4)
-let main():i32 {
+let main():int32 {
     println(Bytes("x").count)
     return 0
 }

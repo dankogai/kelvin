@@ -1,5 +1,5 @@
 // error: println cannot show a function: a function has no text
-let add1(x:i64):i64 { return x + 1; }
+let add1(x:int64):i64 { return x + 1; }
 let mul2(x:i64):i64 { return x * 2; }
 let main():i32 {
     let c = true;

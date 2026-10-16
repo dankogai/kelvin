@@ -1,5 +1,5 @@
 // a String is not indexed by codepoint (#55)
-let main():i32 {
+let main():int32 {
     var s = String("héllo")
     println(s[1])
     return 0

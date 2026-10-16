@@ -1,5 +1,5 @@
 // error: this value would be dropped: a body returns its value without 'return' only when it is one expression
-let name(n:i64):cstr {
+let name(n:int64):cstr {
     switch (n) {
     case 0:
         "zero"

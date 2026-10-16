@@ -2,7 +2,7 @@
 // both bounds are checked, not just the one whose type gives the counter
 let main():i32 {
     let x = 1.5;
-    let n:i32 = 4;
+    let n:int32 = 4;
     for i in x..<n {
     }
     return 0;

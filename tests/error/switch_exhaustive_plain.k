@@ -1,6 +1,6 @@
 // a switch on a Kelvin enum lists every enumerator, or has a default (#63)
 enum color { red, green, blue }
-let main():i32 {
+let main():int32 {
     var c:color = red
     switch c {
     case red, green:

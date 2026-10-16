@@ -1,6 +1,6 @@
 // where the overloads differ in a function parameter's types, an anonymous
 // function writes them (#41)
-let apply(f:(i64):i64, n:i64):i64 { f(n) }
+let apply(f:(int64):i64, n:i64):i64 { f(n) }
 let apply(f:(f64):f64, x:f64):f64 { f(x) }
 let main():i32 {
     println(apply({ $0 * 2 }, 3))

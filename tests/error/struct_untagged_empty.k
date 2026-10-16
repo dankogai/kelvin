@@ -1,5 +1,5 @@
 // a struct with no tag has members (#59)
-let main():i32 {
+let main():int32 {
     var e:{} = {}
     return 0
 }

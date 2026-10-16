@@ -1,5 +1,5 @@
 // an operator in extend is static, as Swift's static func (#135)
-struct money { cents: i64 }
+struct money { cents: int64 }
 extend money {
     let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }
 }

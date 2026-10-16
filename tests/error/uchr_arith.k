@@ -1,5 +1,5 @@
 // a uchr has no arithmetic: its codepoint is .utf32 (#56)
-let main():i32 {
+let main():int32 {
     let c = uchr("a")
     let d = c + 1
     return 0

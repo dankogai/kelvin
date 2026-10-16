@@ -4,7 +4,7 @@
 #import <greet.k>
 #import <math>
 #import <shout>                 // shout.kh, and libkshout.a beside it (#143)
-let main():i32 {
+let main():int32 {
     greet("modules")
     println(abs(c64(3.0, 4.0)))
     shout("modules")

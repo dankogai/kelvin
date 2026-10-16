@@ -1,5 +1,5 @@
 // .pretty() with nothing between the parentheses: write .pretty (#127)
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2]
     println(xs.pretty())
     return 0

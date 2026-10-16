@@ -1,5 +1,5 @@
 // a let attribute reads self and never changes it (#137)
-struct counter { n: i64 }
+struct counter { n: int64 }
 let counter.next:i64 {
     .n += 1
     return .n

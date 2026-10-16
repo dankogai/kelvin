@@ -1,5 +1,5 @@
 // error: a trailing function starts on the line of the call's ')': on the next line, '{' starts a block
-var total:i64 = 0
+var total:int64 = 0
 let each(n:i64, f:(i64)) {
     for i in 0..<n {
         f(i)

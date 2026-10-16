@@ -1,6 +1,6 @@
 // [T](n) of a count C computes is a VLA, zero-filled after its
 // declaration, which a let cannot be (#49)
-let main(argc:i32, argv:[cstr]):i32 {
+let main(argc:int32, argv:[cstr]):i32 {
     let n = i64(argc)
     let a = [u8](n)
     return 0

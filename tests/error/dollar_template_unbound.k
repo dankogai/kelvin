@@ -1,5 +1,5 @@
 // a String an expression gives in a $`...` would never be freed (#67)
-let main():i32 {
+let main():int32 {
     var s = $`${$"x"} and more`
     return 0
 }

@@ -1,5 +1,5 @@
 // a row that is a string gives no count: write it in the type (#49)
-let main():i32 {
+let main():int32 {
     var m:[[u8]] = ["ab", "cd"]
     return 0
 }

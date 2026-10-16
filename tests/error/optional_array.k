@@ -1,5 +1,5 @@
 // an Optional holds a value, not an array (#72)
-let main():i32 {
+let main():int32 {
     var z:[i64](3)? = none
     return 0
 }

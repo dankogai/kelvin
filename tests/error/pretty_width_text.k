@@ -1,5 +1,5 @@
 // .pretty(n) takes a number of spaces, not text (#127)
-let main():i32 {
+let main():int32 {
     var xs = $[1, 2]
     println(xs.pretty("  "))
     return 0

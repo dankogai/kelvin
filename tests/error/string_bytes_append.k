@@ -1,5 +1,5 @@
 // a String takes text it can check, not a borrow of a Bytes (#55)
-let main():i32 {
+let main():int32 {
     var s = String("x")
     var b = Bytes("y")
     s += &b

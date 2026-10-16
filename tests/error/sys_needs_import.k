@@ -1,5 +1,5 @@
 // SYS comes with OS (#145)
-let main():i32 {
+let main():int32 {
     println(SYS.argv.count)
     return 0
 }

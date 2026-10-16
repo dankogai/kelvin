@@ -1,5 +1,5 @@
 // a struct takes a value of its own type, said the Kelvin way (#59)
-struct point { x: i32 }
+struct point { x: int32 }
 struct size { x: i32 }
 let main():i32 {
     var p:point = {1}

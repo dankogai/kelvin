@@ -1,5 +1,5 @@
 // error: an anonymous function cannot use 'kk' of the function around it
-let apply(x:i64, f:(i64):i64):i64 { return f(x); }
+let apply(x:int64, f:(i64):i64):i64 { return f(x); }
 let main():i32 {
     let kk = 1;
     println(apply(1) {

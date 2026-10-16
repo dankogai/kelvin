@@ -1,6 +1,6 @@
 // case none(x): binds nothing: the case carries no value (#119)
 let main():i32 {
-    var a:i64? = 3
+    var a:int64? = 3
     switch a {
     case some(v): println(v)
     case none(x): println("none")

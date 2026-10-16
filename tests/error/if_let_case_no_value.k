@@ -1,6 +1,6 @@
 // a case with no value has nothing to bind (#78)
 let main():i32 {
-    var o:i64? = none
+    var o:int64? = none
     if let none(x) = o { }
     return 0
 }

@@ -1,5 +1,5 @@
 // a let pointer does not move (#27, #51)
-let main():i32 {
+let main():int32 {
     let p:cstr := "hi"
     p++
     return 0

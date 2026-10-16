@@ -1,5 +1,5 @@
 // a Result that owns, given by an expression, is not compared: nothing would free it (#79)
-let parse(s:cstr):Result<i64, String> { return i64(s) }
+let parse(s:cstr):Result<int64, String> { return i64(s) }
 let main():i32 {
     println(parse("1") == parse("1"))
     return 0

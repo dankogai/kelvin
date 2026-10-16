@@ -1,2 +1,2 @@
 // error: main's end returns 0, as in C, so it does not return this value
-let main():i32 { 42 }
+let main():int32 { 42 }

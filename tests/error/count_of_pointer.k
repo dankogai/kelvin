@@ -1,5 +1,5 @@
 // a parameter is C's pointer, so its count is not known there (#49)
-let sum(a:[i64]):i64 {
+let sum(a:[int64]):i64 {
     var s = 0
     for i in 0..<a.count { s += a[i] }
     return s

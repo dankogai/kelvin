@@ -2,5 +2,5 @@
 #import <stdio.h> as C
 #import "include_types.h" as C
 let f(x:i32, n:size_t, p:i32^, np:size_t^, vp:any^, c:bool) {
-    var y:i32 = __extension__ * p;
+    var y:int32 = __extension__ * p;
 }
