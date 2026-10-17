@@ -204,6 +204,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 170 | `b.replace(&re, &with)` and `b.replace(&re, text)` on a Bytes, and on the RegExp with `&b`, give the Bytes with each match replaced, all with the g flag and the first alone without, the replacement a Bytes borrowed or a `cstr` with `$&`, `$1`, `$<name>`, `` $` ``, `$'` and `$$` over bytes; `b.replace(&re) { ... }` takes a function `(BytesMatch):Bytes` | — | `b.replace(&pair, &with)`, `b.replace(&pair) { $0[1] }` | 2026-10-17 |
 | 171 | The `b` flag of a RegExp, Kelvin's: binary, each character a byte of its value, on a Bytes and on a String's UTF-8 alike, so that `$/[\x80-\xff]/b` matches one byte where `$/[\u0080-\u00ff]/` matches a codepoint; without it a character is a codepoint, a Bytes read as UTF-8 as far as it is, which the `u` flag says and changes nothing; `re.binary` and `re.unicode` | — | `b.escape($/[\x80-\xff]/gb)` | 2026-10-17 |
 | 172 | `Bytes([...])` is a Bytes of the bytes written out, each a character constant, a number 0 to 255 or any `u8` value, a number out of that range an error, `Bytes([])` empty. The document of `Bytes` is bytes.md, apart from strings.md, which keeps `cstr`, `String` and `uchr`: alike to look at, another thing | — | `Bytes([0x89, 'P', 'N', 'G'])` | 2026-10-17 |
+| 173 | documents/readme.md lists the documents, one line each, in the order a reader might take them: starting, values, reading and writing, modules; the README points to it | — | documents/readme.md | 2026-10-18 |
 
 Notes:
 
@@ -765,6 +766,11 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (173) Agreed details: "add `documents/readme.md` that works like a
+  TOC of `documents/`." A list by topic with a line each, where the
+  table at the end of versusC.md stays the one by detail; a new
+  document gets a line in both (P185).
 
 - (172) Agreed details: "I don't get why `Bytes(['\x00', '\x01',
   '\x02', '\x03'])` does not work. make it work. Also split the
@@ -1841,6 +1847,7 @@ says "as agreed".
 | P182 | Details of #170 | `b.replace(&re, &with)` and `b.replace(&re, text)` call `RegExp.replace(&b, p, n)` of the bytes and their count, the loop of a String's `replace` over `rx_search_bytes` with `rx_expand_bytes` for each match; the function form loops the same with `f(Self.bytesMatchAt(...))` | the byte-pointer form is a method the program may call as well, `re.replace(&b, p, n)` |
 | P183 | Details of #171 | `RX_B` is 128 in the program's flags; `rx_search` and `rx_search_bytes` both set the matcher's `bytewise` from it, and `rx_slice` of a String aborts where a bound falls on a continuation byte | the flags are read by the parser shared with kelvinc, so `$/a/v` and a flag that is none are errors at compile time still |
 | P184 | Details of #172 | `Bytes([a, b, c])` is `kv_bytes_from((const uint8_t[]){a, b, c}, 3)`; the parser keeps the list as an E_INIT in the call, marked `list` | an element that is a variable or an expression is converted by C as a `uint8_t` initializer is, the literals checked by kelvinc |
+| P185 | Details of #173 | documents/readme.md, lower case as asked, groups the documents as starting, values, reading and writing, and modules | the file name is `readme.md`, which GitHub shows at the top of the directory as it shows README.md |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
