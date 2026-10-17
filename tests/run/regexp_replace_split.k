@@ -33,6 +33,10 @@ let main():int32 {
     var i = dotted.replace(&dot, "")
     var j = x.replace(&y, "z")
     println(h, " ", i, " ", j)
+    var tpl = $"$<month>/$1"                                   // the replacement a String, borrowed (#161)
+    var k = s.replace(&dated, &tpl)
+    var l = dated.replace(&s, &tpl)
+    println(k, " ", k == l)
     let comma = $/\s*,\s*/
     let each = $//
     let blanks = $/\s+/
@@ -58,4 +62,5 @@ let main():int32 {
 // out: 2026$10$17 and 2027$01$02
 // out: -a-b-c- -a-b-c- -a--c-
 // out: bbbbbb abc x
+// out: 10/2026-17 and 01/2027-02 true
 // out: ["a", "b", "c", "d"] ["h", "é", "l", "l", "o"] ["one", "two", "three"] ["", "a", "", "b", ""] ["abc"] [""] []

@@ -192,6 +192,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 158 | Methods overload by their parameter types, as functions do (#41): `let box.add(n:int64)` and `let box.add(t:cstr)`, the call choosing by its arguments, an anonymous argument taking the type of the overload with a function there; in C the overloads are named by their types. An owner given by value moves into a method, and into a call through a function value, `f(b)`, which frees it (O5). `String(n)` of a number or a bool is its text. `s.replace(&re) { ... }` of RegExp takes a function of the Match | — | `s.replace(&re) { String(f64($0.text[0]) * 2.0) }` | 2026-10-17 |
 | 159 | `s.match(&re) { ... }` and `re.match(&s) { ... }` of RegExp call a function, `(Match):()`, with each match, every one with the g flag and the first alone without, the Match owned by the function, as `s.match(&re)` gives them in an Array | — | `s.match(&temp) { println($0.text[1], " at ", $0.start) }` | 2026-10-17 |
 | 160 | `s.split(&re) { ... }` and `re.split(&s) { ... }` of RegExp call a function, `(String):()`, with each piece of the text cut at the matches, the pieces that `s.split(&re)` gives in an Array, each owned by the function | — | `s.split(&blanks) { println($0) }` | 2026-10-17 |
+| 161 | `s.replace(&re, &with)` and `re.replace(&s, &with)` of RegExp take the replacement as a String borrowed, beside the `cstr` form, an overload by its type | — | `s.replace(&re, &tpl)` | 2026-10-17 |
 
 Notes:
 
@@ -753,6 +754,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (161) Agreed details: "now add `s.replace(&re)` with a String. I
+  thought it was already done... wait, the second arg of `var t =
+  s.replace(&re, "$<month>/$1")` was only `cstr` and not `String`?" It
+  was a `cstr` alone; the String form borrows it, `&with`, as
+  `RegExp.compile` and `Bytes.fromBase64` take a String, and reads its
+  text (P173).
 
 - (160) Agreed details: "now add `s.split(&re) { ... }` that iterates
   over each piece." The function form of `split` is the loop of the
@@ -1715,6 +1723,7 @@ says "as agreed".
 | P170 | Details of #158 | `b.add(1)` with two `add` methods calls `box__add__i64`, `b.add() { $0 * 10 }` the one whose parameter is a function; `s.replace(&re) { ... }` is `String__replace__constRegExpPtr__...`, named by its types | `method_candidates` lists the methods of the name on the receiver's type, one per signature; `method_param_type` gives an anonymous argument the type of the only candidate with a function there; `choose` picks, and the call keeps the method in `Expr.method`, by which the codegen calls it directly where it has a types name, with `_kv_T_take` of a local owner argument, as a function call has; `dispatch` lists one C function per receiver type for the `_Generic` of unresolved calls; a call through a function value keeps its type in `Expr.fn_type` for the same takes; `kv_string_i64`, `_u64`, `_f32`, `_f64` and `_bool` are `KV_STRING_OF`'s cases |
 | P171 | Details of #159 | `s.match(&re) { f }` is `String__match__constRegExpPtr__...(s, &re, f)`, which calls `RegExp.match(&s, f)`: `rx_search` from each match's end, an empty match moving on by one codepoint, and `f(Self.matchAt(&self, s, caps))`, the Match moved into f | the same walk as the Array form's and `replace`'s, with nothing kept |
 | P172 | Details of #160 | `s.split(&re) { f }` calls `RegExp.split(&s, f)`: JS's split, sticky searches from each position, an empty match between codepoints skipped where it would cut nothing, and `f(rx_slice(s, piece, at))` for each piece, the String moved into f | the same walk as the Array form's, with nothing kept |
+| P173 | Details of #161 | `s.replace(&re, &t)` is the `cstr` form on `t.cstr`, an overload by #158 whose parameter is `const String^` | the Array, `match` and `split` forms have no text argument, so nothing else changes |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

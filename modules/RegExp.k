@@ -157,6 +157,9 @@ extend RegExp {
         return out
     }
 
+    // the same with the replacement a String, borrowed: s.replace(&re, &with)
+    let replace(s:const String^, with:const String^):String { self.replace(s, with^.cstr) }
+
     // s with each match (the first alone without g) replaced by what f gives
     // for it, a String of the Match, which f owns:
     // s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }
@@ -256,6 +259,7 @@ extend String {
     let match(re:const RegExp^, f:(Match):()):() { re^.match(&self, f) }
     let search(re:const RegExp^):i64 { re^.search(&self) }
     let replace(re:const RegExp^, with:cstr):String { re^.replace(&self, with) }
+    let replace(re:const RegExp^, with:const String^):String { re^.replace(&self, with^.cstr) }
     let replace(re:const RegExp^, f:(Match):String):String { re^.replace(&self, f) }
     let split(re:const RegExp^):Array<String> { re^.split(&self) }
     let split(re:const RegExp^, f:(String):()):() { re^.split(&self, f) }

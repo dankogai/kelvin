@@ -4408,3 +4408,16 @@ Array form gives, as an overload by #158. Details are provisional
 P172.
 
 There are 772 tests, and all pass with clang and with gcc 15.
+
+### 204. replace with a String
+
+> now add `s.replace(&re)` with a String. I thought it was already
+> done... wait, the second arg of `var t = s.replace(&re,
+> "$<month>/$1")` was only `cstr` and not `String`?
+
+**Claude** confirmed it was a `cstr` alone, and added #161: the
+replacement may be a String borrowed, `s.replace(&re, &t)` and
+`re.replace(&s, &t)`, an overload by its type that reads the String's
+text. Details are provisional P173.
+
+There are 772 tests, and all pass with clang and with gcc 15.

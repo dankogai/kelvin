@@ -102,12 +102,13 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.execFrom(&s, from)` | the first match at or after codepoint `from` |
 | `re.match(&s)`, `s.match(&re)` | an `Array<Match>` of every match with `g`, else of the first alone, empty where there is none |
 | `re.match(&s) { ... }`, `s.match(&re) { ... }` | the same matches, each given to the function as its `Match`: `s.match(&re) { println($0.text[1]) }` (#159) |
-| `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String |
+| `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String; `with` a `cstr`, or a String borrowed, `&with` (#161) |
 | `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }` (#158) |
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
 | `re.split(&s) { ... }`, `s.split(&re) { ... }` | the same pieces, each given to the function as a String: `s.split(&re) { println($0) }` (#160) |
 
-- **`with`** is a `cstr` with JS's patterns: `$&` the match, `$1` to
+- **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
+  with JS's patterns: `$&` the match, `$1` to
   `$99` a group, `$<name>` a named one, `` $` `` the text before, `$'`
   the text after, `$$` a `$`; a group that took no part is `""`, and a
   `$` that is none of these stays.
