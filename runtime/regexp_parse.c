@@ -702,9 +702,9 @@ Node *rx_parse_pattern(Parser *p, const uint8_t *pattern, const uint8_t *flags) 
     p->len = strlen((const char *)p->pat);
     for (const uint8_t *f = flags ? flags : (const uint8_t *)""; *f; f++) {
         uint32_t bit = *f == 'i' ? RX_I : *f == 'm' ? RX_M : *f == 's' ? RX_S : *f == 'g' ? RX_G : *f == 'y' ? RX_Y
-                     : *f == 'd' ? RX_D : *f == 'u' ? RX_U : 0;
+                     : *f == 'd' ? RX_D : *f == 'u' ? RX_U : *f == 'b' ? RX_B : 0;
         if (!bit)
-            rx_fail(p->pat, *f == 'v' ? "the v flag is not here yet: the flags are dgimsuy" : "a flag that is not one of dgimsuy", p->len);
+            rx_fail(p->pat, *f == 'v' ? "the v flag is not here yet: the flags are bdgimsuy" : "a flag that is not one of bdgimsuy", p->len);
         if (p->flags & bit)
             rx_fail(p->pat, "a flag twice", p->len);
         p->flags |= bit;

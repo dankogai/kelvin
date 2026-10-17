@@ -359,6 +359,7 @@ bool rx_flag(const kv_bytes *prog, uint8_t flag) {
     case 'y': return f & RX_Y;
     case 'd': return f & RX_D;
     case 'u': return f & RX_U;
+    case 'b': return f & RX_B;
     default: return false;
     }
 }
@@ -700,14 +701,17 @@ static bool search_in(const kv_bytes *prog, const uint8_t *s, int64_t n, bool by
     return found;
 }
 
+/* the b flag (#171) matches byte by byte, each byte a codepoint of its value,
+   a String's UTF-8 as a Bytes; without it, codepoints, a Bytes decoded as
+   UTF-8 as far as it is */
 bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool sticky, int64_t *caps) {
-    return search_in(prog, s->b.at, (int64_t)s->b.count, false, from, sticky, caps);
+    return search_in(prog, s->b.at, (int64_t)s->b.count, prog_words(prog)[H_FLAGS] & RX_B, from, sticky, caps);
 }
 
 /* a Bytes (#168): matched byte by byte, each byte the codepoint of its
    value, so that \xHH and [\x80-\xFF] mean bytes; \X is one byte */
 bool rx_search_bytes(const kv_bytes *prog, const kv_bytes *b, int64_t from, bool sticky, int64_t *caps) {
-    return search_in(prog, b->at, (int64_t)b->count, true, from, sticky, caps);
+    return search_in(prog, b->at, (int64_t)b->count, prog_words(prog)[H_FLAGS] & RX_B, from, sticky, caps);
 }
 
 /* ---------- the replacement, bytes and codepoints ---------- */
@@ -786,8 +790,15 @@ kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi) {
         lo = 0;
     if (hi > (int64_t)s->b.count)
         hi = (int64_t)s->b.count;
-    if (s->b.at)
+    if (s->b.at) {
+        /* a match with the b flag (#171) may end inside a codepoint, which is no text */
+        if ((lo < (int64_t)s->b.count && (s->b.at[lo] & 0xC0) == 0x80) || (hi < (int64_t)s->b.count && (s->b.at[hi] & 0xC0) == 0x80)) {
+            fflush(stdout);
+            fputs("kelvin: RegExp: a match with the b flag cuts a codepoint of a String, which no String can hold: match a Bytes\n", stderr);
+            abort();
+        }
         append_bytes(&out, s->b.at, lo, hi);
+    }
     return out;
 }
 

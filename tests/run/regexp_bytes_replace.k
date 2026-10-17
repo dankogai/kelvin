@@ -6,7 +6,7 @@
 let main():int32 {
     var b = Bytes("key=1;name=ab")
     b += 0xFF
-    let pair = $/(\w+)=(?<v>[^;]*)/g
+    let pair = $/(\w+)=(?<v>[^;]*)/gb
     var with = Bytes("<$<v>>")
     with += 0
     var r1 = b.replace(&pair, &with)
@@ -21,8 +21,8 @@ let main():int32 {
     println(e2)
     println(e3)
     println(e4)
-    let empty = $/x*/g
-    let first = $/\w+/
+    let empty = $/x*/gb
+    let first = $/\w+/b
     var ab = Bytes("ab")
     var r5 = ab.replace(&empty, "-")
     var r6 = b.replace(&first, "$`|$'")

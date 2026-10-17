@@ -78,6 +78,8 @@ extend RegExp {
     let ignoreCase:bool { rx_flag(&self.program, 'i') }
     let multiline:bool { rx_flag(&self.program, 'm') }
     let dotAll:bool { rx_flag(&self.program, 's') }
+    let binary:bool { rx_flag(&self.program, 'b') }            // the b flag (#171): a character is a byte
+    let unicode:bool { !rx_flag(&self.program, 'b') }          // else a codepoint, the u flag saying so
 
     // the match found from byte offset from, as a Match
     static let matchAt(re:const RegExp^, s:const String^, caps:const i64^):Match {
@@ -121,9 +123,9 @@ extend RegExp {
         return m
     }
 
-    // on a Bytes (#169), matched byte by byte, each byte the codepoint of
-    // its value: test, search, match and split as on a String, the offsets
-    // bytes and the pieces Bytes
+    // on a Bytes (#169): test, search, match and split as on a String, the
+    // offsets bytes and the pieces Bytes; with the b flag (#171) each byte is
+    // a character, else the bytes are read as UTF-8 as far as they are
     let test(b:const Bytes^):bool {
         var caps:[i64](256)
         return rx_search_bytes(&self.program, b, 0, self.sticky, caps)
@@ -473,9 +475,9 @@ extend Bytes {
     let replace(re:const RegExp^, f:(BytesMatch):Bytes):Bytes { re^.replace(&self, f) }
 
     // the bytes as text, each byte that re matches as \xHH, and so every byte
-    // that is not printable ASCII, since a String holds text (#168); a Bytes
-    // is matched byte by byte, each byte the codepoint of its value, so that
-    // \xHH and [\x80-\xFF] mean bytes: b.escape($/[\x80-\xFF]/)
+    // that is not printable ASCII, since a String holds text (#168); with the
+    // b flag (#171) each byte is a character, so that \xHH and [\x80-\xFF]
+    // mean bytes: b.escape($/[\x80-\xFF]/gb)
     let escape(re:const RegExp^):String { rx_escape_bytes(&re^.program, &self) }
     let escape(re:RegExp):String { rx_escape_bytes(&re.program, &self) }
 

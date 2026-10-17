@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum { RX_I = 1, RX_M = 2, RX_S = 4, RX_G = 8, RX_Y = 16, RX_D = 32, RX_U = 64 };
+enum { RX_I = 1, RX_M = 2, RX_S = 4, RX_G = 8, RX_Y = 16, RX_D = 32, RX_U = 64, RX_B = 128 }; /* b (#171): bytes */
 enum { CI_RANGE, CI_ESCAPE, CI_GC, CI_SCRIPT, CI_PROP }; /* the items of a class */
 enum { LOOK_AHEAD, LOOK_NAHEAD, LOOK_BEHIND, LOOK_NBEHIND };
 #define INF 0x7fffffff

@@ -4536,3 +4536,20 @@ with a function of each BytesMatch giving the Bytes to put, on a Bytes
 and on the RegExp with `&b`. Details are provisional P182.
 
 There are 780 tests, and all pass with clang and with gcc 15.
+
+### 214. The b flag
+
+> add the `b` flag to RegExp to explicitly make it binary mode. with
+> that, each character is a byte so `$/[\x80-\xff]/b` matches exactly
+> one byte, which is NOT `$/[\u0080-\u00ff]/`. RegExp defaults to
+> Unicode codepoint mode where a character is a codepoint. To make it
+> clear, let's add `u` flag as well which is actually a no-op.
+
+**Claude** added #171: the `b` flag makes a pattern binary, each
+character a byte, on a Bytes and on a String alike, where without it a
+character is a codepoint, which `u` says and changes nothing; the
+byte-wise matcher of #168 is the flag's now, and the tests on a Bytes
+write it. `re.binary` and `re.unicode` read the mode. Details are
+provisional P183.
+
+There are 780 tests, and all pass with clang and with gcc 15.

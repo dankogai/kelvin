@@ -202,6 +202,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 168 | A RegExp on a Bytes: `b.escape(&re)` and `b.escape($/.../)` give the bytes as text, each byte the pattern matches as `\xHH`, the Bytes matched byte by byte, each byte the codepoint of its value, and every byte that is not printable ASCII escaped too, a String holding text; `Bytes.unescape(text, &re)`, text a `cstr` or `&s`, the pattern borrowed or a literal moved in, reads the escapes back into bytes where the pattern matches the text alone. A function of a type may be declared on `Bytes` or `String` in an `extend`; an attribute of a type is not read on a value of another type kelvinc sees | — | `b.escape($/[\x80-\xFF]/g)`, `Bytes.unescape(&s, &re)` | 2026-10-17 |
 | 169 | `b.test(&re)`, `b.search(&re)`, `b.match(&re)` and `b.split(&re)` on a Bytes, and `re.test(&b)` and the rest on the RegExp, as a String has them, the Bytes matched byte by byte: a `BytesMatch` holds the bytes of the whole and of each group, `m.data[i]`, with their byte offsets, `m[i]` and `m["name"]` copies; `split` gives Bytes; `b.match(&re) { }` and `b.split(&re) { }` call a function with each | — | `b.match(&pair) { print($0.start, " ") }` | 2026-10-17 |
 | 170 | `b.replace(&re, &with)` and `b.replace(&re, text)` on a Bytes, and on the RegExp with `&b`, give the Bytes with each match replaced, all with the g flag and the first alone without, the replacement a Bytes borrowed or a `cstr` with `$&`, `$1`, `$<name>`, `` $` ``, `$'` and `$$` over bytes; `b.replace(&re) { ... }` takes a function `(BytesMatch):Bytes` | — | `b.replace(&pair, &with)`, `b.replace(&pair) { $0[1] }` | 2026-10-17 |
+| 171 | The `b` flag of a RegExp, Kelvin's: binary, each character a byte of its value, on a Bytes and on a String's UTF-8 alike, so that `$/[\x80-\xff]/b` matches one byte where `$/[\u0080-\u00ff]/` matches a codepoint; without it a character is a codepoint, a Bytes read as UTF-8 as far as it is, which the `u` flag says and changes nothing; `re.binary` and `re.unicode` | — | `b.escape($/[\x80-\xff]/gb)` | 2026-10-17 |
 
 Notes:
 
@@ -763,6 +764,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (171) Agreed details: "add the `b` flag to RegExp to explicitly
+  make it binary mode. with that, each character is a byte so
+  `$/[\x80-\xff]/b` matches exactly one byte, which is NOT
+  `$/[\u0080-\u00ff]/`. RegExp defaults to Unicode codepoint mode
+  where a character is a codepoint. To make it clear, let's add `u`
+  flag as well which is actually a no-op." The byte-wise matcher of
+  #168 is now the flag's, not the Bytes's: the mode is the pattern's,
+  whatever it matches. A String matched with `b` whose match cuts a
+  codepoint ends the program where the text is taken, since a String
+  holds text; the tests on a Bytes write the flag (P183).
 
 - (170) Agreed details: "now add `b.replace(&re, &bytes)` for `Bytes`
   too." The replacement is a Bytes borrowed or text, as a String's is
@@ -1817,6 +1829,7 @@ says "as agreed".
 | P180 | Details of #168 | `b.escape(&re)` is `rx_escape_bytes(&re.program, &b)`, over `rx_search_bytes`, the matcher's Ctx with `bytewise` set, where `cp_here` and `cp_prev` read a byte, `\X` is a byte, and a first character above 255 matches nothing; `Bytes.unescape(&s, &re)` is `rx_unescape_bytes(&re.program, p, n)`, the text matched as text and each match read by `kv_bytes_unescape` | the parser reads `Bytes.name(` and `String.name(` as a function of the type where the program declares one and the call is not the one-argument `Bytes.fromBase64` or `Bytes.unescape`, counting the arguments ahead; an attribute found by name alone is dropped where the receiver's type is seen and is not its; `gen_header` keeps one list of seen prototypes per `extend` block |
 | P181 | Details of #169 | `b.match(&re)` loops `rx_search_bytes` as `s.match(&re)` loops `rx_search`, an empty match moving on by a byte, and `RegExp.bytesMatchAt` builds the `BytesMatch` with `rx_bytes_slice`; `split` is the Array form's walk over bytes | `replace` on a Bytes waits: a replacement of bytes would want its own spelling |
 | P182 | Details of #170 | `b.replace(&re, &with)` and `b.replace(&re, text)` call `RegExp.replace(&b, p, n)` of the bytes and their count, the loop of a String's `replace` over `rx_search_bytes` with `rx_expand_bytes` for each match; the function form loops the same with `f(Self.bytesMatchAt(...))` | the byte-pointer form is a method the program may call as well, `re.replace(&b, p, n)` |
+| P183 | Details of #171 | `RX_B` is 128 in the program's flags; `rx_search` and `rx_search_bytes` both set the matcher's `bytewise` from it, and `rx_slice` of a String aborts where a bound falls on a continuation byte | the flags are read by the parser shared with kelvinc, so `$/a/v` and a flag that is none are errors at compile time still |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

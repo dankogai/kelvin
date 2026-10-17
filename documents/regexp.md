@@ -58,10 +58,14 @@ so a file that has not imported `<RegExp>` cannot write one.
 - **The flags** are JS's: `g` every match, `i` by simple case folding,
   `m` for `^` and `$` at line ends, `s` for `.` over line ends, `y`
   sticky, at the start alone, and `u` and `d`, accepted; `v` is not
-  here yet.
+  here yet. `b` (#171) is Kelvin's: binary, each character a byte, so
+  that `$/[\x80-\xff]/b` matches one byte where `$/[\u0080-\u00ff]/`
+  matches a codepoint; without it a character is a codepoint, which
+  `u` says and changes nothing.
   - `re.source`, `re.flags` and `re.groups` are the pattern, the flags
     and the count of groups; `re.global`, `re.ignoreCase`,
-    `re.multiline`, `re.dotAll` and `re.sticky` the flags one by one.
+    `re.multiline`, `re.dotAll`, `re.sticky`, `re.binary` and
+    `re.unicode` the flags one by one.
 
 ## The syntax
 
@@ -143,9 +147,13 @@ name: `s.match(&re)` is `re.match(&s)`.
 - **`s.unescape(&re)`** (#165) reads back the escapes in what the
   pattern matches alone: `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` turns
   the emoji escapes back and leaves `\u{E9}` as it is.
-- **A Bytes** (#168, #169) is matched byte by byte, each byte the
-  codepoint of its value, so that `\xHH` and `[\x80-\xFF]` mean bytes
-  and `\X` is one byte. `b.test(&re)`, `b.search(&re)`, `b.match(&re)`
+- **A Bytes** (#168, #169) is matched with the `b` flag (#171) byte by
+  byte, each byte the codepoint of its value, so that `\xHH` and
+  `[\x80-\xFF]` mean bytes and `\X` is one byte; without the flag its
+  bytes are read as UTF-8 as far as they are. A String with `b` is
+  matched over its UTF-8 bytes the same way, and a match that cuts a
+  codepoint ends the program where its text is taken, since no String
+  holds it: match a Bytes for that. `b.test(&re)`, `b.search(&re)`, `b.match(&re)`
   and `b.split(&re)` are a String's over bytes: a `BytesMatch` has
   `m.data[i]`, the bytes of group `i` in place, `m[i]` and `m["name"]`
   copies, `m.start`, `m.end`, `m.startOf(i)`, `m.endOf(i)` byte
@@ -153,7 +161,7 @@ name: `s.match(&re)` is `re.match(&s)`.
   `split` are Bytes; `b.replace(&re, &with)` (#170) takes a Bytes
   borrowed or text, with the `$` patterns of a String's over bytes, and
   `b.replace(&re) { ... }` a function `(BytesMatch):Bytes`. The
-  escapes: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
+  escapes: `b.escape($/[\x80-\xFF]/gb)` escapes the high bytes, and
   every byte that is not printable ASCII with them, since a String
   holds text. `Bytes.unescape(&s, &re)` reads the escapes back into
   bytes where the pattern matches the text, `Bytes.unescape(text)` of

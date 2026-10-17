@@ -8,7 +8,7 @@ let main():int32 {
     b += 0xFF
     b += ';'
     b += 'x'
-    let pair = $/(\w+)=(?<v>[^;]*)/g
+    let pair = $/(\w+)=(?<v>[^;]*)/gb
     var ms = b.match(&pair)
     println(ms.count, " ", b.test(&pair), " ", b.search(&pair), " ", pair.test(&b), " ", pair.search(&b))
     for m in ms {
@@ -18,7 +18,7 @@ let main():int32 {
         var whole = m[0]
         println(ke, " ", ve, " ", m.start, "..<", m.end, " ", m.count, " ", m.has(2), " ", m.startOf(2), " ", whole.count)
     }
-    let semi = $/;/
+    let semi = $/;/b
     var parts = b.split(&semi)
     println(parts.count)
     for p in parts { var pe = p.escape(); println("[", pe, "]") }
@@ -26,16 +26,16 @@ let main():int32 {
     println()
     b.match(&pair) { print($0.start, " ") }
     println()
-    let high = $/[\x80-\xFF]+/g
+    let high = $/[\x80-\xFF]+/gb
     var hm = b.match(&high)
     var he = hm[0].data[0].escape()
     println(hm.count, " ", he, " ", hm[0].start, " ", b.search(&high))
-    let each = $//
+    let each = $//b
     var ab = Bytes("ab")
     var chars = ab.split(&each)
     var empty = Bytes()
     var none = empty.split(&semi)
-    var first = $/\w/
+    var first = $/\w/b
     var fm = ab.match(&first)
     println(chars.count, " ", none.count, " ", fm.count, " ", fm[0].end)
     return 0
