@@ -27,6 +27,8 @@ let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i6
 let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
 let rx_escape(prog:const Bytes^, s:const String^):String
 let rx_unescape(prog:const Bytes^, s:const String^):String
+let rx_escape_bytes(prog:const Bytes^, b:const Bytes^):String
+let rx_unescape_bytes(prog:const Bytes^, text:const u8^, len:size_t):Bytes
 let rx_slice(s:const String^, lo:i64, hi:i64):String
 let rx_cp_index(s:const String^, byte:i64):i64
 let rx_byte_index(s:const String^, cp:i64):i64
@@ -276,6 +278,22 @@ extend String {
     // s.unescape() reads the whole: s.unescape($/\\u\{1F[0-9A-F]+\}/g)
     let unescape(re:const RegExp^):String { rx_unescape(&re^.program, &self) }
     let unescape(re:RegExp):String { rx_unescape(&re.program, &self) }
+}
+
+extend Bytes {
+    // the bytes as text, each byte that re matches as \xHH, and so every byte
+    // that is not printable ASCII, since a String holds text (#168); a Bytes
+    // is matched byte by byte, each byte the codepoint of its value, so that
+    // \xHH and [\x80-\xFF] mean bytes: b.escape($/[\x80-\xFF]/)
+    let escape(re:const RegExp^):String { rx_escape_bytes(&re^.program, &self) }
+    let escape(re:RegExp):String { rx_escape_bytes(&re.program, &self) }
+
+    // the bytes of the text, with the escapes read back where re matches the
+    // text alone, as Bytes.unescape(text) reads the whole: Bytes.unescape(&s, &re)
+    static let unescape(text:cstr, re:const RegExp^):Bytes { rx_unescape_bytes(&re^.program, text, text.count) }
+    static let unescape(text:const String^, re:const RegExp^):Bytes { rx_unescape_bytes(&re^.program, text^.cstr, text^.bytes^.count) }
+    static let unescape(text:cstr, re:RegExp):Bytes { rx_unescape_bytes(&re.program, text, text.count) }
+    static let unescape(text:const String^, re:RegExp):Bytes { rx_unescape_bytes(&re.program, text^.cstr, text^.bytes^.count) }
 }
 
 // RegExp(pattern, flags), the pattern and the flags a cstr or a String

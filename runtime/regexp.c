@@ -383,7 +383,23 @@ typedef struct {
     int nloops;
     Frame *stack;
     size_t top, cap;
+    bool bytewise; /* a Bytes (#168): each byte a codepoint of its value */
 } Ctx;
+
+/* the codepoint at pos, and before it: of the text, or a byte of a Bytes */
+static uint32_t cp_here(Ctx *c, int64_t pos, int *len) {
+    if (!c->bytewise)
+        return rx_cp_at(c->s, c->n, pos, len);
+    *len = pos < c->n ? 1 : 0;
+    return pos < c->n ? c->s[pos] : NO_CP;
+}
+
+static uint32_t cp_prev(Ctx *c, int64_t pos, int *len) {
+    if (!c->bytewise)
+        return rx_cp_before(c->s, c->n, pos, len);
+    *len = pos > 0 ? 1 : 0;
+    return pos > 0 ? c->s[pos - 1] : NO_CP;
+}
 
 static void push(Ctx *c, uint32_t kind, uint32_t a, int64_t b) {
     if (c->top == c->cap) {
@@ -451,9 +467,9 @@ static bool look(Ctx *c, uint32_t kind, uint32_t sub, uint32_t maxlen, int64_t p
     if (kind == LOOK_AHEAD || kind == LOOK_NAHEAD) {
         ok = run(c, sub, pos, -1, &end);
     } else {
-        int64_t k = maxlen == UINT32_MAX ? 0 : back_cps(c->s, pos, maxlen);
+        int64_t k = maxlen == UINT32_MAX ? 0 : c->bytewise ? (pos > maxlen ? pos - maxlen : 0) : back_cps(c->s, pos, maxlen);
         for (; k <= pos && !ok; k++) {
-            if (k < pos && (c->s[k] & 0xC0) == 0x80)
+            if (k < pos && !c->bytewise && (c->s[k] & 0xC0) == 0x80)
                 continue;
             ok = run(c, sub, k, pos, &end);
         }
@@ -481,28 +497,28 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
         uint32_t x;
         switch (code[pc]) {
         case OP_CHAR:
-            x = rx_cp_at(c->s, c->n, pos, &len);
+            x = cp_here(c, pos, &len);
             if (x == NO_CP || (code[pc + 2] ? ucd_to_fold(x) : x) != code[pc + 1])
                 goto fail;
             pos += len;
             pc += 3;
             continue;
         case OP_ANY:
-            x = rx_cp_at(c->s, c->n, pos, &len);
+            x = cp_here(c, pos, &len);
             if (x == NO_CP || is_line_end(x))
                 goto fail;
             pos += len;
             pc++;
             continue;
         case OP_ANYALL:
-            x = rx_cp_at(c->s, c->n, pos, &len);
+            x = cp_here(c, pos, &len);
             if (x == NO_CP)
                 goto fail;
             pos += len;
             pc++;
             continue;
         case OP_CLASS:
-            x = rx_cp_at(c->s, c->n, pos, &len);
+            x = cp_here(c, pos, &len);
             if (x == NO_CP || !class_matches(c->data + code[pc + 1], x, code[pc + 2]))
                 goto fail;
             pos += len;
@@ -521,18 +537,18 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
             pc += 2;
             continue;
         case OP_BOL:
-            if (!(pos == 0 || (code[pc + 1] && is_line_end(rx_cp_before(c->s, c->n, pos, &len)))))
+            if (!(pos == 0 || (code[pc + 1] && is_line_end(cp_prev(c, pos, &len)))))
                 goto fail;
             pc += 2;
             continue;
         case OP_EOL:
-            if (!(pos == c->n || (code[pc + 1] && is_line_end(rx_cp_at(c->s, c->n, pos, &len)))))
+            if (!(pos == c->n || (code[pc + 1] && is_line_end(cp_here(c, pos, &len)))))
                 goto fail;
             pc += 2;
             continue;
         case OP_WORDB:
         case OP_NWORDB: {
-            uint32_t before = rx_cp_before(c->s, c->n, pos, &len), after = rx_cp_at(c->s, c->n, pos, &len);
+            uint32_t before = cp_prev(c, pos, &len), after = cp_here(c, pos, &len);
             bool a = before != NO_CP && is_word_cp(before), b = after != NO_CP && is_word_cp(after);
             if ((a != b) != (code[pc] == OP_WORDB))
                 goto fail;
@@ -550,7 +566,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
                 int64_t k = lo;
                 while (k < hi) {
                     int l2;
-                    uint32_t a = rx_cp_at(c->s, c->n, k, &len), b = rx_cp_at(c->s, c->n, pos, &l2);
+                    uint32_t a = cp_here(c, k, &len), b = cp_here(c, pos, &l2);
                     if (b == NO_CP || ucd_to_fold(a) != ucd_to_fold(b))
                         goto fail;
                     k += len;
@@ -580,7 +596,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
         case OP_GRAPHEME:
             if (pos >= c->n)
                 goto fail;
-            pos += (int64_t)ucd_grapheme_len(c->s + pos, (size_t)(c->n - pos));
+            pos += c->bytewise ? 1 : (int64_t)ucd_grapheme_len(c->s + pos, (size_t)(c->n - pos));
             pc++;
             continue;
         case OP_RESET:
@@ -624,11 +640,13 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
     }
 }
 
-bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool sticky, int64_t *caps) {
+static bool search_in(const kv_bytes *prog, const uint8_t *s, int64_t n, bool bytewise, int64_t from, bool sticky,
+                      int64_t *caps) {
     const uint32_t *w = prog_words(prog);
     Ctx c = {0};
-    c.s = s->b.at ? s->b.at : (const uint8_t *)"";
-    c.n = (int64_t)s->b.count;
+    c.s = s ? s : (const uint8_t *)"";
+    c.n = n;
+    c.bytewise = bytewise;
     c.flags = w[H_FLAGS];
     c.code = w + w[H_CODE];
     c.data = w + w[H_DATA];
@@ -642,8 +660,18 @@ bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool stic
     /* a pattern that starts with a character, not folded, is sought by its first byte */
     uint8_t first[4];
     int first_len = 0;
-    if (c.code[2] == OP_CHAR && !c.code[4])
-        first_len = rx_utf8_put(first, c.code[3]);
+    if (c.code[2] == OP_CHAR && !c.code[4]) {
+        if (!bytewise)
+            first_len = rx_utf8_put(first, c.code[3]);
+        else if (c.code[3] < 256)
+            first_len = (int)(first[0] = (uint8_t)c.code[3], 1);
+        else
+            first_len = -1; /* a codepoint no byte is: no match */
+    }
+    if (first_len < 0) {
+        free(c.loops);
+        return false;
+    }
     for (int64_t start = from; start <= c.n; ) {
         if (first_len && !sticky) {
             const uint8_t *q = memchr(c.s + start, first[0], (size_t)(c.n - start));
@@ -664,12 +692,22 @@ bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool stic
         if (sticky || start >= c.n)
             break;
         int len;
-        rx_cp_at(c.s, c.n, start, &len);
+        cp_here(&c, start, &len);
         start += len;
     }
     free(c.stack);
     free(c.loops);
     return found;
+}
+
+bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool sticky, int64_t *caps) {
+    return search_in(prog, s->b.at, (int64_t)s->b.count, false, from, sticky, caps);
+}
+
+/* a Bytes (#168): matched byte by byte, each byte the codepoint of its
+   value, so that \xHH and [\x80-\xFF] mean bytes; \X is one byte */
+bool rx_search_bytes(const kv_bytes *prog, const kv_bytes *b, int64_t from, bool sticky, int64_t *caps) {
+    return search_in(prog, b->at, (int64_t)b->count, true, from, sticky, caps);
 }
 
 /* ---------- the replacement, bytes and codepoints ---------- */
@@ -853,5 +891,80 @@ kv_string rx_unescape(const kv_bytes *prog, const kv_string *s) {
     }
     free(caps);
     kv_string_append_owned(&out, rx_slice(s, copied, n));
+    return out;
+}
+
+/* b.escape(&re) (#168): the bytes as text, each byte the pattern matches as
+   \xHH, and so every byte that is not printable ASCII, since a String holds
+   text; a backslash as \\ */
+static void escape_byte(kv_string *out, uint8_t c) {
+    char buf[8];
+    snprintf(buf, sizeof buf, "\\x%02X", c);
+    kv_string_append_text(out, buf);
+}
+
+kv_string rx_escape_bytes(const kv_bytes *prog, const kv_bytes *b) {
+    kv_string out = kv_string_new();
+    int64_t n = (int64_t)b->count, from = 0, copied = 0;
+    int64_t ngroups = rx_groups(prog);
+    int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
+    while (from <= n && rx_search_bytes(prog, b, from, false, caps)) {
+        for (int64_t k = copied; k < caps[0]; k++) {
+            uint8_t c = b->at[k];
+            if (c == '\\')
+                kv_string_append_text(&out, "\\\\");
+            else if (c >= 0x20 && c < 0x7F)
+                kv_string_append_cp(&out, c);
+            else
+                escape_byte(&out, c);
+        }
+        for (int64_t k = caps[0]; k < caps[1]; k++)
+            escape_byte(&out, b->at[k]);
+        copied = caps[1];
+        if (caps[1] > caps[0]) {
+            from = caps[1];
+        } else {
+            if (caps[1] >= n)
+                break;
+            from = caps[1] + 1;
+        }
+    }
+    free(caps);
+    for (int64_t k = copied; k < n; k++) {
+        uint8_t c = b->at[k];
+        if (c == '\\')
+            kv_string_append_text(&out, "\\\\");
+        else if (c >= 0x20 && c < 0x7F)
+            kv_string_append_cp(&out, c);
+        else
+            escape_byte(&out, c);
+    }
+    return out;
+}
+
+/* Bytes.unescape(text, &re) (#168): the bytes of the text, with the escapes
+   read back where the pattern matches the text alone */
+kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len) {
+    kv_bytes out = kv_bytes_new();
+    kv_string s = {kv_bytes_from(text, len), 0};
+    s.count = (size_t)rx_cp_index(&s, (int64_t)len);
+    int64_t n = (int64_t)len, from = 0, copied = 0;
+    int64_t ngroups = rx_groups(prog);
+    int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
+    while (from <= n && rx_search(prog, &s, from, false, caps)) {
+        kv_bytes_append(&out, text + copied, (size_t)(caps[0] - copied));
+        kv_bytes_append_owned(&out, kv_bytes_unescape(text + caps[0], (size_t)(caps[1] - caps[0])));
+        copied = caps[1];
+        if (caps[1] > caps[0]) {
+            from = caps[1];
+        } else {
+            if (caps[1] >= n)
+                break;
+            from = rx_next(&s, caps[1]);
+        }
+    }
+    free(caps);
+    kv_bytes_append(&out, text + copied, (size_t)(n - copied));
+    kv_string_free(&s);
     return out;
 }

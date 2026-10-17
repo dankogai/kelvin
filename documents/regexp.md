@@ -116,6 +116,8 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.split(&s) { ... }`, `s.split(&re) { ... }` | the same pieces, each given to the function as a String: `s.split(&re) { println($0) }` (#160) |
 | `s.escape(&re)`, `s.escape($/.../)` | `s` with each codepoint of each match as `\u{...}`, and a `\` as `\\`, a new String that `s.unescape()` reads back (#164); the prelude's `s.escape()` escapes what is not ASCII |
 | `s.unescape(&re)`, `s.unescape($/.../)` | the escapes read back in what the pattern matches alone, each match as `s.unescape()` reads the whole (#165) |
+| `b.escape(&re)`, `b.escape($/.../)` | a Bytes as text, a String: each byte the pattern matches as `\xHH`, and every byte that is not printable ASCII too (#168) |
+| `Bytes.unescape(text, &re)`, `Bytes.unescape(&s, $/.../)` | the bytes of the text, the escapes read back where the pattern matches the text alone (#168) |
 
 - **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
   with JS's patterns: `$&` the match, `$1` to
@@ -139,6 +141,13 @@ name: `s.match(&re)` is `re.match(&s)`.
 - **`s.unescape(&re)`** (#165) reads back the escapes in what the
   pattern matches alone: `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` turns
   the emoji escapes back and leaves `\u{E9}` as it is.
+- **A Bytes** (#168) is matched byte by byte, each byte the codepoint
+  of its value, so that `\xHH` and `[\x80-\xFF]` mean bytes and `\X`
+  is one byte: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
+  every byte that is not printable ASCII with them, since a String
+  holds text. `Bytes.unescape(&s, &re)` reads the escapes back into
+  bytes where the pattern matches the text, `Bytes.unescape(text)` of
+  the prelude the whole.
 
 ```kelvin
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g

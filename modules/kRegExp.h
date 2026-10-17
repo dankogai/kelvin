@@ -34,6 +34,10 @@ void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, co
 kv_string rx_escape(const kv_bytes *prog, const kv_string *s);
 /* s.unescape(&re) (#165): the escapes read back in what the pattern matches alone */
 kv_string rx_unescape(const kv_bytes *prog, const kv_string *s);
+/* a Bytes (#168), matched byte by byte, each byte the codepoint of its value */
+bool rx_search_bytes(const kv_bytes *prog, const kv_bytes *b, int64_t from, bool sticky, int64_t *caps);
+kv_string rx_escape_bytes(const kv_bytes *prog, const kv_bytes *b);    /* b.escape(&re): matched bytes as \xHH */
+kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len); /* Bytes.unescape(text, &re) */
 
 /* bytes and codepoints of a String */
 kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi);  /* bytes lo..<hi, a new String */

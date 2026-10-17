@@ -57,6 +57,10 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
 
 ## Functions of a type: `static let T.name(...)`
 
+A function of a type is declared on a struct, union or enum of the
+program, and on `Bytes` or `String` in an `extend` (#168):
+`Bytes.unescape(text, &re)` of the RegExp module is one.
+
 In an `extend T { }` block (#130), the same is `static let name(...)`;
 see [properties.md](properties.md#attributes-of-your-own-and-extend).
 

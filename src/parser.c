@@ -1287,6 +1287,7 @@ static void move_args(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
+static int call_args_ahead(int i);
 static Type *method_param_type(List *cands, Decl *m, int k);
 static bool method_takes_none(Expr *recv, const char *name);
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
@@ -2098,6 +2099,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                    method would be, with no parentheses; a field wins */
                 Decl *g = method_named(e, member);
                 Decl *record;
+                Type *grt = value_type(e); /* an attribute of another type is not this value's (#168): p.count of a cstr */
+                if (g && g->attribute && grt && (grt->kind != T_BASE || strcmp(grt->name, g->recv->name)))
+                    g = NULL;
                 if (g && g->attribute && !(expr_class(e, &record) == 's' && record_has_field(record, member))) {
                     if (call)
                         error_at(name->pos, "'%s' is an attribute of %s: read it as '.%s', with no parentheses", member,
@@ -3061,6 +3065,29 @@ static Expr *parse_primary(void) {
         e->text = which;
         e->type = base_type("IO", t->pos);
         return e;
+    }
+    if ((is_kw(t, "Bytes") || is_kw(t, "String")) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
+        is_p(peek_at(3), "(")) {
+        /* Bytes.name(...), String.name(...): a function of the type the
+           program declares (#168), unless it is the built-in one-argument
+           Bytes.fromBase64 or Bytes.unescape (#155, #167) */
+        char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
+        bool builtin_one = is_kw(t, "Bytes") &&
+                           (!strcmp(peek_at(2)->text, "fromBase64") || !strcmp(peek_at(2)->text, "unescape")) &&
+                           call_args_ahead(cur + 3) == 1;
+        if (function_named(full) && !builtin_one) {
+            advance();
+            advance();
+            advance();
+            Expr *e = new_expr(E_IDENT, t->pos);
+            e->text = full;
+            List cands = overloads_of(full, NULL);
+            if (cands.len == 1)
+                e->target = cands.data[0];
+            else
+                e->cands = cands;
+            return e;
+        }
     }
     if (is_kw(t, "Bytes") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
         (!strcmp(peek_at(2)->text, "fromBase64") || !strcmp(peek_at(2)->text, "unescape")) && is_p(peek_at(3), "(")) {
@@ -7486,6 +7513,27 @@ static List method_candidates(Expr *recv, const char *name) {
     return out;
 }
 
+/* the arguments between the '(' at token i and its ')', counted by the
+   commas at their depth: 0 for '()', -1 where no ')' closes it (#168) */
+static int call_args_ahead(int i) {
+    int depth = 0, args = 0;
+    bool any = false;
+    for (int k = i + 1; toks[k].kind != TK_EOF && toks[k].kind != TK_FILE_END; k++) {
+        Token *t = &toks[k];
+        if (is_p(t, "(") || is_p(t, "[") || is_p(t, "{")) {
+            depth++;
+        } else if (is_p(t, ")") || is_p(t, "]") || is_p(t, "}")) {
+            if (depth == 0)
+                return any ? args + 1 : 0;
+            depth--;
+        } else if (depth == 0 && is_p(t, ",")) {
+            args++;
+        }
+        any = true;
+    }
+    return -1;
+}
+
 /* Does a method of the name on the receiver take no argument? (#164) */
 static bool method_takes_none(Expr *recv, const char *name) {
     List cands = method_candidates(recv, name);
@@ -9190,11 +9238,12 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         /* static let T.name(params):R { ... } (#111): a function of the
            type, Swift's static func, with no self, called as T.name(...);
            T a struct, union or enum with values of the program */
-        if (recv->kind == TK_KEYWORD)
-            error_at(recv->pos, "a function of a type is declared on a struct, union or enum of the program: '%s' is "
-                                "built in",
+        bool builtin_owner_type = is_kw(recv, "Bytes") || is_kw(recv, "String"); /* Bytes.f(...) too (#168) */
+        if (recv->kind == TK_KEYWORD && !builtin_owner_type)
+            error_at(recv->pos, "a function of a type is declared on a struct, union or enum of the program, or on "
+                                "Bytes or String: '%s' is built in",
                      recv->text);
-        if (!record_named(recv->text))
+        if (!builtin_owner_type && !record_named(recv->text))
             error_at(recv->pos, "'%s' is not a struct, union or enum declared before this function", recv->text);
         if (is_kw(name, "cstr"))
             error_at(name->pos, "'.cstr' is a method, the text of a value: write 'let %s.cstr():cstr'", recv->text);
@@ -11024,14 +11073,15 @@ char *gen_header(Program *prog) {
                 open = is_p(&toks[open], "{") ? group_end(open) + 1 : open + 1;
             int close = group_end(open);
             buf_printf(&b, "%s\n", raw_text(i, open + 1));
+            List block_seen = {0}; /* a prototype and its definition are one, within the block (#168) */
             for (int m = open + 1; m < close;) {
                 int end;
                 char how = header_end(m, &end);
                 char *text = how == 't' ? type_attribute_decl(prog, m, false) : raw_text(m, end);
                 if (how == 'b' && is_kw(&toks[m + 1], "cstr"))
                     text = raw_text(m, group_end(end) + 1); /* T.cstr() (#53) is inline: its body too */
-                if (!text_listed(&seen, text)) {
-                    list_push(&seen, text);
+                if (!text_listed(&block_seen, text)) {
+                    list_push(&block_seen, text);
                     buf_printf(&b, "    %s\n", text);
                 }
                 m = how == 'b' ? group_end(end) + 1 : how == 't' ? decl_end(m) : end;

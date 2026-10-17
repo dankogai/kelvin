@@ -4498,3 +4498,18 @@ that `b.escape()` and `s.escape()` both read back into bytes. Details
 are provisional P179.
 
 There are 777 tests, and all pass with clang and with gcc 15.
+
+### 211. A RegExp on a Bytes
+
+> now add `.escape()` and `.unescape()` with a RegExp for `Bytes` too
+
+**Claude** added #168: the matcher got a byte-wise mode, each byte a
+codepoint of its value, and `b.escape(&re)`, `b.escape($/.../)` and
+`Bytes.unescape(text, &re)` use it, the escape a String with every
+byte that is not text as `\xHH` too. A function of a type may be
+declared on `Bytes` or `String` in an `extend` now. Two faults came
+out on the way and are fixed: an attribute of a struct was read on a
+`cstr` by its name alone, and a module header dropped a prototype whose
+text another block had. Details are provisional P180.
+
+There are 778 tests, and all pass with clang and with gcc 15.
