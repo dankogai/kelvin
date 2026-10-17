@@ -27,6 +27,7 @@ and `.isNull` are in [properties.md](properties.md).
 `&x` is the address of `x`, as in C, and the one prefix operator a
 pointer needs:
 
+<!-- fragment -->
 ```kelvin
 var x:int32 = 1
 var p:int32^ := &x          // C: int32_t *p = &x;
@@ -51,6 +52,7 @@ let f := &twice           // a function's address is the function itself
 
 Assigning a pointer (a reference) uses `:=`, and `=` is for values:
 
+<!-- fragment -->
 ```kelvin
 var buffer := malloc(8 * 1024):int64^   // declares buffer: i64^
 buffer[0] = 42                        // a value, through the reference

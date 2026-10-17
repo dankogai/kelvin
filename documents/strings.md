@@ -148,6 +148,7 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 
 ## Walking and indexing
 
+<!-- fragment -->
 ```kelvin
 for c in s { ... }            // each byte of s, up to the NUL (#30)
 for arg in argv { ... }       // each string, up to nullptr
@@ -188,6 +189,7 @@ It is an owner: freed when its block ends, moved by `return` and by
 passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
 
+<!-- fragment -->
 ```kelvin
 var s = $"héllo"                 // String("héllo"); String() is empty
 s += ", world"                   // append text; also s.append(...)

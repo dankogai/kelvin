@@ -82,6 +82,7 @@ println(SION.same(&s, &back))                 // true
 
 ## Functions
 
+<!-- fragment -->
 ```kelvin
 SION.parse(text: cstr): SION                      // a value, or error(message)
 SION.parse(text: const String^): SION             // the same of a String, borrowed

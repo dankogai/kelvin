@@ -88,6 +88,7 @@ let main():int32 {
 
 ## Functions
 
+<!-- fragment -->
 ```kelvin
 sin(x:float64):float64, sin(x:float32):float32, sin(z:c64):c64, sin(z:c32):c32   // and so for each function above
 pow(x:float64, y:float64):float64, pow(z:c64, w:c64):c64, pow(z:c64, x:float64):c64

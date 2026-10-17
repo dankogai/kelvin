@@ -53,6 +53,8 @@ An array is initialized with `[...]`, and a struct or union keeps
 `{...}` (#48), nested too:
 
 ```kelvin
+struct bag { n: int64; xs: [int64](3) }
+struct point { x: int64; y: int64 }
 let a:[int32](3) = [1, 2, 3]
 let b = [1, 2, 3]                       // [i64](3), inferred
 let m = [[1, 2], [3, 4]]                // [[i64](2)](2)
@@ -82,6 +84,7 @@ or, for a local `var`, a value C computes at run time (C's variable
 length array, declared and then zeroed with `memset`):
 
 ```kelvin
+var n:int64 = 80
 var z = [uint8](256)              // uint8_t z[256] = {0}
 var line = [uint8](n)             // uint8_t line[n]; memset(line, 0, sizeof line)
 let t = [float64](3)               // a let of a constant count is fine
@@ -97,6 +100,7 @@ never changed; `a.size` is the bytes, `a.count * sizeof(T)`. Both hold
 for a variable length array, since `sizeof` is computed at run time
 there. A `var` array's elements may change; a `let` array's may not.
 
+<!-- fragment -->
 ```kelvin
 for i in 0..<a.count { a[i] = a[i] * 2 }
 ```
@@ -145,6 +149,7 @@ freed when its block ends, moved by `return` and by passing, copied
 only by `.copy()`, borrowed as a pointer. The rules are in
 [ownership.md](ownership.md); this is the summary.
 
+<!-- fragment -->
 ```kelvin
 var xs = $[1, 2, 3]              // Array<i64>, from the elements; Array<i64>() is empty
 xs += 4                          // append; also xs.append(4)

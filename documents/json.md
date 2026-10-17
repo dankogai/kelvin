@@ -95,6 +95,7 @@ var a = JSON.parse(&text)                     // a String, borrowed
 
 ## Functions
 
+<!-- fragment -->
 ```kelvin
 JSON.parse(text: cstr): JSON                       // a value, or error(message)
 JSON.parse(text: const String^): JSON              // the same of a String, borrowed

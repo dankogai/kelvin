@@ -35,6 +35,7 @@ type's own are listed, with its methods, at the end of its document:
 Properties are written without parentheses:
 
 ```kelvin
+struct point { x: int32; y: int32 }
 let c:int32 = 42
 let b:uint8 = 255
 let p:point = {3, 4}

@@ -7,6 +7,7 @@ floats in [floatingpoint.md](floatingpoint.md).
 
 **Where it lives:** the core. `bool` is C's `bool` from `<stdbool.h>`, which the generated C includes itself, with nothing linked. Printing it and its text (`.cstr`) are the prelude's, `libkelvin`, linked without an import.
 
+<!-- fragment -->
 ```kelvin
 var done = false                    // a bool, inferred
 let ok = a < b                      // a comparison gives a bool

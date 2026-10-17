@@ -4616,3 +4616,18 @@ Details are provisional P187.
 
 There are 784 tests, and all pass with clang and with gcc 15; the ASan
 run passes every program.
+
+### 219. The documents' examples as tests
+
+> now make the documents' examples tests
+
+**Claude** added #176: tests/docs.sh, run by `make test`, compiles
+every ```kelvin block of the documents and the README, a program as it
+is and a fragment rearranged, its declarations at the margin above a
+main that holds its statements; a listing or a sketch is marked
+`<!-- fragment -->` on the line before its fence. Nine examples gained
+the declaration or the import they had left out, and one that
+conflicted with C's `labs` was replaced. Details are provisional P188.
+
+There are 784 tests, and all pass with clang and with gcc 15; the
+documents' 40 examples compile, with 30 fragments marked.

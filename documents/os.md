@@ -216,6 +216,7 @@ and otherwise the `errno` C left, which `strerror` reads. A
 passes it up and `if let ok(v)` reads it. `Stat` below stands for the
 struct of the next section.
 
+<!-- fragment -->
 ```kelvin
 SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it
 SYS.exit(code: int32)                      // ends the program; no value
@@ -311,6 +312,7 @@ the same kind may replace, so copy it with `String(...)` to keep it.
 `struct stat` as a Kelvin struct, Kelvinized. Its spelling is the
 struct itself, since it has no name:
 
+<!-- fragment -->
 ```kelvin
 {dev: int64, ino: int64, mode: int32, nlink: int64, uid: int32, gid: int32, size: int64,
  atime: float64, mtime: float64, ctime: float64, isdir: bool, isfile: bool, islink: bool}

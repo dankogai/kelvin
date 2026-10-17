@@ -11,11 +11,12 @@ operators, which are functions of a struct, are in
 ## Declaring
 
 ```kelvin
+struct node { next: node^ }
 let add(a:int64, b:int64):int64 { a + b }        // one expression is the result
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
 let shout(name:cstr):() { println(name, "!") }  // the same, written out (#141)
 let move(var p:node^):() { p := p^.next }  // a var parameter may change
-extern let labs(n:int64):int64                 // a prototype, no body
+extern let puts(s:cstr):int32                  // a prototype, no body: C's
 static let helper():int32 { 1 }
 let main(argc:int32, argv:[cstr]):int32 { return 0 }
 ```
@@ -102,6 +103,7 @@ println(p.dist2())                        // 25; p.origin() is an error: it is c
 A function type is written as a function's head without names (#31), as
 Swift writes `(T, U) -> R`. In C it is a pointer to a function:
 
+<!-- fragment -->
 ```kelvin
 let fold(xs:int64^, n:size_t, f:(int64, int64):int64):int64 { ... f(acc, xs[i]) ... }
 let pick(product:bool):(int64, int64):int64 { ... }   // returns a function
@@ -145,6 +147,7 @@ With `kelvinc -O`, the C compiler may then inline it where it is called,
 as in a Kelvin `sort` that calls its `before`; one passed to a C
 function such as `qsort` stays a function, whose address C needs.
 
+<!-- fragment -->
 ```kelvin
 sort(xs, 8) { $0 < $1 }                 // the last argument, after the call
 sort(xs, 8, { $[0] > $[1] })            // or inside the parentheses

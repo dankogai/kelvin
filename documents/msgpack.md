@@ -47,6 +47,7 @@ println(SION.same(&s, &back))                 // true
 
 ## Functions
 
+<!-- fragment -->
 ```kelvin
 MsgPack.pack(s: const SION^): Bytes               // the bytes
 MsgPack.unpack(b: const Bytes^): SION             // the value, or error(message)

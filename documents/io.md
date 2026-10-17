@@ -11,6 +11,7 @@ rules are in [ownership.md](ownership.md), Results in
 
 **Where it lives:** a module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are `libkIO`, built from runtime/io.c and declared by `kIO.h`, which `modules/IO.kh` brings in and links; it is built on OS, so `#import <IO>` brings `OS` and `SYS` in too. A program needs no `#import <stdio.h>`. Without the import, `IO` is an error that says to write it.
 
+<!-- fragment -->
 ```kelvin
 #import <IO>
 
@@ -216,6 +217,7 @@ a `cstr`, `""` for a stream or a process, and the work `OS` does on a
 path, [os.md](os.md)'s, is done from the IO on its own:
 
 ```kelvin
+#import <IO>
 let f = IO("./notes.txt")                     // a path alone opens for reading
 var abs = f.abspath                           // a String: /home/me/notes.txt
 println(f.path, " ", abs, " ", f.stat.size)   // ./notes.txt, and the open file's size, no case to unwrap (#104)
@@ -282,6 +284,7 @@ or a `Bytes` held in a variable; an `i32` that is "0 or `errno`" is 0
 on success and otherwise the `errno` C left; a `Result<T, i32>` holds
 the `T` or that `errno`. `Stat` is the struct of [os.md](os.md).
 
+<!-- fragment -->
 ```kelvin
 IO(path: text, mode: text): IO                     // fopen, straight; "r" when the mode is left out; f.error when it did not open (#109)
 IO(fd: int32, mode: text): IO                        // fdopen; the IO owns the descriptor

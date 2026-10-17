@@ -13,6 +13,7 @@ examples.
 
 **Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
+<!-- fragment -->
 ```kelvin
 var a:int64? = 3                           // some(3): a T becomes a T? where one is expected
 var b:int64? = none                        // none, a word that needs the type around it

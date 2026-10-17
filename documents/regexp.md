@@ -168,6 +168,7 @@ name: `s.match(&re)` is `re.match(&s)`.
   the prelude the whole.
 
 ```kelvin
+#import <RegExp>
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g
 var s = $"water boils at 212F and freezes at 32F"
 s.match(&temp) { println($0.text[1], " at ", $0.start) }     // 212 at 15, 32 at 35

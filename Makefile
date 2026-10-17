@@ -88,6 +88,7 @@ build build/runtime:
 
 test: all
 	./tests/run.sh
+	./tests/docs.sh
 
 # every test program under AddressSanitizer with a counting allocator (#175)
 asan: all

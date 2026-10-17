@@ -16,6 +16,7 @@ also in `for (var i = 0; ...)`, and references take `:=` (see
 `if`, `while` and `do` take their condition without parentheses, and
 their bodies are blocks (#23):
 
+<!-- fragment -->
 ```kelvin
 if n > 0 {
     println("positive")
@@ -54,6 +55,7 @@ do {
 ends where the next begins, with no `break` and no fallthrough, and
 every value is handled.
 
+<!-- fragment -->
 ```kelvin
 switch n {
 case 0:
@@ -108,6 +110,7 @@ its keys (#65, [ownership.md](ownership.md)).
 `for i in a..<b { ... }` counts from `a` up to `b`, without `b`, and
 `for i in a...b { ... }` up to and with `b` (#28):
 
+<!-- fragment -->
 ```kelvin
 for i in 0..<count {          // C: for (int i = 0; i < count; i++)
     println(i)
@@ -132,6 +135,7 @@ for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would
 `for x in s { ... }` walks a sequence that ends at a terminator, as C's
 strings and lists do (#30). What `x` is depends on `s`'s type:
 
+<!-- fragment -->
 ```kelvin
 for c in s { ... }          // s:cstr: each byte, up to the NUL
 for arg in argv { ... }     // argv:u8^^: each string, up to nullptr

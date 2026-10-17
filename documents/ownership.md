@@ -72,6 +72,7 @@ A `String` is a sequence of Unicode codepoints, kept as UTF-8 in a
 from bytes that are not well-formed UTF-8 (overlong forms, surrogates,
 anything past U+10FFFF), the program ends with a message.
 
+<!-- fragment -->
 ```kelvin
 var s = String("héllo, κόσμε")  // text, checked
 s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
@@ -125,6 +126,7 @@ a pointer, a `cstr`, a struct that owns nothing, or an owner among
 `Bytes`, `String` and `Array<U>`, which the Array then owns: freed with
 it, copied by `copy()`, and never copied by `=`.
 
+<!-- fragment -->
 ```kelvin
 var xs = Array<int64>()            // empty; Array<i64>(n) is n zero elements
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])

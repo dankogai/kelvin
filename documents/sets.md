@@ -9,6 +9,7 @@ Dictionary with no values, and keeps its elements in the order added.
 **Where it lives:** the prelude. A Set's C comes from `kelvin_prelude.h`, instantiated for each `T`, with hashing in `libkelvin`, linked without an import.
 
 ```kelvin
+var t = ${2, 6}
 var s = ${3, 1, 4, 1, 5}                 // Set<i64>: 3 1 4 5
 s += 9                                   // insert; s.insert(9) says whether it was new
 s += &t                                  // t's elements
