@@ -256,6 +256,7 @@ UTF-8 are to come.
 | `Bytes` | `.count`, `.capacity` | the bytes held, and the room |
 | | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
 | | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not |
+| | `.escape()` | the bytes as text, a String: each that is not printable ASCII as `\xHH`, a `\` as `\\` (#166); `s.unescape()` reads it back where the bytes were text |
 | | `.at` | the bytes, a `u8^` borrow; `b[i]` is checked |
 | | `.cstr` | a borrow of the text, NUL-ended |
 | | `.isUTF8` | whether it would pass as a String |

@@ -1833,7 +1833,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"append", 1, true, "bsa"}, {"insert", 2, true, "ba"}, {"remove", 2, true, "ba"},
                     {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
                     {"copy", 0, false, "bsadt"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
-                    {"escape", 0, false, "s"}, {"unescape", 0, false, "s"},
+                    {"escape", 0, false, "bs"}, {"unescape", 0, false, "s"},
                     {"toBase64", -1, false, "b"},
                     {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
@@ -1851,7 +1851,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                         which = (int)k;
                 if (which < 0)
                     error_at(name->pos, ok == 'b'
-                                            ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, "
+                                            ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, escape, "
                                               "compact, copy, string and toBase64, and the properties count, capacity, "
                                               "at, cstr and isUTF8"
                                         : ok == 's'
@@ -4082,7 +4082,8 @@ static Type *value_type_of(Expr *e) {
     case E_METHOD: {
         if (e->op && !strcmp(e->op, "bytes")) /* a Bytes method (#54): copy gives a Bytes, string a String */
             return !strcmp(e->text, "copy")                                         ? base_type("Bytes", e->pos)
-                   : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") ? base_type("String", e->pos)
+                   : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") || !strcmp(e->text, "escape")
+                       ? base_type("String", e->pos)
                                                                                 : NULL;
         if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy, escape and unescape give a String */
             return !strcmp(e->text, "copy") || !strcmp(e->text, "escape") || !strcmp(e->text, "unescape")

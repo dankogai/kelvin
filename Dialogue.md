@@ -4476,3 +4476,13 @@ back the escapes in what the pattern matches alone, each match as the
 prelude's `unescape` reads the whole. Details are provisional P177.
 
 There are 776 tests, and all pass with clang and with gcc 15.
+
+### 209. escape of a Bytes
+
+> now add `s.escape()` for `Bytes` too, as `\xHH` form
+
+**Claude** added #166: `b.escape()` gives a Bytes's bytes as text, a
+String, each byte that is not printable ASCII as `\xHH` and a backslash
+as `\\`. Details are provisional P178.
+
+There are 777 tests, and all pass with clang and with gcc 15.

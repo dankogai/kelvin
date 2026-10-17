@@ -303,3 +303,23 @@ kv_bytes kv_bytes_from_base64(const void *p, size_t n) {
 }
 
 kv_bytes kv_bytes_from_base64_text(const void *s) { return s ? kv_bytes_from_base64(s, strlen(s)) : (kv_bytes){0}; }
+
+/* b.escape() (#166): the bytes as text, each that is not printable ASCII as
+   \xHH, and a backslash as \\; a String, which s.unescape() reads back
+   where the bytes were text */
+kv_string kv_bytes_escape(const kv_bytes *b) {
+    kv_string out = kv_string_new();
+    for (size_t i = 0; i < b->count; i++) {
+        uint8_t c = b->at[i];
+        if (c == '\\') {
+            kv_string_append_text(&out, "\\\\");
+        } else if (c >= 0x20 && c < 0x7F) {
+            kv_string_append_cp(&out, c);
+        } else {
+            char buf[8];
+            snprintf(buf, sizeof buf, "\\x%02X", c);
+            kv_string_append_text(&out, buf);
+        }
+    }
+    return out;
+}
