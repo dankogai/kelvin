@@ -1288,6 +1288,7 @@ static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
 static Type *method_param_type(List *cands, Decl *m, int k);
+static bool method_takes_none(Expr *recv, const char *name);
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
 static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
@@ -1817,8 +1818,11 @@ static Expr *parse_postfix_ops(Expr *e) {
                     continue;
                 }
             }
-            /* a method of the program on a String or a Bytes, extend String { } (#156), before the built-in ones */
-            const char *okind = call && !method_named(e, member) ? builtin_owner(value_type(e)) : NULL;
+            /* a method of the program on a String or a Bytes, extend String { } (#156), before the built-in
+               ones, but for a call with no argument where every one of the program's takes some (#164) */
+            const char *okind = call && (!method_named(e, member) || (is_p(peek2(), ")") && !method_takes_none(e, member)))
+                                    ? builtin_owner(value_type(e))
+                                    : NULL;
             if (okind) {
                 char ok = owner_letter(okind);
                 /* a Bytes method (#54): append, insert, remove, clear,
@@ -1829,6 +1833,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"append", 1, true, "bsa"}, {"insert", 2, true, "ba"}, {"remove", 2, true, "ba"},
                     {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
                     {"copy", 0, false, "bsadt"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
+                    {"escape", 0, false, "s"}, {"unescape", 0, false, "s"},
                     {"toBase64", -1, false, "b"},
                     {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
@@ -1850,7 +1855,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                                               "compact, copy, string and toBase64, and the properties count, capacity, "
                                               "at, cstr and isUTF8"
                                         : ok == 's'
-                                            ? "a String has no method '%s': append, clear, reserve, compact and copy, "
+                                            ? "a String has no method '%s': append, clear, reserve, compact, copy, escape and unescape, "
                                               "and the properties count, bytes and cstr"
                                         : ok == 'd'
                                             ? "a Dictionary has no method '%s': has, find, get, remove, clear, reserve "
@@ -4079,8 +4084,10 @@ static Type *value_type_of(Expr *e) {
             return !strcmp(e->text, "copy")                                         ? base_type("Bytes", e->pos)
                    : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") ? base_type("String", e->pos)
                                                                                 : NULL;
-        if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy gives a String */
-            return !strcmp(e->text, "copy") ? base_type("String", e->pos) : NULL;
+        if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy, escape and unescape give a String */
+            return !strcmp(e->text, "copy") || !strcmp(e->text, "escape") || !strcmp(e->text, "unescape")
+                       ? base_type("String", e->pos)
+                       : NULL;
         if (e->op && !strcmp(e->op, "case_is")) /* v.is(n) (#61) */
             return base_type("bool", e->pos);
         if (e->op && !strcmp(e->op, "case_set"))
@@ -7474,6 +7481,15 @@ static List method_candidates(Expr *recv, const char *name) {
             list_push(&out, d);
     }
     return out;
+}
+
+/* Does a method of the name on the receiver take no argument? (#164) */
+static bool method_takes_none(Expr *recv, const char *name) {
+    List cands = method_candidates(recv, name);
+    for (int i = 0; i < cands.len; i++)
+        if (!((Decl *)cands.data[i])->params.len)
+            return true;
+    return false;
 }
 
 /* the type of parameter k for an anonymous argument of a method call

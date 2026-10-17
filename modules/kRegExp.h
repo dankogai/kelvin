@@ -30,6 +30,9 @@ bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool stic
    appended to out */
 void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, const uint8_t *with, kv_string *out);
 
+/* s.escape(&re) (#164): each codepoint of each match as \u{...}, a backslash as \\ */
+kv_string rx_escape(const kv_bytes *prog, const kv_string *s);
+
 /* bytes and codepoints of a String */
 kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi);  /* bytes lo..<hi, a new String */
 int64_t rx_cp_index(const kv_string *s, int64_t byte);            /* the codepoints before byte offset byte */

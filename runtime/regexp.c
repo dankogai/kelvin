@@ -781,3 +781,51 @@ int64_t rx_next(const kv_string *s, int64_t byte) {
     rx_cp_at(s->b.at, (int64_t)s->b.count, byte, &len);
     return byte + len;
 }
+
+/* s.escape(&re) (#164): the text with each codepoint of each match as
+   \u{...}, and a backslash as \\ anywhere, so that unescape reads it back */
+kv_string rx_escape(const kv_bytes *prog, const kv_string *s) {
+    kv_string out = kv_string_new();
+    const uint8_t *p = s->b.at ? s->b.at : (const uint8_t *)"";
+    int64_t n = (int64_t)s->b.count, from = 0, copied = 0;
+    int64_t ngroups = rx_groups(prog);
+    int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
+    while (from <= n && rx_search(prog, s, from, false, caps)) {
+        for (int64_t k = copied; k < caps[0];) {
+            int len;
+            uint32_t cp = rx_cp_at(p, n, k, &len);
+            if (cp == '\\')
+                kv_string_append_text(&out, "\\\\");
+            else
+                kv_string_append_cp(&out, cp);
+            k += len;
+        }
+        for (int64_t k = caps[0]; k < caps[1];) {
+            int len;
+            uint32_t cp = rx_cp_at(p, n, k, &len);
+            char buf[16];
+            snprintf(buf, sizeof buf, "\\u{%X}", (unsigned)cp);
+            kv_string_append_text(&out, buf);
+            k += len;
+        }
+        copied = caps[1];
+        if (caps[1] > caps[0]) {
+            from = caps[1];
+        } else {
+            if (caps[1] >= n)
+                break;
+            from = rx_next(s, caps[1]);
+        }
+    }
+    free(caps);
+    for (int64_t k = copied; k < n;) {
+        int len;
+        uint32_t cp = rx_cp_at(p, n, k, &len);
+        if (cp == '\\')
+            kv_string_append_text(&out, "\\\\");
+        else
+            kv_string_append_cp(&out, cp);
+        k += len;
+    }
+    return out;
+}

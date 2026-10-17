@@ -4449,3 +4449,20 @@ returns to kelvinc instead of ending the program. Details are
 provisional P175.
 
 There are 774 tests, and all pass with clang and with gcc 15.
+
+### 207. escape and unescape
+
+> add `.escape()` to `String` in prelude. with no argument, it turn
+> non-ascii code points into `\u{....}` form. You can optionally pass
+> `RegExp` where matching characters are escaped, like
+> `.escape($/[\p{Emoji}]/)`. `.unescape()` does the opposite.
+
+**Claude** added #164: `s.escape()` and `s.unescape()` in the prelude,
+each codepoint beyond ASCII as `\u{...}` and a backslash as `\\`, read
+back with JS's other escapes too; and in the RegExp module
+`s.escape(&re)` and `s.escape($/.../)`, the literal moved into the
+call, which escape what the pattern matches. The parser takes the
+built-in method for a call with no argument where the program's
+methods of the name all take some. Details are provisional P176.
+
+There are 776 tests, and all pass with clang and with gcc 15.

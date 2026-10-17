@@ -25,6 +25,7 @@ let rx_group_named(prog:const Bytes^, name:cstr):i64
 let rx_flag(prog:const Bytes^, flag:u8):bool
 let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i64^):bool
 let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
+let rx_escape(prog:const Bytes^, s:const String^):String
 let rx_slice(s:const String^, lo:i64, hi:i64):String
 let rx_cp_index(s:const String^, byte:i64):i64
 let rx_byte_index(s:const String^, cp:i64):i64
@@ -265,6 +266,11 @@ extend String {
     let replace(re:const RegExp^, f:(Match):String):String { re^.replace(&self, f) }
     let split(re:const RegExp^):Array<String> { re^.split(&self) }
     let split(re:const RegExp^, f:(String):()):() { re^.split(&self, f) }
+    // the text with what re matches escaped, each codepoint as \u{...}, and a
+    // backslash as \\ (#164): s.escape(&re), or s.escape($/[\p{Emoji}]/) with
+    // the literal moved in; s.escape() of the prelude escapes what is not ASCII
+    let escape(re:const RegExp^):String { rx_escape(&re^.program, &self) }
+    let escape(re:RegExp):String { rx_escape(&re.program, &self) }
 }
 
 // RegExp(pattern, flags), the pattern and the flags a cstr or a String

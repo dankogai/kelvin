@@ -114,6 +114,7 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }` (#158) |
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
 | `re.split(&s) { ... }`, `s.split(&re) { ... }` | the same pieces, each given to the function as a String: `s.split(&re) { println($0) }` (#160) |
+| `s.escape(&re)`, `s.escape($/.../)` | `s` with each codepoint of each match as `\u{...}`, and a `\` as `\\`, a new String that `s.unescape()` reads back (#164); the prelude's `s.escape()` escapes what is not ASCII |
 
 - **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
   with JS's patterns: `$&` the match, `$1` to
@@ -128,6 +129,12 @@ name: `s.match(&re)` is `re.match(&s)`.
   `g` and the first alone without, and owns the Match it is given.
 - **`s.split(&re) { ... }`** (#160) walks the pieces the same way: the
   function, `(String):()`, is called with each piece, and owns it.
+- **`s.escape(&re)`** (#164) escapes what the pattern matches, every
+  match whatever the flags, each codepoint as `\u{...}`:
+  `s.escape($/\p{Emoji_Presentation}/)` leaves `café` and turns `😀`
+  into `\u{1F600}`. A literal written in the call moves in and is
+  freed there, as an owner given by value does; a backslash is `\\`
+  anywhere, so that `s.unescape()` of the prelude reads the text back.
 
 ```kelvin
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g
