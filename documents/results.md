@@ -181,8 +181,10 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
     is no text (clang made it an address, gcc refused; found by the
     example, fixed since).
 - **`lstat` is POSIX**, and glibc hides it under `-std=c11`, which
-  kelvinc uses, unless `_POSIX_C_SOURCE` is defined: on Linux, give
-  kelvinc `KELVIN_CFLAGS=-D_POSIX_C_SOURCE=200809L`.
+  kelvinc uses, unless a feature macro is defined: kelvinc defines
+  `_XOPEN_SOURCE 700` and `_DEFAULT_SOURCE` in the C it writes (#176),
+  as its runtime does for itself, so the C headers a program imports
+  show their POSIX functions on every platform.
   - [examples/results.k](../examples/results.k) does the same with ISO
     C's `timespec_get`, `fopen` and `getenv`, and runs with the tests.
 

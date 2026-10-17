@@ -4627,7 +4627,9 @@ is and a fragment rearranged, its declarations at the margin above a
 main that holds its statements; a listing or a sketch is marked
 `<!-- fragment -->` on the line before its fence. Nine examples gained
 the declaration or the import they had left out, and one that
-conflicted with C's `labs` was replaced. Details are provisional P188.
+conflicted with C's `labs` was replaced; CI then found `lstat` hidden
+by glibc under `-std=c11`, so the C kelvinc writes defines the POSIX
+feature macros now, as the runtime does. Details are provisional P188.
 
 There are 784 tests, and all pass with clang and with gcc 15; the
 documents' 40 examples compile, with 30 fragments marked.

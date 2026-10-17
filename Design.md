@@ -779,7 +779,13 @@ Notes:
   pages gained, or a better reading of a margin; 30 are listings of an
   API or sketches with `...`, marked.
   One example was wrong: `extern let labs(n:int64)` conflicts with C's
-  `long labs(long)` where `int64` is not `long` (P188).
+  `long labs(long)` where `int64` is not `long`. CI's first run found
+  another: `lstat` of results.md is hidden by glibc under `-std=c11`,
+  which a note had told the reader to work around with a flag; kelvinc
+  now defines `_XOPEN_SOURCE 700`, `_DEFAULT_SOURCE` and
+  `_DARWIN_C_SOURCE` at the top of the C it writes, as its runtime
+  does, so that an imported C header shows its POSIX functions on
+  every platform (P188).
 
 - (175) Agreed details: "now add the ASan run over the test
   programs", the second fix proposed before a release: CI's sanitizer
