@@ -3063,21 +3063,24 @@ static Expr *parse_primary(void) {
         return e;
     }
     if (is_kw(t, "Bytes") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
-        !strcmp(peek_at(2)->text, "fromBase64") && is_p(peek_at(3), "(")) {
+        (!strcmp(peek_at(2)->text, "fromBase64") || !strcmp(peek_at(2)->text, "unescape")) && is_p(peek_at(3), "(")) {
         /* Bytes.fromBase64(text) (#155): of a cstr, or of a String borrowed,
-           &s; either alphabet, the padding optional */
+           &s; either alphabet, the padding optional. Bytes.unescape(text)
+           (#167): the bytes the escapes of text stand for, the same way */
+        bool b64 = !strcmp(peek_at(2)->text, "fromBase64");
+        const char *what = b64 ? "Bytes.fromBase64" : "Bytes.unescape";
         advance();
         advance();
         advance();
         advance();
         Expr *e = new_expr(E_CALL, t->pos);
         e->a = new_expr(E_IDENT, t->pos);
-        e->a->text = "Bytes.fromBase64";
-        e->op = "bytes_from_base64";
+        e->a->text = (char *)what;
+        e->op = b64 ? "bytes_from_base64" : "bytes_unescape";
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
         if (is_p(peek(), ")"))
-            error_at(peek()->pos, "Bytes.fromBase64 takes text, a cstr, or a String borrowed, '&s'");
+            error_at(peek()->pos, "%s takes text, a cstr, or a String borrowed, '&s'", what);
         Expr *arg = parse_assign();
         brace_ends_condition = saved_brace;
         brace_in_for = saved_for;
@@ -3089,10 +3092,9 @@ static Expr *parse_primary(void) {
         else if (is_text_expr(arg) || (at && is_cstr(at)))
             e->text = "text";
         else if (at && is_string(at))
-            error_at(arg->pos, "Bytes.fromBase64 of a String takes a borrow: write '&%s'",
-                     arg->kind == E_IDENT ? arg->text : "s");
+            error_at(arg->pos, "%s of a String takes a borrow: write '&%s'", what, arg->kind == E_IDENT ? arg->text : "s");
         else
-            error_at(arg->pos, "Bytes.fromBase64 takes text, a cstr, or a String borrowed, '&s', and this is %s",
+            error_at(arg->pos, "%s takes text, a cstr, or a String borrowed, '&s', and this is %s", what,
                      at ? kelvin_type(at) : "no text");
         list_push(&e->items, arg);
         return e;
@@ -4029,7 +4031,7 @@ static Type *value_type_of(Expr *e) {
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
-        if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64"))) /* Bytes(...) (#54, #155) */
+        if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64") || !strcmp(e->op, "bytes_unescape"))) /* Bytes(...) (#54, #155, #167) */
             return base_type("Bytes", e->pos);
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return base_type("String", e->pos);

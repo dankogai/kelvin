@@ -211,6 +211,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
     String borrowed, `&s`: either alphabet, standard or URL-safe, with
     or without the `=` padding, blanks skipped; a letter that is neither
     ends the program.
+  - `Bytes.unescape(text)` (#167) reads the escapes of text, a `cstr` or
+    a String borrowed, back into bytes: `\xHH` a byte, `\u{...}` and
+    `\uHHHH` the UTF-8 of the codepoint, `\n`, `\r`, `\t`, `\0`, `\\`,
+    `\"` and `\'` theirs, what is none as written; `b.escape()` read
+    back.
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
   or a String an expression gives), `clear`, `reserve`, `compact`,
   `copy`; a `Bytes` also `insert`, `remove`, `string()` and
@@ -257,6 +262,7 @@ UTF-8 are to come.
 | | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
 | | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not |
 | | `.escape()` | the bytes as text, a String: each that is not printable ASCII as `\xHH`, a `\` as `\\` (#166); `s.unescape()` reads it back where the bytes were text |
+| | `Bytes.unescape(text)`, `Bytes.unescape(&s)` | the bytes the escapes stand for: `\xHH`, `\u{...}` and `\uHHHH` as UTF-8, `\n` and the rest (#167) |
 | | `.at` | the bytes, a `u8^` borrow; `b[i]` is checked |
 | | `.cstr` | a borrow of the text, NUL-ended |
 | | `.isUTF8` | whether it would pass as a String |

@@ -98,6 +98,9 @@ kv_string kv_string_f64(double v);
 kv_string kv_bytes_base64(const kv_bytes *b, bool url, bool pad);
 kv_bytes kv_bytes_from_base64(const void *p, size_t n);
 kv_bytes kv_bytes_from_base64_text(const void *s);
+/* Bytes.unescape(text) (#167): the bytes the escapes stand for, \xHH, \u{...}, \uHHHH as UTF-8, \n and the rest */
+kv_bytes kv_bytes_unescape(const void *p, size_t n);
+kv_bytes kv_bytes_unescape_text(const void *s);
 kv_string kv_string_copy(const kv_string *s);
 kv_string kv_string_escape(const kv_string *s);   /* s.escape() (#164): codepoints beyond ASCII as \u{...} */
 kv_string kv_bytes_escape(const kv_bytes *b);     /* b.escape() (#166): bytes not printable ASCII as \xHH */

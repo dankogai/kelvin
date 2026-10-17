@@ -323,3 +323,99 @@ kv_string kv_bytes_escape(const kv_bytes *b) {
     }
     return out;
 }
+
+/* Bytes.unescape(text) (#167): the bytes the text's escapes stand for, b.escape()
+   read back: \xHH a byte, \u{...} and \uHHHH (a surrogate pair joined) the
+   UTF-8 of the codepoint, \n, \r, \t, \0, \\, \" and \' theirs; an escape that
+   is none, or a codepoint that is not one, stays as written */
+static int unescape_hex(uint8_t c) {
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+}
+
+static int64_t unescape_run(const uint8_t *p, const uint8_t *end, int n) {
+    int64_t v = 0;
+    for (int i = 0; i < n; i++) {
+        if (p + i >= end)
+            return -1;
+        int h = unescape_hex(p[i]);
+        if (h < 0)
+            return -1;
+        v = v * 16 + h;
+    }
+    return v;
+}
+
+static void push_utf8(kv_bytes *b, uint32_t cp) {
+    if (cp < 0x80) {
+        kv_bytes_push(b, (uint8_t)cp);
+    } else if (cp < 0x800) {
+        kv_bytes_push(b, (uint8_t)(0xC0 | (cp >> 6)));
+        kv_bytes_push(b, (uint8_t)(0x80 | (cp & 0x3F)));
+    } else if (cp < 0x10000) {
+        kv_bytes_push(b, (uint8_t)(0xE0 | (cp >> 12)));
+        kv_bytes_push(b, (uint8_t)(0x80 | ((cp >> 6) & 0x3F)));
+        kv_bytes_push(b, (uint8_t)(0x80 | (cp & 0x3F)));
+    } else {
+        kv_bytes_push(b, (uint8_t)(0xF0 | (cp >> 18)));
+        kv_bytes_push(b, (uint8_t)(0x80 | ((cp >> 12) & 0x3F)));
+        kv_bytes_push(b, (uint8_t)(0x80 | ((cp >> 6) & 0x3F)));
+        kv_bytes_push(b, (uint8_t)(0x80 | (cp & 0x3F)));
+    }
+}
+
+kv_bytes kv_bytes_unescape(const void *text, size_t n) {
+    kv_bytes out = kv_bytes_new();
+    const uint8_t *p = text, *end = p + n;
+    while (p < end) {
+        if (*p != '\\' || p + 1 >= end) {
+            kv_bytes_push(&out, *p++);
+            continue;
+        }
+        uint8_t e = p[1];
+        const uint8_t *next = p + 2;
+        if (e == 'x') {
+            int64_t v = unescape_run(p + 2, end, 2);
+            if (v >= 0) {
+                kv_bytes_push(&out, (uint8_t)v);
+                p = next + 2;
+                continue;
+            }
+        } else if (e == 'u' && p + 2 < end && p[2] == '{') {
+            const uint8_t *q = p + 3;
+            int64_t v = 0;
+            int k = 0;
+            while (q < end && unescape_hex(*q) >= 0 && k < 8) {
+                v = v * 16 + unescape_hex(*q++);
+                k++;
+            }
+            if (k && q < end && *q == '}' && v <= 0x10FFFF && !(v >= 0xD800 && v <= 0xDFFF)) {
+                push_utf8(&out, (uint32_t)v);
+                p = q + 1;
+                continue;
+            }
+        } else if (e == 'u') {
+            int64_t v = unescape_run(p + 2, end, 4);
+            if (v >= 0xD800 && v <= 0xDBFF && p + 7 < end && p[6] == '\\' && p[7] == 'u') {
+                int64_t lo = unescape_run(p + 8, end, 4);
+                if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                    push_utf8(&out, (uint32_t)(0x10000 + ((v - 0xD800) << 10) + (lo - 0xDC00)));
+                    p += 12;
+                    continue;
+                }
+            } else if (v >= 0 && !(v >= 0xD800 && v <= 0xDFFF)) {
+                push_utf8(&out, (uint32_t)v);
+                p += 6;
+                continue;
+            }
+        } else if (e == 'n' || e == 'r' || e == 't' || e == '0' || e == '\\' || e == '"' || e == '\'') {
+            kv_bytes_push(&out, e == 'n' ? '\n' : e == 'r' ? '\r' : e == 't' ? '\t' : e == '0' ? 0 : e);
+            p = next;
+            continue;
+        }
+        kv_bytes_push(&out, '\\'); /* not an escape: the backslash as it is */
+        p++;
+    }
+    return out;
+}
+
+kv_bytes kv_bytes_unescape_text(const void *s) { return s ? kv_bytes_unescape(s, strlen(s)) : (kv_bytes){0}; }

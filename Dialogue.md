@@ -4486,3 +4486,15 @@ String, each byte that is not printable ASCII as `\xHH` and a backslash
 as `\\`. Details are provisional P178.
 
 There are 777 tests, and all pass with clang and with gcc 15.
+
+### 210. Bytes.unescape
+
+> now add `Bytes.unescape()` that reads `\xHH` back into a Bytes
+
+**Claude** added #167: `Bytes.unescape(text)`, of a `cstr` or a String
+borrowed as `Bytes.fromBase64` takes one, gives the bytes the escapes
+stand for, `\xHH` a byte and `\u{...}` the UTF-8 of the codepoint, so
+that `b.escape()` and `s.escape()` both read back into bytes. Details
+are provisional P179.
+
+There are 777 tests, and all pass with clang and with gcc 15.

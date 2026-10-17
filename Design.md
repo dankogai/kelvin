@@ -198,6 +198,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 164 | `s.escape()` of the prelude gives the text with each codepoint beyond ASCII as `\u{...}` and a `\` as `\\`; `s.unescape()` reads those back, and `\uHHHH`, `\xHH`, `\n`, `\r`, `\t`, `\0`, `\"` and `\'` too, leaving what is none as written; with `<RegExp>`, `s.escape(&re)` and `s.escape($/.../)` escape what the pattern matches instead, the literal moved in. A call with no argument of a method the program overloads only with arguments is the built-in one | — | `s.escape($/[\p{Emoji}]/)` | 2026-10-17 |
 | 165 | `s.unescape(&re)` and `s.unescape($/.../)` of RegExp read back the escapes in what the pattern matches alone, each match as `s.unescape()` reads the whole, the rest as it is | — | `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` | 2026-10-17 |
 | 166 | `b.escape()` of a Bytes gives its bytes as text, a String: each that is not printable ASCII, below a space, DEL and above, as `\xHH`, and a `\` as `\\`; `s.unescape()` reads it back where the bytes were text | — | `Bytes("a\tb").escape()` is `a\x09b` | 2026-10-17 |
+| 167 | `Bytes.unescape(text)`, of a `cstr` or a String borrowed, `&s`, gives the bytes the escapes stand for: `\xHH` a byte, `\u{...}` and `\uHHHH`, a surrogate pair joined, the UTF-8 of the codepoint, `\n`, `\r`, `\t`, `\0`, `\\`, `\"` and `\'` theirs, and what is none as written; `b.escape()` read back | — | `Bytes.unescape(&e) == b` | 2026-10-17 |
 
 Notes:
 
@@ -759,6 +760,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (167) Agreed details: "now add `Bytes.unescape()` that reads `\xHH`
+  back into a Bytes." Spelled as `Bytes.fromBase64` is, a function of
+  the type taking text or a String borrowed, since the bytes are made,
+  not read from a Bytes; it reads every escape a String's `unescape`
+  reads, a codepoint as its UTF-8, so that a String's `escape` reads
+  back into bytes too (P179).
 
 - (166) Agreed details: "now add `s.escape()` for `Bytes` too, as
   `\xHH` form." A byte that is printable ASCII stays, a backslash
@@ -1774,6 +1782,7 @@ says "as agreed".
 | P176 | Details of #164 | `s.escape()` is `kv_string_escape(&s)`, `s.unescape()` `kv_string_unescape(&s)`, in runtime/string.c; `s.escape(&re)` is `rx_escape(&re.program, &s)` of libkRegExp, every match from each end, an empty one moving on by a codepoint | the parser lists `escape` and `unescape` among a String's methods, and takes the built-in one for a call with no argument where `method_takes_none` finds no method of the program without parameters; the hex of `\u{...}` is upper case with no padding |
 | P177 | Details of #165 | `s.unescape(&re)` is `rx_unescape(&re.program, &s)`: every match from each end, the text between copied, each match sliced and read by `kv_string_unescape` | an escape cut by a match's end stays as written, as it would alone |
 | P178 | Details of #166 | `b.escape()` is `kv_bytes_escape(&b)` in runtime/bytes.c, listed among a Bytes's methods in the parser, which types it as a String | the bytes 0x20 to 0x7E but `\` are themselves |
+| P179 | Details of #167 | `Bytes.unescape(text)` is `kv_bytes_unescape_text(text)`, and `Bytes.unescape(&s)` `kv_bytes_unescape(p, n)` of the String's bytes, as `Bytes.fromBase64` is read, by the one parser path for both | runtime/bytes.c reads the escapes over bytes, with its own UTF-8 writer, so that a String is not needed |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
