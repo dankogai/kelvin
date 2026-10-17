@@ -193,6 +193,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 159 | `s.match(&re) { ... }` and `re.match(&s) { ... }` of RegExp call a function, `(Match):()`, with each match, every one with the g flag and the first alone without, the Match owned by the function, as `s.match(&re)` gives them in an Array | — | `s.match(&temp) { println($0.text[1], " at ", $0.start) }` | 2026-10-17 |
 | 160 | `s.split(&re) { ... }` and `re.split(&s) { ... }` of RegExp call a function, `(String):()`, with each piece of the text cut at the matches, the pieces that `s.split(&re)` gives in an Array, each owned by the function | — | `s.split(&blanks) { println($0) }` | 2026-10-17 |
 | 161 | `s.replace(&re, &with)` and `re.replace(&s, &with)` of RegExp take the replacement as a String borrowed, beside the `cstr` form, an overload by its type | — | `s.replace(&re, &tpl)` | 2026-10-17 |
+| 162 | `RegExp(pattern, flags)` makes a RegExp, as `RegExp.compile` does, the pattern and the flags each a `cstr` or a String borrowed, `&s`: functions named as the type is, as `c64(...)` are; a type's `T.name(...)` and `T.x` are read where a function is named as the type | — | `let re = RegExp(&pattern, &flags)` | 2026-10-17 |
 
 Notes:
 
@@ -754,6 +755,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (162) Agreed details: "now add `RegExp.compile` with a String for
+  the flags too. Better yet, just let `RegExp(str, flags)` do it." The
+  four combinations are overloads of `RegExp.compile`, and functions
+  `RegExp(...)` of the same four, as `c64(...)` makes a `c64` in
+  math.k. Writing them found that once a function is named as a type,
+  `RegExp.compile` in the next overload's body was read as the function
+  value, since the name was bound: a type's `T.name(...)` and `T.x`
+  now win where the name is both (P174).
 
 - (161) Agreed details: "now add `s.replace(&re)` with a String. I
   thought it was already done... wait, the second arg of `var t =
@@ -1724,6 +1734,7 @@ says "as agreed".
 | P171 | Details of #159 | `s.match(&re) { f }` is `String__match__constRegExpPtr__...(s, &re, f)`, which calls `RegExp.match(&s, f)`: `rx_search` from each match's end, an empty match moving on by one codepoint, and `f(Self.matchAt(&self, s, caps))`, the Match moved into f | the same walk as the Array form's and `replace`'s, with nothing kept |
 | P172 | Details of #160 | `s.split(&re) { f }` calls `RegExp.split(&s, f)`: JS's split, sticky searches from each position, an empty match between codepoints skipped where it would cut nothing, and `f(rx_slice(s, piece, at))` for each piece, the String moved into f | the same walk as the Array form's, with nothing kept |
 | P173 | Details of #161 | `s.replace(&re, &t)` is the `cstr` form on `t.cstr`, an overload by #158 whose parameter is `const String^` | the Array, `match` and `split` forms have no text argument, so nothing else changes |
+| P174 | Details of #162 | `RegExp("a+", "g")` is `RegExp__cstr__cstr`, and `RegExp(&p, &f)` `RegExp__constStringPtr__constStringPtr`, by their types; each calls `RegExp.compile` | the parser reads `T.name(...)` and `T.x` where `T` is a record also where a function of its name is bound, which a variable of its name still hides |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

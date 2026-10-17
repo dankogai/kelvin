@@ -44,9 +44,11 @@ so a file that has not imported `<RegExp>` cannot write one.
   - A `RegExp` an expression gives is bound before it is used, as every
     owner is: `s.replace(&$/x/, "y")` is an error, and so is
     `$/x/.test(&s)` ([ownership.md](ownership.md)).
-- **`RegExp.compile(pattern, flags)`** takes a `cstr` or a String
-  borrowed, `&s`, and `""` for no flags; a pattern that is not one ends
-  the program, saying what is wrong and where in it.
+- **`RegExp(pattern, flags)`**, and `RegExp.compile(pattern, flags)`
+  the same, take the pattern and the flags each as a `cstr` or a String
+  borrowed, `RegExp(&p, &f)` (#162), and `""` for no flags; a pattern
+  that is not one ends the program, saying what is wrong and where in
+  it.
 - **The flags** are JS's: `g` every match, `i` by simple case folding,
   `m` for `^` and `$` at line ends, `s` for `.` over line ends, `y`
   sticky, at the start alone, and `u` and `d`, accepted; `v` is not

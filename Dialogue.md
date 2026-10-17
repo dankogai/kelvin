@@ -4421,3 +4421,17 @@ replacement may be a String borrowed, `s.replace(&re, &t)` and
 text. Details are provisional P173.
 
 There are 772 tests, and all pass with clang and with gcc 15.
+
+### 205. RegExp(pattern, flags)
+
+> now add `RegExp.compile` with a String for the flags too. Better yet,
+> just let `RegExp(str, flags)` do it
+
+**Claude** added #162: `RegExp(pattern, flags)` makes a RegExp, with
+the pattern and the flags each a `cstr` or a String borrowed, as
+`RegExp.compile` now does too, functions named as the type is, as
+`c64(...)` are. The parser now reads a type's `T.name(...)` and `T.x`
+also where a function is named as the type, which it did not once such
+a function was declared. Details are provisional P174.
+
+There are 772 tests, and all pass with clang and with gcc 15.

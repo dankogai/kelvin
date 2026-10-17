@@ -6,7 +6,7 @@
 // kelvinc --lib into RegExp.kh and the library that #import <RegExp> links.
 //
 //     #import <RegExp>
-//     let re = $/(\d{4})-(?<month>\d\d)/g
+//     let re = $/(\d{4})-(?<month>\d\d)/g        // or RegExp("(\\d{4})-(?<month>\\d\\d)", "g")
 //     var s = $"2026-10-17 and 2027-01-02"
 //     println(re.test(&s))                              // true
 //     var ms = s.match(&re)                             // every match, with the g flag
@@ -53,6 +53,8 @@ extend RegExp {
         return re
     }
     static let compile(pattern:const String^, flags:cstr):Self { Self.compile(pattern^.cstr, flags) }
+    static let compile(pattern:cstr, flags:const String^):Self { Self.compile(pattern, flags^.cstr) }
+    static let compile(pattern:const String^, flags:const String^):Self { Self.compile(pattern^.cstr, flags^.cstr) }
 
     let groups:i64 { rx_groups(&self.program) }               // the capturing groups
     let global:bool { rx_flag(&self.program, 'g') }
@@ -264,3 +266,10 @@ extend String {
     let split(re:const RegExp^):Array<String> { re^.split(&self) }
     let split(re:const RegExp^, f:(String):()):() { re^.split(&self, f) }
 }
+
+// RegExp(pattern, flags), the pattern and the flags a cstr or a String
+// borrowed, &s: the same as RegExp.compile (#162), and as $/pattern/flags
+let RegExp(pattern:cstr, flags:cstr):RegExp { RegExp.compile(pattern, flags) }
+let RegExp(pattern:const String^, flags:cstr):RegExp { RegExp.compile(pattern^.cstr, flags) }
+let RegExp(pattern:cstr, flags:const String^):RegExp { RegExp.compile(pattern, flags^.cstr) }
+let RegExp(pattern:const String^, flags:const String^):RegExp { RegExp.compile(pattern^.cstr, flags^.cstr) }

@@ -2432,8 +2432,10 @@ static Expr *parse_primary(void) {
             return case_maker(t, t, r, c);
         }
     }
-    if (t->kind == TK_IDENT && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT && binding_index(t->text) < 0) {
-        /* T.n(x) and T.none make a value of an enum with values (#61) */
+    if (t->kind == TK_IDENT && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
+        (binding_index(t->text) < 0 || (function_named(t->text) && record_named(t->text)))) {
+        /* T.n(x) and T.none make a value of an enum with values (#61); T.name
+           and T.x also where a function is named as the type is, RegExp(...) (#162) */
         Decl *r = record_named(t->text);
         int k;
         Var *c = r && r->tagged ? case_named(r, peek_at(2)->text, &k) : NULL;

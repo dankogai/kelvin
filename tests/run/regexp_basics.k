@@ -33,6 +33,15 @@ let main():int32 {
     var digits = $"12x3"
     var sm = digits.match(&sticky)
     println(sm.count, " ", sticky.sticky, " ", digits.search(&x))
+    var pat = $"(\\d+)F"                                     // RegExp(pattern, flags), each a cstr or a String borrowed (#162)
+    var flg = $"gi"
+    let r1 = RegExp("(\\d+)F", "g")
+    let r2 = RegExp(&pat, &flg)
+    let r3 = RegExp.compile("x", &flg)
+    var temps = $"212f and 32F"
+    var m1 = temps.match(&r1)
+    var m2 = temps.match(&r2)
+    println(m1.count, " ", m2.count, " ", r2.flags, " ", r3.ignoreCase, " ", r1.source)
     return 0
 }
 // out: true 2 true (\d{4})-(?<month>\d\d) g 0
@@ -46,3 +55,4 @@ let main():int32 {
 // out: false true [] -1
 // out: 2 Cat dog true 0 true
 // out: 1 true 2
+// out: 1 2 gi true (\d+)F
