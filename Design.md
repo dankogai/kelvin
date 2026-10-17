@@ -203,6 +203,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 169 | `b.test(&re)`, `b.search(&re)`, `b.match(&re)` and `b.split(&re)` on a Bytes, and `re.test(&b)` and the rest on the RegExp, as a String has them, the Bytes matched byte by byte: a `BytesMatch` holds the bytes of the whole and of each group, `m.data[i]`, with their byte offsets, `m[i]` and `m["name"]` copies; `split` gives Bytes; `b.match(&re) { }` and `b.split(&re) { }` call a function with each | — | `b.match(&pair) { print($0.start, " ") }` | 2026-10-17 |
 | 170 | `b.replace(&re, &with)` and `b.replace(&re, text)` on a Bytes, and on the RegExp with `&b`, give the Bytes with each match replaced, all with the g flag and the first alone without, the replacement a Bytes borrowed or a `cstr` with `$&`, `$1`, `$<name>`, `` $` ``, `$'` and `$$` over bytes; `b.replace(&re) { ... }` takes a function `(BytesMatch):Bytes` | — | `b.replace(&pair, &with)`, `b.replace(&pair) { $0[1] }` | 2026-10-17 |
 | 171 | The `b` flag of a RegExp, Kelvin's: binary, each character a byte of its value, on a Bytes and on a String's UTF-8 alike, so that `$/[\x80-\xff]/b` matches one byte where `$/[\u0080-\u00ff]/` matches a codepoint; without it a character is a codepoint, a Bytes read as UTF-8 as far as it is, which the `u` flag says and changes nothing; `re.binary` and `re.unicode` | — | `b.escape($/[\x80-\xff]/gb)` | 2026-10-17 |
+| 172 | `Bytes([...])` is a Bytes of the bytes written out, each a character constant, a number 0 to 255 or any `u8` value, a number out of that range an error, `Bytes([])` empty. The document of `Bytes` is bytes.md, apart from strings.md, which keeps `cstr`, `String` and `uchr`: alike to look at, another thing | — | `Bytes([0x89, 'P', 'N', 'G'])` | 2026-10-17 |
 
 Notes:
 
@@ -764,6 +765,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (172) Agreed details: "I don't get why `Bytes(['\x00', '\x01',
+  '\x02', '\x03'])` does not work. make it work. Also split the
+  document about Bytes from `strings.md` to `bytes.md`. They look the
+  same but they are semantically distinct." A bracket list was no
+  value on its own (#48), so `Bytes(` reads one itself, as a compound
+  literal of `uint8_t` with its count, a literal out of 0 to 255
+  refused; the document moved with the Bytes rows of the table, and
+  the links follow (P184).
 
 - (171) Agreed details: "add the `b` flag to RegExp to explicitly
   make it binary mode. with that, each character is a byte so
@@ -1830,6 +1840,7 @@ says "as agreed".
 | P181 | Details of #169 | `b.match(&re)` loops `rx_search_bytes` as `s.match(&re)` loops `rx_search`, an empty match moving on by a byte, and `RegExp.bytesMatchAt` builds the `BytesMatch` with `rx_bytes_slice`; `split` is the Array form's walk over bytes | `replace` on a Bytes waits: a replacement of bytes would want its own spelling |
 | P182 | Details of #170 | `b.replace(&re, &with)` and `b.replace(&re, text)` call `RegExp.replace(&b, p, n)` of the bytes and their count, the loop of a String's `replace` over `rx_search_bytes` with `rx_expand_bytes` for each match; the function form loops the same with `f(Self.bytesMatchAt(...))` | the byte-pointer form is a method the program may call as well, `re.replace(&b, p, n)` |
 | P183 | Details of #171 | `RX_B` is 128 in the program's flags; `rx_search` and `rx_search_bytes` both set the matcher's `bytewise` from it, and `rx_slice` of a String aborts where a bound falls on a continuation byte | the flags are read by the parser shared with kelvinc, so `$/a/v` and a flag that is none are errors at compile time still |
+| P184 | Details of #172 | `Bytes([a, b, c])` is `kv_bytes_from((const uint8_t[]){a, b, c}, 3)`; the parser keeps the list as an E_INIT in the call, marked `list` | an element that is a variable or an expression is converted by C as a `uint8_t` initializer is, the literals checked by kelvinc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

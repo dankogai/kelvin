@@ -564,6 +564,17 @@ static char *expr_bare(Expr *e) {
         if (e->op && !strcmp(e->op, "bytes")) { /* Bytes(...) (#54) */
             if (!e->items.len)
                 return "kv_bytes_new()";
+            if (e->text && !strcmp(e->text, "list")) { /* Bytes([a, b, c]) (#172): a compound literal of the bytes */
+                Expr *list = e->items.data[0];
+                if (!list->items.len)
+                    return "kv_bytes_new()";
+                Buf b = {0};
+                buf_puts(&b, "kv_bytes_from((const uint8_t[]){");
+                for (int i = 0; i < list->items.len; i++)
+                    buf_printf(&b, "%s%s", i ? ", " : "", expr(list->items.data[i]));
+                buf_printf(&b, "}, %d)", list->items.len);
+                return b.buf;
+            }
             if (e->items.len == 1)
                 return strfmt("KV_BYTES_OF(%s)", expr(e->items.data[0]));
             return strfmt("kv_bytes_from(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));

@@ -3138,7 +3138,27 @@ static Expr *parse_primary(void) {
         e->op = string ? "string" : "bytes";
         bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
         brace_ends_condition = brace_in_for = false;
-        while (!is_p(peek(), ")")) {
+        if (!string && is_p(peek(), "[")) {
+            /* Bytes([0, 1, 255]) (#172): the bytes written out, each a byte's value */
+            Token *open = advance();
+            Expr *list = new_expr(E_INIT, open->pos);
+            list->bracket = true;
+            while (!is_p(peek(), "]")) {
+                Expr *x = parse_assign();
+                Expr *lit = x->kind == E_PREFIX && !strcmp(x->op, "-") ? x->a : x;
+                if (lit->kind == E_LITERAL && isdigit((unsigned char)lit->text[0]) &&
+                    (lit != x || strtoull(lit->text, NULL, 0) > 255))
+                    error_at(x->pos, "a byte of Bytes([...]) is 0 to 255, and this is %s%s", lit != x ? "-" : "", lit->text);
+                list_push(&list->items, x);
+                list_push(&list->designators, NULL);
+                if (!accept_p(","))
+                    break;
+            }
+            expect_p("]");
+            list_push(&e->items, list);
+            e->text = "list";
+        }
+        while (!e->text && !is_p(peek(), ")")) {
             list_push(&e->items, parse_assign());
             if (!accept_p(","))
                 break;
@@ -3148,7 +3168,8 @@ static Expr *parse_primary(void) {
         expect_p(")");
         if (e->items.len > (string ? 1 : 2))
             error_at(t->pos, string ? "String takes nothing, text, or a borrow of a Bytes, '&b'"
-                                    : "Bytes takes nothing, a count, text, a borrow of a Bytes, or bytes and their count");
+                                    : "Bytes takes nothing, a count, text, a borrow of a Bytes, bytes in brackets, or bytes "
+                                      "and their count");
         if (e->items.len == 1 && owner_place(e->items.data[0]))
             error_at(t->pos, "%s(x) would copy an owner: write x.copy(), %s", t->text,
                      string ? "b.string() of a Bytes, or String(&b)" : "or Bytes(&b)");

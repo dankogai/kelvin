@@ -1,14 +1,15 @@
-# Strings: `cstr`, `String` and `Bytes`
+# Strings: `cstr` and `String`
 
 Text in Kelvin is C's, or Kelvin's own. C's is a pointer to bytes that
 end at a NUL, and it is more than a zero-terminated `[u8]`: a string
 literal, a byte array, a `cstr` and the text a property or a template
 makes are four different things in C, which Kelvin keeps apart.
 
-Kelvin's own are `String` (#55), text that is well-formed UTF-8, counted
-and walked by codepoint, and `Bytes` (#54), any bytes, both on the heap,
-growing, and freed when their block ends, with `uchr` (#56) a single
-codepoint.
+Kelvin's own is `String` (#55), text that is well-formed UTF-8, counted
+and walked by codepoint, on the heap, growing, and freed when its block
+ends, with `uchr` (#56) a single codepoint. `Bytes` (#54), any bytes on
+the heap, looks the same and is another thing, indexed by byte and not
+text: [bytes.md](bytes.md).
 
 This document says how Kelvin spells each kind, makes it, reads it,
 walks it, compares it and prints it, and where it lives; the ownership
@@ -21,7 +22,7 @@ codepoint's name and category, is a module, `#import <UnicodeData>`
 with the `$/.../` literal, are `#import <RegExp>` (#157):
 [regexp.md](regexp.md).
 
-**Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `Bytes`, `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
+**Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
 
 ## Four kinds of text
 
@@ -177,13 +178,13 @@ with `strcmp(a, b) == 0`, and a string with `nullptr` by `s.isNull` or
 - In a template, `${s}` is the text and `${s.addr}` the address. See
   [printing.md](printing.md).
 
-## `Bytes` and `String`: text on the heap
+## `String`: text on the heap
 
-A `cstr` is C's text, where it is. `Bytes` (#54) is text, or any bytes,
-on the heap, that grows; `String` (#55) is a `Bytes` that holds
-well-formed UTF-8, counted and walked by codepoint.
+A `cstr` is C's text, where it is. `String` (#55) is text on the heap,
+that grows: a `Bytes` ([bytes.md](bytes.md)) that holds well-formed
+UTF-8, counted and walked by codepoint.
 
-Both are owners: freed when their block ends, moved by `return` and by
+It is an owner: freed when its block ends, moved by `return` and by
 passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
 
@@ -193,7 +194,6 @@ s += ", world"                   // append text; also s.append(...)
 s += t.copy()                    // a String's text; s += &t borrows it
 println(s, " ", s.count)         // the text, and its codepoints: 12
 for c in s { print(c.utf32, " ") }   // each codepoint, a uchr
-var b = Bytes("raw")             // bytes, indexed: b[0] is a u8, checked
 let p := s.cstr                  // a borrow of the text, NUL-ended, for C
 var line = $`${s} has ${s.count} codepoints`   // a String built from a template (#67)
 ```
@@ -205,35 +205,19 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
     (#70): `var s:String = "x"`, `s = "y"`, a member, an element or an
     entry written as `"text"`.
   - `` $`a${x}b` `` from a template, with no bound on its length.
-  - `Bytes("text")`, `Bytes(n)` of n zero bytes, `Bytes(p, n)` of bytes
-    and their count.
-  - `Bytes.fromBase64(text)` (#155) decodes base64, of a `cstr` or of a
-    String borrowed, `&s`: either alphabet, standard or URL-safe, with
-    or without the `=` padding, blanks skipped; a letter that is neither
-    ends the program.
-  - `Bytes.unescape(text)` (#167) reads the escapes of text, a `cstr` or
-    a String borrowed, back into bytes: `\xHH` a byte, `\u{...}` and
-    `\uHHHH` the UTF-8 of the codepoint, `\n`, `\r`, `\t`, `\0`, `\\`,
-    `\"` and `\'` theirs, what is none as written; `b.escape()` read
-    back.
+  - A `Bytes` is made its own ways, `Bytes("text")`, `Bytes([...])`,
+    `Bytes.fromBase64(text)`: [bytes.md](bytes.md).
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
   or a String an expression gives), `clear`, `reserve`, `compact`,
-  `copy`; a `Bytes` also `insert`, `remove`, `string()` and
-  `toBase64()`.
-  - `b.toBase64()` (#155) gives the base64 text as a String, standard
-    and padded; the words `url` and `nopad`, in either order, pick the
-    URL-safe alphabet, `-` and `_` for `+` and `/`, and no `=` at the
-    end: `b.toBase64(url, nopad)`.
-- **Properties:** `count` (codepoints of a String, bytes of a Bytes),
-  `cstr` (a borrow of the text), `bytes` (a String's Bytes, read only),
-  `capacity`, `at` and `isUTF8` of a Bytes, `size`, `typename`.
+  `copy`, `escape` and `unescape`.
+- **Properties:** `count` (the codepoints), `cstr` (a borrow of the
+  text), `bytes` (its Bytes, read only), `size`, `typename`.
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
-  prints as its character; `for b in bytes` each byte.
+  prints as its character; `for x in s.bytes^` each byte.
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
-  and `s[...hi]` are new Strings of those codepoints, a Bytes's of
-  those bytes; a range past the count ends the program.
-- **Comparing:** `==` and `!=` compare two Strings, or two Bytes, by
-  their bytes.
+  and `s[...hi]` are new Strings of those codepoints; a range past the
+  count ends the program.
+- **Comparing:** `==` and `!=` compare two Strings by their bytes.
 - **Not yet:** searching, `insert` and `remove` on a String, encodings
   other than UTF-8.
 
@@ -245,8 +229,7 @@ UTF-8 are to come.
 - A `cstr` is C's bytes, with C's rules: a NUL ends it, nothing checks
   a bound, and one that points at freed or ended storage is as wrong as
   in C.
-- A `String` and a `Bytes` are checked, and freed when their block
-  ends.
+- A `String` is checked, and freed when its block ends.
 
 ## Properties and methods
 
@@ -258,23 +241,11 @@ UTF-8 are to come.
 | | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
 | | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
 | | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
-| `Bytes` | `.count`, `.capacity` | the bytes held, and the room |
-| | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
-| | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not |
-| | `.escape()` | the bytes as text, a String: each that is not printable ASCII as `\xHH`, a `\` as `\\` (#166); `s.unescape()` reads it back where the bytes were text; with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches, byte by byte, too (#168) |
-| | `Bytes.unescape(text)`, `Bytes.unescape(&s)` | the bytes the escapes stand for: `\xHH`, `\u{...}` and `\uHHHH` as UTF-8, `\n` and the rest (#167); with `<RegExp>`, `Bytes.unescape(text, &re)` reads back where `re` matches alone (#168) |
-| | `.at` | the bytes, a `u8^` borrow; `b[i]` is checked |
-| | `.cstr` | a borrow of the text, NUL-ended |
-| | `.isUTF8` | whether it would pass as a String |
-| | `.append(x)`, `+=` | text, a byte, `&other`, or a Bytes an expression gives |
-| | `.insert(i, x)`, `.remove(i, n)`, `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
-| | `.copy()`, `.string()` | a new Bytes; a new String, checked |
-| | `b[lo..<hi]` | a slice, a new Bytes (#68) |
 | `String` | `.count` | the codepoints, kept with the text |
-| | `.bytes` | its Bytes, a read-only borrow |
+| | `.bytes` | its Bytes, a read-only borrow ([bytes.md](bytes.md)) |
 | | `.cstr` | a borrow of the text |
 | | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
-| | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | as a Bytes's |
+| | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | changes in place; a new String |
 | | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, and a `\` as `\\`, a new String (#164); with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches instead |
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
@@ -285,7 +256,7 @@ UTF-8 are to come.
 | `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |
 | | `<`, `==` and the rest | with a `uchr` or a number |
-| all three | `.size`, `.typename` | as any value's |
+| all | `.size`, `.typename` | as any value's |
 
 The ownership rules are in [ownership.md](ownership.md), the general
 properties in [properties.md](properties.md).

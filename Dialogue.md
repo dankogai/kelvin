@@ -4553,3 +4553,18 @@ write it. `re.binary` and `re.unicode` read the mode. Details are
 provisional P183.
 
 There are 780 tests, and all pass with clang and with gcc 15.
+
+### 215. Bytes of a list, and bytes.md
+
+> I don't get why `Bytes(['\x00', '\x01', '\x02', '\x03'])` does not
+> work. make it work. Also split the document about Bytes from
+> `strings.md` to `bytes.md`. They look the same but they are
+> semantically distinct.
+
+**Claude** explained that a bracket list is no value on its own (#48),
+and added #172: `Bytes([...])` reads the list itself, each a byte's
+value, with a literal out of 0 to 255 an error. The Bytes half of
+strings.md is bytes.md now, with the Bytes rows of the table, and the
+links follow. Details are provisional P184.
+
+There are 782 tests, and all pass with clang and with gcc 15.
