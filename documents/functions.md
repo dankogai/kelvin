@@ -310,8 +310,9 @@ let main():int32 {
   - An anonymous argument, `b.add() { $0 * 10 }`, takes the type of
     the overload that has a function type where it stands, where one
     does: so `s.replace(&re, "$1")` and `s.replace(&re) { ... }` are two
-    methods of `String`, and `s.match(&re)` and `s.match(&re) { ... }`
-    two more ([regexp.md](regexp.md)).
+    methods of `String`, and `s.match(&re)` and `s.match(&re) { ... }`,
+    `s.split(&re)` and `s.split(&re) { ... }` four more
+    ([regexp.md](regexp.md)).
   - In C the overloads are `box__add__i64` and `box__add__cstr`, by
     their types, where a method with one signature stays `box__add`.
 - **An owner given by value moves** into a method, and into a call

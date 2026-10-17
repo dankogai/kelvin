@@ -208,6 +208,30 @@ extend RegExp {
         }
         return out
     }
+
+    // f called with each piece of s cut at the matches, a String it owns,
+    // as split gives them: s.split(&re) { println($0) }
+    let split(s:const String^, f:(String):()):() {
+        var caps:[i64](256)
+        let n = s^.bytes^.count as i64
+        if n == 0 {
+            if !rx_search(&self.program, s, 0, true, caps) { f(String("")) }
+        } else {
+            var piece:i64 = 0
+            var from:i64 = 0
+            while from < n {
+                if !rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from = rx_next(s, from)
+                    continue
+                }
+                if caps[1] == caps[0] && caps[0] >= n { break }
+                f(rx_slice(s, piece, caps[0]))
+                piece = caps[1]
+                from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])
+            }
+            f(rx_slice(s, piece, n))
+        }
+    }
 }
 
 extend Match {
@@ -234,4 +258,5 @@ extend String {
     let replace(re:const RegExp^, with:cstr):String { re^.replace(&self, with) }
     let replace(re:const RegExp^, f:(Match):String):String { re^.replace(&self, f) }
     let split(re:const RegExp^):Array<String> { re^.split(&self) }
+    let split(re:const RegExp^, f:(String):()):() { re^.split(&self, f) }
 }

@@ -4397,3 +4397,14 @@ regexp.md and the tests, now turn `212F` into `100C`. Details are
 provisional P171.
 
 There are 771 tests, and all pass with clang and with gcc 15.
+
+### 203. split with a function
+
+> now add `s.split(&re) { ... }` that iterates over each piece
+
+**Claude** added #160: `s.split(&re) { ... }` and `re.split(&s) { ... }`
+call the function with each piece, a String it owns, the pieces the
+Array form gives, as an overload by #158. Details are provisional
+P172.
+
+There are 772 tests, and all pass with clang and with gcc 15.

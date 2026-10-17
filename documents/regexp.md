@@ -105,6 +105,7 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String |
 | `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }` (#158) |
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
+| `re.split(&s) { ... }`, `s.split(&re) { ... }` | the same pieces, each given to the function as a String: `s.split(&re) { println($0) }` (#160) |
 
 - **`with`** is a `cstr` with JS's patterns: `$&` the match, `$1` to
   `$99` a group, `$<name>` a named one, `` $` `` the text before, `$'`
@@ -116,11 +117,15 @@ name: `s.match(&re)` is `re.match(&s)`.
 - **`s.match(&re) { ... }`** (#159) walks the matches without an Array:
   the function, `(Match):()`, is called with each, every match with
   `g` and the first alone without, and owns the Match it is given.
+- **`s.split(&re) { ... }`** (#160) walks the pieces the same way: the
+  function, `(String):()`, is called with each piece, and owns it.
 
 ```kelvin
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g
 var s = $"water boils at 212F and freezes at 32F"
 s.match(&temp) { println($0.text[1], " at ", $0.start) }     // 212 at 15, 32 at 35
+let blanks = $/\s+/
+s.split(&blanks) { println($0) }                             // water, boils, at, 212F, ... each on its line
 var c = s.replace(&temp) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }
 println(c)                                                   // water boils at 100C and freezes at 0C
 ```
