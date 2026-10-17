@@ -101,8 +101,9 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.exec(&s)` | the first match, a `Match?`: `if let m = re.exec(&s) { }` |
 | `re.execFrom(&s, from)` | the first match at or after codepoint `from` |
 | `re.match(&s)`, `s.match(&re)` | an `Array<Match>` of every match with `g`, else of the first alone, empty where there is none |
+| `re.match(&s) { ... }`, `s.match(&re) { ... }` | the same matches, each given to the function as its `Match`: `s.match(&re) { println($0.text[1]) }` (#159) |
 | `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String |
-| `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { String(f64($0.text[0]) * 2.0) }` (#158) |
+| `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }` (#158) |
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
 
 - **`with`** is a `cstr` with JS's patterns: `$&` the match, `$1` to
@@ -112,6 +113,17 @@ name: `s.match(&re)` is `re.match(&s)`.
 - **A function** in place of `with` is `(Match):String`, an anonymous
   one with `$0` the Match, or a named one; it owns the Match it is
   given, and gives the String that replaces the match.
+- **`s.match(&re) { ... }`** (#159) walks the matches without an Array:
+  the function, `(Match):()`, is called with each, every match with
+  `g` and the first alone without, and owns the Match it is given.
+
+```kelvin
+let temp = $/(-?\d+(?:\.\d+)?)F\b/g
+var s = $"water boils at 212F and freezes at 32F"
+s.match(&temp) { println($0.text[1], " at ", $0.start) }     // 212 at 15, 32 at 35
+var c = s.replace(&temp) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }
+println(c)                                                   // water boils at 100C and freezes at 0C
+```
 - **An empty match** moves on by one codepoint, as JS does: `$/x*/g`
   replaced by `-` in `abc` gives `-a-b-c-`, and `$//` splits a String
   into its codepoints.

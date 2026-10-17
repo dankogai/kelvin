@@ -119,6 +119,19 @@ extend RegExp {
         return out
     }
 
+    // f called with each match (the first alone without g), a Match it owns:
+    // s.match(&re) { println($0.text[0]) }
+    let match(s:const String^, f:(Match):()):() {
+        var caps:[i64](256)
+        var from:i64 = 0
+        while rx_search(&self.program, s, from, self.sticky, caps) {
+            f(Self.matchAt(&self, s, caps))
+            if !self.global { break }
+            from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])   // an empty match moves on by one
+            if caps[1] >= s^.bytes^.count as i64 && caps[1] == caps[0] { break }
+        }
+    }
+
     // s with each match (the first alone without g) replaced by with, where
     // $& is the match, $1 and $<name> a group, $` and $' the text around, $$ a $
     let replace(s:const String^, with:cstr):String {
@@ -145,7 +158,8 @@ extend RegExp {
     }
 
     // s with each match (the first alone without g) replaced by what f gives
-    // for it, a String of the Match, which f owns: s.replace(&re) { $0.text[0] }
+    // for it, a String of the Match, which f owns:
+    // s.replace(&re) { $`${(f64($0.text[1]) - 32.0) * 5.0 / 9.0}C` }
     let replace(s:const String^, f:(Match):String):String {
         var out = String("")
         var caps:[i64](256)
@@ -215,6 +229,7 @@ extend Match {
 extend String {
     let test(re:const RegExp^):bool { re^.test(&self) }
     let match(re:const RegExp^):Array<Match> { re^.match(&self) }
+    let match(re:const RegExp^, f:(Match):()):() { re^.match(&self, f) }
     let search(re:const RegExp^):i64 { re^.search(&self) }
     let replace(re:const RegExp^, with:cstr):String { re^.replace(&self, with) }
     let replace(re:const RegExp^, f:(Match):String):String { re^.replace(&self, f) }

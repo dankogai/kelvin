@@ -2,11 +2,11 @@
 // function, which owns the Match it is given; String(n) of a number
 #import <RegExp>
 let main():int32 {
-    let re = $/\d+(\.\d+)?/g
-    var s = $"1.5 and 2, then 10"
-    var t = s.replace(&re) { String(f64($0.text[0]) * 2.0) }
+    let re = $/(-?\d+(?:\.\d+)?)F/g
+    var s = $"212F and 32F, then -40F"
+    var t = s.replace(&re) { String((f64($0.text[1]) - 32.0) * 5.0 / 9.0) }
     var u = re.replace(&s) { $`[${$0.start}..<${$0.end}]` }
-    var v = s.replace(&re, "<$&>")
+    var v = s.replace(&re, "<$1>")
     println(t)
     println(u)
     println(v)
@@ -21,7 +21,7 @@ let main():int32 {
     println(w, " ", x)
     return 0
 }
-// out: 3 and 4, then 20
-// out: [0..<3] and [8..<9], then [16..<18]
-// out: <1.5> and <2>, then <10>
+// out: 100 and 0, then -40
+// out: [0..<4] and [9..<12], then [19..<23]
+// out: <212> and <32>, then <-40>
 // out: 10/2026 and 2027-01 true and 2027-01

@@ -4382,3 +4382,18 @@ that `String(x)` could not start a statement; both are fixed, and
 Details are provisional P170.
 
 There are 770 tests, and all pass with clang and with gcc 15.
+
+### 202. match with a function, and Fahrenheit to Celsius
+
+> now add `s.match(&re) { ... }` that iterates over each Match. Also
+> tweak examples a little from doubling the match to changing
+> Fahrenheit to Centigrade (since that looks more natural).
+
+**Claude** added #159: `s.match(&re) { ... }` and `re.match(&s) { ... }`
+call the function with each match, every one with `g` and the first
+alone without, the Match owned by the function, an overload of the
+Array form by #158. The examples of `replace` with a function, in
+regexp.md and the tests, now turn `212F` into `100C`. Details are
+provisional P171.
+
+There are 771 tests, and all pass with clang and with gcc 15.
