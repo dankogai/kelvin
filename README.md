@@ -118,6 +118,10 @@ So far the changes from C are:
   `let +(a:money, b:money):money { ... }`, then `a + b`
 - owners on the heap, each freed when its block ends, moved by `return`
   and by passing, copied only by `.copy()`, borrowed as a pointer
+  - a check that fails at run time, `b[i]` past the count, text that is
+    not UTF-8, a pattern that is not one, prints its reason and exits
+    with status 1; `KELVIN_ABORT=1` in the environment makes it abort
+    instead, for a debugger or a core (#174)
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
   - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
     codepoint, each a `uchr`, which prints as its character;

@@ -54,6 +54,7 @@ typedef struct {
 
 /* an error in a pattern: ends the program, or in a check, returns to it */
 void rx_fail(const uint8_t *pattern, const char *what, size_t at);
+void rx_exit_failure(void); /* exit(1), or abort with KELVIN_ABORT set, as kv_exit_failure (#174) */
 void *rx_alloc(size_t n);
 void *rx_grow(void *p, size_t n);
 uint32_t rx_cp_at(const uint8_t *p, int64_t n, int64_t pos, int *len);

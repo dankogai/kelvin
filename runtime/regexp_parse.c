@@ -23,14 +23,23 @@ void rx_fail(const uint8_t *pattern, const char *what, size_t at) {
     }
     fflush(stdout);
     fprintf(stderr, "kelvin: RegExp: %s in /%s/ at %zu\n", what, (const char *)pattern, at);
-    abort();
+    rx_exit_failure();
+}
+
+/* as kv_exit_failure of libkelvin, which kelvinc does not link */
+void rx_exit_failure(void) {
+    fflush(stdout);
+    fflush(stderr);
+    if (getenv("KELVIN_ABORT"))
+        abort();
+    exit(1);
 }
 
 void *rx_alloc(size_t n) {
     void *p = malloc(n ? n : 1);
     if (!p) {
         fputs("kelvin: out of memory\n", stderr);
-        abort();
+        rx_exit_failure();
     }
     memset(p, 0, n);
     return p;
@@ -40,7 +49,7 @@ void *rx_grow(void *p, size_t n) {
     p = realloc(p, n);
     if (!p) {
         fputs("kelvin: out of memory\n", stderr);
-        abort();
+        rx_exit_failure();
     }
     return p;
 }

@@ -288,6 +288,16 @@ An `IO` (#82) is a file, or a standard stream, as an owner.
 
 The rest is in [io.md](io.md).
 
+## When a check fails
+
+A check that fails at run time, an index past the count, text that is
+not UTF-8, a pattern that is not one, prints its reason on stderr,
+`kelvin: index 3 is out of range: the Bytes has 3`, and the program
+exits with status 1 (#174); stdout is flushed first, so what was
+printed stays. With `KELVIN_ABORT=1` in the environment it aborts
+instead, for a debugger or a core. A test of such a failure writes its
+status as `// exit: 1` and the message as `// err:` lines.
+
 ## The rules
 
 | | Rule |

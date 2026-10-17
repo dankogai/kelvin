@@ -81,6 +81,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `char *buf = malloc(n); ... free(buf);` | `var b = Bytes(n)`, freed when its block ends (#54) |
 | a UTF-8 string by hand | `var s = String("héllo")`, or `$"héllo"`, `for c in s { }` by codepoint, `s.count` (#55, #62) |
 | `uint32_t cp`, encoded by hand to print | `uchr`: `print(c)` shows the character, `c.utf32` the number (#56) |
+| undefined behavior past a bound, or `assert` and `abort()` | a check that fails at run time prints its reason and exits with status 1, `kelvin: index 3 is out of range: the Bytes has 3`; `KELVIN_ABORT=1` in the environment makes it abort instead, for a debugger (#174) |
 | `T *xs = malloc(n * sizeof *xs); ... realloc ...` | `var xs = Array([1, 2, 3])`, or `$[1, 2, 3]`, `xs += x`, `xs[i]` checked, freed by its block; the type is `Array<i64>`, or `$[i64]` (#57, #58, #62, #64) |
 | a hash table by hand, or a library's | `var d = ${"ann": 31}`, `d["bob"] = 42`, `d["ann"]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`, `d.keys`, `d.values`; the type is `Dictionary<String, i64>`, or `${String: i64}` (#65, #66) |
 | a hash set by hand | `var s = ${3, 1, 4}`, `s += 9`, `s.has(4)`, `s | t`, `s & t`, `s ~ t`, `for x in s`; the type is `Set<i64>`, or `${i64}` (#71, #73) |

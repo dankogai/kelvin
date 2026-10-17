@@ -40,6 +40,11 @@
 #include <stdlib.h> /* realloc and free, for Array<T>'s functions (#57) */
 #include <string.h>
 
+/* a check that failed (#174): the message is printed, and the program exits
+   with status 1; with KELVIN_ABORT set in the environment it aborts instead,
+   for a debugger or a core */
+void kv_exit_failure(void);
+
 /* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
 
 /* at[count] is a NUL that count does not count, so cstr borrows it; an

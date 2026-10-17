@@ -53,9 +53,20 @@ for f in tests/run/*.k examples/*.k; do
     # after `if ! cmd`, $? would be the 0 of the negation: save it first
     "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"
     status=$?
-    if [ "$status" -ne 0 ]; then
+    # a test of a failure (#174) says its status with `// exit: N`, and what
+    # the program says on stderr with `// err:` lines
+    want_status=$(sed -n 's|^[[:space:]]*// exit: *||p' "$f" | head -1)
+    if [ "$status" -ne "${want_status:-0}" ]; then
         bad "$f" "exited with status $status"
         continue
+    fi
+    if grep -q '^[[:space:]]*// err: ' "$f"; then
+        sed -n 's|^[[:space:]]*// err: \{0,1\}||p' "$f" > "$tmp/experr"
+        if ! cmp -s "$tmp/experr" "$tmp/log"; then
+            diff "$tmp/experr" "$tmp/log" > "$tmp/log2"; mv "$tmp/log2" "$tmp/log"
+            bad "$f" "stderr differs (expected < > actual)"
+            continue
+        fi
     fi
     if ! cmp -s "$tmp/expected" "$tmp/actual"; then
         diff "$tmp/expected" "$tmp/actual" > "$tmp/log"

@@ -8,10 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+void kv_exit_failure(void) {
+    fflush(stdout);
+    fflush(stderr);
+    if (getenv("KELVIN_ABORT"))
+        abort();
+    exit(1);
+}
+
 static void kv_bytes_fail(const char *what) {
     fflush(stdout);
     fprintf(stderr, "kelvin: %s\n", what);
-    abort();
+    kv_exit_failure();
 }
 
 /* for every Array<T> (#57), instantiated in the program's C */

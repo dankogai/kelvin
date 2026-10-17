@@ -17,7 +17,7 @@ static void cps_push(cps *v, uint32_t c) {
         v->at = realloc(v->at, v->cap * sizeof *v->at);
         if (!v->at) {
             fputs("kelvin: out of memory\n", stderr);
-            exit(1);
+            kv_exit_failure();
         }
     }
     v->at[v->n++] = c;
@@ -255,7 +255,7 @@ void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
     kv_string *at = malloc(cap * sizeof *at);
     if (!at) {
         fputs("kelvin: out of memory\n", stderr);
-        exit(1);
+        kv_exit_failure();
     }
     while (n > 0) {
         size_t len = ucd_grapheme_len(p, n);
@@ -264,7 +264,7 @@ void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
             at = realloc(at, cap * sizeof *at);
             if (!at) {
                 fputs("kelvin: out of memory\n", stderr);
-                exit(1);
+                kv_exit_failure();
             }
         }
         kv_bytes b = kv_bytes_from(p, len);

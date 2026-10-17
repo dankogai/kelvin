@@ -579,7 +579,7 @@ extern char **environ;
 static void kv_io_fail_text(const char *what) {
     fflush(stdout);
     fprintf(stderr, "kelvin: %s\n", what);
-    abort();
+    kv_exit_failure();
 }
 
 kv_string kv_os_strerror(int code) { return kv_string_text(strerror(code)); }

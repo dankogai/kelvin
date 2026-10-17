@@ -10,7 +10,7 @@
 static void kv_string_fail(const char *what) {
     fflush(stdout);
     fprintf(stderr, "kelvin: %s\n", what);
-    abort();
+    kv_exit_failure();
 }
 
 /* Is p[0..n) well-formed UTF-8 (no overlong forms, no surrogates, nothing

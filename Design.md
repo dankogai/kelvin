@@ -205,6 +205,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 171 | The `b` flag of a RegExp, Kelvin's: binary, each character a byte of its value, on a Bytes and on a String's UTF-8 alike, so that `$/[\x80-\xff]/b` matches one byte where `$/[\u0080-\u00ff]/` matches a codepoint; without it a character is a codepoint, a Bytes read as UTF-8 as far as it is, which the `u` flag says and changes nothing; `re.binary` and `re.unicode` | — | `b.escape($/[\x80-\xff]/gb)` | 2026-10-17 |
 | 172 | `Bytes([...])` is a Bytes of the bytes written out, each a character constant, a number 0 to 255 or any `u8` value, a number out of that range an error, `Bytes([])` empty. The document of `Bytes` is bytes.md, apart from strings.md, which keeps `cstr`, `String` and `uchr`: alike to look at, another thing | — | `Bytes([0x89, 'P', 'N', 'G'])` | 2026-10-17 |
 | 173 | documents/README.md lists the documents, one line each, in the order a reader might take them: starting, values, reading and writing, modules; the README points to it | — | documents/README.md | 2026-10-18 |
+| 174 | A check that fails at run time prints its reason and exits with status 1, stdout flushed first, where it aborted: an index past the count, text that is not UTF-8, a pattern that is not one, a file that will not open where that is checked, out of memory; `KELVIN_ABORT` set in the environment makes it abort instead, for a debugger or a core. A run test may expect a status, `// exit: N`, and stderr, `// err:` lines | — | `kelvin: index 3 is out of range: the Bytes has 3`, status 1 | 2026-10-18 |
 
 Notes:
 
@@ -766,6 +767,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (174) Agreed details: "now make runtime failures exit(1) instead of
+  abort()", the first of the fixes proposed before a release: a core on
+  Linux and the crash reporter on macOS, for a bad index, are not what
+  a user of a program wants. Every failure of the runtime goes through
+  one function now, `kv_exit_failure`, with a twin in the engine's
+  parser, which kelvinc links without libkelvin; the environment
+  variable keeps the old behavior for debugging (P186).
 
 - (173) Agreed details: "add `documents/README.md` that works like a
   TOC of `documents/`." A list by topic with a line each, where the
@@ -1848,6 +1857,7 @@ says "as agreed".
 | P183 | Details of #171 | `RX_B` is 128 in the program's flags; `rx_search` and `rx_search_bytes` both set the matcher's `bytewise` from it, and `rx_slice` of a String aborts where a bound falls on a continuation byte | the flags are read by the parser shared with kelvinc, so `$/a/v` and a flag that is none are errors at compile time still |
 | P184 | Details of #172 | `Bytes([a, b, c])` is `kv_bytes_from((const uint8_t[]){a, b, c}, 3)`; the parser keeps the list as an E_INIT in the call, marked `list` | an element that is a variable or an expression is converted by C as a `uint8_t` initializer is, the literals checked by kelvinc |
 | P185 | Details of #173 | documents/README.md groups the documents as starting, values, reading and writing, and modules | the file is `README.md`, which GitHub shows at the top of the directory |
+| P186 | Details of #174 | `kv_exit_failure` in runtime/bytes.c, declared by the prelude, flushes stdout and stderr, aborts where `KELVIN_ABORT` is set, else `exit(1)`; `rx_exit_failure` in runtime/regexp_parse.c is the same for the engine and kelvinc; the failure helpers of bytes.c, io.c, os.c, unicode.c and the engine call them, and the out-of-memory exits of unicode_data.c stay `exit(1)` | tests/run.sh reads `// exit: N` as the status a test expects and compares stderr with its `// err:` lines when it has any |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

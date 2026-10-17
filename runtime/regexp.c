@@ -321,7 +321,7 @@ static const uint32_t *prog_words(const kv_bytes *prog) {
     if (!prog || prog->count < H_SIZE * sizeof(uint32_t) || ((const uint32_t *)(const void *)prog->at)[H_MAGIC] != RX_MAGIC) {
         fflush(stdout);
         fputs("kelvin: RegExp: a Bytes that is not a program of RegExp.compile\n", stderr);
-        abort();
+        rx_exit_failure();
     }
     return (const uint32_t *)(const void *)prog->at;
 }
@@ -621,7 +621,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
             continue;
         default:
             fputs("kelvin: RegExp: a broken program\n", stderr);
-            abort();
+            rx_exit_failure();
         }
     fail:
         for (;;) {
@@ -795,7 +795,7 @@ kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi) {
         if ((lo < (int64_t)s->b.count && (s->b.at[lo] & 0xC0) == 0x80) || (hi < (int64_t)s->b.count && (s->b.at[hi] & 0xC0) == 0x80)) {
             fflush(stdout);
             fputs("kelvin: RegExp: a match with the b flag cuts a codepoint of a String, which no String can hold: match a Bytes\n", stderr);
-            abort();
+            rx_exit_failure();
         }
         append_bytes(&out, s->b.at, lo, hi);
     }

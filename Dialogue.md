@@ -4578,3 +4578,25 @@ line each, grouped as starting, values, reading and writing, and
 modules, and the README points to it. Details are provisional P185.
 
 There are 782 tests, and all pass with clang and with gcc 15.
+
+### 217. Exit, not abort
+
+> I feel kelvin is close to Release 0.01. What do you think we should
+> fix before that.
+
+**Claude** surveyed the tree, every example and the documents' complete
+examples building, 300 mutated sources crashing nothing, and listed
+six fixes: failures that abort, the sanitizer job not covering the
+test programs, the documents' examples as tests, basic text operations
+on a String, a global owner made by a call, and the version.
+
+> now make runtime failures exit(1) instead of abort()
+
+**Claude** added #174: every failure of the runtime prints its reason
+and exits with status 1, stdout flushed first, through one function,
+with `KELVIN_ABORT` in the environment keeping the abort for a
+debugger; the test runner reads `// exit: N` and `// err:` lines, and a
+test of an index past the count uses them. Details are provisional
+P186.
+
+There are 783 tests, and all pass with clang and with gcc 15.

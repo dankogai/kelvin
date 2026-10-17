@@ -27,7 +27,7 @@
 static void kv_io_fail(const char *what) {
     fflush(stdout);
     fprintf(stderr, "kelvin: %s\n", what);
-    abort();
+    kv_exit_failure();
 }
 
 static char *copy_text(const void *s) {
