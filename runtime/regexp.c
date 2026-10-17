@@ -14,15 +14,14 @@
    Script_Extensions and the binary properties, from libkUnicodeData; \1 \k<n>
    backreferences; \n \r \t \v \f \0 \cX \xHH \uHHHH \u{...}; \X; (?ims-ims:...)
    modifiers. The flags: i (by simple case folding), m, s, g, y, u and d, as
-   JS has them. */
+   JS has them. The parser is runtime/regexp_parse.c, shared with kelvinc (#163). */
 #include "kelvin_prelude.h"
 #include "kUnicodeData.h"
 #include "kRegExp.h"
+#include "regexp_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum { RX_I = 1, RX_M = 2, RX_S = 4, RX_G = 8, RX_Y = 16, RX_D = 32, RX_U = 64 };
 
 /* the program: a header of words, the code, the class data, the names */
 enum { H_MAGIC, H_FLAGS, H_GROUPS, H_LOOPS, H_CODE, H_CODELEN, H_DATA, H_NAMES, H_NAMESLEN, H_SIZE };
@@ -32,96 +31,7 @@ enum {
     OP_CHAR, OP_ANY, OP_ANYALL, OP_CLASS, OP_SPLIT, OP_JMP, OP_SAVE, OP_BOL, OP_EOL, OP_WORDB, OP_NWORDB,
     OP_BACKREF, OP_LOOK, OP_MATCH, OP_GRAPHEME, OP_RESET, OP_MARK, OP_CHECK
 };
-enum { CI_RANGE, CI_ESCAPE, CI_GC, CI_SCRIPT, CI_PROP }; /* the items of a class */
-enum { LOOK_AHEAD, LOOK_NAHEAD, LOOK_BEHIND, LOOK_NBEHIND };
-#define INF 0x7fffffff
-#define MAX_GROUPS 127
 #define MAX_CODE (1u << 20)
-
-static void rx_fail(const uint8_t *pattern, const char *what, size_t at) {
-    fflush(stdout);
-    fprintf(stderr, "kelvin: RegExp: %s in /%s/ at %zu\n", what, (const char *)pattern, at);
-    abort();
-}
-
-static void *rx_alloc(size_t n) {
-    void *p = malloc(n ? n : 1);
-    if (!p) {
-        fputs("kelvin: out of memory\n", stderr);
-        abort();
-    }
-    memset(p, 0, n);
-    return p;
-}
-
-static void *rx_grow(void *p, size_t n) {
-    p = realloc(p, n);
-    if (!p) {
-        fputs("kelvin: out of memory\n", stderr);
-        abort();
-    }
-    return p;
-}
-
-/* ---------- UTF-8 ---------- */
-
-#define NO_CP 0xFFFFFFFFu
-
-/* the codepoint at p[pos], and its length; NO_CP at the end */
-static uint32_t cp_at(const uint8_t *p, int64_t n, int64_t pos, int *len) {
-    if (pos >= n) {
-        *len = 0;
-        return NO_CP;
-    }
-    uint8_t c = p[pos];
-    if (c < 0x80) {
-        *len = 1;
-        return c;
-    }
-    int l = c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
-    if (pos + l > n)
-        l = (int)(n - pos);
-    uint32_t cp = c & (l == 2 ? 0x1F : l == 3 ? 0x0F : 0x07);
-    for (int k = 1; k < l; k++)
-        cp = (cp << 6) | (p[pos + k] & 0x3F);
-    *len = l;
-    return cp;
-}
-
-/* the codepoint before p[pos], and its length; NO_CP at the start */
-static uint32_t cp_before(const uint8_t *p, int64_t n, int64_t pos, int *len) {
-    if (pos <= 0) {
-        *len = 0;
-        return NO_CP;
-    }
-    int64_t k = pos - 1;
-    while (k > 0 && (p[k] & 0xC0) == 0x80)
-        k--;
-    return cp_at(p, n, k, len);
-}
-
-static int utf8_put(uint8_t *out, uint32_t cp) {
-    if (cp < 0x80) {
-        out[0] = (uint8_t)cp;
-        return 1;
-    }
-    if (cp < 0x800) {
-        out[0] = (uint8_t)(0xC0 | (cp >> 6));
-        out[1] = (uint8_t)(0x80 | (cp & 0x3F));
-        return 2;
-    }
-    if (cp < 0x10000) {
-        out[0] = (uint8_t)(0xE0 | (cp >> 12));
-        out[1] = (uint8_t)(0x80 | ((cp >> 6) & 0x3F));
-        out[2] = (uint8_t)(0x80 | (cp & 0x3F));
-        return 3;
-    }
-    out[0] = (uint8_t)(0xF0 | (cp >> 18));
-    out[1] = (uint8_t)(0x80 | ((cp >> 12) & 0x3F));
-    out[2] = (uint8_t)(0x80 | ((cp >> 6) & 0x3F));
-    out[3] = (uint8_t)(0x80 | (cp & 0x3F));
-    return 4;
-}
 
 static bool is_line_end(uint32_t c) { return c == '\n' || c == '\r' || c == 0x2028 || c == 0x2029; }
 static bool is_word_cp(uint32_t c) {
@@ -133,608 +43,6 @@ static bool is_space_cp(uint32_t c) {
            c == 0xFEFF;
 }
 
-/* ---------- the tree ---------- */
-
-typedef struct {
-    uint32_t kind, a, b;
-} Item;
-
-typedef struct Node Node;
-struct Node {
-    int kind;
-    uint32_t c;           /* N_CHAR */
-    int min, max;         /* N_REPEAT */
-    bool greedy;
-    int group;            /* N_GROUP, N_BACKREF */
-    int look;             /* N_LOOK */
-    bool negate;          /* N_CLASS */
-    Item *items;          /* N_CLASS */
-    int nitems, icap;
-    Node **kids;          /* N_SEQ, N_ALT; one for N_GROUP, N_REPEAT, N_LOOK */
-    int nkids, kcap;
-    char *name;           /* N_BACKREF by name */
-    size_t at;            /* where in the pattern, for errors */
-    uint32_t flags;       /* i, m and s where the node is, after (?ims-ims:...) modifiers */
-};
-
-enum {
-    N_EMPTY, N_CHAR, N_ANY, N_CLASS, N_SEQ, N_ALT, N_GROUP, N_REPEAT, N_BOL, N_EOL, N_WORDB, N_NWORDB, N_BACKREF,
-    N_LOOK, N_GRAPHEME
-};
-
-static uint32_t node_flags; /* the flags where parsing is, for new nodes */
-
-static Node *node_new(int kind, size_t at) {
-    Node *n = rx_alloc(sizeof *n);
-    n->kind = kind;
-    n->at = at;
-    n->max = 1;
-    n->min = 1;
-    n->greedy = true;
-    n->flags = node_flags;
-    return n;
-}
-
-static void node_free(Node *n) {
-    if (!n)
-        return;
-    for (int i = 0; i < n->nkids; i++)
-        node_free(n->kids[i]);
-    free(n->kids);
-    free(n->items);
-    free(n->name);
-    free(n);
-}
-
-static void add_kid(Node *n, Node *k) {
-    if (n->nkids == n->kcap) {
-        n->kcap = n->kcap ? n->kcap * 2 : 4;
-        n->kids = rx_grow(n->kids, (size_t)n->kcap * sizeof *n->kids);
-    }
-    n->kids[n->nkids++] = k;
-}
-
-static void add_item(Node *n, uint32_t kind, uint32_t a, uint32_t b) {
-    if (n->nitems == n->icap) {
-        n->icap = n->icap ? n->icap * 2 : 4;
-        n->items = rx_grow(n->items, (size_t)n->icap * sizeof *n->items);
-    }
-    n->items[n->nitems++] = (Item){kind, a, b};
-}
-
-/* ---------- the parser ---------- */
-
-typedef struct {
-    const uint8_t *pat;
-    size_t len, i;
-    uint32_t flags;
-    int ngroups;
-    char *names[MAX_GROUPS + 1];
-    int max_backref;
-    size_t max_backref_at;
-} Parser;
-
-static Node *parse_alt(Parser *p);
-
-static int peekc(Parser *p) { return p->i < p->len ? p->pat[p->i] : -1; }
-static int peekc2(Parser *p) { return p->i + 1 < p->len ? p->pat[p->i + 1] : -1; }
-static bool accept(Parser *p, int c) {
-    if (peekc(p) == c) {
-        p->i++;
-        return true;
-    }
-    return false;
-}
-
-static uint32_t next_cp(Parser *p) {
-    int len;
-    uint32_t c = cp_at(p->pat, (int64_t)p->len, (int64_t)p->i, &len);
-    p->i += (size_t)len;
-    return c;
-}
-
-static int hexval(int c) {
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A' + 10;
-    return -1;
-}
-
-static bool parse_hex(Parser *p, int digits, uint32_t *out) {
-    uint32_t v = 0;
-    for (int k = 0; k < digits; k++) {
-        int h = hexval(peekc(p));
-        if (h < 0)
-            return false;
-        v = v * 16 + (uint32_t)h;
-        p->i++;
-    }
-    *out = v;
-    return true;
-}
-
-/* \u{...} and \uHHHH, a surrogate pair joined; after the 'u' */
-static uint32_t parse_unicode_escape(Parser *p, size_t at) {
-    uint32_t v;
-    if (accept(p, '{')) {
-        size_t start = p->i;
-        v = 0;
-        while (hexval(peekc(p)) >= 0) {
-            v = v * 16 + (uint32_t)hexval(peekc(p));
-            if (v > 0x10FFFF)
-                rx_fail(p->pat, "a \\u{...} escape beyond U+10FFFF", at);
-            p->i++;
-        }
-        if (p->i == start || !accept(p, '}'))
-            rx_fail(p->pat, "a \\u{...} escape needs hex digits and '}'", at);
-        return v;
-    }
-    if (!parse_hex(p, 4, &v))
-        rx_fail(p->pat, "a \\u escape needs four hex digits, or \\u{...}", at);
-    if (v >= 0xD800 && v <= 0xDBFF && peekc(p) == '\\' && peekc2(p) == 'u') {
-        size_t save = p->i;
-        uint32_t lo;
-        p->i += 2;
-        if (parse_hex(p, 4, &lo) && lo >= 0xDC00 && lo <= 0xDFFF)
-            return 0x10000 + ((v - 0xD800) << 10) + (lo - 0xDC00);
-        p->i = save;
-    }
-    return v;
-}
-
-/* \p{...} after the 'p' or 'P': a class item */
-static void parse_property(Parser *p, Node *cls, bool negate, size_t at) {
-    if (!accept(p, '{'))
-        rx_fail(p->pat, "\\p needs {...}: \\p{Letter}, \\p{Script=Greek}", at);
-    char name[64], value[64];
-    size_t n = 0;
-    bool has_value = false;
-    size_t v = 0;
-    for (;;) {
-        int c = peekc(p);
-        if (c < 0)
-            rx_fail(p->pat, "unterminated \\p{...}", at);
-        p->i++;
-        if (c == '}')
-            break;
-        if (c == '=' && !has_value) {
-            has_value = true;
-            continue;
-        }
-        if (has_value) {
-            if (v + 1 >= sizeof value)
-                rx_fail(p->pat, "a property value too long", at);
-            value[v++] = (char)c;
-        } else {
-            if (n + 1 >= sizeof name)
-                rx_fail(p->pat, "a property name too long", at);
-            name[n++] = (char)c;
-        }
-    }
-    name[n] = 0;
-    value[v] = 0;
-    if (has_value) {
-        if (!strcmp(name, "General_Category") || !strcmp(name, "gc")) {
-            uint32_t mask = ucd_category_mask((const uint8_t *)value);
-            if (!mask)
-                rx_fail(p->pat, "an unknown General_Category in \\p{...}", at);
-            add_item(cls, CI_GC, mask, negate);
-            return;
-        }
-        bool scx = !strcmp(name, "Script_Extensions") || !strcmp(name, "scx");
-        if (scx || !strcmp(name, "Script") || !strcmp(name, "sc")) {
-            int id = ucd_script_id((const uint8_t *)value);
-            if (id < 0)
-                rx_fail(p->pat, "an unknown Script in \\p{...}", at);
-            add_item(cls, CI_SCRIPT, (uint32_t)id, (negate ? 1u : 0u) | (scx ? 2u : 0u));
-            return;
-        }
-        rx_fail(p->pat, "\\p{name=value} takes General_Category, Script or Script_Extensions", at);
-    }
-    uint32_t mask = ucd_category_mask((const uint8_t *)name);
-    if (mask) {
-        add_item(cls, CI_GC, mask, negate);
-        return;
-    }
-    int id = ucd_property_id((const uint8_t *)name);
-    if (id < 0)
-        rx_fail(p->pat, "an unknown property in \\p{...}", at);
-    add_item(cls, CI_PROP, (uint32_t)id, negate);
-}
-
-/* an escape after the backslash, in a class or out of it: 0 and *cp a
-   character, 1 an item added to cls, 2 a node in *out */
-static int parse_escape(Parser *p, bool in_class, Node *cls, uint32_t *cp, Node **out, size_t at) {
-    int c = peekc(p);
-    if (c < 0)
-        rx_fail(p->pat, "a '\\' at the end", at);
-    p->i++;
-    switch (c) {
-    case 'd': case 'D': case 'w': case 'W': case 's': case 'S':
-        add_item(cls, CI_ESCAPE, (uint32_t)(c | 0x20), c < 'a');
-        return 1;
-    case 'p': case 'P':
-        parse_property(p, cls, c == 'P', at);
-        return 1;
-    case 'n': *cp = '\n'; return 0;
-    case 'r': *cp = '\r'; return 0;
-    case 't': *cp = '\t'; return 0;
-    case 'v': *cp = '\v'; return 0;
-    case 'f': *cp = '\f'; return 0;
-    case '0':
-        if (peekc(p) >= '0' && peekc(p) <= '9')
-            rx_fail(p->pat, "\\0 followed by a digit: octal escapes are not JS's with u", at);
-        *cp = 0;
-        return 0;
-    case 'c': {
-        int l = peekc(p);
-        if (!((l >= 'a' && l <= 'z') || (l >= 'A' && l <= 'Z')))
-            rx_fail(p->pat, "\\c needs a letter", at);
-        p->i++;
-        *cp = (uint32_t)(l % 32);
-        return 0;
-    }
-    case 'x':
-        if (!parse_hex(p, 2, cp))
-            rx_fail(p->pat, "\\x needs two hex digits", at);
-        return 0;
-    case 'u':
-        *cp = parse_unicode_escape(p, at);
-        return 0;
-    case 'b':
-        if (in_class) {
-            *cp = 8;
-            return 0;
-        }
-        *out = node_new(N_WORDB, at);
-        return 2;
-    case 'B':
-        if (in_class)
-            rx_fail(p->pat, "\\B in a class", at);
-        *out = node_new(N_NWORDB, at);
-        return 2;
-    case 'X':
-        if (in_class)
-            rx_fail(p->pat, "\\X in a class: it is a grapheme cluster, outside one", at);
-        *out = node_new(N_GRAPHEME, at);
-        return 2;
-    case 'k': {
-        if (in_class)
-            rx_fail(p->pat, "\\k in a class", at);
-        if (!accept(p, '<'))
-            rx_fail(p->pat, "\\k needs <name>", at);
-        size_t start = p->i;
-        while (peekc(p) >= 0 && peekc(p) != '>')
-            p->i++;
-        if (p->i == start || !accept(p, '>'))
-            rx_fail(p->pat, "\\k<name> needs a name and '>'", at);
-        Node *n = node_new(N_BACKREF, at);
-        n->name = rx_alloc(p->i - start);
-        memcpy(n->name, p->pat + start, p->i - 1 - start);
-        *out = n;
-        return 2;
-    }
-    case '-':
-        if (!in_class)
-            rx_fail(p->pat, "\\- outside a class", at);
-        *cp = '-';
-        return 0;
-    default:
-        if (c >= '1' && c <= '9') {
-            if (in_class)
-                rx_fail(p->pat, "a backreference in a class", at);
-            int g = c - '0';
-            while (peekc(p) >= '0' && peekc(p) <= '9' && g < 1000)
-                g = g * 10 + (p->pat[p->i++] - '0');
-            Node *n = node_new(N_BACKREF, at);
-            n->group = g;
-            if (g > p->max_backref) {
-                p->max_backref = g;
-                p->max_backref_at = at;
-            }
-            *out = n;
-            return 2;
-        }
-        if (strchr("^$\\.*+?()[]{}|/", c)) {
-            *cp = (uint32_t)c;
-            return 0;
-        }
-        rx_fail(p->pat, "an escape that is not JS's with u: only \\^$\\.*+?()[]{}|/ and the named ones", at);
-    }
-    return 0;
-}
-
-/* [...] after the '[' */
-static Node *parse_class(Parser *p, size_t at) {
-    Node *cls = node_new(N_CLASS, at);
-    cls->negate = accept(p, '^');
-    for (;;) {
-        int c = peekc(p);
-        if (c < 0)
-            rx_fail(p->pat, "unterminated [...]", at);
-        if (c == ']') {
-            p->i++;
-            break;
-        }
-        size_t here = p->i;
-        uint32_t lo;
-        int kind;
-        if (c == '\\') {
-            p->i++;
-            Node *dummy = NULL;
-            kind = parse_escape(p, true, cls, &lo, &dummy, here);
-        } else {
-            lo = next_cp(p);
-            kind = 0;
-        }
-        if (kind == 1)
-            continue;
-        if (peekc(p) == '-' && peekc2(p) != ']' && peekc2(p) >= 0) {
-            p->i++;
-            size_t there = p->i;
-            uint32_t hi;
-            int k2;
-            if (peekc(p) == '\\') {
-                p->i++;
-                Node *dummy = NULL;
-                Node probe = {0};
-                k2 = parse_escape(p, true, &probe, &hi, &dummy, there);
-                free(probe.items);
-            } else {
-                hi = next_cp(p);
-                k2 = 0;
-            }
-            if (k2 != 0)
-                rx_fail(p->pat, "a class escape as the end of a range", there);
-            if (hi < lo)
-                rx_fail(p->pat, "a range out of order in [...]", here);
-            add_item(cls, CI_RANGE, lo, hi);
-        } else {
-            add_item(cls, CI_RANGE, lo, lo);
-        }
-    }
-    return cls;
-}
-
-static Node *parse_atom(Parser *p) {
-    size_t at = p->i;
-    int c = peekc(p);
-    switch (c) {
-    case '(': {
-        p->i++;
-        if (accept(p, '?')) {
-            if (accept(p, ':')) {
-                Node *n = parse_alt(p);
-                if (!accept(p, ')'))
-                    rx_fail(p->pat, "unmatched (", at);
-                return n;
-            }
-            int look = -1;
-            if (accept(p, '='))
-                look = LOOK_AHEAD;
-            else if (accept(p, '!'))
-                look = LOOK_NAHEAD;
-            else if (peekc(p) == '<' && peekc2(p) == '=') {
-                p->i += 2;
-                look = LOOK_BEHIND;
-            } else if (peekc(p) == '<' && peekc2(p) == '!') {
-                p->i += 2;
-                look = LOOK_NBEHIND;
-            }
-            if (look >= 0) {
-                Node *n = node_new(N_LOOK, at);
-                n->look = look;
-                add_kid(n, parse_alt(p));
-                if (!accept(p, ')'))
-                    rx_fail(p->pat, "unmatched (", at);
-                return n;
-            }
-            if (peekc(p) == 'i' || peekc(p) == 'm' || peekc(p) == 's' || peekc(p) == '-') {
-                /* (?ims-ims:...) modifiers: the flags inside the group */
-                uint32_t on = 0, off = 0;
-                bool minus = false;
-                for (;;) {
-                    int m = peekc(p);
-                    uint32_t bit = m == 'i' ? RX_I : m == 'm' ? RX_M : m == 's' ? RX_S : 0;
-                    if (m == '-' && !minus) {
-                        minus = true;
-                        p->i++;
-                        continue;
-                    }
-                    if (!bit)
-                        break;
-                    if (((on | off) & bit))
-                        rx_fail(p->pat, "a modifier twice in (?...:)", at);
-                    *(minus ? &off : &on) |= bit;
-                    p->i++;
-                }
-                if (!accept(p, ':') || (minus && !off) || !(on | off))
-                    rx_fail(p->pat, "(?ims-ims:...) takes i, m and s to turn on, and after '-' to turn off, then ':'", at);
-                uint32_t saved = p->flags;
-                p->flags = (p->flags | on) & ~off;
-                node_flags = p->flags;
-                Node *n = parse_alt(p);
-                p->flags = saved;
-                node_flags = saved;
-                if (!accept(p, ')'))
-                    rx_fail(p->pat, "unmatched (", at);
-                return n;
-            }
-            if (!accept(p, '<'))
-                rx_fail(p->pat, "(? is followed by :, =, !, <=, <! or <name>", at);
-            size_t start = p->i;
-            while (peekc(p) >= 0 && peekc(p) != '>')
-                p->i++;
-            if (p->i == start || !accept(p, '>'))
-                rx_fail(p->pat, "(?<name> needs a name and '>'", at);
-            if (p->ngroups >= MAX_GROUPS)
-                rx_fail(p->pat, "more than 127 groups", at);
-            int g = ++p->ngroups;
-            p->names[g] = rx_alloc(p->i - start);
-            memcpy(p->names[g], p->pat + start, p->i - 1 - start);
-            for (int k = 1; k < g; k++)
-                if (p->names[k] && !strcmp(p->names[k], p->names[g]))
-                    rx_fail(p->pat, "two groups of one name", at);
-            Node *n = node_new(N_GROUP, at);
-            n->group = g;
-            add_kid(n, parse_alt(p));
-            if (!accept(p, ')'))
-                rx_fail(p->pat, "unmatched (", at);
-            return n;
-        }
-        if (p->ngroups >= MAX_GROUPS)
-            rx_fail(p->pat, "more than 127 groups", at);
-        Node *n = node_new(N_GROUP, at);
-        n->group = ++p->ngroups;
-        add_kid(n, parse_alt(p));
-        if (!accept(p, ')'))
-            rx_fail(p->pat, "unmatched (", at);
-        return n;
-    }
-    case '[':
-        p->i++;
-        return parse_class(p, at);
-    case '.':
-        p->i++;
-        return node_new(N_ANY, at);
-    case '^':
-        p->i++;
-        return node_new(N_BOL, at);
-    case '$':
-        p->i++;
-        return node_new(N_EOL, at);
-    case '*': case '+': case '?':
-        rx_fail(p->pat, "nothing to repeat", at);
-        break;
-    case '{':
-        rx_fail(p->pat, "a '{' that is not a quantifier: write \\{", at);
-        break;
-    case '}': case ']':
-        rx_fail(p->pat, "a lone '}' or ']': write \\} or \\]", at);
-        break;
-    case '\\': {
-        p->i++;
-        uint32_t cp = 0;
-        Node *out = NULL;
-        Node *cls = node_new(N_CLASS, at);
-        int kind = parse_escape(p, false, cls, &cp, &out, at);
-        if (kind == 1)
-            return cls;
-        node_free(cls);
-        if (kind == 2)
-            return out;
-        Node *n = node_new(N_CHAR, at);
-        n->c = cp;
-        return n;
-    }
-    default: {
-        Node *n = node_new(N_CHAR, at);
-        n->c = next_cp(p);
-        return n;
-    }
-    }
-    return NULL;
-}
-
-static bool is_assertion(Node *n) {
-    return n->kind == N_BOL || n->kind == N_EOL || n->kind == N_WORDB || n->kind == N_NWORDB || n->kind == N_LOOK;
-}
-
-static int parse_int(Parser *p) {
-    int v = 0;
-    bool any = false;
-    while (peekc(p) >= '0' && peekc(p) <= '9') {
-        if (v < 100000)
-            v = v * 10 + (peekc(p) - '0');
-        p->i++;
-        any = true;
-    }
-    return any ? v : -1;
-}
-
-static Node *parse_term(Parser *p) {
-    Node *atom = parse_atom(p);
-    size_t at = p->i;
-    int c = peekc(p);
-    int min, max;
-    if (c == '*') {
-        min = 0;
-        max = INF;
-        p->i++;
-    } else if (c == '+') {
-        min = 1;
-        max = INF;
-        p->i++;
-    } else if (c == '?') {
-        min = 0;
-        max = 1;
-        p->i++;
-    } else if (c == '{') {
-        p->i++;
-        min = parse_int(p);
-        if (min < 0)
-            rx_fail(p->pat, "a quantifier {n}, {n,} or {n,m} needs a number", at);
-        if (accept(p, ',')) {
-            max = peekc(p) == '}' ? INF : parse_int(p);
-            if (max < 0)
-                rx_fail(p->pat, "a quantifier {n,m} needs a number after the comma", at);
-        } else {
-            max = min;
-        }
-        if (!accept(p, '}'))
-            rx_fail(p->pat, "a quantifier {...} needs '}'", at);
-        if (max < min)
-            rx_fail(p->pat, "a quantifier {n,m} with m less than n", at);
-        if (min > 100000 || (max != INF && max > 100000))
-            rx_fail(p->pat, "a quantifier beyond 100000", at);
-    } else {
-        return atom;
-    }
-    if (is_assertion(atom))
-        rx_fail(p->pat, "nothing to repeat: an assertion is not repeated", at);
-    Node *r = node_new(N_REPEAT, at);
-    r->min = min;
-    r->max = max;
-    r->greedy = !accept(p, '?');
-    add_kid(r, atom);
-    return r;
-}
-
-static Node *parse_seq(Parser *p) {
-    Node *seq = node_new(N_SEQ, p->i);
-    while (peekc(p) >= 0 && peekc(p) != '|' && peekc(p) != ')')
-        add_kid(seq, parse_term(p));
-    return seq;
-}
-
-static Node *parse_alt(Parser *p) {
-    Node *first = parse_seq(p);
-    if (peekc(p) != '|')
-        return first;
-    Node *alt = node_new(N_ALT, first->at);
-    add_kid(alt, first);
-    while (accept(p, '|'))
-        add_kid(alt, parse_seq(p));
-    return alt;
-}
-
-/* \k<name> to its group, now that every group is read */
-static void resolve_names(Parser *p, Node *n) {
-    if (n->kind == N_BACKREF && n->name) {
-        int g = 0;
-        for (int k = 1; k <= p->ngroups; k++)
-            if (p->names[k] && !strcmp(p->names[k], n->name))
-                g = k;
-        if (!g)
-            rx_fail(p->pat, "\\k<name> of a group there is none of", n->at);
-        n->group = g;
-    }
-    for (int i = 0; i < n->nkids; i++)
-        resolve_names(p, n->kids[i]);
-}
 
 /* the groups inside a node, for resetting them each iteration */
 static void group_span(Node *n, int *lo, int *hi) {
@@ -966,25 +274,8 @@ static void emit_node(Emitter *e, Node *n) {
 }
 
 kv_bytes rx_compile(const uint8_t *pattern, const uint8_t *flags) {
-    Parser p = {0};
-    p.pat = pattern ? pattern : (const uint8_t *)"";
-    p.len = strlen((const char *)p.pat);
-    for (const uint8_t *f = flags ? flags : (const uint8_t *)""; *f; f++) {
-        uint32_t bit = *f == 'i' ? RX_I : *f == 'm' ? RX_M : *f == 's' ? RX_S : *f == 'g' ? RX_G : *f == 'y' ? RX_Y
-                     : *f == 'd' ? RX_D : *f == 'u' ? RX_U : 0;
-        if (!bit)
-            rx_fail(p.pat, *f == 'v' ? "the v flag is not here yet: the flags are dgimsuy" : "a flag that is not one of dgimsuy", 0);
-        if (p.flags & bit)
-            rx_fail(p.pat, "a flag twice", 0);
-        p.flags |= bit;
-    }
-    node_flags = p.flags;
-    Node *tree = parse_alt(&p);
-    if (p.i < p.len)
-        rx_fail(p.pat, "unmatched )", p.i);
-    if (p.max_backref > p.ngroups)
-        rx_fail(p.pat, "a backreference to a group there is none of", p.max_backref_at);
-    resolve_names(&p, tree);
+    Parser p;
+    Node *tree = rx_parse_pattern(&p, pattern, flags);
 
     Emitter e = {0};
     e.p = &p;
@@ -994,7 +285,7 @@ kv_bytes rx_compile(const uint8_t *pattern, const uint8_t *flags) {
     emit(&e, OP_SAVE);
     emit(&e, 1);
     emit(&e, OP_MATCH);
-    node_free(tree);
+    rx_node_free(tree);
 
     size_t names_len = 0;
     for (int g = 1; g <= p.ngroups; g++)
@@ -1190,28 +481,28 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
         uint32_t x;
         switch (code[pc]) {
         case OP_CHAR:
-            x = cp_at(c->s, c->n, pos, &len);
+            x = rx_cp_at(c->s, c->n, pos, &len);
             if (x == NO_CP || (code[pc + 2] ? ucd_to_fold(x) : x) != code[pc + 1])
                 goto fail;
             pos += len;
             pc += 3;
             continue;
         case OP_ANY:
-            x = cp_at(c->s, c->n, pos, &len);
+            x = rx_cp_at(c->s, c->n, pos, &len);
             if (x == NO_CP || is_line_end(x))
                 goto fail;
             pos += len;
             pc++;
             continue;
         case OP_ANYALL:
-            x = cp_at(c->s, c->n, pos, &len);
+            x = rx_cp_at(c->s, c->n, pos, &len);
             if (x == NO_CP)
                 goto fail;
             pos += len;
             pc++;
             continue;
         case OP_CLASS:
-            x = cp_at(c->s, c->n, pos, &len);
+            x = rx_cp_at(c->s, c->n, pos, &len);
             if (x == NO_CP || !class_matches(c->data + code[pc + 1], x, code[pc + 2]))
                 goto fail;
             pos += len;
@@ -1230,18 +521,18 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
             pc += 2;
             continue;
         case OP_BOL:
-            if (!(pos == 0 || (code[pc + 1] && is_line_end(cp_before(c->s, c->n, pos, &len)))))
+            if (!(pos == 0 || (code[pc + 1] && is_line_end(rx_cp_before(c->s, c->n, pos, &len)))))
                 goto fail;
             pc += 2;
             continue;
         case OP_EOL:
-            if (!(pos == c->n || (code[pc + 1] && is_line_end(cp_at(c->s, c->n, pos, &len)))))
+            if (!(pos == c->n || (code[pc + 1] && is_line_end(rx_cp_at(c->s, c->n, pos, &len)))))
                 goto fail;
             pc += 2;
             continue;
         case OP_WORDB:
         case OP_NWORDB: {
-            uint32_t before = cp_before(c->s, c->n, pos, &len), after = cp_at(c->s, c->n, pos, &len);
+            uint32_t before = rx_cp_before(c->s, c->n, pos, &len), after = rx_cp_at(c->s, c->n, pos, &len);
             bool a = before != NO_CP && is_word_cp(before), b = after != NO_CP && is_word_cp(after);
             if ((a != b) != (code[pc] == OP_WORDB))
                 goto fail;
@@ -1259,7 +550,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
                 int64_t k = lo;
                 while (k < hi) {
                     int l2;
-                    uint32_t a = cp_at(c->s, c->n, k, &len), b = cp_at(c->s, c->n, pos, &l2);
+                    uint32_t a = rx_cp_at(c->s, c->n, k, &len), b = rx_cp_at(c->s, c->n, pos, &l2);
                     if (b == NO_CP || ucd_to_fold(a) != ucd_to_fold(b))
                         goto fail;
                     k += len;
@@ -1352,7 +643,7 @@ bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool stic
     uint8_t first[4];
     int first_len = 0;
     if (c.code[2] == OP_CHAR && !c.code[4])
-        first_len = utf8_put(first, c.code[3]);
+        first_len = rx_utf8_put(first, c.code[3]);
     for (int64_t start = from; start <= c.n; ) {
         if (first_len && !sticky) {
             const uint8_t *q = memchr(c.s + start, first[0], (size_t)(c.n - start));
@@ -1373,7 +664,7 @@ bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool stic
         if (sticky || start >= c.n)
             break;
         int len;
-        cp_at(c.s, c.n, start, &len);
+        rx_cp_at(c.s, c.n, start, &len);
         start += len;
     }
     free(c.stack);
@@ -1399,7 +690,7 @@ void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, co
     for (const uint8_t *t = with; *t; t++) {
         if (*t != '$' || !t[1]) {
             int len;
-            cp_at(t, 4, 0, &len); /* the bytes of this codepoint, as written */
+            rx_cp_at(t, 4, 0, &len); /* the bytes of this codepoint, as written */
             append_bytes(out, t, 0, len);
             t += len - 1;
             continue;
@@ -1476,7 +767,7 @@ int64_t rx_byte_index(const kv_string *s, int64_t cp) {
     int64_t n = (int64_t)s->b.count, i = 0;
     while (cp > 0 && i < n) {
         int len;
-        cp_at(s->b.at, n, i, &len);
+        rx_cp_at(s->b.at, n, i, &len);
         i += len;
         cp--;
     }
@@ -1487,6 +778,6 @@ int64_t rx_next(const kv_string *s, int64_t byte) {
     int len;
     if (byte >= (int64_t)s->b.count)
         return (int64_t)s->b.count;
-    cp_at(s->b.at, (int64_t)s->b.count, byte, &len);
+    rx_cp_at(s->b.at, (int64_t)s->b.count, byte, &len);
     return byte + len;
 }

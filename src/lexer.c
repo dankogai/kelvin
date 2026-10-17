@@ -86,6 +86,9 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
     lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false};
 }
 
+/* runtime/regexp_parse.c, linked into kelvinc: is the pattern one? (#163) */
+const char *rx_check(const char *pattern, const char *flags, size_t *at);
+
 /* a token kelvinc writes itself, for a literal that becomes a call (#157) */
 static void push_text(Lexer *lx, TokKind kind, Pos pos, const char *text) {
     push(lx, kind, pos, text, text + strlen(text));
@@ -134,6 +137,17 @@ static void lex_regexp(Lexer *lx, Pos pos) {
     *q++ = '"';
     *q = 0;
     char *flags = strfmt("\"%.*s\"", (int)(lx->p - fstart), fstart);
+    /* the pattern checked now, by the parser of RegExp linked into kelvinc (#163) */
+    char *pattern = xstrndup(start, (size_t)(end - start)), *bare = xstrndup(fstart, (size_t)(lx->p - fstart));
+    size_t at = 0;
+    const char *wrong = rx_check(pattern, bare, &at);
+    if (wrong) {
+        Pos where = pos;
+        where.col += 2 + (int)at;
+        error_at(where, "a $/.../ literal that is not a regular expression: %s", wrong);
+    }
+    free(pattern);
+    free(bare);
     push_text(lx, TK_IDENT, pos, "RegExp");
     lx->toks[lx->len - 1].regexp = true;
     push_text(lx, TK_PUNCT, pos, ".");

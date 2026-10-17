@@ -9,7 +9,7 @@ SRCS := $(wildcard src/*.c)
 OBJS := $(SRCS:src/%.c=build/%.o)
 UD_SRCS := runtime/unicode_data.c runtime/unicode_tables.c runtime/unicode_names.c
 UD_OBJS := $(UD_SRCS:runtime/%.c=build/runtime/%.o)
-RT_SRCS := $(filter-out runtime/io.c runtime/os.c runtime/regexp.c $(UD_SRCS), $(wildcard runtime/*.c))
+RT_SRCS := $(filter-out runtime/io.c runtime/os.c runtime/regexp.c runtime/regexp_parse.c $(UD_SRCS), $(wildcard runtime/*.c))
 RT_OBJS := $(RT_SRCS:runtime/%.c=build/runtime/%.o)
 # IO and OS are modules (#144, #145): #import <IO> and #import <OS> bring in
 # modules/IO.kh and OS.kh, whose C headers are kIO.h and kOS.h, and link
@@ -34,8 +34,10 @@ MOD_SHLIBS := modules/libkIO.$(SO) modules/libkOS.$(SO)
 
 all: kelvinc modules/libkelvin.a modules/$(SHLIB) $(MOD_LIBS) $(MOD_SHLIBS) $(KELVIN_LIBS)
 
-kelvinc: $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS)
+# kelvinc checks a $/.../ literal (#163) with the pattern parser of RegExp and the Unicode tables
+CHECK_OBJS := build/runtime/regexp_parse.o build/runtime/unicode_tables.o
+kelvinc: $(OBJS) $(CHECK_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(CHECK_OBJS)
 
 build/%.o: src/%.c src/kelvin.h | build
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -75,10 +77,11 @@ modules/UnicodeData.kh: modules/UnicodeData.k $(UD_OBJS) kelvinc modules/libkelv
 	./kelvinc --lib modules/UnicodeData.k $(UD_OBJS) -o modules
 
 # RegExp (#157) is written in Kelvin over its C engine, runtime/regexp.c, on UnicodeData
-build/runtime/regexp.o: runtime/regexp.c modules/kelvin_prelude.h modules/kUnicodeData.h modules/kRegExp.h | build/runtime
+RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
+build/runtime/regexp%.o: runtime/regexp%.c runtime/regexp_internal.h modules/kelvin_prelude.h modules/kUnicodeData.h modules/kRegExp.h | build/runtime
 	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
-modules/RegExp.kh: modules/RegExp.k build/runtime/regexp.o modules/UnicodeData.kh kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/RegExp.k build/runtime/regexp.o -o modules
+modules/RegExp.kh: modules/RegExp.k $(RX_OBJS) modules/UnicodeData.kh kelvinc modules/libkelvin.a modules/$(SHLIB)
+	./kelvinc --lib modules/RegExp.k $(RX_OBJS) -o modules
 
 build build/runtime:
 	mkdir -p $@

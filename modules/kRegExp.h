@@ -13,6 +13,9 @@
 /* the program of a pattern with flags of "dgimsuy", JS's; a pattern that is
    not one ends the program, naming what is wrong and where */
 kv_bytes rx_compile(const uint8_t *pattern, const uint8_t *flags);
+/* NULL where the pattern with the flags is one, else what is wrong, with *at
+   where in the pattern; nothing ends: kelvinc checks a $/.../ literal (#163) */
+const char *rx_check(const char *pattern, const char *flags, size_t *at);
 int64_t rx_groups(const kv_bytes *prog);                           /* the capturing groups, not counting the whole */
 const uint8_t *rx_group_name(const kv_bytes *prog, int64_t i);      /* "" where group i has no name */
 int64_t rx_group_named(const kv_bytes *prog, const uint8_t *name);  /* -1 where there is none */

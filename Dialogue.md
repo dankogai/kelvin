@@ -4435,3 +4435,17 @@ also where a function is named as the type, which it did not once such
 a function was declared. Details are provisional P174.
 
 There are 772 tests, and all pass with clang and with gcc 15.
+
+### 206. The pattern checked at compile time
+
+> now add `$/.../` compile-time checking of the pattern in kelvinc
+
+**Claude** added #163: the engine's parser of a pattern is its own
+file now, runtime/regexp_parse.c, on the Unicode tables alone, and
+kelvinc links the two to check each `$/.../` literal as the lexer reads
+it, reporting a pattern that is not JS's, an unknown `\p{...}` name or
+a flag that is none at its place in the pattern. An error in a check
+returns to kelvinc instead of ending the program. Details are
+provisional P175.
+
+There are 774 tests, and all pass with clang and with gcc 15.

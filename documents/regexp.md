@@ -44,6 +44,12 @@ so a file that has not imported `<RegExp>` cannot write one.
   - A `RegExp` an expression gives is bound before it is used, as every
     owner is: `s.replace(&$/x/, "y")` is an error, and so is
     `$/x/.test(&s)` ([ownership.md](ownership.md)).
+  - kelvinc checks the pattern as it reads the literal (#163): `$/(a/`
+    is an error at the `(`, with what is wrong, as `\p{Nope}` and a
+    flag that is none are, before anything runs. The parser of the
+    module, with the Unicode tables, is linked into kelvinc for it;
+    `RegExp.compile(text, flags)` of text checks at run time, and a
+    pattern that is not one ends the program then.
 - **`RegExp(pattern, flags)`**, and `RegExp.compile(pattern, flags)`
   the same, take the pattern and the flags each as a `cstr` or a String
   borrowed, `RegExp(&p, &f)` (#162), and `""` for no flags; a pattern
