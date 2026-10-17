@@ -212,6 +212,12 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
   or a String an expression gives), `clear`, `reserve`, `compact`,
   `copy`, `escape` and `unescape`.
+- **Searching** (#177): `s.find(text)` is the codepoint index of the
+  first `text` in `s`, or -1; `s.has(text)`, `s.starts(text)` and
+  `s.ends(text)` are whether it is there, at the start, at the end;
+  the text a `cstr` or a String borrowed, `s.find(&t)`.
+- **`s.trim()`** is a new String without the blanks at either end,
+  the spaces, tabs and line ends JS's `\s` lists, U+3000 among them.
 - **Properties:** `count` (the codepoints), `cstr` (a borrow of the
   text), `bytes` (its Bytes, read only), `size`, `typename`.
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
@@ -220,13 +226,13 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   and `s[...hi]` are new Strings of those codepoints; a range past the
   count ends the program.
 - **Comparing:** `==` and `!=` compare two Strings by their bytes.
-- **Not yet:** searching, `insert` and `remove` on a String, encodings
-  other than UTF-8.
+- **Not yet:** `insert` and `remove` on a String, encodings other than
+  UTF-8.
 
 ## What is not here yet
 
-Searching, `insert` and `remove` on a String, and encodings other than
-UTF-8 are to come.
+`insert` and `remove` on a String, and encodings other than UTF-8, are
+to come.
 
 - A `cstr` is C's bytes, with C's rules: a NUL ends it, nothing checks
   a bound, and one that points at freed or ended storage is as wrong as
@@ -248,6 +254,9 @@ UTF-8 are to come.
 | | `.cstr` | a borrow of the text |
 | | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | changes in place; a new String |
+| | `.find(text)`, `.find(&t)` | the codepoint index of the first `text`, or -1 (#177) |
+| | `.has(text)`, `.starts(text)`, `.ends(text)` | whether `text` is there, at the start, at the end; `&t` too |
+| | `.trim()` | a new String without the blanks at either end |
 | | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, and a `\` as `\\`, a new String (#164); with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches instead |
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |

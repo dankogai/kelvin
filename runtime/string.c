@@ -602,3 +602,71 @@ kv_string kv_string_unescape(const kv_string *s) {
     }
     return out;
 }
+
+/* s.find(text), s.has(text), s.starts(text), s.ends(text) (#177): by the
+   bytes, the index found as a codepoint count; s.trim(): without the
+   blanks at either end, JS's \s, a new String */
+static int64_t find_bytes(const kv_string *s, const uint8_t *p, size_t n) {
+    if (n > s->b.count)
+        return -1;
+    const uint8_t *at = s->b.at ? s->b.at : (const uint8_t *)"";
+    for (size_t i = 0; i + n <= s->b.count; i++)
+        if (!memcmp(at + i, p, n)) {
+            int64_t k = 0;
+            for (size_t j = 0; j < i; j++)
+                if ((at[j] & 0xC0) != 0x80)
+                    k++;
+            return k;
+        }
+    return -1;
+}
+
+int64_t kv_string_find_text(const kv_string *s, const void *t) { return find_bytes(s, t, strlen(t)); }
+int64_t kv_string_find_ref(const kv_string *s, const kv_string *t) { return find_bytes(s, t->b.at ? t->b.at : (const uint8_t *)"", t->b.count); }
+bool kv_string_has_text(const kv_string *s, const void *t) { return kv_string_find_text(s, t) >= 0; }
+bool kv_string_has_ref(const kv_string *s, const kv_string *t) { return kv_string_find_ref(s, t) >= 0; }
+
+static bool starts_bytes(const kv_string *s, const uint8_t *p, size_t n) {
+    return n <= s->b.count && (n == 0 || !memcmp(s->b.at, p, n));
+}
+static bool ends_bytes(const kv_string *s, const uint8_t *p, size_t n) {
+    return n <= s->b.count && (n == 0 || !memcmp(s->b.at + s->b.count - n, p, n));
+}
+bool kv_string_starts_text(const kv_string *s, const void *t) { return starts_bytes(s, t, strlen(t)); }
+bool kv_string_starts_ref(const kv_string *s, const kv_string *t) { return starts_bytes(s, t->b.at ? t->b.at : (const uint8_t *)"", t->b.count); }
+bool kv_string_ends_text(const kv_string *s, const void *t) { return ends_bytes(s, t, strlen(t)); }
+bool kv_string_ends_ref(const kv_string *s, const kv_string *t) { return ends_bytes(s, t->b.at ? t->b.at : (const uint8_t *)"", t->b.count); }
+
+static bool is_blank_cp(uint32_t c) {
+    return c == 9 || c == 10 || c == 11 || c == 12 || c == 13 || c == ' ' || c == 0xA0 || c == 0x1680 ||
+           (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 ||
+           c == 0xFEFF;
+}
+
+kv_string kv_string_trim(const kv_string *s) {
+    const uint8_t *p = s->b.at ? s->b.at : (const uint8_t *)"", *end = p + s->b.count;
+    const uint8_t *lo = p, *hi = end;
+    while (lo < hi) {
+        const uint8_t *q = lo;
+        if (!is_blank_cp(kv_utf8_next(&q)))
+            break;
+        lo = q;
+    }
+    while (hi > lo) {
+        const uint8_t *q = hi - 1;
+        while (q > lo && (*q & 0xC0) == 0x80)
+            q--;
+        const uint8_t *r = q;
+        if (!is_blank_cp(kv_utf8_next(&r)))
+            break;
+        hi = q;
+    }
+    kv_string out = kv_string_new();
+    if (hi > lo) {
+        kv_bytes_append(&out.b, lo, (size_t)(hi - lo));
+        for (const uint8_t *q = lo; q < hi; q++)
+            if ((*q & 0xC0) != 0x80)
+                out.count++;
+    }
+    return out;
+}

@@ -1054,7 +1054,9 @@ static char *expr_bare(Expr *e) {
                 return strfmt("KV_STRING_APPEND(%s, %s)", recv, expr(e->items.data[0]));
             if (!strcmp(e->text, "reserve"))
                 return strfmt("kv_string_reserve(%s, %s)", recv, expr(e->items.data[0]));
-            return strfmt("kv_string_%s(%s)", e->text, recv); /* clear, compact, copy */
+            if (!strcmp(e->text, "find") || !strcmp(e->text, "has") || !strcmp(e->text, "starts") || !strcmp(e->text, "ends"))
+                return strfmt("KV_STRING_TEXT_OR_REF(%s, %s, %s)", e->text, recv, expr(e->items.data[0])); /* (#177) */
+            return strfmt("kv_string_%s(%s)", e->text, recv); /* clear, compact, copy, escape, unescape, trim */
         }
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82), on a place, a let too: the FILE changes, not the IO */
             char *recv = strfmt("(kv_io *)&%s", expr(e->a));

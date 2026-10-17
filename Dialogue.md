@@ -4633,3 +4633,15 @@ feature macros now, as the runtime does. Details are provisional P188.
 
 There are 784 tests, and all pass with clang and with gcc 15; the
 documents' 40 examples compile, with 30 fragments marked.
+
+### 220. find, has, starts, ends and trim
+
+> now add the basic String operations: find, has, starts, ends, trim
+
+**Claude** added #177: `s.find(text)`, the codepoint index or -1,
+`s.has(text)`, `s.starts(text)` and `s.ends(text)`, the text a `cstr`
+or a String borrowed, and `s.trim()`, the blanks of JS's `\s` taken
+off either end; strings.md no longer says searching is not here.
+Details are provisional P189.
+
+There are 786 tests, and all pass with clang and with gcc 15.

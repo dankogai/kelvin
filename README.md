@@ -125,7 +125,9 @@ So far the changes from C are:
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
   - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
     codepoint, each a `uchr`, which prints as its character;
-    `` $`a${x}b` `` builds one from a template, with no bound
+    `` $`a${x}b` `` builds one from a template, with no bound;
+    `s.find(text)`, `s.has(text)`, `s.starts(text)`, `s.ends(text)`
+    and `s.trim()` (#177)
   - `Array<T>` is a growable array of any value type, owners included
   - `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short,
     and `$[i64]` the type `Array<i64>`

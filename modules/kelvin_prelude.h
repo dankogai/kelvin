@@ -110,6 +110,19 @@ kv_string kv_string_copy(const kv_string *s);
 kv_string kv_string_escape(const kv_string *s);   /* s.escape() (#164): codepoints beyond ASCII as \u{...} */
 kv_string kv_bytes_escape(const kv_bytes *b);     /* b.escape() (#166): bytes not printable ASCII as \xHH */
 kv_string kv_string_unescape(const kv_string *s); /* s.unescape(): them read back */
+/* s.find(t), s.has(t), s.starts(t), s.ends(t) of text or a String borrowed (#177); s.trim() */
+int64_t kv_string_find_text(const kv_string *s, const void *t);
+int64_t kv_string_find_ref(const kv_string *s, const kv_string *t);
+bool kv_string_has_text(const kv_string *s, const void *t);
+bool kv_string_has_ref(const kv_string *s, const kv_string *t);
+bool kv_string_starts_text(const kv_string *s, const void *t);
+bool kv_string_starts_ref(const kv_string *s, const kv_string *t);
+bool kv_string_ends_text(const kv_string *s, const void *t);
+bool kv_string_ends_ref(const kv_string *s, const kv_string *t);
+kv_string kv_string_trim(const kv_string *s);
+#define KV_STRING_TEXT_OR_REF(name, s, x) _Generic((x), \
+    kv_string *: kv_string_##name##_ref, const kv_string *: kv_string_##name##_ref, \
+    default: kv_string_##name##_text)((s), (x))
 kv_string kv_string_take(kv_string *s);
 void kv_string_free(kv_string *s);
 void kv_string_assign(kv_string *s, kv_string v);

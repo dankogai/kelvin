@@ -29,8 +29,8 @@ the design decisions, numbered `#N` throughout, are in
 - [bool.md](bool.md): `bool`, `true` and `false`, where a `bool` comes
   from, conditions, converting.
 - [strings.md](strings.md): `cstr`, literals, byte arrays and text on
-  the stack; `String`, text on the heap, `$"..."` and `` $`...` ``;
-  `uchr`, a codepoint.
+  the stack; `String`, text on the heap, `$"..."` and `` $`...` ``,
+  `find`, `has`, `trim`; `uchr`, a codepoint.
 - [bytes.md](bytes.md): `Bytes`, any bytes on the heap: `Bytes("text")`,
   `Bytes([...])`, `b[i]`, `b += x`, `b.string()`, `b.escape()`, base64.
 - [pointers.md](pointers.md): `T^`, `:=` for references, `any^`,

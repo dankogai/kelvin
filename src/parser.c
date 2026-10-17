@@ -1835,8 +1835,9 @@ static Expr *parse_postfix_ops(Expr *e) {
                     {"clear", 0, true, "bsa"}, {"reserve", 1, true, "bsa"}, {"compact", 0, true, "bsa"},
                     {"copy", 0, false, "bsadt"}, {"string", 0, false, "b"}, {"pop", 0, true, "a"},
                     {"escape", 0, false, "bs"}, {"unescape", 0, false, "s"},
+                    {"starts", 1, false, "s"}, {"ends", 1, false, "s"}, {"trim", 0, false, "s"}, /* (#177) */
                     {"toBase64", -1, false, "b"},
-                    {"has", 1, false, "dt"}, {"find", 1, false, "d"}, {"get", 2, false, "d"},
+                    {"has", 1, false, "dts"}, {"find", 1, false, "ds"}, {"get", 2, false, "d"},
                     {"remove", 1, true, "dt"}, {"clear", 0, true, "dt"}, {"reserve", 1, true, "dt"},
                     {"insert", 1, true, "t"}, {"union", 1, false, "t"}, {"intersection", 1, false, "t"},
                     {"difference", 1, false, "t"}, {"write", 1, false, "i"}, {"flush", 0, false, "i"},
@@ -1856,8 +1857,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                               "compact, copy, string and toBase64, and the properties count, capacity, "
                                               "at, cstr and isUTF8"
                                         : ok == 's'
-                                            ? "a String has no method '%s': append, clear, reserve, compact, copy, escape and unescape, "
-                                              "and the properties count, bytes and cstr"
+                                            ? "a String has no method '%s': append, clear, reserve, compact, copy, escape, unescape, "
+                                              "find, has, starts, ends and trim, and the properties count, bytes and cstr"
                                         : ok == 'd'
                                             ? "a Dictionary has no method '%s': has, find, get, remove, clear, reserve "
                                               "and copy, and the property count"
@@ -1902,6 +1903,17 @@ static Expr *parse_postfix_ops(Expr *e) {
                              methods[which].arity == 1 ? "" : "s");
                 if (ok == 'i' && (!strcmp(member, "seek") || !strcmp(member, "kill"))) /* a bool: whether it could (#84, #91) */
                     x->is_bool = true;
+                if (ok == 's' && x->items.len == 1 &&
+                    (!strcmp(member, "find") || !strcmp(member, "has") || !strcmp(member, "starts") || !strcmp(member, "ends"))) {
+                    /* s.find(text), s.has(&t) (#177): text, a cstr, or a String borrowed */
+                    Expr *a = x->items.data[0];
+                    Type *at = value_type(a);
+                    bool borrow = a->kind == E_PREFIX && !strcmp(a->op, "&") && is_string(value_type(a->a));
+                    if (!borrow && !is_text_expr(a) && !(at && is_cstr(at)))
+                        error_at(a->pos, "'.%s' takes text, a cstr, or a String borrowed, '&t', and this is %s", member,
+                                 at && is_string(at) ? "a String: write '&'" : at ? kelvin_type(at) : "not text");
+                    x->is_bool = strcmp(member, "find") != 0;
+                }
                 if (ok == 'b' && !strcmp(member, "toBase64")) {
                     /* b.toBase64(url, nopad) (#155): the words, in either order */
                     if (x->items.len > 2)
@@ -4140,10 +4152,15 @@ static Type *value_type_of(Expr *e) {
                    : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") || !strcmp(e->text, "escape")
                        ? base_type("String", e->pos)
                                                                                 : NULL;
-        if (e->op && !strcmp(e->op, "string")) /* a String method (#55): copy, escape and unescape give a String */
-            return !strcmp(e->text, "copy") || !strcmp(e->text, "escape") || !strcmp(e->text, "unescape")
-                       ? base_type("String", e->pos)
-                       : NULL;
+        if (e->op && !strcmp(e->op, "string")) { /* a String method (#55): copy, escape, unescape and trim give a String */
+            if (!strcmp(e->text, "copy") || !strcmp(e->text, "escape") || !strcmp(e->text, "unescape") || !strcmp(e->text, "trim"))
+                return base_type("String", e->pos);
+            if (!strcmp(e->text, "find")) /* (#177) */
+                return base_type("i64", e->pos);
+            if (!strcmp(e->text, "has") || !strcmp(e->text, "starts") || !strcmp(e->text, "ends"))
+                return base_type("bool", e->pos);
+            return NULL;
+        }
         if (e->op && !strcmp(e->op, "case_is")) /* v.is(n) (#61) */
             return base_type("bool", e->pos);
         if (e->op && !strcmp(e->op, "case_set"))
