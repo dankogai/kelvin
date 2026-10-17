@@ -304,6 +304,19 @@ let main():int32 {
     C header's, as in C.
   - Two functions that would have one C name are an error.
 - **As in C**, a call sees only the overloads declared before it.
+- **Methods overload too** (#158): `let box.add(n:int64)` and `let
+  box.add(t:cstr)` are two methods, and `b.add(1)` and `b.add("x")`
+  each call theirs, chosen as a function's overloads are.
+  - An anonymous argument, `b.add() { $0 * 10 }`, takes the type of
+    the overload that has a function type where it stands, where one
+    does: so `s.replace(&re, "$1")` and `s.replace(&re) { ... }` are two
+    methods of `String` ([regexp.md](regexp.md)).
+  - In C the overloads are `box__add__i64` and `box__add__cstr`, by
+    their types, where a method with one signature stays `box__add`.
+- **An owner given by value moves** into a method, and into a call
+  through a function value, `f(b)` with `f:(box):int64`, as into a
+  function (O5 in [ownership.md](ownership.md)); the callee, an
+  anonymous function too, frees it when it ends.
 
 
 ## Properties and methods

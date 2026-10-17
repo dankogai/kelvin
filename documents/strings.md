@@ -116,6 +116,8 @@ char` make incompatible function types: wrap it, as
   - `n.dec`, `n.hex`, `n.oct` and `n.bin` are an integer's text with a
     prefix and, for a signed one, a sign; `p.hex` an address's.
   - Each lives on the stack of the block.
+- **`String(n)`** of a number or a bool is its text as `print` shows
+  it, a String on the heap: `String(42)`, `String(2.5 * 2.0)` (#158).
 - **A template literal**, `` `n = ${n}` ``, joins text and values as
   `print` shows them, on the stack too, with room for each value's
   longest text.

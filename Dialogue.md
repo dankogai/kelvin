@@ -4362,3 +4362,23 @@ gives, `&$/x/`, is an error, as the C it made was. Details are
 provisional P169.
 
 There are 767 tests, and all pass with clang and with gcc 15.
+
+### 201. replace with a function, and methods that overload
+
+> can `s.replace(&re, with)` take a function for `with` part? if not
+> so, make it so `s.replace(&re) { String(f64($0.text[0]) * 2.0) }`
+> works as expected.
+
+**Claude** answered that it could not: a method could not share its
+name with another, so a second `replace` had nowhere to go. #158 makes
+methods overload by their parameter types as functions do, chosen by
+the arguments, an anonymous argument taking the type of the overload
+that has a function where it stands, and named in C by their types
+where they differ. On the way it found that an owner given by value to
+a method, or to a call through a function value, was freed twice, and
+that `String(x)` could not start a statement; both are fixed, and
+`String(n)` of a number is new. `s.replace(&re) { ... }` and
+`re.replace(&s) { ... }` take a function of the Match, which it owns.
+Details are provisional P170.
+
+There are 770 tests, and all pass with clang and with gcc 15.

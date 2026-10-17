@@ -286,7 +286,14 @@ static char *dispatch(const char *method) {
     buf_puts(&assoc, "");
     for (int i = 0; i < methods.len; i++) {
         Method *m = methods.data[i];
-        if (!strcmp(m->method, method))
+        if (strcmp(m->method, method))
+            continue;
+        bool listed = false; /* overloads (#158) share a type: the first stands, a call names its own */
+        for (int j = 0; j < i && !listed; j++) {
+            Method *o = methods.data[j];
+            listed = !strcmp(o->method, method) && !strcmp(o->ctype, m->ctype);
+        }
+        if (!listed)
             buf_printf(&assoc, "%s: %s, ", m->ctype, m->fn);
     }
     return assoc.buf;
@@ -746,9 +753,11 @@ static char *expr_bare(Expr *e) {
         buf_printf(&b, "%s(", callee);
         for (int i = 0; i < e->items.len; i++) {
             Expr *x = e->items.data[i];
-            /* a local owner given by value moves into the callee (#54) */
+            /* a local owner given by value moves into the callee (#54), also through a function value (#158) */
             const char *take = e->target && i < e->target->params.len && local_owner(x)
                                    ? owner_take(((Var *)e->target->params.data[i])->type)
+                               : e->fn_type && i < e->fn_type->params.len && local_owner(x)
+                                   ? owner_take(e->fn_type->params.data[i])
                                    : NULL;
             buf_printf(&b, "%s%s", i ? ", " : "", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
         }
@@ -1090,8 +1099,16 @@ static char *expr_bare(Expr *e) {
         char *tmp = hidden(source_of(e->a), "self");
         Buf args = {0};
         buf_puts(&args, "");
-        for (int i = 0; i < e->items.len; i++)
-            buf_printf(&args, ", %s", expr(e->items.data[i]));
+        for (int i = 0; i < e->items.len; i++) {
+            Expr *x = e->items.data[i];
+            /* a local owner given by value moves into the method (#158), as into a function (#54) */
+            const char *take = e->method && i < e->method->params.len && local_owner(x)
+                                   ? owner_take(((Var *)e->method->params.data[i])->type)
+                                   : NULL;
+            buf_printf(&args, ", %s", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+        }
+        if (e->method && e->method->cname) /* an overload, by the name its types give it (#158) */
+            return strfmt("({ __auto_type %s = %s; %s(%s%s); })", tmp, recv, e->method->cname, tmp, args.buf);
         return strfmt("({ __auto_type %s = %s; _Generic((%s), %sdefault: kv_no_such_method)(%s%s); })", tmp, recv,
                       tmp, dispatch(e->text), tmp, args.buf);
     }
@@ -2038,7 +2055,11 @@ static void stmt(Stmt *s) {
 /* ---------- declarations ---------- */
 
 /* point.area is the C function point__area, f64.half f64__half */
-static char *method_cname(Decl *d) { return strfmt(d->setter ? "%s__set_%s" : "%s__%s", d->recv_name, d->name); }
+static char *method_cname(Decl *d) {
+    if (d->cname) /* by its types, an overload (#158) */
+        return d->cname;
+    return strfmt(d->setter ? "%s__set_%s" : "%s__%s", d->recv_name, d->name);
+}
 
 static void register_method(const char *method, Type *recv, const char *fn) {
     char *ctype = decl(recv, "");

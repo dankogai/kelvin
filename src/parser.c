@@ -1286,6 +1286,10 @@ static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
+static List method_candidates(Expr *recv, const char *name);
+static Type *method_param_type(List *cands, Decl *m, int k);
+static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
+static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static Expr *parse_initializer_for(Type *t);
@@ -2025,14 +2029,15 @@ static Expr *parse_postfix_ops(Expr *e) {
                     error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it to a "
                                         "variable first",
                              member, kelvin_type(value_type(e)));
-                int arity = m && !m->variadic ? m->params.len : -1;
+                /* methods of one name on the receiver, overloaded by their
+                   parameter types (#158): an anonymous argument takes the
+                   type of the one that has a function there */
+                List mcands = method_candidates(e, member);
+                int arity = m && !m->variadic && mcands.len < 2 ? m->params.len : -1;
                 while (!is_p(peek(), ")")) {
                     int k = x->items.len;
-                    list_push(&x->items,
-                              is_p(peek(), "{")
-                                  ? anon_arg(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL, arity, k, x,
-                                             false)
-                                  : parse_assign());
+                    list_push(&x->items, is_p(peek(), "{") ? anon_arg(method_param_type(&mcands, m, k), arity, k, x, false)
+                                                           : parse_assign());
                     if (!accept_p(","))
                         break;
                 }
@@ -2041,17 +2046,32 @@ static Expr *parse_postfix_ops(Expr *e) {
                 expect_p(")");
                 if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
                     int k = x->items.len;
-                    list_push(&x->items,
-                              anon_arg(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL, arity, k, x,
-                                       true));
+                    list_push(&x->items, anon_arg(method_param_type(&mcands, m, k), arity, k, x, true));
                     if (at_statement_level())
                         trailing_end = cur;
                 } else if (is_p(peek(), "{") && brace_ends_condition) {
                     body_after_call = cur;
                 } else if (is_p(peek(), "{")) {
                     int k = x->items.len;
-                    reject_trailing_on_next_line(m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL);
+                    reject_trailing_on_next_line(method_param_type(&mcands, m, k));
                     block_after_call = cur;
+                }
+                Decl *chosen = mcands.len == 1 ? mcands.data[0] : NULL;
+                if (mcands.len > 1) { /* the overload the arguments fit (#158), as a function's (#41) */
+                    List maybe;
+                    const char *what = strfmt("'.%s' of %s", member, kelvin_type(value_type(e)));
+                    chosen = choose(&mcands, (Expr **)x->items.data, x->items.len, &maybe, name->pos, what);
+                    if (!chosen && maybe.len == 1)
+                        chosen = maybe.data[0];
+                    if (!chosen)
+                        error_at(name->pos, "%s takes no such arguments: it has %d overloads, and these fit %s", what,
+                                 mcands.len, maybe.len ? "more than one of them: convert an argument, as in 'x as f64'" : "none");
+                }
+                if (chosen) { /* an owner given by value moves into the method (O5), as into a function */
+                    x->method = chosen;
+                    for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
+                        move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
+                                      strfmt("'.%s'", member));
                 }
                 e = x;
                 continue;
@@ -4108,8 +4128,8 @@ static Type *value_type_of(Expr *e) {
         Type *rt = value_type(e->a);
         if (!rt)
             rt = arg_type(e->a); /* 1.0.i, (-1.0).i (#148): a literal's own type */
-        Decl *m = rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
-        if (m) /* the method of the receiver's type */
+        Decl *m = e->method ? e->method : rt && rt->kind == T_BASE ? method_named(e->a, e->text) : NULL;
+        if (m) /* the method of the receiver's type, or the overload chosen (#158) */
             return m->ret;
         Type *ret = NULL;
         for (int i = 0; i < functions.len; i++) {
@@ -4965,8 +4985,20 @@ static void pick_overload(Expr *v, Type *want) {
    function of the name. */
 static void resolve_call(Expr *call) {
     Expr *callee = call->a;
-    if (callee->kind != E_IDENT || lookup_type(callee->text))
+    if (callee->kind != E_IDENT)
         return;
+    if (lookup_type(callee->text)) {
+        /* a call through a function value (#158), a variable or a parameter:
+           an owner given by value moves into it (O5) */
+        Type *ft = value_type(callee);
+        if (ft && unqualified(ft)->kind == T_FUNC) {
+            ft = unqualified(ft);
+            call->fn_type = ft;
+            for (int k = 0; k < call->items.len && k < ft->params.len; k++)
+                move_argument(call->items.data[k], param_type(ft->params.data[k]), strfmt("'%s'", callee->text));
+        }
+        return;
+    }
     if (!function_named(callee->text)) { /* C's function, which a Kelvin one may overload later */
         list_push(&c_called, callee->text);
         reject_owners_to_c(call);
@@ -5172,14 +5204,27 @@ static void name_functions(void) {
         {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}};
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
-        if (d->recv)
-            continue;
         Buf types = {0};
         buf_puts(&types, "");
         for (int k = d->subscript ? 1 : 0; k < d->params.len; k++) /* a subscript's self is in its name (#136) */
             buf_printf(&types, "__%s", mangled_type(((Var *)d->params.data[k])->type));
         if (d->variadic)
             buf_puts(&types, "__va");
+        if (d->recv) {
+            /* a method is T__name, or T__name by its types where methods of
+               its name on its receiver differ in their parameters (#158) */
+            if (d->setter || d->attribute)
+                continue;
+            bool over = false;
+            for (int k = 0; k < functions.len && !over; k++) {
+                Decl *e = functions.data[k];
+                over = e != d && e->recv && !e->setter && !e->attribute && !strcmp(e->recv_name, d->recv_name) &&
+                       !strcmp(e->name, d->name) && strcmp(signature(e), signature(d)) != 0;
+            }
+            if (over)
+                d->cname = strfmt("%s__%s%s", d->recv_name, d->name, types.buf);
+            continue;
+        }
         if (!types.len)
             buf_puts(&types, "__void");
         if (d->op) {
@@ -7400,6 +7445,55 @@ static Decl *method_named(Expr *recv, const char *name) {
     return n == 1 ? found : NULL;
 }
 
+/* The methods of the name on the receiver's type kelvinc sees, one per
+   signature, a definition before its prototype (#158); none where the
+   receiver's type is unseen */
+static List method_candidates(Expr *recv, const char *name) {
+    List out = {0};
+    Type *rt = value_type(recv);
+    if (!rt)
+        rt = arg_type(recv);
+    if (!rt || rt->kind != T_BASE)
+        return out;
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (!d->recv || d->setter || d->attribute || d->type_fn || strcmp(d->name, name) || strcmp(d->recv->name, rt->name))
+            continue;
+        bool seen = false;
+        for (int j = 0; j < out.len && !seen; j++) {
+            Decl *o = out.data[j];
+            if (!strcmp(signature(o), signature(d))) {
+                if (d->body)
+                    out.data[j] = d;
+                seen = true;
+            }
+        }
+        if (!seen)
+            list_push(&out, d);
+    }
+    return out;
+}
+
+/* the type of parameter k for an anonymous argument of a method call
+   (#158): among overloads, the one that has a function there, if one does */
+static Type *method_param_type(List *cands, Decl *m, int k) {
+    if (cands->len > 1) {
+        Type *only = NULL;
+        int n = 0;
+        for (int i = 0; i < cands->len; i++) {
+            Decl *d = cands->data[i];
+            Type *t = k < d->params.len ? ((Var *)d->params.data[k])->type : NULL;
+            if (t && unqualified(t)->kind == T_FUNC) {
+                only = t;
+                n++;
+            }
+        }
+        if (n == 1)
+            return only;
+    }
+    return m && k < m->params.len ? ((Var *)m->params.data[k])->type : NULL;
+}
+
 /* Is t a value kelvinc writes a printer for (#123): a struct, a union or
    an enum with values it sees, an Optional, a Result, an Array, a
    Dictionary or a Set? */
@@ -7570,7 +7664,7 @@ static bool no_value(Expr *e) {
         return t && t->kind == T_FUNC && !t->elem;
     }
     case E_METHOD: {
-        Decl *m = method_named(e->a, e->text);
+        Decl *m = e->method ? e->method : method_named(e->a, e->text);
         return m && !m->ret;
     }
     case E_BINARY:
@@ -7596,7 +7690,7 @@ static bool drops_value(Expr *e, bool calls) {
         return t && t->kind == T_FUNC && t->elem;
     }
     case E_METHOD: {
-        Decl *m = method_named(e->a, e->text);
+        Decl *m = e->method ? e->method : method_named(e->a, e->text);
         return m && m->ret;
     }
     case E_BINARY:
@@ -8826,6 +8920,7 @@ static Stmt *parse_stmt_here(void) {
     }
     reject_c_declaration();
     bool call_like = (is_converter(t) && is_p(peek2(), "(")) ||
+                     ((!strcmp(t->text, "String") || !strcmp(t->text, "Bytes")) && is_p(peek2(), "(")) || /* String(x) (#158) */
                      ((is_kw(t, "IO") || is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")); /* IO.stdout... (#82, #94) */
     if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";

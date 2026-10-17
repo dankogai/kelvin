@@ -153,6 +153,8 @@ struct Expr {
        the default) */
     Decl *target;
     List cands;       /* Decl * */
+    Decl *method;     /* E_METHOD: the method called, the overload its arguments chose (#158) */
+    Type *fn_type;    /* E_CALL through a function value (#158): its type, whose owner parameters take */
     bool *unseen;     /* with cands: per argument, whether only C sees its type */
     bool c_too;       /* with cands: C's own function of the name is known, the
                          default for what no overload takes */

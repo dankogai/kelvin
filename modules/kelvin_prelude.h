@@ -86,6 +86,12 @@ uint32_t kv_utf8_next(const uint8_t **p);
 kv_string kv_string_new(void);
 kv_string kv_string_text(const void *s);
 kv_string kv_string_from_bytes(const kv_bytes *b);
+/* String(n) of a number or a bool (#158): its text, as print shows it */
+kv_string kv_string_bool(bool v);
+kv_string kv_string_i64(long long v);
+kv_string kv_string_u64(unsigned long long v);
+kv_string kv_string_f32(float v);
+kv_string kv_string_f64(double v);
 /* Base64 (#155): b.toBase64(url, nopad) and Bytes.fromBase64(text), which takes
    either alphabet, with or without padding, and skips blanks; a letter that is
    neither ends the program */
@@ -142,6 +148,11 @@ static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
 /* String(x): text, validated, or a copy of a Bytes borrow, validated */
 #define KV_STRING_OF(x) _Generic((x), \
     kv_bytes *: kv_string_from_bytes, const kv_bytes *: kv_string_from_bytes, \
+    bool: kv_string_bool, \
+    signed char: kv_string_i64, short: kv_string_i64, int: kv_string_i64, long: kv_string_i64, long long: kv_string_i64, \
+    unsigned char: kv_string_u64, unsigned short: kv_string_u64, unsigned: kv_string_u64, \
+    unsigned long: kv_string_u64, unsigned long long: kv_string_u64, \
+    float: kv_string_f32, double: kv_string_f64, \
     default: kv_string_text)(x)
 /* s.append(x): a codepoint, text, a String borrow, or a String an expression gives, which is freed */
 #define KV_STRING_APPEND(s, x) _Generic((x), \

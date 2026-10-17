@@ -144,6 +144,31 @@ extend RegExp {
         return out
     }
 
+    // s with each match (the first alone without g) replaced by what f gives
+    // for it, a String of the Match, which f owns: s.replace(&re) { $0.text[0] }
+    let replace(s:const String^, f:(Match):String):String {
+        var out = String("")
+        var caps:[i64](256)
+        var from:i64 = 0
+        var copied:i64 = 0
+        while from <= s^.bytes^.count as i64 && rx_search(&self.program, s, from, self.sticky, caps) {
+            out += rx_slice(s, copied, caps[0])
+            out += f(Self.matchAt(&self, s, caps))
+            copied = caps[1]
+            if !self.global { break }
+            if caps[1] > caps[0] {
+                from = caps[1]
+            } else {
+                if caps[1] >= s^.bytes^.count as i64 { break }
+                from = rx_next(s, caps[1])
+                out += rx_slice(s, caps[1], from)
+                copied = from
+            }
+        }
+        out += rx_slice(s, copied, s^.bytes^.count as i64)
+        return out
+    }
+
     // s cut at each match, JS's split: the pieces between, an empty match
     // between codepoints
     let split(s:const String^):Array<String> {
@@ -192,5 +217,6 @@ extend String {
     let match(re:const RegExp^):Array<Match> { re^.match(&self) }
     let search(re:const RegExp^):i64 { re^.search(&self) }
     let replace(re:const RegExp^, with:cstr):String { re^.replace(&self, with) }
+    let replace(re:const RegExp^, f:(Match):String):String { re^.replace(&self, f) }
     let split(re:const RegExp^):Array<String> { re^.split(&self) }
 }

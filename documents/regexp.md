@@ -102,12 +102,16 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.execFrom(&s, from)` | the first match at or after codepoint `from` |
 | `re.match(&s)`, `s.match(&re)` | an `Array<Match>` of every match with `g`, else of the first alone, empty where there is none |
 | `re.replace(&s, with)`, `s.replace(&re, with)` | `s` with each match (the first alone without `g`) replaced, a new String |
+| `re.replace(&s) { ... }`, `s.replace(&re) { ... }` | the same, each match replaced by what the function gives for its `Match`: `s.replace(&re) { String(f64($0.text[0]) * 2.0) }` (#158) |
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
 
 - **`with`** is a `cstr` with JS's patterns: `$&` the match, `$1` to
   `$99` a group, `$<name>` a named one, `` $` `` the text before, `$'`
   the text after, `$$` a `$`; a group that took no part is `""`, and a
   `$` that is none of these stays.
+- **A function** in place of `with` is `(Match):String`, an anonymous
+  one with `$0` the Match, or a named one; it owns the Match it is
+  given, and gives the String that replaces the match.
 - **An empty match** moves on by one codepoint, as JS does: `$/x*/g`
   replaced by `-` in `abc` gives `-a-b-c-`, and `$//` splits a String
   into its codepoints.

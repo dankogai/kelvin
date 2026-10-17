@@ -476,3 +476,25 @@ uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf) {
     default: return put(buf, "{...}");
     }
 }
+
+/* String(n) of a number or a bool (#158): its text, as print shows it */
+kv_string kv_string_bool(bool v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    return kv_string_text(kv_cstr_bool(v, buf));
+}
+kv_string kv_string_i64(long long v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    return kv_string_text(kv_cstr_i64(v, buf));
+}
+kv_string kv_string_u64(unsigned long long v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    return kv_string_text(kv_cstr_u64(v, buf));
+}
+kv_string kv_string_f32(float v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    return kv_string_text(kv_cstr_f32(v, buf));
+}
+kv_string kv_string_f64(double v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    return kv_string_text(kv_cstr_f64(v, buf));
+}
