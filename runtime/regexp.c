@@ -968,3 +968,12 @@ kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len
     kv_string_free(&s);
     return out;
 }
+
+/* bytes lo..<hi of a Bytes, a new Bytes (#169) */
+kv_bytes rx_bytes_slice(const kv_bytes *b, int64_t lo, int64_t hi) {
+    if (lo < 0)
+        lo = 0;
+    if (hi > (int64_t)b->count)
+        hi = (int64_t)b->count;
+    return hi > lo ? kv_bytes_from(b->at + lo, (size_t)(hi - lo)) : kv_bytes_new();
+}

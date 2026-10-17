@@ -27,6 +27,8 @@ let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i6
 let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
 let rx_escape(prog:const Bytes^, s:const String^):String
 let rx_unescape(prog:const Bytes^, s:const String^):String
+let rx_search_bytes(prog:const Bytes^, b:const Bytes^, from:i64, sticky:bool, caps:i64^):bool
+let rx_bytes_slice(b:const Bytes^, lo:i64, hi:i64):Bytes
 let rx_escape_bytes(prog:const Bytes^, b:const Bytes^):String
 let rx_unescape_bytes(prog:const Bytes^, text:const u8^, len:size_t):Bytes
 let rx_slice(s:const String^, lo:i64, hi:i64):String
@@ -45,6 +47,15 @@ struct RegExp {
 // no part, their codepoint offsets, -1 where none, and the groups' names
 struct Match {
     text: Array<String>
+    at: Array<i64>
+    names: Array<String>
+}
+
+// one match in a Bytes (#169): the bytes of the whole and of each group,
+// empty where a group took no part, their byte offsets, -1 where none, and
+// the groups' names
+struct BytesMatch {
+    data: Array<Bytes>
     at: Array<i64>
     names: Array<String>
 }
@@ -86,6 +97,106 @@ extend RegExp {
             m.names += String(rx_group_name(&re^.program, g))
         }
         return m
+    }
+
+    // the match found in a Bytes, as a BytesMatch (#169)
+    static let bytesMatchAt(re:const RegExp^, b:const Bytes^, caps:const i64^):BytesMatch {
+        var m:BytesMatch = {.data = Array<Bytes>(), .at = Array<i64>(), .names = Array<String>()}
+        let n:i64 = rx_groups(&re^.program) + 1
+        for g in 0..<n {
+            let lo = caps[2 * g]
+            let hi = caps[2 * g + 1]
+            if lo < 0 {
+                m.data += Bytes()
+                m.at += -1
+                m.at += -1
+            } else {
+                m.data += rx_bytes_slice(b, lo, hi)
+                m.at += lo
+                m.at += hi
+            }
+            m.names += String(rx_group_name(&re^.program, g))
+        }
+        return m
+    }
+
+    // on a Bytes (#169), matched byte by byte, each byte the codepoint of
+    // its value: test, search, match and split as on a String, the offsets
+    // bytes and the pieces Bytes
+    let test(b:const Bytes^):bool {
+        var caps:[i64](256)
+        return rx_search_bytes(&self.program, b, 0, self.sticky, caps)
+    }
+    let search(b:const Bytes^):i64 {
+        var caps:[i64](256)
+        if !rx_search_bytes(&self.program, b, 0, self.sticky, caps) { return -1 }
+        return caps[0]
+    }
+    let match(b:const Bytes^):Array<BytesMatch> {
+        var out:Array<BytesMatch> = Array<BytesMatch>()
+        var caps:[i64](256)
+        var from:i64 = 0
+        while rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            out += Self.bytesMatchAt(&self, b, caps)
+            if !self.global { break }
+            from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
+            if caps[1] >= b^.count as i64 && caps[1] == caps[0] { break }
+        }
+        return out
+    }
+    let match(b:const Bytes^, f:(BytesMatch):()):() {
+        var caps:[i64](256)
+        var from:i64 = 0
+        while rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            f(Self.bytesMatchAt(&self, b, caps))
+            if !self.global { break }
+            from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
+            if caps[1] >= b^.count as i64 && caps[1] == caps[0] { break }
+        }
+    }
+    let split(b:const Bytes^):Array<Bytes> {
+        var out:Array<Bytes> = Array<Bytes>()
+        var caps:[i64](256)
+        let n = b^.count as i64
+        if n == 0 {
+            if !rx_search_bytes(&self.program, b, 0, true, caps) { out += Bytes() }
+        } else {
+            var piece:i64 = 0
+            var from:i64 = 0
+            while from < n {
+                if !rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from += 1
+                    continue
+                }
+                if caps[1] == caps[0] && caps[0] >= n { break }
+                out += rx_bytes_slice(b, piece, caps[0])
+                piece = caps[1]
+                from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
+            }
+            out += rx_bytes_slice(b, piece, n)
+        }
+        return out
+    }
+    let split(b:const Bytes^, f:(Bytes):()):() {
+        var caps:[i64](256)
+        let n = b^.count as i64
+        if n == 0 {
+            if !rx_search_bytes(&self.program, b, 0, true, caps) { f(Bytes()) }
+        } else {
+            var piece:i64 = 0
+            var from:i64 = 0
+            while from < n {
+                if !rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from += 1
+                    continue
+                }
+                if caps[1] == caps[0] && caps[0] >= n { break }
+                f(rx_bytes_slice(b, piece, caps[0]))
+                piece = caps[1]
+                from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
+            }
+            f(rx_bytes_slice(b, piece, n))
+        }
     }
 
     // does s have a match? at its start alone with the y flag
@@ -280,7 +391,32 @@ extend String {
     let unescape(re:RegExp):String { rx_unescape(&re.program, &self) }
 }
 
+extend BytesMatch {
+    let count:i64 { self.data.count as i64 }                   // the groups and the whole
+    let start:i64 { self.at[0] }                               // the byte offset of the match
+    let end:i64 { self.at[1] }
+    let [](i:i64):Bytes { self.data[i].copy() }                // the bytes of group i, 0 the whole
+    let [](name:cstr):Bytes {                                  // the bytes of a named group, empty where none
+        for i in 0..<self.names.count {
+            if strcmp(self.names[i].cstr, name) == 0 { return self.data[i].copy() }
+        }
+        return Bytes()
+    }
+    let has(i:i64):bool { self.at[2 * i] >= 0 }                // did group i take part?
+    let startOf(i:i64):i64 { self.at[2 * i] }
+    let endOf(i:i64):i64 { self.at[2 * i + 1] }
+}
+
 extend Bytes {
+    // test, search, match and split with a RegExp (#169), as a String has
+    // them, the Bytes matched byte by byte; a BytesMatch holds bytes
+    let test(re:const RegExp^):bool { re^.test(&self) }
+    let search(re:const RegExp^):i64 { re^.search(&self) }
+    let match(re:const RegExp^):Array<BytesMatch> { re^.match(&self) }
+    let match(re:const RegExp^, f:(BytesMatch):()):() { re^.match(&self, f) }
+    let split(re:const RegExp^):Array<Bytes> { re^.split(&self) }
+    let split(re:const RegExp^, f:(Bytes):()):() { re^.split(&self, f) }
+
     // the bytes as text, each byte that re matches as \xHH, and so every byte
     // that is not printable ASCII, since a String holds text (#168); a Bytes
     // is matched byte by byte, each byte the codepoint of its value, so that

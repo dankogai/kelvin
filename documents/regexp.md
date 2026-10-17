@@ -117,6 +117,7 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `s.escape(&re)`, `s.escape($/.../)` | `s` with each codepoint of each match as `\u{...}`, and a `\` as `\\`, a new String that `s.unescape()` reads back (#164); the prelude's `s.escape()` escapes what is not ASCII |
 | `s.unescape(&re)`, `s.unescape($/.../)` | the escapes read back in what the pattern matches alone, each match as `s.unescape()` reads the whole (#165) |
 | `b.escape(&re)`, `b.escape($/.../)` | a Bytes as text, a String: each byte the pattern matches as `\xHH`, and every byte that is not printable ASCII too (#168) |
+| `b.test(&re)`, `b.search(&re)`, `b.match(&re)`, `b.split(&re)`, and `re.test(&b)`, ... | on a Bytes (#169), byte by byte: a `bool`, a byte offset or -1, an `Array<BytesMatch>`, an `Array<Bytes>`; `b.match(&re) { }` and `b.split(&re) { }` with a function of each |
 | `Bytes.unescape(text, &re)`, `Bytes.unescape(&s, $/.../)` | the bytes of the text, the escapes read back where the pattern matches the text alone (#168) |
 
 - **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
@@ -141,9 +142,14 @@ name: `s.match(&re)` is `re.match(&s)`.
 - **`s.unescape(&re)`** (#165) reads back the escapes in what the
   pattern matches alone: `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` turns
   the emoji escapes back and leaves `\u{E9}` as it is.
-- **A Bytes** (#168) is matched byte by byte, each byte the codepoint
-  of its value, so that `\xHH` and `[\x80-\xFF]` mean bytes and `\X`
-  is one byte: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
+- **A Bytes** (#168, #169) is matched byte by byte, each byte the
+  codepoint of its value, so that `\xHH` and `[\x80-\xFF]` mean bytes
+  and `\X` is one byte. `b.test(&re)`, `b.search(&re)`, `b.match(&re)`
+  and `b.split(&re)` are a String's over bytes: a `BytesMatch` has
+  `m.data[i]`, the bytes of group `i` in place, `m[i]` and `m["name"]`
+  copies, `m.start`, `m.end`, `m.startOf(i)`, `m.endOf(i)` byte
+  offsets, `m.has(i)`, `m.count` and `m.names[i]`; the pieces of
+  `split` are Bytes. The escapes: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
   every byte that is not printable ASCII with them, since a String
   holds text. `Bytes.unescape(&s, &re)` reads the escapes back into
   bytes where the pattern matches the text, `Bytes.unescape(text)` of

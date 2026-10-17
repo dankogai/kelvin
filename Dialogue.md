@@ -4513,3 +4513,15 @@ out on the way and are fixed: an attribute of a struct was read on a
 text another block had. Details are provisional P180.
 
 There are 778 tests, and all pass with clang and with gcc 15.
+
+### 212. match and split on a Bytes
+
+> now add `s.match(&re)` and `s.split(&re)` for `Bytes` too
+
+**Claude** added #169: `b.test(&re)`, `b.search(&re)`, `b.match(&re)`
+and `b.split(&re)`, with the function forms of the last two, as a
+String has them, over the byte-wise matcher; a `BytesMatch` holds the
+bytes of the whole and of each group with their byte offsets, and the
+pieces of `split` are Bytes. Details are provisional P181.
+
+There are 779 tests, and all pass with clang and with gcc 15.
