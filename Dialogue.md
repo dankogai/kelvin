@@ -4571,9 +4571,9 @@ There are 782 tests, and all pass with clang and with gcc 15.
 
 ### 216. A table of contents of the documents
 
-> add `documents/readme.md` that works like a TOC of `documents/`.
+> add `documents/README.md` that works like a TOC of `documents/`.
 
-**Claude** added #173: documents/readme.md lists every document with a
+**Claude** added #173: documents/README.md lists every document with a
 line each, grouped as starting, values, reading and writing, and
 modules, and the README points to it. Details are provisional P185.
 
