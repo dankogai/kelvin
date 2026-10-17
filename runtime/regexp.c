@@ -977,3 +977,63 @@ kv_bytes rx_bytes_slice(const kv_bytes *b, int64_t lo, int64_t hi) {
         hi = (int64_t)b->count;
     return hi > lo ? kv_bytes_from(b->at + lo, (size_t)(hi - lo)) : kv_bytes_new();
 }
+
+/* the replacement of one match in a Bytes (#170), JS's patterns over bytes:
+   $$, $&, $1..$99, $<name>, $` and $', appended to out */
+void rx_expand_bytes(const kv_bytes *prog, const kv_bytes *b, const int64_t *caps, const uint8_t *with, size_t len,
+                     kv_bytes *out) {
+    int64_t ngroups = rx_groups(prog);
+    const uint8_t *p = b->at ? b->at : (const uint8_t *)"";
+    int64_t n = (int64_t)b->count;
+    for (size_t i = 0; i < len; i++) {
+        const uint8_t *t = with + i;
+        if (*t != '$' || i + 1 >= len) {
+            kv_bytes_push(out, *t);
+            continue;
+        }
+        if (t[1] == '$') {
+            kv_bytes_push(out, '$');
+            i++;
+        } else if (t[1] == '&') {
+            kv_bytes_append(out, p + caps[0], (size_t)(caps[1] - caps[0]));
+            i++;
+        } else if (t[1] == '`') {
+            kv_bytes_append(out, p, (size_t)caps[0]);
+            i++;
+        } else if (t[1] == '\'') {
+            kv_bytes_append(out, p + caps[1], (size_t)(n - caps[1]));
+            i++;
+        } else if (t[1] >= '0' && t[1] <= '9') {
+            int g = t[1] - '0', used = 1;
+            if (i + 2 < len && t[2] >= '0' && t[2] <= '9' && g * 10 + (t[2] - '0') <= ngroups && g * 10 + (t[2] - '0') >= 1) {
+                g = g * 10 + (t[2] - '0');
+                used = 2;
+            }
+            if (g >= 1 && g <= ngroups) {
+                if (caps[2 * g] >= 0)
+                    kv_bytes_append(out, p + caps[2 * g], (size_t)(caps[2 * g + 1] - caps[2 * g]));
+                i += (size_t)used;
+            } else {
+                kv_bytes_push(out, '$');
+            }
+        } else if (t[1] == '<') {
+            const uint8_t *close = memchr(t + 2, '>', len - i - 2);
+            if (!close) {
+                kv_bytes_push(out, '$');
+                continue;
+            }
+            char name[128];
+            size_t nl = (size_t)(close - (t + 2));
+            if (nl >= sizeof name)
+                nl = sizeof name - 1;
+            memcpy(name, t + 2, nl);
+            name[nl] = 0;
+            int64_t g = rx_group_named(prog, (const uint8_t *)name);
+            if (g > 0 && caps[2 * g] >= 0)
+                kv_bytes_append(out, p + caps[2 * g], (size_t)(caps[2 * g + 1] - caps[2 * g]));
+            i = (size_t)(close - with);
+        } else {
+            kv_bytes_push(out, '$');
+        }
+    }
+}

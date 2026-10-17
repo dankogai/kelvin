@@ -29,6 +29,7 @@ let rx_escape(prog:const Bytes^, s:const String^):String
 let rx_unescape(prog:const Bytes^, s:const String^):String
 let rx_search_bytes(prog:const Bytes^, b:const Bytes^, from:i64, sticky:bool, caps:i64^):bool
 let rx_bytes_slice(b:const Bytes^, lo:i64, hi:i64):Bytes
+let rx_expand_bytes(prog:const Bytes^, b:const Bytes^, caps:const i64^, with:const u8^, len:size_t, out:Bytes^):()
 let rx_escape_bytes(prog:const Bytes^, b:const Bytes^):String
 let rx_unescape_bytes(prog:const Bytes^, text:const u8^, len:size_t):Bytes
 let rx_slice(s:const String^, lo:i64, hi:i64):String
@@ -175,6 +176,57 @@ extend RegExp {
             }
             out += rx_bytes_slice(b, piece, n)
         }
+        return out
+    }
+    // b with each match (the first alone without g) replaced by with, bytes
+    // or text, with $& the match, $1 and $<name> a group, $` and $' the bytes
+    // around, $$ a $ (#170); or by what f gives for its BytesMatch
+    let replace(b:const Bytes^, with:const u8^, len:size_t):Bytes {
+        var out = Bytes()
+        var caps:[i64](256)
+        var from:i64 = 0
+        var copied:i64 = 0
+        let n = b^.count as i64
+        while from <= n && rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            out += rx_bytes_slice(b, copied, caps[0])
+            rx_expand_bytes(&self.program, b, caps, with, len, &out)
+            copied = caps[1]
+            if !self.global { break }
+            if caps[1] > caps[0] {
+                from = caps[1]
+            } else {
+                if caps[1] >= n { break }
+                from = caps[1] + 1
+                out += rx_bytes_slice(b, caps[1], from)
+                copied = from
+            }
+        }
+        out += rx_bytes_slice(b, copied, n)
+        return out
+    }
+    let replace(b:const Bytes^, with:const Bytes^):Bytes { self.replace(b, with^.at, with^.count) }
+    let replace(b:const Bytes^, with:cstr):Bytes { self.replace(b, with, with.count) }
+    let replace(b:const Bytes^, f:(BytesMatch):Bytes):Bytes {
+        var out = Bytes()
+        var caps:[i64](256)
+        var from:i64 = 0
+        var copied:i64 = 0
+        let n = b^.count as i64
+        while from <= n && rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            out += rx_bytes_slice(b, copied, caps[0])
+            out += f(Self.bytesMatchAt(&self, b, caps))
+            copied = caps[1]
+            if !self.global { break }
+            if caps[1] > caps[0] {
+                from = caps[1]
+            } else {
+                if caps[1] >= n { break }
+                from = caps[1] + 1
+                out += rx_bytes_slice(b, caps[1], from)
+                copied = from
+            }
+        }
+        out += rx_bytes_slice(b, copied, n)
         return out
     }
     let split(b:const Bytes^, f:(Bytes):()):() {
@@ -416,6 +468,9 @@ extend Bytes {
     let match(re:const RegExp^, f:(BytesMatch):()):() { re^.match(&self, f) }
     let split(re:const RegExp^):Array<Bytes> { re^.split(&self) }
     let split(re:const RegExp^, f:(Bytes):()):() { re^.split(&self, f) }
+    let replace(re:const RegExp^, with:const Bytes^):Bytes { re^.replace(&self, with) }
+    let replace(re:const RegExp^, with:cstr):Bytes { re^.replace(&self, with) }
+    let replace(re:const RegExp^, f:(BytesMatch):Bytes):Bytes { re^.replace(&self, f) }
 
     // the bytes as text, each byte that re matches as \xHH, and so every byte
     // that is not printable ASCII, since a String holds text (#168); a Bytes

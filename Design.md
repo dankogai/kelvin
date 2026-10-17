@@ -201,6 +201,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 167 | `Bytes.unescape(text)`, of a `cstr` or a String borrowed, `&s`, gives the bytes the escapes stand for: `\xHH` a byte, `\u{...}` and `\uHHHH`, a surrogate pair joined, the UTF-8 of the codepoint, `\n`, `\r`, `\t`, `\0`, `\\`, `\"` and `\'` theirs, and what is none as written; `b.escape()` read back | — | `Bytes.unescape(&e) == b` | 2026-10-17 |
 | 168 | A RegExp on a Bytes: `b.escape(&re)` and `b.escape($/.../)` give the bytes as text, each byte the pattern matches as `\xHH`, the Bytes matched byte by byte, each byte the codepoint of its value, and every byte that is not printable ASCII escaped too, a String holding text; `Bytes.unescape(text, &re)`, text a `cstr` or `&s`, the pattern borrowed or a literal moved in, reads the escapes back into bytes where the pattern matches the text alone. A function of a type may be declared on `Bytes` or `String` in an `extend`; an attribute of a type is not read on a value of another type kelvinc sees | — | `b.escape($/[\x80-\xFF]/g)`, `Bytes.unescape(&s, &re)` | 2026-10-17 |
 | 169 | `b.test(&re)`, `b.search(&re)`, `b.match(&re)` and `b.split(&re)` on a Bytes, and `re.test(&b)` and the rest on the RegExp, as a String has them, the Bytes matched byte by byte: a `BytesMatch` holds the bytes of the whole and of each group, `m.data[i]`, with their byte offsets, `m[i]` and `m["name"]` copies; `split` gives Bytes; `b.match(&re) { }` and `b.split(&re) { }` call a function with each | — | `b.match(&pair) { print($0.start, " ") }` | 2026-10-17 |
+| 170 | `b.replace(&re, &with)` and `b.replace(&re, text)` on a Bytes, and on the RegExp with `&b`, give the Bytes with each match replaced, all with the g flag and the first alone without, the replacement a Bytes borrowed or a `cstr` with `$&`, `$1`, `$<name>`, `` $` ``, `$'` and `$$` over bytes; `b.replace(&re) { ... }` takes a function `(BytesMatch):Bytes` | — | `b.replace(&pair, &with)`, `b.replace(&pair) { $0[1] }` | 2026-10-17 |
 
 Notes:
 
@@ -762,6 +763,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (170) Agreed details: "now add `b.replace(&re, &bytes)` for `Bytes`
+  too." The replacement is a Bytes borrowed or text, as a String's is
+  text or a String borrowed, and the `$` patterns read the same over
+  bytes, since a replacement without them is the common case and one
+  with them costs nothing; the function form gives Bytes for a
+  BytesMatch, as a String's gives a String for a Match (P182).
 
 - (169) Agreed details: "now add `s.match(&re)` and `s.split(&re)`
   for `Bytes` too." A `Match` holds Strings, which bytes may not be,
@@ -1808,6 +1816,7 @@ says "as agreed".
 | P179 | Details of #167 | `Bytes.unescape(text)` is `kv_bytes_unescape_text(text)`, and `Bytes.unescape(&s)` `kv_bytes_unescape(p, n)` of the String's bytes, as `Bytes.fromBase64` is read, by the one parser path for both | runtime/bytes.c reads the escapes over bytes, with its own UTF-8 writer, so that a String is not needed |
 | P180 | Details of #168 | `b.escape(&re)` is `rx_escape_bytes(&re.program, &b)`, over `rx_search_bytes`, the matcher's Ctx with `bytewise` set, where `cp_here` and `cp_prev` read a byte, `\X` is a byte, and a first character above 255 matches nothing; `Bytes.unescape(&s, &re)` is `rx_unescape_bytes(&re.program, p, n)`, the text matched as text and each match read by `kv_bytes_unescape` | the parser reads `Bytes.name(` and `String.name(` as a function of the type where the program declares one and the call is not the one-argument `Bytes.fromBase64` or `Bytes.unescape`, counting the arguments ahead; an attribute found by name alone is dropped where the receiver's type is seen and is not its; `gen_header` keeps one list of seen prototypes per `extend` block |
 | P181 | Details of #169 | `b.match(&re)` loops `rx_search_bytes` as `s.match(&re)` loops `rx_search`, an empty match moving on by a byte, and `RegExp.bytesMatchAt` builds the `BytesMatch` with `rx_bytes_slice`; `split` is the Array form's walk over bytes | `replace` on a Bytes waits: a replacement of bytes would want its own spelling |
+| P182 | Details of #170 | `b.replace(&re, &with)` and `b.replace(&re, text)` call `RegExp.replace(&b, p, n)` of the bytes and their count, the loop of a String's `replace` over `rx_search_bytes` with `rx_expand_bytes` for each match; the function form loops the same with `f(Self.bytesMatchAt(...))` | the byte-pointer form is a method the program may call as well, `re.replace(&b, p, n)` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

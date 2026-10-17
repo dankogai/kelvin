@@ -118,6 +118,7 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `s.unescape(&re)`, `s.unescape($/.../)` | the escapes read back in what the pattern matches alone, each match as `s.unescape()` reads the whole (#165) |
 | `b.escape(&re)`, `b.escape($/.../)` | a Bytes as text, a String: each byte the pattern matches as `\xHH`, and every byte that is not printable ASCII too (#168) |
 | `b.test(&re)`, `b.search(&re)`, `b.match(&re)`, `b.split(&re)`, and `re.test(&b)`, ... | on a Bytes (#169), byte by byte: a `bool`, a byte offset or -1, an `Array<BytesMatch>`, an `Array<Bytes>`; `b.match(&re) { }` and `b.split(&re) { }` with a function of each |
+| `b.replace(&re, &with)`, `b.replace(&re, text)`, `b.replace(&re) { ... }` | `b` with each match replaced (#170): by a Bytes borrowed or text, with the `$` patterns over bytes, or by the Bytes the function gives for its `BytesMatch` |
 | `Bytes.unescape(text, &re)`, `Bytes.unescape(&s, $/.../)` | the bytes of the text, the escapes read back where the pattern matches the text alone (#168) |
 
 - **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
@@ -149,7 +150,10 @@ name: `s.match(&re)` is `re.match(&s)`.
   `m.data[i]`, the bytes of group `i` in place, `m[i]` and `m["name"]`
   copies, `m.start`, `m.end`, `m.startOf(i)`, `m.endOf(i)` byte
   offsets, `m.has(i)`, `m.count` and `m.names[i]`; the pieces of
-  `split` are Bytes. The escapes: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
+  `split` are Bytes; `b.replace(&re, &with)` (#170) takes a Bytes
+  borrowed or text, with the `$` patterns of a String's over bytes, and
+  `b.replace(&re) { ... }` a function `(BytesMatch):Bytes`. The
+  escapes: `b.escape($/[\x80-\xFF]/g)` escapes the high bytes, and
   every byte that is not printable ASCII with them, since a String
   holds text. `Bytes.unescape(&s, &re)` reads the escapes back into
   bytes where the pattern matches the text, `Bytes.unescape(text)` of

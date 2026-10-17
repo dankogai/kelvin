@@ -4525,3 +4525,14 @@ bytes of the whole and of each group with their byte offsets, and the
 pieces of `split` are Bytes. Details are provisional P181.
 
 There are 779 tests, and all pass with clang and with gcc 15.
+
+### 213. replace on a Bytes
+
+> now add `b.replace(&re, &bytes)` for `Bytes` too
+
+**Claude** added #170: `b.replace(&re, &with)` and `b.replace(&re,
+text)`, with the `$` patterns over bytes, and `b.replace(&re) { ... }`
+with a function of each BytesMatch giving the Bytes to put, on a Bytes
+and on the RegExp with `&b`. Details are provisional P182.
+
+There are 780 tests, and all pass with clang and with gcc 15.
