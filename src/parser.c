@@ -10889,6 +10889,13 @@ Program *parse(Token *tokens, int ntoks) {
                 Decl *d = new_decl(D_VAR, t->pos, storage);
                 top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
                 parse_var_one(&d->members, is_let, storage);
+                Var *v = d->members.data[d->members.len - 1];
+                if (v->init && is_owner(v->type)) /* a global owner (#178): C initializes a global with a constant alone */
+                    error_at(v->init->pos,
+                             "'%s' is a global %s, which C initializes with a constant alone, and an owner is made by a "
+                             "call: declare it with its type, 'var %s:%s', and give it its value in main or another "
+                             "function",
+                             v->name, kelvin_type(v->type), v->name, kelvin_type(v->type));
                 add_top_decl(prog, d);
             } while (accept_p(","));
             end_statement();

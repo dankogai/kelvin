@@ -37,7 +37,9 @@ so a file that has not imported `<RegExp>` cannot write one.
 ## The literal and the flags
 
 - **`$/pattern/flags`** is a `RegExp`, an owner: bind it, `let re =
-  $/a+/g`, and borrow it to the methods, `&re`.
+  $/a+/g`, and borrow it to the methods, `&re`. In a function: a
+  global owner is declared with its type alone and given its value in
+  a function (#178), as any owner is ([ownership.md](ownership.md)).
   - The pattern ends at the first `/` that is not escaped, `\/`, and
     not in a class, `[/]`, on the same line; it is written into the
     program as it is, so `\d` is `\d`, with no doubling.

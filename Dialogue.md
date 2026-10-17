@@ -4645,3 +4645,17 @@ off either end; strings.md no longer says searching is not here.
 Details are provisional P189.
 
 There are 786 tests, and all pass with clang and with gcc 15.
+
+### 221. A global owner made by a call
+
+> now make kelvinc report a global owner made by a call
+
+**Claude** added #178: an initializer on a global owner is kelvinc's
+error now, which says that C initializes a global with a constant
+alone and an owner is made by a call, and to declare it with its type
+and give it its value in a function; a test declares a String, an
+Array and a RegExp that way, and the globals are freed at exit by a
+function `main` registers, which the ASan run asked for. Details are
+provisional P190.
+
+There are 788 tests, and all pass with clang and with gcc 15.

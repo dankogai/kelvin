@@ -209,6 +209,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 175 | tests/asan.sh, `make asan`: every program of tests/run, with the runtime and the modules, compiled with AddressSanitizer and a counting allocator, tests/asan/count.c, and run: an ASan error, an unexpected status, or a block still live at exit fails it, a leak the ownership rules should have freed; a test that expects another status is run for ASan alone; a CI job runs it | — | `make asan` | 2026-10-18 |
 | 176 | tests/docs.sh, run by `make test`: every ```kelvin block of the documents and the README compiles, a block with `let main(` as it is, any other with its declarations at the margin kept at the top level and the rest wrapped in a main; a listing or a sketch has `<!-- fragment -->` on the line before its fence, which the page does not show | — | `make test` | 2026-10-18 |
 | 177 | On a String: `s.find(text)`, the codepoint index of the first `text` or -1, `s.has(text)`, `s.starts(text)` and `s.ends(text)`, the text a `cstr` or a String borrowed, `&t`, a String by value an error; `s.trim()`, a new String without the blanks at either end, JS's `\s` | — | `s.find("llo")`, `s.has(&t)`, `s.trim()` | 2026-10-18 |
+| 178 | A global owner with an initializer is an error of kelvinc's, not C's: C initializes a global with a constant alone, and an owner is made by a call; the message says to declare it with its type, `var log:String`, empty, and give it its value in main or another function | — | `var log:String` at the top, `log = $"..."` in main | 2026-10-18 |
 
 Notes:
 
@@ -770,6 +771,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (178) Agreed details: "now make kelvinc report a global owner made by
+  a call", the fifth fix proposed before a release: `let re = $/x/` at
+  the top failed in C with "initializer element is not a compile-time
+  constant". Every owner's initializer is a call, `KV_STRING_OF`,
+  `_kv_array_..._from`, `RegExp.compile`, so the rule is the same for
+  all: the parser refuses an initializer on a global owner, and a
+  global declared with its type alone is zero, an empty owner, which
+  a function fills. The ASan run then counted a global as live at
+  exit, so the codegen writes a function that frees the globals and
+  has `main` register it with `atexit`, which also makes the frees
+  exact for the counter (P190).
 
 - (177) Agreed details: "now add the basic String operations: find,
   has, starts, ends, trim", the fourth fix proposed before a release,
@@ -1902,6 +1915,7 @@ says "as agreed".
 | P187 | Details of #175 | tests/asan.sh compiles runtime/*.c, the C of each module with a `.kh` by `kelvinc --lib --emit-c`, and each test's C by `kelvinc --emit-c`, all with `-fsanitize=address -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -include stdlib.h`, links them with tests/asan/count.c and runs each, reading `allocations N, live at exit M` from stderr | `detect_leaks=0`, since the counter is the check and LeakSanitizer is not on macOS; the output of a test is not compared, which tests/run.sh does |
 | P188 | Details of #176 | tests/docs.sh extracts the blocks with awk: a line at the margin that starts `#import`, `struct`, `union`, `enum`, `extend`, `typealias`, a function `let f(`, a method, attribute or type attribute `let T.x`, or a subscript `let T[]`, with the lines to its closing brace, is a declaration; the rest is indented into `let main():int32 { ... return 0 }`; a block compiles, and is not run | `DOCS_KEEP=dir` keeps the rearranged sources of the blocks that failed; a block the line `<!-- fragment -->` precedes is counted, not compiled |
 | P189 | Details of #177 | `s.find(x)` is `KV_STRING_TEXT_OR_REF(find, &s, x)`, a `_Generic` choosing `kv_string_find_text` or `kv_string_find_ref`, and so for has, starts and ends; `s.trim()` is `kv_string_trim(&s)`; all in runtime/string.c | the parser lists them among a String's methods, with `has` and `find` shared with a Dictionary's and a Set's by the kind letter, checks the argument, and types `find` as `i64` and the others as `bool` |
+| P190 | Details of #178 | the top-level `let` or `var` parse checks each variable: an initializer on a type `is_owner` sees is the error, at the initializer; the codegen lists the global owners, declares `_kv_free_globals`, writes it after the printers with each one's free, and has `main` call `atexit` on it first thing | a module built by `kelvinc --lib` has no main, so its globals are not freed; tests/asan/count.c registers its report in a constructor, so that it runs after the program's handlers |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -59,6 +59,7 @@ static void emit_tagged_record(Decl *d, Type *recv);
 static void emit_arrays_after(Decl *d);
 static void emit_derived_copy(Decl *d, Type *recv);
 static int cur_decl; /* the index of the top-level declaration being emitted */
+static List global_owners; /* Var *: the program's global owners, freed at exit (#178) */
 /* the block of the switch being emitted (#63): a case ends at the next,
    so `break;` goes before each label and at the end; one exhaustive by
    its cases (closed) tells C that nothing else reaches it */
@@ -2916,6 +2917,8 @@ static void emit_decl(Decl *d) {
                                              ? strfmt("kv_sys_init(%s, %s);", c_name(((Var *)d->params.data[0])->name),
                                                       c_name(((Var *)d->params.data[1])->name))
                                              : "kv_sys_init(_kv_argc, _kv_argv);");
+            if (!d->recv && !d->anon && !strcmp(d->name, "main") && global_owners.len) /* the globals freed at exit (#178) */
+                list_push(&param_caches, "atexit(_kv_free_globals);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
                 const char *frees = owner_free(p->type);
@@ -3318,6 +3321,19 @@ char *gen_program(Program *prog, bool with_lines) {
        any type, and written after all of them (#123) */
     for (int i = 0; i < show_types.len; i++)
         buf_printf(&out, "static void _kv_show_%s(kv_out *, const void *, int);\n", show_key(show_types.data[i]));
+    /* the global owners (#178): declared empty, filled by a function, freed
+       at exit by a function main registers, written after the globals */
+    global_owners = (List){0};
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        if (d->kind != D_VAR || (d->storage && !strcmp(d->storage, "extern")))
+            continue;
+        for (int j = 0; j < d->members.len; j++)
+            if (owner_free(((Var *)d->members.data[j])->type))
+                list_push(&global_owners, d->members.data[j]);
+    }
+    if (global_owners.len)
+        buf_puts(&out, "static void _kv_free_globals(void);\n");
     text_bufs = NULL;
     hidden_names = (List){0};
     pinned_line.file = NULL;
@@ -3332,6 +3348,16 @@ char *gen_program(Program *prog, bool with_lines) {
     for (int i = 0; i < show_types.len; i++) { /* the printers, which may ask for more (#123) */
         line("%s", "");
         emit_show(show_types.data[i]);
+    }
+    if (global_owners.len) {
+        line("%s", "");
+        line("static void _kv_free_globals(void)");
+        line("{");
+        for (int i = 0; i < global_owners.len; i++) {
+            Var *v = global_owners.data[i];
+            line("    %s(&%s);", owner_free(v->type), c_name(v->name));
+        }
+        line("}");
     }
     return out.buf ? out.buf : xstrdup("");
 }
