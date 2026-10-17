@@ -210,6 +210,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 176 | tests/docs.sh, run by `make test`: every ```kelvin block of the documents and the README compiles, a block with `let main(` as it is, any other with its declarations at the margin kept at the top level and the rest wrapped in a main; a listing or a sketch has `<!-- fragment -->` on the line before its fence, which the page does not show | — | `make test` | 2026-10-18 |
 | 177 | On a String: `s.find(text)`, the codepoint index of the first `text` or -1, `s.has(text)`, `s.starts(text)` and `s.ends(text)`, the text a `cstr` or a String borrowed, `&t`, a String by value an error; `s.trim()`, a new String without the blanks at either end, JS's `\s` | — | `s.find("llo")`, `s.has(&t)`, `s.trim()` | 2026-10-18 |
 | 178 | A global owner with an initializer is an error of kelvinc's, not C's: C initializes a global with a constant alone, and an owner is made by a call; the message says to declare it with its type, `var log:String`, empty, and give it its value in main or another function | — | `var log:String` at the top, `log = $"..."` in main | 2026-10-18 |
+| 179 | A method or an attribute of the program is found on a value of its own type: a value whose type kelvinc sees as a pointer, an array or a function has none, so a struct's `count`, `has` or `isNull` cannot catch the built-in one of a `cstr`, an array or a pointer; the fallback to the only method of a name stays for a value whose type kelvinc cannot see. 5000 mutated sources crashed and hung nothing | — | `text.count` of a `cstr` beside `extend tally { let count:int64 }` | 2026-10-18 |
 
 Notes:
 
@@ -771,6 +772,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (179) Agreed details: "now run the longer fuzz and tighten the
+  method lookup", the two checks proposed before the version. The
+  lookup by a name alone where the receiver's type was not a base type
+  had made `text.count` of a `cstr` call `Match.count` (#168), fixed
+  there for attributes alone; `method_named` now gives nothing for a
+  pointer, an array or a function, and keeps its fallback for a type
+  kelvinc cannot see at all. The fuzz, 5000 sources mutated by
+  deletion, insertion of Kelvin's tokens, duplication and transposition,
+  from the tests, the examples and the modules, crashed and hung
+  nothing (P191).
 
 - (178) Agreed details: "now make kelvinc report a global owner made by
   a call", the fifth fix proposed before a release: `let re = $/x/` at
@@ -1916,6 +1928,7 @@ says "as agreed".
 | P188 | Details of #176 | tests/docs.sh extracts the blocks with awk: a line at the margin that starts `#import`, `struct`, `union`, `enum`, `extend`, `typealias`, a function `let f(`, a method, attribute or type attribute `let T.x`, or a subscript `let T[]`, with the lines to its closing brace, is a declaration; the rest is indented into `let main():int32 { ... return 0 }`; a block compiles, and is not run | `DOCS_KEEP=dir` keeps the rearranged sources of the blocks that failed; a block the line `<!-- fragment -->` precedes is counted, not compiled |
 | P189 | Details of #177 | `s.find(x)` is `KV_STRING_TEXT_OR_REF(find, &s, x)`, a `_Generic` choosing `kv_string_find_text` or `kv_string_find_ref`, and so for has, starts and ends; `s.trim()` is `kv_string_trim(&s)`; all in runtime/string.c | the parser lists them among a String's methods, with `has` and `find` shared with a Dictionary's and a Set's by the kind letter, checks the argument, and types `find` as `i64` and the others as `bool` |
 | P190 | Details of #178 | the top-level `let` or `var` parse checks each variable: an initializer on a type `is_owner` sees is the error, at the initializer; the codegen lists the global owners, declares `_kv_free_globals`, writes it after the printers with each one's free, and has `main` call `atexit` on it first thing | a module built by `kelvinc --lib` has no main, so its globals are not freed; tests/asan/count.c registers its report in a constructor, so that it runs after the program's handlers |
+| P191 | Details of #179 | `method_named` returns NULL where the receiver's type is seen and is not `T_BASE`; `method_candidates` already asked for `T_BASE`; the fuzz is a script of the session, not of the tree, run by hand | a fuzz in the tree would be a release check to add if one is wanted; the mutations are random, so a run is not repeatable without its seed |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

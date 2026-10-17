@@ -4659,3 +4659,22 @@ function `main` registers, which the ASan run asked for. Details are
 provisional P190.
 
 There are 788 tests, and all pass with clang and with gcc 15.
+
+### 222. The longer fuzz, and the method lookup
+
+> You just suggested "now set the version to 0.1.0 and add a
+> CHANGELOG". Are we really ready?
+
+**Claude** said yes for a 0.1.0, which promises nothing stable, and
+asked for two checks first: a longer fuzz, and the method lookup that
+had found `Match.count` for a `cstr`.
+
+> now run the longer fuzz and tighten the method lookup
+
+**Claude** added #179: a method or an attribute of the program is
+found on a value of its own type, none on a pointer, an array or a
+function, with a test of a struct's `count`, `has`, `find` and `isNull`
+beside the built-in ones; 5000 mutated sources crashed and hung
+nothing. Details are provisional P191.
+
+There are 789 tests, and all pass with clang and with gcc 15.

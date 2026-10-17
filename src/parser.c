@@ -7513,6 +7513,8 @@ static Decl *method_named(Expr *recv, const char *name) {
     Type *rt = value_type(recv);
     if (!rt)
         rt = arg_type(recv); /* 1.0.i, (-1.0).i (#148): a literal's own type, f64 */
+    if (rt && rt->kind != T_BASE) /* a pointer, an array, a function: no method of the program is on it (#179) */
+        return NULL;
     bool seen = rt && rt->kind == T_BASE;
     Decl *found = NULL;
     int n = 0;
