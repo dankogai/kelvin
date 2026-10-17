@@ -196,6 +196,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 162 | `RegExp(pattern, flags)` makes a RegExp, as `RegExp.compile` does, the pattern and the flags each a `cstr` or a String borrowed, `&s`: functions named as the type is, as `c64(...)` are; a type's `T.name(...)` and `T.x` are read where a function is named as the type | — | `let re = RegExp(&pattern, &flags)` | 2026-10-17 |
 | 163 | A `$/.../` literal is checked as kelvinc reads it: a pattern that is not JS's, a `\p{...}` name there is none of, or a flag that is none, is an error at its place in the pattern, before anything runs; `RegExp.compile` of text checks at run time as before | — | `$/(a/` is an error at the `(` | 2026-10-17 |
 | 164 | `s.escape()` of the prelude gives the text with each codepoint beyond ASCII as `\u{...}` and a `\` as `\\`; `s.unescape()` reads those back, and `\uHHHH`, `\xHH`, `\n`, `\r`, `\t`, `\0`, `\"` and `\'` too, leaving what is none as written; with `<RegExp>`, `s.escape(&re)` and `s.escape($/.../)` escape what the pattern matches instead, the literal moved in. A call with no argument of a method the program overloads only with arguments is the built-in one | — | `s.escape($/[\p{Emoji}]/)` | 2026-10-17 |
+| 165 | `s.unescape(&re)` and `s.unescape($/.../)` of RegExp read back the escapes in what the pattern matches alone, each match as `s.unescape()` reads the whole, the rest as it is | — | `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` | 2026-10-17 |
 
 Notes:
 
@@ -757,6 +758,11 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (165) Agreed details: "now add `s.unescape(&re)` that only
+  unescapes what matches." The two overloads of #164's `escape`, a
+  borrow and a value, again; each match goes through the prelude's
+  `kv_string_unescape`, so that the escapes read are the same (P177).
 
 - (164) Agreed details: "add `.escape()` to `String` in prelude. with
   no argument, it turn non-ascii code points into `\u{....}` form. You
@@ -1758,6 +1764,7 @@ says "as agreed".
 | P174 | Details of #162 | `RegExp("a+", "g")` is `RegExp__cstr__cstr`, and `RegExp(&p, &f)` `RegExp__constStringPtr__constStringPtr`, by their types; each calls `RegExp.compile` | the parser reads `T.name(...)` and `T.x` where `T` is a record also where a function of its name is bound, which a variable of its name still hides |
 | P175 | Details of #163 | the lexer calls `rx_check(pattern, flags, &at)` of runtime/regexp_parse.c, linked into kelvinc with runtime/unicode_tables.o, and reports its message at the literal's column plus 2 plus `at` | runtime/regexp_internal.h holds the tree, the parser's state and the helpers the two files share; `rx_parse_pattern` reads the flags and the pattern for both `rx_compile` and `rx_check`; the `\p{...}` names are looked up in the tables directly, so that nothing of libkelvin is linked into kelvinc; libkRegExp holds both objects |
 | P176 | Details of #164 | `s.escape()` is `kv_string_escape(&s)`, `s.unescape()` `kv_string_unescape(&s)`, in runtime/string.c; `s.escape(&re)` is `rx_escape(&re.program, &s)` of libkRegExp, every match from each end, an empty one moving on by a codepoint | the parser lists `escape` and `unescape` among a String's methods, and takes the built-in one for a call with no argument where `method_takes_none` finds no method of the program without parameters; the hex of `\u{...}` is upper case with no padding |
+| P177 | Details of #165 | `s.unescape(&re)` is `rx_unescape(&re.program, &s)`: every match from each end, the text between copied, each match sliced and read by `kv_string_unescape` | an escape cut by a match's end stays as written, as it would alone |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -115,6 +115,7 @@ name: `s.match(&re)` is `re.match(&s)`.
 | `re.split(&s)`, `s.split(&re)` | `s` cut at each match, an `Array<String>`, as JS's `split` cuts |
 | `re.split(&s) { ... }`, `s.split(&re) { ... }` | the same pieces, each given to the function as a String: `s.split(&re) { println($0) }` (#160) |
 | `s.escape(&re)`, `s.escape($/.../)` | `s` with each codepoint of each match as `\u{...}`, and a `\` as `\\`, a new String that `s.unescape()` reads back (#164); the prelude's `s.escape()` escapes what is not ASCII |
+| `s.unescape(&re)`, `s.unescape($/.../)` | the escapes read back in what the pattern matches alone, each match as `s.unescape()` reads the whole (#165) |
 
 - **`with`** is a `cstr`, or a String borrowed, `s.replace(&re, &t)`,
   with JS's patterns: `$&` the match, `$1` to
@@ -135,6 +136,9 @@ name: `s.match(&re)` is `re.match(&s)`.
   into `\u{1F600}`. A literal written in the call moves in and is
   freed there, as an owner given by value does; a backslash is `\\`
   anywhere, so that `s.unescape()` of the prelude reads the text back.
+- **`s.unescape(&re)`** (#165) reads back the escapes in what the
+  pattern matches alone: `e.unescape($/\\u\{1F[0-9A-F]+\}/g)` turns
+  the emoji escapes back and leaves `\u{E9}` as it is.
 
 ```kelvin
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g

@@ -269,7 +269,7 @@ UTF-8 are to come.
 | | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | as a Bytes's |
 | | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, and a `\` as `\\`, a new String (#164); with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches instead |
-| | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written |
+| | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |

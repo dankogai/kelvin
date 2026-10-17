@@ -829,3 +829,29 @@ kv_string rx_escape(const kv_bytes *prog, const kv_string *s) {
     }
     return out;
 }
+
+/* s.unescape(&re) (#165): the escapes read back where the pattern matches,
+   each match unescaped as s.unescape() does the whole, the rest as it is */
+kv_string rx_unescape(const kv_bytes *prog, const kv_string *s) {
+    kv_string out = kv_string_new();
+    int64_t n = (int64_t)s->b.count, from = 0, copied = 0;
+    int64_t ngroups = rx_groups(prog);
+    int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
+    while (from <= n && rx_search(prog, s, from, false, caps)) {
+        kv_string_append_owned(&out, rx_slice(s, copied, caps[0]));
+        kv_string piece = rx_slice(s, caps[0], caps[1]);
+        kv_string_append_owned(&out, kv_string_unescape(&piece));
+        kv_string_free(&piece);
+        copied = caps[1];
+        if (caps[1] > caps[0]) {
+            from = caps[1];
+        } else {
+            if (caps[1] >= n)
+                break;
+            from = rx_next(s, caps[1]);
+        }
+    }
+    free(caps);
+    kv_string_append_owned(&out, rx_slice(s, copied, n));
+    return out;
+}

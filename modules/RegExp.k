@@ -26,6 +26,7 @@ let rx_flag(prog:const Bytes^, flag:u8):bool
 let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i64^):bool
 let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
 let rx_escape(prog:const Bytes^, s:const String^):String
+let rx_unescape(prog:const Bytes^, s:const String^):String
 let rx_slice(s:const String^, lo:i64, hi:i64):String
 let rx_cp_index(s:const String^, byte:i64):i64
 let rx_byte_index(s:const String^, cp:i64):i64
@@ -271,6 +272,10 @@ extend String {
     // the literal moved in; s.escape() of the prelude escapes what is not ASCII
     let escape(re:const RegExp^):String { rx_escape(&re^.program, &self) }
     let escape(re:RegExp):String { rx_escape(&re.program, &self) }
+    // the escapes read back where re matches alone (#165), each match as
+    // s.unescape() reads the whole: s.unescape($/\\u\{1F[0-9A-F]+\}/g)
+    let unescape(re:const RegExp^):String { rx_unescape(&re^.program, &self) }
+    let unescape(re:RegExp):String { rx_unescape(&re.program, &self) }
 }
 
 // RegExp(pattern, flags), the pattern and the flags a cstr or a String

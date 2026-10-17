@@ -32,6 +32,8 @@ void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, co
 
 /* s.escape(&re) (#164): each codepoint of each match as \u{...}, a backslash as \\ */
 kv_string rx_escape(const kv_bytes *prog, const kv_string *s);
+/* s.unescape(&re) (#165): the escapes read back in what the pattern matches alone */
+kv_string rx_unescape(const kv_bytes *prog, const kv_string *s);
 
 /* bytes and codepoints of a String */
 kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi);  /* bytes lo..<hi, a new String */

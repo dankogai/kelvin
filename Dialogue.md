@@ -4466,3 +4466,13 @@ built-in method for a call with no argument where the program's
 methods of the name all take some. Details are provisional P176.
 
 There are 776 tests, and all pass with clang and with gcc 15.
+
+### 208. unescape of what matches
+
+> now add `s.unescape(&re)` that only unescapes what matches
+
+**Claude** added #165: `s.unescape(&re)` and `s.unescape($/.../)` read
+back the escapes in what the pattern matches alone, each match as the
+prelude's `unescape` reads the whole. Details are provisional P177.
+
+There are 776 tests, and all pass with clang and with gcc 15.
