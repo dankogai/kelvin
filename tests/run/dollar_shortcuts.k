@@ -11,7 +11,8 @@ let main():int32 {
     println(names.typename, " ", apply({ $[0] * 2 }, 21), " ", apply({ $0 + 1 }, 1))
     var one = $[7]
     var two = $[1, 2]
-    println(one.count, " ", `${$"tpl"} ${two.count}`)
+    var tpl = $"tpl"                        // a String an expression gives is bound before a template shows it
+    println(one.count, " ", `${tpl} ${two.count}`)
     return 0
 }
 // out: I needed it 11 1 Array<Array<i64>> ab

@@ -206,6 +206,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 172 | `Bytes([...])` is a Bytes of the bytes written out, each a character constant, a number 0 to 255 or any `u8` value, a number out of that range an error, `Bytes([])` empty. The document of `Bytes` is bytes.md, apart from strings.md, which keeps `cstr`, `String` and `uchr`: alike to look at, another thing | — | `Bytes([0x89, 'P', 'N', 'G'])` | 2026-10-17 |
 | 173 | documents/README.md lists the documents, one line each, in the order a reader might take them: starting, values, reading and writing, modules; the README points to it | — | documents/README.md | 2026-10-18 |
 | 174 | A check that fails at run time prints its reason and exits with status 1, stdout flushed first, where it aborted: an index past the count, text that is not UTF-8, a pattern that is not one, a file that will not open where that is checked, out of memory; `KELVIN_ABORT` set in the environment makes it abort instead, for a debugger or a core. A run test may expect a status, `// exit: N`, and stderr, `// err:` lines | — | `kelvin: index 3 is out of range: the Bytes has 3`, status 1 | 2026-10-18 |
+| 175 | tests/asan.sh, `make asan`: every program of tests/run, with the runtime and the modules, compiled with AddressSanitizer and a counting allocator, tests/asan/count.c, and run: an ASan error, an unexpected status, or a block still live at exit fails it, a leak the ownership rules should have freed; a test that expects another status is run for ASan alone; a CI job runs it | — | `make asan` | 2026-10-18 |
 
 Notes:
 
@@ -767,6 +768,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (175) Agreed details: "now add the ASan run over the test
+  programs", the second fix proposed before a release: CI's sanitizer
+  job instruments kelvinc and libkelvin, not the programs the tests
+  make, which is where the double frees of #158 were. The counting
+  allocator renames malloc, realloc and free by macros in the runtime,
+  the modules and the program, itself compiled without them, and
+  reports what is live at exit, which Kelvin's ownership promises is
+  nothing. Its first run found one: `${$"tpl"}`, a String an
+  expression gives in a plain template, was never freed, where a
+  `$`...`` template refused it; both refuse it now. A test that calls
+  `SYS.exit` and a free of what `realpath` allocated are not leaks,
+  and the script knows them (P187).
 
 - (174) Agreed details: "now make runtime failures exit(1) instead of
   abort()", the first of the fixes proposed before a release: a core on
@@ -1858,6 +1872,7 @@ says "as agreed".
 | P184 | Details of #172 | `Bytes([a, b, c])` is `kv_bytes_from((const uint8_t[]){a, b, c}, 3)`; the parser keeps the list as an E_INIT in the call, marked `list` | an element that is a variable or an expression is converted by C as a `uint8_t` initializer is, the literals checked by kelvinc |
 | P185 | Details of #173 | documents/README.md groups the documents as starting, values, reading and writing, and modules | the file is `README.md`, which GitHub shows at the top of the directory |
 | P186 | Details of #174 | `kv_exit_failure` in runtime/bytes.c, declared by the prelude, flushes stdout and stderr, aborts where `KELVIN_ABORT` is set, else `exit(1)`; `rx_exit_failure` in runtime/regexp_parse.c is the same for the engine and kelvinc; the failure helpers of bytes.c, io.c, os.c, unicode.c and the engine call them, and the out-of-memory exits of unicode_data.c stay `exit(1)` | tests/run.sh reads `// exit: N` as the status a test expects and compares stderr with its `// err:` lines when it has any |
+| P187 | Details of #175 | tests/asan.sh compiles runtime/*.c, the C of each module with a `.kh` by `kelvinc --lib --emit-c`, and each test's C by `kelvinc --emit-c`, all with `-fsanitize=address -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -include stdlib.h`, links them with tests/asan/count.c and runs each, reading `allocations N, live at exit M` from stderr | `detect_leaks=0`, since the counter is the check and LeakSanitizer is not on macOS; the output of a test is not compared, which tests/run.sh does |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

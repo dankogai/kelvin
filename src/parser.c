@@ -2291,6 +2291,11 @@ static Expr *parse_template(void) {
         if (type_class(value_type(v), &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
         Type *ct = value_type(v);
+        if ((is_string(ct) || is_bytes(ct)) && !owner_place(v) &&
+            !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty"))) /* ${$"x"} (#175): nothing would free it */
+            error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it to a "
+                             "variable first",
+                     is_string(ct) ? "String" : "Bytes");
         if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")) {
             /* ${v.pretty} (#126): the text indented, by the printer, not a
                String the template would have to free */

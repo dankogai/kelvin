@@ -212,6 +212,7 @@ Requires a C11 compiler and make.
 ```sh
 make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib}, libkIO and libkOS
 make test                   # runs tests/run.sh
+make asan                   # runs tests/asan.sh: every test program under ASan, nothing live at exit
 make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc hello.k           # builds ./hello
 ./kelvinc --run hello.k     # builds and runs

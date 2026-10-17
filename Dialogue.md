@@ -4600,3 +4600,19 @@ test of an index past the count uses them. Details are provisional
 P186.
 
 There are 783 tests, and all pass with clang and with gcc 15.
+
+### 218. The test programs under ASan
+
+> now add the ASan run over the test programs
+
+**Claude** added #175: tests/asan.sh, `make asan`, compiles the
+runtime, the modules and every run test with AddressSanitizer and a
+counting allocator, runs each, and fails on an error or on blocks
+still live at exit; a CI job runs it. Its first run found a String an
+expression gives in a plain template, `${$"tpl"}`, never freed, which
+is refused now as the `$`...`` form refused it; a test that calls
+`SYS.exit` and a free of what `realpath` allocated are known to it.
+Details are provisional P187.
+
+There are 784 tests, and all pass with clang and with gcc 15; the ASan
+run passes every program.

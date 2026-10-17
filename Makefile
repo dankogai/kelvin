@@ -89,6 +89,10 @@ build build/runtime:
 test: all
 	./tests/run.sh
 
+# every test program under AddressSanitizer with a counting allocator (#175)
+asan: all
+	./tests/asan.sh
+
 install: all
 	install -d $(PREFIX)/bin $(PREFIX)/lib/kelvin/modules
 	install -m 755 kelvinc $(PREFIX)/bin/kelvinc

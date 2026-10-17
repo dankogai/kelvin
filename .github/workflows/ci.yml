@@ -62,3 +62,20 @@ jobs:
 
       - name: Test
         run: make test
+
+  asan-programs:
+    # the programs the tests make, with the runtime and the modules, under
+    # AddressSanitizer and a counting allocator: no memory error, and nothing
+    # live at exit, which the ownership rules promise (#175)
+    name: asan-programs
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: make
+
+      - name: Test programs under ASan
+        run: tests/asan.sh
