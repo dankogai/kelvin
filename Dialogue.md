@@ -4776,3 +4776,20 @@ chains, with their rows in the table of arrays.md. Details are
 provisional P198.
 
 There are 808 tests, and all pass with clang and with gcc 15.
+
+### 230. An owner an expression gives, held where it is used
+
+> Those "bind it to variables first" is annoying. fix it like we have
+> fixed it for `array.map()` (on `var words = $"Hello,
+> Kelvin!".split($/\s+/);`)
+
+**Claude** added #187: an owner that an expression gives is held in a
+hidden local where it is used, and freed once the chain, the
+comparison or the loop around it is done, so that `$"Hello,
+Kelvin!".split($/\s+/)`, `make().name`, `println(make())`, `$"a" ==
+s`, `parse("1") ?? 0` and `for x in rows() { }` all work; one given
+where a borrow is taken is lent. A pointer into it and a change to it
+are still errors, since they would dangle or be lost. Fifteen error
+tests became one run test. Details are provisional P199.
+
+There are 797 tests, and all pass with clang and with gcc 15.

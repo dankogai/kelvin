@@ -70,10 +70,9 @@ println(SION.same(&s, &back))                 // true
 - **`s["key"]` and `s[i]`** (#136) give a copy of the value under a
   string or an integer key of a dictionary, or of an array's element,
   and `nil` where there is none, so `tags[1]` of a copy reads on.
-  - A copy that an expression gives is bound before its case, an
-    attribute or a method is read, as any owner is: `var name =
-    s["name"]`, then `name.string`; `s["name"].string` is an error that
-    says so, since the copy would be lost.
+  - A copy that an expression gives is held while its case, an
+    attribute or a method is read, and freed after (#187):
+    `s["name"].string` is a String of its own, copied out.
   - `s["key"] = v` and `s[i] = v` replace the value, add an entry at
     the end of a dictionary, or set an array's element; out of range,
     nothing changes.

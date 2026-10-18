@@ -46,8 +46,8 @@ header and the library.
   - Each is a String of its own: bound, `var gs = s.graphemes`, `for g
     in gs { }` walks them and `gs.count` counts them, where `s.count`
     counts codepoints; the database's GraphemeBreakTest.txt passes
-    whole. The Array an expression gives is bound first, as every owner
-    is ([ownership.md](ownership.md)).
+    whole. An Array an expression gives is held until the expression is
+    done, `s.graphemes.count`, `for g in s.graphemes { }` (#187).
 - **`s.upper()`, `s.lower()` and `s.fold()`** map each codepoint by the
   simple case mappings, one codepoint to one, a new String: `ß` stays
   `ß` and `ﬁ` stays `ﬁ`, since their upper case is longer.
@@ -72,10 +72,9 @@ header and the library.
 
 ## Notes
 
-- A method of the program on a String that an expression gives, as
-  `$"Straße".fold()`, is an error, as the prelude's `.count` of one
-  is: the String, a borrow to the method, would never be freed; bind
-  it first.
+- A method on a String that an expression gives, as
+  `$"Straße".fold()`, holds the String until the expression is done,
+  then frees it (#187), as the prelude's `.count` of one does.
 - The tables are built from tools/ucd/ by `make`, which needs python3
   once; to move to a newer Unicode, replace the files there and run
   `make`. The database is Unicode, Inc.'s, under the Unicode License v3,

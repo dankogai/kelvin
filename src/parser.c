@@ -266,6 +266,11 @@ static Var *anon_word(const char *name, Decl **r, int *k) {
 static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
 static const char *top_name; /* the top-level declaration being parsed */
 static int anon_start = -1;
+/* the temporaries of the expression being parsed (#187): owners that an
+   expression gives, held in hidden locals until the postfix chain, or the
+   comparison, they are used in is done; NULL where none can be held */
+static List *chain_temps;
+static int temp_serial;
 static Decl *nested_outer; /* the function a function being parsed is defined inside (#180) */
 static List proto_copies;  /* the prototype copies of hoisted functions and their originals, in pairs (#180) */
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
@@ -1301,10 +1306,13 @@ static bool repeatable(Expr *e);
 static bool reaches_c(List *cands, Expr *call, int k);
 static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
+static void borrow_temps(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
 static Decl *parse_nested_fn(Pos pos);
+static Expr *make_temp(Expr *src, const char *what);
+static Expr *wrap_temps(Expr *body, List *temps);
 static Type *arithmetic_type(Expr *e);
 static const char *number_kind(Type *t);
 static int call_args_ahead(int i);
@@ -1442,7 +1450,85 @@ static void reject_trailing_on_next_line(Type *missing) {
                               "starts a block");
 }
 
+/* An owner an expression gives, held (#187): a hidden let of its type,
+   bound here, for the expression to use as a place, and freed once the
+   chain around it is done; where none is open, the error what */
+static Expr *make_temp(Expr *src, const char *what) {
+    if (!chain_temps)
+        error_at(src->pos, "%s", what);
+    Type *t = unqualified(value_type(src));
+    char *name = strfmt("_kv_tmp%d", ++temp_serial);
+    declare_binding(name, t, LET_VALUE);
+    Expr *tmp = new_expr(E_TEMP, src->pos);
+    tmp->a = src;
+    tmp->text = name;
+    tmp->type = t;
+    list_push(chain_temps, tmp);
+    Expr *id = new_expr(E_IDENT, src->pos);
+    id->text = name;
+    return id;
+}
+
+/* body, inside the temporaries made for it (#187), the last made innermost;
+   a pointer would point into what is freed, so it is an error, and an owner
+   that is a place inside one is copied out before it goes */
+static Expr *wrap_temps(Expr *body, List *temps) {
+    if (!temps->len)
+        return body;
+    Type *rt = value_type(body);
+    if (rt && (rt->kind == T_PTR || rt->kind == T_ARRAY) && body->kind != E_TEMPLATE) { /* a template's text is the block's */
+        Expr *first = temps->data[0];
+        error_at(body->pos, "this is %s into a %s that an expression gives, which is freed once the expression is done: "
+                            "bind it to a variable first",
+                 rt->kind == T_PTR ? "a pointer" : "an array", kelvin_type(first->type));
+    }
+    bool copy = rt && is_owner(rt) && owner_place(body);
+    for (int i = temps->len - 1; i >= 0; i--) {
+        Expr *t = temps->data[i];
+        t->b = body;
+        if (copy && i == temps->len - 1) { /* the innermost copies the place out */
+            t->op = "copy";
+            t->from = unqualified(rt);
+        }
+        body = t;
+    }
+    temps->len = 0;
+    return body;
+}
+
+static Expr *parse_postfix_steps(Expr *e);
+static Expr *parse_primary(void);
+
+/* an operand that an expression gives, held in the list of the operator
+   it is an operand of (#187), which wraps the operator's result */
+static Expr *hold_operand(Expr *x, List *held) {
+    List *saved = chain_temps;
+    chain_temps = held;
+    Expr *r = make_temp(x, "an operand that an expression gives: bind it to a variable first");
+    chain_temps = saved;
+    return r;
+}
+
+/* the postfix steps after e, with the temporaries they hold (#187) */
 static Expr *parse_postfix_ops(Expr *e) {
+    List temps = {0}, *saved = chain_temps;
+    chain_temps = &temps;
+    e = parse_postfix_steps(e);
+    chain_temps = saved;
+    return wrap_temps(e, &temps);
+}
+
+/* a primary and its postfix steps, a template's values among them, with
+   the temporaries they hold (#187) */
+static Expr *parse_postfix_chain(void) {
+    List temps = {0}, *saved = chain_temps;
+    chain_temps = &temps;
+    Expr *e = parse_postfix_steps(parse_primary());
+    chain_temps = saved;
+    return wrap_temps(e, &temps);
+}
+
+static Expr *parse_postfix_steps(Expr *e) {
     for (;;) {
         if (line_ends_expression() || cur == postfix_stop)
             return e;
@@ -1450,8 +1536,8 @@ static Expr *parse_postfix_ops(Expr *e) {
         if (is_p(peek(), "[") && is_string(value_type(e)) && !bracket_is_slice(cur))
             error_at(peek()->pos, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
                                   "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
-        if (is_p(peek(), "[") && is_bytes(value_type(e)) && !owner_place(e))
-            error_at(peek()->pos, "indexing a Bytes that an expression gives: bind it to a variable first");
+        if (is_p(peek(), "[") && is_bytes(value_type(e)) && !owner_place(e)) /* held (#187) */
+            e = make_temp(e, "indexing a Bytes that an expression gives: bind it to a variable first");
         if (accept_p("[")) {
             bool saved = ident_annotation_ok;
             bool saved_brace = brace_ends_condition;
@@ -1493,10 +1579,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (gname && function_named(gname)) {
                     if (slice)
                         error_at(t->pos, "a slice is no subscript of %s: index it with v[i]", sr->name);
-                    if (is_owner(vt0) && !owner_place(e))
-                        error_at(t->pos, "a subscript of %s that an expression gives, which nothing would free: bind it "
-                                         "to a variable first",
-                                 sr->name);
+                    if (is_owner(vt0) && !owner_place(e)) /* held (#187) */
+                        e = make_temp(e, "a subscript of an owner that an expression gives: bind it to a variable first");
                     List args = {0};
                     flatten_commas(x->b, &args);
                     Decl *chosen = choose_subscript(gname, &args, t->pos, sr->name);
@@ -1555,10 +1639,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (!is_array_owner(st) && !is_string(st) && !is_bytes(st))
                     error_at(t->pos, "a slice [lo..<hi] is of an Array, a String or a Bytes, and this is %s",
                              st ? kelvin_type(st) : "not one");
-                if (!owner_place(e))
-                    error_at(t->pos, "a slice of %s that an expression gives, which nothing would free: bind it to a "
-                                     "variable first",
-                             is_string(st) ? "a String" : is_bytes(st) ? "a Bytes" : "an Array");
+                if (!owner_place(e)) { /* held (#187) */
+                    e = make_temp(e, "a slice of an owner that an expression gives: bind it to a variable first");
+                    x->a = e;
+                }
                 for (int k = 0; k < 2; k++) {
                     Expr *bound = k ? x->c : x->b;
                     Decl *r;
@@ -1576,10 +1660,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 continue;
             }
             if ((is_bytes(value_type(e)) || is_array_owner(value_type(e)) || is_dict_owner(value_type(e))) &&
-                !owner_place(e))
-                error_at(t->pos, "'[]' of %s that an expression gives, which nothing would free: bind it to a "
-                                 "variable first",
-                         is_bytes(value_type(e)) ? "a Bytes" : is_dict_owner(value_type(e)) ? "a Dictionary" : "an Array");
+                !owner_place(e)) { /* held (#187) */
+                e = make_temp(e, "'[]' of an owner that an expression gives: bind it to a variable first");
+                x->a = e;
+            }
             if (is_set_owner(value_type(e)))
                 error_at(t->pos, "a Set is not indexed: test an element with '.has(x)', or walk it with 'for x in s'");
             if (is_dict_owner(value_type(e))) { /* d[k] of a Dictionary, checked (#65) */
@@ -1660,13 +1744,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                             "Optional, a Result, an Array, a Dictionary or a Set; this is %s, whose text "
                                             "is '.cstr'",
                                  vt ? kelvin_type(vt) : "a value kelvinc cannot see");
-                    if (is_owner(vt) && !owner_place(e)) {
-                        bare_tags = true;
-                        char *named = kelvin_type(vt);
-                        bare_tags = false;
-                        error_at(name->pos, "'.pretty' of %s that an expression gives: bind it to a variable first",
-                                 named);
-                    }
+                    if (is_owner(vt) && !owner_place(e)) /* held (#187) */
+                        e = make_temp(e, "'.pretty' of an owner that an expression gives: bind it to a variable first");
                     Expr *x = new_expr(E_PROPERTY, name->pos);
                     x->a = e;
                     x->text = "pretty";
@@ -2028,10 +2107,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 /* v.is(name): is that the current case? Of a place, when
                    the record owns: a value an expression gives would be
                    lost with what it holds (#99) */
-                if (is_owner(value_type(e)) && !owner_place(e))
-                    error_at(name->pos, "'.is' of a %s that an expression gives, which nothing would free: bind it to a "
-                                        "variable first",
-                             kelvin_type(value_type(e)));
+                if (is_owner(value_type(e)) && !owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "'.is' of an owner that an expression gives: bind it to a variable first");
                 advance();
                 Token *cn = peek();
                 char *cname = expect_ident("a case name");
@@ -2117,10 +2194,14 @@ static Expr *parse_postfix_ops(Expr *e) {
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
                                               "reserve, compact and copy, and the properties count, capacity and at",
                              member);
-                if (!owner_place(e) && !is_io_std(e))
-                    error_at(name->pos, "'.%s' of a%s %s that an expression gives: bind it to a variable first", member,
-                             ok == 'i' || ok == 'a' ? "n" : "",
-                             ok == 'b' ? "Bytes" : ok == 's' ? "String" : ok == 'd' ? "Dictionary" : ok == 't' ? "Set" : ok == 'i' ? "IO" : "Array");
+                if (!owner_place(e) && !is_io_std(e)) {
+                    if (methods[which].changes) /* a change to what is freed at once would be lost */
+                        error_at(name->pos, "'.%s' changes a%s %s, and this one an expression gives would be lost: bind it "
+                                            "to a variable first",
+                                 member, ok == 'i' || ok == 'a' ? "n" : "",
+                                 ok == 'b' ? "Bytes" : ok == 's' ? "String" : ok == 'd' ? "Dictionary" : ok == 't' ? "Set" : ok == 'i' ? "IO" : "Array");
+                    e = make_temp(e, "a method of an owner that an expression gives: bind it to a variable first"); /* held (#187) */
+                }
                 if (methods[which].changes && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
                 Type *through = e->kind == E_DEREF ? value_type(e->a) : NULL;
@@ -2194,10 +2275,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                                     error_at(a->pos, "argument %d of '.%s' is %s, and this is %s", i + 1, member,
                                              want == 'f' ? "a number" : "an integer", at ? kelvin_type(at) : "not one");
                             } else if (is_string(at) || is_bytes(at)) {
-                                if (!owner_place(a))
-                                    error_at(a->pos, "an argument of '.%s' is a %s that an expression gives: bind it to a "
-                                                     "variable first",
-                                             member, is_string(at) ? "String" : "Bytes");
+                                if (!owner_place(a)) /* held (#187) */
+                                    a = make_temp(a, "an argument that an expression gives: bind it to a variable first");
                                 x->items.data[i] = property(a, &(Token){.kind = TK_IDENT, .pos = a->pos, .text = "cstr"}, "cstr");
                             } else if ((at && !is_text_expr(a)) || number_expr(a)) {
                                 error_at(a->pos, "an argument of '.%s' is text, a String or a Bytes, and this is %s", member,
@@ -2288,10 +2367,10 @@ static Expr *parse_postfix_ops(Expr *e) {
                 x->a = e;
                 x->text = member;
                 Decl *m = method_named(e, member);
-                if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) /* the receiver would be lost (#156) */
-                    error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it to a "
-                                        "variable first",
-                             member, kelvin_type(value_type(e)));
+                if (m && is_owner(value_type(e)) && !owner_place(e) && !is_io_std(e)) { /* the receiver, held (#156, #187) */
+                    e = make_temp(e, "a method of an owner that an expression gives: bind it to a variable first");
+                    x->a = e;
+                }
                 /* methods of one name on the receiver, overloaded by their
                    parameter types (#158): an anonymous argument takes the
                    type of the one that has a function there */
@@ -2332,6 +2411,7 @@ static Expr *parse_postfix_ops(Expr *e) {
                 }
                 if (chosen) { /* an owner given by value moves into the method (O5), as into a function */
                     x->method = chosen;
+                    borrow_temps(x, chosen); /* an owner an expression gives, lent where a borrow is taken (#187) */
                     for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
                         move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
                                       strfmt("'.%s'", member));
@@ -2340,10 +2420,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 continue;
             }
             if (tr && !call && !strcmp(member, "case")) { /* v.case: the tag, a u8 (#61) */
-                if (is_owner(value_type(e)) && !owner_place(e))
-                    error_at(name->pos, "'.case' of a %s that an expression gives, which nothing would free: bind it to a "
-                                        "variable first",
-                             kelvin_type(value_type(e)));
+                if (is_owner(value_type(e)) && !owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "'.case' of an owner that an expression gives: bind it to a variable first");
                 Expr *x = new_expr(E_PROPERTY, t->pos);
                 x->a = e;
                 x->text = "case";
@@ -2363,10 +2441,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                     if (call)
                         error_at(name->pos, "'%s' is an attribute of %s: read it as '.%s', with no parentheses", member,
                                  g->recv_name, member);
-                    if (is_owner(value_type(e)) && !owner_place(e)) /* the receiver would be lost (#152) */
-                        error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it "
-                                            "to a variable first",
-                                 member, kelvin_type(value_type(e)));
+                    if (is_owner(value_type(e)) && !owner_place(e)) /* the receiver, held (#152, #187) */
+                        e = make_temp(e, "an attribute of an owner that an expression gives: bind it to a variable first");
                     Expr *x = new_expr(E_METHOD, name->pos);
                     x->a = e;
                     x->text = member;
@@ -2390,10 +2466,8 @@ static Expr *parse_postfix_ops(Expr *e) {
                 if (!c->type)
                     error_at(name->pos, "case '%s' of %s carries no value: test it with '.is(%s)', or set it with {.%s}",
                              member, record_spelling(tr), member, member);
-                if (is_owner(value_type(e)) && !owner_place(e)) /* as .is (#99): the value would be lost (#152) */
-                    error_at(name->pos, "'.%s' of a %s that an expression gives, which nothing would free: bind it to a "
-                                        "variable first",
-                             member, kelvin_type(value_type(e)));
+                if (is_owner(value_type(e)) && !owner_place(e)) /* as .is (#99), held (#152, #187) */
+                    e = make_temp(e, "a case of an owner that an expression gives: bind it to a variable first");
                 Expr *x = new_expr(E_FIELD, t->pos);
                 x->a = e;
                 x->text = member;
@@ -2406,6 +2480,8 @@ static Expr *parse_postfix_ops(Expr *e) {
             if (e->kind == E_LITERAL && !e->paren && isdigit((unsigned char)e->text[0]))
                 error_at(e->pos, "'%s.%s': literals have no suffixes in Kelvin, and '%s' is not a method", e->text,
                          member, member);
+            if (is_owner(value_type(e)) && !owner_place(e)) /* make().name: the struct held, the field copied out (#187) */
+                e = make_temp(e, "a member of an owner that an expression gives: bind it to a variable first");
             Expr *x = new_expr(E_FIELD, t->pos);
             x->a = e;
             x->text = member;
@@ -2453,6 +2529,8 @@ static const char *number_kind(Type *t) {
    comparisons, ! and the logic operators. NULL otherwise: C's own
    functions, macros and typedefs, pointer arithmetic */
 static Type *shown_type(Expr *e) {
+    if (e && e->kind == E_TEMP) /* (#187) what its body is */
+        return e->b ? shown_type(e->b) : NULL;
     Type *t = e->kind == E_TERNARY ? NULL : value_type(e); /* C promotes the arms of ?: */
     if (t)
         return t->kind == T_TYPEOF ? NULL : t;
@@ -2544,6 +2622,8 @@ static Expr *parse_template(void) {
         Type *vt = value_type(v);
         if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
             error_at(v->pos, "a template cannot show a function: a function has no text");
+        if (is_owner(vt) && !owner_place(v) && !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")))
+            v = make_temp(v, "a value that an expression gives in a template: bind it to a variable first"); /* held (#187) */
         Decl *record;
         if (type_class(value_type(v), &record) == 's')
             v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
@@ -3662,10 +3742,10 @@ static Expr *parse_unary(void) {
         e->a = parse_unary();
         if (!strcmp(e->op, "!"))
             require_bool(e->a);
-        if (!strcmp(e->op, "&") && is_owner(value_type(e->a)) && !owner_place(e->a)) /* &$/x/ (#157): nothing frees it */
-            error_at(t->pos, "a borrow of a %s that an expression gives, which nothing would free: bind it to a "
-                             "variable first",
-                     kelvin_type(value_type(e->a)));
+        if (!strcmp(e->op, "&") && is_owner(value_type(e->a)) && !owner_place(e->a)) /* &$/x/ (#157), held (#187) */
+            e->a = make_temp(e->a, strfmt("a borrow of a %s that an expression gives, which nothing would free: bind it "
+                                          "to a variable first",
+                                          kelvin_type(value_type(e->a))));
         return !strcmp(e->op, "-") ? resolve_operator(e, "-", e->a, NULL) : e; /* -z (#42) */
     }
     if (is_p(t, "*"))
@@ -3740,7 +3820,7 @@ static Expr *parse_unary(void) {
         }
         return e;
     }
-    return parse_postfix_ops(parse_primary());
+    return parse_postfix_chain();
 }
 
 /* cast := unary { ('as' | ':') type }
@@ -3871,9 +3951,11 @@ static Expr *parse_binary(int min_prec) {
             if (!ta2 || !tb2 || ta2->kind != T_BASE || tb2->kind != T_BASE || strcmp(ta2->name, tb2->name))
                 error_at(t->pos, "'%s' compares two %s, and this is %s", e->op, kelvin_type(rt),
                          ra && tb2 ? kelvin_type(tb2) : ta2 && !ra ? kelvin_type(ta2) : "not one");
-            if (is_owner(rt) && (!eq_operand_ok(e->a) || !eq_operand_ok(e->b)))
-                error_at(t->pos, "a %s that an expression gives, which nothing would free: bind it to a variable first",
-                         kelvin_type(rt));
+            List held = {0}; /* an operand an expression gives, held (#187) */
+            if (is_owner(rt) && !eq_operand_ok(e->a))
+                e->a = hold_operand(e->a, &held);
+            if (is_owner(rt) && !eq_operand_ok(e->b))
+                e->b = hold_operand(e->b, &held);
             Expr *eq = new_expr(E_CALL, t->pos);
             eq->a = new_expr(E_IDENT, t->pos);
             eq->a->text = strfmt("_kv_%s_eq", r->name);
@@ -3888,7 +3970,7 @@ static Expr *parse_binary(int min_prec) {
                 not->is_bool = true;
                 eq = not;
             }
-            lhs = eq;
+            lhs = wrap_temps(eq, &held);
             continue;
         }
         const char *ka = builtin_owner(value_type(e->a)), *kb = builtin_owner(value_type(e->b));
@@ -3953,8 +4035,13 @@ static Expr *parse_binary(int min_prec) {
             if ((kl == 's' || kl == 'b') && is_comparison(e->op) && strcmp(e->op, "==") && strcmp(e->op, "!=")) {
                 /* s < t, <=, >, >= (#185): by the bytes, which for a String is
                    codepoint order, two of a type in variables */
-                if (!ka || !kb || strcmp(ka, kb) || !owner_place(e->a) || !owner_place(e->b))
-                    error_at(t->pos, "a %s compares with another %s, both in variables", tn, tn);
+                if (!ka || !kb || strcmp(ka, kb))
+                    error_at(t->pos, "a %s compares with another %s", tn, tn);
+                List held = {0}; /* an operand an expression gives, held (#187) */
+                if (!owner_place(e->a))
+                    e->a = hold_operand(e->a, &held);
+                if (!owner_place(e->b))
+                    e->b = hold_operand(e->b, &held);
                 Expr *cmp = new_expr(E_CALL, t->pos);
                 cmp->a = new_expr(E_IDENT, t->pos);
                 cmp->a->text = kl == 'b' ? "kv_bytes_cmp" : "kv_string_cmp";
@@ -3972,14 +4059,19 @@ static Expr *parse_binary(int min_prec) {
                 rel->a = cmp;
                 rel->b = zero;
                 rel->is_bool = true;
-                lhs = rel;
+                lhs = wrap_temps(rel, &held);
                 continue;
             }
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
                 error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=%s", tn,
                          e->op, kl == 's' ? ", join with +" : "");
-            if (!ka || !kb || strcmp(ka, kb) || !owner_place(e->a) || !owner_place(e->b))
-                error_at(t->pos, "a %s compares with another %s, both in variables", tn, tn);
+            if (!ka || !kb || strcmp(ka, kb))
+                error_at(t->pos, "a %s compares with another %s", tn, tn);
+            List held = {0}; /* an operand an expression gives, held (#187) */
+            if (!owner_place(e->a))
+                e->a = hold_operand(e->a, &held);
+            if (!owner_place(e->b))
+                e->b = hold_operand(e->b, &held);
             Expr *eq = new_expr(E_CALL, t->pos);
             eq->a = new_expr(E_IDENT, t->pos);
             eq->a->text = ka[0] == 'b' ? "kv_bytes_eq" : "kv_string_eq";
@@ -3998,7 +4090,7 @@ static Expr *parse_binary(int min_prec) {
                 not->is_bool = true;
                 eq = not;
             }
-            lhs = eq;
+            lhs = wrap_temps(eq, &held);
             continue;
         }
         lhs = overloadable_op(t) ? resolve_operator(e, e->op, e->a, e->b) : e; /* (#42) */
@@ -4020,8 +4112,9 @@ static Expr *parse_conditional(void) {
         if (is_owner(some->type))
             error_at(q->pos, "'?\?' would copy the value, and %s owns: switch on it, or test '.is(some)' and read '.some'",
                      kelvin_type(some->type));
+        List held = {0}; /* the left side read twice, held once (#187) */
         if (c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
-            error_at(q->pos, "'?\?' reads its left side twice: bind it to a variable first");
+            c = hold_operand(c, &held);
         pick_overload(y, some->type);
         y = string_of_literal(drop_cstr(y, some->type), some->type);
         /* C's ?: of a const uint8_t * and a char * is no text (gcc refuses,
@@ -4056,7 +4149,7 @@ static Expr *parse_conditional(void) {
         e->paren = true;
         e->op = "coalesce"; /* its type is the value's, for inference */
         e->type = some->type;
-        c = e;
+        c = wrap_temps(e, &held);
     }
     if (!accept_p("?"))
         return c;
@@ -4343,7 +4436,7 @@ static Type *parse_typeof(int dot) {
         buf_puts(&text, toks[i].text);
     int saved_stop = postfix_stop;
     postfix_stop = dot;
-    Expr *v = parse_postfix_ops(parse_primary());
+    Expr *v = parse_postfix_chain();
     postfix_stop = saved_stop;
     if (cur != dot)
         error_at(peek()->pos, "expected '.type', as in 'var w:v.type'");
@@ -4408,6 +4501,8 @@ static Type *value_type(Expr *e) {
 
 static Type *value_type_of(Expr *e) {
     switch (e->kind) {
+    case E_TEMP: /* (#187) what its body gives */
+        return e->b ? value_type(e->b) : NULL;
     case E_IDENT: { /* a Kelvin function's name is a function value (#31) */
         if (e->op && !strcmp(e->op, "c")) /* C's own function of the name (#41) */
             return NULL;
@@ -4646,6 +4741,8 @@ static bool bool_shape(Expr *e) {
 /* Is e a bool by its shape, or a bool value kelvinc sees (a variable, a
    field, a Kelvin function's result)? */
 static bool seen_bool(Expr *e) {
+    if (e && e->kind == E_TEMP) /* (#187) what its body is */
+        return e->b && seen_bool(e->b);
     if (e->is_bool || bool_shape(e))
         return true;
     Type *t = value_type(e);
@@ -4744,6 +4841,8 @@ static bool is_text_type(Type *t) {
 /* Is e text kelvinc can see: a string, a text type, a text property
    (i64(n.hex, 16)), or a ?: of those (c ? argv[1] : "8")? */
 static bool is_text_expr(Expr *e) {
+    if (e && e->kind == E_TEMP) /* (#187) what its body is */
+        return e->b && is_text_expr(e->b);
     static const char *texts[] = {"dec", "hex", "oct", "bin", "cstr", "typename", NULL};
     if (e->kind == E_STRING || is_text_type(value_type(e)))
         return true;
@@ -4760,6 +4859,8 @@ static bool is_text_expr(Expr *e) {
    arithmetic (+ and - only of numbers, as a pointer steps with them),
    a prefix operator, a comparison, or a ?: of numbers? */
 static bool number_expr(Expr *e) {
+    if (e && e->kind == E_TEMP) /* (#187) what its body is */
+        return e->b && number_expr(e->b);
     Decl *record;
     char c = expr_class(e, &record);
     if (c == 'i' || c == 'f' || seen_bool(e))
@@ -4821,9 +4922,9 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
         /* i64(line) of a String or a Bytes reads its text (#88), of one
            in a variable, as the text of one an expression gives would
            be freed under the reader */
-        if (!owner_place(v))
-            error_at(v->pos, "%s(...) of a %s that an expression gives: bind it to a variable first", name,
-                     is_string(value_type(v)) ? "String" : "Bytes");
+        if (!owner_place(v)) /* held while it is read (#187) */
+            v = make_temp(v, strfmt("%s(...) of a %s that an expression gives: bind it to a variable first", name,
+                                    is_string(value_type(v)) ? "String" : "Bytes"));
         e->a = v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
     }
     bool text = is_text_expr(v);
@@ -5085,6 +5186,8 @@ static Type *operand_type(Expr *e) {
    enumerator's enum, size_t for sizeof, and the type C's arithmetic gives
    numbers kelvinc sees; NULL otherwise */
 static Type *arg_type(Expr *e) {
+    if (e && e->kind == E_TEMP) /* (#187) what its body is */
+        return e->b ? arg_type(e->b) : NULL;
     Type *t = value_type(e);
     if (t && const_target(e)) {
         /* a let is const in C (#27): its array's elements, and what &x of
@@ -5173,9 +5276,13 @@ static int fit(Expr *arg, Type *param) {
         a = unqualified(a);
         bare_tags = true;
         bool same = !strcmp(fn_key(a), fn_key(p));
+        bool lent = p->kind == T_PTR && p->elem && is_owner(p->elem) && !owner_place(arg) &&
+                    !strcmp(fn_key(a), fn_key(unqualified(p->elem))); /* f($"x") to a const String^ (#187) */
         bare_tags = false;
         if (same)
             return 2;
+        if (lent)
+            return 1;
         if (numeric_type(a) && (numeric_type(p) || (pc == 'u' && p->kind == T_BASE)))
             return 1; /* also to a C typedef, which kelvinc cannot tell from a number */
         if (gains_qualifiers(a, p))
@@ -5451,6 +5558,7 @@ static void resolve_call(Expr *call) {
         if (!other) {
             call->target = only;
             drop_cstr_args(call, only);
+            borrow_temps(call, only);
             move_args(call, only);
             return;
         }
@@ -5464,6 +5572,7 @@ static void resolve_call(Expr *call) {
         }
         if (call->target) {
             drop_cstr_args(call, call->target);
+            borrow_temps(call, call->target);
             move_args(call, call->target);
         }
         if (call->target || call->cands.len)
@@ -5474,6 +5583,23 @@ static void resolve_call(Expr *call) {
     call->op = "c";
     list_push(&c_called, callee->text);
     reject_owners_to_c(call);
+}
+
+/* an owner an expression gives, given where a borrow of its type is taken,
+   held and lent (#187): f($/\s+/) to a const RegExp^ */
+static void borrow_temps(Expr *call, Decl *d) {
+    for (int k = 0; k < call->items.len && k < d->params.len; k++) {
+        Type *p = unqualified(((Var *)d->params.data[k])->type);
+        Expr *a = call->items.data[k];
+        Type *at = value_type(a);
+        if (!p || p->kind != T_PTR || !p->elem || !is_owner(p->elem) || !at || at->kind != T_BASE || owner_place(a) ||
+            strcmp(kelvin_type(unqualified(at)), kelvin_type(unqualified(p->elem))))
+            continue;
+        Expr *lent = new_expr(E_PREFIX, a->pos);
+        lent->op = "&";
+        lent->a = make_temp(a, "an owner that an expression gives, lent to a function: bind it to a variable first");
+        call->items.data[k] = lent;
+    }
 }
 
 /* an owner given by value to a Kelvin function moves into it (O5) */
@@ -5488,10 +5614,10 @@ static void reject_owners_to_c(Expr *call) {
     if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println"))) {
         for (int k = 0; k < call->items.len; k++) {
             Expr *x = call->items.data[k];
-            if (is_owner(value_type(x)) && !owner_place(x))
-                error_at(x->pos, "%s of an owner that an expression gives, which nothing would free: bind it to a "
-                                 "variable first",
-                         call->a->text);
+            if (is_owner(value_type(x)) && !owner_place(x)) /* held while it prints (#187) */
+                call->items.data[k] = make_temp(x, strfmt("%s of an owner that an expression gives, which nothing would "
+                                                          "free: bind it to a variable first",
+                                                          call->a->text));
         }
         return;
     }
@@ -5778,11 +5904,11 @@ static Expr *property(Expr *e, Token *name, char *member) {
            cstr, a borrow, and whether it is UTF-8; a String (#55): its
            codepoints, its bytes, a read-only borrow, and its text; of a
            place, since a value an expression gives would be lost */
-        if (!owner_place(e) && !is_io_std(e))
-            error_at(name->pos, "'.%s' of a%s %s that an expression gives: bind it to a variable first, which frees "
-                                "it when its block ends",
-                     member, kk == 'i' || kk == 'a' ? "n" : "",
-                     kk == 'b' ? "Bytes" : kk == 's' ? "String" : kk == 'd' ? "Dictionary" : kk == 't' ? "Set" : kk == 'i' ? "IO" : "Array");
+        if (!owner_place(e) && !is_io_std(e)) /* held (#187) */
+            e = make_temp(e, strfmt("'.%s' of a%s %s that an expression gives: bind it to a variable first, which frees "
+                                    "it when its block ends",
+                                    member, kk == 'i' || kk == 'a' ? "n" : "",
+                                    kk == 'b' ? "Bytes" : kk == 's' ? "String" : kk == 'd' ? "Dictionary" : kk == 't' ? "Set" : kk == 'i' ? "IO" : "Array"));
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
@@ -7511,12 +7637,13 @@ static Var *parse_var(bool with_init, int let) {
         /* in scope from here, as in C, so the initializer sees it, as in
            `let point: i16 = sizeof(point)`; its type is filled in below */
         declare_binding(v->name, NULL, let);
+        int bound_at = scope_types.len - 1; /* the initializer may bind temporaries after it (#187) */
         v->init = parse_initializer();
         v->type = inferred_type(v->init, v->pos);
         reject_let_vla(v, let);
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_owner_array(v);
-        scope_types.data[scope_types.len - 1] = v->type;
+        scope_types.data[bound_at] = v->type;
         if (!v->type && v->init->kind == E_FUNC)
             error_at(v->pos, "'%s' needs a type: in %s, an array length names a parameter, which a function type "
                              "cannot carry; write a type without it, as in a pointer",
@@ -7992,14 +8119,8 @@ static void print_records_as_text(Expr *call) {
         Type *t = value_type(x);
         if (!showable(t))
             continue;
-        if (is_owner(t) && !owner_place(x)) {
-            bare_tags = true;
-            char *named = kelvin_type(t);
-            bare_tags = false;
-            error_at(x->pos, "%s that an expression gives, which nothing would free, is not printed: bind it to a "
-                             "variable first",
-                     named);
-        }
+        if (is_owner(t) && !owner_place(x)) /* held while it prints (#187) */
+            x = make_temp(x, "a value that an expression gives is printed once bound: bind it to a variable first");
         Expr *s = new_expr(E_PROPERTY, x->pos);
         s->a = x;
         s->text = "show";
@@ -8273,6 +8394,8 @@ static void implicit_return(Decl *d) {
    comma or ?: of those? */
 static bool has_effect(Expr *e) {
     switch (e->kind) {
+    case E_TEMP: /* (#187) */
+        return e->b && has_effect(e->b);
     case E_CALL:
     case E_METHOD:
         return true;
@@ -9055,6 +9178,35 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     return s;
 }
 
+/* for x in make() (#187): what the loop walks, held in a hidden let of a
+   block around the loop, which frees it when the loop is done; an IO's
+   .read(n) and .lines walk as they read, and are left as they are */
+static Stmt *parse_for_each_held(Stmt *s, Type *written) {
+    Expr *seq = s->expr;
+    Type *t = value_type(seq);
+    bool io_walk = (seq->kind == E_METHOD && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "read")) ||
+                   (seq->kind == E_PROPERTY && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "lines"));
+    if (io_walk || !is_owner(t) || owner_place(seq))
+        return parse_for_each(s, written);
+    Var *v = xcalloc(1, sizeof *v);
+    v->name = strfmt("_kv_tmp%d", ++temp_serial);
+    v->pos = seq->pos;
+    v->type = unqualified(t);
+    v->init = seq;
+    v->is_let = true;
+    declare_binding(v->name, v->type, LET_VALUE);
+    Expr *id = new_expr(E_IDENT, seq->pos);
+    id->text = v->name;
+    s->expr = id;
+    Stmt *decl = new_stmt(S_VAR, s->pos);
+    list_push(&decl->vars, v);
+    Stmt *loop = parse_for_each(s, written);
+    Stmt *block = new_stmt(S_BLOCK, s->pos);
+    list_push(&block->stmts, decl);
+    list_push(&block->stmts, loop);
+    return block;
+}
+
 static Stmt *parse_for_in(Pos pos) {
     Stmt *s = new_stmt(S_FOR_IN, pos);
     Token *name = peek();
@@ -9077,7 +9229,7 @@ static Stmt *parse_for_in(Pos pos) {
     if (is_p(peek(), ".."))
         error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
     if (!is_p(peek(), "...") && !is_p(peek(), "..<"))
-        return parse_for_each(s, written);
+        return parse_for_each_held(s, written);
     if (s->name2)
         error_at(pos, "two loop variables walk a Dictionary's entries, 'for k, v in d': a range counts with one");
     if (accept_p("..."))

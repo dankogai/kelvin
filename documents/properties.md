@@ -338,8 +338,9 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
     - An enum with values that holds an Array or a Dictionary is
       indexed through its cases (#117) unless it has a subscript, which
       wins.
-  - `v[i]` of an owner that an expression gives is an error, since
-    nothing would free it: bind it to a variable first.
+  - `v[i]` of an owner that an expression gives holds it until the
+    expression is done (#187), `make()[k]`; an owner the subscript gives
+    is its own.
   - A slice, `v[a..<b]`, is no subscript.
   - It has `self`, so `static let []` is an error.
 - **A subscript with a setter**, `var T[](i:I):R { get { ... } set(v) {

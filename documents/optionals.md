@@ -86,9 +86,8 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   `x == 3` wrap the other side, as where a `T?` is expected.
   - A value whose type has no `==` (a struct, an Array) has none here
     either.
-  - An owner made on the spot (`x == $"hi"`) is not taken, since
-    nothing would free it: bind it to a variable. See
-    [results.md](results.md).
+  - An owner made on the spot (`x == $"hi"`) is held for the
+    comparison and freed after (#187). See [results.md](results.md).
 - **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`;
   an Array has one too, `xs.map(f)` (#182), and both infer the result
   of `{ $0 * 2 }` from arithmetic of one number type,

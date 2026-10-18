@@ -43,9 +43,10 @@ so a file that has not imported `<RegExp>` cannot write one.
   - The pattern ends at the first `/` that is not escaped, `\/`, and
     not in a class, `[/]`, on the same line; it is written into the
     program as it is, so `\d` is `\d`, with no doubling.
-  - A `RegExp` an expression gives is bound before it is used, as every
-    owner is: `s.replace(&$/x/, "y")` is an error, and so is
-    `$/x/.test(&s)` ([ownership.md](ownership.md)).
+  - A `RegExp` an expression gives may be used where it is, held until
+    the expression is done (#187): `s.replace($/x/, "y")`,
+    `$"a b".split($/\s+/)`, `$/x/.test(&s)`; one given where a borrow is
+    taken is lent ([ownership.md](ownership.md)).
   - kelvinc checks the pattern as it reads the literal (#163): `$/(a/`
     is an error at the `(`, with what is wrong, as `\p{Nope}` and a
     flag that is none are, before anything runs. The parser of the
@@ -201,5 +202,5 @@ String it came from may change or go.
 | `m.names[i]` | the name of group `i`, `""` where it has none |
 
 - `m.text[i]` is a place, so `println(m.text[1])` prints it and
-  `m.text[1] == other` compares it; `m[i]` gives a copy, an owner an
-  expression gives, which is bound first.
+  `m.text[1] == other` compares it; `m[i]` gives a copy, which is
+  printed, compared or read and then freed (#187).

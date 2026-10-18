@@ -260,8 +260,8 @@ for name in names { println(name) }
     answers by its new name, with absolute paths.
   - An IO that is no directory one can read, or that nothing names,
     gives none.
-  - An Array an expression gives is bound first, as any owner is:
-    `var names = d.listdir`.
+  - An Array an expression gives may be used where it is, held until
+    the expression is done (#187): `for n in d.listdir { }`.
 - **The operations** each give a `bool`, true when done, as `seek` and
   `kill` do (#108), and no `errno`: `OS`'s of the same path tell why.
   - **`f.chmod(mode)`**, **`f.chown(uid, gid)`**, **`f.truncate(size)`**,

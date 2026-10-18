@@ -132,6 +132,9 @@ typedef enum {
     E_PROPERTY,  /* a.text: size, dec, hex, oct, bin */
     E_FUNC,      /* an anonymous function (#32): text is the C function
                     it becomes, type its function type */
+    E_TEMP,      /* (#187) an owner an expression gives, a held as the hidden
+                    local text, of type, while b is worked out, then freed;
+                    op "copy": b, an owner in it, copied out first, from its type */
 } ExprKind;
 
 struct Expr {

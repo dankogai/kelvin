@@ -218,6 +218,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 184 | `xs.filter(f)` and `xs.filter { ... }` of an Array: a new `Array<T>` of the elements `f` says true for, `f` giving a bool; `xs.reduce(init, f)` and `xs.reduce(init) { ... }`: the value of `f` of the value so far and each element, from `init`, of `init`'s type, an owner `init` moved in; both give an owner element to `f` as a copy and take an Array an expression gives, as `map` does | — | `xs.filter { $0 > 1 }.reduce(1) { $0 * $1 }` | 2026-10-19 |
 | 185 | `xs.sort()` sorts a var Array in place and `xs.sorted()` gives a new one, each with an optional comparator, `{ $0 < $1 }` or `(T, T):bool`, true where the first goes before the second, else by `<`: a number's, a `uchr`'s codepoint, the bytes of a String, a Bytes or a `cstr`, or a struct's own operator `<`, and an element with none a compile error; a stable merge sort; `.sorted()` of an Array an expression gives sorts it in place. `<`, `<=`, `>`, `>=` on two Strings or two Bytes, by their bytes | — | `$[3, 2, 1, 0].sorted{ $0 < $1 }` is `[0, 1, 2, 3]` | 2026-10-19 |
 | 186 | `xs.reverse()` reverses a var Array in place and `xs.reversed()` gives a new one, the elements in the other order, moved as they are; `.reversed()` of an Array an expression gives reverses that one, so that it chains | — | `$[3, 1, 2].sorted().reversed()` is `[3, 2, 1]` | 2026-10-19 |
+| 187 | An owner an expression gives is held where it is used, in a hidden local freed once the postfix chain, the comparison or the loop around it is done: a method, an attribute, a property, a subscript, a slice, a case, `.is`, a member, `println` and a template's value, a conversion, `==` and the orderings, the left of `??`, and `for x in`; a member that owns is copied out, and one given where a borrow `const T^` is taken is lent, `s.split($/\s+/)`; `&` of one inside an expression is a borrow of the held one. A pointer into a held owner, and a change to one by a built-in method, are errors that say to bind it first | — | `var words = $"Hello, Kelvin!".split($/\s+/)` | 2026-10-19 |
 
 Notes:
 
@@ -779,6 +780,24 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (187) Agreed details: "Those \"bind it to variables first\" is
+  annoying. fix it like we have fixed it for `array.map()`", on
+  `var words = $"Hello, Kelvin!".split($/\s+/)`. Forty sites refused an
+  owner that an expression gives, since nothing would free it; one
+  mechanism serves nearly all of them: the expression `E_TEMP` holds
+  the owner in a hidden let, as `.map` of #183 held its Array, and frees
+  it by `cleanup` when its body is done. A postfix chain collects the
+  temporaries its steps make and wraps them when it ends, the last
+  innermost; an operator holds its operands in its own list; a loop
+  holds what it walks in a let of a block around it. What still asks
+  to bind first is what would go wrong with a held owner: a pointer
+  into it, which would dangle, and a change to it, which would be lost;
+  and an IO's arguments, `+=` on one, and a borrow with no expression
+  around it to hold it. Fifteen error tests of the refusals became one
+  run test, and three test what stays refused. Rule O9 of
+  ownership.md, which still said failures abort, says what #174 made
+  them do (P199).
 
 - (186) Agreed details: "now add `.reversed()` and `.reverse()` to
   `Array` too." The pair of #185 without a comparator: in place on a
@@ -2011,6 +2030,7 @@ says "as agreed".
 | P196 | Details of #184 | `xs.filter(f)` is `({ ...; _kv_array_T _kv_mo = {0}; for (...) if (f(elem)) _kv_array_T_append(&_kv_mo, elem); _kv_mo; })`, an owner element copied for `f` and again for the new Array; `xs.reduce(init, f)` is `({ ...; U _kv_acc = init; for (...) _kv_acc = f(_kv_acc, elem); _kv_acc; })`, `f` taking the accumulator and giving the next, which moves an owner one through; the ops are `array_map`, `array_filter`, `array_reduce`, with `_tmp` for an Array an expression gives | an empty Array reduces to `init` |
 | P197 | Details of #185 | `xs.sort()` is a `do { ... } while (0)` merging runs of 1, 2, 4, ... between the elements and a buffer of `kv_alloc`, moving the elements as bits, and copying back if the result ended in the buffer; `xs.sorted()` is the same on `T_copy(&xs)`, or on the Array an expression gives; the comparison is `f(right, left)`, the elements copied for `f` where they own, `kv_string_cmp`, `kv_bytes_cmp`, `strcmp`, `.cp`, the struct's operator `<` by its C name, or C's `<`; `s < t` is `kv_string_cmp(&s, &t) < 0` | `kv_alloc` in runtime/bytes.c allocates or ends the program with "out of memory", as the runtime's other allocations do; an `Array<uchr>` still prints its elements as `{...}`, a gap of the printer, not of the sort |
 | P198 | Details of #186 | `xs.reverse()` is a `do { ... } while (0)` swapping `at[i]` and `at[j - 1]` from both ends; `xs.reversed()` the same on `T_copy(&xs)`, or on the Array an expression gives | the ops are `array_reverse`, `array_reversed` and `array_reversed_tmp` |
+| P199 | Details of #187 | `make_temp(src)` binds `_kv_tmpN` of the source's type as a let and pushes an `E_TEMP{a: src, text: name, type}` onto `chain_temps`, the list of the postfix chain being parsed, set by `parse_postfix_chain` and `parse_postfix_ops`; `wrap_temps` puts the chain's result in each, the last innermost, refuses a pointer or an array result but a template's text, and marks the innermost `copy` where the result is an owner place; the codegen writes `({ __attribute__((cleanup(free))) T name = src; body; })`, the name an owner local while the body is written, so that a move out of it takes it; `fit` scores an owner an expression gives for a borrow of its type 1, and `borrow_temps` lends it after a call is resolved; `hold_operand` holds an operand in an operator's own list; `parse_for_each_held` puts a loop over an owner an expression gives in a block with a hidden let; `parse_var` keeps the index of its own binding, which a temporary bound in its initializer would otherwise take | `E_TEMP` is a new expression kind, its value type its body's, seen through by `arg_type`, `seen_bool`, `number_expr`, `is_text_expr`, `shown_type` and `has_effect` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -70,9 +70,8 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
 - **Testing:** `r.is(ok)`, `r.is(err)`, `r.case` (0 for ok, 1 for err),
   and `switch r { case ok: ... case err: ... }`, exhaustive.
   - `case ok(v):` and `case err(e):` bind the value for the body (#119).
-  - Of a Result that owns, `.is` and `.case` take a place, since one an
-    expression gives would be lost with what it holds: bind it first,
-    or `if let` on the call (#99).
+  - Of a Result that owns, `.is` and `.case` of one an expression gives
+    hold it until the expression is done (#99, #187): `parse("1").is(ok)`.
 - **`if let v = r { ... } else { ... }`** (#74) runs the block with `v`
   bound to the `ok` value when that is the case.
   - `v` is a let the Result still owns, as a loop's element is: borrow
@@ -106,8 +105,8 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
     a Result is expected: `r == 42`, `r == err(2)`.
   - A value whose type has no `==`, a struct or an Array, has none here
     either.
-  - One that owns, made on the spot (`err($"x")`), is not taken, since
-    nothing would free it: bind it to a variable.
+  - One that owns, made on the spot (`err($"x")`), is held for the
+    comparison and freed after (#187).
   - The other operators are not for Results.
 - **`r.map(f)`** (#80) is a `Result<U, E>`: `ok(f(v))` when `r` is
   `ok(v)`, else the `err` carried over.

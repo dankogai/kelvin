@@ -110,14 +110,15 @@ var text = ages.pretty                   // a String, where print does not show 
   - It is of a struct, an enum with values, an Optional, a Result, an
     Array, a Dictionary or a Set; a number's or a String's text is
     `.cstr`.
-- **An owner an expression gives** is not printed, since nothing would
-  free it: bind it first, as `var xs = make(); println(xs)`.
+- **An owner an expression gives** is printed and then freed (#187):
+  `println(make())`, `println($"a" + "b")`.
 - **A template** shows an Array, a Dictionary or a Set by the same
   printer (#125): `${xs}` is `[1, 2, 3]`.
   - In `` `...` ``, whose room is bounded, its text is cut as a string
     value's is, past 256 bytes, with `...`.
   - In `` $`...` ``, a String, it is whole.
-  - One that an expression gives is bound first, as for `print`.
+  - One that an expression gives is shown and then freed, as for
+    `print` (#187).
 
 ## Template literals: `` `a${x}b` ``
 

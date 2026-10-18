@@ -145,8 +145,8 @@ let main():int32 {
 - **The rest of Python's `os`** (#102), what C gives plainly:
   - `OS.strerror(code)` is the message for an `errno`, a `String`, so
     no `#import` is needed to show one.
-    - `var why = OS.strerror(r.err)`, then `println(why)`, since a
-      String an expression gives is bound before it is printed.
+    - `println(OS.strerror(r.err))`: a String an expression gives is
+      printed and then freed (#187).
     - `IO.strerror(code)` is the same, from `IO` (#103).
   - `OS.environ` is every `"NAME=value"` of the environment, a
     `Result<Array<String>, i32>`.

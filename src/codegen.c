@@ -424,6 +424,17 @@ static char *expr_bare(Expr *e) {
         return (char *)c_name(e->text);
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
+    case E_TEMP: { /* (#187) the owner held in a hidden local, freed when the statement expression ends */
+        const char *f = owner_free(e->type);
+        list_push(&owner_locals, e->text);
+        list_push(&owner_locals, e->type);
+        char *body = expr(e->b);
+        owner_locals.len -= 2;
+        if (e->op && !strcmp(e->op, "copy") && owner_copy(e->from))
+            body = strfmt("%s(&(%s))", owner_copy(e->from), body);
+        return strfmt("({ %s%s = %s; %s; })", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "",
+                      decl(e->type, c_name(e->text)), expr(e->a), body);
+    }
     case E_TEMPLATE: {
         /* `a${x}b` (#39): built in a buffer inside the statement
            expression, from the literal parts and each value, evaluated
