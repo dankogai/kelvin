@@ -1907,6 +1907,97 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            if ((!strcmp(member, "sort") || !strcmp(member, "sorted")) && value_type(e) &&
+                is_array_owner(unqualified(value_type(e))) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
+                /* xs.sort(), xs.sort { ... }, xs.sorted(), xs.sorted { ... } (#185):
+                   in place, or a new Array, by f, which says whether its first
+                   goes before its second, or by < of the elements: a number's,
+                   a uchr's codepoint, the bytes of a String, a Bytes or a cstr,
+                   or a struct's own operator <; a stable merge sort */
+                bool in_place = !strcmp(member, "sort");
+                Type *at = unqualified(value_type(e));
+                Type *elem = unqualified(at->elem);
+                bool temporary = !owner_place(e);
+                if (in_place && temporary)
+                    error_at(name->pos, "'.sort' sorts an Array in place, and this one an expression gives would be lost: "
+                                        "bind it, or write '.sorted()'");
+                if (in_place && let_target(e))
+                    error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.sorted()'",
+                             let_target(e));
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->from = at;
+                Type *ctx = xcalloc(1, sizeof *ctx);
+                ctx->kind = T_FUNC;
+                ctx->pos = name->pos;
+                list_push(&ctx->params, elem);
+                list_push(&ctx->params, elem);
+                ctx->elem = base_type("bool", name->pos);
+                Expr *f = NULL;
+                bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                if (call) {
+                    advance();
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (!is_p(peek(), ")"))
+                        f = is_p(peek(), "{") ? anon_arg(ctx, 2, 0, x, false) : parse_assign();
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.%s' takes one function, the comparator, or none", member);
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                }
+                if (!f && is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
+                    f = anon_arg(ctx, 2, 0, x, true);
+                    if (at_statement_level())
+                        trailing_end = cur;
+                }
+                if (f) {
+                    Type *ft = value_type(f);
+                    if (!ft || ft->kind != T_FUNC || ft->params.len != 2 || !ft->elem ||
+                        strcmp(kelvin_type(unqualified(ft->elem)), "bool") ||
+                        strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(elem)) ||
+                        strcmp(kelvin_type(unqualified(ft->params.data[1])), kelvin_type(elem)))
+                        error_at(f->pos, "'.%s' takes a comparator of two elements, (%s, %s):bool, true where the first "
+                                         "goes before the second, and this is %s",
+                                 member, kelvin_type(elem), kelvin_type(elem), ft ? kelvin_type(ft) : "not one");
+                    x->text = "fn";
+                    list_push(&x->items, f);
+                } else if (is_string(elem) || is_bytes(elem)) {
+                    x->text = is_string(elem) ? "string" : "bytes";
+                } else if (is_uchr(elem)) {
+                    x->text = "uchr";
+                } else if (is_cstr(elem)) {
+                    x->text = "cstr";
+                } else if (elem->kind == T_BASE && number_kind(elem)) {
+                    x->text = "num";
+                } else {
+                    List cands = overloads_of(NULL, "<");
+                    Decl *lt = NULL;
+                    char *want = kelvin_type(elem);
+                    for (int i = 0; i < cands.len && !lt; i++) {
+                        Decl *d = cands.data[i];
+                        if (d->params.len == 2 && !strcmp(kelvin_type(unqualified(((Var *)d->params.data[0])->type)), want) &&
+                            !strcmp(kelvin_type(unqualified(((Var *)d->params.data[1])->type)), want))
+                            lt = d;
+                    }
+                    if (!lt) {
+                        bare_tags = true;
+                        char *shown = kelvin_type(elem);
+                        bare_tags = false;
+                        error_at(name->pos, "'.%s' compares the elements with <, and %s has none: give a comparator, "
+                                            "'.%s { $0.x < $1.x }', or define one, as in 'let <(a:%s, b:%s):bool { ... }'",
+                                 member, want, member, shown, shown);
+                    }
+                    x->text = "op";
+                    x->target = lt;
+                }
+                x->op = in_place ? "array_sort" : temporary ? "array_sorted_tmp" : "array_sorted";
+                x->type = in_place ? NULL : at;
+                e = x;
+                continue;
+            }
             if (tr && call && !strcmp(member, "is")) {
                 /* v.is(name): is that the current case? Of a place, when
                    the record owns: a value an expression gives would be
@@ -3833,6 +3924,31 @@ static Expr *parse_binary(int min_prec) {
                 error_at(t->pos, "%s has no operator '%s': compare its %s",
                          tn[0] == 'A' ? "an Array" : tn[0] == 'D' ? "a Dictionary" : "a Set", e->op,
                          tn[0] == 'D' ? "entries" : "elements");
+            if ((kl == 's' || kl == 'b') && is_comparison(e->op) && strcmp(e->op, "==") && strcmp(e->op, "!=")) {
+                /* s < t, <=, >, >= (#185): by the bytes, which for a String is
+                   codepoint order, two of a type in variables */
+                if (!ka || !kb || strcmp(ka, kb) || !owner_place(e->a) || !owner_place(e->b))
+                    error_at(t->pos, "a %s compares with another %s, both in variables", tn, tn);
+                Expr *cmp = new_expr(E_CALL, t->pos);
+                cmp->a = new_expr(E_IDENT, t->pos);
+                cmp->a->text = kl == 'b' ? "kv_bytes_cmp" : "kv_string_cmp";
+                cmp->op = "c";
+                Expr *pa = new_expr(E_PREFIX, t->pos), *pb = new_expr(E_PREFIX, t->pos);
+                pa->op = pb->op = "&";
+                pa->a = e->a;
+                pb->a = e->b;
+                list_push(&cmp->items, pa);
+                list_push(&cmp->items, pb);
+                Expr *zero = new_expr(E_LITERAL, t->pos);
+                zero->text = "0";
+                Expr *rel = new_expr(E_BINARY, t->pos);
+                rel->op = e->op;
+                rel->a = cmp;
+                rel->b = zero;
+                rel->is_bool = true;
+                lhs = rel;
+                continue;
+            }
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
                 error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=%s", tn,
                          e->op, kl == 's' ? ", join with +" : "");
@@ -4351,7 +4467,7 @@ static Type *value_type_of(Expr *e) {
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
-                      !strncmp(e->op, "array_reduce", 12)))
+                      !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10)))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};

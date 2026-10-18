@@ -203,7 +203,20 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   variable moves in.
 - All three give an owner element to the function as a copy, and chain:
   `xs.filter { $0 > 1 }.map { $0 * $0 }.reduce(0) { $0 + $1 }`.
-- **Not yet:** `==`, sorting and searching.
+- **`xs.sort()`** sorts a `var` Array in place, and **`xs.sorted()`**
+  gives a new one (#185), `$[3, 2, 1, 0].sorted { $0 < $1 }` is
+  `[0, 1, 2, 3]`.
+  - A comparator, `{ $0 > $1 }` or a named `(T, T):bool`, says whether
+    its first goes before its second; without one, `<`: a number's,
+    the codepoint of a `uchr`, the bytes of a String, a Bytes or a
+    `cstr`, which for UTF-8 is codepoint order, or a struct's own
+    `let <(a:T, b:T):bool`. An element with none is a compile error.
+  - The sort is stable: elements the comparator does not order keep
+    their order. Owner elements are moved, not copied, but for a
+    comparator, which gets copies.
+  - `.sorted()` of an Array an expression gives sorts it and hands it
+    back, so it chains: `xs.sorted { $0 > $1 }.map { $0 * 10 }`.
+- **Not yet:** `==` and searching.
 
 
 ## Properties and methods
@@ -224,11 +237,18 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `pop` gives the last element |
 | | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
 | | `.copy()` | a new Array, each element copied |
+| | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each element, `U` whatever `f` gives (#182) |
+| | `.filter(f)`, `.filter { ... }` | a new `Array<T>` of the elements `f` says true for (#184) |
+| | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each element, from `init`, of `init`'s type (#184) |
+| | `.sort()`, `.sort(f)`, `.sort { ... }` | sorts a `var` Array in place, by `f`, true where its first goes before its second, or by `<` (#185) |
+| | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
 | | `for x in xs` | each element, a let the Array owns |
 | | `print(xs)`, `xs.pretty` | `[1, 2, 3]`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | 24, `Array<i64>` |
 
 No `.cstr` for either: `print` shows an `Array<T>`, and `.pretty` is its
-text, indented (#123, #124). The general properties are in
+text, indented (#123, #124). `map`, `filter`, `reduce` and `sorted` take
+an Array an expression gives too, so they chain, and give an owner
+element to their function as a copy. The general properties are in
 [properties.md](properties.md), the ownership rules in
 [ownership.md](ownership.md).

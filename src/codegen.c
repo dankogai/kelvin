@@ -1035,6 +1035,50 @@ static char *expr_bare(Expr *e) {
                           f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, value,
                           other);
         }
+        if (e->op && !strncmp(e->op, "array_sort", 10)) {
+            /* xs.sort(), xs.sorted() (#185): a stable merge sort of the
+               elements, bottom up, through a buffer as large, the elements
+               moved as they are; the comparison is f, or < of their kind */
+            Type *elem = e->from->elem;
+            const char *copy = owner_copy(elem);
+            const char *x = "_kv_sa[_kv_sj]", *y = "_kv_sa[_kv_si]"; /* is the right one before the left? */
+            const char *less;
+            if (!strcmp(e->text, "fn"))
+                less = copy ? strfmt("%s(%s(&%s), %s(&%s))", expr(e->items.data[0]), copy, x, copy, y)
+                            : strfmt("%s(%s, %s)", expr(e->items.data[0]), x, y);
+            else if (!strcmp(e->text, "string"))
+                less = strfmt("(kv_string_cmp(&%s, &%s) < 0)", x, y);
+            else if (!strcmp(e->text, "bytes"))
+                less = strfmt("(kv_bytes_cmp(&%s, &%s) < 0)", x, y);
+            else if (!strcmp(e->text, "uchr"))
+                less = strfmt("(%s.cp < %s.cp)", x, y);
+            else if (!strcmp(e->text, "cstr"))
+                less = strfmt("(strcmp((const char *)%s, (const char *)%s) < 0)", x, y);
+            else if (!strcmp(e->text, "op"))
+                less = strfmt("%s(%s, %s)", e->target->cname ? e->target->cname : e->target->name, x, y);
+            else
+                less = strfmt("(%s < %s)", x, y);
+            const char *sort = strfmt(
+                "do { __auto_type _kv_sp = %%s; size_t _kv_sn = _kv_sp->count; if (_kv_sn > 1) { "
+                "__typeof__(_kv_sp->at) _kv_sa = _kv_sp->at, _kv_sb = kv_alloc(_kv_sn * sizeof *_kv_sp->at), _kv_sbuf = _kv_sb; "
+                "for (size_t _kv_sw = 1; _kv_sw < _kv_sn; _kv_sw *= 2) { "
+                "for (size_t _kv_slo = 0; _kv_slo < _kv_sn; _kv_slo += 2 * _kv_sw) { "
+                "size_t _kv_smid = _kv_slo + _kv_sw < _kv_sn ? _kv_slo + _kv_sw : _kv_sn; "
+                "size_t _kv_shi = _kv_slo + 2 * _kv_sw < _kv_sn ? _kv_slo + 2 * _kv_sw : _kv_sn; "
+                "size_t _kv_si = _kv_slo, _kv_sj = _kv_smid, _kv_sk = _kv_slo; "
+                "while (_kv_si < _kv_smid && _kv_sj < _kv_shi) { if (%s) _kv_sb[_kv_sk++] = _kv_sa[_kv_sj++]; "
+                "else _kv_sb[_kv_sk++] = _kv_sa[_kv_si++]; } "
+                "while (_kv_si < _kv_smid) _kv_sb[_kv_sk++] = _kv_sa[_kv_si++]; "
+                "while (_kv_sj < _kv_shi) _kv_sb[_kv_sk++] = _kv_sa[_kv_sj++]; } "
+                "__typeof__(_kv_sa) _kv_st = _kv_sa; _kv_sa = _kv_sb; _kv_sb = _kv_st; } "
+                "if (_kv_sa != _kv_sp->at) memcpy(_kv_sp->at, _kv_sa, _kv_sn * sizeof *_kv_sa); free(_kv_sbuf); } } while (0)",
+                less);
+            if (!strcmp(e->op, "array_sort"))
+                return strfmt(sort, strfmt("&(%s)", expr(e->a)));
+            const char *init = !strcmp(e->op, "array_sorted_tmp") ? strfmt("(%s)", expr(e->a))
+                                                                  : strfmt("%s_copy(&(%s))", e->from->cname, expr(e->a));
+            return strfmt("({ %s _kv_so = %s; %s; _kv_so; })", e->from->cname, init, strfmt(sort, "&_kv_so"));
+        }
         if (e->op && e->type && (!strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                                  !strncmp(e->op, "array_reduce", 12))) {
             /* xs.map(f) (#182), xs.filter(f), xs.reduce(init, f) (#184): a loop

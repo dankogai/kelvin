@@ -77,6 +77,8 @@ void kv_bytes_remove(kv_bytes *b, size_t i, size_t n);
 void kv_bytes_clear(kv_bytes *b);
 void kv_bytes_compact(kv_bytes *b);
 bool kv_bytes_eq(const kv_bytes *a, const kv_bytes *b);
+int kv_bytes_cmp(const kv_bytes *a, const kv_bytes *b); /* (#185): by the bytes, a shorter one first */
+void *kv_alloc(size_t n); /* n bytes, or "out of memory" and the program ends (#185) */
 void kv_print_bytes(kv_bytes b);
 void kv_fprint_bytes(void *fp, kv_bytes b);
 uint8_t *kv_cstr_bytes(kv_bytes b, uint8_t *buf);
@@ -144,6 +146,7 @@ void kv_string_clear(kv_string *s);
 void kv_string_reserve(kv_string *s, size_t n);
 void kv_string_compact(kv_string *s);
 bool kv_string_eq(const kv_string *a, const kv_string *b);
+int kv_string_cmp(const kv_string *a, const kv_string *b); /* (#185): codepoint order, as UTF-8 bytes are */
 kv_string kv_string_slice(const kv_string *s, size_t lo, size_t hi); /* codepoints lo..<hi (#68) */
 bool kv_bytes_is_utf8(const kv_bytes *b);
 void kv_print_string(kv_string s);

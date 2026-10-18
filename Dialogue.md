@@ -4748,3 +4748,20 @@ elements given as copies, an owner start moved in, and chains with
 `map` over Arrays an expression gives. Details are provisional P196.
 
 There are 802 tests, and all pass with clang and with gcc 15.
+
+### 228. sort and sorted
+
+> Now add `.sort()` and `.sorted()` to `Array`. .sort is mutating and
+> .sorted creates a new sorted array. `$[3,2,1,0].sorted{ $0 < $1 }`
+> yields `$[0,1,2,3]`. When the comparator is omitted, `<` is used.
+> ascending order, lexicographic if string. Compile error if element
+> does not have `<`.
+
+**Claude** added #185: `xs.sort()` in place on a var, `xs.sorted()` a
+new Array, each with an optional comparator, else `<` of the elements:
+numbers, a `uchr`'s codepoint, the bytes of a String, a Bytes or a
+`cstr`, a struct's own `<`, and a compile error otherwise; a stable
+merge sort written inline; `<` and the other orderings on Strings and
+Bytes. Details are provisional P197.
+
+There are 806 tests, and all pass with clang and with gcc 15.

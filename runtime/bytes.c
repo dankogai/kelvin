@@ -427,3 +427,20 @@ kv_bytes kv_bytes_unescape(const void *text, size_t n) {
 }
 
 kv_bytes kv_bytes_unescape_text(const void *s) { return s ? kv_bytes_unescape(s, strlen(s)) : (kv_bytes){0}; }
+
+/* a < b of two Bytes or Strings (#185): their bytes in order, the shorter
+   first where one starts the other, which for UTF-8 is codepoint order */
+int kv_bytes_cmp(const kv_bytes *a, const kv_bytes *b) {
+    size_t n = a->count < b->count ? a->count : b->count;
+    int c = n ? memcmp(a->at, b->at, n) : 0;
+    return c ? c : (a->count > b->count) - (a->count < b->count);
+}
+
+/* n bytes of the heap, or the program ends, as any allocation of the
+   runtime does: the buffer of xs.sort() (#185) */
+void *kv_alloc(size_t n) {
+    void *p = malloc(n ? n : 1);
+    if (!p)
+        kv_bytes_fail("out of memory");
+    return p;
+}

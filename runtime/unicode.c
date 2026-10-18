@@ -221,4 +221,4 @@ char *kv_template_uchr(char *p, size_t max, kv_uchr c) {
 }
 
 void kv_string_append_uchr(kv_string *s, kv_uchr c) { kv_string_append_cp(s, c.cp); }
-
+int kv_string_cmp(const kv_string *a, const kv_string *b) { return kv_bytes_cmp(&a->b, &b->b); } /* (#185) */

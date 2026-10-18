@@ -216,6 +216,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 182 | `xs.map(f)` and `xs.map { ... }` of an Array: a new `Array<U>` of `f` of each element, `U` whatever `f` gives, an owner too; an owner element is given to `f` as a copy, which `f` owns, and `xs` stays; the Array is a place. A `.map` function's result, an Array's or an Optional's, is inferred from arithmetic too where its operands are of one number type, or that type and a literal, `$0 * 2` of an `int64`; elsewhere arithmetic still infers nothing. `Array<T>(...)`, `Dictionary` and `Set` makers may start a statement | — | `var doubled = xs.map { $0 * 2 }` | 2026-10-19 |
 | 183 | `s + t` on a String is a new String of the two, either side a String, text or a `uchr`, one a String: a String in a variable copied and kept, one an expression gives taken, so that `s + t + u` frees what it made; a number is refused, with a template to show it. `.map` of an Array an expression gives maps it and frees it, so that maps chain | — | `xs.map{ $\`${$0}\` }.map{ $0 + $"+" }` | 2026-10-19 |
 | 184 | `xs.filter(f)` and `xs.filter { ... }` of an Array: a new `Array<T>` of the elements `f` says true for, `f` giving a bool; `xs.reduce(init, f)` and `xs.reduce(init) { ... }`: the value of `f` of the value so far and each element, from `init`, of `init`'s type, an owner `init` moved in; both give an owner element to `f` as a copy and take an Array an expression gives, as `map` does | — | `xs.filter { $0 > 1 }.reduce(1) { $0 * $1 }` | 2026-10-19 |
+| 185 | `xs.sort()` sorts a var Array in place and `xs.sorted()` gives a new one, each with an optional comparator, `{ $0 < $1 }` or `(T, T):bool`, true where the first goes before the second, else by `<`: a number's, a `uchr`'s codepoint, the bytes of a String, a Bytes or a `cstr`, or a struct's own operator `<`, and an element with none a compile error; a stable merge sort; `.sorted()` of an Array an expression gives sorts it in place. `<`, `<=`, `>`, `>=` on two Strings or two Bytes, by their bytes | — | `$[3, 2, 1, 0].sorted{ $0 < $1 }` is `[0, 1, 2, 3]` | 2026-10-19 |
 
 Notes:
 
@@ -777,6 +778,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (185) Agreed details: "Now add `.sort()` and `.sorted()` to `Array`.
+  .sort is mutating and .sorted creates a new sorted array.
+  `$[3,2,1,0].sorted{ $0 < $1 }` yields `$[0,1,2,3]`. When the
+  comparator is omitted, `<` is used. ascending order, lexicographic if
+  string. Compile error if element does not have `<`." The sort is
+  written inline, a bottom-up merge sort through one buffer, so that
+  each call site compares with its own comparator and no C callback
+  takes a context; it is stable, which C's qsort is not. A comparator
+  on Strings, `{ $0 < $1 }`, needed `<` on a String, so the four
+  orderings are added for Strings and Bytes, by their bytes (P197).
 
 - (184) Agreed details: "Now implement `.filter()` and `.reduce()` for
   `Array` as well." Spelled as Swift has them, since Kelvin's trailing
@@ -1991,6 +2003,7 @@ says "as agreed".
 | P194 | Details of #182 | `xs.map(f)` is `({ __auto_type _kv_ms = &(xs); _kv_array_U _kv_mo = {0}; for (...) _kv_array_U_append(&_kv_mo, f(elem)); _kv_mo; })`, `elem` the element or `T_copy(&elem)` for an owner; `arithmetic_type` in the parser gives the result of `+ - * / %`, the bit operators and the shifts, unary `-` and `~`, of one seen number type, or with an integer literal, or a floating one with f32 or f64, and `parse_anon_fn` tries it after `inferred_type` where a map infers its result | `filter`, `reduce` and the like wait for a request; a `.map` of a fixed array is not here, an Array's alone |
 | P195 | Details of #183 | `s + t` is an E_CALL `string_concat`, `({ kv_string _kv_cat = kv_string_copy(&s) or (s) or KV_STRING_OF(s); KV_STRING_APPEND(&_kv_cat, t or &t); _kv_cat; })`; the cstr and uchr operator checks let `+` through where a String is on either side; `xs.map` of a temporary is `array_map_tmp`, the Array held in `_kv_mt` with its free as the cleanup | `+` of a Bytes waits for a request; the error test of a map of an Array an expression gives, from #182, is gone |
 | P196 | Details of #184 | `xs.filter(f)` is `({ ...; _kv_array_T _kv_mo = {0}; for (...) if (f(elem)) _kv_array_T_append(&_kv_mo, elem); _kv_mo; })`, an owner element copied for `f` and again for the new Array; `xs.reduce(init, f)` is `({ ...; U _kv_acc = init; for (...) _kv_acc = f(_kv_acc, elem); _kv_acc; })`, `f` taking the accumulator and giving the next, which moves an owner one through; the ops are `array_map`, `array_filter`, `array_reduce`, with `_tmp` for an Array an expression gives | an empty Array reduces to `init` |
+| P197 | Details of #185 | `xs.sort()` is a `do { ... } while (0)` merging runs of 1, 2, 4, ... between the elements and a buffer of `kv_alloc`, moving the elements as bits, and copying back if the result ended in the buffer; `xs.sorted()` is the same on `T_copy(&xs)`, or on the Array an expression gives; the comparison is `f(right, left)`, the elements copied for `f` where they own, `kv_string_cmp`, `kv_bytes_cmp`, `strcmp`, `.cp`, the struct's operator `<` by its C name, or C's `<`; `s < t` is `kv_string_cmp(&s, &t) < 0` | `kv_alloc` in runtime/bytes.c allocates or ends the program with "out of memory", as the runtime's other allocations do; an `Array<uchr>` still prints its elements as `{...}`, a gap of the printer, not of the sort |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

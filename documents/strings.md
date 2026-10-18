@@ -230,7 +230,10 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
   and `s[...hi]` are new Strings of those codepoints; a range past the
   count ends the program.
-- **Comparing:** `==` and `!=` compare two Strings by their bytes.
+- **Comparing:** `==` and `!=` compare two Strings by their bytes, and
+  `<`, `<=`, `>` and `>=` order them by their bytes, codepoint order
+  for UTF-8, `"Zed" < "ann"` (#185); two Strings in variables, as for
+  `==`. A Bytes compares the same way.
 - **Not yet:** `insert` and `remove` on a String, encodings other than
   UTF-8.
 
