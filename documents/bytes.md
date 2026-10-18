@@ -66,7 +66,14 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   Bytes an expression gives; `b.insert(i, x)` the same at i,
   `b.remove(i, n)` n bytes at i; `b.clear()`, `b.reserve(n)` and
   `b.compact()` as their names say, in place.
-- **`==`** and `!=` compare two Bytes by their bytes.
+- **`==`** and `!=` compare two Bytes by their bytes, and `<`, `<=`,
+  `>` and `>=` order them by their bytes, a shorter one first (#185).
+- **`b + c`** (#188) is a new Bytes of the two: `b` a Bytes or text, `c`
+  a Bytes, text or a byte, one a Bytes, `a + b + "cd" + 0x7F`. A Bytes
+  in a variable is copied and stays; one an expression gives is taken,
+  so that a chain frees what it made. A String and a Bytes are not
+  joined: `Bytes(&s)` is the bytes of a String. `b += c` still appends
+  in place.
 
 ## Text out of bytes
 
@@ -111,7 +118,8 @@ far as they are.
 | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not (#155) |
 | `Bytes.unescape(text)`, `Bytes.unescape(&s)` | the bytes the escapes stand for (#167); with `<RegExp>`, `Bytes.unescape(text, &re)` where `re` matches alone (#168) |
 | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.split(&re)`, `.replace(&re, &with)` | with `#import <RegExp>` (#169, #170): [regexp.md](regexp.md) |
-| `==`, `!=` | by the bytes |
+| `b + c` | a new Bytes of the two, a Bytes, text or a byte on the right (#188) |
+| `==`, `!=`, `<`, `<=`, `>`, `>=` | by the bytes (#185) |
 | `.size`, `.typename` | as any value's |
 
 The ownership rules are in [ownership.md](ownership.md), the general

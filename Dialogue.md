@@ -4793,3 +4793,15 @@ are still errors, since they would dangle or be lost. Fifteen error
 tests became one run test. Details are provisional P199.
 
 There are 797 tests, and all pass with clang and with gcc 15.
+
+### 231. `+` on a Bytes
+
+> now add `+` to `Bytes` too
+
+**Claude** added #188: `b + c` is a new Bytes of the two, a Bytes or text
+on the left and a Bytes, text or a byte on the right, copying a Bytes in
+a variable and taking one an expression gives; a String and a Bytes are
+not joined. The table of bytes.md has its row, and the orderings of
+#185 it had left out. Details are provisional P200.
+
+There are 800 tests, and all pass with clang and with gcc 15.

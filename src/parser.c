@@ -3896,7 +3896,8 @@ static Expr *parse_binary(int min_prec) {
             require_bool(e->b);
         }
         if ((!strcmp(e->op, "+") || !strcmp(e->op, "-")) &&
-            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)))) && /* s + "x" (#183) */
+            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)) ||
+                                      is_bytes(value_type(e->a)) || is_bytes(value_type(e->b)))) && /* s + "x" (#183, #188) */
             ((is_cstr(value_type(e->a)) && !is_cstr(value_type(e->b))) ||
              (!strcmp(e->op, "+") && is_cstr(value_type(e->b)))))
             error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
@@ -3994,6 +3995,44 @@ static Expr *parse_binary(int min_prec) {
                 pb->a = e->b;
                 list_push(&m->items, pb);
                 lhs = m;
+                continue;
+            }
+            if (kl == 'b' && !strcmp(e->op, "+")) {
+                /* b + c (#188): a new Bytes of the two, b's bytes and then c's;
+                   b a Bytes or text, c a Bytes, text or a byte, one a Bytes; a
+                   Bytes in a variable is copied, one an expression gives taken */
+                Type *la = value_type(e->a), *lb = value_type(e->b);
+                if (is_string(la) || is_string(lb))
+                    error_at(t->pos, "'+' joins two Bytes or two Strings: a String's bytes are 's.bytes^', and a Bytes "
+                                     "of text is 'Bytes(&s)'");
+                if (!is_bytes(la) && !is_text_expr(e->a) && !(la && is_cstr(la)))
+                    error_at(e->a->pos, "'+' of a Bytes starts with a Bytes or text, and this is %s; a byte first is "
+                                        "'Bytes([n]) + b'",
+                             la ? kelvin_type(la) : number_expr(e->a) ? "a number" : "not one");
+                Expr *lit = e->b->kind == E_PREFIX && !strcmp(e->b->op, "-") ? e->b->a : e->b;
+                bool byte = !is_bytes(lb) && (number_expr(e->b) || (lb && lb->kind == T_BASE && number_kind(lb) &&
+                                                                   strcmp(number_kind(lb), "f64")));
+                if (byte && lit->kind == E_LITERAL && isdigit((unsigned char)lit->text[0]) &&
+                    (lit != e->b || strtoull(lit->text, NULL, 0) > 255))
+                    error_at(e->b->pos, "a byte of '+' is 0 to 255, and this is %s%s", lit != e->b ? "-" : "", lit->text);
+                if (!is_bytes(lb) && !byte && !is_text_expr(e->b) && !(lb && is_cstr(lb)))
+                    error_at(e->b->pos, "'+' of a Bytes joins a Bytes, text or a byte, and this is %s",
+                             lb ? kelvin_type(lb) : "not one");
+                Expr *c = new_expr(E_CALL, t->pos);
+                c->a = new_expr(E_IDENT, t->pos);
+                c->a->text = "Bytes";
+                c->op = "bytes_concat";
+                c->text = is_bytes(la) ? (owner_place(e->a) ? "copy" : "take") : "text";
+                Expr *b = e->b;
+                if (is_bytes(lb) && owner_place(b)) { /* a borrow: its bytes appended, it stays */
+                    Expr *pb = new_expr(E_PREFIX, t->pos);
+                    pb->op = "&";
+                    pb->a = b;
+                    b = pb;
+                }
+                list_push(&c->items, e->a);
+                list_push(&c->items, b);
+                lhs = c;
                 continue;
             }
             if (kl == 's' && !strcmp(e->op, "+")) {
@@ -4515,7 +4554,8 @@ static Type *value_type_of(Expr *e) {
     case E_COMPOUND:
         return e->type;
     case E_CALL: {
-        if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64") || !strcmp(e->op, "bytes_unescape"))) /* Bytes(...) (#54, #155, #167) */
+        if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64") || !strcmp(e->op, "bytes_unescape") ||
+                      !strcmp(e->op, "bytes_concat"))) /* Bytes(...) (#54, #155, #167), b + c (#188) */
             return base_type("Bytes", e->pos);
         if (e->op && (!strcmp(e->op, "string") || !strcmp(e->op, "string_concat"))) /* String(...) (#55), s + t (#183) */
             return base_type("String", e->pos);

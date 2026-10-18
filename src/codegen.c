@@ -591,6 +591,13 @@ static char *expr_bare(Expr *e) {
                 return strfmt("KV_BYTES_OF(%s)", expr(e->items.data[0]));
             return strfmt("kv_bytes_from(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
         }
+        if (e->op && !strcmp(e->op, "bytes_concat")) { /* b + c (#188): a new Bytes, b copied, taken or made of text */
+            Expr *a = e->items.data[0], *b = e->items.data[1];
+            const char *init = !strcmp(e->text, "copy") ? strfmt("kv_bytes_copy(&(%s))", expr(a))
+                               : !strcmp(e->text, "take") ? strfmt("(%s)", expr(a))
+                                                          : strfmt("kv_bytes_text(%s)", expr(a));
+            return strfmt("({ kv_bytes _kv_cat = %s; KV_BYTES_APPEND(&_kv_cat, %s); _kv_cat; })", init, expr(b));
+        }
         if (e->op && !strcmp(e->op, "string_concat")) { /* s + t (#183): a new String, s copied, taken or made of text */
             Expr *a = e->items.data[0], *b = e->items.data[1];
             const char *init = !strcmp(e->text, "copy") ? strfmt("kv_string_copy(&(%s))", expr(a))
