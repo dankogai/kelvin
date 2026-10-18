@@ -37,7 +37,7 @@ the design decisions, numbered `#N` throughout, are in
   `nullptr`, `.next`, `.prev`, `.isNull`.
 - [arrays.md](arrays.md): `[T]` and `[T](N)`, `[...]` initializers,
   `.count`; `Array<T>`, `$[T]`, the growable one on the heap, with
-  `map`, `filter`, `reduce`, `sort` and `sorted`.
+  `map`, `filter`, `reduce`, `sort`, `sorted`, `reverse` and `reversed`.
 - [dictionaries.md](dictionaries.md): `Dictionary<K, V>`, `${K: V}`:
   entries, lookup, `keys` and `values`, walking.
 - [sets.md](sets.md): `Set<T>`, `${T}`: elements, `has`, `insert`, the

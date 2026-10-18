@@ -1035,6 +1035,18 @@ static char *expr_bare(Expr *e) {
                           f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, value,
                           other);
         }
+        if (e->op && !strncmp(e->op, "array_revers", 12)) {
+            /* xs.reverse(), xs.reversed() (#186): the elements swapped from
+               both ends, moved as they are */
+            const char *rev = "do { __auto_type _kv_rp = %s; for (size_t _kv_ri = 0, _kv_rj = _kv_rp->count; _kv_ri + 1 < _kv_rj; "
+                              "_kv_ri++, _kv_rj--) { __typeof__(*_kv_rp->at) _kv_rt = _kv_rp->at[_kv_ri]; "
+                              "_kv_rp->at[_kv_ri] = _kv_rp->at[_kv_rj - 1]; _kv_rp->at[_kv_rj - 1] = _kv_rt; } } while (0)";
+            if (!strcmp(e->op, "array_reverse"))
+                return strfmt(rev, strfmt("&(%s)", expr(e->a)));
+            const char *init = !strcmp(e->op, "array_reversed_tmp") ? strfmt("(%s)", expr(e->a))
+                                                                    : strfmt("%s_copy(&(%s))", e->from->cname, expr(e->a));
+            return strfmt("({ %s _kv_ro = %s; %s; _kv_ro; })", e->from->cname, init, strfmt(rev, "&_kv_ro"));
+        }
         if (e->op && !strncmp(e->op, "array_sort", 10)) {
             /* xs.sort(), xs.sorted() (#185): a stable merge sort of the
                elements, bottom up, through a buffer as large, the elements

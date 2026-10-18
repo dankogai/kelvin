@@ -216,6 +216,10 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     comparator, which gets copies.
   - `.sorted()` of an Array an expression gives sorts it and hands it
     back, so it chains: `xs.sorted { $0 > $1 }.map { $0 * 10 }`.
+- **`xs.reverse()`** reverses a `var` Array in place, and
+  **`xs.reversed()`** gives a new one (#186), `$[1, 2, 3].reversed()` is
+  `[3, 2, 1]`; `.reversed()` of an Array an expression gives reverses
+  that one, so it chains: `xs.sorted().reversed()`.
 - **Not yet:** `==` and searching.
 
 
@@ -242,12 +246,14 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each element, from `init`, of `init`'s type (#184) |
 | | `.sort()`, `.sort(f)`, `.sort { ... }` | sorts a `var` Array in place, by `f`, true where its first goes before its second, or by `<` (#185) |
 | | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
+| | `.reverse()` | reverses a `var` Array in place (#186) |
+| | `.reversed()` | a new Array in the other order; of an Array an expression gives, that one reversed (#186) |
 | | `for x in xs` | each element, a let the Array owns |
 | | `print(xs)`, `xs.pretty` | `[1, 2, 3]`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | 24, `Array<i64>` |
 
 No `.cstr` for either: `print` shows an `Array<T>`, and `.pretty` is its
-text, indented (#123, #124). `map`, `filter`, `reduce` and `sorted` take
+text, indented (#123, #124). `map`, `filter`, `reduce`, `sorted` and `reversed` take
 an Array an expression gives too, so they chain, and give an owner
 element to their function as a copy. The general properties are in
 [properties.md](properties.md), the ownership rules in

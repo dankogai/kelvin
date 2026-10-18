@@ -217,6 +217,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 183 | `s + t` on a String is a new String of the two, either side a String, text or a `uchr`, one a String: a String in a variable copied and kept, one an expression gives taken, so that `s + t + u` frees what it made; a number is refused, with a template to show it. `.map` of an Array an expression gives maps it and frees it, so that maps chain | — | `xs.map{ $\`${$0}\` }.map{ $0 + $"+" }` | 2026-10-19 |
 | 184 | `xs.filter(f)` and `xs.filter { ... }` of an Array: a new `Array<T>` of the elements `f` says true for, `f` giving a bool; `xs.reduce(init, f)` and `xs.reduce(init) { ... }`: the value of `f` of the value so far and each element, from `init`, of `init`'s type, an owner `init` moved in; both give an owner element to `f` as a copy and take an Array an expression gives, as `map` does | — | `xs.filter { $0 > 1 }.reduce(1) { $0 * $1 }` | 2026-10-19 |
 | 185 | `xs.sort()` sorts a var Array in place and `xs.sorted()` gives a new one, each with an optional comparator, `{ $0 < $1 }` or `(T, T):bool`, true where the first goes before the second, else by `<`: a number's, a `uchr`'s codepoint, the bytes of a String, a Bytes or a `cstr`, or a struct's own operator `<`, and an element with none a compile error; a stable merge sort; `.sorted()` of an Array an expression gives sorts it in place. `<`, `<=`, `>`, `>=` on two Strings or two Bytes, by their bytes | — | `$[3, 2, 1, 0].sorted{ $0 < $1 }` is `[0, 1, 2, 3]` | 2026-10-19 |
+| 186 | `xs.reverse()` reverses a var Array in place and `xs.reversed()` gives a new one, the elements in the other order, moved as they are; `.reversed()` of an Array an expression gives reverses that one, so that it chains | — | `$[3, 1, 2].sorted().reversed()` is `[3, 2, 1]` | 2026-10-19 |
 
 Notes:
 
@@ -778,6 +779,11 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (186) Agreed details: "now add `.reversed()` and `.reverse()` to
+  `Array` too." The pair of #185 without a comparator: in place on a
+  var, a new Array otherwise, an Array an expression gives reversed in
+  place and handed back (P198).
 
 - (185) Agreed details: "Now add `.sort()` and `.sorted()` to `Array`.
   .sort is mutating and .sorted creates a new sorted array.
@@ -2004,6 +2010,7 @@ says "as agreed".
 | P195 | Details of #183 | `s + t` is an E_CALL `string_concat`, `({ kv_string _kv_cat = kv_string_copy(&s) or (s) or KV_STRING_OF(s); KV_STRING_APPEND(&_kv_cat, t or &t); _kv_cat; })`; the cstr and uchr operator checks let `+` through where a String is on either side; `xs.map` of a temporary is `array_map_tmp`, the Array held in `_kv_mt` with its free as the cleanup | `+` of a Bytes waits for a request; the error test of a map of an Array an expression gives, from #182, is gone |
 | P196 | Details of #184 | `xs.filter(f)` is `({ ...; _kv_array_T _kv_mo = {0}; for (...) if (f(elem)) _kv_array_T_append(&_kv_mo, elem); _kv_mo; })`, an owner element copied for `f` and again for the new Array; `xs.reduce(init, f)` is `({ ...; U _kv_acc = init; for (...) _kv_acc = f(_kv_acc, elem); _kv_acc; })`, `f` taking the accumulator and giving the next, which moves an owner one through; the ops are `array_map`, `array_filter`, `array_reduce`, with `_tmp` for an Array an expression gives | an empty Array reduces to `init` |
 | P197 | Details of #185 | `xs.sort()` is a `do { ... } while (0)` merging runs of 1, 2, 4, ... between the elements and a buffer of `kv_alloc`, moving the elements as bits, and copying back if the result ended in the buffer; `xs.sorted()` is the same on `T_copy(&xs)`, or on the Array an expression gives; the comparison is `f(right, left)`, the elements copied for `f` where they own, `kv_string_cmp`, `kv_bytes_cmp`, `strcmp`, `.cp`, the struct's operator `<` by its C name, or C's `<`; `s < t` is `kv_string_cmp(&s, &t) < 0` | `kv_alloc` in runtime/bytes.c allocates or ends the program with "out of memory", as the runtime's other allocations do; an `Array<uchr>` still prints its elements as `{...}`, a gap of the printer, not of the sort |
+| P198 | Details of #186 | `xs.reverse()` is a `do { ... } while (0)` swapping `at[i]` and `at[j - 1]` from both ends; `xs.reversed()` the same on `T_copy(&xs)`, or on the Array an expression gives | the ops are `array_reverse`, `array_reversed` and `array_reversed_tmp` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

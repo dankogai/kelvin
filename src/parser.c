@@ -1907,6 +1907,32 @@ static Expr *parse_postfix_ops(Expr *e) {
                 e = x;
                 continue;
             }
+            if ((!strcmp(member, "reverse") || !strcmp(member, "reversed")) && call && value_type(e) &&
+                is_array_owner(unqualified(value_type(e)))) {
+                /* xs.reverse() in place, xs.reversed() a new Array (#186): the
+                   elements in the other order, moved as they are */
+                bool in_place = !strcmp(member, "reverse");
+                Type *at = unqualified(value_type(e));
+                bool temporary = !owner_place(e);
+                if (in_place && temporary)
+                    error_at(name->pos, "'.reverse' reverses an Array in place, and this one an expression gives would "
+                                        "be lost: bind it, or write '.reversed()'");
+                if (in_place && let_target(e))
+                    error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.reversed()'",
+                             let_target(e));
+                advance();
+                if (!is_p(peek(), ")"))
+                    error_at(peek()->pos, "'.%s' takes nothing: '.%s()'", member, member);
+                expect_p(")");
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->from = at;
+                x->text = member;
+                x->op = in_place ? "array_reverse" : temporary ? "array_reversed_tmp" : "array_reversed";
+                x->type = in_place ? NULL : at;
+                e = x;
+                continue;
+            }
             if ((!strcmp(member, "sort") || !strcmp(member, "sorted")) && value_type(e) &&
                 is_array_owner(unqualified(value_type(e))) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
@@ -4467,7 +4493,8 @@ static Type *value_type_of(Expr *e) {
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
-                      !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10)))
+                      !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10) ||
+                      !strncmp(e->op, "array_revers", 12)))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};

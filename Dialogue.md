@@ -4765,3 +4765,14 @@ merge sort written inline; `<` and the other orderings on Strings and
 Bytes. Details are provisional P197.
 
 There are 806 tests, and all pass with clang and with gcc 15.
+
+### 229. reverse and reversed
+
+> now add `.reversed()` and `.reverse()` to `Array` too
+
+**Claude** added #186: `xs.reverse()` in place on a var, `xs.reversed()`
+a new Array, reversing an Array an expression gives in place so that it
+chains, with their rows in the table of arrays.md. Details are
+provisional P198.
+
+There are 808 tests, and all pass with clang and with gcc 15.
