@@ -136,6 +136,7 @@ var m = Array([[0], [1, 2]])     // a [...] among the elements is an Array in tu
 for i in 0..<5 { xs += i * i }   // append: an element, &other (its elements), an Array an expression gives
 xs.insert(0, 100)
 xs.remove(1, 2)
+var squares = xs.map { $0 * $0 }  // a new Array of f of each element (#182)
 let last = xs.pop()
 println(xs.count, " ", xs[0], " ", xs.capacity)
 let ys = Array(fixed)            // a copy of a fixed array, [i64](3); Array(&xs) a copy of an Array

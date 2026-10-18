@@ -212,6 +212,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Methods:** `append` (also `+=`, of text, a borrow `&t`, a `uchr`,
   or a String an expression gives), `clear`, `reserve`, `compact`,
   `copy`, `escape` and `unescape`.
+- **`s + t`** (#183) is a new String of the two, either side a String,
+  text or a `uchr`, one a String: `s + "!"`, `"x" + s`, `s + t + u`. A
+  String in a variable is copied and stays; one an expression gives is
+  taken, so that a chain frees what it made. `s += t` still appends in
+  place, and a number is shown with a template, `` $`${n}` ``.
 - **Searching** (#177): `s.find(text)` is the codepoint index of the
   first `text` in `s`, or -1; `s.has(text)`, `s.starts(text)` and
   `s.ends(text)` are whether it is there, at the start, at the end;
@@ -254,6 +259,7 @@ to come.
 | | `.cstr` | a borrow of the text |
 | | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |
 | | `.clear()`, `.reserve(n)`, `.compact()`, `.copy()` | changes in place; a new String |
+| | `s + t` | a new String of the two, a String, text or a `uchr` on either side (#183) |
 | | `.find(text)`, `.find(&t)` | the codepoint index of the first `text`, or -1 (#177) |
 | | `.has(text)`, `.starts(text)`, `.ends(text)` | whether `text` is there, at the start, at the end; `&t` too |
 | | `.trim()` | a new String without the blanks at either end |

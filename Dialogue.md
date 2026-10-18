@@ -4708,3 +4708,43 @@ the function's own arguments; in a method it says to write
 `:=`, as a reference is. Details are provisional P193.
 
 There are 793 tests, and all pass with clang and with gcc 15.
+
+### 225. map on an Array
+
+> can we implement generic `.map()` for `Array`?
+
+**Claude** answered yes and added #182: `xs.map(f)` and `xs.map { ... }`
+give a new Array of `f` of each element, of whatever type `f` gives,
+an owner element given to `f` as a copy; the result of a map's
+one-expression function is inferred from arithmetic where its operands
+agree, `$0 * 2`, which Kelvin had not done; an `Array<T>(...)` may now
+start a statement. Details are provisional P194.
+
+There are 796 tests, and all pass with clang and with gcc 15.
+
+### 226. Chained maps, and `+` on a String
+
+> This is a little inconvenient. Can you make it chainable? (on `var xss
+> = xs.map{ $\`${$0}\` }.map{ $0 + "+" }`)
+
+> `.map{ $0 + $"+" }`. `String` must have a `+` operator that concats
+
+**Claude** added #183: a map of an Array an expression gives maps it
+and frees it, so that maps chain, and `s + t` is a new String of the
+two, a String, text or a `uchr` on either side, copying a String in a
+variable and taking one an expression gives. Details are provisional
+P195.
+
+There are 798 tests, and all pass with clang and with gcc 15.
+
+### 227. filter and reduce on an Array
+
+> Now implement `.filter()` and `.reduce()` for `Array` as well.
+
+**Claude** added #184 in Swift's spelling, the start of `reduce` first
+so that the function trails: `xs.filter { $0 % 2 == 0 }` and
+`xs.reduce(0) { $0 + $1 }`, each with a named function too, owner
+elements given as copies, an owner start moved in, and chains with
+`map` over Arrays an expression gives. Details are provisional P196.
+
+There are 802 tests, and all pass with clang and with gcc 15.

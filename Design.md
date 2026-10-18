@@ -213,6 +213,9 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 179 | A method or an attribute of the program is found on a value of its own type: a value whose type kelvinc sees as a pointer, an array or a function has none, so a struct's `count`, `has` or `isNull` cannot catch the built-in one of a `cstr`, an array or a pointer; the fallback to the only method of a name stays for a value whose type kelvinc cannot see. 5000 mutated sources crashed and hung nothing | — | `text.count` of a `cstr` beside `extend tally { let count:int64 }` | 2026-10-18 |
 | 180 | A function may be defined inside a function, `let fib(n:int64):int64 { ... }` in a body: a function of the program as one at the top level is, in C a static function `_kv_outer_name` written before the function around it, calling itself, other functions and the globals; its name is the block's, hiding one outside and gone at the block's end; it sees its parameters, not the locals around it, as an anonymous function does not; it has a body | — | `let fib(n:int64):int64 { n < 2 ? n : fib(n - 2) + fib(n - 1) }` in main | 2026-10-18 |
 | 181 | `$(...)` calls the function it is written in, as JS's `arguments.callee`: a function at the top level, one inside a function, an anonymous one, or a function of a type, with the function's own arguments in number and type and the owner rules of any call; in a method or an attribute it is an error that says to write `self.name(...)` | — | `let fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }` | 2026-10-18 |
+| 182 | `xs.map(f)` and `xs.map { ... }` of an Array: a new `Array<U>` of `f` of each element, `U` whatever `f` gives, an owner too; an owner element is given to `f` as a copy, which `f` owns, and `xs` stays; the Array is a place. A `.map` function's result, an Array's or an Optional's, is inferred from arithmetic too where its operands are of one number type, or that type and a literal, `$0 * 2` of an `int64`; elsewhere arithmetic still infers nothing. `Array<T>(...)`, `Dictionary` and `Set` makers may start a statement | — | `var doubled = xs.map { $0 * 2 }` | 2026-10-19 |
+| 183 | `s + t` on a String is a new String of the two, either side a String, text or a `uchr`, one a String: a String in a variable copied and kept, one an expression gives taken, so that `s + t + u` frees what it made; a number is refused, with a template to show it. `.map` of an Array an expression gives maps it and frees it, so that maps chain | — | `xs.map{ $\`${$0}\` }.map{ $0 + $"+" }` | 2026-10-19 |
+| 184 | `xs.filter(f)` and `xs.filter { ... }` of an Array: a new `Array<T>` of the elements `f` says true for, `f` giving a bool; `xs.reduce(init, f)` and `xs.reduce(init) { ... }`: the value of `f` of the value so far and each element, from `init`, of `init`'s type, an owner `init` moved in; both give an owner element to `f` as a copy and take an Array an expression gives, as `map` does | — | `xs.filter { $0 > 1 }.reduce(1) { $0 * $1 }` | 2026-10-19 |
 
 Notes:
 
@@ -774,6 +777,36 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (184) Agreed details: "Now implement `.filter()` and `.reduce()` for
+  `Array` as well." Spelled as Swift has them, since Kelvin's trailing
+  functions are Swift's: `reduce` takes its start first, so the
+  function trails, `xs.reduce(0) { $0 + $1 }`, where JS writes
+  `xs.reduce((a, b) => a + b, 0)`. The map's branch and codegen of
+  #182 became one for the three; the function's result needs no
+  inference for these, a bool for filter and the start's type for
+  reduce, which the context type gives it (P196).
+
+- (183) Agreed details: "This is a little inconvenient. Can you make it
+  chainable?" on `xs.map{ $\`${$0}\` }.map{ $0 + "+" }`, and then
+  "`.map{ $0 + $"+" }`. `String` must have a `+` operator that
+  concats". The map of a temporary holds it in a variable with
+  `cleanup`, as an Optional's map holds its own, and frees it when the
+  map is done; `+` on a String builds a new String from the left
+  side, copied from a variable or taken from an expression, and
+  appends the right side by `KV_STRING_APPEND`, borrowed from a
+  variable or taken, as `+=` takes it (P195).
+
+- (182) Agreed details: "can we implement generic `.map()` for
+  `Array`?" The Optional's and the Result's `.map` of #80 already
+  inferred the result type from the function, so the Array's is built
+  the same way, a statement expression that appends `f` of each
+  element to a new Array; an owner element would be moved out of the
+  Array by value, so `f` gets a copy, as `s.match(&re) { }` gives the
+  Match it owns. `$0 * 2` gave no type, since arithmetic infers none
+  (#47); for a `.map` function alone it now does where the operands
+  agree, which an Optional's map gains too, so the error test of #80
+  takes a float literal times an integer instead (P194).
 
 - (181) Agreed details: "Let me add self-recursion syntax: `let
   fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }`. `$()` is JS
@@ -1955,6 +1988,9 @@ says "as agreed".
 | P191 | Details of #179 | `method_named` returns NULL where the receiver's type is seen and is not `T_BASE`; `method_candidates` already asked for `T_BASE`; the fuzz is a script of the session, not of the tree, run by hand | a fuzz in the tree would be a release check to add if one is wanted; the mutations are random, so a run is not repeatable without its seed |
 | P192 | Details of #180 | `parse_nested_fn` saves the parser's state as `parse_anon_fn` does, sets `anon_start` past the function's own name, and calls `parse_fn` with `nested_outer` set, which marks `Decl.nested_in`; the Decl goes to `anon_fns`, so `add_top_decl` writes its prototype before and its definition after the enclosing declaration, the prototype copy named with its original after `name_functions` runs; `function_named` finds a nested function by the binding of its name, `Decl.bind_index`, and `overloads_of` gives that one alone where the name is bound in a block | the C name is `_kv_outer_name`, numbered for another of the name in the same outer function; a nested function is not overloaded, a second of the name in a block hiding the first |
 | P193 | Details of #181 | `parse_primary` turns `$` before `(` into an E_IDENT of `parsing_fn`'s name with `target` the declaration and `op` "callee"; `resolve_call` sees the op first, checks the count of arguments, and resolves the call to that declaration, whose C name the codegen writes: `_kv_main_fn` for an anonymous function, `_kv_main_fib` for a nested one, `T__name` for a function of a type | `$` followed by anything else is as before: `$0`, `$[k]`, `$"..."`, `$[...]`, `${...}`, `$/.../` |
+| P194 | Details of #182 | `xs.map(f)` is `({ __auto_type _kv_ms = &(xs); _kv_array_U _kv_mo = {0}; for (...) _kv_array_U_append(&_kv_mo, f(elem)); _kv_mo; })`, `elem` the element or `T_copy(&elem)` for an owner; `arithmetic_type` in the parser gives the result of `+ - * / %`, the bit operators and the shifts, unary `-` and `~`, of one seen number type, or with an integer literal, or a floating one with f32 or f64, and `parse_anon_fn` tries it after `inferred_type` where a map infers its result | `filter`, `reduce` and the like wait for a request; a `.map` of a fixed array is not here, an Array's alone |
+| P195 | Details of #183 | `s + t` is an E_CALL `string_concat`, `({ kv_string _kv_cat = kv_string_copy(&s) or (s) or KV_STRING_OF(s); KV_STRING_APPEND(&_kv_cat, t or &t); _kv_cat; })`; the cstr and uchr operator checks let `+` through where a String is on either side; `xs.map` of a temporary is `array_map_tmp`, the Array held in `_kv_mt` with its free as the cleanup | `+` of a Bytes waits for a request; the error test of a map of an Array an expression gives, from #182, is gone |
+| P196 | Details of #184 | `xs.filter(f)` is `({ ...; _kv_array_T _kv_mo = {0}; for (...) if (f(elem)) _kv_array_T_append(&_kv_mo, elem); _kv_mo; })`, an owner element copied for `f` and again for the new Array; `xs.reduce(init, f)` is `({ ...; U _kv_acc = init; for (...) _kv_acc = f(_kv_acc, elem); _kv_acc; })`, `f` taking the accumulator and giving the next, which moves an owner one through; the ops are `array_map`, `array_filter`, `array_reduce`, with `_tmp` for an Array an expression gives | an empty Array reduces to `init` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

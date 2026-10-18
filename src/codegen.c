@@ -580,6 +580,13 @@ static char *expr_bare(Expr *e) {
                 return strfmt("KV_BYTES_OF(%s)", expr(e->items.data[0]));
             return strfmt("kv_bytes_from(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
         }
+        if (e->op && !strcmp(e->op, "string_concat")) { /* s + t (#183): a new String, s copied, taken or made of text */
+            Expr *a = e->items.data[0], *b = e->items.data[1];
+            const char *init = !strcmp(e->text, "copy") ? strfmt("kv_string_copy(&(%s))", expr(a))
+                               : !strcmp(e->text, "take") ? strfmt("(%s)", expr(a))
+                                                          : strfmt("KV_STRING_OF(%s)", expr(a));
+            return strfmt("({ kv_string _kv_cat = %s; KV_STRING_APPEND(&_kv_cat, %s); _kv_cat; })", init, expr(b));
+        }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
         if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) /* IO.popen (#87), straight (#110) */
@@ -1027,6 +1034,32 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s%s _kv_t = %s; _kv_t.tag == %d ? %s : %s; })",
                           f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, value,
                           other);
+        }
+        if (e->op && e->type && (!strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
+                                 !strncmp(e->op, "array_reduce", 12))) {
+            /* xs.map(f) (#182), xs.filter(f), xs.reduce(init, f) (#184): a loop
+               over the elements in a statement expression; an owner element is
+               copied for f, and for the new Array where filter keeps it; an
+               Array an expression gives is held in _kv_mt and freed (#183) */
+            bool tmp = strstr(e->op, "_tmp") != NULL;
+            const char *copy = owner_copy(e->from->elem);
+            const char *elem = copy ? strfmt("%s(&_kv_ms->at[_kv_mi])", copy) : "_kv_ms->at[_kv_mi]";
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            owner_free(e->from), e->from->cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *f = expr(e->items.data[0]);
+            const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++)";
+            if (!strncmp(e->op, "array_map", 9))
+                return strfmt("({ %s %s _kv_mo = {0}; %s %s_append(&_kv_mo, %s(%s)); _kv_mo; })", head, e->type->cname,
+                              loop, e->type->cname, f, elem);
+            if (!strncmp(e->op, "array_filter", 12))
+                return strfmt("({ %s %s _kv_mo = {0}; %s if (%s(%s)) %s_append(&_kv_mo, %s); _kv_mo; })", head,
+                              e->type->cname, loop, f, elem, e->type->cname, elem);
+            Expr *init = e->items.data[1];
+            const char *take = local_owner(init) ? owner_take(e->type) : NULL;
+            const char *start = take ? strfmt("%s(&%s)", take, c_name(init->text)) : expr(init);
+            return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
+                          start, loop, f, elem);
         }
         if (e->op && !strcmp(e->op, "record_copy") && e->type) { /* s.copy() of a struct that owns (#61) */
             Decl *r = kelvin_record(e->type->name);

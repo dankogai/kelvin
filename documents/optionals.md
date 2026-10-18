@@ -89,7 +89,9 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   - An owner made on the spot (`x == $"hi"`) is not taken, since
     nothing would free it: bind it to a variable. See
     [results.md](results.md).
-- **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`,
+- **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`;
+  an Array has one too, `xs.map(f)` (#182), and both infer the result
+  of `{ $0 * 2 }` from arithmetic of one number type,
   else `none`.
   - `f` takes the `T` and gives a `U`, a function by name, a function
     value, or an anonymous function, `x.map { $0 > 2 }` or

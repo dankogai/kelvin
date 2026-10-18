@@ -1305,6 +1305,8 @@ static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
 static Decl *parse_nested_fn(Pos pos);
+static Type *arithmetic_type(Expr *e);
+static const char *number_kind(Type *t);
 static int call_args_ahead(int i);
 static Type *method_param_type(List *cands, Decl *m, int k);
 static bool method_takes_none(Expr *recv, const char *name);
@@ -1794,6 +1796,114 @@ static Expr *parse_postfix_ops(Expr *e) {
                 list_push(&x->items, f);
                 x->from = vt;
                 x->target = vr;
+                e = x;
+                continue;
+            }
+            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce")) && value_type(e) &&
+                is_array_owner(unqualified(value_type(e))) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
+                /* xs.map(f), xs.map { ... } (#182): an Array<U> of f of each
+                   element, U f's result, whatever it is; xs.filter { ... } (#184)
+                   an Array<T> of the elements f says true for; xs.reduce(init)
+                   { ... } (#184) the value of f of the value so far and each
+                   element, from init, of init's type. An element that is an
+                   owner is given to f as a copy, which f owns; an Array an
+                   expression gives is held and freed after (#183) */
+                bool is_map = !strcmp(member, "map"), is_filter = !strcmp(member, "filter");
+                Type *at = unqualified(value_type(e));
+                bool temporary = !owner_place(e);
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                Expr *f = NULL, *init = NULL;
+                Type *acc = NULL;
+                bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                if (!is_map && !is_filter) {
+                    if (!call)
+                        error_at(name->pos, "'.reduce' takes the value to start from: write '.reduce(init) { ... }' or "
+                                            "'.reduce(init, f)'");
+                    advance();
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")") || is_p(peek(), "{"))
+                        error_at(peek()->pos, "'.reduce' takes the value to start from first: '.reduce(0) { $0 + $1 }'");
+                    init = parse_assign();
+                    acc = value_type(init) ? unqualified(value_type(init)) : arg_type(init);
+                    if (!acc)
+                        error_at(init->pos, "'.reduce' starts from a value of a type kelvinc sees: write it, as in "
+                                            "'0 as int64' or 'x:T'");
+                }
+                Type *ctx = xcalloc(1, sizeof *ctx);
+                ctx->kind = T_FUNC;
+                ctx->pos = name->pos;
+                if (acc)
+                    list_push(&ctx->params, acc);
+                list_push(&ctx->params, at->elem);
+                ctx->elem = is_filter ? base_type("bool", name->pos) : acc; /* map's is inferred */
+                int arity = acc ? 2 : 1;
+                if (acc) { /* after init: ', f)' or ')' and a trailing function */
+                    if (accept_p(",")) {
+                        f = is_p(peek(), "{") ? anon_arg(ctx, arity, 1, x, false) : parse_assign();
+                        expect_p(")");
+                    } else {
+                        expect_p(")");
+                        if (!is_p(peek(), "{") || brace_ends_condition || line_starts_statement())
+                            error_at(peek()->pos, "'.reduce(init)' takes a function after it: '.reduce(0) { $0 + $1 }'");
+                        f = anon_arg(ctx, arity, 1, x, true);
+                        if (at_statement_level())
+                            trailing_end = cur;
+                    }
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                } else if (call) {
+                    advance();
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")"))
+                        error_at(peek()->pos, "'.%s' takes a function of an element: write '.%s(f)' or '.%s { ... }'",
+                                 member, member, member);
+                    infer_anon_result = is_map;
+                    f = is_p(peek(), "{") ? anon_arg(ctx, 1, 0, x, false) : parse_assign();
+                    infer_anon_result = false;
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.%s' takes one function", member);
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                    if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())
+                        error_at(peek()->pos, "'.%s' takes one function, and this would be a second", member);
+                } else {
+                    infer_anon_result = is_map;
+                    f = anon_arg(ctx, 1, 0, x, true);
+                    infer_anon_result = false;
+                    if (at_statement_level())
+                        trailing_end = cur;
+                }
+                Type *ft = value_type(f);
+                if (!ft || ft->kind != T_FUNC || ft->params.len != arity || !ft->elem)
+                    error_at(f->pos, "'.%s' takes a function of %s, with a result, and this is %s", member,
+                             acc ? "two parameters, the value so far and an element" : "one parameter, an element",
+                             ft ? kelvin_type(ft) : "not one");
+                if (strcmp(kelvin_type(unqualified(ft->params.data[arity - 1])), kelvin_type(at->elem)))
+                    error_at(f->pos, "'.%s' calls its function with each element, %s, and this takes %s", member,
+                             kelvin_type(at->elem), kelvin_type(ft->params.data[arity - 1]));
+                if (is_filter && strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
+                    error_at(f->pos, "'.filter' takes a function that says whether to keep an element, a bool, and this "
+                                     "gives %s",
+                             kelvin_type(ft->elem));
+                if (acc && (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(acc)) ||
+                            strcmp(kelvin_type(unqualified(ft->elem)), kelvin_type(acc))))
+                    error_at(f->pos, "'.reduce' calls its function with the value so far, %s, and keeps what it gives, "
+                                     "and this is %s",
+                             kelvin_type(acc), kelvin_type(ft));
+                if (init)
+                    move_argument(init, acc, "'.reduce'"); /* an owner to start from moves in (O5) */
+                x->type = is_map ? array_type(name, unqualified(ft->elem)) : is_filter ? at : acc;
+                x->op = strfmt("array_%s%s", member, temporary ? "_tmp" : "");
+                x->from = at;
+                list_push(&x->items, f);
+                if (init)
+                    list_push(&x->items, init);
                 e = x;
                 continue;
             }
@@ -3589,11 +3699,13 @@ static Expr *parse_binary(int min_prec) {
             require_bool(e->b);
         }
         if ((!strcmp(e->op, "+") || !strcmp(e->op, "-")) &&
+            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)))) && /* s + "x" (#183) */
             ((is_cstr(value_type(e->a)) && !is_cstr(value_type(e->b))) ||
              (!strcmp(e->op, "+") && is_cstr(value_type(e->b)))))
             error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
                              "'var p:u8^ := s'");
-        if (is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) {
+        if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
+            !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s + c (#183) */
             /* a uchr compares by its codepoint, with a uchr or a number
                (#56); it has no arithmetic */
             if (!is_comparison(e->op))
@@ -3685,13 +3797,45 @@ static Expr *parse_binary(int min_prec) {
                 lhs = m;
                 continue;
             }
+            if (kl == 's' && !strcmp(e->op, "+")) {
+                /* s + t (#183): a new String of the two, s's text and then t's;
+                   either may be a String, text, or a uchr, one a String; a
+                   String in a variable is copied, one an expression gives is
+                   taken, so that s + t + u frees what it made */
+                Expr *sides[2] = {e->a, e->b};
+                for (int k = 0; k < 2; k++) {
+                    Type *st = value_type(sides[k]);
+                    if (!is_string(st) && !is_uchr(st) && !is_text_expr(sides[k]) && !(st && is_cstr(st)))
+                        error_at(sides[k]->pos, "'+' of a String joins text: a String, a cstr or a uchr, and this is %s; "
+                                                "show a number with a template, $`${n}`, or String(n)",
+                                 st ? kelvin_type(st) : number_expr(sides[k]) ? "a number" : "not text");
+                }
+                if (!is_string(value_type(e->a)) && is_uchr(value_type(e->a)))
+                    error_at(e->a->pos, "'+' of a String starts with a String or text: write $\"\" + c, or String(c)");
+                Expr *c = new_expr(E_CALL, t->pos);
+                c->a = new_expr(E_IDENT, t->pos);
+                c->a->text = "String";
+                c->op = "string_concat";
+                c->text = is_string(value_type(e->a)) ? (owner_place(e->a) ? "copy" : "take") : "text";
+                Expr *b = e->b;
+                if (is_string(value_type(b)) && owner_place(b)) { /* a borrow: its text appended, it stays */
+                    Expr *pb = new_expr(E_PREFIX, t->pos);
+                    pb->op = "&";
+                    pb->a = b;
+                    b = pb;
+                }
+                list_push(&c->items, e->a);
+                list_push(&c->items, b);
+                lhs = c;
+                continue;
+            }
             if (tn[0] == 'A' || tn[0] == 'D' || (tn[0] == 'S' && tn[1] == 'e'))
                 error_at(t->pos, "%s has no operator '%s': compare its %s",
                          tn[0] == 'A' ? "an Array" : tn[0] == 'D' ? "a Dictionary" : "a Set", e->op,
                          tn[0] == 'D' ? "entries" : "elements");
             if (strcmp(e->op, "==") && strcmp(e->op, "!="))
-                error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=", tn,
-                         e->op);
+                error_at(t->pos, "a %s has no operator '%s': compare with == and !=, append with .append or +=%s", tn,
+                         e->op, kl == 's' ? ", join with +" : "");
             if (!ka || !kb || strcmp(ka, kb) || !owner_place(e->a) || !owner_place(e->b))
                 error_at(t->pos, "a %s compares with another %s, both in variables", tn, tn);
             Expr *eq = new_expr(E_CALL, t->pos);
@@ -4136,7 +4280,7 @@ static Type *value_type_of(Expr *e) {
     case E_CALL: {
         if (e->op && (!strcmp(e->op, "bytes") || !strcmp(e->op, "bytes_from_base64") || !strcmp(e->op, "bytes_unescape"))) /* Bytes(...) (#54, #155, #167) */
             return base_type("Bytes", e->pos);
-        if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
+        if (e->op && (!strcmp(e->op, "string") || !strcmp(e->op, "string_concat"))) /* String(...) (#55), s + t (#183) */
             return base_type("String", e->pos);
         if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
             return e->type;
@@ -4205,8 +4349,10 @@ static Type *value_type_of(Expr *e) {
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
-        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map")))
-            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81) */
+        if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
+                      !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
+                      !strncmp(e->op, "array_reduce", 12)))
+            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
             for (int i = 0; typed[i]; i++)
@@ -8060,6 +8206,45 @@ static Stmt *parse_fn_body(Token *open) {
     return s;
 }
 
+/* The type of arithmetic for the result of a .map function (#182), where
+   kelvinc sees it without C's promotions: the one number type of both
+   operands, or of one where the other is a literal it fits (an integer
+   literal with any number type, a floating one with f32 or f64); a
+   unary - or ~ keeps its operand's; NULL otherwise, which asks for the
+   result to be written. Elsewhere arithmetic infers nothing (#47). */
+static Type *arithmetic_type(Expr *e) {
+    if (!e)
+        return NULL;
+    if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "~")))
+        return arithmetic_type(e->a);
+    Type *t = value_type(e);
+    if (t && t->kind == T_BASE && number_kind(t))
+        return t;
+    if (e->kind != E_BINARY)
+        return NULL;
+    static const char *ops[] = {"+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", NULL};
+    bool arith = false;
+    for (int i = 0; ops[i]; i++)
+        arith = arith || !strcmp(e->op, ops[i]);
+    if (!arith)
+        return NULL;
+    bool la = e->a->kind == E_LITERAL, lb = e->b->kind == E_LITERAL;
+    Type *ta = la ? NULL : arithmetic_type(e->a), *tb = lb ? NULL : arithmetic_type(e->b);
+    if (!strcmp(e->op, "<<") || !strcmp(e->op, ">>"))
+        return ta; /* the left operand's type */
+    if (ta && tb)
+        return !strcmp(kelvin_type(ta), kelvin_type(tb)) ? ta : NULL;
+    Type *seen = ta ? ta : tb;
+    Expr *lit = ta ? e->b : e->a;
+    if (!seen || lit->kind != E_LITERAL)
+        return NULL;
+    bool floating = strchr(lit->text, '.') || ((strchr(lit->text, 'e') || strchr(lit->text, 'E')) && strncmp(lit->text, "0x", 2));
+    bool seen_float = !strcmp(number_kind(seen), "f64");
+    if (lit->text[0] == '\'' || !strcmp(lit->text, "true") || !strcmp(lit->text, "false") || !isdigit((unsigned char)lit->text[0]))
+        return NULL;
+    return floating && !seen_float ? NULL : seen;
+}
+
 /* An anonymous function's C name (#38): _kv_, the top-level declaration
    it is written in, and fn, numbered 1, 2, ... when it repeats, as in
    _kv_main_fn and _kv_main_fn1 */
@@ -8195,6 +8380,8 @@ static Expr *parse_anon_fn(Type *ctx) {
             error_at(open->pos, "the function of '.map' gives a value: one expression, as in '{ $0 + 1 }', or written "
                                 "parameters and a result, as in '{ (v:i64):i64 in ... }'");
         d->ret = inferred_type(only->expr, only->expr->pos);
+        if (!d->ret)
+            d->ret = arithmetic_type(only->expr); /* $0 * 2 of an i64 (#182): the operands' one number type */
         if (!d->ret)
             error_at(only->expr->pos, "the result of this function is not a type kelvinc sees: write its parameters "
                                       "and result, as in '{ (v:i64):i64 in v * 2 }', or convert the value, as in "
@@ -9114,6 +9301,8 @@ static Stmt *parse_stmt_here(void) {
     reject_c_declaration();
     bool call_like = (is_converter(t) && is_p(peek2(), "(")) ||
                      ((!strcmp(t->text, "String") || !strcmp(t->text, "Bytes")) && is_p(peek2(), "(")) || /* String(x) (#158) */
+                     ((!strcmp(t->text, "Array") || !strcmp(t->text, "Dictionary") || !strcmp(t->text, "Set")) &&
+                      (is_p(peek2(), "(") || is_p(peek2(), "<"))) || /* Array<T>(n) (#182) */
                      ((is_kw(t, "IO") || is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), ".")); /* IO.stdout... (#82, #94) */
     if (!call_like && (starts_type(t) || (tag_name_ahead(t, false) && !is_p(peek2(), "(") && !is_p(peek2(), ".")))) {
         const char *example = "T";

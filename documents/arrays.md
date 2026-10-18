@@ -182,6 +182,27 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   indented, a line for each element (#123, #124); Strings inside are
   quoted. `${xs}` in a template is the same text (#125), cut to the
   template's room, and whole in `` $`...` ``.
+- **`xs.map(f)`**, **`xs.map { ... }`** (#182) is a new Array of `f`
+  of each element, of whatever type `f` gives, an owner too: `xs.map
+  { $0 * 2 }`, `names.map { $0.count as int64 }`, `xs.map(label)`.
+  - An element that is an owner is given to `f` as a copy, which `f`
+    owns; `xs` stays as it was.
+  - The result of a one-expression function is inferred as for an
+    Optional's `.map`, and from arithmetic too where its operands are
+    of one number type, or that type and a literal: `$0 * 2` of an
+    `int64` is an `int64`. Otherwise write it, `{ (n:int64):float64 in
+    ... }`.
+  - Maps chain (#183): an Array an expression gives is mapped and then
+    freed, `xs.map { $`${$0}` }.map { $0 + $"+" }`, `make(4).map { ... }`.
+- **`xs.filter { ... }`** (#184) is a new Array of the elements the
+  function says true for, `xs.filter { $0 % 2 == 0 }`, `xs.filter(even)`.
+- **`xs.reduce(init) { ... }`** (#184) is the value of the function of
+  the value so far and each element, from `init`, of `init`'s type:
+  `xs.reduce(0) { $0 + $1 }`, `xs.reduce(0, add)`, `names.reduce($"")
+  { (s:String, n:String):String in s + n }`. An owner `init` in a
+  variable moves in.
+- All three give an owner element to the function as a copy, and chain:
+  `xs.filter { $0 > 1 }.map { $0 * $0 }.reduce(0) { $0 + $1 }`.
 - **Not yet:** `==`, sorting and searching.
 
 
