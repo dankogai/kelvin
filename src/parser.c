@@ -266,6 +266,8 @@ static Var *anon_word(const char *name, Decl **r, int *k) {
 static List anon_names;     /* their C names, _kv_main_fn and so on (#38) */
 static const char *top_name; /* the top-level declaration being parsed */
 static int anon_start = -1;
+static Decl *nested_outer; /* the function a function being parsed is defined inside (#180) */
+static List proto_copies;  /* the prototype copies of hoisted functions and their originals, in pairs (#180) */
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
 static int anon_kind;
 static int trailing_end = -1;
@@ -321,16 +323,31 @@ static Decl *function_named(const char *name) {
     for (int i = scope_names.len - 1; i >= 0; i--) {
         if (strcmp(scope_names.data[i], name))
             continue;
-        if (i >= global_end)
+        if (i >= global_end) { /* a local: a function defined in the block (#180), or a variable */
+            for (int j = functions.len - 1; j >= 0; j--) {
+                Decl *d = functions.data[j];
+                if (d->nested_in && !d->recv && d->bind_index == i && !strcmp(d->name, name))
+                    return d;
+            }
             return NULL;
+        }
         for (int j = 0; j < functions.len; j++) {
             Decl *d = functions.data[j];
-            if (!d->recv && !strcmp(d->name, name))
+            if (!d->recv && !d->nested_in && !strcmp(d->name, name))
                 return d;
         }
         return NULL;
     }
     return NULL;
+}
+
+/* Is name bound in a block, not at the top level? (#180) */
+static bool bound_in_block(const char *name) {
+    int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+    for (int i = scope_names.len - 1; i >= 0; i--)
+        if (!strcmp(scope_names.data[i], name))
+            return i >= global_end;
+    return false;
 }
 
 static Token *peek(void) { return &toks[cur]; }
@@ -1287,6 +1304,7 @@ static void move_args(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
+static Decl *parse_nested_fn(Pos pos);
 static int call_args_ahead(int i);
 static Type *method_param_type(List *cands, Decl *m, int k);
 static bool method_takes_none(Expr *recv, const char *name);
@@ -2355,9 +2373,10 @@ static Expr *parse_primary(void) {
         int si = binding_index("self");
         int locals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
         if (anon_start >= 0 && si >= locals && si < anon_start)
-            error_at(t->pos, "'.%s' is self.%s, and an anonymous function cannot use 'self' of the function around "
-                             "it: C has no closures, so pass it as an argument",
-                     peek2()->text, peek2()->text);
+            error_at(t->pos, "'.%s' is self.%s, and %s cannot use 'self' of the function around it: C has no "
+                             "closures, so pass it as an argument",
+                     peek2()->text, peek2()->text,
+                     parsing_fn && parsing_fn->nested_in ? "a function defined inside a function" : "an anonymous function");
         Expr *e = new_expr(E_IDENT, t->pos);
         e->text = "self";
         implicit_self_at = cur;
@@ -2436,15 +2455,34 @@ static Expr *parse_primary(void) {
         advance();
         return array_of_list(t, NULL);
     }
+    if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "(")) {
+        /* $(...) (#181): a call of the function being written, itself, as
+           JS's arguments.callee: a function at the top level, one inside a
+           function, an anonymous one, or a function of a type */
+        if (!parsing_fn)
+            error_at(t->pos, "'$(...)' calls the function around it, and here there is none");
+        if (parsing_fn->recv)
+            error_at(t->pos, "'$(...)' calls the function around it, and this is %s of %s: write 'self.%s(...)'",
+                     parsing_fn->attribute ? "an attribute" : "a method", parsing_fn->recv_name, parsing_fn->name);
+        advance();
+        Expr *e = new_expr(E_IDENT, t->pos);
+        e->text = parsing_fn->name;
+        e->target = parsing_fn;
+        e->op = "callee";
+        return e;
+    }
     if (t->kind == TK_PUNCT && t->text[0] == '$')
         return parse_dollar();
     if (t->kind == TK_IDENT && anon_start >= 0) {
-        /* a local of the function around an anonymous function (#32) */
+        /* a local of the function around an anonymous function (#32), or
+           around a function defined inside it (#180); a function so
+           defined is itself in scope */
         int i = binding_index(t->text);
         int locals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
-        if (i >= locals && i < anon_start)
-            error_at(t->pos, "an anonymous function cannot use '%s' of the function around it: C has no "
-                             "closures, so pass it as an argument, or make it a global",
+        if (i >= locals && i < anon_start && !function_named(t->text))
+            error_at(t->pos, "%s cannot use '%s' of the function around it: C has no closures, so pass it as an "
+                             "argument, or make it a global",
+                     parsing_fn && parsing_fn->nested_in ? "a function defined inside a function" : "an anonymous function",
                      t->text);
     }
     if (t->kind == TK_IDENT && binding_index(t->text) < 0 && !function_named(t->text) && !is_p(peek2(), ".")) {
@@ -4621,9 +4659,15 @@ static char *signature(Decl *d) {
    written, one per signature, in the order declared */
 static List overloads_of(const char *name, const char *op) {
     List out = {0};
+    if (!op && bound_in_block(name)) { /* a function defined in a block (#180): the one bound, hiding the top level's */
+        Decl *d = function_named(name);
+        if (d)
+            list_push(&out, d);
+        return out;
+    }
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
-        if (d->recv || (op ? !d->op || strcmp(d->op, op) : d->op || strcmp(d->name, name)))
+        if (d->recv || d->nested_in || (op ? !d->op || strcmp(d->op, op) : d->op || strcmp(d->name, name)))
             continue;
         bool same = false;
         for (int j = 0; j < out.len && !same; j++)
@@ -5069,6 +5113,17 @@ static void resolve_call(Expr *call) {
     Expr *callee = call->a;
     if (callee->kind != E_IDENT)
         return;
+    if (callee->op && !strcmp(callee->op, "callee")) { /* $(...) (#181): the function being written */
+        Decl *d = callee->target;
+        if ((call->items.len != d->params.len && !d->variadic) || call->items.len < d->params.len)
+            error_at(call->pos, "'$(...)' calls %s, which takes %d argument%s, and this gives %d",
+                     d->anon ? "this anonymous function" : d->name, d->params.len, d->params.len == 1 ? "" : "s",
+                     call->items.len);
+        call->target = d;
+        drop_cstr_args(call, d);
+        move_args(call, d);
+        return;
+    }
     if (lookup_type(callee->text)) {
         /* a call through a function value (#158), a variable or a parameter:
            an owner given by value moves into it (O5) */
@@ -5292,6 +5347,20 @@ static void name_functions(void) {
             buf_printf(&types, "__%s", mangled_type(((Var *)d->params.data[k])->type));
         if (d->variadic)
             buf_puts(&types, "__va");
+        if (d->nested_in) {
+            /* a function defined inside a function (#180): _kv_outer_name, and
+               _kv_outer_name1, 2, ... for another of the name in the same outer
+               function, a block's own or an overload */
+            int k = 0;
+            for (int j = 0; j < i; j++) {
+                Decl *e = functions.data[j];
+                if (e->nested_in == d->nested_in && !strcmp(e->name, d->name))
+                    k++;
+            }
+            const char *outer = d->nested_in->cname ? d->nested_in->cname : d->nested_in->name;
+            d->cname = k ? strfmt("_kv_%s_%s%d", outer, d->name, k) : strfmt("_kv_%s_%s", outer, d->name);
+            continue;
+        }
         if (d->recv) {
             /* a method is T__name, or T__name by its types where methods of
                its name on its receiver differ in their parameters (#158) */
@@ -5336,6 +5405,8 @@ static void name_functions(void) {
                                                                                 : d->name + strlen(d->recv_name) + 1);
         d->cname = by_types ? strfmt("%s%s", base, types.buf) : (char *)base;
     }
+    for (int i = 0; i + 1 < proto_copies.len; i += 2) /* the hoisted prototypes take their originals' names (#180) */
+        ((Decl *)proto_copies.data[i])->cname = ((Decl *)proto_copies.data[i + 1])->cname;
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
         char *name = d->recv ? strfmt(d->setter ? "%s__set_%s" : "%s__%s", d->recv_name, d->name) : d->cname;
@@ -8759,10 +8830,18 @@ static Stmt *parse_stmt_here(void) {
     if (binding_ahead(cur)) {
         int at = cur + 1 + (is_kw(t, "static") || is_kw(t, "extern"));
         reject_c_fn_pointer(at, "var ");
-        if (function_shape(at) == 2 && params_ahead(at + 1))
-            error_at(toks[at].pos, "a function is declared at the top level; here a let holds an anonymous one, as in "
-                                   "'let %s:(T):R := { (a:T):R in ... }' (#32, #45)",
-                     toks[at].text);
+        if (function_shape(at) == 2 && params_ahead(at + 1)) {
+            /* let f(...):R { ... } inside a function (#180): a function of the
+               program as one at the top level is, written where it is used,
+               named in this block alone, and seeing globals and its own
+               parameters, not the locals around it, as C has no closures */
+            if (!is_kw(t, "let") || !parsing_fn)
+                error_at(toks[at].pos, "a function defined inside a function is written 'let %s(...)', in a function's body",
+                         toks[at].text);
+            advance();
+            parse_nested_fn(pos);
+            return new_stmt(S_EMPTY, pos);
+        }
         if (as_body)
             error_at(pos, "a declaration cannot be the body of a statement or follow a label; put it in a block, "
                           "or write 'label: ;' before it");
@@ -9120,11 +9199,48 @@ static bool params_ahead(int i) {
 static void check_overload(Decl *d, Token *name);
 
 static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos);
+static Decl *parse_fn(Pos pos, const char *storage);
+
+/* let f(...):R { ... } inside a function (#180): parsed as a function of
+   the program, fenced from the locals around it as an anonymous function
+   is, and emitted before and after the top-level declaration around it
+   as one; bound by its name in the block, which function_named finds */
+static Decl *parse_nested_fn(Pos pos) {
+    Decl *outer = parsing_fn;
+    int saved_start = params_start, saved_end = params_end, saved_anon = anon_start, saved_kind = anon_kind,
+        saved_init = init_depth;
+    bool saved_signature = in_signature, saved_assign = assign_ok, saved_brace = brace_ends_condition,
+         saved_for = brace_in_for, saved_annotation = ident_annotation_ok, saved_body = stmt_is_body;
+    assign_ok = brace_ends_condition = brace_in_for = stmt_is_body = in_signature = false;
+    ident_annotation_ok = true;
+    init_depth = 0;
+    anon_kind = ANON_WRITTEN;
+    anon_start = scope_names.len + 1; /* past its own name, which parse_fn binds here; its parameters follow */
+    nested_outer = outer;
+    Decl *d = parse_fn(pos, "static");
+    nested_outer = NULL;
+    if (!d->body)
+        error_at(pos, "a function defined inside a function has a body: a prototype is written at the top level");
+    params_start = saved_start;
+    params_end = saved_end;
+    anon_start = saved_anon;
+    anon_kind = saved_kind;
+    init_depth = saved_init;
+    in_signature = saved_signature;
+    assign_ok = saved_assign;
+    brace_ends_condition = saved_brace;
+    brace_in_for = saved_for;
+    ident_annotation_ok = saved_annotation;
+    stmt_is_body = saved_body;
+    list_push(&anon_fns, d); /* declared before, and defined after, the top-level declaration around it */
+    return d;
+}
 
 static Decl *parse_fn(Pos pos, const char *storage) {
     Decl *d = new_decl(D_FN, pos, storage);
     Token *name = peek();
     d->imported = name->imported;
+    d->nested_in = nested_outer; /* (#180) */
     if (name->kind == TK_PUNCT) { /* +(a:T, b:U):R, an operator (#42) */
         d->op = advance()->text;
         d->name = strfmt("operator%s", d->op);
@@ -9150,6 +9266,7 @@ static Decl *parse_fn(Pos pos, const char *storage) {
 static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     if (!d->op)
         declare_name(d->name);
+    d->bind_index = scope_names.len - 1; /* a nested function is found by its binding (#180) */
     open_scope();
     params_start = scope_names.len;
     expect_p("(");
@@ -9188,10 +9305,11 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     list_push(&functions, d);
     /* a prototype ends with `;` or a new line (#35); a body is a block */
     if (!accept_p(";") && (is_p(peek(), "{") || !(newline_before() || peek()->kind == TK_EOF))) {
+        Decl *outer = parsing_fn; /* NULL at the top level; the function around a nested one (#180) */
         parsing_fn = d;
         int drops_from = pending_drops.len;
         d->body = parse_fn_body(expect_p("{"));
-        parsing_fn = NULL;
+        parsing_fn = outer;
         implicit_return(d);
         finish_drops(drops_from);
     }
@@ -10686,6 +10804,8 @@ static void add_top_decl(Program *prog, Decl *d) {
         *proto = *(Decl *)anon_fns.data[i];
         proto->body = NULL;
         list_push(&prog->decls, proto);
+        list_push(&proto_copies, proto); /* named with its original, later (#180) */
+        list_push(&proto_copies, anon_fns.data[i]);
     }
     list_push(&prog->decls, d);
     for (int i = 0; i < anon_fns.len; i++)
@@ -10699,6 +10819,7 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     anon_fns = (List){0};
+    proto_copies = (List){0};
     anon_records = (List){0};
     anon_names = (List){0};
     top_name = NULL;

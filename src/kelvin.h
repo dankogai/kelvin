@@ -253,6 +253,9 @@ struct Decl {
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
     bool anon;            /* D_FN: an anonymous function (#32) */
+    struct Decl *nested_in; /* D_FN: the function it is defined inside (#180): a top-level function
+                               in C, _kv_outer_name, named in the block that defines it alone */
+    int bind_index;       /* D_FN: where its name is bound in the parser's scope, which finds a nested one */
     bool imported;        /* from a Kelvin file that #import brought in (#40) */
     const char *op;       /* D_FN: the operator it defines, as "+" (#42) */
     char *cname;          /* D_FN: its name in C, by its parameter types when

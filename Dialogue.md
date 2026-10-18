@@ -4678,3 +4678,33 @@ beside the built-in ones; 5000 mutated sources crashed and hung
 nothing. Details are provisional P191.
 
 There are 789 tests, and all pass with clang and with gcc 15.
+
+### 223. A function inside a function
+
+> make inner function definitions behave like a toplevel ones: (an
+> error on `let fib(n:i64):i64 { ... }` inside main)
+
+**Claude** added #180: a function defined inside a function is a
+function of the program as a top-level one is, hoisted in C as an
+anonymous function is, named in its block alone, calling itself, other
+functions and the globals, and fenced from the locals around it, as C
+has no closures; the error test that refused the definition is gone.
+Details are provisional P192.
+
+There are 790 tests, and all pass with clang and with gcc 15.
+
+### 224. `$(...)`, the function itself
+
+> Let me add self-recursion syntax: `let fib(n:int64):int64 { n < 2 ?
+> n : $(n - 2) + $(n - 1) }`. `$()` is JS equivalent of
+> `arguments.callee()`. Valid both on global and inner. You can
+> rewrite the example as `let fib = { (n:int64):int64 in n < 2 ? n :
+> $(n - 2) + $(n - 1) }` as well.
+
+**Claude** added #181: `$(...)` calls the function it is written in,
+at the top level, inside a function, anonymous, or of a type, with
+the function's own arguments; in a method it says to write
+`self.name(...)`. A let holding an anonymous function is assigned with
+`:=`, as a reference is. Details are provisional P193.
+
+There are 793 tests, and all pass with clang and with gcc 15.

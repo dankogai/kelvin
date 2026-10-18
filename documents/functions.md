@@ -24,7 +24,8 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
 - **Functions** are declared with `let` (#45), as a value that never
   changes is; methods and operators too. The return type follows the
   parameter list after a colon: `let add(a:i64, b:i64):i64 { ... }`.
-  - A function is declared at the top level.
+  - A function is declared at the top level, or inside a function
+    (#180), where its name is the block's: see below.
     - `var f(...)` is an error, since a variable holding a function is
       `var f:(T):R` (#31).
     - So is `let f(...)` inside a function, where a let holds an
@@ -55,6 +56,49 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
   - A number's result still takes a value, not a list.
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
+
+## A function inside a function
+
+A function may be defined inside another (#180), where it is used:
+
+```kelvin
+let main():int32 {
+    let fib(n:int64):int64 { n < 2 ? n : fib(n - 2) + fib(n - 1) }
+    println(fib(10))                      // 55
+    return 0
+}
+```
+
+- It is a function of the program as one at the top level is, in C a
+  `static` function named `_kv_main_fib`, written before the function
+  around it: it calls itself, other functions and the globals.
+- Its name is the block's: it hides a function of the name outside,
+  and is gone at the block's end, as a variable is.
+- It sees its parameters, not the locals of the function around it,
+  as an anonymous function does not: C has no closures. Pass them as
+  arguments, or make them globals.
+- It has a body; a prototype is written at the top level.
+
+## `$(...)`: the function itself
+
+`$(...)` (#181) calls the function it is written in, as JS's
+`arguments.callee` does: a function at the top level, one inside a
+function, an anonymous one, which has no name to call, or a function
+of a type.
+
+```kelvin
+let fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }
+let main():int32 {
+    let fact:(int64):int64 := { (n:int64):int64 in n < 2 ? 1 : n * $(n - 1) }
+    println(fib(10), " ", fact(5))        // 55 120
+    return 0
+}
+```
+
+- The arguments are the function's own, in number and in type, with
+  the owner rules of any call.
+- In a method or an attribute, `self.name(...)` says it, and `$(...)`
+  is an error that says so.
 
 ## Functions of a type: `static let T.name(...)`
 

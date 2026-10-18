@@ -211,6 +211,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 177 | On a String: `s.find(text)`, the codepoint index of the first `text` or -1, `s.has(text)`, `s.starts(text)` and `s.ends(text)`, the text a `cstr` or a String borrowed, `&t`, a String by value an error; `s.trim()`, a new String without the blanks at either end, JS's `\s` | — | `s.find("llo")`, `s.has(&t)`, `s.trim()` | 2026-10-18 |
 | 178 | A global owner with an initializer is an error of kelvinc's, not C's: C initializes a global with a constant alone, and an owner is made by a call; the message says to declare it with its type, `var log:String`, empty, and give it its value in main or another function | — | `var log:String` at the top, `log = $"..."` in main | 2026-10-18 |
 | 179 | A method or an attribute of the program is found on a value of its own type: a value whose type kelvinc sees as a pointer, an array or a function has none, so a struct's `count`, `has` or `isNull` cannot catch the built-in one of a `cstr`, an array or a pointer; the fallback to the only method of a name stays for a value whose type kelvinc cannot see. 5000 mutated sources crashed and hung nothing | — | `text.count` of a `cstr` beside `extend tally { let count:int64 }` | 2026-10-18 |
+| 180 | A function may be defined inside a function, `let fib(n:int64):int64 { ... }` in a body: a function of the program as one at the top level is, in C a static function `_kv_outer_name` written before the function around it, calling itself, other functions and the globals; its name is the block's, hiding one outside and gone at the block's end; it sees its parameters, not the locals around it, as an anonymous function does not; it has a body | — | `let fib(n:int64):int64 { n < 2 ? n : fib(n - 2) + fib(n - 1) }` in main | 2026-10-18 |
+| 181 | `$(...)` calls the function it is written in, as JS's `arguments.callee`: a function at the top level, one inside a function, an anonymous one, or a function of a type, with the function's own arguments in number and type and the owner rules of any call; in a method or an attribute it is an error that says to write `self.name(...)` | — | `let fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }` | 2026-10-18 |
 
 Notes:
 
@@ -772,6 +774,28 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (181) Agreed details: "Let me add self-recursion syntax: `let
+  fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }`. `$()` is JS
+  equivalent of `arguments.callee()`. Valid both on global and inner.
+  You can rewrite the example as `let fib = { (n:int64):int64 in n < 2
+  ? n : $(n - 2) + $(n - 1) }` as well." The parser reads `$(` as the
+  function being parsed, by the name and the declaration it has, so
+  that an anonymous one, which has no name to call, calls itself too;
+  a let that holds an anonymous function is still assigned with `:=`,
+  as a reference is (#31), which the example in functions.md writes
+  (P193).
+
+- (180) Agreed details: "make inner function definitions behave like a
+  toplevel ones", from an error on `let fib(n:i64):i64 { ... }` inside
+  main that had told the reader to hold an anonymous function in a let
+  instead. A nested function is parsed as a top-level one, hoisted as
+  an anonymous function is, before and after the top-level declaration
+  around it, and fenced from the locals around it the same way; its
+  name is a binding of the block, which the lookup of a function
+  follows, so that a block's own hides and ends as a variable's does.
+  The error test of #45 that refused the definition is gone, and the
+  one of a `var` says what a nested function is written as (P192).
 
 - (179) Agreed details: "now run the longer fuzz and tighten the
   method lookup", the two checks proposed before the version. The
@@ -1929,6 +1953,8 @@ says "as agreed".
 | P189 | Details of #177 | `s.find(x)` is `KV_STRING_TEXT_OR_REF(find, &s, x)`, a `_Generic` choosing `kv_string_find_text` or `kv_string_find_ref`, and so for has, starts and ends; `s.trim()` is `kv_string_trim(&s)`; all in runtime/string.c | the parser lists them among a String's methods, with `has` and `find` shared with a Dictionary's and a Set's by the kind letter, checks the argument, and types `find` as `i64` and the others as `bool` |
 | P190 | Details of #178 | the top-level `let` or `var` parse checks each variable: an initializer on a type `is_owner` sees is the error, at the initializer; the codegen lists the global owners, declares `_kv_free_globals`, writes it after the printers with each one's free, and has `main` call `atexit` on it first thing | a module built by `kelvinc --lib` has no main, so its globals are not freed; tests/asan/count.c registers its report in a constructor, so that it runs after the program's handlers |
 | P191 | Details of #179 | `method_named` returns NULL where the receiver's type is seen and is not `T_BASE`; `method_candidates` already asked for `T_BASE`; the fuzz is a script of the session, not of the tree, run by hand | a fuzz in the tree would be a release check to add if one is wanted; the mutations are random, so a run is not repeatable without its seed |
+| P192 | Details of #180 | `parse_nested_fn` saves the parser's state as `parse_anon_fn` does, sets `anon_start` past the function's own name, and calls `parse_fn` with `nested_outer` set, which marks `Decl.nested_in`; the Decl goes to `anon_fns`, so `add_top_decl` writes its prototype before and its definition after the enclosing declaration, the prototype copy named with its original after `name_functions` runs; `function_named` finds a nested function by the binding of its name, `Decl.bind_index`, and `overloads_of` gives that one alone where the name is bound in a block | the C name is `_kv_outer_name`, numbered for another of the name in the same outer function; a nested function is not overloaded, a second of the name in a block hiding the first |
+| P193 | Details of #181 | `parse_primary` turns `$` before `(` into an E_IDENT of `parsing_fn`'s name with `target` the declaration and `op` "callee"; `resolve_call` sees the op first, checks the count of arguments, and resolves the call to that declaration, whose C name the codegen writes: `_kv_main_fn` for an anonymous function, `_kv_main_fib` for a nested one, `T__name` for a function of a type | `$` followed by anything else is as before: `$0`, `$[k]`, `$"..."`, `$[...]`, `${...}`, `$/.../` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
