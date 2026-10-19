@@ -20,7 +20,7 @@ typedef struct kv_io {
     long pid;   /* a process run without the shell (#90), waited for when closed */
     char *path; /* the path it was opened with (#101), freed with it; NULL for a stream or a process */
     int error;  /* the errno of an open that failed (#109), 0 otherwise; such an IO is as a closed one */
-    char *named; /* the last name kv_io_abspath found (#195), freed with it; NULL before one */
+    char *named; /* the last name kv_io_abspath found (#195), the one it opened as at first (#196), freed with it */
 } kv_io;
 kv_io kv_io_open(const void *path, const void *mode); /* the IO straight (#109), .error set when it did not open */
 kv_io kv_io_fdopen(int fd, const void *mode);

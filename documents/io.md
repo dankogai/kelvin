@@ -203,7 +203,7 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   - `abspath` of a descriptor is macOS's `F_GETPATH`, Linux's
     `/proc/self/fd` or FreeBSD's `F_KINFO` (#192), `""` elsewhere.
     - FreeBSD names no removed file, so the IO keeps the last name
-      `abspath` found (#195).
+      `abspath` found, from the open on (#195, #196).
   - The standard streams are three statics that `IO.stdout` names in
     place.
   - `fdopen`, `fileno`, `pipe`, `fork`, `execvp`, `waitpid`, `kill` and
@@ -237,9 +237,10 @@ for name in names { println(name) }
     - A file renamed behind the IO answers by its new name, a removed
       one by the name it had, an IO opened from a descriptor by the
       file's.
-    - Else the last name it found (#195): FreeBSD names no removed
-      file, so a removed one answers by it there, and by `""` where
-      `abspath` never asked before.
+    - Else the last name it found (#195), the name it opened as until
+      another is found, and the new one after `f.rename` (#196).
+      - FreeBSD names no removed file, so a removed one answers by it
+        there.
   - `""` where neither answers, as of a pipe or a closed IO.
 - **`f.basename`** and **`f.dirname`** are the path's parts, and
   **`f.join(name)`** a path under it, each a `String`.
@@ -328,7 +329,7 @@ f.pid: int32                               // a process's id, -1 for any other I
 f.kill(signal: int32): bool                // to a process; true when sent
 
 f.path: cstr                             // as opened with; "" for a stream, a descriptor or a process
-f.abspath: String                        // absolute, every link followed; the descriptor's where the path is gone; else the last found; "" before one (#104, #105, #195)
+f.abspath: String                        // absolute, every link followed; the descriptor's where the path is gone; else the last found, from the open on (#104, #105, #195, #196)
 f.basename: String                       // after the last /
 f.dirname: String                        // before it
 f.join(name: text): String               // a path under it
@@ -407,7 +408,7 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | | `.status` | a process's exit code once closed, else -1 (#87) |
 | | `.signal` | the signal that ended a process, once closed; 0 when none; else -1 (#89) |
 | | `.kill(signal)`, `.pid` | sends a signal to a process `IO.popen` or `IO.exec` started, a `bool`; its pid, -1 for any other IO (#91, #100) |
-| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `String`, the descriptor's where the path is gone, else the last it found, `""` before one (#101, #104, #105, #195) |
+| | `.path`, `.abspath` | the path as given, a `cstr`; resolved, a `String`, the descriptor's where the path is gone, else the last it found, from the open on (#101, #104, #105, #195, #196) |
 | | `.basename`, `.dirname`, `.join(name)` | the path's parts, a path under it, `String`s |
 | | `.stat`, `.lstat` | C's stat of the open file, of the path's own, each a `Stat` straight, no Result (#104) |
 | | `.isdir`, `.isfile`, `.islink`, `.exists` | `bool`s: of the open file, of the open file, of the path, of the path |

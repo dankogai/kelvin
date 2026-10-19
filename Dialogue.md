@@ -4918,3 +4918,14 @@ take one answer on every system again, and io_abspath_kept.k is new.
 Details are provisional P207.
 
 There are 801 tests, and all pass with clang and with gcc 15.
+
+### 239. The name at open
+
+> now remember the name at open too
+
+**Claude** added #196: an IO keeps the name it opened as, from IO(path),
+IO(fd, mode) and OS.mkstemp, and the new one after f.rename, so f.abspath
+of a file removed before it was asked answers on FreeBSD too;
+io_abspath_open.k is new. Details are provisional P208.
+
+There are 802 tests, and all pass with clang and with gcc 15.

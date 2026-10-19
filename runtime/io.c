@@ -46,7 +46,8 @@ static char *copy_text(const void *s) {
 /* a file's IO, straight (#109): when the open failed, an IO with no
    stream and the errno in .error, which .fd == -1 and the reads treat
    as a closed IO; the path is kept either way, for f.path and for the
-   message of a read or a write that meets it */
+   message of a read or a write that meets it; the name it opened as,
+   absolute, is the first that abspath keeps (#196) */
 kv_io kv_io_open(const void *path, const void *mode) {
     kv_io f = {0};
     f.status = f.signal = -1;
@@ -58,11 +59,13 @@ kv_io kv_io_open(const void *path, const void *mode) {
     }
     f.fp = fp;
     f.kind = 1;
+    f.named = realpath((const char *)path, NULL);
     return f;
 }
 
 /* a file descriptor's IO (#86), as fdopen gives it, owned: its block
-   closes the descriptor too */
+   closes the descriptor too; the descriptor's name, where the system
+   gives one, is the first that abspath keeps (#196) */
 kv_io kv_io_fdopen(int fd, const void *mode) {
     kv_io f = {0};
     f.status = f.signal = -1;
@@ -73,6 +76,8 @@ kv_io kv_io_fdopen(int fd, const void *mode) {
     }
     f.fp = fp;
     f.kind = 1;
+    kv_string first = kv_io_abspath(&f);
+    kv_string_free(&first);
     return f;
 }
 
@@ -693,6 +698,11 @@ bool kv_io_rename(kv_io *f, const void *to) {
         return false;
     free(f->path);
     f->path = moved;
+    char *named = realpath(moved, NULL); /* the name it now has (#196) */
+    if (named) {
+        free(f->named);
+        f->named = named;
+    }
     return true;
 }
 
