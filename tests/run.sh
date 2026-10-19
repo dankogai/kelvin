@@ -107,7 +107,9 @@ elif [ -s "$tmp/log" ]; then
     bad tests/project/lib/geo.k "builds with diagnostics"
 elif ! grep -qx 'double geo_area(geo_size s);' "$tmp/project/modules/geo.kh" ||
     ! grep -qx 'extern int64_t geo_calls;' "$tmp/project/modules/geo.kh" ||
-    grep -q 'geo_half' "$tmp/project/modules/geo.kh"; then
+    ! grep -qx 'extern struct geo_rect { double w, h; } geo_unit;' "$tmp/project/modules/geo.kh" ||
+    ! grep -qx 'struct geo_cache { int hits; };' "$tmp/project/modules/geo.kh" ||
+    grep -q 'geo_half\|geo_cache_now' "$tmp/project/modules/geo.kh"; then
     bad tests/project/lib/geo.k "does not give geo.kh the declarations of its #inline C, and them alone (#199)"
 elif [ ! -f "$tmp/project/modules/libkgeo.$so" ]; then
     bad tests/project/lib/geo.k "does not build libkgeo.$so, the shared library (#147)"

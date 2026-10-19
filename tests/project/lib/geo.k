@@ -17,6 +17,8 @@ static let twice(x:float64):float64 { x * 2.0 }                   // file-local:
 #define GEO_UNIT 2                      /* a macro, as it is */
 typedef struct { double w, h; } geo_size;
 int64_t geo_calls = 0;                  // a global: extern, without its value
+struct geo_rect { double w, h; } geo_unit = {1.0, 1.0};     // a type and a variable at once (#200)
+static struct geo_cache { int hits; } geo_cache_now;       // the variable the file's own, the type not
 static double geo_half(double v) { return v / 2.0; }   /* file-local: not in the header */
 double geo_area(geo_size s) {           /* a function: its prototype */
     geo_calls++;

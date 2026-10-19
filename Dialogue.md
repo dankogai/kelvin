@@ -4974,3 +4974,15 @@ imports the module calls the C. tests/project's geo module has one.
 Details are provisional P211.
 
 There are 809 tests, and all pass with clang and with gcc 15.
+
+### 243. A type and a variable at once
+
+> now allow struct p { ... } v; in #inline C exports
+
+**Claude** found that `struct p { ... } v;` already went to the .kh as
+`extern struct p { ... } v;`, which C takes, and that the case it
+missed was `struct p v = {...};`, defined twice; it fixed that as #200,
+and the tagged type of a `static` variable now goes to the .kh alone.
+geo.k has both. Details are provisional P212.
+
+There are 809 tests, and all pass with clang and with gcc 15.

@@ -93,9 +93,11 @@ let main():int32 {
     alone;
   - a global, `extern`, its initializer dropped: `int64_t n = 0;` is
     `extern int64_t n;`;
-  - not what is `static` or `inline`, which is the file's own.
-  - A `struct` defined with a variable at once, `struct p { ... } v;`,
-    is taken for a variable: define the type and the variable apart.
+  - a type and a variable at once, both (#200):
+    `struct p { int x; } v = {1};` is `extern struct p { int x; } v;`;
+  - not what is `static` or `inline`, which is the file's own, but the
+    type a `static` variable defines with it, where it has a tag:
+    `static struct c { int n; } now;` is `struct c { int n; };`.
   - An `#inline C` in a function stays in the library.
 
 ### In a function

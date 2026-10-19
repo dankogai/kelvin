@@ -11790,37 +11790,64 @@ static void c_declaration(Buf *out, const char *s, size_t n) {
         s++, n--;
     while (n && isspace((unsigned char)s[n - 1]))
         n--;
-    if (!n || c_specifier(s, n, "static") || c_specifier(s, n, "inline"))
-        return; /* the file's own */
-    char *d = xstrndup(s, n);
-    bool tagged = c_starts(d, "struct") || c_starts(d, "union") || c_starts(d, "enum");
-    if (c_starts(d, "typedef") || c_starts(d, "extern") || c_starts(d, "_Static_assert")) {
-        buf_printf(out, "%s;\n", d);
+    if (!n)
         return;
-    }
-    if (tagged) { /* a type, unless a declarator follows it */
-        const char *brace = strchr(d, '{'), *after = NULL;
-        if (brace) {
+    char *d = xstrndup(s, n);
+    /* a struct, union or enum, after the storage class and qualifiers:
+       its body, where it has one, is the type's, and its declarators, if
+       any, follow it (#200) */
+    const char *t = d;
+    static const char *const before[] = {"static", "extern", "const", "volatile", "_Thread_local", NULL};
+    for (int i = 0; before[i];)
+        if (c_starts(t, before[i])) {
+            t += strlen(before[i]);
+            while (isspace((unsigned char)*t))
+                t++;
+            i = 0;
+        } else {
+            i++;
+        }
+    bool tagged = c_starts(t, "struct") || c_starts(t, "union") || c_starts(t, "enum");
+    const char *after = NULL;
+    bool named = false, body = false;
+    if (tagged) {
+        const char *p = t;
+        while (isalpha((unsigned char)*p))
+            p++;
+        while (isspace((unsigned char)*p))
+            p++;
+        const char *tag = p;
+        while (isalnum((unsigned char)*p) || *p == '_')
+            p++;
+        named = p > tag;
+        while (isspace((unsigned char)*p))
+            p++;
+        after = p;
+        if (*p == '{') {
+            body = true;
             int depth = 0;
-            for (const char *p = brace; *p; p = c_past_quote(p) == p ? p + 1 : c_past_quote(p)) {
+            for (; *p; p = c_past_quote(p) == p ? p + 1 : c_past_quote(p)) {
                 depth += (*p == '{') - (*p == '}');
                 if (!depth) {
                     after = p + 1;
                     break;
                 }
             }
-        } else {
-            after = d;
-            while (*after && !isspace((unsigned char)*after))
-                after++;
-            while (isspace((unsigned char)*after))
-                after++;
-            while (*after && (isalnum((unsigned char)*after) || *after == '_'))
-                after++;
         }
-        while (after && isspace((unsigned char)*after))
+    }
+    if (c_specifier(d, n, "static") || c_specifier(d, n, "inline")) {
+        if (tagged && named && body) /* the file's own variable, but a type a program may need */
+            buf_printf(out, "%.*s;\n", (int)(after - t), t);
+        return;
+    }
+    if (c_starts(d, "typedef") || c_starts(d, "extern") || c_starts(d, "_Static_assert")) {
+        buf_printf(out, "%s;\n", d);
+        return;
+    }
+    if (tagged) { /* a type alone, unless a declarator follows it */
+        while (isspace((unsigned char)*after))
             after++;
-        if (after && !*after) {
+        if (!*after) {
             buf_printf(out, "%s;\n", d);
             return;
         }

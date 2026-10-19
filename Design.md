@@ -231,6 +231,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 197 | `#inline C { ... }`: C of the program's own at the top level, written into the generated C where it stands, its lines the .k's; it ends at the `}` that matches its `{`, braces counted outside C's strings, characters and comments; the preprocessor is C's inside it; Kelvin uses its names as a header's, and it calls a Kelvin function above it by its C name; a module has it in its library, not its .kh; VS Code colors it as C | — | `#inline C { int one(void) { return 1; } }` | 2026-10-20 |
 | 198 | `#inline C { ... }` in a function too: C statements where they stand among a function's, seeing its parameters and locals by their C names, their own, `$0` as `_kv_arg0`; a C `return` returns, and the owners it leaves are freed as by Kelvin's, by C's `cleanup` attribute; not in a struct, a union or an enum, nor as a brace-less body | — | `#inline C { total += i; }` | 2026-10-20 |
 | 199 | A module's .kh has the declarations of its top-level `#inline C`, in an `#inline C` of their own, so a program that imports it uses the block's names: its preprocessor lines, a function's prototype, its types, a global `extern` without its initializer; nothing `static` or `inline` | — | `double geo_area(geo_size s);` in geo.kh | 2026-10-20 |
+| 200 | A type and a variable at once in a module's `#inline C`, `struct p { ... } v = x;`, go to its .kh as `extern struct p { ... } v;`, and the tagged type of a `static` one alone, `struct p { ... };`; a variable of a struct type, `struct p v = {...};`, is `extern` too | — | `extern struct geo_rect { double w, h; } geo_unit;` in geo.kh | 2026-10-20 |
 
 Notes:
 
@@ -792,6 +793,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (200) Agreed details: "now allow struct p { ... } v; in #inline C
+  exports", the case P211 left. Trying it showed that the form went out
+  as `extern struct p { ... } v;` already, which C takes; the case it
+  missed was `struct p v = {...};`, whose initializer's braces were
+  taken for the type's body, so the variable went out defined and the
+  program defined it twice. The body is now the `{` right after the tag
+  (P212).
 
 - (199) Agreed details: "export Kelvin functions to the .kh for #inline
   C names too", the other way P209 left: a module's .kh had nothing of
@@ -2142,7 +2151,8 @@ says "as agreed".
 | P208 | Details of #196 | kv_io_open sets `named` to realpath(path, NULL) once fopen succeeds; kv_io_fdopen asks kv_io_abspath and frees what it gives; kv_os_mkstemp, in libkOS, which libkIO links and not the other way, calls realpath itself; kv_io_rename sets `named` to the realpath of the new path; tests/run/io_abspath_open.k | — |
 | P209 | Details of #197 | the lexer reads the block as one token, TK_INLINE_C, its text the C between the braces; the parser makes a D_INLINE_C at the top level and rejects it inside, as #import; codegen writes it after a `#line` of its first line and maps the next declaration anew; the .kh writer skips it; the grammar's `inline-c` embeds `source.c` in meta.embedded.block.c, counting braces itself, and tests/grammar.js, which has no C grammar, skips another language's include and treats a begin/end repository entry as one rule | `#inline C` inside a function, as a statement; its names in a module's .kh |
 | P210 | Details of #198 | S_INLINE_C, its text in Stmt.name; parse_stmt_here makes it, parse_block_rest lets it through where #import is rejected, and a body of a statement or a label rejects it; codegen writes it after the `#line` of its statement and maps the next one anew | a C `return` of an owner, which kelvinc does not see |
-| P211 | Details of #199 | c_declarations in parser.c: the comments made blanks; at depth 0, a line starting with `#` is kept with its continued lines; a `{` after `)` is a function's body, its text before it the prototype; else a declaration ends at `;`: kept as it is where it begins with `typedef`, `extern` or `_Static_assert`, or is a `struct`, `union` or `enum` with nothing after its `}`; else `extern` before it and each initializer dropped, up to the next `,` at depth 0; `static` or `inline` among its specifiers leaves it out; tests/project/lib/geo.k and geo_user.k use it, and tests/run.sh checks geo.kh | `struct p { ... } v;`, a type and a variable at once |
+| P211 | Details of #199 | c_declarations in parser.c: the comments made blanks; at depth 0, a line starting with `#` is kept with its continued lines; a `{` after `)` is a function's body, its text before it the prototype; else a declaration ends at `;`: kept as it is where it begins with `typedef`, `extern` or `_Static_assert`, or is a `struct`, `union` or `enum` with nothing after its `}`; else `extern` before it and each initializer dropped, up to the next `,` at depth 0; `static` or `inline` among its specifiers leaves it out; tests/project/lib/geo.k and geo_user.k use it, and tests/run.sh checks geo.kh | — |
+| P212 | Details of #200 | c_declaration skips the storage class and qualifiers (static, extern, const, volatile, _Thread_local) to find struct, union or enum; its body is a `{` after the keyword and an optional tag alone; nothing after the body: the type, kept; a declarator after it: extern; static or inline with a tag and a body: `struct p { ... };`, the type alone; tests/project/lib/geo.k has both, which tests/run.sh checks in geo.kh | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
