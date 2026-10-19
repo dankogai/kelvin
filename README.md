@@ -225,8 +225,7 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ## Editors
 
 - **VS Code**: [editors/vscode](editors/vscode) colors Kelvin with a
-  TextMate grammar of its own; link the folder into
-  `~/.vscode/extensions`, as its README says (#190).
+  TextMate grammar of its own (#190); `make vscode` installs it (#191).
 - **GitHub** colors `.k` files and the documents' examples as Swift,
   which Kelvin reads most like (#189).
 

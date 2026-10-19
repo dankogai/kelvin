@@ -4838,3 +4838,28 @@ their scopes. Details are provisional P202.
 
 There are 800 tests, and all pass with clang and with gcc 15; the
 grammar's test passes 935 checks.
+
+### 234. Installing the extension with make vscode
+
+> How do I use "textMate grammar for VS Code"?
+
+> install it for me
+
+> I've done that and the `code` command now appears to work fine.  But
+> `ankogai.kelvin-lang-0.0.1` does not appear in `code --list-extensions`.
+
+**Claude** found that VS Code 1.142 had marked the link of #190 obsolete,
+since it loads only the extensions it installed itself; it removed the
+link, made a `.vsix` by hand with zip, and installed it with
+`code --install-extension`.
+
+> yes, do #191
+
+**Claude** added #191: tools/vsix.sh makes the `.vsix` from
+editors/vscode with zip alone, `make vscode` installs it with `code`, and
+`make vsix` only makes it; editors/vscode/README.md says so, in place of
+the link, and tests/grammar.js checks the package. Details are
+provisional P203.
+
+There are 800 tests, and all pass with clang and with gcc 15; the
+grammar's test passes 945 checks.

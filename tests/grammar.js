@@ -2,7 +2,8 @@
 // by a small tokenizer of the rules VS Code applies (match, begin/end with
 // back references, captures, includes): every regular expression compiles,
 // every Kelvin file and document example of the repository tokenizes with
-// nothing left open at its end, and sample lines get the scopes they should
+// nothing left open at its end, and sample lines get the scopes they should;
+// where zip and unzip are, tools/vsix.sh packages it as VS Code installs it (#191)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -181,5 +182,42 @@ for (const [line, wants] of samples) {
         }
     }
 }
-console.log(`${passed} passed, ${failed} failed (grammar: ${sources.length} files, ${blocks.length} document examples, ${samples.length} samples)`);
+// the package of tools/vsix.sh: the manifest of a .vsix and every file of
+// editors/vscode under extension/, the version that of package.json
+let packaged = 'no zip';
+{
+    const { spawnSync } = require('child_process');
+    const os = require('os');
+    const has = (cmd) => spawnSync('sh', ['-c', `command -v ${cmd}`]).status === 0;
+    if (has('zip') && has('unzip')) {
+        packaged = 'packaged';
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kelvin-grammar-'));
+        try {
+            const out = path.join(dir, 'k.vsix');
+            const made = spawnSync(path.join(root, 'tools/vsix.sh'), [out], { encoding: 'utf8' });
+            if (made.status !== 0 || made.stdout.trim() !== out) fail('tools/vsix.sh: ' + (made.stderr || made.stdout));
+            else {
+                const list = spawnSync('unzip', ['-Z1', out], { encoding: 'utf8' }).stdout.split('\n');
+                const ext = path.join(root, 'editors/vscode');
+                const want = ['[Content_Types].xml', 'extension.vsixmanifest', 'extension/LICENSE'];
+                const walk = (d, rel) => {
+                    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+                        if (e.isDirectory()) walk(path.join(d, e.name), rel + e.name + '/');
+                        else want.push('extension/' + rel + e.name);
+                    }
+                };
+                walk(ext, '');
+                for (const w of want) list.includes(w) ? passed++ : fail(`${w} is not in the .vsix`);
+                const manifest = spawnSync('unzip', ['-p', out, 'extension.vsixmanifest'], { encoding: 'utf8' }).stdout;
+                const pkg = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
+                const id = `Id="${pkg.name}" Version="${pkg.version}" Publisher="${pkg.publisher}"`;
+                manifest.includes(id) ? passed++ : fail(`the manifest has no ${id}`);
+                manifest.includes(`Value="${pkg.engines.vscode}"`) ? passed++ : fail('the manifest has no engine ' + pkg.engines.vscode);
+            }
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    }
+}
+console.log(`${passed} passed, ${failed} failed (grammar: ${sources.length} files, ${blocks.length} document examples, ${samples.length} samples, ${packaged})`);
 process.exit(failed ? 1 : 0);

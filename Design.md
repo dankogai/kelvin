@@ -222,6 +222,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 188 | `b + c` on a Bytes is a new Bytes of the two, `b` a Bytes or text and `c` a Bytes, text or a byte 0 to 255, one a Bytes: a Bytes in a variable copied and kept, one an expression gives taken; a String and a Bytes are not joined | — | `a + b + "cd" + 0x7F` | 2026-10-19 |
 | 189 | Kelvin is colored as Swift on GitHub, the language it reads most like: `.gitattributes` gives `.k` and `.kh` files `linguist-language=Swift`, and the examples of the documents, the README and Style.md are fenced ```` ```swift ````, which tests/docs.sh reads, as ```` ```kelvin ```` before | — | ```` ```swift ```` | 2026-10-19 |
 | 190 | A TextMate grammar of Kelvin, `source.kelvin`, in editors/vscode, a VS Code extension that colors `.k` and `.kh` files and ```` ```kelvin ```` blocks of Markdown: keywords, declarations, the built-in and the modules' types, text with its escapes, templates with code in `${...}`, `$/.../` with its classes and groups, numbers, Kelvin's operators; installed by a link into `~/.vscode/extensions`; tests/grammar.js, run by `make test` where node is, checks it | — | editors/vscode | 2026-10-19 |
+| 191 | `make vscode` installs the VS Code extension of editors/vscode: tools/vsix.sh packages it as build/kelvin-lang-<version>.vsix with zip alone, without npm, and VS Code's `code --install-extension` installs it, again over an installed one; `make vsix` only packages it; a link into `~/.vscode/extensions`, the way of #190, is not one VS Code loads | — | `make vscode` | 2026-10-19 |
 
 Notes:
 
@@ -783,6 +784,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (191) Agreed details: "yes, do #191", after the way of #190, a link
+  into `~/.vscode/extensions`, did not install the extension: VS Code
+  1.142 loads only the extensions in its own extensions.json and marked
+  the link obsolete, to be removed. A `.vsix` is a zip of a manifest and
+  the extension's files, so tools/vsix.sh makes one with zip, the name,
+  publisher, version and engine taken from package.json, and
+  `code --install-extension --force` installs it; tests/grammar.js checks
+  the package where zip and unzip are (P203).
 
 - (190) Agreed details: "now add a Kelvin TextMate grammar for VS
   Code", the third way offered in #189. The grammar takes its words
@@ -2063,6 +2073,7 @@ says "as agreed".
 | P200 | Details of #188 | `b + c` is an E_CALL `bytes_concat`, `({ kv_bytes _kv_cat = kv_bytes_copy(&b) or (b) or kv_bytes_text(b); KV_BYTES_APPEND(&_kv_cat, c or &c); _kv_cat; })`; the cstr operator check lets `+` through where a Bytes is on either side; a literal byte out of 0 to 255 is an error | the table of bytes.md lists the orderings of #185 too, which it had left out |
 | P201 | Details of #189 | `.gitattributes`: `*.k linguist-language=Swift` and `*.kh linguist-language=Swift`; 76 fences in 31 Markdown files changed to `swift`; tests/docs.sh matches ```` ^```(swift\|kelvin)$ ````, finding the same 72 blocks | GitHub's language bar counts the `.k` files as Swift; Design.md and Dialogue.md keep their words about ```` ```kelvin ```` as written then |
 | P202 | Details of #190 | editors/vscode holds package.json (the language `kelvin` of `.k` and `.kh`, its grammar, the Markdown injection), language-configuration.json (comments, brackets, closing pairs, indentation), syntaxes/kelvin.tmLanguage.json and syntaxes/kelvin.markdown.json; tests/grammar.js applies match, begin and end with back references, captures, contentName and includes, as VS Code does, without Oniguruma, so the expressions keep to what JavaScript's and Oniguruma's share | a grammar for Linguist, so that GitHub colors Kelvin as Kelvin, waits until it is used widely enough |
+| P203 | Details of #191 | tools/vsix.sh [out] writes [Content_Types].xml and extension.vsixmanifest (Identity, DisplayName, Description, the engine, and the assets package.json, README.md and LICENSE), copies editors/vscode and LICENSE under extension/, zips them and prints the path; its temporary directory is the one mktemp made or the script ends before its trap is set; `make vscode` asks for the `code` command where it is missing | publishing to the Marketplace, which needs a publisher's account and token, is the user's to do |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -95,6 +95,16 @@ test: all
 asan: all
 	./tests/asan.sh
 
+# the VS Code extension of editors/vscode (#191): make vsix packages it as
+# build/kelvin-lang-<version>.vsix with tools/vsix.sh, make vscode installs
+# that with VS Code's code command, again over an installed one
+vsix:
+	./tools/vsix.sh
+
+vscode:
+	@command -v code >/dev/null 2>&1 || { echo "make vscode: no code command; in VS Code, run 'Shell Command: Install 'code' command in PATH'"; exit 1; }
+	code --install-extension "$$(./tools/vsix.sh)" --force
+
 install: all
 	install -d $(PREFIX)/bin $(PREFIX)/lib/kelvin/modules
 	install -m 755 kelvinc $(PREFIX)/bin/kelvinc
@@ -104,4 +114,4 @@ install: all
 clean:
 	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh runtime/unicode_tables.c runtime/unicode_names.c
 
-.PHONY: all test install clean
+.PHONY: all test asan vsix vscode install clean

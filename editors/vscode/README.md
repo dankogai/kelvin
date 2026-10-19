@@ -5,18 +5,26 @@ for `.k` and `.kh` files, and for ```` ```kelvin ```` blocks in Markdown.
 
 ## Install
 
-VS Code loads an extension from its extensions folder, so a link to this
-folder installs it, and a `git pull` updates it:
+From the top of the repository (#191):
 
 ```sh
-ln -s "$PWD/editors/vscode" ~/.vscode/extensions/dankogai.kelvin-lang-0.0.1
+make vscode
 ```
 
-- Run it from the top of the repository, then reload VS Code, with
-  "Developer: Reload Window".
-- On Windows the folder is `%USERPROFILE%\.vscode\extensions`.
-- To make a `.vsix` to share instead, `npx @vscode/vsce package` in this
-  folder, then `code --install-extension kelvin-lang-0.0.1.vsix`.
+- It packages this folder as `build/kelvin-lang-0.0.1.vsix`, with
+  `tools/vsix.sh` and `zip`, no npm, and installs it with VS Code's `code`
+  command.
+  - Without `code`: in VS Code, run "Shell Command: Install 'code'
+    command in PATH".
+- Then reload VS Code, with "Developer: Reload Window".
+- After a `git pull` that changes the grammar, `make vscode` again: it
+  installs over the one installed.
+- `make vsix` only makes the package, to share; anyone installs it with
+  `code --install-extension kelvin-lang-0.0.1.vsix`, or with "Install
+  from VSIX..." of the Extensions view.
+- A link to this folder in `~/.vscode/extensions` does not install it:
+  VS Code loads only the extensions it has installed itself, and marks
+  the others obsolete.
 
 ## What it colors
 
