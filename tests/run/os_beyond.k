@@ -21,7 +21,8 @@ let main():int32 {
     var u = OS.uname
     if let ok(un) = u {
         println(un.sysname.count > 0, " ", un.nodename.count > 0, " ", un.release.count > 0, " ", un.machine.count > 0,
-                " ", strcmp(un.sysname.cstr, "Darwin") == 0 || strcmp(un.sysname.cstr, "Linux") == 0)
+                " ", strcmp(un.sysname.cstr, "Darwin") == 0 || strcmp(un.sysname.cstr, "Linux") == 0 ||
+                    strcmp(un.sysname.cstr, "FreeBSD") == 0)
     }
     println(u.typename)
     println(OS.readable("."), " ", OS.writable("."), " ", OS.executable("/bin/sh"), " ", OS.executable("os_beyond.k.none"))

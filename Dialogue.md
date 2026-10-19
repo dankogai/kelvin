@@ -4863,3 +4863,19 @@ provisional P203.
 
 There are 800 tests, and all pass with clang and with gcc 15; the
 grammar's test passes 945 checks.
+
+### 235. Building on FreeBSD
+
+> When I `make` on FreeBSD it failed.  I tried again with `gmake` and it
+> worked fine until: "runtime/os.c:813:22: error: use of undeclared
+> identifier '_SC_NPROCESSORS_ONLN'", and a warning of an undeclared
+> `getloadavg`
+
+**Claude** added #192: on FreeBSD, _XOPEN_SOURCE hides the BSD
+extensions, and nothing hidden is shown where no feature macro is
+defined, so kelvinc, the runtime, the generated C and tests/asan.sh
+define none on the BSDs; f.abspath asks F_KINFO there, and the uname
+test takes FreeBSD. It is not yet run on FreeBSD. Details are
+provisional P204.
+
+There are 800 tests, and all pass with clang and with gcc 15.

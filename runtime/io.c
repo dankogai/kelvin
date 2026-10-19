@@ -4,10 +4,11 @@
    as the err of a Result; reading in chunks and lines are walked by for. */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
-   as kelvinc's own main.c has it */
+   as kelvinc's own main.c has it; the BSDs show it all where no macro
+   asks, and hide their own extensions where _XOPEN_SOURCE asks (#192) */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
-#else
+#elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #define _XOPEN_SOURCE 700
 #endif
 #include "kelvin_prelude.h"
@@ -23,6 +24,10 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if defined(__FreeBSD__)
+#include <sys/param.h>
+#include <sys/user.h> /* struct kinfo_file, of fcntl's F_KINFO (#192) */
+#endif
 
 static void kv_io_fail(const char *what) {
     fflush(stdout);
@@ -522,6 +527,12 @@ kv_string kv_io_abspath(kv_io *f) {
         size_t len = strlen(buf), gl = sizeof gone - 1;
         if (len > gl && !strcmp(buf + len - gl, gone)) /* a removed file, by the name it had */
             buf[len - gl] = 0;
+#elif defined(__FreeBSD__) && defined(F_KINFO)
+        struct kinfo_file kf; /* FreeBSD 13 and after; no /proc to ask (#192) */
+        memset(&kf, 0, sizeof kf);
+        kf.kf_structsize = sizeof kf;
+        if (fcntl(fd, F_KINFO, &kf) == 0)
+            snprintf(buf, sizeof buf, "%s", kf.kf_path);
 #endif
     }
     return kv_string_text(buf[0] == '/' ? buf : "");

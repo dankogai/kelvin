@@ -3,10 +3,12 @@
    C's, with errno given back where C sets it, 0 where it does not. */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
-   as kelvinc's own main.c has it */
+   as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
+   own extensions where no macro asks, and hide their own, as
+   sysconf(_SC_NPROCESSORS_ONLN) and getloadavg, where _XOPEN_SOURCE asks (#192) */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
-#else
+#elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE 1 /* getloadavg (#102), a BSD extension glibc keeps for this */
 #endif

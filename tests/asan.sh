@@ -15,9 +15,13 @@ KELVINC=${KELVINC:-./kelvinc}
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/kelvin-asan.XXXXXX") || exit 1
 case $tmp in /*) ;; *) echo "bad temporary directory" >&2; exit 1 ;; esac
 trap 'rm -rf "$tmp"' EXIT
-# the feature macros io.c and os.c define come after the included stdlib.h here, so they go first
-flags="-std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address -fno-sanitize-recover=all \
-    -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE=1 "-D_DARWIN_C_SOURCE=" \
+# the feature macros io.c and os.c define come after the included stdlib.h here, so they go first;
+# the BSDs want none of them (#192)
+case $(uname -s) in
+FreeBSD | NetBSD | OpenBSD | DragonFly) features= ;;
+*) features="-D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE=1 -D_DARWIN_C_SOURCE=" ;;
+esac
+flags="-std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address -fno-sanitize-recover=all $features \
     -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -include stdlib.h -w -Imodules -Iruntime"
 export ASAN_OPTIONS=detect_leaks=0:abort_on_error=0
 
