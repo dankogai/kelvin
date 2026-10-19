@@ -449,10 +449,79 @@ static bool accept_word(Lexer *lx, const char *w) {
     return true;
 }
 
-/* The only directive so far:  #import <header.h> as C  (or "header.h").
-   It becomes #include in the generated C, so C's headers are usable.
-   #import <x.k> or "x.k", without `as C`, brings in a Kelvin file
-   (#40). */
+/* nothing but blanks and a comment to the end of the line */
+static bool line_ends(Lexer *lx) {
+    return !*lx->p || *lx->p == '\n' || (lx->p[0] == '\r' && lx->p[1] == '\n') ||
+           (lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*'));
+}
+
+/* #inline C { ... } (#197): C, written into the generated C where it
+   stands. The C ends at the '}' that matches the '{', counted as C
+   counts them, outside its strings, characters and comments; a brace in
+   a macro, as #define LB {, counts too. */
+static void lex_inline_c(Lexer *lx, Pos pos) {
+    skip_blanks(lx);
+    if (!accept_word(lx, "C"))
+        error_at(here(lx), "expected 'C' after '#inline': #inline C { ... }");
+    skip_blanks(lx);
+    if (*lx->p != '{')
+        error_at(here(lx), "expected '{' after '#inline C', on the same line");
+    step(lx);
+    const char *start = lx->p;
+    int depth = 1;
+    for (;;) {
+        char c = *lx->p;
+        if (!c)
+            error_at(pos, "unterminated '#inline C {': it ends with the '}' that matches its '{'");
+        if (c == '/' && lx->p[1] == '/') {
+            while (*lx->p && *lx->p != '\n')
+                step(lx);
+            continue;
+        }
+        if (c == '/' && lx->p[1] == '*') {
+            Pos at = here(lx);
+            step(lx);
+            step(lx);
+            while (!(lx->p[0] == '*' && lx->p[1] == '/')) {
+                if (!*lx->p)
+                    error_at(at, "unterminated comment in '#inline C'");
+                step(lx);
+            }
+            step(lx);
+            step(lx);
+            continue;
+        }
+        if (c == '"' || c == '\'') {
+            Pos at = here(lx);
+            step(lx);
+            while (*lx->p != c) {
+                if (!*lx->p || *lx->p == '\n')
+                    error_at(at, "unterminated %s in '#inline C'", c == '"' ? "string" : "character");
+                if (*lx->p == '\\' && lx->p[1])
+                    step(lx);
+                step(lx);
+            }
+            step(lx);
+            continue;
+        }
+        if (c == '{')
+            depth++;
+        if (c == '}' && --depth == 0)
+            break;
+        step(lx);
+    }
+    const char *end = lx->p;
+    step(lx);
+    skip_blanks(lx);
+    if (!line_ends(lx))
+        error_at(here(lx), "unexpected text after the '}' of '#inline C'");
+    push(lx, TK_INLINE_C, pos, start, end);
+}
+
+/* The directives: #import <header.h> as C (or "header.h"), which becomes
+   #include in the generated C, so C's headers are usable; #import <x.k>
+   or "x.k", without `as C`, which brings in a Kelvin file (#40); and
+   #inline C { ... }, C of the program's own (#197). */
 static void lex_import(Lexer *lx) {
     Pos pos = here(lx);
     for (const char *q = lx->p; q > lx->src && q[-1] != '\n'; q--)
@@ -460,8 +529,13 @@ static void lex_import(Lexer *lx) {
             error_at(pos, "'#' must start a line");
     step(lx);
     skip_blanks(lx);
+    if (accept_word(lx, "inline")) {
+        lex_inline_c(lx, pos);
+        return;
+    }
     if (!accept_word(lx, "import"))
-        error_at(pos, "only '#import <header.h> as C' is supported; the rest of the preprocessor is TODO");
+        error_at(pos, "only '#import <header.h> as C' and '#inline C { ... }' are supported; the rest of the "
+                      "preprocessor is TODO");
     skip_blanks(lx);
     char close = *lx->p == '<' ? '>' : *lx->p == '"' ? '"' : 0;
     if (!close)
@@ -484,8 +558,7 @@ static void lex_import(Lexer *lx) {
         if (accept_word(lx, "as"))
             error_at(pos, "a Kelvin file is imported as it is: write '#import %.*s' without 'as C'",
                      (int)(end - start), start);
-        if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '\r' && lx->p[1] == '\n') &&
-            !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+        if (!line_ends(lx))
             error_at(here(lx), "unexpected text after '#import %.*s'", (int)(end - start), start);
         push(lx, TK_IMPORT_K, pos, start, end);
         return;
@@ -496,8 +569,7 @@ static void lex_import(Lexer *lx) {
     if (!accept_word(lx, "C"))
         error_at(here(lx), "only 'as C' is supported");
     skip_blanks(lx);
-    if (*lx->p && *lx->p != '\n' && !(lx->p[0] == '\r' && lx->p[1] == '\n') &&
-        !(lx->p[0] == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+    if (!line_ends(lx))
         error_at(here(lx), "unexpected text after '#import ... as C'");
     push(lx, TK_IMPORT, pos, start, end);
 }

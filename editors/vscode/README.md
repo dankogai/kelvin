@@ -45,6 +45,8 @@ make vscode
 - Operators, among them Kelvin's own: `^` of a pointer, `:=`, `??`, `..<`
   and `...`.
 - Comments, `//` and `/* */`, which the editor's toggle uses too.
+- `#inline C { ... }` (#197): the C inside colored as C, by VS Code's
+  own C grammar.
 
 ## Test
 

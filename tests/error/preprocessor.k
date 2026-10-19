@@ -1,2 +1,2 @@
-// error: only '#import <header.h> as C' is supported; the rest of the preprocessor is TODO
+// error: only '#import <header.h> as C' and '#inline C { ... }' are supported; the rest of the preprocessor is TODO
 #include <stdio.h>

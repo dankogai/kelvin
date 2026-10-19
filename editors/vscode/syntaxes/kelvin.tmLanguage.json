@@ -18,6 +18,9 @@
           "include": "#comments"
         },
         {
+          "include": "#inline-c"
+        },
+        {
           "include": "#import"
         },
         {
@@ -100,6 +103,75 @@
               "name": "support.constant.language.kelvin"
             }
           }
+        }
+      ]
+    },
+    "inline-c": {
+      "comment": "#inline C { ... } (#197): C of the program's own, colored as C",
+      "begin": "^\\s*(#inline)\\s+(C)\\s*(\\{)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.directive.inline.kelvin"
+        },
+        "2": {
+          "name": "support.constant.language.kelvin"
+        },
+        "3": {
+          "name": "punctuation.section.block.begin.kelvin"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.kelvin"
+        }
+      },
+      "contentName": "meta.embedded.block.c",
+      "patterns": [
+        {
+          "include": "#inline-c-body"
+        }
+      ]
+    },
+    "inline-c-body": {
+      "comment": "braces counted as C counts them, outside strings, characters and comments; the rest is VS Code's C",
+      "patterns": [
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "patterns": [
+            {
+              "include": "#inline-c-body"
+            }
+          ]
+        },
+        {
+          "include": "#comments"
+        },
+        {
+          "name": "string.quoted.double.c",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.c"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.c",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.c"
+            }
+          ]
+        },
+        {
+          "include": "source.c"
         }
       ]
     },

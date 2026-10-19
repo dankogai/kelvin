@@ -228,6 +228,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 194 | CI runs on FreeBSD too: the job freebsd, in a virtual machine of vmactions/freebsd-vm, installs gmake, python3, node and zip with pkg, builds with gmake and the strict flags, and runs `make test` through BSD make, as a user, not root; FreeBSD names no removed file, so f.abspath of one is `""` there, as io.md says, and io_abspath.k and io_stat.k take that | — | the CI job freebsd | 2026-10-20 |
 | 195 | f.abspath keeps the last name it found, of the path or of the descriptor, and answers by it where neither answers, as of a removed file on FreeBSD, which names none; `""` where none ever answered, as of a pipe, and once the IO is closed; the tests of #194 take one answer again on every system | — | `f.abspath` | 2026-10-20 |
 | 196 | An IO keeps the name it opened as from the open on, the first that f.abspath answers by where nothing else does: IO(path) its realpath, IO(fd, mode) its descriptor's, OS.mkstemp's its file's; f.rename keeps the new one; a file removed before abspath was asked answers by the name it had on FreeBSD too | — | `f.abspath` | 2026-10-20 |
+| 197 | `#inline C { ... }`: C of the program's own at the top level, written into the generated C where it stands, its lines the .k's; it ends at the `}` that matches its `{`, braces counted outside C's strings, characters and comments; the preprocessor is C's inside it; Kelvin uses its names as a header's, and it calls a Kelvin function above it by its C name; a module has it in its library, not its .kh; VS Code colors it as C | — | `#inline C { int one(void) { return 1; } }` | 2026-10-20 |
 
 Notes:
 
@@ -789,6 +790,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (197) Agreed details: "do #197 with `#inline C { ... }`", after the
+  user asked between `inline C { ... }` and `C { ... }`: `C { ... }` is
+  already a call of C with a trailing anonymous function, and the `#`
+  sets it beside `#import <x.h> as C` as a thing of C and the build, not
+  a Kelvin keyword `inline`, which C has for functions. Top level only;
+  the `{` on the line of `#inline C`; nothing after the `}` but a
+  comment; a brace in a macro counts, as said (P209).
 
 - (196) Agreed details: "now remember the name at open too", the way
   P207 left. The open asks realpath once, so a file removed or renamed
@@ -2117,6 +2126,7 @@ says "as agreed".
 | P206 | Details of #194 | vmactions/freebsd-vm@v1 on ubuntu-latest, its default release, usesh, copyback false; `pw useradd kelvin -m`, the checkout chowned to it, `su kelvin -c` for the build, `make test` and examples/hello.k; the tests tell FreeBSD by `strcmp(SYS.platform, "freebsd")` | f.abspath keeping the last name it found, so FreeBSD answers a removed file too; tests/asan.sh on FreeBSD |
 | P207 | Details of #195 | `char *named` is the last field of kv_io; `remember` copies each name kv_io_abspath gives back, of realpath or of the descriptor; kv_os_mkstemp sets it NULL with the rest; remove and rename go by name_of, which asks kv_io_abspath, so a removed file's remove goes to the name it had on FreeBSD as on Linux; tests/run/io_abspath_kept.k | the name at open, so an IO never asked answers a removed file too |
 | P208 | Details of #196 | kv_io_open sets `named` to realpath(path, NULL) once fopen succeeds; kv_io_fdopen asks kv_io_abspath and frees what it gives; kv_os_mkstemp, in libkOS, which libkIO links and not the other way, calls realpath itself; kv_io_rename sets `named` to the realpath of the new path; tests/run/io_abspath_open.k | — |
+| P209 | Details of #197 | the lexer reads the block as one token, TK_INLINE_C, its text the C between the braces; the parser makes a D_INLINE_C at the top level and rejects it inside, as #import; codegen writes it after a `#line` of its first line and maps the next declaration anew; the .kh writer skips it; the grammar's `inline-c` embeds `source.c` in meta.embedded.block.c, counting braces itself, and tests/grammar.js, which has no C grammar, skips another language's include and treats a begin/end repository entry as one rule | `#inline C` inside a function, as a statement; its names in a module's .kh |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

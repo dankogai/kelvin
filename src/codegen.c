@@ -2971,6 +2971,13 @@ static void emit_decl(Decl *d) {
     case D_IMPORT:
         line("#include %s", d->name);
         break;
+    case D_INLINE_C:
+        /* C of the program's own (#197), as written, its lines the .k's:
+           the text begins after the '{', on the line of d->pos */
+        buf_puts(&out, d->name);
+        buf_puts(&out, "\n");
+        mapped_line = -1;
+        break;
     case D_FN:
         /* registered before the body, so a method can call itself; a
            setter (#132) is called by its own name, never dispatched */

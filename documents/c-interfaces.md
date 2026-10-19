@@ -2,9 +2,9 @@
 
 Kelvin is C: every function, struct and pointer is C's, with C's ABI, so
 a Kelvin program calls C and C calls it with nothing in between. This
-document has the ways in and out: C headers, typedef names, C's own
-functions beside Kelvin's, the prelude from C, and what the C compiler
-checks.
+document has the ways in and out: C headers, C of your own in
+`#inline C`, typedef names, C's own functions beside Kelvin's, the
+prelude from C, and what the C compiler checks.
 
 **Where it lives:** explicitly loaded. A C header's names come only with `#import <x.h> as C`; `libkelvin` and `kelvin_prelude.h` are the prelude, which Kelvin links without an import and which C may use too.
 
@@ -23,6 +23,8 @@ checks.
   it (see [modules.md](modules.md)).
 - Every other directive (`#include`, `#define`, `#if`, ...) is an error.
   The rest of the preprocessor is TODO.
+  - Inside `#inline C { ... }` they are C's own: see
+    [Inline C](#inline-c).
 - Without an import you can still declare C functions by hand:
   `let printf(fmt:const u8^, ...):i32`.
   - Don't do both, because a hand-written prototype conflicts with the
@@ -33,6 +35,55 @@ reads the code around it. Kelvin cannot see macro definitions and treats
 every macro as an ordinary name.
 
 `_Pragma("...")` is allowed only as a statement of its own.
+
+## Inline C
+
+`#inline C { ... }` is C of the program's own (#197), written into the
+generated C where it stands.
+
+```swift
+let twice(x:int64):int64 { x * 2 }
+
+#inline C {
+#include <ctype.h>
+#define LOUD '!'
+static int shout(int c) { return toupper(c); }
+int64_t quad(int64_t x) { return twice(x) * 2; }   /* C calls Kelvin */
+}
+
+let main():int32 {
+    println(quad(3), " ", shout(97), " ", LOUD)    // 12 65 33
+    return 0
+}
+```
+
+- **Where:** at the top level of a file, outside functions, structs and
+  blocks, with `{` on the line of `#inline C`.
+  - It ends at the `}` that matches that `{`, counted as C counts them:
+    a brace in a string, a character or a comment does not count.
+  - A brace in a macro does count: `#define LB {` would leave the block
+    open. Write such a macro in a header and `#import` it.
+  - Nothing but a comment may follow the closing `}` on its line.
+- **What it may hold:** any C at file scope: functions, globals,
+  typedefs, and the preprocessor (`#include`, `#define`, `#if`).
+- **Kelvin's side:** its names are used as an imported header's are.
+  - kelvinc does not read C, so a call is not checked by kelvinc; the C
+    compiler checks it.
+  - Its typedef names are types after a colon, as
+    [C typedef names](#c-typedef-names) says: `let p:cpoint = corigin()`.
+  - A Kelvin function calls it once it is written above the call, as a C
+    function must be declared before its use.
+- **C's side:** it calls a Kelvin function written above it, by its C
+  name, as [The ABI](#the-abi) says: `twice`, or `twice__i64` where it
+  is overloaded or imported.
+  - It may use the prelude's types, as `kv_string`, since the generated
+    C includes `kelvin_prelude.h` first.
+- **Errors:** the C compiler's errors name the `.k` file and its line.
+- **Ownership:** Kelvin's rules (see [ownership.md](ownership.md)) end
+  at the block; what C does there is C's.
+- **Modules:** a module built by `kelvinc --lib` (#146) has the block in
+  its library, not in its `.kh`: a program that imports the module does
+  not see the block's names.
 
 ## The ABI
 

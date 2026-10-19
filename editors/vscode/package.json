@@ -34,7 +34,10 @@
       {
         "language": "kelvin",
         "scopeName": "source.kelvin",
-        "path": "./syntaxes/kelvin.tmLanguage.json"
+        "path": "./syntaxes/kelvin.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.c": "c"
+        }
       },
       {
         "scopeName": "markdown.kelvin.codeblock",

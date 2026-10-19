@@ -4929,3 +4929,23 @@ of a file removed before it was asked answers on FreeBSD too;
 io_abspath_open.k is new. Details are provisional P208.
 
 There are 802 tests, and all pass with clang and with gcc 15.
+
+### 240. Inline C
+
+> in addition to `#import <foo.h> as C`, I want to add "inline C" like
+> `inline C { int foo(char *bar) { /* ... */ } }`, or should it be as
+> simple as `C { ... }`? Don't touch the code yet.
+
+**Claude** recommended `#inline C { ... }`: `C { ... }` is already a call
+of `C` with a trailing anonymous function, and the `#` puts it beside
+`#import <x.h> as C`; top level only, braces counted as C counts them.
+
+> do #197 with `#inline C { ... }`
+
+**Claude** added #197: the block is written into the generated C where it
+stands, with C's errors at the .k's lines; Kelvin uses its names as a
+header's, and it calls Kelvin functions written above it; a module keeps
+it in its library; VS Code colors it as C. c-interfaces.md has a
+section of it. Details are provisional P209.
+
+There are 808 tests, and all pass with clang and with gcc 15.

@@ -52,7 +52,8 @@ So far the changes from C are:
   `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
   and `let i = 42` is an `i64`
 - `bool`, `true` and `false` are built in
-- C headers are imported with `#import <stdio.h> as C`
+- C headers are imported with `#import <stdio.h> as C`, and C of your
+  own goes in `#inline C { ... }` (#197)
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or
   `0xdead:u16`
 - `print()` and `println()` come from a small prelude in `libkelvin`, so

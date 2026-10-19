@@ -21,12 +21,15 @@ function re(src) {
 function rulesOf(list, seen = new Set()) {
     const out = [];
     for (const r of list || []) {
+        if (r.include && !r.include.startsWith('#') && r.include !== '$self' && r.include !== 'source.kelvin') {
+            continue; /* another language's grammar, as source.c in #inline C (#197): VS Code's, not here */
+        }
         if (r.include) {
             const key = r.include === '$self' || r.include === 'source.kelvin' ? null : r.include.slice(1);
             const target = key === null ? { patterns: grammar.patterns } : grammar.repository[key];
             if (!target) { fail('no repository entry ' + r.include); continue; }
             if (seen.has(r.include)) continue;
-            out.push(...rulesOf(target.patterns ? target.patterns : [target], new Set([...seen, r.include])));
+            out.push(...rulesOf(target.patterns && !target.begin && !target.match ? target.patterns : [target], new Set([...seen, r.include]))); /* a rule of begin and end is itself, its patterns inside it */
         } else {
             out.push(r);
         }
@@ -34,7 +37,7 @@ function rulesOf(list, seen = new Set()) {
     return out;
 }
 for (const [name, entry] of Object.entries(grammar.repository)) {
-    for (const r of rulesOf(entry.patterns || [entry])) {
+    for (const r of [...(entry.begin || entry.match ? [entry] : []), ...rulesOf(entry.patterns || [])]) {
         for (const k of ['match', 'begin', 'end']) {
             if (!r[k] || (k === 'end' && /\\\d/.test(r[k]))) continue;
             try { re(r[k]); } catch (e) { fail(`${name}: ${k} /${r[k]}/ does not compile: ${e.message}`); }
@@ -162,6 +165,8 @@ const samples = [
     ['let s := """', [['"""', 'string.quoted.triple']]],
     ['if let v = maybe() { return some(v) } else { return none }', [['some', 'support.function.case'], ['none', 'constant.language']]],
     ["let c = 'x'", [["'x'", 'string.quoted.single']]],
+    ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
+    ['let after = 1', [['let', 'storage.type']]],
 ];
 for (const [line, wants] of samples) {
     const { tokens } = tokenize(line);

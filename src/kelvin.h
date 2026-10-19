@@ -63,6 +63,7 @@ typedef enum {
     TK_IMPORT_K, /* #import <x.k> (#40): a Kelvin file, whose tokens main.c
                     puts after it before parsing */
     TK_FILE_END, /* the end of an imported Kelvin file (#40); text is its path */
+    TK_INLINE_C, /* #inline C { ... } (#197); text is the C between the braces, its '{' on the line of pos */
 } TokKind;
 
 typedef struct {
@@ -239,13 +240,13 @@ struct Stmt {
                           S_CASE: the name case n(x): binds to the value (#119) */
 };
 
-typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM } DeclKind;
+typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM, D_INLINE_C } DeclKind;
 
 struct Decl {
     DeclKind kind;
     Pos pos;
     const char *storage;  /* NULL, "static", "extern" */
-    char *name;           /* D_IMPORT: the header name, e.g. "<stdio.h>" */
+    char *name;           /* D_IMPORT: the header name, e.g. "<stdio.h>"; D_INLINE_C: the C (#197) */
     List params;          /* D_FN: Var * */
     bool variadic;
     Type *ret;            /* D_FN: NULL means void */

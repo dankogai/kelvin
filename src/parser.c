@@ -7919,10 +7919,12 @@ static Stmt *new_stmt(StmtKind kind, Pos pos) {
     return s;
 }
 
-/* #import, of a C header or a Kelvin file (#40), is for the top level */
+/* #import, of a C header or a Kelvin file (#40), and #inline C (#197) are for the top level */
 static void reject_inner_import(void) {
     if (peek()->kind == TK_IMPORT || peek()->kind == TK_IMPORT_K)
         error_at(peek()->pos, "#import is for the top level of a file, outside functions, structs and blocks");
+    if (peek()->kind == TK_INLINE_C)
+        error_at(peek()->pos, "#inline C is for the top level of a file, outside functions, structs and blocks");
 }
 
 /* the statements of a block whose `{` (t) has been read, and its `}` */
@@ -11422,6 +11424,12 @@ Program *parse(Token *tokens, int ntoks) {
             list_push(&prog->decls, d);
             continue;
         }
+        if (t->kind == TK_INLINE_C) { /* C of the program's own (#197), written where it stands */
+            Decl *d = new_decl(D_INLINE_C, t->pos, NULL);
+            d->name = advance()->text;
+            list_push(&prog->decls, d);
+            continue;
+        }
         stmt_start = cur;
         top_name = NULL;
         const char *storage = parse_storage();
@@ -11729,7 +11737,7 @@ char *gen_header(Program *prog) {
             if (header_end(k + 1, &end) == 'b')
                 list_push(&defined, raw_text(k, end));
         }
-        i = toks[i].kind == TK_IMPORT || toks[i].kind == TK_IMPORT_K ? i + 1 : decl_end(i);
+        i = toks[i].kind == TK_IMPORT || toks[i].kind == TK_IMPORT_K || toks[i].kind == TK_INLINE_C ? i + 1 : decl_end(i);
     }
     for (int i = 0; toks[i].kind != TK_EOF;) {
         Token *t = &toks[i];
@@ -11744,6 +11752,10 @@ char *gen_header(Program *prog) {
         }
         if (t->kind == TK_IMPORT_K) {
             buf_printf(&b, "#import %s\n", t->text);
+            i++;
+            continue;
+        }
+        if (t->kind == TK_INLINE_C) { /* in the module's object, not its header (#197) */
             i++;
             continue;
         }

@@ -75,6 +75,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `double complex z = 1.0 + 2.0 * I;` | `let z:c64 = c64(1.0, 2.0)` (modules/math.k, #43) |
 | `sizeof(long)` | `sizeof(i64)` |
 | `#include <stdio.h>` | `#import <stdio.h> as C` |
+| C in the same file | `#inline C { ... }` (#197) |
 | `printf("%" PRId64 "\n", n)` | `println(n)` (prelude, no import) |
 | `snprintf(buf, sizeof buf, "%lld", n)` | `n.cstr` (`cstr` text on the stack) |
 | `strlen(s)` | `s.count` (measured once per scope, #52) |
@@ -193,7 +194,8 @@ These are C features without a Kelvin spelling so far:
   `modules/math.k` does for `c32` and `c64`; `Array<T>`,
   `Dictionary<K, V>` and `Set<T>` are the built-in generics (#57, #65, #71)
 - literal suffixes (on purpose: see [integers.md](integers.md))
-- the preprocessor beyond `#import`
+- the preprocessor beyond `#import`, but inside `#inline C { ... }`
+  (#197)
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 - `alignof` and `typeof` (reserved C compiler keywords, P20; `v.type` is
