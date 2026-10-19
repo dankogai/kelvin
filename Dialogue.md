@@ -4986,3 +4986,32 @@ and the tagged type of a `static` variable now goes to the .kh alone.
 geo.k has both. Details are provisional P212.
 
 There are 809 tests, and all pass with clang and with gcc 15.
+
+### 244. SKI, Iota and Jot
+
+> add `example/ski.k` that implements SKI combinator logic.  It should
+> also include iota and jot.
+
+**Claude** added #201, examples/ski.k, since the examples are in
+examples/: SKI terms reduced to a normal form, Iota's `*` and `i` and
+Jot's bits compiled to SKI, with K and S of each shown by what they do
+to variables; a term of any of the three from the command line. The
+README's table of examples has it. Details are provisional P213.
+
+There are 810 tests, and all pass with clang and with gcc 15.
+
+### 245. The lambda calculus
+
+> add `examples/lambda.k` as well which implements the lambda calculus.
+> https://en.wikipedia.org/wiki/Lambda_calculus since we can already
+> handle Unicode, lambda is λ, not \ like lame languages like Haskel.
+
+**Claude** added #202, examples/lambda.k: terms written with λ, Church
+numerals and the article's definitions, `FACT 3` by Y, normal-order
+reduction over de Bruijn indices with names primed by ′ where they
+would capture; a `\` is refused with a word about λ. It found a bug of
+kelvinc, `return c ? a : s` of a local String freeing what it returns,
+left for a change of its own; and ski.k's comment now passes its
+arguments after `--`. Details are provisional P214.
+
+There are 811 tests, and all pass with clang and with gcc 15.

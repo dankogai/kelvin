@@ -232,6 +232,8 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 198 | `#inline C { ... }` in a function too: C statements where they stand among a function's, seeing its parameters and locals by their C names, their own, `$0` as `_kv_arg0`; a C `return` returns, and the owners it leaves are freed as by Kelvin's, by C's `cleanup` attribute; not in a struct, a union or an enum, nor as a brace-less body | — | `#inline C { total += i; }` | 2026-10-20 |
 | 199 | A module's .kh has the declarations of its top-level `#inline C`, in an `#inline C` of their own, so a program that imports it uses the block's names: its preprocessor lines, a function's prototype, its types, a global `extern` without its initializer; nothing `static` or `inline` | — | `double geo_area(geo_size s);` in geo.kh | 2026-10-20 |
 | 200 | A type and a variable at once in a module's `#inline C`, `struct p { ... } v = x;`, go to its .kh as `extern struct p { ... } v;`, and the tagged type of a `static` one alone, `struct p { ... };`; a variable of a struct type, `struct p v = {...};`, is `extern` too | — | `extern struct geo_rect { double w, h; } geo_unit;` in geo.kh | 2026-10-20 |
+| 201 | examples/ski.k: SKI combinator logic, reduced leftmost-outermost to a normal form or a limit of steps, and Iota (`*` and `i`) and Jot (bits) compiled to it; `-iota` and `-jot` read a term of either from the command line, and a term of SKI otherwise | — | `kelvinc --run examples/ski.k -- 'S(K(SI))Kab'` | 2026-10-20 |
+| 202 | examples/lambda.k: the untyped lambda calculus written with `λ`, never `\`: `λx y.M` for `λx.λy.M`, a number its Church numeral, a name in capitals one of Wikipedia's definitions (TRUE, AND, SUCC, PLUS, MULT, POW, PRED, SUB, ISZERO, Y, FACT, ...); normal-order reduction over de Bruijn indices, the names given back with `′` where one would capture; a term from the command line | — | `kelvinc --run examples/lambda.k -- 'PLUS 2 3'` | 2026-10-20 |
 
 Notes:
 
@@ -793,6 +795,22 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (202) Agreed details: "add `examples/lambda.k` as well which
+  implements the lambda calculus ... since we can already handle Unicode,
+  lambda is λ, not \ like lame languages like Haskel." A `\` is not
+  read, and the message says to write λ. Writing it found a bug of
+  kelvinc: `return c ? a : s`, s a local String, gives s without moving
+  it, so its cleanup frees what is returned; the example returns s by a
+  `return` of its own, and the bug waits for a change of its own (P214).
+
+- (201) Agreed details: "add `example/ski.k` that implements SKI
+  combinator logic. It should also include iota and jot." The examples
+  are in examples/, so it is examples/ski.k. A term is a node of an
+  Array of structs, by index, so a step shares what it does not change;
+  ι is S(SI(KS))(KK); Jot starts from I, [w0] = [w]SK, [w1] = S(K[w]).
+  Each language's K and S are shown by what they do to variables, and
+  SII(SII) stops at its limit. run.sh checks its output (P213).
 
 - (200) Agreed details: "now allow struct p { ... } v; in #inline C
   exports", the case P211 left. Trying it showed that the form went out
@@ -2153,6 +2171,8 @@ says "as agreed".
 | P210 | Details of #198 | S_INLINE_C, its text in Stmt.name; parse_stmt_here makes it, parse_block_rest lets it through where #import is rejected, and a body of a statement or a label rejects it; codegen writes it after the `#line` of its statement and maps the next one anew | a C `return` of an owner, which kelvinc does not see |
 | P211 | Details of #199 | c_declarations in parser.c: the comments made blanks; at depth 0, a line starting with `#` is kept with its continued lines; a `{` after `)` is a function's body, its text before it the prototype; else a declaration ends at `;`: kept as it is where it begins with `typedef`, `extern` or `_Static_assert`, or is a `struct`, `union` or `enum` with nothing after its `}`; else `extern` before it and each initializer dropped, up to the next `,` at depth 0; `static` or `inline` among its specifiers leaves it out; tests/project/lib/geo.k and geo_user.k use it, and tests/run.sh checks geo.kh | — |
 | P212 | Details of #200 | c_declaration skips the storage class and qualifiers (static, extern, const, volatile, _Thread_local) to find struct, union or enum; its body is a `{` after the keyword and an optional tag alone; nothing after the body: the type, kept; a declarator after it: extern; static or inline with a tag and a body: `struct p { ... };`, the type alone; tests/project/lib/geo.k has both, which tests/run.sh checks in geo.kh | — |
+| P213 | Details of #201 | `struct node { kind: uint8; fun: int64; arg: int64 }` in `var pool:$[node]`, a global owner filled by main; `step` unwinds the spine into an Array of arguments, the last first, and reduces I, K or S at the head, else the first argument that steps; `normal` stops after `limit` steps with " ..."; `show` puts an argument that is an application in parentheses; a node's kind is a `uint8`, shown by `.uchr`, since a character literal is C's `int` and a `uchr` C's struct | — |
+| P214 | Details of #202 | `struct node { kind: uint8; n: int64; a: int64; b: int64 }` in `var pool:$[node]`, names in `var names:$[String]`, definitions in `var defs:$[int64]`, all global owners; a definition is closed, so its node is shared where its name is read; shift and subst as Pierce has them; `show` primes a binder whose name a binder around it or a free variable has; the reader's functions take a `reader^`, since a method cannot change self, and `term` is a prototype first; `kelvinc --run file -- args` passes args, which ski.k's comment now says too | `return c ? a : s` of a local owner s, a kelvinc bug |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
