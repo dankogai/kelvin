@@ -310,6 +310,8 @@ void kv_io_free(kv_io *f) {
     f->kind = 0;
     free(f->path);
     f->path = NULL;
+    free(f->named);
+    f->named = NULL;
 }
 
 kv_io kv_io_take(kv_io *f) {
@@ -317,6 +319,7 @@ kv_io kv_io_take(kv_io *f) {
     f->fp = NULL;
     f->kind = 0;
     f->path = NULL;
+    f->named = NULL;
     return v;
 }
 
@@ -505,12 +508,22 @@ const uint8_t *kv_io_path(kv_io *f) { return (const uint8_t *)path_of(f); }
 /* the absolute path with every link followed: of the path (#104), and
    where that is gone or there is none, of the open descriptor as the
    system names it (#105), macOS's F_GETPATH or Linux's /proc/self/fd,
-   a removed file's by the name it had; "" where neither answers, as of
-   a pipe, a closed IO, or another system */
+   a removed file's by the name it had; else the last name it found
+   (#195), as of a removed file on FreeBSD, which names none; "" where
+   none ever answered, as of a pipe, a closed IO, or another system */
+static kv_string remember(kv_io *f, kv_string found) {
+    char *kept = copy_text(kv_bytes_cstr(&found.b));
+    if (kept) {
+        free(f->named);
+        f->named = kept;
+    }
+    return found;
+}
+
 kv_string kv_io_abspath(kv_io *f) {
     kv_string out = {0};
     if (f->path && kv_os_realpath(f->path, &out) == 0)
-        return out;
+        return remember(f, out);
     char buf[PATH_MAX + 1];
     buf[0] = 0;
     int fd = f->fp ? fileno((FILE *)f->fp) : -1;
@@ -535,7 +548,9 @@ kv_string kv_io_abspath(kv_io *f) {
             snprintf(buf, sizeof buf, "%s", kf.kf_path);
 #endif
     }
-    return kv_string_text(buf[0] == '/' ? buf : "");
+    if (buf[0] == '/')
+        return remember(f, kv_string_text(buf));
+    return kv_string_text(f->named ? f->named : "");
 }
 /* the name an IO's listdir, walk and glob (#106), remove and rename
    (#108) work by: its path while that is there, else the open

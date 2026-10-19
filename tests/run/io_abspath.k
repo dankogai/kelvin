@@ -2,11 +2,9 @@
 // system names it, so a file renamed behind the IO's back answers by its
 // new name and a removed one by the name it had; "" where neither the path
 // nor the descriptor answers, as of a pipe; FreeBSD names no removed
-// file, so "" there (#194)
-#import <string.h> as C
+// file, so the IO answers by the last name it found (#195)
 #import <IO>
 let main():int32 {
-    let freebsd = strcmp(SYS.platform, "freebsd") == 0
     var f = IO("io_abspath.tmp", "w")
     if f.error == 0 {
         f.write("x")
@@ -21,7 +19,7 @@ let main():int32 {
         println(moved == there)                      // the descriptor's name
         println(OS.remove("io_abspath2.tmp"), " ", f.exists)
         var gone = f.abspath
-        println(gone == there || freebsd && gone.count == 0, " ", f.stat.size)    // by the name it had; still open
+        println(gone == there, " ", f.stat.size)    // by the name it had; the file is still open
     }
     var ends = IO.pipe()                         // the pair straight (#110)
     if ends.reader.error == 0 {

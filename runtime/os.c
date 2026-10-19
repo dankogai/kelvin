@@ -488,6 +488,7 @@ int kv_os_mkstemp(const void *prefix, kv_io *io, kv_string *path) {
     io->status = io->signal = -1;
     io->pid = 0;
     io->path = NULL;
+    io->named = NULL;
     *path = kv_string_text(t);
     size_t n = strlen(t) + 1;
     io->path = malloc(n);

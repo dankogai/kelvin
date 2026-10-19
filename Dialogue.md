@@ -4906,3 +4906,15 @@ two tests take `""` as the abspath of a removed file on FreeBSD, which
 names none, and io.md says so. Details are provisional P206.
 
 There are 800 tests, and all pass with clang and with gcc 15.
+
+### 238. abspath remembers
+
+> make abspath remember the last name it found
+
+**Claude** added #195: an IO keeps the last name f.abspath found and
+answers by it where neither the path nor the descriptor answers, as of
+a removed file on FreeBSD; a closed IO forgets it. The tests of #194
+take one answer on every system again, and io_abspath_kept.k is new.
+Details are provisional P207.
+
+There are 801 tests, and all pass with clang and with gcc 15.

@@ -20,6 +20,7 @@ typedef struct kv_io {
     long pid;   /* a process run without the shell (#90), waited for when closed */
     char *path; /* the path it was opened with (#101), freed with it; NULL for a stream or a process */
     int error;  /* the errno of an open that failed (#109), 0 otherwise; such an IO is as a closed one */
+    char *named; /* the last name kv_io_abspath found (#195), freed with it; NULL before one */
 } kv_io;
 kv_io kv_io_open(const void *path, const void *mode); /* the IO straight (#109), .error set when it did not open */
 kv_io kv_io_fdopen(int fd, const void *mode);
@@ -37,7 +38,7 @@ const char **kv_io_vector_strings(const kv_string *at, size_t n);
 void kv_io_vector_free(const char *const *v);
 /* its path, and the OS's work on it (#101) */
 const uint8_t *kv_io_path(kv_io *f);
-kv_string kv_io_abspath(kv_io *f); /* of the path, else of the descriptor; "" where neither answers (#104, #105) */
+kv_string kv_io_abspath(kv_io *f); /* of the path, else of the descriptor, else the last found; "" before one (#104, #105, #195) */
 /* Arrays straight, none where the IO is no readable directory (#106) */
 void kv_io_listdir(kv_io *f, kv_string **out, size_t *count);
 void kv_io_walk(kv_io *f, kv_string **out, size_t *count);
