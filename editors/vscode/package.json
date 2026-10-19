@@ -1,0 +1,51 @@
+{
+  "name": "kelvin-lang",
+  "displayName": "Kelvin",
+  "description": "Syntax coloring for Kelvin, C with Swift's spelling",
+  "version": "0.0.1",
+  "publisher": "dankogai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dankogai/kelvin"
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kelvin",
+        "aliases": [
+          "Kelvin",
+          "kelvin"
+        ],
+        "extensions": [
+          ".k",
+          ".kh"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kelvin",
+        "scopeName": "source.kelvin",
+        "path": "./syntaxes/kelvin.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.kelvin.codeblock",
+        "path": "./syntaxes/kelvin.markdown.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.kelvin": "kelvin"
+        }
+      }
+    ]
+  }
+}

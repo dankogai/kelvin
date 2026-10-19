@@ -89,6 +89,7 @@ build build/runtime:
 test: all
 	./tests/run.sh
 	./tests/docs.sh
+	@if command -v node >/dev/null 2>&1; then node tests/grammar.js; else echo "tests/grammar.js skipped: no node"; fi
 
 # every test program under AddressSanitizer with a counting allocator (#175)
 asan: all

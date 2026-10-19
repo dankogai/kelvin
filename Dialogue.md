@@ -4824,3 +4824,17 @@ new ones; GitHub's Markdown renderer colors such a block as Swift.
 Details are provisional P201.
 
 There are 800 tests, and all pass with clang and with gcc 15.
+
+### 233. A TextMate grammar for VS Code
+
+> now add a Kelvin TextMate grammar for VS Code
+
+**Claude** added #190: editors/vscode, a VS Code extension with a
+TextMate grammar of Kelvin for `.k`, `.kh` and ```` ```kelvin ```` blocks,
+installed by a link into `~/.vscode/extensions`, and tests/grammar.js,
+which `make test` runs where node is: every Kelvin file and document
+example of the repository tokenizes cleanly, and sample lines get
+their scopes. Details are provisional P202.
+
+There are 800 tests, and all pass with clang and with gcc 15; the
+grammar's test passes 935 checks.

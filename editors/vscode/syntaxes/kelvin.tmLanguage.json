@@ -1,0 +1,584 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kelvin",
+  "scopeName": "source.kelvin",
+  "fileTypes": [
+    "k",
+    "kh"
+  ],
+  "patterns": [
+    {
+      "include": "#code"
+    }
+  ],
+  "repository": {
+    "code": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#import"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#regexp"
+        },
+        {
+          "include": "#characters"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#declarations"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#types"
+        },
+        {
+          "include": "#constants"
+        },
+        {
+          "include": "#dollar"
+        },
+        {
+          "include": "#calls"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#punctuation"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.kelvin",
+          "begin": "//",
+          "end": "$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.kelvin"
+            }
+          }
+        },
+        {
+          "name": "comment.block.kelvin",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "captures": {
+            "0": {
+              "name": "punctuation.definition.comment.kelvin"
+            }
+          }
+        }
+      ]
+    },
+    "import": {
+      "patterns": [
+        {
+          "match": "^\\s*(#import)\\s*(<[^>\\n]*>|\"[^\"\\n]*\")(?:\\s+(as)\\s+(C)\\b)?",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.kelvin"
+            },
+            "2": {
+              "name": "string.quoted.other.module.kelvin"
+            },
+            "3": {
+              "name": "keyword.control.import.kelvin"
+            },
+            "4": {
+              "name": "support.constant.language.kelvin"
+            }
+          }
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.kelvin",
+          "match": "\\\\(?:u\\{[0-9A-Fa-f]+\\}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.kelvin",
+          "begin": "(\\$?)(\"\"\"+)",
+          "end": "\\2",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.string-maker.kelvin"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.kelvin"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.kelvin"
+            }
+          }
+        },
+        {
+          "name": "string.quoted.double.kelvin",
+          "begin": "(\\$?)(\")",
+          "end": "\"",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.string-maker.kelvin"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.kelvin"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.kelvin"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#escapes"
+            }
+          ]
+        },
+        {
+          "name": "string.template.kelvin",
+          "begin": "(\\$?)(`)",
+          "end": "`",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.string-maker.kelvin"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.kelvin"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.kelvin"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.kelvin",
+              "match": "\\\\[`${}]"
+            },
+            {
+              "include": "#escapes"
+            },
+            {
+              "name": "meta.template.expression.kelvin",
+              "contentName": "meta.embedded.line.kelvin",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.definition.template-expression.begin.kelvin"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.definition.template-expression.end.kelvin"
+                }
+              },
+              "patterns": [
+                {
+                  "include": "#code"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "regexp": {
+      "patterns": [
+        {
+          "name": "string.regexp.kelvin",
+          "begin": "(\\$)(/)(?![/*])",
+          "end": "(/)([a-z]*)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.string-maker.kelvin"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.kelvin"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.end.kelvin"
+            },
+            "2": {
+              "name": "keyword.other.regexp-flags.kelvin"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.kelvin",
+              "match": "\\\\(?:p\\{[^}\\n]*\\}|P\\{[^}\\n]*\\}|u\\{[0-9A-Fa-f]+\\}|k<[^>\\n]*>|.)"
+            },
+            {
+              "name": "constant.other.character-class.regexp.kelvin",
+              "begin": "\\[",
+              "end": "\\]",
+              "patterns": [
+                {
+                  "name": "constant.character.escape.kelvin",
+                  "match": "\\\\."
+                }
+              ]
+            },
+            {
+              "name": "keyword.operator.quantifier.regexp.kelvin",
+              "match": "[*+?]\\??|\\{\\d+(?:,\\d*)?\\}\\??"
+            },
+            {
+              "name": "punctuation.definition.group.regexp.kelvin",
+              "match": "\\((?:\\?(?:<[=!]|<[A-Za-z_][A-Za-z_0-9]*>|[:=!]|[ims-]+:))?|\\)"
+            },
+            {
+              "name": "keyword.operator.or.regexp.kelvin",
+              "match": "\\|"
+            },
+            {
+              "name": "keyword.control.anchor.regexp.kelvin",
+              "match": "[$^]"
+            }
+          ]
+        }
+      ]
+    },
+    "characters": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.kelvin",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "include": "#escapes"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.kelvin",
+          "match": "\\b0[xX][0-9A-Fa-f_]+(?:\\.[0-9A-Fa-f_]*)?(?:[pP][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.binary.kelvin",
+          "match": "\\b0[bB][01_]+\\b"
+        },
+        {
+          "name": "constant.numeric.octal.kelvin",
+          "match": "\\b0[oO][0-7_]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.kelvin",
+          "match": "(?<![\\w.])\\d[\\d_]*(?:\\.(?!\\.)\\d*)?(?:[eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.kelvin",
+          "match": "(?<![\\w.])\\.\\d+(?:[eE][+-]?\\d+)?\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(struct|union|enum)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.type.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(extend)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.type.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(typealias)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.type.alias.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z_0-9]*)\\s*(\\.)\\s*([A-Za-z_][A-Za-z_0-9]*|\\[\\])\\s*(?=[(:])",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.type.kelvin"
+            },
+            "3": {
+              "name": "punctuation.accessor.kelvin"
+            },
+            "4": {
+              "name": "entity.name.function.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z_0-9]*)\\s*(\\[\\])",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.type.kelvin"
+            },
+            "3": {
+              "name": "entity.name.function.subscript.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let|var)\\s+(\\[\\])",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.function.subscript.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z_0-9]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.function.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let)\\s+([-+*/%<>=!]=?|==)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "entity.name.function.operator.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.kelvin"
+            },
+            "2": {
+              "name": "variable.other.declaration.kelvin"
+            }
+          }
+        },
+        {
+          "match": "(?<=:)\\s*(\\$\\[)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.string-maker.kelvin"
+            }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.kelvin",
+          "match": "\\b(?:if|else|while|do|for|in|switch|case|default|break|continue|return|goto|try)\\b"
+        },
+        {
+          "name": "storage.type.kelvin",
+          "match": "\\b(?:let|var|struct|union|enum|extend|typealias)\\b"
+        },
+        {
+          "name": "storage.modifier.kelvin",
+          "match": "\\b(?:static|extern|const|volatile|inline|restrict)\\b"
+        },
+        {
+          "name": "keyword.operator.word.kelvin",
+          "match": "\\b(?:as|sizeof)\\b"
+        },
+        {
+          "name": "variable.language.kelvin",
+          "match": "\\b(?:self|Self)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.kelvin",
+          "match": "\\b(?:i8|i16|i32|i64|i128|u8|u16|u32|u64|u128|f32|f64|int8|int16|int32|int64|int128|uint8|uint16|uint32|uint64|uint128|float32|float64)\\b"
+        },
+        {
+          "name": "support.type.kelvin",
+          "match": "\\b(?:bool|any|cstr|uchr|size_t|String|Bytes|Array|Dictionary|Set|Optional|Result|IO|Match|BytesMatch|RegExp|c64|c32|complex64|complex32)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.kelvin",
+          "match": "\\b(?:true|false|nullptr|none)\\b"
+        },
+        {
+          "name": "support.function.case.kelvin",
+          "match": "\\b(?:some|ok|err)\\b(?=\\s*\\()"
+        },
+        {
+          "name": "support.class.kelvin",
+          "match": "\\b(?:OS|SYS)\\b"
+        }
+      ]
+    },
+    "dollar": {
+      "patterns": [
+        {
+          "name": "variable.parameter.anonymous.kelvin",
+          "match": "\\$\\d+"
+        },
+        {
+          "name": "variable.parameter.anonymous.kelvin",
+          "match": "\\$\\[\\d+\\]"
+        },
+        {
+          "name": "keyword.other.self-call.kelvin",
+          "match": "\\$(?=\\()"
+        },
+        {
+          "name": "keyword.operator.string-maker.kelvin",
+          "match": "\\$(?=[\\[{])"
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "name": "support.function.kelvin",
+          "match": "\\b(?:print|println)\\b(?=\\s*\\()"
+        },
+        {
+          "match": "(?<=\\.)([A-Za-z_][A-Za-z_0-9]*)\\s*(?=[({])",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.member.kelvin"
+            }
+          }
+        },
+        {
+          "match": "\\b([A-Za-z_][A-Za-z_0-9]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.call.kelvin"
+            }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.range.kelvin",
+          "match": "\\.\\.<|\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.coalescing.kelvin",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.assignment.reference.kelvin",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.pointer.kelvin",
+          "match": "\\^"
+        },
+        {
+          "name": "keyword.operator.assignment.compound.kelvin",
+          "match": "(?:<<|>>|[-+*/%&|~])="
+        },
+        {
+          "name": "keyword.operator.comparison.kelvin",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.kelvin",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.arithmetic.kelvin",
+          "match": "\\+\\+|--|<<|>>|[-+*/%&|~]"
+        },
+        {
+          "name": "keyword.operator.assignment.kelvin",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.ternary.kelvin",
+          "match": "\\?"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.type.kelvin",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.terminator.statement.kelvin",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.delimiter.kelvin",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.kelvin",
+          "match": "\\."
+        }
+      ]
+    }
+  }
+}

@@ -90,6 +90,8 @@ is output, not code. The tests keep the layout they were written in.
   - `.gitattributes` colors `.k` and `.kh` files as Swift the same way.
   - Swift knows no `^` pointer, no `:=` and no `$/.../`, so those show
     as plain operators; the rest colors as it should.
+  - VS Code colors Kelvin with its own grammar, in `editors/vscode`
+    (#190), `.k` files and ```` ```kelvin ```` blocks alike.
 - Every such block compiles, which `make test` checks (#176).
   - A listing or a sketch with `...` has `<!-- fragment -->` on the line
     before its fence, which the page does not show.

@@ -213,7 +213,7 @@ Requires a C11 compiler and make.
 
 ```sh
 make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib}, libkIO and libkOS
-make test                   # runs tests/run.sh, and tests/docs.sh: the documents' examples compile
+make test                   # runs tests/run.sh, and tests/docs.sh: the documents' examples compile; tests/grammar.js
 make asan                   # runs tests/asan.sh: every test program under ASan, nothing live at exit
 make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc hello.k           # builds ./hello
@@ -221,6 +221,14 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc --emit-c hello.k  # prints the generated C
 ./kelvinc --lib geo.k       # builds the module geo: modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
 ```
+
+## Editors
+
+- **VS Code**: [editors/vscode](editors/vscode) colors Kelvin with a
+  TextMate grammar of its own; link the folder into
+  `~/.vscode/extensions`, as its README says (#190).
+- **GitHub** colors `.k` files and the documents' examples as Swift,
+  which Kelvin reads most like (#189).
 
 ## License
 
