@@ -201,6 +201,7 @@ typedef enum {
     S_RETURN,
     S_GOTO,
     S_LABEL,
+    S_INLINE_C,  /* #inline C { ... } in a function (#198): name is the C */
 } StmtKind;
 
 /* what `for x in s` walks (#30) */
@@ -235,7 +236,7 @@ struct Stmt {
     bool from_argv;    /* S_FOR_EACH: s is main's argv, which C types char ** */
     int each;          /* S_FOR_EACH: EACH_* above */
     Stmt *body, *els;  /* loop body / if-then, else */
-    char *name;        /* S_GOTO, S_LABEL, S_FOR_IN */
+    char *name;        /* S_GOTO, S_LABEL, S_FOR_IN; S_INLINE_C: the C (#198) */
     char *name2;       /* S_FOR_EACH: the value's name in for k, v in d (#65);
                           S_CASE: the name case n(x): binds to the value (#119) */
 };

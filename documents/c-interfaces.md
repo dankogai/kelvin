@@ -39,7 +39,8 @@ every macro as an ordinary name.
 ## Inline C
 
 `#inline C { ... }` is C of the program's own (#197), written into the
-generated C where it stands.
+generated C where it stands: at the top level, or in a function as its
+statements (#198).
 
 ```swift
 let twice(x:int64):int64 { x * 2 }
@@ -57,8 +58,10 @@ let main():int32 {
 }
 ```
 
-- **Where:** at the top level of a file, outside functions, structs and
-  blocks, with `{` on the line of `#inline C`.
+- **Where:** at the top level of a file, or among a function's
+  statements (#198), with `{` on the line of `#inline C`.
+  - Not in a struct, a union or an enum, and not as the body of a
+    statement without braces.
   - It ends at the `}` that matches that `{`, counted as C counts them:
     a brace in a string, a character or a comment does not count.
   - A brace in a macro does count: `#define LB {` would leave the block
@@ -84,6 +87,38 @@ let main():int32 {
 - **Modules:** a module built by `kelvinc --lib` (#146) has the block in
   its library, not in its `.kh`: a program that imports the module does
   not see the block's names.
+
+### In a function
+
+```swift
+let sum(n:int32):int64 {
+    var total:int64 = 0
+    #inline C {
+        for (int i = 1; i <= n; i++) { total += i; }
+    }
+    return total
+}
+
+let main():int32 {
+    println(sum(10))                    // 55
+    return 0
+}
+```
+
+- **What it may hold:** C statements and declarations, as a C block's.
+- **The locals:** it sees the function's parameters and locals by their
+  C names, which are their own: `n` and `total` above.
+  - An anonymous function's `$0` is `_kv_arg0`.
+  - A `let` is `const` in C, so C cannot assign it; write a `var`.
+- **Jumps:** a C `return`, `break`, `continue` or `goto` leaves as C
+  leaves.
+  - The owners it leaves are freed still: Kelvin frees them by C's
+    `cleanup` attribute, which any leaving runs; `longjmp` and `exit`
+    do not.
+  - C must not return an owner, as `return s;`: the owner is freed as it
+    leaves. Return it from Kelvin, which moves it out (see
+    [ownership.md](ownership.md)).
+  - A function whose value C returns needs no Kelvin `return`.
 
 ## The ABI
 

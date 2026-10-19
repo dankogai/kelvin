@@ -2166,6 +2166,13 @@ static void stmt(Stmt *s) {
     case S_GOTO:
         line("goto %s;", s->name);
         break;
+    case S_INLINE_C:
+        /* C of a function's own (#198), as written, its lines the .k's,
+           seeing the locals by their C names */
+        buf_puts(&out, s->name);
+        buf_puts(&out, "\n");
+        mapped_line = -1;
+        break;
     case S_LABEL:
         indent--;
         line("%s:", s->name);

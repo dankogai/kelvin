@@ -4949,3 +4949,15 @@ it in its library; VS Code colors it as C. c-interfaces.md has a
 section of it. Details are provisional P209.
 
 There are 808 tests, and all pass with clang and with gcc 15.
+
+### 241. Inline C in functions
+
+> now allow #inline C inside functions too
+
+**Claude** added #198: `#inline C { ... }` among a function's statements,
+seeing its locals by their C names; a C `return` returns, and the owners
+it leaves are freed, since Kelvin frees them by C's `cleanup` attribute;
+c-interfaces.md has "In a function", and inline_c_fn.k is new. Details
+are provisional P210.
+
+There are 809 tests, and all pass with clang and with gcc 15.

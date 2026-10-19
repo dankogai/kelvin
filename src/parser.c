@@ -7919,12 +7919,14 @@ static Stmt *new_stmt(StmtKind kind, Pos pos) {
     return s;
 }
 
-/* #import, of a C header or a Kelvin file (#40), and #inline C (#197) are for the top level */
+/* #import, of a C header or a Kelvin file (#40), is for the top level;
+   #inline C (#197) for the top level and a function's blocks (#198) */
 static void reject_inner_import(void) {
     if (peek()->kind == TK_IMPORT || peek()->kind == TK_IMPORT_K)
         error_at(peek()->pos, "#import is for the top level of a file, outside functions, structs and blocks");
     if (peek()->kind == TK_INLINE_C)
-        error_at(peek()->pos, "#inline C is for the top level of a file, outside functions, structs and blocks");
+        error_at(peek()->pos, "#inline C is for the top level of a file and a function's blocks, outside structs, "
+                              "unions and enums");
 }
 
 /* the statements of a block whose `{` (t) has been read, and its `}` */
@@ -7935,7 +7937,8 @@ static Stmt *parse_block_rest(Token *t) {
     while (!is_p(peek(), "}")) {
         if (peek()->kind == TK_EOF || peek()->kind == TK_FILE_END)
             error_at(t->pos, "unterminated block");
-        reject_inner_import();
+        if (peek()->kind != TK_INLINE_C) /* a statement of a function's (#198) */
+            reject_inner_import();
         list_push(&s->stmts, parse_stmt());
     }
     block_depth--;
@@ -9347,6 +9350,13 @@ static Stmt *parse_stmt_here(void) {
     bool as_body = stmt_is_body;
     stmt_is_body = false;
 
+    if (t->kind == TK_INLINE_C) { /* C statements where they stand (#198) */
+        if (as_body)
+            error_at(pos, "#inline C cannot be the body of a statement or follow a label; put it in a block");
+        Stmt *s = new_stmt(S_INLINE_C, pos);
+        s->name = advance()->text;
+        return s;
+    }
     if (is_p(t, "{"))
         return parse_block();
     if (accept_p(";"))

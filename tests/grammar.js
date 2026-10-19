@@ -167,6 +167,7 @@ const samples = [
     ["let c = 'x'", [["'x'", 'string.quoted.single']]],
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
+    ['    #inline C { total += i; }', [['#inline', 'keyword.control.directive'], [' total += i; ', 'meta.embedded.block.c']]],
 ];
 for (const [line, wants] of samples) {
     const { tokens } = tokenize(line);
