@@ -224,6 +224,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 190 | A TextMate grammar of Kelvin, `source.kelvin`, in editors/vscode, a VS Code extension that colors `.k` and `.kh` files and ```` ```kelvin ```` blocks of Markdown: keywords, declarations, the built-in and the modules' types, text with its escapes, templates with code in `${...}`, `$/.../` with its classes and groups, numbers, Kelvin's operators; installed by a link into `~/.vscode/extensions`; tests/grammar.js, run by `make test` where node is, checks it | — | editors/vscode | 2026-10-19 |
 | 191 | `make vscode` installs the VS Code extension of editors/vscode: tools/vsix.sh packages it as build/kelvin-lang-<version>.vsix with zip alone, without npm, and VS Code's `code --install-extension` installs it, again over an installed one; `make vsix` only packages it; a link into `~/.vscode/extensions`, the way of #190, is not one VS Code loads | — | `make vscode` | 2026-10-19 |
 | 192 | Kelvin builds on FreeBSD: kelvinc, the runtime, the C kelvinc writes and tests/asan.sh define _XOPEN_SOURCE and _DEFAULT_SOURCE on neither macOS nor the BSDs, which show POSIX, X/Open and their own extensions where no macro asks and hide their own where _XOPEN_SOURCE asks, as `sysconf(_SC_NPROCESSORS_ONLN)` and `getloadavg`; f.abspath of a renamed or removed file asks fcntl's F_KINFO there, there being no /proc | — | `gmake` on FreeBSD | 2026-10-20 |
+| 193 | `make` on the BSDs: the build moves to GNUmakefile, which GNU make reads before Makefile, and Makefile, which BSD make reads, hands each target to `gmake`; README.md names what the build needs, GNU make, Python 3 and a C11 compiler, and on FreeBSD `pkg install gmake python3` or the ports devel/gmake and lang/python3 | — | `make` on FreeBSD | 2026-10-20 |
 
 Notes:
 
@@ -785,6 +786,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (193) Agreed details: "`git pull && gmake && gmake test` has worked!
+  Now add a Makefile that BSD make hands to gmake. Also document that
+  `gmake` and `python3` must be installed via `pkg` or ports." GNU make
+  reads GNUmakefile before Makefile, so the build is GNUmakefile and
+  Makefile is BSD make's alone: its targets and .DEFAULT run
+  `$(GMAKE) $@`, with MAKEFLAGS emptied, since BSD make's are not GNU
+  make's (P205).
 
 - (192) Agreed details: `gmake` on FreeBSD stopped at runtime/os.c,
   "use of undeclared identifier '_SC_NPROCESSORS_ONLN'" and an implicit
@@ -2084,6 +2093,7 @@ says "as agreed".
 | P202 | Details of #190 | editors/vscode holds package.json (the language `kelvin` of `.k` and `.kh`, its grammar, the Markdown injection), language-configuration.json (comments, brackets, closing pairs, indentation), syntaxes/kelvin.tmLanguage.json and syntaxes/kelvin.markdown.json; tests/grammar.js applies match, begin and end with back references, captures, contentName and includes, as VS Code does, without Oniguruma, so the expressions keep to what JavaScript's and Oniguruma's share | a grammar for Linguist, so that GitHub colors Kelvin as Kelvin, waits until it is used widely enough |
 | P203 | Details of #191 | tools/vsix.sh [out] writes [Content_Types].xml and extension.vsixmanifest (Identity, DisplayName, Description, the engine, and the assets package.json, README.md and LICENSE), copies editors/vscode and LICENSE under extension/, zips them and prints the path; its temporary directory is the one mktemp made or the script ends before its trap is set; `make vscode` asks for the `code` command where it is missing | publishing to the Marketplace, which needs a publisher's account and token, is the user's to do |
 | P204 | Details of #192 | the test is `!defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)` in src/main.c, runtime/io.c, runtime/os.c and the head of the generated C, and `uname -s` in tests/asan.sh; F_KINFO fills a struct kinfo_file of sys/user.h, kf_structsize set first, where F_KINFO is defined; BSD make cannot read the Makefile, which is GNU make's | a FreeBSD job in CI, in a virtual machine; a Makefile that BSD make reads, handing to gmake |
+| P205 | Details of #193 | Makefile names all, test, asan, vsix, vscode, install, clean and kelvinc, .PHONY, and sends any other target by .DEFAULT; GMAKE ?= gmake; a variable on BSD make's command line does not reach gmake, so README.md says to give it to gmake | the other BSDs' package names; Makefile not yet run by BSD make here, only by GNU make with -f Makefile |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

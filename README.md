@@ -209,7 +209,24 @@ Each one ends with the output it prints, as `// out:` lines, which
 
 ## Build and use
 
-Requires a C11 compiler and make.
+Requires:
+
+- a C11 compiler, as `cc`, clang or gcc;
+- GNU make, which reads `GNUmakefile`;
+- Python 3, which makes the Unicode tables of the runtime from
+  `tools/ucd/` (#156);
+- optional: `node` for `tests/grammar.js`, and `zip` and `unzip` for
+  `make vsix` (#190, #191).
+
+On FreeBSD (#193):
+
+- Install GNU make and Python 3 with pkg, or from the ports:
+  - `pkg install gmake python3`;
+  - or the ports `devel/gmake` and `lang/python3`.
+  - Optional: `pkg install node zip`, or `www/node` and `archivers/zip`.
+- Then `make`, BSD make, reads `Makefile`, which hands each target to
+  `gmake`: `make`, `make test` and the rest work as below.
+- Variables go to `gmake` itself: `gmake install PREFIX=~/.local`.
 
 ```sh
 make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib}, libkIO and libkOS

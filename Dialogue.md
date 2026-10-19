@@ -4879,3 +4879,17 @@ test takes FreeBSD. It is not yet run on FreeBSD. Details are
 provisional P204.
 
 There are 800 tests, and all pass with clang and with gcc 15.
+
+### 236. make on FreeBSD
+
+> Good news!  `git pull && gmake && gmake test` has worked! Now add a
+> Makefile that BSD make hands to gmake.  Also document that `gmake` and
+> `python3` must be installed via `pkg` or ports.
+
+**Claude** added #193: the build is GNUmakefile, which GNU make reads
+first, and Makefile, which BSD make reads, hands each target to `gmake`;
+README.md's "Build and use" names what the build needs and how FreeBSD
+gets it, `pkg install gmake python3` or the ports. Details are
+provisional P205.
+
+There are 800 tests, and all pass with clang and with gcc 15.
