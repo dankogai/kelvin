@@ -12,7 +12,7 @@ writes it back; [msgpack.md](msgpack.md) packs one into MessagePack.
 
 **Where it lives:** `modules/SION.k`, brought in by `#import <SION>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in `extend SION { }` blocks (#130) with `Self` for `SION` (#140), and subscripts (#136) for `s["key"]` and `s[i]`. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/SION.k` builds it into a library where a project wants that (#146).
 
-```kelvin
+```swift
 #import <SION>
 
 var s = SION.parse("""
@@ -82,7 +82,7 @@ println(SION.same(&s, &back))                 // true
 ## Functions
 
 <!-- fragment -->
-```kelvin
+```swift
 SION.parse(text: cstr): SION                      // a value, or error(message)
 SION.parse(text: const String^): SION             // the same of a String, borrowed
 SION.stringify(s: const SION^): String                              // compact

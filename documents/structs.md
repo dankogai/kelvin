@@ -9,7 +9,7 @@ the same rules; see [unions.md](unions.md).
 
 ## Declaring
 
-```kelvin
+```swift
 struct point { x: int32; y: int32 }
 struct node {
     value: int64
@@ -43,7 +43,7 @@ let q = (point){.y = 7}     // a compound literal; q is a point
 
 A struct may be written where a type goes, by its members alone (#59):
 
-```kelvin
+```swift
 var v:{x:float64, y:float64} = {3.0, 4.0}
 let norm(v:{x:float64, y:float64}):float64 { return v.x * v.x + v.y * v.y }
 var a = ({x:float64, y:float64}){1.0, 2.0}      // a compound literal
@@ -99,7 +99,7 @@ struct the same way, and so do `print` and `println` (#122):
 `println(p)` is `println(p.cstr)`. A struct may define its own text
 (#53):
 
-```kelvin
+```swift
 struct vector2d { x: float64; y: float64 }
 let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
 ```
@@ -122,7 +122,7 @@ Attributes read without parentheses, type attributes, and an
 `extend T { }` block that holds them all are in
 [properties.md](properties.md#attributes-of-your-own-and-extend) (#130 to #133):
 
-```kelvin
+```swift
 struct point { x: int32; y: int32 }
 
 let point.dist2():int64 { .x * .x + .y * .y }             // .x is self.x
@@ -196,7 +196,7 @@ A struct, a union or an enum with values (#121) may define
 `+ - * / % == != < <= > >=` and unary `-`, as functions named by the
 operator, overloaded by their types as other functions are (#42):
 
-```kelvin
+```swift
 struct money { cents: int64 }
 
 extend money {                                            // or alone: let +(a:money, b:money):money

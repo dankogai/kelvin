@@ -12,7 +12,7 @@ way. This document has both. The text of a single value, `n.cstr`, is in
 
 Every Kelvin program can use `print` and `println` without an import:
 
-```kelvin
+```swift
 let main():int32 {
     let n:int64 = -42
     println("n = ", n, ", half = ", n / 2.0)   // n = -42, half = -21.0
@@ -57,7 +57,7 @@ let main():int32 {
 `print` and `println` show a value with brackets whole, on one line, and
 `v.pretty` shows it indented, a line for each item (#123, #124):
 
-```kelvin
+```swift
 struct point { x: int64; y: int64 }
 var xs = $[1, 2, 3]
 var ages = ${"ann": 31, "bob": 42}
@@ -126,7 +126,7 @@ A template literal, between backquotes, may span lines, and each
 `${expression}` in it becomes the expression's text, as `print` shows it
 (#39):
 
-```kelvin
+```swift
 let name:cstr := "Kelvin"
 let n:int64 = 42
 println(`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`)   // Hello, Kelvin! 42 / 4.0 = 10.5

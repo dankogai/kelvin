@@ -73,7 +73,7 @@ looser than the prefix ones, so `-x as u8` is `(-x) as u8`.
 A struct or union may define `+ - * / % == != < <= > >=` and unary `-`
 (#42), as functions named by the operator and chosen by their types:
 
-```kelvin
+```swift
 struct money { cents: int64 }
 extend money {
     static let +(a:Self, b:Self):Self { (Self){a.cents + b.cents} }

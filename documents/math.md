@@ -10,7 +10,7 @@ turn on the Gaussian plane.
 
 **Where it lives:** `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
-```kelvin
+```swift
 #import <math>
 
 let main():int32 {
@@ -89,7 +89,7 @@ let main():int32 {
 ## Functions
 
 <!-- fragment -->
-```kelvin
+```swift
 sin(x:float64):float64, sin(x:float32):float32, sin(z:c64):c64, sin(z:c32):c32   // and so for each function above
 pow(x:float64, y:float64):float64, pow(z:c64, w:c64):c64, pow(z:c64, x:float64):c64
 abs(x:float64):float64, abs(x:float32):float32, abs(n:int64):int64, abs(z:c64):float64, abs(z:c32):float32

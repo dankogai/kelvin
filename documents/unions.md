@@ -6,7 +6,7 @@ than the one last written is C's type punning, with C's rules.
 
 **Where it lives:** the core. A union is C's, with nothing linked.
 
-```kelvin
+```swift
 union bits { u: uint64; f: float64 }
 
 extend bits {                                             // Self is bits

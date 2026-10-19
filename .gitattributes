@@ -1,0 +1,4 @@
+# GitHub has no Kelvin, so it colors Kelvin as Swift, the language it reads
+# most like (#189); the documents fence their examples as ```swift too
+*.k   linguist-language=Swift
+*.kh  linguist-language=Swift

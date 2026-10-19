@@ -26,7 +26,7 @@ with the `$/.../` literal, are `#import <RegExp>` (#157):
 
 ## Four kinds of text
 
-```kelvin
+```swift
 let s:cstr := "hello"        // a pointer to static text: const char * in C
 let t:[uint8] = "hello"         // a copy in an array of six bytes, NUL included
 var buf = [uint8](64)           // 64 zero bytes to write into
@@ -149,7 +149,7 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 ## Walking and indexing
 
 <!-- fragment -->
-```kelvin
+```swift
 for c in s { ... }            // each byte of s, up to the NUL (#30)
 for arg in argv { ... }       // each string, up to nullptr
 s[0], s^                      // the first byte, a u8
@@ -190,7 +190,7 @@ passing, copied only by `.copy()`, borrowed as a pointer. The rules are
 in [ownership.md](ownership.md); this is the summary.
 
 <!-- fragment -->
-```kelvin
+```swift
 var s = $"héllo"                 // String("héllo"); String() is empty
 s += ", world"                   // append text; also s.append(...)
 s += t.copy()                    // a String's text; s += &t borrows it

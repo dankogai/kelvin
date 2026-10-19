@@ -15,7 +15,7 @@ its cases named `none` and `some` (#72); it has its own document,
 **Where it lives:** the prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 <!-- fragment -->
-```kelvin
+```swift
 let parse(s:cstr):Result<int64, String> {
     if s.count == 0 { return err($"empty") }   // err(e), a word
     return int64(s)                              // a T becomes ok(T) by itself
@@ -137,7 +137,7 @@ C returns an `int` and hands the value back through a pointer, as
 since C89. A Kelvin wrapper returns both as one Result, and the caller
 cannot take the value without facing the case:
 
-```kelvin
+```swift
 #import <sys/stat.h> as C
 #import <errno.h> as C
 #import <string.h> as C
@@ -205,7 +205,7 @@ One maker builds both in kelvinc, so a change to one is a change to the
 other. The details, and the examples, are in
 [optionals.md](optionals.md).
 
-```kelvin
+```swift
 var xs = $[5, 6, 7]
 let find(xs:$[int64]^, v:int64):int64? {       // a result that may be absent
     for i in 0..<xs^.count { if xs^[i] == v { return i } }

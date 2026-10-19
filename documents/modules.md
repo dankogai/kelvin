@@ -44,7 +44,7 @@ A large module is a header and a library, as a C library is (#143):
 write.
 
 <!-- fragment -->
-```kelvin
+```swift
 #import <IO>                    // modules/IO.kh, and libkIO.a beside it
 #import <shout>                 // ./modules/shout.kh, and ./modules/libkshout.a
 

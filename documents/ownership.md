@@ -16,7 +16,7 @@ never copied implicitly. `Dictionary` (#65) follows the same rules.
 
 ## `Bytes`
 
-```kelvin
+```swift
 var b = Bytes("hello, ")     // a copy of the text, on the heap
 b += "Kelvin"                // append: text, a byte, a borrow, a Bytes
 b.append('!')
@@ -73,7 +73,7 @@ from bytes that are not well-formed UTF-8 (overlong forms, surrogates,
 anything past U+10FFFF), the program ends with a message.
 
 <!-- fragment -->
-```kelvin
+```swift
 var s = String("héllo, κόσμε")  // text, checked
 s += " 🌍"                      // text, a codepoint, &other, or a String an expression gives
 s.append(0x1F600)
@@ -127,7 +127,7 @@ a pointer, a `cstr`, a struct that owns nothing, or an owner among
 it, copied by `copy()`, and never copied by `=`.
 
 <!-- fragment -->
-```kelvin
+```swift
 var xs = Array<int64>()            // empty; Array<i64>(n) is n zero elements
 var va = Array([0, 1, 2, 3])     // the elements, T inferred from them; or Array<i64>([0, 1, 2, 3])
 var vb = $[0, 1, 2, 3]            // the same, for short; $"text" is String("text")
@@ -208,7 +208,7 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
 rules (#65): `K` an integer type or `String`, `V` any value an Array
 holds. Its entries keep the order they were added in.
 
-```kelvin
+```swift
 var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>; ${K: V} is the type
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: the key must be there
@@ -317,7 +317,7 @@ status as `// exit: 1` and the message as `// err:` lines.
 | **O10** | **The C stays small.** `--emit-c` shows ordinary C: `__attribute__((cleanup(kv_bytes_free))) kv_bytes b = ...`, `kv_bytes_take(&b)` where it moves, `kv_bytes_assign(&b, v)` where it takes a value, and a `_kv_T_free` for a struct that owns. |
 | **O11** | **An owner an expression gives is held where it is used** (#187). `$"a b".split(re)`, `make().name`, `println(make())`, `$"a" == s`, `parse("1") ?? 0` and `for x in rows() { }` keep it in a hidden local until the expression, the comparison or the loop is done, then free it; a member that owns is copied out, and one given where a borrow is taken, `s.split($/\s+/)`, is lent. A pointer into it, `make().name.cstr`, would dangle, and a change to it, `rows().append(3)`, would be lost: both are errors, which say to bind it first. |
 
-```kelvin
+```swift
 let greeting(name:cstr):Bytes {      // the caller owns the result
     var b = Bytes("hello, ")
     b += name

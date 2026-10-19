@@ -7,7 +7,7 @@ module is imported, and `RegExp.compile(pattern, flags)` the same from
 text. It is a header and a library, `RegExp.kh` and `libkRegExp` in
 `modules/`, on `UnicodeData`, which the import links by itself.
 
-```kelvin
+```swift
 #import <RegExp>
 
 let main():int32 {
@@ -170,7 +170,7 @@ name: `s.match(&re)` is `re.match(&s)`.
   bytes where the pattern matches the text, `Bytes.unescape(text)` of
   the prelude the whole.
 
-```kelvin
+```swift
 #import <RegExp>
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g
 var s = $"water boils at 212F and freezes at 32F"

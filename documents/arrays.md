@@ -28,7 +28,7 @@ passed to a function is a pointer. Byte arrays that hold text are in
   - An array passed to a function is a pointer, as in C, so `.count`
     there is an error: pass the count beside it *(provisional P61)*.
 
-```kelvin
+```swift
 var a:[int32](4)                  // C: int32_t a[4]
 var m:[[int32](3)](2)             // C: int32_t m[2][3], indexed m[1][2]
 var ps:[int32^](4)                // C: int32_t *ps[4], four pointers
@@ -52,7 +52,7 @@ struct bag { n: int64; xs: [int64](3) }
 An array is initialized with `[...]`, and a struct or union keeps
 `{...}` (#48), nested too:
 
-```kelvin
+```swift
 struct bag { n: int64; xs: [int64](3) }
 struct point { x: int64; y: int64 }
 let a:[int32](3) = [1, 2, 3]
@@ -83,7 +83,7 @@ let s:[uint8] = "hi"                       // a string fills a byte array
 or, for a local `var`, a value C computes at run time (C's variable
 length array, declared and then zeroed with `memset`):
 
-```kelvin
+```swift
 var n:int64 = 80
 var z = [uint8](256)              // uint8_t z[256] = {0}
 var line = [uint8](n)             // uint8_t line[n]; memset(line, 0, sizeof line)
@@ -101,7 +101,7 @@ for a variable length array, since `sizeof` is computed at run time
 there. A `var` array's elements may change; a `let` array's may not.
 
 <!-- fragment -->
-```kelvin
+```swift
 for i in 0..<a.count { a[i] = a[i] * 2 }
 ```
 
@@ -150,7 +150,7 @@ only by `.copy()`, borrowed as a pointer. The rules are in
 [ownership.md](ownership.md); this is the summary.
 
 <!-- fragment -->
-```kelvin
+```swift
 var xs = $[1, 2, 3]              // Array<i64>, from the elements; Array<i64>() is empty
 xs += 4                          // append; also xs.append(4)
 xs += &ys                        // ys's elements, copied; xs += make() moves an Array in

@@ -11,7 +11,7 @@ the rest are conventions, agreed in [Dialogue.md](Dialogue.md) entry 43.
 A block opens on the line that introduces it, a function's or a method's
 included, and closes on a line of its own:
 
-```kelvin
+```swift
 let sum(var n:node^):i64 {
     var total:i64 = 0
     while n != nullptr {
@@ -37,7 +37,7 @@ statements keeps it, and so does `main`, whose end returns 0 as in C
 stays valid. A long expression breaks before an operator, written with
 a space after it as everywhere, so the next line goes on with it:
 
-```kelvin
+```swift
 let total:i64 = price
     * count
 ```
@@ -48,7 +48,7 @@ A short one stays on one line, with a space inside each brace:
 `sort(xs, n) { $0 < $1 }`. A longer one opens on the call's line, with
 its written parameters, if any, before `in`:
 
-```kelvin
+```swift
 qsort(names, n, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
     strcmp((a as const cstr^)^, (b as const cstr^)^)
 }
@@ -72,7 +72,7 @@ one space after the colon, `name: type`, also on one line, as in
 `struct point { x: i32; y: i32 }`. On lines of their own, the types line
 up one space after the longest name's colon:
 
-```kelvin
+```swift
 struct node {
     value: f64
     next:  node^
@@ -82,3 +82,14 @@ struct node {
 Other colons keep their spaces: `c ? a : b`, labels (`again: n = 0`) and
 `case 1:`. The text that `.cstr` derives for a struct, `{x: 3, y: 4}`,
 is output, not code. The tests keep the layout they were written in.
+
+## Examples in Markdown *(#189)*
+
+- An example in a document is fenced ```` ```swift ````: GitHub has no
+  Kelvin, and colors it as Swift, the language it reads most like.
+  - `.gitattributes` colors `.k` and `.kh` files as Swift the same way.
+  - Swift knows no `^` pointer, no `:=` and no `$/.../`, so those show
+    as plain operators; the rest colors as it should.
+- Every such block compiles, which `make test` checks (#176).
+  - A listing or a sketch with `...` has `<!-- fragment -->` on the line
+    before its fence, which the page does not show.

@@ -220,6 +220,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 186 | `xs.reverse()` reverses a var Array in place and `xs.reversed()` gives a new one, the elements in the other order, moved as they are; `.reversed()` of an Array an expression gives reverses that one, so that it chains | — | `$[3, 1, 2].sorted().reversed()` is `[3, 2, 1]` | 2026-10-19 |
 | 187 | An owner an expression gives is held where it is used, in a hidden local freed once the postfix chain, the comparison or the loop around it is done: a method, an attribute, a property, a subscript, a slice, a case, `.is`, a member, `println` and a template's value, a conversion, `==` and the orderings, the left of `??`, and `for x in`; a member that owns is copied out, and one given where a borrow `const T^` is taken is lent, `s.split($/\s+/)`; `&` of one inside an expression is a borrow of the held one. A pointer into a held owner, and a change to one by a built-in method, are errors that say to bind it first | — | `var words = $"Hello, Kelvin!".split($/\s+/)` | 2026-10-19 |
 | 188 | `b + c` on a Bytes is a new Bytes of the two, `b` a Bytes or text and `c` a Bytes, text or a byte 0 to 255, one a Bytes: a Bytes in a variable copied and kept, one an expression gives taken; a String and a Bytes are not joined | — | `a + b + "cd" + 0x7F` | 2026-10-19 |
+| 189 | Kelvin is colored as Swift on GitHub, the language it reads most like: `.gitattributes` gives `.k` and `.kh` files `linguist-language=Swift`, and the examples of the documents, the README and Style.md are fenced ```` ```swift ````, which tests/docs.sh reads, as ```` ```kelvin ```` before | — | ```` ```swift ```` | 2026-10-19 |
 
 Notes:
 
@@ -781,6 +782,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (189) Agreed details: "What language do you think kelvin is close? I
+  want kelvin codes to syntax-colored." Claude answered Swift, laid over
+  C, with Pascal's `^` and `:=`, and that GitHub colors only the
+  languages its Linguist knows, which adds one only once hundreds of
+  repositories use it; of the three ways offered, the user chose the
+  first two: the attribute for files and Swift fences for the examples.
+  A grammar of Kelvin's own waits. Swift colors `^`, `:=` and `$/.../`
+  as plain operators (P201).
 
 - (188) Agreed details: "now add `+` to `Bytes` too." As String's of
   #183, with what `b += x` takes on the right, a byte among them; a
@@ -2039,6 +2049,7 @@ says "as agreed".
 | P198 | Details of #186 | `xs.reverse()` is a `do { ... } while (0)` swapping `at[i]` and `at[j - 1]` from both ends; `xs.reversed()` the same on `T_copy(&xs)`, or on the Array an expression gives | the ops are `array_reverse`, `array_reversed` and `array_reversed_tmp` |
 | P199 | Details of #187 | `make_temp(src)` binds `_kv_tmpN` of the source's type as a let and pushes an `E_TEMP{a: src, text: name, type}` onto `chain_temps`, the list of the postfix chain being parsed, set by `parse_postfix_chain` and `parse_postfix_ops`; `wrap_temps` puts the chain's result in each, the last innermost, refuses a pointer or an array result but a template's text, and marks the innermost `copy` where the result is an owner place; the codegen writes `({ __attribute__((cleanup(free))) T name = src; body; })`, the name an owner local while the body is written, so that a move out of it takes it; `fit` scores an owner an expression gives for a borrow of its type 1, and `borrow_temps` lends it after a call is resolved; `hold_operand` holds an operand in an operator's own list; `parse_for_each_held` puts a loop over an owner an expression gives in a block with a hidden let; `parse_var` keeps the index of its own binding, which a temporary bound in its initializer would otherwise take | `E_TEMP` is a new expression kind, its value type its body's, seen through by `arg_type`, `seen_bool`, `number_expr`, `is_text_expr`, `shown_type` and `has_effect` |
 | P200 | Details of #188 | `b + c` is an E_CALL `bytes_concat`, `({ kv_bytes _kv_cat = kv_bytes_copy(&b) or (b) or kv_bytes_text(b); KV_BYTES_APPEND(&_kv_cat, c or &c); _kv_cat; })`; the cstr operator check lets `+` through where a Bytes is on either side; a literal byte out of 0 to 255 is an error | the table of bytes.md lists the orderings of #185 too, which it had left out |
+| P201 | Details of #189 | `.gitattributes`: `*.k linguist-language=Swift` and `*.kh linguist-language=Swift`; 76 fences in 31 Markdown files changed to `swift`; tests/docs.sh matches ```` ^```(swift\|kelvin)$ ````, finding the same 72 blocks | GitHub's language bar counts the `.k` files as Swift; Design.md and Dialogue.md keep their words about ```` ```kelvin ```` as written then |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

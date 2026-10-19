@@ -34,7 +34,7 @@ type's own are listed, with its methods, at the end of its document:
 
 Properties are written without parentheses:
 
-```kelvin
+```swift
 struct point { x: int32; y: int32 }
 let c:int32 = 42
 let b:uint8 = 255
@@ -209,7 +209,7 @@ naming its type, `T.x`, or with others in an `extend T { }` block,
 Swift's `extension`, which names the type once. In every body, `.x` is
 `self.x` (#139), and `Self` is the type (#140):
 
-```kelvin
+```swift
 struct rect { w: float64; h: float64 }
 struct temp { kelvin: float64 }
 
@@ -245,7 +245,7 @@ println(rect.unit, " ", rect.made)                        // {w: 1, h: 1} 1
 Subscripts (#136) read and write a value by indices, as an Array's
 `v[i]` does:
 
-```kelvin
+```swift
 struct grid { w: int64; cells: [int64](6) }
 
 extend grid {

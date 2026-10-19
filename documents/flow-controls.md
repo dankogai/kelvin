@@ -17,7 +17,7 @@ also in `for (var i = 0; ...)`, and references take `:=` (see
 their bodies are blocks (#23):
 
 <!-- fragment -->
-```kelvin
+```swift
 if n > 0 {
     println("positive")
 } else if n == 0 {
@@ -56,7 +56,7 @@ ends where the next begins, with no `break` and no fallthrough, and
 every value is handled.
 
 <!-- fragment -->
-```kelvin
+```swift
 switch n {
 case 0:
     println("zero")
@@ -111,7 +111,7 @@ its keys (#65, [ownership.md](ownership.md)).
 `for i in a...b { ... }` up to and with `b` (#28):
 
 <!-- fragment -->
-```kelvin
+```swift
 for i in 0..<count {          // C: for (int i = 0; i < count; i++)
     println(i)
 }
@@ -136,7 +136,7 @@ for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would
 strings and lists do (#30). What `x` is depends on `s`'s type:
 
 <!-- fragment -->
-```kelvin
+```swift
 for c in s { ... }          // s:cstr: each byte, up to the NUL
 for arg in argv { ... }     // argv:u8^^: each string, up to nullptr
 for n in list.head { ... }  // n:node^: each node along next, up to nullptr

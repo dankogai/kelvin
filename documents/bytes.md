@@ -10,7 +10,7 @@ holds well-formed UTF-8, counted by codepoint: text is in
 a Bytes is indexed by byte, unchecked for text, and a String walked
 by codepoint, text always.
 
-```kelvin
+```swift
 var b = Bytes("raw")                  // the bytes of the text
 var z = Bytes([0, 1, 255, 'A'])       // the bytes written out (#172)
 var n = Bytes(16)                     // 16 zero bytes

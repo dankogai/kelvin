@@ -9,7 +9,7 @@ so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 
 **Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` and `SYS` are `libkOS`, built from runtime/os.c and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` and `SYS` are errors that say to write it.
 
-```kelvin
+```swift
 #import <IO>                                // brings OS and SYS in too; #import <OS> alone for them
 
 let main():int32 {
@@ -217,7 +217,7 @@ passes it up and `if let ok(v)` reads it. `Stat` below stands for the
 struct of the next section.
 
 <!-- fragment -->
-```kelvin
+```swift
 SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it
 SYS.exit(code: int32)                      // ends the program; no value
 SYS.platform: cstr                       // "macos", "linux", "freebsd", "openbsd", "netbsd", "windows", "unknown"
@@ -313,7 +313,7 @@ the same kind may replace, so copy it with `String(...)` to keep it.
 struct itself, since it has no name:
 
 <!-- fragment -->
-```kelvin
+```swift
 {dev: int64, ino: int64, mode: int32, nlink: int64, uid: int32, gid: int32, size: int64,
  atime: float64, mtime: float64, ctime: float64, isdir: bool, isfile: bool, islink: bool}
 ```

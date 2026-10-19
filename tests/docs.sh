@@ -1,5 +1,6 @@
 #!/bin/sh
-# tests/docs.sh (#176): every ```kelvin block of the documents and the README
+# tests/docs.sh (#176): every Kelvin block of the documents and the README,
+# fenced ```swift for GitHub's colors (#189), or ```kelvin as before
 # compiles. A block with `let main(` is a program and compiles as it is. Any
 # other block is a fragment: its declarations at the margin, imports, structs,
 # enums, unions, extends, aliases and functions, stay at the top level, and
@@ -68,7 +69,7 @@ extract() {
         return d
     }
     /^<!-- fragment -->/ { mark = 1; next }
-    /^```kelvin/ { inblock = 1; text = ""; skip = mark; mark = 0; next }
+    /^```(swift|kelvin)$/ { inblock = 1; text = ""; skip = mark; mark = 0; next }
     /^```/ && inblock { inblock = 0; flush(); next }
     inblock { text = text $0 "\n"; next }
     { mark = 0 }

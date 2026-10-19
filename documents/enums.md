@@ -7,7 +7,7 @@ union in C, with one byte for the tag.
 
 **Where it lives:** the core. A plain enum is C's, with nothing linked. An enum with values is kelvinc's own C, a struct of a tag and a union with its functions, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
-```kelvin
+```swift
 enum color { red, green, blue }          // C's enum: red is 0
 
 enum json { null; b: bool; n: float64; s: String; a: Array<json> }

@@ -12,7 +12,7 @@ rules are in [ownership.md](ownership.md), Results in
 **Where it lives:** a module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are `libkIO`, built from runtime/io.c and declared by `kIO.h`, which `modules/IO.kh` brings in and links; it is built on OS, so `#import <IO>` brings `OS` and `SYS` in too. A program needs no `#import <stdio.h>`. Without the import, `IO` is an error that says to write it.
 
 <!-- fragment -->
-```kelvin
+```swift
 #import <IO>
 
 let count(path:cstr):Result<int64, int32> {
@@ -216,7 +216,7 @@ An IO opened by path keeps that path (#101): `f.path` is it as given,
 a `cstr`, `""` for a stream or a process, and the work `OS` does on a
 path, [os.md](os.md)'s, is done from the IO on its own:
 
-```kelvin
+```swift
 #import <IO>
 let f = IO("./notes.txt")                     // a path alone opens for reading
 var abs = f.abspath                           // a String: /home/me/notes.txt
@@ -285,7 +285,7 @@ on success and otherwise the `errno` C left; a `Result<T, i32>` holds
 the `T` or that `errno`. `Stat` is the struct of [os.md](os.md).
 
 <!-- fragment -->
-```kelvin
+```swift
 IO(path: text, mode: text): IO                     // fopen, straight; "r" when the mode is left out; f.error when it did not open (#109)
 IO(fd: int32, mode: text): IO                        // fdopen; the IO owns the descriptor
 IO.stdin: IO                                        // the streams, never closed, only flushed

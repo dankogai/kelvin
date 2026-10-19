@@ -14,7 +14,7 @@ examples.
 **Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
 
 <!-- fragment -->
-```kelvin
+```swift
 var a:int64? = 3                           // some(3): a T becomes a T? where one is expected
 var b:int64? = none                        // none, a word that needs the type around it
 println(a.is(some), " ", b.is(none))     // true true
@@ -116,7 +116,7 @@ kelvinc casts it to the value's type, since C's `?:` of two kinds of
 text is no text (see
 [results.md](results.md#from-c-the-value-through-a-pointer-the-error-beside-it)):
 
-```kelvin
+```swift
 let env(name:cstr):cstr? {                // char *getenv(const char *)
     let v:cstr := getenv(name)
     if v.isNull { return none }

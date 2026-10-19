@@ -9,7 +9,7 @@ C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is identical, so everything you know about C carries over one to
 one.
 
-```kelvin
+```swift
 #import <stdio.h> as C
 
 struct node {

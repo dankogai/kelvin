@@ -28,7 +28,7 @@ and `.isNull` are in [properties.md](properties.md).
 pointer needs:
 
 <!-- fragment -->
-```kelvin
+```swift
 var x:int32 = 1
 var p:int32^ := &x          // C: int32_t *p = &x;
 let q := &x               // inferred: q is i32^
@@ -53,7 +53,7 @@ let f := &twice           // a function's address is the function itself
 Assigning a pointer (a reference) uses `:=`, and `=` is for values:
 
 <!-- fragment -->
-```kelvin
+```swift
 var buffer := malloc(8 * 1024):int64^   // declares buffer: i64^
 buffer[0] = 42                        // a value, through the reference
 var p:int32^ := &x                      // typed declarations too

@@ -8,7 +8,7 @@ text, print and show as text. Integers are in
 **Where it lives:** the core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`f64("1.5")`) are the prelude's, `libkelvin`, linked without an import. Complex numbers of Kelvin's own come with `#import <math>`.
 
 <!-- fragment -->
-```kelvin
+```swift
 let d = 1.5                         // an f64, inferred
 var f:float32 = 1.5                     // no 1.5f: the type is on the declaration
 let half = float64(n) / 2               // a converter, as C's cast

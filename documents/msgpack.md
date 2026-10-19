@@ -9,7 +9,7 @@ any value, so there is no second value type. `MsgPack.pack(&s)` gives a
 
 **Where it lives:** `modules/MsgPack.k`, brought in by `#import <MsgPack>`, which imports `<SION>` ([sion.md](sion.md)); written in Kelvin as functions of the type `MsgPack`, a struct that is their name. Nothing of it is in the prelude or the runtime.
 
-```kelvin
+```swift
 #import <MsgPack>
 
 var s = SION.parse("[\"name\": \"kelvin\", \"n\": 42, \"when\": .Date(0x1p+30)]")
@@ -48,7 +48,7 @@ println(SION.same(&s, &back))                 // true
 ## Functions
 
 <!-- fragment -->
-```kelvin
+```swift
 MsgPack.pack(s: const SION^): Bytes               // the bytes
 MsgPack.unpack(b: const Bytes^): SION             // the value, or error(message)
 ```

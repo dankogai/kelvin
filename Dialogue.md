@@ -4805,3 +4805,22 @@ not joined. The table of bytes.md has its row, and the orderings of
 #185 it had left out. Details are provisional P200.
 
 There are 800 tests, and all pass with clang and with gcc 15.
+
+### 232. Kelvin colored as Swift
+
+> What language do you think kelvin is close? I want kelvin codes to
+> syntax-colored.
+
+**Claude** answered Swift, over C, with `^` and `:=` from Pascal, and
+offered three ways: Swift for `.k` files on GitHub, Swift fences for
+the examples, and a Kelvin grammar later.
+
+> do options 1 and 2
+
+**Claude** added #189: `.gitattributes` colors `.k` and `.kh` as Swift,
+the 76 examples of the documents, the README and Style.md are fenced
+```` ```swift ````, which tests/docs.sh reads, and Style.md says so for
+new ones; GitHub's Markdown renderer colors such a block as Swift.
+Details are provisional P201.
+
+There are 800 tests, and all pass with clang and with gcc 15.

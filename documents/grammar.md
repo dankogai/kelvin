@@ -16,7 +16,7 @@ A variable is declared with `let` or `var`, and the type follows the name
 after a colon (#27):
 
 <!-- fragment -->
-```kelvin
+```swift
 let k = 42                 // a let never changes: C's const
 var n:int32 = 0              // a var may change
 var buf := malloc(n):uint8^   // := for references (see pointers.md)
@@ -119,7 +119,7 @@ Text is quoted five ways, and each spelling says what the text is, where
 it lives, and whether values go into it:
 
 <!-- fragment -->
-```kelvin
+```swift
 let s := "a line\n"                      // C's string literal: C's escapes, a cstr
 let c = 'x'                               // C's character constant: a byte, a u8
 let t := `n = ${n}, half = ${n / 2.0}`    // a template: text with values, on the stack of the block
@@ -231,7 +231,7 @@ compound literals and designated initializers, except that:
 As in Swift, a `;` may be left out at the end of a line (#35):
 
 <!-- fragment -->
-```kelvin
+```swift
 let total:int64 = price
     * count               // goes on: price * count
 println(total)

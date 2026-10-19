@@ -10,7 +10,7 @@ operators, which are functions of a struct, are in
 
 ## Declaring
 
-```kelvin
+```swift
 struct node { next: node^ }
 let add(a:int64, b:int64):int64 { a + b }        // one expression is the result
 let greet(name:cstr) { println("hi ", name) }   // no result: C's void
@@ -61,7 +61,7 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
 
 A function may be defined inside another (#180), where it is used:
 
-```kelvin
+```swift
 let main():int32 {
     let fib(n:int64):int64 { n < 2 ? n : fib(n - 2) + fib(n - 1) }
     println(fib(10))                      // 55
@@ -86,7 +86,7 @@ let main():int32 {
 function, an anonymous one, which has no name to call, or a function
 of a type.
 
-```kelvin
+```swift
 let fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }
 let main():int32 {
     let fact:(int64):int64 := { (n:int64):int64 in n < 2 ? 1 : n * $(n - 1) }
@@ -117,7 +117,7 @@ values of the program, declared before it; a built-in type takes none.
 The overloads of one name differ by their parameter types, as any
 function's do, and one may call another:
 
-```kelvin
+```swift
 struct point { x: int64; y: int64 }
 static let point.origin():Self { (Self){0, 0} }             // Self is point (#140)
 static let point.of(x:int64, y:int64):Self { (Self){x, y} }
@@ -148,7 +148,7 @@ A function type is written as a function's head without names (#31), as
 Swift writes `(T, U) -> R`. In C it is a pointer to a function:
 
 <!-- fragment -->
-```kelvin
+```swift
 let fold(xs:int64^, n:size_t, f:(int64, int64):int64):int64 { ... f(acc, xs[i]) ... }
 let pick(product:bool):(int64, int64):int64 { ... }   // returns a function
 
@@ -192,7 +192,7 @@ as in a Kelvin `sort` that calls its `before`; one passed to a C
 function such as `qsort` stays a function, whose address C needs.
 
 <!-- fragment -->
-```kelvin
+```swift
 sort(xs, 8) { $0 < $1 }                 // the last argument, after the call
 sort(xs, 8, { $[0] > $[1] })            // or inside the parentheses
 each(xs, 3) { total += $0 }             // no result: one assignment is fine
@@ -282,7 +282,7 @@ Functions of one name may take different parameter types, and each call
 gets the one its arguments' types fit (#41). A Kelvin function of a C
 function's name overloads C's, which still takes the numbers:
 
-```kelvin
+```swift
 #import <math.h> as C
 
 struct vec { x: float64; y: float64 }

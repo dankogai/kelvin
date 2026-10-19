@@ -6,7 +6,7 @@ prelude's `String`, which walks codepoints, leaves out. It is a header
 and a library, `UnicodeData.kh` and `libkUnicodeData` in `modules/`,
 which the import links by itself.
 
-```kelvin
+```swift
 #import <UnicodeData>
 
 let main():int32 {
