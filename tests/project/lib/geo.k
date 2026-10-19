@@ -1,6 +1,7 @@
 // built by tests/run.sh with kelvinc --lib into the modules/ of a copy of
 // tests/project, as geo.kh and libkgeo.a (#146): every kind of member a
-// header declares, and a global, a C prototype and a file-local helper
+// header declares, and a global, a C prototype and a file-local helper;
+// and C of its own, whose declarations geo.kh has in its #inline C (#199)
 #import <math.h> as C
 let fabs(x:float64):float64                                       // a C function's prototype
 
@@ -11,6 +12,17 @@ let origin:point = {0.0, 0.0}                             // a global, extern in
 var made:int64 = 0
 
 static let twice(x:float64):float64 { x * 2.0 }                   // file-local: not in the header
+
+#inline C {
+#define GEO_UNIT 2                      /* a macro, as it is */
+typedef struct { double w, h; } geo_size;
+int64_t geo_calls = 0;                  // a global: extern, without its value
+static double geo_half(double v) { return v / 2.0; }   /* file-local: not in the header */
+double geo_area(geo_size s) {           /* a function: its prototype */
+    geo_calls++;
+    return geo_half(s.w * s.h) * 2.0;
+}
+}
 
 extend point {
     static let of(x:float64, y:float64):Self { made += 1; return {x, y} }

@@ -85,8 +85,18 @@ let main():int32 {
 - **Ownership:** Kelvin's rules (see [ownership.md](ownership.md)) end
   at the block; what C does there is C's.
 - **Modules:** a module built by `kelvinc --lib` (#146) has the block in
-  its library, not in its `.kh`: a program that imports the module does
-  not see the block's names.
+  its library, and its declarations in its `.kh`, in an `#inline C` of
+  their own (#199), so a program that imports the module uses its names:
+  - its preprocessor lines, as they are;
+  - a function's prototype, its body dropped;
+  - its types: a `typedef`, and a `struct`, `union` or `enum` written
+    alone;
+  - a global, `extern`, its initializer dropped: `int64_t n = 0;` is
+    `extern int64_t n;`;
+  - not what is `static` or `inline`, which is the file's own.
+  - A `struct` defined with a variable at once, `struct p { ... } v;`,
+    is taken for a variable: define the type and the variable apart.
+  - An `#inline C` in a function stays in the library.
 
 ### In a function
 

@@ -4961,3 +4961,16 @@ c-interfaces.md has "In a function", and inline_c_fn.k is new. Details
 are provisional P210.
 
 There are 809 tests, and all pass with clang and with gcc 15.
+
+### 242. A module's inline C in its .kh
+
+> export Kelvin functions to the .kh for #inline C names too
+
+**Claude** added #199: `kelvinc --lib` writes the declarations of a
+top-level `#inline C` into the module's .kh, in an `#inline C` of their
+own: its preprocessor lines, function prototypes, types, and globals as
+`extern`, leaving out what is `static` or `inline`; a program that
+imports the module calls the C. tests/project's geo module has one.
+Details are provisional P211.
+
+There are 809 tests, and all pass with clang and with gcc 15.

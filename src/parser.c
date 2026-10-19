@@ -11727,6 +11727,213 @@ static bool fn_like(int i) {
     return false;
 }
 
+/* ---------- the declarations of #inline C, for a module's .kh (#199) ---------- */
+
+/* the C with its comments made blanks, its strings and characters kept */
+static char *c_uncommented(const char *c) {
+    Buf b = {0};
+    for (const char *p = c; *p;) {
+        if (p[0] == '/' && p[1] == '/') {
+            while (*p && *p != '\n')
+                p++;
+        } else if (p[0] == '/' && p[1] == '*') {
+            p += 2;
+            while (*p && !(p[0] == '*' && p[1] == '/'))
+                p++;
+            p += *p ? 2 : 0;
+            buf_puts(&b, " ");
+        } else if (*p == '"' || *p == '\'') {
+            const char *q = p + 1;
+            while (*q && *q != *p && *q != '\n')
+                q += q[0] == '\\' && q[1] ? 2 : 1;
+            q += *q == *p;
+            buf_putn(&b, p, (size_t)(q - p));
+            p = q;
+        } else {
+            buf_putn(&b, p++, 1);
+        }
+    }
+    return b.buf ? b.buf : xstrdup("");
+}
+
+/* past a string or a character at p, else p */
+static const char *c_past_quote(const char *p) {
+    if (*p != '"' && *p != '\'')
+        return p;
+    const char *q = p + 1;
+    while (*q && *q != *p && *q != '\n')
+        q += q[0] == '\\' && q[1] ? 2 : 1;
+    return q + (*q == *p);
+}
+
+/* is the word w among the words of s[0..n) at depth 0 before a '(', '[', '{' or '=' */
+static bool c_specifier(const char *s, size_t n, const char *w) {
+    size_t wn = strlen(w);
+    for (size_t i = 0; i < n; i++) {
+        if (strchr("([{=", s[i]))
+            return false;
+        if ((i == 0 || !(isalnum((unsigned char)s[i - 1]) || s[i - 1] == '_')) && i + wn <= n &&
+            !strncmp(s + i, w, wn) && (i + wn == n || !(isalnum((unsigned char)s[i + wn]) || s[i + wn] == '_')))
+            return true;
+    }
+    return false;
+}
+
+static bool c_starts(const char *s, const char *w) {
+    size_t n = strlen(w);
+    return !strncmp(s, w, n) && !(isalnum((unsigned char)s[n]) || s[n] == '_');
+}
+
+/* one declaration of the C, s[0..n) with its ';' dropped, as a header has it */
+static void c_declaration(Buf *out, const char *s, size_t n) {
+    while (n && isspace((unsigned char)*s))
+        s++, n--;
+    while (n && isspace((unsigned char)s[n - 1]))
+        n--;
+    if (!n || c_specifier(s, n, "static") || c_specifier(s, n, "inline"))
+        return; /* the file's own */
+    char *d = xstrndup(s, n);
+    bool tagged = c_starts(d, "struct") || c_starts(d, "union") || c_starts(d, "enum");
+    if (c_starts(d, "typedef") || c_starts(d, "extern") || c_starts(d, "_Static_assert")) {
+        buf_printf(out, "%s;\n", d);
+        return;
+    }
+    if (tagged) { /* a type, unless a declarator follows it */
+        const char *brace = strchr(d, '{'), *after = NULL;
+        if (brace) {
+            int depth = 0;
+            for (const char *p = brace; *p; p = c_past_quote(p) == p ? p + 1 : c_past_quote(p)) {
+                depth += (*p == '{') - (*p == '}');
+                if (!depth) {
+                    after = p + 1;
+                    break;
+                }
+            }
+        } else {
+            after = d;
+            while (*after && !isspace((unsigned char)*after))
+                after++;
+            while (isspace((unsigned char)*after))
+                after++;
+            while (*after && (isalnum((unsigned char)*after) || *after == '_'))
+                after++;
+        }
+        while (after && isspace((unsigned char)*after))
+            after++;
+        if (after && !*after) {
+            buf_printf(out, "%s;\n", d);
+            return;
+        }
+    }
+    /* a variable or a prototype: extern, without its initializers */
+    buf_puts(out, "extern ");
+    int depth = 0;
+    for (const char *p = d; *p;) {
+        const char *q = c_past_quote(p);
+        if (q != p) {
+            buf_putn(out, p, (size_t)(q - p));
+            p = q;
+            continue;
+        }
+        if (*p == '=' && !depth) {
+            while (*p && !(*p == ',' && !depth)) {
+                q = c_past_quote(p);
+                if (q != p) {
+                    p = q;
+                    continue;
+                }
+                depth += (*p == '(' || *p == '[' || *p == '{') - (*p == ')' || *p == ']' || *p == '}');
+                p++;
+            }
+            while (out->len && out->buf[out->len - 1] == ' ')
+                out->buf[--out->len] = 0;
+            continue;
+        }
+        depth += (*p == '(' || *p == '[' || *p == '{') - (*p == ')' || *p == ']' || *p == '}');
+        buf_putn(out, p++, 1);
+    }
+    buf_puts(out, ";\n");
+}
+
+/* The declarations of an #inline C at the top level, for a module's .kh:
+   its preprocessor lines; a function's prototype, its body dropped; a
+   type; a global, extern, its initializer dropped; nothing of what is
+   static or inline, which is the file's own; "" where nothing is left */
+static char *c_declarations(const char *text) {
+    char *c = c_uncommented(text);
+    Buf out = {0};
+    const char *item = NULL;
+    int depth = 0;
+    bool line_start = true;
+    for (const char *p = c; *p;) {
+        if (*p == '\n') {
+            line_start = true;
+            p++;
+            continue;
+        }
+        if (line_start && isspace((unsigned char)*p)) {
+            p++;
+            continue;
+        }
+        if (line_start && *p == '#' && !depth) { /* a directive, with its continued lines */
+            const char *q = p;
+            while (*q && !(*q == '\n' && q[-1] != '\\'))
+                q++;
+            const char *e = q;
+            while (e > p && (e[-1] == ' ' || e[-1] == '\t')) /* where a comment was */
+                e--;
+            buf_putn(&out, p, (size_t)(e - p));
+            buf_puts(&out, "\n");
+            p = q;
+            continue;
+        }
+        line_start = false;
+        if (!item && isspace((unsigned char)*p)) {
+            p++;
+            continue;
+        }
+        if (!item)
+            item = p;
+        const char *q = c_past_quote(p);
+        if (q != p) {
+            p = q;
+            continue;
+        }
+        if (*p == '{' && !depth) {
+            const char *b = p;
+            while (b > item && isspace((unsigned char)b[-1]))
+                b--;
+            if (b > item && b[-1] == ')') { /* a function's body: its prototype */
+                if (!c_specifier(item, (size_t)(b - item), "static") && !c_specifier(item, (size_t)(b - item), "inline"))
+                    buf_printf(&out, "%.*s;\n", (int)(b - item), item);
+                int d = 0;
+                for (;;) {
+                    if (!*p)
+                        break;
+                    q = c_past_quote(p);
+                    if (q != p) {
+                        p = q;
+                        continue;
+                    }
+                    d += (*p == '{') - (*p == '}');
+                    p++;
+                    if (!d)
+                        break;
+                }
+                item = NULL;
+                continue;
+            }
+        }
+        depth += (*p == '(' || *p == '[' || *p == '{') - (*p == ')' || *p == ']' || *p == '}');
+        if (*p == ';' && !depth) {
+            c_declaration(&out, item, (size_t)(p - item));
+            item = NULL;
+        }
+        p++;
+    }
+    return out.buf ? out.buf : xstrdup("");
+}
+
 char *gen_header(Program *prog) {
     const char *file = toks[0].pos.file;
     Buf b = {0};
@@ -11765,7 +11972,10 @@ char *gen_header(Program *prog) {
             i++;
             continue;
         }
-        if (t->kind == TK_INLINE_C) { /* in the module's object, not its header (#197) */
+        if (t->kind == TK_INLINE_C) { /* in the module's object; its declarations in its header (#199) */
+            char *decls = c_declarations(t->text);
+            if (*decls)
+                buf_printf(&b, "#inline C {\n%s}\n", decls);
             i++;
             continue;
         }

@@ -115,6 +115,9 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
     `static let` of a type is a function of the type, and kept.
   - A type attribute, `static var T.x = v`, waits: a program cannot
     declare one yet, so a library may not hold one.
+  - An `#inline C { ... }` at the top level is an `#inline C` of its
+    declarations (#199), so that a program sees its names; see
+    [c-interfaces.md](c-interfaces.md#inline-c).
 - **The library** is the file's C, compiled with `-fPIC` into one
   object and archived; its functions are named by their types, as a
   program's prototypes of them are, so that the names meet.
