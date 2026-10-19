@@ -200,8 +200,10 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   IO, so they need a var.
 - **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
   libkelvin's runtime/io.c.
-  - `abspath` of a descriptor is macOS's `F_GETPATH` or Linux's
-    `/proc/self/fd`, `""` elsewhere.
+  - `abspath` of a descriptor is macOS's `F_GETPATH`, Linux's
+    `/proc/self/fd` or FreeBSD's `F_KINFO` (#192), `""` elsewhere.
+    - FreeBSD names no removed file: its `abspath` is `""` there
+      (#194).
   - The standard streams are three statics that `IO.stdout` names in
     place.
   - `fdopen`, `fileno`, `pipe`, `fork`, `execvp`, `waitpid`, `kill` and
@@ -235,6 +237,7 @@ for name in names { println(name) }
     - A file renamed behind the IO answers by its new name, a removed
       one by the name it had, an IO opened from a descriptor by the
       file's.
+    - On FreeBSD a removed one answers `""` (#194).
   - `""` where neither answers, as of a pipe or a closed IO.
 - **`f.basename`** and **`f.dirname`** are the path's parts, and
   **`f.join(name)`** a path under it, each a `String`.

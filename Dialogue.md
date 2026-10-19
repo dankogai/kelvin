@@ -4893,3 +4893,16 @@ gets it, `pkg install gmake python3` or the ports. Details are
 provisional P205.
 
 There are 800 tests, and all pass with clang and with gcc 15.
+
+### 237. A FreeBSD job in CI
+
+> now add a FreeBSD job to CI.  As you predicted, so far the test fails
+> at: io_abspath.k, "true 1" expected, "false 1" given, and io_stat.k,
+> "true true" expected, "false true" given; "798 passed, 2 failed"
+
+**Claude** added #194: the CI job freebsd, FreeBSD in a virtual machine,
+builds with gmake and runs `make test` through BSD make as a user; the
+two tests take `""` as the abspath of a removed file on FreeBSD, which
+names none, and io.md says so. Details are provisional P206.
+
+There are 800 tests, and all pass with clang and with gcc 15.

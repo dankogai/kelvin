@@ -45,6 +45,32 @@ jobs:
       - name: Run example
         run: ./kelvinc --run examples/hello.k
 
+  freebsd:
+    # FreeBSD in a virtual machine (#194): gmake builds with the strict
+    # flags, which BSD make does not hand on, and BSD make hands make test
+    # to gmake (#193); the tests run as a user, not root, since some check
+    # that a file without permission does not open
+    name: freebsd / clang
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build and test on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          copyback: false
+          prepare: |
+            pkg install -y gmake python3 node zip
+          run: |
+            freebsd-version
+            cc --version
+            pw useradd kelvin -m
+            chown -R kelvin .
+            su kelvin -c "gmake CFLAGS='-std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -pedantic -Werror'"
+            su kelvin -c "make test"
+            su kelvin -c "./kelvinc --run examples/hello.k"
+
   sanitizers:
     # check kelvinc itself for memory errors and undefined behavior
     name: sanitizers

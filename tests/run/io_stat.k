@@ -3,9 +3,11 @@
 // open file's where the path is gone; f.abspath a String, the descriptor's
 // where the path is gone (#105), "" with neither;
 // f.isdir and f.isfile from the descriptor. OS.stat(path) stays a Result:
-// a path is checked anew at each call
+// a path is checked anew at each call; FreeBSD names no removed file (#194)
+#import <string.h> as C
 #import <IO>
 let main():int32 {
+    let freebsd = strcmp(SYS.platform, "freebsd") == 0
     var f = IO("io_stat.tmp", "w")
     if f.error == 0 {
         f.write("hello")
@@ -20,7 +22,7 @@ let main():int32 {
         println(abs == same, " ", abs.typename)
         println(OS.remove("io_stat.tmp"), " ", f.exists, " ", f.stat.size, " ", f.lstat.size)   // gone, yet open: stat sees the file
         var gone = f.abspath                    // the descriptor still names it (#105)
-        println(gone == abs, " ", f.isfile)
+        println(gone == abs || freebsd && gone.count == 0, " ", f.isfile)
     }
     var out = IO.stdout
     var ends = IO.pipe()
