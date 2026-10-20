@@ -360,8 +360,30 @@ let case_word_of(n:int64, d:int64):int64 {
     return -1
 }
 
+// the type of x?.rest (#221): a T? of the rest's T, where the rest is of
+// the name bound to what x holds; the rest's own Optional, not wrapped again
+let chain_type(n:int64):int64 {
+    let inner = some_type(type_of(nodes[n].a))
+    if inner < 0 {
+        gen_error(n, "?. and ?[ take an Optional on their left")
+        return -1
+    }
+    open_scope()
+    declare(nodes[n].c, inner)
+    let y = type_of(nodes[n].b)
+    close_scope()
+    if y < 0 || failed { return -1 }
+    if types[y].kind == Y_VOID {
+        gen_error(n, "the rest of this chain gives no value, which kc cannot put in an Optional")
+        return -1
+    }
+    if some_type(y) >= 0 { return y }
+    return optional_of(y)
+}
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
+    if k == N_CHAIN { return chain_type(n) }
     let t:int64 = nodes[n].t
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
@@ -511,6 +533,17 @@ let gen_key(y:int64, k:int64) {
 
 let is_place(n:int64):bool    // a prototype: gen_call asks it
 
+// whether n is none, ok(v) or err(e), which only the type that takes them
+// reads: no name of the program (#221)
+let is_case_word(n:int64):bool {
+    if nodes[n].kind == N_ID { return var_type(nodes[n].t) < 0 }
+    if nodes[n].kind == N_CALL && nodes[nodes[n].a].kind == N_ID {
+        let f = nodes[n].a
+        return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0
+    }
+    return false
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -539,7 +572,7 @@ let gen_call(n:int64) {
     }
     var a:int64 = args                             // what kelvinc holds, kc does not (#212)
     while a >= 0 {
-        if is_owner(type_of(a)) && !is_place(a) {
+        if !is_case_word(a) && is_owner(type_of(a)) && !is_place(a) {
             gen_error(a, "an owner an expression gives is passed to a function: bind it to a variable first, which kc frees")
         }
         a = nodes[a].next
@@ -826,16 +859,17 @@ let gen_coalesce(n:int64) {
         return
     }
     serial += 1
+    let s = serial                                   // its own: x may make names too (#221)
     put("({ ")
     put_ctype(y)
     put(" _kv_o")
-    put_int(serial)
+    put_int(s)
     put(" = ")
     gen_expr(nodes[n].a)
     put("; _kv_o")
-    put_int(serial)
+    put_int(s)
     put(".tag == 1 ? _kv_o")
-    put_int(serial)
+    put_int(s)
     put(".u.some : (")
     gen_value(nodes[n].b, inner)
     put("); })")
@@ -866,6 +900,69 @@ let gen_lookup(n:int64, y:int64) {
     put("_make_none(); })")
 }
 
+// x?.rest (#221): the rest of the chain of what x holds, bound by name
+// and borrowed, in some, an owner the rest reads copied out; none where x
+// is none. x is read once, and freed where an expression gave it
+let gen_chain(n:int64) {
+    let res = type_of(n)
+    if res < 0 || failed { return }
+    let y = type_of(nodes[n].a)
+    let body = nodes[n].b
+    serial += 1
+    let s = serial
+    put("({ ")
+    put_ctype(res)
+    put(" _kv_r")
+    put_int(s)
+    put("; ")
+    if is_owner(y) && !is_place(nodes[n].a) {
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+    }
+    put_ctype(y)
+    put(" _kv_s")
+    put_int(s)
+    put(" = ")
+    gen_expr(nodes[n].a)
+    put("; if (_kv_s")
+    put_int(s)
+    put(".tag == 1) { ")
+    open_scope()
+    declare(nodes[n].c, some_type(y))
+    put_ctype(some_type(y))
+    put(" ")
+    put_tok(nodes[n].c)
+    put(" = _kv_s")
+    put_int(s)
+    put(".u.some; _kv_r")
+    put_int(s)
+    put(" = ")
+    let by = type_of(body)
+    if by != res {
+        put("_kv_")
+        put_tok(types[res].name)
+        put("_make_some(")
+    }
+    if is_owner(by) && is_place(body) {
+        put_owner_prefix(by)
+        put("_copy(&(")
+        gen_expr(body)
+        put("))")
+    } else {
+        gen_expr(body)
+    }
+    if by != res { put(")") }
+    close_scope()
+    put("; } else _kv_r")
+    put_int(s)
+    put(" = _kv_")
+    put_tok(types[res].name)
+    put("_make_none(); _kv_r")
+    put_int(s)
+    put("; })")
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     let k:nkind = nodes[n].kind
@@ -890,6 +987,8 @@ let gen_expr(n:int64) {
         put(")")
     } else if k == N_CALL {
         gen_call(n)
+    } else if k == N_CHAIN {
+        gen_chain(n)
     } else if k == N_FIELD {
         gen_field(n)
     } else if k == N_METHOD {
@@ -1160,14 +1259,16 @@ let gen_return(n:int64) {
         put("return;\n")
         return
     }
-    let y:int64 = type_of(a)
-    if nodes[a].kind == N_ID && is_owner(y) && y == nodes[current].ty {    // a local owner moves out
-        put("return ")
-        put_owner_prefix(y)
-        put("_take(&")
-        put_tok(nodes[a].t)
-        put(");\n")
-        return
+    if nodes[a].kind == N_ID && !is_case_word(a) {          // not none, which gen_value reads (#221)
+        let y:int64 = type_of(a)
+        if is_owner(y) && y == nodes[current].ty {           // a local owner moves out
+            put("return ")
+            put_owner_prefix(y)
+            put("_take(&")
+            put_tok(nodes[a].t)
+            put(");\n")
+            return
+        }
     }
     put("return ")
     if nodes[a].kind == N_INIT {                         // return {a, b}: of the function's type (#213)
@@ -1610,6 +1711,16 @@ let put_struct(name:int64) {
 // an enum with values as kelvinc writes it (#215): a struct of a tag and
 // a union; its cases' names; _free, _take and _copy where a case owns;
 // and for each case, _make and _set, and _at, checked, of one with a value
+// whether a case of the enum with values d holds a value of kind k
+let holds_kind(d:int64, k:ykind):bool {
+    var m = nodes[d].a
+    while m >= 0 {
+        if nodes[m].ty >= 0 && types[nodes[m].ty].kind == k { return true }
+        m = nodes[m].next
+    }
+    return false
+}
+
 let gen_tagged(d:int64) {
     let name = nodes[d].t
     put_struct(name)
@@ -1825,7 +1936,7 @@ let gen_program() {
     }
     for i in 0..<decls.count as int64 {                  // the structs, and the enums with values (#215)
         let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { gen_tagged(d) }
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && !holds_kind(d, Y_ARRAY) && !holds_kind(d, Y_DICT) { gen_tagged(d) }
         if nodes[d].kind == D_STRUCT {
             put("struct ")
             put_tok(nodes[d].t)
@@ -1852,6 +1963,10 @@ let gen_program() {
         put_free_copy(types[y].elem)
         put(")\n")
     }
+    for i in 0..<decls.count as int64 {                  // an enum with an Array's value, $[T]?, after the Arrays (#221)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && holds_kind(d, Y_ARRAY) && !holds_kind(d, Y_DICT) { gen_tagged(d) }
+    }
     for i in 0..<dicts.count as int64 {                  // the Dictionaries (#211)
         let y:int64 = dicts[i]
         let key:int64 = types[y].name
@@ -1875,6 +1990,10 @@ let gen_program() {
         }
         put_free_copy(value)
         put(")\n")
+    }
+    for i in 0..<decls.count as int64 {                  // one with a Dictionary's value, after the Dictionaries (#221)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && holds_kind(d, Y_DICT) { gen_tagged(d) }
     }
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
@@ -1924,8 +2043,18 @@ let gen_program() {
         }
     }
     put("\n")
-    for i in 0..<decls.count as int64 {                  // the functions
+    let made = decls.count as int64                      // the T? a chain makes in a function go before them (#221)
+    var head:String = out.copy()
+    out = $""
+    for i in 0..<made {                                  // the functions
         let d:int64 = decls[i]
         if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed { gen_function(d) }
     }
+    var body:String = out.copy()
+    out = head.copy()
+    for i in made..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { gen_tagged(d) }
+    }
+    out += &body
 }

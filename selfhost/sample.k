@@ -209,5 +209,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     if let some(word) = named(1) {
         println(word, " ", named(2).is(none))
     }
+    var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
+    let unset = spot?.x
+    spot = p
+    var maybe_hay:$[int64]? = none
+    maybe_hay = hay                                   // moves in
+    println(named(1)?.count ?? 0, " ", unset ?? 0 - 1, " ", spot?.sum() ?? 0, " ", maybe_hay?[2] ?? 0, " ", tags[3]?.count ?? 0)
     return 0
 }

@@ -5292,3 +5292,21 @@ code, or in a C header's name, is an error. kc writes its strings the
 same way. Details are provisional P232.
 
 There are 824 tests, and all pass with clang and with gcc 15.
+
+### 265. kc's chains
+
+> teach kc x?.m chaining as #221
+
+**Claude** added #221: kc reads `x?.m`, `x?.f(...)` and `x?[i]` as
+kelvinc does, the rest of the chain of a name bound to what `x` holds,
+`none` of `none`, an Optional not wrapped twice, an owner copied out, and
+an `x` an expression gives freed; and `$[T]?`. The `T?` a chain needs
+may be made while a function is written, so kc writes the enums made
+then before the functions. On the way kc learned to pass and return a
+bare `none` without an enum case of that name, `??` kept its own
+temporary's name, and an enum holding an Array came after it. Left: kc
+does not free a struct whose fields own, nor read `none` in `{a, b}`;
+and kelvinc writes `take(none)` as C it cannot compile. Details are
+provisional P233.
+
+There are 824 tests, and all pass with clang and with gcc 15.

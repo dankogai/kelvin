@@ -88,10 +88,30 @@ kc reads what it is written in, and little more.
     a variable's, a return's, an assignment's or a parameter's; a `T`
     where a `T?` goes is `some(T)`. `some(v)` is a pattern alone, as in
     kelvinc.
+    - Since #221 a program needs no enum of its own with a case `none`
+      for that: kc asked the type of a bare `none` in a `return` and in
+      an argument, and found no name.
+    - Not yet in a struct's `{a, b}`, whose members kc writes without
+      their types.
+  - `$[T]?` is an Optional of an Array (#221).
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
     `int64?`.
+  - **Chains** (#221), as kelvinc's of #218: `x?.m`, `x?.f(...)` and
+    `x?[i]`, with the `?` right after `x`.
+    - The rest of the chain is of a name kc binds to what `x` holds,
+      `_kv_chainN`. The chain gives `some` of what the rest gives, or
+      `none` where `x` is `none`.
+    - An Optional the rest gives is not wrapped again, so `a?.b?.c` is
+      a `T?`.
+    - An owner the rest reads, as `p?.name`, is copied out. An `x` an
+      expression gives, as `f()?.m` or `d[k]?.m`, is read once and
+      freed.
+    - A `T?` that only a chain needs is made while the functions are
+      written, and written before them.
+    - An enum with values that holds an Array goes after the Arrays,
+      and one that holds a Dictionary after the Dictionaries.
 - **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
   and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
   - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
@@ -136,7 +156,7 @@ kc reads what it is written in, and little more.
   - `x!` of an Optional is `x.some`.
   - An Optional where a value goes is an error that names `!` and `??`,
     as kelvinc's (#219).
-  - Not yet: `x?.m`, `x?.f()` and `x?[i]`.
+  - `d[k]?.m` chains (#221).
 - **Ownership:** a `String`, an `Array`, a `Dictionary`, an `IO` or an
   enum with an owning case is freed by C's `cleanup` attribute; `return
   x` of a local one moves it out; a global one is freed at exit by
@@ -144,6 +164,8 @@ kc reads what it is written in, and little more.
   - One an expression gives is bound, assigned, appended or returned:
     kc does not hold it where it is only read, as kelvinc does (#187),
     so `println(String(n))` is an error that says to bind it (#212).
+  - Not yet: a struct whose fields own, as `struct p { name: String }`,
+    which kc does not free, where kelvinc does (found in #221).
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ## Difficulties in the way of self-hosting kelvinc

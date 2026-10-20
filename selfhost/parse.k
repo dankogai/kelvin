@@ -25,6 +25,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_INIT,     // {b...}, a struct's members in order
     N_NULL,     // nullptr
     N_SELF,     // self, and the self of .x (#213)
+    N_CHAIN,    // a?.rest (#221): b the rest, of the name c bound to what a holds; t the ?
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -279,9 +280,13 @@ let parse_type():int64 {
         let elem:int64 = parse_type()
         expect("]")
         var y:int64 = type_of_kind(Y_ARRAY, elem, -1)
-        while at_word("^") {
+        while at_word("^") || at_word("?") {
+            if at_word("?") {
+                y = optional_of(y)               // $[T]?, an Optional (#221)
+            } else {
+                y = type_of_kind(Y_PTR, y, -1)
+            }
             advance()
-            y = type_of_kind(Y_PTR, y, -1)
         }
         return y
     }
@@ -457,9 +462,22 @@ let place_follows():bool {
     return at_word("!") && adjacent(pos - 1, pos)
 }
 
-let parse_postfix():int64 {
-    var e:int64 = parse_primary()
+var chains = 0                                   // the names of chains kc makes (#221)
+
+// the postfix steps after e: calls, members, indexes, x!, x?.m
+let parse_steps(first:int64):int64 {
+    var e:int64 = first
     while !failed {
+        if at_word("?") && adjacent(pos - 1, pos) && pos + 1 < toks.count as int64 && (tok_is(pos + 1, ".") || tok_is(pos + 1, "[")) {
+            let n = make_node(N_CHAIN, advance())    // x?.m, x?[i] (#221): the rest of the chain of what x holds
+            chains += 1
+            var name = $"_kv_chain"
+            name += String(chains)
+            nodes[n].c = made_token(&name)
+            nodes[n].a = e
+            nodes[n].b = parse_steps(make_node(N_ID, nodes[n].c))
+            return n
+        }
         if at_word("!") && adjacent(pos - 1, pos) {       // x! (#218): d[k]! the place, x! of an Optional x.some
             advance()
             if nodes[e].kind != N_INDEX {
@@ -508,6 +526,10 @@ let parse_postfix():int64 {
         }
     }
     return e
+}
+
+let parse_postfix():int64 {
+    return parse_steps(parse_primary())
 }
 
 let parse_unary():int64 {

@@ -252,6 +252,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 218 | `d[k]` read whole is an Optional, `some` of a copy of the value or `none` where the key is missing; going into it is the place it was, checked: `d[k] = v`, `+=`, `d[k].m`, `d[k][i]`, `&d[k]`, `d[k]!`; postfix `x!` unwraps any Optional or ends the program, as `x.some`; `x?.m`, `x?.f(...)` and `x?[i]` chain as Swift's, `none` of `none`, an Optional the chain gives not wrapped again; an Optional where a value goes is an error that names `!` and `??`; `x ?? d` of an Optional of an Optional wraps `d` | — | `ages["bob"] ?? 0`, `ages["ann"]!`, `words["a"]?.count` | 2026-10-20 |
 | 219 | kc reads `d[k]` whole as kelvinc does since #218: a `V?`, `some` of a copy of the entry's value or `none`; going into it is the place, checked; an Optional where a value goes is kc's error, naming `!` and `??` | — | `let seen = counts["c"]`, `if let some(t) = tags[3]` | 2026-10-21 |
 | 220 | Kelvin has no trigraphs: `"what??!"` is the text as written; kelvinc writes a `?` after a `?` as C's `\?` in string literals, `#inline C`'s strings, characters and comments, a `.typename` and a `#line`'s file name; a `??` in `#inline C`'s code, or in the name of a header imported as C, is an error; kc writes its strings so too | — | `println("what??!")` | 2026-10-21 |
+| 221 | kc chains as kelvinc does since #218: `x?.m`, `x?.f(...)`, `x?[i]`, the `?` right after `x`, the rest of the chain of a name bound to what `x` holds; `some` of what the rest gives, `none` of `none`, an Optional the rest gives not wrapped again; an owner the rest reads copied out; an `x` an expression gives read once and freed; `$[T]?` | — | `named(1)?.count ?? 0`, `spot?.sum()`, `maybe_hay?[2]`, `tags[3]?.count` | 2026-10-21 |
 
 Notes:
 
@@ -813,6 +814,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (221) Agreed details: "teach kc x?.m chaining as #221". kc's postfix
+  loop is parse_steps now, and an adjacent `?` before `.` or `[` makes
+  an N_CHAIN whose rest is parse_steps of a made name. The `T?` a chain
+  gives may be made only while a function is written, after the enums
+  were, so kc writes the functions into a String of their own and puts
+  the enums made meanwhile before them. On the way: kc asked the type of
+  a bare `none` in a `return` and an argument, which its sample hid by
+  having an enum case `none`; `??` named its temporary by a serial a
+  chain inside it moved; an enum holding an Array came before the Array;
+  and kc does not free a struct whose fields own. kelvinc writes
+  `take(none)` as an overload's `_Generic` of `none`, a C error (P233).
 
 - (220) Agreed details: "fix the trigraph bug as #220. WE DO NOT
   SUPPORT TRIGRAPHS. It is terribly obsolete in the age of Unicode."
@@ -2343,6 +2356,7 @@ says "as agreed".
 | P230 | Details of #218 | parser.c: place_follows decides, after `]` of a Dictionary, whether d[k] is a place or read whole, a dict_lookup of type V?; unwrapped builds x.some's E_FIELD, holding an owner an expression gives (#187), and keeps d[k] the place; chained reads the rest of the postfix chain of a hidden binding, `_kv_chainN`, of the value, and copies a member that owns out of it; `&` of a dict_lookup is its place; reject_record_mismatch refuses an Optional where a non-Optional goes, in variables, assignments and returns; `??` wraps its default where the value is an Optional; codegen.c: dict_lookup and chain by the Dictionary's _find, the Optional read once; tests that printed d[k] read d[k]!; kc: x!, and d[k] read whole refused | kc making d[k] an Optional; `x?` alone, which `x` already is |
 | P231 | Details of #219 | parse.k: Dictionary<K, V> makes optional_of(V); gen.k: type_of of a Dictionary's N_INDEX of flag 1 is V?; gen_lookup writes `({ __auto_type _kv_p = D_find(&d, k); _kv_p ? make_some(*_kv_p or T_copy(_kv_p)) : make_none(); })`; is_place is false of it; gen_value refuses an Optional where a non-Optional goes; sample.k reads counts["c"], counts["none"] ?? -1 and if let some(t) = tags[3] | kc's `x?.m`; kelvinc's strings of `??x`, which C11 reads as trigraphs |
 | P232 | Details of #220 | lexer.c: untrigraphed(s, n) puts a backslash before each `?` after a `?`; lex_quoted's tokens and #inline C's text go through it; a `??` in #inline C's code and in a C header's name is an error; codegen.c: c_file_name escapes `"`, `\\` and `??` of both #line writers, the pinned one escaped now too; parser.c: .typename's literal; gen.k: put_text of N_STR and N_DSTR; tests: run/no_trigraphs.k, error/inline_c_trigraph.k, error/import_trigraph.k | trigraphs in a header kelvinc does not write, which are C's |
+| P233 | Details of #221 | parse.k: parse_steps(first), N_CHAIN (t the ?, a the source, b the rest, c the made name `_kv_chainN`), `$[T]?`; gen.k: chain_type binds the name in a scope of its own and gives optional_of(T) or the rest's Optional; gen_chain writes `({ R _kv_rN; [cleanup] S _kv_sN = x; if (_kv_sN.tag == 1) { T name = _kv_sN.u.some; _kv_rN = make_some(rest or T_copy(&rest)); } else _kv_rN = make_none(); _kv_rN; })`; gen_program writes the functions first into a String of their own and the enums made meanwhile before them; holds_kind orders enums after the Arrays and the Dictionaries they hold; is_case_word keeps none, ok(v), err(e) from type_of in gen_call and gen_return; gen_coalesce keeps its serial | kc: none in a struct's {a, b}; freeing a struct whose fields own; `.copy()` of an Array; kelvinc: `f(none)` of a T? parameter, a C error |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
