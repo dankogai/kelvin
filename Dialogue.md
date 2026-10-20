@@ -5015,3 +5015,18 @@ left for a change of its own; and ski.k's comment now passes its
 arguments after `--`. Details are provisional P214.
 
 There are 811 tests, and all pass with clang and with gcc 15.
+
+### 246. c ? a : b of owners
+
+> fix the return ternary bug as #203
+
+**Claude** found the bug wider than `return`: kelvinc took `c ? s : t`
+of owners for a value an expression gives, so `var u = c ? s : t`, a
+call taking it, and even `println(c ? s : t)` freed s. #203 makes two
+places a place, read where they are and never copied or moved, a place
+beside a value an error but where it is returned, and `return c ? a : b`
+moves the arm it gives; `xs += c ? x : y` appends an element. Rule O12
+in ownership.md; lambda.k returns its ?: again. Details are provisional
+P215.
+
+There are 815 tests, and all pass with clang and with gcc 15.

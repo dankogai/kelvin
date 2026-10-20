@@ -240,8 +240,7 @@ let show(t:int64, scope:$[int64]^, where:int64, all:int64):String {
     if x.kind == 'f' { return names[x.n].copy() }
     if x.kind == 'a' {
         var s = show(x.a, scope, 1, all) + " " + show(x.b, scope, 2, all)
-        if where == 2 { return $"(" + s + ")" }
-        return s
+        return where == 2 ? $"(" + s + ")" : s
     }
     // a λ: its own name, primed while that would capture or hide one
     var name = names[x.n].copy()
@@ -257,8 +256,7 @@ let show(t:int64, scope:$[int64]^, where:int64, all:int64):String {
     scope^ += intern(&name)
     var s = $"λ" + name + "." + show(x.a, scope, 0, all)
     scope^.pop()
-    if where != 0 { return $"(" + s + ")" }
-    return s
+    return where == 0 ? s : $"(" + s + ")"
 }
 
 let text(t:int64):String {

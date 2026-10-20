@@ -1151,7 +1151,7 @@ static char *expr_bare(Expr *e) {
                 Expr *x = e->items.data[0];
                 if (x->kind == E_PREFIX && !strcmp(x->op, "&") && x->c) /* a borrow of an Array: its elements */
                     return strfmt("%s_append_ref(%s%s)", cn, recv, args.buf);
-                if (x->c) /* an Array an expression gives: appended and freed */
+                if (x->c && x->kind != E_TERNARY) /* an Array an expression gives: appended and freed; a ?:'s c is its arm (#203) */
                     return strfmt("%s_append_owned(%s%s)", cn, recv, args.buf);
             }
             return strfmt("%s_%s(%s%s)", cn, e->text, recv, args.buf);
@@ -1551,6 +1551,24 @@ static const char *owner_take(Type *t) {
     if (!f)
         return NULL;
     return strfmt("%.*s_take", (int)strlen(f) - 5, f);
+}
+
+/* Does return e move a local owner out: e one, or c ? a : b with one as
+   an arm (#203)? */
+static bool moves_out(Expr *e) {
+    if (e->kind == E_TERNARY && !(e->op && !strcmp(e->op, "coalesce")))
+        return moves_out(e->b) || moves_out(e->c);
+    return local_owner(e);
+}
+
+/* the value return e gives: a local owner taken, so that its block frees
+   nothing, and each arm of ?: as return would give it alone (#203) */
+static char *moved_out(Expr *e) {
+    if (e->kind == E_TERNARY && !(e->op && !strcmp(e->op, "coalesce")))
+        return strfmt("%s ? %s : %s", cond(e->a), moved_out(e->b), moved_out(e->c));
+    if (local_owner(e))
+        return strfmt("%s(&%s)", owner_take(local_owner_type(e->text)), c_name(e->text));
+    return expr(e);
 }
 
 /* Is e the name of an owner of this function, a local or a parameter? */
@@ -2156,8 +2174,8 @@ static void stmt(Stmt *s) {
         line("continue;");
         break;
     case S_RETURN:
-        if (s->expr && local_owner(s->expr)) /* an owner moves out (#54) */
-            line("return %s(&%s);", owner_take(local_owner_type(s->expr->text)), c_name(s->expr->text));
+        if (s->expr && moves_out(s->expr)) /* an owner moves out (#54), an arm of ?: too (#203) */
+            line("return %s;", moved_out(s->expr));
         else if (s->expr)
             line("return %s;", expr(s->expr));
         else

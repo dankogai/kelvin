@@ -60,6 +60,7 @@ static List scope_types; /* Type * (or NULL) for each name in scope_names */
 enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH };
 static List scope_lets;
 static List scope_moved; /* per binding: moved out, so dead until assigned anew (#54) */
+static List mixed_choices; /* c ? s : make() of an owner, not yet returned, and its place's name, in turn (#203) */
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 
@@ -4202,6 +4203,11 @@ static Expr *parse_conditional(void) {
     expect_p(":");
     e->c = parse_conditional();
     e->is_bool = seen_bool(e); /* C would promote two bools to int */
+    if (is_owner(value_type(e->b)) && owner_place(e->b) != owner_place(e->c)) { /* an error unless it is returned (#203) */
+        Expr *place = owner_place(e->b) ? e->b : e->c;
+        list_push(&mixed_choices, e);
+        list_push(&mixed_choices, place->kind == E_IDENT ? strfmt("'%s'", place->text) : "a part of an owner");
+    }
     {
         /* c ? Optional<i64>(v) : none (#116): an arm beside a T? or a Result
            is wrapped as where one is expected, as == wraps it (#79) */
@@ -7434,6 +7440,8 @@ static const char *array_append_kind(Expr *given, Type *array) {
 static bool owner_place(Expr *e) {
     if (e->kind == E_INDEX && e->op && !strcmp(e->op, "slice"))
         return false; /* a slice is a copy an expression gives (#68) */
+    if (e->kind == E_TERNARY && !(e->op && !strcmp(e->op, "coalesce")))
+        return owner_place(e->b) && owner_place(e->c); /* c ? s : t gives a place, as s and t are (#203) */
     return is_owner(value_type(e)) &&
            (e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF);
 }
@@ -8248,9 +8256,38 @@ static bool is_assignment(Expr *e) {
 }
 
 /* Returning text in the function's own buffer (#21) is an error */
+/* c ? s : make() of an owner, where one arm is a place and the other a
+   value an expression gives (#203): returned, each arm moves out; anywhere
+   else one would be freed and the other not, an error once the function
+   is read, when what is returned is known */
+static void forget_choice(Expr *e) {
+    for (int i = 0; i < mixed_choices.len; i += 2)
+        if (mixed_choices.data[i] == e) {
+            mixed_choices.data[i + 1] = mixed_choices.data[--mixed_choices.len];
+            mixed_choices.data[i] = mixed_choices.data[--mixed_choices.len];
+            i -= 2;
+        }
+}
+
+static void reject_mixed_choices(void) {
+    if (!mixed_choices.len)
+        return;
+    Expr *e = mixed_choices.data[0];
+    error_at(e->pos, "this ?: chooses between %s, an owner's place, and a value an expression gives, so one would be "
+                     "freed and the other not: return it, copy the place with .copy(), or choose with if",
+             (char *)mixed_choices.data[1]);
+}
+
 /* return b moves a local owner out (O4); a field or an element of one
-   cannot go alone, and a borrow of a local owner dies with it (O6) */
+   cannot go alone, and a borrow of a local owner dies with it (O6);
+   return c ? a : b moves whichever arm it gives (#203) */
 static void return_owner(Expr *e) {
+    if (e->kind == E_TERNARY && !(e->op && !strcmp(e->op, "coalesce")) && is_owner(value_type(e))) {
+        forget_choice(e);
+        return_owner(e->b);
+        return_owner(e->c);
+        return;
+    }
     if (e->kind == E_IDENT && is_owner(value_type(e))) {
         if (let_kind(e->text) == LET_EACH)
             error_at(e->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '%s.copy()'", e->text,
@@ -8403,7 +8440,7 @@ static void finish_drops(int from) {
     pending_drops.len = from;
 }
 
-static void implicit_return(Decl *d) {
+static void implicit_return_of(Decl *d) {
     if (!d->ret || !d->body || !d->body->stmts.len)
         return;
     List *stmts = &d->body->stmts;
@@ -8433,6 +8470,12 @@ static void implicit_return(Decl *d) {
     if (dropped)
         error_at(dropped->pos, "this value would be dropped: a body returns its value without 'return' only when "
                                "it is one expression, so write 'return' before it");
+}
+
+/* ... and once a body is read, what is returned is known (#203) */
+static void implicit_return(Decl *d) {
+    implicit_return_of(d);
+    reject_mixed_choices();
 }
 
 /* Does e do something as a statement: an assignment, a call, or a

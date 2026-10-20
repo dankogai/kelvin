@@ -234,6 +234,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 200 | A type and a variable at once in a module's `#inline C`, `struct p { ... } v = x;`, go to its .kh as `extern struct p { ... } v;`, and the tagged type of a `static` one alone, `struct p { ... };`; a variable of a struct type, `struct p v = {...};`, is `extern` too | — | `extern struct geo_rect { double w, h; } geo_unit;` in geo.kh | 2026-10-20 |
 | 201 | examples/ski.k: SKI combinator logic, reduced leftmost-outermost to a normal form or a limit of steps, and Iota (`*` and `i`) and Jot (bits) compiled to it; `-iota` and `-jot` read a term of either from the command line, and a term of SKI otherwise | — | `kelvinc --run examples/ski.k -- 'S(K(SI))Kab'` | 2026-10-20 |
 | 202 | examples/lambda.k: the untyped lambda calculus written with `λ`, never `\`: `λx y.M` for `λx.λy.M`, a number its Church numeral, a name in capitals one of Wikipedia's definitions (TRUE, AND, SUCC, PLUS, MULT, POW, PRED, SUB, ISZERO, Y, FACT, ...); normal-order reduction over de Bruijn indices, the names given back with `′` where one would capture; a term from the command line | — | `kelvinc --run examples/lambda.k -- 'PLUS 2 3'` | 2026-10-20 |
+| 203 | `c ? a : b` of owners: `return c ? a : b` moves whichever arm it gives, a local or a parameter taken; two places, `c ? s : t`, are a place, read where they are and never copied by `=` or moved into a call; a place beside a value an expression gives is an error but where it is returned; `xs += c ? x : y` appends an element | — | `return paren ? $"(" + s + ")" : s` | 2026-10-20 |
 
 Notes:
 
@@ -795,6 +796,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (203) Agreed details: "fix the return ternary bug as #203", the bug
+  #202 found. It was wider than return: kelvinc took `c ? s : t` for a
+  value an expression gives, so `var u = c ? s : t` and `eat(c ? s : t)`
+  shared s's heap with what freed it, and `println(c ? s : t)` held it in
+  a temporary (#187) that freed s. And `xs += c ? x : y` of an Array of
+  Strings appended an Array, the ?:'s arm read as the mark of one.
+  lambda.k returns its ?: again (P215, rule O12).
 
 - (202) Agreed details: "add `examples/lambda.k` as well which
   implements the lambda calculus ... since we can already handle Unicode,
@@ -2172,7 +2181,8 @@ says "as agreed".
 | P211 | Details of #199 | c_declarations in parser.c: the comments made blanks; at depth 0, a line starting with `#` is kept with its continued lines; a `{` after `)` is a function's body, its text before it the prototype; else a declaration ends at `;`: kept as it is where it begins with `typedef`, `extern` or `_Static_assert`, or is a `struct`, `union` or `enum` with nothing after its `}`; else `extern` before it and each initializer dropped, up to the next `,` at depth 0; `static` or `inline` among its specifiers leaves it out; tests/project/lib/geo.k and geo_user.k use it, and tests/run.sh checks geo.kh | — |
 | P212 | Details of #200 | c_declaration skips the storage class and qualifiers (static, extern, const, volatile, _Thread_local) to find struct, union or enum; its body is a `{` after the keyword and an optional tag alone; nothing after the body: the type, kept; a declarator after it: extern; static or inline with a tag and a body: `struct p { ... };`, the type alone; tests/project/lib/geo.k has both, which tests/run.sh checks in geo.kh | — |
 | P213 | Details of #201 | `struct node { kind: uint8; fun: int64; arg: int64 }` in `var pool:$[node]`, a global owner filled by main; `step` unwinds the spine into an Array of arguments, the last first, and reduces I, K or S at the head, else the first argument that steps; `normal` stops after `limit` steps with " ..."; `show` puts an argument that is an application in parentheses; a node's kind is a `uint8`, shown by `.uchr`, since a character literal is C's `int` and a `uchr` C's struct | — |
-| P214 | Details of #202 | `struct node { kind: uint8; n: int64; a: int64; b: int64 }` in `var pool:$[node]`, names in `var names:$[String]`, definitions in `var defs:$[int64]`, all global owners; a definition is closed, so its node is shared where its name is read; shift and subst as Pierce has them; `show` primes a binder whose name a binder around it or a free variable has; the reader's functions take a `reader^`, since a method cannot change self, and `term` is a prototype first; `kelvinc --run file -- args` passes args, which ski.k's comment now says too | `return c ? a : s` of a local owner s, a kelvinc bug |
+| P214 | Details of #202 | `struct node { kind: uint8; n: int64; a: int64; b: int64 }` in `var pool:$[node]`, names in `var names:$[String]`, definitions in `var defs:$[int64]`, all global owners; a definition is closed, so its node is shared where its name is read; shift and subst as Pierce has them; `show` primes a binder whose name a binder around it or a free variable has; the reader's functions take a `reader^`, since a method cannot change self, and `term` is a prototype first; `kelvinc --run file -- args` passes args, which ski.k's comment now says too | — |
+| P215 | Details of #203 | owner_place of a ?: (not `??`) is that of both arms; a ?: whose arms differ so is listed with its place's name, return_owner takes it off and moves each arm, and implicit_return reports what is left once a body is read, since only then is it known what is returned; codegen's moves_out and moved_out write `c ? take(&a) : b`; the Array append's `x->c` mark is not a ?:'s arm; tests/run/owner_choice.k and tests/error/owner_choice_*.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
