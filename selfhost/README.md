@@ -12,7 +12,8 @@ bootstraps itself, it reaches a fixpoint (#204).
     and libraries written for it.
   - kc uses less still: the prelude (`String`, `Array`, `println`) and
     `<IO>` to read the source, write the C and run `cc`.
-- **No CI yet:** `selfhost/bootstrap.sh` is run by hand.
+- **In CI** (#228): the `selfhost` jobs run `bootstrap.sh` and
+  `sanitize.sh` with gcc and clang on Ubuntu, and clang on macOS.
 
 ## Files
 
@@ -24,11 +25,13 @@ bootstraps itself, it reaches a fixpoint (#204).
 | [gen.k](gen.k) | the C |
 | [sample.k](sample.k) | a program of the subset, built by both compilers, which must print the same |
 | [bootstrap.sh](bootstrap.sh) | the stages and their checks |
+| [sanitize.sh](sanitize.sh) | kc built with ASan and UBSan, which must write the same C (#228) |
 
 ## The stages
 
 ```sh
 selfhost/bootstrap.sh
+selfhost/sanitize.sh
 ```
 
 | Stage | Built by | From |
@@ -42,10 +45,11 @@ selfhost/bootstrap.sh
   and `stage3.c`).
 - **The sample:** stage3 builds `sample.k`, whose output must be what
   kelvinc's build of it prints.
-- Checked by hand as well:
-  - kc built with gcc 15 (`-cc gcc-mp-15`), and stage1 built by kelvinc
-    with gcc 15, write the same C;
-  - kc's C, built with ASan and UBSan, compiles kc cleanly to the same C.
+- **The compiler:** `CC` picks the C compiler of every stage, and of
+  kelvinc's build of the sample; CI runs gcc and clang.
+- **Sanitizers** (#228): `sanitize.sh` builds kc from stage2's C with
+  ASan and UBSan, and its C of `kc.k` and of `sample.k` must be the
+  stages' own, with no memory error and no undefined behavior.
 - Everything goes into `build/selfhost/`; nothing is removed.
 
 ## Using kc
@@ -327,9 +331,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
-   part as it comes:
-   - holding an owner an expression gives, as kelvinc does (#187), so
-     that `println(String(n))` and `f().is(c)` need no variable.
+   part as it comes: printing an Optional, as kelvinc's `some(...)`.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
-   far it reads.
-3. Then CI: `selfhost/bootstrap.sh` as a job.
+   far it reads, and the programs kc builds under tests/asan.sh's
+   counting allocator, which is done by hand so far.

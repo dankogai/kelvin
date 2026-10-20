@@ -5405,3 +5405,16 @@ temporaries and `f()?.m ?? 0` in a program that wrote no `T?` were fixed;
 printing an Optional is left. Details are provisional P239.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 272. The bootstrap in CI
+
+> add the selfhost bootstrap to CI as #228
+
+**Claude** added #228: a `selfhost` job in CI, with gcc and clang on Ubuntu
+and clang on macOS, that runs `selfhost/bootstrap.sh`, its fixpoint and
+its sample, and `selfhost/sanitize.sh`, new, which builds kc with ASan and
+UBSan and checks that it writes the same C, as was done by hand since
+#204. The counting allocator's run of kc's programs is still by hand.
+Details are provisional P240.
+
+There are 834 tests, and all pass with clang and with gcc 15.

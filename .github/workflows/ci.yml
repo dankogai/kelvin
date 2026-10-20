@@ -89,6 +89,37 @@ jobs:
       - name: Test
         run: make test
 
+  selfhost:
+    # kc, the Kelvin compiler of selfhost/ written in Kelvin (#204): its
+    # stages reach a fixpoint, its build of sample.k prints what kelvinc's
+    # does, and kc built with sanitizers writes the same C (#228)
+    name: selfhost / ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cc: gcc
+          - os: ubuntu-latest
+            cc: clang
+          - os: macos-latest
+            cc: clang
+    env:
+      # builds kelvinc, the stages and their programs
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: make
+
+      - name: Bootstrap
+        run: selfhost/bootstrap.sh
+
+      - name: kc with sanitizers
+        run: selfhost/sanitize.sh
+
   asan-programs:
     # the programs the tests make, with the runtime and the modules, under
     # AddressSanitizer and a counting allocator: no memory error, and nothing
