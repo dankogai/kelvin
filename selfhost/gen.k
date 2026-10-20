@@ -54,12 +54,22 @@ let gen_error(n:int64, what:cstr) {
 
 let tagged_of(y:int64):int64    // prototypes: an enum with values owns where a case does (#215)
 let tagged_owns(d:int64):bool
+let decl_named(t:int64, kind:nkind):int64    // a prototype: put_ctype and is_owner ask it of a struct
 
 let is_owner(y:int64):bool {
     if y < 0 { return false }
     if types[y].owns() { return true }
     let d = tagged_of(y)
-    return d >= 0 && tagged_owns(d)
+    if d >= 0 { return tagged_owns(d) }
+    if types[y].kind != Y_STRUCT { return false }
+    let s = decl_named(types[y].name, D_STRUCT)          // a struct owns where a member does (#225)
+    var f = -1
+    if s >= 0 { f = nodes[s].a }
+    while f >= 0 {
+        if is_owner(nodes[f].ty) { return true }
+        f = nodes[f].next
+    }
+    return false
 }
 
 // the part of an Array's name its element gives: i64, String, tok
@@ -114,7 +124,6 @@ let put_free_copy(y:int64) {
     }
 }
 
-let decl_named(t:int64, kind:nkind):int64    // a prototype: put_ctype asks it of a struct
 
 let put_ctype(y:int64) {
     switch types[y].kind {                                       // every kind of type (#210)
@@ -801,11 +810,39 @@ let gen_cond(n:int64) {
     gen_expr(n)
 }
 
+// {a, b} of the struct s (#225): each member by its field's type, so that
+// none and a T of a T? are what a variable of that type takes; a local
+// owner is copied, x.copy(), as kelvinc has it
+let gen_init(n:int64, s:int64) {
+    put("{")
+    var a:int64 = nodes[n].b
+    var f:int64 = nodes[s].a
+    while a >= 0 {
+        if a != nodes[n].b { put(", ") }
+        if f < 0 {
+            gen_error(a, "this struct has fewer members")
+            return
+        }
+        if nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 && is_owner(type_of(a)) {
+            gen_error(a, "an owner is not copied by '=' (#54): copy it with .copy()")
+            return
+        }
+        gen_value(a, nodes[f].ty)
+        a = nodes[a].next
+        f = nodes[f].next
+    }
+    put("}")
+}
+
 // a case's value made where an enum with values is expected (#217): none,
 // ok(v), err(e) by the type that takes them, and a T where a T? goes as
 // some(T), as kelvinc has them, whose some(v) is a pattern alone; a local
 // owner moves in; else the expression as it is
 let gen_value(n:int64, y:int64) {
+    if nodes[n].kind == N_INIT && y >= 0 && types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
+        gen_init(n, decl_named(types[y].name, D_STRUCT))       // {a, b} of a struct (#225)
+        return
+    }
     let d = tagged_of(y)
     if d < 0 && y >= 0 && !failed && some_type(type_of(n)) >= 0 {     // as kelvinc says it (#219)
         gen_error(n, "this is an Optional where a value goes: unwrap it with '!', or give a default with '??'")
@@ -1209,8 +1246,8 @@ let gen_assign(n:int64) {
         put(", ")
         gen_expr(nodes[n].b)
         put(");\n")
-    } else if is_owner(y) && tagged_of(y) >= 0 && tok_is(t, "=") {
-        serial += 1                                      // the new value first, then the old one freed (#217)
+    } else if is_owner(y) && yk == Y_STRUCT && tok_is(t, "=") {
+        serial += 1                                      // the new value first, then the old one freed (#217, #225)
         put("{ ")
         put_ctype(y)
         put(" _kv_v")
@@ -1711,16 +1748,6 @@ let put_struct(name:int64) {
 // an enum with values as kelvinc writes it (#215): a struct of a tag and
 // a union; its cases' names; _free, _take and _copy where a case owns;
 // and for each case, _make and _set, and _at, checked, of one with a value
-// whether a case of the enum with values d holds a value of kind k
-let holds_kind(d:int64, k:ykind):bool {
-    var m = nodes[d].a
-    while m >= 0 {
-        if nodes[m].ty >= 0 && types[nodes[m].ty].kind == k { return true }
-        m = nodes[m].next
-    }
-    return false
-}
-
 let gen_tagged(d:int64) {
     let name = nodes[d].t
     put_struct(name)
@@ -1892,6 +1919,140 @@ let gen_tagged(d:int64) {
     put("\n")
 }
 
+// a struct's functions where it owns (#225), as kelvinc writes them: its
+// members freed, taken and copied
+let gen_struct_owner(d:int64) {
+    let name = nodes[d].t
+    put("__attribute__((unused)) static inline void _kv_")
+    put_tok(name)
+    put("_free(")
+    put_struct(name)
+    put(" *self)\n{\n")
+    var f = nodes[d].a
+    while f >= 0 {
+        if is_owner(nodes[f].ty) {
+            put("    ")
+            put_free(nodes[f].ty)
+            put("(&self->")
+            put_tok(nodes[f].t)
+            put(");\n")
+        }
+        f = nodes[f].next
+    }
+    put("}\n__attribute__((unused)) static inline ")
+    put_struct(name)
+    put(" _kv_")
+    put_tok(name)
+    put("_take(")
+    put_struct(name)
+    put(" *self)\n{\n    ")
+    put_struct(name)
+    put(" _kv_v = *self;\n    *self = (")
+    put_struct(name)
+    put("){0};\n    return _kv_v;\n}\n__attribute__((unused)) static inline ")
+    put_struct(name)
+    put(" _kv_")
+    put_tok(name)
+    put("_copy(const ")
+    put_struct(name)
+    put(" *self)\n{\n    ")
+    put_struct(name)
+    put(" _kv_v = *self;\n")
+    f = nodes[d].a
+    while f >= 0 {
+        if is_owner(nodes[f].ty) {
+            put("    _kv_v.")
+            put_tok(nodes[f].t)
+            put(" = ")
+            put_owner_prefix(nodes[f].ty)
+            put("_copy(&self->")
+            put_tok(nodes[f].t)
+            put(");\n")
+        }
+        f = nodes[f].next
+    }
+    put("    return _kv_v;\n}\n\n")
+}
+
+var written:Dictionary<int64, int64>     // the types whose C is written (#225)
+
+// the C of type y once, after the types it holds by value: an Array's
+// element before the Array, a struct's members before the struct, an
+// enum's values before the enum (#225); a pointer needs no more than C's
+// name of what it points to
+let write_type(y:int64) {
+    if y < 0 || written.has(y) { return }
+    written[y] = 1
+    let k:ykind = types[y].kind
+    if k == Y_ARRAY {
+        write_type(types[y].elem)
+        put("KV_ARRAY(")
+        put_ctype(types[y].elem)
+        put(", ")
+        put_array_name(y)
+        put(", ")
+        put_free_copy(types[y].elem)
+        put(")\n")
+    } else if k == Y_DICT {
+        let key:int64 = types[y].name
+        let value:int64 = types[y].elem
+        write_type(key)
+        write_type(value)
+        put("KV_DICT(")
+        if types[key].kind == Y_STRING {
+            put("kv_string, const uint8_t *, ")
+        } else {
+            put_ctype(key)
+            put(", ")
+            put_ctype(key)
+            put(", ")
+        }
+        put_ctype(value)
+        put(", ")
+        put_dict_name(y)
+        if types[key].kind == Y_STRING {
+            put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_MISSING_TEXT, kv_string_free, kv_string_copy, ")
+        } else {
+            put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
+        }
+        put_free_copy(value)
+        put(")\n")
+    } else if k == Y_STRUCT {
+        let d = decl_named(types[y].name, D_STRUCT)
+        if d >= 0 {
+            var f:int64 = nodes[d].a
+            while f >= 0 {
+                write_type(nodes[f].ty)
+                f = nodes[f].next
+            }
+            put("struct ")
+            put_tok(nodes[d].t)
+            put("\n{\n")
+            f = nodes[d].a
+            while f >= 0 {
+                put("    ")
+                put_ctype(nodes[f].ty)
+                put(" ")
+                put_tok(nodes[f].t)
+                put(";\n")
+                f = nodes[f].next
+            }
+            put("};\n\n")
+            if is_owner(y) { gen_struct_owner(d) }
+            return
+        }
+        let e = tagged_of(y)
+        if e >= 0 {
+            var m = nodes[e].a
+            while m >= 0 {
+                write_type(nodes[m].ty)
+                m = nodes[m].next
+            }
+            gen_tagged(e)
+        }
+    }
+}
+
 let gen_program() {
     index_names()
     put("/* generated by kc, selfhost/kc.k */\n")
@@ -1934,67 +2095,14 @@ let gen_program() {
             put("};\n\n")
         }
     }
-    for i in 0..<decls.count as int64 {                  // the structs, and the enums with values (#215)
-        let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && !holds_kind(d, Y_ARRAY) && !holds_kind(d, Y_DICT) { gen_tagged(d) }
-        if nodes[d].kind == D_STRUCT {
-            put("struct ")
-            put_tok(nodes[d].t)
-            put("\n{\n")
-            var f:int64 = nodes[d].a
-            while f >= 0 {
-                put("    ")
-                put_ctype(nodes[f].ty)
-                put(" ")
-                put_tok(nodes[f].t)
-                put(";\n")
-                f = nodes[f].next
-            }
-            put("};\n\n")
+    for i in 0..<decls.count as int64 {                  // the structs and the enums with values (#215), each
+        let d:int64 = decls[i]                           // after what it holds, as the Arrays and Dictionaries (#225)
+        if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1) {
+            write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t))
         }
     }
-    for i in 0..<arrays.count as int64 {                 // the Arrays of them
-        let y:int64 = arrays[i]
-        put("KV_ARRAY(")
-        put_ctype(types[y].elem)
-        put(", ")
-        put_array_name(y)
-        put(", ")
-        put_free_copy(types[y].elem)
-        put(")\n")
-    }
-    for i in 0..<decls.count as int64 {                  // an enum with an Array's value, $[T]?, after the Arrays (#221)
-        let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && holds_kind(d, Y_ARRAY) && !holds_kind(d, Y_DICT) { gen_tagged(d) }
-    }
-    for i in 0..<dicts.count as int64 {                  // the Dictionaries (#211)
-        let y:int64 = dicts[i]
-        let key:int64 = types[y].name
-        let value:int64 = types[y].elem
-        put("KV_DICT(")
-        if types[key].kind == Y_STRING {
-            put("kv_string, const uint8_t *, ")
-        } else {
-            put_ctype(key)
-            put(", ")
-            put_ctype(key)
-            put(", ")
-        }
-        put_ctype(value)
-        put(", ")
-        put_dict_name(y)
-        if types[key].kind == Y_STRING {
-            put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_MISSING_TEXT, kv_string_free, kv_string_copy, ")
-        } else {
-            put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
-        }
-        put_free_copy(value)
-        put(")\n")
-    }
-    for i in 0..<decls.count as int64 {                  // one with a Dictionary's value, after the Dictionaries (#221)
-        let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 && holds_kind(d, Y_DICT) { gen_tagged(d) }
-    }
+    for i in 0..<arrays.count as int64 { write_type(arrays[i]) }
+    for i in 0..<dicts.count as int64 { write_type(dicts[i]) }
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
@@ -2054,7 +2162,7 @@ let gen_program() {
     out = head.copy()
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { gen_tagged(d) }
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }
     }
     out += &body
 }

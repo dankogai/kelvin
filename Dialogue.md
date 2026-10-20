@@ -5359,3 +5359,19 @@ names `Result<T, U>.ok(v)`. Patterns, and a function of the program
 named `some`, are as they were. Details are provisional P236.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 269. kc frees structs that own
+
+> teach kc to free structs that own as #225
+
+**Claude** added #225: a struct with a member that owns is an owner to kc
+now, with kelvinc's `_kv_T_free`, `_take` and `_copy`, so it is freed
+where its block ends, moved out by `return`, held in an Array, freed at
+exit as a global, and freed before `=` gives it a new value. kc writes
+each type after the types it holds by value, as a struct with a
+`$[String]` member needs. `{a, b}` reads each member by its field's
+type, so `none` goes there too; a local owner there is an error that says
+`.copy()`, as kelvinc's is. sample.k adopts a `pet`. Details are
+provisional P237.
+
+There are 834 tests, and all pass with clang and with gcc 15.

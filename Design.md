@@ -256,6 +256,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 222 | An argument where a function or a method takes an Optional or a Result is what a return's value would be: `none`, `some(T)` of a `T`, `ok(v)`, `err(e)`, an owner moved in; among overloads `none` fits an Optional alone, `ok(v)` and `err(e)` a Result, and a `T` a `T?` only where no overload takes the arguments as they are; a `none` two Optionals take is a tie that names `Optional<T>()` | — | `take(none)`, `take(5)`, `b.plus(none)`, `g(5)` of `g(i64)` | 2026-10-21 |
 | 223 | C's function of a name is called iff no Kelvin function of the name is declared before the call: beside one, C's is declared (`let sqrt(x:f64):f64`), keeps its C name and is an overload; arguments no overload fits are an error, and so is a function value of no overload's type; C's `_Generic` never falls back to C's function; a text literal fits a `String` parameter among overloads; an owner where an overload takes a borrow of it says to pass `&x` | — | `h("x")` of `h(v:String)` beside `h(v:i64)`; `let sqrt(x:f64):f64` beside `let sqrt(v:vec)` | 2026-10-21 |
 | 224 | `some(v)` is a word, as `ok(v)` and `err(e)` are, where no function or variable of the name is in sight: a pattern alone; written as a value it is an error that says to give `v` itself, or `Optional<T>(v)`; where a Result goes, an error that names `ok` and `err`; `ok(v)` and `err(e)` where no Result is expected are errors that name `Result<T, U>.ok(v)`; none of the three is C's call of a function of the name | — | `return some(n / 2)` is an error: `return n / 2` | 2026-10-21 |
+| 225 | kc frees a struct that owns, one with a member that owns, as kelvinc does: `_kv_T_free`, `_kv_T_take` and `_kv_T_copy`, so it is freed at the end of its block, moved out by `return`, held in an Array, a global freed at exit, and its old value freed by `=`; `{a, b}` of a struct reads each member by its field's type, `none` too, and a local owner there is an error that says `.copy()`; each type's C comes after the types it holds by value | — | `struct pet { name: String; tricks: $[String] }` | 2026-10-21 |
 
 Notes:
 
@@ -817,6 +818,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (225) Agreed details: "teach kc to free structs that own as #225".
+  A struct whose member owned was not an owner to kc, so nothing freed
+  it. is_owner now looks into a struct's members, and kc writes the
+  struct's functions as kelvinc's. A struct with a `$[String]` member
+  needs the Array's C first, and an Array of the struct the struct's,
+  so kc writes each type once after what it holds by value, which also
+  takes the place of #221's order of enums. `{a, b}` read its members
+  without their types, so `none` in it was a C error; gen_init gives
+  each its field's type.
 
 - (224) Agreed details: "fix the bare some(v) message as #224". kelvinc
   left `some(5)` to C, whose message was of an undeclared function
@@ -2390,6 +2401,7 @@ says "as agreed".
 | P234 | Details of #222 | parser.c: wrap_variant_args(call, d) applies optional_of(string_of_literal(x, t), t) to each argument of an Optional or Result parameter, in resolve_call before the record checks of one function and after choose, and for a method chosen; fit gives a bare none 1 of an Optional, else 0, and ok(v)/err(e) 1 of a Result whose case v fits; fit_wraps, set by choose for a second choose_among where the first found nothing, lets a T fit a T? as 1; the tie of a bare none names Optional<i64>() | f("text") among overloads with a String parameter, which goes to C |
 | P235 | Details of #223 | parser.c: resolve_call calls the one Kelvin function, an argument that is no struct where it takes one an error naming the declaration of C's; among overloads no fit is an error (a type's function, `T.f`, without C's hint), after an owner where one takes a borrow of it, which says `&x`; pick_overload errs where no overload has the type; typed_args (was wrap_variant_args) also makes a String of a text literal; fit gives a text literal 1 of a String; reaches_c, the dispatched list and Expr.c_too are gone, and codegen's generic_tree defaults to kv_no_such_overload; tests overload.k and overload_unseen.k declare C's sqrt, fabs, sin, abs and hypot | — |
 | P236 | Details of #224 | parser.c: some(x) of one argument is an E_CALL of op word where no function or binding has the name; optional_of refuses some(v) of an Optional and of a Result at the word; codegen.c: an E_CALL of op word left, ok, err or some, is an error at its word; tests: error/some_value.k, some_alone.k, ok_alone.k, result_some.k | — |
+| P237 | Details of #225 | gen.k: is_owner of a Y_STRUCT asks its D_STRUCT's members; gen_struct_owner writes _kv_T_free, _take and _copy; write_type(y) writes a type's C once, kept in `written`, after its element, members, key and value or cases, a pointer recursing into nothing; gen_program writes the structs and enums with values, the Arrays and the Dictionaries through it, and the T? made late too; holds_kind is gone; gen_assign's free-then-set covers any owning struct; gen_value of N_INIT for a struct is gen_init, each member by its field's type, a local owner an error; sample.k: struct pet | a by-value owner parameter, which kc does not free; `.copy()` of an Array |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -54,6 +54,18 @@ let named(n:int64):String? {
     return none
 }
 
+struct pet {                                          // a struct that owns, freed (#225)
+    name: String
+    tricks: $[String]
+    age: int64?
+}
+
+let adopt(n:cstr):pet {
+    var p:pet = {String(n), $[], none}
+    p.tricks += $"sit"
+    return p
+}
+
 extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
@@ -209,6 +221,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     if let some(word) = named(1) {
         println(word, " ", named(2).is(none))
     }
+    var rex = adopt("rex")
+    var pets:$[pet] = $[]
+    pets += adopt("tom")
+    rex.tricks += $"roll"
+    rex = adopt("max")                                // the old rex freed
+    rex.age = 4
+    println(rex.name, " ", rex.tricks.count, " ", rex.age ?? 0, " ", pets[0].name, " ", pets[0].age.is(none))
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p

@@ -91,8 +91,8 @@ kc reads what it is written in, and little more.
     - Since #221 a program needs no enum of its own with a case `none`
       for that: kc asked the type of a bare `none` in a `return` and in
       an argument, and found no name.
-    - Not yet in a struct's `{a, b}`, whose members kc writes without
-      their types.
+    - So in a struct's `{a, b}`, whose members kc reads by their
+      fields' types since #225.
   - `$[T]?` is an Optional of an Array (#221).
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
@@ -110,8 +110,6 @@ kc reads what it is written in, and little more.
       freed.
     - A `T?` that only a chain needs is made while the functions are
       written, and written before them.
-    - An enum with values that holds an Array goes after the Arrays,
-      and one that holds a Dictionary after the Dictionaries.
 - **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
   and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
   - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
@@ -164,8 +162,14 @@ kc reads what it is written in, and little more.
   - One an expression gives is bound, assigned, appended or returned:
     kc does not hold it where it is only read, as kelvinc does (#187),
     so `println(String(n))` is an error that says to bind it (#212).
-  - Not yet: a struct whose fields own, as `struct p { name: String }`,
-    which kc does not free, where kelvinc does (found in #221).
+  - A struct owns where a member does (#225), as `struct pet { name:
+    String; tricks: $[String] }`: kc writes its `_kv_T_free`,
+    `_kv_T_take` and `_kv_T_copy` as kelvinc does, so it is freed,
+    moved out by `return`, held in an Array, and freed before `=` gives
+    it a new value. A local owner in `{a, b}` is copied, `.copy()`.
+  - Each type's C comes once, after the types it holds by value: an
+    Array's element before the Array, a struct's members before the
+    struct, an enum's values before the enum (#225).
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ## Difficulties in the way of self-hosting kelvinc
