@@ -32,6 +32,28 @@ let describe(v:item^):int64 {
     return -1
 }
 
+// Optional and Result (#217)
+let find(xs:$[int64]^, v:int64):int64? {
+    for i in 0..<xs^.count as int64 {
+        if xs^[i] == v { return i }                   // a T where a T? goes: some(i)
+    }
+    return none
+}
+
+let parse_digit(c:uint8):Result<int64, String> {
+    if c < '0' || c > '9' {
+        var why = $"not a digit: "
+        why += String(c as int64)
+        return err(why)
+    }
+    return ok(c as int64 - 48)
+}
+
+let named(n:int64):String? {
+    if n == 1 { return $"one" }                   // some("one")
+    return none
+}
+
 extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
@@ -155,5 +177,31 @@ let main(argc:int32, argv:[cstr]):int32 {
     var items:$[item] = $[]
     items += item.text($"in an Array")
     println(describe(&a), " ", describe(&b), " ", describe(&c), " ", isnum, " ", k, " ", b.text, " ", items[0].text)
+    var hay:$[int64] = $[]
+    hay += 4
+    hay += 8
+    hay += 15
+    let at = find(&hay, 15)
+    let missing = find(&hay, 16)
+    var maybe:int64? = none
+    maybe = 7                                         // some(7)
+    println(at ?? 0 - 1, " ", missing ?? 0 - 1, " ", at.is(some), " ", missing.is(none), " ", maybe.some)
+    var good = parse_digit('7')
+    var bad = parse_digit('x')
+    if let ok(v) = good {
+        println("ok ", v)
+    }
+    if let err(why) = bad {
+        println("err ", why)
+    } else {
+        println("no error")
+    }
+    switch good {
+    case ok(v): println("switched ok ", v)
+    case err(e): println("switched err ", e)
+    }
+    if let some(word) = named(1) {
+        println(word, " ", named(2).is(none))
+    }
     return 0
 }

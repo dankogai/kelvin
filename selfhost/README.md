@@ -80,7 +80,18 @@ kc reads what it is written in, and little more.
   - `switch v { case none: ... case num(n): ... }` binds the case's
     value, which the enum still owns; every case is named, or there is
     `default:`.
-  - kc's own `load` gives `loaded.read(file)` or `loaded.unread(why)`.
+- **Optional and Result** (#217): `T?`, `Optional<T>` and
+  `Result<T, E>`, which kc makes as the enums with values kelvinc makes:
+  `struct _kv_opt_T` of `none` and `some`, `struct _kv_res_T_E` of `ok`
+  and `err`.
+  - `none`, `ok(v)` and `err(e)` are read by the type that takes them,
+    a variable's, a return's, an assignment's or a parameter's; a `T`
+    where a `T?` goes is `some(T)`. `some(v)` is a pattern alone, as in
+    kelvinc.
+  - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
+    values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
+  - kc's own `load` gives `Result<int64, String>`, and `case_named` an
+    `int64?`.
 - **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
   and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
   - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
@@ -133,7 +144,7 @@ steps can take them on one at a time.
 - **Left out of the subset:**
   - type inference;
   - overloading, and the names it mangles (`twice__i64`);
-  - `Optional`, `Result`, `??`, `try`;
+  - `try`, `Optional`'s `map` and the rest of its methods;
   - `extend`, methods, attributes, subscripts, operators;
   - anonymous and nested functions;
   - templates;
@@ -225,7 +236,8 @@ libc is allowed, as it is to any C program; C of our own is not.
 - **Errors:**
   - kc sets a global `failed` and moves the parser's cursor to the end,
     so that every loop stops;
-  - `Result` would carry them, at the price of every parser.
+  - `Result` would carry them, at the price of every parser; kc's
+    `load` gives one since #217, read by `if let err(why) = load(path)`.
 - **Lines:**
   - a statement ends with its line, so a long condition is one long line;
   - `as` is a keyword, so nothing is named `as`.
@@ -258,7 +270,8 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - `Optional` and `Result`, on the enums with values of #215.
+   - holding an owner an expression gives, as kelvinc does (#187), so
+     that `println(String(n))` and `f().is(c)` need no variable.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.
 3. Then CI: `selfhost/bootstrap.sh` as a job.

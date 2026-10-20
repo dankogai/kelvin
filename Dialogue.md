@@ -5227,3 +5227,18 @@ provisional P228.
 
 There are 818 tests, and all pass with clang and with gcc 15; tests/asan.sh
 passes all 216 programs.
+
+### 261. kc's Optional and Result
+
+> teach kc Optional and Result as #217
+
+**Claude** added #217: kc reads `T?`, `Optional<T>` and `Result<T, E>`,
+making each the enum with values kelvinc makes, with `none`, `ok(v)`,
+`err(e)` and a wrapped T by the type that takes them, `??`, and
+`if let`; kc's `load` gives a Result and `case_named` an Optional. It
+found that kelvinc reads no bare `some(v)`, and leaves the error to C;
+kc refuses it in a word of its own. kc compiling itself leaves nothing
+live at exit, realpath counted. The stages keep their fixpoint, 4764
+lines, with clang, gcc 15 and ASan. Details are provisional P229.
+
+There are 818 tests, and all pass with clang and with gcc 15.

@@ -39,6 +39,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_BLOCK,    // a, the first statement
     S_SWITCH,   // switch a { b, the first case }
     S_CASE,     // case a...: b...; flag 1 of default
+    S_IFLET,    // if let t(flag) = a { b } else c (#217)
     // declarations
     D_FN,       // t(a...):ty { b }, b -1 for a prototype
     D_STRUCT,   // t { a... }
@@ -109,6 +110,7 @@ var dicts:$[int64]         // every Dictionary type, so (#211)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
+var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
 
 // whether token t names a C header: <x.h> or "x.h"
 let is_header(t:int64):bool {
@@ -161,12 +163,12 @@ let parse_error(what:cstr) {
         println(fnames[t.file], ":", t.line, ": error: ", what)
     }
     failed = true
-    pos = toks.count as int64 - 1       // the end: every loop stops
+    pos = eof_pos                       // the end: every loop stops
 }
 
 let advance():int64 {
     let t:int64 = pos
-    if pos < toks.count as int64 - 1 { pos += 1 }
+    if pos < eof_pos { pos += 1 }
     return t
 }
 
@@ -195,6 +197,78 @@ let make_node(kind:nkind, t:int64):int64 {
     let n:node = node.leaf(kind, t)
     nodes += n
     return nodes.count as int64 - 1
+}
+
+// ---------- Optional and Result (#217) ----------
+
+// a token of a name kc makes, its codepoints after the files'
+let made_token(s:String^):int64 {
+    let at = codes.count as int64
+    for c in s^ {
+        codes += c.utf32
+    }
+    let t:tok = {T_ID, at, codes.count as int64 - at, 0, 0}
+    toks += t
+    return toks.count as int64 - 1
+}
+
+// the part of a made name a type gives, as kelvinc's: i64, String, Array_i64
+let type_word(y:int64):String {
+    switch types[y].kind {
+    case Y_I64: return $"i64"
+    case Y_I32: return $"i32"
+    case Y_U8: return $"u8"
+    case Y_U32: return $"u32"
+    case Y_BOOL: return $"bool"
+    case Y_CSTR: return $"cstr"
+    case Y_STRING: return $"String"
+    case Y_ARRAY:
+        var s = $"Array_"
+        var e = type_word(types[y].elem)
+        s += &e
+        return s
+    case Y_STRUCT: return tok_text(types[y].name)
+    default: return $"T"
+    }
+}
+
+// the enum with values kc makes of T? or Result<T, E>, once, as kelvinc
+// makes it: _kv_opt_T of none and some, _kv_res_T_E of ok and err; its c
+// is 1 of an Optional, whose T a T? takes as some(T)
+let made_enum(name:String^, first:cstr, ft:int64, second:cstr, st:int64, optional:bool):int64 {
+    if made_enums.has(name^) { return made_enums.get(name^, 0) }
+    let d = make_node(D_ENUM, made_token(name))
+    nodes[d].flag = 1
+    if optional { nodes[d].c = 1 }
+    var w1 = String(first)
+    let m1 = make_node(N_ID, made_token(&w1))
+    nodes[m1].ty = ft
+    var w2 = String(second)
+    let m2 = make_node(N_ID, made_token(&w2))
+    nodes[m2].ty = st
+    nodes[d].a = m1
+    nodes[m1].next = m2
+    decls += d
+    let y = type_of_kind(Y_STRUCT, -1, nodes[d].t)
+    made_enums[name^] = y
+    return y
+}
+
+let optional_of(t:int64):int64 {
+    var name = $"_kv_opt_"
+    var w = type_word(t)
+    name += &w
+    return made_enum(&name, "none", -1, "some", t, true)
+}
+
+let result_of(t:int64, e:int64):int64 {
+    var name = $"_kv_res_"
+    var w = type_word(t)
+    name += &w
+    name += "_"
+    var v = type_word(e)
+    name += &v
+    return made_enum(&name, "ok", t, "err", e, false)
 }
 
 // ---------- types as written ----------
@@ -243,6 +317,18 @@ let parse_type():int64 {
         y = base_type(Y_UCHR)
     } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
         y = type_of_kind(Y_STRUCT, -1, self_name)
+    } else if tok_is(t, "Optional") {            // Optional<T>, T? (#217)
+        expect("<")
+        let inner = parse_type()
+        expect(">")
+        y = optional_of(inner)
+    } else if tok_is(t, "Result") {              // Result<T, E> (#217)
+        expect("<")
+        let value = parse_type()
+        expect(",")
+        let error = parse_type()
+        expect(">")
+        y = result_of(value, error)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
         let key:int64 = parse_type()
@@ -253,9 +339,13 @@ let parse_type():int64 {
     } else {
         y = type_of_kind(Y_STRUCT, -1, t)
     }
-    while at_word("^") {
+    while at_word("^") || at_word("?") {
+        if at_word("?") {
+            y = optional_of(y)                   // T?, an Optional (#217)
+        } else {
+            y = type_of_kind(Y_PTR, y, -1)
+        }
         advance()
-        y = type_of_kind(Y_PTR, y, -1)
     }
     return y
 }
@@ -425,8 +515,9 @@ let binding_power():int64 {
     if at_word("||") { return 1 }
     if at_word("&&") { return 2 }
     if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 3 }
-    if at_word("+") || at_word("-") { return 4 }
-    if at_word("*") || at_word("/") || at_word("%") { return 5 }
+    if at_word("??") { return 4 }                // a value, or what an Optional holds (#217)
+    if at_word("+") || at_word("-") { return 5 }
+    if at_word("*") || at_word("/") || at_word("%") { return 6 }
     return 0
 }
 
@@ -488,6 +579,15 @@ let parse_typed(is_let:int64):int64 {
 
 let parse_if():int64 {
     let n:int64 = make_node(S_IF, advance())
+    if at_word("let") {                          // if let c(x) = e { } (#217): t c, flag x
+        advance()
+        nodes[n].kind = S_IFLET
+        nodes[n].t = advance()
+        expect("(")
+        nodes[n].flag = advance()
+        expect(")")
+        expect("=")
+    }
     set_a(n, parse_expr())
     set_b(n, parse_block())
     if at_word("else") {

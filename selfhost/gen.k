@@ -165,16 +165,6 @@ var enum_names:Dictionary<String, int64>
 var enumerators:Dictionary<String, int64>  // an enumerator's enum
 var method_names:Dictionary<String, int64> // a method or a function of a type, by "T.m" (#213)
 
-// the text of token t, a String
-let tok_text(t:int64):String {
-    var s = $""
-    let at:int64 = toks[t].at
-    for i in 0..<toks[t].len {
-        s += codes[at + i].uchr
-    }
-    return s
-}
-
 // "T.m", a method's name among the methods (#213)
 let method_key(recv:int64, t:int64):String {
     var name:String = tok_text(recv)
@@ -301,14 +291,14 @@ let tagged_named(a:int64):int64 {
     return -1
 }
 
-// the case named as token t of enum d, its node, or -1
-let case_named(d:int64, t:int64):int64 {
+// the case named as token t of enum d, its node, or none (#217)
+let case_named(d:int64, t:int64):int64? {
     var m = nodes[d].a
     while m >= 0 {
         if same_text(nodes[m].t, t) { return m }
         m = nodes[m].next
     }
-    return -1
+    return none
 }
 
 // the place of case m among its enum's, its tag
@@ -338,6 +328,26 @@ let method_of(n:int64):int64 {
     let y:int64 = type_of(a)
     if y < 0 || types[y].kind != Y_STRUCT { return -1 }
     return method_named(types[y].name, nodes[n].t)
+}
+
+// ---------- Optional and Result (#217) ----------
+
+// the type an Optional's some holds, or -1 where y is no Optional
+let some_type(y:int64):int64 {
+    let d = tagged_of(y)
+    if d < 0 || nodes[d].c != 1 { return -1 }
+    return nodes[nodes[nodes[d].a].next].ty
+}
+
+// whether n is a case's word of the enum d, which no name of the program
+// takes: none, or some of some(v), ok of ok(v), err of err(e)
+let case_word_of(n:int64, d:int64):int64 {
+    if nodes[n].kind == N_ID && var_type(nodes[n].t) < 0 { return case_named(d, nodes[n].t) ?? 0 - 1 }
+    if nodes[n].kind == N_CALL && nodes[nodes[n].a].kind == N_ID {
+        let f = nodes[n].a
+        if var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0 { return case_named(d, nodes[f].t) ?? 0 - 1 }
+    }
+    return -1
 }
 
 let type_of(n:int64):int64 {
@@ -377,12 +387,11 @@ let type_of(n:int64):int64 {
         if y < 0 { return -1 }
         let d = tagged_of(y)
         if d >= 0 {                                                      // v.c, the case's value
-            let m = case_named(d, t)
-            if m < 0 || nodes[m].ty < 0 {
-                gen_error(n, "this is no case of a value of this enum")
-                return -1
+            if let some(m) = case_named(d, t) {
+                if nodes[m].ty >= 0 { return nodes[m].ty }
             }
-            return nodes[m].ty
+            gen_error(n, "this is no case of a value of this enum")
+            return -1
         }
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) { return base_type(Y_I64) }
@@ -424,6 +433,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
+        if tok_is(t, "??") { return some_type(type_of(nodes[n].a)) }   // (#217)
         return type_of(nodes[n].a)
     }
     if k == N_CAST { return nodes[n].ty }
@@ -440,11 +450,30 @@ let type_of(n:int64):int64 {
 
 let gen_expr(n:int64)
 
+let gen_value(n:int64, y:int64)
+
 let gen_args(first:int64) {
     var a:int64 = first
     while a >= 0 {
         if a != first { put(", ") }
         gen_expr(a)
+        a = nodes[a].next
+    }
+}
+
+// the arguments of a call of the function d, each by its parameter's type (#217)
+let gen_args_to(first:int64, d:int64) {
+    var a:int64 = first
+    var p = -1
+    if d >= 0 { p = nodes[d].a }
+    while a >= 0 {
+        if a != first { put(", ") }
+        if p >= 0 {
+            gen_value(a, nodes[p].ty)
+            p = nodes[p].next
+        } else {
+            gen_expr(a)
+        }
         a = nodes[a].next
     }
 }
@@ -506,7 +535,7 @@ let gen_call(n:int64) {
     }
     put_tok(nodes[f].t)
     put("(")
-    gen_args(args)
+    gen_args_to(args, decl_named(nodes[f].t, D_FN))
     put(")")
 }
 
@@ -607,7 +636,7 @@ let gen_method(n:int64) {
     }
     if tok_is(t, "is") && tagged_of(type_of(a)) >= 0 {               // v.is(c)
         let d = tagged_of(type_of(a))
-        let m = case_named(d, nodes[nodes[n].b].t)
+        let m = case_named(d, nodes[nodes[n].b].t) ?? 0 - 1
         if m < 0 {
             gen_error(n, "this is no case of this enum")
             return
@@ -724,6 +753,75 @@ let gen_cond(n:int64) {
     gen_expr(n)
 }
 
+// a case's value made where an enum with values is expected (#217): none,
+// ok(v), err(e) by the type that takes them, and a T where a T? goes as
+// some(T), as kelvinc has them, whose some(v) is a pattern alone; a local
+// owner moves in; else the expression as it is
+let gen_value(n:int64, y:int64) {
+    let d = tagged_of(y)
+    if d < 0 || failed {
+        gen_expr(n)
+        return
+    }
+    var m = case_word_of(n, d)
+    if m >= 0 && nodes[d].c == 1 && nodes[n].kind == N_CALL {
+        gen_error(n, "some(v) makes no Optional: give v where the T? is expected")
+        return
+    }
+    var v = -1
+    if m >= 0 && nodes[n].kind == N_CALL { v = nodes[n].b }
+    if m < 0 && nodes[d].c == 1 && type_of(n) == some_type(y) {
+        m = nodes[nodes[d].a].next
+        v = n
+    }
+    if m < 0 {
+        gen_expr(n)
+        return
+    }
+    put("_kv_")
+    put_tok(nodes[d].t)
+    put("_make_")
+    put_tok(nodes[m].t)
+    put("(")
+    if v >= 0 && nodes[v].kind == N_ID && is_owner(type_of(v)) {
+        put_owner_prefix(type_of(v))
+        put("_take(&")
+        put_tok(nodes[v].t)
+        put(")")
+    } else if v >= 0 {
+        gen_expr(v)
+    }
+    put(")")
+}
+
+// x ?? d: what the Optional x holds, else d, x read once (#217)
+let gen_coalesce(n:int64) {
+    let y = type_of(nodes[n].a)
+    let inner = some_type(y)
+    if inner < 0 {
+        gen_error(n, "?? takes an Optional on its left")
+        return
+    }
+    if is_owner(inner) {
+        gen_error(n, "?? of an Optional that owns: read it with if let, which kc frees")
+        return
+    }
+    serial += 1
+    put("({ ")
+    put_ctype(y)
+    put(" _kv_o")
+    put_int(serial)
+    put(" = ")
+    gen_expr(nodes[n].a)
+    put("; _kv_o")
+    put_int(serial)
+    put(".tag == 1 ? _kv_o")
+    put_int(serial)
+    put(".u.some : (")
+    gen_value(nodes[n].b, inner)
+    put("); })")
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     let k:nkind = nodes[n].kind
@@ -783,6 +881,8 @@ let gen_expr(n:int64) {
         put_tok(t)
         gen_expr(nodes[n].a)
         put(")")
+    } else if k == N_BIN && tok_is(t, "??") {
+        gen_coalesce(n)
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
         if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
@@ -848,7 +948,7 @@ let inferred(n:int64):int64 {
     }
     if k == N_CHAR { return base_type(Y_U8) }
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return base_type(Y_I64) }
-    if k == N_BIN && !is_comparison(nodes[v].t) {
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") {     // x ?? d is x's T (#217)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }
@@ -884,7 +984,7 @@ let gen_var(n:int64) {
             put("0")
         }
     } else {
-        gen_expr(nodes[n].a)
+        gen_value(nodes[n].a, y)                         // (#217)
     }
     put(";\n")
 }
@@ -965,6 +1065,23 @@ let gen_assign(n:int64) {
         put(", ")
         gen_expr(nodes[n].b)
         put(");\n")
+    } else if is_owner(y) && tagged_of(y) >= 0 && tok_is(t, "=") {
+        serial += 1                                      // the new value first, then the old one freed (#217)
+        put("{ ")
+        put_ctype(y)
+        put(" _kv_v")
+        put_int(serial)
+        put(" = ")
+        gen_value(nodes[n].b, y)
+        put("; ")
+        put_free(y)
+        put("(")
+        gen_place(lhs)
+        put("); ")
+        gen_expr(lhs)
+        put(" = _kv_v")
+        put_int(serial)
+        put("; }\n")
     } else if is_owner(y) {
         gen_error(n, "an owner is assigned only as a String")
     } else if has_element(lhs) && has_call(nodes[n].b) {
@@ -974,7 +1091,7 @@ let gen_assign(n:int64) {
         put(" _kv_v")
         put_int(serial)
         put(" = ")
-        gen_expr(nodes[n].b)
+        gen_value(nodes[n].b, y)
         put("; ")
         gen_expr(lhs)
         put(" ")
@@ -987,7 +1104,7 @@ let gen_assign(n:int64) {
         put(" ")
         put_tok(t)
         put(" ")
-        gen_expr(nodes[n].b)
+        gen_value(nodes[n].b, y)                       // (#217)
         put(";\n")
     }
 }
@@ -999,7 +1116,7 @@ let gen_return(n:int64) {
         return
     }
     let y:int64 = type_of(a)
-    if nodes[a].kind == N_ID && is_owner(y) {            // a local owner moves out
+    if nodes[a].kind == N_ID && is_owner(y) && y == nodes[current].ty {    // a local owner moves out
         put("return ")
         put_owner_prefix(y)
         put("_take(&")
@@ -1013,7 +1130,7 @@ let gen_return(n:int64) {
         put_ctype(nodes[current].ty)
         put(")")
     }
-    gen_expr(a)
+    gen_value(a, nodes[current].ty)                      // none, some(v), ok(v), err(e) (#217)
     put(";\n")
 }
 
@@ -1087,6 +1204,87 @@ let gen_each(n:int64, depth:int64) {
     put("}\n")
 }
 
+// if let c(x) = e { } else { } (#217): e read once, by its address where it
+// is a place, else held, and freed, where it owns; x is the case's value,
+// which e still owns
+let gen_iflet(n:int64, depth:int64) {
+    let e = nodes[n].a
+    let y = type_of(e)
+    let d = tagged_of(y)
+    if d < 0 {
+        gen_error(n, "if let takes an enum with values, an Optional or a Result")
+        return
+    }
+    let m = case_named(d, nodes[n].t) ?? 0 - 1
+    if m < 0 || nodes[m].ty < 0 {
+        gen_error(n, "this is no case of a value of this enum")
+        return
+    }
+    serial += 1
+    let s = serial
+    put("{\n")
+    indent(depth + 1)
+    if !is_place(e) {
+        if is_owner(y) {
+            put("__attribute__((cleanup(")
+            put_free(y)
+            put("))) ")
+        }
+        put_ctype(y)
+        put(" _kv_held")
+        put_int(s)
+        put(" = ")
+        gen_expr(e)
+        put(";\n")
+        indent(depth + 1)
+    }
+    put_ctype(y)
+    put(" *_kv_l")
+    put_int(s)
+    put(" = ")
+    if is_place(e) {
+        gen_place(e)
+    } else {
+        put("&_kv_held")
+        put_int(s)
+    }
+    put(";\n")
+    indent(depth + 1)
+    put("if (_kv_l")
+    put_int(s)
+    put("->tag == ")
+    put_int(case_tag(d, m))
+    put(")\n")
+    indent(depth + 1)
+    put("{\n")
+    open_scope()
+    indent(depth + 2)
+    put_ctype(nodes[m].ty)
+    put(" ")
+    put_tok(nodes[n].flag)
+    put(" = _kv_l")
+    put_int(s)
+    put("->u.")
+    put_tok(nodes[m].t)
+    put(";\n")
+    declare(nodes[n].flag, nodes[m].ty)
+    var st = nodes[nodes[n].b].a
+    while st >= 0 && !failed {
+        gen_stmt(st, depth + 2)
+        st = nodes[st].next
+    }
+    close_scope()
+    indent(depth + 1)
+    put("}\n")
+    if nodes[n].c >= 0 {
+        indent(depth + 1)
+        put("else\n")
+        gen_stmt(nodes[n].c, depth + 1)
+    }
+    indent(depth)
+    put("}\n")
+}
+
 // whether s leaves its case: a return, a break, a continue
 let is_jump(s:int64):bool {
     if s < 0 { return false }
@@ -1144,7 +1342,7 @@ let gen_switch(n:int64, depth:int64) {
                 indent(depth)
                 put("case ")
                 if td >= 0 {
-                    let m = case_named(td, case_word(v))
+                    let m = case_named(td, case_word(v)) ?? 0 - 1
                     if m < 0 { gen_error(v, "this is no case of this enum") }
                     put_int(case_tag(td, m))
                     put(" /* ")
@@ -1162,7 +1360,7 @@ let gen_switch(n:int64, depth:int64) {
         open_scope()
         let first = nodes[c].a
         if td >= 0 && first >= 0 && nodes[first].kind == N_CALL && !failed {
-            let m = case_named(td, case_word(first))       // case n(x): x is the case's value, the enum's still
+            let m = case_named(td, case_word(first)) ?? 0 - 1    // case n(x): x is the case's value, the enum's still
             let x = nodes[first].b
             indent(depth + 2)
             put_ctype(nodes[m].ty)
@@ -1267,6 +1465,7 @@ let gen_stmt(n:int64, depth:int64) {
         close_scope()
     case S_EACH: gen_each(n, depth)
     case S_SWITCH: gen_switch(n, depth)
+    case S_IFLET: gen_iflet(n, depth)
     case S_RETURN: gen_return(n)
     case S_BREAK: put("break;\n")
     case S_CONTINUE: put("continue;\n")
@@ -1644,7 +1843,7 @@ let gen_program() {
             put_tok(nodes[d].t)
             put(" = ")
             if nodes[d].a >= 0 {
-                gen_expr(nodes[d].a)
+                gen_value(nodes[d].a, nodes[d].ty)
             } else if is_owner(nodes[d].ty) || types[nodes[d].ty].kind == Y_STRUCT {
                 put("{0}")
             } else {

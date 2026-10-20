@@ -27,6 +27,7 @@ var codes:$[uint32]       // every file's text
 var toks:$[tok]
 var fnames:$[String]      // every file's name
 var failed:bool
+var eof_pos = 0           // the end of the files' tokens: kc's own come after it (#217)
 
 let code_at(i:int64):uint32 {
     if i < codes.count as int64 { return codes[i] }
@@ -58,6 +59,16 @@ let same_text(a:int64, b:int64):bool {
     return true
 }
 
+// the text of token t, a String
+let tok_text(t:int64):String {
+    var s = $""
+    let at:int64 = toks[t].at
+    for i in 0..<toks[t].len {
+        s += codes[at + i].uchr
+    }
+    return s
+}
+
 let is_alpha(c:uint32):bool {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 }
@@ -84,6 +95,7 @@ let punct_len(i:int64):int64 {
     if c == '$' && (d == '[' || d == '{') { return 2 }    // $[ of an Array, ${:} of a Dictionary (#211)
     if (c == '=' || c == '!' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/' || c == '%') && d == '=' { return 2 }
     if c == '&' && d == '&' { return 2 }
+    if c == '?' && d == '?' { return 2 }                   // ?? (#217)
     if c == ':' && d == '=' { return 2 }
     if c == '|' && d == '|' { return 2 }
     return 1
