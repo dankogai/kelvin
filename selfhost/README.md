@@ -167,6 +167,15 @@ kc reads what it is written in, and little more.
     `_kv_T_take` and `_kv_T_copy` as kelvinc does, so it is freed,
     moved out by `return`, held in an Array, and freed before `=` gives
     it a new value. A local owner in `{a, b}` is copied, `.copy()`.
+  - An owner a function or a method takes by value moves in, and the
+    function frees it (#226), as kelvinc's O5: the parameter is
+    `_kv_x_in` in C, bound to a local `x` that is freed where the
+    function ends, or moved out by `return x`.
+    - A whole variable moves in by `_take`; one an expression gives, as
+      `f($"x")`, goes in as it is; a member or an element is an error
+      that says to pass a borrow or a copy.
+  - `.copy()` copies any owner but an `IO`: a String, an Array, a
+    Dictionary, a struct or an enum that owns (#226).
   - Each type's C comes once, after the types it holds by value: an
     Array's element before the Array, a struct's members before the
     struct, an enum's values before the enum (#225).

@@ -5375,3 +5375,17 @@ type, so `none` goes there too; a local owner there is an error that says
 provisional P237.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 270. kc frees owners passed by value
+
+> teach kc to free owners passed by value as #226
+
+**Claude** added #226: an owner a function takes by value moves into it
+and is freed there, in kelvinc's C, `_kv_s_in` bound to a local `s`; a
+variable passed moves in by `_take`, an owner an expression gives goes
+in as it is, and a member or an element is an error that says to pass a
+borrow or a copy, as kelvinc's is. Methods take their arguments by their
+parameters' types now, and `.copy()` copies an Array, a Dictionary or a
+struct as it did a String. sample.k shouts. Details are provisional P238.
+
+There are 834 tests, and all pass with clang and with gcc 15.

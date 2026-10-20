@@ -66,6 +66,18 @@ let adopt(n:cstr):pet {
     return p
 }
 
+let shout(s:String):String {                          // an owner taken by value, which it frees (#226)
+    var t = s.copy()
+    t += "!"
+    return t
+}
+
+let sum_of(xs:$[int64]):int64 {
+    var t:int64 = 0
+    for x in xs { t += x }
+    return t
+}
+
 extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
@@ -228,6 +240,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     rex = adopt("max")                                // the old rex freed
     rex.age = 4
     println(rex.name, " ", rex.tricks.count, " ", rex.age ?? 0, " ", pets[0].name, " ", pets[0].age.is(none))
+    var hi = $"hi"
+    var loud = shout(hi)                              // hi moves in
+    var hey = shout($"hey")                           // a String an expression gives moves in
+    var nums = fibs.copy()
+    println(loud, " ", hey, " ", sum_of(nums), " ", sum_of(fibs.copy()), " ", fibs.count)
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p

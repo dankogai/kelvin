@@ -503,14 +503,27 @@ let gen_args(first:int64) {
     }
 }
 
-// the arguments of a call of the function d, each by its parameter's type (#217)
+let is_place(n:int64):bool    // a prototype: gen_args_to and gen_call ask it
+
+// the arguments of a call of the function d, each by its parameter's type
+// (#217); an owner it takes by value moves in, which it frees (#226): a
+// whole variable by _take, an owner an expression gives as it is
 let gen_args_to(first:int64, d:int64) {
     var a:int64 = first
     var p = -1
     if d >= 0 { p = nodes[d].a }
     while a >= 0 {
         if a != first { put(", ") }
-        if p >= 0 {
+        if p >= 0 && is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
+            put_owner_prefix(nodes[p].ty)
+            put("_take(&")
+            put_tok(nodes[a].t)
+            put(")")
+            p = nodes[p].next
+        } else if p >= 0 && is_owner(nodes[p].ty) && is_place(a) {
+            gen_error(a, "an owner moves into a function only as a whole variable: pass a borrow, &..., or a copy")
+            return
+        } else if p >= 0 {
             gen_value(a, nodes[p].ty)
             p = nodes[p].next
         } else {
@@ -540,7 +553,6 @@ let gen_key(y:int64, k:int64) {
     }
 }
 
-let is_place(n:int64):bool    // a prototype: gen_call asks it
 
 // whether n is none, ok(v) or err(e), which only the type that takes them
 // reads: no name of the program (#221)
@@ -579,12 +591,17 @@ let gen_call(n:int64) {
         }
         if count > 16 { gen_error(n, "println and print take up to 16 values: write two calls") }
     }
+    let d = decl_named(nodes[f].t, D_FN)
     var a:int64 = args                             // what kelvinc holds, kc does not (#212)
+    var p = -1
+    if d >= 0 { p = nodes[d].a }
     while a >= 0 {
-        if !is_case_word(a) && is_owner(type_of(a)) && !is_place(a) {
+        let by_value = p >= 0 && is_owner(nodes[p].ty)           // which the function frees (#226)
+        if !by_value && !is_case_word(a) && is_owner(type_of(a)) && !is_place(a) {
             gen_error(a, "an owner an expression gives is passed to a function: bind it to a variable first, which kc frees")
         }
         a = nodes[a].next
+        if p >= 0 { p = nodes[p].next }
     }
     put_tok(nodes[f].t)
     put("(")
@@ -664,7 +681,7 @@ let gen_method(n:int64) {
             gen_expr(a)
             if nodes[n].b >= 0 { put(", ") }
         }
-        gen_args(nodes[n].b)
+        gen_args_to(nodes[n].b, f)                                    // by the parameters' types (#226)
         put(")")
         return
     }
@@ -715,8 +732,9 @@ let gen_method(n:int64) {
     let y:int64 = type_of(a)
     if y < 0 { return }
     let yk:ykind = types[y].kind
-    if yk == Y_STRING && tok_is(t, "copy") {
-        put("kv_string_copy(")
+    if is_owner(y) && yk != Y_IO && tok_is(t, "copy") {         // a String's, an Array's, a struct's... (#226)
+        put_owner_prefix(y)
+        put("_copy(")
         gen_place(a)
         put(")")
     } else if yk == Y_ARRAY && tok_is(t, "pop") {
@@ -1697,10 +1715,22 @@ let gen_signature(d:int64) {
         if p != nodes[d].a || takes_self { put(", ") }
         put_ctype(nodes[p].ty)
         put(" ")
+        if is_owner(nodes[p].ty) { put("_kv_") }        // an owner taken by value: _kv_x_in, bound to x (#226)
         put_tok(nodes[p].t)
+        if is_owner(nodes[p].ty) { put("_in") }
         p = nodes[p].next
     }
     put(")")
+}
+
+// whether the function d takes an owner by value, which it frees (#226)
+let takes_owner(d:int64):bool {
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        if is_owner(nodes[p].ty) { return true }
+        p = nodes[p].next
+    }
+    return false
 }
 
 let gen_function(d:int64) {
@@ -1732,6 +1762,26 @@ let gen_function(d:int64) {
         }
         close_scope()
         put("    }\n}\n")
+    } else if takes_owner(d) {                           // each owner taken by value, freed where it ends (#226)
+        put("{\n")
+        p = nodes[d].a
+        while p >= 0 {
+            if is_owner(nodes[p].ty) {
+                put("    __attribute__((cleanup(")
+                put_free(nodes[p].ty)
+                put("))) ")
+                put_ctype(nodes[p].ty)
+                put(" ")
+                put_tok(nodes[p].t)
+                put(" = _kv_")
+                put_tok(nodes[p].t)
+                put("_in;\n")
+            }
+            p = nodes[p].next
+        }
+        indent(1)
+        gen_block(nodes[d].b, 1)
+        put("}\n")
     } else {
         gen_block(nodes[d].b, 0)
     }
