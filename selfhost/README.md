@@ -123,9 +123,18 @@ kc reads what it is written in, and little more.
   `IO.exec(args, mode)`.
 - **Of a Dictionary** (#211): `d[k]!`, checked; `d[k] = v`, which sets
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`.
-  - A whole read of `d[k]` is an Optional since #218, which kc does not
-    make yet: kc refuses it and says to write `d[k]!` or
-    `d.get(k, v)`. `x!` of an Optional is `x.some`.
+  - `d[k]` read whole is a `V?` (#219), as kelvinc's since #218: `some`
+    of a copy of the entry's value, or `none` where the key is missing.
+    - It goes where a `V?` goes: `let a = d[k]`, `d[k] ?? v`,
+      `if let some(v) = d[k]`, an argument, a return.
+    - Assigning, modifying or going into `d[k]` is the place, checked:
+      `d[k] = v`, `d[k] += 1`, `d[k].m`, `d[k]!`.
+    - kc makes the `V?` of each Dictionary's `V` as it reads the type,
+      so that the enum is written before the code that uses it.
+  - `x!` of an Optional is `x.some`.
+  - An Optional where a value goes is an error that names `!` and `??`,
+    as kelvinc's (#219).
+  - Not yet: `x?.m`, `x?.f()` and `x?[i]`.
 - **Ownership:** a `String`, an `Array`, a `Dictionary`, an `IO` or an
   enum with an owning case is freed by C's `cleanup` attribute; `return
   x` of a local one moves it out; a global one is freed at exit by

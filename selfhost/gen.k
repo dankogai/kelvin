@@ -423,6 +423,7 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
+        if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
         if yk == Y_ARRAY || yk == Y_DICT { return types[y].elem }
         if yk == Y_ARGV { return base_type(Y_CSTR) }
         return base_type(Y_U8)
@@ -702,6 +703,10 @@ let gen_method(n:int64) {
 // whether n names a place, whose address is taken as it is
 let is_place(n:int64):bool {
     let k:nkind = nodes[n].kind
+    if k == N_INDEX && nodes[n].flag == 1 {                  // d[k] read whole is a value (#219)
+        let y = type_of(nodes[n].a)
+        return y < 0 || types[y].kind != Y_DICT
+    }
     return k == N_ID || k == N_FIELD || k == N_INDEX || k == N_DEREF
 }
 
@@ -759,6 +764,10 @@ let gen_cond(n:int64) {
 // owner moves in; else the expression as it is
 let gen_value(n:int64, y:int64) {
     let d = tagged_of(y)
+    if d < 0 && y >= 0 && !failed && some_type(type_of(n)) >= 0 {     // as kelvinc says it (#219); ?\? is no trigraph
+        gen_error(n, "this is an Optional where a value goes: unwrap it with '!', or give a default with '?\?'")
+        return
+    }
     if d < 0 || failed {
         gen_expr(n)
         return
@@ -822,6 +831,31 @@ let gen_coalesce(n:int64) {
     put("); })")
 }
 
+// d[k] read whole (#219): some of a copy of the entry's value, or none
+// where the key is missing, as kelvinc's dict_lookup
+let gen_lookup(n:int64, y:int64) {
+    let value:int64 = types[y].elem
+    let opt:int64 = optional_of(value)
+    put("({ __auto_type _kv_p = ")
+    put_dict_name(y)
+    put("_find(")
+    gen_place(nodes[n].a)
+    put(", ")
+    gen_key(y, nodes[n].b)
+    put("); _kv_p ? _kv_")
+    put_tok(types[opt].name)
+    put("_make_some(")
+    if is_owner(value) {
+        put_owner_prefix(value)
+        put("_copy(_kv_p)")
+    } else {
+        put("*_kv_p")
+    }
+    put(") : _kv_")
+    put_tok(types[opt].name)
+    put("_make_none(); })")
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     let k:nkind = nodes[n].kind
@@ -862,7 +896,7 @@ let gen_expr(n:int64) {
             gen_expr(nodes[n].b)
             put("))")
         } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
-            gen_error(n, "d[k] read whole is an Optional since #218, which kc does not make yet: write d[k]! or d.get(k, v)")
+            gen_lookup(n, y)
         } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
             put("(*")
             put_dict_name(y)

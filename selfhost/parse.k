@@ -336,6 +336,7 @@ let parse_type():int64 {
         let value:int64 = parse_type()
         expect(">")
         y = type_of_kind(Y_DICT, value, key)
+        optional_of(value)                       // V?, which d[k] read whole is (#219)
     } else {
         y = type_of_kind(Y_STRUCT, -1, t)
     }

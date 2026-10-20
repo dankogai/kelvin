@@ -5262,3 +5262,18 @@ wraps its default. Tests that printed `d[k]` read `d[k]!`; kc reads
 `x!` and refuses a whole `d[k]`. Details are provisional P230.
 
 There are 821 tests, and all pass with clang and with gcc 15.
+
+### 263. kc's d[k] as an Optional
+
+> teach kc d[k] as an Optional as #219
+
+**Claude** added #219: kc reads `d[k]` whole as kelvinc does, a `V?` of a
+copy of the entry's value or `none`, which goes where a `V?` goes, and
+`if let` frees; going into `d[k]` stays the place. kc makes each
+Dictionary's `V?` as it reads the type. An Optional where a value goes
+is now kc's error, not C's. sample.k reads whole entries, and its output
+is still kelvinc's. On the way, kelvinc turned out to write `??'` of a
+Kelvin string into C as it is, which C11 reads as a trigraph; that is
+left for a change of its own. Details are provisional P231.
+
+There are 821 tests, and all pass with clang and with gcc 15.

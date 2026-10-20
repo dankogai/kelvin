@@ -143,6 +143,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     tags[3] = $"three"
     tags[3] = $"drei"
     println(counts[w]!, " ", counts.get("none", 0 - 1), " ", counts.has("c"), " ", counts.count, " ", tags[3]!, " ", tags.has(4))
+    let seen = counts["c"]                            // d[k] read whole is an Optional (#219)
+    println(seen ?? 0, " ", counts["none"] ?? 0 - 1, " ", seen.is(some))
+    if let some(t) = tags[3] {
+        println(t, " ", t.count)
+    }
+    if let some(t) = tags[4] { println(t) } else { println("no 4") }
     var label:String = String(0 - 42)                 // a number's text (#212)
     label += String(7)
     label += " "
