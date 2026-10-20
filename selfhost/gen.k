@@ -13,6 +13,7 @@ var marks:$[int64]         // where each block's variables begin
 var serial:int64           // for the names kc makes
 var current:int64          // the function being written
 var uses_io:bool           // #import <IO>, whose kOS.h has kv_sys_init
+var global_owners:bool     // whether a global owns, freed at exit by _kv_free_globals, as kelvinc does (#215)
 
 // ---------- writing ----------
 
@@ -41,9 +42,14 @@ let gen_error(n:int64, what:cstr) {
 
 // ---------- types ----------
 
+let tagged_of(y:int64):int64    // prototypes: an enum with values owns where a case does (#215)
+let tagged_owns(d:int64):bool
+
 let is_owner(y:int64):bool {
     if y < 0 { return false }
-    return types[y].owns()
+    if types[y].owns() { return true }
+    let d = tagged_of(y)
+    return d >= 0 && tagged_owns(d)
 }
 
 // the part of an Array's name its element gives: i64, String, tok
@@ -79,7 +85,22 @@ let put_owner_prefix(y:int64) {
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
     case Y_DICT: put_dict_name(y)
+    case Y_STRUCT:                                 // an enum with values: _kv_T (#215)
+        put("_kv_")
+        put_tok(types[y].name)
     default: put_array_name(y)
+    }
+}
+
+// an element's free and copy, as KV_ARRAY and KV_DICT take them
+let put_free_copy(y:int64) {
+    if is_owner(y) {
+        put_owner_prefix(y)
+        put("_free, ")
+        put_owner_prefix(y)
+        put("_copy")
+    } else {
+        put("KV_PLAIN_FREE, KV_PLAIN_COPY")
     }
 }
 
@@ -100,8 +121,8 @@ let put_ctype(y:int64) {
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
     case Y_STRUCT:
-        if decl_named(types[y].name, D_STRUCT) >= 0 {
-            put("struct ")
+        if decl_named(types[y].name, D_STRUCT) >= 0 || tagged_of(y) >= 0 {
+            put("struct ")                                       // an enum with values too (#215)
         } else if decl_named(types[y].name, D_ENUM) >= 0 {
             put("enum ")                                         // (#210)
         }                                                        // else a C header's typedef (#207)
@@ -191,7 +212,7 @@ let index_names() {
         case D_ENUM:
             index_name(&enum_names, nodes[d].t, d)
             var m:int64 = nodes[d].a
-            while m >= 0 {
+            while m >= 0 && nodes[d].flag != 1 {           // a case of values is the enum's alone (#215)
                 index_name(&enumerators, nodes[m].t, d)
                 m = nodes[m].next
             }
@@ -262,6 +283,54 @@ let names_type(a:int64):bool {
     return nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_STRUCT) >= 0
 }
 
+// ---------- enums with values (#215) ----------
+
+// the enum with values that type y is, or -1
+let tagged_of(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_STRUCT { return -1 }
+    let d = decl_named(types[y].name, D_ENUM)
+    if d >= 0 && nodes[d].flag == 1 { return d }
+    return -1
+}
+
+// the enum with values node a names, T of T.c(v) and T.none, or -1
+let tagged_named(a:int64):int64 {
+    if nodes[a].kind != N_ID || var_type(nodes[a].t) >= 0 { return -1 }
+    let d = decl_named(nodes[a].t, D_ENUM)
+    if d >= 0 && nodes[d].flag == 1 { return d }
+    return -1
+}
+
+// the case named as token t of enum d, its node, or -1
+let case_named(d:int64, t:int64):int64 {
+    var m = nodes[d].a
+    while m >= 0 {
+        if same_text(nodes[m].t, t) { return m }
+        m = nodes[m].next
+    }
+    return -1
+}
+
+// the place of case m among its enum's, its tag
+let case_tag(d:int64, m:int64):int64 {
+    var i = 0
+    var c = nodes[d].a
+    while c >= 0 && c != m {
+        i += 1
+        c = nodes[c].next
+    }
+    return i
+}
+
+let tagged_owns(d:int64):bool {
+    var m = nodes[d].a
+    while m >= 0 {
+        if nodes[m].ty >= 0 && is_owner(nodes[m].ty) { return true }
+        m = nodes[m].next
+    }
+    return false
+}
+
 // the method or the function of a type that x.m(...) or T.f(...) calls, or -1 (#213)
 let method_of(n:int64):int64 {
     let a:int64 = nodes[n].a
@@ -302,8 +371,19 @@ let type_of(n:int64):int64 {
         return nodes[d].ty
     }
     if k == N_FIELD {
+        let e = tagged_named(nodes[n].a)
+        if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.none (#215)
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
+        let d = tagged_of(y)
+        if d >= 0 {                                                      // v.c, the case's value
+            let m = case_named(d, t)
+            if m < 0 || nodes[m].ty < 0 {
+                gen_error(n, "this is no case of a value of this enum")
+                return -1
+            }
+            return nodes[m].ty
+        }
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) { return base_type(Y_I64) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
@@ -320,6 +400,9 @@ let type_of(n:int64):int64 {
         if nodes[nodes[n].a].kind == N_TYPE { return base_type(Y_IO) }       // IO.exec(args, mode)
         let f:int64 = method_of(n)
         if f >= 0 { return nodes[f].ty }                                     // (#213)
+        let e = tagged_named(nodes[n].a)
+        if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.c(v) (#215)
+        if tok_is(t, "is") { return base_type(Y_BOOL) }
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if tok_is(t, "copy") { return y }
@@ -430,8 +513,27 @@ let gen_call(n:int64) {
 let gen_field(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    let e = tagged_named(a)
+    if e >= 0 {                                        // T.none: a case of no value (#215)
+        put("_kv_")
+        put_tok(nodes[e].t)
+        put("_make_")
+        put_tok(t)
+        put("()")
+        return
+    }
     let y:int64 = type_of(a)
     if y < 0 { return }
+    if tagged_of(y) >= 0 {                             // v.c, checked
+        put("(*_kv_")
+        put_tok(types[y].name)
+        put("_at_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        put("))")
+        return
+    }
     let yk:ykind = types[y].kind
     if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) {
         put("((int64_t)(")
@@ -482,6 +584,39 @@ let gen_method(n:int64) {
         }
         gen_args(nodes[n].b)
         put(")")
+        return
+    }
+    let e = tagged_named(a)
+    if e >= 0 {                                                       // T.c(v) (#215)
+        put("_kv_")
+        put_tok(nodes[e].t)
+        put("_make_")
+        put_tok(t)
+        put("(")
+        let v = nodes[n].b
+        if v >= 0 && nodes[v].kind == N_ID && is_owner(type_of(v)) {   // a local owner moves in
+            put_owner_prefix(type_of(v))
+            put("_take(&")
+            put_tok(nodes[v].t)
+            put(")")
+        } else {
+            gen_args(v)
+        }
+        put(")")
+        return
+    }
+    if tok_is(t, "is") && tagged_of(type_of(a)) >= 0 {               // v.is(c)
+        let d = tagged_of(type_of(a))
+        let m = case_named(d, nodes[nodes[n].b].t)
+        if m < 0 {
+            gen_error(n, "this is no case of this enum")
+            return
+        }
+        put("((bool)((")
+        gen_expr(a)
+        put(").tag == ")
+        put_int(case_tag(d, m))
+        put("))")
         return
     }
     if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
@@ -788,6 +923,18 @@ let gen_assign(n:int64) {
     let y:int64 = type_of(lhs)
     if y < 0 { return }
     let yk:ykind = types[y].kind
+    if nodes[lhs].kind == N_FIELD && tok_is(t, "=") && tagged_of(type_of(nodes[lhs].a)) >= 0 {
+        put("_kv_")                                     // v.c = x sets the case, freeing what it held (#215)
+        put_tok(types[type_of(nodes[lhs].a)].name)
+        put("_set_")
+        put_tok(nodes[lhs].t)
+        put("(")
+        gen_place(nodes[lhs].a)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+        return
+    }
     var into:int64 = -1                                  // what lhs indexes
     if nodes[lhs].kind == N_INDEX { into = type_of(nodes[lhs].a) }
     if into >= 0 && types[into].kind == Y_DICT && tok_is(t, "=") {
@@ -946,6 +1093,12 @@ let is_jump(s:int64):bool {
     return nodes[s].jumps()
 }
 
+// the token a case names: n of case n:, and of case n(x): (#215)
+let case_word(v:int64):int64 {
+    if nodes[v].kind == N_CALL { return nodes[nodes[v].a].t }
+    return nodes[v].t
+}
+
 // whether a switch's cases name every enumerator of the enum d
 let names_every(n:int64, d:int64):bool {
     var m:int64 = nodes[d].a
@@ -955,7 +1108,7 @@ let names_every(n:int64, d:int64):bool {
         while c >= 0 {
             var v:int64 = nodes[c].a
             while v >= 0 {
-                if nodes[v].kind == N_ID && same_text(nodes[v].t, nodes[m].t) { found = true }
+                if same_text(case_word(v), nodes[m].t) { found = true }
                 v = nodes[v].next
             }
             c = nodes[c].next
@@ -970,8 +1123,11 @@ let names_every(n:int64, d:int64):bool {
 // block of its own, ending with a break but after a jump; a switch on an
 // enum that names every enumerator tells C nothing else comes
 let gen_switch(n:int64, depth:int64) {
+    let td = tagged_of(type_of(nodes[n].a))           // an enum with values, by its tag (#215)
     put("switch (")
+    if td >= 0 { put("(") }
     gen_expr(nodes[n].a)
+    if td >= 0 { put(").tag") }
     put(")\n")
     indent(depth)
     put("{\n")
@@ -987,7 +1143,16 @@ let gen_switch(n:int64, depth:int64) {
             while v >= 0 {
                 indent(depth)
                 put("case ")
-                gen_expr(v)
+                if td >= 0 {
+                    let m = case_named(td, case_word(v))
+                    if m < 0 { gen_error(v, "this is no case of this enum") }
+                    put_int(case_tag(td, m))
+                    put(" /* ")
+                    put_tok(case_word(v))
+                    put(" */")
+                } else {
+                    gen_expr(v)
+                }
                 put(":\n")
                 v = nodes[v].next
             }
@@ -995,6 +1160,21 @@ let gen_switch(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         open_scope()
+        let first = nodes[c].a
+        if td >= 0 && first >= 0 && nodes[first].kind == N_CALL && !failed {
+            let m = case_named(td, case_word(first))       // case n(x): x is the case's value, the enum's still
+            let x = nodes[first].b
+            indent(depth + 2)
+            put_ctype(nodes[m].ty)
+            put(" ")
+            put_tok(nodes[x].t)
+            put(" = (")
+            gen_expr(nodes[n].a)
+            put(").u.")
+            put_tok(case_word(first))
+            put(";\n")
+            declare(nodes[x].t, nodes[m].ty)
+        }
         var s:int64 = nodes[c].b
         var last = -1
         while s >= 0 && !failed {
@@ -1160,6 +1340,7 @@ let gen_function(d:int64) {
             put_tok(nodes[nodes[nodes[d].a].next].t)
             put(");\n")
         }
+        if global_owners { put("    atexit(_kv_free_globals);\n") }
         put("    {\n")
         var s:int64 = nodes[nodes[d].b].a
         open_scope()
@@ -1173,6 +1354,186 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     close_scope()
+    put("\n")
+}
+
+// struct T, written for an enum with values
+let put_struct(name:int64) {
+    put("struct ")
+    put_tok(name)
+}
+
+// an enum with values as kelvinc writes it (#215): a struct of a tag and
+// a union; its cases' names; _free, _take and _copy where a case owns;
+// and for each case, _make and _set, and _at, checked, of one with a value
+let gen_tagged(d:int64) {
+    let name = nodes[d].t
+    put_struct(name)
+    put("\n{\n    uint8_t tag;\n    union\n    {\n")
+    var m = nodes[d].a
+    while m >= 0 {
+        if nodes[m].ty >= 0 {
+            put("        ")
+            put_ctype(nodes[m].ty)
+            put(" ")
+            put_tok(nodes[m].t)
+            put(";\n")
+        }
+        m = nodes[m].next
+    }
+    put("    } u;\n};\n")
+    put("__attribute__((unused)) static const char *const _kv_")
+    put_tok(name)
+    put("_cases[] = {")
+    m = nodes[d].a
+    while m >= 0 {
+        if m != nodes[d].a { put(", ") }
+        put("\"")
+        put_tok(nodes[m].t)
+        put("\"")
+        m = nodes[m].next
+    }
+    put("};\n")
+    let owns = tagged_owns(d)
+    if owns {
+        put("__attribute__((unused)) static inline void _kv_")
+        put_tok(name)
+        put("_free(")
+        put_struct(name)
+        put(" *self)\n{\n    switch (self->tag)\n    {\n")
+        m = nodes[d].a
+        while m >= 0 {
+            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
+                put("    case ")
+                put_int(case_tag(d, m))
+                put(": ")
+                put_free(nodes[m].ty)
+                put("(&self->u.")
+                put_tok(nodes[m].t)
+                put("); break;\n")
+            }
+            m = nodes[m].next
+        }
+        put("    default: break;\n    }\n    *self = (")
+        put_struct(name)
+        put("){0};\n}\n")
+        put("__attribute__((unused)) static inline ")
+        put_struct(name)
+        put(" _kv_")
+        put_tok(name)
+        put("_take(")
+        put_struct(name)
+        put(" *self)\n{\n    ")
+        put_struct(name)
+        put(" _kv_v = *self;\n    *self = (")
+        put_struct(name)
+        put("){0};\n    return _kv_v;\n}\n")
+        put("__attribute__((unused)) static inline ")
+        put_struct(name)
+        put(" _kv_")
+        put_tok(name)
+        put("_copy(const ")
+        put_struct(name)
+        put(" *self)\n{\n    ")
+        put_struct(name)
+        put(" _kv_v = *self;\n    switch (self->tag)\n    {\n")
+        m = nodes[d].a
+        while m >= 0 {
+            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
+                put("    case ")
+                put_int(case_tag(d, m))
+                put(": _kv_v.u.")
+                put_tok(nodes[m].t)
+                put(" = ")
+                put_owner_prefix(nodes[m].ty)
+                put("_copy(&self->u.")
+                put_tok(nodes[m].t)
+                put("); break;\n")
+            }
+            m = nodes[m].next
+        }
+        put("    default: break;\n    }\n    return _kv_v;\n}\n")
+    }
+    m = nodes[d].a
+    while m >= 0 {
+        let tag = case_tag(d, m)
+        let v = nodes[m].ty
+        if v >= 0 {                                    // _at, checked
+            put("__attribute__((unused)) static inline ")
+            put_ctype(v)
+            put(" *_kv_")
+            put_tok(name)
+            put("_at_")
+            put_tok(nodes[m].t)
+            put("(const ")
+            put_struct(name)
+            put(" *self)\n{\n    if (self->tag != ")
+            put_int(tag)
+            put(") kv_case_fail(\"")
+            put_tok(name)
+            put("\", \"")
+            put_tok(nodes[m].t)
+            put("\", _kv_")
+            put_tok(name)
+            put("_cases[self->tag]);\n    return (")
+            put_ctype(v)
+            put(" *)&self->u.")
+            put_tok(nodes[m].t)
+            put(";\n}\n")
+        }
+        put("__attribute__((unused)) static inline void _kv_")       // _set, freeing what it held
+        put_tok(name)
+        put("_set_")
+        put_tok(nodes[m].t)
+        put("(")
+        put_struct(name)
+        put(" *self")
+        if v >= 0 {
+            put(", ")
+            put_ctype(v)
+            put(" v")
+        }
+        put(")\n{\n")
+        if owns {
+            put("    _kv_")
+            put_tok(name)
+            put("_free(self);\n")
+        }
+        put("    self->tag = ")
+        put_int(tag)
+        put(";\n")
+        if v >= 0 {
+            put("    self->u.")
+            put_tok(nodes[m].t)
+            put(" = v;\n")
+        }
+        put("}\n")
+        put("__attribute__((unused)) static inline ")       // _make
+        put_struct(name)
+        put(" _kv_")
+        put_tok(name)
+        put("_make_")
+        put_tok(nodes[m].t)
+        put("(")
+        if v >= 0 {
+            put_ctype(v)
+            put(" v")
+        } else {
+            put("void")
+        }
+        put(")\n{\n    ")
+        put_struct(name)
+        put(" _kv_v = {0};\n    _kv_v.tag = ")
+        put_int(tag)
+        put(";\n")
+        if v >= 0 {
+            put("    _kv_v.u.")
+            put_tok(nodes[m].t)
+            put(" = v;\n")
+        }
+        put("    return _kv_v;\n}\n")
+        m = nodes[m].next
+    }
     put("\n")
 }
 
@@ -1200,7 +1561,7 @@ let gen_program() {
     put("\n")
     for i in 0..<decls.count as int64 {                  // the enums, C's (#210)
         let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM {
+        if nodes[d].kind == D_ENUM && nodes[d].flag != 1 {
             put("enum ")
             put_tok(nodes[d].t)
             put("\n{\n")
@@ -1218,8 +1579,9 @@ let gen_program() {
             put("};\n\n")
         }
     }
-    for i in 0..<decls.count as int64 {                  // the structs
+    for i in 0..<decls.count as int64 {                  // the structs, and the enums with values (#215)
         let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { gen_tagged(d) }
         if nodes[d].kind == D_STRUCT {
             put("struct ")
             put_tok(nodes[d].t)
@@ -1242,11 +1604,9 @@ let gen_program() {
         put_ctype(types[y].elem)
         put(", ")
         put_array_name(y)
-        if types[types[y].elem].kind == Y_STRING {
-            put(", kv_string_free, kv_string_copy)\n")
-        } else {
-            put(", KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
-        }
+        put(", ")
+        put_free_copy(types[y].elem)
+        put(")\n")
     }
     for i in 0..<dicts.count as int64 {                  // the Dictionaries (#211)
         let y:int64 = dicts[i]
@@ -1269,11 +1629,8 @@ let gen_program() {
         } else {
             put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
         }
-        if types[value].kind == Y_STRING {
-            put("kv_string_free, kv_string_copy)\n")
-        } else {
-            put("KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
-        }
+        put_free_copy(value)
+        put(")\n")
     }
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
@@ -1297,6 +1654,24 @@ let gen_program() {
         }
     }
     put("\n")
+    for i in 0..<decls.count as int64 {                  // the globals that own, freed at exit (#215)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) { global_owners = true }
+    }
+    if global_owners {
+        put("static void _kv_free_globals(void)\n{\n")
+        for i in 0..<decls.count as int64 {
+            let d:int64 = decls[i]
+            if nodes[d].kind == D_GLOBAL && is_owner(nodes[d].ty) {
+                put("    ")
+                put_free(nodes[d].ty)
+                put("(&")
+                put_tok(nodes[d].t)
+                put(");\n")
+            }
+        }
+        put("}\n\n")
+    }
     for i in 0..<decls.count as int64 {                  // the prototypes
         let d:int64 = decls[i]
         if nodes[d].kind == D_FN && nodes[d].b >= 0 && !is_main(d) {

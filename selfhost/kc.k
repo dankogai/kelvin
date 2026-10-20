@@ -33,12 +33,16 @@ let dir_of(path:String^):String {
     return r
 }
 
-// reads a file into codes and its tokens into toks; false where it cannot
-let load(path:String^):bool {
+// what reading a file gives: its place among the files, or why not (#215)
+enum loaded { read: int64; unread: String }
+
+// reads a file into codes and its tokens into toks
+let load(path:String^):loaded {
     var f:IO = IO(path^.cstr, "r")
     if f.error != 0 {
-        println("kc: cannot read ", path^)
-        return false
+        var why = $"kc: cannot read "
+        why += path
+        return loaded.unread(why)
     }
     var text:String = f.string
     let file:int64 = fnames.count as int64
@@ -49,6 +53,16 @@ let load(path:String^):bool {
     }
     codes += '\n'
     lex_range(from, codes.count as int64, file)
+    return loaded.read(file)
+}
+
+// whether path is read; where it is not, why is said
+let loads(path:String^):bool {
+    var got = load(path)
+    if got.is(unread) {
+        println(got.unread)
+        return false
+    }
     return true
 }
 
@@ -67,7 +81,7 @@ let load_imports():bool {
             for k in 0..<fnames.count as int64 {
                 if fnames[k] == path { seen = true }
             }
-            if !seen && !load(&path) { return false }
+            if !seen && !loads(&path) { return false }
         }
         i += 1
     }
@@ -124,7 +138,7 @@ let main(argc:int32, argv:[cstr]):int32 {
             mods = $"modules"
         }
     }
-    if !load(&input) { return 1 }
+    if !loads(&input) { return 1 }
     if !load_imports() { return 1 }
     let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
     toks += end

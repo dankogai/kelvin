@@ -693,7 +693,9 @@ let parse_struct():int64 {
     return n
 }
 
-// enum t { a, b = 3, c }, C's enum (#210)
+// enum t { a, b = 3, c }, C's enum (#210); enum t { none; n: int64 },
+// an enum with values (#215), where a case says the type of its value:
+// then the enum's flag is 1, and each case's ty its value's, or -1
 let parse_enum():int64 {
     let n:int64 = make_node(D_ENUM, advance())
     expect("{")
@@ -701,7 +703,11 @@ let parse_enum():int64 {
     var last = -1
     while !at_word("}") && !failed {
         let m:int64 = make_node(N_ID, advance())
-        if at_word("=") {
+        if at_word(":") {
+            advance()
+            set_ty(m, parse_type())
+            nodes[n].flag = 1
+        } else if at_word("=") {
             advance()
             set_a(m, parse_expr())
         }
@@ -711,7 +717,7 @@ let parse_enum():int64 {
             nodes[last].next = m
         }
         last = m
-        if at_word(",") { advance() }
+        if at_word(",") || at_word(";") { advance() }
         skip_newlines()
     }
     expect("}")

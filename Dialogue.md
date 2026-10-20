@@ -5198,3 +5198,18 @@ fixpoint, 3703 lines, with clang, gcc 15 and ASan. Details are
 provisional P226.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 259. kc's enums with values
+
+> teach kc enums with values as #215
+
+**Claude** added #215: kc reads enums whose cases carry values and writes
+them as kelvinc does, making, reading, setting and testing a case, and
+switching on one with the case's value bound; kc's `load` gives one now.
+A count of allocations found kc left its globals unfreed at exit, which
+it now frees as kelvinc does, and found that tests/asan.sh does not count
+what realpath gives, so a leak in a program that opens files could pass:
+left for a change of its own. The stages keep their fixpoint, 4288
+lines, with clang, gcc 15 and ASan. Details are provisional P227.
+
+There are 818 tests, and all pass with clang and with gcc 15.

@@ -21,6 +21,17 @@ let shade_name(s:shade):cstr {
     return "?"
 }
 
+enum item { none; num: int64; text: String }          // an enum with values (#215)
+
+let describe(v:item^):int64 {
+    switch v^ {
+    case none: return 0
+    case num(n): return n
+    case text(s): return s.count as int64
+    }
+    return -1
+}
+
 extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
@@ -134,5 +145,15 @@ let main(argc:int32, argv:[cstr]):int32 {
     greeting += "!"
     println(count, " ", minus, " ", letter, " ", yes, " ", less, " ", greeting)
     println(raw, " ", first.y, " ", total2, " ", cast)
+    var a = item.num(5)
+    var b = item.text($"hello")
+    var c = item.none
+    let isnum = a.is(num)
+    let k = a.num
+    b.text = $"hi"
+    c.num = 3
+    var items:$[item] = $[]
+    items += item.text($"in an Array")
+    println(describe(&a), " ", describe(&b), " ", describe(&c), " ", isnum, " ", k, " ", b.text, " ", items[0].text)
     return 0
 }

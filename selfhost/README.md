@@ -70,6 +70,17 @@ kc reads what it is written in, and little more.
   `struct` of plain members, `enum` of names, C's (#210), global `let`
   and `var`, `#import <IO>`, `#import "x.k"`, and `#import <x.h> as C`
   (#207).
+- **Enums with values** (#215): `enum item { none; num: int64; text:
+  String }`, written as kelvinc writes one: a struct of a tag and a
+  union, with `_kv_T_make_c`, `_at_c` (checked) and `_set_c`, and
+  `_free`, `_take` and `_copy` where a case owns.
+  - `T.c(v)` makes one, a local owner moving in, and `T.none` one of no
+    value; `v.c` reads the case's value, checked; `v.c = x` sets the
+    case, freeing what it held; `v.is(c)`.
+  - `switch v { case none: ... case num(n): ... }` binds the case's
+    value, which the enum still owns; every case is named, or there is
+    `default:`.
+  - kc's own `load` gives `loaded.read(file)` or `loaded.unread(why)`.
 - **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
   and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
   - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
@@ -101,9 +112,10 @@ kc reads what it is written in, and little more.
   `IO.exec(args, mode)`.
 - **Of a Dictionary** (#211): `d[k]`, checked; `d[k] = v`, which sets
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`.
-- **Ownership:** a `String`, an `Array`, a `Dictionary` or an `IO` is
-  freed by C's `cleanup` attribute; `return x` of a local one moves it
-  out.
+- **Ownership:** a `String`, an `Array`, a `Dictionary`, an `IO` or an
+  enum with an owning case is freed by C's `cleanup` attribute; `return
+  x` of a local one moves it out; a global one is freed at exit by
+  `_kv_free_globals`, as kelvinc frees them (#215).
   - One an expression gives is bound, assigned, appended or returned:
     kc does not hold it where it is only read, as kelvinc does (#187),
     so `println(String(n))` is an error that says to bind it (#212).
@@ -121,7 +133,7 @@ steps can take them on one at a time.
 - **Left out of the subset:**
   - type inference;
   - overloading, and the names it mangles (`twice__i64`);
-  - enums with values, `switch`, `Optional`, `Result`, `??`, `try`;
+  - `Optional`, `Result`, `??`, `try`;
   - `extend`, methods, attributes, subscripts, operators;
   - anonymous and nested functions;
   - templates;
@@ -246,7 +258,7 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - `Optional` and `Result`.
+   - `Optional` and `Result`, on the enums with values of #215.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.
 3. Then CI: `selfhost/bootstrap.sh` as a job.
