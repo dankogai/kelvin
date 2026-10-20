@@ -119,7 +119,7 @@ let is_header(t:int64):bool {
 // ---------- types ----------
 
 let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
-    var i:int64 = 0
+    var i = 0
     while i < types.count as int64 {
         let y:ty = types[i]
         if y.kind == kind && y.elem == elem {
@@ -222,7 +222,7 @@ let parse_type():int64 {
         return base_type(Y_VOID)
     }
     let t:int64 = advance()
-    var y:int64 = -1
+    var y = -1
     if tok_is(t, "int64") {
         y = base_type(Y_I64)
     } else if tok_is(t, "int32") {
@@ -266,8 +266,8 @@ let parse_expr():int64    // a prototype: the parsers call each other
 
 // the arguments of a call after its (, up to its ), as a list
 let parse_args():int64 {
-    var first:int64 = -1
-    var last:int64 = -1
+    var first = -1
+    var last = -1
     while !at_word(")") && !failed {
         let e:int64 = parse_expr()
         if first < 0 {
@@ -321,7 +321,7 @@ let parse_primary():int64 {
     if at_word("{") {
         advance()
         let n:int64 = make_node(N_INIT, t)
-        var last:int64 = -1
+        var last = -1
         while !at_word("}") && !failed {
             let e:int64 = parse_expr()
             if last < 0 {
@@ -462,18 +462,28 @@ let end_statement() {
     parse_error("a statement ends with its line")
 }
 
-// name:Type = value, its let or var read
+// name:Type = value, its let or var read; without :Type, the type is
+// what the value gives, found when it is written (#214); c is 1 of :=
 let parse_var(is_let:int64):int64 {
     let t:int64 = advance()
     let n:int64 = make_node(S_VAR, t)
     nodes[n].flag = is_let
-    expect(":")
-    set_ty(n, parse_type())
+    if at_word(":") {
+        advance()
+        set_ty(n, parse_type())
+    }
     if at_word("=") || at_word(":=") {          // := of a reference, as a cstr
+        if at_word(":=") { nodes[n].c = 1 }
         advance()
         set_a(n, parse_expr())
     }
     return n
+}
+
+// a parameter or a member, whose type is written
+let parse_typed(is_let:int64):int64 {
+    if toks[pos + 1].kind != T_PUNCT || !tok_is(pos + 1, ":") { parse_error("a parameter or a member says its type: name:T") }
+    return parse_var(is_let)
 }
 
 let parse_if():int64 {
@@ -500,7 +510,7 @@ let parse_switch():int64 {
     set_a(n, parse_expr())
     expect("{")
     skip_newlines()
-    var last:int64 = -1
+    var last = -1
     while !at_word("}") && !failed {
         let c:int64 = make_node(S_CASE, pos)
         if at_word("default") {
@@ -508,7 +518,7 @@ let parse_switch():int64 {
             nodes[c].flag = 1
         } else {
             expect("case")
-            var lastv:int64 = -1
+            var lastv = -1
             while !failed {
                 let v:int64 = parse_expr()
                 if lastv < 0 {
@@ -523,7 +533,7 @@ let parse_switch():int64 {
         }
         expect(":")
         skip_newlines()
-        var lasts:int64 = -1
+        var lasts = -1
         while !at_word("case") && !at_word("default") && !at_word("}") && !failed {
             let s:int64 = parse_statement()
             if lasts < 0 {
@@ -552,7 +562,7 @@ let parse_statement():int64 {
         return parse_switch()
     }
     if at_word("var") || at_word("let") {
-        let is_let:int64 = 0
+        let is_let = 0
         advance()
         let n:int64 = parse_var(is_let)
         if tok_is(t, "let") { nodes[n].flag = 1 }
@@ -620,7 +630,7 @@ let parse_statement():int64 {
 let parse_block():int64 {
     let n:int64 = make_node(S_BLOCK, pos)
     expect("{")
-    var last:int64 = -1
+    var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
         let s:int64 = parse_statement()
@@ -641,9 +651,9 @@ let parse_block():int64 {
 let parse_function():int64 {
     let n:int64 = make_node(D_FN, advance())
     expect("(")
-    var last:int64 = -1
+    var last = -1
     while !at_word(")") && !failed {
-        let p:int64 = parse_var(1)
+        let p:int64 = parse_typed(1)
         if last < 0 {
             nodes[n].a = p
         } else {
@@ -666,10 +676,10 @@ let parse_struct():int64 {
     let n:int64 = make_node(D_STRUCT, advance())
     type_of_kind(Y_STRUCT, -1, nodes[n].t)
     expect("{")
-    var last:int64 = -1
+    var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
-        let f:int64 = parse_var(0)
+        let f:int64 = parse_typed(0)
         if last < 0 {
             nodes[n].a = f
         } else {
@@ -688,7 +698,7 @@ let parse_enum():int64 {
     let n:int64 = make_node(D_ENUM, advance())
     expect("{")
     skip_newlines()
-    var last:int64 = -1
+    var last = -1
     while !at_word("}") && !failed {
         let m:int64 = make_node(N_ID, advance())
         if at_word("=") {
@@ -717,7 +727,7 @@ let parse_extend() {
     expect("{")
     skip_newlines()
     while !at_word("}") && !failed {
-        var is_static:int64 = 0
+        var is_static = 0
         if at_word("static") {
             advance()
             is_static = 1

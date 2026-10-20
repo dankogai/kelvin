@@ -37,7 +37,7 @@ let code_at(i:int64):uint32 {
 let tok_is(t:int64, w:cstr):bool {
     let at:int64 = toks[t].at
     let n:int64 = toks[t].len
-    var i:int64 = 0
+    var i = 0
     while i < n {
         if w[i] == 0 { return false }
         if codes[at + i] != w[i] as uint32 { return false }
@@ -50,7 +50,7 @@ let tok_is(t:int64, w:cstr):bool {
 let same_text(a:int64, b:int64):bool {
     let n:int64 = toks[a].len
     if toks[b].len != n { return false }
-    var i:int64 = 0
+    var i = 0
     while i < n {
         if codes[toks[a].at + i] != codes[toks[b].at + i] { return false }
         i += 1
@@ -93,7 +93,7 @@ let punct_len(i:int64):int64 {
 // #import of a Kelvin file begins its own, or -1
 let lex_range(from:int64, to:int64, file:int64) {
     var i:int64 = from
-    var line:int64 = 1
+    var line = 1
     var depth:int64 = 0              // ( and [ open
     while i < to && !failed {
         let c:uint32 = codes[i]

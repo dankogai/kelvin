@@ -120,5 +120,19 @@ let main(argc:int32, argv:[cstr]):int32 {
     let q:point^ := &p
     let big:point = p.scaled(3)
     println(p.sum(), " ", big.x, " ", q^.sum(), " ", points[0].dot(p), " ", point.of(3, 4).sum())
+    var count = 0                                     // inferred (#214)
+    let minus = -3
+    let letter = 'k'
+    let yes = true
+    let less = count < minus
+    var greeting = $"hi"
+    let raw := "raw"
+    let first = points[0]
+    let total2 = total(&points)
+    let cast = 300 as uint8
+    count += 2
+    greeting += "!"
+    println(count, " ", minus, " ", letter, " ", yes, " ", less, " ", greeting)
+    println(raw, " ", first.y, " ", total2, " ", cast)
     return 0
 }

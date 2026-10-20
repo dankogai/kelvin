@@ -5183,3 +5183,18 @@ their fixpoint, 3611 lines, with clang, gcc 15 and ASan. Details are
 provisional P225.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 258. kc infers
+
+> teach kc inference of literals as #214
+
+**Claude** added #214: a variable written without a type takes its
+value's, by kelvinc's rules, which a probe of each kind of value showed:
+literals, bools, comparisons, casts, and what kc sees of names, calls,
+members and elements, but not arithmetic. kc's own variables of a
+literal say no type now, 34 of them, and `println` of more than 16
+values is an error in kc as in kelvinc. The stages keep their
+fixpoint, 3703 lines, with clang, gcc 15 and ASan. Details are
+provisional P226.
+
+There are 818 tests, and all pass with clang and with gcc 15.

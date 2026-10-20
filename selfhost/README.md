@@ -82,7 +82,8 @@ kc reads what it is written in, and little more.
 - **Types:** `int64`, `int32`, `uint8`, `uint32`, `bool`, `cstr`,
   `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's `[cstr]`, and
   `Dictionary<K, V>` of `String` or integer keys (#211).
-- **Statements:** `var` and `let` with a type, always; `=`, `+=` and the
+- **Statements:** `var` and `let`, with a type or one inferred (#214);
+  `=`, `+=` and the
   rest; `if`, `else if`, `else`; `while`; `for i in a..<b`; `for x in s`
   of a String or an Array; `return`, `break`, `continue`.
 - **`switch`** (#210), as kelvinc has it (#63): `case a, b:` and
@@ -186,8 +187,17 @@ libc is allowed, as it is to any C program; C of our own is not.
   index, as in examples/ski.k.
 - **Declared before use:** mutual recursion needs prototypes first, as
   `let parse_expr():int64` and `let gen_expr(n:int64)`.
-- **Inference stops at arithmetic:** `var j = n - 1` is an error, so
-  every variable says its type.
+- **Inference stops at arithmetic:** `var j = n - 1` is an error.
+  - Since #214 kc infers as kelvinc does: a literal, `int64`, `uint8` of
+    a character, `bool`, `String` of `$"..."`; a comparison; a cast; and
+    what it sees of a name, a call, a member or an element.
+  - `"text"` is a `cstr` by `:=`; an empty `$[]`, `${:}`, `{...}` and
+    what only C sees still need a type.
+  - kc's own variables of a literal, 34 of them, say no type now. The
+    rest keep theirs: one of arithmetic must, and the others are left
+    as written.
+  - kc's `.count` is an `int64`, where kelvinc's is a `size_t`: a
+    variable inferred from one differs in its C type.
 - **Characters:**
   - a character literal is C's `int`, and a `uchr` is a struct;
   - a String cannot be indexed, `s[i]` being an error;
@@ -236,7 +246,6 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - inference of literals;
    - `Optional` and `Result`.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.

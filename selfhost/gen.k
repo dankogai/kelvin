@@ -146,7 +146,7 @@ var method_names:Dictionary<String, int64> // a method or a function of a type, 
 
 // the text of token t, a String
 let tok_text(t:int64):String {
-    var s:String = $""
+    var s = $""
     let at:int64 = toks[t].at
     for i in 0..<toks[t].len {
         s += codes[at + i].uchr
@@ -404,6 +404,15 @@ let gen_call(n:int64) {
             put(")")
         }
         return
+    }
+    if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
+        var count = 0                              // the prelude's macro counts up to 16 (#214)
+        var x = args
+        while x >= 0 {
+            count += 1
+            x = nodes[x].next
+        }
+        if count > 16 { gen_error(n, "println and print take up to 16 values: write two calls") }
     }
     var a:int64 = args                             // what kelvinc holds, kc does not (#212)
     while a >= 0 {
@@ -687,7 +696,42 @@ let indent(depth:int64) {
 }
 
 // a variable, its type, its name, and its value or nothing
+// the type of a variable written without one, from its value, as kelvinc
+// infers it (#214): a literal, a bool, a comparison, a cast, and what kc
+// sees of a name, a call, a member or an element; not arithmetic, nor
+// what only C sees; "text" by := is a cstr
+let inferred(n:int64):int64 {
+    let v:int64 = nodes[n].a
+    if v < 0 {
+        gen_error(n, "a variable without a type has a value to infer it from: write name:T")
+        return -1
+    }
+    let k:nkind = nodes[v].kind
+    if k == N_STR {
+        if nodes[n].c != 1 { gen_error(n, "text is a reference, a cstr: assign it with :=, not =") }
+        return base_type(Y_CSTR)
+    }
+    if k == N_CHAR { return base_type(Y_U8) }
+    if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return base_type(Y_I64) }
+    if k == N_BIN && !is_comparison(nodes[v].t) {
+        gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
+        return -1
+    }
+    if k == N_EMPTY || k == N_INIT || k == N_NULL {
+        gen_error(n, "this variable needs a type: write name:T, since this value has none of its own")
+        return -1
+    }
+    let y:int64 = type_of(v)
+    if y < 0 || types[y].kind == Y_C || types[y].kind == Y_VOID {
+        gen_error(n, "this variable needs a type: write name:T, since kc does not see this value's")
+        return -1
+    }
+    return y
+}
+
 let gen_var(n:int64) {
+    if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
+    if failed { return }
     let y:int64 = nodes[n].ty
     if is_owner(y) {
         put("__attribute__((cleanup(")
@@ -906,7 +950,7 @@ let is_jump(s:int64):bool {
 let names_every(n:int64, d:int64):bool {
     var m:int64 = nodes[d].a
     while m >= 0 {
-        var found:bool = false
+        var found = false
         var c:int64 = nodes[n].b
         while c >= 0 {
             var v:int64 = nodes[c].a
@@ -931,7 +975,7 @@ let gen_switch(n:int64, depth:int64) {
     put(")\n")
     indent(depth)
     put("{\n")
-    var whole:bool = false
+    var whole = false
     var c:int64 = nodes[n].b
     while c >= 0 && !failed {
         if nodes[c].flag == 1 {
@@ -952,7 +996,7 @@ let gen_switch(n:int64, depth:int64) {
         put("{\n")
         open_scope()
         var s:int64 = nodes[c].b
-        var last:int64 = -1
+        var last = -1
         while s >= 0 && !failed {
             gen_stmt(s, depth + 2)
             last = s
@@ -969,7 +1013,7 @@ let gen_switch(n:int64, depth:int64) {
     }
     if !whole {
         let y:int64 = type_of(nodes[n].a)
-        var d:int64 = -1
+        var d = -1
         if y >= 0 && types[y].kind == Y_STRUCT { d = decl_named(types[y].name, D_ENUM) }
         if d < 0 {
             gen_error(n, "a switch that is not on an enum has default:")
@@ -1235,6 +1279,8 @@ let gen_program() {
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
         if nodes[d].kind == D_GLOBAL {
+            if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
+            if failed { return }
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
             put(" ")

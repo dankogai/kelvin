@@ -18,14 +18,14 @@
 
 // the directory of a path, with its /, or ""
 let dir_of(path:String^):String {
-    var cut:int64 = 0
-    var i:int64 = 0
+    var cut = 0
+    var i = 0
     for c in path^ {
         i += 1
         if c.utf32 == '/' { cut = i }
     }
-    var r:String = $""
-    var j:int64 = 0
+    var r = $""
+    var j = 0
     for c in path^ {
         if j < cut { r += c }
         j += 1
@@ -55,7 +55,7 @@ let load(path:String^):bool {
 // the files that #import "x.k" names, next to the file that names it,
 // each read once, after all of the main file
 let load_imports():bool {
-    var i:int64 = 0
+    var i = 0
     while i < toks.count as int64 {
         if toks[i].kind == T_IMPORT && codes[toks[i].at] == '"' && !is_header(i) {
             var path:String = dir_of(&fnames[toks[i].file])
@@ -63,7 +63,7 @@ let load_imports():bool {
             for j in 1..<toks[i].len - 1 {
                 path += codes[at + j].uchr
             }
-            var seen:bool = false
+            var seen = false
             for k in 0..<fnames.count as int64 {
                 if fnames[k] == path { seen = true }
             }
@@ -86,12 +86,12 @@ let cc_arg(args:$[String]^, s:cstr) {
 }
 
 let main(argc:int32, argv:[cstr]):int32 {
-    var input:String = $""
-    var output:String = $""
-    var cfile:String = $""
-    var mods:String = $""
+    var input = $""
+    var output = $""
+    var cfile = $""
+    var mods = $""
     var compiler:String = env_or("CC", "cc")
-    var i:int64 = 1
+    var i = 1
     while i < argc as int64 {
         var a:String = String(argv[i])
         if a == $"-o" && i + 1 < argc as int64 {
@@ -133,7 +133,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     if failed { return 1 }
     gen_program()
     if failed { return 1 }
-    var temporary:bool = false
+    var temporary = false
     if cfile.count == 0 {
         if output.count == 0 { output = $"a.out" }
         cfile = env_or("TMPDIR", "/tmp")

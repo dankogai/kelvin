@@ -245,6 +245,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 211 | kc reads `Dictionary<K, V>` of `String` or integer keys: `${:}`, `d[k]`, `d[k] = v` its set, `d.has(k)`, `d.get(k, default)`, `d.count`, its C KV_DICT as kelvinc writes it; kc's own functions, globals, structs, enums and enumerators are found by name in Dictionaries, indexed once before the C is written | — | `var fn_names:Dictionary<String, int64>` in selfhost/gen.k | 2026-10-20 |
 | 212 | kc reads `String(n)` of a number or a `bool`, KV_STRING_OF as kelvinc writes it, and writes `true` and `false` as `(bool)`, so that String(true) is `true`; an owner an expression gives, passed to a function, is an error, since kc holds no temporary where kelvinc does (#187); kc writes its own numbers by String(n), its put_int and append_int gone | — | `out += String(n)` in selfhost/gen.k | 2026-10-20 |
 | 213 | kc reads methods: `extend T { let m(...) ... static let f(...) ... }` and `let T.m(...)`, with `self`, `.x` and `Self` inside; `x.m(...)` is `T__m(x, ...)` and `T.f(...)` is `T__f(...)`, kelvinc's names, called straight; `return {a, b}` is of the function's type; kc's own `ty.owns()`, `node.jumps()` and `node.leaf(kind, t)` are methods | — | `types[y].owns()` in selfhost/gen.k | 2026-10-20 |
+| 214 | kc infers a variable's type where it says none, as kelvinc does: `int64` of a number, `uint8` of a character, `bool` of `true`, `false` or a comparison, `String` of `$"..."`, the cast's of `as`, and what kc sees of a name, a call, a member or an element; `cstr` of text by `:=`; arithmetic, an empty `$[]` or `${:}`, `{...}` and C's alone are errors; a parameter or a member still says its type; `println` takes up to 16 values, as in kelvinc; kc's own variables of a literal say no type | — | `var cut = 0` in selfhost/kc.k | 2026-10-20 |
 
 Notes:
 
@@ -806,6 +807,12 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (214) Agreed details: "teach kc inference of literals as #214", with
+  kelvinc's rules, probed for each kind of value. kc's `.count` is an
+  int64 where kelvinc's is a size_t, so a variable inferred from one
+  differs; kc's own source drops its type only where the value is a
+  literal, 34 of them, and its C keeps every type it had (P226).
 
 - (213) Agreed details: "teach kc methods of extend as #213". kelvinc
   calls a method through C's _Generic, since the receiver's type may be
@@ -2268,6 +2275,7 @@ says "as agreed".
 | P223 | Details of #211 | Y_DICT, its value elem and its key name; `${` lexed as one token; type_of_kind tells Dictionaries by their key; gen_key passes a String key as its text, kv_bytes_cstr; put_owner_prefix names an owner's functions; a Dictionary's entry counts with an Array's element for the value-first rule of #205; index_names fills fn_names, global_names, struct_names, enum_names and enumerators, each name's first declaration kept; sample.k has Dictionaries of String and of int64 keys | locals by name |
 | P224 | Details of #212 | gen.k: N_BOOL as `((bool)true)`; gen_call refuses an argument of an owner type that is no place; put_int is `out += String(n)`; kc.k: `cfile += String(getpid() as int64)`; sample.k: String of a negative number, a number, a uint8 and a bool | holding an owner an expression gives, in kc |
 | P225 | Details of #213 | parse.k: N_SELF; parse_extend and `let T.m(` put each function into decls as a D_FN whose c is T's token, flag 1 where static; `self_name` makes Self while one is read; `.x` at an expression's start is N_FIELD of N_SELF; gen.k: method_names by "T.m", method_of for x.m and T.f, gen_signature writes T__m and `struct T self` first, is_main of no receiver; sample.k has methods, a function of the type, `let point.dot`, and calls on a pointer's value and an Array's element | methods of a type that is not a struct |
+| P226 | Details of #214 | parse_var reads `:T` where it is written, and keeps 1 in c of `:=`; parse_typed asks a parameter or a member for its type; gen.k's inferred finds the type when the variable is written, and the global's before the functions; gen_call counts println's values; sample.k infers ten kinds of value | `.count` as a size_t |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
