@@ -142,7 +142,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     var tags:Dictionary<int64, String> = ${:}
     tags[3] = $"three"
     tags[3] = $"drei"
-    println(counts[w], " ", counts.get("none", 0 - 1), " ", counts.has("c"), " ", counts.count, " ", tags[3], " ", tags.has(4))
+    println(counts[w]!, " ", counts.get("none", 0 - 1), " ", counts.has("c"), " ", counts.count, " ", tags[3]!, " ", tags.has(4))
     var label:String = String(0 - 42)                 // a number's text (#212)
     label += String(7)
     label += " "

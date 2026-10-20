@@ -11,9 +11,9 @@ let main():int32 {
     var q:${String: point} = ${"o": {3, 4}}
     var r = ${"xs": [1, 2], "ys": [3]}
     e["z"] = 26
-    println(d.count, " ", d["b"], " ", e.count, " ", f["x"], " ", g[1], " ", h["in"]["k"])
+    println(d.count, " ", d["b"]!, " ", e.count, " ", f["x"]!, " ", g[1]!, " ", h["in"]["k"]!)
     println(p["o"].y, " ", q["o"].x, " ", r["xs"].count, " ", r.typename)
-    var s = $`${d["a"]} and ${"lit"}`
+    var s = $`${d["a"]!} and ${"lit"}`
     println(s)
     return 0
 }

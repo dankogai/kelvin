@@ -8,7 +8,7 @@ let main():int32 {
     var d:${String: String} = {"k": "v"}
     var b:bag = {"n"}
     d["k2"] = "w"
-    println(s, " ", xs[1], " ", d["k"], " ", d["k2"], " ", b.name, " ", xs.typename)
+    println(s, " ", xs[1], " ", d["k"]!, " ", d["k2"]!, " ", b.name, " ", xs.typename)
     return 0
 }
 // out: y b v w n Array<String>

@@ -43,7 +43,7 @@ let main():int32 {
     for o in opts { if o.is(some) { cnt += o.some } }
     println(opts.count, " ", cnt, " ", opts.typename)
     var d:${String: int64?} = ${"a": 1, "b": none}
-    println(d["a"] ?? 0, " ", d["b"] ?? 0, " ", d.typename)
+    println(d["a"]! ?? 0, " ", d["b"]! ?? 0, " ", d.typename)
     var nested:int64?? = 5
     println(nested.some.some, " ", nested.typename)
     return 0

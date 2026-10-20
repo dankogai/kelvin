@@ -121,8 +121,11 @@ kc reads what it is written in, and little more.
   `bool` (#212), `println`, `IO(path, mode)`,
   `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
-- **Of a Dictionary** (#211): `d[k]`, checked; `d[k] = v`, which sets
+- **Of a Dictionary** (#211): `d[k]!`, checked; `d[k] = v`, which sets
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`.
+  - A whole read of `d[k]` is an Optional since #218, which kc does not
+    make yet: kc refuses it and says to write `d[k]!` or
+    `d.get(k, v)`. `x!` of an Optional is `x.some`.
 - **Ownership:** a `String`, an `Array`, a `Dictionary`, an `IO` or an
   enum with an owning case is freed by C's `cleanup` attribute; `return
   x` of a local one moves it out; a global one is freed at exit by

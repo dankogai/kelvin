@@ -443,9 +443,32 @@ let parse_primary():int64 {
     return make_node(N_NUM, t)
 }
 
+// whether token b follows token a with nothing between them, as x! does (#218)
+let adjacent(a:int64, b:int64):bool {
+    return toks[a].at + toks[a].len == toks[b].at
+}
+
+// whether what follows a[k] makes it a place: kelvinc reads d[k] whole as
+// an Optional since #218, and goes into it as a place, as kc does
+let place_follows():bool {
+    if at_word(".") || at_word("[") || at_word("^") || at_word("=") || at_word(":=") { return true }
+    if at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") { return true }
+    return at_word("!") && adjacent(pos - 1, pos)
+}
+
 let parse_postfix():int64 {
     var e:int64 = parse_primary()
     while !failed {
+        if at_word("!") && adjacent(pos - 1, pos) {       // x! (#218): d[k]! the place, x! of an Optional x.some
+            advance()
+            if nodes[e].kind != N_INDEX {
+                var word = $"some"
+                let n = make_node(N_FIELD, made_token(&word))
+                nodes[n].a = e
+                e = n
+            }
+            continue
+        }
         if at_word("(") {
             let t:int64 = advance()
             let n:int64 = make_node(N_CALL, t)
@@ -458,6 +481,7 @@ let parse_postfix():int64 {
             nodes[n].a = e
             set_b(n, parse_expr())
             expect("]")
+            if !place_follows() { nodes[n].flag = 1 }    // read whole: a Dictionary's is an Optional (#218)
             e = n
         } else if at_word(".") {
             advance()

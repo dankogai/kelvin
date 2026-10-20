@@ -606,6 +606,33 @@ static char *expr_bare(Expr *e) {
                                                           : strfmt("KV_STRING_OF(%s)", expr(a));
             return strfmt("({ kv_string _kv_cat = %s; KV_STRING_APPEND(&_kv_cat, %s); _kv_cat; })", init, expr(b));
         }
+        if (e->op && !strcmp(e->op, "dict_lookup") && e->type) {
+            /* d[k] read whole (#218): some of a copy of its value, or none */
+            Expr *ix = e->a;
+            Decl *r = kelvin_record(e->type->name);
+            const char *cp = owner_copy(ix->type->elem);
+            return strfmt("({ __auto_type _kv_p = %s_find(&(%s), %s); _kv_p ? _kv_%s_make_some(%s) : _kv_%s_make_none(); })",
+                          ix->type->cname, expr(ix->a), expr(ix->b), r->name, cp ? strfmt("%s(_kv_p)", cp) : "*_kv_p",
+                          r->name);
+        }
+        if (e->op && !strncmp(e->op, "chain", 5) && e->type) {
+            /* x?.m (#218): the rest of the chain of x's value, bound by name,
+               borrowed, in some; none where x is none; a flat chain's rest
+               is an Optional already. x is read once; a Dictionary's entry
+               is found */
+            Decl *r = kelvin_record(e->type->name);
+            Expr *src = e->items.data[0];
+            bool flat = strstr(e->op, "flat") != NULL;
+            const char *value = flat ? expr(e->a) : strfmt("_kv_%s_make_some(%s)", r->name, expr(e->a));
+            const char *bind = decl(e->from, e->text);
+            if (!strncmp(e->op, "chain_dict", 10))
+                return strfmt("({ %s _kv_r; __auto_type _kv_p = %s_find(&(%s), %s); if (_kv_p) { %s = *_kv_p; _kv_r = %s; } "
+                              "else _kv_r = _kv_%s_make_none(); _kv_r; })",
+                              decl(e->type, ""), src->type->cname, expr(src->a), expr(src->b), bind, value, r->name);
+            return strfmt("({ %s _kv_r; __auto_type _kv_s = (%s); if (_kv_s.tag == 1) { %s = _kv_s.u.some; _kv_r = %s; } "
+                          "else _kv_r = _kv_%s_make_none(); _kv_r; })",
+                          decl(e->type, ""), expr(src), bind, value, r->name);
+        }
         if (e->op && !strcmp(e->op, "element_copy")) { /* xs += &x of one element: a copy of x (#206) */
             const char *f = owner_copy(e->type);
             return f ? strfmt("%s(%s)", f, expr(e->items.data[0])) : strfmt("(*(%s))", expr(e->items.data[0]));

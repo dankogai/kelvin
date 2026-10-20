@@ -11,7 +11,8 @@ in [ownership.md](ownership.md); this is the summary.
 var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: a missing key ends the program
-println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
+println(ages["bob"], " ", ages["dan"])   // some(42) none: d[k] read whole is an Optional (#218)
+println(ages["bob"]!, " ", ages["dan"] ?? 0, " ", ages.count, " ", ages.has("dan"))   // 42 0 3 false
 for k, v in ages { print(k, "=", v, " ") }   // in the order added: ann=32 bob=42 cy=7
 for k in ages { }                        // the keys
 let p := ages.find("zed")                // a V^, or nullptr
@@ -22,6 +23,7 @@ var names = ages.keys                    // an Array<String>, copies, in order
 var counts = ages.values                 // an Array<i64>
 var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
+println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chains (#218)
 ```
 
 - **Keys** are an integer type, hashed as a number, or `String`.
@@ -35,9 +37,19 @@ words["a"] = $[$"apple"]
   - `${:}` where the type is written; `Dictionary<K, V>()`; a
     declaration without a value is empty.
   - `Dictionary<K, V>({k: v, ...})`; `Dictionary<K, V>(&other)` a copy.
-- **`d[k]`** reads the value, checked, and is a place.
-  - `d[k] = v` adds the entry or replaces its value, freeing what it
-    held if it owns.
+- **`d[k]` read whole is an Optional** (#218): `some` of a copy of the
+  value, or `none` where the key is missing.
+  - `d[k]!` is the value, or the end of the program; `d[k] ?? v` gives a
+    default; `if let some(v) = d[k]` binds it. See
+    [optionals.md](optionals.md).
+  - `d[k]?.m`, `d[k]?.f(...)` and `d[k]?[i]` chain: `none` where the
+    key is missing, else an Optional of what follows.
+  - Going into it is a place, checked, as before: `d[k] = v`,
+    `d[k] += 1`, `d[k].m`, `d[k][i]`, `&d[k]`, and `d[k]!`.
+  - Where an Optional goes where a value should, kelvinc says so, and
+    names `!` and `??`.
+- **`d[k] = v`** adds the entry or replaces its value, freeing what it
+  held if it owns.
   - `=` does not copy an owner in: `d[k] = s.copy()`.
   - The key may be a String an expression gives, `d[$"a"] = 1` or
     `d[name()] = v`: it is held while the entry is set (#209).
@@ -61,7 +73,10 @@ words["a"] = $[$"apple"]
 | On | Property or method | Gives |
 |---|---|---|
 | `Dictionary<K, V>`, `${K: V}` | `.count` | the entries held |
-| | `d[k]` | the value, checked: a missing key ends the program; a place |
+| | `d[k]` | read whole, an Optional: `some` of a copy of the value, `none` where the key is missing (#218) |
+| | `d[k]!` | the value, checked: a missing key ends the program; a place (#218) |
+| | `d[k]?.m`, `d[k]?.f(...)`, `d[k]?[i]` | what follows, of the value, an Optional; `none` where the key is missing (#218) |
+| | `d[k] += x`, `d[k].m`, `d[k][i]`, `&d[k]` | the entry, a place, checked: a missing key ends the program |
 | | `d[k] = v` | adds the entry, or replaces the value, freeing what it held |
 | | `.has(k)` | whether the key is there, a `bool` |
 | | `.find(k)` | a `V^` to the value, or `nullptr`; `const V^` for a let |

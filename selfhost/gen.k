@@ -861,6 +861,8 @@ let gen_expr(n:int64) {
             put(", ")
             gen_expr(nodes[n].b)
             put("))")
+        } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
+            gen_error(n, "d[k] read whole is an Optional since #218, which kc does not make yet: write d[k]! or d.get(k, v)")
         } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
             put("(*")
             put_dict_name(y)

@@ -18,8 +18,10 @@ examples.
 var a:int64? = 3                           // some(3): a T becomes a T? where one is expected
 var b:int64? = none                        // none, a word that needs the type around it
 println(a.is(some), " ", b.is(none))     // true true
-println(a.some)                          // 3; of none, the program ends with a message
+println(a.some, " ", a!)                // 3 3; of none, the program ends with a message (#218)
 println(a ?? 0, " ", b ?? -1)            // the value, or the default: 3 -1
+var s:String? = $"kelvin"
+println(s?.count, " ", s?.count ?? 0)    // some(6) 6: x?.m chains, none of none (#218)
 println(a == 3, " ", b == none, " ", a != b)   // true true true (#79)
 var d = a.map { $0 > 2 }                 // some(true), a bool? (#80)
 var h = a.flatMap(half)                  // half's own i64?: none of an odd number (#81)
@@ -60,6 +62,17 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   the program ends with `case 'some' of i64? is not current: it is
   'none'`.
   - It is a place: `x.some += 1`, `x.some += "!"`.
+  - **`x!`** (#218) is the same, postfix: `a!`, `d[k]!`, `f()!.name`.
+    - It follows `x` with nothing between, as `x?.` does; `x != y` is
+      the comparison.
+- **Chaining:** **`x?.m`**, `x?.f(...)` and `x?[i]` (#218) are what
+  follows, of `x`'s value, as an Optional, and `none` where `x` is
+  `none`, Swift's way: `s?.count` is an `i64?`.
+  - The rest of the postfix chain is inside: `p?.name.count` is the
+    count of the name, or `none`.
+  - What follows that is an Optional already is not wrapped again.
+  - A member that owns is copied out of the value; `x` is read once.
+  - `try x` is the other way, which returns `none` from the function.
   - `x ?? y` is the value if some, else `y`, for a `T` that does not
     own, of an Optional in a variable, a member or an element; for an
     owner, `if let` or switch on it.
@@ -107,8 +120,10 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
 - **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
   value, with the functions of an enum with values, as a Result's
   `_kv_res_<T>_<U>` is.
-- **Not yet:** `x!`, a literal `none` where no type is around, and `??`
-  of an owner.
+- **An Optional where a value goes,** `let n:i64 = x` or `return x`
+  of an `i64` function, is an error that names `!` and `??` (#218).
+- **Not yet:** a literal `none` where no type is around, and `??` of an
+  owner.
 
 A C function that returns a pointer or null, with no reason beside it,
 wraps as an Optional. `v ?? "unset"` takes a string literal as it is:
@@ -134,6 +149,8 @@ the reason in `err`: [results.md](results.md).
 | On | Property or method | Gives |
 |---|---|---|
 | `T?` | `.some` | the value, checked; a place |
+| | `x!` | the same, postfix (#218) |
+| | `x?.m`, `x?.f(...)`, `x?[i]` | what follows, of the value, an Optional; `none` of `none` (#218) |
 | | `if let v = x { }`, `if let some(v) = x { }` | runs with `v` the value, when present |
 | | `try x` | the value, or returns `none` from the function (#76) |
 | | `.some = v`, `= v`, `= none` | sets the case |

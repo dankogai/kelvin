@@ -1530,11 +1530,125 @@ static Expr *parse_postfix_chain(void) {
     return wrap_temps(e, &temps);
 }
 
+/* ---------- d[k] as an Optional, x! and x?.m (#218) ---------- */
+
+/* Does token b follow token a with nothing between them, as x! and x?. do? */
+static bool adjacent(Token *a, Token *b) {
+    return a->pos.file == b->pos.file && a->end_line == b->pos.line && a->pos.line == a->end_line &&
+           b->pos.col == a->pos.col + (int)strlen(a->text);
+}
+
+/* Is t an Optional, T? */
+static bool is_optional_type(Type *t) {
+    Decl *r = t ? variant_record(t) : NULL;
+    return r && !strncmp(r->name, "_kv_opt_", 8);
+}
+
+/* Does what follows d[k] make it a place, as before #218: an assignment,
+   `++`, `--`, a member, an element, or `!`? Else it is read whole, an
+   Optional */
+static bool place_follows(void) {
+    if (line_ends_expression())
+        return false;
+    static const char *ops[] = {".", "[", "^", "=", ":=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", "<<=",
+                                ">>=", "++", "--", NULL};
+    for (int i = 0; ops[i]; i++)
+        if (is_p(peek(), ops[i]))
+            return true;
+    return is_p(peek(), "!") && adjacent(&toks[cur - 1], peek());
+}
+
+/* d[k] read whole: some of a copy of its value, or none where k is missing */
+static Expr *dict_lookup(Expr *x, Token *t) {
+    Expr *l = new_expr(E_CALL, t->pos);
+    l->op = "dict_lookup";
+    l->a = x;
+    l->type = optional_type(t, x->type->elem);
+    return l;
+}
+
+/* x!: an Optional's value, or the end of the program, as x.some; d[k]! is
+   the place d[k] was before #218 */
+static Expr *unwrapped(Expr *e, Token *t) {
+    if (e->kind == E_CALL && e->op && !strcmp(e->op, "dict_lookup"))
+        return e->a;
+    if (e->kind == E_INDEX && e->op && !strcmp(e->op, "dict"))
+        return e; /* d[k]!, kept a place */
+    Type *ty = value_type(e);
+    if (!is_optional_type(ty))
+        error_at(t->pos, "'!' unwraps an Optional, and this is %s: it is a value already", ty ? kelvin_type(ty) : "not one");
+    Decl *tr = variant_record(ty);
+    Var *c = case_named(tr, "some", NULL);
+    if (is_owner(ty) && !owner_place(e)) /* as x.some, held (#187) */
+        e = make_temp(e, "'!' of an Optional that an expression gives: bind it to a variable first");
+    Expr *x = new_expr(E_FIELD, t->pos);
+    x->a = e;
+    x->text = "some";
+    x->op = "case";
+    x->type = c->type;
+    x->target = tr;
+    return x;
+}
+
+/* x?.m, x?.f(...), x?[i]: what follows `?`, of x's value, as an Optional,
+   none where x is none, Swift's chaining; the rest of the chain is read
+   here, of a hidden binding of x's value, which a Dictionary's entry is
+   found for, d[k]?.m; an Optional the rest gives is not wrapped again */
+static Expr *chained(Expr *e, Token *t) {
+    bool dict = e->kind == E_CALL && e->op && !strcmp(e->op, "dict_lookup");
+    Expr *src = dict ? e->a : e;
+    Type *st = value_type(e);
+    if (!is_optional_type(st))
+        error_at(t->pos, "'?.' chains an Optional, and this is %s: write '.'", st ? kelvin_type(st) : "not one");
+    Type *inner = dict ? src->type->elem : case_named(variant_record(st), "some", NULL)->type;
+    if (!dict && is_owner(st) && !owner_place(src)) /* held (#187) */
+        src = make_temp(src, "'?.' of an Optional that an expression gives: bind it to a variable first");
+    char *name = strfmt("_kv_chain%d", ++temp_serial);
+    declare_binding(name, inner, LET_VALUE);
+    Expr *id = new_expr(E_IDENT, t->pos);
+    id->text = name;
+    Expr *body = parse_postfix_steps(id);
+    Type *bt = value_type(body);
+    if (!bt) /* a count's size_t, as a variable of it infers */
+        bt = inferred_type(body, body->pos);
+    if (!bt)
+        error_at(t->pos, "what '?.' gives is a type only C sees, which no Optional holds");
+    bool flat = is_optional_type(bt);
+    if (!flat && is_owner(bt) && owner_place(body)) { /* a member that owns is copied out of the borrowed value */
+        Expr *ref = new_expr(E_PREFIX, body->pos);
+        ref->op = "&";
+        ref->a = body;
+        Expr *cp = new_expr(E_CALL, body->pos);
+        cp->op = "element_copy";
+        list_push(&cp->items, ref);
+        cp->type = bt;
+        body = cp;
+    }
+    Expr *c = new_expr(E_CALL, t->pos);
+    c->op = dict ? (flat ? "chain_dict_flat" : "chain_dict") : (flat ? "chain_flat" : "chain");
+    c->a = body;
+    list_push(&c->items, src);
+    c->text = name;
+    c->from = inner;
+    c->type = flat ? unqualified(bt) : optional_type(t, bt);
+    return c;
+}
+
 static Expr *parse_postfix_steps(Expr *e) {
     for (;;) {
         if (line_ends_expression() || cur == postfix_stop)
             return e;
         Token *t = peek();
+        if (is_p(t, "!") && cur > 0 && adjacent(&toks[cur - 1], t)) { /* x! (#218) */
+            advance();
+            e = unwrapped(e, t);
+            continue;
+        }
+        if (is_p(t, "?") && cur > 0 && adjacent(&toks[cur - 1], t) && (is_p(&toks[cur + 1], ".") || is_p(&toks[cur + 1], "[")) &&
+            adjacent(t, &toks[cur + 1])) { /* x?.m, x?[i] (#218) */
+            advance();
+            return chained(e, t);
+        }
         if (is_p(peek(), "[") && is_string(value_type(e)) && !bracket_is_slice(cur))
             error_at(peek()->pos, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
                                   "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
@@ -1680,6 +1794,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 x->type = value_type(e);
             }
             e = x;
+            if (x->op && !strcmp(x->op, "dict") && !place_follows())
+                e = dict_lookup(x, t); /* d[k] read whole: an Optional (#218) */
         } else if (accept_p("(")) {
             bool saved = ident_annotation_ok;
             bool saved_brace = brace_ends_condition;
@@ -3748,6 +3864,8 @@ static Expr *parse_unary(void) {
         e->a = parse_unary();
         if (!strcmp(e->op, "!"))
             require_bool(e->a);
+        if (!strcmp(e->op, "&") && e->a->kind == E_CALL && e->a->op && !strcmp(e->a->op, "dict_lookup"))
+            e->a = e->a->a; /* &d[k] borrows the entry, a place, as before #218 */
         if (!strcmp(e->op, "&") && is_owner(value_type(e->a)) && !owner_place(e->a)) /* &$/x/ (#157), held (#187) */
             e->a = make_temp(e->a, strfmt("a borrow of a %s that an expression gives, which nothing would free: bind it "
                                           "to a variable first",
@@ -4175,6 +4293,7 @@ static Expr *parse_conditional(void) {
             cast->type = some->type;
             y = cast;
         }
+        y = optional_of(y, some->type, y->pos); /* x ?? 0 of an i64??: the 0 an i64? (#218) */
         Expr *is = new_expr(E_METHOD, q->pos);
         is->a = c;
         is->text = some->name;
@@ -4570,7 +4689,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("Bytes", e->pos);
         if (e->op && (!strcmp(e->op, "string") || !strcmp(e->op, "string_concat"))) /* String(...) (#55), s + t (#183) */
             return base_type("String", e->pos);
-        if (e->op && (!strcmp(e->op, "case_make") || !strcmp(e->op, "element_copy"))) /* T.n(x) (#61); a copy of &x (#206) */
+        if (e->op && (!strcmp(e->op, "case_make") || !strcmp(e->op, "element_copy") || !strcmp(e->op, "dict_lookup") ||
+                      !strncmp(e->op, "chain", 5))) /* T.n(x) (#61); a copy of &x (#206); d[k], x?.m (#218) */
             return e->type;
         if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe") ||
                       !strcmp(e->op, "io_exec") || !strcmp(e->op, "os") || !strcmp(e->op, "sys")))
@@ -7527,6 +7647,9 @@ static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
 static void reject_record_mismatch(Expr *value, Type *target, Pos pos) {
     Decl *rt, *rv;
     Type *vt = value_type(value);
+    if (target && vt && is_optional_type(vt) && !is_optional_type(target)) /* d[k] is one since #218 */
+        error_at(pos, "this is %s, an Optional, where %s goes: unwrap it with '!', or give a default with '?\?'",
+                 kelvin_type(unqualified(vt)), kelvin_type(unqualified(target)));
     if (!target || target->kind != T_BASE || !vt || vt->kind != T_BASE)
         return;
     char ct = type_class(target, &rt), cv = type_class(vt, &rv);
@@ -8508,6 +8631,7 @@ static void implicit_return_of(Decl *d) {
         last->closed = false; /* its owner is returned, not dropped (#81) */
         pick_overload(last->expr, d->ret);
         last->expr = optional_of(last->expr, d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
+        reject_record_mismatch(last->expr, d->ret, last->expr->pos); /* a T? where a T goes (#218) */
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
             reject_returned_text(last->expr, d->anon);
         return_owner(last->expr);
@@ -9697,6 +9821,7 @@ static Stmt *parse_stmt_here(void) {
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
             if (result)
                 s->expr = optional_of(s->expr, parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
+            reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)

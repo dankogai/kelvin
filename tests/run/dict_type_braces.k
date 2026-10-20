@@ -12,7 +12,7 @@ let main():int32 {
     var n:${String: ${String: int64}} = ${"x": {"y": 3}}
     var b:bag = {${1: $["one"]}, $"b"}
     var p:${String: {x:float64, y:float64}} = ${"o": {1.0, 2.0}}
-    println(total(&d), " ", d.typename, " ", n["x"]["y"], " ", n.typename, " ", b.m[1][0], " ", p["o"].y, " ", p.typename)
+    println(total(&d), " ", d.typename, " ", n["x"]["y"]!, " ", n.typename, " ", b.m[1][0], " ", p["o"].y, " ", p.typename)
     return 0
 }
 // out: 3 Dictionary<String, i64> 3 Dictionary<String, Dictionary<String, i64>> one 2.0 Dictionary<String, {x: f64, y: f64}>

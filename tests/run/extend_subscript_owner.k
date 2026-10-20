@@ -10,7 +10,7 @@ extend Names {
 struct Counts { d: Dictionary<String, int64> }
 extend Counts {
     var [](k:cstr):int64 {
-        get { .d.has(k) ? .d[k] : 0 }
+        get { .d.has(k) ? .d[k]! : 0 }
         set(v) { .d[k] = v }
     }
 }

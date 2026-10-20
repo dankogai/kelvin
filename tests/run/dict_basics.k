@@ -11,7 +11,7 @@ let main():int32 {
     var ages = ${"ann": 31, "bob": 42}
     ages["cy"] = 7
     ages["ann"] += 1
-    println(ages.count, " ", ages["ann"], " ", ages.has("bob"), " ", ages.has("dan"), " ", ages.typename)
+    println(ages.count, " ", ages["ann"]!, " ", ages.has("bob"), " ", ages.has("dan"), " ", ages.typename)
     for k, v in ages { print(k, "=", v, " ") }
     println(total(&ages))
     println(ages.remove("bob"), " ", ages.remove("bob"), " ", ages.count, " ", ages.get("bob", -1), " ", ages.get("cy", -1))
@@ -23,10 +23,10 @@ let main():int32 {
     println(p.isNull, " ", p^, " ", q.isNull)
     var squares:${int64: int64}
     for i in 0..<100 { squares[i] = i * i }
-    println(squares.count, " ", squares[99], " ", squares.has(100), " ", squares.typename)
+    println(squares.count, " ", squares[99]!, " ", squares.has(100), " ", squares.typename)
     var copy = ages.copy()
     copy["ann"] = 0
-    println(ages["ann"], " ", copy["ann"], " ", copy.count)
+    println(ages["ann"]!, " ", copy["ann"]!, " ", copy.count)
     var words:${String: $[String]} = ${:}
     words["a"] = $[$"apple"]
     words["a"] += $"avocado"
@@ -36,9 +36,9 @@ let main():int32 {
     var names = Dictionary<String, String>({"x": $"ex"})
     names["y"] = $"why"
     var s = $"x"
-    println(names[s], " ", names["y"].count, " ", names.typename)
+    println(names[s]!, " ", names["y"].count, " ", names.typename)
     var nested = ${1: ${2: $"two"}}
-    println(nested[1][2], " ", nested.typename)
+    println(nested[1][2]!, " ", nested.typename)
     var e:Dictionary<int64, int64> = Dictionary<int64, int64>()
     println(e.count, " ", e.size)
     squares.clear()

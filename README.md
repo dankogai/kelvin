@@ -133,8 +133,9 @@ So far the changes from C are:
   - `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short,
     and `$[i64]` the type `Array<i64>`
   - `Dictionary<K, V>` is a hash map, `${"ann": 31}`, keyed by integers
-    or Strings: `d[k]` checked, `d.has(k)`, `d.find(k)`, `for k, v in d`,
-    `d.keys` and `d.values`
+    or Strings: `d[k]` an Optional, `d[k]!` checked, `d[k] ?? v`,
+    `d[k]?.m` (#218), `d.has(k)`, `d.find(k)`, `for k, v in d`, `d.keys`
+    and `d.values`
   - `Set<T>` is a hash set, `${3, 1, 4}`: `s += x`, `s.has(x)`, `s | t`,
     `s & t` and `s ~ t`
 - `IO` is a file as an owner, closed when its block ends, a module:

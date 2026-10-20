@@ -249,6 +249,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 215 | kc reads enums with values, `enum item { none; num: int64; text: String }`, as kelvinc writes them: a struct of a tag and a union, `_kv_T_make_c`, `_at_c` checked, `_set_c` freeing what it held, `_free`, `_take` and `_copy` where a case owns; `T.c(v)`, a local owner moving in, `T.none`, `v.c`, `v.c = x`, `v.is(c)`, and a switch that binds a case's value; kc frees its global owners at exit by `_kv_free_globals`; kc's `load` gives `loaded.read(file)` or `loaded.unread(why)` | — | `enum loaded { read: int64; unread: String }` in selfhost/kc.k | 2026-10-20 |
 | 216 | tests/asan.sh counts what realpath gives: count.c's kv_cnt_realpath counts the block of realpath(path, NULL), which the runtime frees, and the programs are built with realpath renamed to it, as malloc, realloc and free are; a count below zero, a free of a block never counted, fails, since it would hide as many leaks | — | `-Drealpath=kv_cnt_realpath` in tests/asan.sh | 2026-10-20 |
 | 217 | kc reads `T?`, `Optional<T>` and `Result<T, E>`, making each the enum with values kelvinc makes, `struct _kv_opt_T` of none and some, `struct _kv_res_T_E` of ok and err; `none`, `ok(v)` and `err(e)` by the type that takes them, a T where a T? goes as some(T), `some(v)` a pattern alone; `x ?? d`; `if let c(v) = x { } else { }`; kc's `load` gives a Result and `case_named` an Optional | — | `let load(path:String^):Result<int64, String>` in selfhost/kc.k | 2026-10-20 |
+| 218 | `d[k]` read whole is an Optional, `some` of a copy of the value or `none` where the key is missing; going into it is the place it was, checked: `d[k] = v`, `+=`, `d[k].m`, `d[k][i]`, `&d[k]`, `d[k]!`; postfix `x!` unwraps any Optional or ends the program, as `x.some`; `x?.m`, `x?.f(...)` and `x?[i]` chain as Swift's, `none` of `none`, an Optional the chain gives not wrapped again; an Optional where a value goes is an error that names `!` and `??`; `x ?? d` of an Optional of an Optional wraps `d` | — | `ages["bob"] ?? 0`, `ages["ann"]!`, `words["a"]?.count` | 2026-10-20 |
 
 Notes:
 
@@ -810,6 +811,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (218) Agreed details: "`Dictionary` currently dies when `d[k]` is
+  nonexistent. Let's change it to return `Optional`. postfix `!`
+  unwraps the result or dies. postfix `?` unwraps the result or
+  `none`." Asked, the user chose: `?` chains, as Swift's, `try x`
+  keeping the early return; `d[k] += 1` and `d[k].append(x)` stay
+  places; `!` and `?` work on every Optional. `!` and `?.` follow `x`
+  with nothing between, so `x != y` and `c ? .x : .y` keep their
+  meaning. kelvinc left an Optional where a value goes to C's message;
+  it says so in Kelvin's now. kc reads `x!`, and refuses a whole
+  `d[k]`, which it does not make an Optional yet (P230).
 
 - (217) Agreed details: "teach kc Optional and Result as #217". kc
   makes each `T?` and `Result<T, E>` an enum with values of #215, with
@@ -2307,6 +2319,7 @@ says "as agreed".
 | P227 | Details of #215 | parse_enum: a case with `: T` makes the enum's flag 1 and is the case's ty; `;` separates cases; gen.k: tagged_of, tagged_named, case_named, case_tag, tagged_owns; is_owner and put_owner_prefix take an enum with values, and put_free_copy gives KV_ARRAY and KV_DICT an element's free and copy; gen_tagged writes it in the order of the structs; gen_switch switches on `.tag`, `case 1 /* num */:`, and binds `V x = v.u.c`; sample.k has one with an owning case, in an Array too, and kelvinc's and kc's builds of it both leave nothing live at exit | — |
 | P228 | Details of #216 | count.c defines the feature macros realpath needs, kv_cnt_realpath, and on macOS the same by the name stdlib.h links it as, kv_cnt_realpath$DARWIN_EXTSN; asan.sh adds -Drealpath=kv_cnt_realpath and fails on a negative count; realpath is the runtime's only libc call whose block it frees, glob's being globfree's | — |
 | P229 | Details of #217 | lex.k: `??`, and eof_pos, the end of the files' tokens, after which made_token puts the names kc makes, which the parser's cursor never reaches; parse.k: optional_of and result_of make an enum once each, by name, in made_enums, its c 1 of an Optional; S_IFLET; `??` binds tighter than a comparison and looser than `+`; gen.k: gen_value makes a case where a type expects one, by gen_var, gen_return, gen_assign and gen_args_to; gen_coalesce reads x once, an Optional that owns refused; gen_iflet holds what an expression gives and frees it; an owning enum with values is assigned as kelvinc's _assign does | kelvinc's own message for a bare some(v); Optional<T>.some(v) in kc |
+| P230 | Details of #218 | parser.c: place_follows decides, after `]` of a Dictionary, whether d[k] is a place or read whole, a dict_lookup of type V?; unwrapped builds x.some's E_FIELD, holding an owner an expression gives (#187), and keeps d[k] the place; chained reads the rest of the postfix chain of a hidden binding, `_kv_chainN`, of the value, and copies a member that owns out of it; `&` of a dict_lookup is its place; reject_record_mismatch refuses an Optional where a non-Optional goes, in variables, assignments and returns; `??` wraps its default where the value is an Optional; codegen.c: dict_lookup and chain by the Dictionary's _find, the Optional read once; tests that printed d[k] read d[k]!; kc: x!, and d[k] read whole refused | kc making d[k] an Optional; `x?` alone, which `x` already is |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

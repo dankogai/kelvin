@@ -5242,3 +5242,23 @@ live at exit, realpath counted. The stages keep their fixpoint, 4764
 lines, with clang, gcc 15 and ASan. Details are provisional P229.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 262. d[k] as an Optional
+
+> `Dictionary` currently dies when `d[k]` is nonexistent.  Let's change
+> it to return `Optional`. postfix `!` unwraps the result or dies.
+> postfix `?` unwraps the result or `none`.
+
+**Claude** asked three things: `?` chaining as Swift's or returning as
+Rust's, which `try` does; whether `d[k] += 1` stays a place; and whether
+`!` and `?` are of every Optional. The user chose chaining, places, and
+every Optional.
+
+**Claude** added #218: `d[k]` read whole is an Optional, `d[k]!` the
+value or the end of the program, `x?.m` a chain, `none` of `none`;
+going into `d[k]` is the place it was. An Optional where a value goes is
+an error that names `!` and `??`, and `??` of an Optional of an Optional
+wraps its default. Tests that printed `d[k]` read `d[k]!`; kc reads
+`x!` and refuses a whole `d[k]`. Details are provisional P230.
+
+There are 821 tests, and all pass with clang and with gcc 15.
