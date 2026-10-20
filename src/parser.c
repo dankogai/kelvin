@@ -6368,10 +6368,34 @@ static void reject_let_change(Expr *lhs, Token *t) {
         error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
 }
 
+static Expr *assign_to(Expr *lhs, bool ok);
+
 static Expr *parse_assign(void) {
     bool ok = assign_ok;
     assign_ok = false; /* nothing inside may assign */
     Expr *lhs = parse_conditional();
+    bool assigning = false;
+    for (int i = 0; assign_ops[i]; i++)
+        assigning = assigning || is_p(peek(), assign_ops[i]);
+    if (lhs->kind == E_TEMP && assigning) {
+        /* d[$"a"] = v (#209): the place is held in the temporaries its key
+           needed (#187), so the assignment goes inside them, to the place
+           itself: d[k] = v sets the entry, as anywhere; and the innermost,
+           which would copy the place out, no longer does */
+        Expr *last = lhs;
+        while (last->b->kind == E_TEMP)
+            last = last->b;
+        for (Expr *x = lhs; x->kind == E_TEMP; x = x->b)
+            if (x->op && !strcmp(x->op, "copy"))
+                x->op = NULL;
+        last->b = assign_to(last->b, ok);
+        return lhs;
+    }
+    return assign_to(lhs, ok);
+}
+
+/* an assignment, or the expression lhs alone, lhs read */
+static Expr *assign_to(Expr *lhs, bool ok) {
     Token *t = peek();
     if ((is_p(t, "++") || is_p(t, "--")) && !newline_before()) {
         /* p++ and p-- step a var pointer kelvinc sees, as statements

@@ -5119,3 +5119,14 @@ kelvinc, `d[$"a"] = 1`, whose C cannot assign the entry, left for a
 change of its own. Details are provisional P220.
 
 There are 817 tests, and all pass with clang and with gcc 15.
+
+### 253. A key held
+
+> fix the d[$"a"] = 1 bug as #209
+
+**Claude** added #209: an assignment to a place held in temporaries, as
+`d[$"a"]`, whose key a temporary holds, goes inside them, so that the
+entry is set as `d["a"] = 1` sets it; `+=` and the rest change it.
+dictionaries.md says so. Details are provisional P221.
+
+There are 818 tests, and all pass with clang and with gcc 15.

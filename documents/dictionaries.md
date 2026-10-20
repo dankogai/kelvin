@@ -39,6 +39,8 @@ words["a"] = $[$"apple"]
   - `d[k] = v` adds the entry or replaces its value, freeing what it
     held if it owns.
   - `=` does not copy an owner in: `d[k] = s.copy()`.
+  - The key may be a String an expression gives, `d[$"a"] = 1` or
+    `d[name()] = v`: it is held while the entry is set (#209).
 - **Methods:** `has(k)`; `find(k)`, a `V^` or `nullptr` (`const V^` for
   a let).
   - `get(k, default)`, for a `V` that does not own.
