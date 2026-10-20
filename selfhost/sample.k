@@ -94,5 +94,14 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     let sh:shade = dark
     println(words, " ", shade_name(light), " ", shade_name(sh), " ", sh as int64)
+    var counts:Dictionary<String, int64> = ${:}       // (#211)
+    var w:String = $"kelvin"
+    counts[w] = 1
+    counts["c"] = 2
+    counts[w] += 10
+    var tags:Dictionary<int64, String> = ${:}
+    tags[3] = $"three"
+    tags[3] = $"drei"
+    println(counts[w], " ", counts.get("none", 0 - 1), " ", counts.has("c"), " ", counts.count, " ", tags[3], " ", tags.has(4))
     return 0
 }

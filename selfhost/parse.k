@@ -58,6 +58,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_IO,
     Y_UCHR,
     Y_ARRAY,
+    Y_DICT,     // a Dictionary: its value elem, its key name (#211)
     Y_STRUCT,
     Y_PTR,
     Y_ARGV,     // [cstr], main's argv
@@ -78,13 +79,14 @@ struct node {
 struct ty {
     kind: ykind
     elem: int64        // of an Array or a pointer
-    name: int64        // the token of a struct's name
+    name: int64        // the token of a struct's name; a Dictionary's key type (#211)
 }
 
 var nodes:$[node]
 var types:$[ty]
 var decls:$[int64]         // the top-level declarations, in order
 var arrays:$[int64]        // every Array type, in the order they are met
+var dicts:$[int64]         // every Dictionary type, so (#211)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 
@@ -101,14 +103,20 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
     while i < types.count as int64 {
         let y:ty = types[i]
         if y.kind == kind && y.elem == elem {
-            if kind != Y_STRUCT { return i }
-            if same_text(y.name, name) { return i }
+            if kind == Y_STRUCT {
+                if same_text(y.name, name) { return i }
+            } else if kind == Y_DICT {
+                if y.name == name { return i }
+            } else {
+                return i
+            }
         }
         i += 1
     }
     let y:ty = {kind, elem, name}
     types += y
     if kind == Y_ARRAY { arrays += types.count as int64 - 1 }
+    if kind == Y_DICT { dicts += types.count as int64 - 1 }
     return types.count as int64 - 1
 }
 
@@ -213,6 +221,13 @@ let parse_type():int64 {
         y = base_type(Y_IO)
     } else if tok_is(t, "uchr") {
         y = base_type(Y_UCHR)
+    } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
+        expect("<")
+        let key:int64 = parse_type()
+        expect(",")
+        let value:int64 = parse_type()
+        expect(">")
+        y = type_of_kind(Y_DICT, value, key)
     } else {
         y = type_of_kind(Y_STRUCT, -1, t)
     }
@@ -273,6 +288,12 @@ let parse_primary():int64 {
     if at_word("$[") {
         advance()
         expect("]")
+        return make_node(N_EMPTY, t)
+    }
+    if at_word("${") {                          // ${:}, an empty Dictionary (#211)
+        advance()
+        expect(":")
+        expect("}")
         return make_node(N_EMPTY, t)
     }
     if at_word("{") {

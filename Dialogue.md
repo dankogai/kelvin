@@ -5143,3 +5143,16 @@ stages keep their fixpoint, 3216 lines, with clang, gcc 15 and ASan.
 Details are provisional P222.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 255. kc's symbol tables
+
+> teach kc Dictionary for symbol tables as #211
+
+**Claude** added #211: kc reads `Dictionary<K, V>`, its entries set,
+read, looked up and counted, its C KV_DICT as kelvinc's; and kc keeps
+its functions, globals, structs, enums and enumerators in Dictionaries
+by name. The stages keep their fixpoint, 3442 lines, with clang, gcc 15
+and ASan; at kc's size it is no faster, about 7 ms either way. Details
+are provisional P223.
+
+There are 818 tests, and all pass with clang and with gcc 15.

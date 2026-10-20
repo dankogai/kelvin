@@ -74,7 +74,8 @@ kc reads what it is written in, and little more.
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
 - **Types:** `int64`, `int32`, `uint8`, `uint32`, `bool`, `cstr`,
-  `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, and main's `[cstr]`.
+  `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's `[cstr]`, and
+  `Dictionary<K, V>` of `String` or integer keys (#211).
 - **Statements:** `var` and `let` with a type, always; `=`, `+=` and the
   rest; `if`, `else if`, `else`; `while`; `for i in a..<b`; `for x in s`
   of a String or an Array; `return`, `break`, `continue`.
@@ -84,13 +85,17 @@ kc reads what it is written in, and little more.
   has `default:`, any other has `default:`.
 - **Expressions:** numbers, characters, `"..."` and `$"..."`, `true`,
   `false`, calls, `.member`, `.method()`, `a[i]`, `&x`, `p^`, `x as T`,
-  `{a, b}` of a struct, `$[]`, and `! - * / % + - < <= > >= == != && ||`.
+  `{a, b}` of a struct, `$[]`, `${:}`, and
+  `! - * / % + - < <= > >= == != && ||`.
 - **Of the prelude and IO:** `.count`, `.copy()`, `.cstr`, `.pop()`,
   `.uchr`, `.utf32`, `String(text)`, `println`, `IO(path, mode)`,
   `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
-- **Ownership:** a `String`, an `Array` or an `IO` is freed by C's
-  `cleanup` attribute; `return x` of a local one moves it out.
+- **Of a Dictionary** (#211): `d[k]`, checked; `d[k] = v`, which sets
+  the entry; `d.has(k)`, `d.get(k, default)`, `d.count`.
+- **Ownership:** a `String`, an `Array`, a `Dictionary` or an `IO` is
+  freed by C's `cleanup` attribute; `return x` of a local one moves it
+  out.
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ## Difficulties in the way of self-hosting kelvinc
@@ -191,9 +196,15 @@ libc is allowed, as it is to any C program; C of our own is not.
 - **Lines:**
   - a statement ends with its line, so a long condition is one long line;
   - `as` is a keyword, so nothing is named `as`.
-- **Speed:** a name is found by walking every declaration and every
-  local, and a keyword by comparing codepoints. That is quadratic, fine
-  for kc's 1,900 lines; kelvinc would want `Dictionary`.
+- **Speed:**
+  - Since #211, a function, a global, a struct, an enum or an
+    enumerator is found by its name in a `Dictionary`, where kc walked
+    every declaration.
+  - A local is still found by walking the scope, and a keyword by
+    comparing codepoints.
+  - At kc's own size, 2,200 lines, both take about 7 ms a compile: what
+    the Dictionaries give is that a name costs the same however many
+    declarations there are.
 
 ### The runtime is part of the language
 
@@ -214,7 +225,6 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - `Dictionary` for names;
    - `String(n)`;
    - methods of `extend`;
    - inference of literals;

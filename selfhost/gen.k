@@ -51,7 +51,7 @@ let gen_error(n:int64, what:cstr) {
 let is_owner(y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
-    return k == Y_STRING || k == Y_ARRAY || k == Y_IO
+    return k == Y_STRING || k == Y_ARRAY || k == Y_IO || k == Y_DICT
 }
 
 // the part of an Array's name its element gives: i64, String, tok
@@ -73,6 +73,24 @@ let put_array_name(y:int64) {
     put_elem_name(types[y].elem)
 }
 
+// a Dictionary's name: _kv_dict_String_i64 (#211)
+let put_dict_name(y:int64) {
+    put("_kv_dict_")
+    put_elem_name(types[y].name)
+    put("_")
+    put_elem_name(types[y].elem)
+}
+
+// the prefix of an owner's functions, its _free, _take and the rest
+let put_owner_prefix(y:int64) {
+    switch types[y].kind {
+    case Y_STRING: put("kv_string")
+    case Y_IO: put("kv_io")
+    case Y_DICT: put_dict_name(y)
+    default: put_array_name(y)
+    }
+}
+
 let decl_named(t:int64, kind:nkind):int64    // a prototype: put_ctype asks it of a struct
 
 let put_ctype(y:int64) {
@@ -88,6 +106,7 @@ let put_ctype(y:int64) {
     case Y_IO: put("kv_io")
     case Y_UCHR: put("kv_uchr")
     case Y_ARRAY: put_array_name(y)
+    case Y_DICT: put_dict_name(y)
     case Y_STRUCT:
         if decl_named(types[y].name, D_STRUCT) >= 0 {
             put("struct ")
@@ -104,13 +123,8 @@ let put_ctype(y:int64) {
 
 // the function that frees an owner
 let put_free(y:int64) {
-    switch types[y].kind {
-    case Y_STRING: put("kv_string_free")
-    case Y_IO: put("kv_io_free")
-    default:
-        put_array_name(y)
-        put("_free")
-    }
+    put_owner_prefix(y)
+    put("_free")
 }
 
 // ---------- names ----------
@@ -129,28 +143,67 @@ let declare(t:int64, y:int64) {
     locals += s
 }
 
-// the declaration of a global or a function named as token t, or -1
-let decl_named(t:int64, kind:nkind):int64 {
+// the declarations by their names (#211), where kc walked every one:
+// each name's first, as a prototype's before its definition
+var fn_names:Dictionary<String, int64>
+var global_names:Dictionary<String, int64>
+var struct_names:Dictionary<String, int64>
+var enum_names:Dictionary<String, int64>
+var enumerators:Dictionary<String, int64>  // an enumerator's enum
+
+// the text of token t, a String
+let tok_text(t:int64):String {
+    var s:String = $""
+    let at:int64 = toks[t].at
+    for i in 0..<toks[t].len {
+        s += codes[at + i].uchr
+    }
+    return s
+}
+
+let index_name(names:Dictionary<String, int64>^, t:int64, d:int64) {
+    var name:String = tok_text(t)
+    if !names^.has(name) { names^[name] = d }
+}
+
+// every declaration by its name, before anything is written
+let index_names() {
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
-        if nodes[d].kind == kind && same_text(nodes[d].t, t) { return d }
+        switch nodes[d].kind {
+        case D_FN: index_name(&fn_names, nodes[d].t, d)
+        case D_GLOBAL: index_name(&global_names, nodes[d].t, d)
+        case D_STRUCT: index_name(&struct_names, nodes[d].t, d)
+        case D_ENUM:
+            index_name(&enum_names, nodes[d].t, d)
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                index_name(&enumerators, nodes[m].t, d)
+                m = nodes[m].next
+            }
+        default: continue
+        }
+    }
+}
+
+// the declaration of a global, a function, a struct or an enum named as
+// token t, or -1
+let decl_named(t:int64, kind:nkind):int64 {
+    var name:String = tok_text(t)
+    switch kind {
+    case D_FN: return fn_names.get(name, -1)
+    case D_GLOBAL: return global_names.get(name, -1)
+    case D_STRUCT: return struct_names.get(name, -1)
+    case D_ENUM: return enum_names.get(name, -1)
+    default: return -1
     }
     return -1
 }
 
 // the enum whose enumerator is named as token t, or -1 (#210)
 let enum_of(t:int64):int64 {
-    for i in 0..<decls.count as int64 {
-        let d:int64 = decls[i]
-        if nodes[d].kind == D_ENUM {
-            var m:int64 = nodes[d].a
-            while m >= 0 {
-                if same_text(nodes[m].t, t) { return d }
-                m = nodes[m].next
-            }
-        }
-    }
-    return -1
+    var name:String = tok_text(t)
+    return enumerators.get(name, -1)
 }
 
 // the type of the variable named as token t, or -1
@@ -221,7 +274,7 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
-        if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) { return base_type(Y_I64) }
+        if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) { return base_type(Y_I64) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
         if yk == Y_IO { return base_type(Y_I32) }
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
@@ -237,14 +290,15 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if tok_is(t, "copy") { return y }
-        if tok_is(t, "pop") { return types[y].elem }
+        if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
+        if tok_is(t, "has") { return base_type(Y_BOOL) }
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
-        if yk == Y_ARRAY { return types[y].elem }
+        if yk == Y_ARRAY || yk == Y_DICT { return types[y].elem }
         if yk == Y_ARGV { return base_type(Y_CSTR) }
         return base_type(Y_U8)
     }
@@ -286,6 +340,19 @@ let gen_place(n:int64) {
     put(")")
 }
 
+// a Dictionary's key: a String's text, as KV_DICT looks it up (#211)
+let gen_key(y:int64, k:int64) {
+    let key:int64 = types[y].name
+    let ky:int64 = type_of(k)
+    if types[key].kind == Y_STRING && ky >= 0 && types[ky].kind == Y_STRING {
+        put("kv_bytes_cstr(&(")
+        gen_expr(k)
+        put(").b)")
+    } else {
+        gen_expr(k)
+    }
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -315,7 +382,7 @@ let gen_field(n:int64) {
     let y:int64 = type_of(a)
     if y < 0 { return }
     let yk:ykind = types[y].kind
-    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) {
+    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) {
         put("((int64_t)(")
         gen_expr(a)
         put(").count)")
@@ -374,6 +441,19 @@ let gen_method(n:int64) {
         put_array_name(y)
         put("_pop(")
         gen_place(a)
+        put(")")
+    } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get")) {   // d.has(k), d.get(k, v) (#211)
+        put_dict_name(y)
+        put("_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        put(", ")
+        gen_key(y, nodes[n].b)
+        if tok_is(t, "get") {
+            put(", ")
+            gen_expr(nodes[nodes[n].b].next)
+        }
         put(")")
     } else if yk == Y_IO && tok_is(t, "write") {
         put("kv_io_write_string(")
@@ -479,6 +559,14 @@ let gen_expr(n:int64) {
             put(", ")
             gen_expr(nodes[n].b)
             put("))")
+        } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
+            put("(*")
+            put_dict_name(y)
+            put("_at(")
+            gen_place(nodes[n].a)
+            put(", ")
+            gen_key(y, nodes[n].b)
+            put("))")
         } else {
             gen_expr(nodes[n].a)
             put("[")
@@ -568,7 +656,7 @@ let has_element(n:int64):bool {
     let k:nkind = nodes[n].kind
     if k == N_INDEX {
         let y:int64 = type_of(nodes[n].a)
-        if y >= 0 && types[y].kind == Y_ARRAY { return true }
+        if y >= 0 && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT) { return true }
     }
     if k == N_FIELD || k == N_INDEX || k == N_DEREF { return has_element(nodes[n].a) }
     return false
@@ -596,7 +684,18 @@ let gen_assign(n:int64) {
     let y:int64 = type_of(lhs)
     if y < 0 { return }
     let yk:ykind = types[y].kind
-    if yk == Y_STRING && tok_is(t, "=") {
+    var into:int64 = -1                                  // what lhs indexes
+    if nodes[lhs].kind == N_INDEX { into = type_of(nodes[lhs].a) }
+    if into >= 0 && types[into].kind == Y_DICT && tok_is(t, "=") {
+        put_dict_name(into)                              // d[k] = v sets the entry (#211)
+        put("_set(")
+        gen_place(nodes[lhs].a)
+        put(", ")
+        gen_key(into, nodes[lhs].b)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_STRING && tok_is(t, "=") {
         put("kv_string_assign(")
         gen_place(lhs)
         put(", ")
@@ -651,13 +750,8 @@ let gen_return(n:int64) {
     let y:int64 = type_of(a)
     if nodes[a].kind == N_ID && is_owner(y) {            // a local owner moves out
         put("return ")
-        if types[y].kind == Y_STRING {
-            put("kv_string_take")
-        } else {
-            put_array_name(y)
-            put("_take")
-        }
-        put("(&")
+        put_owner_prefix(y)
+        put("_take(&")
         put_tok(nodes[a].t)
         put(");\n")
         return
@@ -965,6 +1059,7 @@ let gen_function(d:int64) {
 }
 
 let gen_program() {
+    index_names()
     put("/* generated by kc, selfhost/kc.k */\n")
     put("#if !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)\n")
     put("#ifndef _XOPEN_SOURCE\n#define _XOPEN_SOURCE 700\n#endif\n")
@@ -1033,6 +1128,33 @@ let gen_program() {
             put(", kv_string_free, kv_string_copy)\n")
         } else {
             put(", KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
+        }
+    }
+    for i in 0..<dicts.count as int64 {                  // the Dictionaries (#211)
+        let y:int64 = dicts[i]
+        let key:int64 = types[y].name
+        let value:int64 = types[y].elem
+        put("KV_DICT(")
+        if types[key].kind == Y_STRING {
+            put("kv_string, const uint8_t *, ")
+        } else {
+            put_ctype(key)
+            put(", ")
+            put_ctype(key)
+            put(", ")
+        }
+        put_ctype(value)
+        put(", ")
+        put_dict_name(y)
+        if types[key].kind == Y_STRING {
+            put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_MISSING_TEXT, kv_string_free, kv_string_copy, ")
+        } else {
+            put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
+        }
+        if types[value].kind == Y_STRING {
+            put("kv_string_free, kv_string_copy)\n")
+        } else {
+            put("KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
         }
     }
     put("\n")
