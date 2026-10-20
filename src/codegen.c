@@ -557,6 +557,15 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "word")) { /* a case's word that nothing expecting its type took (#224) */
+            if (!strcmp(e->a->text, "some"))
+                error_at(e->a->pos, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v), or "
+                                 "write Optional<T>(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)");
+            error_at(e->a->pos,
+                     "%s(...) is a Result's case only where a Result is expected, as by a return of a function "
+                     "that gives one: elsewhere write Result<T, E>.%s(...) (#224)",
+                     e->a->text, e->a->text);
+        }
         if (e->op && (!strcmp(e->op, "subscript_get") || !strcmp(e->op, "subscript_set")) && e->target) {
             /* v[i], v[i] = y through the subscript (#136): the receiver by its
                address, a temporary's where it is no place */

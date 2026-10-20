@@ -53,10 +53,12 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
 - **Making one:** a `T` where a `Result<T, U>` is expected becomes
   `ok(T)` by itself.
   - That is in a declaration, an assignment, a member, an element, an
-    entry or a `return`.
+    entry, a `return` or an argument (#222).
   - `ok(v)` and `err(e)` are words there, read where no function or
     variable of that name is in sight, since Kelvin has no leading dot
     to mark a case.
+    - Where no Result is expected, either is an error that names
+      `Result<T, U>.ok(v)` (#224), not C's call of a function `ok`.
   - An owner moves in, as a case's value does.
   - `Result<T, U>.ok(v)`, `Result<T, U>.err(e)` and `Result<T, U>(v)`
     spell them out, where nothing says which Result is meant.

@@ -1813,9 +1813,12 @@ static Expr *parse_postfix_steps(Expr *e) {
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
             expect_p(")");
-            if (x->a->kind == E_IDENT && (!strcmp(x->a->text, "ok") || !strcmp(x->a->text, "err")) &&
+            if (x->a->kind == E_IDENT &&
+                (!strcmp(x->a->text, "ok") || !strcmp(x->a->text, "err") || !strcmp(x->a->text, "some")) &&
                 !function_named(x->a->text) && binding_index(x->a->text) < 0 && x->items.len == 1) {
-                x->op = "word"; /* ok(v), err(e): a Result's case where one is expected (#75) */
+                /* ok(v), err(e): a Result's case where one is expected (#75); some(v), a word too, that
+                   only a pattern takes (#224) */
+                x->op = "word";
                 e = x;
                 continue;
             }
@@ -11456,9 +11459,14 @@ static Expr *optional_of(Expr *v, Type *target, Pos pos) {
         e->text = "none";
         return e;
     }
+    if (optional_record(target) && v->kind == E_CALL && v->op && !strcmp(v->op, "word") && !strcmp(v->a->text, "some"))
+        error_at(v->a->pos, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v); some(v) is "
+                         "a pattern, as in 'if let some(v) = x' (#224)");
     if (optional_record(target) && v->kind == E_CALL && v->op && !strcmp(v->op, "word"))
         error_at(pos, "an Optional has no case '%s': its cases are none and some; a Result has ok and err",
                  v->a->text);
+    if (!optional_record(target) && v->kind == E_CALL && v->op && !strcmp(v->op, "word") && !strcmp(v->a->text, "some"))
+        error_at(v->a->pos, "a Result has no case 'some': write ok(v), or err(e) (#224)");
     if (!optional_record(target) && v->kind == E_IDENT && !strcmp(v->text, "none") && binding_index("none") < 0)
         error_at(pos, "a Result has no case 'none': write err(e), or ok(v)");
     if (!optional_record(target) && v->kind == E_CALL && v->op && !strcmp(v->op, "word")) {

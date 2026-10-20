@@ -122,6 +122,13 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   `_kv_res_<T>_<U>` is.
 - **An Optional where a value goes,** `let n:i64 = x` or `return x`
   of an `i64` function, is an error that names `!` and `??` (#218).
+- **`some(v)` is a pattern alone,** as in `if let some(v) = x` and
+  `case some(v):`.
+  - Written as a value it is an error that says to give `v` itself,
+    which becomes `some(v)` where a `T?` goes, or `Optional<T>(v)`
+    (#224); so is `some(v)` where a Result goes.
+  - A function or a variable of the program named `some` is called as
+    any other.
 - **Not yet:** a literal `none` where no type is around, and `??` of an
   owner.
 

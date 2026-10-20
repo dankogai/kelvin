@@ -5345,3 +5345,17 @@ C's, as calls see what is declared before them. Details are provisional
 P235.
 
 There are 830 tests, and all pass with clang and with gcc 15.
+
+### 268. some(v)
+
+> fix the bare some(v) message as #224
+
+**Claude** added #224: `some(5)` written as a value was C's error of an
+undeclared function `some`; now it is Kelvin's, which says to give `5`
+itself where a `T?` goes, or `Optional<T>(5)`, since `some(v)` is a
+pattern alone. `some(v)` where a Result goes names `ok` and `err`, and
+`ok(5)` or `err(5)` where no Result is expected, also left to C before,
+names `Result<T, U>.ok(v)`. Patterns, and a function of the program
+named `some`, are as they were. Details are provisional P236.
+
+There are 834 tests, and all pass with clang and with gcc 15.
