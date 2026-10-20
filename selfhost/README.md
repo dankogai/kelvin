@@ -119,7 +119,7 @@ steps can take them on one at a time.
     this way.
   - kc's source sets children through `set_a(n, parse_expr())`, and kc's
     own C computes such a value before the place.
-  - kelvinc still has the bug.
+  - kelvinc does too since #205.
 
 ### libc, and C of our own
 
@@ -197,12 +197,11 @@ libc is allowed, as it is to any C program; C of our own is not.
 
 Each of these is one change of its own:
 
-1. Fix kelvinc's order of evaluation, `a[i].f = g()`.
-2. Let kc read `#import <x.h> as C`, and use libc: `getenv` for
+1. Let kc read `#import <x.h> as C`, and use libc: `getenv` for
    `KELVIN_HOME`, `CC` and `TMPDIR`, `mkdtemp`, `exit`.
-3. Write down the C a program becomes: the prelude's macros, the names
+2. Write down the C a program becomes: the prelude's macros, the names
    kelvinc makes, the mangling. A second compiler then has a contract.
-4. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
+3. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
    - `switch` on enums;
    - `Dictionary` for names;
@@ -210,6 +209,6 @@ Each of these is one change of its own:
    - methods of `extend`;
    - inference of literals;
    - `Optional` and `Result`.
-5. Run kc on the tests of tests/run.sh that fit the subset, to count how
+4. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.
-6. Then CI: `selfhost/bootstrap.sh` as a job.
+5. Then CI: `selfhost/bootstrap.sh` as a job.

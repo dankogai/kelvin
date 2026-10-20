@@ -139,9 +139,10 @@ let skip_newlines() {
     while at_kind(T_NL) { advance() }
 }
 
-// nodes[n].a = parse_expr() would let C find nodes[n] before the parse
-// grows nodes, and gcc does, writing where nodes was: a call takes its
-// arguments first, so the children are set through these
+// nodes[n].a = parse_expr() let C find nodes[n] before the parse grew
+// nodes, and gcc did, writing where nodes was, until kelvinc made the
+// value first (#205): a call takes its arguments first, so the children
+// are set through these, which any kelvinc compiles right
 let set_a(n:int64, v:int64) { nodes[n].a = v }
 let set_b(n:int64, v:int64) { nodes[n].b = v }
 let set_c(n:int64, v:int64) { nodes[n].c = v }

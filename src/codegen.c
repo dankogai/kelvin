@@ -73,6 +73,7 @@ static List owner_locals; /* name, type, in pairs: the owners of the function's 
 static bool local_owner(Expr *e);
 static Type *local_owner_type(const char *name);
 static bool owner_assign(Expr *e);
+static bool element_first(Stmt *s);
 
 /* the template literals' storage in the innermost block (#39),
    "_kv_template0[size]" each */
@@ -1741,6 +1742,107 @@ static void body(Stmt *s) {
     indent--;
 }
 
+/* ---------- a[i].f = g() (#205) ---------- */
+
+/* Is e a place in an Array's or a Bytes's elements: a[i], a[i].f, a[i]^?
+   C finds it by a call, kv_..._at, whose pointer a call that grows the
+   Array moves */
+static bool in_elements(Expr *e) {
+    if (e->kind == E_INDEX && e->op && (!strcmp(e->op, "array") || !strcmp(e->op, "bytes")))
+        return true;
+    if (e->kind == E_FIELD || e->kind == E_DEREF || e->kind == E_INDEX)
+        return e->a && in_elements(e->a);
+    return false;
+}
+
+/* Does e call code that may grow an Array: a Kelvin function or method, a
+   function value, C's? What the prelude does, String(...) or s.count,
+   reaches no Array of the program but through its operands */
+static bool calls_in(Expr *e) {
+    if (!e)
+        return false;
+    if (e->kind == E_TEMP) /* what a temporary holds (#187); its b is what holds it */
+        return calls_in(e->a);
+    if ((e->kind == E_CALL || e->kind == E_METHOD) && (!e->op || e->target || e->method))
+        return true;
+    if (e->kind == E_FUNC) /* a function's value calls nothing until it is called */
+        return false;
+    if (e->kind == E_STRING || e->kind == E_LITERAL || e->kind == E_IDENT) /* an E_STRING's items are its text */
+        return false;
+    for (int i = 0; i < e->items.len; i++)
+        if (calls_in(e->items.data[i]))
+            return true;
+    return calls_in(e->a) || calls_in(e->b) || calls_in(e->c);
+}
+
+static bool assigns(Expr *e) {
+    static const char *ops[] = {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", "<<=", ">>=", NULL};
+    for (int i = 0; e->kind == E_BINARY && ops[i]; i++)
+        if (!strcmp(e->op, ops[i]))
+            return true;
+    return false;
+}
+
+static Expr *named(const char *name, Expr *like) {
+    Expr *v = xcalloc(1, sizeof *v);
+    v->kind = E_IDENT;
+    v->pos = like->pos;
+    v->text = (char *)name;
+    v->type = like->type;
+    return v;
+}
+
+/* C evaluates a[i].f = g() in no order it promises, and gcc finds the
+   place before the call: where g grows a, the value goes where a was. So
+   the value is made first, then the statement is written with it: an
+   assignment's value, or the arguments of a method of an element, as
+   xs[i].name += f() is (#205) */
+static bool element_first(Stmt *s) {
+    Expr *e = s->expr;
+    if (assigns(e) && in_elements(e->a) && calls_in(e->b)) {
+        char *v = hidden(NULL, "value");
+        Expr *b = e->b;
+        line("{");
+        indent++;
+        line("__typeof__(%s) %s = %s;", expr(e->a), v, expr(b));
+        e->b = named(v, b);
+        Stmt plain = *s;
+        stmt(&plain);
+        e->b = b;
+        indent--;
+        line("}");
+        return true;
+    }
+    if (e->kind == E_METHOD && e->a && in_elements(e->a)) {
+        bool any = false;
+        for (int i = 0; i < e->items.len; i++)
+            any = any || calls_in(e->items.data[i]);
+        if (!any)
+            return false;
+        List items = e->items;
+        e->items = (List){0};
+        line("{");
+        indent++;
+        for (int i = 0; i < items.len; i++) {
+            Expr *x = items.data[i];
+            if (!calls_in(x)) {
+                list_push(&e->items, x);
+                continue;
+            }
+            char *v = hidden(NULL, "arg");
+            line("__auto_type %s = %s;", v, expr(x));
+            list_push(&e->items, named(v, x));
+        }
+        Stmt plain = *s;
+        stmt(&plain);
+        e->items = items;
+        indent--;
+        line("}");
+        return true;
+    }
+    return false;
+}
+
 static void stmt(Stmt *s) {
     if (s->kind != S_BLOCK)
         sync(s->pos);
@@ -1859,6 +1961,8 @@ static void stmt(Stmt *s) {
         }
         break;
     case S_EXPR:
+        if (element_first(s))
+            break; /* a[i].f = g(), g's value first (#205) */
         /* a && f(); or c ? f() : g(); as a statement: its value is
            discarded, so it needs no bool, which clang would call unused */
         if (s->expr->kind == E_BINARY && (!strcmp(s->expr->op, "&&") || !strcmp(s->expr->op, "||")))

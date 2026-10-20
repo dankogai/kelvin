@@ -5068,3 +5068,16 @@ directory and the exit off the list of difficulties, once kc reads
 its own stay on it.
 
 There are 815 tests, and all pass with clang and with gcc 15.
+
+### 249. The value first
+
+> fix the a[i].f = g() bug as #205
+
+**Claude** added #205: an assignment to an element of an Array or a
+Bytes, and a method of one, make the value and the arguments that call
+first, then find the element, so g growing the Array no longer sends the
+value where its elements were; with gcc, the test printed `0 7` before
+and `7 14` after. It found another bug, `xs += &c` of a struct that owns,
+left for a change of its own. Details are provisional P217.
+
+There are 816 tests, and all pass with clang and with gcc 15.

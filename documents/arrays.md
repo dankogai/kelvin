@@ -178,6 +178,12 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **Elements** are any value type, owners included, which the Array
   then owns: a `Bytes`, a `String`, an `Array`, a `Dictionary`, a struct
   or an enum with values that owns. A fixed array is not an element.
+- **Assigning to an element** makes the value first (#205):
+  `xs[i].f = g()` calls `g`, then finds `xs[i]`.
+  - `g` may grow `xs` and move its elements, which C, finding the place
+    first, would write where they were.
+  - The same holds for `+=` and the rest, for a `Bytes`'s bytes, and for
+    the arguments of a method of an element: `xs[i].name += f()`.
 - **Text:** `print(xs)` shows `[1, 2, 3]`, and `xs.pretty` the same
   indented, a line for each element (#123, #124); Strings inside are
   quoted. `${xs}` in a template is the same text (#125), cut to the
