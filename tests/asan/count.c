@@ -2,7 +2,14 @@
    the modules and a test program are compiled with malloc, realloc and
    free renamed to these, so that every block the program takes is counted,
    and what is still live when it exits is reported; a program that frees
-   everything, as Kelvin's ownership promises, reports 0 */
+   everything, as Kelvin's ownership promises, reports 0. realpath is
+   renamed too: its block, which the runtime frees, is counted as one
+   malloc gives (#216) */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
+#define _XOPEN_SOURCE 700 /* realpath, X/Open's */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -38,6 +45,25 @@ void *kv_cnt_realloc(void *p, size_t n) {
     }
     return q;
 }
+
+/* realpath(path, NULL) mallocs the name it gives, out of the count's
+   sight, which the caller frees through kv_cnt_free (#216) */
+char *kv_cnt_realpath(const char *path, char *resolved) {
+    kv_cnt_start();
+    char *r = realpath(path, resolved);
+    if (r && !resolved) {
+        kv_cnt_allocations++;
+        kv_cnt_live++;
+    }
+    return r;
+}
+
+#if defined(__APPLE__)
+/* macOS's stdlib.h links realpath as realpath$DARWIN_EXTSN, so the
+   renamed declaration asks for kv_cnt_realpath by that name too */
+char *kv_cnt_realpath_darwin(const char *path, char *resolved) __asm("_kv_cnt_realpath$DARWIN_EXTSN");
+char *kv_cnt_realpath_darwin(const char *path, char *resolved) { return kv_cnt_realpath(path, resolved); }
+#endif
 
 void kv_cnt_free(void *p) {
     kv_cnt_start();

@@ -5,9 +5,10 @@
 # program exits with a status it did not expect, or a block is still live
 # at exit, which is a leak the ownership rules should have freed. A test
 # that expects a status other than 0 (// exit: N), or calls SYS.exit, is run
-# for ASan alone, since an exit cuts the frees short; a count below zero is a
-# free of what the C library allocated, realpath's result, which the counter
-# never saw, and passes. CC picks the compiler, clang or gcc.
+# for ASan alone, since an exit cuts the frees short. realpath, whose result
+# the runtime frees, is counted as malloc is (#216), and a count below zero,
+# a free of a block the counter never saw, fails: such a blind spot would
+# hide as many leaks. CC picks the compiler, clang or gcc.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 CC=${CC:-cc}
@@ -22,7 +23,7 @@ FreeBSD | NetBSD | OpenBSD | DragonFly) features= ;;
 *) features="-D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE=1 -D_DARWIN_C_SOURCE=" ;;
 esac
 flags="-std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address -fno-sanitize-recover=all $features \
-    -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -include stdlib.h -w -Imodules -Iruntime"
+    -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -Drealpath=kv_cnt_realpath -include stdlib.h -w -Imodules -Iruntime"
 export ASAN_OPTIONS=detect_leaks=0:abort_on_error=0
 
 pass=0
@@ -91,6 +92,13 @@ for f in tests/run/*.k; do
         if [ "${live:-0}" -gt 0 ]; then
             : > "$tmp/log"
             bad "$f" "$live blocks live at exit: a leak"
+            continue
+        fi
+        if [ "${live:-0}" -lt 0 ]; then
+            # a block freed that the count never saw: a blind spot, which
+            # would hide as many leaks (#216)
+            : > "$tmp/log"
+            bad "$f" "$((-live)) blocks freed that were not counted: tests/asan/count.c misses an allocator"
             continue
         fi
     fi

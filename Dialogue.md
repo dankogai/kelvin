@@ -5213,3 +5213,17 @@ left for a change of its own. The stages keep their fixpoint, 4288
 lines, with clang, gcc 15 and ASan. Details are provisional P227.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 260. Counting realpath
+
+> fix the realpath counting blind spot as #216
+
+**Claude** added #216: the counting allocator of tests/asan.sh counts the
+block realpath gives, which the runtime frees, and a count below zero
+fails, where it passed before. A program that opens a file and leaks a
+block shows the leak now, which it hid before; without the renaming,
+the new check fails 22 programs that open files. Details are
+provisional P228.
+
+There are 818 tests, and all pass with clang and with gcc 15; tests/asan.sh
+passes all 216 programs.

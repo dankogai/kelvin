@@ -247,6 +247,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 213 | kc reads methods: `extend T { let m(...) ... static let f(...) ... }` and `let T.m(...)`, with `self`, `.x` and `Self` inside; `x.m(...)` is `T__m(x, ...)` and `T.f(...)` is `T__f(...)`, kelvinc's names, called straight; `return {a, b}` is of the function's type; kc's own `ty.owns()`, `node.jumps()` and `node.leaf(kind, t)` are methods | — | `types[y].owns()` in selfhost/gen.k | 2026-10-20 |
 | 214 | kc infers a variable's type where it says none, as kelvinc does: `int64` of a number, `uint8` of a character, `bool` of `true`, `false` or a comparison, `String` of `$"..."`, the cast's of `as`, and what kc sees of a name, a call, a member or an element; `cstr` of text by `:=`; arithmetic, an empty `$[]` or `${:}`, `{...}` and C's alone are errors; a parameter or a member still says its type; `println` takes up to 16 values, as in kelvinc; kc's own variables of a literal say no type | — | `var cut = 0` in selfhost/kc.k | 2026-10-20 |
 | 215 | kc reads enums with values, `enum item { none; num: int64; text: String }`, as kelvinc writes them: a struct of a tag and a union, `_kv_T_make_c`, `_at_c` checked, `_set_c` freeing what it held, `_free`, `_take` and `_copy` where a case owns; `T.c(v)`, a local owner moving in, `T.none`, `v.c`, `v.c = x`, `v.is(c)`, and a switch that binds a case's value; kc frees its global owners at exit by `_kv_free_globals`; kc's `load` gives `loaded.read(file)` or `loaded.unread(why)` | — | `enum loaded { read: int64; unread: String }` in selfhost/kc.k | 2026-10-20 |
+| 216 | tests/asan.sh counts what realpath gives: count.c's kv_cnt_realpath counts the block of realpath(path, NULL), which the runtime frees, and the programs are built with realpath renamed to it, as malloc, realloc and free are; a count below zero, a free of a block never counted, fails, since it would hide as many leaks | — | `-Drealpath=kv_cnt_realpath` in tests/asan.sh | 2026-10-20 |
 
 Notes:
 
@@ -808,6 +809,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (216) Agreed details: "fix the realpath counting blind spot as #216",
+  which #215 found: since #196 an IO keeps realpath's name and frees it,
+  and OS.realpath did before, out of the count's sight, so a program
+  that opened files counted fewer live blocks than it had, and passed
+  with a leak of as many; the header of tests/asan.sh had called that
+  harmless. A program that opens a file and leaks one block counted 0
+  live before and counts 1 now; without the renaming, 22 programs fail
+  by the new check (P228).
 
 - (215) Agreed details: "teach kc enums with values as #215". A count of
   the sample's allocations found that kc left its global owners for the
@@ -2285,7 +2295,8 @@ says "as agreed".
 | P224 | Details of #212 | gen.k: N_BOOL as `((bool)true)`; gen_call refuses an argument of an owner type that is no place; put_int is `out += String(n)`; kc.k: `cfile += String(getpid() as int64)`; sample.k: String of a negative number, a number, a uint8 and a bool | holding an owner an expression gives, in kc |
 | P225 | Details of #213 | parse.k: N_SELF; parse_extend and `let T.m(` put each function into decls as a D_FN whose c is T's token, flag 1 where static; `self_name` makes Self while one is read; `.x` at an expression's start is N_FIELD of N_SELF; gen.k: method_names by "T.m", method_of for x.m and T.f, gen_signature writes T__m and `struct T self` first, is_main of no receiver; sample.k has methods, a function of the type, `let point.dot`, and calls on a pointer's value and an Array's element | methods of a type that is not a struct |
 | P226 | Details of #214 | parse_var reads `:T` where it is written, and keeps 1 in c of `:=`; parse_typed asks a parameter or a member for its type; gen.k's inferred finds the type when the variable is written, and the global's before the functions; gen_call counts println's values; sample.k infers ten kinds of value | `.count` as a size_t |
-| P227 | Details of #215 | parse_enum: a case with `: T` makes the enum's flag 1 and is the case's ty; `;` separates cases; gen.k: tagged_of, tagged_named, case_named, case_tag, tagged_owns; is_owner and put_owner_prefix take an enum with values, and put_free_copy gives KV_ARRAY and KV_DICT an element's free and copy; gen_tagged writes it in the order of the structs; gen_switch switches on `.tag`, `case 1 /* num */:`, and binds `V x = v.u.c`; sample.k has one with an owning case, in an Array too, and kelvinc's and kc's builds of it both leave nothing live at exit | realpath's block uncounted by tests/asan/count.c; Optional and Result in kc |
+| P227 | Details of #215 | parse_enum: a case with `: T` makes the enum's flag 1 and is the case's ty; `;` separates cases; gen.k: tagged_of, tagged_named, case_named, case_tag, tagged_owns; is_owner and put_owner_prefix take an enum with values, and put_free_copy gives KV_ARRAY and KV_DICT an element's free and copy; gen_tagged writes it in the order of the structs; gen_switch switches on `.tag`, `case 1 /* num */:`, and binds `V x = v.u.c`; sample.k has one with an owning case, in an Array too, and kelvinc's and kc's builds of it both leave nothing live at exit | Optional and Result in kc |
+| P228 | Details of #216 | count.c defines the feature macros realpath needs, kv_cnt_realpath, and on macOS the same by the name stdlib.h links it as, kv_cnt_realpath$DARWIN_EXTSN; asan.sh adds -Drealpath=kv_cnt_realpath and fails on a negative count; realpath is the runtime's only libc call whose block it frees, glob's being globfree's | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
