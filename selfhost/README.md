@@ -70,6 +70,12 @@ kc reads what it is written in, and little more.
   `struct` of plain members, `enum` of names, C's (#210), global `let`
   and `var`, `#import <IO>`, `#import "x.k"`, and `#import <x.h> as C`
   (#207).
+- **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
+  and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
+  - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
+    is `T__f(...)`: kelvinc's names, called straight, since kc sees the
+    receiver's type where kelvinc lets C's `_Generic` choose.
+  - `return {a, b}` is of the function's type.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
@@ -173,7 +179,9 @@ libc is allowed, as it is to any C program; C of our own is not.
 
 - **Methods cannot change `self`:**
   - the parser's state is in globals;
-  - the readers of examples/lambda.k are functions of a `reader^`.
+  - the readers of examples/lambda.k are functions of a `reader^`;
+  - kc's methods, since #213, are queries: `types[y].owns()`,
+    `nodes[s].jumps()`, and `node.leaf(kind, t)`, a function of the type.
 - **No recursive types:** the tree is an Array of nodes linked by
   index, as in examples/ski.k.
 - **Declared before use:** mutual recursion needs prototypes first, as
@@ -228,7 +236,6 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - methods of `extend`;
    - inference of literals;
    - `Optional` and `Result`.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how

@@ -5169,3 +5169,17 @@ by String(n) now. The stages keep their fixpoint, 3431 lines, with
 clang, gcc 15 and ASan. Details are provisional P224.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 257. kc's methods
+
+> teach kc methods of extend as #213
+
+**Claude** added #213: kc reads `extend T { ... }` and `let T.m(...)`,
+methods and functions of the type, with `self`, `.x` and `Self`, and
+calls them by kelvinc's names, `T__m(x, ...)`, straight, since it knows
+the receiver's type; kc's own queries of a type and of a node are
+methods now, and its nodes are made by `node.leaf`. The stages keep
+their fixpoint, 3611 lines, with clang, gcc 15 and ASan. Details are
+provisional P225.
+
+There are 818 tests, and all pass with clang and with gcc 15.

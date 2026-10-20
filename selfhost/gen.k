@@ -43,8 +43,7 @@ let gen_error(n:int64, what:cstr) {
 
 let is_owner(y:int64):bool {
     if y < 0 { return false }
-    let k:ykind = types[y].kind
-    return k == Y_STRING || k == Y_ARRAY || k == Y_IO || k == Y_DICT
+    return types[y].owns()
 }
 
 // the part of an Array's name its element gives: i64, String, tok
@@ -143,6 +142,7 @@ var global_names:Dictionary<String, int64>
 var struct_names:Dictionary<String, int64>
 var enum_names:Dictionary<String, int64>
 var enumerators:Dictionary<String, int64>  // an enumerator's enum
+var method_names:Dictionary<String, int64> // a method or a function of a type, by "T.m" (#213)
 
 // the text of token t, a String
 let tok_text(t:int64):String {
@@ -152,6 +152,21 @@ let tok_text(t:int64):String {
         s += codes[at + i].uchr
     }
     return s
+}
+
+// "T.m", a method's name among the methods (#213)
+let method_key(recv:int64, t:int64):String {
+    var name:String = tok_text(recv)
+    name += "."
+    var m:String = tok_text(t)
+    name += &m
+    return name
+}
+
+// the method m, a token, of the type named as token recv, or -1
+let method_named(recv:int64, m:int64):int64 {
+    var name:String = method_key(recv, m)
+    return method_names.get(name, -1)
 }
 
 let index_name(names:Dictionary<String, int64>^, t:int64, d:int64) {
@@ -164,7 +179,13 @@ let index_names() {
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         switch nodes[d].kind {
-        case D_FN: index_name(&fn_names, nodes[d].t, d)
+        case D_FN:
+            if nodes[d].c >= 0 {                           // T.m (#213)
+                var name:String = method_key(nodes[d].c, nodes[d].t)
+                if !method_names.has(name) { method_names[name] = d }
+            } else {
+                index_name(&fn_names, nodes[d].t, d)
+            }
         case D_GLOBAL: index_name(&global_names, nodes[d].t, d)
         case D_STRUCT: index_name(&struct_names, nodes[d].t, d)
         case D_ENUM:
@@ -234,6 +255,22 @@ let is_comparison(t:int64):bool {
     return tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "&&") || tok_is(t, "||")
 }
 
+let type_of(n:int64):int64
+
+// whether node a names a struct, not a variable: T of T.f(...)
+let names_type(a:int64):bool {
+    return nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_STRUCT) >= 0
+}
+
+// the method or the function of a type that x.m(...) or T.f(...) calls, or -1 (#213)
+let method_of(n:int64):int64 {
+    let a:int64 = nodes[n].a
+    if names_type(a) { return method_named(nodes[a].t, nodes[n].t) }
+    let y:int64 = type_of(a)
+    if y < 0 || types[y].kind != Y_STRUCT { return -1 }
+    return method_named(types[y].name, nodes[n].t)
+}
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
@@ -242,6 +279,7 @@ let type_of(n:int64):int64 {
     if k == N_DSTR { return base_type(Y_STRING) }
     if k == N_BOOL { return base_type(Y_BOOL) }
     if k == N_NULL { return base_type(Y_C) }
+    if k == N_SELF { return type_of_kind(Y_STRUCT, -1, nodes[current].c) }      // (#213)
     if k == N_ID {
         let y:int64 = var_type(t)
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
@@ -280,6 +318,8 @@ let type_of(n:int64):int64 {
     }
     if k == N_METHOD {
         if nodes[nodes[n].a].kind == N_TYPE { return base_type(Y_IO) }       // IO.exec(args, mode)
+        let f:int64 = method_of(n)
+        if f >= 0 { return nodes[f].ty }                                     // (#213)
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if tok_is(t, "copy") { return y }
@@ -421,6 +461,20 @@ let gen_field(n:int64) {
 let gen_method(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    let f:int64 = method_of(n)
+    if f >= 0 {                                                       // T__m(x, ...), T__f(...) (#213)
+        put_tok(nodes[f].c)
+        put("__")
+        put_tok(nodes[f].t)
+        put("(")
+        if nodes[f].flag != 1 {
+            gen_expr(a)
+            if nodes[n].b >= 0 { put(", ") }
+        }
+        gen_args(nodes[n].b)
+        put(")")
+        return
+    }
     if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
         let args:int64 = nodes[n].b
         put("kv_io_exec_strings((")
@@ -534,6 +588,8 @@ let gen_expr(n:int64) {
         gen_error(n, "this name is not known")
     } else if k == N_NULL {
         put("NULL")
+    } else if k == N_SELF {
+        put("self")
     } else if k == N_NUM || k == N_CHAR || k == N_STR || k == N_ID {
         put_tok(t)
     } else if k == N_DSTR {
@@ -761,6 +817,11 @@ let gen_return(n:int64) {
         return
     }
     put("return ")
+    if nodes[a].kind == N_INIT {                         // return {a, b}: of the function's type (#213)
+        put("(")
+        put_ctype(nodes[current].ty)
+        put(")")
+    }
     gen_expr(a)
     put(";\n")
 }
@@ -838,8 +899,7 @@ let gen_each(n:int64, depth:int64) {
 // whether s leaves its case: a return, a break, a continue
 let is_jump(s:int64):bool {
     if s < 0 { return false }
-    let k:nkind = nodes[s].kind
-    return k == S_RETURN || k == S_BREAK || k == S_CONTINUE
+    return nodes[s].jumps()
 }
 
 // whether a switch's cases name every enumerator of the enum d
@@ -1007,18 +1067,28 @@ let gen_block(n:int64, depth:int64) {
 // ---------- declarations ----------
 
 let is_main(d:int64):bool {
-    return tok_is(nodes[d].t, "main")
+    return tok_is(nodes[d].t, "main") && nodes[d].c < 0
 }
 
 let gen_signature(d:int64) {
     put_ctype(nodes[d].ty)
     put(" ")
+    let recv:int64 = nodes[d].c
+    if recv >= 0 {                                     // T__m (#213)
+        put_tok(recv)
+        put("__")
+    }
     put_tok(nodes[d].t)
     put("(")
     var p:int64 = nodes[d].a
-    if p < 0 { put("void") }
+    let takes_self:bool = recv >= 0 && nodes[d].flag != 1
+    if takes_self {                                    // a method's self, a T, first
+        put_ctype(type_of_kind(Y_STRUCT, -1, recv))
+        put(" self")
+    }
+    if p < 0 && !takes_self { put("void") }
     while p >= 0 {
-        if p != nodes[d].a { put(", ") }
+        if p != nodes[d].a || takes_self { put(", ") }
         put_ctype(nodes[p].ty)
         put(" ")
         put_tok(nodes[p].t)

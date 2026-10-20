@@ -21,6 +21,13 @@ let shade_name(s:shade):cstr {
     return "?"
 }
 
+extend point {                                        // methods (#213)
+    let sum():int64 { return .x + .y }
+    let scaled(k:int64):point { return {.x * k, self.y * k} }
+    static let of(x:int64, y:int64):Self { return {x, y} }
+}
+let point.dot(o:point):int64 { return .x * o.x + .y * o.y }
+
 var points:$[point]
 let limit:int64 = 10
 
@@ -109,5 +116,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     label += String(3 as uint8)
     label += String(true)
     println(label, " ", label.count)
+    var p:point = point.of(1, 2)
+    let q:point^ := &p
+    let big:point = p.scaled(3)
+    println(p.sum(), " ", big.x, " ", q^.sum(), " ", points[0].dot(p), " ", point.of(3, 4).sum())
     return 0
 }

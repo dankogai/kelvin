@@ -24,6 +24,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_TYPE,     // IO or String called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order
     N_NULL,     // nullptr
+    N_SELF,     // self, and the self of .x (#213)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -82,6 +83,24 @@ struct ty {
     name: int64        // the token of a struct's name; a Dictionary's key type (#211)
 }
 
+extend node {                                      // (#213)
+    // a node of kind and token t, with nothing under it yet
+    static let leaf(kind:nkind, t:int64):Self {
+        return {kind, -1, -1, -1, t, -1, -1, 0}
+    }
+    // whether it leaves a case: a return, a break, a continue
+    let jumps():bool {
+        return .kind == S_RETURN || .kind == S_BREAK || .kind == S_CONTINUE
+    }
+}
+
+extend ty {
+    // whether it is an owner, freed where its block ends
+    let owns():bool {
+        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT
+    }
+}
+
 var nodes:$[node]
 var types:$[ty]
 var decls:$[int64]         // the top-level declarations, in order
@@ -89,6 +108,7 @@ var arrays:$[int64]        // every Array type, in the order they are met
 var dicts:$[int64]         // every Dictionary type, so (#211)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
+var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
 
 // whether token t names a C header: <x.h> or "x.h"
 let is_header(t:int64):bool {
@@ -172,7 +192,7 @@ let set_c(n:int64, v:int64) { nodes[n].c = v }
 let set_ty(n:int64, v:int64) { nodes[n].ty = v }
 
 let make_node(kind:nkind, t:int64):int64 {
-    let n:node = {kind, -1, -1, -1, t, -1, -1, 0}
+    let n:node = node.leaf(kind, t)
     nodes += n
     return nodes.count as int64 - 1
 }
@@ -221,6 +241,8 @@ let parse_type():int64 {
         y = base_type(Y_IO)
     } else if tok_is(t, "uchr") {
         y = base_type(Y_UCHR)
+    } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
+        y = type_of_kind(Y_STRUCT, -1, self_name)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
         let key:int64 = parse_type()
@@ -317,8 +339,15 @@ let parse_primary():int64 {
         advance()
         if tok_is(t, "true") || tok_is(t, "false") { return make_node(N_BOOL, t) }
         if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
+        if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "IO") || tok_is(t, "String") { return make_node(N_TYPE, t) }
         return make_node(N_ID, t)
+    }
+    if at_word(".") && toks[pos + 1].kind == T_ID {        // .x, self's member x (#213)
+        advance()
+        let n:int64 = make_node(N_FIELD, advance())
+        nodes[n].a = make_node(N_SELF, t)
+        return n
     }
     parse_error("an expression is expected")
     return make_node(N_NUM, t)
@@ -679,6 +708,31 @@ let parse_enum():int64 {
     return n
 }
 
+// extend T { let m(...) ... static let f(...) ... } (#213): a method takes
+// self, a T, first; a function of the type, static, does not; each goes
+// into decls as a D_FN whose c is T's token, its flag 1 where static
+let parse_extend() {
+    let recv:int64 = advance()
+    self_name = recv
+    expect("{")
+    skip_newlines()
+    while !at_word("}") && !failed {
+        var is_static:int64 = 0
+        if at_word("static") {
+            advance()
+            is_static = 1
+        }
+        expect("let")
+        let n:int64 = parse_function()
+        nodes[n].c = recv
+        nodes[n].flag = is_static
+        decls += n
+        skip_newlines()
+    }
+    expect("}")
+    self_name = 0 - 1
+}
+
 // the declarations from the token at pos to the end
 let parse_program() {
     skip_newlines()
@@ -700,6 +754,18 @@ let parse_program() {
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             decls += parse_function()
+        } else if at_word("let") && tok_is(pos + 2, ".") && tok_is(pos + 4, "(") {   // let T.m(...) (#213)
+            advance()
+            let recv:int64 = advance()
+            advance()
+            self_name = recv
+            let n:int64 = parse_function()
+            nodes[n].c = recv
+            self_name = 0 - 1
+            decls += n
+        } else if at_word("extend") {
+            advance()
+            parse_extend()
         } else if at_word("let") || at_word("var") {
             let is_let:bool = at_word("let")
             advance()
