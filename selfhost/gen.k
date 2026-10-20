@@ -204,9 +204,14 @@ let index_name(names:Dictionary<String, int64>^, t:int64, d:int64) {
     if !names^.has(name) { names^[name] = d }
 }
 
-// every declaration by its name, before anything is written
+var indexed = 0                 // the declarations index_names has seen (#227)
+
+// every declaration by its name, before anything is written, and those
+// made since, as the T? a chain makes (#221, #227)
 let index_names() {
-    for i in 0..<decls.count as int64 {
+    let from = indexed
+    indexed = decls.count as int64
+    for i in from..<decls.count as int64 {
         let d:int64 = decls[i]
         switch nodes[d].kind {
         case D_FN:
@@ -233,6 +238,7 @@ let index_names() {
 // the declaration of a global, a function, a struct or an enum named as
 // token t, or -1
 let decl_named(t:int64, kind:nkind):int64 {
+    if decls.count as int64 > indexed { index_names() }
     var name:String = tok_text(t)
     switch kind {
     case D_FN: return fn_names.get(name, -1)
@@ -565,6 +571,66 @@ let is_case_word(n:int64):bool {
     return false
 }
 
+// ---------- temporaries (#227) ----------
+
+var held:Dictionary<int64, int64>    // an expression held in a temporary, by its node: the temporary's number
+
+// whether n gives an owner that no variable holds: a call's, a String
+// literal's, a member of one, which reading it holds in a temporary
+let needs_hold(n:int64):bool {
+    if n < 0 || is_case_word(n) || is_place(n) { return false }
+    return is_owner(type_of(n))
+}
+
+// ({ T _kv_tmpN = n; ... : n held where it is read, freed once the
+// expression is done, as kelvinc holds it; gen_expr of n names it
+let hold_open(n:int64) {
+    serial += 1
+    let s = serial                                   // its own: n may hold temporaries too
+    let y = type_of(n)
+    put("({ __attribute__((cleanup(")
+    put_free(y)
+    put("))) ")
+    put_ctype(y)
+    put(" _kv_tmp")
+    put_int(s)
+    put(" = ")
+    gen_expr(n)
+    put("; ")
+    held[n] = s
+}
+
+let hold_close(n:int64) {
+    put("; })")
+    held[n] = 0 - 1
+}
+
+// the owners a call's arguments give where the function does not take
+// them by value, as println's: each held for the call (#227)
+let hold_args(first:int64, d:int64):$[int64] {
+    var opened:$[int64] = $[]
+    var a:int64 = first
+    var p = -1
+    if d >= 0 { p = nodes[d].a }
+    while a >= 0 {
+        let by_value = p >= 0 && is_owner(nodes[p].ty)           // which the function frees (#226)
+        if !by_value && needs_hold(a) {
+            hold_open(a)
+            opened += a
+        } else if !by_value && nodes[a].kind == N_ADDR && needs_hold(nodes[a].a) {   // f(&g()), lent
+            hold_open(nodes[a].a)
+            opened += nodes[a].a
+        }
+        a = nodes[a].next
+        if p >= 0 { p = nodes[p].next }
+    }
+    return opened
+}
+
+let close_holds(opened:$[int64]^) {
+    for i in 0..<opened^.count as int64 { hold_close(opened^[i]) }
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -592,24 +658,43 @@ let gen_call(n:int64) {
         if count > 16 { gen_error(n, "println and print take up to 16 values: write two calls") }
     }
     let d = decl_named(nodes[f].t, D_FN)
-    var a:int64 = args                             // what kelvinc holds, kc does not (#212)
-    var p = -1
-    if d >= 0 { p = nodes[d].a }
-    while a >= 0 {
-        let by_value = p >= 0 && is_owner(nodes[p].ty)           // which the function frees (#226)
-        if !by_value && !is_case_word(a) && is_owner(type_of(a)) && !is_place(a) {
-            gen_error(a, "an owner an expression gives is passed to a function: bind it to a variable first, which kc frees")
-        }
-        a = nodes[a].next
-        if p >= 0 { p = nodes[p].next }
-    }
+    var opened = hold_args(args, d)                 // as kelvinc holds them (#227)
     put_tok(nodes[f].t)
     put("(")
-    gen_args_to(args, decl_named(nodes[f].t, D_FN))
+    gen_args_to(args, d)
     put(")")
+    close_holds(&opened)
 }
 
+let gen_member(n:int64)         // prototypes: the reading of a member and of a method, held or not (#227)
+let gen_method_of(n:int64)
+
+// a.t of what an expression gives (#227): a held, a member that owns
+// copied out of it, as kelvinc does; a pointer into it an error
 let gen_field(n:int64) {
+    let a:int64 = nodes[n].a
+    if !needs_hold(a) {
+        gen_member(n)
+        return
+    }
+    let y = type_of(n)
+    if y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR) {
+        gen_error(n, "this is a pointer into an owner that an expression gives, which is freed once the expression is done: bind it to a variable first")
+        return
+    }
+    hold_open(a)
+    if is_owner(y) {
+        put_owner_prefix(y)
+        put("_copy(&(")
+        gen_member(n)
+        put("))")
+    } else {
+        gen_member(n)
+    }
+    hold_close(a)
+}
+
+let gen_member(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
     let e = tagged_named(a)
@@ -668,7 +753,19 @@ let gen_field(n:int64) {
     }
 }
 
+// a.m(...) of what an expression gives: a held for the call (#227)
 let gen_method(n:int64) {
+    let a:int64 = nodes[n].a
+    if !needs_hold(a) {
+        gen_method_of(n)
+        return
+    }
+    hold_open(a)
+    gen_method_of(n)
+    hold_close(a)
+}
+
+let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
     let f:int64 = method_of(n)
@@ -775,41 +872,26 @@ let is_place(n:int64):bool {
     let k:nkind = nodes[n].kind
     if k == N_INDEX && nodes[n].flag == 1 {                  // d[k] read whole is a value (#219)
         let y = type_of(nodes[n].a)
-        return y < 0 || types[y].kind != Y_DICT
+        if y >= 0 && types[y].kind == Y_DICT { return false }
     }
-    return k == N_ID || k == N_FIELD || k == N_INDEX || k == N_DEREF
+    if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
+    return k == N_ID || k == N_DEREF || k == N_SELF
 }
 
 // a == b of Strings; one an expression gives is held in a temporary,
 // freed once compared, as kelvinc holds it (#187)
 let gen_string_eq(a:int64, b:int64) {
-    if is_place(a) && is_place(b) {
-        put("kv_string_eq(")
-        gen_place(a)
-        put(", ")
-        gen_place(b)
-        put(")")
-        return
-    }
-    serial += 1
-    let s:int64 = serial
-    put("({ __attribute__((cleanup(kv_string_free))) kv_string _kv_tmp")
-    put_int(s)
-    put(" = ")
-    if is_place(a) {
-        gen_expr(b)
-    } else {
-        gen_expr(a)
-    }
-    put("; kv_string_eq(")
-    if is_place(a) {
-        gen_place(a)
-    } else {
-        gen_place(b)
-    }
-    put(", &_kv_tmp")
-    put_int(s)
-    put("); })")
+    let ha = needs_hold(a)                           // each side an expression gives (#227)
+    let hb = needs_hold(b)
+    if ha { hold_open(a) }
+    if hb { hold_open(b) }
+    put("kv_string_eq(")
+    gen_place(a)
+    put(", ")
+    gen_place(b)
+    put(")")
+    if hb { hold_close(b) }
+    if ha { hold_close(a) }
 }
 
 // a condition: a comparison without the parentheses C would warn of
@@ -1018,8 +1100,61 @@ let gen_chain(n:int64) {
     put("; })")
 }
 
+// a[i]: an Array's element, checked; a Dictionary's entry, or its Optional
+// read whole (#219); C's element
+let gen_element(n:int64) {
+    let y:int64 = type_of(nodes[n].a)
+    if y >= 0 && types[y].kind == Y_ARRAY {
+        put("(*")
+        put_array_name(y)
+        put("_at(")
+        gen_place(nodes[n].a)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put("))")
+    } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
+        gen_lookup(n, y)
+    } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
+        put("(*")
+        put_dict_name(y)
+        put("_at(")
+        gen_place(nodes[n].a)
+        put(", ")
+        gen_key(y, nodes[n].b)
+        put("))")
+    } else {
+        gen_expr(nodes[n].a)
+        put("[")
+        gen_expr(nodes[n].b)
+        put("]")
+    }
+}
+
+// a[i] of what an expression gives (#227): a held, an element that owns
+// copied out of it; a Dictionary's lookup is a copy already (#219)
+let gen_index(n:int64) {
+    let a:int64 = nodes[n].a
+    let y = type_of(n)
+    let lookup = nodes[n].flag == 1 && types[type_of(a)].kind == Y_DICT
+    hold_open(a)
+    if is_owner(y) && !lookup {
+        put_owner_prefix(y)
+        put("_copy(&(")
+        gen_element(n)
+        put("))")
+    } else {
+        gen_element(n)
+    }
+    hold_close(a)
+}
+
 let gen_expr(n:int64) {
     if failed { return }
+    if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
+        put("_kv_tmp")
+        put_int(held.get(n, 0 - 1))
+        return
+    }
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     if k == N_ID && var_type(t) < 0 && !c_headers {
@@ -1048,32 +1183,10 @@ let gen_expr(n:int64) {
         gen_field(n)
     } else if k == N_METHOD {
         gen_method(n)
+    } else if k == N_INDEX && needs_hold(nodes[n].a) {
+        gen_index(n)                                 // of what an expression gives (#227)
     } else if k == N_INDEX {
-        let y:int64 = type_of(nodes[n].a)
-        if y >= 0 && types[y].kind == Y_ARRAY {
-            put("(*")
-            put_array_name(y)
-            put("_at(")
-            gen_place(nodes[n].a)
-            put(", ")
-            gen_expr(nodes[n].b)
-            put("))")
-        } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
-            gen_lookup(n, y)
-        } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
-            put("(*")
-            put_dict_name(y)
-            put("_at(")
-            gen_place(nodes[n].a)
-            put(", ")
-            gen_key(y, nodes[n].b)
-            put("))")
-        } else {
-            gen_expr(nodes[n].a)
-            put("[")
-            gen_expr(nodes[n].b)
-            put("]")
-        }
+        gen_element(n)
     } else if k == N_UNARY {
         if tok_is(t, "!") { put("(bool)") }          // C's ! gives an int, which prints as 1
         put("(")
@@ -1342,6 +1455,21 @@ let gen_each(n:int64, depth:int64) {
     serial += 1
     put("{\n")
     indent(depth + 1)
+    let src = nodes[n].a
+    if needs_hold(src) {                              // for x in f(): f()'s owner held for the loop (#227)
+        let h = serial
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+        put_ctype(y)
+        put(" _kv_tmp")
+        put_int(h)
+        put(" = ")
+        gen_expr(src)
+        put(";\n")
+        indent(depth + 1)
+        held[src] = h
+    }
     if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
         put_int(serial)
@@ -1403,6 +1531,7 @@ let gen_each(n:int64, depth:int64) {
     put("}\n")
     indent(depth)
     put("}\n")
+    held[src] = 0 - 1
 }
 
 // if let c(x) = e { } else { } (#217): e read once, by its address where it
@@ -1623,8 +1752,20 @@ let gen_stmt(n:int64, depth:int64) {
         declare(nodes[n].t, nodes[n].ty)
     case S_ASSIGN: gen_assign(n)
     case S_EXPR:
-        gen_expr(nodes[n].a)
-        put(";\n")
+        let v = nodes[n].a
+        if needs_hold(v) {                            // an owner no one takes, freed (#227)
+            let y = type_of(v)
+            put("{ __attribute__((cleanup(")
+            put_free(y)
+            put("))) ")
+            put_ctype(y)
+            put(" _kv_dropped = ")
+            gen_expr(v)
+            put("; }\n")
+        } else {
+            gen_expr(v)
+            put(";\n")
+        }
     case S_IF:
         put("if (")
         gen_cond(nodes[n].a)

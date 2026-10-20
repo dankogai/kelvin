@@ -258,6 +258,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 224 | `some(v)` is a word, as `ok(v)` and `err(e)` are, where no function or variable of the name is in sight: a pattern alone; written as a value it is an error that says to give `v` itself, or `Optional<T>(v)`; where a Result goes, an error that names `ok` and `err`; `ok(v)` and `err(e)` where no Result is expected are errors that name `Result<T, U>.ok(v)`; none of the three is C's call of a function of the name | — | `return some(n / 2)` is an error: `return n / 2` | 2026-10-21 |
 | 225 | kc frees a struct that owns, one with a member that owns, as kelvinc does: `_kv_T_free`, `_kv_T_take` and `_kv_T_copy`, so it is freed at the end of its block, moved out by `return`, held in an Array, a global freed at exit, and its old value freed by `=`; `{a, b}` of a struct reads each member by its field's type, `none` too, and a local owner there is an error that says `.copy()`; each type's C comes after the types it holds by value | — | `struct pet { name: String; tricks: $[String] }` | 2026-10-21 |
 | 226 | kc frees an owner taken by value, as kelvinc's O5: the parameter is `_kv_x_in`, bound to a local `x` freed where the function ends or moved out by `return x`; a whole variable passed moves in by `_take`, one an expression gives goes in as it is, and a member or an element is an error that says to pass a borrow or a copy; methods take their arguments by their parameters' types too; `.copy()` copies any owner but an `IO` | — | `let shout(s:String):String`, `shout(hi)`, `sum_of(fibs.copy())` | 2026-10-21 |
+| 227 | kc holds temporaries as kelvinc's #187: an owner an expression gives, where it is only read, is held in `({ T _kv_tmpN = ...; use; })` and freed once the expression is done: an argument not taken by value, `&f()`, a member, an element or a method of it, either side of `==`, the source of `for x in`, a statement that drops it; a member or element that owns is copied out of it, a pointer into it an error; a member or element is a place only where its base is | — | `println(String(42), " ", shout($"x").count, " ", adopt("ace").name)` | 2026-10-21 |
 
 Notes:
 
@@ -819,6 +820,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (227) Agreed details: "teach kc to hold temporaries as #227". kc
+  refused `println(String(n))` (#212), and left `f().count`,
+  `f().m()`, `&f()` and a dropped `f()` to leak or to C's errors. kc
+  writes kelvinc's C now, a temporary named `_kv_tmpN` that gen_expr
+  writes in place of the expression held. On the way: `==` of two
+  Strings an expression gave held only one; an `x` made by a chain was
+  missing from kc's index of names, built once before the functions,
+  so `f()?.m ?? 0` failed where the program wrote no `T?`; and kc does
+  not print an Optional yet, which kelvinc shows as `some(...)`.
 
 - (226) Agreed details: "teach kc to free owners passed by value as
   #226". kc passed an owner by value as a shallow copy, which the callee
@@ -2413,6 +2424,7 @@ says "as agreed".
 | P236 | Details of #224 | parser.c: some(x) of one argument is an E_CALL of op word where no function or binding has the name; optional_of refuses some(v) of an Optional and of a Result at the word; codegen.c: an E_CALL of op word left, ok, err or some, is an error at its word; tests: error/some_value.k, some_alone.k, ok_alone.k, result_some.k | — |
 | P237 | Details of #225 | gen.k: is_owner of a Y_STRUCT asks its D_STRUCT's members; gen_struct_owner writes _kv_T_free, _take and _copy; write_type(y) writes a type's C once, kept in `written`, after its element, members, key and value or cases, a pointer recursing into nothing; gen_program writes the structs and enums with values, the Arrays and the Dictionaries through it, and the T? made late too; holds_kind is gone; gen_assign's free-then-set covers any owning struct; gen_value of N_INIT for a struct is gen_init, each member by its field's type, a local owner an error; sample.k: struct pet | a by-value owner parameter, which kc does not free; `.copy()` of an Array |
 | P238 | Details of #226 | gen.k: gen_signature names an owner parameter _kv_x_in; takes_owner(d); gen_function opens a block that binds each to a cleanup local before the body; gen_args_to moves a whole variable by _take and refuses a place; gen_call's bind-it error skips a by-value owner parameter; gen_method passes a method's arguments by gen_args_to; .copy() of any owner but IO is PREFIX_copy(&x); sample.k: shout, sum_of, fibs.copy() | kc holding temporaries (#187) |
+| P239 | Details of #227 | gen.k: needs_hold(n): no case word, no place, an owner; hold_open/hold_close write the statement expression and mark the node in `held`, whose number gen_expr writes; hold_args holds a call's arguments not taken by value, and the base of `&`; gen_field and gen_method hold their receiver (gen_member, gen_method_of), gen_index an element's base (gen_element), copying out an owner; gen_string_eq holds either side; gen_each holds its source as a local of its block; S_EXPR frees an owner it drops; is_place of a member or element asks its base; index_names indexes what is declared since, and decl_named asks it; sample.k: println(String(42), shout($"x").count, adopt("ace").name, ...) | kc printing an Optional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

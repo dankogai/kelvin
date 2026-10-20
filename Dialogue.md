@@ -5389,3 +5389,19 @@ parameters' types now, and `.copy()` copies an Array, a Dictionary or a
 struct as it did a String. sample.k shouts. Details are provisional P238.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 271. kc holds temporaries
+
+> teach kc to hold temporaries as #227
+
+**Claude** added #227: an owner an expression gives, where kc only reads
+it, is held in a temporary and freed once the expression is done, in
+kelvinc's C: an argument a function does not take by value, `&f()`, a
+member, an element or a method of it, `==`, a `for` loop's source, and a
+statement that drops it. A member or an element that owns is copied out,
+and a pointer into a temporary is an error, as in kelvinc. So
+`println(String(n))` needs no variable now. On the way, `==` of two
+temporaries and `f()?.m ?? 0` in a program that wrote no `T?` were fixed;
+printing an Optional is left. Details are provisional P239.
+
+There are 834 tests, and all pass with clang and with gcc 15.

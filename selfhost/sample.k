@@ -242,9 +242,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(rex.name, " ", rex.tricks.count, " ", rex.age ?? 0, " ", pets[0].name, " ", pets[0].age.is(none))
     var hi = $"hi"
     var loud = shout(hi)                              // hi moves in
-    var hey = shout($"hey")                           // a String an expression gives moves in
     var nums = fibs.copy()
-    println(loud, " ", hey, " ", sum_of(nums), " ", sum_of(fibs.copy()), " ", fibs.count)
+    println(loud, " ", shout($"hey"), " ", sum_of(nums), " ", sum_of(fibs.copy()), " ", fibs.count)
+    var letters = 0                                   // temporaries, held while read (#227)
+    for c in shout($"abc") { letters += 1 }
+    shout($"dropped")
+    println(String(42), " ", shout($"x").count, " ", adopt("ace").name, " ", adopt("bo").tricks[0], " ", letters, " ", String(7) == $"7")
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p

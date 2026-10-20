@@ -159,9 +159,18 @@ kc reads what it is written in, and little more.
   enum with an owning case is freed by C's `cleanup` attribute; `return
   x` of a local one moves it out; a global one is freed at exit by
   `_kv_free_globals`, as kelvinc frees them (#215).
-  - One an expression gives is bound, assigned, appended or returned:
-    kc does not hold it where it is only read, as kelvinc does (#187),
-    so `println(String(n))` is an error that says to bind it (#212).
+  - One an expression gives, where it is only read, is held in a
+    temporary and freed once the expression is done (#227), as
+    kelvinc's of #187: `({ T _kv_tmpN = f(); use(_kv_tmpN); })`.
+    - That is an argument a function does not take by value, as
+      `println(String(n))`, a borrow of it, `&f()`, a member, an element
+      or a method of it, either side of `==`, the source of `for x in`,
+      and a statement that drops it.
+    - A member or an element that owns is copied out of it, as kelvinc
+      does; a pointer into it, as `String(n).cstr`, is an error that
+      says to bind it.
+    - One bound, assigned, appended, returned or given by value moves
+      there instead.
   - A struct owns where a member does (#225), as `struct pet { name:
     String; tricks: $[String] }`: kc writes its `_kv_T_free`,
     `_kv_T_take` and `_kv_T_copy` as kelvinc does, so it is freed,
