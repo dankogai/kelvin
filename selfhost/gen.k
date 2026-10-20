@@ -28,14 +28,7 @@ let put_tok(t:int64) {
 }
 
 let put_int(n:int64) {
-    if n < 0 {
-        out += "-"
-        put_int(0 - n)
-        return
-    }
-    if n >= 10 { put_int(n / 10) }
-    let d:int64 = n % 10 + 48
-    out += (d as uint32).uchr
+    out += String(n)                             // a number's text (#212)
 }
 
 let gen_error(n:int64, what:cstr) {
@@ -353,6 +346,8 @@ let gen_key(y:int64, k:int64) {
     }
 }
 
+let is_place(n:int64):bool    // a prototype: gen_call asks it
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -369,6 +364,13 @@ let gen_call(n:int64) {
             put(")")
         }
         return
+    }
+    var a:int64 = args                             // what kelvinc holds, kc does not (#212)
+    while a >= 0 {
+        if is_owner(type_of(a)) && !is_place(a) {
+            gen_error(a, "an owner an expression gives is passed to a function: bind it to a variable first, which kc frees")
+        }
+        a = nodes[a].next
     }
     put_tok(nodes[f].t)
     put("(")
@@ -542,7 +544,9 @@ let gen_expr(n:int64) {
         }
         put(")")
     } else if k == N_BOOL {
+        put("((bool)")                           // C's true is an int, which String(...) would write as 1 (#212)
         put_tok(t)
+        put(")")
     } else if k == N_CALL {
         gen_call(n)
     } else if k == N_FIELD {

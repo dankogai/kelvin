@@ -5156,3 +5156,16 @@ and ASan; at kc's size it is no faster, about 7 ms either way. Details
 are provisional P223.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 256. kc's numbers as text
+
+> teach kc String(n) as #212
+
+**Claude** found kc writing `String(x)` as kelvinc does already, and
+added #212 where it fell short: `true` and `false` are bools in its C,
+so String(true) is `true`, and a String an expression gives, passed to a
+function, is an error, since kc would not free it. kc writes its numbers
+by String(n) now. The stages keep their fixpoint, 3431 lines, with
+clang, gcc 15 and ASan. Details are provisional P224.
+
+There are 818 tests, and all pass with clang and with gcc 15.

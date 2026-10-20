@@ -88,7 +88,8 @@ kc reads what it is written in, and little more.
   `{a, b}` of a struct, `$[]`, `${:}`, and
   `! - * / % + - < <= > >= == != && ||`.
 - **Of the prelude and IO:** `.count`, `.copy()`, `.cstr`, `.pop()`,
-  `.uchr`, `.utf32`, `String(text)`, `println`, `IO(path, mode)`,
+  `.uchr`, `.utf32`, `String(text)`, `String(n)` of a number or a
+  `bool` (#212), `println`, `IO(path, mode)`,
   `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
 - **Of a Dictionary** (#211): `d[k]`, checked; `d[k] = v`, which sets
@@ -96,6 +97,9 @@ kc reads what it is written in, and little more.
 - **Ownership:** a `String`, an `Array`, a `Dictionary` or an `IO` is
   freed by C's `cleanup` attribute; `return x` of a local one moves it
   out.
+  - One an expression gives is bound, assigned, appended or returned:
+    kc does not hold it where it is only read, as kelvinc does (#187),
+    so `println(String(n))` is an error that says to bind it (#212).
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ## Difficulties in the way of self-hosting kelvinc
@@ -186,9 +190,8 @@ libc is allowed, as it is to any C program; C of our own is not.
   - An enum must come before the struct that holds one, in kelvinc.
 - **Text:**
   - `+=` appends text, a `uchr` or `&s`;
-  - a number is written by kc's own `put_int`, since `.cstr` and
-    templates live in buffers of their block;
-  - `String(n)` would do, beyond the subset.
+  - a number's text is `String(n)` since #212, where kc wrote the digits
+    itself; `.cstr` and templates live in buffers of their block.
 - **Errors:**
   - kc sets a global `failed` and moves the parser's cursor to the end,
     so that every loop stops;
@@ -225,7 +228,6 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - `String(n)`;
    - methods of `extend`;
    - inference of literals;
    - `Optional` and `Result`.

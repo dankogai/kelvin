@@ -74,13 +74,6 @@ let load_imports():bool {
     return true
 }
 
-// n's digits after s
-let append_int(s:String^, n:int64) {
-    if n >= 10 { append_int(s, n / 10) }
-    let d:int64 = n % 10 + 48
-    s^ += (d as uint32).uchr
-}
-
 // the environment's value of name, else otherwise
 let env_or(name:cstr, otherwise:cstr):String {
     let v:cstr := getenv(name)
@@ -145,7 +138,7 @@ let main(argc:int32, argv:[cstr]):int32 {
         if output.count == 0 { output = $"a.out" }
         cfile = env_or("TMPDIR", "/tmp")
         cfile += "/kc-"
-        append_int(&cfile, getpid() as int64)
+        cfile += String(getpid() as int64)
         cfile += ".c"
         temporary = true
     }
