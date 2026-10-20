@@ -311,6 +311,14 @@ let main():int32 {
       `small * 4` is an `i32`).
   - A tie is an error, as for an `i32` given to `twice` above: convert
     it, `twice(n as i64)`.
+  - **Optionals and Results** (#222):
+    - `none` fits an Optional alone, and `ok(v)` and `err(e)` a
+      Result whose case takes `v`.
+    - A `T` fits a `T?` only where no overload takes the arguments as
+      they are: with `g(v:i64)` and `g(v:i64?)`, `g(5)` calls the
+      first, `g(none)` the second.
+    - A `none` that two Optionals take is a tie: say which, as in
+      `f(Optional<i64>())`.
   - Where no overload fits, C's own function of the name is called
     *(provisional P52)*.
 - **Where only C sees a type**, as for what a C function returns, C

@@ -49,7 +49,7 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
     there: write `Optional<T>`.
 - **Making one:** a `T` where a `T?` is expected becomes `some(T)` by
   itself, in a declaration, an assignment, a member, an element, an
-  entry or a `return`.
+  entry, a `return`, or an argument of a function or a method (#222).
   - `none` there is the absent value, a word that needs the type around
     it (`var x = none` has no type).
   - The arms of a `?:` take this too (#116): `return c ? v : none`,

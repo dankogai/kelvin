@@ -5310,3 +5310,18 @@ and kelvinc writes `take(none)` as C it cannot compile. Details are
 provisional P233.
 
 There are 824 tests, and all pass with clang and with gcc 15.
+
+### 266. take(none)
+
+> fix the take(none) bug as #222
+
+**Claude** added #222: an argument where a function or a method takes an
+Optional or a Result is wrapped as a return's value is, so `take(none)`
+and `take(5)`, both C errors before, call `take`. Among overloads, `none`
+fits an Optional alone, `ok(v)` and `err(e)` a Result, and a `T` fits a
+`T?` only where nothing takes it as it is, so `g(5)` still calls
+`g(i64)` beside `g(i64?)`; a `none` two Optionals take is an error that
+names `Optional<i64>()`. Found: with overloads, `f("text")` goes to C
+where one takes a `String`. Details are provisional P234.
+
+There are 826 tests, and all pass with clang and with gcc 15.

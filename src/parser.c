@@ -1321,6 +1321,7 @@ static int call_args_ahead(int i);
 static Type *method_param_type(List *cands, Decl *m, int k);
 static bool method_takes_none(Expr *recv, const char *name);
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
+static void wrap_variant_args(Expr *call, Decl *d);
 static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
@@ -2533,6 +2534,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 }
                 if (chosen) { /* an owner given by value moves into the method (O5), as into a function */
                     x->method = chosen;
+                    wrap_variant_args(x, chosen); /* p.m(none), p.m(5) of an i64? (#222) */
                     borrow_temps(x, chosen); /* an owner an expression gives, lent where a borrow is taken (#187) */
                     for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
                         move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
@@ -5428,10 +5430,32 @@ static Type *arg_type(Expr *e) {
    to or from any^, nullptr to a pointer), 0 not at all, -1 only C can
    tell, as kelvinc cannot see the argument's type or the parameter's (a C
    typedef) */
+/* while set, a T fits a T? as optional_of wraps it: the second look of
+   choose, where no overload takes the arguments as they are (#222) */
+static bool fit_wraps;
+
 static int fit(Expr *arg, Type *param) {
     Type *p = unqualified(param);
     Decl *r;
     char pc = type_class(p, &r);
+    Decl *vr = variant_record(p);
+    /* none fits an Optional, and ok(v) and err(e) a Result whose case
+       takes v, alone (#222) */
+    if (arg->kind == E_IDENT && !strcmp(arg->text, "none") && binding_index("none") < 0)
+        return vr && optional_record(p) ? 1 : 0;
+    if (arg->kind == E_CALL && arg->op && !strcmp(arg->op, "word")) {
+        Var *c = vr && !optional_record(p) ? case_named(vr, arg->a->text, NULL) : NULL;
+        return c && arg->items.len == 1 && fit(arg->items.data[0], c->type) != 0 ? 1 : 0;
+    }
+    if (fit_wraps && vr && optional_record(p)) {
+        Var *some = vr->members.data[value_case(vr)];
+        Type *a = arg_type(arg);
+        bare_tags = true;
+        bool same = a && !strcmp(fn_key(unqualified(a)), fn_key(p));
+        bare_tags = false;
+        if (!same)
+            return fit(arg, some->type) != 0 ? 1 : 0;
+    }
     if (arg->kind == E_LITERAL && !strcmp(arg->text, "nullptr"))
         return p->kind == T_PTR || p->kind == T_FUNC ? 1 : pc == 'u' ? -1 : 0;
     if (arg->kind == E_IDENT && arg->cands.len) { /* an overloaded function: the one of that type */
@@ -5526,7 +5550,21 @@ static bool dominates(Decl *da, int *a, Decl *db, int *b, int n) {
    left where only C's _Generic can tell, as an argument's type is unseen;
    with neither, C's own function of the name is called (NULL, empty). A
    tie is an error at pos. */
+static Decl *choose_among(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
+
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what) {
+    Decl *d = choose_among(cands, args, nargs, maybe, pos, what);
+    if (d || maybe->len)
+        return d;
+    /* none takes them as they are: a T where a T? goes, as f(5) of an
+       i64? is f(some(5)) (#222) */
+    fit_wraps = true;
+    d = choose_among(cands, args, nargs, maybe, pos, what);
+    fit_wraps = false;
+    return d;
+}
+
+static Decl *choose_among(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what) {
     *maybe = (List){0};
     List fitting = {0}, fits = {0}, exacts = {0};
     for (int i = 0; i < cands->len; i++) {
@@ -5573,8 +5611,14 @@ static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, c
         *maybe = best;
         return NULL;
     }
-    if (best.len > 1)
+    if (best.len > 1) {
+        for (int k = 0; k < nargs; k++)
+            if (args[k]->kind == E_IDENT && !strcmp(args[k]->text, "none") && binding_index("none") < 0)
+                error_at(pos, "%s fits more than one of its overloads equally: say which Optional none is, as in "
+                              "'Optional<i64>()' (#222)",
+                         what);
         error_at(pos, "%s fits more than one of its overloads equally: convert an argument, as in 'x as f64'", what);
+    }
     return best.len ? best.data[0] : NULL;
 }
 
@@ -5670,6 +5714,17 @@ static void pick_overload(Expr *v, Type *want) {
     list_push(&c_called, v->text);
 }
 
+/* the arguments of a call of d where it takes an Optional or a Result
+   (#222): none, ok(v), err(e) and a T are wrapped as a return's value is,
+   so that f(none) and f(5) of an i64? call f, not C's function of the name */
+static void wrap_variant_args(Expr *call, Decl *d) {
+    for (int k = 0; k < call->items.len && k < d->params.len; k++) {
+        Type *t = ((Var *)d->params.data[k])->type;
+        if (t && variant_record(t))
+            call->items.data[k] = optional_of(string_of_literal(call->items.data[k], t), t, ((Expr *)call->items.data[k])->pos);
+    }
+}
+
 /* f(args) where f names Kelvin functions (#41): the overload chosen, or
    C's _Generic among those that may fit, or C's own function of the
    name for other arguments. A single function of the program's own keeps
@@ -5711,6 +5766,7 @@ static void resolve_call(Expr *call) {
     List cands = overloads_of(callee->text, NULL);
     Decl *only = cands.len == 1 ? cands.data[0] : NULL;
     if (only) {
+        wrap_variant_args(call, only);
         bool other = false, unseen = false;
         for (int k = 0; k < call->items.len && k < only->params.len; k++) {
             Expr *x = call->items.data[k];
@@ -5742,6 +5798,7 @@ static void resolve_call(Expr *call) {
             list_push(&dispatched, call);
         }
         if (call->target) {
+            wrap_variant_args(call, call->target);
             drop_cstr_args(call, call->target);
             borrow_temps(call, call->target);
             move_args(call, call->target);
