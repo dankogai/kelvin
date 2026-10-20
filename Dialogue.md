@@ -5081,3 +5081,16 @@ and `7 14` after. It found another bug, `xs += &c` of a struct that owns,
 left for a change of its own. Details are provisional P217.
 
 There are 816 tests, and all pass with clang and with gcc 15.
+
+### 250. Appending a borrow
+
+> fix the cells += &c bug as #206
+
+**Claude** found it wider than structs that own: a borrow of one element
+appended to an Array, `names += &s`, `cells.append(&c)`,
+`cells.insert(0, &c)`, `nested += &xs`, was C that did not compile for
+every type of element. #206 appends a copy of it, by its type's copy,
+which the Array then owns; `&ys` of an Array of the same type is still
+its elements. arrays.md says so. Details are provisional P218.
+
+There are 817 tests, and all pass with clang and with gcc 15.

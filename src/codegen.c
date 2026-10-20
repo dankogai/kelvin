@@ -606,6 +606,10 @@ static char *expr_bare(Expr *e) {
                                                           : strfmt("KV_STRING_OF(%s)", expr(a));
             return strfmt("({ kv_string _kv_cat = %s; KV_STRING_APPEND(&_kv_cat, %s); _kv_cat; })", init, expr(b));
         }
+        if (e->op && !strcmp(e->op, "element_copy")) { /* xs += &x of one element: a copy of x (#206) */
+            const char *f = owner_copy(e->type);
+            return f ? strfmt("%s(%s)", f, expr(e->items.data[0])) : strfmt("(*(%s))", expr(e->items.data[0]));
+        }
         if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
             return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
         if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) /* IO.popen (#87), straight (#110) */

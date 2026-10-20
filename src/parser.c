@@ -627,6 +627,7 @@ static void reject_record_mismatch(Expr *value, Type *target, Pos pos);
 static void move_argument(Expr *arg, Type *param, const char *what);
 static void check_appended(Expr *given, const char *kind, const char *what);
 static const char *array_append_kind(Expr *given, Type *array);
+static Expr *element_copy(Expr *given, Type *array);
 static const char *let_target(Expr *e);
 static Type *value_type(Expr *e);
 
@@ -2308,6 +2309,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Expr *given = which == 0 ? x->items.data[0] : which == 1 ? x->items.data[1] : NULL;
                 if (given)
                     check_appended(given, okind, member);
+                if (given && ok == 'a' && (!strcmp(member, "append") || !strcmp(member, "insert"))) {
+                    given = element_copy(given, x->type); /* one element's borrow, copied (#206) */
+                    x->items.data[!strcmp(member, "insert")] = given;
+                }
                 if (given && which == 0 && ok == 'a')
                     x->text = (char *)array_append_kind(given, x->type);
                 if (ok == 't' && (!strcmp(member, "union") || !strcmp(member, "intersection") ||
@@ -4565,7 +4570,7 @@ static Type *value_type_of(Expr *e) {
             return base_type("Bytes", e->pos);
         if (e->op && (!strcmp(e->op, "string") || !strcmp(e->op, "string_concat"))) /* String(...) (#55), s + t (#183) */
             return base_type("String", e->pos);
-        if (e->op && !strcmp(e->op, "case_make")) /* T.n(x) (#61) */
+        if (e->op && (!strcmp(e->op, "case_make") || !strcmp(e->op, "element_copy"))) /* T.n(x) (#61); a copy of &x (#206) */
             return e->type;
         if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe") ||
                       !strcmp(e->op, "io_exec") || !strcmp(e->op, "os") || !strcmp(e->op, "sys")))
@@ -6578,8 +6583,10 @@ static Expr *parse_assign(void) {
                 x->type = value_type(lhs);
                 Expr *given = parse_assign();
                 check_appended(given, x->op, "+=");
-                if (x->op[0] == 'a')
+                if (x->op[0] == 'a') {
+                    given = element_copy(given, x->type);
                     x->text = (char *)array_append_kind(given, x->type);
+                }
                 list_push(&x->items, given);
                 assign_ok = ok;
                 return x;
@@ -7427,6 +7434,25 @@ static void check_appended(Expr *given, const char *kind, const char *what) {
 /* xs.append(x) (#57): an element, a borrow of an Array of the same
    elements (its elements are appended), or an Array an expression gives
    (appended and freed) */
+/* xs += &x, xs.append(&x), xs.insert(i, &x) of one element (#206): the
+   Array owns what it holds, so it takes a copy of x; &ys of an Array of
+   the same type is its elements, append_ref */
+static Expr *element_copy(Expr *given, Type *array) {
+    Type *t = value_type(given);
+    if (!array || !array->elem || !t || t->kind != T_PTR || !t->elem)
+        return given;
+    Type *to = unqualified(t->elem);
+    if (is_array_owner(to) && !strcmp(to->name, array->name))
+        return given;
+    if (strcmp(kelvin_type(to), kelvin_type(array->elem)))
+        return given;
+    Expr *c = new_expr(E_CALL, given->pos);
+    c->op = "element_copy";
+    list_push(&c->items, given);
+    c->type = array->elem;
+    return c;
+}
+
 static const char *array_append_kind(Expr *given, Type *array) {
     Type *t = value_type(given);
     if (t && t->kind == T_PTR && is_array_owner(t->elem) && !strcmp(t->elem->name, array->name))

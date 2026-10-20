@@ -168,6 +168,11 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - A declaration without a value is empty.
 - **Methods:** `append` (also `+=`), `insert`, `remove`, `pop`, `clear`,
   `reserve`, `compact`, `copy`.
+  - **A borrow of one element,** `xs += &x`, `xs.append(&x)` or
+    `xs.insert(i, &x)`, appends a copy of `x`, which the Array owns
+    (#206): what `xs += x` of an owner says to write.
+  - **A borrow of an Array of the same type,** `xs += &ys`, appends a
+    copy of each of its elements.
   - **Properties** `count`, `capacity`, `at` (the elements as a `T^`),
     `size`, `typename`.
 - **Slices** (#68): `xs[lo..<hi]`, `xs[lo...hi]`, `xs[lo...]` to the
@@ -243,8 +248,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.at` | the elements, a `T^` borrow, unchecked |
 | | `xs[i]` | an element, checked: out of range ends the program |
 | | `xs[lo..<hi]`, `[lo...hi]`, `[lo...]`, `[..<hi]`, `[...hi]` | a slice, a new Array (#68) |
-| | `.append(x)`, `+=` | an element, `&other` (copies), or an Array an expression gives (moved in) |
-| | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `pop` gives the last element |
+| | `.append(x)`, `+=` | an element; `&x` of one, copied (#206); `&other` of an Array, its elements copied; or an Array an expression gives (moved in) |
+| | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `insert` copies `&x` as `append` does (#206); `pop` gives the last element |
 | | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
 | | `.copy()` | a new Array, each element copied |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each element, `U` whatever `f` gives (#182) |
