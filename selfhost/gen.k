@@ -1,0 +1,951 @@
+// gen.k - the C of the program, for kc (selfhost/kc.k), as kelvinc
+// writes it: the same runtime, kelvin_prelude.h and libkelvin, and the
+// same names for what it makes, so that the two can be compared.
+
+struct sym {
+    t: int64           // the token of its name
+    ty: int64
+}
+
+var out:String             // the C
+var locals:$[sym]          // the variables in scope, the innermost last
+var marks:$[int64]         // where each block's variables begin
+var serial:int64           // for the names kc makes
+var current:int64          // the function being written
+var uses_io:bool           // #import <IO>, whose kOS.h has kv_sys_init
+
+// ---------- writing ----------
+
+let put(s:cstr) {
+    out += s
+}
+
+let put_tok(t:int64) {
+    let at:int64 = toks[t].at
+    for i in 0..<toks[t].len {
+        out += codes[at + i].uchr
+    }
+}
+
+let put_int(n:int64) {
+    if n < 0 {
+        out += "-"
+        put_int(0 - n)
+        return
+    }
+    if n >= 10 { put_int(n / 10) }
+    let d:int64 = n % 10 + 48
+    out += (d as uint32).uchr
+}
+
+let gen_error(n:int64, what:cstr) {
+    if !failed {
+        let t:tok = toks[nodes[n].t]
+        println(fnames[t.file], ":", t.line, ": error: ", what)
+    }
+    failed = true
+}
+
+// ---------- types ----------
+
+let is_owner(y:int64):bool {
+    if y < 0 { return false }
+    let k:int64 = types[y].kind
+    return k == Y_STRING || k == Y_ARRAY || k == Y_IO
+}
+
+// the part of an Array's name its element gives: i64, String, tok
+let put_elem_name(y:int64) {
+    let k:int64 = types[y].kind
+    if k == Y_I64 {
+        put("i64")
+    } else if k == Y_I32 {
+        put("i32")
+    } else if k == Y_U8 {
+        put("u8")
+    } else if k == Y_U32 {
+        put("u32")
+    } else if k == Y_BOOL {
+        put("bool")
+    } else if k == Y_STRING {
+        put("String")
+    } else if k == Y_STRUCT {
+        put_tok(types[y].name)
+    } else {
+        put("unknown")
+    }
+}
+
+let put_array_name(y:int64) {
+    put("_kv_array_")
+    put_elem_name(types[y].elem)
+}
+
+let put_ctype(y:int64) {
+    let k:int64 = types[y].kind
+    if k == Y_VOID {
+        put("void")
+    } else if k == Y_I64 {
+        put("int64_t")
+    } else if k == Y_I32 {
+        put("int32_t")
+    } else if k == Y_U8 {
+        put("uint8_t")
+    } else if k == Y_U32 {
+        put("uint32_t")
+    } else if k == Y_BOOL {
+        put("bool")
+    } else if k == Y_CSTR {
+        put("const uint8_t *")
+    } else if k == Y_STRING {
+        put("kv_string")
+    } else if k == Y_IO {
+        put("kv_io")
+    } else if k == Y_UCHR {
+        put("kv_uchr")
+    } else if k == Y_ARRAY {
+        put_array_name(y)
+    } else if k == Y_STRUCT {
+        put("struct ")
+        put_tok(types[y].name)
+    } else if k == Y_PTR {
+        put_ctype(types[y].elem)
+        put(" *")
+    } else if k == Y_ARGV {
+        put("char **")
+    }
+}
+
+// the function that frees an owner
+let put_free(y:int64) {
+    let k:int64 = types[y].kind
+    if k == Y_STRING {
+        put("kv_string_free")
+    } else if k == Y_IO {
+        put("kv_io_free")
+    } else {
+        put_array_name(y)
+        put("_free")
+    }
+}
+
+// ---------- names ----------
+
+let open_scope() {
+    marks += locals.count as int64
+}
+
+let close_scope() {
+    let m:int64 = marks.pop()
+    while locals.count as int64 > m { locals.pop() }
+}
+
+let declare(t:int64, y:int64) {
+    let s:sym = {t, y}
+    locals += s
+}
+
+// the declaration of a global or a function named as token t, or -1
+let decl_named(t:int64, kind:int64):int64 {
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == kind && same_text(nodes[d].t, t) { return d }
+    }
+    return -1
+}
+
+// the type of the variable named as token t, or -1
+let var_type(t:int64):int64 {
+    var i:int64 = locals.count as int64 - 1
+    while i >= 0 {
+        if same_text(locals[i].t, t) { return locals[i].ty }
+        i -= 1
+    }
+    let g:int64 = decl_named(t, D_GLOBAL)
+    if g >= 0 { return nodes[g].ty }
+    return -1
+}
+
+// the type of a member of a struct
+let field_type(sy:int64, t:int64):int64 {
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_STRUCT && same_text(nodes[d].t, types[sy].name) {
+            var f:int64 = nodes[d].a
+            while f >= 0 {
+                if same_text(nodes[f].t, t) { return nodes[f].ty }
+                f = nodes[f].next
+            }
+        }
+    }
+    return -1
+}
+
+// ---------- the types of expressions ----------
+
+let is_comparison(t:int64):bool {
+    return tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "&&") || tok_is(t, "||")
+}
+
+let type_of(n:int64):int64 {
+    let k:int64 = nodes[n].kind
+    let t:int64 = nodes[n].t
+    if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
+    if k == N_STR { return base_type(Y_CSTR) }
+    if k == N_DSTR { return base_type(Y_STRING) }
+    if k == N_BOOL { return base_type(Y_BOOL) }
+    if k == N_ID {
+        let y:int64 = var_type(t)
+        if y < 0 { gen_error(n, "this name is not known") }
+        return y
+    }
+    if k == N_CALL {
+        let f:int64 = nodes[n].a
+        if nodes[f].kind == N_TYPE {
+            if tok_is(nodes[f].t, "IO") { return base_type(Y_IO) }
+            return base_type(Y_STRING)
+        }
+        if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
+        let d:int64 = decl_named(nodes[f].t, D_FN)
+        if d < 0 {
+            gen_error(n, "this function is not known")
+            return -1
+        }
+        return nodes[d].ty
+    }
+    if k == N_FIELD {
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 { return -1 }
+        let yk:int64 = types[y].kind
+        if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) { return base_type(Y_I64) }
+        if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
+        if yk == Y_IO { return base_type(Y_I32) }
+        if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
+        if tok_is(t, "uchr") { return base_type(Y_UCHR) }
+        if tok_is(t, "utf32") { return base_type(Y_U32) }
+        if yk == Y_STRUCT { return field_type(y, t) }
+        gen_error(n, "this member is not known")
+        return -1
+    }
+    if k == N_METHOD {
+        if nodes[nodes[n].a].kind == N_TYPE { return base_type(Y_IO) }       // IO.exec(args, mode)
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 { return -1 }
+        if tok_is(t, "copy") { return y }
+        if tok_is(t, "pop") { return types[y].elem }
+        return base_type(Y_VOID)
+    }
+    if k == N_INDEX {
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 { return -1 }
+        let yk:int64 = types[y].kind
+        if yk == Y_ARRAY { return types[y].elem }
+        if yk == Y_ARGV { return base_type(Y_CSTR) }
+        return base_type(Y_U8)
+    }
+    if k == N_UNARY {
+        if tok_is(t, "!") { return base_type(Y_BOOL) }
+        return type_of(nodes[n].a)
+    }
+    if k == N_BIN {
+        if is_comparison(t) { return base_type(Y_BOOL) }
+        return type_of(nodes[n].a)
+    }
+    if k == N_CAST { return nodes[n].ty }
+    if k == N_ADDR { return type_of_kind(Y_PTR, type_of(nodes[n].a), -1) }
+    if k == N_DEREF {
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 { return -1 }
+        return types[y].elem
+    }
+    return -1
+}
+
+// ---------- expressions ----------
+
+let gen_expr(n:int64)
+
+let gen_args(first:int64) {
+    var a:int64 = first
+    while a >= 0 {
+        if a != first { put(", ") }
+        gen_expr(a)
+        a = nodes[a].next
+    }
+}
+
+// the address of what n names: &x, or a pointer as it is
+let gen_place(n:int64) {
+    put("&(")
+    gen_expr(n)
+    put(")")
+}
+
+let gen_call(n:int64) {
+    let f:int64 = nodes[n].a
+    let args:int64 = nodes[n].b
+    if nodes[f].kind == N_TYPE {
+        if tok_is(nodes[f].t, "IO") {
+            put("kv_io_open(")
+            gen_expr(args)
+            put(", ")
+            gen_expr(nodes[args].next)
+            put(")")
+        } else {
+            put("KV_STRING_OF(")
+            gen_expr(args)
+            put(")")
+        }
+        return
+    }
+    put_tok(nodes[f].t)
+    put("(")
+    gen_args(args)
+    put(")")
+}
+
+let gen_field(n:int64) {
+    let a:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    let y:int64 = type_of(a)
+    if y < 0 { return }
+    let yk:int64 = types[y].kind
+    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) {
+        put("((int64_t)(")
+        gen_expr(a)
+        put(").count)")
+    } else if yk == Y_IO {
+        if tok_is(t, "string") {
+            put("kv_io_read_string(")
+        } else if tok_is(t, "error") {
+            put("kv_io_error(")
+        } else {
+            put("kv_io_status(")
+        }
+        gen_place(a)
+        put(")")
+    } else if yk == Y_STRING && tok_is(t, "cstr") {
+        put("kv_bytes_cstr(&(")
+        gen_expr(a)
+        put(").b)")
+    } else if tok_is(t, "uchr") {
+        put("kv_uchr_of(")
+        gen_expr(a)
+        put(")")
+    } else if tok_is(t, "utf32") {
+        put("(")
+        gen_expr(a)
+        put(").cp")
+    } else {
+        put("(")
+        gen_expr(a)
+        put(").")
+        put_tok(t)
+    }
+}
+
+let gen_method(n:int64) {
+    let a:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
+        let args:int64 = nodes[n].b
+        put("kv_io_exec_strings((")
+        gen_expr(args)
+        put(").at, (")
+        gen_expr(args)
+        put(").count, ")
+        gen_expr(nodes[args].next)
+        put(", NULL, NULL, false)")
+        return
+    }
+    let y:int64 = type_of(a)
+    if y < 0 { return }
+    let yk:int64 = types[y].kind
+    if yk == Y_STRING && tok_is(t, "copy") {
+        put("kv_string_copy(")
+        gen_place(a)
+        put(")")
+    } else if yk == Y_ARRAY && tok_is(t, "pop") {
+        put_array_name(y)
+        put("_pop(")
+        gen_place(a)
+        put(")")
+    } else if yk == Y_IO && tok_is(t, "write") {
+        put("kv_io_write_string(")
+        gen_place(a)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(")")
+    } else if yk == Y_IO && tok_is(t, "close") {
+        put("kv_io_close(")
+        gen_place(a)
+        put(")")
+    } else {
+        gen_error(n, "this method is not known")
+    }
+}
+
+// whether n names a place, whose address is taken as it is
+let is_place(n:int64):bool {
+    let k:int64 = nodes[n].kind
+    return k == N_ID || k == N_FIELD || k == N_INDEX || k == N_DEREF
+}
+
+// a == b of Strings; one an expression gives is held in a temporary,
+// freed once compared, as kelvinc holds it (#187)
+let gen_string_eq(a:int64, b:int64) {
+    if is_place(a) && is_place(b) {
+        put("kv_string_eq(")
+        gen_place(a)
+        put(", ")
+        gen_place(b)
+        put(")")
+        return
+    }
+    serial += 1
+    let s:int64 = serial
+    put("({ __attribute__((cleanup(kv_string_free))) kv_string _kv_tmp")
+    put_int(s)
+    put(" = ")
+    if is_place(a) {
+        gen_expr(b)
+    } else {
+        gen_expr(a)
+    }
+    put("; kv_string_eq(")
+    if is_place(a) {
+        gen_place(a)
+    } else {
+        gen_place(b)
+    }
+    put(", &_kv_tmp")
+    put_int(s)
+    put("); })")
+}
+
+// a condition: a comparison without the parentheses C would warn of
+let gen_cond(n:int64) {
+    if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 || types[y].kind != Y_STRING {
+            gen_expr(nodes[n].a)
+            put(" ")
+            put_tok(nodes[n].t)
+            put(" ")
+            gen_expr(nodes[n].b)
+            return
+        }
+    }
+    gen_expr(n)
+}
+
+let gen_expr(n:int64) {
+    if failed { return }
+    let k:int64 = nodes[n].kind
+    let t:int64 = nodes[n].t
+    if k == N_ID && var_type(t) < 0 {
+        gen_error(n, "this name is not known")
+    } else if k == N_NUM || k == N_CHAR || k == N_STR || k == N_ID {
+        put_tok(t)
+    } else if k == N_DSTR {
+        put("KV_STRING_OF(")
+        let at:int64 = toks[t].at
+        for i in 1..<toks[t].len {
+            out += codes[at + i].uchr
+        }
+        put(")")
+    } else if k == N_BOOL {
+        put_tok(t)
+    } else if k == N_CALL {
+        gen_call(n)
+    } else if k == N_FIELD {
+        gen_field(n)
+    } else if k == N_METHOD {
+        gen_method(n)
+    } else if k == N_INDEX {
+        let y:int64 = type_of(nodes[n].a)
+        if y >= 0 && types[y].kind == Y_ARRAY {
+            put("(*")
+            put_array_name(y)
+            put("_at(")
+            gen_place(nodes[n].a)
+            put(", ")
+            gen_expr(nodes[n].b)
+            put("))")
+        } else {
+            gen_expr(nodes[n].a)
+            put("[")
+            gen_expr(nodes[n].b)
+            put("]")
+        }
+    } else if k == N_UNARY {
+        if tok_is(t, "!") { put("(bool)") }          // C's ! gives an int, which prints as 1
+        put("(")
+        put_tok(t)
+        gen_expr(nodes[n].a)
+        put(")")
+    } else if k == N_BIN {
+        let y:int64 = type_of(nodes[n].a)
+        if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
+            if tok_is(t, "!=") { put("(bool)!") }
+            gen_string_eq(nodes[n].a, nodes[n].b)
+        } else {
+            if is_comparison(t) { put("(bool)") }    // C's comparisons give an int
+            put("(")
+            gen_expr(nodes[n].a)
+            put(" ")
+            put_tok(t)
+            put(" ")
+            gen_expr(nodes[n].b)
+            put(")")
+        }
+    } else if k == N_CAST {
+        put("((")
+        put_ctype(nodes[n].ty)
+        put(")(")
+        gen_expr(nodes[n].a)
+        put("))")
+    } else if k == N_ADDR {
+        gen_place(nodes[n].a)
+    } else if k == N_DEREF {
+        put("(*")
+        gen_expr(nodes[n].a)
+        put(")")
+    } else if k == N_INIT {
+        put("{")
+        gen_args(nodes[n].b)
+        put("}")
+    } else if k == N_EMPTY {
+        put("{0}")
+    } else {
+        gen_error(n, "this expression is not known")
+    }
+}
+
+// ---------- statements ----------
+
+let gen_block(n:int64, depth:int64)
+let gen_stmt(n:int64, depth:int64)
+
+let indent(depth:int64) {
+    for i in 0..<depth { put("    ") }
+}
+
+// a variable, its type, its name, and its value or nothing
+let gen_var(n:int64) {
+    let y:int64 = nodes[n].ty
+    if is_owner(y) {
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+    }
+    put_ctype(y)
+    put(" ")
+    put_tok(nodes[n].t)
+    put(" = ")
+    if nodes[n].a < 0 {
+        if is_owner(y) || types[y].kind == Y_STRUCT {
+            put("{0}")
+        } else {
+            put("0")
+        }
+    } else {
+        gen_expr(nodes[n].a)
+    }
+    put(";\n")
+}
+
+// whether n reads an element of an Array, whose place a call may move
+let has_element(n:int64):bool {
+    if n < 0 { return false }
+    let k:int64 = nodes[n].kind
+    if k == N_INDEX {
+        let y:int64 = type_of(nodes[n].a)
+        if y >= 0 && types[y].kind == Y_ARRAY { return true }
+    }
+    if k == N_FIELD || k == N_INDEX || k == N_DEREF { return has_element(nodes[n].a) }
+    return false
+}
+
+// whether n calls a function, which may grow an Array
+let has_call(n:int64):bool {
+    if n < 0 { return false }
+    let k:int64 = nodes[n].kind
+    if k == N_CALL || k == N_METHOD { return true }
+    if k == N_INIT {
+        var a:int64 = nodes[n].b
+        while a >= 0 {
+            if has_call(a) { return true }
+            a = nodes[a].next
+        }
+        return false
+    }
+    return has_call(nodes[n].a) || has_call(nodes[n].b)
+}
+
+let gen_assign(n:int64) {
+    let lhs:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    let y:int64 = type_of(lhs)
+    if y < 0 { return }
+    let yk:int64 = types[y].kind
+    if yk == Y_STRING && tok_is(t, "=") {
+        put("kv_string_assign(")
+        gen_place(lhs)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_STRING && tok_is(t, "+=") {
+        put("KV_STRING_APPEND(")
+        gen_place(lhs)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_ARRAY && tok_is(t, "+=") {
+        put_array_name(y)
+        put("_append(")
+        gen_place(lhs)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+    } else if is_owner(y) {
+        gen_error(n, "an owner is assigned only as a String")
+    } else if has_element(lhs) && has_call(nodes[n].b) {
+        serial += 1                                   // the value first, then where it goes
+        put("{ ")
+        put_ctype(y)
+        put(" _kv_v")
+        put_int(serial)
+        put(" = ")
+        gen_expr(nodes[n].b)
+        put("; ")
+        gen_expr(lhs)
+        put(" ")
+        put_tok(t)
+        put(" _kv_v")
+        put_int(serial)
+        put("; }\n")
+    } else {
+        gen_expr(lhs)
+        put(" ")
+        put_tok(t)
+        put(" ")
+        gen_expr(nodes[n].b)
+        put(";\n")
+    }
+}
+
+let gen_return(n:int64) {
+    let a:int64 = nodes[n].a
+    if a < 0 {
+        put("return;\n")
+        return
+    }
+    let y:int64 = type_of(a)
+    if nodes[a].kind == N_ID && is_owner(y) {            // a local owner moves out
+        put("return ")
+        if types[y].kind == Y_STRING {
+            put("kv_string_take")
+        } else {
+            put_array_name(y)
+            put("_take")
+        }
+        put("(&")
+        put_tok(nodes[a].t)
+        put(");\n")
+        return
+    }
+    put("return ")
+    gen_expr(a)
+    put(";\n")
+}
+
+// for c in s { }: each codepoint of a String, or each element of an Array
+let gen_each(n:int64, depth:int64) {
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return }
+    serial += 1
+    put("{\n")
+    indent(depth + 1)
+    if types[y].kind == Y_STRING {
+        put("const uint8_t *_kv_p")
+        put_int(serial)
+        put(" = (")
+        gen_expr(nodes[n].a)
+        put(").b.at;\n")
+        indent(depth + 1)
+        put("const uint8_t *const _kv_e")
+        put_int(serial)
+        put(" = _kv_p")
+        put_int(serial)
+        put(" + (")
+        gen_expr(nodes[n].a)
+        put(").b.count;\n")
+        indent(depth + 1)
+        put("while (_kv_p")
+        put_int(serial)
+        put(" < _kv_e")
+        put_int(serial)
+        put(")\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put("const kv_uchr ")
+        put_tok(nodes[n].t)
+        put(" = (kv_uchr){kv_utf8_next(&_kv_p")
+        put_int(serial)
+        put(")};\n")
+        open_scope()
+        declare(nodes[n].t, base_type(Y_UCHR))
+    } else {
+        put("for (size_t _kv_i")
+        put_int(serial)
+        put(" = 0; _kv_i")
+        put_int(serial)
+        put(" < (")
+        gen_expr(nodes[n].a)
+        put(").count; _kv_i")
+        put_int(serial)
+        put("++)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put_ctype(types[y].elem)
+        put(" ")
+        put_tok(nodes[n].t)
+        put(" = (")
+        gen_expr(nodes[n].a)
+        put(").at[_kv_i")
+        put_int(serial)
+        put("];\n")
+        open_scope()
+        declare(nodes[n].t, types[y].elem)
+    }
+    indent(depth + 2)
+    gen_block(nodes[n].c, depth + 2)
+    close_scope()
+    indent(depth + 1)
+    put("}\n")
+    indent(depth)
+    put("}\n")
+}
+
+let gen_stmt(n:int64, depth:int64) {
+    if failed { return }
+    let k:int64 = nodes[n].kind
+    if k == S_BLOCK {
+        gen_block(n, depth)
+        return
+    }
+    indent(depth)
+    if k == S_VAR {
+        gen_var(n)
+        declare(nodes[n].t, nodes[n].ty)
+    } else if k == S_ASSIGN {
+        gen_assign(n)
+    } else if k == S_EXPR {
+        gen_expr(nodes[n].a)
+        put(";\n")
+    } else if k == S_IF {
+        put("if (")
+        gen_cond(nodes[n].a)
+        put(")\n")
+        indent(depth)
+        gen_block(nodes[n].b, depth)
+        if nodes[n].c >= 0 {
+            indent(depth)
+            put("else\n")
+            gen_stmt(nodes[n].c, depth)
+        }
+    } else if k == S_WHILE {
+        put("while (")
+        gen_cond(nodes[n].a)
+        put(")\n")
+        indent(depth)
+        gen_block(nodes[n].b, depth)
+    } else if k == S_FOR {
+        serial += 1
+        put("for (int64_t ")
+        put_tok(nodes[n].t)
+        put(" = ")
+        gen_expr(nodes[n].a)
+        put(", _kv_end")
+        put_int(serial)
+        put(" = ")
+        gen_expr(nodes[n].b)
+        put("; ")
+        put_tok(nodes[n].t)
+        put(" < _kv_end")
+        put_int(serial)
+        put("; ")
+        put_tok(nodes[n].t)
+        put("++)\n")
+        open_scope()
+        declare(nodes[n].t, base_type(Y_I64))
+        indent(depth)
+        gen_block(nodes[n].c, depth)
+        close_scope()
+    } else if k == S_EACH {
+        gen_each(n, depth)
+    } else if k == S_RETURN {
+        gen_return(n)
+    } else if k == S_BREAK {
+        put("break;\n")
+    } else if k == S_CONTINUE {
+        put("continue;\n")
+    } else {
+        gen_error(n, "this statement is not known")
+    }
+}
+
+// { statements }, written after an indent
+let gen_block(n:int64, depth:int64) {
+    put("{\n")
+    open_scope()
+    var s:int64 = nodes[n].a
+    while s >= 0 && !failed {
+        gen_stmt(s, depth + 1)
+        s = nodes[s].next
+    }
+    close_scope()
+    indent(depth)
+    put("}\n")
+}
+
+// ---------- declarations ----------
+
+let is_main(d:int64):bool {
+    return tok_is(nodes[d].t, "main")
+}
+
+let gen_signature(d:int64) {
+    put_ctype(nodes[d].ty)
+    put(" ")
+    put_tok(nodes[d].t)
+    put("(")
+    var p:int64 = nodes[d].a
+    if p < 0 { put("void") }
+    while p >= 0 {
+        if p != nodes[d].a { put(", ") }
+        put_ctype(nodes[p].ty)
+        put(" ")
+        put_tok(nodes[p].t)
+        p = nodes[p].next
+    }
+    put(")")
+}
+
+let gen_function(d:int64) {
+    current = d
+    gen_signature(d)
+    put("\n")
+    open_scope()
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        declare(nodes[p].t, nodes[p].ty)
+        p = nodes[p].next
+    }
+    if is_main(d) {
+        put("{\n")
+        if uses_io && nodes[d].a >= 0 {
+            put("    kv_sys_init(")
+            put_tok(nodes[nodes[d].a].t)
+            put(", ")
+            put_tok(nodes[nodes[nodes[d].a].next].t)
+            put(");\n")
+        }
+        put("    {\n")
+        var s:int64 = nodes[nodes[d].b].a
+        open_scope()
+        while s >= 0 && !failed {
+            gen_stmt(s, 2)
+            s = nodes[s].next
+        }
+        close_scope()
+        put("    }\n}\n")
+    } else {
+        gen_block(nodes[d].b, 0)
+    }
+    close_scope()
+    put("\n")
+}
+
+let gen_program() {
+    put("/* generated by kc, selfhost/kc.k */\n")
+    put("#if !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)\n")
+    put("#ifndef _XOPEN_SOURCE\n#define _XOPEN_SOURCE 700\n#endif\n")
+    put("#ifndef _DEFAULT_SOURCE\n#define _DEFAULT_SOURCE 1\n#endif\n")
+    put("#endif\n")
+    put("#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n")
+    put("#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <kelvin_prelude.h>\n")
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_IMPORT && nodes[d].flag == 1 {
+            put("#include <kOS.h>\n#include <kIO.h>\n")
+            uses_io = true
+        }
+    }
+    put("\n")
+    for i in 0..<decls.count as int64 {                  // the structs
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_STRUCT {
+            put("struct ")
+            put_tok(nodes[d].t)
+            put("\n{\n")
+            var f:int64 = nodes[d].a
+            while f >= 0 {
+                put("    ")
+                put_ctype(nodes[f].ty)
+                put(" ")
+                put_tok(nodes[f].t)
+                put(";\n")
+                f = nodes[f].next
+            }
+            put("};\n\n")
+        }
+    }
+    for i in 0..<arrays.count as int64 {                 // the Arrays of them
+        let y:int64 = arrays[i]
+        put("KV_ARRAY(")
+        put_ctype(types[y].elem)
+        put(", ")
+        put_array_name(y)
+        if types[types[y].elem].kind == Y_STRING {
+            put(", kv_string_free, kv_string_copy)\n")
+        } else {
+            put(", KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
+        }
+    }
+    put("\n")
+    for i in 0..<decls.count as int64 {                  // the globals
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_GLOBAL {
+            if nodes[d].flag == 1 { put("const ") }
+            put_ctype(nodes[d].ty)
+            put(" ")
+            put_tok(nodes[d].t)
+            put(" = ")
+            if nodes[d].a >= 0 {
+                gen_expr(nodes[d].a)
+            } else if is_owner(nodes[d].ty) || types[nodes[d].ty].kind == Y_STRUCT {
+                put("{0}")
+            } else {
+                put("0")
+            }
+            put(";\n")
+        }
+    }
+    put("\n")
+    for i in 0..<decls.count as int64 {                  // the prototypes
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_FN && nodes[d].b >= 0 && !is_main(d) {
+            gen_signature(d)
+            put(";\n")
+        }
+    }
+    put("\n")
+    for i in 0..<decls.count as int64 {                  // the functions
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed { gen_function(d) }
+    }
+}

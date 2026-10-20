@@ -235,6 +235,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 201 | examples/ski.k: SKI combinator logic, reduced leftmost-outermost to a normal form or a limit of steps, and Iota (`*` and `i`) and Jot (bits) compiled to it; `-iota` and `-jot` read a term of either from the command line, and a term of SKI otherwise | — | `kelvinc --run examples/ski.k -- 'S(K(SI))Kab'` | 2026-10-20 |
 | 202 | examples/lambda.k: the untyped lambda calculus written with `λ`, never `\`: `λx y.M` for `λx.λy.M`, a number its Church numeral, a name in capitals one of Wikipedia's definitions (TRUE, AND, SUCC, PLUS, MULT, POW, PRED, SUB, ISZERO, Y, FACT, ...); normal-order reduction over de Bruijn indices, the names given back with `′` where one would capture; a term from the command line | — | `kelvinc --run examples/lambda.k -- 'PLUS 2 3'` | 2026-10-20 |
 | 203 | `c ? a : b` of owners: `return c ? a : b` moves whichever arm it gives, a local or a parameter taken; two places, `c ? s : t`, are a place, read where they are and never copied by `=` or moved into a call; a place beside a value an expression gives is an error but where it is returned; `xs += c ? x : y` appends an element | — | `return paren ? $"(" + s + ")" : s` | 2026-10-20 |
+| 204 | selfhost/, a proof of concept, not in CI: kc, a compiler of a subset of Kelvin written in that subset alone (the prelude and `<IO>`; libc is allowed, as to C, but C of our own is not), which writes C as kelvinc does for the same runtime and runs cc; selfhost/bootstrap.sh builds stage1 by kelvinc, stage2 by stage1, stage3 by stage2, and checks that stage2 and stage3 write the same C of kc, and that sample.k prints the same built by kc and by kelvinc; selfhost/README.md lists the difficulties of a Kelvin kelvinc | — | `selfhost/bootstrap.sh` | 2026-10-20 |
 
 Notes:
 
@@ -796,6 +797,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (204) Agreed details: "Is it possible to self-host kelvin?", with
+  selfhost/ and every .k in it, no CI, pure Kelvin (`#import <x> as C`
+  is cheating), the prelude, Kelvin modules and `<IO>`, stages as gcc
+  has, and the difficulties listed. kc reads the subset it is written
+  in: every variable typed, plain structs, String, Array, IO, pointers;
+  its C is kelvinc's in form, so the runtime is shared. It found a bug
+  of kelvinc: `a[i].f = g()`, g growing a, writes freed memory under
+  gcc, C finding the place before the call; kc's source avoids it and
+  kc's own C does not have it. Then: "When we self-host, we can still
+  depend on libc (or libSystem if you are on macOS) ... Kelvin was born
+  to embrace it rather than refusing it": only C of our own is cheating,
+  and the README's list says what libc takes off it (P216).
 
 - (203) Agreed details: "fix the return ternary bug as #203", the bug
   #202 found. It was wider than return: kelvinc took `c ? s : t` for a
@@ -2183,6 +2197,7 @@ says "as agreed".
 | P213 | Details of #201 | `struct node { kind: uint8; fun: int64; arg: int64 }` in `var pool:$[node]`, a global owner filled by main; `step` unwinds the spine into an Array of arguments, the last first, and reduces I, K or S at the head, else the first argument that steps; `normal` stops after `limit` steps with " ..."; `show` puts an argument that is an application in parentheses; a node's kind is a `uint8`, shown by `.uchr`, since a character literal is C's `int` and a `uchr` C's struct | — |
 | P214 | Details of #202 | `struct node { kind: uint8; n: int64; a: int64; b: int64 }` in `var pool:$[node]`, names in `var names:$[String]`, definitions in `var defs:$[int64]`, all global owners; a definition is closed, so its node is shared where its name is read; shift and subst as Pierce has them; `show` primes a binder whose name a binder around it or a free variable has; the reader's functions take a `reader^`, since a method cannot change self, and `term` is a prototype first; `kelvinc --run file -- args` passes args, which ski.k's comment now says too | — |
 | P215 | Details of #203 | owner_place of a ?: (not `??`) is that of both arms; a ?: whose arms differ so is listed with its place's name, return_owner takes it off and moves each arm, and implicit_return reports what is left once a body is read, since only then is it known what is returned; codegen's moves_out and moved_out write `c ? take(&a) : b`; the Array append's `x->c` mark is not a ?:'s arm; tests/run/owner_choice.k and tests/error/owner_choice_*.k | — |
+| P216 | Details of #204 | lex.k: one Array of codepoints for every file, tokens by offset, a newline token outside ( ) and [ ]; parse.k: nodes and types in Arrays by index, children set through set_a and its kin; gen.k: type_of and gen_expr, owners freed by cleanup, Strings compared through temporaries, a value computed before an Array element it is assigned to; kc.k: `-o`, `-c`, `-m`, `-cc`, imports read after the main file, since kc writes every struct, Array and prototype first; build/selfhost/ holds the stages | kelvinc's `a[i].f = g()` under gcc; the rest of the language (selfhost/README.md) |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

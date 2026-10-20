@@ -242,6 +242,13 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc --lib geo.k       # builds the module geo: modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
 ```
 
+## Self-hosting
+
+- [selfhost/](selfhost/README.md) is a proof of concept (#204): `kc`, a
+  compiler of a subset of Kelvin, written in that subset alone, which
+  `selfhost/bootstrap.sh` builds in stages to a fixpoint.
+  - Its README lists what stands in the way of a Kelvin kelvinc.
+
 ## Editors
 
 - **VS Code**: [editors/vscode](editors/vscode) colors Kelvin with a

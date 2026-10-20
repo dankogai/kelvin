@@ -5030,3 +5030,41 @@ in ownership.md; lambda.k returns its ?: again. Details are provisional
 P215.
 
 There are 815 tests, and all pass with clang and with gcc 15.
+
+### 247. Self-hosting, a proof of concept
+
+> Is it possible to self-host kelvin? dig `selfhost/` and put every `.k`
+> in it. no CI yet. It is still a proof-of-concept. The code must be
+> purely written in Kelvin. `#import <whatever> in C` is considered
+> cheating. You can use prelude and modules purely written in kelvin and
+> `<IO>` so you can load source `.k` and emit `.o` or executables. like
+> gcc, self-hosting capability is verified by stages. list all
+> difficulties that get in a way to make kelvin self-hosting. So we can
+> make it easier next dialogues.
+
+**Claude** added #204: selfhost/kc.k with lex.k, parse.k and gen.k, a
+compiler of a subset of Kelvin written in that subset, writing C as
+kelvinc does and running cc through `IO.exec`. selfhost/bootstrap.sh
+builds stage1 by kelvinc, stage2 by stage1, stage3 by stage2: stage2
+and stage3 write the same C of kc, 2783 lines, and sample.k prints the
+same built by kc and by kelvinc; gcc 15 and ASan agree. It found that
+kelvinc's `a[i].f = g()` writes freed memory under gcc when g grows a.
+selfhost/README.md lists the difficulties. Details are provisional P216.
+
+There are 815 tests, and all pass with clang and with gcc 15.
+
+### 248. libc is allowed
+
+> When we self-host, we can still depend on libc (or libSystem if you are
+> on macOS). That is one thing common with C and Kelvin was born to
+> embrace it rather than refusing it like many modern languages.
+
+**Claude** took it as the rule of #204: a self-hosted Kelvin depends on
+libc as C does, and only C of our own, `#inline C` or headers and
+libraries written for it, is cheating. selfhost/README.md now says so:
+`getenv`, `mkdtemp` and `exit` take the environment, the temporary
+directory and the exit off the list of difficulties, once kc reads
+`#import <x.h> as C`; the `$/.../` check, the runtime and a backend of
+its own stay on it.
+
+There are 815 tests, and all pass with clang and with gcc 15.
