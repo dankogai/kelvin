@@ -86,6 +86,20 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
     lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false};
 }
 
+/* s[0..n) with a backslash before each '?' that follows a '?': Kelvin has
+   no trigraphs (#220), which C11 reads before anything else, in a string,
+   a character or a comment, as it reads two '?' and a '!' as a '|'. \? is
+   C's escape of ?, so the text is the same */
+static char *untrigraphed(const char *s, size_t n) {
+    Buf b = {0};
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '?' && i > 0 && s[i - 1] == '?')
+            buf_puts(&b, "\\");
+        buf_putn(&b, s + i, 1);
+    }
+    return b.buf ? b.buf : xstrdup("");
+}
+
 /* runtime/regexp_parse.c, linked into kelvinc: is the pattern one? (#163) */
 const char *rx_check(const char *pattern, const char *flags, size_t *at);
 
@@ -279,7 +293,9 @@ static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
         step(lx);
     }
     step(lx);
-    push(lx, kind, pos, start, lx->p);
+    char *text = untrigraphed(start, (size_t)(lx->p - start)); /* never a C trigraph (#220) */
+    push(lx, kind, pos, text, text + strlen(text));
+    free(text);
 }
 
 /* A template literal's text from the cursor (after its backquote, or
@@ -508,6 +524,9 @@ static void lex_inline_c(Lexer *lx, Pos pos) {
             depth++;
         if (c == '}' && --depth == 0)
             break;
+        if (c == '?' && lx->p[1] == '?')
+            error_at(here(lx), "'?\?' in '#inline C' is a trigraph of C, which Kelvin does not have (#220): write what it "
+                               "stands for");
         step(lx);
     }
     const char *end = lx->p;
@@ -515,7 +534,10 @@ static void lex_inline_c(Lexer *lx, Pos pos) {
     skip_blanks(lx);
     if (!line_ends(lx))
         error_at(here(lx), "unexpected text after the '}' of '#inline C'");
-    push(lx, TK_INLINE_C, pos, start, end);
+    /* its strings, characters and comments have no trigraph either (#220) */
+    char *text = untrigraphed(start, (size_t)(end - start));
+    push(lx, TK_INLINE_C, pos, text, text + strlen(text));
+    free(text);
 }
 
 /* The directives: #import <header.h> as C (or "header.h"), which becomes
@@ -571,6 +593,9 @@ static void lex_import(Lexer *lx) {
     skip_blanks(lx);
     if (!line_ends(lx))
         error_at(here(lx), "unexpected text after '#import ... as C'");
+    for (const char *q = start; q + 1 < end; q++) /* a header name has no escapes to break one with */
+        if (q[0] == '?' && q[1] == '?')
+            error_at(pos, "a header name with '?\?' is a trigraph of C, which Kelvin does not have (#220)");
     push(lx, TK_IMPORT, pos, start, end);
 }
 

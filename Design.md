@@ -251,6 +251,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 217 | kc reads `T?`, `Optional<T>` and `Result<T, E>`, making each the enum with values kelvinc makes, `struct _kv_opt_T` of none and some, `struct _kv_res_T_E` of ok and err; `none`, `ok(v)` and `err(e)` by the type that takes them, a T where a T? goes as some(T), `some(v)` a pattern alone; `x ?? d`; `if let c(v) = x { } else { }`; kc's `load` gives a Result and `case_named` an Optional | — | `let load(path:String^):Result<int64, String>` in selfhost/kc.k | 2026-10-20 |
 | 218 | `d[k]` read whole is an Optional, `some` of a copy of the value or `none` where the key is missing; going into it is the place it was, checked: `d[k] = v`, `+=`, `d[k].m`, `d[k][i]`, `&d[k]`, `d[k]!`; postfix `x!` unwraps any Optional or ends the program, as `x.some`; `x?.m`, `x?.f(...)` and `x?[i]` chain as Swift's, `none` of `none`, an Optional the chain gives not wrapped again; an Optional where a value goes is an error that names `!` and `??`; `x ?? d` of an Optional of an Optional wraps `d` | — | `ages["bob"] ?? 0`, `ages["ann"]!`, `words["a"]?.count` | 2026-10-20 |
 | 219 | kc reads `d[k]` whole as kelvinc does since #218: a `V?`, `some` of a copy of the entry's value or `none`; going into it is the place, checked; an Optional where a value goes is kc's error, naming `!` and `??` | — | `let seen = counts["c"]`, `if let some(t) = tags[3]` | 2026-10-21 |
+| 220 | Kelvin has no trigraphs: `"what??!"` is the text as written; kelvinc writes a `?` after a `?` as C's `\?` in string literals, `#inline C`'s strings, characters and comments, a `.typename` and a `#line`'s file name; a `??` in `#inline C`'s code, or in the name of a header imported as C, is an error; kc writes its strings so too | — | `println("what??!")` | 2026-10-21 |
 
 Notes:
 
@@ -812,6 +813,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (220) Agreed details: "fix the trigraph bug as #220. WE DO NOT
+  SUPPORT TRIGRAPHS. It is terribly obsolete in the age of Unicode."
+  C11 reads trigraphs in -std=c11 before anything else, and gcc has no
+  switch to stop it (clang's -fno-trigraphs is clang's alone), so
+  kelvinc writes C with none: `\?` is C's escape of `?`, and the text is
+  the same. Templates, `"""` and `$/.../` escaped every `?` already;
+  `"..."` and `#inline C` did not. A `??` in `#inline C`'s code could
+  only be a trigraph, and a header name has no escapes, so both are
+  errors. kc's message of #219 says `'??'` again.
 
 - (219) Agreed details: "teach kc d[k] as an Optional as #219". kc
   makes the `V?` of a Dictionary's `V` as it reads `Dictionary<K, V>`,
@@ -2331,6 +2342,7 @@ says "as agreed".
 | P229 | Details of #217 | lex.k: `??`, and eof_pos, the end of the files' tokens, after which made_token puts the names kc makes, which the parser's cursor never reaches; parse.k: optional_of and result_of make an enum once each, by name, in made_enums, its c 1 of an Optional; S_IFLET; `??` binds tighter than a comparison and looser than `+`; gen.k: gen_value makes a case where a type expects one, by gen_var, gen_return, gen_assign and gen_args_to; gen_coalesce reads x once, an Optional that owns refused; gen_iflet holds what an expression gives and frees it; an owning enum with values is assigned as kelvinc's _assign does | kelvinc's own message for a bare some(v); Optional<T>.some(v) in kc |
 | P230 | Details of #218 | parser.c: place_follows decides, after `]` of a Dictionary, whether d[k] is a place or read whole, a dict_lookup of type V?; unwrapped builds x.some's E_FIELD, holding an owner an expression gives (#187), and keeps d[k] the place; chained reads the rest of the postfix chain of a hidden binding, `_kv_chainN`, of the value, and copies a member that owns out of it; `&` of a dict_lookup is its place; reject_record_mismatch refuses an Optional where a non-Optional goes, in variables, assignments and returns; `??` wraps its default where the value is an Optional; codegen.c: dict_lookup and chain by the Dictionary's _find, the Optional read once; tests that printed d[k] read d[k]!; kc: x!, and d[k] read whole refused | kc making d[k] an Optional; `x?` alone, which `x` already is |
 | P231 | Details of #219 | parse.k: Dictionary<K, V> makes optional_of(V); gen.k: type_of of a Dictionary's N_INDEX of flag 1 is V?; gen_lookup writes `({ __auto_type _kv_p = D_find(&d, k); _kv_p ? make_some(*_kv_p or T_copy(_kv_p)) : make_none(); })`; is_place is false of it; gen_value refuses an Optional where a non-Optional goes; sample.k reads counts["c"], counts["none"] ?? -1 and if let some(t) = tags[3] | kc's `x?.m`; kelvinc's strings of `??x`, which C11 reads as trigraphs |
+| P232 | Details of #220 | lexer.c: untrigraphed(s, n) puts a backslash before each `?` after a `?`; lex_quoted's tokens and #inline C's text go through it; a `??` in #inline C's code and in a C header's name is an error; codegen.c: c_file_name escapes `"`, `\\` and `??` of both #line writers, the pinned one escaped now too; parser.c: .typename's literal; gen.k: put_text of N_STR and N_DSTR; tests: run/no_trigraphs.k, error/inline_c_trigraph.k, error/import_trigraph.k | trigraphs in a header kelvinc does not write, which are C's |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

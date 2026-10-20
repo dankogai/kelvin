@@ -116,6 +116,8 @@ kc reads what it is written in, and little more.
   `false`, calls, `.member`, `.method()`, `a[i]`, `&x`, `p^`, `x as T`,
   `{a, b}` of a struct, `$[]`, `${:}`, and
   `! - * / % + - < <= > >= == != && ||`.
+  - A `?` after a `?` in a string is written `\?`, as kelvinc writes
+    it: Kelvin has no trigraphs (#220).
 - **Of the prelude and IO:** `.count`, `.copy()`, `.cstr`, `.pop()`,
   `.uchr`, `.utf32`, `String(text)`, `String(n)` of a number or a
   `bool` (#212), `println`, `IO(path, mode)`,

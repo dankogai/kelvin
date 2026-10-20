@@ -69,6 +69,12 @@ let main():int32 {
   - Nothing but a comment may follow the closing `}` on its line.
 - **What it may hold:** any C at file scope: functions, globals,
   typedefs, and the preprocessor (`#include`, `#define`, `#if`).
+- **No trigraphs** (#220), as in the rest of Kelvin:
+  - in its strings, characters and comments, `??!` is as written:
+    kelvinc writes a `?` after a `?` as `\?`;
+  - a `??` in its code is an error, since it could only be a trigraph;
+  - so is a `??` in the name of a header imported as C, which has no
+    escapes.
 - **Kelvin's side:** its names are used as an imported header's are.
   - kelvinc does not read C, so a call is not checked by kelvinc; the C
     compiler checks it.

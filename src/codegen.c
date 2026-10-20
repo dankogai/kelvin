@@ -105,9 +105,21 @@ static void line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
    code such as a derived .cstr) */
 static Pos pinned_line;
 
+/* a file's name in a C string: \ and " escaped, and a '?' after a '?',
+   so that C reads no trigraph in it (#220) */
+static const char *c_file_name(const char *file) {
+    Buf name = {0};
+    for (const char *c = file; *c; c++) {
+        if (*c == '"' || *c == '\\' || (*c == '?' && c > file && c[-1] == '?'))
+            buf_puts(&name, "\\");
+        buf_putn(&name, c, 1);
+    }
+    return name.buf ? name.buf : "";
+}
+
 static void line(const char *fmt, ...) {
     if (line_directives && pinned_line.file)
-        buf_printf(&out, "#line %d \"%s\"\n", pinned_line.line, pinned_line.file);
+        buf_printf(&out, "#line %d \"%s\"\n", pinned_line.line, c_file_name(pinned_line.file));
     for (int i = 0; i < indent; i++)
         buf_puts(&out, "    ");
     va_list ap;
@@ -129,13 +141,7 @@ static void sync(Pos p) {
     if (!line_directives || (mapped_line == p.line && mapped_file && !strcmp(mapped_file, p.file)))
         return;
     mapped_file = p.file;
-    Buf name = {0};
-    for (const char *c = p.file; *c; c++) {
-        if (*c == '"' || *c == '\\')
-            buf_puts(&name, "\\");
-        buf_putn(&name, c, 1);
-    }
-    buf_printf(&out, "#line %d \"%s\"\n", p.line, name.buf);
+    buf_printf(&out, "#line %d \"%s\"\n", p.line, c_file_name(p.file));
     mapped_line = p.line;
 }
 

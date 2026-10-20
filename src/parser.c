@@ -6229,7 +6229,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
             Buf lit = {0}; /* a C string literal */
             buf_puts(&lit, "\"");
             for (const char *ch = text; *ch; ch++) {
-                if (*ch == '"' || *ch == '\\')
+                if (*ch == '"' || *ch == '\\' || (*ch == '?' && ch > text && ch[-1] == '?')) /* T??: no trigraph (#220) */
                     buf_puts(&lit, "\\");
                 buf_putn(&lit, ch, 1);
             }

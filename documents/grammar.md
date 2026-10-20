@@ -148,6 +148,12 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 - **`"..."`** is C's string literal (#52).
   - The escapes are C's, `\n`, `\t`, `\"`, `\\`, `\x41`, `\u00e9`.
   - Adjacent literals join, `"a" "b"`.
+  - **No trigraphs** (#220): `"what??!"` is the text as written.
+    - C11 reads `??` and one of `= ( / ) ' < ! > -` as another
+      character before anything else, so `??!` would be `|`, and `??/`
+      a `\` that breaks the literal.
+    - kelvinc writes a `?` after a `?` as C's escape `\?`, in every
+      quoted text, a `.typename` and a `#line`'s file name.
   - The text lives for the whole program and cannot be written through.
   - A `cstr` is a reference, so `let s := "hi"`; see
     [strings.md](strings.md).

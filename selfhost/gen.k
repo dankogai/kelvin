@@ -28,6 +28,16 @@ let put_tok(t:int64) {
     }
 }
 
+// a string's token from its from-th code, a '?' after a '?' escaped:
+// Kelvin has no trigraphs, which C11 would read in it (#220)
+let put_text(t:int64, from:int64) {
+    let at:int64 = toks[t].at
+    for i in from..<toks[t].len {
+        if codes[at + i] == '?' && i > from && codes[at + i - 1] == '?' { out += "\\" }
+        out += codes[at + i].uchr
+    }
+}
+
 let put_int(n:int64) {
     out += String(n)                             // a number's text (#212)
 }
@@ -764,8 +774,8 @@ let gen_cond(n:int64) {
 // owner moves in; else the expression as it is
 let gen_value(n:int64, y:int64) {
     let d = tagged_of(y)
-    if d < 0 && y >= 0 && !failed && some_type(type_of(n)) >= 0 {     // as kelvinc says it (#219); ?\? is no trigraph
-        gen_error(n, "this is an Optional where a value goes: unwrap it with '!', or give a default with '?\?'")
+    if d < 0 && y >= 0 && !failed && some_type(type_of(n)) >= 0 {     // as kelvinc says it (#219)
+        gen_error(n, "this is an Optional where a value goes: unwrap it with '!', or give a default with '??'")
         return
     }
     if d < 0 || failed {
@@ -866,14 +876,13 @@ let gen_expr(n:int64) {
         put("NULL")
     } else if k == N_SELF {
         put("self")
-    } else if k == N_NUM || k == N_CHAR || k == N_STR || k == N_ID {
+    } else if k == N_NUM || k == N_CHAR || k == N_ID {
         put_tok(t)
+    } else if k == N_STR {
+        put_text(t, 0)
     } else if k == N_DSTR {
         put("KV_STRING_OF(")
-        let at:int64 = toks[t].at
-        for i in 1..<toks[t].len {
-            out += codes[at + i].uchr
-        }
+        put_text(t, 1)
         put(")")
     } else if k == N_BOOL {
         put("((bool)")                           // C's true is an int, which String(...) would write as 1 (#212)

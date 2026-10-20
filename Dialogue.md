@@ -5277,3 +5277,18 @@ Kelvin string into C as it is, which C11 reads as a trigraph; that is
 left for a change of its own. Details are provisional P231.
 
 There are 821 tests, and all pass with clang and with gcc 15.
+
+### 264. No trigraphs
+
+> fix the trigraph bug as #220.  WE DO NOT SUPPORT TRIGRAPHS.  It is
+> terribly obsolete in the age of Unicode.
+
+**Claude** added #220: kelvinc writes a `?` after a `?` as `\?` in
+every string literal, in `#inline C`'s strings, characters and
+comments, in a `.typename` and in a `#line`'s file name, so that
+`"what??!"` prints as written with clang and with gcc, neither of which
+`-std=c11` lets stop reading trigraphs portably. A `??` in `#inline C`'s
+code, or in a C header's name, is an error. kc writes its strings the
+same way. Details are provisional P232.
+
+There are 824 tests, and all pass with clang and with gcc 15.
