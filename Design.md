@@ -239,6 +239,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 205 | `a[i].f = g()` makes g's value first, then finds the element: C evaluates the two in no order it promises, and gcc found the place first, so where g grew `a` the value went where its elements had been; `+=` and the rest too, a `Bytes`'s bytes, and the arguments of a method of an element, `xs[i].name += f()`; a call counts where it may reach the program's code, not the prelude's | — | `cells[0].v = grow()` | 2026-10-20 |
 | 206 | `xs += &x`, `xs.append(&x)` and `xs.insert(i, &x)` of one element append a copy of `x`, by the copy of its type, a String's, a struct's that owns, an Array's, or the value of a plain one; it was C that did not compile, the pointer passed for the value, for every type of element, though the message for `xs += x` of an owner says to write `&x`; `&ys` of an Array of the same type is its elements, as before | — | `cells += &c` | 2026-10-20 |
 | 207 | kc reads `#import <x.h> as C`: the header is included, and with one imported a name kc does not know is C's, unchecked, as kelvinc has it, with `nullptr`, `:=` of a `cstr` and a typedef as a type; kc uses libc itself: `getenv` for `KELVIN_HOME` (its modules/), `CC` and `TMPDIR`, and a temporary C file named by `getpid`, removed once cc is done | — | `#import <stdlib.h> as C` in selfhost/kc.k | 2026-10-20 |
+| 208 | documents/c-contract.md writes down the C a program becomes, which another compiler of Kelvin must write to meet libkelvin and kelvinc's modules: the head of the file and its order, the build and its flags, GNU C's extensions it needs, the types of Kelvin in C, KV_ARRAY, KV_DICT and KV_SET, enums with values, Optional and Result, the four functions of an owner, cleanup and take, the names and their mangling, main and the runtime; provisional, as kelvinc's output is | — | documents/c-contract.md | 2026-10-20 |
 
 Notes:
 
@@ -800,6 +801,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (208) Agreed details: "write down the C contract as #208", the next
+  step of selfhost/README.md. Every claim is read from kelvinc's
+  output for probes of each feature, and from its name_functions and
+  anon_name. A probe found a bug of kelvinc, left for a change of its
+  own: `d[$"a"] = 1`, a Dictionary's entry by a String an expression
+  gives, holds the key in a temporary around the place, which C cannot
+  assign (P220).
 
 - (207) Agreed details: "teach kc #import <x.h> as C as #207", the next
   step selfhost/README.md listed once libc was allowed (#204). mkdtemp
@@ -2222,6 +2231,7 @@ says "as agreed".
 | P217 | Details of #205 | element_first in codegen.c, before a statement of an assignment or a method: where its place is in an Array's or a Bytes's elements (in_elements) and its value calls (calls_in: a call or a method without op, or with a target or a method; a temporary by what it holds; an E_STRING's items are its text), it writes `{ __typeof__(place) _kv_value = value; place = _kv_value; }`, or `__auto_type _kv_arg` for each argument that calls; tests/run/element_first.k | — |
 | P218 | Details of #206 | element_copy in parser.c turns a borrow whose pointee is the element's type into an E_CALL of op element_copy, its type the element's, at `+=` and at `.append` and `.insert`; codegen writes the type's _copy of the pointer, or `*(p)` of a type that does not own; tests/run/append_borrow.k | — |
 | P219 | Details of #207 | lex.k: `:=`; parse.k: D_IMPORT flag 2 of a name ending .h, `c_headers`, N_NULL, Y_C, `:=` in a variable; gen.k: an unknown name or call is Y_C where `c_headers`, a struct type no struct declares is a C typedef, `#include` of the header; kc.k: env_or, append_int, `-m` from `$KELVIN_HOME/modules`; sample.k uses strlen, abs, getenv and size_t | mkdtemp, exit |
+| P220 | Details of #208 | a document, no code: listed in documents/README.md and versusC.md; c-contract.md's fences are `c` and `sh`, which tests/docs.sh does not compile | `d[$"a"] = 1` of a Dictionary, a kelvinc bug |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

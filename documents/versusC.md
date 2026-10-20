@@ -145,6 +145,7 @@ Each document says so under its title. In short:
 | [properties.md](properties.md) | `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull` |
 | [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/math.k`, a module as `M.kh` and `libkM`, `kelvinc --lib` |
 | [c-interfaces.md](c-interfaces.md) | C headers, typedefs, C's functions, `libkelvin` from C, the C compiler |
+| [c-contract.md](c-contract.md) | the C a program becomes: the file, the build, types, owners, names, main (#208) |
 
 ## Reserved words
 

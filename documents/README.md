@@ -68,6 +68,9 @@ the design decisions, numbered `#N` throughout, are in
   `#import <OS>`.
 - [c-interfaces.md](c-interfaces.md): C headers, typedefs, C's
   functions, `libkelvin` from C, the C compiler.
+- [c-contract.md](c-contract.md): the C a program becomes, which
+  another compiler of Kelvin must write: the file, the build, types,
+  owners, names, main.
 
 ## Modules
 

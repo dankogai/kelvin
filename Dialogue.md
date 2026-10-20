@@ -5107,3 +5107,15 @@ and C's typedefs; and kc itself uses libc: `KELVIN_HOME`, `CC` and
 abs and getenv. Details are provisional P219.
 
 There are 817 tests, and all pass with clang and with gcc 15.
+
+### 252. The C contract
+
+> write down the C contract as #208
+
+**Claude** added #208, documents/c-contract.md: the C a Kelvin program
+becomes, read from kelvinc's output and its naming code, so that a
+second compiler, as kc is, has it in writing. A probe found a bug of
+kelvinc, `d[$"a"] = 1`, whose C cannot assign the entry, left for a
+change of its own. Details are provisional P220.
+
+There are 817 tests, and all pass with clang and with gcc 15.

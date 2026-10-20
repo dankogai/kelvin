@@ -195,8 +195,9 @@ libc is allowed, as it is to any C program; C of our own is not.
   - kc writes `KV_ARRAY(...)`, `KV_STRING_APPEND`, `kv_io_*` and the
     `_kv_array_i64` names as kelvinc does;
   - GNU C's statement expressions and `cleanup` attribute;
-  - all of it read from kelvinc's output, with nothing to say what is
-    fixed.
+  - written down since #208 in
+    [documents/c-contract.md](../documents/c-contract.md), from
+    kelvinc's output.
 - **Modules:** a module built by kelvinc names its functions by their
   types. To link one, kc would have to mangle as kelvinc does; `<IO>`
   works because its functions are C's.
@@ -205,9 +206,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 
 Each of these is one change of its own:
 
-1. Write down the C a program becomes: the prelude's macros, the names
-   kelvinc makes, the mangling. A second compiler then has a contract.
-2. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
+1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
    - `switch` on enums;
    - `Dictionary` for names;
@@ -215,6 +214,6 @@ Each of these is one change of its own:
    - methods of `extend`;
    - inference of literals;
    - `Optional` and `Result`.
-3. Run kc on the tests of tests/run.sh that fit the subset, to count how
+2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.
-4. Then CI: `selfhost/bootstrap.sh` as a job.
+3. Then CI: `selfhost/bootstrap.sh` as a job.
