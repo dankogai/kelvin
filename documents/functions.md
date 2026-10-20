@@ -279,8 +279,9 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
 ## Overloading: functions of one name
 
 Functions of one name may take different parameter types, and each call
-gets the one its arguments' types fit (#41). A Kelvin function of a C
-function's name overloads C's, which still takes the numbers:
+gets the one its arguments' types fit (#41). C's function of a name is
+called only where no Kelvin function has the name (#223); beside one, C's
+is declared, and is then an overload too:
 
 ```swift
 #import <math.h> as C
@@ -289,6 +290,7 @@ struct vec { x: float64; y: float64 }
 
 let twice(n:int64):int64 { n * 2 }
 let twice(x:float64):float64 { x * 2.0 }
+let sqrt(x:float64):float64                                // C's, declared
 let sqrt(v:vec):float64 { sqrt(v.x * v.x + v.y * v.y) }   // the inner sqrt is C's
 
 let main():int32 {
@@ -298,6 +300,13 @@ let main():int32 {
 }
 ```
 
+- **C's function of the name** is called only where no Kelvin function
+  of the name is declared before the call (#223).
+  - Beside a Kelvin one, declare C's, `let sqrt(x:f64):f64`: a
+    function the program declares but never defines is C's, keeps its
+    C name, and is an overload like any other.
+  - Arguments that fit no overload are an error, never a call of C's.
+  - A call before the Kelvin function is declared is C's, as in C.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.
@@ -309,6 +318,8 @@ let main():int32 {
     - A comparison is a `bool`, an enumerator its enum, and `n * 2` the
       type C gives it (a literal in arithmetic is C's `int`, so
       `small * 4` is an `i32`).
+    - A text literal fits a `String`, which it becomes (#223): with
+      `h(v:String)` and `h(v:i64)`, `h("x")` calls the first.
   - A tie is an error, as for an `i32` given to `twice` above: convert
     it, `twice(n as i64)`.
   - **Optionals and Results** (#222):
@@ -319,8 +330,9 @@ let main():int32 {
       first, `g(none)` the second.
     - A `none` that two Optionals take is a tie: say which, as in
       `f(Optional<i64>())`.
-  - Where no overload fits, C's own function of the name is called
-    *(provisional P52)*.
+  - Where no overload fits, it is an error (#223).
+  - An owner given where an overload takes a borrow of it is an error
+    that says to pass `&x`.
 - **Where only C sees a type**, as for what a C function returns, C
   chooses.
   - Structs, pointers and C typedefs by their type, numbers by their
@@ -331,13 +343,9 @@ let main():int32 {
   - A number of a type no overload takes goes to the one that takes a
     number there, and a pointer to the one that takes a pointer
     (`char *` to a `u8^`).
-    - Where none does, to C's own function of the name where the
-      program calls it, as in `sqrt(fabs(x))`.
-    - Where several do, C reports `kv_no_such_overload`
-      *(provisional P52)*.
-  - A library that overloads a C function declares it,
-    `let tanh(x:f64):f64`, so that it takes such numbers whether or not
-    the program calls it.
+    - Where none does, or several do, C reports `kv_no_such_overload`.
+    - C's own function is among them only where it is declared, as
+      `let sqrt(x:f64):f64` makes `sqrt(fabs(x))` C's (#223).
   - gcc gives a bit-field of a C header no type C can choose by, and a
     C macro like `isnan` cannot take such a value beside an overload of
     its name.
@@ -349,13 +357,15 @@ let main():int32 {
 - **A function's name as a value** is the overload of the function type
   wanted: `let f:(i64):i64 := twice`, a parameter of that type, or a
   function's result.
-  - Where no Kelvin overload has that type, it is C's own function:
-    `let g:(f64):f64 := sqrt`.
+  - Where no Kelvin overload has that type, it is an error (#223): C's
+    function, declared, is one, as `let g:(f64):f64 := sqrt` beside
+    `let sqrt(x:f64):f64`.
   - An anonymous function given to an overloaded function writes its
     parameters' types where the overloads differ in them.
 - **In C**, a function with overloads, one from an imported file, and
-  one that shares a name with a C function the program calls are named
-  by their parameter types, as `twice__i64` and `sqrt__vec`.
+  one that shares a name with a C function the program calls before it
+  is declared are named by their parameter types, as `twice__i64` and
+  `sqrt__vec`.
   - The program's other functions keep their names, and so does a
     function it declares but never defines, which is C's.
   - A Kelvin function of a C function's name that the program neither

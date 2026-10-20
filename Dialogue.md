@@ -5325,3 +5325,23 @@ names `Optional<i64>()`. Found: with overloads, `f("text")` goes to C
 where one takes a `String`. Details are provisional P234.
 
 There are 826 tests, and all pass with clang and with gcc 15.
+
+### 267. C's function iff no Kelvin one
+
+> fix the String literal overload bug as #223.  Let us make it so C
+> function is used iff no kelvin function with a same name exists.
+> Update functions.md accordingly.
+
+**Claude** added #223: beside a Kelvin function of its name, C's function
+is no longer the fallback for arguments no overload takes; it is called
+only where it is declared, `let sqrt(x:f64):f64`, which makes it an
+overload, as `#import <math>` already does. Arguments that fit no
+overload are an error, as is a function value of no overload's type, and
+C's `_Generic` no longer falls back to C's. A text literal now fits a
+`String` parameter among overloads, so `h("x")` calls `h(v:String)`.
+overload.k and overload_unseen.k declare the C functions they call
+beside Kelvin's. A call before a Kelvin function of the name is still
+C's, as calls see what is declared before them. Details are provisional
+P235.
+
+There are 830 tests, and all pass with clang and with gcc 15.

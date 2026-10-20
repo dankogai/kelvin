@@ -1305,7 +1305,6 @@ static void resolve_call(Expr *call);
 static void pick_overload(Expr *v, Type *want);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static bool repeatable(Expr *e);
-static bool reaches_c(List *cands, Expr *call, int k);
 static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
 static void borrow_temps(Expr *call, Decl *d);
@@ -1321,7 +1320,7 @@ static int call_args_ahead(int i);
 static Type *method_param_type(List *cands, Decl *m, int k);
 static bool method_takes_none(Expr *recv, const char *name);
 static Decl *choose(List *cands, Expr **args, int nargs, List *maybe, Pos pos, const char *what);
-static void wrap_variant_args(Expr *call, Decl *d);
+static void typed_args(Expr *call, Decl *d);
 static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
@@ -2534,7 +2533,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 }
                 if (chosen) { /* an owner given by value moves into the method (O5), as into a function */
                     x->method = chosen;
-                    wrap_variant_args(x, chosen); /* p.m(none), p.m(5) of an i64? (#222) */
+                    typed_args(x, chosen); /* p.m("x") of a String (#223), p.m(none) of an i64? (#222) */
                     borrow_temps(x, chosen); /* an owner an expression gives, lent where a borrow is taken (#187) */
                     for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
                         move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
@@ -4704,14 +4703,13 @@ static Type *value_type_of(Expr *e) {
         if (e->op && !strcmp(e->op, "array")) /* Array<T>(...) (#57) */
             return e->type;
         /* the overload chosen, or the result all that C may choose have,
-           or C's own function's (unseen) (#41, #42) */
+           or C's own function's (unseen) (#41, #42); C's is never among
+           Kelvin's (#223) */
         if (e->target)
             return e->target->ret;
         if (e->op && !strcmp(e->op, "c"))
             return NULL;
         if (e->cands.len) {
-            if (!((Decl *)e->cands.data[0])->op && reaches_c(&e->cands, e, 0))
-                return NULL;
             Type *ret = ((Decl *)e->cands.data[0])->ret;
             for (int i = 1; i < e->cands.len && ret; i++) {
                 Type *r = ((Decl *)e->cands.data[i])->ret;
@@ -5160,9 +5158,6 @@ static bool pointer_expr(Expr *e) {
    same name then overloads */
 static List c_called;
 
-/* the calls whose overload C's _Generic chooses (#41) */
-static List dispatched;
-
 static bool called_as_c(const char *name) {
     for (int i = 0; i < c_called.len; i++)
         if (!strcmp(c_called.data[i], name))
@@ -5491,6 +5486,8 @@ static int fit(Expr *arg, Type *param) {
     }
     if (number_expr(arg))
         return numeric_type(p) || pc == 'u' ? -1 : 0;
+    if (arg->kind == E_STRING && is_string(p))
+        return 1; /* a String of it (#223) */
     if (arg->kind == E_STRING || is_text_expr(arg))
         return p->kind == T_PTR && p->elem->kind == T_BASE &&
                        (!strcmp(p->elem->name, "u8") || !strcmp(p->elem->name, "i8") || !strcmp(p->elem->name, "any"))
@@ -5514,8 +5511,7 @@ static bool record_mismatch(Expr *arg, Type *param) {
 /* Is e a value of some Kelvin struct, which kelvinc cannot tell: a call
    that C's _Generic chooses among overloads that all give one? */
 static bool may_be_record(Expr *e) {
-    if (e->kind != E_CALL || !e->cands.len ||
-        (!((Decl *)e->cands.data[0])->op && reaches_c(&e->cands, e, 0)))
+    if (e->kind != E_CALL || !e->cands.len)
         return false;
     for (int i = 0; i < e->cands.len; i++) {
         Decl *d = e->cands.data[i];
@@ -5659,42 +5655,9 @@ static char *param_key(Decl *d, int k) {
     return key;
 }
 
-/* Can the choice of call's overload among cands, from argument k on, give
-   a number to C's own function of the name? It may where no overload left
-   takes a number there. This follows generic_tree in codegen.c, which
-   writes the choice, as if the program called C's function (c_too). */
-static bool reaches_c(List *cands, Expr *call, int k) {
-    int n = call->items.len;
-    while (k < n && call->unseen && !call->unseen[k])
-        k++;
-    if (k >= n)
-        return false;
-    int numbers = 0;
-    for (int i = 0; i < cands->len; i++) {
-        Decl *d = cands->data[i];
-        numbers += k < d->params.len && ((Var *)d->params.data[k])->number;
-    }
-    if (!numbers)
-        return true;
-    for (int i = 0; i < cands->len; i++) {
-        Decl *d = cands->data[i];
-        if (k >= d->params.len)
-            continue;
-        List same = {0};
-        for (int j = 0; j < cands->len; j++) {
-            Decl *e = cands->data[j];
-            if (k < e->params.len && !strcmp(param_key(e, k), param_key(d, k)))
-                list_push(&same, e);
-        }
-        if (reaches_c(&same, call, k + 1))
-            return true;
-    }
-    return false;
-}
-
 /* A function's name used as a value (#41): the overload of the function
-   type that want is; with none of that type, C's own function of the
-   name, as sqrt is beside sqrt(v:vec) */
+   type that want is; with none of that type an error, since C's function
+   of the name is not taken where a Kelvin function has it (#223) */
 static void pick_overload(Expr *v, Type *want) {
     if (!v || v->kind != E_IDENT || (!v->cands.len && !v->target) || !want || want->kind != T_FUNC)
         return;
@@ -5708,29 +5671,44 @@ static void pick_overload(Expr *v, Type *want) {
             return;
         }
     }
-    v->target = NULL;
-    v->cands.len = 0;
-    v->op = "c";
-    list_push(&c_called, v->text);
+    error_at(v->pos,
+             "no function '%s' is %s: C's function of the name is not taken where a Kelvin function has it (#223); "
+             "declare C's beside it, as in 'let %s(x:f64):f64'",
+             v->text, kelvin_type(want), v->text);
 }
 
-/* the arguments of a call of d where it takes an Optional or a Result
-   (#222): none, ok(v), err(e) and a T are wrapped as a return's value is,
-   so that f(none) and f(5) of an i64? call f, not C's function of the name */
-static void wrap_variant_args(Expr *call, Decl *d) {
+/* the arguments of a call of d as it takes them: a String of a text
+   literal where it takes a String (#223), and where it takes an Optional
+   or a Result, none, ok(v), err(e) and a T wrapped as a return's value is
+   (#222) */
+static void typed_args(Expr *call, Decl *d) {
     for (int k = 0; k < call->items.len && k < d->params.len; k++) {
         Type *t = ((Var *)d->params.data[k])->type;
+        Expr *x = call->items.data[k];
+        x = string_of_literal(x, t);
         if (t && variant_record(t))
-            call->items.data[k] = optional_of(string_of_literal(call->items.data[k], t), t, ((Expr *)call->items.data[k])->pos);
+            x = optional_of(x, t, x->pos);
+        call->items.data[k] = x;
     }
 }
 
+/* how an argument shows in a message: its type, or what it is */
+static const char *arg_text(Expr *x) {
+    Type *t = arg_type(x);
+    if (t)
+        return kelvin_type(t);
+    if (number_expr(x))
+        return "a number";
+    if (x->kind == E_STRING || is_text_expr(x))
+        return "text";
+    return "a value only C sees";
+}
+
 /* f(args) where f names Kelvin functions (#41): the overload chosen, or
-   C's _Generic among those that may fit, or C's own function of the
-   name for other arguments. A single function of the program's own keeps
-   its C name and is called as C calls it, unless what is passed where it
-   takes a struct is a number or a value only C sees, which is for C's
-   function of the name. */
+   C's _Generic among those that may fit. C's own function of the name is
+   called only where no Kelvin function has it (#223): arguments that fit
+   no overload are an error. A single function of the program's own keeps
+   its C name and is called as C calls it. */
 static void resolve_call(Expr *call) {
     Expr *callee = call->a;
     if (callee->kind != E_IDENT)
@@ -5766,51 +5744,55 @@ static void resolve_call(Expr *call) {
     List cands = overloads_of(callee->text, NULL);
     Decl *only = cands.len == 1 ? cands.data[0] : NULL;
     if (only) {
-        wrap_variant_args(call, only);
-        bool other = false, unseen = false;
+        typed_args(call, only);
         for (int k = 0; k < call->items.len && k < only->params.len; k++) {
             Expr *x = call->items.data[k];
             Type *t = ((Var *)only->params.data[k])->type;
-            Decl *r;
-            other = other || record_mismatch(x, t);
-            unseen = unseen || (type_class(unqualified(t), &r) == 's' && fit(x, t) < 0 && !may_be_record(x));
+            bare_tags = true;
+            if (record_mismatch(x, t) && strchr(callee->text, '.'))
+                error_at(x->pos, "%s takes %s here, and this is %s", callee->text, kelvin_type(t), arg_text(x));
+            if (record_mismatch(x, t))
+                error_at(x->pos,
+                         "%s takes %s here, and this is %s: C's function of the name is not called where a Kelvin "
+                         "function has it (#223); declare C's beside it, as in 'let %s(x:f64):f64'",
+                         callee->text, kelvin_type(t), arg_text(x), callee->text);
+            bare_tags = false;
         }
-        if (!other && unseen) { /* _Generic chooses between it and C's function, where C has one */
-            list_push(&call->cands, only);
-            call->unseen = unseen_args(&call->cands, (Expr **)call->items.data, call->items.len);
-            typed_literals(call);
-            list_push(&dispatched, call);
-            return;
-        }
-        if (!other) {
-            call->target = only;
-            drop_cstr_args(call, only);
-            borrow_temps(call, only);
-            move_args(call, only);
-            return;
-        }
+        call->target = only;
     } else {
         call->target = choose(&cands, (Expr **)call->items.data, call->items.len, &call->cands, call->pos,
                               strfmt("%s(...)", callee->text));
         if (call->cands.len) {
             call->unseen = unseen_args(&call->cands, (Expr **)call->items.data, call->items.len);
             typed_literals(call);
-            list_push(&dispatched, call);
-        }
-        if (call->target) {
-            wrap_variant_args(call, call->target);
-            drop_cstr_args(call, call->target);
-            borrow_temps(call, call->target);
-            move_args(call, call->target);
-        }
-        if (call->target || call->cands.len)
             return;
+        }
+        for (int k = 0; !call->target && k < call->items.len; k++) { /* an owner where one takes a borrow of it */
+            Expr *x = call->items.data[k];
+            Type *t = value_type(x);
+            for (int i = 0; is_owner(t) && i < cands.len; i++) {
+                Decl *d = cands.data[i];
+                Type *p = k < d->params.len ? unqualified(((Var *)d->params.data[k])->type) : NULL;
+                bare_tags = true;
+                bool lent = p && p->kind == T_PTR && p->elem && !strcmp(fn_key(unqualified(p->elem)), fn_key(unqualified(t)));
+                if (lent)
+                    error_at(x->pos, "%s(...) takes a borrow of %s here: pass '&%s'", callee->text, kelvin_type(t),
+                             x->kind == E_IDENT ? x->text : "x");
+                bare_tags = false;
+            }
+        }
+        if (!call->target && strchr(callee->text, '.')) /* T.f(...) (#111): C has no function of the name */
+            error_at(call->pos, "%s(...) fits none of its %d overloads", callee->text, cands.len);
+        if (!call->target)
+            error_at(call->pos,
+                     "%s(...) fits none of its %d overloads: C's function of the name is not called where a Kelvin "
+                     "function has it (#223); declare C's beside them, as in 'let %s(x:f64):f64'",
+                     callee->text, cands.len, callee->text);
+        typed_args(call, call->target);
     }
-    /* with no Kelvin overload to call, C's own function is; the Kelvin
-       ones then overload it, and are named by their types in C */
-    call->op = "c";
-    list_push(&c_called, callee->text);
-    reject_owners_to_c(call);
+    drop_cstr_args(call, call->target);
+    borrow_temps(call, call->target);
+    move_args(call, call->target);
 }
 
 /* an owner an expression gives, given where a borrow of its type is taken,
@@ -5975,10 +5957,6 @@ static char *mangled_type(Type *t) {
    declares but never defines is C's, and keeps its name; an operator is
    _kv_add_op__... Two that would get the same C name are an error. */
 static void name_functions(void) {
-    for (int i = 0; i < dispatched.len; i++) {
-        Expr *call = dispatched.data[i];
-        call->c_too = called_as_c(call->a->text);
-    }
     static const struct { const char *op, *word; } words[] = {
         {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"},
         {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}};

@@ -1312,24 +1312,20 @@ static Type *passed_type(Decl *d, int k) {
    are the same in C cannot clash; numbers by KV_NUMBER, as the Kelvin type
    they are, so long and long long are both i64. A number of another type
    goes to the one overload that takes a number there, which C converts
-   it to, and a pointer to the one that takes a pointer; with none, to C's
-   own function of the name where the program calls it (c_too), and
-   otherwise, as with several, to kv_no_such_overload, a C error. An
-   operator (#42) has no C function. One overload left with nothing else
-   to choose is called, and C converts or reports the arguments. */
+   it to, and a pointer to the one that takes a pointer; with none, as
+   with several, to kv_no_such_overload, a C error: C's own function of
+   the name is never among Kelvin's (#223). One overload left with nothing
+   else to choose is called, and C converts or reports the arguments. */
 static char *generic_tree(List *cands, Expr *call, char **args, int k) {
     bool op = !isalpha((unsigned char)call->a->text[0]) && call->a->text[0] != '_';
     char *none = op ? "kv_no_such_operator" : "kv_no_such_overload";
-    char *c_fn = !op && call->c_too ? call->a->text : none;
-    if (cands->len == 1 && c_fn == none)
+    if (cands->len == 1)
         return ((Decl *)cands->data[0])->cname;
     while (k < call->items.len) {
         if (call->unseen && !call->unseen[k]) { /* kelvinc saw it fits every overload left */
             k++;
             continue;
         }
-        if (c_fn != none)
-            break; /* what fits no overload left goes to C's function */
         bool differ = false;
         for (int i = 1; i < cands->len && !differ; i++) {
             Decl *a = cands->data[0], *b = cands->data[i];
@@ -1376,7 +1372,7 @@ static char *generic_tree(List *cands, Expr *call, char **args, int k) {
             pointers = g, np++;
     }
     /* where no overload takes the value there, the one whose ... takes it */
-    char *other = va.len == 1 ? generic_tree(&va, call, args, k + 1) : va.len ? none : c_fn;
+    char *other = va.len == 1 ? generic_tree(&va, call, args, k + 1) : none;
     char *number = nn == 1 ? generic_tree(groups.data[numbers], call, args, k + 1) : nn ? none : other;
     char *pointer = np == 1 ? generic_tree(groups.data[pointers], call, args, k + 1) : np ? none : other;
     char *rest = !strcmp(pointer, other) ? other

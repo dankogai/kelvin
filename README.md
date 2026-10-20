@@ -102,9 +102,10 @@ So far the changes from C are:
   - `$"..."` and `` $`...` `` make a `String`
 - converters read numbers from text, as C's `strtol` and `strtod` do:
   `i64("42")`, `i32("755", 8)`, or as a property, `"42".i64`
-- functions overload by their parameter types, also C's own: with
-  `let sin(z:c64):c64` defined, `sin(z)` is Kelvin's and
-  `sin(0.5)` C's
+- functions overload by their parameter types; C's function of a name
+  is called only where no Kelvin function has it (#223): beside
+  `let sin(z:c64):c64`, C's is declared, `let sin(x:f64):f64`, as
+  `#import <math>` declares it, so that `sin(0.5)` is C's
 - a function with no result is `let f() { }`, or `let f():() { }` with
   the result written out; the two mean the same
 - `extend T { }`, as Swift's `extension`, holds a type's methods

@@ -1,9 +1,9 @@
 // overloading (#41): functions of one name with different parameter
 // types, chosen by the arguments' types where kelvinc sees them. A
 // literal has its type, also negated (#24), a comparison is a bool, an
-// enumerator its enum, and arithmetic the type C gives it. A Kelvin
-// function of a C function's name overloads it, and C's own takes the
-// arguments no overload does.
+// enumerator its enum, and arithmetic the type C gives it. C's function
+// of a name is called only where no Kelvin function has it (#223): beside
+// one, it is declared as an overload, and keeps its C name.
 #import <math.h> as C
 #import <stdlib.h> as C
 #import <string.h> as C
@@ -51,7 +51,9 @@ let total(s:const uint8^):int64 { -1 }
 let first(a:[int64](3)):int64 { a[0] }
 let first(x:float64):int64 { 0 }
 
-// C's sqrt and fabs still take numbers
+// C's sqrt and fabs, declared, take numbers (#223)
+let sqrt(x:float64):float64
+let fabs(x:float64):float64
 let sqrt(v:vec):float64 { sqrt(v.x * v.x + v.y * v.y) }
 let fabs(v:vec):vec { (vec){fabs(v.x), fabs(v.y)} }
 
@@ -60,6 +62,7 @@ let fabs(v:vec):vec { (vec){fabs(v.x), fabs(v.y)} }
 let abs(n:int32):int32
 let abs(v:vec):float64 { sqrt(v) }
 let half_sin(x:float64):float64 { sin(x) / 2.0 }
+let sin(x:float64):float64
 let sin(v:vec):vec { (vec){sin(v.x), sin(v.y)} }
 
 // anonymous functions take the parameter types the overloads agree on

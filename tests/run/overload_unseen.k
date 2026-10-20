@@ -2,8 +2,8 @@
 // function gives: C's _Generic chooses, by the C type of a struct, a
 // pointer, an enum or a C typedef, and by the Kelvin type of a number, so
 // that C's long and long long are both i64. A number or a pointer of
-// another type goes to the one overload that takes one, and a number no
-// overload takes to C's own function of the name.
+// another type goes to the one overload that takes one. C's own function
+// of the name is among them only where it is declared as one (#223).
 #import <math.h> as C
 #import <stdio.h> as C
 #import <stdlib.h> as C
@@ -38,9 +38,11 @@ let measure(n:size_t):int64 { int64(n) * 10 }
 let sqrt(x:float64):float64
 let sqrt(v:vec):float64 { hypot(v.x, v.y) }
 
-// C's abs and hypot, which the program calls, take what no overload does,
-// and their results have C's types
+// C's abs and hypot, declared beside Kelvin's (#223), take numbers, and
+// their results have C's types
 struct vec2 { x: int64; y: int64 }
+let abs(n:int32):int32
+let hypot(x:float64, y:float64):float64
 let abs(v:vec):int64 { int64(hypot(v.x, v.y)) }
 let abs(w:vec2):int64 { w.x * w.x + w.y * w.y }
 let hypot(v:vec, w:vec):float64 { hypot(v.x - w.x, v.y - w.y) }

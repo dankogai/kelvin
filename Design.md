@@ -254,6 +254,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 220 | Kelvin has no trigraphs: `"what??!"` is the text as written; kelvinc writes a `?` after a `?` as C's `\?` in string literals, `#inline C`'s strings, characters and comments, a `.typename` and a `#line`'s file name; a `??` in `#inline C`'s code, or in the name of a header imported as C, is an error; kc writes its strings so too | — | `println("what??!")` | 2026-10-21 |
 | 221 | kc chains as kelvinc does since #218: `x?.m`, `x?.f(...)`, `x?[i]`, the `?` right after `x`, the rest of the chain of a name bound to what `x` holds; `some` of what the rest gives, `none` of `none`, an Optional the rest gives not wrapped again; an owner the rest reads copied out; an `x` an expression gives read once and freed; `$[T]?` | — | `named(1)?.count ?? 0`, `spot?.sum()`, `maybe_hay?[2]`, `tags[3]?.count` | 2026-10-21 |
 | 222 | An argument where a function or a method takes an Optional or a Result is what a return's value would be: `none`, `some(T)` of a `T`, `ok(v)`, `err(e)`, an owner moved in; among overloads `none` fits an Optional alone, `ok(v)` and `err(e)` a Result, and a `T` a `T?` only where no overload takes the arguments as they are; a `none` two Optionals take is a tie that names `Optional<T>()` | — | `take(none)`, `take(5)`, `b.plus(none)`, `g(5)` of `g(i64)` | 2026-10-21 |
+| 223 | C's function of a name is called iff no Kelvin function of the name is declared before the call: beside one, C's is declared (`let sqrt(x:f64):f64`), keeps its C name and is an overload; arguments no overload fits are an error, and so is a function value of no overload's type; C's `_Generic` never falls back to C's function; a text literal fits a `String` parameter among overloads; an owner where an overload takes a borrow of it says to pass `&x` | — | `h("x")` of `h(v:String)` beside `h(v:i64)`; `let sqrt(x:f64):f64` beside `let sqrt(v:vec)` | 2026-10-21 |
 
 Notes:
 
@@ -815,6 +816,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (223) Agreed details: "fix the String literal overload bug as #223.
+  Let us make it so C function is used iff no kelvin function with a
+  same name exists. Update functions.md accordingly." This ends P52:
+  a Kelvin function of a C function's name no longer overloads C's,
+  which took what no overload did, so a mistaken argument went to C,
+  as `h("x")` did. A declared, undefined function was already C's, and
+  is the way to call C's beside Kelvin's; `#import <math>` declares
+  them. As in C, a call sees the functions declared before it, so a
+  call before a Kelvin function of the name is still C's.
 
 - (222) Agreed details: "fix the take(none) bug as #222". A call of one
   function wrapped nothing: `take(5)` went to C's function of the name,
@@ -2369,6 +2380,7 @@ says "as agreed".
 | P232 | Details of #220 | lexer.c: untrigraphed(s, n) puts a backslash before each `?` after a `?`; lex_quoted's tokens and #inline C's text go through it; a `??` in #inline C's code and in a C header's name is an error; codegen.c: c_file_name escapes `"`, `\\` and `??` of both #line writers, the pinned one escaped now too; parser.c: .typename's literal; gen.k: put_text of N_STR and N_DSTR; tests: run/no_trigraphs.k, error/inline_c_trigraph.k, error/import_trigraph.k | trigraphs in a header kelvinc does not write, which are C's |
 | P233 | Details of #221 | parse.k: parse_steps(first), N_CHAIN (t the ?, a the source, b the rest, c the made name `_kv_chainN`), `$[T]?`; gen.k: chain_type binds the name in a scope of its own and gives optional_of(T) or the rest's Optional; gen_chain writes `({ R _kv_rN; [cleanup] S _kv_sN = x; if (_kv_sN.tag == 1) { T name = _kv_sN.u.some; _kv_rN = make_some(rest or T_copy(&rest)); } else _kv_rN = make_none(); _kv_rN; })`; gen_program writes the functions first into a String of their own and the enums made meanwhile before them; holds_kind orders enums after the Arrays and the Dictionaries they hold; is_case_word keeps none, ok(v), err(e) from type_of in gen_call and gen_return; gen_coalesce keeps its serial | kc: none in a struct's {a, b}; freeing a struct whose fields own; `.copy()` of an Array; kelvinc: `f(none)` of a T? parameter, a C error |
 | P234 | Details of #222 | parser.c: wrap_variant_args(call, d) applies optional_of(string_of_literal(x, t), t) to each argument of an Optional or Result parameter, in resolve_call before the record checks of one function and after choose, and for a method chosen; fit gives a bare none 1 of an Optional, else 0, and ok(v)/err(e) 1 of a Result whose case v fits; fit_wraps, set by choose for a second choose_among where the first found nothing, lets a T fit a T? as 1; the tie of a bare none names Optional<i64>() | f("text") among overloads with a String parameter, which goes to C |
+| P235 | Details of #223 | parser.c: resolve_call calls the one Kelvin function, an argument that is no struct where it takes one an error naming the declaration of C's; among overloads no fit is an error (a type's function, `T.f`, without C's hint), after an owner where one takes a borrow of it, which says `&x`; pick_overload errs where no overload has the type; typed_args (was wrap_variant_args) also makes a String of a text literal; fit gives a text literal 1 of a String; reaches_c, the dispatched list and Expr.c_too are gone, and codegen's generic_tree defaults to kv_no_such_overload; tests overload.k and overload_unseen.k declare C's sqrt, fabs, sin, abs and hypot | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

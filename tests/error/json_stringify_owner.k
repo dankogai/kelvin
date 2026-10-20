@@ -5,4 +5,4 @@ let main():int32 {
     var s = JSON.stringify(j)
     return 0
 }
-// error: an owner cannot be given to a C function
+// error: JSON.stringify(...) takes a borrow of JSON here: pass '&j'
