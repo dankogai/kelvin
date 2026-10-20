@@ -3,8 +3,69 @@
 // `next`; a type is an element of `types`, made once. Every variable
 // says its type, so nothing is inferred but what an expression gives.
 
+enum nkind {                    // the kinds of nodes (#210)
+    // expressions
+    N_NUM,
+    N_CHAR,
+    N_STR,
+    N_DSTR,
+    N_BOOL,
+    N_ID,
+    N_CALL,     // a(b...)
+    N_FIELD,    // a.t
+    N_METHOD,   // a.t(b...)
+    N_INDEX,    // a[b]
+    N_UNARY,    // t a
+    N_BIN,      // a t b
+    N_CAST,     // a as ty
+    N_ADDR,     // &a
+    N_DEREF,    // a^
+    N_EMPTY,    // $[]
+    N_TYPE,     // IO or String called: a type's name as a function
+    N_INIT,     // {b...}, a struct's members in order
+    N_NULL,     // nullptr
+    // statements
+    S_VAR,      // t:ty = a
+    S_ASSIGN,   // a t b, t an assignment's operator
+    S_EXPR,
+    S_IF,       // if a { b } else c
+    S_WHILE,
+    S_FOR,      // for t in a..<b { c }
+    S_EACH,     // for t in a { c }
+    S_RETURN,
+    S_BREAK,
+    S_CONTINUE,
+    S_BLOCK,    // a, the first statement
+    S_SWITCH,   // switch a { b, the first case }
+    S_CASE,     // case a...: b...; flag 1 of default
+    // declarations
+    D_FN,       // t(a...):ty { b }, b -1 for a prototype
+    D_STRUCT,   // t { a... }
+    D_GLOBAL,   // as S_VAR
+    D_IMPORT,
+    D_ENUM      // enum t { a... }, each an N_ID, its a a value or -1
+}
+
+enum ykind {                    // the kinds of types (#210)
+    Y_VOID,
+    Y_I64,
+    Y_I32,
+    Y_U8,
+    Y_U32,
+    Y_BOOL,
+    Y_CSTR,
+    Y_STRING,
+    Y_IO,
+    Y_UCHR,
+    Y_ARRAY,
+    Y_STRUCT,
+    Y_PTR,
+    Y_ARGV,     // [cstr], main's argv
+    Y_C         // what only C sees: a name of a C header (#207)
+}
+
 struct node {
-    kind: int64
+    kind: nkind
     a: int64
     b: int64
     c: int64
@@ -15,65 +76,10 @@ struct node {
 }
 
 struct ty {
-    kind: int64
+    kind: ykind
     elem: int64        // of an Array or a pointer
     name: int64        // the token of a struct's name
 }
-
-// expressions
-let N_NUM:int64 = 1
-let N_CHAR:int64 = 2
-let N_STR:int64 = 3
-let N_DSTR:int64 = 4
-let N_BOOL:int64 = 5
-let N_ID:int64 = 6
-let N_CALL:int64 = 7       // a(b...)
-let N_FIELD:int64 = 8      // a.t
-let N_METHOD:int64 = 9     // a.t(b...)
-let N_INDEX:int64 = 10     // a[b]
-let N_UNARY:int64 = 11     // t a
-let N_BIN:int64 = 12       // a t b
-let N_CAST:int64 = 13      // a as ty
-let N_ADDR:int64 = 14      // &a
-let N_DEREF:int64 = 15     // a^
-let N_EMPTY:int64 = 16     // $[]
-let N_TYPE:int64 = 17      // IO or String called: a type's name as a function
-let N_INIT:int64 = 18      // {b...}, a struct's members in order
-let N_NULL:int64 = 19      // nullptr
-// statements
-let S_VAR:int64 = 20       // t:ty = a
-let S_ASSIGN:int64 = 21    // a t b, t an assignment's operator
-let S_EXPR:int64 = 22
-let S_IF:int64 = 23        // if a { b } else c
-let S_WHILE:int64 = 24
-let S_FOR:int64 = 25       // for t in a..<b { c }
-let S_EACH:int64 = 26      // for t in a { c }
-let S_RETURN:int64 = 27
-let S_BREAK:int64 = 28
-let S_CONTINUE:int64 = 29
-let S_BLOCK:int64 = 30     // a, the first statement
-// declarations
-let D_FN:int64 = 40        // t(a...):ty { b }, b -1 for a prototype
-let D_STRUCT:int64 = 41    // t { a... }
-let D_GLOBAL:int64 = 42    // as S_VAR
-let D_IMPORT:int64 = 43
-
-// types
-let Y_VOID:int64 = 0
-let Y_I64:int64 = 1
-let Y_I32:int64 = 2
-let Y_U8:int64 = 3
-let Y_U32:int64 = 4
-let Y_BOOL:int64 = 5
-let Y_CSTR:int64 = 6
-let Y_STRING:int64 = 7
-let Y_IO:int64 = 8
-let Y_UCHR:int64 = 9
-let Y_ARRAY:int64 = 10
-let Y_STRUCT:int64 = 11
-let Y_PTR:int64 = 12
-let Y_ARGV:int64 = 13      // [cstr], main's argv
-let Y_C:int64 = 14         // what only C sees: a name of a C header (#207)
 
 var nodes:$[node]
 var types:$[ty]
@@ -90,7 +96,7 @@ let is_header(t:int64):bool {
 
 // ---------- types ----------
 
-let type_of_kind(kind:int64, elem:int64, name:int64):int64 {
+let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
     var i:int64 = 0
     while i < types.count as int64 {
         let y:ty = types[i]
@@ -106,18 +112,18 @@ let type_of_kind(kind:int64, elem:int64, name:int64):int64 {
     return types.count as int64 - 1
 }
 
-let base_type(kind:int64):int64 {
+let base_type(kind:ykind):int64 {
     return type_of_kind(kind, -1, -1)
 }
 
 // ---------- the cursor ----------
 
-let at_kind(k:int64):bool {
+let at_kind(k:tkind):bool {
     return toks[pos].kind == k
 }
 
 let at_word(w:cstr):bool {
-    let k:int64 = toks[pos].kind
+    let k:tkind = toks[pos].kind
     return (k == T_ID || k == T_PUNCT) && tok_is(pos, w)
 }
 
@@ -157,7 +163,7 @@ let set_b(n:int64, v:int64) { nodes[n].b = v }
 let set_c(n:int64, v:int64) { nodes[n].c = v }
 let set_ty(n:int64, v:int64) { nodes[n].ty = v }
 
-let make_node(kind:int64, t:int64):int64 {
+let make_node(kind:nkind, t:int64):int64 {
     let n:node = {kind, -1, -1, -1, t, -1, -1, 0}
     nodes += n
     return nodes.count as int64 - 1
@@ -241,7 +247,7 @@ let parse_args():int64 {
 
 let parse_primary():int64 {
     let t:int64 = pos
-    let k:int64 = toks[t].kind
+    let k:tkind = toks[t].kind
     if k == T_NUM {
         advance()
         return make_node(N_NUM, t)
@@ -435,8 +441,66 @@ let parse_if():int64 {
     return n
 }
 
+let parse_statement():int64
+
+// switch e { case a, b: ... default: ... } (#210): its cases a list of
+// S_CASE, each with its values and its statements, up to the next case
+let parse_switch():int64 {
+    let n:int64 = make_node(S_SWITCH, advance())
+    set_a(n, parse_expr())
+    expect("{")
+    skip_newlines()
+    var last:int64 = -1
+    while !at_word("}") && !failed {
+        let c:int64 = make_node(S_CASE, pos)
+        if at_word("default") {
+            advance()
+            nodes[c].flag = 1
+        } else {
+            expect("case")
+            var lastv:int64 = -1
+            while !failed {
+                let v:int64 = parse_expr()
+                if lastv < 0 {
+                    nodes[c].a = v
+                } else {
+                    nodes[lastv].next = v
+                }
+                lastv = v
+                if !at_word(",") { break }
+                advance()
+            }
+        }
+        expect(":")
+        skip_newlines()
+        var lasts:int64 = -1
+        while !at_word("case") && !at_word("default") && !at_word("}") && !failed {
+            let s:int64 = parse_statement()
+            if lasts < 0 {
+                nodes[c].b = s
+            } else {
+                nodes[lasts].next = s
+            }
+            lasts = s
+            skip_newlines()
+        }
+        if lasts < 0 { parse_error("a case has a statement before the next: write case a, b: for one body") }
+        if last < 0 {
+            nodes[n].b = c
+        } else {
+            nodes[last].next = c
+        }
+        last = c
+    }
+    expect("}")
+    return n
+}
+
 let parse_statement():int64 {
     let t:int64 = pos
+    if at_word("switch") {
+        return parse_switch()
+    }
     if at_word("var") || at_word("let") {
         let is_let:int64 = 0
         advance()
@@ -479,7 +543,7 @@ let parse_statement():int64 {
         return n
     }
     if at_word("break") || at_word("continue") {
-        var kind:int64 = S_BREAK
+        var kind:nkind = S_BREAK
         if at_word("continue") { kind = S_CONTINUE }
         let n:int64 = make_node(kind, advance())
         end_statement()
@@ -569,6 +633,31 @@ let parse_struct():int64 {
     return n
 }
 
+// enum t { a, b = 3, c }, C's enum (#210)
+let parse_enum():int64 {
+    let n:int64 = make_node(D_ENUM, advance())
+    expect("{")
+    skip_newlines()
+    var last:int64 = -1
+    while !at_word("}") && !failed {
+        let m:int64 = make_node(N_ID, advance())
+        if at_word("=") {
+            advance()
+            set_a(m, parse_expr())
+        }
+        if last < 0 {
+            nodes[n].a = m
+        } else {
+            nodes[last].next = m
+        }
+        last = m
+        if at_word(",") { advance() }
+        skip_newlines()
+    }
+    expect("}")
+    return n
+}
+
 // the declarations from the token at pos to the end
 let parse_program() {
     skip_newlines()
@@ -584,6 +673,9 @@ let parse_program() {
         } else if at_word("struct") {
             advance()
             decls += parse_struct()
+        } else if at_word("enum") {
+            advance()
+            decls += parse_enum()
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             decls += parse_function()

@@ -50,29 +50,21 @@ let gen_error(n:int64, what:cstr) {
 
 let is_owner(y:int64):bool {
     if y < 0 { return false }
-    let k:int64 = types[y].kind
+    let k:ykind = types[y].kind
     return k == Y_STRING || k == Y_ARRAY || k == Y_IO
 }
 
 // the part of an Array's name its element gives: i64, String, tok
 let put_elem_name(y:int64) {
-    let k:int64 = types[y].kind
-    if k == Y_I64 {
-        put("i64")
-    } else if k == Y_I32 {
-        put("i32")
-    } else if k == Y_U8 {
-        put("u8")
-    } else if k == Y_U32 {
-        put("u32")
-    } else if k == Y_BOOL {
-        put("bool")
-    } else if k == Y_STRING {
-        put("String")
-    } else if k == Y_STRUCT {
-        put_tok(types[y].name)
-    } else {
-        put("unknown")
+    switch types[y].kind {
+    case Y_I64: put("i64")
+    case Y_I32: put("i32")
+    case Y_U8: put("u8")
+    case Y_U32: put("u32")
+    case Y_BOOL: put("bool")
+    case Y_STRING: put("String")
+    case Y_STRUCT: put_tok(types[y].name)
+    default: put("unknown")
     }
 }
 
@@ -81,51 +73,41 @@ let put_array_name(y:int64) {
     put_elem_name(types[y].elem)
 }
 
-let decl_named(t:int64, kind:int64):int64    // a prototype: put_ctype asks it of a struct
+let decl_named(t:int64, kind:nkind):int64    // a prototype: put_ctype asks it of a struct
 
 let put_ctype(y:int64) {
-    let k:int64 = types[y].kind
-    if k == Y_VOID {
-        put("void")
-    } else if k == Y_I64 {
-        put("int64_t")
-    } else if k == Y_I32 {
-        put("int32_t")
-    } else if k == Y_U8 {
-        put("uint8_t")
-    } else if k == Y_U32 {
-        put("uint32_t")
-    } else if k == Y_BOOL {
-        put("bool")
-    } else if k == Y_CSTR {
-        put("const uint8_t *")
-    } else if k == Y_STRING {
-        put("kv_string")
-    } else if k == Y_IO {
-        put("kv_io")
-    } else if k == Y_UCHR {
-        put("kv_uchr")
-    } else if k == Y_ARRAY {
-        put_array_name(y)
-    } else if k == Y_STRUCT {
-        if decl_named(types[y].name, D_STRUCT) >= 0 { put("struct ") }   // else a C header's typedef (#207)
+    switch types[y].kind {                                       // every kind of type (#210)
+    case Y_VOID, Y_C: put("void")
+    case Y_I64: put("int64_t")
+    case Y_I32: put("int32_t")
+    case Y_U8: put("uint8_t")
+    case Y_U32: put("uint32_t")
+    case Y_BOOL: put("bool")
+    case Y_CSTR: put("const uint8_t *")
+    case Y_STRING: put("kv_string")
+    case Y_IO: put("kv_io")
+    case Y_UCHR: put("kv_uchr")
+    case Y_ARRAY: put_array_name(y)
+    case Y_STRUCT:
+        if decl_named(types[y].name, D_STRUCT) >= 0 {
+            put("struct ")
+        } else if decl_named(types[y].name, D_ENUM) >= 0 {
+            put("enum ")                                         // (#210)
+        }                                                        // else a C header's typedef (#207)
         put_tok(types[y].name)
-    } else if k == Y_PTR {
+    case Y_PTR:
         put_ctype(types[y].elem)
         put(" *")
-    } else if k == Y_ARGV {
-        put("char **")
+    case Y_ARGV: put("char **")
     }
 }
 
 // the function that frees an owner
 let put_free(y:int64) {
-    let k:int64 = types[y].kind
-    if k == Y_STRING {
-        put("kv_string_free")
-    } else if k == Y_IO {
-        put("kv_io_free")
-    } else {
+    switch types[y].kind {
+    case Y_STRING: put("kv_string_free")
+    case Y_IO: put("kv_io_free")
+    default:
         put_array_name(y)
         put("_free")
     }
@@ -148,10 +130,25 @@ let declare(t:int64, y:int64) {
 }
 
 // the declaration of a global or a function named as token t, or -1
-let decl_named(t:int64, kind:int64):int64 {
+let decl_named(t:int64, kind:nkind):int64 {
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == kind && same_text(nodes[d].t, t) { return d }
+    }
+    return -1
+}
+
+// the enum whose enumerator is named as token t, or -1 (#210)
+let enum_of(t:int64):int64 {
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM {
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                if same_text(nodes[m].t, t) { return d }
+                m = nodes[m].next
+            }
+        }
     }
     return -1
 }
@@ -165,6 +162,8 @@ let var_type(t:int64):int64 {
     }
     let g:int64 = decl_named(t, D_GLOBAL)
     if g >= 0 { return nodes[g].ty }
+    let e:int64 = enum_of(t)
+    if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }
     return -1
 }
 
@@ -190,7 +189,7 @@ let is_comparison(t:int64):bool {
 }
 
 let type_of(n:int64):int64 {
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
@@ -221,7 +220,7 @@ let type_of(n:int64):int64 {
     if k == N_FIELD {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
-        let yk:int64 = types[y].kind
+        let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) { return base_type(Y_I64) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
         if yk == Y_IO { return base_type(Y_I32) }
@@ -244,7 +243,7 @@ let type_of(n:int64):int64 {
     if k == N_INDEX {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
-        let yk:int64 = types[y].kind
+        let yk:ykind = types[y].kind
         if yk == Y_ARRAY { return types[y].elem }
         if yk == Y_ARGV { return base_type(Y_CSTR) }
         return base_type(Y_U8)
@@ -315,7 +314,7 @@ let gen_field(n:int64) {
     let t:int64 = nodes[n].t
     let y:int64 = type_of(a)
     if y < 0 { return }
-    let yk:int64 = types[y].kind
+    let yk:ykind = types[y].kind
     if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY) {
         put("((int64_t)(")
         gen_expr(a)
@@ -366,7 +365,7 @@ let gen_method(n:int64) {
     }
     let y:int64 = type_of(a)
     if y < 0 { return }
-    let yk:int64 = types[y].kind
+    let yk:ykind = types[y].kind
     if yk == Y_STRING && tok_is(t, "copy") {
         put("kv_string_copy(")
         gen_place(a)
@@ -393,7 +392,7 @@ let gen_method(n:int64) {
 
 // whether n names a place, whose address is taken as it is
 let is_place(n:int64):bool {
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     return k == N_ID || k == N_FIELD || k == N_INDEX || k == N_DEREF
 }
 
@@ -447,7 +446,7 @@ let gen_cond(n:int64) {
 
 let gen_expr(n:int64) {
     if failed { return }
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
@@ -566,7 +565,7 @@ let gen_var(n:int64) {
 // whether n reads an element of an Array, whose place a call may move
 let has_element(n:int64):bool {
     if n < 0 { return false }
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     if k == N_INDEX {
         let y:int64 = type_of(nodes[n].a)
         if y >= 0 && types[y].kind == Y_ARRAY { return true }
@@ -578,7 +577,7 @@ let has_element(n:int64):bool {
 // whether n calls a function, which may grow an Array
 let has_call(n:int64):bool {
     if n < 0 { return false }
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     if k == N_CALL || k == N_METHOD { return true }
     if k == N_INIT {
         var a:int64 = nodes[n].b
@@ -596,7 +595,7 @@ let gen_assign(n:int64) {
     let t:int64 = nodes[n].t
     let y:int64 = type_of(lhs)
     if y < 0 { return }
-    let yk:int64 = types[y].kind
+    let yk:ykind = types[y].kind
     if yk == Y_STRING && tok_is(t, "=") {
         put("kv_string_assign(")
         gen_place(lhs)
@@ -738,23 +737,114 @@ let gen_each(n:int64, depth:int64) {
     put("}\n")
 }
 
+// whether s leaves its case: a return, a break, a continue
+let is_jump(s:int64):bool {
+    if s < 0 { return false }
+    let k:nkind = nodes[s].kind
+    return k == S_RETURN || k == S_BREAK || k == S_CONTINUE
+}
+
+// whether a switch's cases name every enumerator of the enum d
+let names_every(n:int64, d:int64):bool {
+    var m:int64 = nodes[d].a
+    while m >= 0 {
+        var found:bool = false
+        var c:int64 = nodes[n].b
+        while c >= 0 {
+            var v:int64 = nodes[c].a
+            while v >= 0 {
+                if nodes[v].kind == N_ID && same_text(nodes[v].t, nodes[m].t) { found = true }
+                v = nodes[v].next
+            }
+            c = nodes[c].next
+        }
+        if !found { return false }
+        m = nodes[m].next
+    }
+    return true
+}
+
+// switch e { case a, b: ... } as kelvinc writes it (#63, #210): each case a
+// block of its own, ending with a break but after a jump; a switch on an
+// enum that names every enumerator tells C nothing else comes
+let gen_switch(n:int64, depth:int64) {
+    put("switch (")
+    gen_expr(nodes[n].a)
+    put(")\n")
+    indent(depth)
+    put("{\n")
+    var whole:bool = false
+    var c:int64 = nodes[n].b
+    while c >= 0 && !failed {
+        if nodes[c].flag == 1 {
+            whole = true
+            indent(depth)
+            put("default:\n")
+        } else {
+            var v:int64 = nodes[c].a
+            while v >= 0 {
+                indent(depth)
+                put("case ")
+                gen_expr(v)
+                put(":\n")
+                v = nodes[v].next
+            }
+        }
+        indent(depth + 1)
+        put("{\n")
+        open_scope()
+        var s:int64 = nodes[c].b
+        var last:int64 = -1
+        while s >= 0 && !failed {
+            gen_stmt(s, depth + 2)
+            last = s
+            s = nodes[s].next
+        }
+        if !is_jump(last) {
+            indent(depth + 2)
+            put("break;\n")
+        }
+        close_scope()
+        indent(depth + 1)
+        put("}\n")
+        c = nodes[c].next
+    }
+    if !whole {
+        let y:int64 = type_of(nodes[n].a)
+        var d:int64 = -1
+        if y >= 0 && types[y].kind == Y_STRUCT { d = decl_named(types[y].name, D_ENUM) }
+        if d < 0 {
+            gen_error(n, "a switch that is not on an enum has default:")
+        } else if !names_every(n, d) {
+            gen_error(n, "a switch on an enum names every enumerator, or has default:")
+        } else {
+            indent(depth)
+            put("default:\n")
+            indent(depth + 1)
+            put("__builtin_unreachable();\n")
+        }
+    }
+    indent(depth)
+    put("}\n")
+}
+
 let gen_stmt(n:int64, depth:int64) {
     if failed { return }
-    let k:int64 = nodes[n].kind
+    let k:nkind = nodes[n].kind
     if k == S_BLOCK {
         gen_block(n, depth)
         return
     }
     indent(depth)
-    if k == S_VAR {
+    switch k {                                                   // (#210)
+    case S_VAR:
         gen_var(n)
         declare(nodes[n].t, nodes[n].ty)
-    } else if k == S_ASSIGN {
-        gen_assign(n)
-    } else if k == S_EXPR {
+    case S_ASSIGN: gen_assign(n)
+    case S_EXPR:
         gen_expr(nodes[n].a)
         put(";\n")
-    } else if k == S_IF {
+    case S_IF:
         put("if (")
         gen_cond(nodes[n].a)
         put(")\n")
@@ -765,13 +855,13 @@ let gen_stmt(n:int64, depth:int64) {
             put("else\n")
             gen_stmt(nodes[n].c, depth)
         }
-    } else if k == S_WHILE {
+    case S_WHILE:
         put("while (")
         gen_cond(nodes[n].a)
         put(")\n")
         indent(depth)
         gen_block(nodes[n].b, depth)
-    } else if k == S_FOR {
+    case S_FOR:
         serial += 1
         put("for (int64_t ")
         put_tok(nodes[n].t)
@@ -793,16 +883,12 @@ let gen_stmt(n:int64, depth:int64) {
         indent(depth)
         gen_block(nodes[n].c, depth)
         close_scope()
-    } else if k == S_EACH {
-        gen_each(n, depth)
-    } else if k == S_RETURN {
-        gen_return(n)
-    } else if k == S_BREAK {
-        put("break;\n")
-    } else if k == S_CONTINUE {
-        put("continue;\n")
-    } else {
-        gen_error(n, "this statement is not known")
+    case S_EACH: gen_each(n, depth)
+    case S_SWITCH: gen_switch(n, depth)
+    case S_RETURN: gen_return(n)
+    case S_BREAK: put("break;\n")
+    case S_CONTINUE: put("continue;\n")
+    default: gen_error(n, "this statement is not known")
     }
 }
 
@@ -899,6 +985,26 @@ let gen_program() {
         }
     }
     put("\n")
+    for i in 0..<decls.count as int64 {                  // the enums, C's (#210)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_ENUM {
+            put("enum ")
+            put_tok(nodes[d].t)
+            put("\n{\n")
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                put("    ")
+                put_tok(nodes[m].t)
+                if nodes[m].a >= 0 {
+                    put(" = ")
+                    gen_expr(nodes[m].a)
+                }
+                put(",\n")
+                m = nodes[m].next
+            }
+            put("};\n\n")
+        }
+    }
     for i in 0..<decls.count as int64 {                  // the structs
         let d:int64 = decls[i]
         if nodes[d].kind == D_STRUCT {

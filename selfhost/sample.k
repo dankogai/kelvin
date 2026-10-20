@@ -9,6 +9,18 @@ struct point {
     y: int64
 }
 
+enum shade { light, middle = 5, dark }
+
+// a switch on an enum names every enumerator (#210)
+let shade_name(s:shade):cstr {
+    switch s {
+    case light: return "light"
+    case middle, dark:
+        return "not light"
+    }
+    return "?"
+}
+
 var points:$[point]
 let limit:int64 = 10
 
@@ -69,5 +81,18 @@ let main(argc:int32, argv:[cstr]):int32 {
     let len:size_t = strlen("kelvin")               // a C typedef, a C function
     let home:cstr := getenv("NO_SUCH_VARIABLE_OF_KC")
     println(len as int64, " ", abs(0 - 7) as int64, " ", home == nullptr)
+    var words:String = $""
+    for k in 0..<4 {
+        switch k {                                    // a switch on a number has default:
+        case 0: words += "zero "
+        case 1, 2:
+            words += "small "
+            if k == 2 { break }
+            words += "one "
+        default: words += "more"
+        }
+    }
+    let sh:shade = dark
+    println(words, " ", shade_name(light), " ", shade_name(sh), " ", sh as int64)
     return 0
 }

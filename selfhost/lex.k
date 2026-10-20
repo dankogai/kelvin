@@ -3,23 +3,25 @@
 // its text is there, how long, its line and its file. A newline is a
 // token where it may end a statement: outside ( ) and [ ].
 
+enum tkind {                    // the kinds of tokens (#210)
+    T_EOF,
+    T_NL,
+    T_ID,
+    T_NUM,
+    T_STR,      // "...", as written
+    T_CHAR,     // '.', as written
+    T_PUNCT,
+    T_DSTR,     // $"...", the text from its "
+    T_IMPORT    // #import <x>, "x.k" or <x.h> as C, the name with its brackets
+}
+
 struct tok {
-    kind: int64
+    kind: tkind
     at: int64
     len: int64
     line: int64
     file: int64
 }
-
-let T_EOF:int64 = 0
-let T_NL:int64 = 1
-let T_ID:int64 = 2
-let T_NUM:int64 = 3
-let T_STR:int64 = 4       // "...", as written
-let T_CHAR:int64 = 5      // '.', as written
-let T_PUNCT:int64 = 6
-let T_DSTR:int64 = 7      // $"...", the text from its "
-let T_IMPORT:int64 = 8    // #import <x>, "x.k" or <x.h> as C, the name with its brackets
 
 var codes:$[uint32]       // every file's text
 var toks:$[tok]
@@ -64,7 +66,7 @@ let is_digit(c:uint32):bool {
     return c >= '0' && c <= '9'
 }
 
-let add_tok(kind:int64, at:int64, len:int64, line:int64, file:int64) {
+let add_tok(kind:tkind, at:int64, len:int64, line:int64, file:int64) {
     let t:tok = {kind, at, len, line, file}
     toks += t
 }
@@ -122,7 +124,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             add_tok(T_NUM, s, i - s, line, file)
         } else if c == '"' || (c == '$' && code_at(i + 1) == '"') {
             let s:int64 = i
-            var kind:int64 = T_STR
+            var kind:tkind = T_STR
             if c == '$' {
                 kind = T_DSTR
                 i += 1

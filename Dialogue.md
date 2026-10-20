@@ -5130,3 +5130,16 @@ entry is set as `d["a"] = 1` sets it; `+=` and the rest change it.
 dictionaries.md says so. Details are provisional P221.
 
 There are 818 tests, and all pass with clang and with gcc 15.
+
+### 254. kc switches on enums
+
+> teach kc switch on enums as #210
+
+**Claude** added #210: kc reads C's enums of names and Kelvin's
+`switch`, each case its own block, exhaustive on an enum or with
+`default:`; and kc is written in them now, its kinds of tokens, nodes and
+types three enums, its types and statements chosen by switches. The
+stages keep their fixpoint, 3216 lines, with clang, gcc 15 and ASan.
+Details are provisional P222.
+
+There are 818 tests, and all pass with clang and with gcc 15.

@@ -67,8 +67,9 @@ build/selfhost/stage3 program.k -o program [-c program.c] [-m modules] [-cc comp
 kc reads what it is written in, and little more.
 
 - **Declarations:** `let f(x:T, ...):R { }`, a prototype without a body,
-  `struct` of plain members, global `let` and `var`, `#import <IO>`,
-  `#import "x.k"`, and `#import <x.h> as C` (#207).
+  `struct` of plain members, `enum` of names, C's (#210), global `let`
+  and `var`, `#import <IO>`, `#import "x.k"`, and `#import <x.h> as C`
+  (#207).
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
@@ -77,6 +78,10 @@ kc reads what it is written in, and little more.
 - **Statements:** `var` and `let` with a type, always; `=`, `+=` and the
   rest; `if`, `else if`, `else`; `while`; `for i in a..<b`; `for x in s`
   of a String or an Array; `return`, `break`, `continue`.
+- **`switch`** (#210), as kelvinc has it (#63): `case a, b:` and
+  `default:`; a case ends at the next, its own block, with a `break`
+  where it does not jump; a switch on an enum names every enumerator or
+  has `default:`, any other has `default:`.
 - **Expressions:** numbers, characters, `"..."` and `$"..."`, `true`,
   `false`, calls, `.member`, `.method()`, `a[i]`, `&x`, `p^`, `x as T`,
   `{a, b}` of a struct, `$[]`, and `! - * / % + - < <= > >= == != && ||`.
@@ -171,8 +176,9 @@ libc is allowed, as it is to any C program; C of our own is not.
   - a String cannot be indexed, `s[i]` being an error;
   - so the source is held as `$[uint32]`, four bytes a character.
 - **No switch on text:** a keyword is found by a chain of `tok_is`.
-- **No constants:** `let T_ID:int64 = 2` is a global, not a C constant,
-  so it cannot label a `case`.
+  - The kinds of tokens, nodes and types are enums since #210, `tkind`,
+    `nkind` and `ykind`, and gen.k switches on them.
+  - An enum must come before the struct that holds one, in kelvinc.
 - **Text:**
   - `+=` appends text, a `uchr` or `&s`;
   - a number is written by kc's own `put_int`, since `.cstr` and
@@ -208,7 +214,6 @@ Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
-   - `switch` on enums;
    - `Dictionary` for names;
    - `String(n)`;
    - methods of `extend`;
