@@ -55,17 +55,23 @@ build/selfhost/stage3 program.k -o program [-c program.c] [-m modules] [-cc comp
 ```
 
 - `-c` keeps the C there; without `-o`, kc writes the C alone.
-- `-m` names the directory of `kelvin_prelude.h` and the libraries:
-  `modules`, from the top of the repository, when none is given.
-- `-cc` names the C compiler, `cc` when none is given.
+  - Without `-c`, the C is a temporary file, `$TMPDIR/kc-<pid>.c`, or in
+    `/tmp`, removed once `cc` is done (#207).
+- `-m` names the directory of `kelvin_prelude.h` and the libraries.
+  - Without it: `$KELVIN_HOME/modules`, as kelvinc reads `KELVIN_HOME`,
+    else `modules`, from the top of the repository.
+- `-cc` names the C compiler; without it, `$CC`, else `cc`.
 
 ## The subset
 
 kc reads what it is written in, and little more.
 
 - **Declarations:** `let f(x:T, ...):R { }`, a prototype without a body,
-  `struct` of plain members, global `let` and `var`, `#import <IO>` and
-  `#import "x.k"`.
+  `struct` of plain members, global `let` and `var`, `#import <IO>`,
+  `#import "x.k"`, and `#import <x.h> as C` (#207).
+- **C's names:** with a C header imported, a name kc does not know is
+  C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
+  `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
 - **Types:** `int64`, `int32`, `uint8`, `uint32`, `bool`, `cstr`,
   `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, and main's `[cstr]`.
 - **Statements:** `var` and `let` with a type, always; `=`, `+=` and the
@@ -125,16 +131,18 @@ steps can take them on one at a time.
 
 libc is allowed, as it is to any C program; C of our own is not.
 
-- **libc takes these off the list:** kc wrote them around, and need not.
+- **libc takes these off the list,** since kc reads `#import <x.h> as C`
+  (#207):
   - The environment: `getenv` reads `KELVIN_HOME`, `CC` and `TMPDIR`,
-    where kc takes `-m` and `-cc`.
-  - A temporary directory: `mkdtemp`, where kc writes the C beside the
-    program.
-  - Ending: `exit`, where kc returns from main.
-  - Running cc: `posix_spawn` or `system`, beside `<IO>`'s `IO.exec`.
-- **What kc needs for them:** it reads `#import <x.h> as C` and passes
-  the names it does not know to C, unchecked, as kelvinc does: a small
-  addition to the subset.
+    beside `-m` and `-cc`.
+  - A temporary file: `$TMPDIR/kc-<pid>.c`, by `getpid`, which `remove`
+    takes away once `cc` is done.
+  - Not yet used: `mkdtemp`, which writes its template in place, where a
+    String's `.cstr` is `const`; `exit`, where returning from main does.
+- **A name that is C's unchecked hides a slip:** with a C header
+  imported, a Kelvin function called before it is written is taken for
+  C's, so the C compiler, not kelvinc, says it is undeclared. kc's
+  gen.k met it, and declares `decl_named` first.
 - **What libc does not give:**
   - **The `$/.../` check:** kelvinc links runtime/regexp_parse.c, C of
     our own, to check a pattern while compiling. A Kelvin kelvinc needs
@@ -197,11 +205,9 @@ libc is allowed, as it is to any C program; C of our own is not.
 
 Each of these is one change of its own:
 
-1. Let kc read `#import <x.h> as C`, and use libc: `getenv` for
-   `KELVIN_HOME`, `CC` and `TMPDIR`, `mkdtemp`, `exit`.
-2. Write down the C a program becomes: the prelude's macros, the names
+1. Write down the C a program becomes: the prelude's macros, the names
    kelvinc makes, the mangling. A second compiler then has a contract.
-3. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
+2. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
    part as it comes:
    - `switch` on enums;
    - `Dictionary` for names;
@@ -209,6 +215,6 @@ Each of these is one change of its own:
    - methods of `extend`;
    - inference of literals;
    - `Optional` and `Result`.
-4. Run kc on the tests of tests/run.sh that fit the subset, to count how
+3. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads.
-5. Then CI: `selfhost/bootstrap.sh` as a job.
+4. Then CI: `selfhost/bootstrap.sh` as a job.

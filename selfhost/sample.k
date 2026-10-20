@@ -1,6 +1,9 @@
 // sample.k - a program of the subset kc reads, beside kc itself: the
 // bootstrap builds it with kelvinc and with kc's last stage, and their
-// output must be the same.
+// output must be the same. It uses libc as C does (#207).
+#import <stdlib.h> as C
+#import <string.h> as C
+
 struct point {
     x: int64
     y: int64
@@ -63,5 +66,8 @@ let main(argc:int32, argv:[cstr]):int32 {
         n += 1
     }
     println(fibs.pop(), " ", fibs.count, " ", points[1].y, " ", 'A' as uint8)
+    let len:size_t = strlen("kelvin")               // a C typedef, a C function
+    let home:cstr := getenv("NO_SUCH_VARIABLE_OF_KC")
+    println(len as int64, " ", abs(0 - 7) as int64, " ", home == nullptr)
     return 0
 }

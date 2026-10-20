@@ -81,6 +81,8 @@ let put_array_name(y:int64) {
     put_elem_name(types[y].elem)
 }
 
+let decl_named(t:int64, kind:int64):int64    // a prototype: put_ctype asks it of a struct
+
 let put_ctype(y:int64) {
     let k:int64 = types[y].kind
     if k == Y_VOID {
@@ -106,7 +108,7 @@ let put_ctype(y:int64) {
     } else if k == Y_ARRAY {
         put_array_name(y)
     } else if k == Y_STRUCT {
-        put("struct ")
+        if decl_named(types[y].name, D_STRUCT) >= 0 { put("struct ") }   // else a C header's typedef (#207)
         put_tok(types[y].name)
     } else if k == Y_PTR {
         put_ctype(types[y].elem)
@@ -194,8 +196,10 @@ let type_of(n:int64):int64 {
     if k == N_STR { return base_type(Y_CSTR) }
     if k == N_DSTR { return base_type(Y_STRING) }
     if k == N_BOOL { return base_type(Y_BOOL) }
+    if k == N_NULL { return base_type(Y_C) }
     if k == N_ID {
         let y:int64 = var_type(t)
+        if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
         if y < 0 { gen_error(n, "this name is not known") }
         return y
     }
@@ -207,6 +211,7 @@ let type_of(n:int64):int64 {
         }
         if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
         let d:int64 = decl_named(nodes[f].t, D_FN)
+        if d < 0 && c_headers { return base_type(Y_C) }      // a C header's function (#207)
         if d < 0 {
             gen_error(n, "this function is not known")
             return -1
@@ -223,7 +228,8 @@ let type_of(n:int64):int64 {
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
         if tok_is(t, "utf32") { return base_type(Y_U32) }
-        if yk == Y_STRUCT { return field_type(y, t) }
+        if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
+        if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
         gen_error(n, "this member is not known")
         return -1
     }
@@ -443,8 +449,10 @@ let gen_expr(n:int64) {
     if failed { return }
     let k:int64 = nodes[n].kind
     let t:int64 = nodes[n].t
-    if k == N_ID && var_type(t) < 0 {
+    if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
+    } else if k == N_NULL {
+        put("NULL")
     } else if k == N_NUM || k == N_CHAR || k == N_STR || k == N_ID {
         put_tok(t)
     } else if k == N_DSTR {
@@ -883,6 +891,11 @@ let gen_program() {
         if nodes[d].kind == D_IMPORT && nodes[d].flag == 1 {
             put("#include <kOS.h>\n#include <kIO.h>\n")
             uses_io = true
+        }
+        if nodes[d].kind == D_IMPORT && nodes[d].flag == 2 {     // #import <x.h> as C (#207)
+            put("#include ")
+            put_tok(nodes[d].t)
+            put("\n")
         }
     }
     put("\n")

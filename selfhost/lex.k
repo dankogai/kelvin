@@ -19,7 +19,7 @@ let T_STR:int64 = 4       // "...", as written
 let T_CHAR:int64 = 5      // '.', as written
 let T_PUNCT:int64 = 6
 let T_DSTR:int64 = 7      // $"...", the text from its "
-let T_IMPORT:int64 = 8    // #import <x> or "x.k", the name with its brackets
+let T_IMPORT:int64 = 8    // #import <x>, "x.k" or <x.h> as C, the name with its brackets
 
 var codes:$[uint32]       // every file's text
 var toks:$[tok]
@@ -82,6 +82,7 @@ let punct_len(i:int64):int64 {
     if c == '$' && d == '[' { return 2 }
     if (c == '=' || c == '!' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/' || c == '%') && d == '=' { return 2 }
     if c == '&' && d == '&' { return 2 }
+    if c == ':' && d == '=' { return 2 }
     if c == '|' && d == '|' { return 2 }
     return 1
 }
@@ -147,7 +148,7 @@ let lex_range(from:int64, to:int64, file:int64) {
             while a < i && codes[a] != '<' && codes[a] != '"' { a += 1 }
             var b:int64 = i
             while b > a && codes[b - 1] != '>' && codes[b - 1] != '"' { b -= 1 }
-            if a >= b { lex_error(file, line, "only #import <x> and #import \"x.k\" are known") }
+            if a >= b { lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known") }
             add_tok(T_IMPORT, a, b - a, line, file)
         } else {
             let n:int64 = punct_len(i)

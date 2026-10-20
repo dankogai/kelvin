@@ -39,6 +39,7 @@ let N_DEREF:int64 = 15     // a^
 let N_EMPTY:int64 = 16     // $[]
 let N_TYPE:int64 = 17      // IO or String called: a type's name as a function
 let N_INIT:int64 = 18      // {b...}, a struct's members in order
+let N_NULL:int64 = 19      // nullptr
 // statements
 let S_VAR:int64 = 20       // t:ty = a
 let S_ASSIGN:int64 = 21    // a t b, t an assignment's operator
@@ -72,12 +73,20 @@ let Y_ARRAY:int64 = 10
 let Y_STRUCT:int64 = 11
 let Y_PTR:int64 = 12
 let Y_ARGV:int64 = 13      // [cstr], main's argv
+let Y_C:int64 = 14         // what only C sees: a name of a C header (#207)
 
 var nodes:$[node]
 var types:$[ty]
 var decls:$[int64]         // the top-level declarations, in order
 var arrays:$[int64]        // every Array type, in the order they are met
 var pos:int64              // the next token
+var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
+
+// whether token t names a C header: <x.h> or "x.h"
+let is_header(t:int64):bool {
+    let n:int64 = toks[t].len
+    return n > 3 && codes[toks[t].at + n - 3] == '.' && codes[toks[t].at + n - 2] == 'h'
+}
 
 // ---------- types ----------
 
@@ -280,6 +289,7 @@ let parse_primary():int64 {
     if k == T_ID {
         advance()
         if tok_is(t, "true") || tok_is(t, "false") { return make_node(N_BOOL, t) }
+        if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
         if tok_is(t, "IO") || tok_is(t, "String") { return make_node(N_TYPE, t) }
         return make_node(N_ID, t)
     }
@@ -403,7 +413,7 @@ let parse_var(is_let:int64):int64 {
     nodes[n].flag = is_let
     expect(":")
     set_ty(n, parse_type())
-    if at_word("=") {
+    if at_word("=") || at_word(":=") {          // := of a reference, as a cstr
         advance()
         set_a(n, parse_expr())
     }
@@ -566,6 +576,10 @@ let parse_program() {
         if at_kind(T_IMPORT) {
             let n:int64 = make_node(D_IMPORT, advance())
             if tok_is(nodes[n].t, "<IO>") { nodes[n].flag = 1 }
+            if is_header(nodes[n].t) {
+                nodes[n].flag = 2                   // a C header, as C (#207)
+                c_headers = true
+            }
             decls += n
         } else if at_word("struct") {
             advance()

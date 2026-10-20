@@ -2,10 +2,16 @@
 // selfhost/README.md. It reads the subset of Kelvin it is written in,
 // writes C as kelvinc does, for the same runtime, and hands it to cc:
 //   kc file.k -o program [-c file.c] [-m modules] [-cc compiler]
-// -c keeps the C there, which is how the stages are compared; -m names
-// the directory of kelvin_prelude.h and the libraries, modules/ when
-// none is given; -cc the C compiler, cc when none is. The files it imports, `#import "x.k"`, are read too.
+// -c keeps the C there, which is how the stages are compared; without
+// it the C is a temporary file, in $TMPDIR, removed once cc is done. -m
+// names the directory of kelvin_prelude.h and the libraries, else
+// $KELVIN_HOME/modules, else modules/; -cc the C compiler, else $CC,
+// else cc. The files it imports, `#import "x.k"`, are read too, and C's
+// headers, `#import <x.h> as C`, are C's, as libc is (#207).
 #import <IO>
+#import <stdio.h> as C            // remove
+#import <stdlib.h> as C           // getenv
+#import <unistd.h> as C           // getpid
 #import "lex.k"
 #import "parse.k"
 #import "gen.k"
@@ -51,7 +57,7 @@ let load(path:String^):bool {
 let load_imports():bool {
     var i:int64 = 0
     while i < toks.count as int64 {
-        if toks[i].kind == T_IMPORT && codes[toks[i].at] == '"' {
+        if toks[i].kind == T_IMPORT && codes[toks[i].at] == '"' && !is_header(i) {
             var path:String = dir_of(&fnames[toks[i].file])
             let at:int64 = toks[i].at
             for j in 1..<toks[i].len - 1 {
@@ -68,6 +74,20 @@ let load_imports():bool {
     return true
 }
 
+// n's digits after s
+let append_int(s:String^, n:int64) {
+    if n >= 10 { append_int(s, n / 10) }
+    let d:int64 = n % 10 + 48
+    s^ += (d as uint32).uchr
+}
+
+// the environment's value of name, else otherwise
+let env_or(name:cstr, otherwise:cstr):String {
+    let v:cstr := getenv(name)
+    if v != nullptr { return String(v) }
+    return String(otherwise)
+}
+
 let cc_arg(args:$[String]^, s:cstr) {
     args^ += String(s)
 }
@@ -76,8 +96,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var input:String = $""
     var output:String = $""
     var cfile:String = $""
-    var mods:String = $"modules"
-    var compiler:String = $"cc"
+    var mods:String = $""
+    var compiler:String = env_or("CC", "cc")
     var i:int64 = 1
     while i < argc as int64 {
         var a:String = String(argv[i])
@@ -102,6 +122,15 @@ let main(argc:int32, argv:[cstr]):int32 {
         println("usage: kc file.k -o program [-c file.c] [-m modules] [-cc compiler]")
         return 2
     }
+    if mods.count == 0 {
+        let home:cstr := getenv("KELVIN_HOME")
+        if home != nullptr {
+            mods = String(home)
+            mods += "/modules"
+        } else {
+            mods = $"modules"
+        }
+    }
     if !load(&input) { return 1 }
     if !load_imports() { return 1 }
     let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
@@ -111,10 +140,14 @@ let main(argc:int32, argv:[cstr]):int32 {
     if failed { return 1 }
     gen_program()
     if failed { return 1 }
+    var temporary:bool = false
     if cfile.count == 0 {
         if output.count == 0 { output = $"a.out" }
-        cfile = output.copy()
+        cfile = env_or("TMPDIR", "/tmp")
+        cfile += "/kc-"
+        append_int(&cfile, getpid() as int64)
         cfile += ".c"
+        temporary = true
     }
     var g:IO = IO(cfile.cstr, "w")
     if g.error != 0 {
@@ -150,6 +183,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-lm")
     var p:IO = IO.exec(args, "r")
     p.close()
+    if temporary { remove(cfile.cstr) }
     if p.status != 0 {
         println("kc: cc failed on ", cfile)
         return 1

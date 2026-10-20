@@ -5094,3 +5094,16 @@ which the Array then owns; `&ys` of an Array of the same type is still
 its elements. arrays.md says so. Details are provisional P218.
 
 There are 817 tests, and all pass with clang and with gcc 15.
+
+### 251. kc reads C's headers
+
+> teach kc #import <x.h> as C as #207
+
+**Claude** added #207: kc includes a header imported as C and takes a
+name it does not know for C's, as kelvinc does, with `nullptr`, `:=`
+and C's typedefs; and kc itself uses libc: `KELVIN_HOME`, `CC` and
+`TMPDIR` by `getenv`, a temporary C file by `getpid`, removed by
+`remove`. The stages keep their fixpoint, and sample.k calls strlen,
+abs and getenv. Details are provisional P219.
+
+There are 817 tests, and all pass with clang and with gcc 15.
