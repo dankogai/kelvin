@@ -5813,3 +5813,15 @@ Result of its type, as where a Result is expected, so `r ?? ok(0)` is
 provisional P266.
 
 There are 885 tests, and all pass with clang and with gcc 15.
+
+### 299. Declarations and assignments check the value's type
+
+> make declarations and assignments check the value's type as #255
+
+**Claude** made `var n:i64 = v`, `n = v` and `p.x = v` check `v` as
+`d[k] = v` does (#246): text for a number, or a number for a String,
+is Kelvin's error, `'n' is an i64, and this is text`. A number still
+takes any number. C's own types, as `size_t`, and functions are left
+to C. Details are provisional P267.
+
+There are 889 tests, and all pass with clang and with gcc 15.

@@ -6148,12 +6148,22 @@ static void check_entry_value(Expr *v, Type *dt, Pos pos) {
 /* v where a value of want goes, in Kelvin's words: "<lead> an i64, and
    this is text" (#246, #248) */
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
+    if (want && want->kind == T_TYPEOF) /* x.type, as x's (#255) */
+        want = want->elem;
+    if (!want)
+        return;
     want = unqualified(want);
     Decl *rec;
     if (want->kind == T_BASE && type_class(want, &rec) == 'u')
         return; /* a C typedef, as size_t, is C's (#251) */
+    if (want->kind == T_FUNC || want->kind == T_TYPEOF)
+        return; /* a function is matched by its overloads, and then C (#255) */
     Type *vt = value_type(v);
     vt = vt ? unqualified(vt) : NULL;
+    if (vt && vt->kind == T_TYPEOF) /* of x.type, as x's, which may be C's */
+        vt = vt->elem ? unqualified(vt->elem) : NULL;
+    if ((vt && vt->kind == T_BASE && type_class(vt, &rec) == 'u') || (vt && vt->kind == T_TYPEOF))
+        return; /* a value of a C typedef too (#255) */
     bool num_want = (want->kind == T_BASE && number_kind(want)) || (want->kind == T_BASE && !strcmp(want->name, "bool"));
     bool text = v->kind == E_STRING || is_text_expr(v) || (vt && is_cstr(vt));
     bool number = number_expr(v) || (vt && vt->kind == T_BASE && (number_kind(vt) || !strcmp(vt->name, "bool")));
@@ -7362,6 +7372,12 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
                 reject_owner_copy(e->b, target_type(lhs), t->pos);
                 reject_record_mismatch(e->b, target_type(lhs), t->pos);
+                if (target_type(lhs)) /* in Kelvin's words, not C's (#255) */
+                    check_typed_value(e->b, target_type(lhs),
+                                      lhs->kind == E_IDENT ? strfmt("'%s' is", lhs->text)
+                                      : lhs->kind == E_FIELD ? strfmt("'.%s' is", lhs->text)
+                                                             : "what is assigned to is",
+                                      e->b->pos);
                 if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
                     set_moved(lhs->text, false);
                 if (lhs->kind != E_IDENT && is_owner(value_type(lhs)) && !is_io(value_type(lhs)))
@@ -8467,6 +8483,7 @@ static Var *parse_var(bool with_init, int let) {
         v->init = optional_of(v->init, v->type, v->init->pos); /* a T into a T? (#72) */
         reject_owner_copy(v->init, v->type, v->init->pos);
         reject_record_mismatch(v->init, v->type, v->init->pos);
+        check_typed_value(v->init, v->type, strfmt("'%s' is", v->name), v->init->pos); /* (#255) */
         reject_owner_array(v);
         pick_overload(v->init, v->type);
     }

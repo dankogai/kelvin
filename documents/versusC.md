@@ -213,3 +213,15 @@ The C compiler checks Kelvin programs, and `#line` directives make its
 errors and warnings point at your `.k` file and line. Kelvin's own syntax
 errors also carry hints for C habits, such as `*p`, `p->m`, `int x;`,
 `long`, `10UL` or `(int)x`.
+
+- **A value of the wrong type** is Kelvin's error, in Kelvin's words,
+  where C would refuse it or convert it silently (#255): `'n' is an
+  i64, and this is text`.
+  - Checked: a declaration, `var n:i64 = v`; an assignment, `n = v`,
+    `p.x = v`; an entry, `d[k] = v` (#246); what `contains` looks for
+    (#248); what `??` falls back to (#250).
+  - A number takes any number, as C converts it; a String a String or
+    text; a `cstr` text; an Optional its `T` or `none`; a pointer any
+    pointer; anything else its own type.
+  - Left to C: a C typedef, as `size_t`; a value only C sees; a
+    function, which is matched by its overloads first.
