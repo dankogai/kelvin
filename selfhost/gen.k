@@ -293,6 +293,7 @@ let is_comparison(t:int64):bool {
 let type_of(n:int64):int64
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
+let call_target(n:int64):int64    // the overload a call calls (#234)
 
 // whether node a names a struct, not a variable: T of T.f(...)
 let names_type(a:int64):bool {
@@ -427,7 +428,7 @@ let type_of(n:int64):int64 {
             return base_type(Y_STRING)
         }
         if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
-        let d:int64 = decl_named(nodes[f].t, D_FN)
+        let d:int64 = call_target(n)                       // the overload its arguments fit (#234)
         if d < 0 && c_headers { return base_type(Y_C) }      // a C header's function (#207)
         if d < 0 {
             gen_error(n, "this function is not known")
@@ -637,6 +638,229 @@ let close_holds(opened:$[int64]^) {
     for i in 0..<opened^.count as int64 { hold_close(opened^[i]) }
 }
 
+// ---------- overloading (#234) ----------
+
+var fn_sigs:Dictionary<String, int64>       // each function's name and signature: its first declaration
+var fn_bodies:Dictionary<String, int64>     // those of them a declaration defines
+var fn_overloads:Dictionary<String, int64>  // how many signatures a name has
+var targets:Dictionary<int64, int64>        // the overload each call of an overloaded name chose
+
+// a type in a C name, as kelvinc's mangled_type: i64, String, vecp,
+// Array_i64, Dictionary_String_i64, opt_i64, res_i64_String
+let mangled(y:int64):String {
+    switch types[y].kind {
+    case Y_I64: return $"i64"
+    case Y_I32: return $"i32"
+    case Y_U8: return $"u8"
+    case Y_U32: return $"u32"
+    case Y_BOOL: return $"bool"
+    case Y_CSTR: return $"cstr"
+    case Y_STRING: return $"String"
+    case Y_IO: return $"IO"
+    case Y_UCHR: return $"uchr"
+    case Y_ARGV: return $"acstr"
+    case Y_PTR:
+        var s = mangled(types[y].elem)
+        s += "p"
+        return s
+    case Y_ARRAY:
+        var s = $"Array_"
+        s += mangled(types[y].elem)
+        return s
+    case Y_DICT:
+        var s = $"Dictionary_"
+        s += mangled(types[y].name)
+        s += "_"
+        s += mangled(types[y].elem)
+        return s
+    case Y_STRUCT:
+        let d = tagged_of(y)
+        if d >= 0 && nodes[d].c == 1 {
+            var s = $"opt_"
+            s += mangled(some_type(y))
+            return s
+        }
+        if d >= 0 && types[y].name > eof_pos {          // a Result, made by kc
+            let m = nodes[d].a
+            var s = $"res_"
+            s += mangled(nodes[m].ty)
+            s += "_"
+            s += mangled(nodes[nodes[m].next].ty)
+            return s
+        }
+        return tok_text(types[y].name)
+    default: return $"C"
+    }
+}
+
+// a function's parameters in its C name: __i64__String, or __void
+let params_key(d:int64):String {
+    var s = $""
+    var p:int64 = nodes[d].a
+    if p < 0 { s += "__void" }
+    while p >= 0 {
+        s += "__"
+        s += mangled(nodes[p].ty)
+        p = nodes[p].next
+    }
+    return s
+}
+
+let sig_key(d:int64):String {
+    var key = tok_text(nodes[d].t)
+    key += params_key(d)
+    return key
+}
+
+// the signatures of each name: a prototype and its definition are one
+let count_overloads() {
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 { continue }
+        var key = sig_key(d)
+        if !fn_sigs.has(key) {
+            fn_sigs[key] = d
+            var name = tok_text(nodes[d].t)
+            fn_overloads[name] = fn_overloads.get(name, 0) + 1
+        }
+        if nodes[d].b >= 0 { fn_bodies[key] = 1 }
+    }
+}
+
+// a function's C name, as kelvinc's: a defined overload by its
+// parameters' types, twice__i64; one declared and never defined is C's
+let put_fn_name(d:int64) {
+    put_tok(nodes[d].t)
+    var name = tok_text(nodes[d].t)
+    var key = sig_key(d)
+    if fn_overloads.get(name, 0) > 1 && fn_bodies.has(key) && !tok_is(nodes[d].t, "main") {
+        var types_of = params_key(d)
+        out += &types_of
+    }
+}
+
+// a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool
+let is_number_kind(k:ykind):bool {
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_BOOL
+}
+
+// how a call's argument a fits a parameter of type t, as kelvinc's fit:
+// 2 its very type, 1 one it converts to, 0 none; a T fits a T? only
+// where wraps is, the second look (#222)
+let arg_fit(a:int64, t:int64, wraps:bool):int64 {
+    if t < 0 { return 0 }
+    let k:nkind = nodes[a].kind
+    let tk:ykind = types[t].kind
+    if is_case_word(a) {                                 // none, ok(v), err(e): of the type that takes them
+        let d = tagged_of(t)
+        if d < 0 { return 0 }
+        let w = k == N_CALL ? nodes[nodes[a].a].t : nodes[a].t
+        return case_named(d, w).is(some) ? 1 : 0
+    }
+    let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[a].t, "-") && nodes[nodes[a].a].kind == N_NUM)
+    let at = type_of(a)
+    if at == t { return 2 }
+    if literal && is_number_kind(tk) { return 1 }
+    if k == N_STR && tk == Y_STRING { return 1 }          // a String of it (#223)
+    if at >= 0 && types[at].kind == Y_C { return 1 }      // what only C sees, which C converts
+    if at >= 0 && is_number_kind(types[at].kind) && is_number_kind(tk) { return 1 }
+    if wraps && some_type(t) >= 0 && arg_fit(a, some_type(t), wraps) > 0 { return 1 }
+    return 0
+}
+
+// the overload of name that call n's arguments fit best: exactly, or as
+// well on each argument as any other and better on one; -2 a tie, -1 none
+let choose_overload(n:int64, name:String^, wraps:bool):int64 {
+    var cands:$[int64] = $[]
+    var fits:$[int64] = $[]
+    var nargs = 0
+    var a:int64 = nodes[n].b
+    while a >= 0 {
+        nargs += 1
+        a = nodes[a].next
+    }
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != name^ { continue }
+        var key = sig_key(d)
+        if fn_sigs.get(key, -1) != d { continue }         // a signature once
+        var np = 0
+        var p:int64 = nodes[d].a
+        var ok = true
+        a = nodes[n].b
+        let at = fits.count as int64
+        while p >= 0 && a >= 0 {
+            let f = arg_fit(a, nodes[p].ty, wraps)
+            if f == 0 { ok = false }
+            fits += f
+            np += 1
+            p = nodes[p].next
+            a = nodes[a].next
+        }
+        if !ok || p >= 0 || a >= 0 {                      // no fit, or another count of arguments
+            while fits.count as int64 > at { fits.pop() }
+            continue
+        }
+        cands += d
+    }
+    var best = -1
+    var ties = 0
+    for i in 0..<cands.count as int64 {
+        var beaten = false
+        for j in 0..<cands.count as int64 {
+            if i == j { continue }
+            var all = true
+            var more = false
+            for k in 0..<nargs as int64 {
+                let x = fits[j * nargs + k]
+                let y = fits[i * nargs + k]
+                if x < y { all = false }
+                if x > y { more = true }
+            }
+            if all && more { beaten = true }
+        }
+        if !beaten {
+            if best >= 0 { ties += 1 }
+            best = cands[i]
+        }
+    }
+    if ties > 0 { return 0 - 2 }
+    return best
+}
+
+// the function call n calls: the one of its name, or the overload its
+// arguments fit, chosen once; -1 C's
+let call_target(n:int64):int64 {
+    let f:int64 = nodes[n].a
+    let first = decl_named(nodes[f].t, D_FN)
+    if first < 0 { return -1 }
+    var name = tok_text(nodes[f].t)
+    if fn_overloads.get(name, 0) < 2 { return first }
+    if targets.has(n) { return targets.get(n, -1) }
+    var a:int64 = -1
+    var d = choose_overload(n, &name, false)
+    if d == -1 { d = choose_overload(n, &name, true) }   // a T where a T? goes (#222)
+    if d == -2 {
+        var why = name.copy()
+        var bare = false                                  // a none that two Optionals take
+        a = nodes[n].b
+        while a >= 0 {
+            if nodes[a].kind == N_ID && is_case_word(a) { bare = true }
+            a = nodes[a].next
+        }
+        why += bare ? "(...) fits more than one of its overloads equally: say which Optional none is, binding it first, as in 'let n:int64? = none'" : "(...) fits more than one of its overloads equally: convert an argument, as in 'x as int64'"
+        gen_error(n, why.cstr)
+        d = first
+    } else if d < 0 {
+        var why = name.copy()
+        why += "(...) fits none of its overloads: C's function of the name is not called where a Kelvin function has it (#223); declare C's beside them"
+        gen_error(n, why.cstr)
+        d = first
+    }
+    targets[n] = d
+    return d
+}
+
 // ---------- printing an enum with values, a struct (#229) and an Array (#230) ----------
 
 var shown:$[int64]                       // the types whose _kv_show_T is written, in order
@@ -841,9 +1065,13 @@ let gen_call(n:int64) {
         }
         if count > 16 { gen_error(n, "println and print take up to 16 values: write two calls") }
     }
-    let d = decl_named(nodes[f].t, D_FN)
+    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // kc has no function values
+        gen_error(n, "this calls a variable, which hides the function of its name here: rename one of them")
+        return
+    }
+    let d = call_target(n)                          // the overload its arguments fit (#234)
     var opened = hold_args(args, d)                 // as kelvinc holds them (#227)
-    put_tok(nodes[f].t)
+    if d >= 0 { put_fn_name(d) } else { put_tok(nodes[f].t) }
     put("(")
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
         gen_print_args(args)
@@ -1142,6 +1370,12 @@ let fits_value(n:int64, t:int64):bool {
 }
 
 let gen_value(n:int64, y:int64) {
+    if nodes[n].kind == N_STR && y >= 0 && types[y].kind == Y_STRING {   // a String of text where one goes (#234)
+        put("KV_STRING_OF(")
+        gen_expr(n)
+        put(")")
+        return
+    }
     if nodes[n].kind == N_COND {                         // each arm by the type that takes it (#232)
         if !owner_choice(n) { return }
         if is_owner(type_of(n)) && is_place(n) {
@@ -2200,8 +2434,10 @@ let gen_signature(d:int64) {
     if recv >= 0 {                                     // T__m (#213)
         put_tok(recv)
         put("__")
+        put_tok(nodes[d].t)
+    } else {
+        put_fn_name(d)                                 // twice__i64 of an overload (#234)
     }
-    put_tok(nodes[d].t)
     put("(")
     var p:int64 = nodes[d].a
     let takes_self:bool = recv >= 0 && nodes[d].flag != 1
@@ -2604,6 +2840,7 @@ let write_type(y:int64) {
 
 let gen_program() {
     index_names()
+    count_overloads()
     put("/* generated by kc, selfhost/kc.k */\n")
     put("#if !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)\n")
     put("#ifndef _XOPEN_SOURCE\n#define _XOPEN_SOURCE 700\n#endif\n")

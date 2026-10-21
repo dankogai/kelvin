@@ -5487,3 +5487,19 @@ and assignments, with kelvinc's messages word for word. kc also reads
 and a Dictionary are left unchecked. Details are provisional P245.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 278. kc's overloading
+
+> teach kc overloading as #234
+
+**Claude** added #234: kc overloads functions as kelvinc does. A call gets
+the overload its arguments fit best, scored as kelvinc's `fit` scores
+them, with `none`, `ok(v)` and a `T` of a `T?` as #222 has them; a tie
+and no fit are errors, as #223 has them; and each defined overload is
+named in C as kelvinc names it, `twice__i64`. On the way kc learned to
+make a `String` of a text literal given where one goes, and to refuse a
+call of a name that a variable hides, which kelvinc's build of the
+sample met. The overloads of methods are left. Details are provisional
+P246.
+
+There are 834 tests, and all pass with clang and with gcc 15.

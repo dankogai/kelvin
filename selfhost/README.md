@@ -131,6 +131,21 @@ kc reads what it is written in, and little more.
       freed.
     - A `T?` that only a chain needs is made while the functions are
       written, and written before them.
+- **Overloading** (#234): functions of one name and different
+  parameter types, as kelvinc's (#41).
+  - A call gets the overload its arguments fit best, as kelvinc's `fit`
+    scores them: the very type over a number, a `bool` among them, that
+    converts; a text literal fits a `String`; `none` an Optional alone;
+    a `T` a `T?` only where nothing else fits (#222).
+  - A tie, and arguments no overload fits, are errors: C's function of
+    the name is not called beside a Kelvin one (#223).
+  - A prototype and its definition are one overload; a function
+    declared and never defined is C's, and keeps its name.
+  - In C each defined overload is named as kelvinc names it,
+    `twice__i64`, `twice__String`, `show__vecp`, `kind__opt_i64`,
+    `f__void`.
+  - A call of a name that a variable hides is an error, where kelvinc's
+    C would not compile.
 - **Methods** (#213): `extend T { let m(...) ... static let f(...) ... }`
   and `let T.m(...)`; inside, `self`, `.x` for `self.x`, and `Self`.
   - `x.m(...)` is `T__m(x, ...)`, its receiver by value, and `T.f(...)`
@@ -239,6 +254,7 @@ steps can take them on one at a time.
 - **Taken into the subset since #204:**
   - `switch` and enums (#210), and enums with values (#215);
   - `c ? a : b` (#232);
+  - overloading (#234);
   - `Dictionary` (#211), and `d[k]` as an Optional (#219);
   - methods of `extend` and `let T.m` (#213);
   - type inference (#214);
@@ -250,8 +266,10 @@ steps can take them on one at a time.
   - printing what kelvinc prints, `some(3)`, `{x: 1, y: 2}` and
     `[1, 2]` (#229, #230).
 - **Left out of the subset:**
-  - overloading, and the names it mangles (`twice__i64`), so kc cannot
+  - the overloads of methods; and kelvinc's names of the functions of
+    an imported Kelvin file, `f__i64` overloaded or not, so kc cannot
     link a module kelvinc builds of Kelvin;
+  - comparing an Optional, `x == none` or `x == 3` (#79);
   - `try`, `Optional`'s `map` and the rest of its methods;
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
@@ -371,8 +389,9 @@ libc is allowed, as it is to any C program; C of our own is not.
     [documents/c-contract.md](../documents/c-contract.md), from
     kelvinc's output.
 - **Modules:** a module built by kelvinc names its functions by their
-  types. To link one, kc would have to mangle as kelvinc does; `<IO>`
-  works because its functions are C's.
+  types. kc names an overload as kelvinc does since #234, but not yet
+  every function of an imported file; `<IO>` works because its
+  functions are C's.
 
 ## Next steps
 

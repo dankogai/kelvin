@@ -78,6 +78,17 @@ let either(c:bool, s:String):String {                // c ? a : b (#232): return
 
 let half(n:int64):int64? { return n % 2 == 0 ? n / 2 : none }
 
+let twice(n:int64):int64 { return n * 2 }               // overloads, twice__i64 and the rest (#234)
+let twice(s:String):String {
+    var t = s.copy()
+    t += &s
+    return t
+}
+let twice(p:point):point { return {p.x * 2, p.y * 2} }
+let kind(n:int32):cstr { return "int32" }
+let kind(b:bool):cstr { return "bool" }
+let kind(o:int64?):cstr { return "int64?" }
+
 let sum_of(xs:$[int64]):int64 {
     var t:int64 = 0
     for x in xs { t += x }
@@ -254,10 +265,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     for c in shout($"abc") { letters += 1 }
     shout($"dropped")
     println(String(42), " ", shout($"x").count, " ", adopt("ace").name, " ", adopt("bo").tricks[0], " ", letters, " ", String(7) == $"7")
-    let twice:int64?? = 4                             // printed as kelvinc prints them (#229)
+    let twofold:int64?? = 4                           // printed as kelvinc prints them (#229)
     let tiny:uint8? = 'k'
     println(at, " ", missing, " ", named(1), " ", good, " ", bad)
-    println(a, " ", c, " ", p, " ", twice, " ", tiny)
+    println(a, " ", c, " ", p, " ", twofold, " ", tiny)
     var none_yet:$[int64] = $[]
     println(fibs, " ", none_yet, " ", points, " ", hay)    // Arrays (#230)
     let odd = fibs.count % 2 == 1
@@ -266,6 +277,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let size:int64 = odd ? fibs.count as int64 : 0 - 1
     var picked = either(odd, $"mine")
     println(parity, " ", size, " ", size > 10 ? size > 20 ? "huge" : "big" : "small", " ", half(6), " ", half(7), " ", picked, " ", odd ? picked : loud)
+    println(twice(21), " ", twice($"ab"), " ", twice(p).y, " ", kind(3 as int32), " ", kind(true), " ", kind(none))
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p
