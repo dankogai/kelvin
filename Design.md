@@ -280,6 +280,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 246 | `d[k] = v`, `d[k] ??= v` and `d[k] !!= v` check `v` against the Dictionary's value type: a number takes any number, as C converts; a String a String or a text literal; a `cstr` text; anything else its very type, an Optional's T or none wrapped first; else an error, `an entry of Dictionary<String, i64> is an i64, and this is text`; a value only C sees is C's | — | `d["a"] = "text"` of an i64's is an error | 2026-10-22 |
 | 247 | `a0 == a1` and `!=` of two Arrays of one element type: as many elements, each equal to the one in its place by its own `==`; the elements must compare, as a Dictionary's values (#235), else an error; an Array now compares wherever a type's `==` asks, so a Dictionary, an Optional, a Result or an enum with values holding one does, JSON and SION among them; no `<` | — | `$[1, 2] == $[1, 2]` is true | 2026-10-22 |
 | 248 | `xs.contains(x)`, a `bool`, and `xs.firstIndex(x)`, `xs.lastIndex(x)`, an `i64?` of where it is first and last, by the elements' `==`; or of a function of an element giving a `bool`, anonymous (lent each) or named (given a copy); `x` is of the element type, text for a String, `none` for an Optional, looked at and not moved; `s == $"b"` returned from a bool function is a bool | — | `$[3, 1, 4].firstIndex(1)` is `some(1)` | 2026-10-22 |
+| 249 | `d.contains(v)`, a `bool`, and `d.firstKey(v)`, `d.lastKey(v)`, a `K?` of a copy of the key of the first and last value equal to `v` in the order added; or of a function of each value; `containsWithKey`, `firstKeyWithKey`, `lastKeyWithKey` of a function of each key, as #241's, and its value; `d.firstIndex` and an Array's `firstKey` are errors naming the other | — | `${"a": 1, "b": 2}.firstKey(2)` is `some("b")` | 2026-10-22 |
 
 Notes:
 
@@ -841,6 +842,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (249) Agreed details: "add Dictionary searching as #249". The user
+  chose, when asked: `firstKey` and `lastKey`, a `K?`, over Array's
+  names, and WithKey versions of the three as #241's. `contains` looks
+  among the values, as map, filter and reduce see a Dictionary as a
+  sparse Array (#238); `has(k)` stays the key test. The #248 branch
+  serves both, the loop over live entries as #238's.
 
 - (248) Agreed details: "add Array searching (contains, firstIndex) as
   #248". The user chose, when asked: an `i64?` for the index, `none`
@@ -2650,6 +2658,7 @@ says "as agreed".
 | P258 | Details of #246 | parser.c: check_entry_value(v, dt, pos) after case_value of `d[k] = v` and of `d[k] ?\?= v`, `d[k] !!= v`; tests: run/dict_entry_values.k, error/dict_entry_text.k, error/dict_entry_number.k; documents/dictionaries.md | the same check of declarations, assignments and Array elements, C's still |
 | P259 | Details of #247 | parser.c: eq_type and Type.eq of an Array as of its element; the D/A branch of `==`, `!=` calls `_kv_array_T_eq(&a, &b)`; codegen.c: emit_array_eq after KV_ARRAY_FUNCS and KV_ARRAY, a prototype after KV_ARRAY_TYPE; eq_code of an Array by its _eq; tests: run/array_eq.k, run/json_eq.k, error/array_eq_types.k, error/array_eq_elements.k, error/array_compare.k now `<`; documents/arrays.md, dictionaries.md, json.md, sion.md, optionals.md, results.md | searching an Array (`contains`, `firstIndex`) |
 | P260 | Details of #248 | parser.c: the contains/firstIndex/lastIndex branch before map/filter/reduce, op `array_<member>[_tmp][_fn[_lent]]`, its value converted as case_value's and checked by check_typed_value, held by hold_operand; value_type gives e->type; wrap_temps keeps is_bool; require_bool_return's lead 'looks for' for these; codegen.c: a loop, backward for lastIndex, `_kv_cx` of the element type, eq_code or f; tests: run/array_search.k, error/array_search_type.k, error/array_search_eq.k, error/array_search_bool.k; documents/arrays.md | `&x` of an owner to look for; searching a Dictionary's values |
+| P261 | Details of #249 | parser.c: the #248 branch takes a Dictionary, op `dict_<member>[_tmp][_fn[_lent]]`, WithKey's key a cstr of a String's as #241's; errors for `d.firstIndex` and an Array's `firstKey`; codegen.c: a loop over the live entries, backward for lastKey, the key copied by owner_copy; tests: run/dict_search.k, error/dict_search_index.k, error/dict_search_type.k, error/dict_search_with_key.k; documents/dictionaries.md | `??` of an Optional that owns, as `d.lastKey(v) ?? $"none"` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -2026,16 +2026,36 @@ static Expr *parse_postfix_steps(Expr *e) {
                 error_at(name->pos, "an Array has no '.%s': it is a Dictionary's, whose function takes each key; "
                                     "write '.%.*s'",
                          member, (int)(strlen(member) - 7), member);
-            if ((!strcmp(member, "contains") || !strcmp(member, "firstIndex") || !strcmp(member, "lastIndex")) &&
-                value_type(e) && is_array_owner(unqualified(value_type(e))) &&
+            bool array_search = !strcmp(member, "firstIndex") || !strcmp(member, "lastIndex");
+            bool dict_search = !strcmp(member, "firstKey") || !strcmp(member, "lastKey") ||
+                               !strcmp(member, "containsWithKey") || !strcmp(member, "firstKeyWithKey") ||
+                               !strcmp(member, "lastKeyWithKey"); /* (#249) */
+            if ((array_search || dict_search) && value_type(e) &&
+                (array_search ? is_dict_owner(unqualified(value_type(e))) : is_array_owner(unqualified(value_type(e)))))
+                error_at(name->pos, array_search ? "a Dictionary has no '.%s': its values are found by key, '.%s'"
+                                                 : "an Array has no '.%s': it is a Dictionary's; an Array's is '.%s'",
+                         member,
+                         !strncmp(member, "contains", 8) ? "contains"
+                         : !strncmp(member, "first", 5)  ? (array_search ? "firstKey" : "firstIndex")
+                                                         : (array_search ? "lastKey" : "lastIndex"));
+            if ((!strcmp(member, "contains") || array_search || dict_search) && value_type(e) &&
+                (is_array_owner(unqualified(value_type(e))) || is_dict_owner(unqualified(value_type(e)))) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
                 /* xs.contains(x), xs.firstIndex(x), xs.lastIndex(x) (#248): is x
                    there, by the elements' ==, and where first or last, an
                    i64?; of a function, xs.contains { $0 > 2 }, the elements
                    it says true for, each lent as filter's are (#244). x is
                    looked at, not moved, and one an expression gives is held;
-                   an Array an expression gives is held and freed after */
+                   an Array an expression gives is held and freed after.
+                   d.contains(v), d.firstKey(v), d.lastKey(v) (#249) the same of
+                   a Dictionary's values, in the order added, the key a K?, a
+                   copy; containsWithKey and the rest take a function of each
+                   key, a String's as its cstr, lent, and its value, as #241's */
                 Type *at = unqualified(value_type(e));
+                bool dict = is_dict_owner(at), with_key = strstr(member, "WithKey") != NULL;
+                Type *kt = with_key ? (!strcmp(at->key->name, "String") ? cstr_type(name->pos) : at->key) : NULL;
+                const char *each = dict ? "value" : "element";
+                int arity = with_key ? 2 : 1;
                 const char *me = strfmt("'.%s'", member);
                 bool temporary = !owner_place(e);
                 Expr *x = new_expr(E_METHOD, name->pos);
@@ -2044,6 +2064,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Type *ctx = xcalloc(1, sizeof *ctx);
                 ctx->kind = T_FUNC;
                 ctx->pos = name->pos;
+                if (kt)
+                    list_push(&ctx->params, kt);
                 list_push(&ctx->params, at->elem);
                 ctx->elem = base_type("bool", name->pos);
                 Expr *f = NULL, *v = NULL;
@@ -2055,21 +2077,23 @@ static Expr *parse_postfix_steps(Expr *e) {
                     ident_annotation_ok = true;
                     brace_ends_condition = false;
                     if (is_p(peek(), ")"))
-                        error_at(peek()->pos, "%s takes the element to look for, '.%s(x)', or a function that says "
-                                              "which, '.%s { $0 > 0 }'",
-                                 me, member, member);
+                        error_at(peek()->pos,
+                                 kt ? "%s takes a function of a key and its value: '.%s { k, v in ... }'"
+                                    : "%s takes the %s to look for, '.%s(x)', or a function that says which, "
+                                      "'.%s { $0 > 0 }'",
+                                 me, kt ? member : each, member, member);
                     if (is_p(peek(), "{")) {
                         bool_anon_result = me;
-                        f = anon_arg(ctx, 1, 0, x, false);
+                        f = anon_arg(ctx, arity, 0, x, false);
                         bool_anon_result = NULL;
                     } else {
                         v = parse_assign();
                         Type *vt = value_type(v);
-                        if (vt && unqualified(vt)->kind == T_FUNC && unqualified(at->elem)->kind != T_FUNC)
+                        if (kt || (vt && unqualified(vt)->kind == T_FUNC && unqualified(at->elem)->kind != T_FUNC))
                             f = v, v = NULL;
                     }
                     if (is_p(peek(), ","))
-                        error_at(peek()->pos, "%s takes one element to look for, or one function", me);
+                        error_at(peek()->pos, "%s takes one %s to look for, or one function", me, each);
                     ident_annotation_ok = saved;
                     brace_ends_condition = saved_brace;
                     expect_p(")");
@@ -2077,7 +2101,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                         error_at(peek()->pos, "%s takes one function, and this would be a second", me);
                 } else {
                     bool_anon_result = me;
-                    f = anon_arg(ctx, 1, 0, x, true);
+                    f = anon_arg(ctx, arity, 0, x, true);
                     bool_anon_result = NULL;
                     if (at_statement_level())
                         trailing_end = cur;
@@ -2085,26 +2109,29 @@ static Expr *parse_postfix_steps(Expr *e) {
                 lend_anon_from = -1;
                 if (f) {
                     Type *ft = value_type(f);
-                    if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem)
-                        error_at(f->pos, "%s takes a function of one parameter, an element, with a result, and this "
-                                         "is %s",
-                                 me, ft ? kelvin_type(ft) : "not one");
-                    if (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(at->elem)))
-                        error_at(f->pos, "%s calls its function with each element, %s, and this takes %s", me,
-                                 kelvin_type(at->elem), kelvin_type(ft->params.data[0]));
+                    if (!ft || ft->kind != T_FUNC || ft->params.len != arity || !ft->elem)
+                        error_at(f->pos, "%s takes a function of %s, with a result, and this is %s", me,
+                                 kt ? "two parameters, a key and its value" : strfmt("one parameter, a%s %s", dict ? "" : "n", each),
+                                 ft ? kelvin_type(ft) : "not one");
+                    if (kt && strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(kt)))
+                        error_at(f->pos, "%s calls its function with each key, %s, and this takes %s", me, kelvin_type(kt),
+                                 kelvin_type(ft->params.data[0]));
+                    if (strcmp(kelvin_type(unqualified(ft->params.data[arity - 1])), kelvin_type(at->elem)))
+                        error_at(f->pos, "%s calls its function with each %s, %s, and this takes %s", me, each,
+                                 kelvin_type(at->elem), kelvin_type(ft->params.data[arity - 1]));
                     if (strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
-                        error_at(f->pos, "%s takes a function that says whether an element is the one, a bool, and "
+                        error_at(f->pos, "%s takes a function that says whether a%s %s is the one, a bool, and "
                                          "this gives %s",
-                                 me, kelvin_type(ft->elem));
+                                 me, dict ? "" : "n", kt ? "key and its value" : each, kelvin_type(ft->elem));
                     list_push(&x->items, f);
                 } else {
                     if (!eq_type(at->elem)) {
                         bare_tags = true;
                         char *ak = kelvin_type(at), *ek = kelvin_type(at->elem);
                         bare_tags = false;
-                        error_at(v->pos, "%s of %s compares the elements, and %s has no '==': give a function that "
+                        error_at(v->pos, "%s of %s compares the %ss, and %s has no '==': give a function that "
                                          "says which, '.%s { ... }'",
-                                 me, ak, ek, member);
+                                 me, ak, each, ek, member);
                     }
                     pick_overload(v, at->elem);
                     v = optional_of(string_of_literal(drop_cstr(v, at->elem), at->elem), at->elem, v->pos);
@@ -2117,12 +2144,13 @@ static Expr *parse_postfix_steps(Expr *e) {
                         v = hold_operand(v, &held);
                     list_push(&x->items, v);
                 }
-                x->type = !strcmp(member, "contains") ? base_type("bool", name->pos)
-                                                      : optional_type(name, base_type("i64", name->pos));
-                x->is_bool = !strcmp(member, "contains");
+                bool contains = !strncmp(member, "contains", 8);
+                x->type = contains ? base_type("bool", name->pos)
+                                   : optional_type(name, dict ? at->key : base_type("i64", name->pos));
+                x->is_bool = contains;
                 x->from = at;
-                x->op = strfmt("array_%s%s%s", member, temporary ? "_tmp" : "",
-                               f ? lends_param(f, 0) ? "_fn_lent" : "_fn" : "");
+                x->op = strfmt("%s_%s%s%s", dict ? "dict" : "array", member, temporary ? "_tmp" : "",
+                               f ? lends_param(f, arity - 1) ? "_fn_lent" : "_fn" : "");
                 e = wrap_temps(x, &held);
                 continue;
             }
@@ -5101,7 +5129,8 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9) ||
                       !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11) ||
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
-                      !strncmp(e->op, "array_lastIndex", 15)))
+                      !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
+                      !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12)))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};

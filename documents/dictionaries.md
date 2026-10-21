@@ -128,6 +128,19 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     - A String key is given as its text, a `cstr`, lent; an integer
       key as itself.
     - `mapWithKey`'s function gives the new value alone: the keys stay.
+- **Searching the values** (#249), as an Array's elements (#248):
+  `d.contains(v)` is whether `v` is among the values, a `bool`;
+  `d.firstKey(v)` and `d.lastKey(v)` the key of the first and the last
+  in the order added, a `K?`: `some` of a copy of the key, or `none`.
+  - `d.has(k)` is still the test of a key.
+  - `v` is compared by the values' `==`, and is of the value type as
+    `d[k] = v` takes it (#246); an owner given is looked at, not moved.
+  - Of a function, `d.contains { v in v > 40 }`, `d.firstKey(big)`, the
+    values it says true for, lent as filter's are (#244).
+  - **`d.containsWithKey`, `d.firstKeyWithKey` and `d.lastKeyWithKey`**
+    take a function of each key and its value,
+    `d.firstKeyWithKey { k, v in ... }`, the key given as
+    mapWithKey's (#241).
 - **Not yet:** keys of other types, `d[k, default]`.
 
 ## Properties and methods
@@ -160,6 +173,9 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `.filter { v in ... }` | a new Dictionary of the entries whose value the function says true for (#238) |
 | | `.reduce(init) { acc, v in ... }` | the values folded, in the order added (#238) |
 | | `.mapWithKey { k, v in ... }`, `.filterWithKey { k, v in ... }`, `.reduceWithKey(init) { acc, k, v in ... }` | the same, of each key, a `cstr` of a String's, and its value (#241) |
+| | `.contains(v)`, `.contains { v in ... }` | whether `v`, or a value the function says true for, is there, a `bool` (#249) |
+| | `.firstKey(v)`, `.lastKey(v)`, `.firstKey { v in ... }`, `.lastKey { v in ... }` | the key of the first or last of them in the order added, a `K?`: `some` of a copy, or `none` (#249) |
+| | `.containsWithKey { k, v in ... }`, `.firstKeyWithKey { ... }`, `.lastKeyWithKey { ... }` | the same, of each key and its value (#249) |
 
 No `.cstr`, no `+=`: `print` shows a Dictionary, and `.pretty`
 is its text, indented (#123, #124). The general properties are in

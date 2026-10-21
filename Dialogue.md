@@ -5737,3 +5737,18 @@ from #240 turned up on the way: `return s == $"b"` in a bool function
 was refused, and now it is a bool. Details are provisional P260.
 
 There are 874 tests, and all pass with clang and with gcc 15.
+
+### 293. Searching a Dictionary
+
+> add Dictionary searching as #249
+
+**Claude** asked what to name the methods that give a key, and whether
+key-and-value versions come too. The user chose `firstKey` and
+`lastKey`, and the WithKey versions. `d.contains(v)` looks among the
+values, as `d.has(k)` looks among the keys. `d.firstKey(v)` and
+`d.lastKey(v)` give `some` of the key or `none`, in the order added.
+Each also takes a function of a value, and `containsWithKey`,
+`firstKeyWithKey` and `lastKeyWithKey` take a function of a key and its
+value. Details are provisional P261.
+
+There are 878 tests, and all pass with clang and with gcc 15.

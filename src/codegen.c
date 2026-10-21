@@ -1227,6 +1227,38 @@ static char *expr_bare(Expr *e) {
                           "break; } _kv_r; })",
                           head, want, decl(e->type, ""), r, loop, test, r);
         }
+        if (e->op && e->type && (!strncmp(e->op, "dict_contains", 13) || !strncmp(e->op, "dict_firstKey", 13) ||
+                                 !strncmp(e->op, "dict_lastKey", 12))) {
+            /* d.contains(v), d.firstKey(v), d.lastKey(v) (#249): a loop over the
+               live entries, in the order added or from the last, to the first
+               value equal to v, or that f says true for, of the value or,
+               WithKey, of the key, lent, and the value; contains gives a bool,
+               the others some of a copy of the key or none; a Dictionary an
+               expression gives is held in _kv_mt and freed */
+            Type *dt = e->from;
+            bool tmp = strstr(e->op, "_tmp") != NULL, fn = strstr(e->op, "_fn") != NULL;
+            bool contains = !strncmp(e->op, "dict_contains", 13), last = !strncmp(e->op, "dict_lastKey", 12);
+            const char *lk = !strcmp(dt->key->name, "String") ? "KV_LK_TEXT" : "KV_LK_INT";
+            const char *at = "_kv_ms->at[_kv_mi].value";
+            const char *copy = owner_copy(dt->elem), *kcopy = owner_copy(dt->key);
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s_free))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            dt->cname, dt->cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *want = fn ? "" : strfmt(" %s = (%s);", decl(dt->elem, "_kv_cx"), expr(e->items.data[0]));
+            const char *value = strstr(e->op, "_lent") || !copy ? at : strfmt("%s(&%s)", copy, at);
+            const char *args = strstr(e->op, "WithKey") ? strfmt("%s(&_kv_ms->at[_kv_mi].key), %s", lk, value) : value;
+            const char *test = fn ? strfmt("%s(%s)", expr(e->items.data[0]), args) : eq_code(dt->elem, at, "_kv_cx");
+            const char *loop = last ? "for (size_t _kv_mi = _kv_ms->len; _kv_mi-- > 0;) if (_kv_ms->at[_kv_mi].live)"
+                                    : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live)";
+            if (contains)
+                return strfmt("({ %s%s bool _kv_r = false; %s if (%s) { _kv_r = true; break; } _kv_r; })", head, want,
+                              loop, test);
+            const char *r = kelvin_record(e->type->name)->name;
+            const char *key = kcopy ? strfmt("%s(&_kv_ms->at[_kv_mi].key)", kcopy) : "_kv_ms->at[_kv_mi].key";
+            return strfmt("({ %s%s %s _kv_r = _kv_%s_make_none(); %s if (%s) { _kv_r = _kv_%s_make_some(%s); break; } "
+                          "_kv_r; })",
+                          head, want, decl(e->type, ""), r, loop, test, r, key);
+        }
         if (e->op && e->type && (!strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) ||
                                  !strncmp(e->op, "dict_reduce", 11))) {
             /* d.map(f), d.filter(f), d.reduce(init, f) of a Dictionary (#238):
