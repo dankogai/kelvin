@@ -75,6 +75,18 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     and a Dictionary whose values compare. A struct or an Array has no
     `==`, so a Dictionary of them is an error.
   - One an expression gives is held while compared (#187).
+- **`d.merge(&e)`** changes `d` in place, and **`d.merging(&e)`**
+  gives a new Dictionary (#236): `e`'s entries are added, copied.
+  - Where a key is in both, a function, trailing or after a comma,
+    gives the value kept: `d.merge(&e) { old, new in old + new }`,
+    `d.merging(&e, add)`.
+    - It is called with `d`'s value and a copy of `e`'s, which it owns
+      both of, and its result is stored.
+    - Without one, `e`'s value wins.
+  - `e` by value, `d.merge(e)`, moves in and is freed after (O5); one
+    an expression gives is freed after too.
+  - `merge` changes `d`, so `d` is a variable; a let or one an
+    expression gives is an error that says to write `merging`.
 - **Not yet:** keys of other types, `d[k, default]`.
 
 ## Properties and methods
@@ -98,6 +110,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `print(d)`, `d.pretty` | `{"ann": 31}`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | `sizeof`; `Dictionary<String, i64>` |
 | | `d0 == d1`, `d0 != d1` | the same entries, each value by its `==`, a `bool` (#235) |
+| | `.merge(&e)`, `.merge(&e) { a, b in ... }` | `e`'s entries added in place; where a key is in both, the function's value, else `e`'s (#236) |
+| | `.merging(&e)`, `.merging(&e, f)` | the same, a new Dictionary (#236) |
 
 No `.cstr`, no `+=`: `print` shows a Dictionary, and `.pretty`
 is its text, indented (#123, #124). The general properties are in

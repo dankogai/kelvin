@@ -267,6 +267,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 233 | kc checks `=` and `:=` as kelvinc does: a reference, a `cstr` or a `T^`, takes `:=` and a value `=`, in a local's or a global's declaration and in an assignment to a name or a member, with kelvinc's messages, which name the type as Kelvin spells it; an Array and a Dictionary are not checked, as kelvinc does not; kc reads the assignment `p := q`, which it did not | — | `parity := odd ? "odd" : "even"` | 2026-10-21 |
 | 234 | kc overloads functions as kelvinc does: a call gets the overload its arguments fit best by kelvinc's fit (the very type 2, a number or a `bool` that converts 1, a text literal to a `String`, `none` to an Optional, `ok(v)`/`err(e)` to a Result, a `T` to a `T?` in a second look), a tie or no fit an error (#223); a prototype and its definition one overload, one declared and never defined C's; each defined overload named as kelvinc's mangled_type names it, `twice__i64`, `show__vecp`, `f__opt_i64`, `f__Array_i64`, `f__res_i64_String`, `f__void`; a text literal given where a `String` goes is a `String` of it; a call of a name a variable hides is an error | — | `twice(21)`, `twice($"ab")`, `kind(none)` | 2026-10-21 |
 | 235 | `d0 == d1` and `d0 != d1` of Dictionaries: the same entries in any order, each value by its own `==`; two of other key or value types, and values with no `==` (a struct, an Array), are errors; a Dictionary whose values compare has `==` itself, so an Optional, an enum or a Dictionary holding one compares too | — | `${"ann": 31} == ages()` | 2026-10-21 |
+| 236 | `d.merge(&e)` in place and `d.merging(&e)` a new Dictionary: `e`'s entries added, copied; where a key is in both, a function, trailing or after a comma, of `d`'s value and a copy of `e`'s, which it owns both of, gives the value kept, else `e`'s wins; `e` by value moves in and is freed (O5); `merge` of a let or of one an expression gives is an error; an anonymous function's parameters may be named without their types, `{ a, b in ... }`, where its context gives them, else an error | — | `d.merge(&e) { old, new in old + new }`, `d.merging(&e, add)` | 2026-10-21 |
 
 Notes:
 
@@ -828,6 +829,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (236) Agreed details: the user chose (#235) untyped `{ v0, v1 in
+  ... }`, the new value winning without a function. `e` is a borrow,
+  `&e`, as a Set's `union(&t)` takes one, and by value it moves in (O5),
+  as the user wrote it, `d0.merge(d1)`. The function owns both values,
+  as a function's owner parameters are its own, so a String's
+  `{ p, q in p + q }` frees neither twice. Untyped names are of any
+  anonymous function whose types kelvinc sees, `map`, `reduce` and a
+  function-typed variable's too.
 
 - (235) Agreed details: "add the following features to `Dictionary`:
   `==`. Both key types and value times must match. If not, fatal
@@ -2509,6 +2519,7 @@ says "as agreed".
 | P245 | Details of #233 | parse.k: `:=` is an assignment's operator; gen.k: type_text(y) spells a type as kelvinc's messages do (i64, cstr, i64^, $[String], i64?, Result<i64, String>); assigns_as(n, t, y, colon) checks gen_var, the globals and gen_assign to a name or a member; put_op writes := as C's =; sample.k: parity := ... | — |
 | P246 | Details of #234 | gen.k: count_overloads fills fn_sigs (name and signature: the first declaration), fn_bodies and fn_overloads; mangled(y) and params_key(d) spell a C name's types; put_fn_name(d) names a defined overload; arg_fit(a, t, wraps) and choose_overload(n, name, wraps) score and choose, a second look letting a T fit a T?; call_target(n), kept in `targets`, is the function of type_of and gen_call; gen_value makes a String of a text literal; gen_call refuses a call of a name a variable hides; sample.k: twice and kind | methods' overloads; kelvinc's names of an imported file's functions; `x == none` in kc |
 | P247 | Details of #235 | kelvin.h: Type.eq; parser.c: == and != of two Dictionaries call `_kv_dict_K_V_eq(&a, &b)`, operands an expression gives held; eq_type of a Dictionary is its values'; parse_program sets each registered Dictionary's eq once parsing is done; codegen.c: emit_dict_eq after KV_DICT and KV_DICT_FUNCS, its values by eq_code, with a prototype of an enum value's _eq, and of its own after KV_DICT_TYPE; eq_code of a Dictionary is its _eq; documents/dictionaries.md | — |
+| P248 | Details of #236 | parser.c: names_ahead(i) sees `{ a, b in`; parse_anon_fn names the parameters of a context's types, the count checked, and refuses them with no context; the parser's `{` starts such a function as it does a written one; .merge and .merging of a Dictionary: E_METHOD of op dict_merge, dict_merging or dict_merging_tmp, items the other and the function, from the Dictionary type; value_type of dict_merg* is its type; codegen.c: a statement expression over e's live entries, D_lookup in d, D_set of a copy where missing, else f(d's value, the copy) or the copy replacing it; e by value held in _kv_mo; documents/dictionaries.md, documents/functions.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

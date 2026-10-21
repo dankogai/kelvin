@@ -216,6 +216,9 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
     value, and the result is the body's one expression's type where
     kelvinc sees it (a bool, a literal, a call, `i64(...)`); else write
     the parameters and the result.
+  - Where kelvinc sees them so, the parameters may be named without
+    their types, `{ a, b in a + b }` (#236): as many names as the
+    function is called with, of the types those give.
   - Elsewhere, such as for C's `qsort`, whose types kelvinc cannot see,
     it writes them: `{ (a:T, b:U):R in ... }`.
   - Without either, it has none, as for `atexit() { println("bye") }`.

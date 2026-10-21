@@ -1292,6 +1292,7 @@ static bool seen_bool(Expr *e);
 static char expr_class(Expr *e, Decl **record);
 static bool record_has_field(Decl *r, const char *name);
 static Expr *parse_anon_fn(Type *ctx);
+static bool names_ahead(int i);
 static Expr *anon_arg(Type *param, int arity, int k, Expr *call, bool trailing);
 static bool signature_ahead(int i);
 static Type *call_param_type(Expr *callee, int k);
@@ -2105,6 +2106,80 @@ static Expr *parse_postfix_steps(Expr *e) {
                 list_push(&x->items, f);
                 if (init)
                     list_push(&x->items, init);
+                e = x;
+                continue;
+            }
+            if ((!strcmp(member, "merge") || !strcmp(member, "merging")) && call && value_type(e) &&
+                is_dict_owner(unqualified(value_type(e)))) {
+                /* d.merge(&e) in place, d.merging(&e) a new Dictionary (#236):
+                   e's entries added, copied; where a key is in both, the
+                   function, trailing or after a comma, of the value d holds
+                   and a copy of e's, which it owns, gives the one kept, else
+                   e's wins. e by value moves in and is freed after */
+                bool in_place = !strcmp(member, "merge");
+                Type *dt = unqualified(value_type(e));
+                bool temporary = !owner_place(e);
+                if (in_place && temporary)
+                    error_at(name->pos, "'.merge' changes a Dictionary in place, and this one an expression gives would "
+                                        "be lost: bind it, or write '.merging(...)'");
+                if (in_place && let_target(e))
+                    error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.merging(...)'",
+                             let_target(e));
+                advance();
+                bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                ident_annotation_ok = true;
+                brace_ends_condition = false;
+                if (is_p(peek(), ")"))
+                    error_at(peek()->pos, "'.%s' takes the Dictionary to merge: '.%s(&e)', and a function where keys "
+                                          "meet, '.%s(&e) { a, b in ... }'",
+                             member, member, member);
+                Expr *other = parse_assign();
+                Type *ot = value_type(other);
+                bool lent = ot && ot->kind == T_PTR && ot->elem && is_dict_owner(unqualified(ot->elem)) &&
+                            !strcmp(unqualified(ot->elem)->name, dt->name);
+                if (!lent && !(ot && is_dict_owner(unqualified(ot)) && !strcmp(unqualified(ot)->name, dt->name)))
+                    error_at(other->pos, "'.%s' takes a Dictionary of the same key and value types, %s, or a borrow of one, "
+                                         "and this is %s",
+                             member, kelvin_type(dt), ot ? kelvin_type(ot) : "not one");
+                if (!lent)
+                    move_argument(other, dt, strfmt("'.%s'", member)); /* by value, it moves in (O5) */
+                Type *ctx = xcalloc(1, sizeof *ctx);
+                ctx->kind = T_FUNC;
+                ctx->pos = name->pos;
+                list_push(&ctx->params, dt->elem);
+                list_push(&ctx->params, dt->elem);
+                ctx->elem = dt->elem;
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                Expr *f = NULL;
+                if (accept_p(","))
+                    f = is_p(peek(), "{") ? anon_arg(ctx, 2, 1, x, false) : parse_assign();
+                ident_annotation_ok = saved;
+                brace_ends_condition = saved_brace;
+                expect_p(")");
+                if (!f && is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
+                    f = anon_arg(ctx, 2, 1, x, true);
+                    if (at_statement_level())
+                        trailing_end = cur;
+                }
+                if (f) {
+                    pick_overload(f, ctx);
+                    Type *ft = value_type(f);
+                    if (!ft || ft->kind != T_FUNC || ft->params.len != 2 || !ft->elem ||
+                        strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(dt->elem)) ||
+                        strcmp(kelvin_type(unqualified(ft->params.data[1])), kelvin_type(dt->elem)) ||
+                        strcmp(kelvin_type(unqualified(ft->elem)), kelvin_type(dt->elem)))
+                        error_at(f->pos, "'.%s' calls its function with the two values of a key in both, %s, and keeps "
+                                         "what it gives, and this is %s",
+                                 member, kelvin_type(dt->elem), ft ? kelvin_type(ft) : "not one");
+                }
+                x->type = in_place ? NULL : dt;
+                x->from = dt;
+                x->op = strfmt("dict_%s%s", member, !in_place && temporary ? "_tmp" : "");
+                list_push(&x->items, other);
+                if (f)
+                    list_push(&x->items, f);
                 e = x;
                 continue;
             }
@@ -3840,8 +3915,8 @@ static Expr *parse_primary(void) {
             fn_at = -1;
             return parse_anon_fn(fn_type);
         }
-        if (signature_ahead(cur))
-            return parse_anon_fn(NULL); /* c ? { (a:i64) in ... } : ... (#32) */
+        if (signature_ahead(cur) || names_ahead(cur))
+            return parse_anon_fn(NULL); /* c ? { (a:i64) in ... } : ... (#32); { a in ... } of no type, its error (#236) */
         error_at(t->pos, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or "
                          "'([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in "
                          "'{ (a:i64):i64 in a + 1 }'");
@@ -4803,8 +4878,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                       !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10) ||
-                      !strncmp(e->op, "array_revers", 12)))
-            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182) */
+                      !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9)))
+            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
             for (int i = 0; typed[i]; i++)
@@ -6930,8 +7005,8 @@ static Expr *parse_initializer_for(Type *t) {
         fn_type = t;
         return parse_assign();
     }
-    if (signature_ahead(cur))
-        return parse_assign(); /* { (a:i32):i32 in ... } (#32) */
+    if (signature_ahead(cur) || names_ahead(cur))
+        return parse_assign(); /* { (a:i32):i32 in ... } (#32); { a in ... }, which takes t's types (#236) */
     bool bracket = is_p(open, "[") && !zero_array_ahead(cur);
     if (is_p(open, "$") && is_p(peek2(), "[") && t && is_array_owner(t)) {
         /* $[...] of the declared Array type (#62) */
@@ -8878,9 +8953,28 @@ static char *anon_name(void) {
    are then $0, $1, ...; with neither, it has none. A body that is one
    expression is the result, as in `{ $0 < $1 }`, or without a result,
    may be one assignment, as in `{ total += $0 }`. */
+/* Is `{ a, b in` at i: the parameters of an anonymous function by name
+   alone, whose types its context gives (#236)? */
+static bool names_ahead(int i) {
+    if (!is_p(&toks[i], "{"))
+        return false;
+    for (int k = i + 1;; k += 2) {
+        if (toks[k].kind != TK_IDENT || is_in(&toks[k]))
+            return false;
+        if (is_in(&toks[k + 1]))
+            return true;
+        if (!is_p(&toks[k + 1], ","))
+            return false;
+    }
+}
+
 static Expr *parse_anon_fn(Type *ctx) {
     Token *open = peek();
     bool written = signature_ahead(cur);
+    bool named = !written && names_ahead(cur); /* { v0, v1 in ... } (#236) */
+    if (named && !ctx)
+        error_at(open->pos, "the parameters of this function are named without their types, which nothing here gives: "
+                            "write them, as in '{ (a:i64, b:i64):i64 in ... }'");
     bool infer = infer_anon_result;
     infer_anon_result = false;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
@@ -8940,9 +9034,25 @@ static Expr *parse_anon_fn(Type *ctx) {
         advance();
         in_signature = false;
     } else if (ctx) {
+        if (named) { /* { a, b in ... }: the names, of the context's types (#236) */
+            advance();
+            int n = 0;
+            for (int k = cur; !is_in(&toks[k]); k++)
+                n += toks[k].kind == TK_IDENT;
+            if (n != ctx->params.len)
+                error_at(open->pos, "this function names %d parameter%s, and it is called with %d", n, n == 1 ? "" : "s",
+                         ctx->params.len);
+        }
         for (int k = 0; k < ctx->params.len; k++) {
             Var *p = xcalloc(1, sizeof *p);
             p->name = strfmt("$%d", k);
+            if (named) {
+                Token *nt = advance();
+                p->name = nt->text;
+                reject_kv_name(nt);
+                if (k + 1 < ctx->params.len)
+                    expect_p(",");
+            }
             p->pos = open->pos;
             /* an array length that names a local or a parameter was written
                in another scope, where it means something else: the outer
@@ -8968,12 +9078,14 @@ static Expr *parse_anon_fn(Type *ctx) {
                      kelvin_type(d->ret));
         d->variadic = ctx->variadic;
         anon_kind = ANON_CONTEXT;
+        if (named)
+            advance(); /* in */
     } else {
         anon_kind = ANON_BARE;
     }
     params_end = scope_names.len;
     int drops_from = pending_drops.len;
-    d->body = parse_fn_body(written ? open : expect_p("{"));
+    d->body = parse_fn_body(written || named ? open : expect_p("{"));
     /* one expression is the result, as in { $0 < $1 } (#32, #35); without
        a result, it must do something, as { total += $0 } does: `{x: 1}`
        is a label in a body, and a list where C's argument is meant */

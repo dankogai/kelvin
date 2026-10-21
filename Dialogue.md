@@ -5528,3 +5528,18 @@ of values that compare has `==` itself, so an enum holding one, even one
 of its own type, compares too. Details are provisional P247.
 
 There are 837 tests, and all pass with clang and with gcc 15.
+
+### 280. Dictionary merge and merging
+
+> go on with #236
+
+**Claude** added #236: `d.merge(&e)` adds `e`'s entries to `d` in place,
+and `d.merging(&e)` gives a new Dictionary; where a key is in both, the
+function, `{ old, new in ... }`, trailing or after a comma, gives the
+value kept, and without one `e`'s value wins. `e` by value, as
+`d.merge(e)`, moves in and is freed. An anonymous function's parameters
+may now be named without their types wherever kelvinc sees them, so
+`xs.reduce(0) { acc, x in acc + x }` reads too. Details are provisional
+P248.
+
+There are 842 tests, and all pass with clang and with gcc 15.

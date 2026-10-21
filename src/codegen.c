@@ -1182,6 +1182,36 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
                           start, loop, f, elem);
         }
+        if (e->op && !strncmp(e->op, "dict_merg", 9) && e->from) {
+            /* d.merge(&e) in place, d.merging(&e) a new Dictionary (#236): each
+               entry of e, its value copied, added; where d has the key, f of
+               d's value and the copy gives the one kept, which f owns both
+               of, or the copy replaces it. e by value is held in _kv_mo and
+               freed; merging's d an expression gives is taken */
+            Type *dt = e->from;
+            const char *cn = dt->cname, *lk = !strcmp(dt->key->name, "String") ? "KV_LK_TEXT" : "KV_LK_INT";
+            const char *vcopy = owner_copy(dt->elem), *vfree = owner_free(dt->elem);
+            Expr *other = e->items.data[0], *f = e->items.len > 1 ? e->items.data[1] : NULL;
+            bool lent = other->kind == E_PREFIX && !strcmp(other->op, "&");
+            const char *take = !lent && local_owner(other) ? owner_take(dt) : NULL;
+            const char *src = lent ? strfmt("const %s *_kv_me = %s;", cn, expr(other))
+                                   : strfmt("__attribute__((cleanup(%s_free))) %s _kv_mo = %s; const %s *_kv_me = &_kv_mo;",
+                                            cn, cn, take ? strfmt("%s(&%s)", take, c_name(other->text)) : expr(other), cn);
+            bool in_place = !strcmp(e->text, "merge");
+            const char *dst = in_place ? strfmt("%s *_kv_md = &(%s);", cn, expr(e->a))
+                              : strstr(e->op, "_tmp") ? strfmt("%s _kv_mm = (%s); %s *_kv_md = &_kv_mm;", cn, expr(e->a), cn)
+                                                      : strfmt("%s _kv_mm = %s_copy(&(%s)); %s *_kv_md = &_kv_mm;", cn, cn,
+                                                               expr(e->a), cn);
+            const char *v = vcopy ? strfmt("%s(&_kv_me->at[_kv_mi].value)", vcopy) : "_kv_me->at[_kv_mi].value";
+            const char *meet = f ? strfmt("_kv_mx->value = %s(_kv_mx->value, _kv_mv);", expr(f))
+                                 : vfree ? strfmt("{ %s(&_kv_mx->value); _kv_mx->value = _kv_mv; }", vfree)
+                                         : "_kv_mx->value = _kv_mv;";
+            return strfmt("({ %s %s for (size_t _kv_mi = 0; _kv_mi < _kv_me->len; _kv_mi++) { if (!_kv_me->at[_kv_mi].live) "
+                          "continue; %s_entry *_kv_mx = %s_lookup(_kv_md, %s(&_kv_me->at[_kv_mi].key), "
+                          "_kv_me->at[_kv_mi].hash); %s _kv_mv = %s; if (!_kv_mx) %s_set(_kv_md, %s(&_kv_me->at[_kv_mi].key), "
+                          "_kv_mv); else %s } %s })",
+                          dst, src, cn, cn, lk, decl(dt->elem, ""), v, cn, lk, meet, in_place ? "(void)0;" : "_kv_mm;");
+        }
         if (e->op && !strcmp(e->op, "record_copy") && e->type) { /* s.copy() of a struct that owns (#61) */
             Decl *r = kelvin_record(e->type->name);
             return strfmt("_kv_%s_copy(&%s)", r ? r->name : "?", expr(e->a));
