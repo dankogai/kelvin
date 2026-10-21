@@ -5777,3 +5777,16 @@ There are 879 tests, and all pass with clang and with gcc 15.
 Details are provisional P263.
 
 There are 881 tests, and all pass with clang and with gcc 15.
+
+### 296. a ?? b of two Optionals
+
+> make a ?? b of two Optionals give an Optional as #252
+
+**Claude** made `a ?? b` of two Optionals of one type, and `a ?? none`,
+give that Optional, as Swift's: `a` where it has a value, else `b`. A
+`b` of the value's type still gives the value, so `a ?? b ?? 0` is an
+`i64`. Owners are copied where they are variables, else taken. A `b`
+of another type is an error that names both types it could be.
+Details are provisional P264.
+
+There are 882 tests, and all pass with clang and with gcc 15.

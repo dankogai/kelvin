@@ -283,6 +283,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 249 | `d.contains(v)`, a `bool`, and `d.firstKey(v)`, `d.lastKey(v)`, a `K?` of a copy of the key of the first and last value equal to `v` in the order added; or of a function of each value; `containsWithKey`, `firstKeyWithKey`, `lastKeyWithKey` of a function of each key, as #241's, and its value; `d.firstIndex` and an Array's `firstKey` are errors naming the other | — | `${"a": 1, "b": 2}.firstKey(2)` is `some("b")` | 2026-10-22 |
 | 250 | `x ?? y` of an Optional or a Result whose value owns: `x` read once, its value a copy where `x` is a place, else taken out of it and the rest, an err's value, freed; `y` a copy where it is a place, else taken, made only where needed; the result an owner an expression gives; a `y` of another type is Kelvin's error | — | `d.lastKey(v) ?? $"none"` | 2026-10-22 |
 | 251 | `??` and `!!` group right to left, as Swift's `??`: `a ?? b ?? 0` is `a ?? (b ?? 0)`; every `x ?? y` checks `y` against the value's type, so `a ?? b` of two `i64?` is Kelvin's error, not C's; a C typedef, as `size_t`, is left to C | — | `p ?? o ?? $"z"` | 2026-10-22 |
+| 252 | `a ?? b` of two Optionals of one type, and `a ?? none`, give that Optional, as Swift's: `a` where it has a value, else `b`; owners copied where places, else taken; a `b` of the value's type still gives the value, so `T?? ?? T?` is a `T?`; another type is an error naming both | — | `a ?? b` of two `i64?` is an `i64?` | 2026-10-22 |
 
 Notes:
 
@@ -844,6 +845,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (252) Agreed details: "make a ?? b of two Optionals give an Optional
+  as #252". A Result keeps its error: Swift has no `??` of two
+  Results, and `r ?? r2` was not asked for. Where `y` could be either,
+  of a `T??`, the value's type wins, as before. The message of a `y` of
+  another type names both, so tests/error/coalesce_optional_fallback.k
+  (#251) now checks a `String?` beside an `i64?`, and
+  optional_coalesce_owner.k reads `a String? or a String`.
 
 - (251) Agreed details: "make ?? right-associative as #251". `!!`,
   which shares `??`'s level (#237), groups the same way; of
@@ -2679,6 +2688,7 @@ says "as agreed".
 | P261 | Details of #249 | parser.c: the #248 branch takes a Dictionary, op `dict_<member>[_tmp][_fn[_lent]]`, WithKey's key a cstr of a String's as #241's; errors for `d.firstIndex` and an Array's `firstKey`; codegen.c: a loop over the live entries, backward for lastKey, the key copied by owner_copy; tests: run/dict_search.k, error/dict_search_index.k, error/dict_search_type.k, error/dict_search_with_key.k; documents/dictionaries.md | `??` of an Optional that owns, as `d.lastKey(v) ?? $"none"` |
 | P262 | Details of #250 | parser.c: `??` of an owning value keeps op coalesce, e->text `own_<copy|take>_<copy|take>` for x and y, e->target the record, e->from x's type, x not held; codegen.c: `_kv_o` of x, `_kv_R_at_some` copied or `_kv_R_get_some` taken, x freed where it has no value and was taken, y copied or taken; tests: run/coalesce_owner.k, error/optional_coalesce_owner.k now y's type; documents/optionals.md, results.md, dictionaries.md | `??` binding right to left, as Swift's |
 | P263 | Details of #251 | parser.c: parse_coalescing, out of parse_conditional, parses `y` as itself, so the chain nests to the right; check_typed_value of every `y`, a C typedef skipped; tests: run/coalesce_right.k, error/coalesce_optional_fallback.k; documents/operators.md, optionals.md, dictionaries.md | `a ?? b` of two `T?` giving a `T?`, as Swift's overload |
+| P264 | Details of #252 | parser.c: parse_coalescing's whole case, `y` of `x`'s type and not of the value's, or the word none, an E_TERNARY coalesce of `x` itself, e->text `whole_<copy|take>_<copy|take>` where it owns; the message of check_typed_value names the Optional; codegen.c: `_kv_o` of x, copied or taken, else y; tests: run/coalesce_optional.k, error/coalesce_optional_fallback.k, error/optional_coalesce_owner.k; documents/optionals.md, operators.md | `r ?? r2` of two Results |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

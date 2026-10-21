@@ -553,6 +553,20 @@ static char *expr_bare(Expr *e) {
             return strfmt("((bool)(%s))", binary_text(e));
         return binary_text(e);
     case E_TERNARY: {
+        if (e->op && !strcmp(e->op, "coalesce") && e->text && !strncmp(e->text, "whole_", 6)) {
+            /* a ?? b of two Optionals that own (#252): a read once into
+               _kv_o, copied where it is a place, else taken, where it has
+               a value; else b, copied where it is a place, else taken */
+            bool copy_x = !strncmp(e->text, "whole_copy", 10), copy_y = strstr(e->text + 6, "_copy") != NULL;
+            const char *cp = owner_copy(e->from);
+            int k = 0;
+            for (int i = 0; i < e->target->members.len; i++)
+                if (!strcmp(((Var *)e->target->members.data[i])->name, e->a->text))
+                    k = i;
+            return strfmt("({ __auto_type _kv_o = (%s); %s _kv_r; if (_kv_o.tag == %d) _kv_r = %s; else _kv_r = %s; _kv_r; })",
+                          expr(e->a->a), decl(e->from, ""), k, copy_x ? strfmt("%s(&_kv_o)", cp) : "_kv_o",
+                          copy_y ? strfmt("%s(&(%s))", cp, expr(e->c)) : expr(e->c));
+        }
         if (e->op && !strcmp(e->op, "coalesce") && e->text && !strncmp(e->text, "own_", 4)) {
             /* x ?? y of a value that owns (#250): x read once into _kv_o; its
                value copied where x is a place, else taken, and where it has

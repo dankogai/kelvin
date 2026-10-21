@@ -25,7 +25,7 @@ each operator means for its types.
 | 11 | `\|` | `a \| b` | `a \| b` |
 | 12 | `&&` | `a && b` (`bool`s) | `a && b` |
 | 13 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
-| 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251) | |
+| 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251); `a ?? b` of two `T?` a `T?` (#252) | |
 | 15 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
 | 16 | ranges | `a..<b`, `a...b` (in `for` only) | |
 | 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |

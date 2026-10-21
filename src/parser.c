@@ -4647,6 +4647,41 @@ static Expr *parse_coalescing(void) {
         List held = {0}; /* the left side read twice, held once (#187) */
         if (!own && c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
             c = hold_operand(c, &held);
+        /* a ?? b of two Optionals of a type (#252): a T?, a where it has a
+           value, else b, as Swift's; so is a ?? none. A y of the value's
+           type still gives the value, a T?? ?? T? among them */
+        Type *y0 = value_type(y);
+        bool none_word = y->kind == E_IDENT && !strcmp(y->text, "none") && binding_index("none") < 0;
+        bare_tags = true;
+        bool whole = optional_record(ct) &&
+                     ((y0 && !strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(ct))) &&
+                       strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(some->type)))) ||
+                      (none_word && !optional_record(some->type)));
+        bare_tags = false;
+        if (whole) {
+            y = optional_of(y, ct, y->pos);
+            Expr *is = new_expr(E_METHOD, q->pos);
+            is->a = c;
+            is->text = some->name;
+            is->op = "case_is";
+            is->target = r;
+            is->is_bool = true;
+            Expr *e = new_expr(E_TERNARY, q->pos);
+            e->a = is;
+            e->b = c;
+            e->c = y;
+            e->paren = true;
+            e->op = "coalesce";
+            e->type = unqualified(ct);
+            if (own) {
+                Type *yt2 = value_type(y);
+                bool copy_y = yt2 && is_owner(unqualified(yt2)) && owner_place(y);
+                e->text = strfmt("whole_%s_%s", copy_x ? "copy" : "take", copy_y ? "copy" : "take");
+                e->target = r;
+                e->from = unqualified(ct);
+            }
+            return wrap_temps(e, &held);
+        }
         pick_overload(y, some->type);
         y = string_of_literal(drop_cstr(y, some->type), some->type);
         /* C's ?: of a const uint8_t * and a char * is no text (gcc refuses,
@@ -4683,7 +4718,10 @@ static Expr *parse_coalescing(void) {
         e->op = "coalesce"; /* its type is the value's, for inference */
         e->type = some->type;
         bare_tags = true;
-        char *lead = strfmt("'?\?' of %s falls back to", kelvin_type(unqualified(ct)));
+        char *ck = kelvin_type(unqualified(ct));
+        char *lead = optional_record(ct) /* a T? too (#252) */
+                         ? strfmt("'?\?' of %s falls back to %s %s or", ck, strchr("aeiouAEIOU", ck[0]) && ck[0] != 'u' ? "an" : "a", ck)
+                         : strfmt("'?\?' of %s falls back to", ck);
         bare_tags = false;
         check_typed_value(y, some->type, lead, y->pos); /* in Kelvin's words, not C's (#250, #251) */
         if (own) {

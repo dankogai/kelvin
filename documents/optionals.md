@@ -76,8 +76,13 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   - `x ?? y` is the value if some, else `y`.
     - It groups right to left (#251): `a ?? b ?? 0` is `a ?? (b ??
       0)`, the first value of the chain, or 0.
-    - `y` is of the value's type: `a ?? b` of two `i64?` is an error,
-      `'??' of i64? falls back to an i64, and this is i64?`.
+    - `y` is of the value's type, and `x ?? y` the value.
+    - Or `y` is an Optional of `x`'s type, or `none` (#252), and
+      `x ?? y` that Optional, as Swift's: `x` where it has a value,
+      else `y`. So `a ?? b` of two `i64?` is an `i64?`.
+      - Of a `T??`, a `y` of `T?` is its value's type, which wins.
+    - `y` of another type is an error, `'??' of i64? falls back to an
+      i64? or an i64, and this is String?`.
     - For a `T` that does not own, `x` is an Optional in a variable, a
       member or an element, or one an expression gives, held.
     - For a `T` that owns (#250), `s ?? $"none"`, `x` is read once.
@@ -88,8 +93,7 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
         only where `x` has no value.
       - What `??` gives is an owner an expression gives: bound,
         `let s = o ?? fb`, or freed after the statement.
-      - `y` of another type is an error, `'??' of String? falls back
-        to a String, and this is a number`.
+      - So for an Optional `y`, `p ?? o` of two `String?` (#252).
   - Of a `cstr?`, `u8^?` or `i8^?`, a `y` that is a string literal, or
     text of another spelling, is cast to the value's type, as a
     declaration would cast it.
@@ -176,7 +180,7 @@ the reason in `err`: [results.md](results.md).
 | | `.some = v`, `= v`, `= none` | sets the case |
 | | `.is(some)`, `.is(none)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for none, 1 for some |
-| | `x ?? y` | the value, or `y` |
+| | `x ?? y` | the value, or `y`; of two `T?`, or `x ?? none`, a `T?`, `x` or `y` (#252) |
 | | `c ? v : none` | each arm wrapped where a `T?` is expected, or beside an arm that is one (#116) |
 | | `switch x { case some: ... case none: ... }` | by the case |
 | | `switch x { case some(v): ... }` | the same, with `v` the value in that body (#119) |

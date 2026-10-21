@@ -5,4 +5,4 @@ let main():int32 {
     var y = s ?? 5
     return 0
 }
-// error: '??' of String? falls back to a String, and this is a number
+// error: '??' of String? falls back to a String? or a String, and this is a number

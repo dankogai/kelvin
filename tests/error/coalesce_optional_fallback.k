@@ -1,9 +1,9 @@
-// error: '??' of i64? falls back to an i64, and this is i64?
-// a ?? b falls back to the value's type (#251): an Optional on the right
-// is no i64, so a chain ends with a value, a ?? b ?? 0
+// error: '??' of i64? falls back to an i64? or an i64, and this is String?
+// a ?? b falls back to an Optional of a's type (#252), or to its value's
+// type (#251): an Optional of another type is neither
 let main():int32 {
     var a:int64? = none
-    var b:int64? = 2
+    var b:String? = $"b"
     println(a ?? b)
     return 0
 }
