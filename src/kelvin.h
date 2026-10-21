@@ -100,7 +100,7 @@ struct Type {
     char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T;
                          Dictionary<K, V> (#65): _kv_dict_<K>_<V>; key is K, elem is V */
     Type *key;        /* T_BASE Dictionary<K, V> (#65): K */
-    bool eq;          /* T_BASE Dictionary<K, V> (#235): its values compare, so it has == */
+    bool eq;          /* T_BASE Dictionary<K, V> (#235), Array<T> (#247): its values compare, so it has == */
     Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
                          T_TYPEOF: the type kelvinc sees, if any */
     Expr *size;       /* T_ARRAY; NULL for [] */

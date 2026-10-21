@@ -97,8 +97,8 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
 - **`==` and `!=`** (#79): `a == b` is true of two `none`, or of two
   values that are equal, a String's by its bytes; `x == none` and
   `x == 3` wrap the other side, as where a `T?` is expected.
-  - A value whose type has no `==` (a struct, an Array) has none here
-    either.
+  - A value whose type has no `==`, a struct, has none here either;
+    an Array's or a Dictionary's compares its elements (#247).
   - An owner made on the spot (`x == $"hi"`) is held for the
     comparison and freed after (#187). See [results.md](results.md).
 - **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`;

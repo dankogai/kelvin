@@ -278,6 +278,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 244 | map, filter and reduce, of an Array or a Dictionary and the WithKey ones, lend an owner element to an anonymous function, as #242's sort does: a let its caller keeps, read and never moved or freed; returning it as it is is an error that says `.copy()`; a parameter written `var` asks for a copy of its own, in sort too; a named function is given a copy; reduce's value so far moves in and out | — | `names.map { $0.count }` copies no String | 2026-10-21 |
 | 245 | A pointer into an owner an expression gives keeps it alive until the call or expression around the pointer is done, up to the whole statement: `strlen($"abc".cstr)`, `println(String(42).cstr)`, `let n:size_t = strlen($"k".cstr)` work; one that would outlive the statement, `let p := $"x".cstr`, is still an error that says to bind it first | — | `fopen(path().cstr, "r")` | 2026-10-22 |
 | 246 | `d[k] = v`, `d[k] ??= v` and `d[k] !!= v` check `v` against the Dictionary's value type: a number takes any number, as C converts; a String a String or a text literal; a `cstr` text; anything else its very type, an Optional's T or none wrapped first; else an error, `an entry of Dictionary<String, i64> is an i64, and this is text`; a value only C sees is C's | — | `d["a"] = "text"` of an i64's is an error | 2026-10-22 |
+| 247 | `a0 == a1` and `!=` of two Arrays of one element type: as many elements, each equal to the one in its place by its own `==`; the elements must compare, as a Dictionary's values (#235), else an error; an Array now compares wherever a type's `==` asks, so a Dictionary, an Optional, a Result or an enum with values holding one does, JSON and SION among them; no `<` | — | `$[1, 2] == $[1, 2]` is true | 2026-10-22 |
 
 Notes:
 
@@ -839,6 +840,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (247) Agreed details: the second half of #246's request, "also
+  implement `a0 == a1` where a0, a1 are Array instances". It follows
+  Dictionary `==` (#235): one element type, else an error; elements
+  that compare, else an error naming the element type; an `_eq`
+  function for each Array type, with a prototype first where an enum
+  of its elements may hold it. eq_type now says yes of an Array whose
+  elements compare, so JSON and SION, enums with Array cases, have
+  `==` too; SION's equals SION.same. tests/error/array_compare.k,
+  which refused `==`, now refuses `<`.
 
 - (246) Agreed details: "make d[k] = v check the value's type as #246.
   also implement `a0 == a1` where a0, a1 are Array instances". Two
@@ -2625,6 +2636,7 @@ says "as agreed".
 | P256 | Details of #244 | kelvin.h: Var.lent for Decl.lends; parser.c: lend_anon_from, the first parameter lent (0, or 1 after reduce's value so far), set around an anonymous function of sort, map, filter and reduce; parse_anon_fn lends an owner parameter from it on unless written var; lends_param(f, k) reads it; map, filter and reduce's op ends _lent where the element's parameter is lent, sort's text is fn_ and l or c for each; codegen.c: a lent element passed as it is, else a copy; a lent parameter neither _kv_x_in nor freed; filter still copies what it keeps; tests: run/lend_elements.k, error/map_return_lent.k; documents/arrays.md, documents/dictionaries.md | — |
 | P257 | Details of #245 | parser.c: wrap_temps hands the temporaries of a chain whose result is a pointer or an array to the chain around it, chain_temps, which wraps them with its own; with none around, the error stays; tests: run/temp_statement.k, error/temp_pointer_kept.k; documents/ownership.md (O11), documents/strings.md | kc's `.cstr` of a temporary, still refused (#227); Array `==` |
 | P258 | Details of #246 | parser.c: check_entry_value(v, dt, pos) after case_value of `d[k] = v` and of `d[k] ?\?= v`, `d[k] !!= v`; tests: run/dict_entry_values.k, error/dict_entry_text.k, error/dict_entry_number.k; documents/dictionaries.md | the same check of declarations, assignments and Array elements, C's still |
+| P259 | Details of #247 | parser.c: eq_type and Type.eq of an Array as of its element; the D/A branch of `==`, `!=` calls `_kv_array_T_eq(&a, &b)`; codegen.c: emit_array_eq after KV_ARRAY_FUNCS and KV_ARRAY, a prototype after KV_ARRAY_TYPE; eq_code of an Array by its _eq; tests: run/array_eq.k, run/json_eq.k, error/array_eq_types.k, error/array_eq_elements.k, error/array_compare.k now `<`; documents/arrays.md, dictionaries.md, json.md, sion.md, optionals.md, results.md | searching an Array (`contains`, `firstIndex`) |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -77,8 +77,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     error.
   - The values compare: numbers, `bool`, text, a `uchr`, an Optional,
     a Result or an enum with values whose values compare, a pointer,
-    and a Dictionary whose values compare. A struct or an Array has no
-    `==`, so a Dictionary of them is an error.
+    and a Dictionary or an Array (#247) whose values compare. A struct
+    has no `==`, so a Dictionary of them is an error.
   - One an expression gives is held while compared (#187).
 - **`d.merge(&e)`** changes `d` in place, and **`d.merging(&e)`**
   gives a new Dictionary (#236): `e`'s entries are added, copied.

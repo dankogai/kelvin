@@ -2943,6 +2943,26 @@ static void emit_dict_eq(Type *t) {
     line("}");
 }
 
+/* a0 == a1 of an Array whose elements compare (#247): as many, each
+   equal to the one in its place */
+static void emit_array_eq(Type *t) {
+    if (!t->eq)
+        return;
+    Decl *r = t->elem->kind == T_BASE ? kelvin_record(t->elem->name) : NULL;
+    if (r && r->tagged) /* an enum of the elements may hold this Array: its == first */
+        line("__attribute__((unused)) static inline bool _kv_%s_eq(const %s a, const %s b);", r->name,
+             decl(t->elem, ""), decl(t->elem, ""));
+    line("__attribute__((unused)) static inline bool %s_eq(const %s *a, const %s *b)", t->cname, t->cname, t->cname);
+    line("{");
+    indent++;
+    line("if (a->count != b->count) return false;");
+    line("for (size_t i = 0; i < a->count; i++)");
+    line("    if (!(%s)) return false;", eq_code(t->elem, "a->at[i]", "b->at[i]"));
+    line("return true;");
+    indent--;
+    line("}");
+}
+
 static void emit_array_funcs(Type *t) {
     if (is_set(t)) {
         line("KV_SET_FUNCS(%s)", set_args(t));
@@ -2956,6 +2976,7 @@ static void emit_array_funcs(Type *t) {
     const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
     line("KV_ARRAY_FUNCS(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
          f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
+    emit_array_eq(t);
 }
 
 /* d.keys and d.values (#66): an Array of copies, by a function after the
@@ -3000,8 +3021,12 @@ static void emit_arrays_before(int i) {
                     line("__attribute__((unused)) static inline bool %s_eq(const %s *a, const %s *b);", t->cname,
                          t->cname, t->cname);
             }
-            else
+            else {
                 line("KV_ARRAY_TYPE(%s, %s)", decl(t->elem, ""), t->cname);
+                if (t->eq) /* the element's == may compare it (#247) */
+                    line("__attribute__((unused)) static inline bool %s_eq(const %s *a, const %s *b);", t->cname,
+                         t->cname, t->cname);
+            }
             continue;
         }
         if (is_set(t)) { /* a Set (#71) */
@@ -3016,6 +3041,7 @@ static void emit_arrays_before(int i) {
         const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
         line("KV_ARRAY(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
              f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
+        emit_array_eq(t);
     }
 }
 
@@ -3051,7 +3077,7 @@ static char *eq_code(Type *t, const char *x, const char *y) {
     Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
     if (r && r->tagged)
         return strfmt("_kv_%s_eq(%s, %s)", r->name, x, y);
-    if (t->cname && !strncmp(t->cname, "_kv_dict_", 9)) /* a Dictionary by its _eq (#235) */
+    if (t->cname && (!strncmp(t->cname, "_kv_dict_", 9) || !strncmp(t->cname, "_kv_array_", 10))) /* by its _eq (#235, #247) */
         return strfmt("%s_eq(&%s, &%s)", t->cname, x, y);
     return strfmt("%s == %s", x, y);
 }

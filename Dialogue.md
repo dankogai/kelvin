@@ -5709,3 +5709,17 @@ number and a number for a String now Kelvin's errors, not C's; a number
 still takes any number. Details are provisional P258.
 
 There are 866 tests, and all pass with clang and with gcc 15.
+
+### 291. a0 == a1 compares Arrays
+
+> also implement `a0 == a1` where a0, a1 are Array instances
+
+**Claude** added #247: `a0 == a1` and `!=` of two Arrays of one element
+type, true where they hold as many elements, each equal to the one in
+its place by its own `==`, as Dictionary `==` (#235) compares values.
+Elements without `==`, a struct's, are an error. An Array now compares
+wherever a type's `==` asks, so JSON and SION have `==` too.
+`array_compare.k` now checks that `<` is refused. Details are
+provisional P259.
+
+There are 870 tests, and all pass with clang and with gcc 15.

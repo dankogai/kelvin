@@ -251,7 +251,17 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   **`xs.reversed()`** gives a new one (#186), `$[1, 2, 3].reversed()` is
   `[3, 2, 1]`; `.reversed()` of an Array an expression gives reverses
   that one, so it chains: `xs.sorted().reversed()`.
-- **Not yet:** `==` and searching.
+- **`a0 == a1`** (#247): as many elements, each equal to the one in
+  its place by its own `==`; `!=` the opposite.
+  - The two are of one element type; others are an error.
+  - The elements compare as a Dictionary's values do (#235): numbers,
+    `bool`, text, a `uchr`, an Optional, a Result or an enum with
+    values whose values compare, a pointer, and an Array or a
+    Dictionary whose elements compare. A struct has no `==`, so an
+    Array of them is an error.
+  - One an expression gives is held while compared (#187).
+  - There is no `<`: an Array has no order.
+- **Not yet:** searching.
 
 
 ## Properties and methods
@@ -279,6 +289,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
 | | `.reverse()` | reverses a `var` Array in place (#186) |
 | | `.reversed()` | a new Array in the other order; of an Array an expression gives, that one reversed (#186) |
+| | `a0 == a1`, `a0 != a1` | as many elements, each by its `==` in order, a `bool` (#247) |
 | | `for x in xs` | each element, a let the Array owns |
 | | `print(xs)`, `xs.pretty` | `[1, 2, 3]`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | 24, `Array<i64>` |

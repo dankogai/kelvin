@@ -4347,18 +4347,22 @@ static Expr *parse_binary(int min_prec) {
                 lhs = c;
                 continue;
             }
-            if (tn[0] == 'D' && (!strcmp(e->op, "==") || !strcmp(e->op, "!="))) {
+            if ((tn[0] == 'D' || tn[0] == 'A') && (!strcmp(e->op, "==") || !strcmp(e->op, "!="))) {
                 /* d0 == d1 (#235): two Dictionaries of one key type and one
-                   value type, of the same entries, each value by its == */
+                   value type, of the same entries, each value by its ==;
+                   a0 == a1 (#247): two Arrays of one element type, of as
+                   many elements, each by its == in order */
                 Type *da = value_type(e->a), *db = value_type(e->b);
                 if (!ka || !kb || strcmp(da->name, db->name))
-                    error_at(t->pos, "'%s' compares two Dictionaries of the same key and value types, and these are %s and %s",
-                             e->op, da ? kelvin_type(da) : "not one", db ? kelvin_type(db) : "not one");
+                    error_at(t->pos, "'%s' compares two %s of the same %s, and these are %s and %s", e->op,
+                             tn[0] == 'D' ? "Dictionaries" : "Arrays", tn[0] == 'D' ? "key and value types" : "element type",
+                             da ? kelvin_type(da) : "not one", db ? kelvin_type(db) : "not one");
                 if (!eq_type(da->elem)) {
                     bare_tags = true;
                     char *dt = kelvin_type(da), *vt = kelvin_type(da->elem);
                     bare_tags = false;
-                    error_at(t->pos, "'%s' of %s compares the values, and %s has no '=='", e->op, dt, vt);
+                    error_at(t->pos, "'%s' of %s compares the %s, and %s has no '=='", e->op, dt,
+                             tn[0] == 'D' ? "values" : "elements", vt);
                 }
                 List held = {0}; /* an operand an expression gives, held (#187) */
                 if (!owner_place(e->a))
@@ -11659,7 +11663,7 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
 static bool eq_type(Type *t) {
     if (!t || t->kind == T_PTR || t->kind == T_FUNC)
         return true;
-    if (is_dict_owner(t)) /* a Dictionary compares where its values do (#235) */
+    if (is_dict_owner(t) || is_array_owner(t)) /* a Dictionary (#235), an Array (#247) compares where its values do */
         return eq_type(t->elem);
     if (t->kind == T_ARRAY || t->cname || is_io(t))
         return false;
@@ -12235,7 +12239,7 @@ Program *parse(Token *tokens, int ntoks) {
        enum's no_eq is: an enum of the values may hold the Dictionary */
     for (int i = 0; i < prog->arrays.len; i++) {
         Type *t = prog->arrays.data[i];
-        if (is_dict_owner(t))
+        if (is_dict_owner(t) || is_array_owner(t)) /* (#235, #247) */
             t->eq = eq_type(t->elem);
     }
     prog->modules = modules_imported; /* for the codegen (#143) */

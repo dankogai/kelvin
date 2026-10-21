@@ -76,8 +76,9 @@ println(SION.same(&s, &back))                 // true
   - `s["key"] = v` and `s[i] = v` replace the value, add an entry at
     the end of a dictionary, or set an array's element; out of range,
     nothing changes.
-- **`SION.same(&a, &b)`** compares two values member by member, since an
-  Array in a case has no `==`.
+- **`SION.same(&a, &b)`** compares two values member by member.
+  - `a == b` does the same since an Array has `==` (#247): a
+    dictionary's entries in order, as it holds them.
 
 ## Functions
 
@@ -102,5 +103,6 @@ SION.find(d: const SION^, key: const SION^): i64                    // the index
 | | `.count` | an array's elements or a dictionary's entries, else 0 |
 | | `.is(array)`, `.case`, `switch s { case array: ... }` | which case it is; `case array(xs):` binds the value (#119) |
 | | `.copy()` | a copy, deep |
+| | `==`, `!=` | the same case and value, member by member, as `SION.same` (#247) |
 | | `.cstr`, `${s}`, `println(s)` | the case and its value, `integer(42)`, as any enum's; `SION.stringify(&s)` for SION text |
 | | `.size`, `.typename` | `sizeof`; `SION` |

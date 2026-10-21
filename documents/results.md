@@ -105,8 +105,8 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
     `==`, a `cstr`'s by its address, as Kelvin compares one.
   - A value, `ok(v)` or `err(e)` on the other side is wrapped, as where
     a Result is expected: `r == 42`, `r == err(2)`.
-  - A value whose type has no `==`, a struct or an Array, has none here
-    either.
+  - A value whose type has no `==`, a struct, has none here either;
+    an Array's or a Dictionary's compares its elements (#247).
   - One that owns, made on the spot (`err($"x")`), is held for the
     comparison and freed after (#187).
   - The other operators are not for Results.
