@@ -4645,20 +4645,23 @@ static Expr *parse_coalescing(void) {
            no value */
         bool own = is_owner(some->type), copy_x = own && owner_place(c);
         List held = {0}; /* the left side read twice, held once (#187) */
-        if (!own && c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
-            c = hold_operand(c, &held);
         /* a ?? b of two Optionals of a type (#252): a T?, a where it has a
            value, else b, as Swift's; so is a ?? none. A y of the value's
-           type still gives the value, a T?? ?? T? among them */
+           type still gives the value, a T?? ?? T? among them. r ?? r2 of
+           two Results of a type (#253) the same: r where it is ok, else r2 */
         Type *y0 = value_type(y);
         bool none_word = y->kind == E_IDENT && !strcmp(y->text, "none") && binding_index("none") < 0;
         bare_tags = true;
-        bool whole = optional_record(ct) &&
-                     ((y0 && !strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(ct))) &&
+        bool whole = ((y0 && !strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(ct))) &&
                        strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(some->type)))) ||
                       (none_word && !optional_record(some->type)));
         bare_tags = false;
         if (whole) {
+            /* the whole x owns where its value does, or a Result's err does */
+            own = is_owner(unqualified(ct));
+            copy_x = own && owner_place(c);
+            if (!own && c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
+                c = hold_operand(c, &held);
             y = optional_of(y, ct, y->pos);
             Expr *is = new_expr(E_METHOD, q->pos);
             is->a = c;
@@ -4682,6 +4685,8 @@ static Expr *parse_coalescing(void) {
             }
             return wrap_temps(e, &held);
         }
+        if (!own && c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
+            c = hold_operand(c, &held);
         pick_overload(y, some->type);
         y = string_of_literal(drop_cstr(y, some->type), some->type);
         /* C's ?: of a const uint8_t * and a char * is no text (gcc refuses,
@@ -4719,7 +4724,7 @@ static Expr *parse_coalescing(void) {
         e->type = some->type;
         bare_tags = true;
         char *ck = kelvin_type(unqualified(ct));
-        char *lead = optional_record(ct) /* a T? too (#252) */
+        char *lead = r /* a T? too (#252), a Result (#253) */
                          ? strfmt("'?\?' of %s falls back to %s %s or", ck, strchr("aeiouAEIOU", ck[0]) && ck[0] != 'u' ? "an" : "a", ck)
                          : strfmt("'?\?' of %s falls back to", ck);
         bare_tags = false;

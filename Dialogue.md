@@ -5790,3 +5790,15 @@ of another type is an error that names both types it could be.
 Details are provisional P264.
 
 There are 882 tests, and all pass with clang and with gcc 15.
+
+### 297. r ?? r2 of two Results
+
+> make r ?? r2 of two Results give a Result as #253
+
+**Claude** made `r ?? r2` of two Results of one type give that Result,
+`r` where it is ok, else `r2`, as #252 does for Optionals. A Result
+that owns, by its value or by its err, is copied where it is a
+variable, else taken, and a taken one that is err is freed. Details
+are provisional P265.
+
+There are 884 tests, and all pass with clang and with gcc 15.

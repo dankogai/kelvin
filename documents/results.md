@@ -73,6 +73,16 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
       a place's, or taken from one an expression gives, whose `err`
       value is then freed; `y` a copy of a place, made only where it
       is needed.
+    - **`r ?? r2`** of two Results of one type (#253) is a Result, as
+      `a ?? b` of two Optionals is (#252): `r` where it is `ok`, else
+      `r2`.
+      - A Result that owns, as by its `err`, is copied where it is a
+        place, else taken; a taken `r` that is `err` is freed.
+      - `r ?? r2 ?? 0` ends with the value, as `??` groups right to
+        left (#251).
+      - A `y` of another type is an error, `'??' of Result<i64,
+        String> falls back to a Result<i64, String> or an i64, and
+        this is Result<String, String>`.
 - **Testing:** `r.is(ok)`, `r.is(err)`, `r.case` (0 for ok, 1 for err),
   and `switch r { case ok: ... case err: ... }`, exhaustive.
   - `case ok(v):` and `case err(e):` bind the value for the body (#119).
@@ -231,7 +241,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `.ok = v`, `.err = e`, `= v`, `= ok(v)`, `= err(e)` | sets the case |
 | | `.is(ok)`, `.is(err)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for ok, 1 for err |
-| | `r ?? y` | the `ok` value, or `y` |
+| | `r ?? y` | the `ok` value, or `y`; of two Results of a type, a Result, `r` or `r2` (#253) |
 | | `switch r { case ok: ... case err: ... }` | by the case |
 | | `switch r { case ok(v): ... case err(e): ... }` | the same, with the value bound in each body (#119) |
 | | `.cstr` | `ok(42)`, `err("empty")`: text inside is quoted (#123) |
