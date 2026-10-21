@@ -47,6 +47,18 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     changes; see [structs.md](structs.md#methods).
   - Parameters must be named: C's unnamed `f(int)` is not available
     yet.
+- **An argument is of its parameter's type** (#257), as a
+  declaration's value is (#255), once converted and lent: text becomes
+  a String, a `T` or `none` an Optional, an owner an expression gives
+  is lent where a borrow is taken.
+  - A number takes any number, as C converts it; a pointer any
+    pointer.
+  - Another type is an error, `'x' of 'half' is an f64, and this is
+    text`, a method's named `'pt.moved'`.
+  - A value where a borrow of it is taken says to write `&`: `'n' of
+    'length' is a node^, and this is node: give a borrow, '&a'`.
+  - C's own functions, a C typedef and a function type are left to
+    C.
 - **`return {...}`** (#77) takes the function's result type, as a
   declaration's `{...}` does.
   - `return {0, 0}` in a function that returns a `point`.

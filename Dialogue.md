@@ -5839,3 +5839,15 @@ declaration's value is: `ws.append("lit")` and `os.append(4)` of an
 `Array<i64?>` work, where C refused them. Details are provisional P268.
 
 There are 893 tests, and all pass with clang and with gcc 15.
+
+### 301. Arguments check the value's type
+
+> make arguments check the value's type as #257
+
+**Claude** made each argument of a Kelvin function or method check
+its parameter's type, once converted and lent, as #255's values do:
+`half("ten")` is Kelvin's error, `'x' of 'half' is an f64, and this is
+text`. Where a borrow is taken and the value itself is given, it says
+to write `&`. Details are provisional P269.
+
+There are 896 tests, and all pass with clang and with gcc 15.

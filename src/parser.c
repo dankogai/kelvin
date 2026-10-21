@@ -606,6 +606,7 @@ static Type *cstr_type(Pos pos);
 static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
+static const char *article(const char *w);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
 static bool is_uchr(Type *t);
@@ -1317,6 +1318,7 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static bool repeatable(Expr *e);
 static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
+static void check_args(Expr *call, Decl *d);
 static void borrow_temps(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
@@ -2820,6 +2822,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     x->method = chosen;
                     typed_args(x, chosen); /* p.m("x") of a String (#223), p.m(none) of an i64? (#222) */
                     borrow_temps(x, chosen); /* an owner an expression gives, lent where a borrow is taken (#187) */
+                    check_args(x, chosen); /* (#257) */
                     for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
                         move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
                                       strfmt("'.%s'", member));
@@ -4736,7 +4739,7 @@ static Expr *parse_coalescing(void) {
         bare_tags = true;
         char *ck = kelvin_type(unqualified(ct));
         char *lead = r /* a T? too (#252), a Result (#253) */
-                         ? strfmt("'?\?' of %s falls back to %s %s or", ck, strchr("aeiouAEIOU", ck[0]) && ck[0] != 'u' ? "an" : "a", ck)
+                         ? strfmt("'?\?' of %s falls back to %s %s or", ck, article(ck), ck)
                          : strfmt("'?\?' of %s falls back to", ck);
         bare_tags = false;
         check_typed_value(y, some->type, lead, y->pos); /* in Kelvin's words, not C's (#250, #251) */
@@ -6146,6 +6149,14 @@ static void pick_overload(Expr *v, Type *want) {
    convert it silently. A number takes any number, as C converts; a String
    a String or text that becomes one; a cstr text; anything else its very
    type. A value only C sees is C's */
+/* "a" or "an" before a type's name, as it is read: an i64, a u8, an
+   f64 ("eff"), a String (#257) */
+static const char *article(const char *w) {
+    if (strchr("aeiouAEIOU", w[0]) && w[0] != 'u')
+        return "an";
+    return w[0] == 'f' && isdigit((unsigned char)w[1]) ? "an" : "a";
+}
+
 static void check_entry_value(Expr *v, Type *dt, Pos pos) {
     bare_tags = true;
     char *lead = strfmt("an entry of %s is", kelvin_type(dt));
@@ -6196,7 +6207,11 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         char *w = kelvin_type(want);
         char *got = vt ? kelvin_type(vt) : text ? "text" : "a number";
         bare_tags = false;
-        error_at(pos, "%s %s %s, and this is %s", lead, strchr("aeiouAEIOU", w[0]) && w[0] != 'u' ? "an" : "a", w, got);
+        bare_tags = true;
+        bool lend = want->kind == T_PTR && want->elem && vt && !strcmp(kelvin_type(unqualified(want->elem)), got);
+        bare_tags = false;
+        error_at(pos, "%s %s %s, and this is %s%s", lead, article(w), w, got,
+                 lend ? strfmt(": give a borrow, '&%s'", v->kind == E_IDENT ? v->text : "x") : ""); /* (#257) */
     }
 }
 
@@ -6315,7 +6330,25 @@ static void resolve_call(Expr *call) {
     }
     drop_cstr_args(call, call->target);
     borrow_temps(call, call->target);
+    check_args(call, call->target);
     move_args(call, call->target);
+}
+
+/* each argument of a Kelvin function or method, as the function takes it
+   once converted and lent (#257): of its parameter's type, in Kelvin's
+   words, as a declaration's value (#255) */
+static void check_args(Expr *call, Decl *d) {
+    if (!d)
+        return;
+    const char *who = d->anon || !d->name ? "this function"
+                      : d->recv_name      ? strfmt("'%s.%s'", d->recv_name, d->name)
+                                          : strfmt("'%s'", d->name);
+    for (int k = 0; k < call->items.len && k < d->params.len; k++) {
+        Var *p = d->params.data[k];
+        Expr *x = call->items.data[k];
+        char *lead = p->name ? strfmt("'%s' of %s is", p->name, who) : strfmt("argument %d of %s is", k + 1, who);
+        check_typed_value(x, p->type, lead, x->pos);
+    }
 }
 
 /* an owner an expression gives, given where a borrow of its type is taken,
