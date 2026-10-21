@@ -261,7 +261,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var none_yet:$[int64] = $[]
     println(fibs, " ", none_yet, " ", points, " ", hay)    // Arrays (#230)
     let odd = fibs.count % 2 == 1
-    let parity:cstr := odd ? "odd" : "even"
+    var parity:cstr := "unknown"                      // a reference takes :=, a value = (#233)
+    parity := odd ? "odd" : "even"
     let size:int64 = odd ? fibs.count as int64 : 0 - 1
     var picked = either(odd, $"mine")
     println(parity, " ", size, " ", size > 10 ? size > 20 ? "huge" : "big" : "small", " ", half(6), " ", half(7), " ", picked, " ", odd ? picked : loud)

@@ -5475,3 +5475,15 @@ kc was found to take `let s:cstr = ...`, which kelvinc refuses. Details
 are provisional P244.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 277. kc's = and :=
+
+> fix kc's cstr = check as #233
+
+**Claude** added #233: kc checks `=` and `:=` as kelvinc does, a reference,
+a `cstr` or a `T^`, by `:=`, and a value by `=`, in declarations, globals
+and assignments, with kelvinc's messages word for word. kc also reads
+`p := q` as an assignment now, which it did not. As in kelvinc, an Array
+and a Dictionary are left unchecked. Details are provisional P245.
+
+There are 834 tests, and all pass with clang and with gcc 15.

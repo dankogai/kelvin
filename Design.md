@@ -264,6 +264,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 230 | kc prints an Array as kelvinc does, `[1, 2]`, `[]` where empty, `["a"]`, `[{x: 1, y: 2}]`, `[[1, 2]]`, `some([1, 2])`, by a `_kv_show__kv_array_T` of kelvinc's form; selfhost/ is experimental, no longer a proof of concept, since CI checks it | — | `println(fibs, " ", points)` | 2026-10-21 |
 | 231 | selfhost/README.md's difficulties brought up to date: kelvinc's 17,700 lines and kc's 3,900, what the subset has taken in since #204 (#207, #210, #211, #213 to #215, #217, #219, #221, #225 to #227, #229, #230), what it leaves out now (overloading, `?:` and O12, `try`, attributes, subscripts and operators, anonymous functions, templates, `Set`, `union`, `typealias`, floats and other integers, bitwise operators, `++`, `#inline C`, `#line`), 834 tests, 12 ms a compile | — | `selfhost/README.md` | 2026-10-21 |
 | 232 | kc reads `c ? a : b` as kelvinc does: the loosest, grouping to the right, a `?` right after a value before `.` or `[` a chain's; of `a`'s type, or `b`'s where `a` is a word; each arm by the type that takes it, so `c ? n : none` of a `T?`; of owners O12: two places a place, read where they are, not copied by `=`; two values a value; one of each an error but where returned, which moves either out; kc's own source uses it | — | `return c ? s : shout($"other")`, `half(n) = n % 2 == 0 ? n / 2 : none` | 2026-10-21 |
+| 233 | kc checks `=` and `:=` as kelvinc does: a reference, a `cstr` or a `T^`, takes `:=` and a value `=`, in a local's or a global's declaration and in an assignment to a name or a member, with kelvinc's messages, which name the type as Kelvin spells it; an Array and a Dictionary are not checked, as kelvinc does not; kc reads the assignment `p := q`, which it did not | — | `parity := odd ? "odd" : "even"` | 2026-10-21 |
 
 Notes:
 
@@ -825,6 +826,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (233) Agreed details: "fix kc's cstr = check as #233". kc took
+  `let s:cstr = ...` (P244), and so a value by `:=`; it read no
+  assignment by `:=` at all. kelvinc's check_assign_op is best effort:
+  a type it does not classify, an Array or a Dictionary, is not
+  checked; kc leaves the same alone, so that what kelvinc takes kc
+  takes.
 
 - (232) Agreed details: "teach kc c ? a : b as #232". kc wrote no `?:`;
   it parses one now after the binary operators, so that `?` stays a
@@ -2472,6 +2480,7 @@ says "as agreed".
 | P242 | Details of #230 | gen.k: shown_by_type(y) is true of an Array too; need_show checks an Array's element; put_show_name of an Array is `_kv_show_` and its C name; put_self(path, t) writes self->path and a name; show_value takes `at[_kv_i]` with no name; gen_show of an Array writes `[]` where empty, else `[`, each element after kv_out_sep(o, level, _kv_i == 0), kv_out_end, `]`; README.md, selfhost/README.md and selfhost/kc.k say experimental; sample.k prints fibs, an empty Array, points and hay | — |
 | P243 | Details of #231 | selfhost/README.md: "The size of the language" says 17,700 and 12,300 lines of kelvinc, 3,900 of kc, a list of what the subset took in, a list of what it leaves out, 834 tests; "Speed" says about 12 ms a compile at 3,900 lines; "Next steps" names `c ? a : b` first | — |
 | P244 | Details of #232 | parse.k: N_COND (a the condition, b and c the arms, t the ?); parse_expr parses one after parse_binary(1), its arms by parse_expr; gen.k: type_of, is_place of both arms, has_call of the second; gen_choice writes `(c ? a : b)` read; owner_choice refuses a place and a value; gen_value writes each arm by the type that takes it and refuses two places of an owner; gen_return of an owner's choice is gen_moved, which takes a local owner by _take; gen.k uses ?: five times; sample.k: either, half, parity, nested choices | kc's `let s:cstr =`, which kelvinc refuses |
+| P245 | Details of #233 | parse.k: `:=` is an assignment's operator; gen.k: type_text(y) spells a type as kelvinc's messages do (i64, cstr, i64^, $[String], i64?, Result<i64, String>); assigns_as(n, t, y, colon) checks gen_var, the globals and gen_assign to a name or a member; put_op writes := as C's =; sample.k: parity := ... | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -772,8 +772,8 @@ let parse_statement():int64 {
         return parse_block()
     }
     let e:int64 = parse_expr()
-    if at_word("=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") {
-        let n:int64 = make_node(S_ASSIGN, advance())
+    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") {
+        let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())
         end_statement()

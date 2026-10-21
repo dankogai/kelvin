@@ -1547,10 +1547,79 @@ let inferred(n:int64):int64 {
     return y
 }
 
+// a type as Kelvin spells it, for a message (#233): i64, cstr, i64^,
+// $[String], i64?, Result<i64, String>
+let type_text(y:int64):String {
+    switch types[y].kind {
+    case Y_I64: return $"i64"
+    case Y_I32: return $"i32"
+    case Y_U8: return $"u8"
+    case Y_U32: return $"u32"
+    case Y_BOOL: return $"bool"
+    case Y_CSTR: return $"cstr"
+    case Y_STRING: return $"String"
+    case Y_IO: return $"IO"
+    case Y_UCHR: return $"uchr"
+    case Y_ARGV: return $"[cstr]"
+    case Y_ARRAY:
+        var s = $"$["
+        s += type_text(types[y].elem)
+        s += "]"
+        return s
+    case Y_PTR:
+        var s = type_text(types[y].elem)
+        s += "^"
+        return s
+    case Y_DICT:
+        var s = $"Dictionary<"
+        s += type_text(types[y].name)
+        s += ", "
+        s += type_text(types[y].elem)
+        s += ">"
+        return s
+    case Y_STRUCT:
+        let d = tagged_of(y)
+        if d >= 0 && nodes[d].c == 1 {
+            var s = type_text(some_type(y))
+            s += "?"
+            return s
+        }
+        if d >= 0 && types[y].name > eof_pos {           // made by kc, as no Optional: Result<T, E>
+            let m = nodes[d].a
+            var s = $"Result<"
+            s += type_text(nodes[m].ty)
+            s += ", "
+            s += type_text(nodes[nodes[m].next].ty)
+            s += ">"
+            return s
+        }
+        return tok_text(types[y].name)
+    default: return $"a type only C sees"
+    }
+}
+
+// whether = or := suits y, as kelvinc has it (#233): a reference, a cstr or
+// a T^, takes :=, and a value =; else an error that names t, the name
+// assigned, and what it is
+let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
+    let k:ykind = y >= 0 ? types[y].kind : Y_C
+    if k == Y_C || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees; an Array and a Dictionary, as kelvinc
+    let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR
+    if reference == colon { return true }
+    var what = $"'"
+    what += tok_text(t)
+    what += reference ? "' is a reference (" : "' is a value ("
+    what += type_text(y)
+    what += reference ? "): assign it with ':=', not '='" : "): assign it with '=', not ':='"
+    gen_error(n, what.cstr)
+    return false
+}
+
 let gen_var(n:int64) {
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
     let y:int64 = nodes[n].ty
+    if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
     if is_owner(y) {
         put("__attribute__((cleanup(")
         put_free(y)
@@ -1601,11 +1670,22 @@ let has_call(n:int64):bool {
     return has_call(nodes[n].a) || has_call(nodes[n].b)
 }
 
+// an assignment's operator in C: := of a reference is C's = (#233)
+let put_op(t:int64) {
+    if tok_is(t, ":=") {
+        put("=")
+    } else {
+        put_tok(t)
+    }
+}
+
 let gen_assign(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
+    if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].t, y, tok_is(t, ":=")) { return }
     let yk:ykind = types[y].kind
     if nodes[lhs].kind == N_FIELD && tok_is(t, "=") && tagged_of(type_of(nodes[lhs].a)) >= 0 {
         put("_kv_")                                     // v.c = x sets the case, freeing what it held (#215)
@@ -1679,14 +1759,14 @@ let gen_assign(n:int64) {
         put("; ")
         gen_expr(lhs)
         put(" ")
-        put_tok(t)
+        put_op(t)
         put(" _kv_v")
         put_int(serial)
         put("; }\n")
     } else {
         gen_expr(lhs)
         put(" ")
-        put_tok(t)
+        put_op(t)
         put(" ")
         gen_value(nodes[n].b, y)                       // (#217)
         put(";\n")
@@ -2578,6 +2658,7 @@ let gen_program() {
         if nodes[d].kind == D_GLOBAL {
             if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
             if failed { return }
+            if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
             put(" ")

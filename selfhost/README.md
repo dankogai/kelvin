@@ -144,9 +144,15 @@ kc reads what it is written in, and little more.
   `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's `[cstr]`, and
   `Dictionary<K, V>` of `String` or integer keys (#211).
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
-  `=`, `+=` and the
-  rest; `if`, `else if`, `else`; `while`; `for i in a..<b`; `for x in s`
-  of a String or an Array; `return`, `break`, `continue`.
+  `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
+  `for i in a..<b`; `for x in s` of a String or an Array; `return`,
+  `break`, `continue`.
+  - **`=` and `:=`** (#233), as kelvinc has them: a reference, a `cstr`
+    or a `T^`, takes `:=`, and a value `=`, in a declaration, a global's
+    or an assignment; else kelvinc's error, as `'s' is a reference
+    (cstr): assign it with ':=', not '='`.
+  - An Array and a Dictionary are not checked, as kelvinc does not
+    check them.
 - **`switch`** (#210), as kelvinc has it (#63): `case a, b:` and
   `default:`; a case ends at the next, its own block, with a `break`
   where it does not jump; a switch on an enum names every enumerator or
