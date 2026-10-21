@@ -5503,3 +5503,28 @@ sample met. The overloads of methods are left. Details are provisional
 P246.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 279. Dictionary ==
+
+> add the following features to `Dictionary`:
+>
+> * `==`.  Both key types and value times must match.  If not, fatal
+>   error.
+> * `d0.merge(d1){ v0, v1 in ...}`. the function is called when keys
+>   collide.  also `.merging()`which creates a new dictionary.
+> * `d0 ?? d1` and `d0 !! d1` like
+>   https://github.com/dankogai/swiftalk/blob/main/documents/Dictionary.md
+
+**Claude** read swiftalk's Dictionary.md and asked four things. The user
+chose: three changes in turn; a value type with no `==` an error at
+compile time; untyped `{ v0, v1 in ... }` for `merge`, the new value
+winning without a function; and `??=` and `!!=` beside `??` and `!!`,
+`!!` a binary operator.
+
+**Claude** added #235: `d0 == d1` and `!=` compare two Dictionaries of the
+same key and value types, entry by entry in any order, each value by its
+own `==`; other types, and values without `==`, are errors. A Dictionary
+of values that compare has `==` itself, so an enum holding one, even one
+of its own type, compares too. Details are provisional P247.
+
+There are 837 tests, and all pass with clang and with gcc 15.

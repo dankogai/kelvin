@@ -266,6 +266,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 232 | kc reads `c ? a : b` as kelvinc does: the loosest, grouping to the right, a `?` right after a value before `.` or `[` a chain's; of `a`'s type, or `b`'s where `a` is a word; each arm by the type that takes it, so `c ? n : none` of a `T?`; of owners O12: two places a place, read where they are, not copied by `=`; two values a value; one of each an error but where returned, which moves either out; kc's own source uses it | — | `return c ? s : shout($"other")`, `half(n) = n % 2 == 0 ? n / 2 : none` | 2026-10-21 |
 | 233 | kc checks `=` and `:=` as kelvinc does: a reference, a `cstr` or a `T^`, takes `:=` and a value `=`, in a local's or a global's declaration and in an assignment to a name or a member, with kelvinc's messages, which name the type as Kelvin spells it; an Array and a Dictionary are not checked, as kelvinc does not; kc reads the assignment `p := q`, which it did not | — | `parity := odd ? "odd" : "even"` | 2026-10-21 |
 | 234 | kc overloads functions as kelvinc does: a call gets the overload its arguments fit best by kelvinc's fit (the very type 2, a number or a `bool` that converts 1, a text literal to a `String`, `none` to an Optional, `ok(v)`/`err(e)` to a Result, a `T` to a `T?` in a second look), a tie or no fit an error (#223); a prototype and its definition one overload, one declared and never defined C's; each defined overload named as kelvinc's mangled_type names it, `twice__i64`, `show__vecp`, `f__opt_i64`, `f__Array_i64`, `f__res_i64_String`, `f__void`; a text literal given where a `String` goes is a `String` of it; a call of a name a variable hides is an error | — | `twice(21)`, `twice($"ab")`, `kind(none)` | 2026-10-21 |
+| 235 | `d0 == d1` and `d0 != d1` of Dictionaries: the same entries in any order, each value by its own `==`; two of other key or value types, and values with no `==` (a struct, an Array), are errors; a Dictionary whose values compare has `==` itself, so an Optional, an enum or a Dictionary holding one compares too | — | `${"ann": 31} == ages()` | 2026-10-21 |
 
 Notes:
 
@@ -827,6 +828,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (235) Agreed details: "add the following features to `Dictionary`:
+  `==`. Both key types and value times must match. If not, fatal
+  error. `d0.merge(d1){ v0, v1 in ...}` ... `.merging()` ... `d0 ?? d1`
+  and `d0 !! d1` like swiftalk's Dictionary.md". Asked, the user chose:
+  three changes, #235 `==`, #236 `merge` and `merging`, #237 `??`
+  and `!!`; a value type with no `==` is an error at compile time;
+  untyped `{ v0, v1 in ... }`, the new value winning without one; and
+  `??=` and `!!=` too, `!!` binary. A Dictionary's `==` is its `_eq`,
+  written after KV_DICT where its values compare, which is decided
+  once parsing is done, since an enum of its values may hold it: JSON
+  holds a Dictionary of JSON, and has no `==` because of its Array.
 
 - (234) Agreed details: "teach kc overloading as #234". kc kept the
   first function of a name and called it whatever the arguments were.
@@ -2495,6 +2508,7 @@ says "as agreed".
 | P244 | Details of #232 | parse.k: N_COND (a the condition, b and c the arms, t the ?); parse_expr parses one after parse_binary(1), its arms by parse_expr; gen.k: type_of, is_place of both arms, has_call of the second; gen_choice writes `(c ? a : b)` read; owner_choice refuses a place and a value; gen_value writes each arm by the type that takes it and refuses two places of an owner; gen_return of an owner's choice is gen_moved, which takes a local owner by _take; gen.k uses ?: five times; sample.k: either, half, parity, nested choices | kc's `let s:cstr =`, which kelvinc refuses |
 | P245 | Details of #233 | parse.k: `:=` is an assignment's operator; gen.k: type_text(y) spells a type as kelvinc's messages do (i64, cstr, i64^, $[String], i64?, Result<i64, String>); assigns_as(n, t, y, colon) checks gen_var, the globals and gen_assign to a name or a member; put_op writes := as C's =; sample.k: parity := ... | — |
 | P246 | Details of #234 | gen.k: count_overloads fills fn_sigs (name and signature: the first declaration), fn_bodies and fn_overloads; mangled(y) and params_key(d) spell a C name's types; put_fn_name(d) names a defined overload; arg_fit(a, t, wraps) and choose_overload(n, name, wraps) score and choose, a second look letting a T fit a T?; call_target(n), kept in `targets`, is the function of type_of and gen_call; gen_value makes a String of a text literal; gen_call refuses a call of a name a variable hides; sample.k: twice and kind | methods' overloads; kelvinc's names of an imported file's functions; `x == none` in kc |
+| P247 | Details of #235 | kelvin.h: Type.eq; parser.c: == and != of two Dictionaries call `_kv_dict_K_V_eq(&a, &b)`, operands an expression gives held; eq_type of a Dictionary is its values'; parse_program sets each registered Dictionary's eq once parsing is done; codegen.c: emit_dict_eq after KV_DICT and KV_DICT_FUNCS, its values by eq_code, with a prototype of an enum value's _eq, and of its own after KV_DICT_TYPE; eq_code of a Dictionary is its _eq; documents/dictionaries.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

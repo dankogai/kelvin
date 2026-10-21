@@ -878,6 +878,7 @@ static Decl *anon_record_of(Type *t);
 static void reject_kv_name(Token *t);
 static void parse_cases(Decl *d);
 static void set_no_eq(Decl *d);
+static bool eq_type(Type *t);
 static bool brace_has_colon(int i);
 static Var *case_named(Decl *r, const char *name, int *index);
 static Expr *case_value(Type *t);
@@ -4193,6 +4194,45 @@ static Expr *parse_binary(int min_prec) {
                 list_push(&c->items, e->a);
                 list_push(&c->items, b);
                 lhs = c;
+                continue;
+            }
+            if (tn[0] == 'D' && (!strcmp(e->op, "==") || !strcmp(e->op, "!="))) {
+                /* d0 == d1 (#235): two Dictionaries of one key type and one
+                   value type, of the same entries, each value by its == */
+                Type *da = value_type(e->a), *db = value_type(e->b);
+                if (!ka || !kb || strcmp(da->name, db->name))
+                    error_at(t->pos, "'%s' compares two Dictionaries of the same key and value types, and these are %s and %s",
+                             e->op, da ? kelvin_type(da) : "not one", db ? kelvin_type(db) : "not one");
+                if (!eq_type(da->elem)) {
+                    bare_tags = true;
+                    char *dt = kelvin_type(da), *vt = kelvin_type(da->elem);
+                    bare_tags = false;
+                    error_at(t->pos, "'%s' of %s compares the values, and %s has no '=='", e->op, dt, vt);
+                }
+                List held = {0}; /* an operand an expression gives, held (#187) */
+                if (!owner_place(e->a))
+                    e->a = hold_operand(e->a, &held);
+                if (!owner_place(e->b))
+                    e->b = hold_operand(e->b, &held);
+                Expr *eq = new_expr(E_CALL, t->pos);
+                eq->a = new_expr(E_IDENT, t->pos);
+                eq->a->text = strfmt("%s_eq", da->cname);
+                eq->op = "c";
+                Expr *pa = new_expr(E_PREFIX, t->pos), *pb = new_expr(E_PREFIX, t->pos);
+                pa->op = pb->op = "&";
+                pa->a = e->a;
+                pb->a = e->b;
+                list_push(&eq->items, pa);
+                list_push(&eq->items, pb);
+                eq->is_bool = true;
+                if (!strcmp(e->op, "!=")) {
+                    Expr *not = new_expr(E_PREFIX, t->pos);
+                    not->op = "!";
+                    not->a = eq;
+                    not->is_bool = true;
+                    eq = not;
+                }
+                lhs = wrap_temps(eq, &held);
                 continue;
             }
             if (tn[0] == 'A' || tn[0] == 'D' || (tn[0] == 'S' && tn[1] == 'e'))
@@ -11275,6 +11315,8 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
 static bool eq_type(Type *t) {
     if (!t || t->kind == T_PTR || t->kind == T_FUNC)
         return true;
+    if (is_dict_owner(t)) /* a Dictionary compares where its values do (#235) */
+        return eq_type(t->elem);
     if (t->kind == T_ARRAY || t->cname || is_io(t))
         return false;
     if (is_string(t) || is_bytes(t) || is_uchr(t))
@@ -11845,6 +11887,13 @@ Program *parse(Token *tokens, int ntoks) {
         }
     }
     name_functions();
+    /* a Dictionary has == where its values compare (#235), known once every
+       enum's no_eq is: an enum of the values may hold the Dictionary */
+    for (int i = 0; i < prog->arrays.len; i++) {
+        Type *t = prog->arrays.data[i];
+        if (is_dict_owner(t))
+            t->eq = eq_type(t->elem);
+    }
     prog->modules = modules_imported; /* for the codegen (#143) */
     return prog;
 }

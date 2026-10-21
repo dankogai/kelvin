@@ -66,7 +66,16 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   added, and `d.pretty` the same indented, a line for each entry (#123,
   #124); String keys and values are quoted; `${d}` in a template is the
   same text (#125).
-- **Not yet:** `==`, keys of other types, `d[k, default]`.
+- **`d0 == d1`** (#235): the same entries, in any order, each value
+  by its own `==`; `!=` the opposite.
+  - The two are of one key type and one value type; others are an
+    error.
+  - The values compare: numbers, `bool`, text, a `uchr`, an Optional,
+    a Result or an enum with values whose values compare, a pointer,
+    and a Dictionary whose values compare. A struct or an Array has no
+    `==`, so a Dictionary of them is an error.
+  - One an expression gives is held while compared (#187).
+- **Not yet:** keys of other types, `d[k, default]`.
 
 ## Properties and methods
 
@@ -88,8 +97,9 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `for k, v in d`, `for k in d` | each entry, or each key, in the order added |
 | | `print(d)`, `d.pretty` | `{"ann": 31}`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | `sizeof`; `Dictionary<String, i64>` |
+| | `d0 == d1`, `d0 != d1` | the same entries, each value by its `==`, a `bool` (#235) |
 
-No `.cstr`, no `==`, no `+=`: `print` shows a Dictionary, and `.pretty`
+No `.cstr`, no `+=`: `print` shows a Dictionary, and `.pretty`
 is its text, indented (#123, #124). The general properties are in
 [properties.md](properties.md), the ownership rules in
 [ownership.md](ownership.md).
