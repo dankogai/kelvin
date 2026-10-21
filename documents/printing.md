@@ -26,17 +26,19 @@ let main():int32 {
   `println(...)` adds a newline.
 - Each value prints according to its C type *(provisional P21)*:
   - integers of every size in decimal, so `i64` needs no `PRId64`
-  - floats in the shortest text that reads back the same (see
-    [floatingpoint.md](floatingpoint.md)), always with a
-    `.` or an exponent
+  - floats with every digit their type holds, `%.17g`'s for an `f64`
+    and `%.9g`'s for an `f32` (see [floatingpoint.md](floatingpoint.md)),
+    always with a `.` or an exponent (#259): `0.10000000000000001`, `1.0`
     - As in Swift, they are plain from 0.0001 up to 2^53 (2^24 for
-      `f32`), where every integer is exact (`10.0`, `0.1`,
+      `f32`), where every integer is exact (`10.0`,
       `9007199254740992.0`), and have an exponent otherwise (`1e+16`,
-      `1e-05`, `1e+300`).
+      `1.0000000000000001e+300`).
     - The point is `.` whatever the C locale's, which `printf` would
       follow
   - `bool` as `true`/`false`
-  - `u8^` and string literals as strings (`(null)` for a null pointer)
+  - `u8^` and string literals as strings (`(null)` for a null pointer);
+    inside a value, quoted, `{tag: "edge"}`, and `nullptr` for a null
+    one, a C type's text, as `xmlChar^`, too (#259)
   - other pointers as addresses
   - a struct, a union, an enum with values, an Optional, a Result, an
     `Array`, a `Dictionary` and a `Set` whole, on one line (#122, #123):
@@ -166,7 +168,7 @@ let card:cstr := `name: ${name}
     frees it when its block ends; see [strings.md](strings.md).
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
-  shortest form (`0.1`), `bool` as `true`/`false`, strings as their text
+  every digit (`0.10000000000000001`, #259), `bool` as `true`/`false`, strings as their text
   (`(null)` for `nullptr`), other pointers as addresses.
   - A struct kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), as
     `print` does (#122); one it cannot see, as a call that C chooses

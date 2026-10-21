@@ -165,7 +165,7 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   - `f.print(a, b, ...)` and `f.println(...)` (#83) show up to 16 values
     as `print` and `println` do, to the IO:
     `IO.stderr.println("warning: ", n)`; see [printing.md](printing.md).
-    - Each by its type: numbers, floats in their shortest form, `bool`,
+    - Each by its type: numbers, floats with every digit (#259), `bool`,
       text, a `String`, a `Bytes`, a `uchr` as its character, a struct's
       `.cstr`.
   - `f.flush()` flushes.

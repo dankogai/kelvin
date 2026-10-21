@@ -60,10 +60,10 @@ uint8_t *kv_cstr_u64(unsigned long long v, uint8_t *buf) {
     return buf;
 }
 
-/* as print shows it (#258): the shortest text that reads back as the
-   same value, with a point, "1.0" and "0.1", so that the text of an
-   Array, a struct or an Optional pastes back into Kelvin as the value;
-   a NaN has no meaningful sign and is "nan" */
+/* as print shows it (#258): every digit, with a point, "1.0" and
+   "0.10000000000000001" (#259), so that the text of an Array, a struct
+   or an Optional pastes back into Kelvin as the value; a NaN has no
+   meaningful sign and is "nan" */
 uint8_t *kv_cstr_f32(float v, uint8_t *buf) {
     char t[96];
     snprintf((char *)buf, KV_CSTR_SCALAR, "%s", kv_f32_text(v, t));
@@ -226,9 +226,13 @@ uint8_t *kv_cstr_quoted_bytes(kv_bytes b, uint8_t *p) {
 
 uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p) {
     if (!s)
-        return kv_cstr_put(p, "(null)");
+        return kv_cstr_put(p, "nullptr"); /* as Kelvin writes it (#259) */
     return quoted_into((const uint8_t *)s, strlen(s), KV_CSTR_STR, false, p);
 }
+
+/* text of a type only C sees inside a value (#259), as xmlChar^: quoted,
+   as a cstr's, so that it pastes back */
+uint8_t *kv_cstr_quoted_text(uint8_t *p, const void *s) { return kv_cstr_quoted_str((const char *)s, p); }
 
 uint8_t *kv_cstr_put_str(uint8_t *p, const char *s) { return s ? put_chars(p, s, SIZE_MAX) : kv_cstr_put(p, "(null)"); }
 
@@ -467,8 +471,15 @@ uint8_t *kv_cstr_kind(const void *p, int kind, size_t size, uint8_t *buf) {
     case KV_K_FLOAT: return kv_cstr_f32(*(const float *)p, buf);
     case KV_K_DOUBLE: return kv_cstr_f64(*(const double *)p, buf);
     case KV_K_LDOUBLE: return kv_cstr_f80(*(const long double *)p, buf);
-    case KV_K_STR: kv_cstr_put_str(buf, *(const char *const *)p); return buf;
-    case KV_K_CHARS: put_chars(buf, (const char *)p, size); return buf;
+    /* text inside a value, quoted as a cstr's (#259) */
+    case KV_K_STR: kv_cstr_quoted_str(*(const char *const *)p, buf); return buf;
+    case KV_K_CHARS: {
+        size_t n = 0; /* up to a NUL, or the end of the array */
+        while (n < size && ((const char *)p)[n])
+            n++;
+        quoted_into((const uint8_t *)p, n, KV_CSTR_STR, false, buf);
+        return buf;
+    }
     case KV_K_PTR: return kv_cstr_ptr(*(const void *const *)p, buf);
     case KV_K_CF: return kv_cstr_cf(*(const float _Complex *)p, buf);
     case KV_K_CD: return kv_cstr_cd(*(const double _Complex *)p, buf);

@@ -5867,3 +5867,18 @@ reads back as the same value, with a point: `[1.0, 2.5]`, `{x: 1.0}`,
 `some(1.0)`, `0.1.cstr` is `0.1`. Details are provisional P270.
 
 There are 896 tests, and all pass with clang and with gcc 15.
+
+### 303. Quoted text, and every digit of a float
+
+> quote cstr members when printing as #259.  Also, printing `$[0.1]` as
+> `[0.1]` is WRONG.  It should remain `[0.10000000000000001]` because
+> that is what `0.1` REALLY is, `+0x1.999999999999ap-4`.
+
+**Claude** asked whether a float alone, `println(0.1)`, should show
+every digit too, and the user chose so: one text for a float, every
+digit its type holds, with a point, `0.10000000000000001`, `[1.0]`,
+`0.100000001` of an f32. Text inside a value of a type only C sees, as
+`xmlChar^` or `name_t`, is now quoted as a cstr's already was, and a
+null one is `nullptr`. Details are provisional P271.
+
+There are 896 tests, and all pass with clang and with gcc 15.

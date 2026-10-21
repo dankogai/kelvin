@@ -14,8 +14,10 @@
 
 /* ---------- the text of a value, as print shows it ---------- */
 
-/* Floats show in the shortest form that reads back as the same value,
-   with a decimal point so they are never mistaken for integers. As in
+/* Floats show every digit their type holds (#259), as %.17g does for an
+   f64 and %.9g for an f32, which is what the value really is: 0.1 is
+   0.10000000000000001; trailing zeros go, and a decimal point stays, so
+   they are never mistaken for integers and paste back as the value. As in
    Swift, a float is plain decimal from 0.0001 up to 2 to the power of
    its type's mantissa bits (2^53 for f64, 2^24 for f32), where every
    integer is exact, and has an exponent otherwise: 10.0, 0.0001,
@@ -23,8 +25,8 @@
    whatever the C locale's is. A NaN is "nan" whatever its sign bit
    (glibc would print "-nan" for 0.0 / 0.0 on x86).
 
-   buf holds at least 96 bytes and comes in as the shortest "%.*e" text
-   (or "inf"), written with the locale's point; plain says whether the
+   buf holds at least 96 bytes and comes in as the "%.*e" text of every
+   digit (or "inf"), written with the locale's point; plain says whether the
    value is within 2^mantissa bits. */
 static char *float_text(char *buf, bool plain) {
     char *e = strchr(buf, 'e');
@@ -36,6 +38,8 @@ static char *float_text(char *buf, bool plain) {
     for (char *s = buf; s < e; s++)
         if (*s >= '0' && *s <= '9')
             digits[n++] = *s;
+    while (n > 1 && digits[n - 1] == '0') /* 1.0000000000000000e+00 is 1.0 */
+        n--;
     char *p = buf + (buf[0] == '-');
     if (!plain || x < -4) {
         /* "1,5e+16" in a German locale becomes "1.5e+16" */
@@ -71,33 +75,21 @@ static char *float_text(char *buf, bool plain) {
 char *kv_f64_text(double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
-    for (int p = 1; p <= 17; p++) {
-        snprintf(buf, 62, "%.*e", p - 1, v);
-        if (strtod(buf, NULL) == v)
-            break;
-    }
+    snprintf(buf, 62, "%.*e", DBL_DECIMAL_DIG - 1, v); /* every digit, 17 (#259) */
     return float_text(buf, fabs(v) <= ldexp(1, DBL_MANT_DIG));
 }
 
 char *kv_f32_text(float v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
-    for (int p = 1; p <= 9; p++) {
-        snprintf(buf, 62, "%.*e", p - 1, (double)v);
-        if (strtof(buf, NULL) == v)
-            break;
-    }
+    snprintf(buf, 62, "%.*e", FLT_DECIMAL_DIG - 1, (double)v); /* 9 (#259) */
     return float_text(buf, fabsf(v) <= ldexpf(1, FLT_MANT_DIG));
 }
 
 char *kv_f80_text(long double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
-    for (int p = 1; p <= 36; p++) {
-        snprintf(buf, 94, "%.*Le", p - 1, v);
-        if (strtold(buf, NULL) == v)
-            break;
-    }
+    snprintf(buf, 94, "%.*Le", LDBL_DECIMAL_DIG - 1, v); /* 21 of x86's, 17 where it is a double (#259) */
     return float_text(buf, fabsl(v) <= ldexpl(1, LDBL_MANT_DIG));
 }
 
@@ -322,7 +314,7 @@ void kv_out_quoted(kv_out *o, const uint8_t *at, size_t n, bool bytes) {
 
 void kv_out_quoted_text(kv_out *o, const void *s) {
     if (!s)
-        kv_out_put(o, "(null)");
+        kv_out_put(o, "nullptr"); /* as Kelvin writes it (#259) */
     else
         kv_out_quoted(o, (const uint8_t *)s, strlen((const char *)s), false);
 }

@@ -91,9 +91,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - `v` is not evaluated, as for `sizeof`.
 - **`x.cstr`** is the text of any value, as `cstr` (#22):
   - **Numbers** are plain decimal (`42`, `-7`), including 128-bit ones.
-    Floats are as `print` shows them (#258), the shortest text that
-    reads back as the same value, with a point: `0.1.cstr` is `0.1`,
-    `1.0.cstr` is `1.0`.
+    Floats are as `print` shows them (#258, #259), every digit with a
+    point: `0.1.cstr` is `0.10000000000000001`, `1.0.cstr` is `1.0`.
   - **`bool`** is `true` or `false`.
   - **C's `_Complex` numbers** are `1.0+2.0i`; `c64` and `c32`
     of modules/math.k are structs, `{real: 1.0, imag: 2.0}`.
@@ -142,7 +141,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   `u8^` text with a prefix of `0x`, `0o` or `0b`.
   - Signed integers always carry a sign (`+42`, `-0x2a`) and unsigned
     ones never do, so the text tells `i32` from `u32`.
-- **`f32`/`f64`** have `.dec` (`%+.17g`, every digit) and `.hex`
+- **`f32`/`f64`** have `.dec` (every digit, as `.cstr`, signed) and `.hex`
   (C's `%a`), always signed.
 - **Pointers and functions** have `.addr` and `.hex` (#37).
   - `p.addr` is the address as a number, a `uintptr_t` (C's unsigned

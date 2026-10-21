@@ -13,7 +13,7 @@ let d = 1.5                         // an f64, inferred
 var f:float32 = 1.5                     // no 1.5f: the type is on the declaration
 let half = float64(n) / 2               // a converter, as C's cast
 let x = float64("0x1.8p1")              // read from text: 3.0
-println(0.1, " ", 0.1.cstr, " ", $[1.0, 0.5])   // 0.1 0.1 [1.0, 0.5]
+println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 ```
 
@@ -55,20 +55,23 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
   - The decimal point is the one of the C locale in use.
   - A base is for integer types only. The table of what is read is in
     [integers.md](integers.md#numbers-from-text).
-- **Printing:** `print` shows the shortest text that reads back the
-  same, always with a `.` or an exponent *(provisional P21)*.
+- **Printing:** `print` shows every digit the type holds, as `%.17g`
+  does for an `f64` and `%.9g` for an `f32`, always with a `.` or an
+  exponent (#259): what the value is, `0.1` being
+  `0.10000000000000001`, `+0x1.999999999999ap-4`.
+  - Trailing zeros go: `1.0`, `2.5`, not `2.5000000000000000`.
   - As in Swift, it is plain from 0.0001 up to 2^53 (2^24 for `f32`),
-    where every integer is exact (`10.0`, `0.1`, `9007199254740992.0`),
-    and has an exponent otherwise (`1e+16`, `1e-05`, `1e+300`).
+    where every integer is exact (`10.0`, `9007199254740992.0`), and
+    has an exponent otherwise (`1e+16`, `1.0000000000000001e-05`).
   - The point is `.` whatever the C locale's, which `printf` would
     follow. See [printing.md](printing.md).
-- **Text** is what `print` shows (#258): the shortest that reads back as
-  the same value, with a point, `0.1`, `1.0`, `1e+300`, so that it
-  pastes back into Kelvin as the value.
+- **Text** is what `print` shows (#258, #259): every digit, with a
+  point, `0.10000000000000001`, `1.0`, so that it pastes back into
+  Kelvin as the value.
   - `.cstr`, `${x}` and `print` agree, and so does a float inside a
     value: a struct's member, an Array's element, an Optional's value.
-  - `.dec` is `%+.17g`, every digit with a sign, `+0.10000000000000001`,
-    and `.hex` C's `%a` with a sign, `+0x1.8p+0`.
+  - `.dec` is the same digits with a sign, `+0.10000000000000001`, and
+    `.hex` C's `%a` with a sign, `+0x1.8p+0`.
   - `.oct` and `.bin` of a float are errors.
   - A float inside a value shows as alone, `[11.0]`, `{x: 1.0}`,
     `some(1.0)` (#258). See [properties.md](properties.md).
@@ -84,7 +87,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 |---|---|---|
 | `f32`, `f64` | `.size` | `sizeof`, a `size_t` |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
-| | `.cstr` | the text `print` shows, the shortest that reads back, `1.0` (#258), in the block's buffer |
+| | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |

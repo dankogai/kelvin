@@ -16,8 +16,8 @@ let main():int32 {
     println(1.0.i, " ", (0.5:float32).i, " ", 1.0.i.i, " ", 1.0.i.i.i.i, " ", (-1.0).i)
     return 0
 }
-// out: 3.141592653589793 true 2.718281828459045 true true
-// out: 3.1415927 2.7182817 false true true
+// out: 3.1415926535897931 true 2.7182818284590451 true true
+// out: 3.14159274 2.71828175 false true true
 // out: true true true true false true
 // out: 1.4142135623730951 true 2.0 3.0 4.0 3.0 -2.0
 // out: 1024.0 1.0 5.0 true 1.0 2.0 7.0

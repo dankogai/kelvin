@@ -23,7 +23,7 @@ int main(void)
     CHK(CSTR(lo, b), "-170141183460469231731687303715884105728");
     CHK(CSTR(~(unsigned __int128)0, b), "340282366920938463463374607431768211455");
     CHK(CSTR(-DBL_MIN, b), "-2.2250738585072014e-308");
-    CHK(CSTR(-FLT_MIN, b), "-1.1754944e-38"); /* the shortest that reads back, as print (#258) */
+    CHK(CSTR(-FLT_MIN, b), "-1.17549435e-38"); /* every digit, as print (#259) */
     /* long double's width varies by platform; its 21 digits always fit */
     if (!strncmp((const char *)CSTR(-LDBL_MAX, b), "-1.", 3) && strlen((const char *)b) <= 29) n_ok++;
     else printf("MISMATCH long double: %s\n", b);
@@ -56,10 +56,10 @@ int main(void)
     const char *cs = "c";
     struct { int a; } opaque = {1};
     struct { char label[16]; char full[4]; } arrays = {"hello", {'a', 'b', 'c', 'd'}};
-    CHK(kv_cstr_any(arrays.label, b), "hello");
-    CHK(kv_cstr_any(arrays.full, b), "abcd");
+    CHK(kv_cstr_any(arrays.label, b), "\"hello\""); /* text inside a value, quoted (#259) */
+    CHK(kv_cstr_any(arrays.full, b), "\"abcd\"");
     CHK(kv_cstr_any(ul, b), "7");
-    CHK(kv_cstr_any(cs, b), "c");
+    CHK(kv_cstr_any(cs, b), "\"c\"");
     CHK(kv_cstr_any(opaque, b), "{...}");
     printf("%d checks ok\n", n_ok);
     return 0;

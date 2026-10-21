@@ -14,7 +14,7 @@ let main():int32 {
     println(big);
     println(small);
 
-    // floats: the shortest text that reads back the same, with a point
+    // floats: every digit the type holds, with a point (#259)
     println(1.0, " ", 0.1, " ", -0.5, " ", 1.0 / 3, " ", 1e300, " ", 2.5e-8);
     println(0.1:float32, " ", 16777216:float32, " ", 1.0:float32 / 3);
     var zero:float64 = 0.0;
@@ -44,8 +44,8 @@ let main():int32 {
 // out: -9223372036854775808 18446744073709551615
 // out: 340282366920938463463374607431768211455
 // out: -170141183460469231731687303715884105728
-// out: 1.0 0.1 -0.5 0.3333333333333333 1e+300 2.5e-08
-// out: 0.1 16777216.0 0.33333334
+// out: 1.0 0.10000000000000001 -0.5 0.33333333333333331 1.0000000000000001e+300 2.4999999999999999e-08
+// out: 0.100000001 16777216.0 0.333333343
 // out: nan nan inf -inf
 // out: true false false bytes (null)
 // out: true false 2

@@ -30,8 +30,8 @@
 /* The text of a value, written into `buf` (a buffer on the caller's
    stack that kelvinc declares at the top of the enclosing block) and
    returned as u8^. Numbers are plain decimal ("42", "-7"), floats are
-   as print shows them, the shortest text that reads back as the same
-   value, with a point ("1.0", "0.1"), and a NaN is "nan" (#258), bool is
+   as print shows them, every digit their type holds, with a point
+   ("1.0", "0.10000000000000001"), and a NaN is "nan" (#258, #259), bool is
    true/false, other pointers are addresses ("0x1f2e"), complex numbers
    are re+imi. A string (u8^) is its own text: s.cstr is s itself, and
    stays const if s is.
@@ -472,8 +472,9 @@ uint8_t *kv_cstr_u64(unsigned long long v, uint8_t *buf);
 uint8_t *kv_cstr_f32(float v, uint8_t *buf);
 uint8_t *kv_cstr_f64(double v, uint8_t *buf);
 uint8_t *kv_cstr_f80(long double v, uint8_t *buf);
-/* a float's text as print shows it (#258): the shortest that reads back
-   as the same value, "1.0", "0.1", "1e+300", "nan", "inf"; buf holds 96 */
+/* a float's text as print shows it (#258): every digit the type holds,
+   with a point (#259), "1.0", "0.10000000000000001", "nan", "inf"; buf
+   holds 96 */
 char *kv_f32_text(float v, char *buf);
 char *kv_f64_text(double v, char *buf);
 char *kv_f80_text(long double v, char *buf);
@@ -557,15 +558,17 @@ uint8_t *kv_cstr_put_str(uint8_t *p, const char *s);
 uint8_t *kv_cstr_quoted_string(kv_string s, uint8_t *p);
 uint8_t *kv_cstr_quoted_bytes(kv_bytes b, uint8_t *p);
 uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p);
+uint8_t *kv_cstr_quoted_text(uint8_t *p, const void *s);
 uint8_t *kv_cstr_put_text(uint8_t *p, const void *s);
 uint8_t *kv_cstr_put_address(uint8_t *p, const volatile void *v);
 
 /* A pointer member whose type kelvinc cannot tell is text, such as
-   xmlChar^ or uint8_t^: byte strings are text, other pointers addresses */
+   xmlChar^ or uint8_t^: byte strings are text, quoted as a cstr's (#259),
+   other pointers addresses */
 #define kv_cstr_put_pointer(p, lv) _Generic((lv), \
-    char *: kv_cstr_put_text, const char *: kv_cstr_put_text, \
-    signed char *: kv_cstr_put_text, const signed char *: kv_cstr_put_text, \
-    unsigned char *: kv_cstr_put_text, const unsigned char *: kv_cstr_put_text, \
+    char *: kv_cstr_quoted_text, const char *: kv_cstr_quoted_text, \
+    signed char *: kv_cstr_quoted_text, const signed char *: kv_cstr_quoted_text, \
+    unsigned char *: kv_cstr_quoted_text, const unsigned char *: kv_cstr_quoted_text, \
     default: kv_cstr_put_address)(p, lv)
 
 /* ---------- properties: x.dec, x.hex, x.oct, x.bin (#21) ---------- */

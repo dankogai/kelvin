@@ -111,8 +111,9 @@ char` make incompatible function types: wrap it, as
 
 ## Making text
 
-- **`x.cstr`** is any value's text: `42`, `-7`, `true`, `0.1` (as
-  `print` shows it, #258), a struct's `{x: 3, y: 4}`.
+- **`x.cstr`** is any value's text: `42`, `-7`, `true`,
+  `0.10000000000000001` (as `print` shows it, #259), a struct's
+  `{x: 3, y: 4}`, its text members quoted, `{tag: "edge"}`.
   - Of a string it is the string itself.
   - `n.dec`, `n.hex`, `n.oct` and `n.bin` are an integer's text with a
     prefix and, for a signed one, a sign; `p.hex` an address's.
