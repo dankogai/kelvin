@@ -1,6 +1,7 @@
 // xs.map(f) and xs.map { ... } of an Array (#182): a new Array of f of each
 // element, of whatever type f gives, an owner too; an element that is an
-// owner is given to f as a copy, which f owns; the Array stays as it was
+// owner is lent to an anonymous f (#244), and a copy given to a named one
+// or to a parameter written var; the Array stays as it was
 struct point { x: int64; y: int64 }
 let label(n:int64):String { $`#${n}` }
 let main():int32 {

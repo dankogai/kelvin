@@ -1131,8 +1131,10 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(e->text, "fn"))
                 less = copy ? strfmt("%s(%s(&%s), %s(&%s))", expr(e->items.data[0]), copy, x, copy, y)
                             : strfmt("%s(%s, %s)", expr(e->items.data[0]), x, y);
-            else if (!strcmp(e->text, "fn_lent")) /* an anonymous comparator, lent the elements (#242) */
-                less = strfmt("%s(%s, %s)", expr(e->items.data[0]), x, y);
+            else if (!strncmp(e->text, "fn_", 3)) /* an anonymous comparator, lent each element but one it takes var (#242, #244) */
+                less = strfmt("%s(%s, %s)", expr(e->items.data[0]),
+                              e->text[3] == 'l' || !copy ? x : strfmt("%s(&%s)", copy, x),
+                              e->text[4] == 'l' || !copy ? y : strfmt("%s(&%s)", copy, y));
             else if (!strcmp(e->text, "string"))
                 less = strfmt("(kv_string_cmp(&%s, &%s) < 0)", x, y);
             else if (!strcmp(e->text, "bytes"))
@@ -1177,6 +1179,8 @@ static char *expr_bare(Expr *e) {
             bool tmp = strstr(e->op, "_tmp") != NULL;
             const char *copy = owner_copy(e->from->elem);
             const char *elem = copy ? strfmt("%s(&_kv_ms->at[_kv_mi])", copy) : "_kv_ms->at[_kv_mi]";
+            /* an anonymous function is lent each element, a named one given a copy (#244) */
+            const char *arg = strstr(e->op, "_lent") ? "_kv_ms->at[_kv_mi]" : elem;
             const char *head = tmp ? strfmt("__attribute__((cleanup(%s))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
                                             owner_free(e->from), e->from->cname, expr(e->a))
                                    : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
@@ -1184,15 +1188,15 @@ static char *expr_bare(Expr *e) {
             const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++)";
             if (!strncmp(e->op, "array_map", 9))
                 return strfmt("({ %s %s _kv_mo = {0}; %s %s_append(&_kv_mo, %s(%s)); _kv_mo; })", head, e->type->cname,
-                              loop, e->type->cname, f, elem);
+                              loop, e->type->cname, f, arg);
             if (!strncmp(e->op, "array_filter", 12))
                 return strfmt("({ %s %s _kv_mo = {0}; %s if (%s(%s)) %s_append(&_kv_mo, %s); _kv_mo; })", head,
-                              e->type->cname, loop, f, elem, e->type->cname, elem);
+                              e->type->cname, loop, f, arg, e->type->cname, elem);
             Expr *init = e->items.data[1];
             const char *take = local_owner(init) ? owner_take(e->type) : NULL;
             const char *start = take ? strfmt("%s(&%s)", take, c_name(init->text)) : expr(init);
             return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
-                          start, loop, f, elem);
+                          start, loop, f, arg);
         }
         if (e->op && e->type && (!strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) ||
                                  !strncmp(e->op, "dict_reduce", 11))) {
@@ -1213,7 +1217,8 @@ static char *expr_bare(Expr *e) {
             const char *f = expr(e->items.data[0]);
             const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live)";
             /* mapWithKey and the rest (#241): the key, lent, before the value */
-            const char *args = strstr(e->op, "WithKey") ? strfmt("%s, %s", key, value) : value;
+            const char *lent = strstr(e->op, "_lent") ? "_kv_ms->at[_kv_mi].value" : value; /* (#244) */
+            const char *args = strstr(e->op, "WithKey") ? strfmt("%s, %s", key, lent) : lent;
             if (!strncmp(e->op, "dict_map", 8))
                 return strfmt("({ %s %s _kv_mo = {0}; %s_reserve(&_kv_mo, _kv_ms->count); %s %s_set(&_kv_mo, %s, %s(%s)); "
                               "_kv_mo; })",
@@ -2497,7 +2502,7 @@ static char *fn_head(Decl *d) {
         /* $0, $1, ... (#32): the body need not use each one */
         const char *unused = p->name[0] == '$' ? "__attribute__((unused)) " : "";
         /* an owner comes in by value and moves into a local (#54) */
-        const char *pname = owner_free(p->type) && d->body && !d->lends ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
+        const char *pname = owner_free(p->type) && d->body && !p->lent ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
         if (owner_free(p->type))
             t = p->type;
         buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused, argv ? strfmt(argv_c, p->name) : decl(t, pname));
@@ -3323,7 +3328,7 @@ static void emit_decl(Decl *d) {
                 list_push(&param_caches, "atexit(_kv_free_globals);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
-                const char *frees = d->lends ? NULL : owner_free(p->type); /* one lent is the caller's (#242) */
+                const char *frees = p->lent ? NULL : owner_free(p->type); /* one lent is the caller's (#242, #244) */
                 if (frees) { /* an owner moved in (#54): the body's block frees it */
                     list_push(&param_caches, strfmt("__attribute__((cleanup(%s))) %s = _kv_%s_in;", frees,
                                                     decl(p->type, c_name(p->name)), c_name(p->name)));

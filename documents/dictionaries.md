@@ -113,7 +113,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     Array's filter's (#239);
   - `d.reduce(0) { acc, v in acc + v }` folds the values, in the order
     added.
-  - A value that owns is given as a copy, which the function owns; a
+  - A value that owns is lent to an anonymous function, as an Array's
+    elements are (#244), and given to a named one as a copy; a
     Dictionary an expression gives is freed after.
   - **`d.mapWithKey`, `d.filterWithKey` and `d.reduceWithKey`** (#241)
     are the same, their function taking each key before its value:

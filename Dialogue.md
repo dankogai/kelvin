@@ -5658,3 +5658,17 @@ where it is set. Found on the way: `d[k] = v` does not check the value's
 type, which C reports. Details are provisional P255.
 
 There are 859 tests, and all pass with clang and with gcc 15.
+
+### 288. map, filter and reduce lend their elements
+
+> make map, filter and reduce lend elements as #244
+
+**Claude** added #244: map, filter and reduce, of Arrays and Dictionaries,
+lend an owner element to an anonymous function, as sort does since #242,
+so `names.map { $0.count }` copies no String. Returning the element as
+it is, `names.map { $0 }`, is an error that says `$0.copy()`; a parameter
+written `var` gets a copy of its own to change, which kept
+tests/run/array_map.k's `(var s:String)` as it was; a named function
+still gets a copy. Details are provisional P256.
+
+There are 861 tests, and all pass with clang and with gcc 15.

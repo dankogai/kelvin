@@ -209,7 +209,7 @@ static void require_module(const char *name, Pos pos) {
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
 static Decl *filter_fn;               /* the function of a .filter being parsed, so named in a message (#239) */
-static bool lend_anon_params;         /* .sort { ... } (#242): its owner parameters are lent, not moved in */
+static int lend_anon_from = -1;       /* .sort { ... } (#242), .map { ... } (#244): its owner parameters from this one on are lent, not moved in */
 static const char *filter_name;       /* and the method's name, '.filter' or '.filterWithKey' (#241) */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
@@ -1299,6 +1299,7 @@ static bool record_has_field(Decl *r, const char *name);
 static Expr *parse_anon_fn(Type *ctx);
 static bool names_ahead(int i);
 static Expr *anon_arg(Type *param, int arity, int k, Expr *call, bool trailing);
+static bool lends_param(Expr *f, int k);
 static bool signature_ahead(int i);
 static Type *call_param_type(Expr *callee, int k);
 static int call_arity(Expr *callee);
@@ -2073,6 +2074,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 ctx->elem = is_filter ? base_type("bool", name->pos) : acc; /* map's is inferred */
                 int arity = (acc ? 2 : 1) + (kt ? 1 : 0);
                 if (acc) { /* after init: ', f)' or ')' and a trailing function */
+                    lend_anon_from = 1; /* the elements lent, the value so far moved in (#244) */
                     if (accept_p(",")) {
                         f = is_p(peek(), "{") ? anon_arg(ctx, arity, 1, x, false) : parse_assign();
                         expect_p(")");
@@ -2096,6 +2098,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                  kt ? "a key and a value" : dict ? "a value" : "an element", member, member);
                     infer_anon_result = is_map;
                     bool_anon_result = is_filter ? me : NULL; /* (#239) */
+                    lend_anon_from = 0; /* the elements lent (#244) */
                     f = is_p(peek(), "{") ? anon_arg(ctx, arity, 0, x, false) : parse_assign();
                     infer_anon_result = false;
                     bool_anon_result = NULL;
@@ -2109,6 +2112,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 } else {
                     infer_anon_result = is_map;
                     bool_anon_result = is_filter ? me : NULL; /* (#239) */
+                    lend_anon_from = 0; /* (#244) */
                     f = anon_arg(ctx, arity, 0, x, true);
                     infer_anon_result = false;
                     bool_anon_result = NULL;
@@ -2144,7 +2148,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                 x->type = is_map ? (dict ? dict_type(name, at->key, unqualified(ft->elem)) : array_type(name, unqualified(ft->elem)))
                           : is_filter ? at
                                       : acc;
-                x->op = strfmt("%s_%s%s", dict ? "dict" : "array", member, temporary ? "_tmp" : "");
+                lend_anon_from = -1;
+                /* an anonymous function is lent each element; a named one owns its parameter, so gets a copy (#244) */
+                x->op = strfmt("%s_%s%s%s", dict ? "dict" : "array", member, temporary ? "_tmp" : "",
+                               lends_param(f, arity - 1) ? "_lent" : "");
                 x->from = at;
                 list_push(&x->items, f);
                 if (init)
@@ -2285,10 +2292,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                     advance();
                     ident_annotation_ok = true;
                     brace_ends_condition = false;
-                    lend_anon_params = is_p(peek(), "{"); /* its elements lent, not copied (#242) */
+                    lend_anon_from = is_p(peek(), "{") ? 0 : -1; /* its elements lent, not copied (#242) */
                     if (!is_p(peek(), ")"))
                         f = is_p(peek(), "{") ? anon_arg(ctx, 2, 0, x, false) : parse_assign();
-                    lend_anon_params = false;
+                    lend_anon_from = -1;
                     if (is_p(peek(), ","))
                         error_at(peek()->pos, "'.%s' takes one function, the comparator, or none", member);
                     ident_annotation_ok = saved;
@@ -2296,9 +2303,9 @@ static Expr *parse_postfix_steps(Expr *e) {
                     expect_p(")");
                 }
                 if (!f && is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()) {
-                    lend_anon_params = true; /* (#242) */
+                    lend_anon_from = 0; /* (#242) */
                     f = anon_arg(ctx, 2, 0, x, true);
-                    lend_anon_params = false;
+                    lend_anon_from = -1;
                     if (at_statement_level())
                         trailing_end = cur;
                 }
@@ -2313,7 +2320,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                                  member, kelvin_type(elem), kelvin_type(elem), ft ? kelvin_type(ft) : "not one");
                     /* an anonymous comparator is lent the elements; a named one
                        owns its parameters, so it is given copies (#242) */
-                    x->text = f->kind == E_FUNC ? "fn_lent" : "fn";
+                    x->text = f->kind == E_FUNC ? strfmt("fn_%c%c", lends_param(f, 0) ? 'l' : 'c', lends_param(f, 1) ? 'l' : 'c')
+                                                : "fn";
                     list_push(&x->items, f);
                 } else if (is_string(elem) || is_bytes(elem)) {
                     x->text = is_string(elem) ? "string" : "bytes";
@@ -9115,6 +9123,19 @@ static bool names_ahead(int i) {
     }
 }
 
+/* whether anonymous function f is lent its parameter k (#242, #244): one
+   it writes var gets a copy */
+static bool lends_param(Expr *f, int k) {
+    if (!f || f->kind != E_FUNC)
+        return false;
+    for (int i = 0; i < anon_fns.len; i++) {
+        Decl *d = anon_fns.data[i];
+        if (!strcmp(d->name, f->text))
+            return k < d->params.len && ((Var *)d->params.data[k])->lent;
+    }
+    return false;
+}
+
 static Expr *parse_anon_fn(Type *ctx) {
     Token *open = peek();
     bool written = signature_ahead(cur);
@@ -9126,8 +9147,8 @@ static Expr *parse_anon_fn(Type *ctx) {
     infer_anon_result = false;
     const char *bool_result = bool_anon_result;
     bool_anon_result = NULL;
-    bool lends = lend_anon_params; /* (#242) */
-    lend_anon_params = false;
+    int lend_from = lend_anon_from; /* (#242, #244) */
+    lend_anon_from = -1;
     Decl *saved_filter = filter_fn;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = anon_name();
@@ -9140,7 +9161,6 @@ static Expr *parse_anon_fn(Type *ctx) {
     anon_note = pending_note;
     pending_note = NULL;
     d->anon = true;
-    d->lends = lends;
     filter_fn = bool_result ? d : NULL; /* a filter's, named so in its messages (#239) */
     if (bool_result)
         filter_name = bool_result;
@@ -9168,10 +9188,10 @@ static Expr *parse_anon_fn(Type *ctx) {
             reject_c_fn_pointer(cur, "");
             Var *p = parse_var(false, LET_NONE);
             p->is_let = !mutable;
-            if (lends && is_owner(p->type) && mutable)
-                error_at(p->pos, "'%s' is lent, an element the Array keeps, and cannot change: copy it into a var", p->name);
-            /* lent (#242): an element the Array keeps, read, never moved */
-            declare_binding(p->name, param_type(p->type), lends && is_owner(p->type) ? LET_EACH : p->is_let ? LET_PARAM : LET_NONE);
+            /* lent (#242, #244): an element its caller keeps, read, never moved;
+               a var asks for one of its own, a copy */
+            p->lent = lend_from >= 0 && d->params.len >= lend_from && is_owner(p->type) && !mutable;
+            declare_binding(p->name, param_type(p->type), p->lent ? LET_EACH : p->is_let ? LET_PARAM : LET_NONE);
             list_push(&d->params, p);
             if (!accept_p(","))
                 break;
@@ -9227,7 +9247,8 @@ static Expr *parse_anon_fn(Type *ctx) {
                          k, kelvin_type(pt));
             p->type = pt;
             p->is_let = true;
-            declare_binding(p->name, param_type(p->type), lends && is_owner(pt) ? LET_EACH : LET_PARAM); /* lent (#242) */
+            p->lent = lend_from >= 0 && k >= lend_from && is_owner(pt); /* lent (#242, #244) */
+            declare_binding(p->name, param_type(p->type), p->lent ? LET_EACH : LET_PARAM);
             list_push(&d->params, p);
         }
         d->ret = ctx->elem;

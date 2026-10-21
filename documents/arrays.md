@@ -196,8 +196,14 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 - **`xs.map(f)`**, **`xs.map { ... }`** (#182) is a new Array of `f`
   of each element, of whatever type `f` gives, an owner too: `xs.map
   { $0 * 2 }`, `names.map { $0.count as int64 }`, `xs.map(label)`.
-  - An element that is an owner is given to `f` as a copy, which `f`
-    owns; `xs` stays as it was.
+  - An element that is an owner is lent to an anonymous `f` (#244): a
+    let the Array keeps, read, never moved, so `names.map { $0.count }`
+    copies nothing; `xs` stays as it was.
+    - Returning it as it is, `names.map { $0 }`, is an error that says
+      `$0.copy()`; a parameter written `var`, `(var s:String)`, asks
+      for a copy of its own, to change.
+    - A named `f` owns its parameter by its signature, so it is given
+      a copy.
   - The result of a one-expression function is inferred as for an
     Optional's `.map`, and from arithmetic too where its operands are
     of one number type, or that type and a literal: `$0 * 2` of an
@@ -215,8 +221,10 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   `xs.reduce(0) { $0 + $1 }`, `xs.reduce(0, add)`, `names.reduce($"")
   { (s:String, n:String):String in s + n }`. An owner `init` in a
   variable moves in.
-- All three give an owner element to the function as a copy, and chain:
-  `xs.filter { $0 > 1 }.map { $0 * $0 }.reduce(0) { $0 + $1 }`.
+- All three lend an owner element to an anonymous function, and give a
+  named one a copy (#244); reduce's value so far moves in and out, as
+  before. They chain: `xs.filter { $0 > 1 }.map { $0 * $0 }.reduce(0)
+  { $0 + $1 }`.
 - **`xs.sort()`** sorts a `var` Array in place, and **`xs.sorted()`**
   gives a new one (#185), `$[3, 2, 1, 0].sorted { $0 < $1 }` is
   `[0, 1, 2, 3]`.
@@ -225,7 +233,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     the codepoint of a `uchr`, the bytes of a String, a Bytes or a
     `cstr`, which for UTF-8 is codepoint order, or a struct's own
     `let <(a:T, b:T):bool`. An element with none is a compile error.
-  - **An anonymous comparator is lent the elements** (#242): its
+  - **An anonymous comparator is lent the elements** (#242), as map's
+    function is (#244), one it writes `var` a copy: its
     parameters are lets the Array keeps, read and never moved, so
     sorting Strings by `{ a, b in a.count < b.count }` copies nothing.
     - Passing one on by value, or returning it, is an error that says
@@ -276,7 +285,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 
 No `.cstr` for either: `print` shows an `Array<T>`, and `.pretty` is its
 text, indented (#123, #124). `map`, `filter`, `reduce`, `sorted` and `reversed` take
-an Array an expression gives too, so they chain, and give an owner
-element to their function as a copy. The general properties are in
+an Array an expression gives too, so they chain, and lend an owner
+element to an anonymous function, a named one getting a copy (#244). The
+general properties are in
 [properties.md](properties.md), the ownership rules in
 [ownership.md](ownership.md).
