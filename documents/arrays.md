@@ -173,6 +173,11 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     (#206): what `xs += x` of an owner says to write.
   - **A borrow of an Array of the same type,** `xs += &ys`, appends a
     copy of each of its elements.
+  - **One element** is of the element type (#256), as in a typed
+    `$[...]` and by `xs[i] = v`: text becomes a String,
+    `ws.append("lit")`, and a `T` or `none` an Optional,
+    `os.append(4)`; another type is an error, `an element of
+    Array<String> is a String, and this is a number`.
   - **Properties** `count`, `capacity`, `at` (the elements as a `T^`),
     `size`, `typename`.
 - **Slices** (#68): `xs[lo..<hi]`, `xs[lo...hi]`, `xs[lo...]` to the

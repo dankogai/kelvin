@@ -633,6 +633,7 @@ static void move_argument(Expr *arg, Type *param, const char *what);
 static void check_appended(Expr *given, const char *kind, const char *what);
 static const char *array_append_kind(Expr *given, Type *array);
 static Expr *element_copy(Expr *given, Type *array);
+static void check_element_value(Expr *v, Type *array, Pos pos);
 static const char *let_target(Expr *e);
 static Type *value_type(Expr *e);
 
@@ -2708,6 +2709,13 @@ static Expr *parse_postfix_steps(Expr *e) {
                 }
                 if (given && which == 0 && ok == 'a')
                     x->text = (char *)array_append_kind(given, x->type);
+                if (given && ok == 'a' && (!strcmp(member, "append") || !strcmp(member, "insert")) &&
+                    !strcmp(array_append_kind(given, x->type), "append")) { /* one element (#256) */
+                    /* text into a String, a T into a T? element (#70, #72) */
+                    given = optional_of(string_of_literal(given, x->type->elem), x->type->elem, given->pos);
+                    x->items.data[!strcmp(member, "insert")] = given;
+                    check_element_value(given, x->type, given->pos);
+                }
                 if (ok == 't' && (!strcmp(member, "union") || !strcmp(member, "intersection") ||
                                         !strcmp(member, "difference"))) {
                     /* the set algebra takes a borrow of a Set of the same elements (#71) */
@@ -7311,6 +7319,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 if (x->op[0] == 'a') {
                     given = element_copy(given, x->type);
                     x->text = (char *)array_append_kind(given, x->type);
+                    if (!strcmp(x->text, "append")) { /* one element (#256) */
+                        /* text into a String, a T into a T? element (#70, #72) */
+                        given = optional_of(string_of_literal(given, x->type->elem), x->type->elem, given->pos);
+                        check_element_value(given, x->type, given->pos);
+                    }
                 }
                 list_push(&x->items, given);
                 assign_ok = ok;
@@ -7372,12 +7385,20 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             if (!strcmp(t->text, "=")) { /* an owner takes a value and frees what it held (#54) */
                 reject_owner_copy(e->b, target_type(lhs), t->pos);
                 reject_record_mismatch(e->b, target_type(lhs), t->pos);
-                if (target_type(lhs)) /* in Kelvin's words, not C's (#255) */
-                    check_typed_value(e->b, target_type(lhs),
-                                      lhs->kind == E_IDENT ? strfmt("'%s' is", lhs->text)
-                                      : lhs->kind == E_FIELD ? strfmt("'.%s' is", lhs->text)
-                                                             : "what is assigned to is",
-                                      e->b->pos);
+                if (target_type(lhs)) { /* in Kelvin's words, not C's (#255) */
+                    Type *xt = lhs->kind == E_INDEX && lhs->a ? target_type(lhs->a) : NULL;
+                    while (xt && xt->kind == T_TYPEOF)
+                        xt = xt->elem;
+                    xt = xt ? unqualified(xt) : NULL;
+                    bare_tags = true;
+                    char *lead = lhs->kind == E_IDENT   ? strfmt("'%s' is", lhs->text)
+                                 : lhs->kind == E_FIELD ? strfmt("'.%s' is", lhs->text)
+                                 : xt && is_array_owner(xt) ? strfmt("an element of %s is", kelvin_type(xt)) /* (#256) */
+                                 : xt && (xt->kind == T_ARRAY || xt->kind == T_PTR) ? "an element is"
+                                                                                    : "what is assigned to is";
+                    bare_tags = false;
+                    check_typed_value(e->b, target_type(lhs), lead, e->b->pos);
+                }
                 if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
                     set_moved(lhs->text, false);
                 if (lhs->kind != E_IDENT && is_owner(value_type(lhs)) && !is_io(value_type(lhs)))
@@ -7648,6 +7669,8 @@ static Expr *array_of_list(Token *t, Type *at) {
             x = string_of_literal(drop_cstr(parse_initializer_for(elem), elem), elem); /* a cstr into a u8^ element (#52) */
             x = optional_of(x, elem, x->pos); /* a T into a T? element (#72) */
             reject_owner_copy(x, elem, x->pos);
+            if (at)
+                check_element_value(x, at, x->pos); /* (#256) */
         }
         list_push(&list->designators, NULL);
         list_push(&list->items, x);
@@ -8192,6 +8215,15 @@ static const char *array_append_kind(Expr *given, Type *array) {
     if (is_array_owner(t) && !owner_place(given) && !strcmp(t->name, array->name))
         return "append_owned";
     return "append";
+}
+
+/* v given as an element of array, an Array<T> or a [T](n) (#256): of its
+   element type, in Kelvin's words, as d[k] = v's (#246) */
+static void check_element_value(Expr *v, Type *array, Pos pos) {
+    bare_tags = true;
+    char *lead = strfmt("an element of %s is", kelvin_type(unqualified(array)));
+    bare_tags = false;
+    check_typed_value(v, array->elem, lead, pos);
 }
 
 /* a place that owns: a variable, a field, an element, p^ */

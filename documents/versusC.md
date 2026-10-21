@@ -219,7 +219,10 @@ errors also carry hints for C habits, such as `*p`, `p->m`, `int x;`,
   i64, and this is text`.
   - Checked: a declaration, `var n:i64 = v`; an assignment, `n = v`,
     `p.x = v`; an entry, `d[k] = v` (#246); what `contains` looks for
-    (#248); what `??` falls back to (#250).
+    (#248); what `??` falls back to (#250); an element of an Array, in
+    a typed `$[...]`, by `xs[i] = v`, and by `append`, `+=` and
+    `insert` (#256), `an element of Array<i64> is an i64, and this is
+    text`.
   - A number takes any number, as C converts it; a String a String or
     text; a `cstr` text; an Optional its `T` or `none`; a pointer any
     pointer; anything else its own type.

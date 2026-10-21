@@ -5825,3 +5825,17 @@ takes any number. C's own types, as `size_t`, and functions are left
 to C. Details are provisional P267.
 
 There are 889 tests, and all pass with clang and with gcc 15.
+
+### 300. Array elements check the value's type
+
+> make Array elements check the value's type as #256
+
+**Claude** made an element of an Array check its type as #255's values
+do: in a typed `$[...]`, by `xs[i] = v`, and by `append`, `+=` and
+`insert`, so `ws.append(3)` of an `Array<String>` is Kelvin's error,
+`an element of Array<String> is a String, and this is a number`. One
+element given to `append`, `+=` or `insert` is now converted as a
+declaration's value is: `ws.append("lit")` and `os.append(4)` of an
+`Array<i64?>` work, where C refused them. Details are provisional P268.
+
+There are 893 tests, and all pass with clang and with gcc 15.

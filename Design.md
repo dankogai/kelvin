@@ -287,6 +287,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 253 | `r ?? r2` of two Results of one type gives that Result, `r` where it is `ok`, else `r2`, as #252's of Optionals; a Result that owns, by its value or its err, is copied where a place, else taken, a taken `err` freed; a `y` of the ok value's type still gives the value | — | `parse("y") ?? parse("4")` is `ok(4)` | 2026-10-22 |
 | 254 | `r ?? ok(v)` and `r ?? err(e)`: the words make a Result of `r`'s type, as where a Result is expected, so the result is that Result, as #253's | — | `parse("q") ?? ok(9)` is `ok(9)` | 2026-10-22 |
 | 255 | A declaration with a type, `var n:i64 = v`, and an assignment, `n = v`, `p.x = v`, check `v`'s type as `d[k] = v` does (#246): a number any number, a String a String or text, a `cstr` text, an Optional its `T` or `none`, a pointer any pointer, else its own type; a C typedef, a value only C sees and a function are left to C | — | `var n:i64 = "text"` is an error | 2026-10-22 |
+| 256 | An element of an Array is checked against its type as #255's values are: in a typed `$[...]`, by `xs[i] = v` (and an element of a `[T](n)` or a pointer), and by `append`, `+=` and `insert` of one element; there text becomes a String and a T or none an Optional, as a declaration's value does | — | `ws.append(3)` of an Array<String> is an error | 2026-10-22 |
 
 Notes:
 
@@ -848,6 +849,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (256) Agreed details: "make Array elements check the value's type as
+  #256". check_element_value, a lead naming the Array, over
+  check_typed_value. One element given to append, += or insert is now
+  converted as a declaration's value is, text into a String and a T
+  or none into a T?: `ws.append("lit")` and `os.append(4)` were C's
+  errors before. A borrow of an Array, or one an expression gives,
+  keeps its own path, its elements appended. Found on the way, not
+  changed: an Array of f64 prints `1`, where an f64 alone prints `1.0`.
 
 - (255) Agreed details: "make declarations and assignments check the
   value's type as #255". check_typed_value (#246, #248) is called
@@ -2718,6 +2728,7 @@ says "as agreed".
 | P265 | Details of #253 | parser.c: the whole case of parse_coalescing of any Optional or Result, owning by is_owner of the whole type, the hold of `x` after the choice; codegen.c: the whole case frees a taken `x` that is not ok; tests: run/coalesce_result.k, error/coalesce_result_fallback.k; documents/results.md, operators.md | `r ?? err(e)` and `r ?? ok(v)` as words |
 | P266 | Details of #254 | parser.c: parse_coalescing's case_word, an ok or err word after a Result whose value is no variant, joins none_word in the whole case; tests: run/coalesce_result_words.k; documents/results.md | |
 | P267 | Details of #255 | parser.c: check_typed_value in parse_var after reject_record_mismatch, lead `'n' is`, and in the `=` of an assignment, lead `'n' is`, `'.x' is` or `what is assigned to is`; T_TYPEOF read through, C typedefs and function types skipped; tests: run/decl_value_types.k, error/decl_value_type.k, error/assign_value_type.k, error/assign_field_type.k; documents/versusC.md | Array elements, `xs[i] = v` and `$[...]`; arguments |
+| P268 | Details of #256 | parser.c: check_element_value(v, array, pos); array_of_list checks each element of a typed list; the append and insert method path and the `+=` path convert one element by string_of_literal and optional_of, then check it; the `=` of an assignment names an element of an Array, or `an element` of a `[T](n)` or a pointer; tests: run/array_elem_values.k, error/array_elem_literal.k, error/array_elem_append.k, error/array_elem_assign.k; documents/versusC.md, arrays.md | arguments; an f64 element printed as `1.0` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
