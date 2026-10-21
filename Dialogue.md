@@ -5802,3 +5802,14 @@ variable, else taken, and a taken one that is err is freed. Details
 are provisional P265.
 
 There are 884 tests, and all pass with clang and with gcc 15.
+
+### 298. r ?? ok(v) and r ?? err(e)
+
+> make r ?? err(e) and r ?? ok(v) work as #254
+
+**Claude** made `ok(v)` and `err(e)` after `??` of a Result make a
+Result of its type, as where a Result is expected, so `r ?? ok(0)` is
+`r` where it is ok, else `ok(0)`, as #253's `r ?? r2`. Details are
+provisional P266.
+
+There are 885 tests, and all pass with clang and with gcc 15.

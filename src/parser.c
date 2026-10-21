@@ -4651,10 +4651,13 @@ static Expr *parse_coalescing(void) {
            two Results of a type (#253) the same: r where it is ok, else r2 */
         Type *y0 = value_type(y);
         bool none_word = y->kind == E_IDENT && !strcmp(y->text, "none") && binding_index("none") < 0;
+        /* r ?? ok(v), r ?? err(e) (#254): the words make a Result of r's type */
+        bool case_word = !optional_record(ct) && y->kind == E_CALL && y->op && !strcmp(y->op, "word") &&
+                         (!strcmp(y->a->text, "ok") || !strcmp(y->a->text, "err"));
         bare_tags = true;
         bool whole = ((y0 && !strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(ct))) &&
                        strcmp(kelvin_type(unqualified(y0)), kelvin_type(unqualified(some->type)))) ||
-                      (none_word && !optional_record(some->type)));
+                      ((none_word || case_word) && !variant_record(some->type)));
         bare_tags = false;
         if (whole) {
             /* the whole x owns where its value does, or a Result's err does */

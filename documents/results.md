@@ -80,6 +80,9 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
         place, else taken; a taken `r` that is `err` is freed.
       - `r ?? r2 ?? 0` ends with the value, as `??` groups right to
         left (#251).
+      - `r ?? ok(v)` and `r ?? err(e)` (#254): the words make a Result
+        of `r`'s type, as where a Result is expected, so the result is
+        that Result.
       - A `y` of another type is an error, `'??' of Result<i64,
         String> falls back to a Result<i64, String> or an i64, and
         this is Result<String, String>`.
@@ -241,7 +244,7 @@ if let k = find(&xs, 6) { println(k) } else { println("absent") }
 | | `.ok = v`, `.err = e`, `= v`, `= ok(v)`, `= err(e)` | sets the case |
 | | `.is(ok)`, `.is(err)` | a `bool` |
 | | `.case` | the tag, a `u8`: 0 for ok, 1 for err |
-| | `r ?? y` | the `ok` value, or `y`; of two Results of a type, a Result, `r` or `r2` (#253) |
+| | `r ?? y` | the `ok` value, or `y`; of two Results of a type, a Result, `r` or `r2` (#253); `r ?? ok(v)`, `r ?? err(e)` too (#254) |
 | | `switch r { case ok: ... case err: ... }` | by the case |
 | | `switch r { case ok(v): ... case err(e): ... }` | the same, with the value bound in each body (#119) |
 | | `.cstr` | `ok(42)`, `err("empty")`: text inside is quoted (#123) |
