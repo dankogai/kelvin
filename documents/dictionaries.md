@@ -109,7 +109,13 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     added.
   - A value that owns is given as a copy, which the function owns; a
     Dictionary an expression gives is freed after.
-  - Not yet: versions whose function takes the key too.
+  - **`d.mapWithKey`, `d.filterWithKey` and `d.reduceWithKey`** (#241)
+    are the same, their function taking each key before its value:
+    `d.mapWithKey { k, v in ... }`, `d.filterWithKey { k, v in ... }`,
+    `d.reduceWithKey(0) { acc, k, v in ... }`.
+    - A String key is given as its text, a `cstr`, lent; an integer
+      key as itself.
+    - `mapWithKey`'s function gives the new value alone: the keys stay.
 - **Not yet:** keys of other types, `d[k, default]`.
 
 ## Properties and methods
@@ -140,6 +146,7 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `.map { v in ... }` | a new Dictionary of the same keys, each value the function's (#238) |
 | | `.filter { v in ... }` | a new Dictionary of the entries whose value the function says true for (#238) |
 | | `.reduce(init) { acc, v in ... }` | the values folded, in the order added (#238) |
+| | `.mapWithKey { k, v in ... }`, `.filterWithKey { k, v in ... }`, `.reduceWithKey(init) { acc, k, v in ... }` | the same, of each key, a `cstr` of a String's, and its value (#241) |
 
 No `.cstr`, no `+=`: `print` shows a Dictionary, and `.pretty`
 is its text, indented (#123, #124). The general properties are in

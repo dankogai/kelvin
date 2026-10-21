@@ -5600,3 +5600,33 @@ read. A value only C sees, as `isdigit(c)`, is still C's. Details are
 provisional P252.
 
 There are 852 tests, and all pass with clang and with gcc 15.
+
+### 285. Key-value map, filter and reduce
+
+> add key-value versions of map, filter and reduce as #241  Let's begin
+> with the name of methods.  Suggestions?
+
+**Claude** suggested `mapWithKey`, `filterWithKey` and `reduceWithKey`,
+after Haskell's Data.Map, beside `...Entries`, overloading by arity, and a
+view of pairs.
+
+> What is the type of the values that `{ k, v in ... }` returns?  just a
+> new transformed value? or key-value pair?
+
+**Claude** answered the new value alone, the keys staying: Kelvin has no
+pair, and changing keys would need a rule for keys that meet, a method of
+its own.
+
+> BTW what algorithm is used in `Array` sorting?
+
+**Claude** answered from codegen.c: a stable merge sort, bottom up, through
+a buffer as large, the elements moved as they are, O(n log n); with a
+function of its own over owners, each comparison copies both.
+
+> go ahead with mapWithKey, filterWithKey and reduceWithKey
+
+**Claude** added #241: the three take a function of each key and its
+value, a String's key as a `cstr`, lent; `mapWithKey` keeps the keys and
+gives the function's values. Details are provisional P253.
+
+There are 855 tests, and all pass with clang and with gcc 15.

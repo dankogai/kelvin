@@ -209,6 +209,7 @@ static void require_module(const char *name, Pos pos) {
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
 static Decl *filter_fn;               /* the function of a .filter being parsed, so named in a message (#239) */
+static const char *filter_name;       /* and the method's name, '.filter' or '.filterWithKey' (#241) */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
@@ -2004,8 +2005,15 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = x;
                 continue;
             }
-            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce")) && value_type(e) &&
-                (is_array_owner(unqualified(value_type(e))) || is_dict_owner(unqualified(value_type(e)))) &&
+            bool with_key = !strcmp(member, "mapWithKey") || !strcmp(member, "filterWithKey") ||
+                            !strcmp(member, "reduceWithKey"); /* (#241) */
+            if (with_key && value_type(e) && is_array_owner(unqualified(value_type(e))))
+                error_at(name->pos, "an Array has no '.%s': it is a Dictionary's, whose function takes each key; "
+                                    "write '.%.*s'",
+                         member, (int)(strlen(member) - 7), member);
+            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") || with_key) &&
+                value_type(e) &&
+                ((!with_key && is_array_owner(unqualified(value_type(e)))) || is_dict_owner(unqualified(value_type(e)))) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
                 /* xs.map(f), xs.map { ... } (#182): an Array<U> of f of each
                    element, U f's result, whatever it is; xs.filter { ... } (#184)
@@ -2014,8 +2022,14 @@ static Expr *parse_postfix_steps(Expr *e) {
                    element, from init, of init's type. An element that is an
                    owner is given to f as a copy, which f owns; an Array an
                    expression gives is held and freed after (#183) */
-                bool is_map = !strcmp(member, "map"), is_filter = !strcmp(member, "filter");
+                bool is_map = !strncmp(member, "map", 3), is_filter = !strncmp(member, "filter", 6);
                 Type *at = unqualified(value_type(e));
+                /* d.mapWithKey, d.filterWithKey, d.reduceWithKey (#241): the
+                   function takes each key before its value, a String's as
+                   its text, a cstr, lent; map's still gives the new value
+                   alone, of the same key */
+                Type *kt = with_key ? (!strcmp(at->key->name, "String") ? cstr_type(name->pos) : at->key) : NULL;
+                const char *me = strfmt("'.%s'", member);
                 /* of a Dictionary (#238), the values alone, as a sparse Array's:
                    map keeps the keys, filter drops the entries whose value
                    it says false for, reduce folds the values in the order
@@ -2031,27 +2045,32 @@ static Expr *parse_postfix_steps(Expr *e) {
                 bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
                 if (!is_map && !is_filter) {
                     if (!call)
-                        error_at(name->pos, "'.reduce' takes the value to start from: write '.reduce(init) { ... }' or "
-                                            "'.reduce(init, f)'");
+                        error_at(name->pos, "%s takes the value to start from: write '.%s(init) { ... }' or "
+                                            "'.%s(init, f)'",
+                                 me, member, member);
                     advance();
                     ident_annotation_ok = true;
                     brace_ends_condition = false;
                     if (is_p(peek(), ")") || is_p(peek(), "{"))
-                        error_at(peek()->pos, "'.reduce' takes the value to start from first: '.reduce(0) { $0 + $1 }'");
+                        error_at(peek()->pos, "%s takes the value to start from first: '.%s(0) { %s }'", me, member,
+                                 with_key ? "acc, k, v in acc + v" : "$0 + $1");
                     init = parse_assign();
                     acc = value_type(init) ? unqualified(value_type(init)) : arg_type(init);
                     if (!acc)
-                        error_at(init->pos, "'.reduce' starts from a value of a type kelvinc sees: write it, as in "
-                                            "'0 as int64' or 'x:T'");
+                        error_at(init->pos, "%s starts from a value of a type kelvinc sees: write it, as in "
+                                            "'0 as int64' or 'x:T'",
+                                 me);
                 }
                 Type *ctx = xcalloc(1, sizeof *ctx);
                 ctx->kind = T_FUNC;
                 ctx->pos = name->pos;
                 if (acc)
                     list_push(&ctx->params, acc);
+                if (kt)
+                    list_push(&ctx->params, kt);
                 list_push(&ctx->params, at->elem);
                 ctx->elem = is_filter ? base_type("bool", name->pos) : acc; /* map's is inferred */
-                int arity = acc ? 2 : 1;
+                int arity = (acc ? 2 : 1) + (kt ? 1 : 0);
                 if (acc) { /* after init: ', f)' or ')' and a trailing function */
                     if (accept_p(",")) {
                         f = is_p(peek(), "{") ? anon_arg(ctx, arity, 1, x, false) : parse_assign();
@@ -2059,7 +2078,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                     } else {
                         expect_p(")");
                         if (!is_p(peek(), "{") || brace_ends_condition || line_starts_statement())
-                            error_at(peek()->pos, "'.reduce(init)' takes a function after it: '.reduce(0) { $0 + $1 }'");
+                            error_at(peek()->pos, "'.%s(init)' takes a function after it: '.%s(0) { %s }'", member, member,
+                                     with_key ? "acc, k, v in acc + v" : "$0 + $1");
                         f = anon_arg(ctx, arity, 1, x, true);
                         if (at_statement_level())
                             trailing_end = cur;
@@ -2071,11 +2091,11 @@ static Expr *parse_postfix_steps(Expr *e) {
                     ident_annotation_ok = true;
                     brace_ends_condition = false;
                     if (is_p(peek(), ")"))
-                        error_at(peek()->pos, "'.%s' takes a function of an element: write '.%s(f)' or '.%s { ... }'",
-                                 member, member, member);
+                        error_at(peek()->pos, "'.%s' takes a function of %s: write '.%s(f)' or '.%s { ... }'", member,
+                                 kt ? "a key and a value" : dict ? "a value" : "an element", member, member);
                     infer_anon_result = is_map;
-                    bool_anon_result = is_filter ? "'.filter'" : NULL; /* (#239) */
-                    f = is_p(peek(), "{") ? anon_arg(ctx, 1, 0, x, false) : parse_assign();
+                    bool_anon_result = is_filter ? me : NULL; /* (#239) */
+                    f = is_p(peek(), "{") ? anon_arg(ctx, arity, 0, x, false) : parse_assign();
                     infer_anon_result = false;
                     bool_anon_result = NULL;
                     if (is_p(peek(), ","))
@@ -2087,8 +2107,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                         error_at(peek()->pos, "'.%s' takes one function, and this would be a second", member);
                 } else {
                     infer_anon_result = is_map;
-                    bool_anon_result = is_filter ? "'.filter'" : NULL; /* (#239) */
-                    f = anon_arg(ctx, 1, 0, x, true);
+                    bool_anon_result = is_filter ? me : NULL; /* (#239) */
+                    f = anon_arg(ctx, arity, 0, x, true);
                     infer_anon_result = false;
                     bool_anon_result = NULL;
                     if (at_statement_level())
@@ -2097,23 +2117,29 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Type *ft = value_type(f);
                 if (!ft || ft->kind != T_FUNC || ft->params.len != arity || !ft->elem)
                     error_at(f->pos, "'.%s' takes a function of %s, with a result, and this is %s", member,
-                             acc ? strfmt("two parameters, the value so far and %s %s", dict ? "a" : "an", each)
-                                 : strfmt("one parameter, %s %s", dict ? "a" : "an", each),
+                             acc && kt ? "three parameters, the value so far, a key and its value"
+                             : kt      ? "two parameters, a key and its value"
+                             : acc     ? strfmt("two parameters, the value so far and %s %s", dict ? "a" : "an", each)
+                                       : strfmt("one parameter, %s %s", dict ? "a" : "an", each),
                              ft ? kelvin_type(ft) : "not one");
+                if (kt && strcmp(kelvin_type(unqualified(ft->params.data[arity - 2])), kelvin_type(kt)))
+                    error_at(f->pos, "'.%s' calls its function with each key, %s, and this takes %s", member,
+                             kelvin_type(kt), kelvin_type(ft->params.data[arity - 2]));
                 if (strcmp(kelvin_type(unqualified(ft->params.data[arity - 1])), kelvin_type(at->elem)))
                     error_at(f->pos, "'.%s' calls its function with each %s, %s, and this takes %s", member, each,
                              kelvin_type(at->elem), kelvin_type(ft->params.data[arity - 1]));
                 if (is_filter && strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
-                    error_at(f->pos, "'.filter' takes a function that says whether to keep %s %s, a bool, and this "
+                    error_at(f->pos, "%s takes a function that says whether to keep %s %s, a bool, and this "
                                      "gives %s",
-                             dict ? "a" : "an", dict ? "an entry by its value" : each, kelvin_type(ft->elem));
+                             me, dict ? "a" : "an", kt ? "an entry" : dict ? "an entry by its value" : each,
+                             kelvin_type(ft->elem));
                 if (acc && (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(acc)) ||
                             strcmp(kelvin_type(unqualified(ft->elem)), kelvin_type(acc))))
-                    error_at(f->pos, "'.reduce' calls its function with the value so far, %s, and keeps what it gives, "
+                    error_at(f->pos, "%s calls its function with the value so far, %s, and keeps what it gives, "
                                      "and this is %s",
-                             kelvin_type(acc), kelvin_type(ft));
+                             me, kelvin_type(acc), kelvin_type(ft));
                 if (init)
-                    move_argument(init, acc, "'.reduce'"); /* an owner to start from moves in (O5) */
+                    move_argument(init, acc, me); /* an owner to start from moves in (O5) */
                 x->type = is_map ? (dict ? dict_type(name, at->key, unqualified(ft->elem)) : array_type(name, unqualified(ft->elem)))
                           : is_filter ? at
                                       : acc;
@@ -5115,7 +5141,7 @@ static void require_bool_return(Expr *e, Decl *d) {
         return;
     if (!t && !(e->kind == E_LITERAL || number_expr(e)))
         return;
-    const char *lead = d == filter_fn                ? "'.filter' keeps what its function says true for, a bool"
+    const char *lead = d == filter_fn                ? strfmt("%s keeps what its function says true for, a bool", filter_name)
                        : d->anon || !d->name           ? "this function returns a bool"
                        : d->recv_name                  ? strfmt("'%s.%s' returns a bool", d->recv_name, d->name)
                                                        : strfmt("'%s' returns a bool", d->name);
@@ -9084,6 +9110,8 @@ static Expr *parse_anon_fn(Type *ctx) {
     pending_note = NULL;
     d->anon = true;
     filter_fn = bool_result ? d : NULL; /* a filter's, named so in its messages (#239) */
+    if (bool_result)
+        filter_name = bool_result;
     bool saved_assign = assign_ok, saved_brace = brace_ends_condition, saved_for = brace_in_for,
          saved_annotation = ident_annotation_ok, saved_body = stmt_is_body;
     assign_ok = brace_ends_condition = brace_in_for = stmt_is_body = false;

@@ -272,6 +272,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 238 | `d.map`, `d.filter` and `d.reduce` of a Dictionary take a function of the values alone, as an Array's of its elements, so a Dictionary is a sparse Array: map a new Dictionary of the same keys and the function's values, of any type; filter a new Dictionary of the entries whose value it keeps; reduce the values folded in the order added; a value that owns given as a copy, which the function owns; one an expression gives freed after | — | `d.map { v in v * 2 }`, `d.filter { v in v > 10 }`, `d.reduce(0) { acc, v in acc + v }` | 2026-10-21 |
 | 239 | A filter's anonymous function returns a `bool`, of an Array or a Dictionary: every value it returns, the one expression of its body too, is a `bool` by its type or its shape, else an error that says to compare, as in `x != 0`, where C would have made the number a `bool`; a named function is checked by its result type, as before | — | `xs.filter { $0 + 1 }` is an error: `xs.filter { $0 + 1 != 0 }` | 2026-10-21 |
 | 240 | A function of a `bool` result returns a `bool`: each value it returns, a body's one expression too, is a `bool` by its type or its shape, of a function, a method, an anonymous function and a filter's; `return n % 2` is an error that says to compare, as in `x != 0`, and `return 1` one that says `true` or `false`; a value only C sees is C's to convert | — | `let odd(n:int64):bool { n % 2 != 0 }` | 2026-10-21 |
+| 241 | `d.mapWithKey`, `d.filterWithKey` and `d.reduceWithKey(init)` of a Dictionary: map, filter and reduce (#238) whose function takes each key before its value, `{ k, v in ... }`, `{ acc, k, v in ... }`; a String key given as its text, a `cstr`, lent, an integer key as itself; mapWithKey's function gives the new value alone, the keys staying; an Array's `.mapWithKey` is an error that says `.map` | — | `d.mapWithKey { k, v in k.count as int64 + v }` | 2026-10-21 |
 
 Notes:
 
@@ -833,6 +834,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (241) Agreed details: "add key-value versions of map, filter and
+  reduce as #241 Let's begin with the name of methods. Suggestions?"
+  Claude suggested Haskell's `mapWithKey` and `filterWithKey`, with
+  `reduceWithKey`; entries, arity and a view were the others. Asked
+  whether `{ k, v in ... }` gives a pair, Claude answered the new value
+  alone: no pair type, and re-keying would need a rule of collisions,
+  a method of its own. The user chose the three names. The key is a
+  borrow, a String's text as a `cstr`, so no key is copied.
 
 - (240) Agreed details: "make bool functions return a bool as #240".
   #239's rule, filter's, is every function's now. Each return is
@@ -2560,6 +2570,7 @@ says "as agreed".
 | P250 | Details of #238 | parser.c: the map, filter and reduce of an Array take a Dictionary too, op dict_map, dict_filter or dict_reduce, map's type dict_type of the key and the function's result, its messages of a value; value_type of them is their type; codegen.c: a statement expression over the live entries, D_set of the key with f's value (map) or a copy of the value f keeps (filter), or the value folded (reduce), a Dictionary an expression gives held in _kv_mt | versions whose function takes the key too |
 | P251 | Details of #239 | parser.c: require_bool_returns(s, what) walks a body's returns, refusing a value whose type is no bool, or a number, where its shape is no bool's; bool_anon_result, set by filter as infer_anon_result is by map, has parse_anon_fn check the body after implicit_return, before its scope closes; tests: error/filter_returns_number.k, error/dict_filter_returns_value.k; documents/arrays.md, documents/dictionaries.md | a named function's non-bool return of a bool result |
 | P252 | Details of #240 | parser.c: require_bool_return(e, d) refuses a value of no bool type, or a number, where d's result is a bool, unless its shape is a bool's; called at each return's parse and in implicit_return_of; #239's walker is gone, and filter_fn, set by parse_anon_fn where filter asked, gives filter's words; a number literal's message says true or false; tests: error/bool_return_number.k, bool_return_literal.k, bool_return_method.k; documents/functions.md, documents/arrays.md | — |
+| P253 | Details of #241 | parser.c: the map, filter and reduce block takes mapWithKey, filterWithKey and reduceWithKey of a Dictionary, the key's type (cstr of a String) before the value's in the function's, its arity one more, its messages naming the method; an Array's is refused; filter_name names the filter in #239's message; codegen.c: the key, by KV_LK_TEXT or KV_LK_INT, before the value; tests: run/dict_with_key.k, error/dict_with_key_key.k, error/array_with_key.k | re-keying a Dictionary |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
