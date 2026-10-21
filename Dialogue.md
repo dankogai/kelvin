@@ -5630,3 +5630,17 @@ value, a String's key as a `cstr`, lent; `mapWithKey` keeps the keys and
 gives the function's values. Details are provisional P253.
 
 There are 855 tests, and all pass with clang and with gcc 15.
+
+### 286. sort lends its comparator the elements
+
+> make sort pass borrows to the comparison as #242
+
+**Claude** added #242: an anonymous comparator of `sort` and `sorted` is
+lent the elements, lets the Array keeps, as `for x in xs` binds them, so
+a comparison of Strings copies nothing; sorting 200,000 by length took a
+quarter of the time. A named comparator still owns its parameters and
+gets copies. On the way a use after free of #185 was found and fixed: a
+struct's own `<` was given owning elements as they are, and freed them.
+Details are provisional P254.
+
+There are 857 tests, and all pass with clang and with gcc 15.

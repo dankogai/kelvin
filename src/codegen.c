@@ -1123,6 +1123,8 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(e->text, "fn"))
                 less = copy ? strfmt("%s(%s(&%s), %s(&%s))", expr(e->items.data[0]), copy, x, copy, y)
                             : strfmt("%s(%s, %s)", expr(e->items.data[0]), x, y);
+            else if (!strcmp(e->text, "fn_lent")) /* an anonymous comparator, lent the elements (#242) */
+                less = strfmt("%s(%s, %s)", expr(e->items.data[0]), x, y);
             else if (!strcmp(e->text, "string"))
                 less = strfmt("(kv_string_cmp(&%s, &%s) < 0)", x, y);
             else if (!strcmp(e->text, "bytes"))
@@ -1131,8 +1133,10 @@ static char *expr_bare(Expr *e) {
                 less = strfmt("(%s.cp < %s.cp)", x, y);
             else if (!strcmp(e->text, "cstr"))
                 less = strfmt("(strcmp((const char *)%s, (const char *)%s) < 0)", x, y);
-            else if (!strcmp(e->text, "op"))
-                less = strfmt("%s(%s, %s)", e->target->cname ? e->target->cname : e->target->name, x, y);
+            else if (!strcmp(e->text, "op")) { /* a struct's own <, which owns its parameters: copies where they own (#242) */
+                const char *op = e->target->cname ? e->target->cname : e->target->name;
+                less = copy ? strfmt("%s(%s(&%s), %s(&%s))", op, copy, x, copy, y) : strfmt("%s(%s, %s)", op, x, y);
+            }
             else
                 less = strfmt("(%s < %s)", x, y);
             const char *sort = strfmt(
@@ -2485,7 +2489,7 @@ static char *fn_head(Decl *d) {
         /* $0, $1, ... (#32): the body need not use each one */
         const char *unused = p->name[0] == '$' ? "__attribute__((unused)) " : "";
         /* an owner comes in by value and moves into a local (#54) */
-        const char *pname = owner_free(p->type) && d->body ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
+        const char *pname = owner_free(p->type) && d->body && !d->lends ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
         if (owner_free(p->type))
             t = p->type;
         buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused, argv ? strfmt(argv_c, p->name) : decl(t, pname));
@@ -3311,7 +3315,7 @@ static void emit_decl(Decl *d) {
                 list_push(&param_caches, "atexit(_kv_free_globals);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
-                const char *frees = owner_free(p->type);
+                const char *frees = d->lends ? NULL : owner_free(p->type); /* one lent is the caller's (#242) */
                 if (frees) { /* an owner moved in (#54): the body's block frees it */
                     list_push(&param_caches, strfmt("__attribute__((cleanup(%s))) %s = _kv_%s_in;", frees,
                                                     decl(p->type, c_name(p->name)), c_name(p->name)));

@@ -225,8 +225,16 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     the codepoint of a `uchr`, the bytes of a String, a Bytes or a
     `cstr`, which for UTF-8 is codepoint order, or a struct's own
     `let <(a:T, b:T):bool`. An element with none is a compile error.
+  - **An anonymous comparator is lent the elements** (#242): its
+    parameters are lets the Array keeps, read and never moved, so
+    sorting Strings by `{ a, b in a.count < b.count }` copies nothing.
+    - Passing one on by value, or returning it, is an error that says
+      to borrow or copy, as of `for x in xs`'s `x`.
+    - A named function owns its parameters by its signature, so it is
+      given copies; one taking borrows, `(a:String^, b:String^)`, is
+      not a comparator of Strings.
   - The sort is stable: elements the comparator does not order keep
-    their order. Owner elements are moved, not copied, but for a
+    their order. Owner elements are moved, not copied, but for a named
     comparator, which gets copies.
   - `.sorted()` of an Array an expression gives sorts it and hands it
     back, so it chains: `xs.sorted { $0 > $1 }.map { $0 * 10 }`.

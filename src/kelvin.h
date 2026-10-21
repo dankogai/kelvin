@@ -257,6 +257,7 @@ struct Decl {
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
     bool anon;            /* D_FN: an anonymous function (#32) */
+    bool lends;           /* D_FN anonymous: its owner parameters are lent by the caller, which keeps them (#242) */
     struct Decl *nested_in; /* D_FN: the function it is defined inside (#180): a top-level function
                                in C, _kv_outer_name, named in the block that defines it alone */
     int bind_index;       /* D_FN: where its name is bound in the parser's scope, which finds a nested one */
