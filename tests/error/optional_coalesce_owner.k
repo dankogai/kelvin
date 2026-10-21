@@ -1,7 +1,8 @@
-// ?? copies the value, so not of an owner (#72)
+// ?? of a value that owns (#250) falls back to one of its type: another
+// is Kelvin's error, not C's
 let main():int32 {
     var s:String? = none
-    var y = s ?? $"x"
+    var y = s ?? 5
     return 0
 }
-// error: '??' would copy the value, and String owns: switch on it, or test '.is(some)' and read '.some'
+// error: '??' of String? falls back to a String, and this is a number

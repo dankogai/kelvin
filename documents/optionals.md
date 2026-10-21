@@ -73,9 +73,19 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   - What follows that is an Optional already is not wrapped again.
   - A member that owns is copied out of the value; `x` is read once.
   - `try x` is the other way, which returns `none` from the function.
-  - `x ?? y` is the value if some, else `y`, for a `T` that does not
-    own, of an Optional in a variable, a member or an element; for an
-    owner, `if let` or switch on it.
+  - `x ?? y` is the value if some, else `y`.
+    - For a `T` that does not own, `x` is an Optional in a variable, a
+      member or an element, or one an expression gives, held.
+    - For a `T` that owns (#250), `s ?? $"none"`, `x` is read once.
+      - Its value is a copy where `x` is a place, a variable, a member
+        or an element; else it is taken out of `x`, as of `d[k]` or a
+        call.
+      - `y` is a copy where it is a place, else taken, and is made
+        only where `x` has no value.
+      - What `??` gives is an owner an expression gives: bound,
+        `let s = o ?? fb`, or freed after the statement.
+      - `y` of another type is an error, `'??' of String? falls back
+        to a String, and this is a number`.
   - Of a `cstr?`, `u8^?` or `i8^?`, a `y` that is a string literal, or
     text of another spelling, is cast to the value's type, as a
     declaration would cast it.
@@ -129,8 +139,7 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
     (#224); so is `some(v)` where a Result goes.
   - A function or a variable of the program named `some` is called as
     any other.
-- **Not yet:** a literal `none` where no type is around, and `??` of an
-  owner.
+- **Not yet:** a literal `none` where no type is around.
 
 A C function that returns a pointer or null, with no reason beside it,
 wraps as an Optional. `v ?? "unset"` takes a string literal as it is:

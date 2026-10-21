@@ -5752,3 +5752,16 @@ Each also takes a function of a value, and `containsWithKey`,
 value. Details are provisional P261.
 
 There are 878 tests, and all pass with clang and with gcc 15.
+
+### 294. ?? of an Optional that owns
+
+> make ?? work on Optionals that own as #250
+
+**Claude** made `x ?? y` work where the value owns, as a String's. `x`
+is read once; a variable keeps its value and gives a copy, and one an
+expression gives, as `d.lastKey(v)`, has it taken out. `y` is made
+only where it is needed, copied where it is a variable. A `y` of
+another type is now Kelvin's error, not C's. Details are provisional
+P262.
+
+There are 879 tests, and all pass with clang and with gcc 15.

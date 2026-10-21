@@ -553,6 +553,26 @@ static char *expr_bare(Expr *e) {
             return strfmt("((bool)(%s))", binary_text(e));
         return binary_text(e);
     case E_TERNARY: {
+        if (e->op && !strcmp(e->op, "coalesce") && e->text && !strncmp(e->text, "own_", 4)) {
+            /* x ?? y of a value that owns (#250): x read once into _kv_o; its
+               value copied where x is a place, else taken, and where it has
+               none, x freed, which is none's or err's; y copied where it is
+               a place, else taken, made only then */
+            bool copy_x = !strncmp(e->text, "own_copy", 8), copy_y = strstr(e->text + 4, "_copy") != NULL;
+            Type *vt = e->type; /* y is of it too, converted as it is */
+            const char *rn = e->target->name, *some = e->b->text;
+            int k = 0;
+            for (int i = 0; i < e->target->members.len; i++)
+                if (!strcmp(((Var *)e->target->members.data[i])->name, some))
+                    k = i;
+            const char *value = copy_x ? strfmt("%s(_kv_%s_at_%s(&_kv_o))", owner_copy(vt), rn, some)
+                                       : strfmt("_kv_%s_get_%s(_kv_o)", rn, some);
+            const char *drop = copy_x || !owner_free(e->from) ? "" : strfmt(" %s(&_kv_o);", owner_free(e->from));
+            const char *other = copy_y ? strfmt("%s(&(%s))", owner_copy(vt), expr(e->c)) : expr(e->c);
+            return strfmt("({ __auto_type _kv_o = (%s); %s _kv_r; if (_kv_o.tag == %d) _kv_r = %s; else {%s _kv_r = %s; } "
+                          "_kv_r; })",
+                          expr(e->a->a), decl(vt, ""), k, value, drop, other);
+        }
         char *s = strfmt("%s ? %s : %s", cond(e->a), expr(e->b), expr(e->c));
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }

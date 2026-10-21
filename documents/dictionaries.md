@@ -133,6 +133,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   `d.firstKey(v)` and `d.lastKey(v)` the key of the first and the last
   in the order added, a `K?`: `some` of a copy of the key, or `none`.
   - `d.has(k)` is still the test of a key.
+  - `d.lastKey(v) ?? $"none"` is the key or a default, of a String key
+    too (#250).
   - `v` is compared by the values' `==`, and is of the value type as
     `d[k] = v` takes it (#246); an owner given is looked at, not moved.
   - Of a function, `d.contains { v in v > 40 }`, `d.firstKey(big)`, the

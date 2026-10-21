@@ -4639,11 +4639,13 @@ static Expr *parse_conditional(void) {
             error_at(q->pos, "'?\?' takes an Optional or a Result on its left, and this is %s",
                      ct ? kelvin_type(ct) : "not one");
         Var *some = r->members.data[value_case(r)];
-        if (is_owner(some->type))
-            error_at(q->pos, "'?\?' would copy the value, and %s owns: switch on it, or test '.is(some)' and read '.some'",
-                     kelvin_type(some->type));
+        /* of a value that owns (#250): x read once, its value a copy where
+           x is a place, else taken out of it, the rest of it freed; y a
+           copy where it is a place, else taken, and made only where x has
+           no value */
+        bool own = is_owner(some->type), copy_x = own && owner_place(c);
         List held = {0}; /* the left side read twice, held once (#187) */
-        if (c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
+        if (!own && c->kind != E_IDENT && c->kind != E_FIELD && c->kind != E_INDEX && c->kind != E_DEREF)
             c = hold_operand(c, &held);
         pick_overload(y, some->type);
         y = string_of_literal(drop_cstr(y, some->type), some->type);
@@ -4680,6 +4682,17 @@ static Expr *parse_conditional(void) {
         e->paren = true;
         e->op = "coalesce"; /* its type is the value's, for inference */
         e->type = some->type;
+        if (own) {
+            bare_tags = true;
+            char *lead = strfmt("'?\?' of %s falls back to", kelvin_type(unqualified(ct)));
+            bare_tags = false;
+            check_typed_value(y, some->type, lead, y->pos); /* in Kelvin's words, not C's (#250) */
+            Type *yt2 = value_type(y);
+            bool copy_y = yt2 && is_owner(unqualified(yt2)) && owner_place(y);
+            e->text = strfmt("own_%s_%s", copy_x ? "copy" : "take", copy_y ? "copy" : "take");
+            e->target = r;
+            e->from = unqualified(ct);
+        }
         c = wrap_temps(e, &held);
     }
     if (!accept_p("?"))

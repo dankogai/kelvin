@@ -68,7 +68,11 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   - Each is a place: `r.ok += 1`, `r.err += "!"`.
   - `r ?? y` is the `ok` value if that is the case, else `y`.
     - For a `T` that does not own, of a Result in a variable, a member
-      or an element; for an owner, `if let` or `switch` on it.
+      or an element.
+    - For a `T` that owns (#250), as an Optional's: the value a copy of
+      a place's, or taken from one an expression gives, whose `err`
+      value is then freed; `y` a copy of a place, made only where it
+      is needed.
 - **Testing:** `r.is(ok)`, `r.is(err)`, `r.case` (0 for ok, 1 for err),
   and `switch r { case ok: ... case err: ... }`, exhaustive.
   - `case ok(v):` and `case err(e):` bind the value for the body (#119).
