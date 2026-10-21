@@ -225,6 +225,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   the spaces, tabs and line ends JS's `\s` lists, U+3000 among them.
 - **Properties:** `count` (the codepoints), `cstr` (a borrow of the
   text), `bytes` (its Bytes, read only), `size`, `typename`.
+  - `.cstr` of a String an expression gives lives until the call or
+    expression around it is done, up to the statement (#245):
+    `strlen($"abc".cstr)`, `fopen(path().cstr, "r")`. Kept past the
+    statement, `let p := $"x".cstr`, it would dangle, so that is an
+    error that says to bind the String first.
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
   prints as its character; `for x in s.bytes^` each byte.
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`

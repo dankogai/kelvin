@@ -5672,3 +5672,28 @@ tests/run/array_map.k's `(var s:String)` as it was; a named function
 still gets a copy. Details are provisional P256.
 
 There are 861 tests, and all pass with clang and with gcc 15.
+
+### 289. Temporaries live until the statement is done
+
+> before making d[k] = v check the value's type as #245, I have a question
+> on memory management.  I once complained about "save it to a variable
+> first" on a RegExp.  Besides regexp, those values unassigned to a
+> variable are quite frequently used.  I would call it "immediate values".
+> [...] Is our memory management handle those cases properly?
+
+**Claude** built the user's cases under ASan and the counting allocator,
+`println($"hello, kelvin!")`, `$[0,1,2,3].map { $0 * $0 }`, Dictionaries
+and RegExps made in place, and found each freed once used, as #187 holds
+them: nothing live at exit. What was still refused was a pointer into
+one, `strlen($"abc".cstr)`, its String freed at the end of its own chain;
+and `a == $[0,1,4,9]` does not compile, Kelvin having no Array `==`.
+
+> keep temporaries alive until the end of the statement as #245.
+
+**Claude** added #245: a pointer into a temporary keeps it alive until the
+call or expression around it is done, up to the statement, so
+`strlen($"abc".cstr)` and `println(String(42).cstr)` work; a pointer kept
+past the statement is still an error. `d[k] = v`'s check of the value's
+type becomes #246. Details are provisional P257.
+
+There are 863 tests, and all pass with clang and with gcc 15.

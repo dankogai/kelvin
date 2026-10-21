@@ -276,6 +276,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 242 | `xs.sort { ... }` and `xs.sorted { ... }` lend the elements to an anonymous comparator: its owner parameters are lets the Array keeps, read and never moved or freed, so a comparison copies nothing; passing one on by value or returning it is an error that says to borrow or copy; a named comparator, and a struct's own `<`, own their parameters, so they are given copies | — | `names.sort { a, b in a.count < b.count }` | 2026-10-21 |
 | 243 | `d[k] ??= v` sets the entry only where `k` is absent, and `d[k] !!= v` only where it is present; the key is read once, `v` made only where it is set; `v` as `d[k] = v` takes it, an owner in a variable an error that says `.copy()`; of a let an error | — | `counts[w] ??= 0`, `prices[item] !!= sale` | 2026-10-21 |
 | 244 | map, filter and reduce, of an Array or a Dictionary and the WithKey ones, lend an owner element to an anonymous function, as #242's sort does: a let its caller keeps, read and never moved or freed; returning it as it is is an error that says `.copy()`; a parameter written `var` asks for a copy of its own, in sort too; a named function is given a copy; reduce's value so far moves in and out | — | `names.map { $0.count }` copies no String | 2026-10-21 |
+| 245 | A pointer into an owner an expression gives keeps it alive until the call or expression around the pointer is done, up to the whole statement: `strlen($"abc".cstr)`, `println(String(42).cstr)`, `let n:size_t = strlen($"k".cstr)` work; one that would outlive the statement, `let p := $"x".cstr`, is still an error that says to bind it first | — | `fopen(path().cstr, "r")` | 2026-10-22 |
 
 Notes:
 
@@ -837,6 +838,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (245) Agreed details: "keep temporaries alive until the end of the
+  statement as #245". The user asked first whether immediate values,
+  `println($"hello")`, `$[0,1,2,3].map { ... }`, `${:}` and `$/.../`,
+  are freed; Claude showed under the counting allocator that they are,
+  since #187, and that only a pointer into one was refused, freed at
+  the end of its own chain. Now its temporaries go to the chain around
+  it, the call or the expression, so they are freed when that is done:
+  the statement, at the outermost. Found: Kelvin has no Array `==`.
 
 - (244) Agreed details: "make map, filter and reduce lend elements as
   #244". Lending is per parameter now, Var.lent for #242's Decl.lends:
@@ -2604,6 +2614,7 @@ says "as agreed".
 | P254 | Details of #242 | kelvin.h: Decl.lends; parser.c: lend_anon_params, set by sort around its anonymous comparator, has parse_anon_fn declare owner parameters LET_EACH and set lends, a lent var refused; sort's text fn_lent for an anonymous comparator; codegen.c: fn_lent passes the elements, a lending Decl's owner parameters are named plainly and not freed; op (a struct's <) passes copies where the elements own; tests: run/sort_lent.k, error/sort_lent_move.k; documents/arrays.md | lending to map's, filter's and reduce's functions too |
 | P255 | Details of #243 | parser.c: place_follows keeps `d[k]` a place before `??=` and `!!=`; parse_assign makes them a Dictionary method of text set_absent or set_present, the key and the value as `d[k] = v`'s; codegen.c: `({ D *_kv_dp = &d; __auto_type _kv_dk = k; if ([!]D_find(_kv_dp, _kv_dk)) D_set(_kv_dp, _kv_dk, v); })`; tests: run/dict_entry_fill.k, error/dict_entry_fill_owner.k; documents/dictionaries.md, documents/operators.md | the type of `v` in `d[k] = v`, `??=` and `!!=`, which C checks |
 | P256 | Details of #244 | kelvin.h: Var.lent for Decl.lends; parser.c: lend_anon_from, the first parameter lent (0, or 1 after reduce's value so far), set around an anonymous function of sort, map, filter and reduce; parse_anon_fn lends an owner parameter from it on unless written var; lends_param(f, k) reads it; map, filter and reduce's op ends _lent where the element's parameter is lent, sort's text is fn_ and l or c for each; codegen.c: a lent element passed as it is, else a copy; a lent parameter neither _kv_x_in nor freed; filter still copies what it keeps; tests: run/lend_elements.k, error/map_return_lent.k; documents/arrays.md, documents/dictionaries.md | — |
+| P257 | Details of #245 | parser.c: wrap_temps hands the temporaries of a chain whose result is a pointer or an array to the chain around it, chain_temps, which wraps them with its own; with none around, the error stays; tests: run/temp_statement.k, error/temp_pointer_kept.k; documents/ownership.md (O11), documents/strings.md | kc's `.cstr` of a temporary, still refused (#227); Array `==` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

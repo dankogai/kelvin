@@ -1480,12 +1480,22 @@ static Expr *make_temp(Expr *src, const char *what) {
 }
 
 /* body, inside the temporaries made for it (#187), the last made innermost;
-   a pointer would point into what is freed, so it is an error, and an owner
-   that is a place inside one is copied out before it goes */
+   an owner that is a place inside one is copied out before it goes. A
+   pointer into one keeps it alive until the call or chain around it is
+   done, up to the whole statement (#245), as strlen($"abc".cstr): the
+   temporaries go to that chain's; with none around, the pointer would
+   outlive them, so it is an error */
 static Expr *wrap_temps(Expr *body, List *temps) {
     if (!temps->len)
         return body;
     Type *rt = value_type(body);
+    if (rt && (rt->kind == T_PTR || rt->kind == T_ARRAY) && body->kind != E_TEMPLATE && chain_temps &&
+        chain_temps != temps) {
+        for (int i = 0; i < temps->len; i++)
+            list_push(chain_temps, temps->data[i]);
+        temps->len = 0;
+        return body;
+    }
     if (rt && (rt->kind == T_PTR || rt->kind == T_ARRAY) && body->kind != E_TEMPLATE) { /* a template's text is the block's */
         Expr *first = temps->data[0];
         error_at(body->pos, "this is %s into a %s that an expression gives, which is freed once the expression is done: "
