@@ -5586,3 +5586,17 @@ where C would have made the number a `bool`. A named function's result
 type was checked already. Details are provisional P251.
 
 There are 849 tests, and all pass with clang and with gcc 15.
+
+### 284. bool functions return a bool
+
+> make bool functions return a bool as #240
+
+**Claude** added #240: every value a function of a `bool` result returns
+is a `bool`, of a named function, a method or an anonymous one, as #239
+made it of a filter's: `return n % 2` is an error that says to compare,
+and `return 1` one that says `true` or `false`, where C converted the
+number. A local's type is seen, since each return is checked where it is
+read. A value only C sees, as `isdigit(c)`, is still C's. Details are
+provisional P252.
+
+There are 852 tests, and all pass with clang and with gcc 15.

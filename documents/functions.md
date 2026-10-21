@@ -54,6 +54,14 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
   - An enum with values' `{.n = 0.5}`.
   - The value of a `Result<point, U>` or a `point?`, wrapped.
   - A number's result still takes a value, not a list.
+- **A `bool` result is a `bool`** (#240): each value a function of a
+  `bool` result returns, a body's one expression too, is a `bool`, by
+  its type or by its shape, as a comparison's.
+  - `return n % 2` is an error that says to compare, as in `x != 0`,
+    and `return 1` one that says `true` or `false`, where C would make
+    the number a `bool`.
+  - So of a method, an anonymous function and a filter's (#239).
+  - A value only C sees, as `isdigit(c)`, is C's to convert.
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 

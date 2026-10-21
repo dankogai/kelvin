@@ -208,6 +208,7 @@ static void require_module(const char *name, Pos pos) {
 }
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
+static Decl *filter_fn;               /* the function of a .filter being parsed, so named in a message (#239) */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
@@ -1287,7 +1288,7 @@ static Expr *property(Expr *e, Token *name, char *member);
 static Expr *convert(Token *t, const char *name, Expr *v, Expr *base);
 static bool converter_is_field(Expr *v, const char *member);
 static void require_bool(Expr *e);
-static void require_bool_returns(Stmt *s, const char *what);
+static void require_bool_return(Expr *e, Decl *d);
 _Noreturn static void reject_step(Token *t);
 static bool binding_ahead(int i);
 static bool seen_bool(Expr *e);
@@ -5103,28 +5104,24 @@ static bool seen_bool(Expr *e) {
 /* A condition, and an operand of &&, || or !, is a bool. Where kelvinc
    sees the type it checks it here; elsewhere (a C function, a macro)
    codegen has the C compiler check it. */
-/* every value s returns, as a filter's function's (#239): a bool, by
-   its type or its shape, not a number C would convert; what only C sees,
-   C checks */
-static void require_bool_returns(Stmt *s, const char *what) {
-    if (!s)
+/* a value d returns where its result is a bool (#239, #240): a bool, by its
+   type or its shape, not a number C would convert; what only C sees, C
+   checks. A filter's function says so in filter's words */
+static void require_bool_return(Expr *e, Decl *d) {
+    if (!d || !d->ret || !(d->ret->kind == T_BASE && !strcmp(d->ret->name, "bool")) || e->is_bool || bool_shape(e))
         return;
-    if (s->kind == S_RETURN && s->expr && !s->expr->is_bool && !bool_shape(s->expr)) {
-        Type *t = value_type(s->expr);
-        if (!t && (s->expr->kind == E_LITERAL || number_expr(s->expr)))
-            error_at(s->expr->pos, "%s keeps what its function says true for, a bool, and this gives a number: "
-                                   "compare it, as in 'x != 0'",
-                     what);
-        if (t && !(t->kind == T_BASE && !strcmp(t->name, "bool")))
-            error_at(s->expr->pos, "%s keeps what its function says true for, a bool, and this gives %s: compare it, "
-                                   "as in 'x != 0'",
-                     what, kelvin_type(t));
-    }
-    for (int i = 0; i < s->stmts.len; i++)
-        require_bool_returns(s->stmts.data[i], what);
-    require_bool_returns(s->init, what);
-    require_bool_returns(s->body, what);
-    require_bool_returns(s->els, what);
+    Type *t = value_type(e);
+    if (t && t->kind == T_BASE && !strcmp(t->name, "bool"))
+        return;
+    if (!t && !(e->kind == E_LITERAL || number_expr(e)))
+        return;
+    const char *lead = d == filter_fn                ? "'.filter' keeps what its function says true for, a bool"
+                       : d->anon || !d->name           ? "this function returns a bool"
+                       : d->recv_name                  ? strfmt("'%s.%s' returns a bool", d->recv_name, d->name)
+                                                       : strfmt("'%s' returns a bool", d->name);
+    if (e->kind == E_LITERAL && e->text[0] != '\'' && isdigit((unsigned char)e->text[0]))
+        error_at(e->pos, "%s, and this is a number: write 'true' or 'false'", lead);
+    error_at(e->pos, "%s, and this gives %s: compare it, as in 'x != 0'", lead, t ? kelvin_type(t) : "a number");
 }
 
 static void require_bool(Expr *e) {
@@ -8879,6 +8876,7 @@ static void implicit_return_of(Decl *d) {
         pick_overload(last->expr, d->ret);
         last->expr = optional_of(last->expr, d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
         reject_record_mismatch(last->expr, d->ret, last->expr->pos); /* a T? where a T goes (#218) */
+        require_bool_return(last->expr, d);                            /* a bool of a bool function (#240) */
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
             reject_returned_text(last->expr, d->anon);
         return_owner(last->expr);
@@ -9073,6 +9071,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     infer_anon_result = false;
     const char *bool_result = bool_anon_result;
     bool_anon_result = NULL;
+    Decl *saved_filter = filter_fn;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = anon_name();
     Decl *saved_fn = parsing_fn;
@@ -9084,6 +9083,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     anon_note = pending_note;
     pending_note = NULL;
     d->anon = true;
+    filter_fn = bool_result ? d : NULL; /* a filter's, named so in its messages (#239) */
     bool saved_assign = assign_ok, saved_brace = brace_ends_condition, saved_for = brace_in_for,
          saved_annotation = ident_annotation_ok, saved_body = stmt_is_body;
     assign_ok = brace_ends_condition = brace_in_for = stmt_is_body = false;
@@ -9211,8 +9211,7 @@ static Expr *parse_anon_fn(Type *ctx) {
                  kelvin_type(fn_type_of(d)));
     }
     implicit_return(d);
-    if (bool_result) /* its parameters still in scope, so their types seen (#239) */
-        require_bool_returns(d->body, bool_result);
+    filter_fn = saved_filter;
     finish_drops(drops_from);
     close_scope();
     parsing_fn = saved_fn;
@@ -10110,6 +10109,8 @@ static Stmt *parse_stmt_here(void) {
             if (result)
                 s->expr = optional_of(s->expr, parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
+            if (result)
+                require_bool_return(s->expr, parsing_fn); /* a bool of a bool function (#240) */
         }
         /* the function's own buffers are gone once it returns (#32, #35) */
         if (s->expr && result && !parsing_fn->text_method)
