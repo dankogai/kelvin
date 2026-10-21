@@ -45,6 +45,6 @@ let main():int32 {
 // out: {name: "say \"hi\"\n", at: {x: 1, y: 2}, tags: [...], label: "c\\d", raw: "a\tb\xff"}
 // out: path([{x: 0, y: 0}, {x: 1, y: 1}]) dot({x: 5, y: 6}) none
 // out: ok([1, 2]) some("x") none
-// out: object({"name": string("kelvin"), "tags": array([string("c"), number(11)]), "ok": boolean(true)})
+// out: object({"name": string("kelvin"), "tags": array([string("c"), number(11.0)]), "ok": boolean(true)})
 // out: to a stream: [1, 2, 3] {"ann": 31, "bob": 42}
 // c: _kv_show__kv_array_i64(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1)

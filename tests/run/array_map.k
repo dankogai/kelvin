@@ -29,6 +29,6 @@ let main():int32 {
     println(ys, " ", sizes, " ", none.count, " ", again, " ", neg)
     return 0
 }
-// out: [2, 4, 6] [0.5, 1, 1.5] ["#1", "#2", "#3"] [false, true, false] [1, 2, 3]
+// out: [2, 4, 6] [0.5, 1.0, 1.5] ["#1", "#2", "#3"] [false, true, false] [1, 2, 3]
 // out: [3, 3] ["ann!", "bob!"] ["ann", "bob"]
 // out: [1, 4, 9] [1, 2, 3] 0 [3, 5, 7] [-1, -2, -3]

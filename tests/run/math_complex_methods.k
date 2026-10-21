@@ -12,8 +12,8 @@ let main():int32 {
     println(w.exp() == exp(w), " ", w.abs() == abs(w), " ", w.i, " ", w.norm().typename, " ", abs(w.sqrt() * w.sqrt() - w) < 1e-6:float32)
     return 0
 }
-// out: {real: 1, imag: -2} true true {real: -2, imag: 1} true {real: -1, imag: 0}
+// out: {real: 1.0, imag: -2.0} true true {real: -2.0, imag: 1.0} true {real: -1.0, imag: 0.0}
 // out: true true true true
 // out: true true true true true true
 // out: true true true true true true
-// out: true true {real: -2, imag: 1} f32 true
+// out: true true {real: -2.0, imag: 1.0} f32 true

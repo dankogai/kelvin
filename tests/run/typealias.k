@@ -26,5 +26,5 @@ let main():int32 {
     return 0
 }
 // out: 7 {x: 1, y: 2} point 3.0 true i32
-// out: c64 {real: 1, imag: -2} 5.0 c64
+// out: c64 {real: 1.0, imag: -2.0} 5.0 c64
 // out: i64 u8 f32 2 3.0 2 2.718281828459045

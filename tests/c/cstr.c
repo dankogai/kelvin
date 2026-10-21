@@ -23,7 +23,7 @@ int main(void)
     CHK(CSTR(lo, b), "-170141183460469231731687303715884105728");
     CHK(CSTR(~(unsigned __int128)0, b), "340282366920938463463374607431768211455");
     CHK(CSTR(-DBL_MIN, b), "-2.2250738585072014e-308");
-    CHK(CSTR(-FLT_MIN, b), "-1.17549435e-38");
+    CHK(CSTR(-FLT_MIN, b), "-1.1754944e-38"); /* the shortest that reads back, as print (#258) */
     /* long double's width varies by platform; its 21 digits always fit */
     if (!strncmp((const char *)CSTR(-LDBL_MAX, b), "-1.", 3) && strlen((const char *)b) <= 29) n_ok++;
     else printf("MISMATCH long double: %s\n", b);
@@ -33,7 +33,7 @@ int main(void)
     CHK(CSTR('A', b), "65"); /* a character constant is an int in C */
     CHK(CSTR((char)'A', b), "A");
     double _Complex z = 1.5 - 2.0 * I;
-    CHK(CSTR(z, b), "1.5-2i");
+    CHK(CSTR(z, b), "1.5-2.0i");
     long double _Complex lz = -LDBL_MAX + -LDBL_MAX * I;
     if (strlen((const char *)CSTR(lz, b)) < KV_CSTR_SCALAR) n_ok++; else printf("MISMATCH long double complex\n");
     char *s = "text";

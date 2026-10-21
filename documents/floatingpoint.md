@@ -13,7 +13,7 @@ let d = 1.5                         // an f64, inferred
 var f:float32 = 1.5                     // no 1.5f: the type is on the declaration
 let half = float64(n) / 2               // a converter, as C's cast
 let x = float64("0x1.8p1")              // read from text: 3.0
-println(0.1, " ", 0.1.cstr)         // 0.1 0.10000000000000001
+println(0.1, " ", 0.1.cstr, " ", $[1.0, 0.5])   // 0.1 0.1 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 ```
 
@@ -62,14 +62,16 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
     and has an exponent otherwise (`1e+16`, `1e-05`, `1e+300`).
   - The point is `.` whatever the C locale's, which `printf` would
     follow. See [printing.md](printing.md).
-- **Text** is lossless: `0.1.cstr` is `0.10000000000000001` (`%.17g`,
-  `%.9g` for `f32`), while `print` keeps the shortest form, `0.1`.
-  - `.dec` is the same lossless decimal with a sign, `+1.5`, and `.hex`
-    C's `%a` with a sign, `+0x1.8p+0`.
+- **Text** is what `print` shows (#258): the shortest that reads back as
+  the same value, with a point, `0.1`, `1.0`, `1e+300`, so that it
+  pastes back into Kelvin as the value.
+  - `.cstr`, `${x}` and `print` agree, and so does a float inside a
+    value: a struct's member, an Array's element, an Optional's value.
+  - `.dec` is `%+.17g`, every digit with a sign, `+0.10000000000000001`,
+    and `.hex` C's `%a` with a sign, `+0x1.8p+0`.
   - `.oct` and `.bin` of a float are errors.
-  - A float inside a value, a struct's member or an Array's element,
-    shows as `.cstr` shows it, `11` for `11.0`. See
-    [properties.md](properties.md).
+  - A float inside a value shows as alone, `[11.0]`, `{x: 1.0}`,
+    `some(1.0)` (#258). See [properties.md](properties.md).
 - **Arithmetic** is C's, with C's promotions: an `f32` and an `f64` make
   an `f64`.
   - kelvinc compiles with `-ffp-contract=off`, so clang computes
@@ -82,8 +84,8 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 |---|---|---|
 | `f32`, `f64` | `.size` | `sizeof`, a `size_t` |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
-| | `.cstr` | lossless text, `%.17g` or `%.9g`, in the block's buffer |
-| | `.dec`, `.hex` | lossless decimal and C's `%a`, each with a sign |
+| | `.cstr` | the text `print` shows, the shortest that reads back, `1.0` (#258), in the block's buffer |
+| | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |
 

@@ -5851,3 +5851,19 @@ text`. Where a borrow is taken and the value itself is given, it says
 to write `&`. Details are provisional P269.
 
 There are 896 tests, and all pass with clang and with gcc 15.
+
+### 302. A float's text pastes back
+
+> CHANGE IT! FIX IT!  The whole point of print is to print the value so
+> that when it is pasted back to a kelvin source code, it "just works"
+> as expected.
+
+**Claude** had noted, with #256, that `$[1.0, 2.5]` printed `[1, 2.5]`
+while `1.0` alone printed `1.0`. The text of a value, `.cstr`, which
+an Array's, a struct's, an Optional's and a Dictionary's text is made
+of, used `%.17g`: `1` for `1.0`, and `0.10000000000000001` for `0.1`.
+As #258 it now uses print's own formatter, the shortest text that
+reads back as the same value, with a point: `[1.0, 2.5]`, `{x: 1.0}`,
+`some(1.0)`, `0.1.cstr` is `0.1`. Details are provisional P270.
+
+There are 896 tests, and all pass with clang and with gcc 15.

@@ -28,4 +28,4 @@ let main():int32 {
 // out: 4 7 30 5
 // out: abc!
 // out: 4 103
-// out: 42 5 true 2
+// out: 42 5.0 true 2

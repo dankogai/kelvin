@@ -60,25 +60,25 @@ uint8_t *kv_cstr_u64(unsigned long long v, uint8_t *buf) {
     return buf;
 }
 
-/* lossless; a NaN has no meaningful sign and is "nan" */
+/* as print shows it (#258): the shortest text that reads back as the
+   same value, with a point, "1.0" and "0.1", so that the text of an
+   Array, a struct or an Optional pastes back into Kelvin as the value;
+   a NaN has no meaningful sign and is "nan" */
 uint8_t *kv_cstr_f32(float v, uint8_t *buf) {
-    if (isnan(v))
-        return put(buf, "nan");
-    snprintf((char *)buf, KV_CSTR_SCALAR, "%.9g", (double)v);
+    char t[96];
+    snprintf((char *)buf, KV_CSTR_SCALAR, "%s", kv_f32_text(v, t));
     return buf;
 }
 
 uint8_t *kv_cstr_f64(double v, uint8_t *buf) {
-    if (isnan(v))
-        return put(buf, "nan");
-    snprintf((char *)buf, KV_CSTR_SCALAR, "%.17g", v);
+    char t[96];
+    snprintf((char *)buf, KV_CSTR_SCALAR, "%s", kv_f64_text(v, t));
     return buf;
 }
 
 uint8_t *kv_cstr_f80(long double v, uint8_t *buf) {
-    if (isnan(v))
-        return put(buf, "nan");
-    snprintf((char *)buf, KV_CSTR_SCALAR, "%.21Lg", v);
+    char t[96];
+    snprintf((char *)buf, KV_CSTR_SCALAR, "%s", kv_f80_text(v, t));
     return buf;
 }
 

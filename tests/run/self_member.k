@@ -42,6 +42,6 @@ let main():int32 {
     return 0
 }
 // out: 6.0 10.0 4.0x6.0 3.0x3.0 4.0x6.0 false
-// out: 101.0 [100, 101]
+// out: 101.0 [100.0, 101.0]
 // out: 6 6 4 0
 // c: return self.w * self.h;

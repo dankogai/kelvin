@@ -21,7 +21,7 @@ let main():int32 {
     println(w, " ", x)
     return 0
 }
-// out: 100 and 0, then -40
+// out: 100.0 and 0.0, then -40.0
 // out: [0..<4] and [9..<12], then [19..<23]
 // out: <212> and <32>, then <-40>
 // out: 10/2026 and 2027-01 true and 2027-01

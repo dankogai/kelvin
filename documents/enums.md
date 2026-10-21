@@ -81,7 +81,7 @@ println(j.n)                             // ends the program: case 'n' of json i
     its bare name, each case ending at the next, and lists every case
     or has `default:` (#63, [flow-controls.md](flow-controls.md)).
 - **Text:** `v.cstr` and `${v}` are the case's name and its value in
-  parentheses, `n(1.5)`, `rect({w: 3, h: 4})`, or the name alone,
+  parentheses, `n(1.5)`, `rect({w: 3.0, h: 4.0})`, or the name alone,
   `none`; `T.cstr()` (#53) replaces it.
 - **Owners:** a case that owns makes the enum an owner under the rules
   of #54: freed by its block, moved by `return` and by passing, copied by

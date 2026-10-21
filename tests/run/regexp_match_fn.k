@@ -23,7 +23,7 @@ let main():int32 {
 // out: 212 at 15..<19
 // out: 32 at 35..<38
 // out: -40 at 40..<44
-// out: water boils at 100C and freezes at 0C; -40C is -40C
+// out: water boils at 100.0C and freezes at 0.0C; -40.0C is -40C
 // out: [212F][32F][-40F]
 // out: first: 212
 // out: 0 1 2 

@@ -30,14 +30,14 @@ let main():int32 {
     println(xs.count)
     return 0
 }
-// out: circle(2) 1 true false 12.0
-// out: rect({w: 3, h: 4}) 2 12.0 3.0
+// out: circle(2.0) 1 true false 12.0
+// out: rect({w: 3.0, h: 4.0}) 2 12.0 3.0
 // out: 4.0
-// out: circle(1) none shape 24
+// out: circle(1.0) none shape 24
 // out: f(1.5) enum{i: i32, f: f32} 1.5
 // out: i(7) 7
 // out: none
-// out: circle(1) none 2
+// out: circle(1.0) none 2
 // c: struct shape
 // c: uint8_t tag;
 // c: struct shape s = {.tag = 1, .u.circle = 2.0};

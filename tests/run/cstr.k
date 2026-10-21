@@ -22,7 +22,7 @@ let get():struct point { return (struct point){5, 6}; }
 let point.moved():struct point { return (struct point){.x + 1, .y}; }
 
 let main():int32 {
-    // numbers: plain decimal; floats lossless; bool; a string is itself
+    // numbers: plain decimal; floats as print shows them, the shortest that reads back (#258); bool; a string is itself
     var pi = 3.141592653589793;
     println(pi.cstr, " ", 0.1.cstr, " ", (0.1:float32).cstr, " ", 1.0.cstr);
     println(42.cstr, " ", (-7:int8).cstr, " ", (255:uint8).cstr, " ", (~(0:u128)).cstr);
@@ -77,19 +77,19 @@ let main():int32 {
     println(t);
     return 0;
 }
-// out: 3.1415926535897931 0.10000000000000001 0.100000001 1
+// out: 3.141592653589793 0.1 0.1 1.0
 // out: 42 -7 255 340282366920938463463374607431768211455
 // out: true text 0x0
 // out: {x: 3, y: 4} {from: {x: 3, y: 4}, to: {x: 7, y: 8}, tag: "edge"}
 // out: {name: "tri", corners: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}], grid: [[1, 2], [3, 4]], scale: 1.5}
 // out: <union number> {x: 5, y: 6}
 // out: {n: 3, a: [...]}
-// out: {t: 7, who: c, o: {...}, z: 1+0i, on: true, next: 0x0}
+// out: {t: 7, who: c, o: {...}, z: 1.0+0.0i, on: true, next: 0x0}
 // out: {si: "hi", text: "0123456789012345678901234567890123456789012345678901234..."}
 // out: {label: hello, world, full: abcd, n: 9} hello, world
 // out: {x: 6, y: 6} 10 8
 // out: {x: 1, y: 2} {x: 1, y: 2} {x: 5, y: 6} 2
-// out: {name: title, u: u8, h: 0x0, r: hello, z: 1+0i, b: {...}} 4
+// out: {name: title, u: u8, h: 0x0, r: hello, z: 1.0+0.0i, b: {...}} 4
 // out: field
 // out: true
 // out: kelvin kelvin b true

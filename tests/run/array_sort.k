@@ -42,6 +42,6 @@ let main():int32 {
 }
 // out: [0, 1, 2, 3] [0, 1, 2, 3] [0, 1, 2, 3] [3, 2, 1, 0]
 // out: ["Zed", "ann", "ann2", "bob", "émile"] ["bob", "ann", "Zed", "ann2", "émile"]
-// out: [{x: 1, y: 2}, {x: 1, y: 5}, {x: 2, y: 1}] ["apple", "fig", "pear"] [-1, 0.5, 2.5] aéγ
+// out: [{x: 1, y: 2}, {x: 1, y: 5}, {x: 2, y: 1}] ["apple", "fig", "pear"] [-1.0, 0.5, 2.5] aéγ
 // out: ["\\x01", "\\x01\\x09", "\\x02"] [7] 0 [50, 40, 10]
 // out: true false true true

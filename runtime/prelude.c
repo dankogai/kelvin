@@ -68,7 +68,7 @@ static char *float_text(char *buf, bool plain) {
     return buf;
 }
 
-static char *f64_text(double v, char *buf) {
+char *kv_f64_text(double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 17; p++) {
@@ -79,7 +79,7 @@ static char *f64_text(double v, char *buf) {
     return float_text(buf, fabs(v) <= ldexp(1, DBL_MANT_DIG));
 }
 
-static char *f32_text(float v, char *buf) {
+char *kv_f32_text(float v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 9; p++) {
@@ -90,7 +90,7 @@ static char *f32_text(float v, char *buf) {
     return float_text(buf, fabsf(v) <= ldexpf(1, FLT_MANT_DIG));
 }
 
-static char *f80_text(long double v, char *buf) {
+char *kv_f80_text(long double v, char *buf) {
     if (isnan(v))
         return strcpy(buf, "nan");
     for (int p = 1; p <= 36; p++) {
@@ -149,19 +149,19 @@ void kv_print_newline(void) { kv_fprint_newline(stdout); }
 
 void kv_fprint_f64(void *fp, double v) {
     char buf[96];
-    fputs(f64_text(v, buf), (FILE *)fp);
+    fputs(kv_f64_text(v, buf), (FILE *)fp);
 }
 void kv_print_f64(double v) { kv_fprint_f64(stdout, v); }
 
 void kv_fprint_f32(void *fp, float v) {
     char buf[96];
-    fputs(f32_text(v, buf), (FILE *)fp);
+    fputs(kv_f32_text(v, buf), (FILE *)fp);
 }
 void kv_print_f32(float v) { kv_fprint_f32(stdout, v); }
 
 void kv_fprint_f80(void *fp, long double v) {
     char buf[96];
-    fputs(f80_text(v, buf), (FILE *)fp);
+    fputs(kv_f80_text(v, buf), (FILE *)fp);
 }
 void kv_print_f80(long double v) { kv_fprint_f80(stdout, v); }
 
@@ -244,19 +244,19 @@ char *kv_template_ptr(char *p, size_t max, const void *v) {
 
 char *kv_template_f64(char *p, size_t max, double v) {
     char buf[96];
-    const char *t = f64_text(v, buf);
+    const char *t = kv_f64_text(v, buf);
     return put(p, max, t, strlen(t));
 }
 
 char *kv_template_f32(char *p, size_t max, float v) {
     char buf[96];
-    const char *t = f32_text(v, buf);
+    const char *t = kv_f32_text(v, buf);
     return put(p, max, t, strlen(t));
 }
 
 char *kv_template_f80(char *p, size_t max, long double v) {
     char buf[96];
-    const char *t = f80_text(v, buf);
+    const char *t = kv_f80_text(v, buf);
     return put(p, max, t, strlen(t));
 }
 

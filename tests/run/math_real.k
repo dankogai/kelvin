@@ -25,4 +25,4 @@ let main():int32 {
 // out: true f32 f32 f64 true 0.25
 // out: 0.0 0.0 1.0 3.0 2.0 0.0
 // out: 1.0 1.0 3 3 i64 i64
-// out: {real: 0, imag: 1} {real: 0, imag: 0.5} {real: -1, imag: 0} {real: 1, imag: 0} {real: 0, imag: -1}
+// out: {real: 0.0, imag: 1.0} {real: 0.0, imag: 0.5} {real: -1.0, imag: 0.0} {real: 1.0, imag: 0.0} {real: 0.0, imag: -1.0}

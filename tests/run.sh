@@ -156,7 +156,7 @@ for m in JSON math; do
     fi
 done
 printf '%s\n' '#import <math>' 'let main():int32 { println(abs(c64(3.0, 4.0)), " ", conj(c64(1.0, 2.0))); return 0 }' > "$tmp/libs/cx.k"
-printf '%s\n' '5.0 {real: 1, imag: -2}' > "$tmp/libs/cx.expected"
+printf '%s\n' '5.0 {real: 1.0, imag: -2.0}' > "$tmp/libs/cx.expected"
 for f in tests/run/json_parse.k tests/run/json_stringify.k "$tmp/libs/cx.k"; do
     case $f in
     "$tmp"/*) cp "$tmp/libs/cx.expected" "$tmp/expected"; lib=libkmath.a; src=$f ;;

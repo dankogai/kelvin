@@ -78,7 +78,7 @@ let main():int32 {
   - They keep their accuracy near 0 and ±1, and no step overflows where
     the result does not.
 - **The text** of one is its derived `.cstr`, as in
-  `{real: 1, imag: 2}`, also in a template and in `print` (#122), and
+  `{real: 1.0, imag: 2.0}`, also in a template and in `print` (#122), and
   `z.typename` is `c64`, also through its alias.
 - C99's special values for infinities and NaNs are not attempted,
   except for `sqrt` and division by an infinity *(provisional P54)*.
@@ -112,4 +112,4 @@ c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, pola
 | | `.abs()`, `.arg()`, `.norm()` | an `f64` or `f32` |
 | | `.pow(w)` | `z` to the power `w`, a `c64` or `c32` |
 | | `.i` | `z` times `i` |
-| | `.cstr`, `${z}`, `println(z)` | `{real: 1, imag: 2}` |
+| | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |

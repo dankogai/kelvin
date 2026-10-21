@@ -55,7 +55,7 @@ let main():int32 {
 // out:   "name": string("kelvin"),
 // out:   "tags": array([
 // out:     string("c"),
-// out:     number(11)
+// out:     number(11.0)
 // out:   ])
 // out: })
 // out: 39 String

@@ -43,7 +43,7 @@ let main():int32 {
     println(p.cstr, " is ", origin.distance(p), " from the origin, inside: ", c.contains(p))
     return 0
 }
-// out: {center: {x: 0, y: 0}, radius: 2}
-// out: {corner: {x: 1, y: 1}, width: 3, height: 4} moved: {corner: {x: 3, y: 1}, width: 3, height: 4}
+// out: {center: {x: 0.0, y: 0.0}, radius: 2.0}
+// out: {corner: {x: 1.0, y: 1.0}, width: 3.0, height: 4.0} moved: {corner: {x: 3.0, y: 1.0}, width: 3.0, height: 4.0}
 // out: areas 12.566370614359172 and 12.0
-// out: {x: 1, y: 1.5} is 1.8027756377319946 from the origin, inside: true
+// out: {x: 1.0, y: 1.5} is 1.8027756377319946 from the origin, inside: true

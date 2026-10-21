@@ -30,7 +30,8 @@
 /* The text of a value, written into `buf` (a buffer on the caller's
    stack that kelvinc declares at the top of the enclosing block) and
    returned as u8^. Numbers are plain decimal ("42", "-7"), floats are
-   lossless (%.9g for f32, %.17g for f64) and a NaN is "nan", bool is
+   as print shows them, the shortest text that reads back as the same
+   value, with a point ("1.0", "0.1"), and a NaN is "nan" (#258), bool is
    true/false, other pointers are addresses ("0x1f2e"), complex numbers
    are re+imi. A string (u8^) is its own text: s.cstr is s itself, and
    stays const if s is.
@@ -471,6 +472,11 @@ uint8_t *kv_cstr_u64(unsigned long long v, uint8_t *buf);
 uint8_t *kv_cstr_f32(float v, uint8_t *buf);
 uint8_t *kv_cstr_f64(double v, uint8_t *buf);
 uint8_t *kv_cstr_f80(long double v, uint8_t *buf);
+/* a float's text as print shows it (#258): the shortest that reads back
+   as the same value, "1.0", "0.1", "1e+300", "nan", "inf"; buf holds 96 */
+char *kv_f32_text(float v, char *buf);
+char *kv_f64_text(double v, char *buf);
+char *kv_f80_text(long double v, char *buf);
 uint8_t *kv_cstr_cf(float _Complex v, uint8_t *buf);
 uint8_t *kv_cstr_cd(double _Complex v, uint8_t *buf);
 uint8_t *kv_cstr_cld(long double _Complex v, uint8_t *buf);

@@ -3,7 +3,7 @@
 // += and insert of one element; text becomes a String, and a T or none
 // an Optional, as a declaration's value does
 // out: ["first", "a", "lit", "own", "b"]
-// out: [1, 2.5, 3] [1, 1]
+// out: [1.0, 2.5, 3.0] [1, 1]
 // out: [some(9), some(1), none, none, some(4), some(5)]
 let main():int32 {
     var ws = $[$"a"]

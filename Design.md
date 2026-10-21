@@ -289,6 +289,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 255 | A declaration with a type, `var n:i64 = v`, and an assignment, `n = v`, `p.x = v`, check `v`'s type as `d[k] = v` does (#246): a number any number, a String a String or text, a `cstr` text, an Optional its `T` or `none`, a pointer any pointer, else its own type; a C typedef, a value only C sees and a function are left to C | — | `var n:i64 = "text"` is an error | 2026-10-22 |
 | 256 | An element of an Array is checked against its type as #255's values are: in a typed `$[...]`, by `xs[i] = v` (and an element of a `[T](n)` or a pointer), and by `append`, `+=` and `insert` of one element; there text becomes a String and a T or none an Optional, as a declaration's value does | — | `ws.append(3)` of an Array<String> is an error | 2026-10-22 |
 | 257 | An argument of a Kelvin function or method is checked against its parameter's type, once converted and lent, as #255's values are: `'x' of 'half' is an f64, and this is text`; a value where a borrow of its type is taken says `give a borrow, '&a'`; C's functions, C typedefs and function types are left to C; "an f64", as it is read | — | `half("ten")` is an error | 2026-10-22 |
+| 258 | A float's text is what `print` shows everywhere: `.cstr`, a struct's member, an Array's element, an Optional's or an enum's value, a Dictionary's, a complex part: the shortest that reads back as the same value, with a point, `1.0`, `0.1`; `.dec` stays `%+.17g` | — | `$[1.0, 0.5]` prints `[1.0, 0.5]` | 2026-10-22 |
 
 Notes:
 
@@ -850,6 +851,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (258) Agreed details: the user, on #256's note that `$[1.0, 2.5]`
+  printed `[1, 2.5]`: "CHANGE IT! FIX IT! The whole point of print is to
+  print the value so that when it is pasted back to a kelvin source
+  code, it "just works" as expected." kv_cstr_f32, f64 and f80, which
+  every derived text calls, used `%.9g`, `%.17g` and `%.21Lg`: `1` for
+  `1.0`, which pastes back as an i64, and `0.10000000000000001`. They now
+  call print's own formatter, kv_f32_text and the rest, exported from
+  runtime/prelude.c. 22 tests' expected text changed, each checked to
+  differ by the text of a float alone, the regexp tests' `100.0C`
+  among them, as `${x}` already gave.
 
 - (257) Agreed details: "make arguments check the value's type as
   #257". check_args runs after typed_args, drop_cstr_args and
@@ -2740,6 +2752,7 @@ says "as agreed".
 | P267 | Details of #255 | parser.c: check_typed_value in parse_var after reject_record_mismatch, lead `'n' is`, and in the `=` of an assignment, lead `'n' is`, `'.x' is` or `what is assigned to is`; T_TYPEOF read through, C typedefs and function types skipped; tests: run/decl_value_types.k, error/decl_value_type.k, error/assign_value_type.k, error/assign_field_type.k; documents/versusC.md | Array elements, `xs[i] = v` and `$[...]`; arguments |
 | P268 | Details of #256 | parser.c: check_element_value(v, array, pos); array_of_list checks each element of a typed list; the append and insert method path and the `+=` path convert one element by string_of_literal and optional_of, then check it; the `=` of an assignment names an element of an Array, or `an element` of a `[T](n)` or a pointer; tests: run/array_elem_values.k, error/array_elem_literal.k, error/array_elem_append.k, error/array_elem_assign.k; documents/versusC.md, arrays.md | arguments; an f64 element printed as `1.0` |
 | P269 | Details of #257 | parser.c: check_args(call, d) after borrow_temps in resolve_call and the method path, the lead `'p' of 'f' is` or `'p' of 'T.m' is`; check_typed_value adds `give a borrow, '&x'` where a pointer is wanted and the value is what it points at; article(w); tests: run/arg_value_types.k, error/arg_value_type.k, error/method_arg_type.k, error/overload_struct.k now Kelvin's; documents/functions.md, versusC.md | a call through a function value; a return value |
+| P270 | Details of #258 | runtime/prelude.c: f32_text, f64_text and f80_text exported as kv_f32_text, kv_f64_text, kv_f80_text, declared in kelvin_prelude.h; runtime/string.c: kv_cstr_f32, f64, f80 call them; tests: 19 tests' and examples/shapes.k's `// out:`, tests/c/cstr.c, tests/run.sh's cx.expected; documents/floatingpoint.md, properties.md, strings.md, math.md, enums.md | other text that does not paste back: a cstr member unquoted, nan and inf, a pointer's address |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

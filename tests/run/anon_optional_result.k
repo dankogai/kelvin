@@ -28,4 +28,4 @@ let main():int32 {
 // out: 6
 // out: 3
 // out: some(4) none
-// out: some(some(2))
+// out: some(some(2.0))
