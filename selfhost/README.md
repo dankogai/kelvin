@@ -218,22 +218,35 @@ steps can take them on one at a time.
 
 ### The size of the language
 
-- **kelvinc is 17,000 lines of C** (parser.c alone 11,800), and kc's
-  1,900 lines of Kelvin read a few percent of what kelvinc reads.
+- **kelvinc is 17,700 lines of C** (parser.c alone 12,300), and kc's
+  3,900 lines of Kelvin read a part of what kelvinc reads (#231).
+- **Taken into the subset since #204:**
+  - `switch` and enums (#210), and enums with values (#215);
+  - `Dictionary` (#211), and `d[k]` as an Optional (#219);
+  - methods of `extend` and `let T.m` (#213);
+  - type inference (#214);
+  - Optional and Result (#217), `x!`, and chains (#221);
+  - `#import <x.h> as C` (#207);
+  - of ownership's rules (documents/ownership.md): a struct that owns
+    (O7, #225), passing by value (O5, #226), and temporaries (O11, #227);
+  - printing what kelvinc prints, `some(3)`, `{x: 1, y: 2}` and
+    `[1, 2]` (#229, #230).
 - **Left out of the subset:**
-  - type inference;
-  - overloading, and the names it mangles (`twice__i64`);
+  - overloading, and the names it mangles (`twice__i64`), so kc cannot
+    link a module kelvinc builds of Kelvin;
+  - `c ? a : b`, and so O12, the rule of owners it chooses;
   - `try`, `Optional`'s `map` and the rest of its methods;
-  - `extend`, methods, attributes, subscripts, operators;
-  - anonymous and nested functions;
-  - templates;
-  - `Dictionary` and `Set`;
-  - the moves and temporaries of ownership (O5, O11, O12);
-  - `$/.../` and its check, `#inline C`, `--lib` and `.kh`;
+  - attributes, subscripts and operators of `extend`;
+  - anonymous and nested functions, and function types;
+  - templates, `"""` and `$/.../` with its check;
+  - `Set`, `union` and `typealias`;
+  - floats, and integers but `int64`, `int32`, `uint8` and `uint32`;
+  - the bitwise operators, `++` and `--`;
+  - `#inline C`, `--lib` and `.kh`;
   - `#line`;
   - and kelvinc's hundreds of messages.
 - **There is no specification but kelvinc:** grammar.md is partial, and
-  the 815 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc
+  the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc
   would take passing them as its acceptance.
 
 ### A bug found on the way
@@ -326,9 +339,10 @@ libc is allowed, as it is to any C program; C of our own is not.
     every declaration.
   - A local is still found by walking the scope, and a keyword by
     comparing codepoints.
-  - At kc's own size, 2,200 lines, both take about 7 ms a compile: what
-    the Dictionaries give is that a name costs the same however many
-    declarations there are.
+  - What the Dictionaries give is that a name costs the same however
+    many declarations there are: at kc's own size, 3,900 lines, a
+    compile of kc by kc takes about 12 ms (#231), where 2,200 lines
+    took 7 at #211.
 
 ### The runtime is part of the language
 
@@ -348,7 +362,8 @@ libc is allowed, as it is to any C program; C of our own is not.
 Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
-   part as it comes.
+   part as it comes: from the list of what is left out, `c ? a : b`
+   first, which kc's own source would use.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads, and the programs kc builds under tests/asan.sh's
    counting allocator, which is done by hand so far.

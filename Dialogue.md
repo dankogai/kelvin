@@ -5446,3 +5446,18 @@ push, though its subset and its C may still change. Details are
 provisional P242.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 275. The subset list
+
+> update the selfhost README's subset list as #231
+
+**Claude** added #231: selfhost/README.md's list of what kc leaves out,
+written at #204, named much that kc reads now. It lists what the subset
+took in since, by change, and what it still leaves out, read off kc's
+own lexer and parser: overloading, `c ? a : b`, `try`, anonymous
+functions, templates, floats, the bitwise operators and the rest. The
+sizes, the count of tests and the time of a compile are taken again:
+kc is 3,900 lines, and compiles itself in about 12 ms. Details are
+provisional P243.
+
+There are 834 tests, and all pass with clang and with gcc 15.
