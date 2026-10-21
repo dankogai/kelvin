@@ -28,7 +28,7 @@ each operator means for its types.
 | 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237) | |
 | 15 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
 | 16 | ranges | `a..<b`, `a...b` (in `for` only) | |
-| 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) | `=`, `+=`, ..., `^=` |
+| 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |
 | 18 | `,` | `a, b` (in a `for` clause, an assignment list) | `a, b` |
 
 So `6 & 3 == 3` is still `6 & (3 == 3)`, as in C, and `a + b as i64`

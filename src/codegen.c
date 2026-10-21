@@ -1053,6 +1053,14 @@ static char *expr_bare(Expr *e) {
                 buf_printf(&args, ", %s", expr(e->items.data[i]));
             return strfmt("%s_%s(&%s%s)", e->type->cname, e->text, expr(e->a), args.buf);
         }
+        if (e->op && !strcmp(e->op, "dict") && e->type && !strncmp(e->text, "set_", 4)) {
+            /* d[k] ?\?= v, d[k] !!= v (#243): the key read once, the value made
+               only where it is set, where k is absent or present */
+            return strfmt("({ %s *_kv_dp = &(%s); __auto_type _kv_dk = %s; if (%s%s_find(_kv_dp, _kv_dk)) %s_set(_kv_dp, "
+                          "_kv_dk, %s); (void)0; })",
+                          e->type->cname, expr(e->a), expr(e->items.data[0]), !strcmp(e->text, "set_absent") ? "!" : "",
+                          e->type->cname, e->type->cname, expr(e->items.data[1]));
+        }
         if (e->op && !strcmp(e->op, "dict") && e->type) { /* a Dictionary method (#65), on a place */
             Buf args = {0};
             buf_puts(&args, "");

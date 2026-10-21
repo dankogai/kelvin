@@ -5644,3 +5644,17 @@ struct's own `<` was given owning elements as they are, and freed them.
 Details are provisional P254.
 
 There are 857 tests, and all pass with clang and with gcc 15.
+
+### 287. d[k] ??= v and d[k] !!= v
+
+> Before making map, filter and reduce lend elements as #243, let's add
+> `d[k] ??= v` which  does `d[k] = v` only when `d[k]` is absent, and
+> `d[k] !!= v`which does `d[k] = v` only when `d[k]` is present
+
+**Claude** added #243, the lending of map, filter and reduce to be #244:
+`d[k] ??= v` sets the entry only where the key is absent and `d[k] !!= v`
+only where it is present; the key is read once, and `v` is made only
+where it is set. Found on the way: `d[k] = v` does not check the value's
+type, which C reports. Details are provisional P255.
+
+There are 859 tests, and all pass with clang and with gcc 15.

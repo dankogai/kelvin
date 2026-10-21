@@ -1558,7 +1558,7 @@ static bool place_follows(void) {
     if (line_ends_expression())
         return false;
     static const char *ops[] = {".", "[", "^", "=", ":=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", "<<=",
-                                ">>=", "++", "--", NULL};
+                                ">>=", "++", "--", "?\?=", "!!=", NULL}; /* d[k] ?\?= v, d[k] !!= v (#243) */
     for (int i = 0; ops[i]; i++)
         if (is_p(peek(), ops[i]))
             return true;
@@ -6816,6 +6816,28 @@ static Expr *assign_to(Expr *lhs, bool ok) {
         e->a = lhs;
         assign_ok = ok;
         return e;
+    }
+    if ((is_p(t, "?\?=") || is_p(t, "!!=")) && lhs->kind == E_INDEX && lhs->op && !strcmp(lhs->op, "dict")) {
+        /* d[k] ?\?= v sets the entry only where k is absent, d[k] !!= v only
+           where it is present (#243); v is made only where it is set, by
+           the rules of d[k] = v */
+        if (!ok)
+            error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
+        if (let_target(lhs->a))
+            error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+        advance();
+        Expr *x = new_expr(E_METHOD, t->pos);
+        x->a = lhs->a;
+        x->text = is_p(t, "?\?=") ? "set_absent" : "set_present";
+        x->op = "dict";
+        x->type = lhs->type;
+        list_push(&x->items, lhs->b);
+        Expr *v = case_value(lhs->type->elem);
+        assign_ok = ok;
+        reject_owner_copy(v, lhs->type->elem, t->pos);
+        reject_record_mismatch(v, lhs->type->elem, t->pos);
+        list_push(&x->items, v);
+        return x;
     }
     if (is_p(t, "?\?=") || is_p(t, "!!=")) { /* d0 ?\?= d1, d0 !!= d1 (#237): in place */
         if (!ok)

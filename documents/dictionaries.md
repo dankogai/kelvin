@@ -97,6 +97,12 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     copied, and one an expression gives is taken and freed.
   - `!!` binds as `??` does, looser than `||` and tighter than `?:`;
     `!!x` before a value is still two `!`s.
+- **`d[k] ??= v`** sets the entry only where `k` is absent, and
+  **`d[k] !!= v`** only where it is present (#243), as `??` and `!!` of
+  two Dictionaries keep or take a value.
+  - The key is read once, and `v` is made only where it is set.
+  - `v` is as `d[k] = v` takes it: an owner in a variable is copied,
+    `.copy()`, and one an expression gives moves in.
 - **`d.map`, `d.filter` and `d.reduce`** (#238) take a function of the
   values alone, as an Array's do of its elements, so a Dictionary is a
   sparse Array:
@@ -143,6 +149,7 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `.merging(&e)`, `.merging(&e, f)` | the same, a new Dictionary (#236) |
 | | `d0 ?? d1`, `d0 !! d1` | a new Dictionary of both, a shared key's value `d0`'s or `d1`'s (#237) |
 | | `d0 ??= d1`, `d0 !!= d1` | the same, in place (#237) |
+| | `d[k] ??= v`, `d[k] !!= v` | sets the entry only where `k` is absent, or present (#243) |
 | | `.map { v in ... }` | a new Dictionary of the same keys, each value the function's (#238) |
 | | `.filter { v in ... }` | a new Dictionary of the entries whose value the function says true for (#238) |
 | | `.reduce(init) { acc, v in ... }` | the values folded, in the order added (#238) |

@@ -274,6 +274,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 240 | A function of a `bool` result returns a `bool`: each value it returns, a body's one expression too, is a `bool` by its type or its shape, of a function, a method, an anonymous function and a filter's; `return n % 2` is an error that says to compare, as in `x != 0`, and `return 1` one that says `true` or `false`; a value only C sees is C's to convert | — | `let odd(n:int64):bool { n % 2 != 0 }` | 2026-10-21 |
 | 241 | `d.mapWithKey`, `d.filterWithKey` and `d.reduceWithKey(init)` of a Dictionary: map, filter and reduce (#238) whose function takes each key before its value, `{ k, v in ... }`, `{ acc, k, v in ... }`; a String key given as its text, a `cstr`, lent, an integer key as itself; mapWithKey's function gives the new value alone, the keys staying; an Array's `.mapWithKey` is an error that says `.map` | — | `d.mapWithKey { k, v in k.count as int64 + v }` | 2026-10-21 |
 | 242 | `xs.sort { ... }` and `xs.sorted { ... }` lend the elements to an anonymous comparator: its owner parameters are lets the Array keeps, read and never moved or freed, so a comparison copies nothing; passing one on by value or returning it is an error that says to borrow or copy; a named comparator, and a struct's own `<`, own their parameters, so they are given copies | — | `names.sort { a, b in a.count < b.count }` | 2026-10-21 |
+| 243 | `d[k] ??= v` sets the entry only where `k` is absent, and `d[k] !!= v` only where it is present; the key is read once, `v` made only where it is set; `v` as `d[k] = v` takes it, an owner in a variable an error that says `.copy()`; of a let an error | — | `counts[w] ??= 0`, `prices[item] !!= sale` | 2026-10-21 |
 
 Notes:
 
@@ -835,6 +836,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (243) Agreed details: "Before making map, filter and reduce lend
+  elements as #243, let's add `d[k] ??= v` which does `d[k] = v` only
+  when `d[k]` is absent, and `d[k] !!= v` which does `d[k] = v` only
+  when `d[k]` is present". This takes #243, and the lending of map,
+  filter and reduce #244. After `]`, `??=` and `!!=` keep `d[k]` the
+  place; the C finds the key once and sets it, the value made in the
+  call that sets it, so not at all where nothing is set. Found: neither
+  `d[k] = v` nor these check `v`'s type, which C reports.
 
 - (242) Agreed details: "make sort pass borrows to the comparison as
   #242". An anonymous comparator's parameters are declared as `for x in
@@ -2583,6 +2593,7 @@ says "as agreed".
 | P252 | Details of #240 | parser.c: require_bool_return(e, d) refuses a value of no bool type, or a number, where d's result is a bool, unless its shape is a bool's; called at each return's parse and in implicit_return_of; #239's walker is gone, and filter_fn, set by parse_anon_fn where filter asked, gives filter's words; a number literal's message says true or false; tests: error/bool_return_number.k, bool_return_literal.k, bool_return_method.k; documents/functions.md, documents/arrays.md | — |
 | P253 | Details of #241 | parser.c: the map, filter and reduce block takes mapWithKey, filterWithKey and reduceWithKey of a Dictionary, the key's type (cstr of a String) before the value's in the function's, its arity one more, its messages naming the method; an Array's is refused; filter_name names the filter in #239's message; codegen.c: the key, by KV_LK_TEXT or KV_LK_INT, before the value; tests: run/dict_with_key.k, error/dict_with_key_key.k, error/array_with_key.k | re-keying a Dictionary |
 | P254 | Details of #242 | kelvin.h: Decl.lends; parser.c: lend_anon_params, set by sort around its anonymous comparator, has parse_anon_fn declare owner parameters LET_EACH and set lends, a lent var refused; sort's text fn_lent for an anonymous comparator; codegen.c: fn_lent passes the elements, a lending Decl's owner parameters are named plainly and not freed; op (a struct's <) passes copies where the elements own; tests: run/sort_lent.k, error/sort_lent_move.k; documents/arrays.md | lending to map's, filter's and reduce's functions too |
+| P255 | Details of #243 | parser.c: place_follows keeps `d[k]` a place before `??=` and `!!=`; parse_assign makes them a Dictionary method of text set_absent or set_present, the key and the value as `d[k] = v`'s; codegen.c: `({ D *_kv_dp = &d; __auto_type _kv_dk = k; if ([!]D_find(_kv_dp, _kv_dk)) D_set(_kv_dp, _kv_dk, v); })`; tests: run/dict_entry_fill.k, error/dict_entry_fill_owner.k; documents/dictionaries.md, documents/operators.md | the type of `v` in `d[k] = v`, `??=` and `!!=`, which C checks |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
