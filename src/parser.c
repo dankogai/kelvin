@@ -5929,6 +5929,43 @@ static void pick_overload(Expr *v, Type *want) {
              v->text, kelvin_type(want), v->text);
 }
 
+/* v given to an entry of dt, d[k] = v and its ?\?= and !!= (#246): of the
+   Dictionary's value type, in Kelvin's words where C would refuse it or
+   convert it silently. A number takes any number, as C converts; a String
+   a String or text that becomes one; a cstr text; anything else its very
+   type. A value only C sees is C's */
+static void check_entry_value(Expr *v, Type *dt, Pos pos) {
+    Type *want = unqualified(dt->elem), *vt = value_type(v);
+    vt = vt ? unqualified(vt) : NULL;
+    bool num_want = (want->kind == T_BASE && number_kind(want)) || (want->kind == T_BASE && !strcmp(want->name, "bool"));
+    bool text = v->kind == E_STRING || is_text_expr(v) || (vt && is_cstr(vt));
+    bool number = number_expr(v) || (vt && vt->kind == T_BASE && (number_kind(vt) || !strcmp(vt->name, "bool")));
+    bool ok;
+    if (!vt && !text && !number)
+        return; /* what only C sees */
+    if (num_want)
+        ok = number;
+    else if (is_string(want))
+        ok = (vt && is_string(vt)) || v->kind == E_STRING;
+    else if (is_cstr(want))
+        ok = text;
+    else if (want->kind == T_PTR)
+        ok = !vt || vt->kind == T_PTR;
+    else {
+        bare_tags = true;
+        ok = vt && !strcmp(kelvin_type(vt), kelvin_type(want));
+        bare_tags = false;
+    }
+    if (!ok) {
+        bare_tags = true;
+        char *d = kelvin_type(dt), *w = kelvin_type(want);
+        char *got = vt ? kelvin_type(vt) : text ? "text" : "a number";
+        bare_tags = false;
+        error_at(pos, "an entry of %s is %s %s, and this is %s", d, strchr("aeiouAEIOU", w[0]) && w[0] != 'u' ? "an" : "a",
+                 w, got);
+    }
+}
+
 /* the arguments of a call of d as it takes them: a String of a text
    literal where it takes a String (#223), and where it takes an Optional
    or a Result, none, ok(v), err(e) and a T wrapped as a return's value is
@@ -6854,6 +6891,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
         assign_ok = ok;
         reject_owner_copy(v, lhs->type->elem, t->pos);
         reject_record_mismatch(v, lhs->type->elem, t->pos);
+        check_entry_value(v, lhs->type, t->pos); /* (#246) */
         list_push(&x->items, v);
         return x;
     }
@@ -7064,6 +7102,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 assign_ok = ok;
                 reject_owner_copy(v, lhs->type->elem, t->pos);
                 reject_record_mismatch(v, lhs->type->elem, t->pos);
+                check_entry_value(v, lhs->type, t->pos); /* (#246) */
                 list_push(&x->items, v);
                 return x;
             }

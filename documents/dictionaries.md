@@ -53,6 +53,11 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   - `=` does not copy an owner in: `d[k] = s.copy()`.
   - The key may be a String an expression gives, `d[$"a"] = 1` or
     `d[name()] = v`: it is held while the entry is set (#209).
+  - `v` is of the Dictionary's value type (#246), here as for `??=` and
+    `!!=`: a number takes any number, as C converts it; a String a
+    String or text, which becomes one; a `cstr` text; an Optional its
+    `T` or `none`; anything else its own type. Else it is an error,
+    `an entry of Dictionary<String, i64> is an i64, and this is text`.
 - **Methods:** `has(k)`; `find(k)`, a `V^` or `nullptr` (`const V^` for
   a let).
   - `get(k, default)`, for a `V` that does not own.

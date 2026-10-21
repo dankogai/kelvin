@@ -5697,3 +5697,15 @@ past the statement is still an error. `d[k] = v`'s check of the value's
 type becomes #246. Details are provisional P257.
 
 There are 863 tests, and all pass with clang and with gcc 15.
+
+### 290. d[k] = v checks the value's type
+
+> make d[k] = v check the value's type as #246.  also implement `a0 == a1`
+> where a0, a1 are Array instances
+
+**Claude** took the two as #246 and #247. #246: `d[k] = v`, `??=` and
+`!!=` check the value against the Dictionary's value type, text for a
+number and a number for a String now Kelvin's errors, not C's; a number
+still takes any number. Details are provisional P258.
+
+There are 866 tests, and all pass with clang and with gcc 15.

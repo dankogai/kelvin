@@ -277,6 +277,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 243 | `d[k] ??= v` sets the entry only where `k` is absent, and `d[k] !!= v` only where it is present; the key is read once, `v` made only where it is set; `v` as `d[k] = v` takes it, an owner in a variable an error that says `.copy()`; of a let an error | — | `counts[w] ??= 0`, `prices[item] !!= sale` | 2026-10-21 |
 | 244 | map, filter and reduce, of an Array or a Dictionary and the WithKey ones, lend an owner element to an anonymous function, as #242's sort does: a let its caller keeps, read and never moved or freed; returning it as it is is an error that says `.copy()`; a parameter written `var` asks for a copy of its own, in sort too; a named function is given a copy; reduce's value so far moves in and out | — | `names.map { $0.count }` copies no String | 2026-10-21 |
 | 245 | A pointer into an owner an expression gives keeps it alive until the call or expression around the pointer is done, up to the whole statement: `strlen($"abc".cstr)`, `println(String(42).cstr)`, `let n:size_t = strlen($"k".cstr)` work; one that would outlive the statement, `let p := $"x".cstr`, is still an error that says to bind it first | — | `fopen(path().cstr, "r")` | 2026-10-22 |
+| 246 | `d[k] = v`, `d[k] ??= v` and `d[k] !!= v` check `v` against the Dictionary's value type: a number takes any number, as C converts; a String a String or a text literal; a `cstr` text; anything else its very type, an Optional's T or none wrapped first; else an error, `an entry of Dictionary<String, i64> is an i64, and this is text`; a value only C sees is C's | — | `d["a"] = "text"` of an i64's is an error | 2026-10-22 |
 
 Notes:
 
@@ -838,6 +839,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (246) Agreed details: "make d[k] = v check the value's type as #246.
+  also implement `a0 == a1` where a0, a1 are Array instances". Two
+  changes: this, and Array `==` as #247. kelvinc left a value of
+  another type to C, which refuses text for a number and a number for
+  a String; numbers among themselves still convert as C converts them,
+  as arguments do. Declarations, assignments and Array elements leave
+  it to C as before.
 
 - (245) Agreed details: "keep temporaries alive until the end of the
   statement as #245". The user asked first whether immediate values,
@@ -2615,6 +2624,7 @@ says "as agreed".
 | P255 | Details of #243 | parser.c: place_follows keeps `d[k]` a place before `??=` and `!!=`; parse_assign makes them a Dictionary method of text set_absent or set_present, the key and the value as `d[k] = v`'s; codegen.c: `({ D *_kv_dp = &d; __auto_type _kv_dk = k; if ([!]D_find(_kv_dp, _kv_dk)) D_set(_kv_dp, _kv_dk, v); })`; tests: run/dict_entry_fill.k, error/dict_entry_fill_owner.k; documents/dictionaries.md, documents/operators.md | the type of `v` in `d[k] = v`, `??=` and `!!=`, which C checks |
 | P256 | Details of #244 | kelvin.h: Var.lent for Decl.lends; parser.c: lend_anon_from, the first parameter lent (0, or 1 after reduce's value so far), set around an anonymous function of sort, map, filter and reduce; parse_anon_fn lends an owner parameter from it on unless written var; lends_param(f, k) reads it; map, filter and reduce's op ends _lent where the element's parameter is lent, sort's text is fn_ and l or c for each; codegen.c: a lent element passed as it is, else a copy; a lent parameter neither _kv_x_in nor freed; filter still copies what it keeps; tests: run/lend_elements.k, error/map_return_lent.k; documents/arrays.md, documents/dictionaries.md | — |
 | P257 | Details of #245 | parser.c: wrap_temps hands the temporaries of a chain whose result is a pointer or an array to the chain around it, chain_temps, which wraps them with its own; with none around, the error stays; tests: run/temp_statement.k, error/temp_pointer_kept.k; documents/ownership.md (O11), documents/strings.md | kc's `.cstr` of a temporary, still refused (#227); Array `==` |
+| P258 | Details of #246 | parser.c: check_entry_value(v, dt, pos) after case_value of `d[k] = v` and of `d[k] ?\?= v`, `d[k] !!= v`; tests: run/dict_entry_values.k, error/dict_entry_text.k, error/dict_entry_number.k; documents/dictionaries.md | the same check of declarations, assignments and Array elements, C's still |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
