@@ -102,6 +102,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     copied, and one an expression gives is taken and freed.
   - `!!` binds as `??` does, looser than `||` and tighter than `?:`;
     `!!x` before a value is still two `!`s.
+  - Both group right to left (#251): `d0 ?? d1 !! d2` is
+    `d0 ?? (d1 !! d2)`.
 - **`d[k] ??= v`** sets the entry only where `k` is absent, and
   **`d[k] !!= v`** only where it is present (#243), as `??` and `!!` of
   two Dictionaries keep or take a value.

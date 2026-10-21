@@ -4623,17 +4623,17 @@ static Expr *dict_fill(Token *q, Expr *a, Expr *b, bool in_place, bool keep) {
     return x;
 }
 
-static Expr *parse_conditional(void) {
+/* x ?? y (#72): x's value if some, else y; d0 !! d1 (#237). Both bind
+   right to left (#251), as Swift's ??: p ?? o ?? z is p ?? (o ?? z), so
+   each y is what follows, its own ?? and !! in it */
+static Expr *parse_coalescing(void) {
     Expr *c = parse_binary(1);
-    Token *t = peek();
-    while (is_p(peek(), "??") || is_p(peek(), "!!")) { /* x ?? y (#72): x's value if some, else y */
+    if (is_p(peek(), "??") || is_p(peek(), "!!")) {
         Token *q = advance();
-        Expr *y = parse_binary(1);
+        Expr *y = parse_coalescing();
         Type *ct = value_type(c);
-        if (is_p(q, "!!") || (ct && is_dict_owner(unqualified(ct)))) { /* of Dictionaries (#237) */
-            c = dict_fill(q, c, y, false, is_p(q, "??"));
-            continue;
-        }
+        if (is_p(q, "!!") || (ct && is_dict_owner(unqualified(ct)))) /* of Dictionaries (#237) */
+            return dict_fill(q, c, y, false, is_p(q, "??"));
         Decl *r = ct ? variant_record(ct) : NULL;
         if (!r)
             error_at(q->pos, "'?\?' takes an Optional or a Result on its left, and this is %s",
@@ -4682,11 +4682,11 @@ static Expr *parse_conditional(void) {
         e->paren = true;
         e->op = "coalesce"; /* its type is the value's, for inference */
         e->type = some->type;
+        bare_tags = true;
+        char *lead = strfmt("'?\?' of %s falls back to", kelvin_type(unqualified(ct)));
+        bare_tags = false;
+        check_typed_value(y, some->type, lead, y->pos); /* in Kelvin's words, not C's (#250, #251) */
         if (own) {
-            bare_tags = true;
-            char *lead = strfmt("'?\?' of %s falls back to", kelvin_type(unqualified(ct)));
-            bare_tags = false;
-            check_typed_value(y, some->type, lead, y->pos); /* in Kelvin's words, not C's (#250) */
             Type *yt2 = value_type(y);
             bool copy_y = yt2 && is_owner(unqualified(yt2)) && owner_place(y);
             e->text = strfmt("own_%s_%s", copy_x ? "copy" : "take", copy_y ? "copy" : "take");
@@ -4695,6 +4695,12 @@ static Expr *parse_conditional(void) {
         }
         c = wrap_temps(e, &held);
     }
+    return c;
+}
+
+static Expr *parse_conditional(void) {
+    Expr *c = parse_coalescing();
+    Token *t = peek();
     if (!accept_p("?"))
         return c;
     Expr *e = new_expr(E_TERNARY, t->pos);
@@ -6097,6 +6103,9 @@ static void check_entry_value(Expr *v, Type *dt, Pos pos) {
    this is text" (#246, #248) */
 static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     want = unqualified(want);
+    Decl *rec;
+    if (want->kind == T_BASE && type_class(want, &rec) == 'u')
+        return; /* a C typedef, as size_t, is C's (#251) */
     Type *vt = value_type(v);
     vt = vt ? unqualified(vt) : NULL;
     bool num_want = (want->kind == T_BASE && number_kind(want)) || (want->kind == T_BASE && !strcmp(want->name, "bool"));

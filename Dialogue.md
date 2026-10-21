@@ -5765,3 +5765,15 @@ another type is now Kelvin's error, not C's. Details are provisional
 P262.
 
 There are 879 tests, and all pass with clang and with gcc 15.
+
+### 295. ?? groups right to left
+
+> make ?? right-associative as #251
+
+**Claude** made `??` and `!!` group right to left, as Swift's `??`:
+`p ?? o ?? $"z"` is the first value of the chain, or `"z"`. Every
+`x ?? y` now checks `y` against the value's type, so `a ?? b` of two
+`i64?`, which C refused, is Kelvin's error that names the types.
+Details are provisional P263.
+
+There are 881 tests, and all pass with clang and with gcc 15.

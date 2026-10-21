@@ -74,6 +74,10 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
   - A member that owns is copied out of the value; `x` is read once.
   - `try x` is the other way, which returns `none` from the function.
   - `x ?? y` is the value if some, else `y`.
+    - It groups right to left (#251): `a ?? b ?? 0` is `a ?? (b ??
+      0)`, the first value of the chain, or 0.
+    - `y` is of the value's type: `a ?? b` of two `i64?` is an error,
+      `'??' of i64? falls back to an i64, and this is i64?`.
     - For a `T` that does not own, `x` is an Optional in a variable, a
       member or an element, or one an expression gives, held.
     - For a `T` that owns (#250), `s ?? $"none"`, `x` is read once.

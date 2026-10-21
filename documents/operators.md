@@ -25,7 +25,7 @@ each operator means for its types.
 | 11 | `\|` | `a \| b` | `a \| b` |
 | 12 | `&&` | `a && b` (`bool`s) | `a && b` |
 | 13 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
-| 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237) | |
+| 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251) | |
 | 15 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
 | 16 | ranges | `a..<b`, `a...b` (in `for` only) | |
 | 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |
@@ -34,6 +34,10 @@ each operator means for its types.
 So `6 & 3 == 3` is still `6 & (3 == 3)`, as in C, and `a + b as i64`
 is `a + (b as i64)`: `as` binds tighter than every binary operator and
 looser than the prefix ones, so `-x as u8` is `(-x) as u8`.
+
+The binary operators group left to right, as C's, but for `??` and
+`!!`, which group right to left, as Swift's `??` (#251): `a ?? b ?? 0`
+is `a ?? (b ?? 0)`, the first value of the chain or 0.
 
 ## What moved, and why
 
