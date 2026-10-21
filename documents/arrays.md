@@ -261,7 +261,24 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     Array of them is an error.
   - One an expression gives is held while compared (#187).
   - There is no `<`: an Array has no order.
-- **Not yet:** searching.
+- **Searching** (#248): `xs.contains(x)` is whether `x` is there, a
+  `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)` where it is first
+  and last, an `i64?`: `some(i)`, or `none` where it is not there.
+  - `x` is compared by the elements' `==`, as `a0 == a1` compares
+    them, so elements without `==`, a struct's, are an error that says
+    to give a function.
+  - `x` is of the element type: a String takes text,
+    `ws.contains("b")`; an Optional a `T` or `none`. Else it is an
+    error, `'.contains' of Array<i64> looks for an i64, and this is
+    text`.
+  - An owner given, `ws.contains(s)`, is looked at, not moved; one an
+    expression gives is held and freed after.
+  - Of a function, `xs.contains { $0 > 2 }`, `xs.firstIndex(even)`,
+    the first or last element it says true for, a `bool` as filter's
+    (#239). An element is lent to an anonymous function and given to
+    a named one as a copy, as filter's (#244).
+  - `xs.firstIndex(x) ?? -1` gives -1 where it is not there, and
+    `if let some(i) = xs.lastIndex(x)` binds the index.
 
 
 ## Properties and methods
@@ -290,6 +307,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.reverse()` | reverses a `var` Array in place (#186) |
 | | `.reversed()` | a new Array in the other order; of an Array an expression gives, that one reversed (#186) |
 | | `a0 == a1`, `a0 != a1` | as many elements, each by its `==` in order, a `bool` (#247) |
+| | `.contains(x)`, `.contains { ... }` | whether `x`, or an element the function says true for, is there, a `bool` (#248) |
+| | `.firstIndex(x)`, `.lastIndex(x)`, `.firstIndex { ... }`, `.lastIndex { ... }` | where the first or last of them is, an `i64?`: `some(i)` or `none` (#248) |
 | | `for x in xs` | each element, a let the Array owns |
 | | `print(xs)`, `xs.pretty` | `[1, 2, 3]`; the same indented, a String elsewhere (#123, #124) |
 | | `.size`, `.typename` | 24, `Array<i64>` |

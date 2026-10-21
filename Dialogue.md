@@ -5723,3 +5723,17 @@ wherever a type's `==` asks, so JSON and SION have `==` too.
 provisional P259.
 
 There are 870 tests, and all pass with clang and with gcc 15.
+
+### 292. Searching an Array
+
+> add Array searching (contains, firstIndex) as #248
+
+**Claude** asked three things: what `firstIndex` gives where nothing is
+found, whether a function form comes too, and whether `lastIndex` does.
+The user chose an `i64?`, both forms and `lastIndex`. `xs.contains(x)`
+is a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)` are `some(i)` or
+`none`; each also takes a function, `xs.contains { $0 > 2 }`. A bug
+from #240 turned up on the way: `return s == $"b"` in a bool function
+was refused, and now it is a bool. Details are provisional P260.
+
+There are 874 tests, and all pass with clang and with gcc 15.

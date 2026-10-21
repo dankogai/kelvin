@@ -1198,6 +1198,35 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
                           start, loop, f, arg);
         }
+        if (e->op && e->type && (!strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
+                                 !strncmp(e->op, "array_lastIndex", 15))) {
+            /* xs.contains(x), xs.firstIndex(x), xs.lastIndex(x) (#248): a loop
+               over the elements, from the end for lastIndex, to the first
+               equal to x by the elements' ==, or that f says true for, an
+               anonymous one lent each, a named one given a copy; contains
+               gives a bool, the others some of the index or none; an Array
+               an expression gives is held in _kv_mt and freed */
+            bool tmp = strstr(e->op, "_tmp") != NULL, fn = strstr(e->op, "_fn") != NULL;
+            bool contains = !strncmp(e->op, "array_contains", 14), last = !strncmp(e->op, "array_lastIndex", 15);
+            const char *at = "_kv_ms->at[_kv_mi]";
+            const char *copy = owner_copy(e->from->elem);
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            owner_free(e->from), e->from->cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *want = fn ? "" : strfmt(" %s = (%s);", decl(e->from->elem, "_kv_cx"), expr(e->items.data[0]));
+            const char *test = !fn ? eq_code(e->from->elem, at, "_kv_cx")
+                               : strfmt("%s(%s)", expr(e->items.data[0]),
+                                        strstr(e->op, "_lent") || !copy ? at : strfmt("%s(&%s)", copy, at));
+            const char *loop = last ? "for (size_t _kv_mi = _kv_ms->count; _kv_mi-- > 0;)"
+                                    : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++)";
+            if (contains)
+                return strfmt("({ %s%s bool _kv_r = false; %s if (%s) { _kv_r = true; break; } _kv_r; })", head, want,
+                              loop, test);
+            const char *r = kelvin_record(e->type->name)->name;
+            return strfmt("({ %s%s %s _kv_r = _kv_%s_make_none(); %s if (%s) { _kv_r = _kv_%s_make_some((int64_t)_kv_mi); "
+                          "break; } _kv_r; })",
+                          head, want, decl(e->type, ""), r, loop, test, r);
+        }
         if (e->op && e->type && (!strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) ||
                                  !strncmp(e->op, "dict_reduce", 11))) {
             /* d.map(f), d.filter(f), d.reduce(init, f) of a Dictionary (#238):

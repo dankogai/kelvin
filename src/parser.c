@@ -605,6 +605,7 @@ static Type *base_type(const char *name, Pos pos);
 static Type *cstr_type(Pos pos);
 static bool is_cstr(Type *t);
 static Expr *drop_cstr(Expr *v, Type *target);
+static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos);
 static bool is_bytes(Type *t);
 static bool is_string(Type *t);
 static bool is_uchr(Type *t);
@@ -1503,9 +1504,11 @@ static Expr *wrap_temps(Expr *body, List *temps) {
                  rt->kind == T_PTR ? "a pointer" : "an array", kelvin_type(first->type));
     }
     bool copy = rt && is_owner(rt) && owner_place(body);
+    bool is_bool = body->is_bool; /* s == $"b" is still a bool, held (#248) */
     for (int i = temps->len - 1; i >= 0; i--) {
         Expr *t = temps->data[i];
         t->b = body;
+        t->is_bool = is_bool;
         if (copy && i == temps->len - 1) { /* the innermost copies the place out */
             t->op = "copy";
             t->from = unqualified(rt);
@@ -2023,6 +2026,106 @@ static Expr *parse_postfix_steps(Expr *e) {
                 error_at(name->pos, "an Array has no '.%s': it is a Dictionary's, whose function takes each key; "
                                     "write '.%.*s'",
                          member, (int)(strlen(member) - 7), member);
+            if ((!strcmp(member, "contains") || !strcmp(member, "firstIndex") || !strcmp(member, "lastIndex")) &&
+                value_type(e) && is_array_owner(unqualified(value_type(e))) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
+                /* xs.contains(x), xs.firstIndex(x), xs.lastIndex(x) (#248): is x
+                   there, by the elements' ==, and where first or last, an
+                   i64?; of a function, xs.contains { $0 > 2 }, the elements
+                   it says true for, each lent as filter's are (#244). x is
+                   looked at, not moved, and one an expression gives is held;
+                   an Array an expression gives is held and freed after */
+                Type *at = unqualified(value_type(e));
+                const char *me = strfmt("'.%s'", member);
+                bool temporary = !owner_place(e);
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = member;
+                Type *ctx = xcalloc(1, sizeof *ctx);
+                ctx->kind = T_FUNC;
+                ctx->pos = name->pos;
+                list_push(&ctx->params, at->elem);
+                ctx->elem = base_type("bool", name->pos);
+                Expr *f = NULL, *v = NULL;
+                List held = {0};
+                bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                lend_anon_from = 0; /* the elements lent (#244) */
+                if (call) {
+                    advance();
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")"))
+                        error_at(peek()->pos, "%s takes the element to look for, '.%s(x)', or a function that says "
+                                              "which, '.%s { $0 > 0 }'",
+                                 me, member, member);
+                    if (is_p(peek(), "{")) {
+                        bool_anon_result = me;
+                        f = anon_arg(ctx, 1, 0, x, false);
+                        bool_anon_result = NULL;
+                    } else {
+                        v = parse_assign();
+                        Type *vt = value_type(v);
+                        if (vt && unqualified(vt)->kind == T_FUNC && unqualified(at->elem)->kind != T_FUNC)
+                            f = v, v = NULL;
+                    }
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "%s takes one element to look for, or one function", me);
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                    if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())
+                        error_at(peek()->pos, "%s takes one function, and this would be a second", me);
+                } else {
+                    bool_anon_result = me;
+                    f = anon_arg(ctx, 1, 0, x, true);
+                    bool_anon_result = NULL;
+                    if (at_statement_level())
+                        trailing_end = cur;
+                }
+                lend_anon_from = -1;
+                if (f) {
+                    Type *ft = value_type(f);
+                    if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem)
+                        error_at(f->pos, "%s takes a function of one parameter, an element, with a result, and this "
+                                         "is %s",
+                                 me, ft ? kelvin_type(ft) : "not one");
+                    if (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(at->elem)))
+                        error_at(f->pos, "%s calls its function with each element, %s, and this takes %s", me,
+                                 kelvin_type(at->elem), kelvin_type(ft->params.data[0]));
+                    if (strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
+                        error_at(f->pos, "%s takes a function that says whether an element is the one, a bool, and "
+                                         "this gives %s",
+                                 me, kelvin_type(ft->elem));
+                    list_push(&x->items, f);
+                } else {
+                    if (!eq_type(at->elem)) {
+                        bare_tags = true;
+                        char *ak = kelvin_type(at), *ek = kelvin_type(at->elem);
+                        bare_tags = false;
+                        error_at(v->pos, "%s of %s compares the elements, and %s has no '==': give a function that "
+                                         "says which, '.%s { ... }'",
+                                 me, ak, ek, member);
+                    }
+                    pick_overload(v, at->elem);
+                    v = optional_of(string_of_literal(drop_cstr(v, at->elem), at->elem), at->elem, v->pos);
+                    bare_tags = true;
+                    char *lead = strfmt("%s of %s looks for", me, kelvin_type(at));
+                    bare_tags = false;
+                    check_typed_value(v, at->elem, lead, v->pos);
+                    Type *vt = value_type(v);
+                    if (vt && is_owner(unqualified(vt)) && !owner_place(v))
+                        v = hold_operand(v, &held);
+                    list_push(&x->items, v);
+                }
+                x->type = !strcmp(member, "contains") ? base_type("bool", name->pos)
+                                                      : optional_type(name, base_type("i64", name->pos));
+                x->is_bool = !strcmp(member, "contains");
+                x->from = at;
+                x->op = strfmt("array_%s%s%s", member, temporary ? "_tmp" : "",
+                               f ? lends_param(f, 0) ? "_fn_lent" : "_fn" : "");
+                e = wrap_temps(x, &held);
+                continue;
+            }
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") || with_key) &&
                 value_type(e) &&
                 ((!with_key && is_array_owner(unqualified(value_type(e)))) || is_dict_owner(unqualified(value_type(e)))) &&
@@ -4996,8 +5099,10 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                       !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10) ||
                       !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9) ||
-                      !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11)))
-            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236) */
+                      !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11) ||
+                      !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
+                      !strncmp(e->op, "array_lastIndex", 15)))
+            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
             for (int i = 0; typed[i]; i++)
@@ -5170,7 +5275,8 @@ static void require_bool_return(Expr *e, Decl *d) {
         return;
     if (!t && !(e->kind == E_LITERAL || number_expr(e)))
         return;
-    const char *lead = d == filter_fn                ? strfmt("%s keeps what its function says true for, a bool", filter_name)
+    const char *lead = d == filter_fn                ? strfmt("%s %s what its function says true for, a bool", filter_name,
+                                                              strncmp(filter_name, "'.filter", 8) ? "looks for" : "keeps")
                        : d->anon || !d->name           ? "this function returns a bool"
                        : d->recv_name                  ? strfmt("'%s.%s' returns a bool", d->recv_name, d->name)
                                                        : strfmt("'%s' returns a bool", d->name);
@@ -5939,7 +6045,17 @@ static void pick_overload(Expr *v, Type *want) {
    a String or text that becomes one; a cstr text; anything else its very
    type. A value only C sees is C's */
 static void check_entry_value(Expr *v, Type *dt, Pos pos) {
-    Type *want = unqualified(dt->elem), *vt = value_type(v);
+    bare_tags = true;
+    char *lead = strfmt("an entry of %s is", kelvin_type(dt));
+    bare_tags = false;
+    check_typed_value(v, dt->elem, lead, pos);
+}
+
+/* v where a value of want goes, in Kelvin's words: "<lead> an i64, and
+   this is text" (#246, #248) */
+static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
+    want = unqualified(want);
+    Type *vt = value_type(v);
     vt = vt ? unqualified(vt) : NULL;
     bool num_want = (want->kind == T_BASE && number_kind(want)) || (want->kind == T_BASE && !strcmp(want->name, "bool"));
     bool text = v->kind == E_STRING || is_text_expr(v) || (vt && is_cstr(vt));
@@ -5962,11 +6078,10 @@ static void check_entry_value(Expr *v, Type *dt, Pos pos) {
     }
     if (!ok) {
         bare_tags = true;
-        char *d = kelvin_type(dt), *w = kelvin_type(want);
+        char *w = kelvin_type(want);
         char *got = vt ? kelvin_type(vt) : text ? "text" : "a number";
         bare_tags = false;
-        error_at(pos, "an entry of %s is %s %s, and this is %s", d, strchr("aeiouAEIOU", w[0]) && w[0] != 'u' ? "an" : "a",
-                 w, got);
+        error_at(pos, "%s %s %s, and this is %s", lead, strchr("aeiouAEIOU", w[0]) && w[0] != 'u' ? "an" : "a", w, got);
     }
 }
 
