@@ -5461,3 +5461,17 @@ kc is 3,900 lines, and compiles itself in about 12 ms. Details are
 provisional P243.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 276. kc's c ? a : b
+
+> teach kc c ? a : b as #232
+
+**Claude** added #232: kc reads `c ? a : b` as kelvinc does, the loosest
+operator, grouping to the right, each arm by the type that takes it, so
+`n % 2 == 0 ? n / 2 : none` is an `int64?`; of owners, O12 with
+kelvinc's messages, and `return c ? a : b` moves either out. kc's own
+source chooses so in five places, and the sample in four. On the way,
+kc was found to take `let s:cstr = ...`, which kelvinc refuses. Details
+are provisional P244.
+
+There are 834 tests, and all pass with clang and with gcc 15.

@@ -63,8 +63,7 @@ let is_owner(y:int64):bool {
     if d >= 0 { return tagged_owns(d) }
     if types[y].kind != Y_STRUCT { return false }
     let s = decl_named(types[y].name, D_STRUCT)          // a struct owns where a member does (#225)
-    var f = -1
-    if s >= 0 { f = nodes[s].a }
+    var f:int64 = s >= 0 ? nodes[s].a : -1            // c ? a : b in kc's own source (#232)
     while f >= 0 {
         if is_owner(nodes[f].ty) { return true }
         f = nodes[f].next
@@ -292,6 +291,8 @@ let is_comparison(t:int64):bool {
 }
 
 let type_of(n:int64):int64
+let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
+let owner_choice(n:int64):bool
 
 // whether node a names a struct, not a variable: T of T.f(...)
 let names_type(a:int64):bool {
@@ -402,6 +403,10 @@ let chain_type(n:int64):int64 {
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
+    if k == N_COND {                                  // c ? a : b: a's type, or b's where a is a word, as none (#232)
+        if is_case_word(nodes[n].b) { return type_of(nodes[n].c) }
+        return type_of(nodes[n].b)
+    }
     let t:int64 = nodes[n].t
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
@@ -519,8 +524,7 @@ let is_place(n:int64):bool    // a prototype: gen_args_to and gen_call ask it
 // whole variable by _take, an owner an expression gives as it is
 let gen_args_to(first:int64, d:int64) {
     var a:int64 = first
-    var p = -1
-    if d >= 0 { p = nodes[d].a }
+    var p:int64 = d >= 0 ? nodes[d].a : -1
     while a >= 0 {
         if a != first { put(", ") }
         if p >= 0 && is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
@@ -613,8 +617,7 @@ let hold_close(n:int64) {
 let hold_args(first:int64, d:int64):$[int64] {
     var opened:$[int64] = $[]
     var a:int64 = first
-    var p = -1
-    if d >= 0 { p = nodes[d].a }
+    var p:int64 = d >= 0 ? nodes[d].a : -1
     while a >= 0 {
         let by_value = p >= 0 && is_owner(nodes[p].ty)           // which the function frees (#226)
         if !by_value && needs_hold(a) {
@@ -673,9 +676,8 @@ let need_show(y:int64, n:int64):bool {
         shown += y
         return true
     }
-    var m = -1
     let d = tagged_of(y)
-    if d >= 0 { m = nodes[d].a } else { m = nodes[struct_of(y)].a }
+    var m:int64 = d >= 0 ? nodes[d].a : nodes[struct_of(y)].a
     while m >= 0 {
         let v = nodes[m].ty
         if v >= 0 && !plain_shown(v) {
@@ -730,13 +732,7 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put(");\n")
     } else {
         put("{ uint8_t _kv_b[256]; ")
-        if k == Y_BOOL {
-            put("kv_cstr_bool")
-        } else if k == Y_U8 || k == Y_U32 {
-            put("kv_cstr_u64")
-        } else {
-            put("kv_cstr_i64")
-        }
+        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : "kv_cstr_i64")
         put("(")
         put_self(path, t)
         put(", _kv_b); kv_out_put(o, _kv_b); }\n")
@@ -769,7 +765,7 @@ let gen_show(y:int64) {
         var f = nodes[s].a
         while f >= 0 {
             put("    kv_out_sep(o, level, ")
-            if f == nodes[s].a { put("true") } else { put("false") }
+            put(f == nodes[s].a ? "true" : "false")
             put(");\n    kv_out_put(o, \"")
             put_tok(nodes[f].t)
             put(": \");\n    ")
@@ -1067,6 +1063,7 @@ let is_place(n:int64):bool {
         if y >= 0 && types[y].kind == Y_DICT { return false }
     }
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
+    if k == N_COND { return is_place(nodes[n].b) && is_place(nodes[n].c) }   // two places are one (#232)
     return k == N_ID || k == N_DEREF || k == N_SELF
 }
 
@@ -1145,6 +1142,21 @@ let fits_value(n:int64, t:int64):bool {
 }
 
 let gen_value(n:int64, y:int64) {
+    if nodes[n].kind == N_COND {                         // each arm by the type that takes it (#232)
+        if !owner_choice(n) { return }
+        if is_owner(type_of(n)) && is_place(n) {
+            gen_error(n, "an owner is not copied by '=' (#54): copy it with .copy()")
+            return
+        }
+        put("(")
+        gen_expr(nodes[n].a)
+        put(" ? ")
+        gen_value(nodes[n].b, y)
+        put(" : ")
+        gen_value(nodes[n].c, y)
+        put(")")
+        return
+    }
     if nodes[n].kind == N_INIT && y >= 0 && types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
         gen_init(n, decl_named(types[y].name, D_STRUCT))       // {a, b} of a struct (#225)
         return
@@ -1343,6 +1355,50 @@ let gen_element(n:int64) {
     }
 }
 
+// whether c ? a : b of owners chooses between alike, as kelvinc's O12
+// has it (#232): two places, or two values expressions give; one of each
+// would free one and not the other
+let owner_choice(n:int64):bool {
+    if !is_owner(type_of(n)) || is_place(nodes[n].b) == is_place(nodes[n].c) { return true }
+    gen_error(n, "this ?: chooses between an owner's place and a value an expression gives, so one would be freed and the other not: return it, copy the place with .copy(), or choose with if")
+    return false
+}
+
+// c ? a : b read (#232): two places are read where they are, as a place
+let gen_choice(n:int64) {
+    if !owner_choice(n) { return }
+    put("(")
+    gen_expr(nodes[n].a)
+    put(" ? ")
+    gen_expr(nodes[n].b)
+    put(" : ")
+    gen_expr(nodes[n].c)
+    put(")")
+}
+
+// what return moves out of c ? a : b (#232): a local owner by _take,
+// another choice by its own arms, a value an expression gives as it is
+let gen_moved(n:int64, y:int64) {
+    if nodes[n].kind == N_COND {
+        put("(")
+        gen_expr(nodes[n].a)
+        put(" ? ")
+        gen_moved(nodes[n].b, y)
+        put(" : ")
+        gen_moved(nodes[n].c, y)
+        put(")")
+    } else if nodes[n].kind == N_ID && !is_case_word(n) && is_owner(type_of(n)) {
+        put_owner_prefix(type_of(n))
+        put("_take(&")
+        put_tok(nodes[n].t)
+        put(")")
+    } else if is_place(n) && is_owner(type_of(n)) {
+        gen_error(n, "return moves an owner only out of a whole variable: copy this with .copy()")
+    } else {
+        gen_value(n, y)
+    }
+}
+
 // a[i] of what an expression gives (#227): a held, an element that owns
 // copied out of it; a Dictionary's lookup is a copy already (#219)
 let gen_index(n:int64) {
@@ -1392,6 +1448,8 @@ let gen_expr(n:int64) {
         gen_call(n)
     } else if k == N_CHAIN {
         gen_chain(n)
+    } else if k == N_COND {
+        gen_choice(n)
     } else if k == N_FIELD {
         gen_field(n)
     } else if k == N_METHOD {
@@ -1539,6 +1597,7 @@ let has_call(n:int64):bool {
         }
         return false
     }
+    if k == N_COND && has_call(nodes[n].c) { return true }
     return has_call(nodes[n].a) || has_call(nodes[n].b)
 }
 
@@ -1638,6 +1697,12 @@ let gen_return(n:int64) {
     let a:int64 = nodes[n].a
     if a < 0 {
         put("return;\n")
+        return
+    }
+    if nodes[a].kind == N_COND && is_owner(type_of(a)) {     // return c ? a : b moves either out (#232)
+        put("return ")
+        gen_moved(a, nodes[current].ty)
+        put(";\n")
         return
     }
     if nodes[a].kind == N_ID && !is_case_word(a) {          // not none, which gen_value reads (#221)

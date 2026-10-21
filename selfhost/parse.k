@@ -26,6 +26,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_NULL,     // nullptr
     N_SELF,     // self, and the self of .x (#213)
     N_CHAIN,    // a?.rest (#221): b the rest, of the name c bound to what a holds; t the ?
+    N_COND,     // a ? b : c (#232); t the ?
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -584,8 +585,17 @@ let parse_binary(min:int64):int64 {
     return e
 }
 
+// c ? a : b (#232), which binds the loosest and groups to the right; a
+// ? right after a value and before . or [ is a chain's (#221)
 let parse_expr():int64 {
-    return parse_binary(1)
+    let e:int64 = parse_binary(1)
+    if failed || !at_word("?") { return e }
+    let n:int64 = make_node(N_COND, advance())
+    nodes[n].a = e
+    set_b(n, parse_expr())
+    expect(":")
+    set_c(n, parse_expr())
+    return n
 }
 
 // ---------- statements ----------

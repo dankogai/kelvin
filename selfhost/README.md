@@ -153,8 +153,18 @@ kc reads what it is written in, and little more.
   has `default:`, any other has `default:`.
 - **Expressions:** numbers, characters, `"..."` and `$"..."`, `true`,
   `false`, calls, `.member`, `.method()`, `a[i]`, `&x`, `p^`, `x as T`,
-  `{a, b}` of a struct, `$[]`, `${:}`, and
-  `! - * / % + - < <= > >= == != && ||`.
+  `{a, b}` of a struct, `$[]`, `${:}`,
+  `! - * / % + - < <= > >= == != && ||`, and `c ? a : b` (#232).
+  - `c ? a : b` binds the loosest and groups to the right; a `?` right
+    after a value and before `.` or `[` is a chain's instead.
+  - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
+    arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
+    none` is an `int64?`.
+  - Of owners, as kelvinc's O12: two places are a place, read where
+    they are and not copied by `=`; two values expressions give are a
+    value; one of each is an error but where it is returned, which
+    moves either out.
+  - kc's own source chooses so in five places.
   - A `?` after a `?` in a string is written `\?`, as kelvinc writes
     it: Kelvin has no trigraphs (#220).
 - **Of the prelude and IO:** `.count`, `.copy()`, `.cstr`, `.pop()`,
@@ -222,19 +232,20 @@ steps can take them on one at a time.
   3,900 lines of Kelvin read a part of what kelvinc reads (#231).
 - **Taken into the subset since #204:**
   - `switch` and enums (#210), and enums with values (#215);
+  - `c ? a : b` (#232);
   - `Dictionary` (#211), and `d[k]` as an Optional (#219);
   - methods of `extend` and `let T.m` (#213);
   - type inference (#214);
   - Optional and Result (#217), `x!`, and chains (#221);
   - `#import <x.h> as C` (#207);
   - of ownership's rules (documents/ownership.md): a struct that owns
-    (O7, #225), passing by value (O5, #226), and temporaries (O11, #227);
+    (O7, #225), passing by value (O5, #226), temporaries (O11, #227),
+    and `c ? a : b` of owners (O12, #232);
   - printing what kelvinc prints, `some(3)`, `{x: 1, y: 2}` and
     `[1, 2]` (#229, #230).
 - **Left out of the subset:**
   - overloading, and the names it mangles (`twice__i64`), so kc cannot
     link a module kelvinc builds of Kelvin;
-  - `c ? a : b`, and so O12, the rule of owners it chooses;
   - `try`, `Optional`'s `map` and the rest of its methods;
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
@@ -362,8 +373,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
-   part as it comes: from the list of what is left out, `c ? a : b`
-   first, which kc's own source would use.
+   part as it comes, from the list of what is left out.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads, and the programs kc builds under tests/asan.sh's
    counting allocator, which is done by hand so far.
