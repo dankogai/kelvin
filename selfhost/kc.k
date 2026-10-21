@@ -1,4 +1,4 @@
-// kc.k - a Kelvin compiler written in Kelvin, the proof of concept of
+// kc.k - a Kelvin compiler written in Kelvin, experimental (#230), of
 // selfhost/README.md. It reads the subset of Kelvin it is written in,
 // writes C as kelvinc does, for the same runtime, and hands it to cc:
 //   kc file.k -o program [-c file.c] [-m modules] [-cc compiler]

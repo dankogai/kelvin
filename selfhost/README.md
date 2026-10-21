@@ -1,9 +1,13 @@
-# Self-hosting Kelvin: a proof of concept
+# Self-hosting Kelvin: experimental
 
 **Can Kelvin compile itself?** For a subset, yes. `kc` is a compiler
 written in Kelvin alone. It reads the subset it is written in, writes C
 as kelvinc does, and hands that C to `cc`. Built in stages, as gcc
 bootstraps itself, it reaches a fixpoint (#204).
+
+- **Experimental** (#230), no longer a proof of concept: CI builds it
+  and checks its fixpoint on every push (#228), but its subset, its
+  messages and its C may still change with each step.
 
 - **Kelvin, and the platform's C:** a self-hosted Kelvin may depend on
   libc, or libSystem on macOS, as C does: Kelvin embraces C rather than
@@ -102,13 +106,15 @@ kc reads what it is written in, and little more.
   - A number literal is `some(n)` of any number's Optional, `{a, b}` is
     `some` of a struct, and a `T` of a `T??` is wrapped twice (#229).
   - **Printed** (#229) as kelvinc prints it: `some(3)`, `none`,
-    `some("kelvin")`, `ok(5)`, `err("bad")`, an enum's `num(5)`, and a
-    struct's `{x: 1, y: 2}`.
+    `some("kelvin")`, `ok(5)`, `err("bad")`, an enum's `num(5)`, a
+    struct's `{x: 1, y: 2}`, and an Array's `[1, 2]`, `[]` where empty
+    (#230).
     - Each type printed gets a `_kv_show_T` of kelvinc's form, declared
       before the functions and written after them; `print` calls it
       where the value stands.
-    - What it holds is a number, a bool, text, or another enum with
-      values or struct of them; an Array inside is an error, not yet.
+    - What it holds is a number, a bool, text, or another Array, enum
+      with values or struct of them; anything else, as a pointer, is an
+      error.
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
@@ -342,7 +348,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
-   part as it comes: printing an Array, as kelvinc's `[1, 2]`.
+   part as it comes.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads, and the programs kc builds under tests/asan.sh's
    counting allocator, which is done by hand so far.

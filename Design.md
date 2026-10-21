@@ -261,6 +261,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 227 | kc holds temporaries as kelvinc's #187: an owner an expression gives, where it is only read, is held in `({ T _kv_tmpN = ...; use; })` and freed once the expression is done: an argument not taken by value, `&f()`, a member, an element or a method of it, either side of `==`, the source of `for x in`, a statement that drops it; a member or element that owns is copied out of it, a pointer into it an error; a member or element is a place only where its base is | — | `println(String(42), " ", shout($"x").count, " ", adopt("ace").name)` | 2026-10-21 |
 | 228 | CI's `selfhost` jobs, gcc and clang on Ubuntu and clang on macOS: `selfhost/bootstrap.sh`, whose stages reach a fixpoint and whose build of `sample.k` prints what kelvinc's does, and `selfhost/sanitize.sh`, kc built from stage2's C with ASan and UBSan, which must write the same C of `kc.k` and of `sample.k` | — | `selfhost / ubuntu-latest / gcc` | 2026-10-21 |
 | 229 | kc prints an enum with values, an Optional, a Result and a struct as kelvinc does: `some(3)`, `none`, `some("kelvin")`, `ok(5)`, `num(5)`, `{x: 1, y: 2}`, by a `_kv_show_T` of kelvinc's form; what it holds is a number, a bool, text or another of them; kc reads `T??`, a number literal and `{a, b}` where an Optional goes, and `T.c(v)` of an enum with values in any program | — | `println(named(1), " ", p)` | 2026-10-21 |
+| 230 | kc prints an Array as kelvinc does, `[1, 2]`, `[]` where empty, `["a"]`, `[{x: 1, y: 2}]`, `[[1, 2]]`, `some([1, 2])`, by a `_kv_show__kv_array_T` of kelvinc's form; selfhost/ is experimental, no longer a proof of concept, since CI checks it | — | `println(fibs, " ", points)` | 2026-10-21 |
 
 Notes:
 
@@ -822,6 +823,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (230) Agreed details: "teach kc to print Arrays as #230. Also mark
+  `selfhost` from "proof of concept" to "experimental" now that it is
+  on CI." An Array is shown as its elements between kv_out_sep and
+  kv_out_end, as kelvinc's. "Experimental" is said where "proof of
+  concept" was: the READMEs and kc.k's head; the history of #204 keeps
+  its words.
 
 - (229) Agreed details: "teach kc to print Optionals as #229". kc left
   an Optional to C's print, which took it for a pointer. It writes
@@ -2444,6 +2452,7 @@ says "as agreed".
 | P239 | Details of #227 | gen.k: needs_hold(n): no case word, no place, an owner; hold_open/hold_close write the statement expression and mark the node in `held`, whose number gen_expr writes; hold_args holds a call's arguments not taken by value, and the base of `&`; gen_field and gen_method hold their receiver (gen_member, gen_method_of), gen_index an element's base (gen_element), copying out an owner; gen_string_eq holds either side; gen_each holds its source as a local of its block; S_EXPR frees an owner it drops; is_place of a member or element asks its base; index_names indexes what is declared since, and decl_named asks it; sample.k: println(String(42), shout($"x").count, adopt("ace").name, ...) | kc printing an Optional |
 | P240 | Details of #228 | .github/workflows/ci.yml: the job selfhost, a matrix of ubuntu-latest gcc, ubuntu-latest clang and macos-latest clang: make, selfhost/bootstrap.sh, selfhost/sanitize.sh; selfhost/sanitize.sh: build/selfhost/kc-sanitized from stage2.c with -fsanitize=address,undefined -fno-sanitize-recover=undefined, ASAN_OPTIONS=detect_leaks=0, its C of kc.k compared with stage2.c and of sample.k with sample.c | the counting allocator's run of kc's programs in CI |
 | P241 | Details of #229 | gen.k: need_show(y, n) gathers the enums with values and structs print needs, an error where one holds what kc cannot show; gen_show writes `_kv_show_T(kv_out *o, const void *_kv_v, int level)` by show_value: kv_cstr_i64, kv_cstr_u64, kv_cstr_bool, kv_out_quoted, kv_out_quoted_text, or another _kv_show_T, a struct's members between kv_out_sep and kv_out_end; gen_print_args writes `({ __auto_type _kv_sv = (x); _kv_show_T(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1); (const uint8_t *)""; })`; gen_program declares them before the functions and writes them after; fits_value; gen_value writes some's value by its case's type; names_type knows an enum with values; parse.k: `??` in a type is two `?` | kc printing an Array |
+| P242 | Details of #230 | gen.k: shown_by_type(y) is true of an Array too; need_show checks an Array's element; put_show_name of an Array is `_kv_show_` and its C name; put_self(path, t) writes self->path and a name; show_value takes `at[_kv_i]` with no name; gen_show of an Array writes `[]` where empty, else `[`, each element after kv_out_sep(o, level, _kv_i == 0), kv_out_end, `]`; README.md, selfhost/README.md and selfhost/kc.k say experimental; sample.k prints fibs, an empty Array, points and hay | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

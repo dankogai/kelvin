@@ -252,6 +252,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     let tiny:uint8? = 'k'
     println(at, " ", missing, " ", named(1), " ", good, " ", bad)
     println(a, " ", c, " ", p, " ", twice, " ", tiny)
+    var none_yet:$[int64] = $[]
+    println(fibs, " ", none_yet, " ", points, " ", hay)    // Arrays (#230)
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p

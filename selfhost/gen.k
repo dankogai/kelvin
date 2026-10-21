@@ -634,7 +634,7 @@ let close_holds(opened:$[int64]^) {
     for i in 0..<opened^.count as int64 { hold_close(opened^[i]) }
 }
 
-// ---------- printing an enum with values and a struct (#229) ----------
+// ---------- printing an enum with values, a struct (#229) and an Array (#230) ----------
 
 var shown:$[int64]                       // the types whose _kv_show_T is written, in order
 var shown_types:Dictionary<int64, int64>
@@ -651,20 +651,36 @@ let plain_shown(v:int64):bool {
     return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
 }
 
+// whether print shows y by a _kv_show_T of its own: an enum with values
+// (an Optional, a Result), a struct or an Array
+let shown_by_type(y:int64):bool {
+    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY)
+}
+
 // whether print can show a value of y, an enum with values (an Optional, a
-// Result) or a struct, as kelvinc does, by a _kv_show_T of its own; what
-// it holds is shown too. Where kc cannot show it, n is an error
+// Result), a struct or an Array, as kelvinc does, by a _kv_show_T of its
+// own; what it holds is shown too. Where kc cannot show it, n is an error
 let need_show(y:int64, n:int64):bool {
     if shown_types.has(y) { return true }
     shown_types[y] = 1
+    if types[y].kind == Y_ARRAY {                         // its elements (#230)
+        let v = types[y].elem
+        if !plain_shown(v) && !shown_by_type(v) {
+            gen_error(n, "kc prints a number, a bool, text, an Array, an enum with values or a struct of them; not yet what this holds")
+            return false
+        }
+        if !plain_shown(v) && !need_show(v, n) { return false }
+        shown += y
+        return true
+    }
     var m = -1
     let d = tagged_of(y)
     if d >= 0 { m = nodes[d].a } else { m = nodes[struct_of(y)].a }
     while m >= 0 {
         let v = nodes[m].ty
         if v >= 0 && !plain_shown(v) {
-            if tagged_of(v) < 0 && struct_of(v) < 0 {
-                gen_error(n, "kc prints a number, a bool, text, an enum with values or a struct of them; not yet what this holds")
+            if !shown_by_type(v) {
+                gen_error(n, "kc prints a number, a bool, text, an Array, an enum with values or a struct of them; not yet what this holds")
                 return false
             }
             if !need_show(v, n) { return false }
@@ -677,7 +693,18 @@ let need_show(y:int64, n:int64):bool {
 
 let put_show_name(y:int64) {
     put("_kv_show_")
-    put_tok(types[y].name)
+    if types[y].kind == Y_ARRAY {
+        put_array_name(y)                                 // _kv_show__kv_array_i64 (#230)
+    } else {
+        put_tok(types[y].name)
+    }
+}
+
+// self->path, and t's name after it where t is one
+let put_self(path:cstr, t:int64) {
+    put("self->")
+    put(path)
+    if t >= 0 { put_tok(t) }
 }
 
 // the value of v at self->path, t its name, as kelvinc shows it: text
@@ -685,23 +712,19 @@ let put_show_name(y:int64) {
 let show_value(v:int64, path:cstr, t:int64, level:cstr) {
     let k:ykind = types[v].kind
     if k == Y_STRING {
-        put("kv_out_quoted(o, (self->")
-        put(path)
-        put_tok(t)
-        put(").b.at, (self->")
-        put(path)
-        put_tok(t)
+        put("kv_out_quoted(o, (")
+        put_self(path, t)
+        put(").b.at, (")
+        put_self(path, t)
         put(").b.count, false);\n")
     } else if k == Y_CSTR {
-        put("kv_out_quoted_text(o, (const void *)(self->")
-        put(path)
-        put_tok(t)
+        put("kv_out_quoted_text(o, (const void *)(")
+        put_self(path, t)
         put("));\n")
     } else if !plain_shown(v) {
         put_show_name(v)
-        put("(o, &(self->")
-        put(path)
-        put_tok(t)
+        put("(o, &(")
+        put_self(path, t)
         put("), ")
         put(level)
         put(");\n")
@@ -714,9 +737,8 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         } else {
             put("kv_cstr_i64")
         }
-        put("(self->")
-        put(path)
-        put_tok(t)
+        put("(")
+        put_self(path, t)
         put(", _kv_b); kv_out_put(o, _kv_b); }\n")
     }
 }
@@ -726,7 +748,18 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
 let gen_show(y:int64) {
     put("static void ")
     put_show_name(y)
-    put("(kv_out *o, const void *_kv_v, int level)\n{\n    const struct ")
+    put("(kv_out *o, const void *_kv_v, int level)\n{\n    const ")
+    if types[y].kind == Y_ARRAY {                         // [1, 2], [] where empty (#230)
+        put_array_name(y)
+        put(" *self = _kv_v;\n    __attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;\n")
+        put("    if (!self->count)\n    {\n        kv_out_put(o, \"[]\");\n        return;\n    }\n")
+        put("    kv_out_put(o, \"[\");\n    for (size_t _kv_i = 0; _kv_i < self->count; _kv_i++)\n    {\n")
+        put("        kv_out_sep(o, level, _kv_i == 0);\n        ")
+        show_value(types[y].elem, "at[_kv_i]", 0 - 1, "_kv_nl")
+        put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"]\");\n}\n\n")
+        return
+    }
+    put("struct ")
     put_tok(types[y].name)
     put(" *self = _kv_v;\n")
     let d = tagged_of(y)
@@ -765,14 +798,15 @@ let gen_show(y:int64) {
     put("    default: kv_out_put(o, \"?\"); break;\n    }\n}\n\n")
 }
 
-// print's and println's values: an enum with values or a struct by its
-// _kv_show_T, which writes it where the value stands, as kelvinc does (#229)
+// print's and println's values: an enum with values, a struct (#229) or an
+// Array (#230) by its _kv_show_T, which writes it where the value stands,
+// as kelvinc does
 let gen_print_args(first:int64) {
     var a:int64 = first
     while a >= 0 {
         if a != first { put(", ") }
         let y = type_of(a)
-        if !is_case_word(a) && y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0) && need_show(y, a) {
+        if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
             put("({ __auto_type _kv_sv = (")
             gen_expr(a)
             put("); ")

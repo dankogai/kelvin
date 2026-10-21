@@ -5432,3 +5432,17 @@ names no `T` as a type. Printing an Array is left. Details are
 provisional P241.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 274. kc prints Arrays; selfhost is experimental
+
+> teach kc to print Arrays as #230.  Also mark `selfhost` from "proof of
+> concept" to "experimental" now that it is on CI.
+
+**Claude** added #230: kc prints an Array as kelvinc does, `[1, 2]`,
+`[]`, and Arrays of text, of structs, of Arrays, and inside an Optional,
+by printers of kelvinc's form. selfhost/ is experimental now, in
+README.md, selfhost/README.md and kc.k's head: CI checks it on every
+push, though its subset and its C may still change. Details are
+provisional P242.
+
+There are 834 tests, and all pass with clang and with gcc 15.

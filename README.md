@@ -246,9 +246,10 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 
 ## Self-hosting
 
-- [selfhost/](selfhost/README.md) is a proof of concept (#204): `kc`, a
+- [selfhost/](selfhost/README.md) is experimental (#204, #230): `kc`, a
   compiler of a subset of Kelvin, written in that subset alone, which
-  `selfhost/bootstrap.sh` builds in stages to a fixpoint.
+  `selfhost/bootstrap.sh` builds in stages to a fixpoint, in CI
+  (#228).
   - Its README lists what stands in the way of a Kelvin kelvinc.
 
 ## Editors
