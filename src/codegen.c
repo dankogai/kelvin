@@ -1182,6 +1182,37 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
                           start, loop, f, elem);
         }
+        if (e->op && e->type && (!strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) ||
+                                 !strncmp(e->op, "dict_reduce", 11))) {
+            /* d.map(f), d.filter(f), d.reduce(init, f) of a Dictionary (#238):
+               a loop over its live entries, f given a copy of each value
+               where it owns; map keeps each key with f's value, filter each
+               entry f keeps, a copy, and reduce folds the values; a
+               Dictionary an expression gives is held in _kv_mt and freed */
+            Type *dt = e->from;
+            bool tmp = strstr(e->op, "_tmp") != NULL;
+            const char *lk = !strcmp(dt->key->name, "String") ? "KV_LK_TEXT" : "KV_LK_INT";
+            const char *copy = owner_copy(dt->elem);
+            const char *value = copy ? strfmt("%s(&_kv_ms->at[_kv_mi].value)", copy) : "_kv_ms->at[_kv_mi].value";
+            const char *key = strfmt("%s(&_kv_ms->at[_kv_mi].key)", lk);
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s_free))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            dt->cname, dt->cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *f = expr(e->items.data[0]);
+            const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live)";
+            if (!strncmp(e->op, "dict_map", 8))
+                return strfmt("({ %s %s _kv_mo = {0}; %s_reserve(&_kv_mo, _kv_ms->count); %s %s_set(&_kv_mo, %s, %s(%s)); "
+                              "_kv_mo; })",
+                              head, e->type->cname, e->type->cname, loop, e->type->cname, key, f, value);
+            if (!strncmp(e->op, "dict_filter", 11))
+                return strfmt("({ %s %s _kv_mo = {0}; %s { if (%s(%s)) %s_set(&_kv_mo, %s, %s); } _kv_mo; })", head,
+                              dt->cname, loop, f, value, dt->cname, key, value);
+            Expr *init = e->items.data[1];
+            const char *take = local_owner(init) ? owner_take(e->type) : NULL;
+            const char *start = take ? strfmt("%s(&%s)", take, c_name(init->text)) : expr(init);
+            return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
+                          start, loop, f, value);
+        }
         if (e->op && !strncmp(e->op, "dict_merg", 9) && e->from) {
             /* d.merge(&e) in place, d.merging(&e) a new Dictionary (#236): each
                entry of e, its value copied, added; where d has the key, f of

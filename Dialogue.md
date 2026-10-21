@@ -5557,3 +5557,20 @@ grammar the new operators. This finishes the user's three Dictionary
 features. Details are provisional P249.
 
 There are 845 tests, and all pass with clang and with gcc 15.
+
+### 282. Dictionary map, filter and reduce
+
+> add `.map`, `.filter`, and `.reduce` to `Dictionary`.  Like `Array`,
+> only values are passed to the function.  only values are transformed
+> for `.map`.  `.filter` drops key-value pairs that are disqualified by
+> the filter.  Those behaviors make `Dictionary` a sparse array.  Maybe
+> we will add versions of those that pass key-value pair but for now just
+> add value-only versions.
+
+**Claude** added #238: `d.map { v in ... }` gives a Dictionary of the same
+keys and the function's values, of whatever type it gives; `d.filter`
+keeps the entries whose value passes; and `d.reduce(init)` folds the
+values in the order added, as an Array's do. Versions whose function
+takes the key too are left for later. Details are provisional P250.
+
+There are 847 tests, and all pass with clang and with gcc 15.

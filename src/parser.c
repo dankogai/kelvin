@@ -2002,7 +2002,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 continue;
             }
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce")) && value_type(e) &&
-                is_array_owner(unqualified(value_type(e))) &&
+                (is_array_owner(unqualified(value_type(e))) || is_dict_owner(unqualified(value_type(e)))) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
                 /* xs.map(f), xs.map { ... } (#182): an Array<U> of f of each
                    element, U f's result, whatever it is; xs.filter { ... } (#184)
@@ -2013,6 +2013,12 @@ static Expr *parse_postfix_steps(Expr *e) {
                    expression gives is held and freed after (#183) */
                 bool is_map = !strcmp(member, "map"), is_filter = !strcmp(member, "filter");
                 Type *at = unqualified(value_type(e));
+                /* of a Dictionary (#238), the values alone, as a sparse Array's:
+                   map keeps the keys, filter drops the entries whose value
+                   it says false for, reduce folds the values in the order
+                   added */
+                bool dict = is_dict_owner(at);
+                const char *each = dict ? "value" : "element";
                 bool temporary = !owner_place(e);
                 Expr *x = new_expr(E_METHOD, name->pos);
                 x->a = e;
@@ -2084,15 +2090,16 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Type *ft = value_type(f);
                 if (!ft || ft->kind != T_FUNC || ft->params.len != arity || !ft->elem)
                     error_at(f->pos, "'.%s' takes a function of %s, with a result, and this is %s", member,
-                             acc ? "two parameters, the value so far and an element" : "one parameter, an element",
+                             acc ? strfmt("two parameters, the value so far and %s %s", dict ? "a" : "an", each)
+                                 : strfmt("one parameter, %s %s", dict ? "a" : "an", each),
                              ft ? kelvin_type(ft) : "not one");
                 if (strcmp(kelvin_type(unqualified(ft->params.data[arity - 1])), kelvin_type(at->elem)))
-                    error_at(f->pos, "'.%s' calls its function with each element, %s, and this takes %s", member,
+                    error_at(f->pos, "'.%s' calls its function with each %s, %s, and this takes %s", member, each,
                              kelvin_type(at->elem), kelvin_type(ft->params.data[arity - 1]));
                 if (is_filter && strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
-                    error_at(f->pos, "'.filter' takes a function that says whether to keep an element, a bool, and this "
+                    error_at(f->pos, "'.filter' takes a function that says whether to keep %s %s, a bool, and this "
                                      "gives %s",
-                             kelvin_type(ft->elem));
+                             dict ? "a" : "an", dict ? "an entry by its value" : each, kelvin_type(ft->elem));
                 if (acc && (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(acc)) ||
                             strcmp(kelvin_type(unqualified(ft->elem)), kelvin_type(acc))))
                     error_at(f->pos, "'.reduce' calls its function with the value so far, %s, and keeps what it gives, "
@@ -2100,8 +2107,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                              kelvin_type(acc), kelvin_type(ft));
                 if (init)
                     move_argument(init, acc, "'.reduce'"); /* an owner to start from moves in (O5) */
-                x->type = is_map ? array_type(name, unqualified(ft->elem)) : is_filter ? at : acc;
-                x->op = strfmt("array_%s%s", member, temporary ? "_tmp" : "");
+                x->type = is_map ? (dict ? dict_type(name, at->key, unqualified(ft->elem)) : array_type(name, unqualified(ft->elem)))
+                          : is_filter ? at
+                                      : acc;
+                x->op = strfmt("%s_%s%s", dict ? "dict" : "array", member, temporary ? "_tmp" : "");
                 x->from = at;
                 list_push(&x->items, f);
                 if (init)
@@ -4924,7 +4933,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                       !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10) ||
-                      !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9)))
+                      !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9) ||
+                      !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11)))
             return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
