@@ -863,7 +863,10 @@ Notes:
   digits, their trailing zeros dropped, still with a point and the
   locale's point made '.'. Kelvin's own cstr and u8^ members were quoted
   already (#123); a C type's text, through kv_cstr_any and
-  kv_cstr_put_pointer, was not, and a null one was `(null)`.
+  kv_cstr_put_pointer, was not, and a null one was `(null)`. CI found
+  that every digit of a long double varies by platform, 21 on x87 and
+  17 where it is a double: tests/c/prelude.c and locale.c now print
+  long doubles exact in binary and short in decimal, 2^-10 or 10^20.
 
 - (258) Agreed details: the user, on #256's note that `$[1.0, 2.5]`
   printed `[1, 2.5]`: "CHANGE IT! FIX IT! The whole point of print is to

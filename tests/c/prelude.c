@@ -14,9 +14,11 @@ int main(void)
     /* long double shows as f64 does, plain up to 2 to the power of its
        mantissa bits, LDBL_MANT_DIG, which varies by platform: 64 for
        x87's 80-bit format, 53 where long double is double (as on Apple's
-       arm64), 113 for IEEE quad (as on arm64 Linux) */
-    println(10.0L, " ", 1500.0L, " ", 1e15L, " ", 0.0001L, " ", 1e-5L, " ", 1e300L);
-    println(-1500.25L, " ", 0.0015L, " ", -0.0015L, " ", -1.25e-300L);
+       arm64), 113 for IEEE quad (as on arm64 Linux); every digit of it
+       (#259) varies too, so the values are exact in binary and short in
+       decimal: 2^-10, 2^-20, 10^20, 2^-9, 2^-17 */
+    println(10.0L, " ", 1500.0L, " ", 1e15L, " ", 0.0009765625L, " ", 9.5367431640625e-07L, " ", 1e20L);
+    println(-1500.25L, " ", 0.001953125L, " ", -0.001953125L, " ", -7.62939453125e-06L);
     char top[48], above[48];
     *kv_template_f80(top, 44, ldexpl(1, LDBL_MANT_DIG)) = '\0';
     *kv_template_f80(above, 44, nextafterl(ldexpl(1, LDBL_MANT_DIG), INFINITY)) = '\0';
@@ -25,6 +27,6 @@ int main(void)
 }
 // out: from C: -42 2.5 200 true 1
 // out: 
-// out: 10.0 1500.0 1000000000000000.0 0.0001 1.0000000000000001e-05 1.0000000000000001e+300
-// out: -1500.25 0.0015 -0.0015 -1.25e-300
+// out: 10.0 1500.0 1000000000000000.0 0.0009765625 9.5367431640625e-07 1e+20
+// out: -1500.25 0.001953125 -0.001953125 -7.62939453125e-06
 // out: true true
