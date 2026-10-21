@@ -270,6 +270,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 236 | `d.merge(&e)` in place and `d.merging(&e)` a new Dictionary: `e`'s entries added, copied; where a key is in both, a function, trailing or after a comma, of `d`'s value and a copy of `e`'s, which it owns both of, gives the value kept, else `e`'s wins; `e` by value moves in and is freed (O5); `merge` of a let or of one an expression gives is an error; an anonymous function's parameters may be named without their types, `{ a, b in ... }`, where its context gives them, else an error | — | `d.merge(&e) { old, new in old + new }`, `d.merging(&e, add)` | 2026-10-21 |
 | 237 | `d0 ?? d1` fills in and `d0 !! d1` overrides, as swiftalk's: a new Dictionary of both, a key in both keeping `d0`'s value or taking `d1`'s, so `(d0 !! d1) == (d1 ?? d0)`; `d0 ??= d1` and `d0 !!= d1` in place, a variable; two of other types an error; `!!` binds as `??`, looser than `\|\|` and tighter than `?:`, and `!!x` is still two `!`s; `??=`, `!!=` and `!!` are tokens | — | `defaults ?? settings`, `settings !!= overrides` | 2026-10-21 |
 | 238 | `d.map`, `d.filter` and `d.reduce` of a Dictionary take a function of the values alone, as an Array's of its elements, so a Dictionary is a sparse Array: map a new Dictionary of the same keys and the function's values, of any type; filter a new Dictionary of the entries whose value it keeps; reduce the values folded in the order added; a value that owns given as a copy, which the function owns; one an expression gives freed after | — | `d.map { v in v * 2 }`, `d.filter { v in v > 10 }`, `d.reduce(0) { acc, v in acc + v }` | 2026-10-21 |
+| 239 | A filter's anonymous function returns a `bool`, of an Array or a Dictionary: every value it returns, the one expression of its body too, is a `bool` by its type or its shape, else an error that says to compare, as in `x != 0`, where C would have made the number a `bool`; a named function is checked by its result type, as before | — | `xs.filter { $0 + 1 }` is an error: `xs.filter { $0 + 1 != 0 }` | 2026-10-21 |
 
 Notes:
 
@@ -831,6 +832,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (239) Agreed details: "make filter require a bool as #239". The
+  function's type said `bool`, from filter's context, so C turned a
+  number it gave into one. Now what it returns is checked while its
+  parameters are in scope, where their types are seen, so `$0 + 1` and
+  `{ v in v }` are refused; a C value is left to C. A named function's
+  `return n % 2` of a `bool` result is still C's conversion, as before:
+  the rule is filter's.
 
 - (238) Agreed details: "add `.map`, `.filter`, and `.reduce` to
   `Dictionary`. Like `Array`, only values are passed to the function.
@@ -2541,6 +2550,7 @@ says "as agreed".
 | P248 | Details of #236 | parser.c: names_ahead(i) sees `{ a, b in`; parse_anon_fn names the parameters of a context's types, the count checked, and refuses them with no context; the parser's `{` starts such a function as it does a written one; .merge and .merging of a Dictionary: E_METHOD of op dict_merge, dict_merging or dict_merging_tmp, items the other and the function, from the Dictionary type; value_type of dict_merg* is its type; codegen.c: a statement expression over e's live entries, D_lookup in d, D_set of a copy where missing, else f(d's value, the copy) or the copy replacing it; e by value held in _kv_mo; documents/dictionaries.md, documents/functions.md | — |
 | P249 | Details of #237 | lexer.c: `??=`, `!!=` and `!!` are punctuators; parser.c: dict_fill(q, a, b, in_place, keep) builds the merge, op dict_merging[_tmp][_keep] or dict_merge[_keep], a place lent; parse_conditional takes `!!` beside `??`, a Dictionary's going to dict_fill; `??=` and `!!=` are statements of Dictionaries before the other assignments; a prefix `!!` is two `!`; continues_expression knows the new tokens; codegen.c: a key d has is left where _keep, else f's or the copy, and the copy is made only where it is used; editors/vscode: `??=` and `!!=` compound assignments, `!!` between spaces coalescing; documents/dictionaries.md, documents/operators.md | — |
 | P250 | Details of #238 | parser.c: the map, filter and reduce of an Array take a Dictionary too, op dict_map, dict_filter or dict_reduce, map's type dict_type of the key and the function's result, its messages of a value; value_type of them is their type; codegen.c: a statement expression over the live entries, D_set of the key with f's value (map) or a copy of the value f keeps (filter), or the value folded (reduce), a Dictionary an expression gives held in _kv_mt | versions whose function takes the key too |
+| P251 | Details of #239 | parser.c: require_bool_returns(s, what) walks a body's returns, refusing a value whose type is no bool, or a number, where its shape is no bool's; bool_anon_result, set by filter as infer_anon_result is by map, has parse_anon_fn check the body after implicit_return, before its scope closes; tests: error/filter_returns_number.k, error/dict_filter_returns_value.k; documents/arrays.md, documents/dictionaries.md | a named function's non-bool return of a bool result |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

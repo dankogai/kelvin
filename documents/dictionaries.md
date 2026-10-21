@@ -103,7 +103,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   - `d.map { v in v * 2 }` is a new Dictionary of the same keys and the
     function's values, of any type it gives;
   - `d.filter { v in v > 10 }` keeps the entries whose value it says
-    true for, a new Dictionary;
+    true for, a new Dictionary; what it returns is a `bool`, as an
+    Array's filter's (#239);
   - `d.reduce(0) { acc, v in acc + v }` folds the values, in the order
     added.
   - A value that owns is given as a copy, which the function owns; a

@@ -5574,3 +5574,15 @@ values in the order added, as an Array's do. Versions whose function
 takes the key too are left for later. Details are provisional P250.
 
 There are 847 tests, and all pass with clang and with gcc 15.
+
+### 283. filter returns a bool
+
+> make filter require a bool as #239
+
+**Claude** added #239: what a filter's anonymous function returns, of an
+Array or a Dictionary, is a `bool`; `xs.filter { $0 + 1 }` and
+`d.filter { v in v }` are errors that say to compare, as in `x != 0`,
+where C would have made the number a `bool`. A named function's result
+type was checked already. Details are provisional P251.
+
+There are 849 tests, and all pass with clang and with gcc 15.

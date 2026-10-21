@@ -207,6 +207,9 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
     freed, `xs.map { $`${$0}` }.map { $0 + $"+" }`, `make(4).map { ... }`.
 - **`xs.filter { ... }`** (#184) is a new Array of the elements the
   function says true for, `xs.filter { $0 % 2 == 0 }`, `xs.filter(even)`.
+  - What the function returns is a `bool` (#239): `{ $0 + 1 }` or
+    `{ x in x }` of numbers is an error that says to compare, as in
+    `x != 0`, where C would make the number a `bool`.
 - **`xs.reduce(init) { ... }`** (#184) is the value of the function of
   the value so far and each element, from `init`, of `init`'s type:
   `xs.reduce(0) { $0 + $1 }`, `xs.reduce(0, add)`, `names.reduce($"")

@@ -207,6 +207,7 @@ static void require_module(const char *name, Pos pos) {
     error_at(pos, "%s is a module: write '#import <%s>' at the top of the file", name, name);
 }
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
+static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
 static bool bare_tags; /* kelvin_type spells a struct bare, as point (#59) */
 static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
@@ -1286,6 +1287,7 @@ static Expr *property(Expr *e, Token *name, char *member);
 static Expr *convert(Token *t, const char *name, Expr *v, Expr *base);
 static bool converter_is_field(Expr *v, const char *member);
 static void require_bool(Expr *e);
+static void require_bool_returns(Stmt *s, const char *what);
 _Noreturn static void reject_step(Token *t);
 static bool binding_ahead(int i);
 static bool seen_bool(Expr *e);
@@ -2071,8 +2073,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                         error_at(peek()->pos, "'.%s' takes a function of an element: write '.%s(f)' or '.%s { ... }'",
                                  member, member, member);
                     infer_anon_result = is_map;
+                    bool_anon_result = is_filter ? "'.filter'" : NULL; /* (#239) */
                     f = is_p(peek(), "{") ? anon_arg(ctx, 1, 0, x, false) : parse_assign();
                     infer_anon_result = false;
+                    bool_anon_result = NULL;
                     if (is_p(peek(), ","))
                         error_at(peek()->pos, "'.%s' takes one function", member);
                     ident_annotation_ok = saved;
@@ -2082,8 +2086,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                         error_at(peek()->pos, "'.%s' takes one function, and this would be a second", member);
                 } else {
                     infer_anon_result = is_map;
+                    bool_anon_result = is_filter ? "'.filter'" : NULL; /* (#239) */
                     f = anon_arg(ctx, 1, 0, x, true);
                     infer_anon_result = false;
+                    bool_anon_result = NULL;
                     if (at_statement_level())
                         trailing_end = cur;
                 }
@@ -5097,6 +5103,30 @@ static bool seen_bool(Expr *e) {
 /* A condition, and an operand of &&, || or !, is a bool. Where kelvinc
    sees the type it checks it here; elsewhere (a C function, a macro)
    codegen has the C compiler check it. */
+/* every value s returns, as a filter's function's (#239): a bool, by
+   its type or its shape, not a number C would convert; what only C sees,
+   C checks */
+static void require_bool_returns(Stmt *s, const char *what) {
+    if (!s)
+        return;
+    if (s->kind == S_RETURN && s->expr && !s->expr->is_bool && !bool_shape(s->expr)) {
+        Type *t = value_type(s->expr);
+        if (!t && (s->expr->kind == E_LITERAL || number_expr(s->expr)))
+            error_at(s->expr->pos, "%s keeps what its function says true for, a bool, and this gives a number: "
+                                   "compare it, as in 'x != 0'",
+                     what);
+        if (t && !(t->kind == T_BASE && !strcmp(t->name, "bool")))
+            error_at(s->expr->pos, "%s keeps what its function says true for, a bool, and this gives %s: compare it, "
+                                   "as in 'x != 0'",
+                     what, kelvin_type(t));
+    }
+    for (int i = 0; i < s->stmts.len; i++)
+        require_bool_returns(s->stmts.data[i], what);
+    require_bool_returns(s->init, what);
+    require_bool_returns(s->body, what);
+    require_bool_returns(s->els, what);
+}
+
 static void require_bool(Expr *e) {
     if (e->is_bool || bool_shape(e)) {
         e->is_bool = true;
@@ -9041,6 +9071,8 @@ static Expr *parse_anon_fn(Type *ctx) {
                             "write them, as in '{ (a:i64, b:i64):i64 in ... }'");
     bool infer = infer_anon_result;
     infer_anon_result = false;
+    const char *bool_result = bool_anon_result;
+    bool_anon_result = NULL;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = anon_name();
     Decl *saved_fn = parsing_fn;
@@ -9179,6 +9211,8 @@ static Expr *parse_anon_fn(Type *ctx) {
                  kelvin_type(fn_type_of(d)));
     }
     implicit_return(d);
+    if (bool_result) /* its parameters still in scope, so their types seen (#239) */
+        require_bool_returns(d->body, bool_result);
     finish_drops(drops_from);
     close_scope();
     parsing_fn = saved_fn;
