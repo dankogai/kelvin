@@ -248,6 +248,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     for c in shout($"abc") { letters += 1 }
     shout($"dropped")
     println(String(42), " ", shout($"x").count, " ", adopt("ace").name, " ", adopt("bo").tricks[0], " ", letters, " ", String(7) == $"7")
+    let twice:int64?? = 4                             // printed as kelvinc prints them (#229)
+    let tiny:uint8? = 'k'
+    println(at, " ", missing, " ", named(1), " ", good, " ", bad)
+    println(a, " ", c, " ", p, " ", twice, " ", tiny)
     var spot:point? = none                            // x?.m, x?.f(), x?[i] chain (#221)
     let unset = spot?.x
     spot = p

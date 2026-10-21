@@ -97,7 +97,18 @@ kc reads what it is written in, and little more.
       an argument, and found no name.
     - So in a struct's `{a, b}`, whose members kc reads by their
       fields' types since #225.
-  - `$[T]?` is an Optional of an Array (#221).
+  - `$[T]?` is an Optional of an Array (#221), and `T??` one of a `T?`
+    (#229).
+  - A number literal is `some(n)` of any number's Optional, `{a, b}` is
+    `some` of a struct, and a `T` of a `T??` is wrapped twice (#229).
+  - **Printed** (#229) as kelvinc prints it: `some(3)`, `none`,
+    `some("kelvin")`, `ok(5)`, `err("bad")`, an enum's `num(5)`, and a
+    struct's `{x: 1, y: 2}`.
+    - Each type printed gets a `_kv_show_T` of kelvinc's form, declared
+      before the functions and written after them; `print` calls it
+      where the value stands.
+    - What it holds is a number, a bool, text, or another enum with
+      values or struct of them; an Array inside is an error, not yet.
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
@@ -331,7 +342,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 Each of these is one change of its own:
 
 1. Grow kc's subset, keeping the fixpoint, and rewrite kc in each new
-   part as it comes: printing an Optional, as kelvinc's `some(...)`.
+   part as it comes: printing an Array, as kelvinc's `[1, 2]`.
 2. Run kc on the tests of tests/run.sh that fit the subset, to count how
    far it reads, and the programs kc builds under tests/asan.sh's
    counting allocator, which is done by hand so far.

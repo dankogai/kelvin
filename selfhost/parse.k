@@ -345,8 +345,10 @@ let parse_type():int64 {
     } else {
         y = type_of_kind(Y_STRUCT, -1, t)
     }
-    while at_word("^") || at_word("?") {
-        if at_word("?") {
+    while at_word("^") || at_word("?") || at_word("??") {
+        if at_word("??") {                       // T??, which lexes as ?? (#229)
+            y = optional_of(optional_of(y))
+        } else if at_word("?") {
             y = optional_of(y)                   // T?, an Optional (#217)
         } else {
             y = type_of_kind(Y_PTR, y, -1)

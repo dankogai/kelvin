@@ -260,6 +260,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 226 | kc frees an owner taken by value, as kelvinc's O5: the parameter is `_kv_x_in`, bound to a local `x` freed where the function ends or moved out by `return x`; a whole variable passed moves in by `_take`, one an expression gives goes in as it is, and a member or an element is an error that says to pass a borrow or a copy; methods take their arguments by their parameters' types too; `.copy()` copies any owner but an `IO` | — | `let shout(s:String):String`, `shout(hi)`, `sum_of(fibs.copy())` | 2026-10-21 |
 | 227 | kc holds temporaries as kelvinc's #187: an owner an expression gives, where it is only read, is held in `({ T _kv_tmpN = ...; use; })` and freed once the expression is done: an argument not taken by value, `&f()`, a member, an element or a method of it, either side of `==`, the source of `for x in`, a statement that drops it; a member or element that owns is copied out of it, a pointer into it an error; a member or element is a place only where its base is | — | `println(String(42), " ", shout($"x").count, " ", adopt("ace").name)` | 2026-10-21 |
 | 228 | CI's `selfhost` jobs, gcc and clang on Ubuntu and clang on macOS: `selfhost/bootstrap.sh`, whose stages reach a fixpoint and whose build of `sample.k` prints what kelvinc's does, and `selfhost/sanitize.sh`, kc built from stage2's C with ASan and UBSan, which must write the same C of `kc.k` and of `sample.k` | — | `selfhost / ubuntu-latest / gcc` | 2026-10-21 |
+| 229 | kc prints an enum with values, an Optional, a Result and a struct as kelvinc does: `some(3)`, `none`, `some("kelvin")`, `ok(5)`, `num(5)`, `{x: 1, y: 2}`, by a `_kv_show_T` of kelvinc's form; what it holds is a number, a bool, text or another of them; kc reads `T??`, a number literal and `{a, b}` where an Optional goes, and `T.c(v)` of an enum with values in any program | — | `println(named(1), " ", p)` | 2026-10-21 |
 
 Notes:
 
@@ -821,6 +822,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (229) Agreed details: "teach kc to print Optionals as #229". kc left
+  an Optional to C's print, which took it for a pointer. It writes
+  kelvinc's printers now, and a struct's, which an Optional of one
+  needs. On the way: kc lexed `T??` as `??` and could not read it as a
+  type; a number literal became `some` of an `int64?` alone, and `{a,
+  b}` where a `T?` of a struct goes was the Optional's own initializer;
+  and `T.c(v)` of an enum with values was a name kc did not know where
+  the program wrote no `T` as a type. An Array inside is left.
 
 - (228) Agreed details: "add the selfhost bootstrap to CI as #228".
   The checks run by hand since #204 are jobs now, and the sanitizer
@@ -2433,6 +2443,7 @@ says "as agreed".
 | P238 | Details of #226 | gen.k: gen_signature names an owner parameter _kv_x_in; takes_owner(d); gen_function opens a block that binds each to a cleanup local before the body; gen_args_to moves a whole variable by _take and refuses a place; gen_call's bind-it error skips a by-value owner parameter; gen_method passes a method's arguments by gen_args_to; .copy() of any owner but IO is PREFIX_copy(&x); sample.k: shout, sum_of, fibs.copy() | kc holding temporaries (#187) |
 | P239 | Details of #227 | gen.k: needs_hold(n): no case word, no place, an owner; hold_open/hold_close write the statement expression and mark the node in `held`, whose number gen_expr writes; hold_args holds a call's arguments not taken by value, and the base of `&`; gen_field and gen_method hold their receiver (gen_member, gen_method_of), gen_index an element's base (gen_element), copying out an owner; gen_string_eq holds either side; gen_each holds its source as a local of its block; S_EXPR frees an owner it drops; is_place of a member or element asks its base; index_names indexes what is declared since, and decl_named asks it; sample.k: println(String(42), shout($"x").count, adopt("ace").name, ...) | kc printing an Optional |
 | P240 | Details of #228 | .github/workflows/ci.yml: the job selfhost, a matrix of ubuntu-latest gcc, ubuntu-latest clang and macos-latest clang: make, selfhost/bootstrap.sh, selfhost/sanitize.sh; selfhost/sanitize.sh: build/selfhost/kc-sanitized from stage2.c with -fsanitize=address,undefined -fno-sanitize-recover=undefined, ASAN_OPTIONS=detect_leaks=0, its C of kc.k compared with stage2.c and of sample.k with sample.c | the counting allocator's run of kc's programs in CI |
+| P241 | Details of #229 | gen.k: need_show(y, n) gathers the enums with values and structs print needs, an error where one holds what kc cannot show; gen_show writes `_kv_show_T(kv_out *o, const void *_kv_v, int level)` by show_value: kv_cstr_i64, kv_cstr_u64, kv_cstr_bool, kv_out_quoted, kv_out_quoted_text, or another _kv_show_T, a struct's members between kv_out_sep and kv_out_end; gen_print_args writes `({ __auto_type _kv_sv = (x); _kv_show_T(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1); (const uint8_t *)""; })`; gen_program declares them before the functions and writes them after; fits_value; gen_value writes some's value by its case's type; names_type knows an enum with values; parse.k: `??` in a type is two `?` | kc printing an Array |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -5418,3 +5418,17 @@ UBSan and checks that it writes the same C, as was done by hand since
 Details are provisional P240.
 
 There are 834 tests, and all pass with clang and with gcc 15.
+
+### 273. kc prints Optionals
+
+> teach kc to print Optionals as #229
+
+**Claude** added #229: kc prints an Optional, a Result, an enum with
+values and a struct as kelvinc does, `some(3)`, `none`, `ok(5)`,
+`num(5)`, `{x: 1, y: 2}`, text quoted, by printers of kelvinc's form. On
+the way kc learned `T??`, `some` of a number literal for any number and
+of `{a, b}` for a struct, and `T.c(v)` of an enum in a program that
+names no `T` as a type. Printing an Array is left. Details are
+provisional P241.
+
+There are 834 tests, and all pass with clang and with gcc 15.

@@ -295,7 +295,10 @@ let type_of(n:int64):int64
 
 // whether node a names a struct, not a variable: T of T.f(...)
 let names_type(a:int64):bool {
-    return nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_STRUCT) >= 0
+    if nodes[a].kind != N_ID || var_type(nodes[a].t) >= 0 { return false }
+    if decl_named(nodes[a].t, D_STRUCT) >= 0 { return true }
+    let e = decl_named(nodes[a].t, D_ENUM)                // an enum with values, as T.c(v) names it (#229)
+    return e >= 0 && nodes[e].flag == 1
 }
 
 // ---------- enums with values (#215) ----------
@@ -631,6 +634,157 @@ let close_holds(opened:$[int64]^) {
     for i in 0..<opened^.count as int64 { hold_close(opened^[i]) }
 }
 
+// ---------- printing an enum with values and a struct (#229) ----------
+
+var shown:$[int64]                       // the types whose _kv_show_T is written, in order
+var shown_types:Dictionary<int64, int64>
+
+// the struct a type names, or -1
+let struct_of(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_STRUCT { return -1 }
+    return decl_named(types[y].name, D_STRUCT)
+}
+
+// whether print shows v as it is: a number, a bool, text
+let plain_shown(v:int64):bool {
+    let k:ykind = types[v].kind
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
+}
+
+// whether print can show a value of y, an enum with values (an Optional, a
+// Result) or a struct, as kelvinc does, by a _kv_show_T of its own; what
+// it holds is shown too. Where kc cannot show it, n is an error
+let need_show(y:int64, n:int64):bool {
+    if shown_types.has(y) { return true }
+    shown_types[y] = 1
+    var m = -1
+    let d = tagged_of(y)
+    if d >= 0 { m = nodes[d].a } else { m = nodes[struct_of(y)].a }
+    while m >= 0 {
+        let v = nodes[m].ty
+        if v >= 0 && !plain_shown(v) {
+            if tagged_of(v) < 0 && struct_of(v) < 0 {
+                gen_error(n, "kc prints a number, a bool, text, an enum with values or a struct of them; not yet what this holds")
+                return false
+            }
+            if !need_show(v, n) { return false }
+        }
+        m = nodes[m].next
+    }
+    shown += y
+    return true
+}
+
+let put_show_name(y:int64) {
+    put("_kv_show_")
+    put_tok(types[y].name)
+}
+
+// the value of v at self->path, t its name, as kelvinc shows it: text
+// quoted, an enum with values or a struct by its _kv_show_T at level
+let show_value(v:int64, path:cstr, t:int64, level:cstr) {
+    let k:ykind = types[v].kind
+    if k == Y_STRING {
+        put("kv_out_quoted(o, (self->")
+        put(path)
+        put_tok(t)
+        put(").b.at, (self->")
+        put(path)
+        put_tok(t)
+        put(").b.count, false);\n")
+    } else if k == Y_CSTR {
+        put("kv_out_quoted_text(o, (const void *)(self->")
+        put(path)
+        put_tok(t)
+        put("));\n")
+    } else if !plain_shown(v) {
+        put_show_name(v)
+        put("(o, &(self->")
+        put(path)
+        put_tok(t)
+        put("), ")
+        put(level)
+        put(");\n")
+    } else {
+        put("{ uint8_t _kv_b[256]; ")
+        if k == Y_BOOL {
+            put("kv_cstr_bool")
+        } else if k == Y_U8 || k == Y_U32 {
+            put("kv_cstr_u64")
+        } else {
+            put("kv_cstr_i64")
+        }
+        put("(self->")
+        put(path)
+        put_tok(t)
+        put(", _kv_b); kv_out_put(o, _kv_b); }\n")
+    }
+}
+
+// _kv_show_T of y, as kelvinc writes it: of an enum with values, a case's
+// name and what it holds in parentheses; of a struct, {x: 1, y: 2}
+let gen_show(y:int64) {
+    put("static void ")
+    put_show_name(y)
+    put("(kv_out *o, const void *_kv_v, int level)\n{\n    const struct ")
+    put_tok(types[y].name)
+    put(" *self = _kv_v;\n")
+    let d = tagged_of(y)
+    if d < 0 {
+        let s = struct_of(y)
+        put("    int _kv_nl = level < 0 ? -1 : level + 1;\n    kv_out_put(o, \"{\");\n")
+        var f = nodes[s].a
+        while f >= 0 {
+            put("    kv_out_sep(o, level, ")
+            if f == nodes[s].a { put("true") } else { put("false") }
+            put(");\n    kv_out_put(o, \"")
+            put_tok(nodes[f].t)
+            put(": \");\n    ")
+            show_value(nodes[f].ty, "", nodes[f].t, "_kv_nl")
+            f = nodes[f].next
+        }
+        put("    kv_out_end(o, level);\n    kv_out_put(o, \"}\");\n}\n\n")
+        return
+    }
+    put("    switch (self->tag)\n    {\n")
+    var m = nodes[d].a
+    while m >= 0 {
+        put("    case ")
+        put_int(case_tag(d, m))
+        put(":\n        kv_out_put(o, \"")
+        put_tok(nodes[m].t)
+        if nodes[m].ty < 0 {
+            put("\");\n        break;\n")
+        } else {
+            put("(\");\n        ")
+            show_value(nodes[m].ty, "u.", nodes[m].t, "level")
+            put("        kv_out_put(o, \")\");\n        break;\n")
+        }
+        m = nodes[m].next
+    }
+    put("    default: kv_out_put(o, \"?\"); break;\n    }\n}\n\n")
+}
+
+// print's and println's values: an enum with values or a struct by its
+// _kv_show_T, which writes it where the value stands, as kelvinc does (#229)
+let gen_print_args(first:int64) {
+    var a:int64 = first
+    while a >= 0 {
+        if a != first { put(", ") }
+        let y = type_of(a)
+        if !is_case_word(a) && y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0) && need_show(y, a) {
+            put("({ __auto_type _kv_sv = (")
+            gen_expr(a)
+            put("); ")
+            put_show_name(y)
+            put("(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1); (const uint8_t *)\"\"; })")
+        } else {
+            gen_expr(a)
+        }
+        a = nodes[a].next
+    }
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -661,7 +815,11 @@ let gen_call(n:int64) {
     var opened = hold_args(args, d)                 // as kelvinc holds them (#227)
     put_tok(nodes[f].t)
     put("(")
-    gen_args_to(args, d)
+    if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
+        gen_print_args(args)
+    } else {
+        gen_args_to(args, d)
+    }
     put(")")
     close_holds(&opened)
 }
@@ -938,6 +1096,20 @@ let gen_init(n:int64, s:int64) {
 // ok(v), err(e) by the type that takes them, and a T where a T? goes as
 // some(T), as kelvinc has them, whose some(v) is a pattern alone; a local
 // owner moves in; else the expression as it is
+// whether n is a value that t takes, as some(n) where a t? goes: a t; a
+// number literal of any number; {a, b} of a struct; one a t of a t? takes
+// (#217, #229)
+let fits_value(n:int64, t:int64):bool {
+    if t < 0 { return false }
+    let k:nkind = nodes[n].kind
+    let tk:ykind = types[t].kind
+    let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
+    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32) { return true }
+    if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
+    if type_of(n) == t { return true }
+    return some_type(t) >= 0 && fits_value(n, some_type(t))
+}
+
 let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_INIT && y >= 0 && types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
         gen_init(n, decl_named(types[y].name, D_STRUCT))       // {a, b} of a struct (#225)
@@ -959,7 +1131,7 @@ let gen_value(n:int64, y:int64) {
     }
     var v = -1
     if m >= 0 && nodes[n].kind == N_CALL { v = nodes[n].b }
-    if m < 0 && nodes[d].c == 1 && type_of(n) == some_type(y) {
+    if m < 0 && nodes[d].c == 1 && fits_value(n, some_type(y)) {
         m = nodes[nodes[d].a].next
         v = n
     }
@@ -977,6 +1149,13 @@ let gen_value(n:int64, y:int64) {
         put("_take(&")
         put_tok(nodes[v].t)
         put(")")
+    } else if v >= 0 && nodes[m].ty >= 0 {             // what the case holds, by its type: a T?? of a T (#229)
+        if nodes[v].kind == N_INIT && struct_of(nodes[m].ty) >= 0 {
+            put("(struct ")
+            put_tok(types[nodes[m].ty].name)
+            put(")")
+        }
+        gen_value(v, nodes[m].ty)
     } else if v >= 0 {
         gen_expr(v)
     }
@@ -2355,5 +2534,11 @@ let gen_program() {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }
     }
+    for i in 0..<shown.count as int64 {                 // the printers print needs, after the functions (#229)
+        put("static void ")
+        put_show_name(shown[i])
+        put("(kv_out *, const void *, int);\n")
+    }
     out += &body
+    for i in 0..<shown.count as int64 { gen_show(shown[i]) }
 }
