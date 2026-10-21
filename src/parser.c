@@ -1413,7 +1413,7 @@ static int binary_prec(Token *t);
    postfix or a separator does? */
 static bool continues_expression(Token *t) {
     static const char *ops[] = {"(", "[", ".", "^", "?", ":", ",", ")", "]", "..<", "...", "=", ":=", "+=", "-=",
-                                "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
+                                "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", "??", "!!", "?\?=", "!!=", NULL};
     for (int i = 0; ops[i]; i++)
         if (is_p(t, ops[i]))
             return true;
@@ -3937,6 +3937,15 @@ static Expr *parse_unary(void) {
     Token *t = peek();
     if (is_p(t, "++") || is_p(t, "--"))
         reject_step(t);
+    if (is_p(t, "!!")) { /* !!x, two nots, which the lexer reads as one token since #237 */
+        advance();
+        Expr *inner = new_expr(E_PREFIX, t->pos), *outer = new_expr(E_PREFIX, t->pos);
+        inner->op = outer->op = "!";
+        inner->a = parse_unary();
+        require_bool(inner->a);
+        outer->a = inner;
+        return outer;
+    }
     if (is_p(t, "&") || is_p(t, "-") || is_p(t, "+") || is_p(t, "!") || is_p(t, "~")) {
         advance();
         Expr *e = new_expr(E_PREFIX, t->pos);
@@ -4379,13 +4388,50 @@ static Expr *parse_binary(int min_prec) {
     }
 }
 
+/* d0 ?? d1 and d0 !! d1, d0 ?\?= d1 and d0 !!= d1 (#237): d1's entries
+   merged into a copy of d0, or into d0 in place, keeping d0's values
+   (??) or taking d1's (!!), as swiftalk's; a place is lent, and one an
+   expression gives is taken and freed */
+static Expr *dict_fill(Token *q, Expr *a, Expr *b, bool in_place, bool keep) {
+    Type *at = value_type(a) ? unqualified(value_type(a)) : NULL, *bt = value_type(b) ? unqualified(value_type(b)) : NULL;
+    if (!at || !is_dict_owner(at))
+        error_at(q->pos, "'%s' takes %sDictionaries, and this is %s", q->text,
+                 in_place || q->text[0] == '!' ? "" : "an Optional, a Result or ", at ? kelvin_type(at) : "not one");
+    if (!bt || !is_dict_owner(bt) || strcmp(at->name, bt->name))
+        error_at(q->pos, "'%s' takes two Dictionaries of the same key and value types, and these are %s and %s", q->text,
+                 kelvin_type(at), bt ? kelvin_type(bt) : "not one");
+    if (in_place && !owner_place(a))
+        error_at(q->pos, "'%s' changes a Dictionary in place, so its left is a variable", q->text);
+    if (in_place && let_target(a))
+        error_at(q->pos, "'%s' is a let and cannot change; declare it with var", let_target(a));
+    Expr *x = new_expr(E_METHOD, q->pos);
+    x->a = a;
+    x->text = in_place ? "merge" : "merging";
+    x->from = at;
+    x->type = in_place ? NULL : at;
+    x->op = strfmt("dict_merg%s%s%s", in_place ? "e" : "ing", !in_place && !owner_place(a) ? "_tmp" : "",
+                   keep ? "_keep" : "");
+    if (owner_place(b)) { /* lent: its entries copied */
+        Expr *lend = new_expr(E_PREFIX, b->pos);
+        lend->op = "&";
+        lend->a = b;
+        b = lend;
+    }
+    list_push(&x->items, b);
+    return x;
+}
+
 static Expr *parse_conditional(void) {
     Expr *c = parse_binary(1);
     Token *t = peek();
-    while (is_p(peek(), "??")) { /* x ?? y (#72): x's value if some, else y */
+    while (is_p(peek(), "??") || is_p(peek(), "!!")) { /* x ?? y (#72): x's value if some, else y */
         Token *q = advance();
         Expr *y = parse_binary(1);
         Type *ct = value_type(c);
+        if (is_p(q, "!!") || (ct && is_dict_owner(unqualified(ct)))) { /* of Dictionaries (#237) */
+            c = dict_fill(q, c, y, false, is_p(q, "??"));
+            continue;
+        }
         Decl *r = ct ? variant_record(ct) : NULL;
         if (!r)
             error_at(q->pos, "'?\?' takes an Optional or a Result on its left, and this is %s",
@@ -6700,6 +6746,14 @@ static Expr *assign_to(Expr *lhs, bool ok) {
         e->a = lhs;
         assign_ok = ok;
         return e;
+    }
+    if (is_p(t, "?\?=") || is_p(t, "!!=")) { /* d0 ?\?= d1, d0 !!= d1 (#237): in place */
+        if (!ok)
+            error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
+        advance();
+        Expr *y = parse_assign();
+        assign_ok = ok;
+        return dict_fill(t, lhs, y, true, is_p(t, "?\?="));
     }
     for (int i = 0; assign_ops[i]; i++)
         if (is_p(t, assign_ops[i])) {

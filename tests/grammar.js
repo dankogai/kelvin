@@ -161,6 +161,7 @@ const samples = [
     ['var p:int32^ := &x   // a reference', [[':=', 'keyword.operator.assignment.reference'], ['^', 'keyword.operator.pointer'], ['// a reference', 'comment.line']]],
     ['for i in 0..<n { if i == 3 { break } }', [['for', 'keyword.control'], ['in', 'keyword.control'], ['..<', 'keyword.operator.range'], ['break', 'keyword.control']]],
     ['var v = r ?? 0; let t = self.x as float64', [['??', 'keyword.operator.coalescing'], ['self', 'variable.language'], ['as', 'keyword.operator.word']]],
+    ['var d = d0 !! d1; d0 ??= d1; d0 !!= d1', [['!!', 'keyword.operator.coalescing'], ['??=', 'keyword.operator.assignment.compound'], ['!!=', 'keyword.operator.assignment.compound']]],
     ['var b = Bytes([0x89, 0b101, 0o17, 1e9]) /* bytes */', [['Bytes', 'support.type'], ['0x89', 'constant.numeric.hex'], ['0b101', 'constant.numeric.binary'], ['0o17', 'constant.numeric.octal'], ['1e9', 'constant.numeric.decimal'], ['/* bytes */', 'comment.block']]],
     ['let s := """', [['"""', 'string.quoted.triple']]],
     ['if let v = maybe() { return some(v) } else { return none }', [['some', 'support.function.case'], ['none', 'constant.language']]],

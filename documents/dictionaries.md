@@ -87,6 +87,16 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     an expression gives is freed after too.
   - `merge` changes `d`, so `d` is a variable; a let or one an
     expression gives is an error that says to write `merging`.
+- **`d0 ?? d1`** fills in, and **`d0 !! d1`** overrides (#237), as in
+  swiftalk: a new Dictionary of `d0`'s entries and `d1`'s, where a key
+  in both keeps `d0`'s value (`??`) or takes `d1`'s (`!!`).
+  - So `(d0 !! d1) == (d1 ?? d0)`.
+  - `d0 ??= d1` and `d0 !!= d1` do the same to `d0` in place, a
+    variable.
+  - The two are of one key type and one value type. A place is
+    copied, and one an expression gives is taken and freed.
+  - `!!` binds as `??` does, looser than `||` and tighter than `?:`;
+    `!!x` before a value is still two `!`s.
 - **Not yet:** keys of other types, `d[k, default]`.
 
 ## Properties and methods
@@ -112,6 +122,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `d0 == d1`, `d0 != d1` | the same entries, each value by its `==`, a `bool` (#235) |
 | | `.merge(&e)`, `.merge(&e) { a, b in ... }` | `e`'s entries added in place; where a key is in both, the function's value, else `e`'s (#236) |
 | | `.merging(&e)`, `.merging(&e, f)` | the same, a new Dictionary (#236) |
+| | `d0 ?? d1`, `d0 !! d1` | a new Dictionary of both, a shared key's value `d0`'s or `d1`'s (#237) |
+| | `d0 ??= d1`, `d0 !!= d1` | the same, in place (#237) |
 
 No `.cstr`, no `+=`: `print` shows a Dictionary, and `.pretty`
 is its text, indented (#123, #124). The general properties are in

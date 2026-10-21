@@ -5543,3 +5543,17 @@ may now be named without their types wherever kelvinc sees them, so
 P248.
 
 There are 842 tests, and all pass with clang and with gcc 15.
+
+### 281. Dictionary ?? and !!
+
+> go on with #237
+
+**Claude** added #237: `d0 ?? d1` fills in, keeping `d0`'s value where a
+key is in both, and `d0 !! d1` overrides, taking `d1`'s, as swiftalk's,
+so `(d0 !! d1) == (d1 ?? d0)`; `d0 ??= d1` and `d0 !!= d1` do the same
+in place. `!!` binds as `??` does, and `!!x` is still two `!`s.
+operators.md's table gains its missing row for `??`, and the VS Code
+grammar the new operators. This finishes the user's three Dictionary
+features. Details are provisional P249.
+
+There are 845 tests, and all pass with clang and with gcc 15.

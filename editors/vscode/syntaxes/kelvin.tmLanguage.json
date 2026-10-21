@@ -595,8 +595,12 @@
           "match": "\\.\\.<|\\.\\.\\."
         },
         {
+          "name": "keyword.operator.assignment.compound.kelvin",
+          "match": "\\?\\?=|!!="
+        },
+        {
           "name": "keyword.operator.coalescing.kelvin",
-          "match": "\\?\\?"
+          "match": "\\?\\?|(?<=\\s)!!(?=\\s)"
         },
         {
           "name": "keyword.operator.assignment.reference.kelvin",
