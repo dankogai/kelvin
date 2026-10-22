@@ -5995,3 +5995,16 @@ Dictionary whole, nor walk one with `for k, v in d`. Details are
 provisional P279.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 312. kc prints Dictionaries
+
+> teach kc to print Dictionaries as #268
+
+**Claude** taught kc to print a Dictionary as kelvinc does,
+`{"ann": 31}`, `{}` where empty, its entries in the order added and a
+String key quoted, nested in an Array, a Dictionary or an Optional.
+On the way kc took kelvinc's rule that an empty `${:}` or `$[]` value
+of `${k: v}` takes the first's type. sample.k prints Dictionaries
+whole, so the bootstrap checks them. Details are provisional P280.
+
+There are 897 tests, and all pass with clang and with gcc 15.

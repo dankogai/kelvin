@@ -929,9 +929,9 @@ let plain_shown(v:int64):bool {
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
-// (an Optional, a Result), a struct or an Array
+// (an Optional, a Result), a struct, an Array or a Dictionary (#268)
 let shown_by_type(y:int64):bool {
-    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY)
+    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT)
 }
 
 // whether print can show a value of y, an enum with values (an Optional, a
@@ -940,10 +940,10 @@ let shown_by_type(y:int64):bool {
 let need_show(y:int64, n:int64):bool {
     if shown_types.has(y) { return true }
     shown_types[y] = 1
-    if types[y].kind == Y_ARRAY {                         // its elements (#230)
+    if types[y].kind == Y_ARRAY || types[y].kind == Y_DICT {   // its elements (#230), its values (#268)
         let v = types[y].elem
         if !plain_shown(v) && !shown_by_type(v) {
-            gen_error(n, "kc prints a number, a bool, text, an Array, an enum with values or a struct of them; not yet what this holds")
+            gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
             return false
         }
         if !plain_shown(v) && !need_show(v, n) { return false }
@@ -956,7 +956,7 @@ let need_show(y:int64, n:int64):bool {
         let v = nodes[m].ty
         if v >= 0 && !plain_shown(v) {
             if !shown_by_type(v) {
-                gen_error(n, "kc prints a number, a bool, text, an Array, an enum with values or a struct of them; not yet what this holds")
+                gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
                 return false
             }
             if !need_show(v, n) { return false }
@@ -971,6 +971,8 @@ let put_show_name(y:int64) {
     put("_kv_show_")
     if types[y].kind == Y_ARRAY {
         put_array_name(y)                                 // _kv_show__kv_array_i64 (#230)
+    } else if types[y].kind == Y_DICT {
+        put_dict_name(y)                                  // _kv_show__kv_dict_String_i64 (#268)
     } else {
         put_tok(types[y].name)
     }
@@ -1027,6 +1029,20 @@ let gen_show(y:int64) {
         put("        kv_out_sep(o, level, _kv_i == 0);\n        ")
         show_value(types[y].elem, "at[_kv_i]", 0 - 1, "_kv_nl")
         put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"]\");\n}\n\n")
+        return
+    }
+    if types[y].kind == Y_DICT {                          // {"ann": 31}, {} where empty, in the order added (#268)
+        put_dict_name(y)
+        put(" *self = _kv_v;\n    __attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;\n")
+        put("    if (!self->count)\n    {\n        kv_out_put(o, \"{}\");\n        return;\n    }\n")
+        put("    kv_out_put(o, \"{\");\n    bool _kv_first = true;\n")
+        put("    for (size_t _kv_i = 0; _kv_i < self->len; _kv_i++)\n    {\n")
+        put("        if (!self->at[_kv_i].live)\n            continue;\n")
+        put("        kv_out_sep(o, level, _kv_first);\n        _kv_first = false;\n        ")
+        show_value(types[y].name, "at[_kv_i].key", 0 - 1, "_kv_nl")
+        put("        kv_out_put(o, \": \");\n        ")
+        show_value(types[y].elem, "at[_kv_i].value", 0 - 1, "_kv_nl")
+        put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"}\");\n}\n\n")
         return
     }
     put("struct ")
@@ -1462,7 +1478,7 @@ let gen_array(n:int64, given:int64) {
         put("_append(&_kv_l")
         put_int(s)
         put(", ")
-        if nodes[e].kind == N_INIT {                     // {a, b} of a struct, C's compound literal there
+        if nodes[e].kind == N_INIT || nodes[e].kind == N_EMPTY {   // {a, b} of a struct, $[], ${:}: C's compound literal there
             put("(")
             put_ctype(elem)
             put(")")
@@ -1507,7 +1523,7 @@ let one_entry_type(n:int64):bool {
             gen_error(k, s.cstr)
             return false
         }
-        if type_of(v) != vy {
+        if type_of(v) != vy && nodes[v].kind != N_EMPTY {   // ${:} or $[] takes the first's type (#268)
             var s = $"every value of a Dictionary has one type: this one is "
             s += type_of(v) >= 0 ? type_text(type_of(v)) : $"unseen"
             s += ", the first "
@@ -1553,7 +1569,7 @@ let gen_dict(n:int64, given:int64) {
         put(", ")
         gen_key(y, k)
         put(", ")
-        if nodes[v].kind == N_INIT {                     // {a, b} of a struct, C's compound literal there
+        if nodes[v].kind == N_INIT || nodes[v].kind == N_EMPTY {   // {a, b} of a struct, ${:}, $[]: C's compound literal there
             put("(")
             put_ctype(elem)
             put(")")

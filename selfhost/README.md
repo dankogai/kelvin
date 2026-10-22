@@ -108,13 +108,14 @@ kc reads what it is written in, and little more.
   - **Printed** (#229) as kelvinc prints it: `some(3)`, `none`,
     `some("kelvin")`, `ok(5)`, `err("bad")`, an enum's `num(5)`, a
     struct's `{x: 1, y: 2}`, and an Array's `[1, 2]`, `[]` where empty
-    (#230).
+    (#230), and a Dictionary's `{"ann": 31}`, `{}` where empty, its
+    entries in the order added, a String key quoted (#268).
     - Each type printed gets a `_kv_show_T` of kelvinc's form, declared
       before the functions and written after them; `print` calls it
       where the value stands.
-    - What it holds is a number, a bool, text, or another Array, enum
-      with values or struct of them; anything else, as a pointer, is an
-      error.
+    - What it holds is a number, a bool, text, or another Array,
+      Dictionary, enum with values or struct of them; anything else, as
+      a pointer, is an error.
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
@@ -292,8 +293,8 @@ steps can take them on one at a time.
   - of ownership's rules (documents/ownership.md): a struct that owns
     (O7, #225), passing by value (O5, #226), temporaries (O11, #227),
     and `c ? a : b` of owners (O12, #232);
-  - printing what kelvinc prints, `some(3)`, `{x: 1, y: 2}` and
-    `[1, 2]` (#229, #230).
+  - printing what kelvinc prints, `some(3)`, `{x: 1, y: 2}`, `[1, 2]`
+    and `{"a": 1}` (#229, #230, #268).
 - **Left out of the subset:**
   - the overloads of methods; and kelvinc's names of the functions of
     an imported Kelvin file, `f__i64` overloaded or not, so kc cannot

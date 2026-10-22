@@ -305,5 +305,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     let numbers:Dictionary<int64, String> = ${1: "one", 2: $"two"}
     let deep = ${"a": ${"b": 1}}
     println(stock["pear"], " ", stock.count, " ", numbers[2], " ", deep["a"]!["b"], " ", ${"k": 1.5}["k"])
+    println(stock, " ", numbers, " ", deep, " ", ${"e": $[1], "f": $[]}, " ", $[stock.copy()])   // Dictionaries whole (#268)
     return 0
 }
