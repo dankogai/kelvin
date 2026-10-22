@@ -6138,3 +6138,21 @@ a variable, on a temporary, and through a borrow. kc builds
 provisional P290.
 
 There are 904 tests, and all pass with clang and with gcc 15.
+
+### 323. The goals of self-hosting
+
+> before fixing return s^.elements in kelvinc as #279, let's be clear of
+> our definition and goal of self-hosting: [...] Our short-term goal is
+> to make `kc` as capable as `kelvinc` [...] Our mid-term goal is to free
+> ourselves from C source emission. [...] And the (very) long-term goal
+> is like go and even C which builds entire backend by kelvin
+
+> write the goals into selfhost/README.md as #279
+
+**Claude** pointed out what stands in the way of the mid term: kc.k
+imports C's headers, kc passes names it does not know to C, and its C
+uses kelvin_prelude.h's macros, with no step between the tree and the
+C. Then it wrote the goals into selfhost/README.md. Details are
+provisional P291.
+
+There are 904 tests, and all pass with clang and with gcc 15.

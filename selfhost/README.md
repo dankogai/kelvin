@@ -19,6 +19,27 @@ bootstraps itself, it reaches a fixpoint (#204).
 - **In CI** (#228): the `selfhost` jobs run `bootstrap.sh` and
   `sanitize.sh` with gcc and clang on Ubuntu, and clang on macOS.
 
+## Goals
+
+Agreed in #279.
+
+- **What kc need not do:** read C's source, `#import <foo.h> as C` and
+  `#inline C { ... }`.
+  - libc is still Kelvin's to call, as C calls it.
+- **Now:** kc writes C from `*.k` and hands it to `cc` or `gcc`, and
+  builds itself so (#204).
+- **Short term:** kc as capable as kelvinc, which is written mostly in
+  C.
+  - kelvinc is the measure: a program kc builds prints what kelvinc's
+    build prints.
+- **Mid term:** no C in between: kc writes assembly or LLVM IR itself,
+  not `kc -> C -> assembly or LLVM IR`.
+  - In the way: kc writes C straight from its tree, and that C uses
+    `kelvin_prelude.h`, whose C macros make each `Array<T>`,
+    `Dictionary<K, V>` and `Set<T>`.
+- **Long term:** the whole back end written in Kelvin, as Go's is, and
+  as C's compilers are written in C.
+
 ## Files
 
 | File | What it is |

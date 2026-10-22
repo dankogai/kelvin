@@ -310,6 +310,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 276 | kc has `|`, `&` and `~`: of two Sets in variables a new Set, the union, the intersection or what is in one alone, and `|=`, `&=`, `~=` in place, as kelvinc, in its words; of numbers bitwise, `~` the XOR, C's `^`, between `&&` and `==` as C's | — | kc builds `s | t` and `12 ~ 10` | 2026-10-22 |
 | 277 | `s |= &t`, `s &= &t` and `s ~= &t` are the error kelvinc meant, `'|=' takes another Set<i64>, in a variable`, where kelvinc crashed, reading the name of a pointer type, NULL | — | `s |= &t` is an error, not a segfault | 2026-10-22 |
 | 278 | kc has a Set's `elements`, an Array of copies in the order added, as kelvinc: a new value a variable then owns, of a Set in a variable, a temporary, or through a borrow | — | kc builds `s.elements` | 2026-10-23 |
+| 279 | The goals of self-hosting, in selfhost/README.md: kc need not read C's source (`#import <x.h> as C`, `#inline C`); short term, kc as capable as kelvinc; mid term, assembly or LLVM IR without C between; long term, the whole back end in Kelvin | — | selfhost/README.md, "Goals" | 2026-10-23 |
 
 Notes:
 
@@ -871,6 +872,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (279) Agreed details: "write the goals into selfhost/README.md as
+  #279", as the user set them:
+  - kc need not support C's source, `#import <foo.h> as C` and
+    `#inline C {...}`; libc stays callable.
+  - Now kc writes C and hands it to cc or gcc, and builds itself.
+  - Short term: kc as capable as kelvinc.
+  - Mid term: free of C emission, kc writing assembly or LLVM IR.
+  - Long term: the whole back end in Kelvin, as Go's.
+  - In the way of the mid term: kc.k imports C's headers for `remove`,
+    `getenv` and `getpid`; kc lets names it does not know through to
+    C; its C uses kelvin_prelude.h's macros for the containers; and
+    gen.k writes C straight from the tree, with nothing in between.
+  - The kelvinc bug found by #278, `return s^.elements` refused, is
+    left for a later number.
 
 - (278) Agreed details: "teach kc Set elements as #278". `s.elements`
   is an `Array<T>` made new from the live slots of the Set, with the
@@ -2993,6 +3009,7 @@ says "as agreed".
 | P288 | Details of #276 | selfhost/lex.k: `|=`, `&=`, `~=`; parse.k: binding powers, the assignment operators; gen.k: gen_set_op, the `=` forms of a Set, `~` and `~=` as C's `^` and `^=`; sample.k uses them; selfhost/README.md | kelvinc's crash on `s |= &t`; `<<`, `>>`, unary `~` in kc; a Set's `elements` |
 | P289 | Details of #277 | parser.c: the `|=` check asks gt->kind == T_BASE; tests: error/set_op_assign_borrow.k; documents/sets.md | |
 | P290 | Details of #278 | selfhost/gen.k: type_of gives `Array<T>`; gen_member builds the Array from the live slots; is_place says no; gen_field does not copy it again; sample.k uses it; selfhost/README.md | kelvinc refuses `return s^.elements`; a Dictionary's `keys` and `values` in kc |
+| P291 | Details of #279 | selfhost/README.md: "Goals" | kelvinc refuses `return s^.elements`; kc.k's C header imports; kc's C of kelvin_prelude.h |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
