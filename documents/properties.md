@@ -98,7 +98,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     of modules/math.k are structs, `{real: 1.0, imag: 2.0}`.
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
-    addresses (`0x0` for null), but a function has no text (#31).
+    addresses (`nullptr` for null, #260), but a function has no text (#31).
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs
     and arrays (`[a, b]`).
     - A string field is quoted, `{name: "ann"}` (#123), and shows at
@@ -161,7 +161,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
       first element's address.
   - Pointers have no `.dec`, `.oct` or `.bin`, and `.cstr` is as
     before: a string's own text, another pointer's `%p`-like text
-    (`0x16ee86888`), and none for a function *(provisional P48)*.
+    (`0x16ee86888`, `nullptr` for a null one, #260), and none for a
+    function *(provisional P48)*.
 - **Pointers and functions** also have `.isNull` (#50): `p.isNull` is
   `p == nullptr`, a `bool`, so `if p.isNull { }` and
   `while !f.isNull { }` read as they sound.

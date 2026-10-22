@@ -107,11 +107,15 @@ uint8_t *kv_cstr_cld(long double _Complex v, uint8_t *buf) {
 }
 
 /* a string is its own text; kv_cstr_cstr keeps a const string const */
-uint8_t *kv_cstr_str(const char *v, uint8_t *buf) { return v ? (uint8_t *)v : put(buf, "(null)"); }
+uint8_t *kv_cstr_str(const char *v, uint8_t *buf) { return v ? (uint8_t *)v : put(buf, "nullptr"); } /* (#260) */
 
 const uint8_t *kv_cstr_cstr(const char *v, uint8_t *buf) { return kv_cstr_str(v, buf); }
 
+/* an address as 0x and its digits; a null pointer is nullptr, as Kelvin
+   writes it (#260): 0x0 would read back as 0, an i64 */
 uint8_t *kv_cstr_ptr(const volatile void *v, uint8_t *buf) {
+    if (!v)
+        return put(buf, "nullptr");
     char hex[132];
     digits((uintptr_t)v, 16, false, hex);
     strcpy((char *)buf, "0x");
@@ -234,7 +238,7 @@ uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p) {
    as a cstr's, so that it pastes back */
 uint8_t *kv_cstr_quoted_text(uint8_t *p, const void *s) { return kv_cstr_quoted_str((const char *)s, p); }
 
-uint8_t *kv_cstr_put_str(uint8_t *p, const char *s) { return s ? put_chars(p, s, SIZE_MAX) : kv_cstr_put(p, "(null)"); }
+uint8_t *kv_cstr_put_str(uint8_t *p, const char *s) { return s ? put_chars(p, s, SIZE_MAX) : kv_cstr_put(p, "nullptr"); } /* (#260) */
 
 uint8_t *kv_cstr_put_text(uint8_t *p, const void *s) { return kv_cstr_put_str(p, (const char *)s); }
 

@@ -133,7 +133,7 @@ again:
 // out: small 1, done 1
 // out: done 9
 // out: abbb 1000 3 1000 items none
-// out: 0.100000001 18446744073709551615 -170141183460469231731687303715884105728 hi (null) 65 true
+// out: 0.100000001 18446744073709551615 -170141183460469231731687303715884105728 hi nullptr 65 true
 // out: 20 6 43 {42}
 // c: char _kv_template0[sizeof "n is " + 20];
 // c: char _kv_template0[sizeof "small " ", " + 20], _kv_template1[sizeof "done " + 20];

@@ -36,10 +36,11 @@ let main():int32 {
     - The point is `.` whatever the C locale's, which `printf` would
       follow
   - `bool` as `true`/`false`
-  - `u8^` and string literals as strings (`(null)` for a null pointer);
-    inside a value, quoted, `{tag: "edge"}`, and `nullptr` for a null
-    one, a C type's text, as `xmlChar^`, too (#259)
-  - other pointers as addresses
+  - `u8^` and string literals as strings; inside a value, quoted,
+    `{tag: "edge"}`, a C type's text, as `xmlChar^`, too (#259)
+  - other pointers as addresses, `0x16ee86888`
+  - a null pointer of any type as `nullptr`, as Kelvin writes it (#260):
+    `0x0` would read back as `0`, an `i64`
   - a struct, a union, an enum with values, an Optional, a Result, an
     `Array`, a `Dictionary` and a `Set` whole, on one line (#122, #123):
     see [Values whole](#values-whole-print-and-pretty) below
@@ -169,7 +170,7 @@ let card:cstr := `name: ${name}
 - **Values** are evaluated once each, left to right, and shown as
   `print` shows them: numbers as `println(n)` does, floats in their
   every digit (`0.10000000000000001`, #259), `bool` as `true`/`false`, strings as their text
-  (`(null)` for `nullptr`), other pointers as addresses.
+  (`nullptr` for a null one, #260), other pointers as addresses.
   - A struct kelvinc sees shows its `.cstr` text (`{x: 3, y: 4}`), as
     `print` does (#122); one it cannot see, as a call that C chooses
     among overloads with different results, is a C error, so assign it

@@ -173,7 +173,7 @@ with `strcmp(a, b) == 0`, and a string with `nullptr` by `s.isNull` or
 ## Printing
 
 - `print` and `println` show a `u8^`, a `cstr` and a string literal as
-  their text, and `(null)` for a null pointer.
+  their text, and `nullptr` for a null pointer (#260).
 - A single `u8` prints as a number, as every integer does:
   `println(s[0])` prints `104` for `h`, and `println(s.hex)` its
   address.

@@ -5882,3 +5882,20 @@ digit its type holds, with a point, `0.10000000000000001`, `[1.0]`,
 null one is `nullptr`. Details are provisional P271.
 
 There are 896 tests, and all pass with clang and with gcc 15.
+
+### 304. A null pointer prints nullptr
+
+> print null pointers as nullptr as #260.   Also `0x0` is a `0:i64` which
+> IS NOT `0x0p0` which is `0.0:f64`.  `nan` and `inf` are kelvin
+> literals.  exactly speaking, `$/nan/i` and `$/inf(:?inity)?/i` are
+> kevin literals of type `f64`.  You can convert types as `nan:f32` but
+> `(0.0/0.0) as f32` might be more intuitive.
+
+**Claude** made a null pointer print `nullptr`, by `print`, `.cstr`,
+`${p}` and inside a value, a null cstr's too, where it was `0x0` or
+`(null)`. `.addr` and `.hex` keep their numbers. Claude found that
+kelvinc does not read `nan` and `inf` yet, `let a = nan` asking for a
+type, so the text "nan" and "inf" is right but does not read back.
+Details are provisional P272.
+
+There are 896 tests, and all pass with clang and with gcc 15.

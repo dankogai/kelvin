@@ -130,10 +130,15 @@ void kv_print_u64(unsigned long long v) { kv_fprint_u64(stdout, v); }
 void kv_fprint_bool(void *fp, bool v) { fputs(v ? "true" : "false", (FILE *)fp); }
 void kv_print_bool(bool v) { kv_fprint_bool(stdout, v); }
 
-void kv_fprint_str(void *fp, const char *v) { fputs(v ? v : "(null)", (FILE *)fp); }
+void kv_fprint_str(void *fp, const char *v) { fputs(v ? v : "nullptr", (FILE *)fp); } /* (#260) */
 void kv_print_str(const char *v) { kv_fprint_str(stdout, v); }
 
-void kv_fprint_ptr(void *fp, const void *v) { fprintf((FILE *)fp, "%p", v); }
+/* as .cstr writes it (#260): 0x and the digits, nullptr for a null one,
+   where %p is the platform's, "(nil)" of glibc */
+void kv_fprint_ptr(void *fp, const void *v) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    fputs((const char *)kv_cstr_ptr(v, buf), (FILE *)fp);
+}
 void kv_print_ptr(const void *v) { kv_fprint_ptr(stdout, v); }
 
 void kv_fprint_newline(void *fp) { putc('\n', (FILE *)fp); }
@@ -223,15 +228,15 @@ static char *cut(char *p, size_t max, const char *v, size_t n) {
 }
 
 char *kv_template_str(char *p, size_t max, const char *v) {
-    return v ? cut(p, max, v, (size_t)-1) : put(p, max, "(null)", 6);
+    return v ? cut(p, max, v, (size_t)-1) : put(p, max, "nullptr", 7); /* (#260) */
 }
 
 char *kv_template_bytes(char *p, size_t max, size_t n, const void *v) { return cut(p, max, v, n); }
 
 char *kv_template_ptr(char *p, size_t max, const void *v) {
-    char buf[40];
-    int n = snprintf(buf, sizeof buf, "%p", v);
-    return put(p, max, buf, n < (int)sizeof buf ? (size_t)n : sizeof buf - 1);
+    uint8_t buf[KV_CSTR_SCALAR]; /* as .cstr writes it, nullptr for a null one (#260) */
+    const char *t = (const char *)kv_cstr_ptr(v, buf);
+    return put(p, max, t, strlen(t));
 }
 
 char *kv_template_f64(char *p, size_t max, double v) {

@@ -40,8 +40,8 @@ int main(void)
     if (CSTR(s, b) == (uint8_t *)s) n_ok++; else printf("MISMATCH a string is its own text\n");
     const char *cs0 = "const";
     if (_Generic(CSTR(cs0, b), const uint8_t *: 1, default: 0)) n_ok++; else printf("MISMATCH const string lost const\n");
-    CHK(CSTR((char *)0, b), "(null)");
-    CHK(CSTR((void *)0, b), "0x0");
+    CHK(CSTR((char *)0, b), "nullptr"); /* as Kelvin writes it (#260) */
+    CHK(CSTR((void *)0, b), "nullptr");
     CHK(CSTR((void *)0xbeef, b), "0xbeef");
 
     /* the derived text's pieces */

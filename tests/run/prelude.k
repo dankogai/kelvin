@@ -47,7 +47,7 @@ let main():int32 {
 // out: 1.0 0.10000000000000001 -0.5 0.33333333333333331 1.0000000000000001e+300 2.4999999999999999e-08
 // out: 0.100000001 16777216.0 0.333333343
 // out: nan nan inf -inf
-// out: true false false bytes (null)
+// out: true false false bytes nullptr
 // out: true false 2
 // out: 12345678910111213141516
 // out: true
