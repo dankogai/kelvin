@@ -107,6 +107,12 @@ kc reads what it is written in, and little more.
   `struct` of plain members, `enum` of names, C's (#210), global `let`
   and `var`, `#import <IO>`, `#import "x.k"`, and `#import <x.h> as C`
   (#207).
+- **A body's value** (#286), as kelvinc's #26: a function with a result
+  whose body is one expression returns it, `let f(x:int64):int64 { x * 2 }`.
+  - One assignment, or one call with no value, is kelvinc's error.
+  - A body that ends in a value on any path, of a block, an `if` or a
+    case, is kelvinc's error too, and in `main`, whose end returns 0,
+    one with no effect.
 - **Enums with values** (#215): `enum item { none; num: int64; text:
   String }`, written as kelvinc writes one: a struct of a tag and a
   union, with `_kv_T_make_c`, `_at_c` (checked) and `_set_c`, and
@@ -383,8 +389,6 @@ steps can take them on one at a time.
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
   - `union` and `typealias`;
-  - a body's value returned without `return`, `{ 7 }`, kelvinc's (#26):
-    kc writes a function that returns nothing;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;

@@ -317,6 +317,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 283 | kc refuses `+` and `-` of a cstr as kelvinc since #282, in its words: `"a" + "b"` and `x + y`, `'+' joins Strings, and a cstr is not one`; `"a" + 1`, `"a" - "b"` and `x - y`, #52's text, not a cursor | — | kc refuses `"a" + "b"` | 2026-10-23 |
 | 284 | kc has `+` of Strings, as kelvinc's #183: `s + t` a new String of a String, a cstr or a uchr on either side, one a String, the left no uchr; a String in a variable copied, one an expression gives taken; a variable infers it; the wrong sides are kelvinc's errors, in its words | — | kc builds `greeting + " and " + greeting` | 2026-10-23 |
 | 285 | kc has a Dictionary's `keys` and `values`, Arrays of copies in the order added, as kelvinc: new values a variable then owns, of a Dictionary in a variable, a temporary, or through a borrow | — | kc builds `stock.keys` and `stock.values` | 2026-10-23 |
+| 286 | kc returns a body's value as kelvinc's #26: a function with a result whose body is one expression returns it; one assignment, or one call with no value, is an error; a body that ends in a value on any path is an error, and in main one with no effect, in kelvinc's words | — | kc builds `let doubled(x:int64):int64 { x * 2 }` | 2026-10-23 |
 
 Notes:
 
@@ -878,6 +879,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (286) Agreed details: "teach kc to return a body's value as #286",
+  found by #285. kc wrote the one expression as a statement, dropping
+  its value, and C's function returned nothing, which cc only warned of.
+  - implicit_return, before a function is written, makes a body of one
+    expression statement its return, so gen_return writes it, an owner
+    moved out as by `return`.
+  - kelvinc's errors, in its words: an assignment; a call with no value,
+    println or a function kc sees has no result; a value dropped at the
+    end of any path, through blocks, either arm of an `if` and each
+    case; main's end, which returns 0, of a value with no effect.
+  - kelvin_type_text names a type in them as kelvinc, `Array<T>`.
+  - Found: kc lets `$[1] + 2` reach C, which kelvinc refuses: "an Array
+    has no operator '+'".
 
 - (285) Agreed details: "teach kc Dictionary keys and values as #285",
   #278's way. gen_slots_array makes the Array of a Set's elements and
@@ -3101,6 +3116,7 @@ says "as agreed".
 | P295 | Details of #283 | selfhost/gen.k: reject_cstr_math, is_cstr_text, is_string_value; selfhost/README.md | `+` of Strings in kc |
 | P296 | Details of #284 | selfhost/gen.k: is_string_plus, plus_side_text, gen_string_plus, type_of and inferred of `+`; sample.k uses it; selfhost/README.md | |
 | P297 | Details of #285 | selfhost/gen.k: type_of of keys and values, is_made_array, gen_slots_array, shared with elements; sample.k uses them; selfhost/README.md | a body's value in kc |
+| P298 | Details of #286 | selfhost/gen.k: implicit_return, no_value, drops_value, dropped_at_end, last_of, kelvin_type_text; sample.k uses it; selfhost/README.md | `+` of an Array in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

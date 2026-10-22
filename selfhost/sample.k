@@ -158,6 +158,9 @@ let fib(n:int64):int64 {
     return fib(n - 1) + fib(n - 2)
 }
 
+let doubled(x:int64):int64 { x * 2 }                // a body's value, returned (#286)
+let shouted(s:const String^):String { s^ + "!" }
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -360,5 +363,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     var stock_names = stock.keys                      // Arrays of copies, in the order added (#285)
     stock_names += $"plum"
     println(stock_names, " ", stock.values, " ", numbers.keys, " ", numbers.values, " ", deep.keys, " ", deep.values, " ", stock.keys.count)
+    println(doubled(21), " ", shouted(&greeting))
     return 0
 }

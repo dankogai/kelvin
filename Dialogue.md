@@ -6231,3 +6231,15 @@ that kc returns no body's value, `{ 7 }`, and writes a function that
 returns nothing. Details are provisional P297.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 330. kc returns a body's value
+
+> teach kc to return a body's value as #286
+
+**Claude** taught kc kelvinc's #26: a function with a result whose body
+is one expression returns it, with kelvinc's errors, in its words, for
+an assignment there, a call with no value, and a value dropped at the
+end of a longer body or of main. It found that kc lets `$[1] + 2` reach
+C. Details are provisional P298.
+
+There are 912 tests, and all pass with clang and with gcc 15.

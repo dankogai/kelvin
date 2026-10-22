@@ -723,6 +723,18 @@ let gen_place(n:int64) {
     put(")")
 }
 
+// a type as kelvinc's messages name it: an Array an Array<T> (#284, #286)
+let kelvin_type_text(y:int64):String {
+    if types[y].kind == Y_ARRAY {
+        var s = $"Array<"
+        let e:String = kelvin_type_text(types[y].elem)
+        s += &e
+        s += ">"
+        return s
+    }
+    return type_text(y)
+}
+
 // a side of s + t as kelvinc names it where it is not text: a literal is
 // a number, an Array an Array<T> (#284)
 let plus_side_text(n:int64):String {
@@ -730,15 +742,9 @@ let plus_side_text(n:int64):String {
     if k == N_NUM || k == N_CHAR || k == N_BOOL { return $"a number" }
     let y:int64 = type_of(n)
     if y < 0 { return $"not text" }
-    if types[y].kind == Y_ARRAY {
-        var s = $"Array<"
-        let e:String = type_text(types[y].elem)
-        s += &e
-        s += ">"
-        return s
-    }
-    return type_text(y)
+    return kelvin_type_text(y)
 }
+
 
 // s + t of Strings (#284), as kelvinc's: each side a String, a cstr or
 // a uchr, the left no uchr; a new String, the left copied from a
@@ -3265,8 +3271,110 @@ let takes_owner(d:int64):bool {
     return false
 }
 
+// ---------- a body's value (#286) ----------
+
+// whether e, a statement, has no value: println, print, or a call of a
+// function kc sees has no result, as kelvinc's no_value
+let no_value(e:int64):bool {
+    let k = nodes[e].kind
+    if k == N_COND { return no_value(nodes[e].b) || no_value(nodes[e].c) }
+    if k != N_CALL { return false }
+    let y:int64 = type_of(e)
+    return y >= 0 && types[y].kind == Y_VOID
+}
+
+// whether e, a statement, leaves a value behind: one with no effect, or,
+// with calls, a call of a function kc sees has a result, as kelvinc's
+// drops_value; a call of C's, or of a type, has an effect
+let drops_value(e:int64, calls:bool):bool {
+    let k = nodes[e].kind
+    if k == N_COND { return drops_value(nodes[e].b, calls) || drops_value(nodes[e].c, calls) }
+    if k != N_CALL && k != N_METHOD { return true }
+    if !calls || k != N_CALL || nodes[nodes[e].a].kind != N_ID { return false }
+    if tok_is(nodes[nodes[e].a].t, "println") || tok_is(nodes[nodes[e].a].t, "print") { return false }
+    if call_target(e) < 0 { return false }
+    let y:int64 = type_of(e)
+    return y >= 0 && types[y].kind != Y_VOID
+}
+
+// the last of the statements from s on, or -1
+let last_of(s:int64):int64 {
+    var last:int64 = -1
+    var t:int64 = s
+    while t >= 0 {
+        last = t
+        t = nodes[t].next
+    }
+    return last
+}
+
+// the statement at the end of a path through s that drops a value: of a
+// block, either arm of an if, each case of a switch; -1 if none
+let dropped_at_end(s:int64, calls:bool):int64 {
+    if s < 0 { return -1 }
+    let k = nodes[s].kind
+    if k == S_EXPR { return drops_value(nodes[s].a, calls) ? s : -1 }
+    if k == S_BLOCK { return dropped_at_end(last_of(nodes[s].a), calls) }
+    if k == S_IF || k == S_IFLET {
+        let b = dropped_at_end(nodes[s].b, calls)
+        return b >= 0 ? b : dropped_at_end(nodes[s].c, calls)
+    }
+    if k == S_SWITCH {
+        var c:int64 = nodes[s].b
+        while c >= 0 {
+            let x = dropped_at_end(last_of(nodes[c].b), calls)
+            if x >= 0 { return x }
+            c = nodes[c].next
+        }
+    }
+    return -1
+}
+
+// a function with a result whose body is one expression returns it, as
+// kelvinc's (#26, #35); main keeps C's rule that its end returns 0. One
+// assignment, or one call with no value, is an error there, as is a body
+// that ends, on any path, in a value it drops; in main, one with no effect
+let implicit_return(d:int64) {
+    let first:int64 = nodes[nodes[d].b].a
+    if first < 0 { return }
+    let ry:int64 = nodes[d].ty
+    let main = is_main(d)
+    if ry < 0 || types[ry].kind == Y_VOID { return }
+    let last = last_of(first)
+    if nodes[first].next < 0 && !main {
+        if nodes[first].kind == S_ASSIGN {
+            var m = $"an assignment has no value (#26), but this function has a result, of type "
+            let what:String = kelvin_type_text(ry)
+            m += &what
+            m += ": assign, then 'return' a value"
+            gen_error(first, m.cstr)
+            return
+        }
+        if nodes[first].kind == S_EXPR {
+            if no_value(nodes[first].a) {
+                var m = $"this has no value, but this function has a result, of type "
+                let what:String = kelvin_type_text(ry)
+                m += &what
+                m += ": write 'return' with a value after it"
+                gen_error(first, m.cstr)
+                return
+            }
+            nodes[first].kind = S_RETURN              // its value returned, an owner moved out
+            return
+        }
+    }
+    let dropped = dropped_at_end(last, !main)
+    if dropped >= 0 && main {
+        gen_error(dropped, "main's end returns 0, as in C, so it does not return this value: write 'return' before it")
+    } else if dropped >= 0 {
+        gen_error(dropped, "this value would be dropped: a body returns its value without 'return' only when it is one expression, so write 'return' before it")
+    }
+}
+
 let gen_function(d:int64) {
     current = d
+    implicit_return(d)
+    if failed { return }
     gen_signature(d)
     put("\n")
     open_scope()
