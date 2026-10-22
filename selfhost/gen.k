@@ -2278,6 +2278,12 @@ let gen_return(n:int64) {
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
+    if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
+        var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
+        s += type_text(y)
+        gen_error(n, s.cstr)
+        return
+    }
     serial += 1
     put("{\n")
     indent(depth + 1)
@@ -2296,7 +2302,48 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         held[src] = h
     }
-    if types[y].kind == Y_STRING {
+    if types[y].kind == Y_DICT {                       // for k, v in d, for k in d (#269): each live entry in the order added
+        put("for (size_t _kv_i")
+        put_int(serial)
+        put(" = 0; _kv_i")
+        put_int(serial)
+        put(" < (")
+        gen_expr(nodes[n].a)
+        put(").len; _kv_i")
+        put_int(serial)
+        put("++)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put("if (!(")
+        gen_expr(nodes[n].a)
+        put(").at[_kv_i")
+        put_int(serial)
+        put("].live) continue;\n")
+        indent(depth + 2)
+        put_ctype(types[y].name)                      // the key and the value, lets the Dictionary owns
+        put(" ")
+        put_tok(nodes[n].t)
+        put(" = (")
+        gen_expr(nodes[n].a)
+        put(").at[_kv_i")
+        put_int(serial)
+        put("].key;\n")
+        open_scope()
+        declare(nodes[n].t, types[y].name)
+        if nodes[n].b >= 0 {
+            indent(depth + 2)
+            put_ctype(types[y].elem)
+            put(" ")
+            put_tok(nodes[nodes[n].b].t)
+            put(" = (")
+            gen_expr(nodes[n].a)
+            put(").at[_kv_i")
+            put_int(serial)
+            put("].value;\n")
+            declare(nodes[nodes[n].b].t, types[y].elem)
+        }
+    } else if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
         put_int(serial)
         put(" = (")

@@ -190,7 +190,8 @@ kc reads what it is written in, and little more.
     parentheses or a call's arguments there, it is an annotation again.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
-  `for i in a..<b`; `for x in s` of a String or an Array; `return`,
+  `for i in a..<b`; `for x in s` of a String or an Array, `for k, v in
+  d` and `for k in d` of a Dictionary, in the order added (#269); `return`,
   `break`, `continue`.
   - **`=` and `:=`** (#233), as kelvinc has them: a reference, a `cstr`
     or a `T^`, takes `:=`, and a value `=`, in a declaration, a global's

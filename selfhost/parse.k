@@ -36,7 +36,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_IF,       // if a { b } else c
     S_WHILE,
     S_FOR,      // for t in a..<b { c }
-    S_EACH,     // for t in a { c }
+    S_EACH,     // for t in a { c }; for t, b in a of a Dictionary, b the value's name (#269)
     S_RETURN,
     S_BREAK,
     S_CONTINUE,
@@ -841,6 +841,11 @@ let parse_statement():int64 {
     if at_word("for") {
         advance()
         let v:int64 = advance()
+        var second = -1
+        if at_word(",") {                       // for k, v in d (#269)
+            advance()
+            second = advance()
+        }
         expect("in")
         let from:int64 = parse_expr()
         if at_word("..<") {
@@ -853,6 +858,7 @@ let parse_statement():int64 {
         }
         let n:int64 = make_node(S_EACH, v)
         nodes[n].a = from
+        if second >= 0 { nodes[n].b = make_node(N_ID, second) }   // for k, v in d (#269)
         set_c(n, parse_block())
         return n
     }

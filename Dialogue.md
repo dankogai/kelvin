@@ -6008,3 +6008,15 @@ of `${k: v}` takes the first's type. sample.k prints Dictionaries
 whole, so the bootstrap checks them. Details are provisional P280.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 313. kc walks Dictionaries
+
+> teach kc for k, v in d as #269
+
+**Claude** taught kc `for k, v in d`, each key and its value, and
+`for k in d`, each key, in the order added, as lets the Dictionary
+owns; a Dictionary an expression gives is held for the loop. Two names
+over an Array are kelvinc's error. sample.k walks Dictionaries, so the
+bootstrap checks it. Details are provisional P281.
+
+There are 897 tests, and all pass with clang and with gcc 15.

@@ -306,5 +306,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     let deep = ${"a": ${"b": 1}}
     println(stock["pear"], " ", stock.count, " ", numbers[2], " ", deep["a"]!["b"], " ", ${"k": 1.5}["k"])
     println(stock, " ", numbers, " ", deep, " ", ${"e": $[1], "f": $[]}, " ", $[stock.copy()])   // Dictionaries whole (#268)
+    var fruit = 0                                     // for k, v in d, for k in d (#269)
+    for name, count in stock {
+        print(name, "=", count, " ")
+        fruit += count
+    }
+    for n in numbers { print(n, " ") }
+    println(fruit)
     return 0
 }
