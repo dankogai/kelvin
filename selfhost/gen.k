@@ -79,6 +79,7 @@ let put_elem_name(y:int64) {
     case Y_U8: put("u8")
     case Y_U32: put("u32")
     case Y_F64: put("f64")
+    case Y_F32: put("f32")
     case Y_BOOL: put("bool")
     case Y_STRING: put("String")
     case Y_STRUCT: put_tok(types[y].name)
@@ -133,6 +134,7 @@ let put_ctype(y:int64) {
     case Y_U8: put("uint8_t")
     case Y_U32: put("uint32_t")
     case Y_F64: put("double")
+    case Y_F32: put("float")
     case Y_BOOL: put("bool")
     case Y_CSTR: put("const uint8_t *")
     case Y_STRING: put("kv_string")
@@ -692,6 +694,7 @@ let mangled(y:int64):String {
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
     case Y_F64: return $"f64"
+    case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
@@ -780,7 +783,7 @@ let put_fn_name(d:int64) {
 
 // a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool
 let is_number_kind(k:ykind):bool {
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_BOOL
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL
 }
 
 // how a call's argument a fits a parameter of type t, as kelvinc's fit:
@@ -914,7 +917,7 @@ let struct_of(y:int64):int64 {
 // whether print shows v as it is: a number, a bool, text
 let plain_shown(v:int64):bool {
     let k:ykind = types[v].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -995,7 +998,7 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put(");\n")
     } else {
         put("{ uint8_t _kv_b[256]; ")
-        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : "kv_cstr_i64")
+        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : k == Y_F32 ? "kv_cstr_f32" : "kv_cstr_i64")
         put("(")
         put_self(path, t)
         put(", _kv_b); kv_out_put(o, _kv_b); }\n")
@@ -1402,7 +1405,7 @@ let fits_value(n:int64, t:int64):bool {
     let k:nkind = nodes[n].kind
     let tk:ykind = types[t].kind
     let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
-    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64) { return true }
+    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64 || tk == Y_F32) { return true }
     if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if type_of(n) == t { return true }
     return some_type(t) >= 0 && fits_value(n, some_type(t))
@@ -1831,6 +1834,7 @@ let type_text(y:int64):String {
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
     case Y_F64: return $"f64"
+    case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"

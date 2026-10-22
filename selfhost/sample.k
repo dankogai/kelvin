@@ -290,5 +290,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     floats += 0.1
     floats += -inf
     println(ratio * 2.0, " ", 7 as float64 / 2.0, " ", 2.5e-8, " ", nan, " ", Infinity, " ", floats, " ", 3.9 as int64, " ", ratio < inf)
+    let tenth:float32 = 0.1                           // float32, every digit it holds (#263)
+    var singles:$[float32] = $[]
+    singles += tenth
+    singles += -inf as float32
+    println(tenth, " ", tenth as float64, " ", tenth * 3.0, " ", 16777217 as float32, " ", singles)
     return 0
 }

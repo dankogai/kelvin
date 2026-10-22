@@ -294,6 +294,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 260 | A null pointer prints `nullptr`, as Kelvin writes it, by `print`, `.cstr`, `${p}` and inside a value, a null cstr's too, which printed `(null)`: `0x0` reads back as `0`, an i64; `.addr` and `.hex` keep their numbers | — | `println(p)` of a null `i64^` prints `nullptr` | 2026-10-22 |
 | 261 | `nan`, `inf` and `infinity`, in any case (`$/nan/i`, `$/inf(inity)?/i`), are literals of `f64`, so that what print shows of a NaN or an infinity reads back; `nan:f32` converts one; a name the program declares is its own, `nan(...)` is C's function, a member is a member | — | `let x = -inf` | 2026-10-22 |
 | 262 | kc has `float64`: literals `1.5` and `2.5e-8`, and `nan`, `inf`, `infinity` in any case where no variable has the name, as kelvinc's (#261); arithmetic, comparisons and `as` C's; printed as kelvinc prints it; sample.k prints floats | — | kc builds `let r = 1.5` | 2026-10-22 |
+| 263 | kc has `float32`, C's `float`: of a literal, `let x:float32 = 0.1`, or `as float32`; arithmetic, comparisons, an Array's elements, a struct's members, an Optional's value; printed as kelvinc prints it, every digit it holds; sample.k prints them | — | kc builds `let x:float32 = 0.1` | 2026-10-22 |
 
 Notes:
 
@@ -855,6 +856,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (263) Agreed details: "teach kc float32 as #263", #262's f32 left
+  out. Y_F32 goes wherever #262's Y_F64 went, its C type float and its
+  name in C f32, as kelvinc's mangled_type, so an Array<f32> is the same
+  _kv_array_f32. A literal is an f64 still, and converts where a
+  float32 takes it; kc has no `x:f32` annotation, `as float32` its
+  conversion.
 
 - (262) Agreed details: "teach kc nan and inf as #262". kc had no
   floats, every number an i64; asked how far to go, the user chose
@@ -2812,6 +2820,7 @@ says "as agreed".
 | P272 | Details of #260 | runtime/string.c: kv_cstr_ptr, kv_cstr_str, kv_cstr_put_str write nullptr for a null pointer; runtime/prelude.c: kv_fprint_ptr and kv_template_ptr call kv_cstr_ptr, kv_fprint_str and kv_template_str write nullptr; tests: cstr.k, prelude.k, templates.k, tests/c/cstr.c; documents/printing.md, properties.md, strings.md | nan and inf as literals of f64 (#261) |
 | P273 | Details of #261 | parser.c: float_word(s); parse_primary makes an E_LITERAL `nan` or `inf` of a word that no binding, function or call claims; literal_type and shown_type give f64; codegen.c: expr_bare writes __builtin_nan("") and __builtin_inf(); editors/vscode grammar and tests/grammar.js; tests: run/float_words.k; documents/floatingpoint.md, grammar.md | kc reading nan and inf |
 | P274 | Details of #262 | selfhost/lex.k: a float's . and an exponent's sign; parse.k: Y_F64, `float64`; gen.k: word_no_case, float_word, float_tok, type_of and gen_expr of floats and the words, Y_F64 in put_ctype (double), put_elem_name, mangled, type_text, is_number_kind, plain_shown, kv_cstr_f64 in a value; sample.k prints floats; selfhost/README.md | float32 in kc |
+| P275 | Details of #263 | selfhost/parse.k: Y_F32, `float32`; gen.k: Y_F32 in put_elem_name, put_ctype (float), mangled, type_text, is_number_kind, plain_shown, fits_value, kv_cstr_f32 in a value; sample.k prints float32; selfhost/README.md | `x:T` annotations in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -155,13 +155,16 @@ kc reads what it is written in, and little more.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
-- **Types:** `int64`, `int32`, `uint8`, `uint32`, `float64`, `bool`,
+- **Types:** `int64`, `int32`, `uint8`, `uint32`, `float64`, `float32`, `bool`,
   `cstr`, `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's
   `[cstr]`, and `Dictionary<K, V>` of `String` or integer keys (#211).
   - **`float64`** (#262): literals `1.5`, `2.5e-8`, and `nan`, `inf`
     and `infinity` in any case, where no variable has the name, as
     kelvinc's (#261); arithmetic, comparisons and `as` are C's; printed
     as kelvinc prints it, every digit with a point (#259).
+  - **`float32`** (#263): C's `float`, of a literal, `let x:float32 =
+    0.1`, or `as float32`, `nan as float32`; printed as kelvinc prints
+    it, `0.100000001`.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
   `for i in a..<b`; `for x in s` of a String or an Array; `return`,
@@ -279,8 +282,7 @@ steps can take them on one at a time.
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
   - `Set`, `union` and `typealias`;
-  - `float32`, and integers but `int64`, `int32`, `uint8` and
-    `uint32`;
+  - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators, `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;

@@ -5927,3 +5927,15 @@ Details are provisional P274. #261's grammar pattern, which Node on
 Linux could not compile, now spells each letter's two cases.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 307. kc reads float32
+
+> teach kc float32 as #263
+
+**Claude** gave kc `float32`, C's `float`, beside #262's `float64`: of
+a literal, `let x:float32 = 0.1`, or `as float32`, computed, compared,
+held in an Array, a struct or an Optional, and printed as kelvinc
+prints it, `0.100000001`. sample.k prints them, so the bootstrap checks
+them. Details are provisional P275.
+
+There are 897 tests, and all pass with clang and with gcc 15.

@@ -57,6 +57,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_U8,
     Y_U32,
     Y_F64,      // float64 (#262)
+    Y_F32,      // float32 (#263)
     Y_BOOL,
     Y_CSTR,
     Y_STRING,
@@ -314,6 +315,8 @@ let parse_type():int64 {
         y = base_type(Y_U32)
     } else if tok_is(t, "float64") {                 // (#262)
         y = base_type(Y_F64)
+    } else if tok_is(t, "float32") {                 // (#263)
+        y = base_type(Y_F32)
     } else if tok_is(t, "bool") {
         y = base_type(Y_BOOL)
     } else if tok_is(t, "cstr") {
