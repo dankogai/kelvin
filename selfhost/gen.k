@@ -593,6 +593,34 @@ let type_of(n:int64):int64 {
 
 // ---------- expressions ----------
 
+// whether n is text, a cstr, a literal too
+let is_cstr_text(n:int64):bool {
+    let y:int64 = type_of(n)
+    return y >= 0 && types[y].kind == Y_CSTR
+}
+
+// whether n is a String
+let is_string_value(n:int64):bool {
+    let y:int64 = type_of(n)
+    return y >= 0 && types[y].kind == Y_STRING
+}
+
+// + and - of a cstr, as kelvinc has them (#282, #283): only a String
+// joins, and a cstr is text, not a cursor (#52); p - s stays an offset
+let reject_cstr_math(n:int64) {
+    let t:int64 = nodes[n].t
+    let plus = tok_is(t, "+")
+    if !plus && !tok_is(t, "-") { return }
+    if plus && (is_string_value(nodes[n].a) || is_string_value(nodes[n].b)) { return }
+    let ta = is_cstr_text(nodes[n].a)
+    let tb = is_cstr_text(nodes[n].b)
+    if plus && ta && tb {
+        gen_error(n, "'+' joins Strings, and a cstr is not one (#282): make one a String, as in '$\"a\" + \"b\"'")
+    } else if ta || (plus && tb) {
+        gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
+    }
+}
+
 let gen_expr(n:int64)
 
 let gen_value(n:int64, y:int64)
@@ -2196,6 +2224,7 @@ let gen_expr(n:int64) {
         gen_coalesce(n)
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
+        reject_cstr_math(n)                              // "a" + "b", "a" + 1, x - y (#283)
         if y >= 0 && types[y].kind == Y_SET && (tok_is(t, "|") || tok_is(t, "&") || tok_is(t, "~")) {
             gen_set_op(n, y)                             // s | t, s & t, s ~ t (#276)
         } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {

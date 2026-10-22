@@ -314,6 +314,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 280 | A property that makes a new owner is returned, moved out, also through a borrow: `return s^.elements`, `d^.keys`, `f^.string`, `f^.abspath`, `f^.listdir`, `a^.pretty`, where kelvinc said its text lived in a buffer of the function | — | `return s^.elements` | 2026-10-23 |
 | 281 | `kelvinc -c F.k` makes an object, `F.o` or the `-o` path, as `cc -c`; `.o` and `.a` files are linked with a source or alone, with every module's library, each before the ones it imports; kc has `-c` too, and `--emit-c` for keeping its C, as kelvinc | — | `kelvinc -c util.k`, `kelvinc -o app main.o util.o` | 2026-10-23 |
 | 282 | Only a String has `+`: `"a" + "b"` and `x + y` of cstrs are an error that says so, where C refused the literals; a literal is a cstr, text, not a cursor, so `"a" + 1` and `x - y` are #52's error; `$"a" + $"b"` is `String("ab")` | — | `"a" + "b"` is an error, `$"a" + "b"` the String `ab` | 2026-10-23 |
+| 283 | kc refuses `+` and `-` of a cstr as kelvinc since #282, in its words: `"a" + "b"` and `x + y`, `'+' joins Strings, and a cstr is not one`; `"a" + 1`, `"a" - "b"` and `x - y`, #52's text, not a cursor | — | kc refuses `"a" + "b"` | 2026-10-23 |
 
 Notes:
 
@@ -875,6 +876,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (283) Agreed details: "teach kc to refuse "a" + "b" as #283", #282's
+  P294. kc had no check of `+` and `-` of a cstr, #52's either, so all
+  reached C. reject_cstr_math in gen.k is kelvinc's check: a literal
+  is a `cstr` to kc already; `+` with a String on either side is
+  left alone.
+  - Seven cases give kelvinc's words: `"a" + "b"`, `x + y`, `x + "b"`,
+    `"a" + 1`, `"a" - "b"`, `x - y`; and `"a" "b"` runs, `ab`.
+  - Found: kc has no `+` of Strings, `$"a" + "b"`, which reaches C;
+    kc joins with `+=`.
 
 - (282) Agreed details: "fix "a" + "b" of literals in kelvinc as
   #282", found by #280, with the user's answers: `$"a" + $"b" ==
@@ -3062,6 +3073,7 @@ says "as agreed".
 | P292 | Details of #280 | parser.c: text_in_buffer asks is_owner of a property's type; tests: run/return_owner_property.k; documents/functions.md, sets.md | `"a" + "b"` of literals reaches C |
 | P293 | Details of #281 | main.c: `-c`, link_objects, link_only, all_module_libs; selfhost/kc.k: `-c`, `--emit-c`, base_of; bootstrap.sh, sanitize.sh; tests: run.sh, project/objects/; README.md, documents/modules.md, selfhost/README.md | objects of one imported `.k`; kc linking objects |
 | P294 | Details of #282 | parser.c: the `+` and `-` check counts E_STRING as a cstr; tests: error/cstr_join.k, cstr_join_vars.k, cstr_literal_step.k, cstr_difference.k, run/string_join.k; documents/strings.md | kc lets `"a" + "b"` reach C |
+| P295 | Details of #283 | selfhost/gen.k: reject_cstr_math, is_cstr_text, is_string_value; selfhost/README.md | `+` of Strings in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

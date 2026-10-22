@@ -6199,3 +6199,13 @@ error, as only `String` has `+`, and that the steps are #52's error.
 kelvinc now says so for each. Details are provisional P294.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 327. kc refuses "a" + "b"
+
+> teach kc to refuse "a" + "b" as #283
+
+**Claude** gave kc kelvinc's check of `+` and `-` of a cstr, which kc
+lacked, #52's too, with kelvinc's words for each case. It found that kc
+has no `+` of Strings either. Details are provisional P295.
+
+There are 912 tests, and all pass with clang and with gcc 15.
