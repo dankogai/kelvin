@@ -45,7 +45,8 @@ var e:${String} = ${}                    // empty; Set<String>() too
     Set in a variable; a borrow, `s |= &t`, is an error that says so
     (#277), as `s += &t` is how a borrow's elements go in.
 - **Properties:** `count`; `elements`, an Array of copies in the order
-  added; `size`, `typename`.
+  added, a new owner a function may return, `return s^.elements`
+  (#280); `size`, `typename`.
 - **Walking:** `for x in s` gives each element as a let the Set owns,
   in the order added. A Set is not indexed.
 - **Text:** `print(s)` shows `{3, 1, 4}`, in the order added, and

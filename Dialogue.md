@@ -6156,3 +6156,16 @@ C. Then it wrote the goals into selfhost/README.md. Details are
 provisional P291.
 
 There are 904 tests, and all pass with clang and with gcc 15.
+
+### 324. A property that makes an owner is returned
+
+> fix return s^.elements in kelvinc as #280
+
+**Claude** found that the same check also refused returning an IO's
+`string`, `bytes`, `abspath`, `basename`, `dirname`, `listdir` and
+`walk`, and `.pretty` of an Array, a Dictionary or a Set, and asked how
+wide the fix should go. The user chose all of them. kelvinc now takes a
+property whose value is an owner as new, not as text in a buffer of the
+function. Details are provisional P292.
+
+There are 905 tests, and all pass with clang and with gcc 15.

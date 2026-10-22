@@ -9450,9 +9450,11 @@ static Expr *text_in_buffer(Expr *e) {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
         if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
             !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull") ||
-            !strcmp(e->text, "keys") || !strcmp(e->text, "values") || !strcmp(e->text, "utf32") ||
-            !strcmp(e->text, "codepoint") || !strcmp(e->text, "capacity") || (e->op && !strcmp(e->op, "tagged")))
+            !strcmp(e->text, "utf32") || !strcmp(e->text, "codepoint") || !strcmp(e->text, "capacity") ||
+            (e->op && !strcmp(e->op, "tagged")))
             return NULL; /* .count and .isNull are numbers too (#49, #50), and a uchr's codepoint (#156) */
+        if (is_owner(value_type(e))) /* a new owner, as d.keys, s.elements, f.abspath and a.pretty are (#280) */
+            return NULL;
         if (!strcmp(e->text, "next") || !strcmp(e->text, "prev"))
             return text_in_buffer(e->a);
         if (strcmp(e->text, "cstr") || e->a->kind == E_STRING)

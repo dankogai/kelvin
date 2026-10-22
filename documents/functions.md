@@ -274,6 +274,9 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
   - The text of `.hex` and friends lives in the function's own buffer,
     so returning it, as in `{ $0.hex }`, `{ $0.hex + 2 }` or
     `{ return $0.hex }`, is an error.
+  - A property that makes a new owner is no such text: `s.elements`,
+    `d.keys`, `f.string` or `a.pretty` is returned, moved out, also
+    through a borrow, `return s^.elements` (#280).
 - **It encloses nothing:** using a local, a parameter or `self` of the
   function around it is an error, also in its parameter types.
   - Globals, functions and C's names are fine, as are the global it
