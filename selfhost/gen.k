@@ -555,6 +555,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "has") { return base_type(Y_BOOL) }
         if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
         if (tok_is(t, "remove") || tok_is(t, "insert")) && types[y].kind == Y_SET { return base_type(Y_BOOL) }   // (#274)
+        if (tok_is(t, "union") || tok_is(t, "intersection") || tok_is(t, "difference")) && types[y].kind == Y_SET { return y }   // a new Set (#275)
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
@@ -1424,6 +1425,27 @@ let gen_method_of(n:int64) {
         put_array_name(y)
         put("_pop(")
         gen_place(a)
+        put(")")
+    } else if yk == Y_SET && (tok_is(t, "union") || tok_is(t, "intersection") || tok_is(t, "difference")) {
+        let other:int64 = nodes[n].b                    // s.union(&t) and the rest (#275): a new Set, of a borrow of another
+        let ot:int64 = other >= 0 ? type_of(other) : 0 - 1
+        if ot < 0 || types[ot].kind != Y_PTR || types[ot].elem != y || nodes[other].next >= 0 {
+            var m = $"'."
+            m += tok_text(t)
+            m += "' takes a borrow of another "
+            let w:String = type_text(y)
+            m += &w
+            m += ", '&other'"
+            gen_error(n, m.cstr)
+            return
+        }
+        put_set_name(y)                                   // a Set an expression gives is held as any receiver is (#227)
+        put("_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        put(", ")
+        gen_expr(other)
         put(")")
     } else if yk == Y_SET && (tok_is(t, "has") || tok_is(t, "insert") || tok_is(t, "remove")) {   // s.has(x), s.insert(x), s.remove(x) (#274)
         let key:int64 = nodes[n].b

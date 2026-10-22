@@ -177,6 +177,8 @@ kc reads what it is written in, and little more.
   - `s.insert(x)` and `s += x`, `true` where it was new; `s += &t`, t's
     elements; `s.has(x)`; `s.remove(x)`, `true` where it was there;
     `s.count`; `s.copy()`.
+  - `s.union(&t)`, `s.intersection(&t)`, `s.difference(&t)`, new Sets of
+    a borrow of another of the same elements (#275).
   - `for x in s`, in the order added, each a let the Set owns; printed
     as kelvinc prints it, `{3, 1, 4}`, `{}` where empty.
   - A let does not change, and `const Set<T>^` borrows one that reads.
@@ -331,8 +333,8 @@ steps can take them on one at a time.
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
-  - a Set's `union`, `intersection`, `difference`, its `|`, `&`, `~`
-    and their `=` forms, and `elements`; `union` and `typealias`;
+  - a Set's `|`, `&`, `~` and their `=` forms, and `elements`; `union`
+    and `typealias`;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators, `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;

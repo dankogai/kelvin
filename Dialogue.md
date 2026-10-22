@@ -6090,3 +6090,15 @@ borrows one that reads, in kelvinc's words. sample.k has Sets, so the
 bootstrap checks them. Details are provisional P286.
 
 There are 903 tests, and all pass with clang and with gcc 15.
+
+### 319. kc's Set algebra
+
+> teach kc Set union, intersection and difference as #275
+
+**Claude** taught kc `s.union(&t)`, `s.intersection(&t)` and
+`s.difference(&t)`, new Sets of a borrow of another of the same
+elements, as kelvinc; another argument is kelvinc's error, word for
+word. A Set an expression gives is held as any receiver is. sample.k
+uses them, so the bootstrap checks them. Details are provisional P287.
+
+There are 903 tests, and all pass with clang and with gcc 15.
