@@ -225,7 +225,11 @@ kc reads what it is written in, and little more.
   `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
 - **Of a Dictionary** (#211): `d[k]!`, checked; `d[k] = v`, which sets
-  the entry; `d.has(k)`, `d.get(k, default)`, `d.count`.
+  the entry; `d.has(k)`, `d.get(k, default)`, `d.count`; `d.remove(k)`,
+  which frees what the entry held and is `true` where it was there
+  (#270).
+  - A String key an expression gives, `d.has($"a")`, is held for the
+    call (#270).
   - `d[k]` read whole is a `V?` (#219), as kelvinc's since #218: `some`
     of a copy of the entry's value, or `none` where the key is missing.
     - It goes where a `V?` goes: `let a = d[k]`, `d[k] ?? v`,

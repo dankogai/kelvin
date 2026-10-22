@@ -301,6 +301,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 267 | kc reads `${k: v}`, a Dictionary of its entries set in order, a later key winning: of the first entry's types, a text key a String's, as kelvinc's, or of the type written, each converted; kelvinc's errors of keys or values of more than one type; a String key an expression gives held; nested, a container's C name its element's as kelvinc mangles it | — | kc builds `let stock = ${"apple": 3}` | 2026-10-22 |
 | 268 | kc prints a Dictionary as kelvinc does, `{"ann": 31}`, `{}` where empty, its live entries in the order added, a String key quoted, each value as print shows it, nested in an Array, a Dictionary or an Optional; a `${:}` or `$[]` value after the first of `${k: v}` takes the first's type, as kelvinc's | — | kc builds `println(${"a": 1})` | 2026-10-22 |
 | 269 | kc walks a Dictionary as kelvinc does: `for k, v in d` each key and its value, `for k in d` each key, its live entries in the order added, lets the Dictionary owns; one an expression gives held for the loop; two names of anything else kelvinc's error | — | kc builds `for k, v in ages { }` | 2026-10-22 |
+| 270 | kc has `d.remove(k)`, as kelvinc: the entry gone, what it held freed, `true` where it was there; a String key an expression gives is held for `has`, `get` and `remove`, which wrote the address of a temporary before | — | kc builds `d.remove("bob")` | 2026-10-22 |
 
 Notes:
 
@@ -862,6 +863,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (270) Agreed details: "teach kc d.remove(k) as #270", #269's P281.
+  It joins `has` and `get`, the prelude's D_remove. Trying a String key
+  an expression gives, `d.has($"a")`, showed that kc wrote `&` of a
+  temporary, which C refuses, for all three; the key is now held for
+  the call, as #267's literal holds one. kelvinc refuses `remove` of a
+  let; kc keeps no record of which names are lets, so it changes a let
+  unchecked, a gap of its own.
 
 - (269) Agreed details: "teach kc for k, v in d as #269", #268's P280.
   `for k in d`, the keys alone, which kelvinc has too, comes with it.
@@ -2890,6 +2899,7 @@ says "as agreed".
 | P279 | Details of #267 | selfhost/parse.k: N_DICT of `${` and its entries, type_word of floats, pointers, IO, uchr and Dictionaries; gen.k: dict_key_type, one_entry_type, gen_dict, type_of, gen_value, gen_expr and inferred of it, the Dictionaries made in functions written after them, put_elem_name by mangled; sample.k reads Dictionary literals; selfhost/README.md | printing a Dictionary whole, and `for k, v in d`, in kc |
 | P280 | Details of #268 | selfhost/gen.k: shown_by_type, need_show and put_show_name of Y_DICT, gen_show's Dictionary; one_entry_type lets an N_EMPTY value be; gen_array and gen_dict cast an N_EMPTY element; sample.k prints Dictionaries; selfhost/README.md | `for k, v in d` and `d.remove(k)` in kc |
 | P281 | Details of #269 | selfhost/parse.k: `for k, v in`, S_EACH's b; gen.k: gen_each of a Dictionary, and its error; sample.k walks Dictionaries; selfhost/README.md | `d.remove(k)` in kc |
+| P282 | Details of #270 | selfhost/gen.k: type_of of d.remove, the has/get branch takes remove and holds a key that needs it; sample.k removes; selfhost/README.md | lets in kc: refusing to change one |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

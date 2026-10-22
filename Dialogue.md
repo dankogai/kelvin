@@ -6020,3 +6020,16 @@ over an Array are kelvinc's error. sample.k walks Dictionaries, so the
 bootstrap checks it. Details are provisional P281.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 314. kc removes entries
+
+> teach kc d.remove(k) as #270
+
+**Claude** taught kc `d.remove(k)`, as kelvinc has it: the entry gone,
+what it held freed, `true` where it was there. A String key an
+expression gives, as in `d.has($"a")`, made C refuse the address of a
+temporary, for `has` and `get` too; it is now held for the call. kc
+does not yet refuse changing a let, as kelvinc does of `remove`.
+Details are provisional P282.
+
+There are 897 tests, and all pass with clang and with gcc 15.

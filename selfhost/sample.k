@@ -313,5 +313,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     for n in numbers { print(n, " ") }
     println(fruit)
+    var basket = stock.copy()                         // d.remove(k) (#270)
+    println(basket.remove("apple"), " ", basket.remove("kiwi"), " ", basket, " ", basket.has($"pear"))
     return 0
 }

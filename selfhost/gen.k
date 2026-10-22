@@ -521,6 +521,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "copy") { return y }
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
+        if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
@@ -1321,7 +1322,10 @@ let gen_method_of(n:int64) {
         put("_pop(")
         gen_place(a)
         put(")")
-    } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get")) {   // d.has(k), d.get(k, v) (#211)
+    } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270)
+        let key:int64 = nodes[n].b
+        let hold = needs_hold(key)                        // a String key an expression gives, held for the call (#270)
+        if hold { hold_open(key) }
         put_dict_name(y)
         put("_")
         put_tok(t)
@@ -1334,6 +1338,7 @@ let gen_method_of(n:int64) {
             gen_expr(nodes[nodes[n].b].next)
         }
         put(")")
+        if hold { hold_close(key) }
     } else if yk == Y_IO && tok_is(t, "write") {
         put("kv_io_write_string(")
         gen_place(a)
