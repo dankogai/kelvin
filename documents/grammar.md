@@ -148,6 +148,12 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 
 - **`"..."`** is C's string literal (#52).
   - The escapes are C's, `\n`, `\t`, `\"`, `\\`, `\x41`, `\u00e9`.
+  - **`\u{X}`**, `\uXXXX` and `\UXXXXXXXX` are a codepoint (#292), up to
+    `10FFFF`, written to C as its UTF-8 bytes.
+    - A control character too, `\u{7f}`, which C's own escape
+      refuses: so text that `print` shows, `["a\u007f"]`, pastes back.
+    - A surrogate, `\u{D800}`, or one past `10FFFF` is an error, as is a
+      malformed one, `\u12`; in a template too.
   - Adjacent literals join, `"a" "b"`.
   - **No trigraphs** (#220): `"what??!"` is the text as written.
     - C11 reads `??` and one of `= ( / ) ' < ! > -` as another

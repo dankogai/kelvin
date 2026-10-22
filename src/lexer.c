@@ -281,6 +281,62 @@ static void lex_number(Lexer *lx) {
     push(lx, TK_NUMBER, pos, start, lx->p);
 }
 
+/* The \u escapes of a C string literal's text (#292): \u{...}, \uXXXX and
+   \UXXXXXXXX, each a codepoint, as its UTF-8 bytes in octal, three digits
+   each, which C takes for any codepoint, where its own universal character
+   names refuse a control character, U+0000 to U+009F; a surrogate, or one
+   past 10FFFF, is an error. Every other escape stays C's */
+static char *ucn_text(Pos pos, const char *text) {
+    Buf out = {0};
+    buf_puts(&out, "");
+    for (const char *p = text; *p;) {
+        if (p[0] != '\\' || !p[1]) {
+            buf_putn(&out, p, 1);
+            p++;
+            continue;
+        }
+        if (p[1] != 'u' && p[1] != 'U') {
+            buf_putn(&out, p, 2); /* \\, \n, \x41: C's, the u of \\u included */
+            p += 2;
+            continue;
+        }
+        const char *q = p + 2;
+        unsigned long cp = 0;
+        int digits = 0;
+        bool braced = p[1] == 'u' && *q == '{';
+        int want = braced ? 0 : p[1] == 'u' ? 4 : 8;
+        if (braced)
+            q++;
+        while (isxdigit((unsigned char)*q) && (braced ? digits < 8 : digits < want)) {
+            cp = cp * 16 + (unsigned long)(isdigit((unsigned char)*q) ? *q - '0' : tolower((unsigned char)*q) - 'a' + 10);
+            q++;
+            digits++;
+        }
+        if (braced ? (!digits || *q != '}') : digits != want)
+            error_at(pos, "a \\u escape is \\u{X}, \\uXXXX or \\UXXXXXXXX: a codepoint in hex digits (#292)");
+        if (braced)
+            q++;
+        if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+            error_at(pos, "\\u{%lX} is no codepoint: a surrogate, D800 to DFFF, or past 10FFFF (#292)", cp);
+        unsigned char u[4];
+        int n = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+        if (n == 1) {
+            u[0] = (unsigned char)cp;
+        } else {
+            for (int i = n - 1; i > 0; i--, cp >>= 6)
+                u[i] = (unsigned char)(0x80 | (cp & 0x3F));
+            u[0] = (unsigned char)((n == 2 ? 0xC0 : n == 3 ? 0xE0 : 0xF0) | cp);
+        }
+        for (int i = 0; i < n; i++) {
+            char oct[5];
+            snprintf(oct, sizeof oct, "\\%03o", u[i]);
+            buf_puts(&out, oct);
+        }
+        p = q;
+    }
+    return out.buf;
+}
+
 static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
     Pos pos = here(lx);
     const char *start = lx->p;
@@ -294,6 +350,11 @@ static void lex_quoted(Lexer *lx, char quote, TokKind kind) {
     }
     step(lx);
     char *text = untrigraphed(start, (size_t)(lx->p - start)); /* never a C trigraph (#220) */
+    if (quote == '"') { /* \u{7f} too (#292) */
+        char *t = ucn_text(pos, text);
+        free(text);
+        text = t;
+    }
     push(lx, kind, pos, text, text + strlen(text));
     free(text);
 }
@@ -355,7 +416,10 @@ static void lex_template(Lexer *lx, Pos pos, Pos start, bool head) {
         step(lx);
     }
     buf_puts(&lit, "\"");
-    push(lx, kind, pos, lit.buf, lit.buf + lit.len);
+    char *text = ucn_text(start, lit.buf); /* \u{7f} too (#292) */
+    push(lx, kind, pos, text, text + strlen(text));
+    free(text);
+    free(lit.buf);
     lx->toks[lx->len - 1].tpl = kind == TK_STRING;
 }
 

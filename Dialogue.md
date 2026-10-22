@@ -6312,3 +6312,15 @@ function written in Kelvin in runtime/bytes.k. `Bytes(s)` now names
 `Bytes(&s)` in its message. Details are provisional P303.
 
 There are 917 tests, and all pass with clang and with gcc 15.
+
+### 336. A literal's \u{7f}
+
+> fix the "\u{7f}" literal reaching C as #292
+
+**Claude** found that every `\u` escape reached C as C's own, which
+refuses a control character, so `print`'s `\u007f` did not paste back
+either. kelvinc now writes each as the codepoint's UTF-8 bytes, and says
+so of a surrogate, one past 10FFFF and a malformed escape. Details are
+provisional P304.
+
+There are 920 tests, and all pass with clang and with gcc 15.

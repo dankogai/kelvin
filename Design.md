@@ -323,6 +323,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 289 | The runtime begins in Kelvin: `kelvinc --runtime F.k` makes an object as `-c` does, `-fPIC`, its `kv_` names allowed and kept as `kelvin_prelude.h` declares them; `runtime/string.k`, a String's find, has, starts, ends and trim, is built into libkelvin in place of their C | — | `kelvinc --runtime runtime/string.k` | 2026-10-23 |
 | 290 | More of the runtime in Kelvin: a String's `escape` and `unescape` in runtime/string.k, and a Bytes's `toBase64` and `Bytes.fromBase64` in a new runtime/bytes.k, in place of their C | — | `s.escape()`, `b.toBase64()` | 2026-10-23 |
 | 291 | `Bytes(&s)` of a String is a copy of its bytes, as bytes.md has it, where it was garbage; `Bytes(s)` of one is an error that names `Bytes(&s)` | — | `Bytes(&s)` | 2026-10-23 |
+| 292 | A literal's `\u{X}`, `\uXXXX` and `\UXXXXXXXX` are a codepoint, which kelvinc writes to C as its UTF-8 bytes, so `"\u{7f}"` works where C refused it, and `print`'s `\u007f` pastes back; a surrogate, one past 10FFFF or a malformed one is an error that says so | — | `"a\u{7f}"` | 2026-10-23 |
 
 Notes:
 
@@ -884,6 +885,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (292) Agreed details: "fix the "\u{7f}" literal reaching C as #292",
+  found by #290. kelvinc wrote a literal's text to C as it was, so its
+  `\u` escapes were C's universal character names, which refuse a
+  control character, U+0000 to U+009F, and a surrogate; `\u{X}` was
+  C2y's, clang's extension.
+  - print shows a control character in quoted text as `\u007f`
+    (#259), so what print gave did not paste back.
+  - ucn_text in the lexer writes each `\u{X}`, `\uXXXX` and
+    `\UXXXXXXXX` of a `"..."` or a template as the codepoint's UTF-8
+    bytes in octal, three digits each, which C takes for any codepoint.
+    `\\u` stays a backslash and a `u`; `\x41` and the rest stay C's.
+  - Kelvin's errors: "is no codepoint" of a surrogate or one past
+    10FFFF, and "a \u escape is ..." of a malformed one.
+  - A character constant is as it was, C's.
 
 - (291) Agreed details: "fix Bytes(&s) of a String in kelvinc as #291",
   found by #290. KV_BYTES_OF had no case of a `kv_string *`, so its
@@ -3206,6 +3222,7 @@ says "as agreed".
 | P301 | Details of #289 | main.c: `--runtime`, find_runtime of an object; parser.c: runtime_mode; runtime/string.k; runtime/string.c loses them; GNUmakefile; tests/asan.sh; tests: run/string_search_edges.k, error/kv_reserved_function.k; README.md, selfhost/README.md | more of the runtime in Kelvin |
 | P302 | Details of #290 | runtime/string.k: escape, unescape; runtime/bytes.k; runtime/string.c and bytes.c lose them; tests: run/string_escape_edges.k; README.md, selfhost/README.md | `Bytes(&s)` gives garbage; `"\u{7f}"` reaches C; escape stops at a NUL |
 | P303 | Details of #291 | kelvin_prelude.h: KV_BYTES_OF of a String; runtime/bytes.k: kv_bytes_of_string; parser.c: the message of Bytes(s); tests: run/bytes_of_string.k, error/bytes_of_string_owner.k; documents/bytes.md | |
+| P304 | Details of #292 | lexer.c: ucn_text in lex_quoted and lex_template; tests: run/unicode_escapes.k, error/ucn_surrogate.k, error/ucn_malformed.k; documents/grammar.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
