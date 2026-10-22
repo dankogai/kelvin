@@ -6255,3 +6255,14 @@ and that its `??` message is not kelvinc's. Details are provisional
 P299.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 332. kc has == of Arrays and Dictionaries
+
+> teach kc == of Arrays and Dictionaries as #288
+
+**Claude** taught kc `==` and `!=` of Arrays and Dictionaries with
+kelvinc's C, a T_eq function of each type compared, and kelvinc's
+errors, in its words. It found that a comparison in a condition reached
+C past #287's check, and fixed that too. Details are provisional P300.
+
+There are 912 tests, and all pass with clang and with gcc 15.

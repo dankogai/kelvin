@@ -364,5 +364,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     stock_names += $"plum"
     println(stock_names, " ", stock.values, " ", numbers.keys, " ", numbers.values, " ", deep.keys, " ", deep.values, " ", stock.keys.count)
     println(doubled(21), " ", shouted(&greeting))
+    let same_stock = ${"pear": 5, "apple": 3}            // == of Dictionaries and Arrays (#288)
+    println(stock == same_stock, " ", stock != ${"apple": 3}, " ", stock.keys == $[$"apple", $"pear"], " ", listed == digit_set.elements)
     return 0
 }

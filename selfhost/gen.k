@@ -757,10 +757,22 @@ let gen_place(n:int64) {
 
 // a type as kelvinc's messages name it: an Array an Array<T> (#284, #286)
 let kelvin_type_text(y:int64):String {
-    if types[y].kind == Y_ARRAY {
+    let k = types[y].kind
+    if k == Y_ARRAY || k == Y_SET {
         var s = $"Array<"
+        if k == Y_SET { s = $"Set<" }
         let e:String = kelvin_type_text(types[y].elem)
         s += &e
+        s += ">"
+        return s
+    }
+    if k == Y_DICT {                                     // (#288)
+        var s = $"Dictionary<"
+        let key:String = kelvin_type_text(types[y].name)
+        s += &key
+        s += ", "
+        let v:String = kelvin_type_text(types[y].elem)
+        s += &v
         s += ">"
         return s
     }
@@ -1256,6 +1268,155 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
 
 // _kv_show_T of y, as kelvinc writes it: of an enum with values, a case's
 // name and what it holds in parentheses; of a struct, {x: 1, y: 2}
+// ---------- == of Arrays and Dictionaries (#288) ----------
+
+var compared:$[int64]                       // the types whose T_eq is written, in order
+
+// whether values of y compare with ==, as kelvinc's eq_type: an Array or
+// a Dictionary where its elements or values do; a Set, an IO or a
+// struct does not; an enum with values kc does not compare yet
+let eq_type(y:int64):bool {
+    if y < 0 { return true }
+    let k = types[y].kind
+    if k == Y_ARRAY || k == Y_DICT { return eq_type(types[y].elem) }
+    if k == Y_SET || k == Y_IO || k == Y_STRUCT { return false }
+    return true
+}
+
+// T_eq of y written after the functions, and of what it holds
+let need_eq(y:int64) {
+    for i in 0..<compared.count as int64 {
+        if compared[i] == y { return }
+    }
+    compared += y
+    let e:int64 = types[y].elem
+    if types[e].kind == Y_ARRAY || types[e].kind == Y_DICT { need_eq(e) }
+}
+
+let put_eq_name(y:int64) {
+    if types[y].kind == Y_ARRAY { put_array_name(y) } else { put_dict_name(y) }
+    put("_eq")
+}
+
+// whether x and y, two values of type y, are equal, in C
+let put_eq_code(y:int64, x:cstr, z:cstr) {
+    let k = types[y].kind
+    if k == Y_STRING {
+        put("kv_string_eq(&")
+        put(x)
+        put(", &")
+        put(z)
+        put(")")
+    } else if k == Y_UCHR {
+        put(x)
+        put(".cp == ")
+        put(z)
+        put(".cp")
+    } else if k == Y_ARRAY || k == Y_DICT {
+        put_eq_name(y)
+        put("(&")
+        put(x)
+        put(", &")
+        put(z)
+        put(")")
+    } else {
+        put(x)
+        put(" == ")
+        put(z)
+    }
+}
+
+// a0 == a1 (#247), d0 == d1 (#235), as kelvinc's: two of one type, each
+// side an expression gives held; != its negation. The elements, or the
+// values, must compare
+let gen_container_eq(n:int64) {
+    let t = nodes[n].t
+    let a = nodes[n].a
+    let b = nodes[n].b
+    let ya:int64 = type_of(a)
+    let yb:int64 = type_of(b)
+    var ka:ykind = builtin_kind(ya)
+    let dict = ka == Y_DICT || (ka == Y_VOID && builtin_kind(yb) == Y_DICT)
+    let lit_a = nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_BOOL
+    let lit_b = nodes[b].kind == N_NUM || nodes[b].kind == N_CHAR || nodes[b].kind == N_BOOL
+    let ta:String = ya < 0 || lit_a ? $"not one" : kelvin_type_text(ya)
+    let tb:String = yb < 0 || lit_b ? $"not one" : kelvin_type_text(yb)
+    if ka == Y_VOID || builtin_kind(yb) == Y_VOID || ta != tb {
+        var m = $"'"
+        let op:String = tok_text(t)
+        m += &op
+        if dict { m += "' compares two Dictionaries of the same key and value types, and these are " } else { m += "' compares two Arrays of the same element type, and these are " }
+        m += &ta
+        m += " and "
+        m += &tb
+        gen_error(n, m.cstr)
+        return
+    }
+    if !eq_type(types[ya].elem) {
+        let e:int64 = types[ya].elem
+        if types[e].kind == Y_STRUCT && tagged_of(e) >= 0 {
+            gen_error(n, "kc compares Arrays and Dictionaries of numbers, text, Arrays and Dictionaries; not yet of an enum with values")
+            return
+        }
+        var m = $"'"
+        let op:String = tok_text(t)
+        m += &op
+        m += "' of "
+        m += &ta
+        if dict { m += " compares the values, and " } else { m += " compares the elements, and " }
+        let et:String = kelvin_type_text(e)
+        m += &et
+        m += " has no '=='"
+        gen_error(n, m.cstr)
+        return
+    }
+    need_eq(ya)
+    let ha = needs_hold(a)
+    let hb = needs_hold(b)
+    if ha { hold_open(a) }
+    if hb { hold_open(b) }
+    if tok_is(t, "!=") { put("((bool)!") }
+    put_eq_name(ya)
+    put("(")
+    gen_place(a)
+    put(", ")
+    gen_place(b)
+    put(")")
+    if tok_is(t, "!=") { put(")") }
+    if hb { hold_close(b) }
+    if ha { hold_close(a) }
+}
+
+// T_eq of y, as kelvinc's emit_array_eq and emit_dict_eq
+let gen_eq(y:int64) {
+    put("__attribute__((unused)) static inline bool ")
+    put_eq_name(y)
+    put("(const ")
+    put_owner_prefix(y)
+    put(" *a, const ")
+    put_owner_prefix(y)
+    put(" *b)\n{\n    if (a->count != b->count) return false;\n")
+    if types[y].kind == Y_ARRAY {
+        put("    for (size_t i = 0; i < a->count; i++)\n        if (!(")
+        put_eq_code(types[y].elem, "a->at[i]", "b->at[i]")
+        put(")) return false;\n")
+    } else {
+        put("    for (size_t i = 0; i < a->len; i++)\n    {\n        if (!a->at[i].live) continue;\n        const ")
+        put_dict_name(y)
+        put("_entry *e = ")
+        put_dict_name(y)
+        if types[types[y].name].kind == Y_STRING {
+            put("_lookup(b, KV_LK_TEXT(&a->at[i].key), a->at[i].hash);\n")
+        } else {
+            put("_lookup(b, KV_LK_INT(&a->at[i].key), a->at[i].hash);\n")
+        }
+        put("        if (!e || !(")
+        put_eq_code(types[y].elem, "a->at[i].value", "e->value")
+        put(")) return false;\n    }\n")
+    }
+    put("    return true;\n}\n")
+}
+
 let gen_show(y:int64) {
     put("static void ")
     put_show_name(y)
@@ -1748,7 +1909,8 @@ let gen_string_eq(a:int64, b:int64) {
 let gen_cond(n:int64) {
     if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
         let y:int64 = type_of(nodes[n].a)
-        if y < 0 || types[y].kind != Y_STRING {
+        let owners = builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // String ==, xs == ys (#288), refusals (#287)
+        if !owners {
             gen_expr(nodes[n].a)
             put(" ")
             put_tok(nodes[n].t)
@@ -2371,6 +2533,8 @@ let gen_expr(n:int64) {
         reject_container_math(n)                         // xs + 2, d < d2, s - t (#287)
         if y >= 0 && types[y].kind == Y_SET && (tok_is(t, "|") || tok_is(t, "&") || tok_is(t, "~")) {
             gen_set_op(n, y)                             // s | t, s & t, s ~ t (#276)
+        } else if (builtin_kind(y) == Y_ARRAY || builtin_kind(y) == Y_DICT || builtin_kind(type_of(nodes[n].b)) == Y_ARRAY || builtin_kind(type_of(nodes[n].b)) == Y_DICT) && (tok_is(t, "==") || tok_is(t, "!=")) {
+            gen_container_eq(n)                          // xs == ys, d != d2 (#288)
         } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
             if tok_is(t, "!=") { put("(bool)!") }
             gen_string_eq(nodes[n].a, nodes[n].b)
@@ -3916,6 +4080,16 @@ let gen_program() {
         put_show_name(shown[i])
         put("(kv_out *, const void *, int);\n")
     }
+    for i in 0..<compared.count as int64 {              // and the == of Arrays and Dictionaries (#288)
+        put("__attribute__((unused)) static inline bool ")
+        put_eq_name(compared[i])
+        put("(const ")
+        put_owner_prefix(compared[i])
+        put(" *a, const ")
+        put_owner_prefix(compared[i])
+        put(" *b);\n")
+    }
     out += &body
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }
+    for i in 0..<compared.count as int64 { gen_eq(compared[i]) }
 }

@@ -247,6 +247,12 @@ kc reads what it is written in, and little more.
     uchr; other sides are kelvinc's error, in its words.
   - A String in a variable is copied, one an expression gives taken, so
     `a + b + c` frees what it made.
+- **`==` and `!=` of Arrays and Dictionaries** (#288), as kelvinc's #247
+  and #235: two of one type, each element in order, or each entry, by
+  its `==`; an Array or a Dictionary of them too.
+  - kelvinc's errors, in its words: two of different types; elements or
+    values with no `==`, a Set or a struct.
+  - An enum with values in them is kc's error: not yet.
 - **An Array, a Dictionary or a Set has no arithmetic** (#287), as
   kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
   `an Array has no operator '+': compare its elements`, a Dictionary's
@@ -393,7 +399,6 @@ steps can take them on one at a time.
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
   - `union` and `typealias`;
-  - `==` and `!=` of Arrays and of Dictionaries, kelvinc's (#235, #247);
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;

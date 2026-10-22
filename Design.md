@@ -319,6 +319,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 285 | kc has a Dictionary's `keys` and `values`, Arrays of copies in the order added, as kelvinc: new values a variable then owns, of a Dictionary in a variable, a temporary, or through a borrow | — | kc builds `stock.keys` and `stock.values` | 2026-10-23 |
 | 286 | kc returns a body's value as kelvinc's #26: a function with a result whose body is one expression returns it; one assignment, or one call with no value, is an error; a body that ends in a value on any path is an error, and in main one with no effect, in kelvinc's words | — | kc builds `let doubled(x:int64):int64 { x * 2 }` | 2026-10-23 |
 | 287 | kc refuses an operator of an Array, a Dictionary or a Set that kelvinc has not, in its words: `xs + 2`, `2 + xs`, `xs < ys`, `d < d2`, `s - t`, `s == t`; a Set's `|` `&` `~` are its own | — | kc refuses `$[1] + 2` | 2026-10-23 |
+| 288 | kc has `==` and `!=` of Arrays and Dictionaries, as kelvinc's #247 and #235: two of one type, by each element in order, or each entry, by its `==`, nested too; kelvinc's errors for two types or elements with no `==`, in its words | — | kc builds `stock == same_stock` | 2026-10-23 |
 
 Notes:
 
@@ -880,6 +881,22 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (288) Agreed details: "teach kc == of Arrays and Dictionaries as
+  #288", found by #287. kc writes kelvinc's T_eq of each type compared,
+  and of the Arrays and Dictionaries it holds: prototypes before the
+  functions, bodies after, as the printers (#229). `a == b` is
+  `T_eq(&(a), &(b))`, each side an expression gives held; `!=` its `!`.
+  - An element compares as kelvinc's eq_code: a String by
+    kv_string_eq, a uchr by its codepoint, an Array or a Dictionary by
+    its T_eq, the rest by C's `==`.
+  - kelvinc's errors, in its words: two of different types, a literal
+    "not one"; elements or values with no `==`, a Set, an IO, a struct.
+    An enum with values in one is kc's own "not yet".
+  - kelvin_type_text names a Dictionary and a Set as kelvinc too.
+  - gen_cond wrote a comparison raw unless its left was a String, so
+    `if xs < ys` reached C past #287; it now writes a built-in owner's
+    on either side as gen_expr does.
 
 - (287) Agreed details: "teach kc to refuse + of an Array as #287",
   found by #286. kelvinc's rule is one check, for every operator of an
@@ -3131,6 +3148,7 @@ says "as agreed".
 | P297 | Details of #285 | selfhost/gen.k: type_of of keys and values, is_made_array, gen_slots_array, shared with elements; sample.k uses them; selfhost/README.md | a body's value in kc |
 | P298 | Details of #286 | selfhost/gen.k: implicit_return, no_value, drops_value, dropped_at_end, last_of, kelvin_type_text; sample.k uses it; selfhost/README.md | `+` of an Array in kc |
 | P299 | Details of #287 | selfhost/gen.k: reject_container_math, builtin_kind; selfhost/README.md | `==` of Arrays and Dictionaries in kc; kc's `??` message |
+| P300 | Details of #288 | selfhost/gen.k: compared, eq_type, need_eq, put_eq_name, put_eq_code, gen_container_eq, gen_eq, gen_cond, kelvin_type_text; sample.k uses it; selfhost/README.md | == of enums with values in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
