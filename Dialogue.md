@@ -6033,3 +6033,16 @@ does not yet refuse changing a let, as kelvinc does of `remove`.
 Details are provisional P282.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 315. kc refuses changing a let
+
+> teach kc to refuse changing a let as #271
+
+**Claude** taught kc kelvinc's rule that a let does not change:
+assigning it, `+=`, its member or element, `pop` or `remove` of it, is
+an error in kelvinc's words, which name a let, a let parameter, each
+element in turn, or a range's count; fifteen cases give the same
+words. kelvinc tells one to write `var n` in a parameter list, so kc
+now takes `var` parameters too. Details are provisional P283.
+
+There are 897 tests, and all pass with clang and with gcc 15.

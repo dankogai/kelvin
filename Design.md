@@ -302,6 +302,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 268 | kc prints a Dictionary as kelvinc does, `{"ann": 31}`, `{}` where empty, its live entries in the order added, a String key quoted, each value as print shows it, nested in an Array, a Dictionary or an Optional; a `${:}` or `$[]` value after the first of `${k: v}` takes the first's type, as kelvinc's | — | kc builds `println(${"a": 1})` | 2026-10-22 |
 | 269 | kc walks a Dictionary as kelvinc does: `for k, v in d` each key and its value, `for k in d` each key, its live entries in the order added, lets the Dictionary owns; one an expression gives held for the loop; two names of anything else kelvinc's error | — | kc builds `for k, v in ages { }` | 2026-10-22 |
 | 270 | kc has `d.remove(k)`, as kelvinc: the entry gone, what it held freed, `true` where it was there; a String key an expression gives is held for `has`, `get` and `remove`, which wrote the address of a temporary before | — | kc builds `d.remove("bob")` | 2026-10-22 |
+| 271 | kc refuses changing a let, as kelvinc: assigning it, `+=`, its member or element, `pop` or `remove` of it, in kelvinc's words for a let, a let parameter, each element in turn (a loop's, an `if let`'s, a case's value) and a range's count; a change through a pointer is the pointee's; kc takes `var n:T` parameters | — | kc refuses `let x = 1; x = 2` | 2026-10-22 |
 
 Notes:
 
@@ -863,6 +864,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (271) Agreed details: "teach kc to refuse changing a let as #271",
+  #270's P282. kc's scope entries, sym, keep how each name was
+  declared, as kelvinc's let kinds: a var, a let, a parameter, each
+  element in turn, a range's count; a global let by its declaration.
+  may_change finds the variable a change changes, through members and
+  elements and not through `^`, and refuses a let's with kelvinc's
+  message: fifteen cases give the same words. kelvinc's message for a
+  parameter says to write `var n`, so kc takes `var` in a parameter list.
 
 - (270) Agreed details: "teach kc d.remove(k) as #270", #269's P281.
   It joins `has` and `get`, the prelude's D_remove. Trying a String key
@@ -2900,6 +2910,7 @@ says "as agreed".
 | P280 | Details of #268 | selfhost/gen.k: shown_by_type, need_show and put_show_name of Y_DICT, gen_show's Dictionary; one_entry_type lets an N_EMPTY value be; gen_array and gen_dict cast an N_EMPTY element; sample.k prints Dictionaries; selfhost/README.md | `for k, v in d` and `d.remove(k)` in kc |
 | P281 | Details of #269 | selfhost/parse.k: `for k, v in`, S_EACH's b; gen.k: gen_each of a Dictionary, and its error; sample.k walks Dictionaries; selfhost/README.md | `d.remove(k)` in kc |
 | P282 | Details of #270 | selfhost/gen.k: type_of of d.remove, the has/get branch takes remove and holds a key that needs it; sample.k removes; selfhost/README.md | lets in kc: refusing to change one |
+| P283 | Details of #271 | selfhost/gen.k: sym.how, declare_as, how_declared, changed_root, may_change in gen_assign, pop and remove; each declaring site its kind; parse.k: `var` parameters; sample.k has a var parameter; selfhost/README.md | `&x` of a let a const borrow in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

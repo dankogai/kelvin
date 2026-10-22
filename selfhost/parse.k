@@ -919,7 +919,12 @@ let parse_function():int64 {
     expect("(")
     var last = -1
     while !at_word(")") && !failed {
-        let p:int64 = parse_typed(1)
+        var is_let = 1
+        if at_word("var") {                     // a var parameter may change (#271)
+            advance()
+            is_let = 0
+        }
+        let p:int64 = parse_typed(is_let)
         if last < 0 {
             nodes[n].a = p
         } else {

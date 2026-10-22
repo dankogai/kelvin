@@ -5,6 +5,7 @@
 struct sym {
     t: int64           // the token of its name
     ty: int64
+    how: int64         // 0 a var; 1 a let; 2 a parameter; 3 each element in turn; 4 a range's count (#271)
 }
 
 var out:String             // the C
@@ -167,9 +168,25 @@ let close_scope() {
     while locals.count as int64 > m { locals.pop() }
 }
 
-let declare(t:int64, y:int64) {
-    let s:sym = {t, y}
+let declare_as(t:int64, y:int64, how:int64) {
+    let s:sym = {t, y, how}
     locals += s
+}
+
+let declare(t:int64, y:int64) { declare_as(t, y, 0) }
+
+let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
+
+// how name t was declared, as sym.how: 1 a global let; 0 a var, or a
+// name of no variable
+let how_declared(t:int64):int64 {
+    var i:int64 = locals.count as int64 - 1
+    while i >= 0 {
+        if same_text(locals[i].t, t) { return locals[i].how }
+        i -= 1
+    }
+    let g:int64 = decl_named(t, D_GLOBAL)
+    return g >= 0 && nodes[g].flag == 1 ? 1 : 0
 }
 
 // the declarations by their names (#211), where kc walked every one:
@@ -1318,12 +1335,14 @@ let gen_method_of(n:int64) {
         gen_place(a)
         put(")")
     } else if yk == Y_ARRAY && tok_is(t, "pop") {
+        if !may_change(a) { return }                    // (#271)
         put_array_name(y)
         put("_pop(")
         gen_place(a)
         put(")")
     } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270)
         let key:int64 = nodes[n].b
+        if tok_is(t, "remove") && !may_change(a) { return }   // (#271)
         let hold = needs_hold(key)                        // a String key an expression gives, held for the call (#270)
         if hold { hold_open(key) }
         put_dict_name(y)
@@ -1754,7 +1773,7 @@ let gen_chain(n:int64) {
     put_int(s)
     put(".tag == 1) { ")
     open_scope()
-    declare(nodes[n].c, some_type(y))
+    declare_as(nodes[n].c, some_type(y), 3)                // if let's, as each element (#271)
     put_ctype(some_type(y))
     put(" ")
     put_tok(nodes[n].c)
@@ -2152,9 +2171,45 @@ let put_op(t:int64) {
     }
 }
 
+// the variable a change of place n changes: n's name, a member's or an
+// element's variable, not what a pointer points to; -1 where none
+let changed_root(n:int64):int64 {
+    let k:nkind = nodes[n].kind
+    if k == N_ID { return n }
+    if k == N_FIELD || k == N_INDEX { return changed_root(nodes[n].a) }
+    return 0 - 1
+}
+
+// a change of place n where its variable is a let is an error, in
+// kelvinc's words (#271); whether n may change
+let may_change(n:int64):bool {
+    let r = changed_root(n)
+    if r < 0 { return true }
+    let how = how_declared(nodes[r].t)
+    if how == 0 { return true }
+    var s = $"'"
+    s += tok_text(nodes[r].t)
+    if how == 2 {
+        s += "' is a let parameter and cannot change; write 'var "
+        s += tok_text(nodes[r].t)
+        s += "' in the parameter list"
+    } else if how == 3 {
+        s += "' is each element in turn and cannot change; copy it into a var under another name"
+    } else if how == 4 {
+        s += "' counts the range and cannot change; copy it under another name, as in 'var k:i64 = "
+        s += tok_text(nodes[r].t)
+        s += "'"
+    } else {
+        s += "' is a let and cannot change; declare it with var"
+    }
+    gen_error(n, s.cstr)
+    return false
+}
+
 let gen_assign(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
     let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
@@ -2335,7 +2390,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("].key;\n")
         open_scope()
-        declare(nodes[n].t, types[y].name)
+        declare_as(nodes[n].t, types[y].name, 3)          // (#271)
         if nodes[n].b >= 0 {
             indent(depth + 2)
             put_ctype(types[y].elem)
@@ -2346,7 +2401,7 @@ let gen_each(n:int64, depth:int64) {
             put(").at[_kv_i")
             put_int(serial)
             put("].value;\n")
-            declare(nodes[nodes[n].b].t, types[y].elem)
+            declare_as(nodes[nodes[n].b].t, types[y].elem, 3)
         }
     } else if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
@@ -2377,7 +2432,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put(")};\n")
         open_scope()
-        declare(nodes[n].t, base_type(Y_UCHR))
+        declare_as(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
     } else {
         put("for (size_t _kv_i")
         put_int(serial)
@@ -2400,7 +2455,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("];\n")
         open_scope()
-        declare(nodes[n].t, types[y].elem)
+        declare_as(nodes[n].t, types[y].elem, 3)          // (#271)
     }
     indent(depth + 2)
     gen_block(nodes[n].c, depth + 2)
@@ -2475,7 +2530,7 @@ let gen_iflet(n:int64, depth:int64) {
     put("->u.")
     put_tok(nodes[m].t)
     put(";\n")
-    declare(nodes[n].flag, nodes[m].ty)
+    declare_as(nodes[n].flag, nodes[m].ty, 3)              // a case's value (#271)
     var st = nodes[nodes[n].b].a
     while st >= 0 && !failed {
         gen_stmt(st, depth + 2)
@@ -2579,7 +2634,7 @@ let gen_switch(n:int64, depth:int64) {
             put(").u.")
             put_tok(case_word(first))
             put(";\n")
-            declare(nodes[x].t, nodes[m].ty)
+            declare_as(nodes[x].t, nodes[m].ty, 3)       // a case's value (#271)
         }
         var s:int64 = nodes[c].b
         var last = -1
@@ -2627,7 +2682,7 @@ let gen_stmt(n:int64, depth:int64) {
     switch k {                                                   // (#210)
     case S_VAR:
         gen_var(n)
-        declare(nodes[n].t, nodes[n].ty)
+        declare_as(nodes[n].t, nodes[n].ty, nodes[n].flag == 1 ? 1 : 0)   // a let or a var (#271)
     case S_ASSIGN: gen_assign(n)
     case S_EXPR:
         let v = nodes[n].a
@@ -2679,7 +2734,7 @@ let gen_stmt(n:int64, depth:int64) {
         put_tok(nodes[n].t)
         put("++)\n")
         open_scope()
-        declare(nodes[n].t, base_type(Y_I64))
+        declare_as(nodes[n].t, base_type(Y_I64), 4)        // the range's count (#271)
         indent(depth)
         gen_block(nodes[n].c, depth)
         close_scope()
@@ -2761,7 +2816,7 @@ let gen_function(d:int64) {
     open_scope()
     var p:int64 = nodes[d].a
     while p >= 0 {
-        declare(nodes[p].t, nodes[p].ty)
+        declare_as(nodes[p].t, nodes[p].ty, nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271)
         p = nodes[p].next
     }
     if is_main(d) {

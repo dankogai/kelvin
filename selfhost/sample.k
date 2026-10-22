@@ -95,6 +95,15 @@ let sum_of(xs:$[int64]):int64 {
     return t
 }
 
+let countdown(var n:int64):int64 {                     // a var parameter may change; a let one may not (#271)
+    var steps = 0
+    while n > 0 {
+        n -= 1
+        steps += 1
+    }
+    return steps
+}
+
 extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
@@ -315,5 +324,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(fruit)
     var basket = stock.copy()                         // d.remove(k) (#270)
     println(basket.remove("apple"), " ", basket.remove("kiwi"), " ", basket, " ", basket.has($"pear"))
+    println(countdown(5), " ", countdown(0))
     return 0
 }

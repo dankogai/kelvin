@@ -188,6 +188,14 @@ kc reads what it is written in, and little more.
     but in the middle of `c ? a : b` and in a case's values, where a
     name after `:` is `?:`'s or the case's, as kelvinc reads it; in
     parentheses or a call's arguments there, it is an annotation again.
+- **Lets do not change** (#271), as kelvinc has it: assigning a let, `+=`
+  to it, its member or element, `xs.pop()` or `d.remove(k)` of it, is
+  kelvinc's error, word for word.
+  - A let, `'x' is a let and cannot change; declare it with var`; a
+    parameter, a let unless written `var n:T`, which kc takes now; a
+    loop's element, an `if let`'s or a case's value; a range's count.
+  - A change through a pointer, `p^ += 1`, is the pointee's, not the
+    let's.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
   `for i in a..<b`; `for x in s` of a String or an Array, `for k, v in
