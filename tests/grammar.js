@@ -166,6 +166,7 @@ const samples = [
     ['let s := """', [['"""', 'string.quoted.triple']]],
     ['if let v = maybe() { return some(v) } else { return none }', [['some', 'support.function.case'], ['none', 'constant.language']]],
     ["let c = 'x'", [["'x'", 'string.quoted.single']]],
+    ['let v = $[nan, -inf, Infinity]; nan("x"); Self.inf', [['nan', 'constant.numeric.decimal'], ['inf', 'constant.numeric.decimal'], ['Infinity', 'constant.numeric.decimal']]],
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
     ['    #inline C { total += i; }', [['#inline', 'keyword.control.directive'], [' total += i; ', 'meta.embedded.block.c']]],

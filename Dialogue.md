@@ -5899,3 +5899,17 @@ type, so the text "nan" and "inf" is right but does not read back.
 Details are provisional P272.
 
 There are 896 tests, and all pass with clang and with gcc 15.
+
+### 305. nan and inf are literals
+
+> please!
+
+**Claude** had asked, after #260, whether to make `nan` and `inf` the
+literals of `f64` the user had described, which kelvinc did not read.
+As #261, `nan`, `inf` and `infinity`, in any case, are literals of
+`f64`: `let x = -inf`, `$[nan, inf]`, `nan:f32`; so what print shows of
+a NaN or an infinity reads back. A name the program declares stays
+its own, and `nan(...)` stays C's function. Details are provisional
+P273.
+
+There are 897 tests, and all pass with clang and with gcc 15.

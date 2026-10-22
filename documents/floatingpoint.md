@@ -39,6 +39,12 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
     `var f:f32 = 1.5`, `1.5:f32`.
   - A floating literal is an `f64`: `let d = 1.5`, `let e = 1e9`; see
     [grammar.md](grammar.md).
+  - **`nan` and `inf`** are literals of `f64` too (#261), in any case,
+    `inf` also `infinity`: `$/nan/i` and `$/inf(inity)?/i`. So what
+    `print` shows of a NaN or an infinity, `nan`, `-inf`, reads back.
+    - `nan:f32` converts one, as `(0.0 / 0.0) as f32` does.
+    - A name the program declares is its own, `var inf = 2`; `nan(...)`
+      is C's function; `Self.infinity` a member.
 
 | C | Kelvin |
 |---|--------|

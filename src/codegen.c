@@ -413,6 +413,10 @@ static char *expr_bare(Expr *e) {
         const char *t = e->text;
         if (!strcmp(t, "nullptr"))
             return "((void *)0)";
+        if (!strcmp(t, "nan")) /* f64 literals (#261), gcc's and clang's, constant */
+            return "__builtin_nan(\"\")";
+        if (!strcmp(t, "inf"))
+            return "__builtin_inf()";
         /* Kelvin's true and false are bools; C's are the int 1 and 0 */
         if (!strcmp(t, "true") || !strcmp(t, "false"))
             return strfmt("(bool)%s", t);

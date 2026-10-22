@@ -75,7 +75,8 @@ A declaration without a type, `let name = value` or `var name = value`,
 infers the type from the value:
 
 - an integer literal is `i64`: `let i = 42`, `var m = -1`
-- a floating literal is `f64`: `let d = 1.5`, `let e = 1e9`
+- a floating literal is `f64`: `let d = 1.5`, `let e = 1e9`, and so
+  are `nan` and `inf` (#261), `let x = -inf`
 - a `bool` is `bool`: `var done = false`, `let ok = a < b`,
   `let both = ok && f(x)` (#24, #25), as is a `bool` variable or the
   `bool` result of a Kelvin function or method

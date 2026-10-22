@@ -2953,6 +2953,8 @@ static Type *shown_type(Expr *e) {
             kind = "bool";
         else if (s[0] == '\'')
             kind = "i64";
+        else if (!strcmp(s, "nan") || !strcmp(s, "inf")) /* (#261) */
+            kind = "f64";
         else if ((s[0] >= '0' && s[0] <= '9') || s[0] == '.') {
             bool hex = s[0] == '0' && (s[1] == 'x' || s[1] == 'X');
             bool flt = strchr(s, '.') || (!hex && strpbrk(s, "eE")) || (hex && strpbrk(s, "pP"));
@@ -3081,6 +3083,19 @@ static bool zero_array_ahead(int i) {
     return e >= 0 && is_p(&toks[e], "]") && is_p(&toks[e + 1], "(");
 }
 
+/* nan, inf and infinity, in any case (#261): $/nan/i and $/inf(inity)?/i */
+static bool float_word(const char *s) {
+    static const char *words[] = {"nan", "inf", "infinity", NULL};
+    for (int i = 0; words[i]; i++) {
+        size_t k = 0;
+        while (s[k] && tolower((unsigned char)s[k]) == words[i][k])
+            k++;
+        if (!s[k] && !words[i][k])
+            return true;
+    }
+    return false;
+}
+
 static Expr *parse_primary(void) {
     Token *t = peek();
     if (t->regexp && !record_named("RegExp")) /* $/.../ (#157) is RegExp.compile(...), of the module */
@@ -3202,6 +3217,16 @@ static Expr *parse_primary(void) {
                              "argument, or make it a global",
                      parsing_fn && parsing_fn->nested_in ? "a function defined inside a function" : "an anonymous function",
                      t->text);
+    }
+    if (t->kind == TK_IDENT && float_word(t->text) && binding_index(t->text) < 0 && !is_p(peek2(), "(") &&
+        !function_named(t->text)) {
+        /* nan, inf, infinity in any case (#261): literals of f64, as their
+           text, so that what print shows reads back; a name the program
+           declares is its own, and nan(...) C's function */
+        advance();
+        Expr *e = new_expr(E_LITERAL, t->pos);
+        e->text = (t->text[0] == 'n' || t->text[0] == 'N') ? "nan" : "inf";
+        return e;
     }
     if (t->kind == TK_IDENT && binding_index(t->text) < 0 && !function_named(t->text) && !is_p(peek2(), ".")) {
         /* red, rgb({1, 2, 3}): a case of a top-level enum with values that
@@ -7626,6 +7651,8 @@ static const char *literal_type(Expr *e) {
         !strcmp(e->text, "nullptr"))
         return NULL;
     const char *t = e->text;
+    if (!strcmp(t, "nan") || !strcmp(t, "inf")) /* (#261) */
+        return "f64";
     bool hex = t[0] == '0' && (t[1] == 'x' || t[1] == 'X');
     bool floating = hex ? strpbrk(t, "pP") != NULL : strpbrk(t, ".eE") != NULL;
     return floating ? "f64" : "i64";
