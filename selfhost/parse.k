@@ -21,6 +21,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ADDR,     // &a
     N_DEREF,    // a^
     N_EMPTY,    // $[]
+    N_ARRAY,    // $[b...], an Array of its elements (#266)
     N_TYPE,     // IO or String called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order
     N_NULL,     // nullptr
@@ -439,8 +440,26 @@ let parse_primary():int64 {
     }
     if at_word("$[") {
         advance()
+        if at_word("]") {
+            advance()
+            return make_node(N_EMPTY, t)
+        }
+        let n:int64 = make_node(N_ARRAY, t)          // $[a, b] (#266)
+        var last = -1
+        while !failed {
+            let e:int64 = parse_expr()
+            if last < 0 {
+                nodes[n].b = e
+            } else {
+                nodes[last].next = e
+            }
+            last = e
+            if !at_word(",") { break }
+            advance()
+            if at_word("]") { break }                 // a comma after the last
+        }
         expect("]")
-        return make_node(N_EMPTY, t)
+        return n
     }
     if at_word("${") {                          // ${:}, an empty Dictionary (#211)
         advance()

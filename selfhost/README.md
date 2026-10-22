@@ -165,6 +165,11 @@ kc reads what it is written in, and little more.
   - **`float32`** (#263): C's `float`, of a literal, `let x:float32 =
     0.1`, or `as float32`, `nan as float32`; printed as kelvinc prints
     it, `0.100000001`.
+- **`$[a, b]`** (#266), an Array of its elements: of their one type,
+  as kelvinc's, or of the type written, `var fs:$[float64] = $[1, 2.5]`,
+  each converted, text into a String, `{a, b}` into a struct.
+  - Elements of more than one type are an error, as kelvinc's, and so
+    is an owner a variable holds, which `=` would copy.
 - **`x:T`** (#264) converts as `x as T` does, kelvinc's annotation:
   `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`.
   - The `:` is one where a type's word follows, `int64` to `uchr`, and

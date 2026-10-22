@@ -5965,3 +5965,17 @@ sample.k prints one, so the bootstrap checks it. Details are
 provisional P277.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 310. kc reads $[a, b]
+
+> teach kc Array literals $[a, b] as #266
+
+**Claude** taught kc `$[a, b]`, which had `$[]` alone: an Array of its
+elements' one type, as kelvinc's, or of the type written, each element
+converted, text into a String and `{a, b}` into a struct. Elements of
+more than one type are an error, and so is an owner a variable holds.
+They nest, and are freed as any owner an expression gives. sample.k
+prints them, so the bootstrap checks them. Details are provisional
+P278.
+
+There are 897 tests, and all pass with clang and with gcc 15.

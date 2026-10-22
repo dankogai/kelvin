@@ -448,6 +448,11 @@ let type_of(n:int64):int64 {
     }
     let t:int64 = nodes[n].t
     if k == N_NUM && float_tok(t) { return base_type(Y_F64) }      // (#262)
+    if k == N_ARRAY {                                                 // $[a, b]: an Array of a's type (#266)
+        let e:int64 = type_of(nodes[n].b)
+        if e < 0 { return -1 }
+        return type_of_kind(Y_ARRAY, e, -1)
+    }
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
     if k == N_DSTR { return base_type(Y_STRING) }
@@ -1411,7 +1416,68 @@ let fits_value(n:int64, t:int64):bool {
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
 
+// whether the elements of $[a, b] have one type, as kelvinc asks of a
+// list where no type is written (#266)
+let one_type(n:int64):bool {
+    let y = type_of(nodes[n].b)
+    var e = nodes[nodes[n].b].next
+    while e >= 0 && y >= 0 {
+        if type_of(e) != y {
+            gen_error(n, "the elements have no one type kc sees here: write the Array's type, as name:$[T]")
+            return false
+        }
+        e = nodes[e].next
+    }
+    if y < 0 { gen_error(n, "the elements have no type kc sees here: write the Array's type, as name:$[T]") }
+    return y >= 0
+}
+
+// $[a, b] (#266): a new Array, each element appended as a value of the
+// element type, of y where one is written, else of the elements' one
+// type; an owner a variable holds is not copied, as by =
+let gen_array(n:int64, given:int64) {
+    var y = given
+    if y < 0 {
+        if !one_type(n) { return }
+        y = type_of(n)
+    }
+    let elem:int64 = types[y].elem
+    serial += 1
+    let s = serial
+    put("({ ")
+    put_array_name(y)
+    put(" _kv_l")
+    put_int(s)
+    put(" = {0}; ")
+    var e = nodes[n].b
+    while e >= 0 && !failed {
+        if is_owner(elem) && is_place(e) {
+            gen_error(e, "an owner is not copied by '=' (#54): copy it with .copy()")
+            return
+        }
+        put_array_name(y)
+        put("_append(&_kv_l")
+        put_int(s)
+        put(", ")
+        if nodes[e].kind == N_INIT {                     // {a, b} of a struct, C's compound literal there
+            put("(")
+            put_ctype(elem)
+            put(")")
+        }
+        gen_value(e, elem)
+        put("); ")
+        e = nodes[e].next
+    }
+    put("_kv_l")
+    put_int(s)
+    put("; })")
+}
+
 let gen_value(n:int64, y:int64) {
+    if nodes[n].kind == N_ARRAY && y >= 0 && types[y].kind == Y_ARRAY {   // $[a, b] of the type written (#266)
+        gen_array(n, y)
+        return
+    }
     if nodes[n].kind == N_STR && y >= 0 && types[y].kind == Y_STRING {   // a String of text where one goes (#234)
         put("KV_STRING_OF(")
         gen_expr(n)
@@ -1777,6 +1843,8 @@ let gen_expr(n:int64) {
         put("}")
     } else if k == N_EMPTY {
         put("{0}")
+    } else if k == N_ARRAY {
+        gen_array(n, -1)
     } else {
         gen_error(n, "this expression is not known")
     }
@@ -1809,6 +1877,7 @@ let inferred(n:int64):int64 {
     }
     if k == N_CHAR { return base_type(Y_U8) }
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
+    if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") {     // x ?? d is x's T (#217)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
@@ -2993,6 +3062,7 @@ let gen_program() {
     }
     var body:String = out.copy()
     out = head.copy()
+    for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }
