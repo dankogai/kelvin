@@ -71,20 +71,14 @@ let is_owner(y:int64):bool {
     return false
 }
 
-// the part of an Array's name its element gives: i64, String, tok
+let mangled(y:int64):String    // a prototype: put_elem_name names a type as kelvinc does
+
+// the part of an Array's name its element gives: i64, String, Array_i64,
+// kelvinc's mangled_type, so that an Array or a Dictionary of them has
+// its own name (#267)
 let put_elem_name(y:int64) {
-    switch types[y].kind {
-    case Y_I64: put("i64")
-    case Y_I32: put("i32")
-    case Y_U8: put("u8")
-    case Y_U32: put("u32")
-    case Y_F64: put("f64")
-    case Y_F32: put("f32")
-    case Y_BOOL: put("bool")
-    case Y_STRING: put("String")
-    case Y_STRUCT: put_tok(types[y].name)
-    default: put("unknown")
-    }
+    let m:String = mangled(y)
+    out += &m
 }
 
 let put_array_name(y:int64) {
@@ -439,6 +433,8 @@ let float_tok(t:int64):bool {
     return false
 }
 
+let dict_key_type(y:int64):int64    // a prototype: type_of asks it of ${k: v} (#267)
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -448,6 +444,13 @@ let type_of(n:int64):int64 {
     }
     let t:int64 = nodes[n].t
     if k == N_NUM && float_tok(t) { return base_type(Y_F64) }      // (#262)
+    if k == N_DICT {                                                  // ${k: v}: of the first entry's types (#267)
+        let ky:int64 = dict_key_type(type_of(nodes[n].b))
+        let vy:int64 = type_of(nodes[nodes[n].b].next)
+        if ky < 0 || vy < 0 { return -1 }
+        optional_of(vy)                                               // V?, which d[k] read whole is (#219)
+        return type_of_kind(Y_DICT, vy, ky)
+    }
     if k == N_ARRAY {                                                 // $[a, b]: an Array of a's type (#266)
         let e:int64 = type_of(nodes[n].b)
         if e < 0 { return -1 }
@@ -1473,9 +1476,106 @@ let gen_array(n:int64, given:int64) {
     put("; })")
 }
 
+// a Dictionary's key type of a key of type y: a String where it is text,
+// as kelvinc's: a cstr is no key (#267)
+let dict_key_type(y:int64):int64 {
+    if y >= 0 && types[y].kind == Y_CSTR { return base_type(Y_STRING) }
+    return y
+}
+
+let type_text(y:int64):String    // a prototype: one_entry_type names the types (#267)
+
+// whether the keys of ${k: v} have one type and the values one, as
+// kelvinc asks where no type is written (#267)
+let one_entry_type(n:int64):bool {
+    let first:int64 = nodes[n].b
+    let ky = dict_key_type(type_of(first))
+    let vy = type_of(nodes[first].next)
+    if ky < 0 || vy < 0 {
+        gen_error(n, "the entries have no type kc sees here: write the Dictionary's type, as name:Dictionary<K, V>")
+        return false
+    }
+    var k = nodes[nodes[first].next].next
+    while k >= 0 {
+        let v:int64 = nodes[k].next
+        let kk = dict_key_type(type_of(k))
+        if kk != ky {
+            var s = $"every key of a Dictionary has one type: this one is "
+            s += kk >= 0 ? type_text(kk) : $"unseen"
+            s += ", the first "
+            s += type_text(ky)
+            gen_error(k, s.cstr)
+            return false
+        }
+        if type_of(v) != vy {
+            var s = $"every value of a Dictionary has one type: this one is "
+            s += type_of(v) >= 0 ? type_text(type_of(v)) : $"unseen"
+            s += ", the first "
+            s += type_text(vy)
+            gen_error(v, s.cstr)
+            return false
+        }
+        k = nodes[v].next
+    }
+    return true
+}
+
+// ${k: v} (#267): a new Dictionary, each entry set in order, a later key's
+// value winning, of y where one is written, else of the first entry's
+// types; a String key an expression gives is held while it is copied in,
+// and a value that owns, held by a variable, is not copied
+let gen_dict(n:int64, given:int64) {
+    var y = given
+    if y < 0 {
+        if !one_entry_type(n) { return }
+        y = type_of(n)
+    }
+    let elem:int64 = types[y].elem
+    serial += 1
+    let s = serial
+    put("({ ")
+    put_dict_name(y)
+    put(" _kv_m")
+    put_int(s)
+    put(" = {0}; ")
+    var k = nodes[n].b
+    while k >= 0 && !failed {
+        let v:int64 = nodes[k].next
+        if is_owner(elem) && is_place(v) {
+            gen_error(v, "an owner is not copied by '=' (#54): copy it with .copy()")
+            return
+        }
+        let hold = needs_hold(k)
+        if hold { hold_open(k) }
+        put_dict_name(y)
+        put("_set(&_kv_m")
+        put_int(s)
+        put(", ")
+        gen_key(y, k)
+        put(", ")
+        if nodes[v].kind == N_INIT {                     // {a, b} of a struct, C's compound literal there
+            put("(")
+            put_ctype(elem)
+            put(")")
+        }
+        gen_value(v, elem)
+        put(")")
+        if hold { hold_close(k) }
+        put("; ")
+        k = nodes[v].next
+    }
+    put("_kv_m")
+    put_int(s)
+    put("; })")
+}
+
 let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_ARRAY && y >= 0 && types[y].kind == Y_ARRAY {   // $[a, b] of the type written (#266)
         gen_array(n, y)
+        return
+    }
+    if nodes[n].kind == N_DICT && y >= 0 && types[y].kind == Y_DICT {     // ${k: v} of the type written (#267)
+        gen_dict(n, y)
         return
     }
     if nodes[n].kind == N_STR && y >= 0 && types[y].kind == Y_STRING {   // a String of text where one goes (#234)
@@ -1845,6 +1945,8 @@ let gen_expr(n:int64) {
         put("{0}")
     } else if k == N_ARRAY {
         gen_array(n, -1)
+    } else if k == N_DICT {
+        gen_dict(n, -1)
     } else {
         gen_error(n, "this expression is not known")
     }
@@ -1878,6 +1980,7 @@ let inferred(n:int64):int64 {
     if k == N_CHAR { return base_type(Y_U8) }
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
+    if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") {     // x ?? d is x's T (#217)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
@@ -3063,6 +3166,7 @@ let gen_program() {
     var body:String = out.copy()
     out = head.copy()
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
+    for i in 0..<dicts.count as int64 { write_type(dicts[i]) }     // and the Dictionaries of ${k: v} (#267)
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }

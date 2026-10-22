@@ -298,6 +298,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 264 | kc reads kelvinc's annotation `x:T`, a conversion as `x as T`: `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`; the `:` is one where a type's word of kc follows, with no `(` or `<` after it, else `?:`'s or a `case`'s | — | kc builds `let t = 0.1:float32` | 2026-10-22 |
 | 265 | kc reads `x:T` of a struct's name or a C typedef's, `p:point`, `n:size_t`, but in the middle of `c ? a : b` and in a case's values, where a name after `:` is `?:`'s or the case's; in parentheses or a call's arguments there, an annotation again, as kelvinc's ident_annotation_ok | — | kc builds `norm(a:point)` | 2026-10-22 |
 | 266 | kc reads `$[a, b]`, an Array of its elements: of their one type, else an error, as kelvinc's, or of the type written, each element converted as a value of the element type; an owner a variable holds is not copied; a trailing comma; nested | — | kc builds `let primes = $[2, 3, 5, 7]` | 2026-10-22 |
+| 267 | kc reads `${k: v}`, a Dictionary of its entries set in order, a later key winning: of the first entry's types, a text key a String's, as kelvinc's, or of the type written, each converted; kelvinc's errors of keys or values of more than one type; a String key an expression gives held; nested, a container's C name its element's as kelvinc mangles it | — | kc builds `let stock = ${"apple": 3}` | 2026-10-22 |
 
 Notes:
 
@@ -859,6 +860,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (267) Agreed details: "teach kc Dictionary literals ${k: v} as #267".
+  A N_DICT lists each key and its value after it; parse_expr reads a
+  key with name_annotation off, so `${k: v}` is no `k:v`. As kelvinc
+  has it, the key type is the first key's, text a String, and the
+  value type the first value's, text a cstr. Writing a Dictionary of
+  Dictionaries showed that kc named an element by put_elem_name, which
+  knew no container, `_kv_dict_String_unknown` twice; it is now
+  kelvinc's mangled_type, kc's mangled, for Arrays too. So too
+  parse.k's type_word, which names the Optionals kc makes: it knew no
+  float and no Dictionary, `T` of each, so an f64? and a Dictionary?
+  were one _kv_opt_T, latent since #262 where a program had only one.
+  kc does not
+  print a Dictionary whole, nor walk one with `for k, v in d`: the next
+  gaps.
 
 - (266) Agreed details: "teach kc Array literals $[a, b] as #266". kc
   had `$[]` alone. A N_ARRAY is written as a statement expression that
@@ -2853,6 +2869,7 @@ says "as agreed".
 | P276 | Details of #264 | selfhost/parse.k: annotation_ahead(), and parse_unary's loop of `as` takes `:T` too; sample.k prints annotations; selfhost/README.md | `x:T` of a struct's name or a C typedef in kc |
 | P277 | Details of #265 | selfhost/parse.k: var name_annotation, off in parse_expr's middle of ?: and parse_switch's case values, on in parse_args and parentheses; annotation_ahead takes a name where it is on; sample.k prints a struct annotation; selfhost/README.md | |
 | P278 | Details of #266 | selfhost/parse.k: N_ARRAY of `$[` and elements; gen.k: type_of of N_ARRAY, one_type, gen_array, gen_value and gen_expr of it, inferred's check, the Arrays made in functions written after them; sample.k prints Array literals; selfhost/README.md | Dictionary literals `${k: v}` in kc |
+| P279 | Details of #267 | selfhost/parse.k: N_DICT of `${` and its entries, type_word of floats, pointers, IO, uchr and Dictionaries; gen.k: dict_key_type, one_entry_type, gen_dict, type_of, gen_value, gen_expr and inferred of it, the Dictionaries made in functions written after them, put_elem_name by mangled; sample.k reads Dictionary literals; selfhost/README.md | printing a Dictionary whole, and `for k, v in d`, in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

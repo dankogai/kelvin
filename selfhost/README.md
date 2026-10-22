@@ -170,6 +170,15 @@ kc reads what it is written in, and little more.
   each converted, text into a String, `{a, b}` into a struct.
   - Elements of more than one type are an error, as kelvinc's, and so
     is an owner a variable holds, which `=` would copy.
+- **`${k: v}`** (#267), a Dictionary of its entries, set in order, a
+  later key's value winning: of the first entry's types, a text key a
+  String's, as kelvinc's, or of the type written, each converted.
+  - Keys or values of more than one type are kelvinc's errors, `every
+    value of a Dictionary has one type: this one is f64, the first
+    i64`; so is a value that owns, held by a variable.
+  - A String key an expression gives is held while it is copied in.
+  - An Array's or a Dictionary's name in C is its element's as kelvinc
+    mangles it, `_kv_dict_String_Dictionary_String_i64`, so they nest.
 - **`x:T`** (#264) converts as `x as T` does, kelvinc's annotation:
   `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`.
   - The `:` is one where a type's word follows, `int64` to `uchr`, and

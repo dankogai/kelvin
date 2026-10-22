@@ -301,5 +301,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     var labels:$[String] = $["one", $"two"]
     let grid = $[$[1, 2], $[3]]
     println(primes, " ", labels, " ", grid, " ", $[1.5, nan], " ", sum_of($[1, 2, 3]), " ", $[4, 5][1])
+    let stock = ${"apple": 3, "pear": 5}              // Dictionary literals (#267)
+    let numbers:Dictionary<int64, String> = ${1: "one", 2: $"two"}
+    let deep = ${"a": ${"b": 1}}
+    println(stock["pear"], " ", stock.count, " ", numbers[2], " ", deep["a"]!["b"], " ", ${"k": 1.5}["k"])
     return 0
 }

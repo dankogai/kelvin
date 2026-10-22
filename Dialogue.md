@@ -5979,3 +5979,19 @@ prints them, so the bootstrap checks them. Details are provisional
 P278.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 311. kc reads ${k: v}
+
+> teach kc Dictionary literals ${k: v} as #267
+
+**Claude** taught kc `${k: v}`, which had `${:}` alone: a Dictionary of
+the first entry's types, a text key a String's, or of the type
+written; keys or values of more than one type are kelvinc's errors,
+word for word. Nesting them showed that kc named an Array's or a
+Dictionary's element without containers, `_kv_dict_String_unknown`,
+and an Optional of a float or of a Dictionary as `_kv_opt_T`, one for
+both; each is now named as kelvinc mangles it. kc does not yet print a
+Dictionary whole, nor walk one with `for k, v in d`. Details are
+provisional P279.
+
+There are 897 tests, and all pass with clang and with gcc 15.

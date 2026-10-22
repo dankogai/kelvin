@@ -22,6 +22,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_DEREF,    // a^
     N_EMPTY,    // $[]
     N_ARRAY,    // $[b...], an Array of its elements (#266)
+    N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
     N_TYPE,     // IO or String called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order
     N_NULL,     // nullptr
@@ -238,16 +239,32 @@ let made_token(s:String^):int64 {
 
 // the part of a made name a type gives, as kelvinc's: i64, String, Array_i64
 let type_word(y:int64):String {
-    switch types[y].kind {
+    switch types[y].kind {            // each its own, as gen.k's mangled: f64? and a Dictionary? are two (#267)
     case Y_I64: return $"i64"
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_F64: return $"f64"
+    case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
+    case Y_IO: return $"IO"
+    case Y_UCHR: return $"uchr"
+    case Y_PTR:
+        var s = type_word(types[y].elem)
+        s += "p"
+        return s
     case Y_ARRAY:
         var s = $"Array_"
+        var e = type_word(types[y].elem)
+        s += &e
+        return s
+    case Y_DICT:
+        var s = $"Dictionary_"
+        var k = type_word(types[y].name)
+        s += &k
+        s += "_"
         var e = type_word(types[y].elem)
         s += &e
         return s
@@ -463,9 +480,37 @@ let parse_primary():int64 {
     }
     if at_word("${") {                          // ${:}, an empty Dictionary (#211)
         advance()
-        expect(":")
+        skip_newlines()
+        if at_word(":") {
+            advance()
+            expect("}")
+            return make_node(N_EMPTY, t)
+        }
+        let n:int64 = make_node(N_DICT, t)          // ${k: v} (#267)
+        let saved = name_annotation
+        var last = -1
+        while !failed {
+            name_annotation = false                 // ${k: v}'s :, not k:T
+            let k:int64 = parse_expr()
+            name_annotation = saved
+            expect(":")
+            let v:int64 = parse_expr()
+            nodes[k].next = v
+            if last < 0 {
+                nodes[n].b = k
+            } else {
+                nodes[last].next = k
+            }
+            last = v
+            skip_newlines()
+            if !at_word(",") { break }
+            advance()
+            skip_newlines()
+            if at_word("}") { break }                 // a comma after the last
+        }
+        name_annotation = saved
         expect("}")
-        return make_node(N_EMPTY, t)
+        return n
     }
     if at_word("{") {
         advance()
