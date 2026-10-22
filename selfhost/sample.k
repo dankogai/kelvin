@@ -357,5 +357,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(listed, " ", name_set.elements, " ", (digit_set | odd_only).elements.count, " ", digit_set.count)
     let joined = greeting + " and " + greeting      // + of Strings, a new String (#284)
     println(joined, " ", "<" + joined + ">", " ", (greeting + greeting).count, " ", joined.count)
+    var stock_names = stock.keys                      // Arrays of copies, in the order added (#285)
+    stock_names += $"plum"
+    println(stock_names, " ", stock.values, " ", numbers.keys, " ", numbers.values, " ", deep.keys, " ", deep.values, " ", stock.keys.count)
     return 0
 }

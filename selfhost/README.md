@@ -298,6 +298,9 @@ kc reads what it is written in, and little more.
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`; `d.remove(k)`,
   which frees what the entry held and is `true` where it was there
   (#270).
+  - `d.keys` and `d.values` (#285), Arrays of copies in the order added,
+    as a Set's `elements`: new values a variable then owns, of a
+    Dictionary in a variable, a temporary, or through a borrow.
   - A String key an expression gives, `d.has($"a")`, is held for the
     call (#270).
   - `d[k]` read whole is a `V?` (#219), as kelvinc's since #218: `some`
@@ -379,7 +382,9 @@ steps can take them on one at a time.
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
-  - a Dictionary's `keys` and `values`; `union` and `typealias`;
+  - `union` and `typealias`;
+  - a body's value returned without `return`, `{ 7 }`, kelvinc's (#26):
+    kc writes a function that returns nothing;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;

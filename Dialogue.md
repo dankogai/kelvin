@@ -6220,3 +6220,14 @@ words for the wrong sides. A variable infers its type. Details are
 provisional P296.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 329. kc has a Dictionary's keys and values
+
+> teach kc Dictionary keys and values as #285
+
+**Claude** taught kc `d.keys` and `d.values`, Arrays of copies as
+kelvinc makes them, sharing the code of a Set's `elements`. It found
+that kc returns no body's value, `{ 7 }`, and writes a function that
+returns nothing. Details are provisional P297.
+
+There are 912 tests, and all pass with clang and with gcc 15.

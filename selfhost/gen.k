@@ -542,6 +542,8 @@ let type_of(n:int64):int64 {
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
+        if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
+        if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
         if yk == Y_IO { return base_type(Y_I32) }
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
@@ -1364,6 +1366,8 @@ let gen_method_of(n:int64)
 
 // a.t of what an expression gives (#227): a held, a member that owns
 // copied out of it, as kelvinc does; a pointer into it an error
+let is_made_array(n:int64):bool    // a prototype: gen_field asks it (#285)
+
 let gen_field(n:int64) {
     let a:int64 = nodes[n].a
     if !needs_hold(a) {
@@ -1376,7 +1380,7 @@ let gen_field(n:int64) {
         return
     }
     hold_open(a)
-    let made = tok_is(nodes[n].t, "elements") && types[type_of(a)].kind == Y_SET   // s.elements is new, no member to copy (#278)
+    let made = is_made_array(n)              // s.elements, d.keys, d.values are new, no member to copy (#278, #285)
     if is_owner(y) && !made {
         put_owner_prefix(y)
         put("_copy(&(")
@@ -1386,6 +1390,73 @@ let gen_field(n:int64) {
         gen_member(n)
     }
     hold_close(a)
+}
+
+// whether n is s.elements, d.keys or d.values: a new Array of copies,
+// no member (#278, #285)
+let is_made_array(n:int64):bool {
+    if nodes[n].kind != N_FIELD { return false }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return false }
+    let t = nodes[n].t
+    if types[y].kind == Y_SET { return tok_is(t, "elements") }
+    return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values"))
+}
+
+// an Array of copies of the elements of the Set or the keys or values of
+// the Dictionary a gives, of type y, in the order added (#278, #285), as
+// kelvinc's: each live slot's key, or value, ey, copied where it owns
+let gen_slots_array(a:int64, y:int64, ey:int64, value:bool) {
+    let ay:int64 = type_of_kind(Y_ARRAY, ey, -1)
+    serial += 1
+    let s = serial
+    put("({ const ")
+    if types[y].kind == Y_SET { put_set_name(y) } else { put_dict_name(y) }
+    put(" *_kv_p")
+    put_int(s)
+    put(" = ")
+    gen_place(a)
+    put("; ")
+    put_array_name(ay)
+    put(" _kv_e")
+    put_int(s)
+    put(" = {0}; ")
+    put_array_name(ay)
+    put("_reserve(&_kv_e")
+    put_int(s)
+    put(", _kv_p")
+    put_int(s)
+    put("->count); for (size_t _kv_j")
+    put_int(s)
+    put(" = 0; _kv_j")
+    put_int(s)
+    put(" < _kv_p")
+    put_int(s)
+    put("->len; _kv_j")
+    put_int(s)
+    put("++) if (_kv_p")
+    put_int(s)
+    put("->at[_kv_j")
+    put_int(s)
+    put("].live) ")
+    put_array_name(ay)
+    put("_append(&_kv_e")
+    put_int(s)
+    put(", ")
+    let owns = is_owner(ey)
+    if owns {
+        put_owner_prefix(ey)
+        put("_copy(&")
+    }
+    put("_kv_p")
+    put_int(s)
+    put("->at[_kv_j")
+    put_int(s)
+    if value { put("].value") } else { put("].key") }
+    if owns { put(")") }
+    put("); _kv_e")
+    put_int(s)
+    put("; })")
 }
 
 let gen_member(n:int64) {
@@ -1418,52 +1489,9 @@ let gen_member(n:int64) {
         gen_expr(a)
         put(").count)")
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
-        let ay:int64 = type_of_kind(Y_ARRAY, types[y].elem, -1)
-        serial += 1
-        let s = serial
-        put("({ const ")
-        put_set_name(y)
-        put(" *_kv_p")
-        put_int(s)
-        put(" = ")
-        gen_place(a)
-        put("; ")
-        put_array_name(ay)
-        put(" _kv_e")
-        put_int(s)
-        put(" = {0}; ")
-        put_array_name(ay)
-        put("_reserve(&_kv_e")
-        put_int(s)
-        put(", _kv_p")
-        put_int(s)
-        put("->count); for (size_t _kv_j")
-        put_int(s)
-        put(" = 0; _kv_j")
-        put_int(s)
-        put(" < _kv_p")
-        put_int(s)
-        put("->len; _kv_j")
-        put_int(s)
-        put("++) if (_kv_p")
-        put_int(s)
-        put("->at[_kv_j")
-        put_int(s)
-        put("].live) ")
-        put_array_name(ay)
-        put("_append(&_kv_e")
-        put_int(s)
-        put(", ")
-        if types[types[y].elem].kind == Y_STRING { put("kv_string_copy(&") }
-        put("_kv_p")
-        put_int(s)
-        put("->at[_kv_j")
-        put_int(s)
-        put("].key")
-        if types[types[y].elem].kind == Y_STRING { put(")") }
-        put("); _kv_e")
-        put_int(s)
-        put("; })")
+        gen_slots_array(a, y, types[y].elem, false)
+    } else if yk == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values")) {   // d.keys, d.values (#285)
+        gen_slots_array(a, y, tok_is(t, "keys") ? types[y].name : types[y].elem, tok_is(t, "values"))
     } else if yk == Y_IO {
         if tok_is(t, "string") {
             put("kv_io_read_string(")
@@ -1656,10 +1684,7 @@ let is_place(n:int64):bool {
         let y = type_of(nodes[n].a)
         if y >= 0 && types[y].kind == Y_DICT { return false }
     }
-    if k == N_FIELD && tok_is(nodes[n].t, "elements") {      // s.elements, a new Array (#278)
-        let y = type_of(nodes[n].a)
-        if y >= 0 && types[y].kind == Y_SET { return false }
-    }
+    if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
     if k == N_COND { return is_place(nodes[n].b) && is_place(nodes[n].c) }   // two places are one (#232)
     return k == N_ID || k == N_DEREF || k == N_SELF
