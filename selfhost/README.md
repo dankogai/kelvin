@@ -39,6 +39,8 @@ Agreed in #279.
     `Dictionary<K, V>` and `Set<T>`.
 - **Long term:** the whole back end written in Kelvin, as Go's is, and
   as C's compilers are written in C.
+  - The runtime too: `runtime/*.k`, built by `kelvinc --runtime` into
+    `libkelvin` (#289), the first a String's searching and trimming.
 
 ## Files
 

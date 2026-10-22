@@ -320,6 +320,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 286 | kc returns a body's value as kelvinc's #26: a function with a result whose body is one expression returns it; one assignment, or one call with no value, is an error; a body that ends in a value on any path is an error, and in main one with no effect, in kelvinc's words | — | kc builds `let doubled(x:int64):int64 { x * 2 }` | 2026-10-23 |
 | 287 | kc refuses an operator of an Array, a Dictionary or a Set that kelvinc has not, in its words: `xs + 2`, `2 + xs`, `xs < ys`, `d < d2`, `s - t`, `s == t`; a Set's `|` `&` `~` are its own | — | kc refuses `$[1] + 2` | 2026-10-23 |
 | 288 | kc has `==` and `!=` of Arrays and Dictionaries, as kelvinc's #247 and #235: two of one type, by each element in order, or each entry, by its `==`, nested too; kelvinc's errors for two types or elements with no `==`, in its words | — | kc builds `stock == same_stock` | 2026-10-23 |
+| 289 | The runtime begins in Kelvin: `kelvinc --runtime F.k` makes an object as `-c` does, `-fPIC`, its `kv_` names allowed and kept as `kelvin_prelude.h` declares them; `runtime/string.k`, a String's find, has, starts, ends and trim, is built into libkelvin in place of their C | — | `kelvinc --runtime runtime/string.k` | 2026-10-23 |
 
 Notes:
 
@@ -881,6 +882,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (289) Agreed details: "add the runtime-build mode and
+  runtime/string.k as #289", after the user asked for more of kelvinc in
+  Kelvin, "some of the prelude can be diverted to .k".
+  - kelvinc refused `kv_` names, the runtime's, and a `--lib` module's
+    functions are named by their types; a program's are not, so
+    `--runtime` is `-c` with the `kv_` names allowed, `_kv_` still
+    kelvinc's own, and `-fPIC` for the shared libkelvin.
+  - `--runtime --emit-c` writes the C, for tests/asan.sh;
+    `--runtime` with `--lib`, `--run` or objects to link is an error.
+  - An object needs only `kelvin_prelude.h`, not `libkelvin.a`, so the
+    runtime's own `.k` files build before the library is there.
+  - runtime/string.k: the nine kv_string_ functions of #177; its
+    helpers are `static let`, C's static, so that no name of theirs
+    meets a program's. It works on the bytes, `.cstr` and `memcmp`,
+    libc's, as it cannot use what it implements.
+  - The GNUmakefile builds `build/runtime/%_k.o` of each runtime/*.k,
+    with `-O -g`, into libkelvin.a and the shared one.
+  - An edge-case program prints the same with the C and with the
+    Kelvin, now tests/run/string_search_edges.k.
 
 - (288) Agreed details: "teach kc == of Arrays and Dictionaries as
   #288", found by #287. kc writes kelvinc's T_eq of each type compared,
@@ -3149,6 +3170,7 @@ says "as agreed".
 | P298 | Details of #286 | selfhost/gen.k: implicit_return, no_value, drops_value, dropped_at_end, last_of, kelvin_type_text; sample.k uses it; selfhost/README.md | `+` of an Array in kc |
 | P299 | Details of #287 | selfhost/gen.k: reject_container_math, builtin_kind; selfhost/README.md | `==` of Arrays and Dictionaries in kc; kc's `??` message |
 | P300 | Details of #288 | selfhost/gen.k: compared, eq_type, need_eq, put_eq_name, put_eq_code, gen_container_eq, gen_eq, gen_cond, kelvin_type_text; sample.k uses it; selfhost/README.md | == of enums with values in kc |
+| P301 | Details of #289 | main.c: `--runtime`, find_runtime of an object; parser.c: runtime_mode; runtime/string.k; runtime/string.c loses them; GNUmakefile; tests/asan.sh; tests: run/string_search_edges.k, error/kv_reserved_function.k; README.md, selfhost/README.md | more of the runtime in Kelvin |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

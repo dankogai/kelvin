@@ -13,6 +13,10 @@ UD_SRCS := runtime/unicode_data.c runtime/unicode_tables.c runtime/unicode_names
 UD_OBJS := $(UD_SRCS:runtime/%.c=build/runtime/%.o)
 RT_SRCS := $(filter-out runtime/io.c runtime/os.c runtime/regexp.c runtime/regexp_parse.c $(UD_SRCS), $(wildcard runtime/*.c))
 RT_OBJS := $(RT_SRCS:runtime/%.c=build/runtime/%.o)
+# the runtime written in Kelvin (#289): kelvinc --runtime makes an object of
+# each runtime/*.k, whose kv_ functions keep the names kelvin_prelude.h declares
+RT_K_SRCS := $(wildcard runtime/*.k)
+RT_K_OBJS := $(RT_K_SRCS:runtime/%.k=build/runtime/%_k.o)
 # IO and OS are modules (#144, #145): #import <IO> and #import <OS> bring in
 # modules/IO.kh and OS.kh, whose C headers are kIO.h and kOS.h, and link
 # libkIO and libkOS, the .kh + libkM form of a module (#143)
@@ -47,12 +51,15 @@ build/%.o: src/%.c src/kelvin.h | build
 build/runtime/%.o: runtime/%.c modules/kelvin_prelude.h modules/kIO.h modules/kOS.h | build/runtime
 	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
 
-modules/libkelvin.a: $(RT_OBJS)
-	rm -f $@
-	ar rcs $@ $(RT_OBJS)
+build/runtime/%_k.o: runtime/%.k kelvinc modules/kelvin_prelude.h | build/runtime
+	CC="$(CC)" ./kelvinc --runtime -O -g $< -o $@
 
-modules/$(SHLIB): $(RT_OBJS)
-	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) -lm
+modules/libkelvin.a: $(RT_OBJS) $(RT_K_OBJS)
+	rm -f $@
+	ar rcs $@ $(RT_OBJS) $(RT_K_OBJS)
+
+modules/$(SHLIB): $(RT_OBJS) $(RT_K_OBJS)
+	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) $(RT_K_OBJS) -lm
 
 modules/libkIO.a: build/runtime/io.o
 	rm -f $@

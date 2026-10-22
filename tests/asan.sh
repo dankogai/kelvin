@@ -49,6 +49,20 @@ for src in runtime/*.c; do
     fi
     objs="$objs $o"
 done
+# and the runtime written in Kelvin (#289), its C from kelvinc --runtime
+for src in runtime/*.k; do
+    [ -e "$src" ] || continue
+    o="$tmp/$(basename "$src" .k)_k.o"
+    if ! "$KELVINC" --runtime --emit-c "$src" > "$tmp/rt.c" 2> "$tmp/log"; then
+        bad "$src" "kelvinc --runtime --emit-c failed"
+        exit 1
+    fi
+    if ! $CC $flags -c -o "$o" "$tmp/rt.c" > "$tmp/log" 2>&1; then
+        bad "$src" "its C does not compile with ASan"
+        exit 1
+    fi
+    objs="$objs $o"
+done
 for mod in modules/*.k; do
     name=$(basename "$mod" .k)
     [ -e "modules/$name.kh" ] || continue  # a module built by make into a library

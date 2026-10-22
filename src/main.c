@@ -28,6 +28,8 @@ static void usage(FILE *f) {
             "  -c          compile the file into an object, file.o or the -o path, and stop\n"
             "              (#281); .o and .a files are linked with the source, or alone\n"
             "  --emit-c    write the generated C (to -o, or stdout) and stop\n"
+            "  --runtime   compile a file of kelvinc's runtime, runtime/*.k, into an object,\n"
+            "              as -c, its kv_ functions by the names kelvin_prelude.h declares (#289)\n"
             "  --run       build, then run the program with the args after --\n"
             "  -O          optimize (-O2)\n"
             "  -g          include debug info\n"
@@ -150,14 +152,16 @@ static char *kelvin_modules(const char *argv0) {
     return found;
 }
 
-/* The runtime: the prelude header and libkelvin.a in Kelvin's modules/ */
-static void find_runtime(const char *argv0, char **inc, char **lib) {
+/* The runtime: the prelude header and libkelvin.a in Kelvin's modules/;
+   an object, which links nothing, needs only the header (#289), so that
+   the runtime's own .k files build before libkelvin.a is there */
+static void find_runtime(const char *argv0, char **inc, char **lib, bool linking) {
     char *m = kelvin_modules(argv0);
     if (!m)
         fatal("cannot find Kelvin's modules/ (kelvin_prelude.h and libkelvin.a); set KELVIN_HOME");
     *inc = m;
     *lib = strfmt("%s/libkelvin.a", m);
-    if (!file_exists(*lib))
+    if (linking && !file_exists(*lib))
         fatal("cannot find libkelvin.a in %s; run 'make'", m);
 }
 
@@ -438,7 +442,7 @@ static char *default_output(const char *src) {
 static int link_only(const char *argv0, const char *out_path, bool run_after, bool verbose, int prog_argc,
                      char **prog_argv) {
     char *rt_inc, *rt_lib;
-    find_runtime(argv0, &rt_inc, &rt_lib);
+    find_runtime(argv0, &rt_inc, &rt_lib, true);
     all_module_libs(argv0);
     char *dir = NULL;
     if (run_after && !out_path) {
@@ -507,6 +511,9 @@ int main(int argc, char **argv) {
             out_path = argv[i];
         } else if (!strcmp(a, "-c")) {
             compile_only = true;
+        } else if (!strcmp(a, "--runtime")) {
+            compile_only = true; /* an object of the runtime (#289) */
+            runtime_mode = true;
         } else if (!strcmp(a, "--emit-c")) {
             emit_c = true;
         } else if (!strcmp(a, "--run")) {
@@ -541,6 +548,11 @@ int main(int argc, char **argv) {
             src_path = a;
         }
     }
+    if (runtime_mode && emit_c) /* --runtime --emit-c: the runtime file's C (#289) */
+        compile_only = false;
+    if (runtime_mode && (lib || run_after || link_objects.len))
+        fatal("--runtime makes an object of the runtime, which %s does not",
+              lib ? "--lib" : run_after ? "--run" : "linking objects");
     if (compile_only && (lib || emit_c || run_after))
         fatal("-c makes an object, which %s does not", lib ? "--lib" : emit_c ? "--emit-c" : "--run");
     if (compile_only && link_objects.len)
@@ -598,7 +610,7 @@ int main(int argc, char **argv) {
     write_file(c_path, c_code);
 
     char *rt_inc, *rt_lib;
-    find_runtime(argv[0], &rt_inc, &rt_lib);
+    find_runtime(argv[0], &rt_inc, &rt_lib, !lib && !compile_only);
     char *exe = out_path ? xstrdup(out_path) : run_after ? strfmt("%s/program", dir) : default_output(src_path);
     const char *cc = getenv("CC");
     const char *base_args[] = {
@@ -649,6 +661,8 @@ int main(int argc, char **argv) {
         list_push(&cc_args, obj_path);
     } else if (compile_only) { /* an object, file.o or the -o path (#281) */
         list_push(&cc_args, "-c");
+        if (runtime_mode) /* into libkelvin's shared library too (#289) */
+            list_push(&cc_args, "-fPIC");
         list_push(&cc_args, "-o");
         list_push(&cc_args, out_path ? xstrdup(out_path) : strfmt("%s.o", default_output(src_path)));
     } else {

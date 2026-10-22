@@ -6266,3 +6266,26 @@ errors, in its words. It found that a comparison in a condition reached
 C past #287's check, and fixed that too. Details are provisional P300.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 333. The runtime begins in Kelvin
+
+> Can you write more part of kelvinc in kelvin? so far 100% of `src/`
+> and `runtime/` is in `.c` but some of the prelude can be diverted to
+> `.k`.
+
+**Claude** surveyed the runtime: the String and Bytes algorithms, the
+OS module and the RegExp engine could be Kelvin, while the prelude's
+container macros are C's generics, the compiler's to replace. It found
+two things in the way: kelvinc refuses `kv_` names, and a library's
+functions are named by their types, where the C kelvinc writes calls
+the runtime by fixed names.
+
+> add the runtime-build mode and runtime/string.k as #289
+
+**Claude** added `kelvinc --runtime`, an object of the runtime with its
+`kv_` names, and moved a String's find, has, starts, ends and trim from
+runtime/string.c into runtime/string.k, which make builds into
+libkelvin. They print the same as the C did. Details are provisional
+P301.
+
+There are 914 tests, and all pass with clang and with gcc 15.

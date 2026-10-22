@@ -181,6 +181,7 @@ static bool bound_here(const char *name) {
    scope_names */
 static Decl *parsing_fn;
 bool lib_mode;
+bool runtime_mode;
 
 /* Is the token from a module's header, M.kh (#146), where a prototype is
    the library's own function? */
@@ -8577,8 +8578,8 @@ static Type *inferred_type(Expr *e, Pos pos) {
 static void reject_kv_name(Token *t) {
     if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4))
         error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
-    if (t->kind == TK_IDENT && (!strncmp(t->text, "kv_", 3) || !strncmp(t->text, "KV_", 3) ||
-                                !strcmp(t->text, "KELVIN_PRELUDE_H")))
+    if (t->kind == TK_IDENT && !runtime_mode && /* the runtime's own file names them (#289) */
+        (!strncmp(t->text, "kv_", 3) || !strncmp(t->text, "KV_", 3) || !strcmp(t->text, "KELVIN_PRELUDE_H")))
         error_at(t->pos, "names starting with kv_ or KV_ are kelvinc's runtime's: rename '%s'", t->text);
 }
 

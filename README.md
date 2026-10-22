@@ -242,6 +242,7 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc --run hello.k     # builds and runs
 ./kelvinc --emit-c hello.k  # prints the generated C
 ./kelvinc --lib geo.k       # builds the module geo: modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
+./kelvinc --runtime runtime/string.k  # an object of the runtime, for libkelvin (#289)
 ./kelvinc -c util.k         # builds the object util.o (#281)
 ./kelvinc -o app main.o util.o  # links objects, or main.k util.o, into ./app
 ```
@@ -253,6 +254,12 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
   `selfhost/bootstrap.sh` builds in stages to a fixpoint, in CI
   (#228).
   - Its README lists what stands in the way of a Kelvin kelvinc.
+- **The runtime in Kelvin** (#289): `runtime/*.k`, which
+  `kelvinc --runtime` builds into `libkelvin` beside its C.
+  - Its `kv_` functions keep the names `kelvin_prelude.h` declares,
+    which the C kelvinc writes calls; only `--runtime` may name one so.
+  - The first, `runtime/string.k`, is a String's `find`, `has`,
+    `starts`, `ends` and `trim`.
 
 ## Editors
 
