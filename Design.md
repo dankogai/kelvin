@@ -315,6 +315,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 281 | `kelvinc -c F.k` makes an object, `F.o` or the `-o` path, as `cc -c`; `.o` and `.a` files are linked with a source or alone, with every module's library, each before the ones it imports; kc has `-c` too, and `--emit-c` for keeping its C, as kelvinc | — | `kelvinc -c util.k`, `kelvinc -o app main.o util.o` | 2026-10-23 |
 | 282 | Only a String has `+`: `"a" + "b"` and `x + y` of cstrs are an error that says so, where C refused the literals; a literal is a cstr, text, not a cursor, so `"a" + 1` and `x - y` are #52's error; `$"a" + $"b"` is `String("ab")` | — | `"a" + "b"` is an error, `$"a" + "b"` the String `ab` | 2026-10-23 |
 | 283 | kc refuses `+` and `-` of a cstr as kelvinc since #282, in its words: `"a" + "b"` and `x + y`, `'+' joins Strings, and a cstr is not one`; `"a" + 1`, `"a" - "b"` and `x - y`, #52's text, not a cursor | — | kc refuses `"a" + "b"` | 2026-10-23 |
+| 284 | kc has `+` of Strings, as kelvinc's #183: `s + t` a new String of a String, a cstr or a uchr on either side, one a String, the left no uchr; a String in a variable copied, one an expression gives taken; a variable infers it; the wrong sides are kelvinc's errors, in its words | — | kc builds `greeting + " and " + greeting` | 2026-10-23 |
 
 Notes:
 
@@ -876,6 +877,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (284) Agreed details: "teach kc + of Strings as #284", found by #283.
+  kc's C is kelvinc's: `({ kv_string _kv_cat = <left>; KV_STRING_APPEND(&_kv_cat, <right>); _kv_cat; })`.
+  - The left is `kv_string_copy(&(s))` of a place, taken of an
+    expression, or `KV_STRING_OF(x)` of text; a String place on the
+    right is lent, `&(t)`, and an expression's String the append takes.
+  - type_of gives String where the left is a String, or the right is
+    and the left owns nothing, as kelvinc decides; `let u = a + b`
+    infers it, which kc refused as arithmetic.
+  - The wrong sides give kelvinc's words: a literal, even `true`, is
+    "a number", an Array `Array<T>`; a uchr on the left has its own.
+  - The result is held where it is read, as a call's String is; ASan
+    is clean and leaks finds none.
 
 - (283) Agreed details: "teach kc to refuse "a" + "b" as #283", #282's
   P294. kc had no check of `+` and `-` of a cstr, #52's either, so all
@@ -3074,6 +3088,7 @@ says "as agreed".
 | P293 | Details of #281 | main.c: `-c`, link_objects, link_only, all_module_libs; selfhost/kc.k: `-c`, `--emit-c`, base_of; bootstrap.sh, sanitize.sh; tests: run.sh, project/objects/; README.md, documents/modules.md, selfhost/README.md | objects of one imported `.k`; kc linking objects |
 | P294 | Details of #282 | parser.c: the `+` and `-` check counts E_STRING as a cstr; tests: error/cstr_join.k, cstr_join_vars.k, cstr_literal_step.k, cstr_difference.k, run/string_join.k; documents/strings.md | kc lets `"a" + "b"` reach C |
 | P295 | Details of #283 | selfhost/gen.k: reject_cstr_math, is_cstr_text, is_string_value; selfhost/README.md | `+` of Strings in kc |
+| P296 | Details of #284 | selfhost/gen.k: is_string_plus, plus_side_text, gen_string_plus, type_of and inferred of `+`; sample.k uses it; selfhost/README.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

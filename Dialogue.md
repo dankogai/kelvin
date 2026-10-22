@@ -6209,3 +6209,14 @@ lacked, #52's too, with kelvinc's words for each case. It found that kc
 has no `+` of Strings either. Details are provisional P295.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 328. kc has + of Strings
+
+> teach kc + of Strings as #284
+
+**Claude** taught kc `s + t` of Strings, as kelvinc has it: a new String,
+of a String, a cstr or a uchr on either side, with kelvinc's C and its
+words for the wrong sides. A variable infers its type. Details are
+provisional P296.
+
+There are 912 tests, and all pass with clang and with gcc 15.

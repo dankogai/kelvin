@@ -462,6 +462,16 @@ let float_tok(t:int64):bool {
 
 let dict_key_type(y:int64):int64    // a prototype: type_of asks it of ${k: v} (#267)
 
+// whether n is s + t of Strings, as kelvinc has it (#183): the left a
+// String, or the right one where the left owns nothing (#284)
+let is_string_plus(n:int64):bool {
+    if nodes[n].kind != N_BIN || !tok_is(nodes[n].t, "+") { return false }
+    let ya:int64 = type_of(nodes[n].a)
+    let yb:int64 = type_of(nodes[n].b)
+    if ya >= 0 && types[ya].kind == Y_STRING { return true }
+    return !is_owner(ya) && yb >= 0 && types[yb].kind == Y_STRING
+}
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -575,6 +585,7 @@ let type_of(n:int64):int64 {
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
         if tok_is(t, "??") { return some_type(type_of(nodes[n].a)) }   // (#217)
+        if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
         return type_of(nodes[n].a)
     }
     if k == N_CAST { return nodes[n].ty }
@@ -708,6 +719,73 @@ let gen_place(n:int64) {
     put("&(")
     gen_expr(n)
     put(")")
+}
+
+// a side of s + t as kelvinc names it where it is not text: a literal is
+// a number, an Array an Array<T> (#284)
+let plus_side_text(n:int64):String {
+    let k = nodes[n].kind
+    if k == N_NUM || k == N_CHAR || k == N_BOOL { return $"a number" }
+    let y:int64 = type_of(n)
+    if y < 0 { return $"not text" }
+    if types[y].kind == Y_ARRAY {
+        var s = $"Array<"
+        let e:String = type_text(types[y].elem)
+        s += &e
+        s += ">"
+        return s
+    }
+    return type_text(y)
+}
+
+// s + t of Strings (#284), as kelvinc's: each side a String, a cstr or
+// a uchr, the left no uchr; a new String, the left copied from a
+// variable, taken from an expression or made of text, and the right
+// appended, a String in a variable lent
+let gen_string_plus(n:int64) {
+    let a = nodes[n].a
+    let b = nodes[n].b
+    var side = a
+    while side >= 0 {
+        let y:int64 = type_of(side)
+        let text = y >= 0 && (types[y].kind == Y_STRING || types[y].kind == Y_UCHR || types[y].kind == Y_CSTR)
+        if !text {
+            var s = $"'+' of a String joins text: a String, a cstr or a uchr, and this is "
+            let what:String = plus_side_text(side)
+            s += &what
+            s += "; show a number with a template, $`${n}`, or String(n)"
+            gen_error(side, s.cstr)
+            return
+        }
+        side = side == a ? b : -1
+    }
+    let ya:int64 = type_of(a)
+    if types[ya].kind == Y_UCHR {
+        gen_error(a, "'+' of a String starts with a String or text: write $\"\" + c, or String(c)")
+        return
+    }
+    put("({ kv_string _kv_cat = ")
+    if types[ya].kind != Y_STRING {
+        put("KV_STRING_OF(")
+        gen_expr(a)
+        put(")")
+    } else if is_place(a) {
+        put("kv_string_copy(&(")
+        gen_expr(a)
+        put("))")
+    } else {
+        put("(")
+        gen_expr(a)
+        put(")")
+    }
+    put("; KV_STRING_APPEND(&_kv_cat, ")
+    let yb:int64 = type_of(b)
+    if types[yb].kind == Y_STRING && is_place(b) {
+        gen_place(b)
+    } else {
+        gen_expr(b)
+    }
+    put("); _kv_cat; })")
 }
 
 // a Dictionary's key: a String's text, as KV_DICT looks it up (#211)
@@ -2222,6 +2300,8 @@ let gen_expr(n:int64) {
         put(")")
     } else if k == N_BIN && tok_is(t, "??") {
         gen_coalesce(n)
+    } else if k == N_BIN && is_string_plus(n) {
+        gen_string_plus(n)                               // s + t (#284)
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
         reject_cstr_math(n)                              // "a" + "b", "a" + 1, x - y (#283)
@@ -2299,7 +2379,7 @@ let inferred(n:int64):int64 {
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
     let set_op = k == N_BIN && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_SET   // s | t, a Set, as kelvinc infers it (#276)
-    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !set_op {     // x ?? d is x's T (#217)
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }

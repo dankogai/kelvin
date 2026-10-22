@@ -235,6 +235,12 @@ kc reads what it is written in, and little more.
     but in the middle of `c ? a : b` and in a case's values, where a
     name after `:` is `?:`'s or the case's, as kelvinc reads it; in
     parentheses or a call's arguments there, it is an annotation again.
+- **`+` of Strings** (#284), as kelvinc's: `s + t`, a new String,
+  whose type a variable infers.
+  - Either side a String, a cstr or a uchr, one a String, the left no
+    uchr; other sides are kelvinc's error, in its words.
+  - A String in a variable is copied, one an expression gives taken, so
+    `a + b + c` frees what it made.
 - **A cstr neither joins nor steps** (#283), as kelvinc since #282, in
   its words: `"a" + "b"` and `x + y` of cstrs, `'+' joins Strings, and
   a cstr is not one`; `"a" + 1` and `x - y`, a cstr is text, not a
@@ -374,7 +380,6 @@ steps can take them on one at a time.
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
   - a Dictionary's `keys` and `values`; `union` and `typealias`;
-  - `+` of Strings, `$"a" + "b"`, where kc joins with `+=`;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
