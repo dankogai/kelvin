@@ -648,6 +648,7 @@ let adjacent(a:int64, b:int64):bool {
 let place_follows():bool {
     if at_word(".") || at_word("[") || at_word("^") || at_word("=") || at_word(":=") { return true }
     if at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") { return true }
+    if at_word("|=") || at_word("&=") || at_word("~=") { return true }   // (#276)
     return at_word("!") && adjacent(pos - 1, pos)
 }
 
@@ -750,10 +751,13 @@ let binding_power():int64 {
     if !at_kind(T_PUNCT) { return 0 }
     if at_word("||") { return 1 }
     if at_word("&&") { return 2 }
-    if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 3 }
-    if at_word("??") { return 4 }                // a value, or what an Optional holds (#217)
-    if at_word("+") || at_word("-") { return 5 }
-    if at_word("*") || at_word("/") || at_word("%") { return 6 }
+    if at_word("|") { return 3 }                 // | ~ &, between && and ==, as C's (#276)
+    if at_word("~") { return 4 }
+    if at_word("&") { return 5 }
+    if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 6 }
+    if at_word("??") { return 7 }                // a value, or what an Optional holds (#217)
+    if at_word("+") || at_word("-") { return 8 }
+    if at_word("*") || at_word("/") || at_word("%") { return 9 }
     return 0
 }
 
@@ -970,7 +974,7 @@ let parse_statement():int64 {
         return parse_block()
     }
     let e:int64 = parse_expr()
-    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") {
+    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())

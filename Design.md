@@ -307,6 +307,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 273 | `&x` of a let is a `const T^` of an owner too, a String, an Array, a Dictionary or a Set, though C has no const of it; a `const T^` goes where a `const T^` goes, not a `T^`, in Kelvin's words, of a number's `&x` too; `const $[T]^`, `const Dictionary^`, `const Set^` are borrows that read; a change through any read-only borrow is Kelvin's error; kc does as kelvinc | — | `shout(&s)` of a let String and `s:String^` is an error | 2026-10-22 |
 | 274 | kc has `Set<T>` of integers or Strings, as kelvinc: `${a, b}`, `${}`, `{a, b}` where the type is written; `insert`, `+=`, `+= &t`, `has`, `remove`, `count`, `copy`; `for x in s`; printed `{3, 1, 4}`; a let's does not change, and `const Set<T>^` borrows one that reads; kelvinc's messages, a qualifier's of each spelling | — | kc builds `var s = ${3, 1, 4}` | 2026-10-22 |
 | 275 | kc has a Set's `union`, `intersection` and `difference` of a borrow of another of the same elements, `s.union(&t)`, a new Set, as kelvinc; another argument is kelvinc's error, `'.union' takes a borrow of another Set<i64>, '&other'` | — | kc builds `s.union(&t)` | 2026-10-22 |
+| 276 | kc has `|`, `&` and `~`: of two Sets in variables a new Set, the union, the intersection or what is in one alone, and `|=`, `&=`, `~=` in place, as kelvinc, in its words; of numbers bitwise, `~` the XOR, C's `^`, between `&&` and `==` as C's | — | kc builds `s | t` and `12 ~ 10` | 2026-10-22 |
 
 Notes:
 
@@ -868,6 +869,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (276) Agreed details: "teach kc Set operators | & ~ as #276". Their `=`
+  forms come with them. kc had no bitwise operators, so the three go in
+  its binding powers between `&&` and the comparisons, in C's order,
+  which numbers take too: `5 ~ 1 | 2` is 6, as kelvinc's. A Set's
+  `s | t` gives a declaration its type, as kelvinc infers it, where a
+  number's still does not, being arithmetic. Probing
+  kelvinc found it crashes, a segfault, on `s |= &t`: its check reads
+  the name of a pointer type, NULL; kc gives the error kelvinc means,
+  `'|=' takes another Set<i64>, in a variable`.
 
 - (275) Agreed details: "teach kc Set union, intersection and difference
   as #275", #274's P286. They are the prelude's S_union and the rest of
@@ -2961,6 +2972,7 @@ says "as agreed".
 | P285 | Details of #273 | parser.c: value_type of &x, check_typed_value's fixed, qualified_owner, reject_const_change and its calls, `:=` of a pointer checked; selfhost/gen.k: takes_borrow of an argument, a declaration and an assignment, article_of, kelvinc's words; parse.k: `const $[T]^`; tests: run/const_borrows.k, error/let_borrow_string.k, let_borrow_array.k, let_borrow_number.k, const_borrow_change.k, const_borrow_element.k; documents/pointers.md, ownership.md; selfhost/README.md | |
 | P286 | Details of #274 | selfhost/parse.k: Y_SET, N_SET, `Set<T>`, set_ahead, `${}`, sets, type_word; gen.k: put_set_name, KV_SET, gen_set, gen_key_of, insert/has/remove, `+=`, count, for, the printer, a Set's names; sample.k has Sets; selfhost/README.md | a Set's union, intersection, difference and operators in kc; a name declared twice in a block, which kc leaves to C |
 | P287 | Details of #275 | selfhost/gen.k: type_of and gen of `union`, `intersection`, `difference` of a Set, the argument checked; sample.k uses them; selfhost/README.md | a Set's `|`, `&`, `~` and their `=` forms, and `elements`, in kc |
+| P288 | Details of #276 | selfhost/lex.k: `|=`, `&=`, `~=`; parse.k: binding powers, the assignment operators; gen.k: gen_set_op, the `=` forms of a Set, `~` and `~=` as C's `^` and `^=`; sample.k uses them; selfhost/README.md | kelvinc's crash on `s |= &t`; `<<`, `>>`, unary `~` in kc; a Set's `elements` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

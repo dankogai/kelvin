@@ -1774,6 +1774,28 @@ let gen_set(n:int64, first:int64, given:int64) {
     put("; })")
 }
 
+// s | t, s & t, s ~ t (#276): a new Set, the union, the intersection or
+// what is in one alone, of two Sets of the same elements in variables,
+// as kelvinc's
+let gen_set_op(n:int64, y:int64) {
+    let a:int64 = nodes[n].a
+    let b:int64 = nodes[n].b
+    let t:int64 = nodes[n].t
+    if type_of(b) != y || !is_place(a) || !is_place(b) {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' takes two Sets of the same elements, both in variables"
+        gen_error(n, m.cstr)
+        return
+    }
+    put_set_name(y)
+    put(tok_is(t, "|") ? "_union(" : tok_is(t, "&") ? "_intersection(" : "_symdiff(")
+    gen_place(a)
+    put(", ")
+    gen_place(b)
+    put(")")
+}
+
 let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_ARRAY && y >= 0 && types[y].kind == Y_ARRAY {   // $[a, b] of the type written (#266)
         gen_array(n, y)
@@ -2121,7 +2143,9 @@ let gen_expr(n:int64) {
         gen_coalesce(n)
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
-        if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
+        if y >= 0 && types[y].kind == Y_SET && (tok_is(t, "|") || tok_is(t, "&") || tok_is(t, "~")) {
+            gen_set_op(n, y)                             // s | t, s & t, s ~ t (#276)
+        } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
             if tok_is(t, "!=") { put("(bool)!") }
             gen_string_eq(nodes[n].a, nodes[n].b)
         } else {
@@ -2129,7 +2153,7 @@ let gen_expr(n:int64) {
             put("(")
             gen_expr(nodes[n].a)
             put(" ")
-            put_tok(t)
+            if tok_is(t, "~") { put("^") } else { put_tok(t) }   // Kelvin's XOR is ~ (#276)
             put(" ")
             gen_expr(nodes[n].b)
             put(")")
@@ -2192,7 +2216,8 @@ let inferred(n:int64):int64 {
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
-    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") {     // x ?? d is x's T (#217)
+    let set_op = k == N_BIN && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_SET   // s | t, a Set, as kelvinc infers it (#276)
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !set_op {     // x ?? d is x's T (#217)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }
@@ -2348,6 +2373,8 @@ let has_call(n:int64):bool {
 let put_op(t:int64) {
     if tok_is(t, ":=") {
         put("=")
+    } else if tok_is(t, "~=") {                     // Kelvin's XOR is ~, C's ^ (#276)
+        put("^=")
     } else {
         put_tok(t)
     }
@@ -2450,6 +2477,24 @@ let gen_assign(n:int64) {
         gen_place(lhs)
         put(", ")
         gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_SET && (tok_is(t, "|=") || tok_is(t, "&=") || tok_is(t, "~=")) {   // s |= t and the rest, in place (#276)
+        let v:int64 = nodes[n].b
+        if type_of(v) != y || !is_place(v) {
+            var m = $"'"
+            m += tok_text(t)
+            m += "' takes another "
+            let w:String = type_text(y)
+            m += &w
+            m += ", in a variable"
+            gen_error(n, m.cstr)
+            return
+        }
+        put_set_name(y)
+        put(tok_is(t, "|=") ? "_insert_all(" : tok_is(t, "&=") ? "_intersect_with(" : "_symdiff_with(")
+        gen_place(lhs)
+        put(", ")
+        gen_place(v)
         put(");\n")
     } else if yk == Y_SET && tok_is(t, "+=") {           // s += x inserts x, s += &t t's elements (#274)
         let v:int64 = nodes[n].b

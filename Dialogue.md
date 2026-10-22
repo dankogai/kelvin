@@ -6102,3 +6102,16 @@ word. A Set an expression gives is held as any receiver is. sample.k
 uses them, so the bootstrap checks them. Details are provisional P287.
 
 There are 903 tests, and all pass with clang and with gcc 15.
+
+### 320. kc's | & ~
+
+> teach kc Set operators | & ~ as #276
+
+**Claude** taught kc `s | t`, `s & t` and `s ~ t` of two Sets in
+variables, and `|=`, `&=`, `~=` in place, as kelvinc, in its words; of
+numbers they are bitwise, `~` the XOR, at C's precedence. Probing
+kelvinc found that it crashes on `s |= &t`, reading the name of a
+pointer type; kc gives the error kelvinc means. sample.k uses them, so
+the bootstrap checks them. Details are provisional P288.
+
+There are 903 tests, and all pass with clang and with gcc 15.

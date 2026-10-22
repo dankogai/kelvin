@@ -348,5 +348,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     name_set += "kelvin"
     println(digit_set, " ", digit_set.count, " ", digit_set.has(4), " ", digit_set.remove(1), " ", fresh, " ", name_set, " ", has_even(&digit_set), " ", has_even(&odd_only))
     println(digit_set.union(&odd_only), " ", digit_set.intersection(&odd_only), " ", digit_set.difference(&odd_only), " ", odd_only.union(&digit_set).count)   // (#275)
+    var mixed = digit_set | odd_only                  // | & ~ of Sets and of numbers (#276)
+    mixed &= digit_set
+    mixed ~= odd_only
+    println(digit_set & odd_only, " ", digit_set ~ odd_only, " ", mixed, " ", 12 | 10, " ", 12 & 10, " ", 12 ~ 10, " ", 1 | 2 & 3)
     return 0
 }
