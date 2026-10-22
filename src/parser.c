@@ -3984,8 +3984,10 @@ static Expr *parse_primary(void) {
         expect_p(")");
         if (e->items.len > (string ? 1 : 2))
             error_at(t->pos, string ? "String takes nothing, text, or a borrow of a Bytes, '&b'"
-                                    : "Bytes takes nothing, a count, text, a borrow of a Bytes, bytes in brackets, or bytes "
-                                      "and their count");
+                                    : "Bytes takes nothing, a count, text, a borrow of a Bytes or of a String, bytes in "
+                                      "brackets, or bytes and their count");
+        if (e->items.len == 1 && owner_place(e->items.data[0]) && !string && is_string(value_type(e->items.data[0])))
+            error_at(t->pos, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)");
         if (e->items.len == 1 && owner_place(e->items.data[0]))
             error_at(t->pos, "%s(x) would copy an owner: write x.copy(), %s", t->text,
                      string ? "b.string() of a Bytes, or String(&b)" : "or Bytes(&b)");

@@ -94,6 +94,7 @@ uint32_t kv_utf8_next(const uint8_t **p);
 kv_string kv_string_new(void);
 kv_string kv_string_text(const void *s);
 kv_string kv_string_from_bytes(const kv_bytes *b);
+kv_bytes kv_bytes_of_string(const kv_string *s); /* Bytes(&s) (#291): a copy of a String's bytes */
 /* String(n) of a number or a bool (#158): its text, as print shows it */
 kv_string kv_string_bool(bool v);
 kv_string kv_string_i64(long long v);
@@ -442,13 +443,15 @@ void kv_dict_missing_text(const void *k);
         if (!a->count) { free(a->at); *a = (A){0}; return; } \
         T *at = realloc(a->at, a->count * sizeof *at); if (at) { a->at = at; a->cap = a->count; } }
 
-/* Bytes(x): n zero bytes of a number, a copy of text or of a Bytes borrow */
+/* Bytes(x): n zero bytes of a number, a copy of text, of a Bytes borrow or
+   of a String's bytes (#291) */
 #define KV_BYTES_OF(x) _Generic((x), \
     char: kv_bytes_zeros, signed char: kv_bytes_zeros, short: kv_bytes_zeros, int: kv_bytes_zeros, \
     long: kv_bytes_zeros, long long: kv_bytes_zeros, \
     unsigned char: kv_bytes_zeros, unsigned short: kv_bytes_zeros, unsigned: kv_bytes_zeros, \
     unsigned long: kv_bytes_zeros, unsigned long long: kv_bytes_zeros, \
     kv_bytes *: kv_bytes_copy, const kv_bytes *: kv_bytes_copy, \
+    kv_string *: kv_bytes_of_string, const kv_string *: kv_bytes_of_string, \
     default: kv_bytes_text)(x)
 /* b.append(x): a byte, text, a Bytes borrow, or a Bytes an expression gives, which is freed */
 #define KV_BYTES_APPEND(b, x) _Generic((x), \

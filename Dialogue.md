@@ -6301,3 +6301,14 @@ that a literal `"\u{7f}"` reaches C, and that escape stops at a NUL, as
 the C did. Details are provisional P302.
 
 There are 915 tests, and all pass with clang and with gcc 15.
+
+### 335. Bytes(&s) of a String
+
+> fix Bytes(&s) of a String in kelvinc as #291
+
+**Claude** found that KV_BYTES_OF had no case of a String, so
+`Bytes(&s)` read the String's own fields as text, and gave it one, a
+function written in Kelvin in runtime/bytes.k. `Bytes(s)` now names
+`Bytes(&s)` in its message. Details are provisional P303.
+
+There are 917 tests, and all pass with clang and with gcc 15.

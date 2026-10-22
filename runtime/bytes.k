@@ -73,3 +73,7 @@ let kv_bytes_from_base64_text(s:const any^):Bytes {
     if s == nullptr { return Bytes() }
     return kv_bytes_from_base64(s, strlen(s))
 }
+
+// Bytes(&s) of a String (#291): a copy of its bytes, which KV_BYTES_OF
+// took for text before, reading the String's own fields
+let kv_bytes_of_string(s:const String^):Bytes { s^.bytes^.copy() }

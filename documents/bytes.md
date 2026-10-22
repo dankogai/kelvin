@@ -35,6 +35,8 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   or of any `cstr` is the bytes of the text, without its NUL;
   **`Bytes(p, n)`** is n bytes from a pointer; **`Bytes(&b)`** or
   **`b.copy()`** a copy.
+  - **`Bytes(&s)`** of a String is a copy of its bytes (#291), the
+    String left as it was; `Bytes(s)` is an error that says so.
 - **`Bytes([...])`** (#172) is the bytes written out, each a character
   constant or a number 0 to 255, or any `u8` value: `Bytes([0x89,
   'P', 'N', 'G'])`; a number out of that range is an error, and
@@ -115,6 +117,7 @@ far as they are.
 | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
 | `.escape()` | the bytes as text, a String: each that is not printable ASCII as `\xHH`, a `\` as `\\` (#166); with `<RegExp>`, `.escape(&re)` what `re` matches too (#168) |
 | `Bytes([...])` | the bytes written out (#172) |
+| `Bytes(&s)` | a copy of a String's bytes (#291) |
 | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not (#155) |
 | `Bytes.unescape(text)`, `Bytes.unescape(&s)` | the bytes the escapes stand for (#167); with `<RegExp>`, `Bytes.unescape(text, &re)` where `re` matches alone (#168) |
 | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.split(&re)`, `.replace(&re, &with)` | with `#import <RegExp>` (#169, #170): [regexp.md](regexp.md) |
