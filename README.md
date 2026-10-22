@@ -258,8 +258,10 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
   `kelvinc --runtime` builds into `libkelvin` beside its C.
   - Its `kv_` functions keep the names `kelvin_prelude.h` declares,
     which the C kelvinc writes calls; only `--runtime` may name one so.
-  - The first, `runtime/string.k`, is a String's `find`, `has`,
-    `starts`, `ends` and `trim`.
+  - `runtime/string.k`: a String's `find`, `has`, `starts`, `ends`
+    and `trim` (#289), and `escape` and `unescape` (#290).
+  - `runtime/bytes.k`: a Bytes's `toBase64` and `Bytes.fromBase64`
+    (#290).
 
 ## Editors
 

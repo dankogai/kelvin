@@ -67,3 +67,130 @@ let kv_string_trim(s:const String^):String {
     if lo < 0 { return $"" }
     return s^[lo..<hi]
 }
+
+// ---------- escape and unescape (#164) ----------
+
+// v's hex digits, upper case, onto out
+static let put_hex(out:String^, v:u32) {
+    if v >= 16 { put_hex(out, v / 16) }
+    let digits:cstr := "0123456789ABCDEF"
+    out^ += (digits[v % 16] as u32).uchr
+}
+
+// s.escape(): the text with each codepoint beyond ASCII as \u{...}, and a
+// backslash as \\, so that unescape reads it back; up to a NUL, as the C
+// before it went
+let kv_string_escape(s:const String^):String {
+    var out = $""
+    for c in s^ {
+        let cp:u32 = c.utf32
+        if cp == 0 { break }
+        if cp == '\\' {
+            out += "\\\\"
+        } else if cp < 0x80 {
+            out += c
+        } else {
+            out += "\\u{"
+            put_hex(&out, cp)
+            out += "}"
+        }
+    }
+    return out
+}
+
+// a hex digit's value, or -1
+static let hex_value(c:u32):int64 {
+    if c >= '0' && c <= '9' { return (c - '0') as int64 }
+    if c >= 'a' && c <= 'f' { return (c - 'a' + 10) as int64 }
+    if c >= 'A' && c <= 'F' { return (c - 'A' + 10) as int64 }
+    return -1
+}
+
+// the codepoint at i of cps, or 0 past the end, as the NUL there was
+static let cp_at(cps:const $[u32]^, i:int64):u32 {
+    if i < cps^.count as int64 { return cps^[i] }
+    return 0
+}
+
+// the n hex digits at i of cps, or -1
+static let hex_run(cps:const $[u32]^, i:int64, n:int64):int64 {
+    var v:int64 = 0
+    for k in 0..<n {
+        let h = hex_value(cp_at(cps, i + k))
+        if h < 0 { return -1 }
+        v = v * 16 + h
+    }
+    return v
+}
+
+// s.unescape(): \u{...}, \uHHHH (a surrogate pair joined), \xHH, \n, \r,
+// \t, \0, \\, \" and \' read back; an escape that is none of these, or a
+// codepoint that is not one, stays as written. Every character of an
+// escape is ASCII, so the codepoints are read as the bytes were
+let kv_string_unescape(s:const String^):String {
+    var cps:$[u32] = $[]
+    for c in s^ {
+        if c.utf32 == 0 { break }
+        cps += c.utf32
+    }
+    var out = $""
+    let n = cps.count as int64
+    var i:int64 = 0
+    while i < n {
+        if cps[i] != '\\' || i + 1 >= n {
+            out += cps[i].uchr
+            i += 1
+            continue
+        }
+        let e:u32 = cps[i + 1]
+        var cp:int64 = -1
+        var next:int64 = i + 2
+        if e == 'u' && cp_at(&cps, i + 2) == '{' {
+            var q:int64 = i + 3
+            var v:int64 = 0
+            var digits = 0
+            while hex_value(cp_at(&cps, q)) >= 0 && digits < 8 {
+                v = v * 16 + hex_value(cp_at(&cps, q))
+                q += 1
+                digits += 1
+            }
+            if digits > 0 && cp_at(&cps, q) == '}' && v <= 0x10FFFF && !(v >= 0xD800 && v <= 0xDFFF) {
+                cp = v
+                next = q + 1
+            }
+        } else if e == 'u' {
+            let v = hex_run(&cps, i + 2, 4)
+            if v >= 0xD800 && v <= 0xDBFF && cp_at(&cps, i + 6) == '\\' && cp_at(&cps, i + 7) == 'u' {
+                let lo = hex_run(&cps, i + 8, 4)
+                if lo >= 0xDC00 && lo <= 0xDFFF {
+                    cp = 0x10000 + (v - 0xD800) * 1024 + (lo - 0xDC00)
+                    next = i + 12
+                }
+            } else if v >= 0 && !(v >= 0xD800 && v <= 0xDFFF) {
+                cp = v
+                next = i + 6
+            }
+        } else if e == 'x' {
+            cp = hex_run(&cps, i + 2, 2)
+            next = i + 4
+        } else if e == 'n' {
+            cp = 10
+        } else if e == 'r' {
+            cp = 13
+        } else if e == 't' {
+            cp = 9
+        } else if e == '0' {
+            cp = 0
+        } else if e == '\\' || e == '"' || e == '\'' {
+            cp = e as int64
+        }
+        if cp < 0 {                              // not an escape: the backslash as it is
+            out += cps[i].uchr
+            i += 1
+            continue
+        }
+        out += (cp as u32).uchr
+        i = next
+    }
+    return out
+}

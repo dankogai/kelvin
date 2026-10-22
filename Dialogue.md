@@ -6289,3 +6289,15 @@ libkelvin. They print the same as the C did. Details are provisional
 P301.
 
 There are 914 tests, and all pass with clang and with gcc 15.
+
+### 334. More of the runtime in Kelvin
+
+> move String escape/unescape and base64 to Kelvin as #290
+
+**Claude** moved a String's escape and unescape into runtime/string.k
+and Base64 into a new runtime/bytes.k, which print the same as the C
+did. On the way it found that `Bytes(&s)` of a String gives garbage,
+that a literal `"\u{7f}"` reaches C, and that escape stops at a NUL, as
+the C did. Details are provisional P302.
+
+There are 915 tests, and all pass with clang and with gcc 15.

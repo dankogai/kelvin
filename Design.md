@@ -321,6 +321,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 287 | kc refuses an operator of an Array, a Dictionary or a Set that kelvinc has not, in its words: `xs + 2`, `2 + xs`, `xs < ys`, `d < d2`, `s - t`, `s == t`; a Set's `|` `&` `~` are its own | — | kc refuses `$[1] + 2` | 2026-10-23 |
 | 288 | kc has `==` and `!=` of Arrays and Dictionaries, as kelvinc's #247 and #235: two of one type, by each element in order, or each entry, by its `==`, nested too; kelvinc's errors for two types or elements with no `==`, in its words | — | kc builds `stock == same_stock` | 2026-10-23 |
 | 289 | The runtime begins in Kelvin: `kelvinc --runtime F.k` makes an object as `-c` does, `-fPIC`, its `kv_` names allowed and kept as `kelvin_prelude.h` declares them; `runtime/string.k`, a String's find, has, starts, ends and trim, is built into libkelvin in place of their C | — | `kelvinc --runtime runtime/string.k` | 2026-10-23 |
+| 290 | More of the runtime in Kelvin: a String's `escape` and `unescape` in runtime/string.k, and a Bytes's `toBase64` and `Bytes.fromBase64` in a new runtime/bytes.k, in place of their C | — | `s.escape()`, `b.toBase64()` | 2026-10-23 |
 
 Notes:
 
@@ -882,6 +883,25 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (290) Agreed details: "move String escape/unescape and base64 to
+  Kelvin as #290". Five kv_ functions: kv_string_escape,
+  kv_string_unescape, kv_bytes_base64, kv_bytes_from_base64 and
+  kv_bytes_from_base64_text; a Bytes's own escape and unescape stay C.
+  - unescape reads the codepoints, up to a NUL, not the bytes: every
+    character of an escape is ASCII, so it reads what the C read, with
+    no `const u8^^` for kv_utf8_next.
+  - Text that is not Base64 ends the program through kv_array_fail,
+    whose words are bytes.c's static kv_bytes_fail's.
+  - An edge-case program prints the same 30 lines with the C and the
+    Kelvin, now tests/run/string_escape_edges.k.
+  - Kept as the C had it: escape stops at a NUL, so
+    `"\x00mid".unescape().escape()` is empty, which a printed value
+    pasted back cannot be.
+  - Found: `Bytes(&s)` of a String, which bytes.md gives as its bytes,
+    is KV_BYTES_OF of a `kv_string *`, and gives garbage.
+  - Found: a literal `"\u{7f}"` reaches C as a universal character
+    name of a control character, which C refuses.
 
 - (289) Agreed details: "add the runtime-build mode and
   runtime/string.k as #289", after the user asked for more of kelvinc in
@@ -3171,6 +3191,7 @@ says "as agreed".
 | P299 | Details of #287 | selfhost/gen.k: reject_container_math, builtin_kind; selfhost/README.md | `==` of Arrays and Dictionaries in kc; kc's `??` message |
 | P300 | Details of #288 | selfhost/gen.k: compared, eq_type, need_eq, put_eq_name, put_eq_code, gen_container_eq, gen_eq, gen_cond, kelvin_type_text; sample.k uses it; selfhost/README.md | == of enums with values in kc |
 | P301 | Details of #289 | main.c: `--runtime`, find_runtime of an object; parser.c: runtime_mode; runtime/string.k; runtime/string.c loses them; GNUmakefile; tests/asan.sh; tests: run/string_search_edges.k, error/kv_reserved_function.k; README.md, selfhost/README.md | more of the runtime in Kelvin |
+| P302 | Details of #290 | runtime/string.k: escape, unescape; runtime/bytes.k; runtime/string.c and bytes.c lose them; tests: run/string_escape_edges.k; README.md, selfhost/README.md | `Bytes(&s)` gives garbage; `"\u{7f}"` reaches C; escape stops at a NUL |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
