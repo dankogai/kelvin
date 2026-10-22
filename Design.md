@@ -295,6 +295,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 261 | `nan`, `inf` and `infinity`, in any case (`$/nan/i`, `$/inf(inity)?/i`), are literals of `f64`, so that what print shows of a NaN or an infinity reads back; `nan:f32` converts one; a name the program declares is its own, `nan(...)` is C's function, a member is a member | — | `let x = -inf` | 2026-10-22 |
 | 262 | kc has `float64`: literals `1.5` and `2.5e-8`, and `nan`, `inf`, `infinity` in any case where no variable has the name, as kelvinc's (#261); arithmetic, comparisons and `as` C's; printed as kelvinc prints it; sample.k prints floats | — | kc builds `let r = 1.5` | 2026-10-22 |
 | 263 | kc has `float32`, C's `float`: of a literal, `let x:float32 = 0.1`, or `as float32`; arithmetic, comparisons, an Array's elements, a struct's members, an Optional's value; printed as kelvinc prints it, every digit it holds; sample.k prints them | — | kc builds `let x:float32 = 0.1` | 2026-10-22 |
+| 264 | kc reads kelvinc's annotation `x:T`, a conversion as `x as T`: `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`; the `:` is one where a type's word of kc follows, with no `(` or `<` after it, else `?:`'s or a `case`'s | — | kc builds `let t = 0.1:float32` | 2026-10-22 |
 
 Notes:
 
@@ -856,6 +857,14 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (264) Agreed details: "teach kc x:T annotations as #264", #263's
+  P275. kelvinc reads `:` as an annotation where a type's word follows
+  (annotation_ahead), and C typedef names too outside a ternary's
+  middle; kc, which has no typedef names but C's, takes its own type
+  words alone, int64 to uchr, and leaves a word followed by `(` or `<`
+  to `?:`, as kelvinc does of `c ? x : Optional<i64>(y)`. It is a
+  N_CAST, as `as` is, in the same loop.
 
 - (263) Agreed details: "teach kc float32 as #263", #262's f32 left
   out. Y_F32 goes wherever #262's Y_F64 went, its C type float and its
@@ -2821,6 +2830,7 @@ says "as agreed".
 | P273 | Details of #261 | parser.c: float_word(s); parse_primary makes an E_LITERAL `nan` or `inf` of a word that no binding, function or call claims; literal_type and shown_type give f64; codegen.c: expr_bare writes __builtin_nan("") and __builtin_inf(); editors/vscode grammar and tests/grammar.js; tests: run/float_words.k; documents/floatingpoint.md, grammar.md | kc reading nan and inf |
 | P274 | Details of #262 | selfhost/lex.k: a float's . and an exponent's sign; parse.k: Y_F64, `float64`; gen.k: word_no_case, float_word, float_tok, type_of and gen_expr of floats and the words, Y_F64 in put_ctype (double), put_elem_name, mangled, type_text, is_number_kind, plain_shown, kv_cstr_f64 in a value; sample.k prints floats; selfhost/README.md | float32 in kc |
 | P275 | Details of #263 | selfhost/parse.k: Y_F32, `float32`; gen.k: Y_F32 in put_elem_name, put_ctype (float), mangled, type_text, is_number_kind, plain_shown, fits_value, kv_cstr_f32 in a value; sample.k prints float32; selfhost/README.md | `x:T` annotations in kc |
+| P276 | Details of #264 | selfhost/parse.k: annotation_ahead(), and parse_unary's loop of `as` takes `:T` too; sample.k prints annotations; selfhost/README.md | `x:T` of a struct's name or a C typedef in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

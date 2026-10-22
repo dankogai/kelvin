@@ -161,6 +161,16 @@ let at_word(w:cstr):bool {
     return (k == T_ID || k == T_PUNCT) && tok_is(pos, w)
 }
 
+// whether the : at the cursor annotates a value with a type, 0.1:float32,
+// as kelvinc's x:T (#264): a type's word follows, and no ( or <, which
+// would make the value of the other arm of c ? a : b, or a case's body
+let annotation_ahead():bool {
+    if !at_word(":") || pos + 2 >= toks.count as int64 || toks[pos + 1].kind != T_ID { return false }
+    if tok_is(pos + 2, "(") || tok_is(pos + 2, "<") { return false }
+    let t:int64 = pos + 1
+    return tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr")
+}
+
 let parse_error(what:cstr) {
     if !failed {
         let t:tok = toks[pos]
@@ -555,7 +565,7 @@ let parse_unary():int64 {
         return n
     }
     var e:int64 = parse_postfix()
-    while at_word("as") {
+    while at_word("as") || annotation_ahead() {          // x as T, x:T (#264)
         let t:int64 = advance()
         let n:int64 = make_node(N_CAST, t)
         nodes[n].a = e

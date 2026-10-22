@@ -295,5 +295,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     singles += tenth
     singles += -inf as float32
     println(tenth, " ", tenth as float64, " ", tenth * 3.0, " ", 16777217 as float32, " ", singles)
+    println(0.1:float32 == tenth, " ", 7:float64 / 2.0, " ", 'z':uint8, " ", 300:uint8, " ", odd ? 1:int64 : 0)   // x:T (#264)
     return 0
 }

@@ -5939,3 +5939,16 @@ prints it, `0.100000001`. sample.k prints them, so the bootstrap checks
 them. Details are provisional P275.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 308. kc reads x:T
+
+> teach kc x:T annotations as #264
+
+**Claude** taught kc kelvinc's annotation `x:T`, a conversion as
+`x as T` is: `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`. The `:` is
+an annotation where one of kc's type words follows with no `(` or `<`
+after it; else it is a ternary's or a case's, as before. sample.k
+prints annotations, so the bootstrap checks them. Details are
+provisional P276.
+
+There are 897 tests, and all pass with clang and with gcc 15.

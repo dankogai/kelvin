@@ -165,6 +165,10 @@ kc reads what it is written in, and little more.
   - **`float32`** (#263): C's `float`, of a literal, `let x:float32 =
     0.1`, or `as float32`, `nan as float32`; printed as kelvinc prints
     it, `0.100000001`.
+- **`x:T`** (#264) converts as `x as T` does, kelvinc's annotation:
+  `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`.
+  - The `:` is one where a type's word follows, `int64` to `uchr`, and
+    no `(` or `<`; else it is `?:`'s or a `case`'s.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
   `for i in a..<b`; `for x in s` of a String or an Array; `return`,
