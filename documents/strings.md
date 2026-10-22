@@ -46,6 +46,12 @@ let card:cstr := `${n} items` // a template's text, on the stack too
       scope in a `_kv_` variable, declared only where `.count` is used;
       after `s := t`, the next use measures again.
   - `cstr const` is a constant pointer.
+  - It has no `+` or `-`, a literal too (#282).
+    - Only a `String` has `+`: `"a" + "b"` and `x + y` are errors;
+      `$"a" + "b"` is the String `"ab"`, and so is `"a" + $"b"`.
+    - It is text, not a cursor (#52): `"a" + 1`, `s + 2` and `x - y`
+      are errors; take a `var p:u8^ := s` to step.
+    - Adjacent literals are one, as in C: `"a" "b"` is `"ab"`.
   - **It cannot be written through**: `s[0] = 'U'` and `s^ = 0` are
     errors.
     - To change text, copy it into a byte array, `var t:[u8](n)` and

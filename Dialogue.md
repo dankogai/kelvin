@@ -6186,3 +6186,16 @@ a source or alone; kc makes objects that kelvinc links. Details are
 provisional P293.
 
 There are 907 tests, and all pass with clang and with gcc 15.
+
+### 326. Only a String has +
+
+> fix "a" + "b" of literals in kelvinc as #282
+
+**Claude** found that `"a" + 1` ran, stepping past the text, and that
+`"a" - "b"` and `x - y` of cstrs gave a difference of unrelated
+addresses, and asked what `"a" + "b"` should be. The user answered
+that `$"a" + $"b"` is `String("ab")`, that `+` of two `char *` is an
+error, as only `String` has `+`, and that the steps are #52's error.
+kelvinc now says so for each. Details are provisional P294.
+
+There are 912 tests, and all pass with clang and with gcc 15.

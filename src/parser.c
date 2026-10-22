@@ -4361,11 +4361,18 @@ static Expr *parse_binary(int min_prec) {
         }
         if ((!strcmp(e->op, "+") || !strcmp(e->op, "-")) &&
             !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b)) ||
-                                      is_bytes(value_type(e->a)) || is_bytes(value_type(e->b)))) && /* s + "x" (#183, #188) */
-            ((is_cstr(value_type(e->a)) && !is_cstr(value_type(e->b))) ||
-             (!strcmp(e->op, "+") && is_cstr(value_type(e->b)))))
-            error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a "
-                             "'var p:u8^ := s'");
+                                      is_bytes(value_type(e->a)) || is_bytes(value_type(e->b))))) { /* s + "x" (#183, #188) */
+            /* a cstr, a literal too, neither joins nor steps (#282): "a" + "b",
+               "a" + 1, x - y */
+            bool ta = e->a->kind == E_STRING || is_cstr(value_type(e->a));
+            bool tb = e->b->kind == E_STRING || is_cstr(value_type(e->b));
+            if (!strcmp(e->op, "+") && ta && tb)
+                error_at(t->pos, "'+' joins Strings, and a cstr is not one (#282): make one a String, as in "
+                                 "'$\"a\" + \"b\"'");
+            if (ta || (!strcmp(e->op, "+") && tb))
+                error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
+                                 "a 'var p:u8^ := s'");
+        }
         if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
             !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s + c (#183) */
             /* a uchr compares by its codepoint, with a uchr or a number
