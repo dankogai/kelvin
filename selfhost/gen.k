@@ -597,6 +597,38 @@ let is_place(n:int64):bool    // a prototype: gen_args_to and gen_call ask it
 // whole variable by _take, an owner an expression gives as it is
 let type_text(y:int64):String    // a prototype: gen_args_to names the types (#272)
 
+// "a" or "an" before a type's name, as it is read, as kelvinc's article:
+// an i64, a String, an f64 (#273)
+let article_of(w:const String^):cstr {
+    let s:cstr := w^.cstr
+    let c:uint8 = s[0]
+    if c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'A' || c == 'E' || c == 'I' || c == 'O' { return "an" }
+    if c == 'f' && s[1] >= '0' && s[1] <= '9' { return "an" }
+    return "a"
+}
+
+// whether value n goes where a t goes: not a const T^, a let's borrow,
+// where a T^ that may change what it borrows goes (#272, #273); who
+// names what takes it, as kelvinc's lead
+let takes_borrow(n:int64, t:int64, who:const String^):bool {
+    let at = type_of(n)
+    if at < 0 || t < 0 || types[at].kind != Y_PTR || types[at].name != 1 || types[t].kind != Y_PTR || types[t].name == 1 {
+        return true
+    }
+    var m = who^.copy()
+    m += " is "
+    let w:String = type_text(t)
+    m += article_of(&w)
+    m += " "
+    m += &w
+    m += ", which may change what it borrows, and this is "
+    let v:String = type_text(at)
+    m += &v
+    m += ", a let's: write const in the type taken, or borrow a var"
+    gen_error(n, m.cstr)
+    return false
+}
+
 let gen_args_to(first:int64, d:int64) {
     var a:int64 = first
     var p:int64 = d >= 0 ? nodes[d].a : -1
@@ -612,23 +644,12 @@ let gen_args_to(first:int64, d:int64) {
             gen_error(a, "an owner moves into a function only as a whole variable: pass a borrow, &..., or a copy")
             return
         } else if p >= 0 {
-            let at = type_of(a)                         // a let's borrow where a T^ that may change it goes (#272),
-            let pt:int64 = nodes[p].ty                  // but of an owner, which kelvinc passes as it is: it has no const $[T]^
-            if at >= 0 && pt >= 0 && types[at].kind == Y_PTR && types[at].name == 1 && types[pt].kind == Y_PTR && types[pt].name != 1 && !is_owner(types[at].elem) {
-                var m = $"'"
-                m += tok_text(nodes[p].t)
-                m += "' of '"
-                m += tok_text(nodes[d].t)
-                m += "' is "
-                let w:String = type_text(pt)
-                m += &w
-                m += ", which may change what it borrows, and this is "
-                let v:String = type_text(at)
-                m += &v
-                m += ", a let's: write const in the parameter's type, or borrow a var"
-                gen_error(a, m.cstr)
-                return
-            }
+            var who = $"'"                              // a let's borrow where a T^ that may change it goes (#272),
+            who += tok_text(nodes[p].t)                 // of an owner too, as kelvinc since #273
+            who += "' of '"
+            who += tok_text(nodes[d].t)
+            who += "'"
+            if !takes_borrow(a, nodes[p].ty, &who) { return }
             gen_value(a, nodes[p].ty)
             p = nodes[p].next
         } else {
@@ -2139,6 +2160,10 @@ let gen_var(n:int64) {
     if failed { return }
     let y:int64 = nodes[n].ty
     if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
+    var who = $"'"                                       // a let's borrow, as an argument's (#273)
+    who += tok_text(nodes[n].t)
+    who += "'"
+    if nodes[n].a >= 0 && !takes_borrow(nodes[n].a, y, &who) { return }
     if is_owner(y) {
         put("__attribute__((cleanup(")
         put_free(y)
@@ -2217,7 +2242,7 @@ let may_change(n:int64):bool {
         if p >= 0 && types[p].kind == Y_PTR && types[p].name == 1 {
             var s = $"this changes what a "
             s += type_text(p)
-            s += " points to, a borrow of a let: borrow a var, or write the borrow's type without const"
+            s += " points to, a read-only borrow, as a let's is: borrow a var, or take it without const"
             gen_error(n, s.cstr)
             return false
         }
@@ -2252,6 +2277,12 @@ let gen_assign(n:int64) {
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if nodes[lhs].kind == N_ID {                         // q := &x of a let (#273)
+        var who = $"'"
+        who += tok_text(nodes[lhs].t)
+        who += "'"
+        if !takes_borrow(nodes[n].b, y, &who) { return }
+    }
     let named = nodes[lhs].kind == N_ID || nodes[lhs].kind == N_FIELD
     if named && (tok_is(t, "=") || tok_is(t, ":=")) && !assigns_as(n, nodes[lhs].t, y, tok_is(t, ":=")) { return }
     let yk:ykind = types[y].kind

@@ -40,6 +40,21 @@ let f := &twice           // a function's address is the function itself
 
 - `&x` of a `let`, or of a let's field or element, points to `const`,
   as a let is `const` in C (#27); `&x` of a `var` points to its type.
+  - So does `&s` of a let that owns, a String, an Array, a Dictionary
+    or a Set (#273), though C has no const of it, whose cleanup frees
+    it: `let s = $"a"` borrows as a `const String^`.
+  - A `const T^` goes where a `const T^` goes, not where a `T^` that may
+    change what it borrows goes: `'s' of 'shout' is a String^, which
+    may change what it borrows, and this is const String^, a let's`.
+  - A function that only reads takes a `const T^`, as
+    `xs:const $[i64]^`, `d:const Dictionary<String, i64>^` or
+    `s:const String^`, which both a let's and a var's borrow go to.
+  - Through it everything reads and nothing changes: `xs^ += 4`,
+    `xs^[0] = 1` or `d^.remove(k)` is an error, `this changes what a
+    const Array<i64>^ points to, a read-only borrow`.
+  - A qualifier before an Array, a Dictionary or a Set is a borrow's
+    alone, `const $[T]^`; `const $[T]` of a variable is an error that
+    says a let is the variable's.
 - `&a[i]` of an array is a pointer into it, and of a `cstr` the rest of
   the text, a `cstr` (#52). `&f` of a function is `f`, a function
   value, as in C (#31).

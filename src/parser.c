@@ -636,6 +636,7 @@ static const char *array_append_kind(Expr *given, Type *array);
 static Expr *element_copy(Expr *given, Type *array);
 static void check_element_value(Expr *v, Type *array, Pos pos);
 static const char *let_target(Expr *e);
+static void reject_const_change(Expr *e, Pos pos);
 static Type *value_type(Expr *e);
 
 /* Is name a Kelvin enumerator that no local hides? */
@@ -1051,6 +1052,21 @@ static Type *parse_fn_type(TypeContext ctx) {
    C-order T[N] as [T](N) (#49) */
 static int type_start;
 
+/* const $[T]^ (#273): a borrow of an Array, a Dictionary or a Set it does
+   not change, as &xs of a let is; else a qualifier would be the
+   variable's, which a let says. t is shared, so the qualified one is a copy */
+static Type *qualified_owner(Type *base, Type *t, const char *what) {
+    if (!base->is_const && !base->is_volatile)
+        return t;
+    if (!is_p(peek(), "^"))
+        error_at(base->pos, "a qualifier of %s is the variable's: a let does not change", what);
+    Type *q = xcalloc(1, sizeof *q);
+    *q = *t;
+    q->is_const = base->is_const;
+    q->is_volatile = base->is_volatile;
+    return q;
+}
+
 static Type *parse_type_in(TypeContext ctx) {
     type_start = cur;
     if (is_p(peek(), "("))
@@ -1079,25 +1095,19 @@ static Type *parse_type_in(TypeContext ctx) {
     }
     if (is_kw(peek(), "Set")) { /* Set<T> (#71) */
         Token *kw = advance();
-        if (base->is_const || base->is_volatile)
-            error_at(base->pos, "a qualifier of a Set is the variable's: a let does not change");
-        Type *t = parse_set_type(kw);
+        Type *t = qualified_owner(base, parse_set_type(kw), "a Set");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
     if (is_kw(peek(), "Dictionary")) { /* Dictionary<K, V> (#65) */
         Token *kw = advance();
-        if (base->is_const || base->is_volatile)
-            error_at(base->pos, "a qualifier of a Dictionary is the variable's: a let does not change");
-        Type *t = parse_dict_types(kw);
+        Type *t = qualified_owner(base, parse_dict_types(kw), "a Dictionary");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
     if (is_kw(peek(), "Array")) {
         Token *kw = advance();
-        if (base->is_const || base->is_volatile)
-            error_at(base->pos, "a qualifier of an Array is the variable's: a let does not change");
-        Type *t = array_type(kw, parse_array_elem());
+        Type *t = qualified_owner(base, array_type(kw, parse_array_elem()), "an Array");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -1106,9 +1116,8 @@ static Type *parse_type_in(TypeContext ctx) {
         if (!is_p(peek(), "[") && !is_p(peek(), "{"))
             error_at(d->pos, "'$' before a type: $[T] is Array<T> and ${K: V} Dictionary<K, V>, as $[a, b] and ${k: v} "
                              "are the values; a String is written String");
-        if (base->is_const || base->is_volatile)
-            error_at(base->pos, "a qualifier of an Array or a Dictionary is the variable's: a let does not change");
-        Type *t = is_p(peek(), "{") ? parse_dollar_dict(d) : parse_dollar_array(d);
+        Type *t = qualified_owner(base, is_p(peek(), "{") ? parse_dollar_dict(d) : parse_dollar_array(d),
+                                  "an Array or a Dictionary");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -2319,6 +2328,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 if (in_place && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.merging(...)'",
                              let_target(e));
+                if (in_place)
+                    reject_const_change(e, name->pos); /* through a read-only borrow (#273) */
                 advance();
                 bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
                 ident_annotation_ok = true;
@@ -2390,6 +2401,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 if (in_place && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.reversed()'",
                              let_target(e));
+                if (in_place)
+                    reject_const_change(e, name->pos); /* through a read-only borrow (#273) */
                 advance();
                 if (!is_p(peek(), ")"))
                     error_at(peek()->pos, "'.%s' takes nothing: '.%s()'", member, member);
@@ -2421,6 +2434,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 if (in_place && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var, or write '.sorted()'",
                              let_target(e));
+                if (in_place)
+                    reject_const_change(e, name->pos); /* through a read-only borrow (#273) */
                 Expr *x = new_expr(E_METHOD, name->pos);
                 x->a = e;
                 x->from = at;
@@ -2602,6 +2617,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 }
                 if (methods[which].changes && let_target(e))
                     error_at(name->pos, "'%s' is a let and cannot change; declare it with var", let_target(e));
+                if (methods[which].changes && !(e->kind == E_DEREF && is_bytes(unqualified(value_type(e)))))
+                    reject_const_change(e, name->pos); /* through a read-only borrow (#273) */
                 Type *through = e->kind == E_DEREF ? value_type(e->a) : NULL;
                 if (methods[which].changes && through && through->kind == T_PTR && through->elem->is_const)
                     error_at(name->pos, "'.%s' through a read-only borrow: a String's bytes change only as a String",
@@ -4642,6 +4659,8 @@ static Expr *dict_fill(Token *q, Expr *a, Expr *b, bool in_place, bool keep) {
         error_at(q->pos, "'%s' changes a Dictionary in place, so its left is a variable", q->text);
     if (in_place && let_target(a))
         error_at(q->pos, "'%s' is a let and cannot change; declare it with var", let_target(a));
+    if (in_place)
+        reject_const_change(a, q->pos); /* through a read-only borrow (#273) */
     Expr *x = new_expr(E_METHOD, q->pos);
     x->a = a;
     x->text = in_place ? "merge" : "merging";
@@ -5347,6 +5366,13 @@ static Type *value_type_of(Expr *e) {
         p->kind = T_PTR;
         p->pos = e->pos;
         p->elem = t;
+        if (!t->is_const && t->kind != T_ARRAY && let_target(e->a)) {
+            /* &x of a let (#273): a const borrow, a number's as C's const has
+               it, an owner's though no C const, which its cleanup frees */
+            p->elem = xcalloc(1, sizeof *p->elem);
+            *p->elem = *t;
+            p->elem->is_const = true;
+        }
         return p;
     }
     default:
@@ -6211,7 +6237,7 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
     bool num_want = (want->kind == T_BASE && number_kind(want)) || (want->kind == T_BASE && !strcmp(want->name, "bool"));
     bool text = v->kind == E_STRING || is_text_expr(v) || (vt && is_cstr(vt));
     bool number = number_expr(v) || (vt && vt->kind == T_BASE && (number_kind(vt) || !strcmp(vt->name, "bool")));
-    bool ok;
+    bool ok, fixed = false;
     if (!vt && !text && !number)
         return; /* what only C sees */
     if (num_want)
@@ -6220,8 +6246,14 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         ok = (vt && is_string(vt)) || v->kind == E_STRING;
     else if (is_cstr(want))
         ok = text;
-    else if (want->kind == T_PTR)
+    else if (want->kind == T_PTR) {
         ok = !vt || vt->kind == T_PTR;
+        /* a let's borrow, a const T^, where a T^ that may change it goes (#273) */
+        fixed = ok && vt && vt->elem && want->elem && vt->elem->is_const && !want->elem->is_const &&
+                (is_owner(unqualified(vt->elem)) || /* &x of a let of a number too, not a cstr's text */
+                 (v->kind == E_PREFIX && !strcmp(v->op, "&") && let_target(v->a)));
+        ok = ok && !fixed;
+    }
     else {
         bare_tags = true;
         ok = vt && !strcmp(kelvin_type(vt), kelvin_type(want));
@@ -6235,6 +6267,10 @@ static void check_typed_value(Expr *v, Type *want, const char *lead, Pos pos) {
         bare_tags = true;
         bool lend = want->kind == T_PTR && want->elem && vt && !strcmp(kelvin_type(unqualified(want->elem)), got);
         bare_tags = false;
+        if (fixed) /* (#273) */
+            error_at(pos, "%s %s %s, which may change what it borrows, and this is %s, a let's: write const in the type "
+                          "taken, or borrow a var",
+                     lead, article(w), w, got);
         error_at(pos, "%s %s %s, and this is %s%s", lead, article(w), w, got,
                  lend ? strfmt(": give a borrow, '&%s'", v->kind == E_IDENT ? v->text : "x") : ""); /* (#257) */
     }
@@ -7074,6 +7110,25 @@ static const char *let_target(Expr *e) {
    as in `a = b = c` or `if (x = f()) != nullptr`, it is an error. */
 static bool assign_ok;
 
+/* a change of e, p^ of a read-only borrow, a const T^, or a member or an
+   element of it, is an error (#273): &x of a let is one, as is a
+   parameter of a const T^; what it borrows does not change */
+static void reject_const_change(Expr *e, Pos pos) {
+    while (e && (e->kind == E_FIELD || e->kind == E_INDEX))
+        e = e->a;
+    if (!e || e->kind != E_DEREF)
+        return;
+    Type *p = value_type(e->a);
+    if (!p || p->kind != T_PTR || !p->elem || !p->elem->is_const)
+        return;
+    bare_tags = true;
+    char *pt = kelvin_type(p);
+    bare_tags = false;
+    error_at(pos, "this changes what a %s points to, a read-only borrow, as a let's is: borrow a var, or take it "
+                  "without const",
+             pt);
+}
+
 /* a let, a range's counter, each element of a sequence or a parameter
    cannot change: the target of an assignment or of p++ (#27, #51) */
 static void reject_let_change(Expr *lhs, Token *t) {
@@ -7102,6 +7157,7 @@ static void reject_let_change(Expr *lhs, Token *t) {
                  let, let);
     if (let)
         error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let);
+    reject_const_change(lhs, t->pos); /* p^ = v through a read-only borrow (#273) */
 }
 
 static Expr *assign_to(Expr *lhs, bool ok);
@@ -7172,6 +7228,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             error_at(t->pos, "assignment is a statement in Kelvin, not a value: assign on a line of its own");
         if (let_target(lhs->a))
             error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+        reject_const_change(lhs->a, t->pos); /* through a read-only borrow (#273) */
         advance();
         Expr *x = new_expr(E_METHOD, t->pos);
         x->a = lhs->a;
@@ -7224,6 +7281,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     error_at(t->pos, "':=' sets a reference: a subscript is set with '='");
                 if (let_target(lhs->a))
                     error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+                reject_const_change(lhs->a, t->pos); /* through a read-only borrow (#273) */
                 if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
                     lhs->a->kind != E_DEREF)
                     error_at(t->pos, "a subscript's setter changes the value it is called on, so that value is a variable");
@@ -7276,6 +7334,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     error_at(t->pos, "':=' sets a reference: an attribute is set with '='");
                 if (let_target(lhs->a))
                     error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+                reject_const_change(lhs->a, t->pos); /* through a read-only borrow (#273) */
                 if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
                     lhs->a->kind != E_DEREF)
                     error_at(t->pos, "the setter of '%s' changes the value it is called on, so that value is a variable",
@@ -7322,6 +7381,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     error_at(t->pos, "'%s' on a Set that an expression gives: bind it to a variable first", t->text);
                 if (let_target(lhs))
                     error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs));
+                reject_const_change(lhs, t->pos); /* through a read-only borrow (#273) */
                 Expr *x = new_expr(E_METHOD, t->pos);
                 x->a = lhs;
                 x->op = "set";
@@ -7347,6 +7407,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                         error_at(t->pos, "'+=' on a Set that an expression gives: bind it to a variable first");
                     if (let_target(lhs))
                         error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs));
+                    reject_const_change(lhs, t->pos); /* through a read-only borrow (#273) */
                     Expr *x = new_expr(E_METHOD, t->pos);
                     x->a = lhs;
                     x->op = "set";
@@ -7367,6 +7428,7 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     error_at(t->pos, "'+=' on an owner that an expression gives: bind it to a variable first");
                 if (let_target(lhs))
                     error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs));
+                reject_const_change(lhs, t->pos); /* through a read-only borrow (#273) */
                 Expr *x = new_expr(E_METHOD, t->pos);
                 x->a = lhs;
                 x->text = "append";
@@ -7462,6 +7524,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 if (lhs->kind != E_IDENT && is_owner(value_type(lhs)) && !is_io(value_type(lhs)))
                     e->recv_type = unqualified(value_type(lhs)); /* p.name = v frees the old one (#134) */
             }
+            if (!strcmp(t->text, ":=") && lhs->kind == E_IDENT && target_type(lhs) && target_type(lhs)->kind == T_PTR)
+                check_typed_value(e->b, target_type(lhs), strfmt("'%s' is", lhs->text), e->b->pos); /* q := &x of a let (#273) */
             reject_template_escape(lhs, e->b, t->pos);
             /* z += w with an operator a struct defines is z = z + w (#42) */
             if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {

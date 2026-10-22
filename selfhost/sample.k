@@ -96,6 +96,11 @@ let sum_of(xs:$[int64]):int64 {
 }
 
 let peek(p:const int64^):int64 { return p^ }          // a const borrow, which &x of a let is (#272)
+let largest(xs:const $[int64]^):int64 {               // of an owner too, as kelvinc since #273
+    var m:int64 = 0
+    for x in xs^ { if x > m { m = x } }
+    return m
+}
 
 let countdown(var n:int64):int64 {                     // a var parameter may change; a let one may not (#271)
     var steps = 0
@@ -329,6 +334,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(countdown(5), " ", countdown(0))
     let fixed = 7
     var loose = 8
-    println(peek(&fixed), " ", peek(&loose))
+    println(peek(&fixed), " ", peek(&loose), " ", largest(&primes), " ", largest(&fibs))
     return 0
 }

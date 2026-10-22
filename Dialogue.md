@@ -6061,3 +6061,18 @@ and refuses a scalar's, where kelvinc's C warns. Details are
 provisional P284.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 317. A let that owns borrows as const
+
+> fix the let owner hole in kelvinc as #273
+
+**Claude** made `&s` of a let that owns a `const T^`, as a let of a
+number's is: it goes where a `const T^` goes, and a `T^` that may change
+it is Kelvin's error, so `shout(&s)` no longer changes a let String.
+A function that only reads writes `xs:const $[i64]^`, now allowed, or
+`const Dictionary<K, V>^`, `const String^`, `const Set<T>^`; a change
+through any read-only borrow is Kelvin's error, where C's warning was
+all there was. No test, module or example changed a let so. kc does the
+same, in the same words. Details are provisional P285.
+
+There are 903 tests, and all pass with clang and with gcc 15.

@@ -331,9 +331,7 @@ let parse_type():int64 {
     if at_word("const") {
         advance()
         let y = parse_bare_type()
-        var e = y
-        while types[e].kind == Y_PTR { e = types[e].elem }
-        if types[e].kind == Y_ARRAY || types[e].kind == Y_DICT {    // as kelvinc has it
+        if types[y].kind != Y_PTR && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT) {   // as kelvinc has it (#273)
             parse_error("a qualifier of an Array or a Dictionary is the variable's: a let does not change")
         }
         return const_pointee(y)

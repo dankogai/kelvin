@@ -199,9 +199,8 @@ kc reads what it is written in, and little more.
   - **`&x` of a let is a `const T^`** (#272), as kelvinc's, C's
     `const T *`: what it points to does not change, `p^ = 2` an error,
     and it goes where a `const T^` goes, not a `T^`.
-    - But a borrow of an owner, a String, an Array or a Dictionary,
-      goes where a `T^` goes, as kelvinc passes it; kelvinc has no
-      `const $[T]^`, and kc refuses it in its words.
+    - Of an owner too, a String, an Array or a Dictionary, as kelvinc
+      since #273; a function that reads one takes `const $[T]^`.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
   `for i in a..<b`; `for x in s` of a String or an Array, `for k, v in
