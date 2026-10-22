@@ -41,7 +41,9 @@ var e:${String} = ${}                    // empty; Set<String>() too
 - **Operators** (#73): `s | t` is the union, `s & t` the intersection
   and `s ~ t` the symmetric difference (what is in one, not both), new
   Sets of two in variables.
-  - `s |= t`, `s &= t` and `s ~= t` change `s` in place.
+  - `s |= t`, `s &= t` and `s ~= t` change `s` in place, `t` another
+    Set in a variable; a borrow, `s |= &t`, is an error that says so
+    (#277), as `s += &t` is how a borrow's elements go in.
 - **Properties:** `count`; `elements`, an Array of copies in the order
   added; `size`, `typename`.
 - **Walking:** `for x in s` gives each element as a let the Set owns,

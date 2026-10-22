@@ -6115,3 +6115,14 @@ pointer type; kc gives the error kelvinc means. sample.k uses them, so
 the bootstrap checks them. Details are provisional P288.
 
 There are 903 tests, and all pass with clang and with gcc 15.
+
+### 321. s |= &t no longer crashes kelvinc
+
+> fix the s |= &t crash in kelvinc as #277
+
+**Claude** made `s |= &t`, `s &= &t` and `s ~= &t` the error kelvinc
+meant, `'|=' takes another Set<i64>, in a variable`, where kelvinc
+crashed reading the name of a pointer type. The other operators of a
+borrow already said so. Details are provisional P289.
+
+There are 904 tests, and all pass with clang and with gcc 15.

@@ -7390,7 +7390,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 Expr *given = parse_assign();
                 assign_ok = ok;
                 Type *gt = value_type(given);
-                if (!gt || strcmp(gt->name, x->type->name) || !owner_place(given))
+                /* a borrow, &t, is no Set: a pointer type has no name to compare (#277) */
+                if (!gt || gt->kind != T_BASE || strcmp(gt->name, x->type->name) || !owner_place(given))
                     error_at(t->pos, "'%s' takes another %s, in a variable", t->text, kelvin_type(x->type));
                 Expr *pb = new_expr(E_PREFIX, t->pos);
                 pb->op = "&";
