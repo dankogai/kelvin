@@ -618,6 +618,38 @@ let is_string_value(n:int64):bool {
     return y >= 0 && types[y].kind == Y_STRING
 }
 
+// the kind of a built-in owner y is, a String, an Array, a Dictionary,
+// a Set or an IO, else Y_VOID
+let builtin_kind(y:int64):ykind {
+    if y < 0 { return Y_VOID }
+    let k = types[y].kind
+    if k == Y_STRING || k == Y_ARRAY || k == Y_DICT || k == Y_SET || k == Y_IO { return k }
+    return Y_VOID
+}
+
+// an operator of an Array, a Dictionary or a Set, the left's or else the
+// right's, that kelvinc has not: an error in its words (#287); a Set's
+// | & ~ are its own (#276), and == and != of an Array or a Dictionary
+// kelvinc's (#235, #247), not yet kc's
+let reject_container_math(n:int64) {
+    let t = nodes[n].t
+    if tok_is(t, "??") { return }
+    var k:ykind = builtin_kind(type_of(nodes[n].a))
+    if k == Y_VOID { k = builtin_kind(type_of(nodes[n].b)) }
+    if k != Y_ARRAY && k != Y_DICT && k != Y_SET { return }
+    if k == Y_SET && (tok_is(t, "|") || tok_is(t, "&") || tok_is(t, "~")) { return }
+    if k != Y_SET && (tok_is(t, "==") || tok_is(t, "!=")) { return }
+    var m = $"an Array"
+    if k == Y_DICT { m = $"a Dictionary" }
+    if k == Y_SET { m = $"a Set" }
+    m += " has no operator '"
+    let op:String = tok_text(t)
+    m += &op
+    m += "': compare its "
+    if k == Y_DICT { m += "entries" } else { m += "elements" }
+    gen_error(n, m.cstr)
+}
+
 // + and - of a cstr, as kelvinc has them (#282, #283): only a String
 // joins, and a cstr is text, not a cursor (#52); p - s stays an offset
 let reject_cstr_math(n:int64) {
@@ -2336,6 +2368,7 @@ let gen_expr(n:int64) {
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
         reject_cstr_math(n)                              // "a" + "b", "a" + 1, x - y (#283)
+        reject_container_math(n)                         // xs + 2, d < d2, s - t (#287)
         if y >= 0 && types[y].kind == Y_SET && (tok_is(t, "|") || tok_is(t, "&") || tok_is(t, "~")) {
             gen_set_op(n, y)                             // s | t, s & t, s ~ t (#276)
         } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {

@@ -6243,3 +6243,15 @@ end of a longer body or of main. It found that kc lets `$[1] + 2` reach
 C. Details are provisional P298.
 
 There are 912 tests, and all pass with clang and with gcc 15.
+
+### 331. kc refuses + of an Array
+
+> teach kc to refuse + of an Array as #287
+
+**Claude** gave kc kelvinc's check of the operators of an Array, a
+Dictionary and a Set, which refuses `$[1] + 2` and its kind in
+kelvinc's words. It found that kc has no `==` of Arrays or Dictionaries,
+and that its `??` message is not kelvinc's. Details are provisional
+P299.
+
+There are 912 tests, and all pass with clang and with gcc 15.

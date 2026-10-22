@@ -247,6 +247,10 @@ kc reads what it is written in, and little more.
     uchr; other sides are kelvinc's error, in its words.
   - A String in a variable is copied, one an expression gives taken, so
     `a + b + c` frees what it made.
+- **An Array, a Dictionary or a Set has no arithmetic** (#287), as
+  kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
+  `an Array has no operator '+': compare its elements`, a Dictionary's
+  entries; a Set's `|`, `&` and `~` are its own (#276).
 - **A cstr neither joins nor steps** (#283), as kelvinc since #282, in
   its words: `"a" + "b"` and `x + y` of cstrs, `'+' joins Strings, and
   a cstr is not one`; `"a" + 1` and `x - y`, a cstr is text, not a
@@ -389,6 +393,7 @@ steps can take them on one at a time.
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
   - `union` and `typealias`;
+  - `==` and `!=` of Arrays and of Dictionaries, kelvinc's (#235, #247);
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
