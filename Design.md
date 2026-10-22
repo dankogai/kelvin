@@ -312,6 +312,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 278 | kc has a Set's `elements`, an Array of copies in the order added, as kelvinc: a new value a variable then owns, of a Set in a variable, a temporary, or through a borrow | — | kc builds `s.elements` | 2026-10-23 |
 | 279 | The goals of self-hosting, in selfhost/README.md: kc need not read C's source (`#import <x.h> as C`, `#inline C`); short term, kc as capable as kelvinc; mid term, assembly or LLVM IR without C between; long term, the whole back end in Kelvin | — | selfhost/README.md, "Goals" | 2026-10-23 |
 | 280 | A property that makes a new owner is returned, moved out, also through a borrow: `return s^.elements`, `d^.keys`, `f^.string`, `f^.abspath`, `f^.listdir`, `a^.pretty`, where kelvinc said its text lived in a buffer of the function | — | `return s^.elements` | 2026-10-23 |
+| 281 | `kelvinc -c F.k` makes an object, `F.o` or the `-o` path, as `cc -c`; `.o` and `.a` files are linked with a source or alone, with every module's library, each before the ones it imports; kc has `-c` too, and `--emit-c` for keeping its C, as kelvinc | — | `kelvinc -c util.k`, `kelvinc -o app main.o util.o` | 2026-10-23 |
 
 Notes:
 
@@ -873,6 +874,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (281) Agreed details: "does kelvinc support -c ... and act as a
+  (proxy of) linker ... if not, add support to it", with the user's
+  answers: `-c` makes an object in both compilers, kc's keep-the-C
+  option becomes `--emit-c`, kelvinc's linking comes first, and this is
+  #281, the `"a" + "b"` fix #282.
+  - kelvinc had neither: one source only, and `.o` and `.a` files only
+    with `--lib`. kc's `-c file.c` kept its C, and made no object.
+  - `-c` with `--lib`, `--emit-c`, `--run` or an object is an error.
+  - With objects alone the program is the first one's name, `main` of
+    `main.o`. Objects no longer show their imports, so every module's
+    library is linked, in an order of their `.kh` imports, which GNU
+    ld's single pass needs; a static library adds only what is called.
+  - kc's `--emit-c` writes the C to `-o` or stdout and stops, as
+    kelvinc's; bootstrap.sh runs each stage twice, for the C and the
+    program, and checks that kelvinc links stage3's `sample.o`.
+  - Left: two objects that import one `.k` both define its functions,
+    duplicate symbols; kc links no objects.
+  - Found: no GitHub Actions run started for #279 or #280, with Actions
+    reported degraded.
 
 - (280) Agreed details: "fix return s^.elements in kelvinc as #280",
   found by #278, and with the user's answer, every property that makes
@@ -3025,6 +3046,7 @@ says "as agreed".
 | P290 | Details of #278 | selfhost/gen.k: type_of gives `Array<T>`; gen_member builds the Array from the live slots; is_place says no; gen_field does not copy it again; sample.k uses it; selfhost/README.md | kelvinc refuses `return s^.elements`; a Dictionary's `keys` and `values` in kc |
 | P291 | Details of #279 | selfhost/README.md: "Goals" | kelvinc refuses `return s^.elements`; kc.k's C header imports; kc's C of kelvin_prelude.h |
 | P292 | Details of #280 | parser.c: text_in_buffer asks is_owner of a property's type; tests: run/return_owner_property.k; documents/functions.md, sets.md | `"a" + "b"` of literals reaches C |
+| P293 | Details of #281 | main.c: `-c`, link_objects, link_only, all_module_libs; selfhost/kc.k: `-c`, `--emit-c`, base_of; bootstrap.sh, sanitize.sh; tests: run.sh, project/objects/; README.md, documents/modules.md, selfhost/README.md | objects of one imported `.k`; kc linking objects |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

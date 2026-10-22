@@ -1,9 +1,11 @@
 // kc.k - a Kelvin compiler written in Kelvin, experimental (#230), of
 // selfhost/README.md. It reads the subset of Kelvin it is written in,
 // writes C as kelvinc does, for the same runtime, and hands it to cc:
-//   kc file.k -o program [-c file.c] [-m modules] [-cc compiler]
-// -c keeps the C there, which is how the stages are compared; without
-// it the C is a temporary file, in $TMPDIR, removed once cc is done. -m
+//   kc [-c | --emit-c] file.k [-o path] [-m modules] [-cc compiler]
+// as kelvinc's options (#281): -c makes an object, file.o or the -o
+// path; --emit-c writes the C, to the -o path or stdout, and stops,
+// which is how the stages are compared; else the C is a temporary file,
+// in $TMPDIR, removed once cc is done, and the program a.out or -o. -m
 // names the directory of kelvin_prelude.h and the libraries, else
 // $KELVIN_HOME/modules, else modules/; -cc the C compiler, else $CC,
 // else cc. The files it imports, `#import "x.k"`, are read too, and C's
@@ -29,6 +31,25 @@ let dir_of(path:String^):String {
     for c in path^ {
         if j < cut { r += c }
         j += 1
+    }
+    return r
+}
+
+// the name of a path without its directory and its .k, as the object of
+// kc -c is named (#281)
+let base_of(path:String^):String {
+    let dir:String = dir_of(path)
+    var cs:$[int64] = $[]
+    var j = 0
+    for c in path^ {
+        if j >= dir.count as int64 { cs += c.utf32 }
+        j += 1
+    }
+    var n = cs.count as int64
+    if n > 2 && cs[n - 2] == '.' && cs[n - 1] == 'k' { n -= 2 }
+    var r = $""
+    for k in 0..<n {
+        r += cs[k].uchr
     }
     return r
 }
@@ -100,6 +121,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var input = $""
     var output = $""
     var cfile = $""
+    var emit_c = false
+    var compile_only = false
     var mods = $""
     var compiler:String = env_or("CC", "cc")
     var i = 1
@@ -108,9 +131,10 @@ let main(argc:int32, argv:[cstr]):int32 {
         if a == $"-o" && i + 1 < argc as int64 {
             output = String(argv[i + 1])
             i += 1
-        } else if a == $"-c" && i + 1 < argc as int64 {
-            cfile = String(argv[i + 1])
-            i += 1
+        } else if a == $"-c" {
+            compile_only = true
+        } else if a == $"--emit-c" {
+            emit_c = true
         } else if a == $"-m" && i + 1 < argc as int64 {
             mods = String(argv[i + 1])
             i += 1
@@ -123,7 +147,11 @@ let main(argc:int32, argv:[cstr]):int32 {
         i += 1
     }
     if input.count == 0 {
-        println("usage: kc file.k -o program [-c file.c] [-m modules] [-cc compiler]")
+        println("usage: kc [-c | --emit-c] file.k [-o path] [-m modules] [-cc compiler]")
+        return 2
+    }
+    if compile_only && emit_c {
+        println("kc: -c makes an object, which --emit-c does not")
         return 2
     }
     if mods.count == 0 {
@@ -146,7 +174,17 @@ let main(argc:int32, argv:[cstr]):int32 {
     gen_program()
     if failed { return 1 }
     var temporary = false
-    if cfile.count == 0 {
+    if emit_c {                                 // the C alone, as kelvinc --emit-c (#281)
+        if output.count == 0 {
+            print(out)
+            return 0
+        }
+        cfile = output.copy()
+    } else {
+        if output.count == 0 && compile_only {
+            output = base_of(&input)
+            output += ".o"
+        }
         if output.count == 0 { output = $"a.out" }
         cfile = env_or("TMPDIR", "/tmp")
         cfile += "/kc-"
@@ -161,7 +199,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     g.write(&out)
     g.close()
-    if output.count == 0 { return 0 }
+    if emit_c { return 0 }
     var args:$[String] = $[]
     args += compiler.copy()
     cc_arg(&args, "-std=c11")
@@ -173,9 +211,20 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-Wno-builtin-declaration-mismatch")
     cc_arg(&args, "-isystem")
     args += mods.copy()
+    if compile_only { cc_arg(&args, "-c") }        // an object, and nothing linked (#281)
     cc_arg(&args, "-o")
     args += output.copy()
     args += cfile.copy()
+    if compile_only {
+        var p:IO = IO.exec(args, "r")
+        p.close()
+        remove(cfile.cstr)
+        if p.status != 0 {
+            println("kc: cc failed on ", cfile)
+            return 1
+        }
+        return 0
+    }
     var lib:String = mods.copy()
     lib += "/libkIO.a"
     args += lib.copy()

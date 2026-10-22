@@ -22,7 +22,7 @@ $CC -std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sa
     -isystem modules -o "$out/kc-sanitized" "$out/stage2.c" \
     modules/libkIO.a modules/libkOS.a modules/libkelvin.a -lm
 
-"$out/kc-sanitized" selfhost/kc.k -c "$out/sanitized.c"
+"$out/kc-sanitized" --emit-c selfhost/kc.k -o "$out/sanitized.c"
 if cmp -s "$out/stage2.c" "$out/sanitized.c"; then
     echo "kc.k: the sanitized kc writes the C the stages write"
 else
@@ -31,7 +31,7 @@ else
     exit 1
 fi
 
-"$out/kc-sanitized" selfhost/sample.k -c "$out/sanitized-sample.c"
+"$out/kc-sanitized" --emit-c selfhost/sample.k -o "$out/sanitized-sample.c"
 if cmp -s "$out/sample.c" "$out/sanitized-sample.c"; then
     echo "sample.k: the sanitized kc writes the C stage3 writes"
 else

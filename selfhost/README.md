@@ -70,6 +70,10 @@ selfhost/sanitize.sh
   and `stage3.c`).
 - **The sample:** stage3 builds `sample.k`, whose output must be what
   kelvinc's build of it prints.
+  - So must the program kelvinc links of stage3's object of it,
+    `kc -c` (#281).
+- **The C:** each stage writes its C with `--emit-c`, as kelvinc does
+  (#281).
 - **The compiler:** `CC` picks the C compiler of every stage, and of
   kelvinc's build of the sample; CI runs gcc and clang.
 - **Sanitizers** (#228): `sanitize.sh` builds kc from stage2's C with
@@ -80,12 +84,16 @@ selfhost/sanitize.sh
 ## Using kc
 
 ```sh
-build/selfhost/stage3 program.k -o program [-c program.c] [-m modules] [-cc compiler]
+build/selfhost/stage3 [-c | --emit-c] program.k [-o path] [-m modules] [-cc compiler]
 ```
 
-- `-c` keeps the C there; without `-o`, kc writes the C alone.
-  - Without `-c`, the C is a temporary file, `$TMPDIR/kc-<pid>.c`, or in
-    `/tmp`, removed once `cc` is done (#207).
+- The options are kelvinc's (#281).
+  - `-c` makes an object, `program.o` or the `-o` path, which
+    `kelvinc -o program program.o` links.
+  - `--emit-c` writes the C, to the `-o` path or stdout, and stops.
+  - Else kc builds the program, `a.out` or the `-o` path.
+- The C is a temporary file, `$TMPDIR/kc-<pid>.c`, or in `/tmp`, removed
+  once `cc` is done (#207).
 - `-m` names the directory of `kelvin_prelude.h` and the libraries.
   - Without it: `$KELVIN_HOME/modules`, as kelvinc reads `KELVIN_HOME`,
     else `modules`, from the top of the repository.

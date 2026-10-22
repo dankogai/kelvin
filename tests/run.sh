@@ -145,6 +145,29 @@ for f in tests/project/*.k; do
     fi
 done
 
+# separate compilation (#281): kelvinc -c makes util.o and main.o, which
+# link alone, with the libraries of every module, and with main.k itself
+mkdir -p "$tmp/objects"
+sed -n 's|^[[:space:]]*// out: \{0,1\}||p' tests/project/objects/main.k > "$tmp/expected"
+here=$(pwd)
+if ! (cd "$tmp/objects" && TMPDIR=$tmp "$kelvinc_path" -c "$here/tests/project/objects/util.k" -o util.o &&
+    TMPDIR=$tmp "$kelvinc_path" -c "$here/tests/project/objects/main.k") > "$tmp/log" 2>&1; then
+    bad tests/project/objects "kelvinc -c does not make util.o and main.o"
+else
+    for link in "main.o util.o" "$here/tests/project/objects/main.k util.o"; do
+        if ! (cd "$tmp/objects" && TMPDIR=$tmp "$kelvinc_path" -o "$tmp/prog" $link) > "$tmp/log" 2>&1; then
+            bad tests/project/objects "kelvinc does not link ${link##*/objects/}"
+        elif ! "$tmp/prog" > "$tmp/actual" 2> "$tmp/log"; then
+            bad tests/project/objects "exits with a failure, linked of ${link##*/objects/}"
+        elif ! cmp -s "$tmp/expected" "$tmp/actual"; then
+            diff "$tmp/expected" "$tmp/actual" > "$tmp/log"
+            bad tests/project/objects "output differs, linked of ${link##*/objects/} (expected < > actual)"
+        else
+            ok
+        fi
+    done
+fi
+
 # Kelvin's own modules built into libraries by kelvinc --lib (#146), used
 # from a directory whose ./modules holds JSON.kh, libkJSON.a and complex's
 mkdir -p "$tmp/libs/modules"

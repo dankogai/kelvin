@@ -9,6 +9,7 @@
 #endif
 #include "kelvin.h"
 
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -19,10 +20,13 @@
 
 static void usage(FILE *f) {
     fprintf(f,
-            "usage: kelvinc [options] <file.k> [-- program args]\n"
+            "usage: kelvinc [options] <file.k> [file.o ...] [-- program args]\n"
+            "       kelvinc [options] -o <program> file.o ...\n"
             "\n"
             "options:\n"
             "  -o <path>   output path (default: source name without .k)\n"
+            "  -c          compile the file into an object, file.o or the -o path, and stop\n"
+            "              (#281); .o and .a files are linked with the source, or alone\n"
             "  --emit-c    write the generated C (to -o, or stdout) and stop\n"
             "  --run       build, then run the program with the args after --\n"
             "  -O          optimize (-O2)\n"
@@ -279,6 +283,84 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
 }
 
 static List lib_objects; /* --lib: the .o and .a files given after the source, into libkM too (#156) */
+static List link_objects; /* the .o and .a files linked into the program (#281) */
+
+/* ---------- linking objects (#281) ---------- */
+
+/* A module with a library, M.kh, and the modules it imports */
+typedef struct {
+    char *name, *path;
+    List deps;
+    bool seen;
+} Module;
+
+static List modules_found;
+
+static Module *module_named(const char *name) {
+    for (int i = 0; i < modules_found.len; i++)
+        if (!strcmp(((Module *)modules_found.data[i])->name, name))
+            return modules_found.data[i];
+    return NULL;
+}
+
+/* Every M.kh in ./modules and Kelvin's modules/, the first of a name, as
+   #import <M> finds it, with the modules its #import <N> lines name */
+static void find_modules(const char *argv0) {
+    const char *dirs[] = {"./modules", kelvin_modules(argv0)};
+    for (int i = 0; i < 2; i++) {
+        DIR *d = dirs[i] ? opendir(dirs[i]) : NULL;
+        if (!d)
+            continue;
+        for (struct dirent *e; (e = readdir(d));) {
+            size_t n = strlen(e->d_name);
+            if (n < 4 || strcmp(e->d_name + n - 3, ".kh"))
+                continue;
+            char *name = xstrndup(e->d_name, n - 3);
+            if (module_named(name))
+                continue;
+            Module *m = xcalloc(1, sizeof *m);
+            m->name = name;
+            m->path = strfmt("%s/%s", dirs[i], e->d_name);
+            for (char *line = read_file(m->path); line; line = strchr(line, '\n') ? strchr(line, '\n') + 1 : NULL) {
+                if (strncmp(line, "#import <", 9))
+                    continue;
+                char *end = strchr(line + 9, '>');
+                char *dep = end ? xstrndup(line + 9, (size_t)(end - line - 9)) : NULL;
+                if (dep && !strchr(dep, '.') && !strchr(dep, '\n'))
+                    list_push(&m->deps, dep);
+            }
+            list_push(&modules_found, m);
+        }
+        closedir(d);
+    }
+}
+
+/* m after the modules it imports */
+static void visit_module(Module *m, List *order) {
+    if (m->seen)
+        return;
+    m->seen = true;
+    for (int i = 0; i < m->deps.len; i++) {
+        Module *d = module_named(m->deps.data[i]);
+        if (d)
+            visit_module(d, order);
+    }
+    list_push(order, m);
+}
+
+/* Objects may call any module, which their imports no longer show: the
+   libraries of all, each before the ones it imports, so that C's linker,
+   reading them once in order, finds what one calls in one after it. A
+   static library brings in only what is called. */
+static void all_module_libs(const char *argv0) {
+    find_modules(argv0);
+    List order = {0};
+    for (int i = 0; i < modules_found.len; i++)
+        visit_module(modules_found.data[i], &order);
+    module_libs.len = 0;
+    for (int i = order.len - 1; i >= 0; i--)
+        module_library(((Module *)order.data[i])->path);
+}
 
 static bool ends_with(const char *s, const char *suffix) {
     size_t n = strlen(s), m = strlen(suffix);
@@ -350,9 +432,65 @@ static char *default_output(const char *src) {
     return xstrndup(base, n);
 }
 
+/* kelvinc -o program a.o b.o (#281): objects kelvinc -c made, and .a
+   files, linked with the libraries of all modules and libkelvin; the
+   program is named after the first object without -o */
+static int link_only(const char *argv0, const char *out_path, bool run_after, bool verbose, int prog_argc,
+                     char **prog_argv) {
+    char *rt_inc, *rt_lib;
+    find_runtime(argv0, &rt_inc, &rt_lib);
+    all_module_libs(argv0);
+    char *dir = NULL;
+    if (run_after && !out_path) {
+        const char *tmpdir = getenv("TMPDIR");
+        dir = strfmt("%s/kelvinc-XXXXXX", tmpdir && *tmpdir ? tmpdir : "/tmp");
+        if (!mkdtemp(dir))
+            fatal("cannot create a temporary directory");
+    }
+    const char *first = link_objects.data[0];
+    char *exe = out_path ? xstrdup(out_path) : dir ? strfmt("%s/program", dir) : default_output(first);
+    if (!out_path && !dir) /* a.o is a, as file.k is file */
+        exe[strlen(exe) - 2] = '\0';
+    const char *cc = getenv("CC");
+    List args = {0};
+    list_push(&args, (void *)(cc && *cc ? cc : "cc"));
+    list_push(&args, "-o");
+    list_push(&args, exe);
+    for (int i = 0; i < link_objects.len; i++)
+        list_push(&args, link_objects.data[i]);
+    if (is_dir("./modules"))
+        list_push(&args, "-L./modules");
+    list_push(&args, strfmt("-L%s", rt_inc));
+    const char *extra = getenv("KELVIN_CFLAGS"); /* -fsanitize=address links its runtime too */
+    char *flags = xstrdup(extra ? extra : "");
+    for (char *tok = strtok(flags, " \t\n"); tok; tok = strtok(NULL, " \t\n"))
+        list_push(&args, tok);
+    for (int i = 0; i < module_libs.len; i++)
+        list_push(&args, module_libs.data[i]);
+    list_push(&args, rt_lib);
+    list_push(&args, "-lm");
+    list_push(&args, NULL);
+    int rc = run((char **)args.data, verbose);
+    if (rc != 0 || !run_after) {
+        if (dir)
+            rmdir(dir);
+        return rc;
+    }
+    char **pargv = xcalloc((size_t)prog_argc + 2, sizeof(char *));
+    pargv[0] = exe;
+    for (int i = 0; i < prog_argc; i++)
+        pargv[i + 1] = prog_argv[i];
+    rc = run(pargv, false);
+    if (dir) {
+        unlink(exe);
+        rmdir(dir);
+    }
+    return rc;
+}
+
 int main(int argc, char **argv) {
     const char *src_path = NULL, *out_path = NULL;
-    bool emit_c = false, run_after = false, optimize = false, debug = false, verbose = false;
+    bool emit_c = false, run_after = false, optimize = false, debug = false, verbose = false, compile_only = false;
     bool line_directives = true, lib = false;
     int prog_argc = 0;
     char **prog_argv = NULL;
@@ -367,6 +505,8 @@ int main(int argc, char **argv) {
             if (++i >= argc)
                 fatal("-o needs a path");
             out_path = argv[i];
+        } else if (!strcmp(a, "-c")) {
+            compile_only = true;
         } else if (!strcmp(a, "--emit-c")) {
             emit_c = true;
         } else if (!strcmp(a, "--run")) {
@@ -393,12 +533,21 @@ int main(int argc, char **argv) {
             fatal("unknown option '%s'", a);
         } else if (src_path && lib && (ends_with(a, ".o") || ends_with(a, ".a"))) {
             list_push(&lib_objects, a); /* an object or an archive the library holds too (#156) */
+        } else if (!lib && (ends_with(a, ".o") || ends_with(a, ".a"))) {
+            list_push(&link_objects, a); /* linked into the program (#281) */
         } else if (src_path) {
             fatal("only one source file is supported for now");
         } else {
             src_path = a;
         }
     }
+    if (compile_only && (lib || emit_c || run_after))
+        fatal("-c makes an object, which %s does not", lib ? "--lib" : emit_c ? "--emit-c" : "--run");
+    if (compile_only && link_objects.len)
+        fatal("-c compiles one source into an object, and links nothing: '%s' is linked without -c",
+              (char *)link_objects.data[0]);
+    if (!src_path && link_objects.len && !emit_c && !compile_only)
+        return link_only(argv[0], out_path, run_after, verbose, prog_argc, prog_argv);
     if (!src_path) {
         usage(stderr);
         return 2;
@@ -415,6 +564,8 @@ int main(int argc, char **argv) {
     toks = with_imports(toks, ntoks, &ntoks, argv[0]);
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);
+    if (link_objects.len) /* the objects may call modules the source does not import (#281) */
+        all_module_libs(argv[0]);
     char *lib_dir = NULL, *lib_name = NULL;
     if (lib) {
         /* M.kh and libkM.a, in ./modules or the directory -o names */
@@ -496,11 +647,17 @@ int main(int argc, char **argv) {
         list_push(&cc_args, "-fPIC");
         list_push(&cc_args, "-o");
         list_push(&cc_args, obj_path);
+    } else if (compile_only) { /* an object, file.o or the -o path (#281) */
+        list_push(&cc_args, "-c");
+        list_push(&cc_args, "-o");
+        list_push(&cc_args, out_path ? xstrdup(out_path) : strfmt("%s.o", default_output(src_path)));
     } else {
         list_push(&cc_args, "-o");
         list_push(&cc_args, exe);
     }
     list_push(&cc_args, c_path);
+    for (int i = 0; i < link_objects.len; i++) /* after the program's C, before the libraries (#281) */
+        list_push(&cc_args, link_objects.data[i]);
     /* extra flags, split on whitespace (e.g. -fsanitize=undefined), after
        the program, so that a -lfoo there links what it uses (#46) */
     const char *extra = getenv("KELVIN_CFLAGS");
@@ -512,7 +669,7 @@ int main(int argc, char **argv) {
     const char *tail_args[] = {rt_lib, "-lm", NULL};
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);
-    if (lib) { /* no libraries: an object only; the list ends with NULL */
+    if (lib || compile_only) { /* no libraries: an object only; the list ends with NULL */
         if (cc_args.len && !cc_args.data[cc_args.len - 1])
             cc_args.len--;
         while (cc_args.len && (cc_args.data[cc_args.len - 1] == (void *)rt_lib ||

@@ -6169,3 +6169,20 @@ property whose value is an owner as new, not as text in a buffer of the
 function. Details are provisional P292.
 
 There are 905 tests, and all pass with clang and with gcc 15.
+
+### 325. kelvinc -c, and linking objects
+
+> Before fixing "a" + "b" of literals in kelvinc as #281, I have a few
+> questions: does `kelvinc` support `-c` option to emit `.o`? and act as
+> a (proxy of) linker like `kelvinc final_product -o *.o`? if not, add
+> support to it, as `selfhost/kc` already does.
+
+**Claude** answered that neither compiler did: kelvinc took one source
+and objects only with `--lib`, and kc's `-c file.c` kept its C. It asked
+how to spell the options and what to cover first. The user chose `-c`
+for an object in both, kc's `--emit-c` for its C, kelvinc's linking
+first, and this as #281. kelvinc now makes objects and links them, with
+a source or alone; kc makes objects that kelvinc links. Details are
+provisional P293.
+
+There are 907 tests, and all pass with clang and with gcc 15.

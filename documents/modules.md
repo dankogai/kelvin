@@ -135,6 +135,34 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   `let norm1:f64`, `var first:f64`, `let [](i:i64):f64`, each declaring
   the getter, and the setter where it is a `var`.
 
+## Separate compilation: `kelvinc -c`
+
+`kelvinc -c F.k` (#281) compiles a file into an object, `F.o` in the
+current directory or the path `-o` names, as `cc -c` does, and links
+nothing.
+
+```
+kelvinc -c util.k                    # ./util.o
+kelvinc -c main.k -o build/main.o    # build/main.o
+kelvinc -o app build/main.o util.o   # links the objects into ./app
+kelvinc main.k util.o                # compiles main.k, linking util.o, into ./main
+```
+
+- **Linking:** `.o` and `.a` files are linked with the source, or
+  alone, with `libkelvin`.
+  - With objects alone, the program is named after the first, `main`
+    of `main.o`, unless `-o` names it; `--run` runs it.
+  - Objects no longer show what they import, so kelvinc links the
+    library of every module in `./modules` and Kelvin's `modules/`, each
+    before the ones it imports. A static library brings in only what is
+    called.
+- **Calling another file:** a file declares the functions of another
+  by their prototypes, `let twice(x:i64):i64`, with no body.
+- **Not yet:** two objects that `#import "x.k"` both hold x's functions,
+  which the linker refuses as duplicate symbols; a module built with
+  `--lib` is how files share code for now.
+- **kc** (selfhost/) has `-c` too, and kelvinc links its objects.
+
 ## `modules/`
 
 ```

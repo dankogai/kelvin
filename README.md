@@ -242,6 +242,8 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc --run hello.k     # builds and runs
 ./kelvinc --emit-c hello.k  # prints the generated C
 ./kelvinc --lib geo.k       # builds the module geo: modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
+./kelvinc -c util.k         # builds the object util.o (#281)
+./kelvinc -o app main.o util.o  # links objects, or main.k util.o, into ./app
 ```
 
 ## Self-hosting
