@@ -5952,3 +5952,16 @@ prints annotations, so the bootstrap checks them. Details are
 provisional P276.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 309. kc reads p:point and n:size_t
+
+> teach kc struct and typedef annotations as #265
+
+**Claude** taught kc `x:T` of a struct's name or a C typedef's,
+`p:point`, `n:size_t`. As kelvinc reads it, a name after `:` in the
+middle of `c ? a : b` or in a case's values is the `?:`'s or the case's,
+and in parentheses or a call's arguments there an annotation again.
+sample.k prints one, so the bootstrap checks it. Details are
+provisional P277.
+
+There are 897 tests, and all pass with clang and with gcc 15.

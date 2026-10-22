@@ -296,5 +296,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     singles += -inf as float32
     println(tenth, " ", tenth as float64, " ", tenth * 3.0, " ", 16777217 as float32, " ", singles)
     println(0.1:float32 == tenth, " ", 7:float64 / 2.0, " ", 'z':uint8, " ", 300:uint8, " ", odd ? 1:int64 : 0)   // x:T (#264)
+    println(p:point, " ", twice(p:point).y, " ", odd ? p.x : 0, " ", odd ? (p:point).x : 0)   // a struct's name too (#265)
     return 0
 }

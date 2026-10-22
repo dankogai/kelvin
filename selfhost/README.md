@@ -169,6 +169,10 @@ kc reads what it is written in, and little more.
   `0.1:float32`, `'z':uint8`, `c ? 1:int64 : 0`.
   - The `:` is one where a type's word follows, `int64` to `uchr`, and
     no `(` or `<`; else it is `?:`'s or a `case`'s.
+  - A struct's name or a C typedef's too, `p:point`, `n:size_t` (#265),
+    but in the middle of `c ? a : b` and in a case's values, where a
+    name after `:` is `?:`'s or the case's, as kelvinc reads it; in
+    parentheses or a call's arguments there, it is an annotation again.
 - **Statements:** `var` and `let`, with a type or one inferred (#214);
   `=`, `:=`, `+=` and the rest; `if`, `else if`, `else`; `while`;
   `for i in a..<b`; `for x in s` of a String or an Array; `return`,

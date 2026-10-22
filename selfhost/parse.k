@@ -161,14 +161,23 @@ let at_word(w:cstr):bool {
     return (k == T_ID || k == T_PUNCT) && tok_is(pos, w)
 }
 
+// off while the middle of c ? a : b or a case's values are parsed, where
+// a : and a name are ?:'s or the case's, as kelvinc's ident_annotation_ok (#265)
+var name_annotation = true
+
 // whether the : at the cursor annotates a value with a type, 0.1:float32,
 // as kelvinc's x:T (#264): a type's word follows, and no ( or <, which
-// would make the value of the other arm of c ? a : b, or a case's body
+// would make the value of the other arm of c ? a : b, or a case's body;
+// a struct's name or a C typedef's, p:point, n:size_t (#265), but where
+// the : is ?:'s or a case's
 let annotation_ahead():bool {
     if !at_word(":") || pos + 2 >= toks.count as int64 || toks[pos + 1].kind != T_ID { return false }
     if tok_is(pos + 2, "(") || tok_is(pos + 2, "<") { return false }
     let t:int64 = pos + 1
-    return tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr")
+    if tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") {
+        return true
+    }
+    return name_annotation
 }
 
 let parse_error(what:cstr) {
@@ -383,6 +392,8 @@ let parse_expr():int64    // a prototype: the parsers call each other
 let parse_args():int64 {
     var first = -1
     var last = -1
+    let saved = name_annotation
+    name_annotation = true                       // c ? f(p:point) : q (#265)
     while !at_word(")") && !failed {
         let e:int64 = parse_expr()
         if first < 0 {
@@ -393,6 +404,7 @@ let parse_args():int64 {
         last = e
         if at_word(",") { advance() }
     }
+    name_annotation = saved
     expect(")")
     return first
 }
@@ -418,7 +430,10 @@ let parse_primary():int64 {
     }
     if at_word("(") {
         advance()
+        let saved = name_annotation
+        name_annotation = true                   // (c ? (p:point) : q) (#265)
         let e:int64 = parse_expr()
+        name_annotation = saved
         expect(")")
         return e
     }
@@ -608,7 +623,10 @@ let parse_expr():int64 {
     if failed || !at_word("?") { return e }
     let n:int64 = make_node(N_COND, advance())
     nodes[n].a = e
+    let saved = name_annotation
+    name_annotation = false                      // c ? a : b's : (#265)
     set_b(n, parse_expr())
+    name_annotation = saved
     expect(":")
     set_c(n, parse_expr())
     return n
@@ -694,6 +712,8 @@ let parse_switch():int64 {
         } else {
             expect("case")
             var lastv = -1
+            let saved = name_annotation
+            name_annotation = false              // case a: b, the case's : (#265)
             while !failed {
                 let v:int64 = parse_expr()
                 if lastv < 0 {
@@ -705,6 +725,7 @@ let parse_switch():int64 {
                 if !at_word(",") { break }
                 advance()
             }
+            name_annotation = saved
         }
         expect(":")
         skip_newlines()
