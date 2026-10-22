@@ -372,7 +372,7 @@
         },
         {
           "name": "constant.numeric.decimal.kelvin",
-          "match": "(?<![\\w.])(?i:nan|inf(?:inity)?)\\b(?!\\s*\\()"
+          "match": "(?<![\\w.])(?:[nN][aA][nN]|[iI][nN][fF](?:[iI][nN][iI][tT][yY])?)\\b(?!\\s*\\()"
         }
       ]
     },

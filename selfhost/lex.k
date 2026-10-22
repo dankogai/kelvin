@@ -132,7 +132,20 @@ let lex_range(from:int64, to:int64, file:int64) {
             add_tok(T_ID, s, i - s, line, file)
         } else if is_digit(c) {
             let s:int64 = i
-            while i < to && (is_digit(codes[i]) || is_alpha(codes[i])) { i += 1 }
+            let hex = c == '0' && (code_at(i + 1) == 'x' || code_at(i + 1) == 'X')
+            var more = true
+            while more {
+                while i < to && (is_digit(codes[i]) || is_alpha(codes[i])) { i += 1 }
+                more = false
+                let d:uint32 = code_at(i)
+                if !hex && d == '.' && is_digit(code_at(i + 1)) {       // 1.5, not 0..<n (#262)
+                    i += 1
+                    more = true
+                } else if !hex && (d == '+' || d == '-') && (code_at(i - 1) == 'e' || code_at(i - 1) == 'E') && is_digit(code_at(i + 1)) {
+                    i += 1                                              // 2.5e-8
+                    more = true
+                }
+            }
             add_tok(T_NUM, s, i - s, line, file)
         } else if c == '"' || (c == '$' && code_at(i + 1) == '"') {
             let s:int64 = i

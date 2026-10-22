@@ -5913,3 +5913,17 @@ its own, and `nan(...)` stays C's function. Details are provisional
 P273.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 306. kc reads floats, nan and inf
+
+> teach kc nan and inf as #262
+
+**Claude** found that kc had no floats at all, and asked how far to go;
+the user chose `float64` with `nan` and `inf`. kc now reads `1.5`,
+`2.5e-8`, `nan`, `inf` and `infinity`, declares and infers `float64`,
+computes and compares with it, converts with `as`, and prints it as
+kelvinc does; sample.k prints floats, so the bootstrap checks them.
+Details are provisional P274. #261's grammar pattern, which Node on
+Linux could not compile, now spells each letter's two cases.
+
+There are 897 tests, and all pass with clang and with gcc 15.

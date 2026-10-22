@@ -284,5 +284,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     var maybe_hay:$[int64]? = none
     maybe_hay = hay                                   // moves in
     println(named(1)?.count ?? 0, " ", unset ?? 0 - 1, " ", spot?.sum() ?? 0, " ", maybe_hay?[2] ?? 0, " ", tags[3]?.count ?? 0)
+    let ratio = 1.5                                   // f64, every digit printed; nan and inf (#262)
+    var floats:$[float64] = $[]
+    floats += ratio
+    floats += 0.1
+    floats += -inf
+    println(ratio * 2.0, " ", 7 as float64 / 2.0, " ", 2.5e-8, " ", nan, " ", Infinity, " ", floats, " ", 3.9 as int64, " ", ratio < inf)
     return 0
 }

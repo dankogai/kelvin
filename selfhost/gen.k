@@ -78,6 +78,7 @@ let put_elem_name(y:int64) {
     case Y_I32: put("i32")
     case Y_U8: put("u8")
     case Y_U32: put("u32")
+    case Y_F64: put("f64")
     case Y_BOOL: put("bool")
     case Y_STRING: put("String")
     case Y_STRUCT: put_tok(types[y].name)
@@ -131,6 +132,7 @@ let put_ctype(y:int64) {
     case Y_I32: put("int32_t")
     case Y_U8: put("uint8_t")
     case Y_U32: put("uint32_t")
+    case Y_F64: put("double")
     case Y_BOOL: put("bool")
     case Y_CSTR: put("const uint8_t *")
     case Y_STRING: put("kv_string")
@@ -401,6 +403,40 @@ let chain_type(n:int64):int64 {
     return optional_of(y)
 }
 
+// the text of token t is w, letters in any case: nan, NaN, NAN (#262)
+let word_no_case(t:int64, w:cstr):bool {
+    let n:int64 = toks[t].len
+    var i = 0
+    while i < n {
+        if w[i] == 0 { return false }
+        var c:uint32 = codes[toks[t].at + i]
+        if c >= 'A' && c <= 'Z' { c += 32 }
+        if c != w[i] as uint32 { return false }
+        i += 1
+    }
+    return w[n] == 0
+}
+
+// nan, inf and infinity, in any case: f64 literals where no variable has
+// the name, as kelvinc's (#261, #262)
+let float_word(n:int64):bool {
+    if nodes[n].kind != N_ID || var_type(nodes[n].t) >= 0 { return false }
+    let t:int64 = nodes[n].t
+    return word_no_case(t, "nan") || word_no_case(t, "inf") || word_no_case(t, "infinity")
+}
+
+// whether number token t is a float's, 1.5 or 1e9, not 0x1e (#262)
+let float_tok(t:int64):bool {
+    let at:int64 = toks[t].at
+    let n:int64 = toks[t].len
+    if n > 1 && codes[at] == '0' && (codes[at + 1] == 'x' || codes[at + 1] == 'X') { return false }
+    for i in 0..<n {
+        let c:uint32 = codes[at + i]
+        if c == '.' || c == 'e' || c == 'E' { return true }
+    }
+    return false
+}
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -409,12 +445,14 @@ let type_of(n:int64):int64 {
         return type_of(nodes[n].b)
     }
     let t:int64 = nodes[n].t
+    if k == N_NUM && float_tok(t) { return base_type(Y_F64) }      // (#262)
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
     if k == N_DSTR { return base_type(Y_STRING) }
     if k == N_BOOL { return base_type(Y_BOOL) }
     if k == N_NULL { return base_type(Y_C) }
     if k == N_SELF { return type_of_kind(Y_STRUCT, -1, nodes[current].c) }      // (#213)
+    if float_word(n) { return base_type(Y_F64) }                      // nan, inf (#262)
     if k == N_ID {
         let y:int64 = var_type(t)
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
@@ -653,6 +691,7 @@ let mangled(y:int64):String {
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_F64: return $"f64"
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
@@ -741,7 +780,7 @@ let put_fn_name(d:int64) {
 
 // a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool
 let is_number_kind(k:ykind):bool {
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_BOOL
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_BOOL
 }
 
 // how a call's argument a fits a parameter of type t, as kelvinc's fit:
@@ -875,7 +914,7 @@ let struct_of(y:int64):int64 {
 // whether print shows v as it is: a number, a bool, text
 let plain_shown(v:int64):bool {
     let k:ykind = types[v].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -956,7 +995,7 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put(");\n")
     } else {
         put("{ uint8_t _kv_b[256]; ")
-        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : "kv_cstr_i64")
+        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : "kv_cstr_i64")
         put("(")
         put_self(path, t)
         put(", _kv_b); kv_out_put(o, _kv_b); }\n")
@@ -1363,7 +1402,7 @@ let fits_value(n:int64, t:int64):bool {
     let k:nkind = nodes[n].kind
     let tk:ykind = types[t].kind
     let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
-    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32) { return true }
+    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64) { return true }
     if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if type_of(n) == t { return true }
     return some_type(t) >= 0 && fits_value(n, some_type(t))
@@ -1660,7 +1699,9 @@ let gen_expr(n:int64) {
     }
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
-    if k == N_ID && var_type(t) < 0 && !c_headers {
+    if float_word(n) {                                   // nan, inf: gcc's and clang's constants (#262)
+        put(word_no_case(t, "nan") ? "__builtin_nan(\"\")" : "__builtin_inf()")
+    } else if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
     } else if k == N_NULL {
         put("NULL")
@@ -1764,7 +1805,7 @@ let inferred(n:int64):int64 {
         return base_type(Y_CSTR)
     }
     if k == N_CHAR { return base_type(Y_U8) }
-    if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return base_type(Y_I64) }
+    if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") {     // x ?? d is x's T (#217)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
@@ -1789,6 +1830,7 @@ let type_text(y:int64):String {
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_F64: return $"f64"
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"

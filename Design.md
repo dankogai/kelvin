@@ -293,6 +293,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 259 | Text inside a value is quoted, a C type's too, as `xmlChar^`, `name_t` or a `char` array: `{who: "c"}`; a null one is `nullptr`. A float's text, alone or inside a value, is every digit its type holds, `%.17g`'s for an f64 and `%.9g`'s for an f32, with a point: `0.10000000000000001`, `[1.0]` | — | `$[0.1]` prints `[0.10000000000000001]` | 2026-10-22 |
 | 260 | A null pointer prints `nullptr`, as Kelvin writes it, by `print`, `.cstr`, `${p}` and inside a value, a null cstr's too, which printed `(null)`: `0x0` reads back as `0`, an i64; `.addr` and `.hex` keep their numbers | — | `println(p)` of a null `i64^` prints `nullptr` | 2026-10-22 |
 | 261 | `nan`, `inf` and `infinity`, in any case (`$/nan/i`, `$/inf(inity)?/i`), are literals of `f64`, so that what print shows of a NaN or an infinity reads back; `nan:f32` converts one; a name the program declares is its own, `nan(...)` is C's function, a member is a member | — | `let x = -inf` | 2026-10-22 |
+| 262 | kc has `float64`: literals `1.5` and `2.5e-8`, and `nan`, `inf`, `infinity` in any case where no variable has the name, as kelvinc's (#261); arithmetic, comparisons and `as` C's; printed as kelvinc prints it; sample.k prints floats | — | kc builds `let r = 1.5` | 2026-10-22 |
 
 Notes:
 
@@ -855,6 +856,15 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (262) Agreed details: "teach kc nan and inf as #262". kc had no
+  floats, every number an i64; asked how far to go, the user chose
+  f64 with nan and inf, f32 still not yet. kc's lexer reads a point
+  followed by a digit, so `0..<n` is still a range, and a sign after an
+  e; a number token with a point or an e, but a hex one's, is an f64;
+  a negative literal has its number's type. The words are decided in
+  gen.k, where kc knows its variables, as kelvinc decides them by its
+  bindings.
+
 - (261) Agreed details: #260's request said "`nan` and `inf` are kelvin
   literals. exactly speaking, `$/nan/i` and `$/inf(:?inity)?/i` are
   kevin literals of type `f64`. You can convert types as `nan:f32` but
@@ -865,7 +875,9 @@ Notes:
   gives way to a binding of the name (json_stringify.k's `var inf`),
   and to a call, C's `nan(...)`. C's `NAN` and `INFINITY` of math.k,
   which match in any case, are these literals now, the same values.
-  The VS Code grammar shows them as numbers.
+  The VS Code grammar shows them as numbers; CI found that Node on
+  Linux has no inline `(?i:...)`, so the pattern spells each letter's
+  two cases, `[nN][aA][nN]`.
 
 - (260) Agreed details: "print null pointers as nullptr as #260. Also
   `0x0` is a `0:i64` which IS NOT `0x0p0` which is `0.0:f64`. `nan` and
@@ -2799,6 +2811,7 @@ says "as agreed".
 | P271 | Details of #259 | runtime/prelude.c: kv_f32_text, kv_f64_text, kv_f80_text print every digit (FLT/DBL/LDBL_DECIMAL_DIG), float_text drops trailing zeros; kv_out_quoted_text of NULL is nullptr; runtime/string.c: kv_cstr_kind quotes KV_K_STR and KV_K_CHARS, kv_cstr_quoted_text for kv_cstr_put_pointer's text, kv_cstr_quoted_str of NULL is nullptr; tests: float_text.k, prelude.k, templates.k, cstr.k, extend_attributes.k, math_real.k, typealias.k, tests/c/cstr.c, locale.c, prelude.c; documents/floatingpoint.md, printing.md, properties.md, strings.md, io.md | a null pointer of another type, `0x0`; nan, inf |
 | P272 | Details of #260 | runtime/string.c: kv_cstr_ptr, kv_cstr_str, kv_cstr_put_str write nullptr for a null pointer; runtime/prelude.c: kv_fprint_ptr and kv_template_ptr call kv_cstr_ptr, kv_fprint_str and kv_template_str write nullptr; tests: cstr.k, prelude.k, templates.k, tests/c/cstr.c; documents/printing.md, properties.md, strings.md | nan and inf as literals of f64 (#261) |
 | P273 | Details of #261 | parser.c: float_word(s); parse_primary makes an E_LITERAL `nan` or `inf` of a word that no binding, function or call claims; literal_type and shown_type give f64; codegen.c: expr_bare writes __builtin_nan("") and __builtin_inf(); editors/vscode grammar and tests/grammar.js; tests: run/float_words.k; documents/floatingpoint.md, grammar.md | kc reading nan and inf |
+| P274 | Details of #262 | selfhost/lex.k: a float's . and an exponent's sign; parse.k: Y_F64, `float64`; gen.k: word_no_case, float_word, float_tok, type_of and gen_expr of floats and the words, Y_F64 in put_ctype (double), put_elem_name, mangled, type_text, is_number_kind, plain_shown, kv_cstr_f64 in a value; sample.k prints floats; selfhost/README.md | float32 in kc |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
