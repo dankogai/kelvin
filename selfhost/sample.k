@@ -95,6 +95,8 @@ let sum_of(xs:$[int64]):int64 {
     return t
 }
 
+let peek(p:const int64^):int64 { return p^ }          // a const borrow, which &x of a let is (#272)
+
 let countdown(var n:int64):int64 {                     // a var parameter may change; a let one may not (#271)
     var steps = 0
     while n > 0 {
@@ -325,5 +327,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var basket = stock.copy()                         // d.remove(k) (#270)
     println(basket.remove("apple"), " ", basket.remove("kiwi"), " ", basket, " ", basket.has($"pear"))
     println(countdown(5), " ", countdown(0))
+    let fixed = 7
+    var loose = 8
+    println(peek(&fixed), " ", peek(&loose))
     return 0
 }

@@ -6046,3 +6046,18 @@ words. kelvinc tells one to write `var n` in a parameter list, so kc
 now takes `var` parameters too. Details are provisional P283.
 
 There are 897 tests, and all pass with clang and with gcc 15.
+
+### 316. kc's borrow of a let is const
+
+> teach kc &x of a let as a const borrow as #272
+
+**Claude** taught kc that `&x` of a let is a `const T^`, as kelvinc
+types it: a change through it is an error, and it goes where a
+`const T^` goes. kc found a hole in kelvinc: a let that owns is no C
+const, so `&s` of a let String goes where a `String^` goes and is
+changed there, `abc!`, and kelvinc has no `const $[T]^`. kc does as
+kelvinc does of an owner's borrow, so that a program builds with both,
+and refuses a scalar's, where kelvinc's C warns. Details are
+provisional P284.
+
+There are 897 tests, and all pass with clang and with gcc 15.

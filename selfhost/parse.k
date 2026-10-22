@@ -133,8 +133,8 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         if y.kind == kind && y.elem == elem {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
-            } else if kind == Y_DICT {
-                if y.name == name { return i }
+            } else if kind == Y_DICT || kind == Y_PTR {
+                if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272)
             } else {
                 return i
             }
@@ -314,7 +314,34 @@ let result_of(t:int64, e:int64):int64 {
 
 // ---------- types as written ----------
 
+let parse_type():int64    // a prototype: a type's parts are types
+let parse_bare_type():int64
+
+// T^ of y, its innermost pointer to a const T: const T^, a borrow through
+// which T does not change, as C's const T * (#272)
+let const_pointee(y:int64):int64 {
+    if types[y].kind != Y_PTR { return y }
+    let e:int64 = types[y].elem
+    if types[e].kind == Y_PTR { return type_of_kind(Y_PTR, const_pointee(e), types[y].name) }
+    return type_of_kind(Y_PTR, e, 1)
+}
+
+// const T^ and the rest (#272)
 let parse_type():int64 {
+    if at_word("const") {
+        advance()
+        let y = parse_bare_type()
+        var e = y
+        while types[e].kind == Y_PTR { e = types[e].elem }
+        if types[e].kind == Y_ARRAY || types[e].kind == Y_DICT {    // as kelvinc has it
+            parse_error("a qualifier of an Array or a Dictionary is the variable's: a let does not change")
+        }
+        return const_pointee(y)
+    }
+    return parse_bare_type()
+}
+
+let parse_bare_type():int64 {
     if at_word("$[") {
         advance()
         let elem:int64 = parse_type()

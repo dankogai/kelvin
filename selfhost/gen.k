@@ -145,6 +145,7 @@ let put_ctype(y:int64) {
         }                                                        // else a C header's typedef (#207)
         put_tok(types[y].name)
     case Y_PTR:
+        if types[y].name == 1 { put("const ") }         // const T^ (#272)
         put_ctype(types[y].elem)
         put(" *")
     case Y_ARGV: put("char **")
@@ -176,6 +177,7 @@ let declare_as(t:int64, y:int64, how:int64) {
 let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
+let changed_root(n:int64):int64    // and type_of of &x (#272)
 
 // how name t was declared, as sym.how: 1 a global let; 0 a var, or a
 // name of no variable
@@ -560,7 +562,11 @@ let type_of(n:int64):int64 {
         return type_of(nodes[n].a)
     }
     if k == N_CAST { return nodes[n].ty }
-    if k == N_ADDR { return type_of_kind(Y_PTR, type_of(nodes[n].a), -1) }
+    if k == N_ADDR {                                   // &x, a const T^ of a let (#272)
+        let r:int64 = changed_root(nodes[n].a)
+        let fixed = r >= 0 && how_declared(nodes[r].t) != 0
+        return type_of_kind(Y_PTR, type_of(nodes[n].a), fixed ? 1 : 0 - 1)
+    }
     if k == N_DEREF {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
@@ -589,6 +595,8 @@ let is_place(n:int64):bool    // a prototype: gen_args_to and gen_call ask it
 // the arguments of a call of the function d, each by its parameter's type
 // (#217); an owner it takes by value moves in, which it frees (#226): a
 // whole variable by _take, an owner an expression gives as it is
+let type_text(y:int64):String    // a prototype: gen_args_to names the types (#272)
+
 let gen_args_to(first:int64, d:int64) {
     var a:int64 = first
     var p:int64 = d >= 0 ? nodes[d].a : -1
@@ -604,6 +612,23 @@ let gen_args_to(first:int64, d:int64) {
             gen_error(a, "an owner moves into a function only as a whole variable: pass a borrow, &..., or a copy")
             return
         } else if p >= 0 {
+            let at = type_of(a)                         // a let's borrow where a T^ that may change it goes (#272),
+            let pt:int64 = nodes[p].ty                  // but of an owner, which kelvinc passes as it is: it has no const $[T]^
+            if at >= 0 && pt >= 0 && types[at].kind == Y_PTR && types[at].name == 1 && types[pt].kind == Y_PTR && types[pt].name != 1 && !is_owner(types[at].elem) {
+                var m = $"'"
+                m += tok_text(nodes[p].t)
+                m += "' of '"
+                m += tok_text(nodes[d].t)
+                m += "' is "
+                let w:String = type_text(pt)
+                m += &w
+                m += ", which may change what it borrows, and this is "
+                let v:String = type_text(at)
+                m += &v
+                m += ", a let's: write const in the parameter's type, or borrow a var"
+                gen_error(a, m.cstr)
+                return
+            }
             gen_value(a, nodes[p].ty)
             p = nodes[p].next
         } else {
@@ -2059,7 +2084,9 @@ let type_text(y:int64):String {
         s += "]"
         return s
     case Y_PTR:
-        var s = type_text(types[y].elem)
+        var s = types[y].name == 1 ? $"const " : $""     // (#272)
+        let e = type_text(types[y].elem)
+        s += &e
         s += "^"
         return s
     case Y_DICT:
@@ -2183,6 +2210,19 @@ let changed_root(n:int64):int64 {
 // a change of place n where its variable is a let is an error, in
 // kelvinc's words (#271); whether n may change
 let may_change(n:int64):bool {
+    var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
+    while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
+    if nodes[d].kind == N_DEREF {
+        let p:int64 = type_of(nodes[d].a)
+        if p >= 0 && types[p].kind == Y_PTR && types[p].name == 1 {
+            var s = $"this changes what a "
+            s += type_text(p)
+            s += " points to, a borrow of a let: borrow a var, or write the borrow's type without const"
+            gen_error(n, s.cstr)
+            return false
+        }
+        return true
+    }
     let r = changed_root(n)
     if r < 0 { return true }
     let how = how_declared(nodes[r].t)

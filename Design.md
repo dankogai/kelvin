@@ -303,6 +303,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 269 | kc walks a Dictionary as kelvinc does: `for k, v in d` each key and its value, `for k in d` each key, its live entries in the order added, lets the Dictionary owns; one an expression gives held for the loop; two names of anything else kelvinc's error | — | kc builds `for k, v in ages { }` | 2026-10-22 |
 | 270 | kc has `d.remove(k)`, as kelvinc: the entry gone, what it held freed, `true` where it was there; a String key an expression gives is held for `has`, `get` and `remove`, which wrote the address of a temporary before | — | kc builds `d.remove("bob")` | 2026-10-22 |
 | 271 | kc refuses changing a let, as kelvinc: assigning it, `+=`, its member or element, `pop` or `remove` of it, in kelvinc's words for a let, a let parameter, each element in turn (a loop's, an `if let`'s, a case's value) and a range's count; a change through a pointer is the pointee's; kc takes `var n:T` parameters | — | kc refuses `let x = 1; x = 2` | 2026-10-22 |
+| 272 | kc types `&x` of a let as a `const T^`, as kelvinc, C's `const T *`: a change through it is an error, and it goes where a `const T^` goes; a T^ parameter takes it where it borrows an owner, as kelvinc passes one; kc reads `const T^` and refuses `const $[T]^`, `const Dictionary^`, in kelvinc's words | — | kc refuses `let p := &x; p^ = 2` | 2026-10-22 |
 
 Notes:
 
@@ -864,6 +865,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (272) Agreed details: "teach kc &x of a let as a const borrow as
+  #272", #271's P283. A pointer type's name is 1 where it points to a
+  const T; kc reads `const T^`; type_of(&x) is one where x's variable is
+  a let, a parameter or an element. A change through it is kc's error;
+  kelvinc leaves it to C, "read-only variable is not assignable". kelvinc
+  emits a let that owns without C's const, cleanup frees it, so &s of a
+  let String goes where a String^ goes and is changed there, which kc
+  found: `n(&s)` of `let s = $"abc"` printing `abc!`; and kelvinc has no
+  `const $[T]^`. kc does as kelvinc does of an owner's borrow, and refuses
+  a scalar's or a plain struct's, where kelvinc's C warns. A hole in
+  kelvinc for a change of its own.
 
 - (271) Agreed details: "teach kc to refuse changing a let as #271",
   #270's P282. kc's scope entries, sym, keep how each name was
@@ -2911,6 +2924,7 @@ says "as agreed".
 | P281 | Details of #269 | selfhost/parse.k: `for k, v in`, S_EACH's b; gen.k: gen_each of a Dictionary, and its error; sample.k walks Dictionaries; selfhost/README.md | `d.remove(k)` in kc |
 | P282 | Details of #270 | selfhost/gen.k: type_of of d.remove, the has/get branch takes remove and holds a key that needs it; sample.k removes; selfhost/README.md | lets in kc: refusing to change one |
 | P283 | Details of #271 | selfhost/gen.k: sym.how, declare_as, how_declared, changed_root, may_change in gen_assign, pop and remove; each declaring site its kind; parse.k: `var` parameters; sample.k has a var parameter; selfhost/README.md | `&x` of a let a const borrow in kc |
+| P284 | Details of #272 | selfhost/parse.k: const_pointee, parse_type of `const`, its refusal of an Array's or a Dictionary's, type_of_kind tells a const pointer; gen.k: put_ctype and type_text of one, type_of of &x, may_change through `^`, gen_args_to's check; sample.k has a const parameter; selfhost/README.md | kelvinc: a let that owns changed through a T^ |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
