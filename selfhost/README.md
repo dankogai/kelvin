@@ -182,6 +182,8 @@ kc reads what it is written in, and little more.
   - `s | t`, `s & t` and `s ~ t`, the union, the intersection and what
     is in one alone, of two Sets in variables; `s |= t`, `s &= t` and
     `s ~= t` in place (#276).
+  - `s.elements`, an Array of copies in the order added, which a
+    variable then owns (#278).
 - **`|`, `&` and `~` of numbers** (#276), bitwise, `~` the XOR, C's `^`,
   between `&&` and `==` as C's; `|=`, `&=`, `~=`.
   - `for x in s`, in the order added, each a let the Set owns; printed
@@ -338,7 +340,7 @@ steps can take them on one at a time.
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
-  - a Set's `elements`; `union` and `typealias`;
+  - a Dictionary's `keys` and `values`; `union` and `typealias`;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;

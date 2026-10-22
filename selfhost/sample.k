@@ -352,5 +352,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     mixed &= digit_set
     mixed ~= odd_only
     println(digit_set & odd_only, " ", digit_set ~ odd_only, " ", mixed, " ", 12 | 10, " ", 12 & 10, " ", 12 ~ 10, " ", 1 | 2 & 3)
+    var listed = digit_set.elements                   // an Array of copies, in the order added (#278)
+    listed += 7
+    println(listed, " ", name_set.elements, " ", (digit_set | odd_only).elements.count, " ", digit_set.count)
     return 0
 }

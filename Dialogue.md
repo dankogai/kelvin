@@ -6126,3 +6126,15 @@ crashed reading the name of a pointer type. The other operators of a
 borrow already said so. Details are provisional P289.
 
 There are 904 tests, and all pass with clang and with gcc 15.
+
+### 322. kc has a Set's elements
+
+> teach kc Set elements as #278
+
+**Claude** taught kc `s.elements`, an Array of copies of a Set's
+elements in the order added, as kelvinc makes it. It works on a Set in
+a variable, on a temporary, and through a borrow. kc builds
+`return s^.elements`, which kelvinc wrongly refuses. Details are
+provisional P290.
+
+There are 904 tests, and all pass with clang and with gcc 15.
