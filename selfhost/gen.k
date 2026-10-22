@@ -88,6 +88,12 @@ let put_array_name(y:int64) {
 }
 
 // a Dictionary's name: _kv_dict_String_i64 (#211)
+// a Set's name: _kv_set_i64 (#274)
+let put_set_name(y:int64) {
+    put("_kv_set_")
+    put_elem_name(types[y].elem)
+}
+
 let put_dict_name(y:int64) {
     put("_kv_dict_")
     put_elem_name(types[y].name)
@@ -101,6 +107,7 @@ let put_owner_prefix(y:int64) {
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
     case Y_DICT: put_dict_name(y)
+    case Y_SET: put_set_name(y)
     case Y_STRUCT:                                 // an enum with values: _kv_T (#215)
         put("_kv_")
         put_tok(types[y].name)
@@ -137,6 +144,7 @@ let put_ctype(y:int64) {
     case Y_UCHR: put("kv_uchr")
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
+    case Y_SET: put_set_name(y)
     case Y_STRUCT:
         if decl_named(types[y].name, D_STRUCT) >= 0 || tagged_of(y) >= 0 {
             put("struct ")                                       // an enum with values too (#215)
@@ -463,6 +471,11 @@ let type_of(n:int64):int64 {
     }
     let t:int64 = nodes[n].t
     if k == N_NUM && float_tok(t) { return base_type(Y_F64) }      // (#262)
+    if k == N_SET {                                                   // ${a, b}: of a's type, a String's of text (#274)
+        let e:int64 = dict_key_type(type_of(nodes[n].b))
+        if e < 0 { return -1 }
+        return type_of_kind(Y_SET, e, -1)
+    }
     if k == N_DICT {                                                  // ${k: v}: of the first entry's types (#267)
         let ky:int64 = dict_key_type(type_of(nodes[n].b))
         let vy:int64 = type_of(nodes[nodes[n].b].next)
@@ -517,7 +530,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
-        if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) { return base_type(Y_I64) }
+        if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
         if yk == Y_IO { return base_type(Y_I32) }
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
@@ -541,6 +554,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
         if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
+        if (tok_is(t, "remove") || tok_is(t, "insert")) && types[y].kind == Y_SET { return base_type(Y_BOOL) }   // (#274)
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
@@ -667,8 +681,15 @@ let gen_place(n:int64) {
 }
 
 // a Dictionary's key: a String's text, as KV_DICT looks it up (#211)
+let gen_key_of(key:int64, k:int64)    // a prototype: a Set's element too (#274)
+
 let gen_key(y:int64, k:int64) {
-    let key:int64 = types[y].name
+    gen_key_of(types[y].name, k)
+}
+
+// k as a Dictionary's key or a Set's element of type key is asked for:
+// the text of a String's, else k (#274)
+let gen_key_of(key:int64, k:int64) {
     let ky:int64 = type_of(k)
     if types[key].kind == Y_STRING && ky >= 0 && types[ky].kind == Y_STRING {
         put("kv_bytes_cstr(&(")
@@ -785,6 +806,10 @@ let mangled(y:int64):String {
         var s = $"Dictionary_"
         s += mangled(types[y].name)
         s += "_"
+        s += mangled(types[y].elem)
+        return s
+    case Y_SET:
+        var s = $"Set_"
         s += mangled(types[y].elem)
         return s
     case Y_STRUCT:
@@ -995,7 +1020,7 @@ let plain_shown(v:int64):bool {
 // whether print shows y by a _kv_show_T of its own: an enum with values
 // (an Optional, a Result), a struct, an Array or a Dictionary (#268)
 let shown_by_type(y:int64):bool {
-    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT)
+    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET)
 }
 
 // whether print can show a value of y, an enum with values (an Optional, a
@@ -1004,7 +1029,7 @@ let shown_by_type(y:int64):bool {
 let need_show(y:int64, n:int64):bool {
     if shown_types.has(y) { return true }
     shown_types[y] = 1
-    if types[y].kind == Y_ARRAY || types[y].kind == Y_DICT {   // its elements (#230), its values (#268)
+    if types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET {   // its elements (#230, #274), its values (#268)
         let v = types[y].elem
         if !plain_shown(v) && !shown_by_type(v) {
             gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
@@ -1037,6 +1062,8 @@ let put_show_name(y:int64) {
         put_array_name(y)                                 // _kv_show__kv_array_i64 (#230)
     } else if types[y].kind == Y_DICT {
         put_dict_name(y)                                  // _kv_show__kv_dict_String_i64 (#268)
+    } else if types[y].kind == Y_SET {
+        put_set_name(y)                                   // _kv_show__kv_set_i64 (#274)
     } else {
         put_tok(types[y].name)
     }
@@ -1093,6 +1120,18 @@ let gen_show(y:int64) {
         put("        kv_out_sep(o, level, _kv_i == 0);\n        ")
         show_value(types[y].elem, "at[_kv_i]", 0 - 1, "_kv_nl")
         put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"]\");\n}\n\n")
+        return
+    }
+    if types[y].kind == Y_SET {                           // {3, 1, 4}, {} where empty, in the order added (#274)
+        put_set_name(y)
+        put(" *self = _kv_v;\n    __attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;\n")
+        put("    if (!self->count)\n    {\n        kv_out_put(o, \"{}\");\n        return;\n    }\n")
+        put("    kv_out_put(o, \"{\");\n    bool _kv_first = true;\n")
+        put("    for (size_t _kv_i = 0; _kv_i < self->len; _kv_i++)\n    {\n")
+        put("        if (!self->at[_kv_i].live)\n            continue;\n")
+        put("        kv_out_sep(o, level, _kv_first);\n        _kv_first = false;\n        ")
+        show_value(types[y].elem, "at[_kv_i].key", 0 - 1, "_kv_nl")
+        put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"}\");\n}\n\n")
         return
     }
     if types[y].kind == Y_DICT {                          // {"ann": 31}, {} where empty, in the order added (#268)
@@ -1265,7 +1304,7 @@ let gen_member(n:int64) {
         return
     }
     let yk:ykind = types[y].kind
-    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT) {
+    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         put("((int64_t)(")
         gen_expr(a)
         put(").count)")
@@ -1386,6 +1425,20 @@ let gen_method_of(n:int64) {
         put("_pop(")
         gen_place(a)
         put(")")
+    } else if yk == Y_SET && (tok_is(t, "has") || tok_is(t, "insert") || tok_is(t, "remove")) {   // s.has(x), s.insert(x), s.remove(x) (#274)
+        let key:int64 = nodes[n].b
+        if !tok_is(t, "has") && !may_change(a) { return }
+        let hold = needs_hold(key)                        // a String an expression gives, held for the call
+        if hold { hold_open(key) }
+        put_set_name(y)
+        put("_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        put(", ")
+        gen_key_of(types[y].elem, key)
+        put(")")
+        if hold { hold_close(key) }
     } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270)
         let key:int64 = nodes[n].b
         if tok_is(t, "remove") && !may_change(a) { return }   // (#271)
@@ -1655,6 +1708,50 @@ let gen_dict(n:int64, given:int64) {
     put("; })")
 }
 
+// ${a, b} (#274): a new Set, each element inserted in order, of y where
+// one is written, else of the elements' one type, text a String's; a
+// String an expression gives is held while it is copied in
+let gen_set(n:int64, first:int64, given:int64) {
+    var y = given
+    if y < 0 {
+        let e0:int64 = dict_key_type(type_of(first))
+        var e = nodes[first].next
+        while e >= 0 {
+            if dict_key_type(type_of(e)) != e0 {
+                gen_error(n, "the elements have no one type kc sees here: write the Set's type, as name:Set<T>")
+                return
+            }
+            e = nodes[e].next
+        }
+        y = type_of(n)
+        if y < 0 { return }
+    }
+    serial += 1
+    let s = serial
+    put("({ ")
+    put_set_name(y)
+    put(" _kv_s")
+    put_int(s)
+    put(" = {0}; ")
+    var e = first
+    while e >= 0 && !failed {
+        let hold = needs_hold(e)
+        if hold { hold_open(e) }
+        put_set_name(y)
+        put("_insert(&_kv_s")
+        put_int(s)
+        put(", ")
+        gen_key_of(types[y].elem, e)
+        put(")")
+        if hold { hold_close(e) }
+        put("; ")
+        e = nodes[e].next
+    }
+    put("_kv_s")
+    put_int(s)
+    put("; })")
+}
+
 let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_ARRAY && y >= 0 && types[y].kind == Y_ARRAY {   // $[a, b] of the type written (#266)
         gen_array(n, y)
@@ -1662,6 +1759,10 @@ let gen_value(n:int64, y:int64) {
     }
     if nodes[n].kind == N_DICT && y >= 0 && types[y].kind == Y_DICT {     // ${k: v} of the type written (#267)
         gen_dict(n, y)
+        return
+    }
+    if (nodes[n].kind == N_SET || nodes[n].kind == N_INIT) && y >= 0 && types[y].kind == Y_SET {   // ${a, b}, {a, b} (#274)
+        gen_set(n, nodes[n].b, y)
         return
     }
     if nodes[n].kind == N_STR && y >= 0 && types[y].kind == Y_STRING {   // a String of text where one goes (#234)
@@ -2033,6 +2134,8 @@ let gen_expr(n:int64) {
         gen_array(n, -1)
     } else if k == N_DICT {
         gen_dict(n, -1)
+    } else if k == N_SET {
+        gen_set(n, nodes[n].b, -1)
     } else {
         gen_error(n, "this expression is not known")
     }
@@ -2114,6 +2217,11 @@ let type_text(y:int64):String {
         var s = $"Dictionary<"
         s += type_text(types[y].name)
         s += ", "
+        s += type_text(types[y].elem)
+        s += ">"
+        return s
+    case Y_SET:
+        var s = $"Set<"
         s += type_text(types[y].elem)
         s += ">"
         return s
@@ -2321,6 +2429,28 @@ let gen_assign(n:int64) {
         put(", ")
         gen_expr(nodes[n].b)
         put(");\n")
+    } else if yk == Y_SET && tok_is(t, "+=") {           // s += x inserts x, s += &t t's elements (#274)
+        let v:int64 = nodes[n].b
+        let vy = type_of(v)
+        if vy >= 0 && types[vy].kind == Y_PTR && types[vy].elem == y {
+            put_set_name(y)
+            put("_insert_all(")
+            gen_place(lhs)
+            put(", ")
+            gen_expr(v)
+            put(");\n")
+        } else {
+            let hold = needs_hold(v)
+            if hold { hold_open(v) }
+            put_set_name(y)
+            put("_insert(")
+            gen_place(lhs)
+            put(", ")
+            gen_key_of(types[y].elem, v)
+            put(")")
+            if hold { hold_close(v) }
+            put(";\n")
+        }
     } else if yk == Y_ARRAY && tok_is(t, "+=") {
         put_array_name(y)
         put("_append(")
@@ -2433,7 +2563,8 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         held[src] = h
     }
-    if types[y].kind == Y_DICT {                       // for k, v in d, for k in d (#269): each live entry in the order added
+    let keyed = types[y].kind == Y_SET ? types[y].elem : types[y].name    // a Set's element, as a Dictionary's key (#274)
+    if types[y].kind == Y_DICT || types[y].kind == Y_SET {   // for k, v in d, for k in d (#269), for x in s (#274): each live entry in the order added
         put("for (size_t _kv_i")
         put_int(serial)
         put(" = 0; _kv_i")
@@ -2452,7 +2583,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("].live) continue;\n")
         indent(depth + 2)
-        put_ctype(types[y].name)                      // the key and the value, lets the Dictionary owns
+        put_ctype(keyed)                              // the key and the value, lets the Dictionary owns
         put(" ")
         put_tok(nodes[n].t)
         put(" = (")
@@ -2461,7 +2592,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("].key;\n")
         open_scope()
-        declare_as(nodes[n].t, types[y].name, 3)          // (#271)
+        declare_as(nodes[n].t, keyed, 3)                  // (#271)
         if nodes[n].b >= 0 {
             indent(depth + 2)
             put_ctype(types[y].elem)
@@ -3214,6 +3345,24 @@ let write_type(y:int64) {
         }
         put_free_copy(value)
         put(")\n")
+    } else if k == Y_SET {                            // as kelvinc's set_args (#274)
+        let e:int64 = types[y].elem
+        write_type(e)
+        put("KV_SET(")
+        if types[e].kind == Y_STRING {
+            put("kv_string, const uint8_t *, ")
+        } else {
+            put_ctype(e)
+            put(", ")
+            put_ctype(e)
+            put(", ")
+        }
+        put_set_name(y)
+        if types[e].kind == Y_STRING {
+            put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_LK_TEXT, kv_string_free, kv_string_copy)\n")
+        } else {
+            put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_LK_INT, KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
+        }
     } else if k == Y_STRUCT {
         let d = decl_named(types[y].name, D_STRUCT)
         if d >= 0 {
@@ -3301,6 +3450,7 @@ let gen_program() {
     }
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }
     for i in 0..<dicts.count as int64 { write_type(dicts[i]) }
+    for i in 0..<sets.count as int64 { write_type(sets[i]) }     // (#274)
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
@@ -3361,6 +3511,7 @@ let gen_program() {
     out = head.copy()
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
     for i in 0..<dicts.count as int64 { write_type(dicts[i]) }     // and the Dictionaries of ${k: v} (#267)
+    for i in 0..<sets.count as int64 { write_type(sets[i]) }       // and the Sets of ${a, b} (#274)
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }

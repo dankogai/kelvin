@@ -6076,3 +6076,17 @@ all there was. No test, module or example changed a let so. kc does the
 same, in the same words. Details are provisional P285.
 
 There are 903 tests, and all pass with clang and with gcc 15.
+
+### 318. kc reads Sets
+
+> teach kc const Set<T>^ borrows as #274
+
+**Claude** found that kc had no Set at all, and asked how far to go;
+the user chose the basics with the borrow. kc now has `Set<T>` of
+integers or Strings, as kelvinc: `${a, b}`, `${}`, `{a, b}` where the
+type is written, `insert`, `+=`, `has`, `remove`, `count`, `copy`,
+`for x in s`, printing; a let's does not change, and `const Set<T>^`
+borrows one that reads, in kelvinc's words. sample.k has Sets, so the
+bootstrap checks them. Details are provisional P286.
+
+There are 903 tests, and all pass with clang and with gcc 15.

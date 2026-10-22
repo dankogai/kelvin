@@ -23,6 +23,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_EMPTY,    // $[]
     N_ARRAY,    // $[b...], an Array of its elements (#266)
     N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
+    N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
     N_TYPE,     // IO or String called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order
     N_NULL,     // nullptr
@@ -67,6 +68,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_UCHR,
     Y_ARRAY,
     Y_DICT,     // a Dictionary: its value elem, its key name (#211)
+    Y_SET,      // a Set: its element elem (#274)
     Y_STRUCT,
     Y_PTR,
     Y_ARGV,     // [cstr], main's argv
@@ -104,7 +106,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT
+        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET
     }
 }
 
@@ -113,6 +115,7 @@ var types:$[ty]
 var decls:$[int64]         // the top-level declarations, in order
 var arrays:$[int64]        // every Array type, in the order they are met
 var dicts:$[int64]         // every Dictionary type, so (#211)
+var sets:$[int64]          // every Set type, so (#274)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
@@ -145,6 +148,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
     types += y
     if kind == Y_ARRAY { arrays += types.count as int64 - 1 }
     if kind == Y_DICT { dicts += types.count as int64 - 1 }
+    if kind == Y_SET { sets += types.count as int64 - 1 }
     return types.count as int64 - 1
 }
 
@@ -268,6 +272,11 @@ let type_word(y:int64):String {
         var e = type_word(types[y].elem)
         s += &e
         return s
+    case Y_SET:
+        var s = $"Set_"
+        var e = type_word(types[y].elem)
+        s += &e
+        return s
     case Y_STRUCT: return tok_text(types[y].name)
     default: return $"T"
     }
@@ -331,8 +340,12 @@ let parse_type():int64 {
     if at_word("const") {
         advance()
         let y = parse_bare_type()
-        if types[y].kind != Y_PTR && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT) {   // as kelvinc has it (#273)
+        if types[y].kind == Y_ARRAY {               // as kelvinc has it of each spelling, $[T] (#273, #274)
             parse_error("a qualifier of an Array or a Dictionary is the variable's: a let does not change")
+        } else if types[y].kind == Y_DICT {
+            parse_error("a qualifier of a Dictionary is the variable's: a let does not change")
+        } else if types[y].kind == Y_SET {
+            parse_error("a qualifier of a Set is the variable's: a let does not change")
         }
         return const_pointee(y)
     }
@@ -403,6 +416,11 @@ let parse_bare_type():int64 {
         let error = parse_type()
         expect(">")
         y = result_of(value, error)
+    } else if tok_is(t, "Set") {                 // Set<T> (#274)
+        expect("<")
+        let elem:int64 = parse_type()
+        expect(">")
+        y = type_of_kind(Y_SET, elem, -1)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
         let key:int64 = parse_type()
@@ -450,6 +468,30 @@ let parse_args():int64 {
     name_annotation = saved
     expect(")")
     return first
+}
+
+// whether ${ at the cursor's left begins a Set, ${a, b}: no : at the
+// first element's level before its , or } (#274)
+let set_ahead():bool {
+    var i:int64 = pos
+    var depth:int64 = 0
+    while i < toks.count as int64 {
+        let k:tkind = toks[i].kind
+        if k == T_PUNCT && (tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "{") || tok_is(i, "$[") || tok_is(i, "${")) {
+            depth += 1
+        } else if k == T_PUNCT && (tok_is(i, ")") || tok_is(i, "]") || tok_is(i, "}")) {
+            if depth == 0 { return true }
+            depth -= 1
+        } else if depth == 0 && k == T_PUNCT && tok_is(i, ",") {
+            return true
+        } else if depth == 0 && k == T_PUNCT && tok_is(i, ":") {
+            return false
+        } else if depth == 0 && k == T_PUNCT && tok_is(i, "?") {
+            return false                        // c ? a : b in a key: a Dictionary's, as before
+        }
+        i += 1
+    }
+    return true
 }
 
 let parse_primary():int64 {
@@ -510,6 +552,30 @@ let parse_primary():int64 {
             advance()
             expect("}")
             return make_node(N_EMPTY, t)
+        }
+        if at_word("}") {                           // ${}, an empty Set (#274)
+            advance()
+            return make_node(N_EMPTY, t)
+        }
+        if set_ahead() {                            // ${a, b}, a Set (#274)
+            let n:int64 = make_node(N_SET, t)
+            var last = -1
+            while !failed {
+                let e:int64 = parse_expr()
+                if last < 0 {
+                    nodes[n].b = e
+                } else {
+                    nodes[last].next = e
+                }
+                last = e
+                skip_newlines()
+                if !at_word(",") { break }
+                advance()
+                skip_newlines()
+                if at_word("}") { break }
+            }
+            expect("}")
+            return n
         }
         let n:int64 = make_node(N_DICT, t)          // ${k: v} (#267)
         let saved = name_annotation

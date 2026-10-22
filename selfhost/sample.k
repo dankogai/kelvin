@@ -96,6 +96,11 @@ let sum_of(xs:$[int64]):int64 {
 }
 
 let peek(p:const int64^):int64 { return p^ }          // a const borrow, which &x of a let is (#272)
+let has_even(s:const Set<int64>^):bool {              // a const Set<T>^ (#274)
+    for x in s^ { if x % 2 == 0 { return true } }
+    return false
+}
+
 let largest(xs:const $[int64]^):int64 {               // of an owner too, as kelvinc since #273
     var m:int64 = 0
     for x in xs^ { if x > m { m = x } }
@@ -335,5 +340,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     let fixed = 7
     var loose = 8
     println(peek(&fixed), " ", peek(&loose), " ", largest(&primes), " ", largest(&fibs))
+    var digit_set = ${3, 1, 4, 1, 5}                     // Sets (#274)
+    digit_set += 9
+    let fresh = digit_set.insert(2)
+    let odd_only:Set<int64> = {1, 3}
+    var name_set:Set<String> = ${}
+    name_set += "kelvin"
+    println(digit_set, " ", digit_set.count, " ", digit_set.has(4), " ", digit_set.remove(1), " ", fresh, " ", name_set, " ", has_even(&digit_set), " ", has_even(&odd_only))
     return 0
 }

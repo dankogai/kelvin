@@ -171,6 +171,15 @@ kc reads what it is written in, and little more.
   each converted, text into a String, `{a, b}` into a struct.
   - Elements of more than one type are an error, as kelvinc's, and so
     is an owner a variable holds, which `=` would copy.
+- **`Set<T>`** (#274) of integers or Strings, as kelvinc's: `${a, b}`,
+  of the first element's type, a text's a String's; `${}` and `{a, b}`
+  where the type is written.
+  - `s.insert(x)` and `s += x`, `true` where it was new; `s += &t`, t's
+    elements; `s.has(x)`; `s.remove(x)`, `true` where it was there;
+    `s.count`; `s.copy()`.
+  - `for x in s`, in the order added, each a let the Set owns; printed
+    as kelvinc prints it, `{3, 1, 4}`, `{}` where empty.
+  - A let does not change, and `const Set<T>^` borrows one that reads.
 - **`${k: v}`** (#267), a Dictionary of its entries, set in order, a
   later key's value winning: of the first entry's types, a text key a
   String's, as kelvinc's, or of the type written, each converted.
@@ -322,7 +331,8 @@ steps can take them on one at a time.
   - attributes, subscripts and operators of `extend`;
   - anonymous and nested functions, and function types;
   - templates, `"""` and `$/.../` with its check;
-  - `Set`, `union` and `typealias`;
+  - a Set's `union`, `intersection`, `difference`, its `|`, `&`, `~`
+    and their `=` forms, and `elements`; `union` and `typealias`;
   - integers but `int64`, `int32`, `uint8` and `uint32`;
   - the bitwise operators, `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
