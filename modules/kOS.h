@@ -8,11 +8,6 @@
 #include "kelvin_prelude.h"
 
 struct kv_io; /* an IO, kIO.h's: OS.mkstemp fills one */
-void kv_sys_init(int argc, char **argv);
-int kv_sys_argc_n(void);
-char **kv_sys_argv_p(void);
-const uint8_t *kv_sys_platform(void);
-void kv_sys_exit(int code);
 int kv_os_cwd(kv_string *out);
 int kv_os_chdir(const void *path);
 const uint8_t *kv_os_env(const void *name);

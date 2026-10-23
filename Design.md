@@ -333,6 +333,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 299 | A String holds a NUL, a cstr not: a literal made a String is every byte of it, `$"\x00mid"` four codepoints; `s.escape()` writes a NUL as `\u{0}`, and `unescape()` reads past one, so `"\x00mid".unescape().escape()` is `\u{0}mid` and reads back | — | `$"\x00mid".count` is 4 | 2026-10-23 |
 | 300 | kc has a String's `escape()` and `unescape()`, new Strings, as kelvinc's: `kv_string_escape` and `kv_string_unescape` of the runtime in Kelvin, a NUL too; an argument is kelvinc's error | — | kc builds `s.escape().unescape()` | 2026-10-23 |
 | 301 | libkOS is built from Kelvin too: runtime/os.k, by kelvinc --runtime, beside runtime/os.c, whose C it takes over a group at a time; the first, twenty: the working directory, the environment, files by path, the process ids, umask and kill | — | `OS.cwd` of runtime/os.k | 2026-10-23 |
+| 302 | `SYS` is the prelude's: `SYS.argv`, `SYS.platform` and `SYS.exit` with no import, in libkelvin, where it came with OS, a module; `main` gives it its arguments where the program names SYS | — | `println(SYS.argv.count)` without `#import <OS>` | 2026-10-23 |
 
 Notes:
 
@@ -894,6 +895,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (302) Agreed details: "move SYS to the prelude as #302", the user's
+  request of #301: SYS without `#import <OS>`.
+  - SYS's five functions, kv_sys_init, argc_n, argv_p, platform and
+    exit, move from runtime/os.c to runtime/sys.c, in libkelvin, and
+    their declarations from kOS.h to kelvin_prelude.h, which kOS.h
+    includes. kv_sys_platform stays C: it picks its name with `#if`, at
+    compile time, which Kelvin, with no preprocessor (#296), has not.
+  - require_module asks for OS alone; a `SYS.` read sets uses_sys, and
+    main calls kv_sys_init where the program imports OS or names SYS.
+  - tests/error/sys_needs_import.k, "SYS comes with OS", goes; a run
+    test, tests/run/sys_prelude.k, has SYS with no import.
 
 - (301) Agreed details: "build libkOS from Kelvin with a first group as
   #301", after the user asked whether moving OS to Kelvin meant a
@@ -3382,6 +3395,7 @@ says "as agreed".
 | P311 | Details of #299 | kelvin_prelude.h: KV_STRING_LIT; runtime/string.k: kv_string_lit, escape, unescape; codegen.c: String literals; selfhost/gen.k: its four; tests: run/string_nul.k and ten updated; documents/strings.md, selfhost/README.md | |
 | P312 | Details of #300 | selfhost/gen.k: type_of and gen of escape and unescape; sample.k uses them; selfhost/README.md | |
 | P313 | Details of #301 | runtime/os.k; runtime/os.c loses twenty; GNUmakefile: OS_K_OBJ in libkOS; tests: run/os_kelvin_group1.k; README.md, selfhost/README.md | the rest of OS in groups; SYS to the prelude (#302) |
+| P314 | Details of #302 | runtime/sys.c; runtime/os.c, modules/kOS.h lose SYS; kelvin_prelude.h; parser.c: require_module, uses_sys; codegen.c: main's kv_sys_init; tests: run/sys_prelude.k for error/sys_needs_import.k; documents/os.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

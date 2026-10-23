@@ -1,5 +1,5 @@
-/* os.c - OS and SYS (#94): the system around the program, and the
-   program itself, as the prelude's namespaces: no import. Each call is
+/* os.c - OS (#94): the system around the program, a module (#145); SYS,
+   the program itself, is the prelude's, in runtime/sys.c (#302). Each call is
    C's, with errno given back where C sets it, 0 where it does not. A
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
    working directory, the environment, files by path, the process ids. */
@@ -26,42 +26,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-/* ---------- SYS: the program ---------- */
-
-static int sys_argc;
-static char **sys_argv;
-
-void kv_sys_init(int argc, char **argv) {
-    sys_argc = argc;
-    sys_argv = argv;
-}
-
-int kv_sys_argc_n(void) { return sys_argc; }
-char **kv_sys_argv_p(void) { return sys_argv; }
-
-const uint8_t *kv_sys_platform(void) {
-#if defined(__APPLE__)
-    return (const uint8_t *)"macos";
-#elif defined(__linux__)
-    return (const uint8_t *)"linux";
-#elif defined(__FreeBSD__)
-    return (const uint8_t *)"freebsd";
-#elif defined(__OpenBSD__)
-    return (const uint8_t *)"openbsd";
-#elif defined(__NetBSD__)
-    return (const uint8_t *)"netbsd";
-#elif defined(_WIN32)
-    return (const uint8_t *)"windows";
-#else
-    return (const uint8_t *)"unknown";
-#endif
-}
-
-void kv_sys_exit(int code) {
-    fflush(NULL);
-    exit(code);
-}
 
 /* ---------- OS: the system around it ---------- */
 

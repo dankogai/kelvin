@@ -45,6 +45,13 @@
    with status 1; with KELVIN_ABORT set in the environment it aborts instead,
    for a debugger or a core */
 void kv_exit_failure(void);
+/* SYS (#94), the prelude's (#302): the program's arguments, given by main,
+   its platform and its exit */
+void kv_sys_init(int argc, char **argv);
+int kv_sys_argc_n(void);
+char **kv_sys_argv_p(void);
+const uint8_t *kv_sys_platform(void);
+void kv_sys_exit(int code);
 
 /* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
 

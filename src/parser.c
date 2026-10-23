@@ -198,15 +198,15 @@ static bool module_imported(const char *name) {
     return false;
 }
 
-/* IO (#144) and OS with SYS (#145) are modules: a program imports them */
+/* IO (#144) and OS (#145) are modules: a program imports them; SYS, the
+   program itself, is the prelude's (#302) */
 static void require_module(const char *name, Pos pos) {
-    bool sys = !strcmp(name, "SYS");
-    if (module_imported(sys ? "OS" : name))
+    if (module_imported(name))
         return;
-    if (sys)
-        error_at(pos, "SYS comes with OS, a module: write '#import <OS>' at the top of the file");
     error_at(pos, "%s is a module: write '#import <%s>' at the top of the file", name, name);
 }
+
+bool uses_sys; /* a SYS.name read: main gives kv_sys_init its arguments (#302) */
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
 static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
 static Decl *filter_fn;               /* the function of a .filter being parsed, so named in a message (#239) */
@@ -3524,8 +3524,10 @@ static Expr *parse_primary(void) {
         e->type = base_type("IO", t->pos);
         return e;
     }
-    if ((is_kw(t, "OS") || is_kw(t, "SYS")) && is_p(peek2(), "."))
-        require_module(is_kw(t, "OS") ? "OS" : "SYS", t->pos);
+    if (is_kw(t, "OS") && is_p(peek2(), "."))
+        require_module("OS", t->pos);
+    if (is_kw(t, "SYS") && is_p(peek2(), "."))
+        uses_sys = true;
     if (is_kw(t, "OS") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT && !strcmp(peek_at(2)->text, "mkstemp") &&
         !module_imported("IO"))
         error_at(t->pos, "OS.mkstemp gives an IO, a module: write '#import <IO>' at the top of the file");

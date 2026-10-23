@@ -1,16 +1,17 @@
 # OS and SYS: the system, and the program
 
 `OS` is the system around the program and `SYS` the program itself,
-two namespaces (#94), after Python's `os` and `sys`, of one module,
-`#import <OS>` (#145): `OS.cwd`, `OS.listdir(path)`, `SYS.argv`. Each is C's call
+two namespaces (#94), after Python's `os` and `sys`: `OS` a module,
+`#import <OS>` (#145), `OS.cwd`, `OS.listdir(path)`, and `SYS` the
+prelude's, with no import (#302), `SYS.argv`. Each is C's call
 underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
 that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
 so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 
-**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` and `SYS` are `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` and `SYS` are errors that say to write it.
+**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` is `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` is an error that says to write it. `SYS` is the prelude's (#302): runtime/sys.c in `libkelvin`, declared by `kelvin_prelude.h`, with no import.
 
 ```swift
-#import <IO>                                // brings OS and SYS in too; #import <OS> alone for them
+#import <IO>                                // brings OS in too; #import <OS> alone for it; SYS needs none
 
 let main():int32 {
     var args = SYS.argv                     // Array<cstr>: the program and its arguments
@@ -26,6 +27,9 @@ let main():int32 {
 ```
 
 ## `SYS`: the program
+
+- **The prelude's** (#302): `SYS` needs no import, where it came with
+  `OS` (#145); `main` gives it the program's arguments.
 
 - **`SYS.argv`** is the program's arguments, `argv[0]` the program, as
   an `Array<cstr>` made from C's `argv`: an owner, so bind it.

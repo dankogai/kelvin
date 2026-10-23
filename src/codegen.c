@@ -3451,7 +3451,7 @@ static void emit_decl(Decl *d) {
             count_names = (List){0};
             find_counts_stmt(d->body);
             param_caches.len = count_cache.len = owner_locals.len = 0;
-            if (!d->recv && !d->anon && !strcmp(d->name, "main") && imports_module("OS")) /* SYS.argv (#94): the OS module's (#145) */
+            if (!d->recv && !d->anon && !strcmp(d->name, "main") && (imports_module("OS") || uses_sys)) /* SYS.argv (#94), the prelude's (#302) */
                 list_push(&param_caches, d->params.len >= 2
                                              ? strfmt("kv_sys_init(%s, %s);", c_name(((Var *)d->params.data[0])->name),
                                                       c_name(((Var *)d->params.data[1])->name))

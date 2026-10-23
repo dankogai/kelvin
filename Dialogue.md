@@ -6448,3 +6448,14 @@ prints the same as the C did. Moving SYS to the prelude is to be #302.
 Details are provisional P313.
 
 There are 935 tests, and all pass with clang and with gcc 15.
+
+### 346. SYS is the prelude's
+
+> move SYS to the prelude as #302
+
+**Claude** moved SYS from libkOS into libkelvin, its declarations into
+kelvin_prelude.h, and had kelvinc ask no import for it, with main
+giving it the program's arguments where the program names it. Details
+are provisional P314.
+
+There are 935 tests, and all pass with clang and with gcc 15.

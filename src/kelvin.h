@@ -299,6 +299,7 @@ typedef struct {
 } Program;
 
 extern bool lib_mode;            /* kelvinc --lib (#146): the file becomes libkM, with no main */
+extern bool uses_sys;            /* SYS read (#302): main gives kv_sys_init its arguments */
 extern bool runtime_mode;        /* kelvinc --runtime (#289): a file of the runtime, its kv_ names its own */
 char *gen_header(Program *prog); /* its M.kh: the declarations, the bodies dropped (#146) */
 
