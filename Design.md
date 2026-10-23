@@ -336,6 +336,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 302 | `SYS` is the prelude's: `SYS.argv`, `SYS.platform` and `SYS.exit` with no import, in libkelvin, where it came with OS, a module; `main` gives it its arguments where the program names SYS | — | `println(SYS.argv.count)` without `#import <OS>` | 2026-10-23 |
 | 303 | OS's stat, lstat, exists, isdir, isfile and islink are written in Kelvin in runtime/os.k, in place of their C, a C `struct stat` held as `var st:struct stat` | — | `OS.stat(path)` of runtime/os.k | 2026-10-23 |
 | 304 | OS's listdir, walk and glob are written in Kelvin in runtime/os.k, in place of their C: Kelvin Arrays, sorted with String's `<`, handed to the caller as kOS.h has it, a buffer of Strings, calloc's | — | `OS.walk(path)` of runtime/os.k | 2026-10-23 |
+| 305 | OS's user, username, groupname, groups, chown and lchown are written in Kelvin in runtime/os.k, in place of their C | — | `OS.username(uid)` of runtime/os.k | 2026-10-23 |
 
 Notes:
 
@@ -897,6 +898,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (305) Agreed details: "move OS users and groups to Kelvin as #305",
+  #301's fourth group: kv_os_user, username, groupname and groups, and
+  chown and lchown, a file's user and group; host waits for the
+  system's group.
+  - getpwuid's and getgrgid's names are copied out, `String(pw^.pw_name
+    as cstr)`, as the next lookup overwrites them; the caller's String
+    is zeroed.
+  - groups: getgroups into a gid_t buffer, then an int32 one, malloc's,
+    which the caller takes over and frees, as kOS.h has it.
+  - A program of each, a missing id and EPERM of chown to root among
+    them, prints the same with the C and the Kelvin, and leaks finds
+    none; tests/run/os_kelvin_group4.k compares what differs between
+    systems, group 0 "wheel" or "root", and passes over EPERM as root.
 
 - (304) Agreed details: "move OS directories, walk and glob to Kelvin as
   #304", #301's third group: kv_os_listdir, walk and glob, and os.c's
@@ -3439,6 +3454,7 @@ says "as agreed".
 | P314 | Details of #302 | runtime/sys.c; runtime/os.c, modules/kOS.h lose SYS; kelvin_prelude.h; parser.c: require_module, uses_sys; codegen.c: main's kv_sys_init; tests: run/sys_prelude.k for error/sys_needs_import.k; documents/os.md | |
 | P315 | Details of #303 | runtime/os.k: fill_stat, is_mode, stat, lstat, exists, isdir, isfile, islink; runtime/os.c loses them; tests: run/os_kelvin_group2.k; README.md | the rest of OS in groups |
 | P316 | Details of #304 | runtime/os.k: hand_over, names_in, listdir, walk_into, walk, glob; runtime/os.c loses them; tests: run/os_kelvin_group3.k, asan/count.c and asan.sh count calloc; README.md | the rest of OS in groups |
+| P317 | Details of #305 | runtime/os.k: user, username, groupname, groups, chown, lchown; runtime/os.c loses them; tests: run/os_kelvin_group4.k; README.md | the rest of OS in groups |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

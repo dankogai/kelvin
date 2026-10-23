@@ -4,7 +4,7 @@
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
    working directory, the environment, files by path, the process ids;
    stat and the existence checks (#303); directories, walk and glob
-   (#304). */
+   (#304); users and groups, and a file's owner (#305). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -92,15 +92,6 @@ int kv_os_makedirs(const void *path) {
     return dir ? 0 : ENOTDIR;
 }
 
-/* the names are copied out of getpwuid's and getgrgid's static storage,
-   which the next lookup overwrites (#99) */
-bool kv_os_user(kv_string *out) {
-    struct passwd *pw = getpwuid(getuid());
-    if (!pw)
-        return false;
-    *out = kv_string_text(pw->pw_name);
-    return true;
-}
 
 int kv_os_host(kv_string *out) {
     char buf[256];
@@ -303,32 +294,6 @@ int kv_os_touch(const void *path) {
     return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
 }
 
-/* ---------- a file's owner (#99) ---------- */
-
-int kv_os_chown(const void *path, int uid, int gid) {
-    return chown((const char *)path, (uid_t)uid, (gid_t)gid) == 0 ? 0 : err_or(EIO);
-}
-
-int kv_os_lchown(const void *path, int uid, int gid) {
-    return lchown((const char *)path, (uid_t)uid, (gid_t)gid) == 0 ? 0 : err_or(EIO);
-}
-
-bool kv_os_username(int uid, kv_string *out) {
-    struct passwd *pw = getpwuid((uid_t)uid);
-    if (!pw)
-        return false;
-    *out = kv_string_text(pw->pw_name);
-    return true;
-}
-
-bool kv_os_groupname(int gid, kv_string *out) {
-    struct group *gr = getgrgid((gid_t)gid);
-    if (!gr)
-        return false;
-    *out = kv_string_text(gr->gr_name);
-    return true;
-}
-
 /* ---------- what Python's os has beyond these (#102) ---------- */
 
 extern char **environ;
@@ -354,33 +319,6 @@ int kv_os_environ(kv_string **out, size_t *count) {
     }
     *out = at;
     *count = n;
-    return 0;
-}
-
-/* the groups the user is in, as getgroups gives them */
-int kv_os_groups(int32_t **out, size_t *count) {
-    int n = getgroups(0, NULL);
-    if (n < 0)
-        return err_or(EIO);
-    gid_t *gs = malloc((size_t)(n ? n : 1) * sizeof *gs);
-    if (!gs)
-        return ENOMEM;
-    n = getgroups(n, gs);
-    if (n < 0) {
-        int e = err_or(EIO);
-        free(gs);
-        return e;
-    }
-    int32_t *at = malloc((size_t)(n ? n : 1) * sizeof *at);
-    if (!at) {
-        free(gs);
-        return ENOMEM;
-    }
-    for (int i = 0; i < n; i++)
-        at[i] = (int32_t)gs[i];
-    free(gs);
-    *out = at;
-    *count = (size_t)n;
     return 0;
 }
 

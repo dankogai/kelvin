@@ -13,6 +13,8 @@
 #import <string.h> as C
 #import <dirent.h> as C
 #import <glob.h> as C
+#import <pwd.h> as C
+#import <grp.h> as C
 
 // errno where C set one, else otherwise
 static let err_or(otherwise:int32):int32 {
@@ -215,3 +217,62 @@ let kv_os_glob(pattern:const any^, out:String^^, count:size_t^):int32 {
     hand_over(&paths, out, count)
     return 0
 }
+
+// ---------- users and groups, and a file's owner (#305) ----------
+
+// OS.user: the user's name into out, or false where there is none; the
+// name copied out of getpwuid's storage, which the next lookup overwrites
+let kv_os_user(out:String^):bool {
+    let pw:struct passwd^ := getpwuid(getuid())
+    if pw == nullptr { return false }
+    out^ = String(pw^.pw_name as cstr)
+    return true
+}
+
+// OS.username(uid), OS.groupname(gid): the names of ids, as OS.user's
+let kv_os_username(uid:int32, out:String^):bool {
+    let pw:struct passwd^ := getpwuid(uid)
+    if pw == nullptr { return false }
+    out^ = String(pw^.pw_name as cstr)
+    return true
+}
+
+let kv_os_groupname(gid:int32, out:String^):bool {
+    let gr:struct group^ := getgrgid(gid)
+    if gr == nullptr { return false }
+    out^ = String(gr^.gr_name as cstr)
+    return true
+}
+
+// OS.groups: the groups the user is in, as getgroups gives them, in a
+// buffer of int32s, malloc's, which the caller takes over and frees
+let kv_os_groups(out:int32^^, count:size_t^):int32 {
+    let n:int32 = getgroups(0, nullptr)
+    if n < 0 { return err_or(EIO) }
+    var room:size_t = 1
+    if n > 0 { room = n as size_t }
+    let gs:gid_t^ := malloc(room * sizeof(gid_t)) as gid_t^
+    if gs == nullptr { return ENOMEM }
+    let got:int32 = getgroups(n, gs)
+    if got < 0 {
+        let e = err_or(EIO)
+        free(gs)
+        return e
+    }
+    let at:int32^ := malloc(room * sizeof(int32_t)) as int32^
+    if at == nullptr {
+        free(gs)
+        return ENOMEM
+    }
+    for i in 0..<got {
+        at[i] = gs[i] as int32
+    }
+    free(gs)
+    out^ := at
+    count^ = got as size_t
+    return 0
+}
+
+// OS.chown(path, uid, gid), OS.lchown(...): a file's owner, a link's own
+let kv_os_chown(path:const any^, uid:int32, gid:int32):int32 { done(chown(path, uid, gid), EIO) }
+let kv_os_lchown(path:const any^, uid:int32, gid:int32):int32 { done(lchown(path, uid, gid), EIO) }

@@ -6494,3 +6494,13 @@ tree of awkward names prints the same as the C did. Details are
 provisional P316.
 
 There are 937 tests, and all pass with clang and with gcc 15.
+
+### 350. OS's users and groups in Kelvin
+
+> move OS users and groups to Kelvin as #305
+
+**Claude** moved OS's user, username, groupname, groups, chown and lchown
+into runtime/os.k, and a program of each prints the same as the C did.
+Details are provisional P317.
+
+There are 938 tests, and all pass with clang and with gcc 15.
