@@ -267,7 +267,7 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
     environment, files by path and the process ids; stat and the
     existence checks (#303); directories, walk and glob (#304); users,
     groups and a file's owner (#305); paths (#306); processes and time
-    (#309) so far.
+    (#309); temporary files (#310) so far.
 
 ## Editors
 

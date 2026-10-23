@@ -4,6 +4,7 @@
 // Each call is C's, libc's, with errno given back where C sets it and a
 // default where it does not, as os.c's err_or. The helpers are static.
 #import <kOS.h> as C
+#import <kIO.h> as C
 #import <errno.h> as C
 #import <stdio.h> as C
 #import <stdlib.h> as C
@@ -553,4 +554,84 @@ let kv_os_touch(path:const any^):int32 {
     now_both(&ts[0])
     now_both(&ts[1])
     return done(utimensat(AT_FDCWD, path, &ts[0], 0), EIO)
+}
+
+// ---------- temporary files (#310) ----------
+
+static var tmpdir_text:[u8](4096)
+
+// OS.tmpdir: TMPDIR, or /tmp, without a trailing /, which macOS's TMPDIR
+// has, in a buffer of this file's
+let kv_os_tmpdir():cstr {
+    var t:cstr := getenv("TMPDIR")
+    if t == nullptr || t[0] == 0 { t := "/tmp" }
+    var n:size_t = strlen(t)
+    while n > 1 && t[n - 1] == '/' { n -= 1 }
+    if n >= 4096 { n = 4095 }
+    memcpy(&tmpdir_text[0], t, n)
+    tmpdir_text[n] = 0
+    return &tmpdir_text[0]
+}
+
+// the template mkstemp and mkdtemp want, malloc's: the prefix, in tmpdir
+// unless it names a place itself, and six X
+static let temp_template(prefix:const any^):u8^ {
+    let p:cstr := prefix as cstr
+    var dir:cstr := ""
+    if strchr(p, '/') == nullptr { dir := kv_os_tmpdir() }
+    var sep:cstr := ""
+    if dir[0] != 0 { sep := "/" }
+    let n:size_t = strlen(dir) + 1 + strlen(p) + 7
+    let t:u8^ := malloc(n) as u8^
+    if t == nullptr { return nullptr }
+    snprintf(t, n, "%s%s%sXXXXXX", dir, sep, p)
+    return t
+}
+
+// OS.mkstemp(prefix): a temporary file, made and opened for reading and
+// writing, into io, which an IO is (#97), and its path
+let kv_os_mkstemp(prefix:const any^, io:kv_io^, path:String^):int32 {
+    let t:u8^ := temp_template(prefix)
+    if t == nullptr { return ENOMEM }
+    let fd:int32 = mkstemp(t)
+    if fd < 0 {
+        let e = err_or(EIO)
+        free(t)
+        return e
+    }
+    let fp:any^ := fdopen(fd, "w+")
+    if fp == nullptr {
+        let e = err_or(EIO)
+        close(fd)
+        unlink(t)
+        free(t)
+        return e
+    }
+    io^.fp = fp
+    io^.kind = 1
+    io^.status = -1
+    io^.signal = -1
+    io^.pid = 0
+    io^.named = realpath(t, nullptr)           // the first name abspath keeps (#196)
+    path^ = String(t as cstr)
+    let n:size_t = strlen(t) + 1
+    let copy:u8^ := malloc(n) as u8^
+    if copy != nullptr { memcpy(copy, t, n) }
+    io^.path = copy
+    free(t)
+    return 0
+}
+
+// OS.mkdtemp(prefix): a temporary directory, made, its path into out
+let kv_os_mkdtemp(prefix:const any^, out:String^):int32 {
+    let t:u8^ := temp_template(prefix)
+    if t == nullptr { return ENOMEM }
+    if mkdtemp(t) == nullptr {
+        let e = err_or(EIO)
+        free(t)
+        return e
+    }
+    out^ = String(t as cstr)
+    free(t)
+    return 0
 }

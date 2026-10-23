@@ -5,7 +5,7 @@
    working directory, the environment, files by path, the process ids;
    stat and the existence checks (#303); directories, walk and glob
    (#304); users and groups, and a file's owner (#305); paths (#306);
-   processes and time (#309). */
+   processes and time (#309); temporary files (#310). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -86,22 +86,6 @@ int kv_os_host(kv_string *out) {
     return 0;
 }
 
-/* TMPDIR, or /tmp, without a trailing /, which macOS's TMPDIR has */
-const uint8_t *kv_os_tmpdir(void) {
-    static char dir[4096];
-    const char *t = getenv("TMPDIR");
-    if (!t || !*t)
-        t = "/tmp";
-    size_t n = strlen(t);
-    while (n > 1 && t[n - 1] == '/')
-        n--;
-    if (n >= sizeof dir)
-        n = sizeof dir - 1;
-    memcpy(dir, t, n);
-    dir[n] = '\0';
-    return (const uint8_t *)dir;
-}
-
 /* ---------- walking and globbing (#96) ---------- */
 
 static int push_string(kv_string **out, size_t *n, size_t *cap, kv_string s) {
@@ -126,66 +110,6 @@ static void free_strings(kv_string *at, size_t n) {
 }
 
 /* ---------- temporary files (#97) ---------- */
-
-/* the template mkstemp and mkdtemp want: the prefix, in tmpdir unless
-   it names a place itself, and six X */
-static char *temp_template(const void *prefix) {
-    const char *p = (const char *)prefix;
-    const char *dir = strchr(p, '/') ? "" : (const char *)kv_os_tmpdir();
-    size_t n = strlen(dir) + 1 + strlen(p) + 7;
-    char *t = malloc(n);
-    if (!t)
-        return NULL;
-    snprintf(t, n, "%s%s%sXXXXXX", dir, *dir ? "/" : "", p);
-    return t;
-}
-
-int kv_os_mkstemp(const void *prefix, kv_io *io, kv_string *path) {
-    char *t = temp_template(prefix);
-    if (!t)
-        return ENOMEM;
-    int fd = mkstemp(t);
-    if (fd < 0) {
-        int e = err_or(EIO);
-        free(t);
-        return e;
-    }
-    FILE *fp = fdopen(fd, "w+");
-    if (!fp) {
-        int e = err_or(EIO);
-        close(fd);
-        unlink(t);
-        free(t);
-        return e;
-    }
-    io->fp = fp;
-    io->kind = 1;
-    io->status = io->signal = -1;
-    io->pid = 0;
-    io->path = NULL;
-    io->named = realpath(t, NULL); /* the first name abspath keeps (#196) */
-    *path = kv_string_text(t);
-    size_t n = strlen(t) + 1;
-    io->path = malloc(n);
-    if (io->path)
-        memcpy(io->path, t, n);
-    free(t);
-    return 0;
-}
-
-int kv_os_mkdtemp(const void *prefix, kv_string *out) {
-    char *t = temp_template(prefix);
-    if (!t)
-        return ENOMEM;
-    if (!mkdtemp(t)) {
-        int e = err_or(EIO);
-        free(t);
-        return e;
-    }
-    *out = kv_string_text(t);
-    free(t);
-    return 0;
-}
 
 /* ---------- a file's times (#98) ---------- */
 

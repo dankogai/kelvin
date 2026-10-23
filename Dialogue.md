@@ -6552,3 +6552,15 @@ environ in C: Kelvin cannot declare C's `char **environ` as libc may.
 Details are provisional P321.
 
 There are 946 tests, and all pass with clang and with gcc 15.
+
+### 355. OS's temporary files in Kelvin
+
+> move OS temporary files to Kelvin as #310
+
+**Claude** moved OS's tmpdir, mkstemp and mkdtemp into runtime/os.k,
+and they print the same as the C did, whatever TMPDIR holds. On the
+way it found that kelvinc lets a call without a result reach C as an
+argument, and left that for a later number. Details are provisional
+P322.
+
+There are 947 tests, and all pass with clang and with gcc 15.
