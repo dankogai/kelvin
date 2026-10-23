@@ -1216,7 +1216,7 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s _kv_so = %s; %s; _kv_so; })", e->from->cname, init, strfmt(sort, "&_kv_so"));
         }
         if (e->op && e->type && (!strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
-                                 !strncmp(e->op, "array_reduce", 12))) {
+                                 !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_flatMap", 13))) {
             /* xs.map(f) (#182), xs.filter(f), xs.reduce(init, f) (#184): a loop
                over the elements in a statement expression; an owner element is
                copied for f, and for the new Array where filter keeps it; an
@@ -1234,6 +1234,10 @@ static char *expr_bare(Expr *e) {
             if (!strncmp(e->op, "array_map", 9))
                 return strfmt("({ %s %s _kv_mo = {0}; %s %s_append(&_kv_mo, %s(%s)); _kv_mo; })", head, e->type->cname,
                               loop, e->type->cname, f, arg);
+            if (!strncmp(e->op, "array_flatMap", 13)) /* (#308): each Array f gives, its elements moved in, its buffer freed */
+                return strfmt("({ %s %s _kv_mo = {0}; %s { %s _kv_mr = %s(%s); for (size_t _kv_mj = 0; _kv_mj < _kv_mr.count; "
+                              "_kv_mj++) %s_append(&_kv_mo, _kv_mr.at[_kv_mj]); _kv_mr.count = 0; %s_free(&_kv_mr); } _kv_mo; })",
+                              head, e->type->cname, loop, e->type->cname, f, arg, e->type->cname, e->type->cname);
             if (!strncmp(e->op, "array_filter", 12))
                 return strfmt("({ %s %s _kv_mo = {0}; %s if (%s(%s)) %s_append(&_kv_mo, %s); _kv_mo; })", head,
                               e->type->cname, loop, f, arg, e->type->cname, elem);
@@ -1305,7 +1309,7 @@ static char *expr_bare(Expr *e) {
                           head, want, decl(e->type, ""), r, loop, test, r, key);
         }
         if (e->op && e->type && (!strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) ||
-                                 !strncmp(e->op, "dict_reduce", 11))) {
+                                 !strncmp(e->op, "dict_reduce", 11) || !strncmp(e->op, "dict_flatMap", 12))) {
             /* d.map(f), d.filter(f), d.reduce(init, f) of a Dictionary (#238):
                a loop over its live entries, f given a copy of each value
                where it owns; map keeps each key with f's value, filter each
@@ -1332,6 +1336,16 @@ static char *expr_bare(Expr *e) {
             if (!strncmp(e->op, "dict_filter", 11))
                 return strfmt("({ %s %s _kv_mo = {0}; %s { if (%s(%s)) %s_set(&_kv_mo, %s, %s); } _kv_mo; })", head,
                               dt->cname, loop, f, args, dt->cname, key, value);
+            if (!strncmp(e->op, "dict_flatMap", 12)) { /* (#308): each Dictionary f gives merged in, a later entry winning */
+                Type *rt = e->type;
+                const char *rlk = !strcmp(rt->key->name, "String") ? "KV_LK_TEXT" : "KV_LK_INT";
+                const char *vcopy = owner_copy(rt->elem);
+                const char *rv = vcopy ? strfmt("%s(&_kv_mr.at[_kv_mj].value)", vcopy) : "_kv_mr.at[_kv_mj].value";
+                return strfmt("({ %s %s _kv_mo = {0}; %s { %s _kv_mr = %s(%s); for (size_t _kv_mj = 0; _kv_mj < _kv_mr.len; "
+                              "_kv_mj++) if (_kv_mr.at[_kv_mj].live) %s_set(&_kv_mo, %s(&_kv_mr.at[_kv_mj].key), %s); "
+                              "%s_free(&_kv_mr); } _kv_mo; })",
+                              head, rt->cname, loop, rt->cname, f, args, rt->cname, rlk, rv, rt->cname);
+            }
             Expr *init = e->items.data[1];
             const char *take = local_owner(init) ? owner_take(e->type) : NULL;
             const char *start = take ? strfmt("%s(&%s)", take, c_name(init->text)) : expr(init);
@@ -1339,7 +1353,7 @@ static char *expr_bare(Expr *e) {
                           start, loop, f, args);
         }
         if (e->op && e->type && (!strncmp(e->op, "set_map", 7) || !strncmp(e->op, "set_filter", 10) ||
-                                 !strncmp(e->op, "set_reduce", 10))) {
+                                 !strncmp(e->op, "set_reduce", 10) || !strncmp(e->op, "set_flatMap", 11))) {
             /* s.map(f), s.filter(f), s.reduce(init, f) of a Set (#307): a loop
                over its live elements, in the order added, f lent each or, a
                named one, given a copy; map inserts what f gives into a new
@@ -1363,6 +1377,14 @@ static char *expr_bare(Expr *e) {
                               "%s_insert(&_kv_mo, %s);%s } _kv_mo; })",
                               head, e->type->cname, e->type->cname, loop, decl(u, "_kv_mv"), f, args, e->type->cname,
                               text ? "KV_LK_TEXT(&_kv_mv)" : "_kv_mv", text ? " kv_string_free(&_kv_mv);" : "");
+            }
+            if (!strncmp(e->op, "set_flatMap", 11)) { /* (#308): each Set f gives unioned in */
+                Type *rt = e->type;
+                const char *rk = !strcmp(rt->elem->name, "String") ? "KV_LK_TEXT(&_kv_mr.at[_kv_mj].key)"
+                                                                   : "_kv_mr.at[_kv_mj].key";
+                return strfmt("({ %s %s _kv_mo = {0}; %s { %s _kv_mr = %s(%s); for (size_t _kv_mj = 0; _kv_mj < _kv_mr.len; "
+                              "_kv_mj++) if (_kv_mr.at[_kv_mj].live) %s_insert(&_kv_mo, %s); %s_free(&_kv_mr); } _kv_mo; })",
+                              head, rt->cname, loop, rt->cname, f, args, rt->cname, rk, rt->cname);
             }
             if (!strncmp(e->op, "set_filter", 10))
                 return strfmt("({ %s %s _kv_mo = {0}; %s { if (%s(%s)) %s_insert(&_kv_mo, %s); } _kv_mo; })", head,

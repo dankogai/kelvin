@@ -230,6 +230,13 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   named one a copy (#244); reduce's value so far moves in and out, as
   before. They chain: `xs.filter { $0 > 1 }.map { $0 * $0 }.reduce(0)
   { $0 + $1 }`.
+- **`xs.flatMap { ... }`** (#308) is the Arrays its function gives each
+  element, concatenated, which makes an Array a monad: `xs.flatMap {
+  Array<int64>([$0, $0 * 10]) }`, `names.flatMap(words)`.
+  - The function gives an Array, else an error that says `.map` takes
+    it; an element is lent as `.map`'s is (#244).
+  - In an anonymous function `$[...]` is a parameter, `$[0]`: write the
+    Array it gives `Array<T>([...])`.
 - **`xs.sort()`** sorts a `var` Array in place, and **`xs.sorted()`**
   gives a new one (#185), `$[3, 2, 1, 0].sorted { $0 < $1 }` is
   `[0, 1, 2, 3]`.
@@ -307,6 +314,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each element, `U` whatever `f` gives (#182) |
 | | `.filter(f)`, `.filter { ... }` | a new `Array<T>` of the elements `f` says true for (#184) |
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each element, from `init`, of `init`'s type (#184) |
+| | `.flatMap(f)`, `.flatMap { ... }` | the Arrays `f` gives each element, concatenated, a new `Array<U>` (#308) |
 | | `.sort()`, `.sort(f)`, `.sort { ... }` | sorts a `var` Array in place, by `f`, true where its first goes before its second, or by `<` (#185) |
 | | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
 | | `.reverse()` | reverses a `var` Array in place (#186) |

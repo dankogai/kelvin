@@ -45,6 +45,9 @@ var e:${String} = ${}                    // empty; Set<String>() too
     `s.reduce(0) { $0 + $1 }` them folded.
     - The function is lent each element, a named one given a copy; to
       map to anything else, map the elements, `s.elements.map`.
+  - `flatMap` (#308): the Sets its function gives each element,
+    unioned, which makes a Set a monad: `s.flatMap { Set<int64>({$0,
+    $0 + 1}) }`.
 - **Operators** (#73): `s | t` is the union, `s & t` the intersection
   and `s ~ t` the symmetric difference (what is in one, not both), new
   Sets of two in variables.
@@ -80,5 +83,6 @@ var e:${String} = ${}                    // empty; Set<String>() too
 | | `.map { ... }`, `.map(f)` | a new Set of what `f` gives each element, an integer or a String (#307) |
 | | `.filter { ... }`, `.filter(f)` | a new Set of the elements `f` says true for (#307) |
 | | `.reduce(init) { ... }`, `.reduce(init, f)` | the elements folded in the order added, from `init` (#307) |
+| | `.flatMap { ... }`, `.flatMap(f)` | the Sets `f` gives each element, unioned (#308) |
 | | `for x in s` | each element, in the order added |
 | | `.size`, `.typename` | `sizeof`; `Set<i64>` |

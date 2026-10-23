@@ -123,6 +123,9 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   - A value that owns is lent to an anonymous function, as an Array's
     elements are (#244), and given to a named one as a copy; a
     Dictionary an expression gives is freed after.
+  - **`d.flatMap { v in ... }`** (#308) is the Dictionaries its function
+    gives each value, merged in the order added, a later entry winning
+    as `d[k] = v` does, which makes a Dictionary a monad.
   - **`d.mapWithKey`, `d.filterWithKey` and `d.reduceWithKey`** (#241)
     are the same, their function taking each key before its value:
     `d.mapWithKey { k, v in ... }`, `d.filterWithKey { k, v in ... }`,
@@ -177,6 +180,7 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
 | | `.filter { v in ... }` | a new Dictionary of the entries whose value the function says true for (#238) |
 | | `.reduce(init) { acc, v in ... }` | the values folded, in the order added (#238) |
 | | `.mapWithKey { k, v in ... }`, `.filterWithKey { k, v in ... }`, `.reduceWithKey(init) { acc, k, v in ... }` | the same, of each key, a `cstr` of a String's, and its value (#241) |
+| | `.flatMap { v in ... }`, `.flatMapWithKey { k, v in ... }` | the Dictionaries the function gives, merged in the order added, a later entry winning (#308) |
 | | `.contains(v)`, `.contains { v in ... }` | whether `v`, or a value the function says true for, is there, a `bool` (#249) |
 | | `.firstKey(v)`, `.lastKey(v)`, `.firstKey { v in ... }`, `.lastKey { v in ... }` | the key of the first or last of them in the order added, a `K?`: `some` of a copy, or `none` (#249) |
 | | `.containsWithKey { k, v in ... }`, `.firstKeyWithKey { ... }`, `.lastKeyWithKey { ... }` | the same, of each key and its value (#249) |

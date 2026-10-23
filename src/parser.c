@@ -2034,7 +2034,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 continue;
             }
             bool with_key = !strcmp(member, "mapWithKey") || !strcmp(member, "filterWithKey") ||
-                            !strcmp(member, "reduceWithKey"); /* (#241) */
+                            !strcmp(member, "reduceWithKey") || !strcmp(member, "flatMapWithKey"); /* (#241, #308) */
             if (with_key && value_type(e) &&
                 (is_array_owner(unqualified(value_type(e))) || is_set_owner(unqualified(value_type(e))))) /* a Set's (#307) */
                 error_at(name->pos, "%s has no '.%s': it is a Dictionary's, whose function takes each key; "
@@ -2169,7 +2169,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = wrap_temps(x, &held);
                 continue;
             }
-            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") || with_key) &&
+            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
+                 !strcmp(member, "flatMap") || with_key) &&
                 value_type(e) &&
                 ((!with_key && (is_array_owner(unqualified(value_type(e))) || is_set_owner(unqualified(value_type(e))))) ||
                  is_dict_owner(unqualified(value_type(e)))) &&
@@ -2182,6 +2183,11 @@ static Expr *parse_postfix_steps(Expr *e) {
                    owner is given to f as a copy, which f owns; an Array an
                    expression gives is held and freed after (#183) */
                 bool is_map = !strncmp(member, "map", 3), is_filter = !strncmp(member, "filter", 6);
+                /* xs.flatMap, d.flatMap, s.flatMap (#308): f gives an Array, a
+                   Dictionary or a Set, as the receiver is, for each element,
+                   and the results are one: concatenated, merged in the order
+                   added, a later entry winning, as d[k] = v, or unioned */
+                bool is_flat = !strncmp(member, "flatMap", 7);
                 Type *at = unqualified(value_type(e));
                 /* d.mapWithKey, d.filterWithKey, d.reduceWithKey (#241): the
                    function takes each key before its value, a String's as
@@ -2206,7 +2212,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                 Expr *f = NULL, *init = NULL;
                 Type *acc = NULL;
                 bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
-                if (!is_map && !is_filter) {
+                if (!is_map && !is_filter && !is_flat) {
                     if (!call)
                         error_at(name->pos, "%s takes the value to start from: write '.%s(init) { ... }' or "
                                             "'.%s(init, f)'",
@@ -2257,7 +2263,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     if (is_p(peek(), ")"))
                         error_at(peek()->pos, "'.%s' takes a function of %s: write '.%s(f)' or '.%s { ... }'", member,
                                  kt ? "a key and a value" : dict ? "a value" : "an element", member, member);
-                    infer_anon_result = is_map;
+                    infer_anon_result = is_map || is_flat;
                     bool_anon_result = is_filter ? me : NULL; /* (#239) */
                     lend_anon_from = 0; /* the elements lent (#244) */
                     f = is_p(peek(), "{") ? anon_arg(ctx, arity, 0, x, false) : parse_assign();
@@ -2271,7 +2277,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     if (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())
                         error_at(peek()->pos, "'.%s' takes one function, and this would be a second", member);
                 } else {
-                    infer_anon_result = is_map;
+                    infer_anon_result = is_map || is_flat;
                     bool_anon_result = is_filter ? me : NULL; /* (#239) */
                     lend_anon_from = 0; /* (#244) */
                     f = anon_arg(ctx, arity, 0, x, true);
@@ -2306,6 +2312,14 @@ static Expr *parse_postfix_steps(Expr *e) {
                              me, kelvin_type(acc), kelvin_type(ft));
                 if (init)
                     move_argument(init, acc, me); /* an owner to start from moves in (O5) */
+                if (is_flat) { /* f gives one of the receiver's kind (#308) */
+                    Type *u = unqualified(ft->elem);
+                    const char *kind = set ? "a Set" : dict ? "a Dictionary" : "an Array";
+                    if (!(set ? is_set_owner(u) : dict ? is_dict_owner(u) : is_array_owner(u)))
+                        error_at(f->pos, "'.%s' of %s takes a function that gives %s, and joins them into one; this "
+                                         "gives %s, which '.%s' takes",
+                                 member, kind, kind, kelvin_type(u), with_key ? "mapWithKey" : "map");
+                }
                 if (is_map && set) { /* a Set's elements are integers or Strings (#71) */
                     Type *u = unqualified(ft->elem);
                     static const char *ints[] = {"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", NULL};
@@ -2317,7 +2331,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                                          "gives %s%s",
                                  kelvin_type(u), is_cstr(u) ? ": make it a String" : ": map its elements, 's.elements.map'");
                 }
-                x->type = is_map ? (set    ? set_type(name, unqualified(ft->elem))
+                x->type = is_flat ? unqualified(ft->elem)
+                          : is_map ? (set    ? set_type(name, unqualified(ft->elem))
                                     : dict ? dict_type(name, at->key, unqualified(ft->elem))
                                            : array_type(name, unqualified(ft->elem)))
                           : is_filter ? at
@@ -5281,6 +5296,8 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9) ||
                       !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11) ||
                       !strncmp(e->op, "set_map", 7) || !strncmp(e->op, "set_filter", 10) || !strncmp(e->op, "set_reduce", 10) ||
+                      !strncmp(e->op, "array_flatMap", 13) || !strncmp(e->op, "dict_flatMap", 12) ||
+                      !strncmp(e->op, "set_flatMap", 11) ||
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
                       !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
                       !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12)))

@@ -6530,3 +6530,14 @@ them, map's result a Set of integers or Strings. Details are
 provisional P319.
 
 There are 942 tests, and all pass with clang and with gcc 15.
+
+### 353. flatMap: Arrays, Dictionaries and Sets as monads
+
+> add flatMap to Array, Dictionary and Set as #308
+
+**Claude** gave the three flatMap: an Array's results concatenated, a
+Dictionary's merged with a later entry winning, and flatMapWithKey, a
+Set's unioned. A test checks the monad laws of each. Details are
+provisional P320.
+
+There are 945 tests, and all pass with clang and with gcc 15.

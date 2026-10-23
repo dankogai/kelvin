@@ -339,6 +339,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 305 | OS's user, username, groupname, groups, chown and lchown are written in Kelvin in runtime/os.k, in place of their C | — | `OS.username(uid)` of runtime/os.k | 2026-10-23 |
 | 306 | OS's paths are written in Kelvin in runtime/os.k, in place of their C: readlink, basename, dirname, join, realpath, isabs, splitext, normpath, relpath and expanduser | — | `OS.normpath(path)` of runtime/os.k | 2026-10-23 |
 | 307 | A Set has `map`, `filter` and `reduce`, as an Array has them: map a new Set of what its function gives, an integer or a String, filter a new Set of the elements it keeps, reduce them folded in the order added | — | `s.map { $0 % 3 }` | 2026-10-23 |
+| 308 | Arrays, Dictionaries and Sets have `flatMap`, which makes each a monad: an Array's results concatenated, a Dictionary's merged in the order added, a later entry winning, as `d[k] = v`, with `flatMapWithKey`, a Set's unioned; the monad laws hold | — | `xs.flatMap { Array<int64>([$0, $0]) }` | 2026-10-24 |
 
 Notes:
 
@@ -900,6 +901,23 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (308) Agreed details: "add flatMap to Array, Dictionary and Set as
+  #308", the user's "so they are officially monads", with the merge of
+  a Dictionary's chosen at #307: a later entry wins, as `d[k] = v`.
+  - The parser's map, filter and reduce branch takes flatMap, and a
+    Dictionary's flatMapWithKey: its function's result is inferred, as
+    map's, and must be the receiver's kind, else an error that says
+    `.map` takes it. An Array's and a Set's WithKey are the error #241's
+    is.
+  - codegen: an Array's results' elements moved in, their buffers
+    freed; a Dictionary's merged with _set, the values copied, the
+    results freed; a Set's inserted, the results freed.
+  - tests/run/flat_map.k checks the laws: left identity, right
+    identity, a Dictionary's by flatMapWithKey, and associativity, a
+    Set's by its elements, as a Set has no `==`.
+  - In an anonymous function `$[...]` is a parameter (#32), so the
+    Array its function gives is written `Array<T>([...])`.
 
 - (307) Agreed details: "give Set map, filter and reduce as #307", the
   first half of the user's monads, with flatMap of the three #308.
@@ -3493,6 +3511,7 @@ says "as agreed".
 | P317 | Details of #305 | runtime/os.k: user, username, groupname, groups, chown, lchown; runtime/os.c loses them; tests: run/os_kelvin_group4.k; README.md | the rest of OS in groups |
 | P318 | Details of #306 | runtime/os.k: text_of, last_of and the ten, before the directories; runtime/os.c loses them and kv_io_fail_text; tests: run/os_kelvin_group5.k; README.md | a call before a Kelvin definition of a C-declared name mangles it; flatMap, Set's map, filter, reduce |
 | P319 | Details of #307 | parser.c: the map/filter/reduce branch of a Set, its WithKey error, its result type; codegen.c: set_map, set_filter, set_reduce; tests: run/set_map_filter_reduce.k, error/set_map_float.k, error/set_with_key.k; documents/sets.md | flatMap (#308) |
+| P320 | Details of #308 | parser.c: flatMap and flatMapWithKey in the map/filter/reduce branch; codegen.c: array_flatMap, dict_flatMap, set_flatMap; tests: run/flat_map.k, error/flat_map_kind.k, error/flat_map_with_key_set.k; documents/arrays.md, dictionaries.md, sets.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
