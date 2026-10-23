@@ -332,6 +332,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 298 | kc refuses a BOM, a byte that is no UTF-8, and C's string and character prefixes, as kelvinc since #295, in its words, at the line | — | kc refuses `L"wide"` | 2026-10-23 |
 | 299 | A String holds a NUL, a cstr not: a literal made a String is every byte of it, `$"\x00mid"` four codepoints; `s.escape()` writes a NUL as `\u{0}`, and `unescape()` reads past one, so `"\x00mid".unescape().escape()` is `\u{0}mid` and reads back | — | `$"\x00mid".count` is 4 | 2026-10-23 |
 | 300 | kc has a String's `escape()` and `unescape()`, new Strings, as kelvinc's: `kv_string_escape` and `kv_string_unescape` of the runtime in Kelvin, a NUL too; an argument is kelvinc's error | — | kc builds `s.escape().unescape()` | 2026-10-23 |
+| 301 | libkOS is built from Kelvin too: runtime/os.k, by kelvinc --runtime, beside runtime/os.c, whose C it takes over a group at a time; the first, twenty: the working directory, the environment, files by path, the process ids, umask and kill | — | `OS.cwd` of runtime/os.k | 2026-10-23 |
 
 Notes:
 
@@ -893,6 +894,27 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (301) Agreed details: "build libkOS from Kelvin with a first group as
+  #301", after the user asked whether moving OS to Kelvin meant a
+  rewrite: it does, the C of runtime/os.c rewritten in Kelvin over libc,
+  each function checked against the C before its C goes.
+  - runtime/os.k imports kOS.h as C, so C checks each function against
+    its prototype, and libc's headers. err_or and done, os.c's
+    `errno ? errno : default`, are static.
+  - The first group, twenty: cwd, chdir, env, setenv, unsetenv; remove,
+    rename, mkdir, rmdir, unlink, link, symlink; pid, ppid, uid, gid,
+    euid, egid, umask, kill. kv_os_cwd doubles a Bytes buffer while
+    getcwd says ERANGE; the caller's String is zeroed, so `out^ =` frees
+    nothing.
+  - The GNUmakefile leaves os.k out of libkelvin's objects and puts
+    build/runtime/os_k.o in libkOS.a and its shared library; asan.sh
+    builds every runtime/*.k already.
+  - A program of each, success and errno paths, prints the same with
+    the C and the Kelvin; tests/run/os_kelvin_group1.k compares errno
+    with errno.h's names, as ENOTEMPTY is 66 on macOS and 39 on Linux.
+  - Kelvin has no `0o777`: mkdir's mode is `0x1FF`.
+  - The user also asked to move SYS to the prelude, to be #302.
 
 - (300) Agreed details: "teach kc escape and unescape as #300", which #299
   found kc lacked. type_of gives a String's `escape` and `unescape` a
@@ -3359,6 +3381,7 @@ says "as agreed".
 | P310 | Details of #298 | selfhost/kc.k: utf8_len, source_error, load(); selfhost/lex.k: a prefix before a quote; selfhost/README.md | |
 | P311 | Details of #299 | kelvin_prelude.h: KV_STRING_LIT; runtime/string.k: kv_string_lit, escape, unescape; codegen.c: String literals; selfhost/gen.k: its four; tests: run/string_nul.k and ten updated; documents/strings.md, selfhost/README.md | |
 | P312 | Details of #300 | selfhost/gen.k: type_of and gen of escape and unescape; sample.k uses them; selfhost/README.md | |
+| P313 | Details of #301 | runtime/os.k; runtime/os.c loses twenty; GNUmakefile: OS_K_OBJ in libkOS; tests: run/os_kelvin_group1.k; README.md, selfhost/README.md | the rest of OS in groups; SYS to the prelude (#302) |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

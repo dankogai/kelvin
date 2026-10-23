@@ -41,7 +41,8 @@ Agreed in #279.
   as C's compilers are written in C.
   - The runtime too: `runtime/*.k`, built by `kelvinc --runtime` into
     `libkelvin` (#289): a String's searching, trimming, escaping and
-    unescaping, and Base64 (#290).
+    unescaping, and Base64 (#290); and runtime/os.k into `libkOS`, a
+    group of OS's at a time (#301).
 
 ## Files
 

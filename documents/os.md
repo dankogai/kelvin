@@ -7,7 +7,7 @@ underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
 that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
 so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 
-**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` and `SYS` are `libkOS`, built from runtime/os.c and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` and `SYS` are errors that say to write it.
+**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` and `SYS` are `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` and `SYS` are errors that say to write it.
 
 ```swift
 #import <IO>                                // brings OS and SYS in too; #import <OS> alone for them

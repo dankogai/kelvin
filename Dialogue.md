@@ -6428,3 +6428,23 @@ runtime's, written in Kelvin, as kelvinc makes them. Details are
 provisional P312.
 
 There are 934 tests, and all pass with clang and with gcc 15.
+
+### 345. libkOS from Kelvin
+
+> "move OS module to Kelvin as #301" do you mean to rewrite it in
+> Kelvin?
+
+**Claude** answered that it does: runtime/os.c's 872 lines rewritten in
+Kelvin, function by function, checked against the C. It found two
+platform conditionals, of which the generated C covers one, and
+proposed a first group.
+
+> build libkOS from Kelvin with a first group as #301. One request.
+> move `SYS` to the prelude so you can use it without `#import <OS>`.
+
+**Claude** wrote runtime/os.k, twenty of OS's functions over libc, which
+make builds into libkOS beside runtime/os.c, and a program of each
+prints the same as the C did. Moving SYS to the prelude is to be #302.
+Details are provisional P313.
+
+There are 935 tests, and all pass with clang and with gcc 15.

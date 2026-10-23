@@ -15,7 +15,9 @@ RT_SRCS := $(filter-out runtime/io.c runtime/os.c runtime/regexp.c runtime/regex
 RT_OBJS := $(RT_SRCS:runtime/%.c=build/runtime/%.o)
 # the runtime written in Kelvin (#289): kelvinc --runtime makes an object of
 # each runtime/*.k, whose kv_ functions keep the names kelvin_prelude.h declares
-RT_K_SRCS := $(wildcard runtime/*.k)
+RT_K_SRCS := $(filter-out runtime/os.k, $(wildcard runtime/*.k))
+# libkOS's: runtime/os.k beside runtime/os.c (#301)
+OS_K_OBJ := build/runtime/os_k.o
 RT_K_OBJS := $(RT_K_SRCS:runtime/%.k=build/runtime/%_k.o)
 # IO and OS are modules (#144, #145): #import <IO> and #import <OS> bring in
 # modules/IO.kh and OS.kh, whose C headers are kIO.h and kOS.h, and link
@@ -65,12 +67,14 @@ modules/libkIO.a: build/runtime/io.o
 	rm -f $@
 	ar rcs $@ $<
 
-modules/libkOS.a: build/runtime/os.o
-	rm -f $@
-	ar rcs $@ $<
+$(OS_K_OBJ): modules/kOS.h
 
-modules/libkOS.$(SO): build/runtime/os.o modules/$(SHLIB)
-	$(CC) $(SHLIB_FLAGS) -o $@ $< -Lmodules -lkelvin
+modules/libkOS.a: build/runtime/os.o $(OS_K_OBJ)
+	rm -f $@
+	ar rcs $@ build/runtime/os.o $(OS_K_OBJ)
+
+modules/libkOS.$(SO): build/runtime/os.o $(OS_K_OBJ) modules/$(SHLIB)
+	$(CC) $(SHLIB_FLAGS) -o $@ build/runtime/os.o $(OS_K_OBJ) -Lmodules -lkelvin
 
 modules/libkIO.$(SO): build/runtime/io.o modules/libkOS.$(SO) modules/$(SHLIB)
 	$(CC) $(SHLIB_FLAGS) -o $@ $< -Lmodules -lkOS -lkelvin

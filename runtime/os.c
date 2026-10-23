@@ -1,6 +1,8 @@
 /* os.c - OS and SYS (#94): the system around the program, and the
    program itself, as the prelude's namespaces: no import. Each call is
-   C's, with errno given back where C sets it, 0 where it does not. */
+   C's, with errno given back where C sets it, 0 where it does not. A
+   group at a time moves to runtime/os.k, written in Kelvin (#301): the
+   working directory, the environment, files by path, the process ids. */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -65,34 +67,10 @@ void kv_sys_exit(int code) {
 
 static int err_or(int fallback) { return errno ? errno : fallback; }
 
-int kv_os_cwd(kv_string *out) {
-    size_t cap = 256;
-    for (;;) {
-        char *buf = malloc(cap);
-        if (!buf)
-            return ENOMEM;
-        if (getcwd(buf, cap)) {
-            *out = kv_string_text(buf);
-            free(buf);
-            return 0;
-        }
-        int e = err_or(EIO);
-        free(buf);
-        if (e != ERANGE)
-            return e;
-        cap *= 2;
-    }
-}
 
-int kv_os_chdir(const void *path) { return chdir((const char *)path) == 0 ? 0 : err_or(EIO); }
 
-const uint8_t *kv_os_env(const void *name) { return (const uint8_t *)getenv((const char *)name); }
 
-int kv_os_setenv(const void *name, const void *value) {
-    return setenv((const char *)name, (const char *)value, 1) == 0 ? 0 : err_or(EINVAL);
-}
 
-int kv_os_unsetenv(const void *name) { return unsetenv((const char *)name) == 0 ? 0 : err_or(EINVAL); }
 
 bool kv_os_exists(const void *path) { return access((const char *)path, F_OK) == 0; }
 
@@ -104,14 +82,8 @@ static bool is_mode(const void *path, unsigned mask) {
 bool kv_os_isdir(const void *path) { return is_mode(path, S_IFDIR); }
 bool kv_os_isfile(const void *path) { return is_mode(path, S_IFREG); }
 
-int kv_os_remove(const void *path) { return remove((const char *)path) == 0 ? 0 : err_or(EIO); }
 
-int kv_os_rename(const void *from, const void *to) {
-    return rename((const char *)from, (const char *)to) == 0 ? 0 : err_or(EIO);
-}
 
-int kv_os_mkdir(const void *path) { return mkdir((const char *)path, 0777) == 0 ? 0 : err_or(EIO); }
-int kv_os_rmdir(const void *path) { return rmdir((const char *)path) == 0 ? 0 : err_or(EIO); }
 
 static int by_bytes(const void *a, const void *b) {
     const kv_string *x = a, *y = b;
@@ -171,7 +143,6 @@ int kv_os_system(const void *command) {
     return st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
-int kv_os_pid(void) { return (int)getpid(); }
 
 /* ---------- more of OS (#95) ---------- */
 #include <fcntl.h>
@@ -221,9 +192,6 @@ bool kv_os_islink(const void *path) {
     return lstat((const char *)path, &st) == 0 && S_ISLNK(st.st_mode);
 }
 
-int kv_os_symlink(const void *target, const void *path) {
-    return symlink((const char *)target, (const char *)path) == 0 ? 0 : err_or(EIO);
-}
 
 int kv_os_readlink(const void *path, kv_string *out) {
     char buf[4096];
@@ -234,8 +202,6 @@ int kv_os_readlink(const void *path, kv_string *out) {
     return 0;
 }
 
-int kv_os_link(const void *from, const void *to) { return link((const char *)from, (const char *)to) == 0 ? 0 : err_or(EIO); }
-int kv_os_unlink(const void *path) { return unlink((const char *)path) == 0 ? 0 : err_or(EIO); }
 int kv_os_chmod(const void *path, int mode) { return chmod((const char *)path, (mode_t)mode) == 0 ? 0 : err_or(EIO); }
 
 int kv_os_truncate(const void *path, long long size) {
@@ -268,9 +234,6 @@ int kv_os_makedirs(const void *path) {
     return dir ? 0 : ENOTDIR;
 }
 
-int kv_os_ppid(void) { return (int)getppid(); }
-int kv_os_uid(void) { return (int)getuid(); }
-int kv_os_gid(void) { return (int)getgid(); }
 
 /* the names are copied out of getpwuid's and getgrgid's static storage,
    which the next lookup overwrites (#99) */
@@ -291,8 +254,6 @@ int kv_os_host(kv_string *out) {
     return 0;
 }
 
-int kv_os_umask(int mask) { return (int)umask((mode_t)mask); }
-int kv_os_kill(int pid, int sig) { return kill((pid_t)pid, sig) == 0 ? 0 : err_or(EIO); }
 
 double kv_os_time(void) {
     struct timespec ts;
@@ -603,8 +564,6 @@ int kv_os_environ(kv_string **out, size_t *count) {
     return 0;
 }
 
-int kv_os_euid(void) { return (int)geteuid(); }
-int kv_os_egid(void) { return (int)getegid(); }
 
 /* the groups the user is in, as getgroups gives them */
 int kv_os_groups(int32_t **out, size_t *count) {
