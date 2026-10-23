@@ -10,6 +10,11 @@ and [arrays.md](arrays.md); the statements that control flow are in
 
 **Where it lives:** the core. The grammar is kelvinc's own; nothing here needs the prelude.
 
+**A source is UTF-8** (#295): valid, and without a BOM.
+
+- A BOM, or a byte that is no UTF-8, is an error at the line and column
+  where it stands; an overlong form and a surrogate are none.
+
 ## Declarations
 
 A variable is declared with `let` or `var`, and the type follows the name
@@ -148,6 +153,9 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 | `$/pattern/flags` | a `RegExp`, with `#import <RegExp>` (#157): [regexp.md](regexp.md) | no | the pattern's own | no |
 
 - **`"..."`** is C's string literal (#52).
+  - It has no prefix: C's `L"..."`, `u8"..."`, `u"..."` and `U"..."`,
+    and `L'x'` and the rest of a character, are errors (#295); its text
+    is UTF-8, as the source is, and `$"..."` is the one prefix, a String.
   - The escapes are C's, `\n`, `\t`, `\"`, `\\`, `\x41`, `\u00e9`.
   - **`\u{X}`**, `\uXXXX` and `\UXXXXXXXX` are a codepoint (#292), up to
     `10FFFF`, written to C as its UTF-8 bytes.

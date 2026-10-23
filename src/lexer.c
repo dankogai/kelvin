@@ -663,7 +663,48 @@ static void lex_import(Lexer *lx) {
     push(lx, TK_IMPORT, pos, start, end);
 }
 
+/* the length of the valid UTF-8 sequence at p, or 0: no overlong form, no
+   surrogate, nothing past 10FFFF */
+static int utf8_length(const unsigned char *p) {
+    unsigned char c = p[0];
+    if (c < 0x80)
+        return 1;
+    int n = c >= 0xC2 && c <= 0xDF ? 2 : c >= 0xE0 && c <= 0xEF ? 3 : c >= 0xF0 && c <= 0xF4 ? 4 : 0;
+    if (!n)
+        return 0;
+    unsigned char lo = c == 0xE0 ? 0xA0 : c == 0xF0 ? 0x90 : 0x80, hi = c == 0xED ? 0x9F : c == 0xF4 ? 0x8F : 0xBF;
+    if (p[1] < lo || p[1] > hi)
+        return 0;
+    for (int i = 2; i < n; i++)
+        if ((p[i] & 0xC0) != 0x80)
+            return 0;
+    return n;
+}
+
+/* A Kelvin source is UTF-8, valid and without a BOM (#295): a BOM, or a
+   byte that is no UTF-8, is an error where it stands */
+static void check_utf8(const char *file, const char *src) {
+    const unsigned char *p = (const unsigned char *)src;
+    if (p[0] == 0xEF && p[1] == 0xBB && p[2] == 0xBF)
+        error_at((Pos){file, 1, 1}, "a Kelvin source is UTF-8 without a BOM: remove its first three bytes, EF BB BF "
+                                    "(#295)");
+    Pos pos = {file, 1, 1};
+    while (*p) {
+        int n = utf8_length(p);
+        if (!n)
+            error_at(pos, "a Kelvin source is valid UTF-8, and byte 0x%02X here is not (#295)", *p);
+        if (*p == '\n') {
+            pos.line++;
+            pos.col = 1;
+        } else {
+            pos.col += n;
+        }
+        p += n;
+    }
+}
+
 Token *lex(const char *file, const char *src, int *ntoks) {
+    check_utf8(file, src);
     Lexer lx = {.file = file, .src = src, .p = src, .line = 1, .col = 1};
     for (;;) {
         skip_space(&lx);
@@ -684,6 +725,11 @@ Token *lex(const char *file, const char *src, int *ntoks) {
                 step(&lx);
             push(&lx, TK_IDENT, pos, start, lx.p);
             Token *t = &lx.toks[lx.len - 1];
+            if ((*lx.p == '"' || *lx.p == '\'') && (!strcmp(t->text, "L") || !strcmp(t->text, "u") ||
+                                                    !strcmp(t->text, "U") || !strcmp(t->text, "u8")))
+                error_at(pos, "%s%c...%c is C's prefixed literal: a Kelvin source is UTF-8, and a literal's one "
+                              "prefix is $, a String's, $\"...\" (#295)",
+                         t->text, *lx.p, *lx.p);
             for (int i = 0; keywords[i]; i++)
                 if (!strcmp(t->text, keywords[i]))
                     t->kind = TK_KEYWORD;

@@ -38,7 +38,7 @@ let main():int32 {
     }
     let text = Bytes("Kelvin, base64!")
     let enc = text.toBase64()
-    println(enc, " ", Bytes.fromBase64(enc.cstr) == text, " ", Bytes.fromBase64("S2Vs dmlu\n") , " ", Bytes.fromBase64("+/-_"), " ", Bytes.fromBase64("QQ==QUJD"), " ", Bytes.fromBase64(""))
+    println(enc, " ", Bytes.fromBase64(enc.cstr) == text, " ", Bytes.fromBase64("S2Vs dmlu\n") , " ", Bytes.fromBase64("+/-_").escape(), " ", Bytes.fromBase64("QQ==QUJD"), " ", Bytes.fromBase64(""))
     return 0
 }
 // out:  true
@@ -70,4 +70,4 @@ let main():int32 {
 // out: 4 +vv8/Q== -vv8_Q== +vv8/Q -vv8_Q
 // out: 5 +vv8/f4= -vv8_f4= +vv8/f4 -vv8_f4
 // out: 6 +vv8/f7/ -vv8_f7_ +vv8/f7/ -vv8_f7_
-// out: S2VsdmluLCBiYXNlNjQh true Kelvin ûÿ¿ A 
+// out: S2VsdmluLCBiYXNlNjQh true Kelvin \xFB\xFF\xBF A 

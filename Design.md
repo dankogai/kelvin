@@ -326,6 +326,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 292 | A literal's `\u{X}`, `\uXXXX` and `\UXXXXXXXX` are a codepoint, which kelvinc writes to C as its UTF-8 bytes, so `"\u{7f}"` works where C refused it, and `print`'s `\u007f` pastes back; a surrogate, one past 10FFFF or a malformed one is an error that says so | — | `"a\u{7f}"` | 2026-10-23 |
 | 293 | kc writes a literal's `\u` escapes as kelvinc since #292, the codepoint's UTF-8 bytes in octal, with kelvinc's errors in its words | — | kc builds `$"a\u{7f}"` | 2026-10-23 |
 | 294 | `typedef` is an error that names `typealias`, at the top level and in a body; versusC.md records what stays out on purpose: typedef, long double, string prefixes, deep generics, the preprocessor | — | `typedef int64 count` is an error | 2026-10-23 |
+| 295 | A Kelvin source is UTF-8, valid and without a BOM: a BOM, a byte that is no UTF-8, and C's string and character prefixes, `L"..."`, `u8"..."`, `u"..."`, `U"..."`, are errors that say so; `$"..."` is the one prefix | — | `L"wide"` is an error | 2026-10-23 |
 
 Notes:
 
@@ -887,6 +888,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (295) Agreed details: "refuse string prefixes, BOMs and invalid UTF-8
+  as #295", the user's answer of #294.
+  - check_utf8, before a file is lexed, an imported one too: a BOM at
+    its start, or a byte of no valid sequence, overlong, a surrogate or
+    past 10FFFF, is an error at its line and column. A BOM was
+    "unexpected character", and invalid UTF-8 compiled.
+  - A name `L`, `u`, `U` or `u8` right before a quote is C's prefix,
+    of a string or a character: "L"..." is C's prefixed literal". It
+    was "expected ')'", or "'u8' is a type".
+  - The names themselves are as they were: `let L = 1`.
+  - tests/run/string_escape_edges.k (#290) printed decoded Base64 raw,
+    bytes that are no UTF-8, in its `// out:` line; it prints them
+    with escape() now.
 
 - (294) Agreed details: "make typedef an error naming typealias as
   #294", after the user answered versusC.md's list of what Kelvin has
@@ -3262,6 +3277,7 @@ says "as agreed".
 | P304 | Details of #292 | lexer.c: ucn_text in lex_quoted and lex_template; tests: run/unicode_escapes.k, error/ucn_surrogate.k, error/ucn_malformed.k; documents/grammar.md | |
 | P305 | Details of #293 | selfhost/gen.k: put_text, put_ucn, tok_error, hex_upper, text_code; sample.k uses it; selfhost/README.md | `(n + 1).uchr` reaches C |
 | P306 | Details of #294 | parser.c: reject_typedef; tests: error/typedef_kelvin.k, error/typedef_in_body.k; documents/versusC.md, grammar.md | string prefixes, BOM and UTF-8 (#295); #inline C's preprocessor (#296) |
+| P307 | Details of #295 | lexer.c: utf8_length, check_utf8, the prefix of a name before a quote; tests: error/source_bom.k, error/source_invalid_utf8.k, error/string_prefix_wide.k, error/char_prefix.k; run/string_escape_edges.k; documents/grammar.md, versusC.md | kc: BOMs, UTF-8, prefixes |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -6358,3 +6358,15 @@ level and in a body, and wrote the answers into versusC.md, "Left out
 on purpose". Details are provisional P306.
 
 There are 922 tests, and all pass with clang and with gcc 15.
+
+### 339. A source is UTF-8
+
+> refuse string prefixes, BOMs and invalid UTF-8 as #295
+
+**Claude** made a BOM, a byte that is no UTF-8, and C's string and
+character prefixes errors that say so, at the line and column where
+each stands. Its own test of #290 had printed bytes that are no UTF-8
+into its expected output, which it now prints escaped. Details are
+provisional P307.
+
+There are 926 tests, and all pass with clang and with gcc 15.

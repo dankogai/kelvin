@@ -210,7 +210,7 @@ These C features stay out, as decided (#294):
 - **String prefixes** (`L"..."`, `u8"..."`): a Kelvin source is always
   UTF-8, valid and without a BOM.
   - The one prefix is `$"..."`, a String.
-  - To be enforced as errors (#295).
+  - A prefix, a BOM and a byte that is no UTF-8 are errors (#295).
 - **Deep generics**: generics stay shallow on purpose.
   - The built-in containers are generic, `Array<T>`,
     `Dictionary<K, V>`, `Set<T>` (#57, #65, #71), as they cannot be
