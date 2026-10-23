@@ -6564,3 +6564,15 @@ argument, and left that for a later number. Details are provisional
 P322.
 
 There are 947 tests, and all pass with clang and with gcc 15.
+
+### 356. OS's system information in Kelvin
+
+> move OS system information to Kelvin as #311, then add `async` and
+> `await` to the prelude.
+
+**Claude** moved OS's host, uname, cpus, loadavg, terminalsize and
+diskusage into runtime/os.k, and they print the same as the C did,
+piped and on a terminal. `async` and `await` wait for their own
+number. Details are provisional P323.
+
+There are 948 tests, and all pass with clang and with gcc 15.

@@ -19,6 +19,9 @@
 #import <time.h> as C
 #import <fcntl.h> as C
 #import <sys/wait.h> as C
+#import <sys/ioctl.h> as C
+#import <sys/statvfs.h> as C
+#import <sys/utsname.h> as C
 
 // errno where C set one, else otherwise
 static let err_or(otherwise:int32):int32 {
@@ -633,5 +636,68 @@ let kv_os_mkdtemp(prefix:const any^, out:String^):int32 {
     }
     out^ = String(t as cstr)
     free(t)
+    return 0
+}
+
+// ---------- the system (#311) ----------
+
+// OS.host: the host's name into out, 0, or errno; cut at the buffer's
+// end, where C may leave no NUL
+let kv_os_host(out:String^):int32 {
+    var buf:[u8](256)
+    if gethostname(&buf[0], 256) != 0 { return err_or(EIO) }
+    buf[255] = 0
+    out^ = String(&buf[0] as cstr)
+    return 0
+}
+
+// OS.uname: the system's names into out, 0, or errno
+let kv_os_uname(out:kv_uname^):int32 {
+    var u:struct utsname
+    if uname(&u) < 0 { return err_or(EIO) }
+    out^.sysname = String(u.sysname as cstr)
+    out^.nodename = String(u.nodename as cstr)
+    out^.release = String(u.release as cstr)
+    out^.version = String(u.version as cstr)
+    out^.machine = String(u.machine as cstr)
+    return 0
+}
+
+// OS.cpus: the processors online, 1 where C cannot tell
+let kv_os_cpus():int32 {
+    let n:int64 = sysconf(_SC_NPROCESSORS_ONLN) as int64
+    if n > 0 { return n as int32 }
+    return 1
+}
+
+// OS.loadavg: the run queue over 1, 5 and 15 minutes into out, 0, or errno
+let kv_os_loadavg(out:kv_loadavg^):int32 {
+    var v:[f64](3)
+    if getloadavg(&v[0], 3) != 3 { return err_or(EIO) }
+    out^.one = v[0]
+    out^.five = v[1]
+    out^.fifteen = v[2]
+    return 0
+}
+
+// OS.terminalsize: the terminal on stdout into out, 0, or errno, ENOTTY
+// where it is none
+let kv_os_terminalsize(out:kv_terminalsize^):int32 {
+    var w:struct winsize
+    if ioctl(1, TIOCGWINSZ, &w) != 0 { return err_or(ENOTTY) }
+    out^.columns = w.ws_col as int64
+    out^.lines = w.ws_row as int64
+    return 0
+}
+
+// OS.diskusage(path): the file system's bytes into out, 0, or errno;
+// free is what a user may take, used what is taken
+let kv_os_diskusage(path:const any^, out:kv_diskusage^):int32 {
+    var v:struct statvfs
+    if statvfs(path, &v) != 0 { return err_or(EIO) }
+    let unit = v.f_frsize as int64
+    out^.total = (v.f_blocks as int64) * unit
+    out^.free = (v.f_bavail as int64) * unit
+    out^.used = ((v.f_blocks as int64) - (v.f_bfree as int64)) * unit
     return 0
 }

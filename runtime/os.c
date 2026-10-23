@@ -5,7 +5,8 @@
    working directory, the environment, files by path, the process ids;
    stat and the existence checks (#303); directories, walk and glob
    (#304); users and groups, and a file's owner (#305); paths (#306);
-   processes and time (#309); temporary files (#310). */
+   processes and time (#309); temporary files (#310); the system
+   (#311). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -38,9 +39,6 @@ static int err_or(int fallback) { return errno ? errno : fallback; }
 #include <fcntl.h>
 #include <glob.h>
 #include <grp.h>
-#include <sys/ioctl.h>
-#include <sys/statvfs.h>
-#include <sys/utsname.h>
 #include <pwd.h>
 #include <signal.h>
 #include <time.h>
@@ -75,15 +73,6 @@ int kv_os_makedirs(const void *path) {
     bool dir = stat(p, &st) == 0 && S_ISDIR(st.st_mode);
     free(copy);
     return dir ? 0 : ENOTDIR;
-}
-
-int kv_os_host(kv_string *out) {
-    char buf[256];
-    if (gethostname(buf, sizeof buf) != 0)
-        return err_or(EIO);
-    buf[sizeof buf - 1] = '\0';
-    *out = kv_string_text(buf);
-    return 0;
 }
 
 /* ---------- walking and globbing (#96) ---------- */
@@ -135,18 +124,6 @@ int kv_os_environ(kv_string **out, size_t *count) {
     return 0;
 }
 
-int kv_os_uname(kv_uname *out) {
-    struct utsname u;
-    if (uname(&u) < 0)
-        return err_or(EIO);
-    out->sysname = kv_string_text(u.sysname);
-    out->nodename = kv_string_text(u.nodename);
-    out->release = kv_string_text(u.release);
-    out->version = kv_string_text(u.version);
-    out->machine = kv_string_text(u.machine);
-    return 0;
-}
-
 bool kv_os_readable(const void *path) { return access((const char *)path, R_OK) == 0; }
 bool kv_os_writable(const void *path) { return access((const char *)path, W_OK) == 0; }
 bool kv_os_executable(const void *path) { return access((const char *)path, X_OK) == 0; }
@@ -158,21 +135,6 @@ bool kv_os_samefile(const void *a, const void *b) {
 
 int kv_os_mkfifo(const void *path) { return mkfifo((const char *)path, 0666) == 0 ? 0 : err_or(EIO); }
 void kv_os_sync(void) { sync(); }
-
-int kv_os_cpus(void) {
-    long n = sysconf(_SC_NPROCESSORS_ONLN);
-    return n > 0 ? (int)n : 1;
-}
-
-int kv_os_loadavg(kv_loadavg *out) {
-    double v[3];
-    if (getloadavg(v, 3) != 3)
-        return err_or(EIO);
-    out->one = v[0];
-    out->five = v[1];
-    out->fifteen = v[2];
-    return 0;
-}
 
 int kv_os_urandom(long long n, kv_bytes *out) {
     if (n < 0)
@@ -196,24 +158,3 @@ const uint8_t *kv_os_sep(void) { return (const uint8_t *)"/"; }
 const uint8_t *kv_os_linesep(void) { return (const uint8_t *)"\n"; }
 const uint8_t *kv_os_devnull(void) { return (const uint8_t *)"/dev/null"; }
 const uint8_t *kv_os_name(void) { return (const uint8_t *)"posix"; }
-
-/* the terminal on stdout, else ENOTTY */
-int kv_os_terminalsize(kv_terminalsize *out) {
-    struct winsize w;
-    if (ioctl(1, TIOCGWINSZ, &w) != 0)
-        return err_or(ENOTTY);
-    out->columns = w.ws_col;
-    out->lines = w.ws_row;
-    return 0;
-}
-
-int kv_os_diskusage(const void *path, kv_diskusage *out) {
-    struct statvfs v;
-    if (statvfs((const char *)path, &v) != 0)
-        return err_or(EIO);
-    long long unit = (long long)v.f_frsize;
-    out->total = (long long)v.f_blocks * unit;
-    out->free = (long long)v.f_bavail * unit;
-    out->used = ((long long)v.f_blocks - (long long)v.f_bfree) * unit;
-    return 0;
-}

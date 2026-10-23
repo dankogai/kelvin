@@ -342,6 +342,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 308 | Arrays, Dictionaries and Sets have `flatMap`, which makes each a monad: an Array's results concatenated, a Dictionary's merged in the order added, a later entry winning, as `d[k] = v`, with `flatMapWithKey`, a Set's unioned; the monad laws hold | — | `xs.flatMap { Array<int64>([$0, $0]) }` | 2026-10-24 |
 | 309 | OS's system, time, sleep, utime, futime, ftouch and touch are written in Kelvin in runtime/os.k, in place of their C; environ stays C, its `char **` | — | `OS.time` of runtime/os.k | 2026-10-24 |
 | 310 | OS's tmpdir, mkstemp and mkdtemp are written in Kelvin in runtime/os.k, in place of their C; the IO mkstemp fills is kIO.h's `kv_io` | — | `OS.mkstemp` of runtime/os.k | 2026-10-24 |
+| 311 | OS's host, uname, cpus, loadavg, terminalsize and diskusage are written in Kelvin in runtime/os.k, in place of their C | — | `OS.uname` of runtime/os.k | 2026-10-24 |
 
 Notes:
 
@@ -903,6 +904,22 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (311) Agreed details: "move OS system information to Kelvin as
+  #311", #301's eighth group: kv_os_host, uname, cpus, loadavg,
+  terminalsize and diskusage.
+  - C's buffers as Kelvin's arrays: the host's name in `var
+    buf:[u8](256)`, cut at its end; getloadavg's three in `var
+    v:[f64](3)`; `struct utsname`, `struct winsize` and `struct
+    statvfs` as they are, uname's names read `u.sysname as cstr`.
+  - kelvinc's C asks for the macros os.c asked for, so sysconf's
+    `_SC_NPROCESSORS_ONLN` and getloadavg are there on each system.
+  - A program of each, piped and on a 101 by 37 pseudo-terminal,
+    prints the same with the C and the Kelvin, with no leaks;
+    tests/run/os_kelvin_group8.k.
+  - Left in os.c: chmod, truncate, makedirs, strerror, environ, the
+    access checks, samefile, mkfifo, sync, urandom, isatty, and the
+    names sep, linesep, devnull and name.
 
 - (310) Agreed details: "move OS temporary files to Kelvin as #310",
   #301's seventh group: kv_os_tmpdir, mkstemp and mkdtemp, and os.c's
@@ -3548,6 +3565,7 @@ says "as agreed".
 | P320 | Details of #308 | parser.c: flatMap and flatMapWithKey in the map/filter/reduce branch; codegen.c: array_flatMap, dict_flatMap, set_flatMap; tests: run/flat_map.k, error/flat_map_kind.k, error/flat_map_with_key_set.k; documents/arrays.md, dictionaries.md, sets.md | |
 | P321 | Details of #309 | runtime/os.k: system, time, sleep, at_seconds, now_both, utime, futime, ftouch, touch; runtime/os.c loses them; tests: run/os_kelvin_group6.k; README.md | environ: Kelvin has no C `char` |
 | P322 | Details of #310 | runtime/os.k: tmpdir, temp_template, mkstemp, mkdtemp; runtime/os.c loses them; tests: run/os_kelvin_group7.k; README.md | found: a call without a result reaches C as an argument |
+| P323 | Details of #311 | runtime/os.k: host, uname, cpus, loadavg, terminalsize, diskusage; runtime/os.c loses them; tests: run/os_kelvin_group8.k; README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
