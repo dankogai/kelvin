@@ -292,6 +292,11 @@ kc reads what it is written in, and little more.
   `default:`; a case ends at the next, its own block, with a `break`
   where it does not jump; a switch on an enum names every enumerator or
   has `default:`, any other has `default:`.
+- **A source is UTF-8** (#298), as kelvinc's #295: a BOM, a byte that
+  is no UTF-8, and C's prefixes, `L"..."`, `u8'x'`, are kelvinc's errors,
+  in its words, at the line.
+  - kc reads a file's bytes with C's stdio first, `fopen` and `fgetc`,
+    as IO's `.string` would end kc in words of its own.
 - **`\u` escapes in a literal** (#293), as kelvinc's #292: `\u{X}`,
   `\uXXXX` and `\UXXXXXXXX`, each the codepoint's UTF-8 bytes in C,
   a control character too; kelvinc's errors of a surrogate, one past

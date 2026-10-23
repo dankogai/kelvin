@@ -6394,3 +6394,14 @@ kelvinc now takes a receiver it sees is a number for no struct:
 a number is an error that names `.uchr`. Details are provisional P309.
 
 There are 933 tests, and all pass with clang and with gcc 15.
+
+### 342. kc reads UTF-8 alone
+
+> teach kc to refuse BOMs, invalid UTF-8 and prefixes as #298
+
+**Claude** had kc read a file's bytes first, with C's stdio, as IO's
+`.string` ended kc in the runtime's words where a file was no UTF-8, and
+refuse a BOM, such a byte and C's prefixes as kelvinc does, in its
+words. Details are provisional P310.
+
+There are 933 tests, and all pass with clang and with gcc 15.

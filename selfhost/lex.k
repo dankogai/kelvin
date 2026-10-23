@@ -129,6 +129,18 @@ let lex_range(from:int64, to:int64, file:int64) {
         } else if is_alpha(c) {
             let s:int64 = i
             while i < to && (is_alpha(codes[i]) || is_digit(codes[i])) { i += 1 }
+            let q:uint32 = code_at(i)
+            let one = i - s == 1 && (codes[s] == 'L' || codes[s] == 'u' || codes[s] == 'U')
+            let wide8 = i - s == 2 && codes[s] == 'u' && codes[s + 1] == '8'
+            if (q == '"' || q == '\'') && (one || wide8) {       // C's prefix, as kelvinc refuses it (#295, #298)
+                var m = $""
+                for k in s..<i { m += codes[k].uchr }
+                m += q.uchr
+                m += "..."
+                m += q.uchr
+                m += " is C's prefixed literal: a Kelvin source is UTF-8, and a literal's one prefix is $, a String's, $\"...\" (#295)"
+                lex_error(file, line, m.cstr)
+            }
             add_tok(T_ID, s, i - s, line, file)
         } else if is_digit(c) {
             let s:int64 = i

@@ -54,6 +54,72 @@ let base_of(path:String^):String {
     return r
 }
 
+// the length of the valid UTF-8 sequence at i of b, or 0, as kelvinc's
+// utf8_length: no overlong form, no surrogate, nothing past 10FFFF
+let utf8_len(b:const $[int64]^, i:int64):int64 {
+    let c:int64 = b^[i]
+    if c < 0x80 { return 1 }
+    var n:int64 = 0
+    if c >= 0xC2 && c <= 0xDF {
+        n = 2
+    } else if c >= 0xE0 && c <= 0xEF {
+        n = 3
+    } else if c >= 0xF0 && c <= 0xF4 {
+        n = 4
+    }
+    if n == 0 || i + n > b^.count as int64 { return 0 }
+    var lo:int64 = 0x80
+    var hi:int64 = 0xBF
+    if c == 0xE0 { lo = 0xA0 }
+    if c == 0xF0 { lo = 0x90 }
+    if c == 0xED { hi = 0x9F }
+    if c == 0xF4 { hi = 0x8F }
+    if b^[i + 1] < lo || b^[i + 1] > hi { return 0 }
+    for k in 2..<n {
+        if b^[i + k] < 0x80 || b^[i + k] > 0xBF { return 0 }
+    }
+    return n
+}
+
+// the error of the file at path where it is no source kelvinc reads, or
+// "": UTF-8, valid and without a BOM (#295, #298), its bytes read by C's
+// stdio before IO's .string, which would end kc in words of its own
+let source_error(path:String^):String {
+    let fp:FILE^ := fopen(path^.cstr, "rb")
+    if fp == nullptr { return $"" }
+    var b:$[int64] = $[]
+    var c:int64 = fgetc(fp) as int64
+    while c >= 0 {
+        b += c
+        c = fgetc(fp) as int64
+    }
+    fclose(fp)
+    let n = b.count as int64
+    if n >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF {
+        var bom:String = path^.copy()
+        bom += ":1: error: a Kelvin source is UTF-8 without a BOM: remove its first three bytes, EF BB BF (#295)"
+        return bom
+    }
+    var line:int64 = 1
+    var i:int64 = 0
+    while i < n {
+        let k = utf8_len(&b, i)
+        if k == 0 {
+            var why:String = path^.copy()
+            why += ":"
+            why += String(line)
+            why += ": error: a Kelvin source is valid UTF-8, and byte 0x"
+            let h:String = hex_upper(b[i])
+            why += &h
+            why += " here is not (#295)"
+            return why
+        }
+        if b[i] == 10 { line += 1 }
+        i += k
+    }
+    return $""
+}
+
 // reads a file into codes and its tokens into toks: its place among the
 // files, or why it cannot (#217)
 let load(path:String^):Result<int64, String> {
@@ -63,6 +129,8 @@ let load(path:String^):Result<int64, String> {
         why += path
         return err(why)
     }
+    let wrong:String = source_error(path)                // UTF-8 without a BOM (#298)
+    if wrong.count > 0 { return err(wrong) }
     var text:String = f.string
     let file:int64 = fnames.count as int64
     fnames += path^.copy()
