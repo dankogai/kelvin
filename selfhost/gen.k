@@ -29,13 +29,119 @@ let put_tok(t:int64) {
     }
 }
 
-// a string's token from its from-th code, a '?' after a '?' escaped:
-// Kelvin has no trigraphs, which C11 would read in it (#220)
+// an error at token t, as gen_error's at a node
+let tok_error(t:int64, what:cstr) {
+    if !failed {
+        let k:tok = toks[t]
+        println(fnames[k.file], ":", k.line, ": error: ", what)
+    }
+    failed = true
+}
+
+// v in hex, upper case
+let hex_upper(v:int64):String {
+    var s = $""
+    if v >= 16 { s = hex_upper(v / 16) }
+    let digits:cstr := "0123456789ABCDEF"
+    s += (digits[v % 16] as uint32).uchr
+    return s
+}
+
+// the code at i of string token t, or 0 past it
+let text_code(t:int64, i:int64):int64 {
+    if i < toks[t].len { return codes[toks[t].at + i] }
+    return 0
+}
+
+// whether c is a hex digit, and its value
+let is_hex_code(c:int64):bool {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
+let hex_code_value(c:int64):int64 {
+    if c >= '0' && c <= '9' { return c - '0' }
+    if c >= 'a' && c <= 'f' { return c - 'a' + 10 }
+    return c - 'A' + 10
+}
+
+// the \u escape at i of string token t, as kelvinc's ucn_text (#292, #293):
+// \u{X}, \uXXXX or \UXXXXXXXX, the codepoint's UTF-8 bytes in octal, three
+// digits each, which C takes for any codepoint; where the escape ends
+let put_ucn(t:int64, i:int64):int64 {
+    let braced = text_code(t, i + 1) == 'u' && text_code(t, i + 2) == '{'
+    var want:int64 = 8
+    if !braced && text_code(t, i + 1) == 'u' { want = 4 }
+    var q:int64 = i + 2
+    if braced { q += 1 }
+    var cp:int64 = 0
+    var digits:int64 = 0
+    while is_hex_code(text_code(t, q)) && digits < (braced ? 8 : want) {
+        cp = cp * 16 + hex_code_value(text_code(t, q))
+        q += 1
+        digits += 1
+    }
+    if (braced && (digits == 0 || text_code(t, q) != '}')) || (!braced && digits != want) {
+        tok_error(t, "a \\u escape is \\u{X}, \\uXXXX or \\UXXXXXXXX: a codepoint in hex digits (#292)")
+        return toks[t].len
+    }
+    if braced { q += 1 }
+    if cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) {
+        var m = $"\\u{"
+        let h:String = hex_upper(cp)
+        m += &h
+        m += "} is no codepoint: a surrogate, D800 to DFFF, or past 10FFFF (#292)"
+        tok_error(t, m.cstr)
+        return toks[t].len
+    }
+    var bytes:$[int64] = $[]
+    if cp < 0x80 {
+        bytes += cp
+    } else if cp < 0x800 {
+        bytes += 0xC0 | (cp / 64)
+        bytes += 0x80 | (cp % 64)
+    } else if cp < 0x10000 {
+        bytes += 0xE0 | (cp / 4096)
+        bytes += 0x80 | ((cp / 64) % 64)
+        bytes += 0x80 | (cp % 64)
+    } else {
+        bytes += 0xF0 | (cp / 262144)
+        bytes += 0x80 | ((cp / 4096) % 64)
+        bytes += 0x80 | ((cp / 64) % 64)
+        bytes += 0x80 | (cp % 64)
+    }
+    for k in 0..<bytes.count as int64 {
+        let b = bytes[k]
+        out += "\\"
+        let d0:int64 = '0' + b / 64
+        let d1:int64 = '0' + (b / 8) % 8
+        let d2:int64 = '0' + b % 8
+        out += d0.uchr
+        out += d1.uchr
+        out += d2.uchr
+    }
+    return q
+}
+
+// a string's token from its from-th code, as kelvinc writes it: a '?'
+// after a '?' escaped, as Kelvin has no trigraphs, which C11 would read
+// in it (#220); each \u escape the codepoint's UTF-8 bytes (#293); every
+// other escape C's, its two codes as they are, so that \\u is no escape
 let put_text(t:int64, from:int64) {
     let at:int64 = toks[t].at
-    for i in from..<toks[t].len {
-        if codes[at + i] == '?' && i > from && codes[at + i - 1] == '?' { out += "\\" }
-        out += codes[at + i].uchr
+    var i:int64 = from
+    while i < toks[t].len {
+        let c = codes[at + i]
+        if c == '\\' && (text_code(t, i + 1) == 'u' || text_code(t, i + 1) == 'U') {
+            i = put_ucn(t, i)
+            continue
+        }
+        if c == '?' && i > from && codes[at + i - 1] == '?' { out += "\\" }
+        out += c.uchr
+        if c == '\\' && i + 1 < toks[t].len {
+            i += 1
+            out += codes[at + i].uchr
+        }
+        i += 1
     }
 }
 

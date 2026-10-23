@@ -324,6 +324,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 290 | More of the runtime in Kelvin: a String's `escape` and `unescape` in runtime/string.k, and a Bytes's `toBase64` and `Bytes.fromBase64` in a new runtime/bytes.k, in place of their C | — | `s.escape()`, `b.toBase64()` | 2026-10-23 |
 | 291 | `Bytes(&s)` of a String is a copy of its bytes, as bytes.md has it, where it was garbage; `Bytes(s)` of one is an error that names `Bytes(&s)` | — | `Bytes(&s)` | 2026-10-23 |
 | 292 | A literal's `\u{X}`, `\uXXXX` and `\UXXXXXXXX` are a codepoint, which kelvinc writes to C as its UTF-8 bytes, so `"\u{7f}"` works where C refused it, and `print`'s `\u007f` pastes back; a surrogate, one past 10FFFF or a malformed one is an error that says so | — | `"a\u{7f}"` | 2026-10-23 |
+| 293 | kc writes a literal's `\u` escapes as kelvinc since #292, the codepoint's UTF-8 bytes in octal, with kelvinc's errors in its words | — | kc builds `$"a\u{7f}"` | 2026-10-23 |
 
 Notes:
 
@@ -885,6 +886,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (293) Agreed details: "teach kc \u escapes in literals as #293".
+  put_text, which wrote a literal's codes as they were, but a `?` after
+  a `?` (#220), reads them escape by escape now: put_ucn writes a `\u`
+  escape as kelvinc's ucn_text does, and every other escape's two codes
+  go as they are, so `\\u` stays a backslash and a `u`.
+  - tok_error reports at a token, as gen_error at a node, with
+    kelvinc's words; kc reports when it writes the literal.
+  - The printed `\u007f` pastes back in kc too; sample.k has a line.
+  - Found: `(n + 1).uchr` of an arithmetic expression reaches C, a
+    member of an `int64_t`, in kelvinc; a `let` of it works.
 
 - (292) Agreed details: "fix the "\u{7f}" literal reaching C as #292",
   found by #290. kelvinc wrote a literal's text to C as it was, so its
@@ -3223,6 +3235,7 @@ says "as agreed".
 | P302 | Details of #290 | runtime/string.k: escape, unescape; runtime/bytes.k; runtime/string.c and bytes.c lose them; tests: run/string_escape_edges.k; README.md, selfhost/README.md | `Bytes(&s)` gives garbage; `"\u{7f}"` reaches C; escape stops at a NUL |
 | P303 | Details of #291 | kelvin_prelude.h: KV_BYTES_OF of a String; runtime/bytes.k: kv_bytes_of_string; parser.c: the message of Bytes(s); tests: run/bytes_of_string.k, error/bytes_of_string_owner.k; documents/bytes.md | |
 | P304 | Details of #292 | lexer.c: ucn_text in lex_quoted and lex_template; tests: run/unicode_escapes.k, error/ucn_surrogate.k, error/ucn_malformed.k; documents/grammar.md | |
+| P305 | Details of #293 | selfhost/gen.k: put_text, put_ucn, tok_error, hex_upper, text_code; sample.k uses it; selfhost/README.md | `(n + 1).uchr` reaches C |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

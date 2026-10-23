@@ -6324,3 +6324,13 @@ so of a surrogate, one past 10FFFF and a malformed escape. Details are
 provisional P304.
 
 There are 920 tests, and all pass with clang and with gcc 15.
+
+### 337. kc reads \u escapes
+
+> teach kc \u escapes in literals as #293.
+
+**Claude** taught kc kelvinc's \u escapes, written as UTF-8 bytes, with
+kelvinc's errors. It found that `(n + 1).uchr` reaches C in kelvinc.
+Details are provisional P305.
+
+There are 920 tests, and all pass with clang and with gcc 15.

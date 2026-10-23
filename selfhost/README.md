@@ -292,6 +292,10 @@ kc reads what it is written in, and little more.
   `default:`; a case ends at the next, its own block, with a `break`
   where it does not jump; a switch on an enum names every enumerator or
   has `default:`, any other has `default:`.
+- **`\u` escapes in a literal** (#293), as kelvinc's #292: `\u{X}`,
+  `\uXXXX` and `\UXXXXXXXX`, each the codepoint's UTF-8 bytes in C,
+  a control character too; kelvinc's errors of a surrogate, one past
+  10FFFF and a malformed escape, in its words.
 - **Expressions:** numbers, characters, `"..."` and `$"..."`, `true`,
   `false`, calls, `.member`, `.method()`, `a[i]`, `&x`, `p^`, `x as T`,
   `{a, b}` of a struct, `$[]`, `${:}`,

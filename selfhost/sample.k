@@ -366,5 +366,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(doubled(21), " ", shouted(&greeting))
     let same_stock = ${"pear": 5, "apple": 3}            // == of Dictionaries and Arrays (#288)
     println(stock == same_stock, " ", stock != ${"apple": 3}, " ", stock.keys == $[$"apple", $"pear"], " ", listed == digit_set.elements)
+    let escaped_text = $"\u{48}i\u00e9\U0001F600\u{7f}"   // \u escapes, UTF-8 bytes in C (#293)
+    println(escaped_text.count, " ", escaped_text == $"Hié😀" + (0x7f as uint32).uchr)
     return 0
 }
