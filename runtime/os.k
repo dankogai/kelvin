@@ -15,6 +15,9 @@
 #import <glob.h> as C
 #import <pwd.h> as C
 #import <grp.h> as C
+#import <time.h> as C
+#import <fcntl.h> as C
+#import <sys/wait.h> as C
 
 // errno where C set one, else otherwise
 static let err_or(otherwise:int32):int32 {
@@ -474,3 +477,80 @@ let kv_os_groups(out:int32^^, count:size_t^):int32 {
 // OS.chown(path, uid, gid), OS.lchown(...): a file's owner, a link's own
 let kv_os_chown(path:const any^, uid:int32, gid:int32):int32 { done(chown(path, uid, gid), EIO) }
 let kv_os_lchown(path:const any^, uid:int32, gid:int32):int32 { done(lchown(path, uid, gid), EIO) }
+
+// ---------- processes and time (#309) ----------
+
+// OS.system(command): a shell command's exit code, or -1 where it did
+// not exit; every stream flushed first
+let kv_os_system(command:const any^):int32 {
+    fflush(nullptr)
+    let st:int32 = system(command)
+    if st != -1 && WIFEXITED(st) != 0 { return WEXITSTATUS(st) as int32 }
+    return -1
+}
+
+// OS.time: seconds since the epoch, to the nanosecond where C says
+let kv_os_time():float64 {
+    var ts:struct timespec
+    if timespec_get(&ts, TIME_UTC) == 0 { return time(nullptr) as float64 }
+    return (ts.tv_sec as float64) + (ts.tv_nsec as float64) / 1e9
+}
+
+// OS.sleep(seconds): sleeps, resuming where a signal breaks it off
+let kv_os_sleep(seconds:float64) {
+    if seconds <= 0.0 { return }
+    var ts:struct timespec
+    let whole:int64 = seconds as int64
+    ts.tv_sec = whole
+    ts.tv_nsec = ((seconds - (whole as float64)) * 1e9) as int64
+    while nanosleep(&ts, &ts) != 0 && errno == EINTR {}
+}
+
+// the time s seconds after the epoch, as utimensat takes it
+static let at_seconds(s:float64, ts:struct timespec^) {
+    let whole:int64 = s as int64
+    ts^.tv_sec = whole
+    ts^.tv_nsec = ((s - (whole as float64)) * 1e9) as int64
+    if ts^.tv_nsec < 0 { ts^.tv_nsec = 0 }
+}
+
+// OS.utime(path, atime, mtime): a file's times
+let kv_os_utime(path:const any^, atime:float64, mtime:float64):int32 {
+    var ts:[struct timespec](2)
+    at_seconds(atime, &ts[0])
+    at_seconds(mtime, &ts[1])
+    return done(utimensat(AT_FDCWD, path, &ts[0], 0), EIO)
+}
+
+// the same of an open descriptor, for an IO (#108)
+let kv_os_futime(fd:int32, atime:float64, mtime:float64):int32 {
+    var ts:[struct timespec](2)
+    at_seconds(atime, &ts[0])
+    at_seconds(mtime, &ts[1])
+    return done(futimens(fd, &ts[0]), EIO)
+}
+
+// both times now
+static let now_both(ts:struct timespec^) {
+    ts^.tv_sec = 0
+    ts^.tv_nsec = UTIME_NOW
+}
+
+let kv_os_ftouch(fd:int32):int32 {
+    var ts:[struct timespec](2)
+    now_both(&ts[0])
+    now_both(&ts[1])
+    return done(futimens(fd, &ts[0]), EIO)
+}
+
+// OS.touch(path): both times now, and the file made if it is missing, as
+// touch does
+let kv_os_touch(path:const any^):int32 {
+    let fd:int32 = open(path, O_WRONLY | O_CREAT, 0x1B6)          // 0666
+    if fd < 0 { return err_or(EIO) }
+    close(fd)
+    var ts:[struct timespec](2)
+    now_both(&ts[0])
+    now_both(&ts[1])
+    return done(utimensat(AT_FDCWD, path, &ts[0], 0), EIO)
+}

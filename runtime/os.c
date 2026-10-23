@@ -4,7 +4,8 @@
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
    working directory, the environment, files by path, the process ids;
    stat and the existence checks (#303); directories, walk and glob
-   (#304); users and groups, and a file's owner (#305); paths (#306). */
+   (#304); users and groups, and a file's owner (#305); paths (#306);
+   processes and time (#309). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -32,13 +33,6 @@
 /* ---------- OS: the system around it ---------- */
 
 static int err_or(int fallback) { return errno ? errno : fallback; }
-
-/* a shell command's exit code, or -1 where it did not exit */
-int kv_os_system(const void *command) {
-    fflush(NULL);
-    int st = system((const char *)command);
-    return st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
-}
 
 /* ---------- more of OS (#95) ---------- */
 #include <fcntl.h>
@@ -90,21 +84,6 @@ int kv_os_host(kv_string *out) {
     buf[sizeof buf - 1] = '\0';
     *out = kv_string_text(buf);
     return 0;
-}
-
-double kv_os_time(void) {
-    struct timespec ts;
-    if (!timespec_get(&ts, TIME_UTC))
-        return (double)time(NULL);
-    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
-}
-
-void kv_os_sleep(double seconds) {
-    if (seconds <= 0)
-        return;
-    struct timespec ts = {(time_t)seconds, (long)((seconds - (double)(time_t)seconds) * 1e9)};
-    while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
-        ;
 }
 
 /* TMPDIR, or /tmp, without a trailing /, which macOS's TMPDIR has */
@@ -209,41 +188,6 @@ int kv_os_mkdtemp(const void *prefix, kv_string *out) {
 }
 
 /* ---------- a file's times (#98) ---------- */
-
-static struct timespec at_seconds(double s) {
-    struct timespec ts;
-    ts.tv_sec = (time_t)s;
-    ts.tv_nsec = (long)((s - (double)ts.tv_sec) * 1e9);
-    if (ts.tv_nsec < 0)
-        ts.tv_nsec = 0;
-    return ts;
-}
-
-int kv_os_utime(const void *path, double atime, double mtime) {
-    struct timespec ts[2] = {at_seconds(atime), at_seconds(mtime)};
-    return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
-}
-
-/* the same of an open descriptor, for an IO (#108) */
-int kv_os_futime(int fd, double atime, double mtime) {
-    struct timespec ts[2] = {at_seconds(atime), at_seconds(mtime)};
-    return futimens(fd, ts) == 0 ? 0 : err_or(EIO);
-}
-
-int kv_os_ftouch(int fd) {
-    struct timespec ts[2] = {{0, UTIME_NOW}, {0, UTIME_NOW}};
-    return futimens(fd, ts) == 0 ? 0 : err_or(EIO);
-}
-
-/* both times now, and the file made if it is missing, as touch does */
-int kv_os_touch(const void *path) {
-    int fd = open((const char *)path, O_WRONLY | O_CREAT, 0666);
-    if (fd < 0)
-        return err_or(EIO);
-    close(fd);
-    struct timespec ts[2] = {{0, UTIME_NOW}, {0, UTIME_NOW}};
-    return utimensat(AT_FDCWD, (const char *)path, ts, 0) == 0 ? 0 : err_or(EIO);
-}
 
 /* ---------- what Python's os has beyond these (#102) ---------- */
 

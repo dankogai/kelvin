@@ -6541,3 +6541,14 @@ Set's unioned. A test checks the monad laws of each. Details are
 provisional P320.
 
 There are 945 tests, and all pass with clang and with gcc 15.
+
+### 354. OS's processes and time in Kelvin
+
+> move OS processes and time to Kelvin as #309
+
+**Claude** moved OS's system, time, sleep and the setting of a file's
+times into runtime/os.k, and they print the same as the C did. It kept
+environ in C: Kelvin cannot declare C's `char **environ` as libc may.
+Details are provisional P321.
+
+There are 946 tests, and all pass with clang and with gcc 15.
