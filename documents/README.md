@@ -64,7 +64,8 @@ the design decisions, numbered `#N` throughout, are in
   `` $`...` `` a String from one, `.pretty`.
 - [io.md](io.md): `IO`, files and the standard streams as owners,
   `#import <IO>`.
-- [os.md](os.md): `OS` and `SYS`, the system and the program,
+- [sys.md](sys.md): `SYS`, the program, the prelude's (#302)
+- [os.md](os.md): `OS`, the system around the program,
   `#import <OS>`.
 - [c-interfaces.md](c-interfaces.md): C headers, typedefs, C's
   functions, `libkelvin` from C, the C compiler.

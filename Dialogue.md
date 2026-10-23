@@ -6470,3 +6470,15 @@ program of each prints the same as the C did. Details are provisional
 P315.
 
 There are 936 tests, and all pass with clang and with gcc 15.
+
+### 348. SYS's own document
+
+> Split the document on SYS to sys.md then commit and push to main
+
+**Claude** moved SYS's section, its members, its row of the table and
+the word on its text from os.md into a new documents/sys.md, with an
+example of its own, which the documents' check builds, and pointed
+os.md, the documents' index, properties.md, versusC.md and modules.md
+at it. OS's document is OS's alone.
+
+There are 936 tests, and all pass with clang and with gcc 15.

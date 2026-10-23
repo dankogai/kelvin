@@ -130,7 +130,8 @@ Each document says so under its title. In short:
 | [unicodedata.md](unicodedata.md) | `#import <UnicodeData>`: `s.normalize(nfc)`, `s.graphemes`, the case mappings, a `uchr`'s `.name`, `.category`, `.combining` and decompositions (#156) |
 | [regexp.md](regexp.md) | `#import <RegExp>`: `$/pattern/flags`, JS's regular expressions over Strings, `test`, `exec`, `match`, `replace`, `split`, `\p{...}`, `\X` (#157) |
 | [io.md](io.md) | `IO`: files and the standard streams as owners, `IO(path, mode)` straight with `f.error`, `.bytes`, `.string`, `.read(n)`, `.lines`, `.write` |
-| [os.md](os.md) | `OS` and `SYS`: the working directory, the environment, files and directories, a shell command, the pid; the arguments, the platform, exiting |
+| [os.md](os.md) | `OS`: the working directory, the environment, files and directories, a shell command, the pid |
+| [sys.md](sys.md) | `SYS`: the arguments, the platform, exiting |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |

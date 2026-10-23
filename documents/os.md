@@ -1,14 +1,14 @@
-# OS and SYS: the system, and the program
+# OS: the system around the program
 
-`OS` is the system around the program and `SYS` the program itself,
-two namespaces (#94), after Python's `os` and `sys`: `OS` a module,
-`#import <OS>` (#145), `OS.cwd`, `OS.listdir(path)`, and `SYS` the
-prelude's, with no import (#302), `SYS.argv`. Each is C's call
+`OS` is the system around the program (#94), after Python's `os`, a
+module, `#import <OS>` (#145): `OS.cwd`, `OS.listdir(path)`. The
+program itself is `SYS`, the prelude's, with no import (#302):
+[sys.md](sys.md). Each is C's call
 underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
 that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
 so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
 
-**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` is `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` is an error that says to write it. `SYS` is the prelude's (#302): runtime/sys.c in `libkelvin`, declared by `kelvin_prelude.h`, with no import.
+**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` is `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` is an error that says to write it. `SYS` is the prelude's: [sys.md](sys.md).
 
 ```swift
 #import <IO>                                // brings OS in too; #import <OS> alone for it; SYS needs none
@@ -25,26 +25,6 @@ let main():int32 {
     return 0
 }
 ```
-
-## `SYS`: the program
-
-- **The prelude's** (#302): `SYS` needs no import, where it came with
-  `OS` (#145); `main` gives it the program's arguments.
-
-- **`SYS.argv`** is the program's arguments, `argv[0]` the program, as
-  an `Array<cstr>` made from C's `argv`: an owner, so bind it.
-  - It is there whether or not `main` declares `argc` and `argv`,
-    since C's `main` always takes them for it.
-- **`SYS.exit(code)`** flushes every stream and ends the program with
-  the code, as C's `exit` does.
-  - What follows it never runs, and no block ends, so the owners alive
-    at that point are not freed and no file is closed by Kelvin.
-  - The system reclaims them, as it does when `main` returns, but a
-    file written through an IO is flushed only because every stream
-    is.
-- **`SYS.platform`** is a `cstr`: `"macos"`, `"linux"`, `"freebsd"`,
-  `"openbsd"`, `"netbsd"`, `"windows"` or `"unknown"`, decided when
-  the runtime was built.
 
 ## `OS`: the system around it
 
@@ -222,10 +202,6 @@ struct of the next section.
 
 <!-- fragment -->
 ```swift
-SYS.argv: Array<cstr>                    // the program and its arguments; an owner, bind it
-SYS.exit(code: int32)                      // ends the program; no value
-SYS.platform: cstr                       // "macos", "linux", "freebsd", "openbsd", "netbsd", "windows", "unknown"
-
 OS.cwd: Result<String, int32>              // the working directory
 OS.chdir(path: text): int32                // 0 or errno
 OS.env(name: text): cstr?                // the variable's value, or none; a borrow of C's, copy it to keep it
@@ -306,7 +282,7 @@ OS.name: cstr                            // "posix"
 ```
 
 A `String` given back is a new one, an owner: bind it, and its block
-frees it. A `cstr` given back, `SYS.platform`, `OS.tmpdir` and
+frees it. A `cstr` given back, `OS.tmpdir` and
 `OS.env`'s value, is a borrow of text C keeps, which a later call of
 the same kind may replace, so copy it with `String(...)` to keep it.
 
@@ -362,9 +338,6 @@ it; the structs of numbers copy freely.
 
 | On | Property or method | Gives |
 |---|---|---|
-| `SYS` | `.argv` | the arguments, an `Array<cstr>` |
-| | `.exit(code)` | ends the program |
-| | `.platform` | `"macos"`, `"linux"`, ..., a `cstr` |
 | `OS` | `.cwd` | the working directory, a `Result<String, i32>` |
 | | `.chdir(path)` | 0 or `errno` |
 | | `.env(name)` | the value, a `cstr?` |
@@ -393,5 +366,6 @@ it; the structs of numbers copy freely.
 | | `.system(command)` | the exit code, or -1 |
 | | `.pid` | the process id, an `i32` |
 
-Neither is a value: `OS` and `SYS` are only written before `.`. The
+`OS` is no value: it is only written before `.`; `SYS`'s are in
+[sys.md](sys.md). The
 general properties are in [properties.md](properties.md).

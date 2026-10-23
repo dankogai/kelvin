@@ -172,7 +172,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     libkelvin.dylib|.so   the same, for use from C and other toolchains
     IO.kh, kIO.h          #import <IO> (#144, io.md): the header, and its C header
     libkIO.a|.dylib|.so   its library, linked by the import
-    OS.kh, kOS.h          #import <OS> (#145, os.md), with SYS
+    OS.kh, kOS.h          #import <OS> (#145, os.md); SYS is the prelude's (sys.md)
     libkOS.a|.dylib|.so   its library
     UnicodeData.kh        #import <UnicodeData> (#156, unicodedata.md), built by make from UnicodeData.k
     kUnicodeData.h, libkUnicodeData.a|.dylib|.so   its C header and its library, the Unicode tables
