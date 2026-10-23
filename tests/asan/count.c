@@ -4,7 +4,8 @@
    and what is still live when it exits is reported; a program that frees
    everything, as Kelvin's ownership promises, reports 0. realpath is
    renamed too: its block, which the runtime frees, is counted as one
-   malloc gives (#216) */
+   malloc gives (#216). calloc is renamed too, which runtime/os.k gives
+   its Strings to the caller in (#304) */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
 #elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
@@ -29,6 +30,16 @@ static void kv_cnt_start(void) {}
 void *kv_cnt_malloc(size_t n) {
     kv_cnt_start();
     void *p = malloc(n);
+    if (p) {
+        kv_cnt_allocations++;
+        kv_cnt_live++;
+    }
+    return p;
+}
+
+void *kv_cnt_calloc(size_t n, size_t size) {
+    kv_cnt_start();
+    void *p = calloc(n, size);
     if (p) {
         kv_cnt_allocations++;
         kv_cnt_live++;

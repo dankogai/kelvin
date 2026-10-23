@@ -3,7 +3,8 @@
    C's, with errno given back where C sets it, 0 where it does not. A
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
    working directory, the environment, files by path, the process ids;
-   stat and the existence checks (#303). */
+   stat and the existence checks (#303); directories, walk and glob
+   (#304). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -31,57 +32,6 @@
 /* ---------- OS: the system around it ---------- */
 
 static int err_or(int fallback) { return errno ? errno : fallback; }
-
-static int by_bytes(const void *a, const void *b) {
-    const kv_string *x = a, *y = b;
-    size_t n = x->b.count < y->b.count ? x->b.count : y->b.count;
-    int c = n ? memcmp(x->b.at, y->b.at, n) : 0;
-    return c ? c : x->b.count < y->b.count ? -1 : x->b.count > y->b.count;
-}
-
-/* the names in a directory, but . and .., sorted by their bytes, as
-   Strings in an array to be taken over (#94); a name that is not UTF-8
-   ends the program, as a String made of it would */
-int kv_os_listdir(const void *path, kv_string **out, size_t *count) {
-    DIR *d = opendir((const char *)path);
-    if (!d)
-        return err_or(EIO);
-    kv_string *names = NULL;
-    size_t n = 0, cap = 0;
-    struct dirent *e;
-    errno = 0;
-    while ((e = readdir(d))) {
-        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
-            continue;
-        if (n == cap) {
-            cap = cap ? cap * 2 : 16;
-            kv_string *more = realloc(names, cap * sizeof *names);
-            if (!more) {
-                for (size_t i = 0; i < n; i++)
-                    kv_string_free(&names[i]);
-                free(names);
-                closedir(d);
-                return ENOMEM;
-            }
-            names = more;
-        }
-        names[n++] = kv_string_text(e->d_name);
-        errno = 0;
-    }
-    int err = errno;
-    closedir(d);
-    if (err) {
-        for (size_t i = 0; i < n; i++)
-            kv_string_free(&names[i]);
-        free(names);
-        return err;
-    }
-    if (n > 1)
-        qsort(names, n, sizeof *names, by_bytes);
-    *out = names;
-    *count = n;
-    return 0;
-}
 
 /* a shell command's exit code, or -1 where it did not exit */
 int kv_os_system(const void *command) {
@@ -252,69 +202,6 @@ static void free_strings(kv_string *at, size_t n) {
     for (size_t i = 0; i < n; i++)
         kv_string_free(&at[i]);
     free(at);
-}
-
-/* each name in dir, sorted, then what is under a directory among them,
-   depth first; a directory that cannot be read is passed over, as
-   Python's walk passes it, and a symbolic link is not followed */
-static int walk_into(const char *dir, kv_string **out, size_t *n, size_t *cap) {
-    kv_string *names = NULL;
-    size_t k = 0;
-    int e = kv_os_listdir(dir, &names, &k);
-    if (e)
-        return e;
-    for (size_t i = 0; i < k; i++) {
-        kv_string full = kv_os_join(dir, kv_bytes_cstr(&names[i].b));
-        const char *p = (const char *)kv_bytes_cstr(&full.b);
-        struct stat st;
-        bool into = lstat(p, &st) == 0 && S_ISDIR(st.st_mode);
-        if ((e = push_string(out, n, cap, full)) != 0)
-            break;
-        if (into)
-            walk_into((const char *)kv_bytes_cstr(&(*out)[*n - 1].b), out, n, cap);
-    }
-    free_strings(names, k);
-    return e;
-}
-
-int kv_os_walk(const void *path, kv_string **out, size_t *count) {
-    kv_string *at = NULL;
-    size_t n = 0, cap = 0;
-    int e = walk_into((const char *)path, &at, &n, &cap);
-    if (e) {
-        free_strings(at, n);
-        return e;
-    }
-    *out = at;
-    *count = n;
-    return 0;
-}
-
-/* the paths a shell pattern matches, sorted, none where none match */
-int kv_os_glob(const void *pattern, kv_string **out, size_t *count) {
-    glob_t g;
-    int r = glob((const char *)pattern, 0, NULL, &g);
-    if (r == GLOB_NOMATCH) {
-        *out = NULL;
-        *count = 0;
-        return 0;
-    }
-    if (r != 0)
-        return r == GLOB_NOSPACE ? ENOMEM : err_or(EIO);
-    kv_string *at = NULL;
-    size_t n = 0, cap = 0;
-    for (size_t i = 0; i < g.gl_pathc; i++) {
-        int e = push_string(&at, &n, &cap, kv_string_text(g.gl_pathv[i]));
-        if (e) {
-            globfree(&g);
-            free_strings(at, n);
-            return e;
-        }
-    }
-    globfree(&g);
-    *out = at;
-    *count = n;
-    return 0;
 }
 
 /* ---------- temporary files (#97) ---------- */

@@ -6482,3 +6482,15 @@ os.md, the documents' index, properties.md, versusC.md and modules.md
 at it. OS's document is OS's alone.
 
 There are 936 tests, and all pass with clang and with gcc 15.
+
+### 349. OS's directories in Kelvin
+
+> move OS directories, walk and glob to Kelvin as #304
+
+**Claude** moved OS's listdir, walk and glob into runtime/os.k, building
+Kelvin Arrays and handing their Strings over in the buffer kOS.h's
+interface has, so that neither the C kelvinc writes nor io.c changed. A
+tree of awkward names prints the same as the C did. Details are
+provisional P316.
+
+There are 937 tests, and all pass with clang and with gcc 15.

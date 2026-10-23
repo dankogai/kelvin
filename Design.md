@@ -335,6 +335,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 301 | libkOS is built from Kelvin too: runtime/os.k, by kelvinc --runtime, beside runtime/os.c, whose C it takes over a group at a time; the first, twenty: the working directory, the environment, files by path, the process ids, umask and kill | — | `OS.cwd` of runtime/os.k | 2026-10-23 |
 | 302 | `SYS` is the prelude's: `SYS.argv`, `SYS.platform` and `SYS.exit` with no import, in libkelvin, where it came with OS, a module; `main` gives it its arguments where the program names SYS | — | `println(SYS.argv.count)` without `#import <OS>` | 2026-10-23 |
 | 303 | OS's stat, lstat, exists, isdir, isfile and islink are written in Kelvin in runtime/os.k, in place of their C, a C `struct stat` held as `var st:struct stat` | — | `OS.stat(path)` of runtime/os.k | 2026-10-23 |
+| 304 | OS's listdir, walk and glob are written in Kelvin in runtime/os.k, in place of their C: Kelvin Arrays, sorted with String's `<`, handed to the caller as kOS.h has it, a buffer of Strings, calloc's | — | `OS.walk(path)` of runtime/os.k | 2026-10-23 |
 
 Notes:
 
@@ -896,6 +897,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (304) Agreed details: "move OS directories, walk and glob to Kelvin as
+  #304", #301's third group: kv_os_listdir, walk and glob, and os.c's
+  by_bytes and walk_into.
+  - kOS.h's interface stays: a buffer of Strings and its count, which
+    the C kelvinc writes, and io.c's listdir, walk and glob, take over
+    into an Array and free. hand_over moves a Kelvin Array's Strings
+    into a calloc'd buffer, zeroed, so that `buf[i] =` frees nothing.
+  - names_in reads a directory with opendir and readdir, C's, into an
+    Array and sorts it with String's `<`, by the bytes, as by_bytes.
+    `struct dirent^` and `DIR^` are references, `:=`; `errno = 0` as
+    the C did.
+  - walk_into ignores what a directory under it gives, as the C did:
+    one that cannot be read is passed over.
+  - glob is C's glob(), its sort; GLOB_NOMATCH none, GLOB_NOSPACE
+    ENOMEM.
+  - push_string and free_strings stay in os.c, for environ.
+  - tests/asan.sh's counting allocator renamed malloc, realloc and free
+    but not calloc, so the buffer hand_over gives was freed uncounted,
+    "count.c misses an allocator", in five programs: it counts calloc
+    too, kv_cnt_calloc.
+  - A tree of names whose byte order differs from their letters', `é`,
+    a hidden file, an empty directory and a link to a directory prints
+    the same with the C and the Kelvin, OS's and IO's; leaks finds
+    none; tests/run/os_kelvin_group3.k.
 
 - (303) Agreed details: "move OS stat and existence checks to Kelvin as
   #303", #301's second group: kv_os_stat, lstat, exists, isdir, isfile
@@ -3412,6 +3438,7 @@ says "as agreed".
 | P313 | Details of #301 | runtime/os.k; runtime/os.c loses twenty; GNUmakefile: OS_K_OBJ in libkOS; tests: run/os_kelvin_group1.k; README.md, selfhost/README.md | the rest of OS in groups; SYS to the prelude (#302) |
 | P314 | Details of #302 | runtime/sys.c; runtime/os.c, modules/kOS.h lose SYS; kelvin_prelude.h; parser.c: require_module, uses_sys; codegen.c: main's kv_sys_init; tests: run/sys_prelude.k for error/sys_needs_import.k; documents/os.md | |
 | P315 | Details of #303 | runtime/os.k: fill_stat, is_mode, stat, lstat, exists, isdir, isfile, islink; runtime/os.c loses them; tests: run/os_kelvin_group2.k; README.md | the rest of OS in groups |
+| P316 | Details of #304 | runtime/os.k: hand_over, names_in, listdir, walk_into, walk, glob; runtime/os.c loses them; tests: run/os_kelvin_group3.k, asan/count.c and asan.sh count calloc; README.md | the rest of OS in groups |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

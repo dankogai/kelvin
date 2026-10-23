@@ -10,6 +10,9 @@
 #import <unistd.h> as C
 #import <sys/stat.h> as C
 #import <signal.h> as C
+#import <string.h> as C
+#import <dirent.h> as C
+#import <glob.h> as C
 
 // errno where C set one, else otherwise
 static let err_or(otherwise:int32):int32 {
@@ -117,4 +120,98 @@ let kv_os_isfile(path:const any^):bool { is_mode(path, S_IFREG as uint32) }
 let kv_os_islink(path:const any^):bool {
     var st:struct stat
     return lstat(path, &st) == 0 && S_ISLNK(st.st_mode) != 0
+}
+
+// ---------- directories, walk and glob (#304) ----------
+
+// names, handed to C's caller as kOS.h has it: a buffer of Strings,
+// calloc's, which the caller takes over into an Array and frees
+static let hand_over(names:$[String]^, out:String^^, count:size_t^) {
+    let n:size_t = names^.count
+    var buf:String^ := calloc(n + 1, sizeof(kv_string)) as String^
+    var i:size_t = n
+    while i > 0 {
+        i -= 1
+        buf[i] = names^.pop()
+    }
+    out^ := buf
+    count^ = n
+}
+
+// the names in a directory, but . and .., sorted by their bytes, into
+// names; 0, or errno. A name that is not UTF-8 ends the program, as a
+// String made of it does
+static let names_in(path:const any^, names:$[String]^):int32 {
+    let d:DIR^ := opendir(path)
+    if d == nullptr { return err_or(EIO) }
+    errno = 0
+    var e:struct dirent^ := readdir(d)
+    while e != nullptr {
+        let name:cstr := e^.d_name as cstr
+        if strcmp(name, ".") != 0 && strcmp(name, "..") != 0 { names^ += String(name) }
+        errno = 0
+        e := readdir(d)
+    }
+    let err:int32 = errno as int32
+    closedir(d)
+    if err != 0 { return err }
+    names^.sort { (a:String, b:String):bool in a < b }
+    return 0
+}
+
+// OS.listdir(path): the names in a directory, sorted, handed over
+let kv_os_listdir(path:const any^, out:String^^, count:size_t^):int32 {
+    var names:$[String] = $[]
+    let e = names_in(path, &names)
+    if e != 0 { return e }
+    hand_over(&names, out, count)
+    return 0
+}
+
+// each name in dir, sorted, then what is under a directory among them,
+// depth first, into all; a directory that cannot be read is passed
+// over, as Python's walk passes it, and a symbolic link is not followed
+static let walk_into(dir:const any^, all:$[String]^):int32 {
+    var names:$[String] = $[]
+    let e = names_in(dir, &names)
+    if e != 0 { return e }
+    for name in names {
+        var full:String = kv_os_join(dir, name.cstr)
+        var st:struct stat
+        let into = lstat(full.cstr, &st) == 0 && S_ISDIR(st.st_mode) != 0
+        all^ += &full
+        if into { walk_into(full.cstr, all) }
+    }
+    return 0
+}
+
+// OS.walk(path): every path under a directory, depth first, handed over
+let kv_os_walk(path:const any^, out:String^^, count:size_t^):int32 {
+    var all:$[String] = $[]
+    let e = walk_into(path, &all)
+    if e != 0 { return e }
+    hand_over(&all, out, count)
+    return 0
+}
+
+// OS.glob(pattern): the paths a shell pattern matches, sorted, as glob
+// sorts them, none where none match
+let kv_os_glob(pattern:const any^, out:String^^, count:size_t^):int32 {
+    var g:glob_t
+    let r:int32 = glob(pattern, 0, nullptr, &g)
+    if r == GLOB_NOMATCH {
+        out^ := nullptr
+        count^ = 0
+        return 0
+    }
+    if r == GLOB_NOSPACE { return ENOMEM }
+    if r != 0 { return err_or(EIO) }
+    var paths:$[String] = $[]
+    for i in 0..<g.gl_pathc {
+        let p:cstr := g.gl_pathv[i] as cstr
+        paths += String(p)
+    }
+    globfree(&g)
+    hand_over(&paths, out, count)
+    return 0
 }

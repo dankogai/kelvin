@@ -23,7 +23,7 @@ FreeBSD | NetBSD | OpenBSD | DragonFly) features= ;;
 *) features="-D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE=1 -D_DARWIN_C_SOURCE=" ;;
 esac
 flags="-std=c11 -g -O1 -fno-omit-frame-pointer -fsanitize=address -fno-sanitize-recover=all $features \
-    -Dmalloc=kv_cnt_malloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -Drealpath=kv_cnt_realpath -include stdlib.h -w -Imodules -Iruntime"
+    -Dmalloc=kv_cnt_malloc -Dcalloc=kv_cnt_calloc -Drealloc=kv_cnt_realloc -Dfree=kv_cnt_free -Drealpath=kv_cnt_realpath -include stdlib.h -w -Imodules -Iruntime"
 export ASAN_OPTIONS=detect_leaks=0:abort_on_error=0
 
 pass=0
