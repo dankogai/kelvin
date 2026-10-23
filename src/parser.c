@@ -6685,7 +6685,39 @@ static bool converter_is_field(Expr *v, const char *member) {
    field access instead: always when a Kelvin struct has that field, and
    for `.size` whenever kelvinc cannot see that the receiver is not a C
    struct (the field wins when unsure). */
+/* Does kelvinc see that e is an integer: one by its type, integer
+   arithmetic, a prefix -, + or ~ of one, or a ?: of two (#297)? */
+static bool int_expr(Expr *e) {
+    if (e && e->kind == E_TEMP)
+        return e->b && int_expr(e->b);
+    Decl *record;
+    char c = expr_class(e, &record);
+    if (c == 'i')
+        return true;
+    if (c == 'f')
+        return false;
+    switch (e->kind) {
+    case E_BINARY: {
+        static const char *ops[] = {"+", "-", "*", "/", "%", "&", "|", "^", "~", "<<", ">>", NULL};
+        for (int i = 0; ops[i]; i++)
+            if (!strcmp(e->op, ops[i]))
+                return int_expr(e->a) && int_expr(e->b);
+        return false;
+    }
+    case E_PREFIX:
+        return (!strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~")) && int_expr(e->a);
+    case E_TERNARY:
+        return int_expr(e->b) && int_expr(e->c);
+    default:
+        return false;
+    }
+}
+
 static Expr *property(Expr *e, Token *name, char *member) {
+    if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && !is_uchr(value_type(e)) && number_expr(e))
+        error_at(name->pos, "'.%s' is a uchr's codepoint, and this is a number, one already: '.uchr' makes a uchr of "
+                            "an integer (#297)",
+                 member);
     if (is_uchr(value_type(e)) && (!strcmp(member, "utf32") || !strcmp(member, "codepoint"))) {
         /* a uchr's codepoint as a u32 (#56) */
         Expr *x = utf32_of(e);
@@ -6697,6 +6729,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
            wins where kelvinc is unsure */
         Decl *record;
         char c = expr_class(e, &record);
+        if (c == 'u' && int_expr(e)) /* (n + 1).uchr: integer arithmetic, no struct (#297) */
+            c = 'i';
+        else if (c == 'u' && number_expr(e)) /* (x + 1.5).uchr: a number, but no integer */
+            c = 'f';
         if ((c == 's' && record_has_field(record, member)) || c == 'c' || c == 'u')
             return NULL;
         if (c != 'i' && !(e->kind == E_LITERAL && e->text[0] == '\''))
@@ -6957,7 +6993,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
         return NULL;
     if (c == 'c')
         return NULL;
-    if (is_size && c == 'u')
+    if (is_size && c == 'u' && !number_expr(e)) /* (n + 1).size is a number's, no field (#297) */
         return NULL;
     if (is_cstr) {
         /* the receiver's type, when kelvinc can see it, sizes the buffer */

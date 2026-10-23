@@ -328,6 +328,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 294 | `typedef` is an error that names `typealias`, at the top level and in a body; versusC.md records what stays out on purpose: typedef, long double, string prefixes, deep generics, the preprocessor | — | `typedef int64 count` is an error | 2026-10-23 |
 | 295 | A Kelvin source is UTF-8, valid and without a BOM: a BOM, a byte that is no UTF-8, and C's string and character prefixes, `L"..."`, `u8"..."`, `u"..."`, `U"..."`, are errors that say so; `$"..."` is the one prefix | — | `L"wide"` is an error | 2026-10-23 |
 | 296 | `#inline C { ... }` holds no line of C's preprocessor, and no Kelvin directive nests in it: a `#` that begins a line of its code is an error that says which, `#define` or `#import`; a header is `#import <x.h> as C` outside it, a constant an enum's or a Kelvin `let` | — | `#inline C { #define X 1 }` is an error | 2026-10-23 |
+| 297 | A property of an expression kelvinc sees is a number is the number's, no field of a C struct: `(n + 1).uchr` converts integer arithmetic, `(n + 1).size` is its sizeof; `(x + 1.5).uchr` is the error `x.uchr` is; `.utf32` and `.codepoint` of a number are an error that names `.uchr` | — | `(n + 1).uchr` | 2026-10-23 |
 
 Notes:
 
@@ -889,6 +890,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (297) Agreed details: "fix (n + 1).uchr reaching C as #297", found by
+  #293, with the user's answer: `.size` and `.utf32` too, which the
+  same rule let reach C.
+  - property() lets an unsure receiver be a C struct's field, and
+    expr_class gives arithmetic no class: `(n + 1).uchr` and `.size`
+    were members of an `int64_t` in C.
+  - int_expr sees integer arithmetic, `+ - * / % & | ~ << >>`, a prefix
+    `-`, `+` or `~` of one and a `?:` of two: such a receiver of `.uchr`
+    is an integer; another number, `(x + 1.5)` or a comparison, the
+    error of `.uchr` of a float.
+  - `.size` of a receiver number_expr sees is a number is its sizeof.
+  - `.utf32` and `.codepoint` of a number that is no uchr, `n.utf32` of
+    an `int64` too, went to C; they are an error now.
 
 - (296) Agreed details: "refuse preprocessor lines in #inline C as #296",
   the user's answer of #294: #inline C must not contain C's
@@ -3298,6 +3313,7 @@ says "as agreed".
 | P306 | Details of #294 | parser.c: reject_typedef; tests: error/typedef_kelvin.k, error/typedef_in_body.k; documents/versusC.md, grammar.md | string prefixes, BOM and UTF-8 (#295); #inline C's preprocessor (#296) |
 | P307 | Details of #295 | lexer.c: utf8_length, check_utf8, the prefix of a name before a quote; tests: error/source_bom.k, error/source_invalid_utf8.k, error/string_prefix_wide.k, error/char_prefix.k; run/string_escape_edges.k; documents/grammar.md, versusC.md | kc: BOMs, UTF-8, prefixes |
 | P308 | Details of #296 | lexer.c: lex_inline_c's line start, the top-level message; tests: error/inline_c_define.k, inline_c_include.k, inline_c_nested_import.k, preprocessor.k; run/inline_c_hash.k, run/inline_c.k; project/lib/geo.k; documents/c-interfaces.md, versusC.md | |
+| P309 | Details of #297 | parser.c: int_expr; property()'s .uchr, .size, .utf32; tests: run/number_expr_properties.k, error/uchr_of_float_expr.k, error/utf32_of_number.k; documents/properties.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

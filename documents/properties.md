@@ -52,7 +52,8 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - A `cstr`'s `.count` is its `strlen` (#52); a `String`'s its
     codepoints (#55).
 - **`c.utf32`** and **`c.codepoint`** are a `uchr`'s number, a `u32`,
-  and **`n.uchr`** an integer's codepoint (#56); see
+  and **`n.uchr`** an integer's codepoint (#56); `n.utf32` of a number
+  is an error that names `.uchr` (#297); see
   [ownership.md](ownership.md).
 - **`v.type`** is `v`'s type, written where a type goes (#34): after `:`
   and `as`, in `sizeof(...)`, in compound literals and in function types.
@@ -187,6 +188,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     `.type`, `.addr` and the converters such as `.i64` are fields
     (write `sizeof(x)`, `var y:x.type`, `x as uintptr_t` or `i64(x)`
     there), while `.cstr`/`.dec`/`.hex`/`.oct`/`.bin` are properties.
+  - An expression kelvinc sees is a number is no struct (#297):
+    `(n + 1).size` is its `sizeof`, and `(n + 1).uchr` converts it,
+    integer arithmetic; `(x + 1.5).uchr` is an error, as `x.uchr` is.
   - `.typename` is a property also of a C struct, since C++ reserves
     the word and C headers rarely name a field so (#34).
 - **Errors.** `.hex` on a bool or struct, `.dec`, `.oct` or `.bin` on a

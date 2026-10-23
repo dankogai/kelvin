@@ -6382,3 +6382,15 @@ and now import the header outside and write their constants as C's
 own. Details are provisional P308.
 
 There are 930 tests, and all pass with clang and with gcc 15.
+
+### 341. A number's properties
+
+> fix (n + 1).uchr reaching C as #297
+
+**Claude** found that `(n + 1).size` and `n.utf32` reached C by the same
+rule, and asked how wide the fix should go. The user chose all three.
+kelvinc now takes a receiver it sees is a number for no struct:
+`(n + 1).uchr` converts it, `(n + 1).size` is its sizeof, and `.utf32` of
+a number is an error that names `.uchr`. Details are provisional P309.
+
+There are 933 tests, and all pass with clang and with gcc 15.
