@@ -124,6 +124,204 @@ let kv_os_islink(path:const any^):bool {
     return lstat(path, &st) == 0 && S_ISLNK(st.st_mode) != 0
 }
 
+// ---------- paths (#306) ----------
+
+// a String of the n bytes of p from from on: a path cut at a / or a .,
+// which split no codepoint
+static let text_of(p:cstr, from:size_t, n:size_t):String {
+    let b = Bytes(&p[from], n)
+    return String(&b)
+}
+
+// the index of the last c in the n bytes of p, or -1
+static let last_of(p:cstr, n:size_t, c:u8):int64 {
+    var i:int64 = n as int64 - 1
+    while i >= 0 {
+        if p[i] == c { return i }
+        i -= 1
+    }
+    return -1
+}
+
+// OS.readlink(path): what a symbolic link holds into out; 0, or errno
+let kv_os_readlink(path:const any^, out:String^):int32 {
+    var buf = Bytes(4096)
+    let n:int64 = readlink(path, buf.at, 4095) as int64
+    if n < 0 { return err_or(EIO) }
+    out^ = text_of(buf.at as cstr, 0, n as size_t)
+    return 0
+}
+
+// the last part of a path after its last /, and what is before it, as
+// Python's os.path has them: basename("a/b/") is "", dirname("a") is ""
+let kv_os_basename(path:const any^):String {
+    let p:cstr := path as cstr
+    let n:size_t = strlen(p)
+    let k = last_of(p, n, '/')
+    if k < 0 { return String(p) }
+    return text_of(p, (k + 1) as size_t, n - (k + 1) as size_t)
+}
+
+let kv_os_dirname(path:const any^):String {
+    let p:cstr := path as cstr
+    let k = last_of(p, strlen(p), '/')
+    if k < 0 { return $"" }
+    var m:int64 = k
+    while m > 1 && p[m - 1] == '/' { m -= 1 }
+    if m == 0 { m = 1 }                          // "/a": the root
+    return text_of(p, 0, m as size_t)
+}
+
+// OS.join(a, b): b where it is absolute or a is empty, else a / b
+let kv_os_join(a:const any^, b:const any^):String {
+    let x:cstr := a as cstr
+    let y:cstr := b as cstr
+    if y[0] == '/' || x[0] == 0 { return String(y) }
+    var s = String(x)
+    if x[strlen(x) - 1] != '/' { s += "/" }
+    s += y
+    return s
+}
+
+// OS.realpath(path): the absolute path, links resolved, into out
+let kv_os_realpath(path:const any^, out:String^):int32 {
+    let r:cstr := realpath(path, nullptr)
+    if r == nullptr { return err_or(EIO) }
+    out^ = String(r)
+    free(r as any^)
+    return 0
+}
+
+let kv_os_isabs(path:const any^):bool { (path as cstr)[0] == '/' }
+
+// OS.splitext(path): the root and the extension, as Python's splitext
+// has them: the last . of the last part, unless it begins the part, the
+// first of a run of dots, and none of a part all dots
+let kv_os_splitext(path:const any^, out:kv_splitext^):int32 {
+    let p:cstr := path as cstr
+    let n:size_t = strlen(p)
+    let base:int64 = last_of(p, n, '/') + 1
+    var dot:int64 = n as int64 - 1
+    while dot >= base && p[dot] != '.' { dot -= 1 }
+    while dot > base && p[dot - 1] == '.' { dot -= 1 }
+    var q:int64 = base
+    while q < n as int64 && p[q] == '.' { q += 1 }
+    if dot < base || dot == base || q == n as int64 {
+        out^.root = String(p)
+        out^.ext = $""
+        return 0
+    }
+    out^.root = text_of(p, 0, dot as size_t)
+    out^.ext = text_of(p, dot as size_t, n - dot as size_t)
+    return 0
+}
+
+// OS.normpath(path): . and .. and repeated / resolved by the text alone,
+// as Python's normpath does: "a//b/./c/../d" is "a/b/d", "" is "."
+let kv_os_normpath(path:const any^):String {
+    let p:cstr := path as cstr
+    let n:size_t = strlen(p)
+    if n == 0 { return $"." }
+    let absolute = p[0] == '/'
+    var parts:$[String] = $[]
+    var i:size_t = 0
+    while i < n {
+        while i < n && p[i] == '/' { i += 1 }
+        let from = i
+        while i < n && p[i] != '/' { i += 1 }
+        if i == from { break }
+        let part = text_of(p, from, i - from)
+        if part == $"." { continue }
+        if part == $".." {
+            if parts.count > 0 && parts[parts.count - 1] != $".." {
+                parts.pop()
+                continue
+            }
+            if absolute { continue }
+        }
+        parts += &part
+    }
+    var s = $""
+    if absolute { s += "/" }
+    for k in 0..<parts.count {
+        if k > 0 { s += "/" }
+        s += &parts[k]
+    }
+    if !absolute && parts.count == 0 { s += "." }
+    return s
+}
+
+// OS.relpath(path, start): path from start, both made absolute by the
+// text: "../b/c" from /a/d to /a/b/c
+let kv_os_relpath(path:const any^, start:const any^):String {
+    var cwd = $""
+    if kv_os_cwd(&cwd) != 0 { cwd = $"/" }
+    let ap:String = kv_os_isabs(path) ? kv_os_normpath(path) : kv_os_join(cwd.cstr, path)
+    let sp:String = kv_os_isabs(start) ? kv_os_normpath(start) : kv_os_join(cwd.cstr, start)
+    let np = kv_os_normpath(ap.cstr)
+    let ns = kv_os_normpath(sp.cstr)
+    let a:cstr := np.cstr
+    let b:cstr := ns.cstr
+    var i:size_t = 0                             // the common parts
+    while a[i] != 0 && b[i] != 0 && a[i] == b[i] { i += 1 }
+    while i > 0 && !((a[i] == '/' || a[i] == 0) && (b[i] == '/' || b[i] == 0)) { i -= 1 }
+    if i == 0 || (a[i] != '/' && a[i] != 0) || (b[i] != '/' && b[i] != 0) {
+        while i > 0 && a[i] != '/' { i -= 1 }
+    }
+    var r = $""
+    var q:size_t = i
+    while b[q] != 0 {
+        if b[q] == '/' && b[q + 1] != 0 {
+            if r.count > 0 { r += "/" }
+            r += ".."
+        }
+        q += 1
+    }
+    if b[i] != 0 && b[i] != '/' && i == 0 { r = $"" }   // nothing in common but the root
+    var rest:size_t = i
+    while a[rest] == '/' { rest += 1 }
+    if a[rest] != 0 {
+        if r.count > 0 { r += "/" }
+        r += text_of(a, rest, strlen(a) - rest)
+    }
+    if r.count == 0 { r += "." }
+    return r
+}
+
+// OS.expanduser(path): ~ and ~user, as the shell has them; the rest as
+// written
+let kv_os_expanduser(path:const any^):String {
+    let p:cstr := path as cstr
+    if p[0] != '~' { return String(p) }
+    let n:size_t = strlen(p)
+    var slash:int64 = -1
+    var k:int64 = 0
+    while k < n as int64 && slash < 0 {
+        if p[k] == '/' { slash = k }
+        k += 1
+    }
+    var namelen:int64 = n as int64 - 1
+    if slash >= 0 { namelen = slash - 1 }
+    var home:cstr := nullptr
+    if namelen == 0 {
+        home := getenv("HOME")
+        if home == nullptr || home[0] == 0 {
+            let pw:struct passwd^ := getpwuid(getuid())
+            home := nullptr
+            if pw != nullptr { home := pw^.pw_dir as cstr }
+        }
+    } else {
+        if namelen >= 256 { return String(p) }
+        let name = text_of(p, 1, namelen as size_t)
+        let pw:struct passwd^ := getpwnam(name.cstr)
+        if pw != nullptr { home := pw^.pw_dir as cstr }
+    }
+    if home == nullptr { return String(p) }
+    var s = String(home)
+    if slash >= 0 { s += text_of(p, slash as size_t, n - slash as size_t) }
+    return s
+}
+
 // ---------- directories, walk and glob (#304) ----------
 
 // names, handed to C's caller as kOS.h has it: a buffer of Strings,

@@ -6504,3 +6504,17 @@ into runtime/os.k, and a program of each prints the same as the C did.
 Details are provisional P317.
 
 There are 938 tests, and all pass with clang and with gcc 15.
+
+### 351. OS's paths in Kelvin
+
+> move OS paths to Kelvin as #306. then add `.flatMap()` to `Array`,
+> `Dictionary`, and `Set` so they are officially monads. `Set` is yet to
+> have `.map()`, `.filter()`, and `.reduce()` so let it have them, too.
+
+**Claude** moved OS's ten path functions into runtime/os.k, and they
+print the same as the C did. On the way libkOS failed to link: a call
+before a Kelvin definition of a name kOS.h declares had made the
+definition an overload, under another name. Details are provisional
+P318.
+
+There are 939 tests, and all pass with clang and with gcc 15.

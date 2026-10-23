@@ -337,6 +337,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 303 | OS's stat, lstat, exists, isdir, isfile and islink are written in Kelvin in runtime/os.k, in place of their C, a C `struct stat` held as `var st:struct stat` | — | `OS.stat(path)` of runtime/os.k | 2026-10-23 |
 | 304 | OS's listdir, walk and glob are written in Kelvin in runtime/os.k, in place of their C: Kelvin Arrays, sorted with String's `<`, handed to the caller as kOS.h has it, a buffer of Strings, calloc's | — | `OS.walk(path)` of runtime/os.k | 2026-10-23 |
 | 305 | OS's user, username, groupname, groups, chown and lchown are written in Kelvin in runtime/os.k, in place of their C | — | `OS.username(uid)` of runtime/os.k | 2026-10-23 |
+| 306 | OS's paths are written in Kelvin in runtime/os.k, in place of their C: readlink, basename, dirname, join, realpath, isabs, splitext, normpath, relpath and expanduser | — | `OS.normpath(path)` of runtime/os.k | 2026-10-23 |
 
 Notes:
 
@@ -898,6 +899,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (306) Agreed details: "move OS paths to Kelvin as #306", #301's fifth
+  group, ten functions and os.c's kv_io_fail_text, normpath's alone.
+  - They work on the path's bytes, cut at a `/` or a `.`, which split
+    no codepoint: text_of makes a String of a range, last_of finds a
+    byte. normpath's parts are an Array of Strings; relpath's common
+    parts are found as the C found them, index by index.
+  - Found: walk_into (#304) called kv_os_join before os.k defined it,
+    so kelvinc took the call for kOS.h's C function and the Kelvin
+    definition, later, for another overload, `kv_os_join__const_anyp
+    __const_anyp`, and libkOS did not link. The paths come first in
+    os.k now; a function a runtime file defines is to be defined before
+    it is called there.
+  - Sixteen paths of basename, dirname, splitext, normpath and isabs,
+    join, normpath, relpath, expanduser with HOME and without,
+    realpath and readlink print the same with the C and the Kelvin;
+    leaks finds none; tests/run/os_kelvin_group5.k.
+  - The user also asked for flatMap of Array, Dictionary and Set, so
+    that they are monads, and for Set's map, filter and reduce: to be
+    numbered next.
 
 - (305) Agreed details: "move OS users and groups to Kelvin as #305",
   #301's fourth group: kv_os_user, username, groupname and groups, and
@@ -3455,6 +3476,7 @@ says "as agreed".
 | P315 | Details of #303 | runtime/os.k: fill_stat, is_mode, stat, lstat, exists, isdir, isfile, islink; runtime/os.c loses them; tests: run/os_kelvin_group2.k; README.md | the rest of OS in groups |
 | P316 | Details of #304 | runtime/os.k: hand_over, names_in, listdir, walk_into, walk, glob; runtime/os.c loses them; tests: run/os_kelvin_group3.k, asan/count.c and asan.sh count calloc; README.md | the rest of OS in groups |
 | P317 | Details of #305 | runtime/os.k: user, username, groupname, groups, chown, lchown; runtime/os.c loses them; tests: run/os_kelvin_group4.k; README.md | the rest of OS in groups |
+| P318 | Details of #306 | runtime/os.k: text_of, last_of and the ten, before the directories; runtime/os.c loses them and kv_io_fail_text; tests: run/os_kelvin_group5.k; README.md | a call before a Kelvin definition of a C-declared name mangles it; flatMap, Set's map, filter, reduce |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

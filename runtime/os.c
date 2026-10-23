@@ -4,7 +4,7 @@
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
    working directory, the environment, files by path, the process ids;
    stat and the existence checks (#303); directories, walk and glob
-   (#304); users and groups, and a file's owner (#305). */
+   (#304); users and groups, and a file's owner (#305); paths (#306). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -51,15 +51,6 @@ int kv_os_system(const void *command) {
 #include <signal.h>
 #include <time.h>
 
-int kv_os_readlink(const void *path, kv_string *out) {
-    char buf[4096];
-    ssize_t n = readlink((const char *)path, buf, sizeof buf - 1);
-    if (n < 0)
-        return err_or(EIO);
-    *out = kv_string_from_bytes(&(kv_bytes){(uint8_t *)buf, (size_t)n, 0});
-    return 0;
-}
-
 int kv_os_chmod(const void *path, int mode) { return chmod((const char *)path, (mode_t)mode) == 0 ? 0 : err_or(EIO); }
 
 int kv_os_truncate(const void *path, long long size) {
@@ -91,7 +82,6 @@ int kv_os_makedirs(const void *path) {
     free(copy);
     return dir ? 0 : ENOTDIR;
 }
-
 
 int kv_os_host(kv_string *out) {
     char buf[256];
@@ -131,45 +121,6 @@ const uint8_t *kv_os_tmpdir(void) {
     memcpy(dir, t, n);
     dir[n] = '\0';
     return (const uint8_t *)dir;
-}
-
-/* the last part of a path after its last /, and what is before it, as
-   Python's os.path has them: basename("a/b/") is "", dirname("a") is "" */
-kv_string kv_os_basename(const void *path) {
-    const char *p = (const char *)path, *slash = strrchr(p, '/');
-    return kv_string_text(slash ? slash + 1 : p);
-}
-
-kv_string kv_os_dirname(const void *path) {
-    const char *p = (const char *)path, *slash = strrchr(p, '/');
-    if (!slash)
-        return kv_string_new();
-    size_t n = (size_t)(slash - p);
-    while (n > 1 && p[n - 1] == '/')
-        n--;
-    if (n == 0)
-        n = 1; /* "/a": the root */
-    return kv_string_from_bytes(&(kv_bytes){(uint8_t *)p, n, 0});
-}
-
-kv_string kv_os_join(const void *a, const void *b) {
-    const char *x = (const char *)a, *y = (const char *)b;
-    if (y[0] == '/' || !x[0])
-        return kv_string_text(y);
-    kv_string s = kv_string_text(x);
-    if (x[strlen(x) - 1] != '/')
-        kv_string_append_text(&s, "/");
-    kv_string_append_text(&s, y);
-    return s;
-}
-
-int kv_os_realpath(const void *path, kv_string *out) {
-    char *r = realpath((const char *)path, NULL);
-    if (!r)
-        return err_or(EIO);
-    *out = kv_string_text(r);
-    free(r);
-    return 0;
 }
 
 /* ---------- walking and globbing (#96) ---------- */
@@ -298,12 +249,6 @@ int kv_os_touch(const void *path) {
 
 extern char **environ;
 
-static void kv_io_fail_text(const char *what) {
-    fflush(stdout);
-    fprintf(stderr, "kelvin: %s\n", what);
-    kv_exit_failure();
-}
-
 kv_string kv_os_strerror(int code) { return kv_string_text(strerror(code)); }
 
 /* every "NAME=value" of the environment, in C's order */
@@ -337,161 +282,6 @@ int kv_os_uname(kv_uname *out) {
 bool kv_os_readable(const void *path) { return access((const char *)path, R_OK) == 0; }
 bool kv_os_writable(const void *path) { return access((const char *)path, W_OK) == 0; }
 bool kv_os_executable(const void *path) { return access((const char *)path, X_OK) == 0; }
-bool kv_os_isabs(const void *path) { return ((const char *)path)[0] == '/'; }
-
-/* the root and the extension, as Python's splitext has them: the last .
-   of the last part, unless it begins the part */
-int kv_os_splitext(const void *path, kv_splitext *out) {
-    const char *p = (const char *)path;
-    const char *slash = strrchr(p, '/');
-    const char *base = slash ? slash + 1 : p;
-    const char *dot = strrchr(base, '.');
-    while (dot && dot > base && dot[-1] == '.')
-        dot--; /* "a..b": the extension starts at the first of the dots */
-    if (!dot || dot == base) {
-        out->root = kv_string_text(p);
-        out->ext = kv_string_new();
-        return 0;
-    }
-    /* a part that is all dots has no extension */
-    const char *q = base;
-    while (*q == '.')
-        q++;
-    if (!*q) {
-        out->root = kv_string_text(p);
-        out->ext = kv_string_new();
-        return 0;
-    }
-    out->root = kv_string_from_bytes(&(kv_bytes){(uint8_t *)p, (size_t)(dot - p), 0});
-    out->ext = kv_string_text(dot);
-    return 0;
-}
-
-/* . and .. and repeated / resolved by the text alone, as Python's
-   normpath does: "a//b/./c/../d" is "a/b/d", "" is "." */
-kv_string kv_os_normpath(const void *path) {
-    const char *p = (const char *)path;
-    if (!*p)
-        return kv_string_text(".");
-    bool absolute = p[0] == '/';
-    const char **parts = NULL;
-    size_t n = 0, cap = 0;
-    size_t len = strlen(p) + 1;
-    char *copy = malloc(len); /* not strdup, so that a counted malloc sees it */
-    if (!copy)
-        kv_io_fail_text("out of memory");
-    memcpy(copy, p, len);
-    for (char *tok = strtok(copy, "/"); tok; tok = strtok(NULL, "/")) {
-        if (!strcmp(tok, "."))
-            continue;
-        if (!strcmp(tok, "..")) {
-            if (n && strcmp(parts[n - 1], ".."))
-                n--;
-            else if (!absolute)
-                goto push;
-            continue;
-        }
-    push:
-        if (n == cap) {
-            cap = cap ? cap * 2 : 8;
-            const char **more = realloc(parts, cap * sizeof *more);
-            if (!more)
-                kv_io_fail_text("out of memory");
-            parts = more;
-        }
-        parts[n++] = tok;
-    }
-    kv_string s = absolute ? kv_string_text("/") : kv_string_new();
-    for (size_t i = 0; i < n; i++) {
-        if (i)
-            kv_string_append_text(&s, "/");
-        kv_string_append_text(&s, parts[i]);
-    }
-    if (!absolute && !n)
-        kv_string_append_text(&s, ".");
-    free(parts);
-    free(copy);
-    return s;
-}
-
-/* path from start, both made absolute by the text: "../b/c" from /a/d to /a/b/c */
-kv_string kv_os_relpath(const void *path, const void *start) {
-    kv_string cwd = {0};
-    if (kv_os_cwd(&cwd) != 0)
-        cwd = kv_string_text("/");
-    kv_string ap = kv_os_isabs(path) ? kv_os_normpath(path) : kv_os_join(kv_bytes_cstr(&cwd.b), path);
-    kv_string as = kv_os_isabs(start) ? kv_os_normpath(start) : kv_os_join(kv_bytes_cstr(&cwd.b), start);
-    kv_string np = kv_os_normpath(kv_bytes_cstr(&ap.b)), ns = kv_os_normpath(kv_bytes_cstr(&as.b));
-    const char *a = (const char *)kv_bytes_cstr(&np.b), *b = (const char *)kv_bytes_cstr(&ns.b);
-    /* the common parts */
-    size_t i = 0;
-    while (a[i] && b[i] && a[i] == b[i])
-        i++;
-    while (i > 0 && !((a[i] == '/' || !a[i]) && (b[i] == '/' || !b[i])))
-        i--;
-    if (i == 0 || (a[i] != '/' && a[i]) || (b[i] != '/' && b[i])) {
-        while (i > 0 && a[i] != '/')
-            i--;
-    }
-    kv_string r = kv_string_new();
-    for (const char *q = b + i; *q; q++)
-        if (*q == '/' && q[1]) {
-            if (r.b.count)
-                kv_string_append_text(&r, "/");
-            kv_string_append_text(&r, "..");
-        }
-    if (b[i] && b[i] != '/' && i == 0) { /* nothing in common but the root */
-        kv_string_free(&r);
-        r = kv_string_new();
-    }
-    const char *rest = a + i;
-    while (*rest == '/')
-        rest++;
-    if (*rest) {
-        if (r.b.count)
-            kv_string_append_text(&r, "/");
-        kv_string_append_text(&r, rest);
-    }
-    if (!r.b.count)
-        kv_string_append_text(&r, ".");
-    kv_string_free(&cwd);
-    kv_string_free(&ap);
-    kv_string_free(&as);
-    kv_string_free(&np);
-    kv_string_free(&ns);
-    return r;
-}
-
-/* ~ and ~user, as the shell has them; the rest as written */
-kv_string kv_os_expanduser(const void *path) {
-    const char *p = (const char *)path;
-    if (p[0] != '~')
-        return kv_string_text(p);
-    const char *slash = strchr(p, '/');
-    size_t namelen = slash ? (size_t)(slash - p - 1) : strlen(p) - 1;
-    const char *home = NULL;
-    if (!namelen) {
-        home = getenv("HOME");
-        if (!home || !*home) {
-            struct passwd *pw = getpwuid(getuid());
-            home = pw ? pw->pw_dir : NULL;
-        }
-    } else {
-        char name[256];
-        if (namelen >= sizeof name)
-            return kv_string_text(p);
-        memcpy(name, p + 1, namelen);
-        name[namelen] = '\0';
-        struct passwd *pw = getpwnam(name);
-        home = pw ? pw->pw_dir : NULL;
-    }
-    if (!home)
-        return kv_string_text(p);
-    kv_string s = kv_string_text(home);
-    if (slash)
-        kv_string_append_text(&s, slash);
-    return s;
-}
 
 bool kv_os_samefile(const void *a, const void *b) {
     struct stat x, y;
