@@ -324,6 +324,9 @@ kc reads what it is written in, and little more.
   `bool` (#212), `println`, `IO(path, mode)`,
   `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
+  - A String's `.escape()` and `.unescape()` (#300), new Strings, as
+    kelvinc's, of runtime/string.k; with an argument, kelvinc's error,
+    as kc has no RegExp.
 - **Of a Dictionary** (#211): `d[k]!`, checked; `d[k] = v`, which sets
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`; `d.remove(k)`,
   which frees what the entry held and is `true` where it was there

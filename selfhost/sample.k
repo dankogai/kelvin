@@ -368,5 +368,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(stock == same_stock, " ", stock != ${"apple": 3}, " ", stock.keys == $[$"apple", $"pear"], " ", listed == digit_set.elements)
     let escaped_text = $"\u{48}i\u00e9\U0001F600\u{7f}"   // \u escapes, UTF-8 bytes in C (#293)
     println(escaped_text.count, " ", escaped_text == $"Hié😀" + (0x7f as uint32).uchr)
+    let nul_text = $"a\u{0}bé\\"                     // escape and unescape (#300), a NUL too (#299)
+    println(nul_text.escape(), " ", nul_text.escape().unescape() == nul_text, " ", nul_text.count)
     return 0
 }

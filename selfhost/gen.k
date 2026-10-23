@@ -675,6 +675,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
         if (tok_is(t, "remove") || tok_is(t, "insert")) && types[y].kind == Y_SET { return base_type(Y_BOOL) }   // (#274)
         if (tok_is(t, "union") || tok_is(t, "intersection") || tok_is(t, "difference")) && types[y].kind == Y_SET { return y }   // a new Set (#275)
+        if (tok_is(t, "escape") || tok_is(t, "unescape")) && types[y].kind == Y_STRING { return y }   // a new String (#300)
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
@@ -1906,6 +1907,19 @@ let gen_method_of(n:int64) {
     if is_owner(y) && yk != Y_IO && tok_is(t, "copy") {         // a String's, an Array's, a struct's... (#226)
         put_owner_prefix(y)
         put("_copy(")
+        gen_place(a)
+        put(")")
+    } else if yk == Y_STRING && (tok_is(t, "escape") || tok_is(t, "unescape")) {
+        if nodes[n].b >= 0 {                            // s.escape(), s.unescape() (#300): kelvinc's, with no RegExp
+            var m = $"'."
+            m += tok_text(t)
+            m += "' takes 0 arguments"
+            gen_error(n, m.cstr)
+            return
+        }
+        put("kv_string_")
+        put_tok(t)
+        put("(")
         gen_place(a)
         put(")")
     } else if yk == Y_ARRAY && tok_is(t, "pop") {

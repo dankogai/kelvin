@@ -6418,3 +6418,13 @@ and unescape() reads past one; a cstr still stops at it. Details are
 provisional P311.
 
 There are 934 tests, and all pass with clang and with gcc 15.
+
+### 344. kc escapes and unescapes
+
+> teach kc escape and unescape as #300
+
+**Claude** taught kc a String's `escape()` and `unescape()`, calls of the
+runtime's, written in Kelvin, as kelvinc makes them. Details are
+provisional P312.
+
+There are 934 tests, and all pass with clang and with gcc 15.
