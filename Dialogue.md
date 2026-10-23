@@ -6518,3 +6518,15 @@ definition an overload, under another name. Details are provisional
 P318.
 
 There are 939 tests, and all pass with clang and with gcc 15.
+
+### 352. A Set's map, filter and reduce
+
+> give Set map, filter and reduce as #307
+
+**Claude** asked how a Dictionary's flatMap should merge, and the user
+chose a later entry winning, as `d[k] = v`, and #307 and #308 for the
+two halves. Then it gave a Set map, filter and reduce, as an Array has
+them, map's result a Set of integers or Strings. Details are
+provisional P319.
+
+There are 942 tests, and all pass with clang and with gcc 15.

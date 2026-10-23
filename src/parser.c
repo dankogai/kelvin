@@ -2035,10 +2035,12 @@ static Expr *parse_postfix_steps(Expr *e) {
             }
             bool with_key = !strcmp(member, "mapWithKey") || !strcmp(member, "filterWithKey") ||
                             !strcmp(member, "reduceWithKey"); /* (#241) */
-            if (with_key && value_type(e) && is_array_owner(unqualified(value_type(e))))
-                error_at(name->pos, "an Array has no '.%s': it is a Dictionary's, whose function takes each key; "
+            if (with_key && value_type(e) &&
+                (is_array_owner(unqualified(value_type(e))) || is_set_owner(unqualified(value_type(e))))) /* a Set's (#307) */
+                error_at(name->pos, "%s has no '.%s': it is a Dictionary's, whose function takes each key; "
                                     "write '.%.*s'",
-                         member, (int)(strlen(member) - 7), member);
+                         is_set_owner(unqualified(value_type(e))) ? "a Set" : "an Array", member,
+                         (int)(strlen(member) - 7), member);
             bool array_search = !strcmp(member, "firstIndex") || !strcmp(member, "lastIndex");
             bool dict_search = !strcmp(member, "firstKey") || !strcmp(member, "lastKey") ||
                                !strcmp(member, "containsWithKey") || !strcmp(member, "firstKeyWithKey") ||
@@ -2169,7 +2171,8 @@ static Expr *parse_postfix_steps(Expr *e) {
             }
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") || with_key) &&
                 value_type(e) &&
-                ((!with_key && is_array_owner(unqualified(value_type(e)))) || is_dict_owner(unqualified(value_type(e)))) &&
+                ((!with_key && (is_array_owner(unqualified(value_type(e))) || is_set_owner(unqualified(value_type(e))))) ||
+                 is_dict_owner(unqualified(value_type(e)))) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
                 /* xs.map(f), xs.map { ... } (#182): an Array<U> of f of each
                    element, U f's result, whatever it is; xs.filter { ... } (#184)
@@ -2191,6 +2194,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                    it says false for, reduce folds the values in the order
                    added */
                 bool dict = is_dict_owner(at);
+                /* of a Set (#307), its elements in the order added: map makes a
+                   Set of what f gives, filter keeps the elements f says true
+                   for, reduce folds them */
+                bool set = is_set_owner(at);
                 const char *each = dict ? "value" : "element";
                 bool temporary = !owner_place(e);
                 Expr *x = new_expr(E_METHOD, name->pos);
@@ -2299,12 +2306,25 @@ static Expr *parse_postfix_steps(Expr *e) {
                              me, kelvin_type(acc), kelvin_type(ft));
                 if (init)
                     move_argument(init, acc, me); /* an owner to start from moves in (O5) */
-                x->type = is_map ? (dict ? dict_type(name, at->key, unqualified(ft->elem)) : array_type(name, unqualified(ft->elem)))
+                if (is_map && set) { /* a Set's elements are integers or Strings (#71) */
+                    Type *u = unqualified(ft->elem);
+                    static const char *ints[] = {"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", NULL};
+                    bool fits = is_string(u);
+                    for (int i = 0; !fits && u->kind == T_BASE && ints[i]; i++)
+                        fits = !strcmp(u->name, ints[i]);
+                    if (!fits)
+                        error_at(f->pos, "'.map' of a Set makes a Set, whose elements are integers or Strings, and this "
+                                         "gives %s%s",
+                                 kelvin_type(u), is_cstr(u) ? ": make it a String" : ": map its elements, 's.elements.map'");
+                }
+                x->type = is_map ? (set    ? set_type(name, unqualified(ft->elem))
+                                    : dict ? dict_type(name, at->key, unqualified(ft->elem))
+                                           : array_type(name, unqualified(ft->elem)))
                           : is_filter ? at
                                       : acc;
                 lend_anon_from = -1;
                 /* an anonymous function is lent each element; a named one owns its parameter, so gets a copy (#244) */
-                x->op = strfmt("%s_%s%s%s", dict ? "dict" : "array", member, temporary ? "_tmp" : "",
+                x->op = strfmt("%s_%s%s%s", set ? "set" : dict ? "dict" : "array", member, temporary ? "_tmp" : "",
                                lends_param(f, arity - 1) ? "_lent" : "");
                 x->from = at;
                 list_push(&x->items, f);
@@ -5260,6 +5280,7 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_sort", 10) ||
                       !strncmp(e->op, "array_revers", 12) || !strncmp(e->op, "dict_merg", 9) ||
                       !strncmp(e->op, "dict_map", 8) || !strncmp(e->op, "dict_filter", 11) || !strncmp(e->op, "dict_reduce", 11) ||
+                      !strncmp(e->op, "set_map", 7) || !strncmp(e->op, "set_filter", 10) || !strncmp(e->op, "set_reduce", 10) ||
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
                       !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
                       !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12)))

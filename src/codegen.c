@@ -1338,6 +1338,42 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
                           start, loop, f, args);
         }
+        if (e->op && e->type && (!strncmp(e->op, "set_map", 7) || !strncmp(e->op, "set_filter", 10) ||
+                                 !strncmp(e->op, "set_reduce", 10))) {
+            /* s.map(f), s.filter(f), s.reduce(init, f) of a Set (#307): a loop
+               over its live elements, in the order added, f lent each or, a
+               named one, given a copy; map inserts what f gives into a new
+               Set, the text of a String's, which is freed after, filter
+               inserts each element f keeps, and reduce folds them; a Set an
+               expression gives is held in _kv_mt and freed */
+            Type *st = e->from;
+            bool tmp = strstr(e->op, "_tmp") != NULL;
+            const char *at = "_kv_ms->at[_kv_mi].key";
+            const char *copy = owner_copy(st->elem);
+            const char *args = strstr(e->op, "_lent") || !copy ? at : strfmt("%s(&%s)", copy, at);
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s_free))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            st->cname, st->cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *f = expr(e->items.data[0]);
+            const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live)";
+            if (!strncmp(e->op, "set_map", 7)) {
+                Type *u = e->type->elem;
+                bool text = !strcmp(u->name, "String");
+                return strfmt("({ %s %s _kv_mo = {0}; %s_reserve(&_kv_mo, _kv_ms->count); %s { %s = %s(%s); "
+                              "%s_insert(&_kv_mo, %s);%s } _kv_mo; })",
+                              head, e->type->cname, e->type->cname, loop, decl(u, "_kv_mv"), f, args, e->type->cname,
+                              text ? "KV_LK_TEXT(&_kv_mv)" : "_kv_mv", text ? " kv_string_free(&_kv_mv);" : "");
+            }
+            if (!strncmp(e->op, "set_filter", 10))
+                return strfmt("({ %s %s _kv_mo = {0}; %s { if (%s(%s)) %s_insert(&_kv_mo, %s); } _kv_mo; })", head,
+                              st->cname, loop, f, args, st->cname,
+                              !strcmp(st->elem->name, "String") ? strfmt("KV_LK_TEXT(&%s)", at) : at);
+            Expr *init = e->items.data[1];
+            const char *take = local_owner(init) ? owner_take(e->type) : NULL;
+            const char *start = take ? strfmt("%s(&%s)", take, c_name(init->text)) : expr(init);
+            return strfmt("({ %s %s _kv_acc = %s; %s _kv_acc = %s(_kv_acc, %s); _kv_acc; })", head, decl(e->type, ""),
+                          start, loop, f, args);
+        }
         if (e->op && !strncmp(e->op, "dict_merg", 9) && e->from) {
             /* d.merge(&e) in place, d.merging(&e) a new Dictionary (#236): each
                entry of e, its value copied, added; where d has the key, f of

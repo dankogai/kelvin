@@ -38,6 +38,13 @@ var e:${String} = ${}                    // empty; Set<String>() too
   - `has(x)`; `remove(x)`, `true` if it was there.
   - `union(&t)`, `intersection(&t)`, `difference(&t)`, new Sets.
   - `clear()`; `reserve(n)`; `copy()`.
+  - `map`, `filter` and `reduce` (#307), over the elements in the order
+    added, as an Array's (#182, #184): `s.map { $0 % 3 }` is a new Set
+    of what the function gives, its duplicates one, an integer or a
+    String; `s.filter { $0 > 3 }` a new Set of the elements it keeps;
+    `s.reduce(0) { $0 + $1 }` them folded.
+    - The function is lent each element, a named one given a copy; to
+      map to anything else, map the elements, `s.elements.map`.
 - **Operators** (#73): `s | t` is the union, `s & t` the intersection
   and `s ~ t` the symmetric difference (what is in one, not both), new
   Sets of two in variables.
@@ -70,5 +77,8 @@ var e:${String} = ${}                    // empty; Set<String>() too
 | | `print(s)`, `s.pretty` | `{3, 1, 4}`; the same indented, a String elsewhere (#123, #124) |
 | | `.copy()` | a new Set, elements copied |
 | | `.elements` | an Array of copies, in the order added |
+| | `.map { ... }`, `.map(f)` | a new Set of what `f` gives each element, an integer or a String (#307) |
+| | `.filter { ... }`, `.filter(f)` | a new Set of the elements `f` says true for (#307) |
+| | `.reduce(init) { ... }`, `.reduce(init, f)` | the elements folded in the order added, from `init` (#307) |
 | | `for x in s` | each element, in the order added |
 | | `.size`, `.typename` | `sizeof`; `Set<i64>` |

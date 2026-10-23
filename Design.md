@@ -338,6 +338,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 304 | OS's listdir, walk and glob are written in Kelvin in runtime/os.k, in place of their C: Kelvin Arrays, sorted with String's `<`, handed to the caller as kOS.h has it, a buffer of Strings, calloc's | — | `OS.walk(path)` of runtime/os.k | 2026-10-23 |
 | 305 | OS's user, username, groupname, groups, chown and lchown are written in Kelvin in runtime/os.k, in place of their C | — | `OS.username(uid)` of runtime/os.k | 2026-10-23 |
 | 306 | OS's paths are written in Kelvin in runtime/os.k, in place of their C: readlink, basename, dirname, join, realpath, isabs, splitext, normpath, relpath and expanduser | — | `OS.normpath(path)` of runtime/os.k | 2026-10-23 |
+| 307 | A Set has `map`, `filter` and `reduce`, as an Array has them: map a new Set of what its function gives, an integer or a String, filter a new Set of the elements it keeps, reduce them folded in the order added | — | `s.map { $0 % 3 }` | 2026-10-23 |
 
 Notes:
 
@@ -899,6 +900,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (307) Agreed details: "give Set map, filter and reduce as #307", the
+  first half of the user's monads, with flatMap of the three #308.
+  - The parser's Array and Dictionary branch (#182, #184, #238) takes a
+    Set: its element type, a Set's key and elem alike, is what the
+    function is given, lent, a named function a copy (#244).
+  - map's result is a Set's element, an integer or a String, else an
+    error that says to map its elements, `s.elements.map`; set_type's
+    own word, "a key of a Dictionary", would mislead.
+  - codegen loops over the live elements in the order added: map
+    inserts f's value into a new Set, the text of a String's, which is
+    freed after; filter inserts each element kept; reduce folds as a
+    Dictionary's does.
+  - A Set's mapWithKey and the rest are the error an Array's is.
 
 - (306) Agreed details: "move OS paths to Kelvin as #306", #301's fifth
   group, ten functions and os.c's kv_io_fail_text, normpath's alone.
@@ -3477,6 +3492,7 @@ says "as agreed".
 | P316 | Details of #304 | runtime/os.k: hand_over, names_in, listdir, walk_into, walk, glob; runtime/os.c loses them; tests: run/os_kelvin_group3.k, asan/count.c and asan.sh count calloc; README.md | the rest of OS in groups |
 | P317 | Details of #305 | runtime/os.k: user, username, groupname, groups, chown, lchown; runtime/os.c loses them; tests: run/os_kelvin_group4.k; README.md | the rest of OS in groups |
 | P318 | Details of #306 | runtime/os.k: text_of, last_of and the ten, before the directories; runtime/os.c loses them and kv_io_fail_text; tests: run/os_kelvin_group5.k; README.md | a call before a Kelvin definition of a C-declared name mangles it; flatMap, Set's map, filter, reduce |
+| P319 | Details of #307 | parser.c: the map/filter/reduce branch of a Set, its WithKey error, its result type; codegen.c: set_map, set_filter, set_reduce; tests: run/set_map_filter_reduce.k, error/set_map_float.k, error/set_with_key.k; documents/sets.md | flatMap (#308) |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
