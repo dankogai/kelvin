@@ -6334,3 +6334,27 @@ kelvinc's errors. It found that `(n + 1).uchr` reaches C in kelvinc.
 Details are provisional P305.
 
 There are 920 tests, and all pass with clang and with gcc 15.
+
+### 338. What stays out on purpose
+
+> Also let me answer some of the todos listed in versusC.md. we have
+> `typealias` so we don't need `typedef` Mark it as an error in
+> kelvin's context. `long double` is terribly meaningless in C. [...]
+> `f128` stays in the wishlist. string prefixes (`L"..."`) shall not be
+> supported. kelvin sources are always in valid utf-8 without BOM. [...]
+> Our supports for generics are kept deliberately shallow. [...]
+> `#inline C { ... }` must not contain C preprocessors and Kelvin
+> preprocessing directives shall not be nestable.
+
+**Claude** found what kelvinc did of each: a typedef was a generic
+error, `L"..."` and a BOM were too, a source of invalid UTF-8 compiled,
+and `#inline C` held `#include` and `#define`, which tests use. It
+proposed one number each.
+
+> make typedef an error naming typealias as #294
+
+**Claude** made `typedef` an error that names `typealias`, at the top
+level and in a body, and wrote the answers into versusC.md, "Left out
+on purpose". Details are provisional P306.
+
+There are 922 tests, and all pass with clang and with gcc 15.

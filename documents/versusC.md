@@ -179,7 +179,6 @@ Each document says so under its title. In short:
 
 These are C features without a Kelvin spelling so far:
 
-- `typedef`
 - an array of functions, or a pointer to a function type: `[(i64):i64](4)`
   has no spelling yet
 - bit-fields
@@ -189,15 +188,7 @@ These are C features without a Kelvin spelling so far:
 - nested or local struct/union/enum definitions; a struct, a union or an
   enum with values and no tag, `{x:f64, y:f64}`, `union{i:i32, f:f32}`,
   `enum{i:i32, f:f32}`, goes where a type goes instead (#59, #60, #61)
-- `long double`
-- string prefixes (`L"..."`)
 - `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
-- generics: a function over several types is written once per type, as
-  `modules/math.k` does for `c32` and `c64`; `Array<T>`,
-  `Dictionary<K, V>` and `Set<T>` are the built-in generics (#57, #65, #71)
-- literal suffixes (on purpose: see [integers.md](integers.md))
-- the preprocessor beyond `#import`, but inside `#inline C { ... }`
-  (#197)
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 - `alignof` and `typeof` (reserved C compiler keywords, P20; `v.type` is
@@ -206,6 +197,37 @@ These are C features without a Kelvin spelling so far:
 - `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
   (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
   work)
+
+## Left out on purpose
+
+These C features stay out, as decided (#294):
+
+- **`typedef`**: Kelvin names a type anew with `typealias A = T`
+  (#149), so a `typedef` is an error that says so (#294).
+- **`long double`**: its meaning is the platform's, and aarch64 has no
+  binary128 in hardware.
+  - `f128` stays on the wishlist until that is resolved.
+- **String prefixes** (`L"..."`, `u8"..."`): a Kelvin source is always
+  UTF-8, valid and without a BOM.
+  - The one prefix is `$"..."`, a String.
+  - To be enforced as errors (#295).
+- **Deep generics**: generics stay shallow on purpose.
+  - The built-in containers are generic, `Array<T>`,
+    `Dictionary<K, V>`, `Set<T>` (#57, #65, #71), as they cannot be
+    written otherwise.
+  - A function over several types is written once per type, as
+    `modules/math.k` does for `c32` and `c64`; `Complex` is not
+    generic, as there are only its two.
+  - Generics in full need type constraints, as Swift's protocols are,
+    which also make generics harder to use and to build; they wait for
+    a neat way to constrain types.
+- **Literal suffixes**: see [integers.md](integers.md).
+- **The preprocessor**: Kelvin's directives, `#import` and
+  `#inline C { ... }`, are its only ones.
+  - `#inline C { ... }` holds no C preprocessor directive, and no
+    Kelvin directive nests in it.
+  - To be enforced as errors (#296); until then `#inline C` passes its
+    text to C as it is (#197).
 
 ## Diagnostics
 

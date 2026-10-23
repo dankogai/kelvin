@@ -51,6 +51,7 @@ static var calls:int32
   before it, or a built-in type.
   - `complex64` is `typealias complex64 = c64` in modules/math.k
     (#150), and `a.typename` is `T`'s name.
+  - C's `typedef` is an error that names `typealias` (#294).
   - The number types have full names built in (#151): `int64` is `i64`,
     `uint8` `u8`, `float32` `f32`.
 - **Functions** are declared with `let` (#45), as a value that never

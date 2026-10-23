@@ -8687,6 +8687,14 @@ static const char *parse_storage(void) {
 
 static Stmt *parse_stmt(void);
 
+/* typedef is C's, which Kelvin has not: its typealias names a type anew
+   (#149), so a typedef says so (#294) */
+static void reject_typedef(Token *t) {
+    if ((t->kind == TK_KEYWORD || t->kind == TK_IDENT) && !strcmp(t->text, "typedef"))
+        error_at(t->pos, "'typedef' is C's: Kelvin names a type anew with typealias, 'typealias A = T', at the top "
+                         "level (#294)");
+}
+
 /* Report C-style declarations at the start of a statement or a `for`
    initializer, with their Kelvin spelling:
 
@@ -10388,6 +10396,7 @@ static Stmt *parse_stmt_here(void) {
     Pos pos = t->pos;
     bool as_body = stmt_is_body;
     stmt_is_body = false;
+    reject_typedef(t);
 
     if (t->kind == TK_INLINE_C) { /* C statements where they stand (#198) */
         if (as_body)
@@ -12629,6 +12638,7 @@ Program *parse(Token *tokens, int ntoks) {
             if (d) /* NULL: an enum with values and no tag, registered as a type and its words (#120) */
                 add_top_decl(prog, d);
         } else {
+            reject_typedef(peek());
             error_at(peek()->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }

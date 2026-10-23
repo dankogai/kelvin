@@ -325,6 +325,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 291 | `Bytes(&s)` of a String is a copy of its bytes, as bytes.md has it, where it was garbage; `Bytes(s)` of one is an error that names `Bytes(&s)` | — | `Bytes(&s)` | 2026-10-23 |
 | 292 | A literal's `\u{X}`, `\uXXXX` and `\UXXXXXXXX` are a codepoint, which kelvinc writes to C as its UTF-8 bytes, so `"\u{7f}"` works where C refused it, and `print`'s `\u007f` pastes back; a surrogate, one past 10FFFF or a malformed one is an error that says so | — | `"a\u{7f}"` | 2026-10-23 |
 | 293 | kc writes a literal's `\u` escapes as kelvinc since #292, the codepoint's UTF-8 bytes in octal, with kelvinc's errors in its words | — | kc builds `$"a\u{7f}"` | 2026-10-23 |
+| 294 | `typedef` is an error that names `typealias`, at the top level and in a body; versusC.md records what stays out on purpose: typedef, long double, string prefixes, deep generics, the preprocessor | — | `typedef int64 count` is an error | 2026-10-23 |
 
 Notes:
 
@@ -886,6 +887,30 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (294) Agreed details: "make typedef an error naming typealias as
+  #294", after the user answered versusC.md's list of what Kelvin has
+  not:
+  - typedef: Kelvin has typealias, so typedef is an error in Kelvin's
+    context.
+  - long double means little in C, and aarch64 has no binary128; f128
+    stays on the wishlist until that is resolved.
+  - String prefixes, `L"..."`, are not supported: a Kelvin source is
+    always valid UTF-8 without a BOM; the one prefix is `$"..."`, a
+    String.
+  - Generics stay shallow on purpose: the built-in containers'
+    `Type<Element>`, which cannot be written otherwise; Complex is not
+    generic, with only `Complex<float64>` and `Complex<float32>`. Full
+    generics need type constraints, as Swift's Protocol, which also
+    make them hard to use and to build: they wait for a neat idea.
+  - `#inline C { ... }` must not hold C's preprocessor, and Kelvin's
+    directives shall not nest.
+  - kelvinc's typedef is a keyword token, so reject_typedef asks the
+    text of a keyword or a name, where a top-level declaration or a
+    statement begins: "expected a declaration" and "expected an
+    expression" were what it said.
+  - versusC.md has "Left out on purpose" with these; the prefixes and
+    the preprocessor are to be errors in #295 and #296.
 
 - (293) Agreed details: "teach kc \u escapes in literals as #293".
   put_text, which wrote a literal's codes as they were, but a `?` after
@@ -3236,6 +3261,7 @@ says "as agreed".
 | P303 | Details of #291 | kelvin_prelude.h: KV_BYTES_OF of a String; runtime/bytes.k: kv_bytes_of_string; parser.c: the message of Bytes(s); tests: run/bytes_of_string.k, error/bytes_of_string_owner.k; documents/bytes.md | |
 | P304 | Details of #292 | lexer.c: ucn_text in lex_quoted and lex_template; tests: run/unicode_escapes.k, error/ucn_surrogate.k, error/ucn_malformed.k; documents/grammar.md | |
 | P305 | Details of #293 | selfhost/gen.k: put_text, put_ucn, tok_error, hex_upper, text_code; sample.k uses it; selfhost/README.md | `(n + 1).uchr` reaches C |
+| P306 | Details of #294 | parser.c: reject_typedef; tests: error/typedef_kelvin.k, error/typedef_in_body.k; documents/versusC.md, grammar.md | string prefixes, BOM and UTF-8 (#295); #inline C's preprocessor (#296) |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
