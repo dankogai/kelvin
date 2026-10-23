@@ -55,7 +55,7 @@ What `kelvinc -v` shows, for a program that imports `<IO>`:
 cc -std=c11 -O0 -g0 -Wno-unknown-warning-option -Wno-pointer-sign \
    -Wno-incompatible-library-redeclaration -Wno-builtin-declaration-mismatch \
    -Wno-psabi -ffp-contract=off -I. -isystem <modules> -L<modules> \
-   -o program program.c <modules>/libkIO.a <modules>/libkOS.a <modules>/libkelvin.a -lm
+   -o program program.c <modules>/libkIO.a <modules>/libkOS.a <modules>/libkelvin.a -lm -lpthread
 ```
 
 - **C11 with GNU C's extensions,** which gcc and clang have:
@@ -77,7 +77,7 @@ cc -std=c11 -O0 -g0 -Wno-unknown-warning-option -Wno-pointer-sign \
   - each module's `libkM.a` (or `.dylib` and `.so`, #147), a module
     before the modules it imports: `libkIO.a`, then `libkOS.a`;
   - `libkelvin.a`;
-  - `-lm`;
+  - `-lm`, and `-lpthread`, for a Task's thread (#312);
   - and `KELVIN_CFLAGS`, after them all (#46).
 
 ## Types
@@ -96,6 +96,7 @@ cc -std=c11 -O0 -g0 -Wno-unknown-warning-option -Wno-pointer-sign \
 | `Bytes` | `kv_bytes`, `struct kv_bytes { uint8_t *at; size_t count, cap; }` |
 | `String` | `kv_string`, `struct kv_string { kv_bytes b; size_t count; }`: UTF-8, `count` its codepoints |
 | `IO` | `kv_io` (kIO.h) |
+| `Task<T>`, `Task` | `kv_task`, `struct kv_task { void *job; }`: `job` NULL once awaited (#312) |
 | `struct T` | `struct T`, its members in order |
 | `enum T` of values | `struct T { uint8_t tag; union { ... } u; }` |
 | `enum T` of names | C's `enum T` |
@@ -167,7 +168,8 @@ functions, by one rule.
 - **`F` is the type's:** `kv_bytes`, `kv_string`, `kv_io`, `_kv_array_T`,
   `_kv_dict_K_V`, `_kv_set_T`, and `_kv_T` of a struct `T` or an enum
   `T` that owns, as `_kv_named_free`.
-  - `kv_io_copy` ends the program: an IO is not copied.
+  - `kv_io_copy` ends the program: an IO is not copied; so does
+    `kv_task_copy`, a Task's.
   - Optional and Result have them as `_kv_` before their own names:
     `_kv__kv_res_i64_String_free`.
 - **A local owner** is freed where its block ends, by C's `cleanup`
@@ -212,6 +214,7 @@ functions, by one rule.
 | `let +(a:T, b:T)` | `_kv_add_op__T__T`; `sub`, `mul`, `div`, `mod`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, and `neg` of `-x` |
 | `let g()` inside `f` (#180) | `_kv_f_g` |
 | an anonymous function | `_kv_main_fn`, `_kv_main_fn1`, ...: `_kv_`, the top-level declaration it is in, and `fn`; `_kv_fn0` outside any |
+| `async f(x)` (#312) | named as an anonymous function, `F`: `struct F_env`, the value first as `_kv_value`, a function value as `_kv_fn`, then the arguments, `_kv_a0`, ...; `F_run`, the thread's function, which makes the call; `F_drop`, which frees a value that owns |
 | `let main():i32` | `int32_t main(int _kv_argc, char **_kv_argv)` |
 | `let main(argc:i32, argv:[cstr]):i32` | `int32_t main(const int32_t argc, char **const argv)` |
 

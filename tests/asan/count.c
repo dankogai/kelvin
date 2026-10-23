@@ -5,20 +5,22 @@
    everything, as Kelvin's ownership promises, reports 0. realpath is
    renamed too: its block, which the runtime frees, is counted as one
    malloc gives (#216). calloc is renamed too, which runtime/os.k gives
-   its Strings to the caller in (#304) */
+   its Strings to the caller in (#304). The counts are atomic, as a Task's
+   thread allocates beside the program's (#312) */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
 #elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #define _XOPEN_SOURCE 700 /* realpath, X/Open's */
 #endif
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-static long kv_cnt_allocations, kv_cnt_live;
+static atomic_long kv_cnt_allocations, kv_cnt_live;
 
 static void kv_cnt_report(void) {
     fflush(stdout);
-    fprintf(stderr, "allocations %ld, live at exit %ld\n", kv_cnt_allocations, kv_cnt_live);
+    fprintf(stderr, "allocations %ld, live at exit %ld\n", atomic_load(&kv_cnt_allocations), atomic_load(&kv_cnt_live));
 }
 
 /* registered before main runs, so that the report runs after every handler

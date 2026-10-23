@@ -162,6 +162,9 @@ So far the changes from C are:
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
+- `async f(x)` makes a call on a thread of its own and gives a
+  `Task<R>`, and `await t` its value, once; the arguments are passed
+  as any call's, a value copied and an owner moved in (#312)
 - a module is a Kelvin source, `#import <JSON>`, or a header and a
   library, `M.kh` and `libkM` in `modules/`, which `#import <M>` brings
   in and links by itself, as `IO` and `OS` are; `kelvinc --lib M.k`
@@ -262,6 +265,8 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
     and `trim` (#289), and `escape` and `unescape` (#290).
   - `runtime/bytes.k`: a Bytes's `toBase64` and `Bytes.fromBase64`
     (#290).
+  - `runtime/task.k`: a Task's thread, started, awaited and freed
+    (#312).
   - `runtime/os.k`, built into `libkOS` beside `runtime/os.c`, whose C
     it takes over a group at a time (#301): the working directory, the
     environment, files by path and the process ids; stat and the

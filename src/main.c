@@ -415,6 +415,7 @@ static int link_shared(const char *cc, const char *lib_dir, const char *lib_name
         list_push(&args, shared_of(module_libs.data[i]));
     list_push(&args, shared_of(rt_lib));
     list_push(&args, "-lm");
+    list_push(&args, "-lpthread"); /* a Task's thread (#312) */
     list_push(&args, NULL);
     unlink(so);
     return run((char **)args.data, verbose);
@@ -473,6 +474,7 @@ static int link_only(const char *argv0, const char *out_path, bool run_after, bo
         list_push(&args, module_libs.data[i]);
     list_push(&args, rt_lib);
     list_push(&args, "-lm");
+    list_push(&args, "-lpthread"); /* a Task's thread (#312) */
     list_push(&args, NULL);
     int rc = run((char **)args.data, verbose);
     if (rc != 0 || !run_after) {
@@ -680,7 +682,7 @@ int main(int argc, char **argv) {
         list_push(&cc_args, tok);
     for (int i = 0; i < module_libs.len; i++) /* the modules' libraries (#143), before libkelvin, which they use */
         list_push(&cc_args, module_libs.data[i]);
-    const char *tail_args[] = {rt_lib, "-lm", NULL};
+    const char *tail_args[] = {rt_lib, "-lm", "-lpthread", NULL}; /* -lpthread: a Task's thread (#312) */
     for (size_t i = 0; i < sizeof tail_args / sizeof tail_args[0]; i++)
         list_push(&cc_args, (void *)tail_args[i]);
     if (lib || compile_only) { /* no libraries: an object only; the list ends with NULL */
@@ -688,6 +690,7 @@ int main(int argc, char **argv) {
             cc_args.len--;
         while (cc_args.len && (cc_args.data[cc_args.len - 1] == (void *)rt_lib ||
                                !strcmp(cc_args.data[cc_args.len - 1], "-lm") ||
+                               !strcmp(cc_args.data[cc_args.len - 1], "-lpthread") ||
                                text_in(&module_libs, cc_args.data[cc_args.len - 1])))
             cc_args.len--;
         int kept = 0;

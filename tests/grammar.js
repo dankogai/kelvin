@@ -169,6 +169,7 @@ const samples = [
     ['let v = $[nan, -inf, Infinity]; nan("x"); Self.inf', [['nan', 'constant.numeric.decimal'], ['inf', 'constant.numeric.decimal'], ['Infinity', 'constant.numeric.decimal']]],
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
+    ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
     ['    #inline C { total += i; }', [['#inline', 'keyword.control.directive'], [' total += i; ', 'meta.embedded.block.c']]],
 ];
 for (const [line, wants] of samples) {

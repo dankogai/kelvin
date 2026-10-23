@@ -422,7 +422,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -446,7 +446,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -613,6 +613,12 @@ static bool is_string(Type *t);
 static bool is_uchr(Type *t);
 static bool is_io(Type *t);
 static bool is_io_std(Expr *e);
+static bool is_task(Type *t);
+static Type *parse_task_type(Token *kw);
+static Expr *parse_async(Token *kw);
+static Expr *parse_await(Token *kw);
+static Type *task_ctx; /* the Task wanted where async f(x) at task_at is, where kelvinc sees one (#312) */
+static int task_at = -1;
 static bool number_expr(Expr *e);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
@@ -1091,6 +1097,12 @@ static Type *parse_type_in(TypeContext ctx) {
         t->is_const = base->is_const;
         t->is_volatile = base->is_volatile;
         parse_qualifiers(t);
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
+    if (is_kw(peek(), "Task")) { /* Task<T>, Task (#312) */
+        Token *kw = advance();
+        Type *t = qualified_owner(base, parse_task_type(kw), "a Task");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -4254,6 +4266,10 @@ static Expr *parse_unary(void) {
     }
     if (is_p(t, "*"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
+    if (is_kw(t, "async"))
+        return parse_async(advance());
+    if (is_kw(t, "await"))
+        return parse_await(advance());
     if (accept_kw("try")) {
         /* try x (#76): x's value when it is ok (some); else the function
            returns x's err (none), passed up as it is */
@@ -5225,6 +5241,8 @@ static Type *value_type_of(Expr *e) {
             return base_type("String", e->pos);
         if (e->op && (!strcmp(e->op, "case_make") || !strcmp(e->op, "element_copy") || !strcmp(e->op, "dict_lookup") ||
                       !strncmp(e->op, "chain", 5))) /* T.n(x) (#61); a copy of &x (#206); d[k], x?.m (#218) */
+            return e->type;
+        if (e->op && (!strcmp(e->op, "async") || !strcmp(e->op, "await"))) /* its Task, and the Task's value (#312) */
             return e->type;
         if (e->op && (!strcmp(e->op, "io") || !strcmp(e->op, "io_std") || !strcmp(e->op, "io_pipe") ||
                       !strcmp(e->op, "io_exec") || !strcmp(e->op, "os") || !strcmp(e->op, "sys")))
@@ -6491,6 +6509,8 @@ static void reject_owners_to_c(Expr *call) {
     if (call->a->kind == E_IDENT && (!strcmp(call->a->text, "print") || !strcmp(call->a->text, "println"))) {
         for (int k = 0; k < call->items.len; k++) {
             Expr *x = call->items.data[k];
+            if (is_task(value_type(x))) /* (#312) */
+                error_at(x->pos, "a Task has no text: print its value, 'await %s'", x->kind == E_IDENT ? x->text : "t");
             if (is_owner(value_type(x)) && !owner_place(x)) /* held while it prints (#187) */
                 call->items.data[k] = make_temp(x, strfmt("%s of an owner that an expression gives, which nothing would "
                                                           "free: bind it to a variable first",
@@ -7582,6 +7602,10 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 fn_at = cur;
                 fn_type = target && target->kind == T_FUNC ? target : NULL;
             }
+            if (is_kw(peek(), "async") && is_task(target)) { /* t = async f(x) (#312) */
+                task_at = cur;
+                task_ctx = target;
+            }
             e->b = parse_assign();
             assign_ok = ok;
             pick_overload(e->b, target_type(lhs));
@@ -7665,6 +7689,10 @@ static Expr *parse_expr(void) {
    function type is an anonymous function of that type (#32). */
 static Expr *parse_initializer_for(Type *t) {
     Token *open = peek();
+    if (is_kw(open, "async") && is_task(t)) { /* let t:Task<T> = async f(x) (#312) */
+        task_at = cur;
+        task_ctx = t;
+    }
     if (is_p(open, "{") && t && t->kind == T_FUNC) {
         fn_at = cur; /* a member or variable of a function type (#32) */
         fn_type = t;
@@ -8075,6 +8103,39 @@ static Type *parse_set_type(Token *kw) {
     return set_type(kw, elem);
 }
 
+/* ---------- Task<T> (#312): async f(x), a call on a thread of its own ---------- */
+
+/* Task<T>, or Task, of a block without a value: an owner, kv_task in C,
+   whose end waits for the thread, as await does */
+static Type *task_type(Pos pos, Type *value) {
+    if (value && value->kind == T_ARRAY)
+        error_at(pos, "a Task gives a value, and an array is none: give an Array, $[%s]", kelvin_type(value->elem));
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_BASE;
+    t->pos = pos;
+    t->elem = value ? unqualified(value) : NULL;
+    t->name = value ? strfmt("Task<%s>", kelvin_type(t->elem)) : "Task";
+    t->cname = "kv_task";
+    return t;
+}
+
+static bool is_task(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && t->cname && !strcmp(t->cname, "kv_task");
+}
+
+static Type *parse_task_type(Token *kw) {
+    if (!accept_p("<"))
+        return task_type(kw->pos, NULL);
+    Type *value = parse_type_in(TYPE_DECL);
+    if (is_p(peek(), ">>"))
+        toks[cur].text = ">";
+    else if (!accept_p(">"))
+        error_at(peek()->pos, "expected '>' after the value type of Task<T>");
+    return task_type(kw->pos, value);
+}
+
 /* ${a, b, c} and Set<T>({a, b, c}) (#71): the elements written, T inferred
    from the first as a key's is, or given; ${} is the empty Set where the
    type is known */
@@ -8366,7 +8427,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t) || is_task(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -8467,6 +8528,8 @@ static bool eq_operand_ok(Expr *x) {
 static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
     if (!is_owner(target) || !owner_place(value))
         return;
+    if (is_task(target)) /* (#312) */
+        error_at(pos, "a Task is not copied: pass it on, or await it");
     char *what = value->kind == E_IDENT ? strfmt("'%s'", value->text) : "it";
     error_at(pos, "an owner is not copied by '=' (#54): copy its bytes with %s.copy(), or borrow it with ':= &%s'",
              what, value->kind == E_IDENT ? value->text : "...");
@@ -8700,6 +8763,9 @@ static Var *parse_var(bool with_init, int let) {
             error_at(v->pos, "'%s' needs a type: in %s, an array length names a parameter, which a function type "
                              "cannot carry; write a type without it, as in a pointer",
                      v->name, kelvin_type(v->init->type));
+        if (!v->type && v->init->kind == E_CALL && v->init->op && !strcmp(v->init->op, "await")) /* (#312) */
+            error_at(v->init->pos, "this Task has no value, as its function has no result: await it alone, as a line "
+                                   "of its own");
         if (!v->type)
             error_at(v->pos,
                      "'%s' needs a type: write '%s:T = ...' (or '%s:T := ...' for a reference); Kelvin infers a type "
@@ -9345,6 +9411,8 @@ static void reject_returned_text(Expr *e, bool anon) {
 static bool no_value(Expr *e) {
     switch (e->kind) {
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "await")) /* of a Task without a value (#312) */
+            return !e->type;
         static const char *words[] = {"print", "println", "_Pragma", "__asm__", "__asm", "asm", NULL};
         if (e->a->kind == E_IDENT && binding_index(e->a->text) < 0)
             for (int i = 0; words[i]; i++)
@@ -9440,6 +9508,9 @@ static void finish_drops(int from) {
         Stmt *s = pending_drops.data[i];
         if (!s->closed)
             continue; /* returned by implicit_return */
+        if (!s->name && is_task(value_type(s->expr))) /* (#312) */
+            error_at(s->expr->pos, "a Task dropped here would be awaited at once: bind it, 'let t = async f(x)', and "
+                                   "await it when its value is wanted");
         if (!s->name)
             error_at(s->pos, "a struct that owns is given and dropped here: bind it to a variable, which frees it");
         Expr *drop = new_expr(E_CALL, s->pos);
@@ -9850,6 +9921,114 @@ static Expr *parse_anon_fn(Type *ctx) {
     Expr *e = new_expr(E_FUNC, open->pos);
     e->text = d->name;
     e->type = fn_type_of(d);
+    return e;
+}
+
+/* ---------- async f(x) and await (#312) ---------- */
+
+/* async f(x): the call made on a thread of its own, at once, which gives
+   a Task<R> of f's result, or a Task where f has none. The arguments are
+   worked out here and passed as any call passes them, a value copied
+   and an owner moved in (O5), so that the two threads share nothing: a
+   parameter that is a pointer, a cstr or an array would share what it
+   points to, and is an error. f is a Kelvin function kelvinc sees, or a
+   function value. In C the call is made by a function of its own, the
+   thread's, from an environment that holds the arguments and the result */
+static Expr *parse_async(Token *kw) {
+    Type *ctx = task_at == (int)(kw - toks) ? task_ctx : NULL;
+    task_at = -1;
+    if (is_p(peek(), "{"))
+        error_at(peek()->pos, "'async' takes a call, as in 'async f(x)', which passes the function what it needs: a "
+                              "block would take the names around it, which Kelvin does not enclose");
+    if (!parsing_fn)
+        error_at(kw->pos, "'async' starts a call on a thread of its own, in a function: write it in one");
+    Expr *x = parse_postfix_chain();
+    Expr *held = NULL, *call = x; /* the call, inside what its operands hold (#187) */
+    while (call->kind == E_TEMP && call->b) {
+        held = call;
+        call = call->b;
+    }
+    if (call->kind == E_METHOD)
+        error_at(call->pos, "'async' runs a function, and this is a method, whose self the two threads would share: "
+                            "call a function, passing it what it needs");
+    bool plain = call->kind == E_CALL && !call->op;
+    Decl *f = plain ? call->target : NULL;
+    Type *ft = plain && !f ? call->fn_type : NULL;
+    if (plain && !f && !ft && call->cands.len)
+        error_at(call->pos, "'%s' is overloaded, and here C would choose which: 'async' takes one kelvinc sees, so "
+                            "convert the arguments to the types of one",
+                 call->a->kind == E_IDENT ? call->a->text : "this function");
+    if (!f && !ft)
+        error_at(call->pos, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, "
+                            "as in 'async f(x)'");
+    if (f ? f->variadic : ft->variadic)
+        error_at(call->pos, "'async' takes a function of so many parameters, and this one is variadic");
+    Decl *d = new_decl(D_FN, kw->pos, "static");
+    d->name = anon_name();
+    d->anon = d->task = true;
+    d->task_call = call;
+    d->ret = f ? f->ret : ft->elem;
+    if (d->ret)
+        d->ret = unqualified(d->ret);
+    int n = f ? f->params.len : ft->params.len;
+    for (int k = 0; k < n; k++) {
+        Type *written = f ? ((Var *)f->params.data[k])->type : ft->params.data[k];
+        Type *pt = param_type(written);
+        Expr *arg = k < call->items.len ? call->items.data[k] : call;
+        if (pt->kind == T_PTR && pt->cstr)
+            error_at(arg->pos, "'async' would share this text with the call's thread: the parameter is a cstr, where a "
+                               "String would move in");
+        if (pt->kind == T_PTR || pt->kind == T_ARRAY)
+            error_at(arg->pos, "'async' would share what this points to with the call's thread: the parameter is %s, "
+                               "and the function takes values, copied, and owners, moved",
+                     kelvin_type(written));
+        Var *p = xcalloc(1, sizeof *p);
+        p->name = strfmt("_kv_a%d", k);
+        p->pos = arg->pos;
+        p->type = unqualified(pt);
+        list_push(&d->params, p);
+    }
+    d->body = new_stmt(S_BLOCK, kw->pos); /* the thread's function, where the prototype has none */
+    list_push(&anon_fns, d);
+    Expr *e = new_expr(E_CALL, kw->pos);
+    e->a = new_expr(E_IDENT, kw->pos);
+    e->a->text = "async";
+    e->op = "async";
+    e->method = d;
+    e->type = task_type(kw->pos, d->ret);
+    if (ctx && strcmp(kelvin_type(unqualified(ctx)), kelvin_type(e->type)))
+        error_at(kw->pos, "this call gives %s, and %s is wanted here", kelvin_type(e->type), kelvin_type(ctx));
+    if (!held)
+        return e;
+    held->b = e;
+    return x;
+}
+
+/* await t: waits for the Task's thread, and gives its value, once: t
+   holds nothing afterwards, as a move leaves it */
+static Expr *parse_await(Token *kw) {
+    Expr *x = parse_unary();
+    Type *xt = value_type(x);
+    if (xt && xt->kind == T_TYPEOF)
+        xt = xt->elem;
+    if (!is_task(xt))
+        error_at(x->pos, "'await' waits for a Task, which 'async f(x)' gives, and this is %s",
+                 xt ? kelvin_type(xt) : "not one kelvinc sees");
+    if (x->kind == E_IDENT) {
+        if (let_kind(x->text) == LET_EACH)
+            error_at(x->pos, "'%s' is a Task its Array or Dictionary still owns: await it there, as 'await xs[i]'",
+                     x->text);
+        int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        if (binding_index(x->text) >= globals)
+            set_moved(x->text, true);
+    }
+    Expr *e = new_expr(E_CALL, kw->pos);
+    e->a = new_expr(E_IDENT, kw->pos);
+    e->a->text = "await";
+    e->op = "await";
+    e->text = owner_place(x) ? "place" : "value";
+    e->type = xt->elem;
+    list_push(&e->items, x);
     return e;
 }
 
@@ -10696,6 +10875,10 @@ static Stmt *parse_stmt_here(void) {
     }
     if (accept_kw("return")) {
         Stmt *s = new_stmt(S_RETURN, pos);
+        if (is_kw(peek(), "async") && parsing_fn && is_task(parsing_fn->ret)) { /* return async f(x) (#312) */
+            task_at = cur;
+            task_ctx = parsing_fn->ret;
+        }
         /* a function type types an anonymous function (#32) */
         Type *ret = parsing_fn && parsing_fn->ret && parsing_fn->ret->kind == T_FUNC ? parsing_fn->ret : NULL;
         if (is_p(peek(), "{") && ret) {

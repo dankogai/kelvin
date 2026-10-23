@@ -61,7 +61,7 @@ modules/libkelvin.a: $(RT_OBJS) $(RT_K_OBJS)
 	ar rcs $@ $(RT_OBJS) $(RT_K_OBJS)
 
 modules/$(SHLIB): $(RT_OBJS) $(RT_K_OBJS)
-	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) $(RT_K_OBJS) -lm
+	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) $(RT_K_OBJS) -lm -lpthread
 
 modules/libkIO.a: build/runtime/io.o
 	rm -f $@

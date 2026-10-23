@@ -251,9 +251,9 @@ for f in tests/c/*.c; do
     sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
     for link in static shared; do
         if [ "$link" = static ]; then
-            set -- modules/libkelvin.a -lm
+            set -- modules/libkelvin.a -lm -lpthread
         else
-            set -- -Lmodules -lkelvin -Wl,-rpath,"$(pwd)/modules" -lm
+            set -- -Lmodules -lkelvin -Wl,-rpath,"$(pwd)/modules" -lm -lpthread
         fi
         if ! "$CC" -std=c11 -isystem modules -o "$tmp/cprog" "$f" "$@" > "$tmp/log" 2>&1; then
             bad "$f ($link)" "does not build"

@@ -98,7 +98,8 @@ struct Type {
     bool is_const, is_volatile;
     bool cstr;        /* T_PTR: a cstr, immutable text (#52): const u8 behind it */
     char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T;
-                         Dictionary<K, V> (#65): _kv_dict_<K>_<V>; key is K, elem is V */
+                         Dictionary<K, V> (#65): _kv_dict_<K>_<V>; key is K, elem is V;
+                         Task<T> (#312): kv_task; elem is T, NULL for a Task without a value */
     Type *key;        /* T_BASE Dictionary<K, V> (#65): K */
     bool eq;          /* T_BASE Dictionary<K, V> (#235), Array<T> (#247): its values compare, so it has == */
     Type *elem;       /* T_PTR, T_ARRAY; T_FUNC: the result (NULL: none);
@@ -258,6 +259,10 @@ struct Decl {
     Type *recv;           /* the receiver's type: struct point, f64, ... */
     char *recv_name;      /* as written before the dot: point, f64 */
     bool anon;            /* D_FN: an anonymous function (#32) */
+    bool task;            /* D_FN: async f(x) (#312), the call a thread of its own makes: params the
+                             types its arguments are kept as, ret f's; no body for its prototype, its
+                             environment, and a body for its thread's function */
+    Expr *task_call;      /* D_FN task: that call, f(x) */
     struct Decl *nested_in; /* D_FN: the function it is defined inside (#180): a top-level function
                                in C, _kv_outer_name, named in the block that defines it alone */
     int bind_index;       /* D_FN: where its name is bound in the parser's scope, which finds a nested one */

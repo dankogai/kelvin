@@ -598,6 +598,32 @@ static char *expr_bare(Expr *e) {
         return known_bool(e) ? strfmt("((bool)(%s))", s) : s; /* C promotes two bools to int */
     }
     case E_CALL: {
+        if (e->op && !strcmp(e->op, "async")) { /* async f(x) (#312): its arguments kept, then its thread */
+            Decl *f = e->method;
+            Expr *call = f->task_call;
+            Buf b = {0};
+            buf_printf(&b, "({ struct %s_env *_kv_e = kv_task_env(sizeof *_kv_e); ", f->name);
+            if (!call->target) /* a function value, which the thread calls */
+                buf_printf(&b, "_kv_e->_kv_fn = %s; ", expr(call->a));
+            for (int i = 0; i < call->items.len && i < f->params.len; i++) {
+                Expr *x = call->items.data[i];
+                Var *p = f->params.data[i];
+                const char *take = local_owner(x) ? owner_take(p->type) : NULL; /* an owner moves in (O5) */
+                buf_printf(&b, "_kv_e->%s = %s; ", p->name, take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+            }
+            buf_printf(&b, "kv_task_start(%s_run, _kv_e, %s); })", f->name,
+                       f->ret && owner_free(f->ret) ? strfmt("%s_drop", f->name) : "NULL");
+            return b.buf;
+        }
+        if (e->op && !strcmp(e->op, "await")) { /* await t (#312): the thread joined, its value moved out */
+            bool place = !strcmp(e->text, "place");
+            char *hold = place ? "" : strfmt("kv_task _kv_t = %s; ", expr(e->items.data[0]));
+            char *task = place ? strfmt("&(%s)", expr(e->items.data[0])) : "&_kv_t";
+            if (!e->type)
+                return strfmt("({ %skv_task_result(%s, NULL, 0); })", hold, task);
+            return strfmt("({ %s%s; kv_task_result(%s, &_kv_v, sizeof _kv_v); _kv_v; })", hold, decl(e->type, "_kv_v"),
+                          task);
+        }
         if (e->op && !strcmp(e->op, "word")) { /* a case's word that nothing expecting its type took (#224) */
             if (!strcmp(e->a->text, "some"))
                 error_at(e->a->pos, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v), or "
@@ -3462,6 +3488,41 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
+        if (d->task) { /* async f(x) (#312): its environment, the value first, and its thread's function */
+            Expr *call = d->task_call;
+            if (!d->body) {
+                Buf m = {0};
+                if (d->ret)
+                    buf_printf(&m, " %s;", decl(d->ret, "_kv_value"));
+                if (!call->target)
+                    buf_printf(&m, " %s;", decl(call->fn_type, "_kv_fn"));
+                for (int i = 0; i < d->params.len; i++) {
+                    Var *p = d->params.data[i];
+                    buf_printf(&m, " %s;", decl(p->type, p->name));
+                }
+                line("struct %s_env {%s };", d->name, m.len ? m.buf : " char _kv_none;");
+                line("static void *%s_run(void *_kv_p);", d->name);
+                if (d->ret && owner_free(d->ret))
+                    line("static void %s_drop(void *_kv_p);", d->name);
+                break;
+            }
+            Buf args = {0};
+            for (int i = 0; i < d->params.len; i++)
+                buf_printf(&args, "%s_kv_e->%s", i ? ", " : "", ((Var *)d->params.data[i])->name);
+            const char *callee = !call->target ? "_kv_e->_kv_fn"
+                                 : call->target->cname ? call->target->cname
+                                                       : call->target->name;
+            const char *made = strfmt("%s(%s)", callee, args.len ? args.buf : "");
+            line("static void *%s_run(void *_kv_p) {", d->name);
+            line("    struct %s_env *_kv_e = _kv_p;", d->name);
+            line(d->ret ? "    _kv_e->_kv_value = %s;" : "    %s;", made);
+            line("    return NULL;");
+            line("}");
+            if (d->ret && owner_free(d->ret)) /* the value of one never awaited */
+                line("static void %s_drop(void *_kv_p) { %s(&((struct %s_env *)_kv_p)->_kv_value); }", d->name,
+                     owner_free(d->ret), d->name);
+            break;
+        }
         /* registered before the body, so a method can call itself; a
            setter (#132) is called by its own name, never dispatched */
         if (d->recv && !d->setter)

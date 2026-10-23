@@ -206,6 +206,9 @@ let u:():() := tick        // the same, the result written out (#141)
 An anonymous function is `{ ... }` (#32). It encloses nothing, since C has
 no closures: kelvinc makes it a `static inline` function of its own
 (#33), declared before the declaration around it and defined after it.
+`async f(x)` makes a call on a thread of its own (#312,
+[tasks.md](tasks.md)), passing the arguments as any call does, since
+there is no closure to take them.
 
 With `kelvinc -O`, the C compiler may then inline it where it is called,
 as in a Kelvin `sort` that calls its `before`; one passed to a C

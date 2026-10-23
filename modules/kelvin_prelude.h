@@ -52,6 +52,19 @@ int kv_sys_argc_n(void);
 char **kv_sys_argv_p(void);
 const uint8_t *kv_sys_platform(void);
 void kv_sys_exit(int code);
+/* Task<T> (#312): async f(x), a call on a thread of its own, runtime/task.k's.
+   job is the thread, NULL once awaited or moved out; the environment of
+   the call holds its value first. A variable owns one, and its block's
+   end waits for the thread, as await does, and frees the value */
+typedef struct kv_task { void *job; } kv_task;
+void *kv_task_env(size_t n);
+kv_task kv_task_start(void *(*run)(void *), void *env, void (*drop)(void *));
+void kv_task_result(kv_task *t, void *out, size_t n);
+void kv_task_free(kv_task *t);
+kv_task kv_task_take(kv_task *t);
+kv_task kv_task_copy(const kv_task *t);
+void kv_task_assign(kv_task *t, kv_task v);
+void kv_task_discard(kv_task v);
 
 /* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
 

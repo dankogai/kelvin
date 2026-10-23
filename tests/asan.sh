@@ -83,7 +83,7 @@ for f in tests/run/*.k; do
         bad "$f" "does not compile"
         continue
     fi
-    if ! $CC $flags -I"$(dirname "$f")" -o "$tmp/prog" "$tmp/prog.c" $objs -lm > "$tmp/log" 2>&1; then
+    if ! $CC $flags -I"$(dirname "$f")" -o "$tmp/prog" "$tmp/prog.c" $objs -lm -lpthread > "$tmp/log" 2>&1; then
         bad "$f" "the C does not compile with ASan"
         continue
     fi

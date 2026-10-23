@@ -1,4 +1,4 @@
-# Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>` and `IO`
+# Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO` and `Task<T>`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
@@ -290,6 +290,20 @@ An `IO` (#82) is a file, or a standard stream, as an owner.
   flushed.
 
 The rest is in [io.md](io.md).
+
+## `Task<T>`
+
+A `Task<T>` (#312) is what `async f(x)` gives: a call on a thread of
+its own, and the value it will have.
+
+- `await t` waits for the thread and moves the value out, once.
+- The end of its block waits for one never awaited, and frees its
+  value.
+- It moves by `return` and passing, is borrowed with `&t`, and is not
+  copied.
+- An owner passed to the call moves in, as passing it always does (O5).
+
+The rest is in [tasks.md](tasks.md).
 
 ## When a check fails
 

@@ -65,6 +65,8 @@ the design decisions, numbered `#N` throughout, are in
 - [io.md](io.md): `IO`, files and the standard streams as owners,
   `#import <IO>`.
 - [sys.md](sys.md): `SYS`, the program, the prelude's (#302)
+- [tasks.md](tasks.md): `async f(x)`, `await` and `Task<T>`, a call
+  on a thread of its own (#312)
 - [os.md](os.md): `OS`, the system around the program,
   `#import <OS>`.
 - [c-interfaces.md](c-interfaces.md): C headers, typedefs, C's

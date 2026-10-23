@@ -6576,3 +6576,28 @@ piped and on a terminal. `async` and `await` wait for their own
 number. Details are provisional P323.
 
 There are 948 tests, and all pass with clang and with gcc 15.
+
+### 357. async and await
+
+> add async and await to the prelude as #312
+
+**Claude** asked three questions first: what runs a task, how it is
+spelled, and what it may take from around it. The user chose an OS
+thread each, `async` giving a `Task<T>` that `await` waits for, and
+copies and moves only. **Claude** first made `async { ... }` a block
+whose names around it were passed in.
+
+> Your implementation needs a closure because `async` is a block.
+> limiting `async` to functions makes it unnecessary. Now where do you
+> think is the best do declare function `async`?
+
+**Claude** suggested marking the call, `async f(x)`, not the function:
+the function stays ordinary, and its arguments pass as any call's.
+`await async fib(30)` works, waiting at once.
+
+> rework #312 to async f(x)
+
+**Claude** reworked it so, with the Task's runtime in Kelvin, in
+runtime/task.k. Details are provisional P324.
+
+There are 964 tests, and all pass with clang and with gcc 15.

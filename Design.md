@@ -343,6 +343,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 309 | OS's system, time, sleep, utime, futime, ftouch and touch are written in Kelvin in runtime/os.k, in place of their C; environ stays C, its `char **` | — | `OS.time` of runtime/os.k | 2026-10-24 |
 | 310 | OS's tmpdir, mkstemp and mkdtemp are written in Kelvin in runtime/os.k, in place of their C; the IO mkstemp fills is kIO.h's `kv_io` | — | `OS.mkstemp` of runtime/os.k | 2026-10-24 |
 | 311 | OS's host, uname, cpus, loadavg, terminalsize and diskusage are written in Kelvin in runtime/os.k, in place of their C | — | `OS.uname` of runtime/os.k | 2026-10-24 |
+| 312 | `async f(x)` makes a call on a POSIX thread of its own and gives a `Task<R>` of f's result, `Task` where it has none; `await t` waits and gives it, once; the arguments pass as any call's, a value copied and an owner moved in, and a pointer, cstr or array parameter is an error; f is a Kelvin function or a function value; a Task is an owner whose block's end awaits it | — | `let t = async fib(30); println(await t)` | 2026-10-24 |
 
 Notes:
 
@@ -904,6 +905,36 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (312) Agreed details: "add async and await to the prelude as #312",
+  with the user's choices: an OS thread each, a `Task<T>` that `await t`
+  waits for, and copies and moves only. A first version took a block,
+  `async { ... }`, whose names around it were found and passed in; the
+  user saw that a block needs a closure and asked where an async
+  function would be declared. Claude suggested marking the call
+  instead, "rework #312 to async f(x)": the function stays ordinary, as
+  callable as before, and its arguments pass as any call's.
+  - `async f(x)` parses its operand as a postfix chain, the call inside
+    what its operands hold (#187); f is a Kelvin function (target) or a
+    function value (fn_type), not a C function, a method or an overload
+    C would choose; `await async f(x)` waits at once.
+  - The call's own parse moves its owners (O5); a parameter that is a
+    pointer, a cstr or an array is an error, naming its written type.
+  - `Task<R>` is a T_BASE of cname kv_task, so owner_free, take and
+    copy are kv_task_free, kv_task_take and kv_task_copy; an
+    `Array<Task<R>>`, an Optional result and passing and returning one
+    work as for any owner; a written `Task<R>` must be the call's.
+  - The C: a Decl with task set and task_call the call, named as an
+    anonymous function; its prototype copy writes `struct F_env { value;
+    _kv_fn; _kv_a0...; }`, the original `F_run`, which makes the call,
+    and `F_drop`, which frees a value that owns for a Task never
+    awaited. runtime/task.k, in Kelvin, starts the thread, joins it in
+    kv_task_result, which copies the value out, and in kv_task_free.
+  - kelvinc links `-lpthread` after `-lm`, as tests/run.sh and
+    tests/asan.sh do; tests/asan/count.c's counts are atomic.
+  - ThreadSanitizer finds no race in a program of each, and `leaks` no
+    leak; tests/run/async_await.k, 15 tests in tests/error.
+  - kc does not know async yet.
 
 - (311) Agreed details: "move OS system information to Kelvin as
   #311", #301's eighth group: kv_os_host, uname, cpus, loadavg,
@@ -3566,6 +3597,7 @@ says "as agreed".
 | P321 | Details of #309 | runtime/os.k: system, time, sleep, at_seconds, now_both, utime, futime, ftouch, touch; runtime/os.c loses them; tests: run/os_kelvin_group6.k; README.md | environ: Kelvin has no C `char` |
 | P322 | Details of #310 | runtime/os.k: tmpdir, temp_template, mkstemp, mkdtemp; runtime/os.c loses them; tests: run/os_kelvin_group7.k; README.md | found: a call without a result reaches C as an argument |
 | P323 | Details of #311 | runtime/os.k: host, uname, cpus, loadavg, terminalsize, diskusage; runtime/os.c loses them; tests: run/os_kelvin_group8.k; README.md | — |
+| P324 | Details of #312 | src/lexer.c, src/parser.c, src/codegen.c, src/kelvin.h, src/main.c: async, await, Task<R>; runtime/task.k; kelvin_prelude.h; GNUmakefile; tests/run.sh, tests/asan.sh, tests/asan/count.c, tests/grammar.js; editors/vscode grammar; tests: run/async_await.k, 15 error/async_*, await_*, task_*; documents/tasks.md (new), README.md, documents/README.md, versusC.md, properties.md, ownership.md, functions.md, c-contract.md | kc has no async yet |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
