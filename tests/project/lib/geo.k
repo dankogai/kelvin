@@ -14,7 +14,7 @@ var made:int64 = 0
 static let twice(x:float64):float64 { x * 2.0 }                   // file-local: not in the header
 
 #inline C {
-#define GEO_UNIT 2                      /* a macro, as it is */
+enum { GEO_UNIT = 2 };                  /* a constant, an enum's: no preprocessor (#296) */
 typedef struct { double w, h; } geo_size;
 int64_t geo_calls = 0;                  // a global: extern, without its value
 struct geo_rect { double w, h; } geo_unit = {1.0, 1.0};     // a type and a variable at once (#200)

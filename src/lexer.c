@@ -537,8 +537,9 @@ static bool line_ends(Lexer *lx) {
 
 /* #inline C { ... } (#197): C, written into the generated C where it
    stands. The C ends at the '}' that matches the '{', counted as C
-   counts them, outside its strings, characters and comments; a brace in
-   a macro, as #define LB {, counts too. */
+   counts them, outside its strings, characters and comments. It holds
+   no line of C's preprocessor, and no Kelvin directive nests in it
+   (#296): a '#' that begins a line is an error that says which. */
 static void lex_inline_c(Lexer *lx, Pos pos) {
     skip_blanks(lx);
     if (!accept_word(lx, "C"))
@@ -549,10 +550,31 @@ static void lex_inline_c(Lexer *lx, Pos pos) {
     step(lx);
     const char *start = lx->p;
     int depth = 1;
+    bool line_start = true; /* only blanks since the '{' or a new line */
     for (;;) {
         char c = *lx->p;
         if (!c)
             error_at(pos, "unterminated '#inline C {': it ends with the '}' that matches its '{'");
+        if (c == '#' && line_start) {
+            const char *w = lx->p + 1;
+            while (*w == ' ' || *w == '\t')
+                w++;
+            size_t n = 0;
+            while (isalpha((unsigned char)w[n]))
+                n++;
+            if ((n == 6 && !strncmp(w, "import", 6)) || (n == 6 && !strncmp(w, "inline", 6)))
+                error_at(here(lx), "'#%.*s' does not nest in '#inline C': Kelvin's directives stand at the top level, "
+                                   "or among a function's statements (#296)",
+                         (int)n, w);
+            error_at(here(lx), "'#%.*s' in '#inline C' is C's preprocessor, which Kelvin leaves out (#296): import a "
+                               "header with '#import <x.h> as C' outside it, and write a constant as an enum's or a "
+                               "Kelvin let",
+                     (int)n, w);
+        }
+        if (c == '\n')
+            line_start = true;
+        else if (c != ' ' && c != '\t' && c != '\r' && !(c == '/' && (lx->p[1] == '/' || lx->p[1] == '*')))
+            line_start = false;
         if (c == '/' && lx->p[1] == '/') {
             while (*lx->p && *lx->p != '\n')
                 step(lx);
@@ -620,8 +642,8 @@ static void lex_import(Lexer *lx) {
         return;
     }
     if (!accept_word(lx, "import"))
-        error_at(pos, "only '#import <header.h> as C' and '#inline C { ... }' are supported; the rest of the "
-                      "preprocessor is TODO");
+        error_at(pos, "only '#import <header.h> as C' and '#inline C { ... }' are supported; C's preprocessor "
+                      "Kelvin leaves out (#296)");
     skip_blanks(lx);
     char close = *lx->p == '<' ? '>' : *lx->p == '"' ? '"' : 0;
     if (!close)

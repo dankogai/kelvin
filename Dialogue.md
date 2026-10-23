@@ -6370,3 +6370,15 @@ into its expected output, which it now prints escaped. Details are
 provisional P307.
 
 There are 926 tests, and all pass with clang and with gcc 15.
+
+### 340. No preprocessor in #inline C
+
+> refuse preprocessor lines in #inline C as #296
+
+**Claude** made a `#` that begins a line of an #inline C block an error,
+which names Kelvin's directives as not nesting and the rest as C's
+preprocessor, left out. Two tests used `#include` and `#define` there,
+and now import the header outside and write their constants as C's
+own. Details are provisional P308.
+
+There are 930 tests, and all pass with clang and with gcc 15.

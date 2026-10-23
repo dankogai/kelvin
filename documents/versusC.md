@@ -226,8 +226,7 @@ These C features stay out, as decided (#294):
   `#inline C { ... }`, are its only ones.
   - `#inline C { ... }` holds no C preprocessor directive, and no
     Kelvin directive nests in it.
-  - To be enforced as errors (#296); until then `#inline C` passes its
-    text to C as it is (#197).
+  - Either is an error that says so (#296).
 
 ## Diagnostics
 

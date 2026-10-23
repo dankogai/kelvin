@@ -327,6 +327,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 293 | kc writes a literal's `\u` escapes as kelvinc since #292, the codepoint's UTF-8 bytes in octal, with kelvinc's errors in its words | — | kc builds `$"a\u{7f}"` | 2026-10-23 |
 | 294 | `typedef` is an error that names `typealias`, at the top level and in a body; versusC.md records what stays out on purpose: typedef, long double, string prefixes, deep generics, the preprocessor | — | `typedef int64 count` is an error | 2026-10-23 |
 | 295 | A Kelvin source is UTF-8, valid and without a BOM: a BOM, a byte that is no UTF-8, and C's string and character prefixes, `L"..."`, `u8"..."`, `u"..."`, `U"..."`, are errors that say so; `$"..."` is the one prefix | — | `L"wide"` is an error | 2026-10-23 |
+| 296 | `#inline C { ... }` holds no line of C's preprocessor, and no Kelvin directive nests in it: a `#` that begins a line of its code is an error that says which, `#define` or `#import`; a header is `#import <x.h> as C` outside it, a constant an enum's or a Kelvin `let` | — | `#inline C { #define X 1 }` is an error | 2026-10-23 |
 
 Notes:
 
@@ -888,6 +889,24 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (296) Agreed details: "refuse preprocessor lines in #inline C as #296",
+  the user's answer of #294: #inline C must not contain C's
+  preprocessor, and Kelvin's directives shall not nest.
+  - lex_inline_c, which counts the block's braces outside C's strings,
+    characters and comments, finds a `#` that begins a line of its code,
+    indented or after a comment too, and says which it is:
+    `#import` and `#inline` "do not nest"; any other, `#define`,
+    `#include`, `#if`, "is C's preprocessor, which Kelvin leaves out".
+  - A `#` in a string, a character or a comment is as written.
+  - Before, `#include` and `#define` were C's own there, and a nested
+    `#import` went to C, which failed; tests/run/inline_c.k and
+    tests/project/lib/geo.k used them, and now import ctype.h outside
+    and write their constants as C's own, `static const char`, and an
+    enum's, `enum { GEO_UNIT = 2 };`, which geo.kh carries.
+  - The top-level message of another directive said the rest of the
+    preprocessor "is TODO": it says Kelvin leaves C's out now.
+  - c-interfaces.md and versusC.md say so.
 
 - (295) Agreed details: "refuse string prefixes, BOMs and invalid UTF-8
   as #295", the user's answer of #294.
@@ -3278,6 +3297,7 @@ says "as agreed".
 | P305 | Details of #293 | selfhost/gen.k: put_text, put_ucn, tok_error, hex_upper, text_code; sample.k uses it; selfhost/README.md | `(n + 1).uchr` reaches C |
 | P306 | Details of #294 | parser.c: reject_typedef; tests: error/typedef_kelvin.k, error/typedef_in_body.k; documents/versusC.md, grammar.md | string prefixes, BOM and UTF-8 (#295); #inline C's preprocessor (#296) |
 | P307 | Details of #295 | lexer.c: utf8_length, check_utf8, the prefix of a name before a quote; tests: error/source_bom.k, error/source_invalid_utf8.k, error/string_prefix_wide.k, error/char_prefix.k; run/string_escape_edges.k; documents/grammar.md, versusC.md | kc: BOMs, UTF-8, prefixes |
+| P308 | Details of #296 | lexer.c: lex_inline_c's line start, the top-level message; tests: error/inline_c_define.k, inline_c_include.k, inline_c_nested_import.k, preprocessor.k; run/inline_c_hash.k, run/inline_c.k; project/lib/geo.k; documents/c-interfaces.md, versusC.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -22,9 +22,8 @@ prelude from C, and what the C compiler checks.
 - `as C` is required for a C header. A Kelvin file is imported without
   it (see [modules.md](modules.md)).
 - Every other directive (`#include`, `#define`, `#if`, ...) is an error.
-  The rest of the preprocessor is TODO.
-  - Inside `#inline C { ... }` they are C's own: see
-    [Inline C](#inline-c).
+  - Kelvin leaves C's preprocessor out on purpose, inside
+    `#inline C { ... }` too (#296): see [Inline C](#inline-c).
 - Without an import you can still declare C functions by hand:
   `let printf(fmt:const u8^, ...):i32`.
   - Don't do both, because a hand-written prototype conflicts with the
@@ -43,11 +42,11 @@ generated C where it stands: at the top level, or in a function as its
 statements (#198).
 
 ```swift
+#import <ctype.h> as C
 let twice(x:int64):int64 { x * 2 }
 
 #inline C {
-#include <ctype.h>
-#define LOUD '!'
+enum { LOUD = '!' };
 static int shout(int c) { return toupper(c); }
 int64_t quad(int64_t x) { return twice(x) * 2; }   /* C calls Kelvin */
 }
@@ -64,11 +63,17 @@ let main():int32 {
     statement without braces.
   - It ends at the `}` that matches that `{`, counted as C counts them:
     a brace in a string, a character or a comment does not count.
-  - A brace in a macro does count: `#define LB {` would leave the block
-    open. Write such a macro in a header and `#import` it.
   - Nothing but a comment may follow the closing `}` on its line.
-- **What it may hold:** any C at file scope: functions, globals,
-  typedefs, and the preprocessor (`#include`, `#define`, `#if`).
+- **What it may hold:** C at file scope: functions, globals, types and
+  their constants.
+  - No line of C's preprocessor (#296): a `#` that begins a line,
+    `#include`, `#define`, `#if`, is an error.
+    - A header is `#import <x.h> as C` before the block; a constant is
+      an enum's, `enum { LOUD = '!' };`, or a Kelvin `let`.
+    - A macro a program needs is written in a header and imported.
+  - No Kelvin directive nests in it: `#import` and `#inline` stand at
+    the top level, or among a function's statements.
+  - A `#` in a string, a character or a comment is as written.
 - **No trigraphs** (#220), as in the rest of Kelvin:
   - in its strings, characters and comments, `??!` is as written:
     kelvinc writes a `?` after a `?` as `\?`;

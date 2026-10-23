@@ -1,13 +1,14 @@
 // #inline C { ... } (#197): C of the program's own, written into the
 // generated C where it stands. Its braces are counted as C counts them,
-// outside strings, characters and comments; its #include and #define are
-// C's own; Kelvin calls its functions and uses its types as a header's,
-// and it calls a Kelvin function written before it
+// outside strings, characters and comments; it holds no preprocessor
+// line (#296), so a header is imported before it and a constant is C's
+// own; Kelvin calls its functions and uses its types as a header's, and
+// it calls a Kelvin function written before it
+#import <ctype.h> as C
 let twice(x:int32):int32 { x * 2 }
 
 #inline C {
-#include <ctype.h>
-#define CLOSE '}'                      /* a brace in a character */
+static const char CLOSE = '}';         /* a brace in a character */
 static const char *const banner = "{ not a block }";
 typedef struct { int x, y; } cpoint;
 int cplus(int a, int b) {
