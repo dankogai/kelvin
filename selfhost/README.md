@@ -336,7 +336,9 @@ kc reads what it is written in, and little more.
     as a Set's `elements`: new values a variable then owns, of a
     Dictionary in a variable, a temporary, or through a borrow.
   - A String key an expression gives, `d.has($"a")`, is held for the
-    call (#270).
+    call (#270), and for `d[k] = v`, `d[k] += v`, `d[k]!` and `d[k]`
+    read whole (#314): the checked place outlives it, as `d` keeps a
+    copy.
   - `d[k]` read whole is a `V?` (#219), as kelvinc's since #218: `some`
     of a copy of the entry's value, or `none` where the key is missing.
     - It goes where a `V?` goes: `let a = d[k]`, `d[k] ?? v`,

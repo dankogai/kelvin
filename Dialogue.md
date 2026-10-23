@@ -6614,3 +6614,15 @@ does not compile, and left that for a later number. Details are
 provisional P325.
 
 There are 964 tests, and all pass with clang and with gcc 15.
+
+### 359. kc's expression keys
+
+> fix kc's d[k] = v of an expression key as #314
+
+**Claude** made kc hold a String key an expression gives in `d[k] = v`,
+the checked `d[k]` and `d[k]` read whole, as it held one for `d.has(k)`,
+and kc's builds print as kelvinc's. On the way it found that kelvinc
+refuses `s += f()` of a Set of Strings, which kc takes, and left that
+for a later number. Details are provisional P326.
+
+There are 964 tests, and all pass with clang and with gcc 15.

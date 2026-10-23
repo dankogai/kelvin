@@ -380,5 +380,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     var doubled_sum:int64 = 0
     for i in 0..<tasks.count as int64 { doubled_sum += await tasks[i] }
     println(await fib_task, " ", await loud_task, " ", doubled_sum, " ", await started(10), " ", await async doubled(4))
+    var tally:Dictionary<String, int64> = ${:}         // a key an expression gives, held (#314)
+    tally[String("async") + "s"] = 1
+    tally[louder(String("hey"))] = 2
+    tally[$"asyncs"] += 10
+    println(tally, " ", tally[louder(String("hey"))]!, " ", tally[$"async" + "s"] ?? 0)
     return 0
 }

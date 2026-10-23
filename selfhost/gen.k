@@ -2481,6 +2481,9 @@ let gen_coalesce(n:int64) {
 let gen_lookup(n:int64, y:int64) {
     let value:int64 = types[y].elem
     let opt:int64 = optional_of(value)
+    let key:int64 = nodes[n].b
+    let hold = needs_hold(key)                           // a String key an expression gives, held for the lookup (#314)
+    if hold { hold_open(key) }
     put("({ __auto_type _kv_p = ")
     put_dict_name(y)
     put("_find(")
@@ -2499,6 +2502,7 @@ let gen_lookup(n:int64, y:int64) {
     put(") : _kv_")
     put_tok(types[opt].name)
     put("_make_none(); })")
+    if hold { hold_close(key) }
 }
 
 // x?.rest (#221): the rest of the chain of what x holds, bound by name
@@ -2579,13 +2583,18 @@ let gen_element(n:int64) {
     } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
         gen_lookup(n, y)
     } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
-        put("(*")
+        let key:int64 = nodes[n].b
+        let hold = needs_hold(key)                   // a String key an expression gives, held while the entry is
+        put("(*")                                    // found, whose place outlives it, as d keeps its own (#314)
+        if hold { hold_open(key) }
         put_dict_name(y)
         put("_at(")
         gen_place(nodes[n].a)
         put(", ")
-        gen_key(y, nodes[n].b)
-        put("))")
+        gen_key(y, key)
+        put(")")
+        if hold { hold_close(key) }
+        put(")")
     } else {
         gen_expr(nodes[n].a)
         put("[")
@@ -3246,14 +3255,19 @@ let gen_assign(n:int64) {
     var into:int64 = -1                                  // what lhs indexes
     if nodes[lhs].kind == N_INDEX { into = type_of(nodes[lhs].a) }
     if into >= 0 && types[into].kind == Y_DICT && tok_is(t, "=") {
+        let key:int64 = nodes[lhs].b
+        let hold = needs_hold(key)                       // a String key an expression gives, held for the set (#314)
+        if hold { hold_open(key) }
         put_dict_name(into)                              // d[k] = v sets the entry (#211)
         put("_set(")
         gen_place(nodes[lhs].a)
         put(", ")
-        gen_key(into, nodes[lhs].b)
+        gen_key(into, key)
         put(", ")
         gen_expr(nodes[n].b)
-        put(");\n")
+        put(")")
+        if hold { hold_close(key) }
+        put(";\n")
     } else if yk == Y_STRING && tok_is(t, "=") {
         put("kv_string_assign(")
         gen_place(lhs)
