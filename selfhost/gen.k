@@ -212,6 +212,7 @@ let put_owner_prefix(y:int64) {
     switch types[y].kind {
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
+    case Y_TASK: put("kv_task")                    // (#313)
     case Y_DICT: put_dict_name(y)
     case Y_SET: put_set_name(y)
     case Y_STRUCT:                                 // an enum with values: _kv_T (#215)
@@ -247,6 +248,7 @@ let put_ctype(y:int64) {
     case Y_CSTR: put("const uint8_t *")
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
+    case Y_TASK: put("kv_task")                                  // (#313)
     case Y_UCHR: put("kv_uchr")
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
@@ -425,6 +427,7 @@ let type_of(n:int64):int64
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
+let kelvin_type_text(y:int64):String    // and an await of no Task names its type (#313)
 
 // whether node a names a struct, not a variable: T of T.f(...)
 let names_type(a:int64):bool {
@@ -708,6 +711,29 @@ let type_of(n:int64):int64 {
         if y < 0 { return -1 }
         return types[y].elem
     }
+    if k == N_ASYNC {                                  // a Task of the call's result (#313)
+        let c:int64 = nodes[n].a
+        if nodes[c].kind == N_CALL && nodes[nodes[c].a].kind == N_ID && decl_named(nodes[nodes[c].a].t, D_FN) < 0 {
+            gen_error(c, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, as in 'async f(x)'")
+            return -1
+        }
+        let r:int64 = type_of(c)
+        if r < 0 { return -1 }
+        return type_of_kind(Y_TASK, types[r].kind == Y_VOID ? 0 - 1 : r, -1)
+    }
+    if k == N_AWAIT {                                  // the Task's value, none of a Task (#313)
+        let y:int64 = type_of(nodes[n].a)
+        if y < 0 { return -1 }
+        if types[y].kind != Y_TASK {
+            var m = $"'await' waits for a Task, which 'async f(x)' gives, and this is "
+            let what:String = kelvin_type_text(y)
+            m += &what
+            gen_error(nodes[n].a, m.cstr)
+            return -1
+        }
+        if types[y].elem < 0 { return base_type(Y_VOID) }
+        return types[y].elem
+    }
     return -1
 }
 
@@ -825,28 +851,36 @@ let takes_borrow(n:int64, t:int64, who:const String^):bool {
     return false
 }
 
+// the argument a of the parameter p of d; false where it is an error
+let gen_arg_to(a:int64, p:int64, d:int64):bool {
+    if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
+        put_owner_prefix(nodes[p].ty)
+        put("_take(&")
+        put_tok(nodes[a].t)
+        put(")")
+        return true
+    }
+    if is_owner(nodes[p].ty) && is_place(a) {
+        gen_error(a, "an owner moves into a function only as a whole variable: pass a borrow, &..., or a copy")
+        return false
+    }
+    var who = $"'"                                      // a let's borrow where a T^ that may change it goes (#272),
+    who += tok_text(nodes[p].t)                         // of an owner too, as kelvinc since #273
+    who += "' of '"
+    who += tok_text(nodes[d].t)
+    who += "'"
+    if !takes_borrow(a, nodes[p].ty, &who) { return false }
+    gen_value(a, nodes[p].ty)
+    return true
+}
+
 let gen_args_to(first:int64, d:int64) {
     var a:int64 = first
     var p:int64 = d >= 0 ? nodes[d].a : -1
     while a >= 0 {
         if a != first { put(", ") }
-        if p >= 0 && is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
-            put_owner_prefix(nodes[p].ty)
-            put("_take(&")
-            put_tok(nodes[a].t)
-            put(")")
-            p = nodes[p].next
-        } else if p >= 0 && is_owner(nodes[p].ty) && is_place(a) {
-            gen_error(a, "an owner moves into a function only as a whole variable: pass a borrow, &..., or a copy")
-            return
-        } else if p >= 0 {
-            var who = $"'"                              // a let's borrow where a T^ that may change it goes (#272),
-            who += tok_text(nodes[p].t)                 // of an owner too, as kelvinc since #273
-            who += "' of '"
-            who += tok_text(nodes[d].t)
-            who += "'"
-            if !takes_borrow(a, nodes[p].ty, &who) { return }
-            gen_value(a, nodes[p].ty)
+        if p >= 0 {
+            if !gen_arg_to(a, p, d) { return }
             p = nodes[p].next
         } else {
             gen_expr(a)
@@ -1078,6 +1112,13 @@ let mangled(y:int64):String {
     case Y_SET:
         var s = $"Set_"
         s += mangled(types[y].elem)
+        return s
+    case Y_TASK:                                       // (#313)
+        var s = $"Task"
+        if types[y].elem >= 0 {
+            s += "_"
+            s += mangled(types[y].elem)
+        }
         return s
     case Y_STRUCT:
         let d = tagged_of(y)
@@ -1611,6 +1652,13 @@ let gen_print_args(first:int64) {
     while a >= 0 {
         if a != first { put(", ") }
         let y = type_of(a)
+        if y >= 0 && types[y].kind == Y_TASK {                   // as kelvinc's (#313)
+            var m = $"a Task has no text: print its value, 'await "
+            m += nodes[a].kind == N_ID ? tok_text(nodes[a].t) : $"t"
+            m += "'"
+            gen_error(a, m.cstr)
+            return
+        }
         if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
             put("({ __auto_type _kv_sv = (")
             gen_expr(a)
@@ -2301,6 +2349,20 @@ let gen_set_op(n:int64, y:int64) {
 }
 
 let gen_value(n:int64, y:int64) {
+    if y >= 0 && types[y].kind == Y_TASK {              // a Task of the value written (#313)
+        let given:int64 = type_of(n)
+        if given >= 0 && given != y {
+            var m = nodes[n].kind == N_ASYNC ? $"this call gives " : $"this is "
+            let g:String = type_text(given)
+            m += &g
+            m += nodes[n].kind == N_ASYNC ? ", and " : ", where "
+            let w:String = type_text(y)
+            m += &w
+            m += nodes[n].kind == N_ASYNC ? " is wanted here" : " goes"
+            gen_error(n, m.cstr)
+            return
+        }
+    }
     if nodes[n].kind == N_ARRAY && y >= 0 && types[y].kind == Y_ARRAY {   // $[a, b] of the type written (#266)
         gen_array(n, y)
         return
@@ -2594,6 +2656,203 @@ let gen_index(n:int64) {
     hold_close(a)
 }
 
+// ---------- async f(x) and await (#313), as kelvinc's #312 ----------
+
+var asyncs:$[int64]                  // each async f(x), in order: its environment and its thread's function
+var async_names:$[String]            // and its name, _kv_f_fn, _kv_f_fn1, ..., an anonymous function's
+var async_used:Dictionary<String, int64>
+
+let async_name():String {
+    var base = $"_kv_"
+    base += tok_text(nodes[current].t)
+    base += "_fn"
+    var k = 0
+    while true {
+        var name = base.copy()
+        if k > 0 {
+            let number = String(k)
+            name += &number
+        }
+        if !async_used.has(name) {
+            async_used[name] = 1
+            return name
+        }
+        k += 1
+    }
+    return base
+}
+
+let put_async_name(i:int64) {
+    let name:String = async_names[i].copy()
+    out += &name
+}
+
+// async f(x): the arguments kept in an environment, as a call passes them,
+// a value copied and an owner moved in, then the thread that makes the call
+let gen_async(n:int64) {
+    let c:int64 = nodes[n].a
+    if nodes[c].kind == N_METHOD {
+        gen_error(c, "'async' runs a function, and this is a method, whose self the two threads would share: call a function, passing it what it needs")
+        return
+    }
+    let f:int64 = nodes[c].kind == N_CALL ? nodes[c].a : 0 - 1
+    var d:int64 = -1
+    if f >= 0 && nodes[f].kind == N_ID && !tok_is(nodes[f].t, "println") && !tok_is(nodes[f].t, "print") && var_type(nodes[f].t) < 0 {
+        d = call_target(c)
+    }
+    if d < 0 {
+        gen_error(c, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, as in 'async f(x)'")
+        return
+    }
+    var a:int64 = nodes[c].b
+    var p:int64 = nodes[d].a
+    while a >= 0 && p >= 0 {                          // a pointer would share what it points to
+        let k:ykind = types[nodes[p].ty].kind
+        if k == Y_CSTR {
+            gen_error(a, "'async' would share this text with the call's thread: the parameter is a cstr, where a String would move in")
+            return
+        }
+        if k == Y_PTR || k == Y_ARGV {
+            var m = $"'async' would share what this points to with the call's thread: the parameter is "
+            let w:String = kelvin_type_text(nodes[p].ty)
+            m += &w
+            m += ", and the function takes values, copied, and owners, moved"
+            gen_error(a, m.cstr)
+            return
+        }
+        a = nodes[a].next
+        p = nodes[p].next
+    }
+    asyncs += n
+    async_names += async_name()
+    let i:int64 = asyncs.count as int64 - 1
+    put("({ struct ")
+    put_async_name(i)
+    put("_env *_kv_e = kv_task_env(sizeof *_kv_e); ")
+    a = nodes[c].b
+    p = nodes[d].a
+    var k = 0
+    while a >= 0 && p >= 0 {
+        put("_kv_e->_kv_a")
+        put_int(k)
+        put(" = ")
+        if !gen_arg_to(a, p, d) { return }
+        put("; ")
+        k += 1
+        a = nodes[a].next
+        p = nodes[p].next
+    }
+    put("kv_task_start(")
+    put_async_name(i)
+    put("_run, _kv_e, ")
+    if is_owner(nodes[d].ty) {
+        put_async_name(i)
+        put("_drop")
+    } else {
+        put("NULL")
+    }
+    put("); })")
+}
+
+// await t: the thread joined, its value moved out; a Task an expression
+// gives is held while it is awaited
+let gen_await(n:int64) {
+    let x:int64 = nodes[n].a
+    let v:int64 = type_of(n)
+    if failed || v < 0 { return }
+    let place = is_place(x)
+    let valued = types[v].kind != Y_VOID
+    put("({ ")
+    if !place {
+        put("kv_task _kv_t = ")
+        gen_expr(x)
+        put("; ")
+    }
+    if valued {
+        put_ctype(v)
+        put(" _kv_v; ")
+    }
+    put("kv_task_result(")
+    if place { gen_place(x) } else { put("&_kv_t") }
+    put(valued ? ", &_kv_v, sizeof _kv_v); _kv_v; })" : ", NULL, 0); })")
+}
+
+// each async f(x)'s environment, the value first, and its thread's
+// function and drop, declared before the functions
+let put_async_heads() {
+    for i in 0..<asyncs.count as int64 {
+        let d = call_target(nodes[asyncs[i]].a)
+        let r:int64 = nodes[d].ty
+        put("struct ")
+        put_async_name(i)
+        put("_env {")
+        var some_member = false
+        if r >= 0 && types[r].kind != Y_VOID {
+            put(" ")
+            put_ctype(r)
+            put(" _kv_value;")
+            some_member = true
+        }
+        var p:int64 = nodes[d].a
+        var k = 0
+        while p >= 0 {
+            put(" ")
+            put_ctype(nodes[p].ty)
+            put(" _kv_a")
+            put_int(k)
+            put(";")
+            some_member = true
+            k += 1
+            p = nodes[p].next
+        }
+        if !some_member { put(" char _kv_none;") }
+        put(" };\nstatic void *")
+        put_async_name(i)
+        put("_run(void *_kv_p);\n")
+        if is_owner(r) {
+            put("static void ")
+            put_async_name(i)
+            put("_drop(void *_kv_p);\n")
+        }
+    }
+}
+
+// and written after them: the thread makes the call and keeps the value;
+// the drop frees the value of a Task never awaited
+let put_async_bodies() {
+    for i in 0..<asyncs.count as int64 {
+        let d = call_target(nodes[asyncs[i]].a)
+        let r:int64 = nodes[d].ty
+        put("static void *")
+        put_async_name(i)
+        put("_run(void *_kv_p)\n{\n    struct ")
+        put_async_name(i)
+        put("_env *_kv_e = _kv_p;\n    ")
+        if r >= 0 && types[r].kind != Y_VOID { put("_kv_e->_kv_value = ") }
+        put_fn_name(d)
+        put("(")
+        var p:int64 = nodes[d].a
+        var k = 0
+        while p >= 0 {
+            if k > 0 { put(", ") }
+            put("_kv_e->_kv_a")
+            put_int(k)
+            k += 1
+            p = nodes[p].next
+        }
+        put(");\n    return NULL;\n}\n\n")
+        if is_owner(r) {
+            put("static void ")
+            put_async_name(i)
+            put("_drop(void *_kv_p) { ")
+            put_free(r)
+            put("(&((struct ")
+            put_async_name(i)
+            put("_env *)_kv_p)->_kv_value); }\n\n")
+        }
+    }
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
@@ -2625,6 +2884,10 @@ let gen_expr(n:int64) {
         put(")")
     } else if k == N_CALL {
         gen_call(n)
+    } else if k == N_ASYNC {
+        gen_async(n)                                 // (#313)
+    } else if k == N_AWAIT {
+        gen_await(n)
     } else if k == N_CHAIN {
         gen_chain(n)
     } else if k == N_COND {
@@ -2736,6 +2999,10 @@ let inferred(n:int64):int64 {
         return -1
     }
     let y:int64 = type_of(v)
+    if k == N_AWAIT && y >= 0 && types[y].kind == Y_VOID {      // as kelvinc's (#313)
+        gen_error(v, "this Task has no value, as its function has no result: await it alone, as a line of its own")
+        return -1
+    }
     if y < 0 || types[y].kind == Y_C || types[y].kind == Y_VOID {
         gen_error(n, "this variable needs a type: write name:T, since kc does not see this value's")
         return -1
@@ -2780,6 +3047,13 @@ let type_text(y:int64):String {
     case Y_SET:
         var s = $"Set<"
         s += type_text(types[y].elem)
+        s += ">"
+        return s
+    case Y_TASK:                                     // as kelvinc names it, Task<Array<i64>> (#313)
+        if types[y].elem < 0 { return $"Task" }
+        var s = $"Task<"
+        let e:String = kelvin_type_text(types[y].elem)
+        s += &e
         s += ">"
         return s
     case Y_STRUCT:
@@ -2829,6 +3103,10 @@ let gen_var(n:int64) {
     who += tok_text(nodes[n].t)
     who += "'"
     if nodes[n].a >= 0 && !takes_borrow(nodes[n].a, y, &who) { return }
+    if nodes[n].a >= 0 && types[y].kind == Y_TASK && is_place(nodes[n].a) {   // as kelvinc's (#313)
+        gen_error(nodes[n].a, "a Task is not copied: pass it on, or await it")
+        return
+    }
     if is_owner(y) {
         put("__attribute__((cleanup(")
         put_free(y)
@@ -3034,6 +3312,16 @@ let gen_assign(n:int64) {
         gen_place(lhs)
         put(", ")
         gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_TASK && tok_is(t, "=") {           // the old one awaited and freed, as kelvinc's (#313)
+        if is_place(nodes[n].b) {
+            gen_error(nodes[n].b, "a Task is not copied: pass it on, or await it")
+            return
+        }
+        put("kv_task_assign(")
+        gen_place(lhs)
+        put(", ")
+        gen_value(nodes[n].b, y)
         put(");\n")
     } else if is_owner(y) && yk == Y_STRUCT && tok_is(t, "=") {
         serial += 1                                      // the new value first, then the old one freed (#217, #225)
@@ -3465,6 +3753,11 @@ let gen_stmt(n:int64, depth:int64) {
     case S_ASSIGN: gen_assign(n)
     case S_EXPR:
         let v = nodes[n].a
+        let vy = type_of(v)
+        if vy >= 0 && types[vy].kind == Y_TASK && !is_place(v) {     // as kelvinc's (#313)
+            gen_error(v, "a Task dropped here would be awaited at once: bind it, 'let t = async f(x)', and await it when its value is wanted")
+            return
+        }
         if needs_hold(v) {                            // an owner no one takes, freed (#227)
             let y = type_of(v)
             put("{ __attribute__((cleanup(")
@@ -3595,7 +3888,7 @@ let takes_owner(d:int64):bool {
 let no_value(e:int64):bool {
     let k = nodes[e].kind
     if k == N_COND { return no_value(nodes[e].b) || no_value(nodes[e].c) }
-    if k != N_CALL { return false }
+    if k != N_CALL && k != N_AWAIT { return false }       // await of a Task of none (#313)
     let y:int64 = type_of(e)
     return y >= 0 && types[y].kind == Y_VOID
 }
@@ -3606,6 +3899,11 @@ let no_value(e:int64):bool {
 let drops_value(e:int64, calls:bool):bool {
     let k = nodes[e].kind
     if k == N_COND { return drops_value(nodes[e].b, calls) || drops_value(nodes[e].c, calls) }
+    if k == N_ASYNC || k == N_AWAIT {                   // each has its effect, as a call (#313)
+        if !calls { return false }
+        let y:int64 = type_of(e)
+        return y >= 0 && types[y].kind != Y_VOID
+    }
     if k != N_CALL && k != N_METHOD { return true }
     if !calls || k != N_CALL || nodes[nodes[e].a].kind != N_ID { return false }
     if tok_is(nodes[nodes[e].a].t, "println") || tok_is(nodes[nodes[e].a].t, "print") { return false }
@@ -3690,16 +3988,16 @@ let implicit_return(d:int64) {
 
 let gen_function(d:int64) {
     current = d
-    implicit_return(d)
-    if failed { return }
-    gen_signature(d)
-    put("\n")
     open_scope()
     var p:int64 = nodes[d].a
     while p >= 0 {
         declare_as(nodes[p].t, nodes[p].ty, nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271)
         p = nodes[p].next
     }
+    implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)
+    if failed { return }
+    gen_signature(d)
+    put("\n")
     if is_main(d) {
         put("{\n")
         if uses_io && nodes[d].a >= 0 {
@@ -4134,6 +4432,10 @@ let gen_program() {
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
         if nodes[d].kind == D_GLOBAL {
+            if nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_ASYNC {      // as kelvinc's (#313)
+                gen_error(nodes[d].a, "'async' starts a call on a thread of its own, in a function: write it in one")
+                return
+            }
             if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
             if failed { return }
             if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
@@ -4209,7 +4511,9 @@ let gen_program() {
         put_owner_prefix(compared[i])
         put(" *b);\n")
     }
+    put_async_heads()                                   // async f(x)'s (#313)
     out += &body
+    put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }
     for i in 0..<compared.count as int64 { gen_eq(compared[i]) }
 }

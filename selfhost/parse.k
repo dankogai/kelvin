@@ -30,6 +30,8 @@ enum nkind {                    // the kinds of nodes (#210)
     N_SELF,     // self, and the self of .x (#213)
     N_CHAIN,    // a?.rest (#221): b the rest, of the name c bound to what a holds; t the ?
     N_COND,     // a ? b : c (#232); t the ?
+    N_ASYNC,    // async a, a call on a thread of its own (#313)
+    N_AWAIT,    // await a, a Task's value (#313)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -72,6 +74,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_STRUCT,
     Y_PTR,
     Y_ARGV,     // [cstr], main's argv
+    Y_TASK,     // a Task (#313): its value elem, -1 of none
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -106,7 +109,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET
+        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK
     }
 }
 
@@ -278,6 +281,14 @@ let type_word(y:int64):String {
         s += &e
         return s
     case Y_STRUCT: return tok_text(types[y].name)
+    case Y_TASK:                                   // (#313)
+        var s = $"Task"
+        if types[y].elem >= 0 {
+            s += "_"
+            var e = type_word(types[y].elem)
+            s += &e
+        }
+        return s
     default: return $"T"
     }
 }
@@ -416,6 +427,14 @@ let parse_bare_type():int64 {
         let error = parse_type()
         expect(">")
         y = result_of(value, error)
+    } else if tok_is(t, "Task") {                // Task<R>, Task of none (#313)
+        var value = -1
+        if at_word("<") {
+            advance()
+            value = parse_type()
+            expect(">")
+        }
+        y = type_of_kind(Y_TASK, value, -1)
     } else if tok_is(t, "Set") {                 // Set<T> (#274)
         expect("<")
         let elem:int64 = parse_type()
@@ -732,6 +751,22 @@ let parse_unary():int64 {
     if at_word("&") {
         let t:int64 = advance()
         let n:int64 = make_node(N_ADDR, t)
+        set_a(n, parse_unary())
+        return n
+    }
+    if at_word("async") {                        // async f(x), a call on a thread of its own (#313)
+        let t:int64 = advance()
+        if at_word("{") {
+            parse_error("'async' takes a call, as in 'async f(x)', which passes the function what it needs: a block would take the names around it, which Kelvin does not enclose")
+            return -1
+        }
+        let n:int64 = make_node(N_ASYNC, t)
+        set_a(n, parse_postfix())
+        return n
+    }
+    if at_word("await") {                        // await t, its value (#313)
+        let t:int64 = advance()
+        let n:int64 = make_node(N_AWAIT, t)
         set_a(n, parse_unary())
         return n
     }

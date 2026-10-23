@@ -6607,6 +6607,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 /* A C name made from a type, as c64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
+    if (is_task(t)) /* Task<R> is Task_<R>, Task of none Task (#313) */
+        return t->elem ? strfmt("Task_%s", mangled_type(t->elem)) : "Task";
     if (is_set_owner(t)) /* Set<T> is Set_<T> (#71) */
         return strfmt("Set_%s", mangled_type(t->elem));
     if (is_dict_owner(t)) /* Dictionary<K, V> is Dictionary_<K>_<V> (#65) */

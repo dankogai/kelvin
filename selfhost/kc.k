@@ -303,6 +303,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     lib += "/libkelvin.a"
     args += lib.copy()
     cc_arg(&args, "-lm")
+    cc_arg(&args, "-lpthread")               // a Task's thread (#313)
     var p:IO = IO.exec(args, "r")
     p.close()
     if temporary { remove(cfile.cstr) }

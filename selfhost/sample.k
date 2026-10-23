@@ -160,6 +160,8 @@ let fib(n:int64):int64 {
 
 let doubled(x:int64):int64 { x * 2 }                // a body's value, returned (#286)
 let shouted(s:const String^):String { s^ + "!" }
+let louder(s:String):String { s + "!" }              // a call on a thread of its own takes an owner (#313)
+let started(n:int64):Task<int64> { async fib(n) }
 
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
@@ -370,5 +372,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(escaped_text.count, " ", escaped_text == $"Hié😀" + (0x7f as uint32).uchr)
     let nul_text = $"a\u{0}bé\\"                     // escape and unescape (#300), a NUL too (#299)
     println(nul_text.escape(), " ", nul_text.escape().unescape() == nul_text, " ", nul_text.count)
+    let fib_task = async fib(20)                     // async f(x) and await (#313)
+    var word = String("async")
+    let loud_task = async louder(word)
+    var tasks:$[Task<int64>] = $[]
+    for i in 0..<3 { tasks += async doubled(i) }
+    var doubled_sum:int64 = 0
+    for i in 0..<tasks.count as int64 { doubled_sum += await tasks[i] }
+    println(await fib_task, " ", await loud_task, " ", doubled_sum, " ", await started(10), " ", await async doubled(4))
     return 0
 }

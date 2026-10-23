@@ -382,6 +382,20 @@ kc reads what it is written in, and little more.
   - Each type's C comes once, after the types it holds by value: an
     Array's element before the Array, a struct's members before the
     struct, an enum's values before the enum (#225).
+- **`async f(x)` and `await t`** (#313), as kelvinc's #312: the call on
+  a thread of its own, a `Task<R>` of its result, `Task` of none.
+  - The arguments pass as any call's, a value copied and an owner moved
+    in by `_take`; a cstr or pointer parameter is kelvinc's error, in its
+    words, and so are a method, a C function, a block, a global, and a
+    Task dropped, printed, copied or of another type than written.
+  - `await` of a variable, of an element, `await ts[i]`, or of a Task an
+    expression gives; a Task is an owner, freed, so awaited, where its
+    block ends, held in an Array, passed, returned and assigned anew.
+  - Each call's environment, `struct _kv_f_fn_env`, and its thread's
+    function come before the functions and after them, named as
+    kelvinc names them; kc links `-lpthread`.
+  - Not yet: kc tracks no moves, so a second `await t` ends the program
+    where kelvinc refuses it, and kc has no function values to start.
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ## Difficulties in the way of self-hosting kelvinc

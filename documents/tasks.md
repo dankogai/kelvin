@@ -59,6 +59,8 @@ let main():int32 {
   - One given and dropped, as a line of its own, is an error: it would
     be awaited at once.
   - `let t:Task<R> = ...` says what it gives, which the call's must be.
+- **kc** reads `async f(x)` and `await t` too (#313), of a Kelvin
+  function, kc having no function values ([selfhost/README.md](../selfhost/README.md)).
 - **A thread each**: a call is a thread of the system's.
   - One that cannot start, as when too many run, ends the program with
     a message, as running out of memory does.

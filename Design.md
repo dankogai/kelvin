@@ -344,6 +344,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 310 | OS's tmpdir, mkstemp and mkdtemp are written in Kelvin in runtime/os.k, in place of their C; the IO mkstemp fills is kIO.h's `kv_io` | — | `OS.mkstemp` of runtime/os.k | 2026-10-24 |
 | 311 | OS's host, uname, cpus, loadavg, terminalsize and diskusage are written in Kelvin in runtime/os.k, in place of their C | — | `OS.uname` of runtime/os.k | 2026-10-24 |
 | 312 | `async f(x)` makes a call on a POSIX thread of its own and gives a `Task<R>` of f's result, `Task` where it has none; `await t` waits and gives it, once; the arguments pass as any call's, a value copied and an owner moved in, and a pointer, cstr or array parameter is an error; f is a Kelvin function or a function value; a Task is an owner whose block's end awaits it | — | `let t = async fib(30); println(await t)` | 2026-10-24 |
+| 313 | kc reads `async f(x)`, `await t` and `Task<R>` as kelvinc's #312, of a Kelvin function: its environment and thread's function written before and after the functions; kelvinc's errors in its words; kc links `-lpthread`; kelvinc mangles `Task<R>` as `Task_R` | — | kc builds `await async fib(20)` | 2026-10-24 |
 
 Notes:
 
@@ -906,6 +907,35 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (313) Agreed details: "teach kc async and await as #313".
+  - parse.k: N_ASYNC and N_AWAIT, prefixes in parse_unary, `async {`
+    kelvinc's error; Y_TASK, an owner of its value's type, `Task<R>`
+    and `Task` parsed.
+  - gen.k: type_of gives a Task of the call's result, and await its
+    value; gen_async keeps each argument as gen_args_to passes it, now
+    gen_arg_to of one, in `struct _kv_f_fn_env`; put_async_heads writes
+    the environments and the prototypes before the functions,
+    put_async_bodies the threads' functions and drops after them;
+    gen_await joins through kv_task_result; gen_assign's
+    kv_task_assign; a Task in an Array, passed, returned.
+  - kelvinc's errors in its words: a block, a method, a C function, a
+    global, a cstr or pointer parameter, an await of no Task or of a
+    Task of none bound, a Task dropped, printed, copied, or of another
+    type than written. 13 of kelvinc's 15 tests give its words; the two
+    of moves do not, as kc tracks no moves, and an array parameter is
+    none of kc's.
+  - gen_function declares the parameters before implicit_return, which
+    asks the type of `await t`; no_value and drops_value count async
+    and await as calls.
+  - kelvinc's mangled_type names `Task<i64>` `Task_i64`, as `Array_i64`,
+    where it dropped the brackets, `Taski64`; kc names it so.
+  - kc links `-lpthread`; sample.k awaits a Task of each kind, which
+    kc's build prints as kelvinc's; a probe of each prints the same,
+    with no leak and no race under ThreadSanitizer.
+  - Found: kc writes C that does not compile of `d[k] = v` where k is a
+    String an expression gives, `d[name.copy()] = 1`; left for a later
+    number.
+
 - (312) Agreed details: "add async and await to the prelude as #312",
   with the user's choices: an OS thread each, a `Task<T>` that `await t`
   waits for, and copies and moves only. A first version took a block,
@@ -934,7 +964,7 @@ Notes:
     tests/asan.sh do; tests/asan/count.c's counts are atomic.
   - ThreadSanitizer finds no race in a program of each, and `leaks` no
     leak; tests/run/async_await.k, 15 tests in tests/error.
-  - kc does not know async yet.
+  - kc does not know async yet; #313 teaches it.
 
 - (311) Agreed details: "move OS system information to Kelvin as
   #311", #301's eighth group: kv_os_host, uname, cpus, loadavg,
@@ -3598,6 +3628,7 @@ says "as agreed".
 | P322 | Details of #310 | runtime/os.k: tmpdir, temp_template, mkstemp, mkdtemp; runtime/os.c loses them; tests: run/os_kelvin_group7.k; README.md | found: a call without a result reaches C as an argument |
 | P323 | Details of #311 | runtime/os.k: host, uname, cpus, loadavg, terminalsize, diskusage; runtime/os.c loses them; tests: run/os_kelvin_group8.k; README.md | — |
 | P324 | Details of #312 | src/lexer.c, src/parser.c, src/codegen.c, src/kelvin.h, src/main.c: async, await, Task<R>; runtime/task.k; kelvin_prelude.h; GNUmakefile; tests/run.sh, tests/asan.sh, tests/asan/count.c, tests/grammar.js; editors/vscode grammar; tests: run/async_await.k, 15 error/async_*, await_*, task_*; documents/tasks.md (new), README.md, documents/README.md, versusC.md, properties.md, ownership.md, functions.md, c-contract.md | kc has no async yet |
+| P325 | Details of #313 | selfhost/parse.k, gen.k, kc.k: async, await, Task<R>; src/parser.c: mangled_type of a Task; selfhost/sample.k; selfhost/README.md; documents/tasks.md | found: kc's d[k] = v of a String key an expression gives |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

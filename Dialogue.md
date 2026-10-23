@@ -6601,3 +6601,16 @@ the function stays ordinary, and its arguments pass as any call's.
 runtime/task.k. Details are provisional P324.
 
 There are 964 tests, and all pass with clang and with gcc 15.
+
+### 358. kc's async and await
+
+> teach kc async and await as #313
+
+**Claude** taught kc `async f(x)`, `await t` and `Task<R>`, as kelvinc
+reads them, and kc's build of a probe and of sample.k prints what
+kelvinc's prints. kelvinc now names `Task<i64>` `Task_i64` in C. On the
+way it found that kc's `d[k] = v` of a String key an expression gives
+does not compile, and left that for a later number. Details are
+provisional P325.
+
+There are 964 tests, and all pass with clang and with gcc 15.
