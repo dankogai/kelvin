@@ -2,7 +2,8 @@
    the program itself, is the prelude's, in runtime/sys.c (#302). Each call is
    C's, with errno given back where C sets it, 0 where it does not. A
    group at a time moves to runtime/os.k, written in Kelvin (#301): the
-   working directory, the environment, files by path, the process ids. */
+   working directory, the environment, files by path, the process ids;
+   stat and the existence checks (#303). */
 /* POSIX and X/Open under -std=c11, which hides them: glibc wants
    _XOPEN_SOURCE, and macOS _DARWIN_C_SOURCE for mkdtemp and its kin,
    as kelvinc's own main.c has it; the BSDs show POSIX, X/Open and their
@@ -30,24 +31,6 @@
 /* ---------- OS: the system around it ---------- */
 
 static int err_or(int fallback) { return errno ? errno : fallback; }
-
-
-
-
-
-
-bool kv_os_exists(const void *path) { return access((const char *)path, F_OK) == 0; }
-
-static bool is_mode(const void *path, unsigned mask) {
-    struct stat st;
-    return stat((const char *)path, &st) == 0 && (st.st_mode & S_IFMT) == mask;
-}
-
-bool kv_os_isdir(const void *path) { return is_mode(path, S_IFDIR); }
-bool kv_os_isfile(const void *path) { return is_mode(path, S_IFREG); }
-
-
-
 
 static int by_bytes(const void *a, const void *b) {
     const kv_string *x = a, *y = b;
@@ -107,7 +90,6 @@ int kv_os_system(const void *command) {
     return st != -1 && WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
-
 /* ---------- more of OS (#95) ---------- */
 #include <fcntl.h>
 #include <glob.h>
@@ -118,44 +100,6 @@ int kv_os_system(const void *command) {
 #include <pwd.h>
 #include <signal.h>
 #include <time.h>
-
-static void fill_stat(const struct stat *st, kv_stat *out) {
-    out->dev = (long long)st->st_dev;
-    out->ino = (long long)st->st_ino;
-    out->mode = (int)st->st_mode;
-    out->nlink = (long long)st->st_nlink;
-    out->uid = (int)st->st_uid;
-    out->gid = (int)st->st_gid;
-    out->size = (long long)st->st_size;
-    out->atime = (double)st->st_atime;
-    out->mtime = (double)st->st_mtime;
-    out->ctime = (double)st->st_ctime;
-    out->isdir = S_ISDIR(st->st_mode);
-    out->isfile = S_ISREG(st->st_mode);
-    out->islink = S_ISLNK(st->st_mode);
-}
-
-int kv_os_stat(const void *path, kv_stat *out) {
-    struct stat st;
-    if (stat((const char *)path, &st) != 0)
-        return err_or(EIO);
-    fill_stat(&st, out);
-    return 0;
-}
-
-int kv_os_lstat(const void *path, kv_stat *out) {
-    struct stat st;
-    if (lstat((const char *)path, &st) != 0)
-        return err_or(EIO);
-    fill_stat(&st, out);
-    return 0;
-}
-
-bool kv_os_islink(const void *path) {
-    struct stat st;
-    return lstat((const char *)path, &st) == 0 && S_ISLNK(st.st_mode);
-}
-
 
 int kv_os_readlink(const void *path, kv_string *out) {
     char buf[4096];
@@ -198,7 +142,6 @@ int kv_os_makedirs(const void *path) {
     return dir ? 0 : ENOTDIR;
 }
 
-
 /* the names are copied out of getpwuid's and getgrgid's static storage,
    which the next lookup overwrites (#99) */
 bool kv_os_user(kv_string *out) {
@@ -217,7 +160,6 @@ int kv_os_host(kv_string *out) {
     *out = kv_string_text(buf);
     return 0;
 }
-
 
 double kv_os_time(void) {
     struct timespec ts;
@@ -527,7 +469,6 @@ int kv_os_environ(kv_string **out, size_t *count) {
     *count = n;
     return 0;
 }
-
 
 /* the groups the user is in, as getgroups gives them */
 int kv_os_groups(int32_t **out, size_t *count) {

@@ -67,3 +67,54 @@ let kv_os_euid():int32 { geteuid() as int32 }
 let kv_os_egid():int32 { getegid() as int32 }
 let kv_os_umask(mask:int32):int32 { umask(mask) as int32 }
 let kv_os_kill(pid:int32, sig:int32):int32 { done(kill(pid, sig), EIO) }
+
+// ---------- stat and the existence checks (#303) ----------
+
+// st's fields into out, as kOS.h's kv_stat has them
+static let fill_stat(st:const struct stat^, out:kv_stat^) {
+    out^.dev = st^.st_dev as int64
+    out^.ino = st^.st_ino as int64
+    out^.mode = st^.st_mode as int32
+    out^.nlink = st^.st_nlink as int64
+    out^.uid = st^.st_uid as int32
+    out^.gid = st^.st_gid as int32
+    out^.size = st^.st_size as int64
+    out^.atime = st^.st_atime as float64
+    out^.mtime = st^.st_mtime as float64
+    out^.ctime = st^.st_ctime as float64
+    out^.isdir = S_ISDIR(st^.st_mode) != 0
+    out^.isfile = S_ISREG(st^.st_mode) != 0
+    out^.islink = S_ISLNK(st^.st_mode) != 0
+}
+
+// OS.stat(path): the file's, following a link, into out; 0, or errno
+let kv_os_stat(path:const any^, out:kv_stat^):int32 {
+    var st:struct stat
+    if stat(path, &st) != 0 { return err_or(EIO) }
+    fill_stat(&st, out)
+    return 0
+}
+
+// OS.lstat(path): the link's own, where path is one
+let kv_os_lstat(path:const any^, out:kv_stat^):int32 {
+    var st:struct stat
+    if lstat(path, &st) != 0 { return err_or(EIO) }
+    fill_stat(&st, out)
+    return 0
+}
+
+let kv_os_exists(path:const any^):bool { access(path, F_OK) == 0 }
+
+// whether path is there, following a link, and of the kind mask
+static let is_mode(path:const any^, mask:uint32):bool {
+    var st:struct stat
+    return stat(path, &st) == 0 && ((st.st_mode as uint32) & (S_IFMT as uint32)) == mask
+}
+
+let kv_os_isdir(path:const any^):bool { is_mode(path, S_IFDIR as uint32) }
+let kv_os_isfile(path:const any^):bool { is_mode(path, S_IFREG as uint32) }
+
+let kv_os_islink(path:const any^):bool {
+    var st:struct stat
+    return lstat(path, &st) == 0 && S_ISLNK(st.st_mode) != 0
+}

@@ -6459,3 +6459,14 @@ giving it the program's arguments where the program names it. Details
 are provisional P314.
 
 There are 935 tests, and all pass with clang and with gcc 15.
+
+### 347. OS's stat in Kelvin
+
+> move OS stat and existence checks to Kelvin as #303
+
+**Claude** moved OS's stat, lstat and the four existence checks into
+runtime/os.k, holding C's `struct stat` as `var st:struct stat`, and a
+program of each prints the same as the C did. Details are provisional
+P315.
+
+There are 936 tests, and all pass with clang and with gcc 15.

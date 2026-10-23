@@ -264,7 +264,8 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
     (#290).
   - `runtime/os.k`, built into `libkOS` beside `runtime/os.c`, whose C
     it takes over a group at a time (#301): the working directory, the
-    environment, files by path and the process ids so far.
+    environment, files by path and the process ids; stat and the
+    existence checks (#303) so far.
 
 ## Editors
 
