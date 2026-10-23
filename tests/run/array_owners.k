@@ -30,4 +30,4 @@ let main():int32 {
 // out: 4 3 linus ken linus
 // out: 4 5 1 q
 // c: KV_ARRAY(kv_string, _kv_array_String, kv_string_free, kv_string_copy)
-// c: kv_string_assign(_kv_array_String_at(&names, 0), KV_STRING_OF("grace"));
+// c: kv_string_assign(_kv_array_String_at(&names, 0), KV_STRING_LIT("grace"));

@@ -18,4 +18,4 @@ let main():int32 {
 }
 // out: ["a\u007f\u001bé"] true true
 // out: 😀😀éAAé5\u{7f} 13
-// out: 9 0
+// out: 9 2

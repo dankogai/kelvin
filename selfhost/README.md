@@ -297,6 +297,8 @@ kc reads what it is written in, and little more.
   in its words, at the line.
   - kc reads a file's bytes with C's stdio first, `fopen` and `fgetc`,
     as IO's `.string` would end kc in words of its own.
+- **A String literal is every byte of it** (#299), as kelvinc's:
+  `KV_STRING_LIT`, C's sizeof, so `$"\u{0}mid"` holds its NUL.
 - **`\u` escapes in a literal** (#293), as kelvinc's #292: `\u{X}`,
   `\uXXXX` and `\UXXXXXXXX`, each the codepoint's UTF-8 bytes in C,
   a control character too; kelvinc's errors of a surrogate, one past

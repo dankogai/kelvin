@@ -18,6 +18,6 @@ let main():int32 {
 // out: I needed it 11 1 Array<Array<i64>> ab
 // out: ann bob Array<String> 42 2
 // out: 1 tpl 2
-// c: kv_string s = KV_STRING_OF("I needed it");
+// c: kv_string s = KV_STRING_LIT("I needed it");
 // c: _kv_array_Array_i64 m = _kv_array_Array_i64_from((_kv_array_i64 [2]){_kv_array_i64_from((int64_t [2]){1, 0}, 2), _kv_array_i64_from((int64_t [2]){0, 1}, 2)}, 2);
-// c: kv_string e = KV_STRING_OF("a" "b");
+// c: kv_string e = KV_STRING_LIT("a" "b");

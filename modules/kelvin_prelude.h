@@ -175,6 +175,11 @@ void kv_string_append_uchr(kv_string *s, kv_uchr c);
 static inline kv_uchr kv_uchr_same(kv_uchr c) { return c; }
 
 /* String(x): text, validated, or a copy of a Bytes borrow, validated */
+/* a String of a string literal, its every byte, a NUL among them too
+   (#299), where KV_STRING_OF of text stops at the first: C's sizeof knows
+   the literal's length */
+kv_string kv_string_lit(const void *p, size_t n);
+#define KV_STRING_LIT(x) kv_string_lit((x), sizeof(x) - 1)
 #define KV_STRING_OF(x) _Generic((x), \
     kv_bytes *: kv_string_from_bytes, const kv_bytes *: kv_string_from_bytes, \
     bool: kv_string_bool, \

@@ -12,6 +12,6 @@ let main():int32 {
     return 0
 }
 // out: y b v w n Array<String>
-// c: kv_string s = KV_STRING_OF("x");
-// c: kv_string_assign(&s, KV_STRING_OF("y"));
-// c: _kv_dict_String_String_set(&d, "k2", KV_STRING_OF("w"));
+// c: kv_string s = KV_STRING_LIT("x");
+// c: kv_string_assign(&s, KV_STRING_LIT("y"));
+// c: _kv_dict_String_String_set(&d, "k2", KV_STRING_LIT("w"));

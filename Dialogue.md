@@ -6405,3 +6405,16 @@ refuse a BOM, such a byte and C's prefixes as kelvinc does, in its
 words. Details are provisional P310.
 
 There are 933 tests, and all pass with clang and with gcc 15.
+
+### 343. A String holds a NUL
+
+> Resolve the `"\x00mid".unescape().escape()` issue. Though
+> `"\x00mid"` is an invalid `cstr`, it must be valid as a `String`
+
+**Claude** found that a String literal stopped at a NUL, as C's strlen
+does, and so did escape() and unescape(). A literal made a String is
+now every byte of it, by C's sizeof, escape() writes a NUL as `\u{0}`,
+and unescape() reads past one; a cstr still stops at it. Details are
+provisional P311.
+
+There are 934 tests, and all pass with clang and with gcc 15.

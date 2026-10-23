@@ -330,6 +330,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 296 | `#inline C { ... }` holds no line of C's preprocessor, and no Kelvin directive nests in it: a `#` that begins a line of its code is an error that says which, `#define` or `#import`; a header is `#import <x.h> as C` outside it, a constant an enum's or a Kelvin `let` | — | `#inline C { #define X 1 }` is an error | 2026-10-23 |
 | 297 | A property of an expression kelvinc sees is a number is the number's, no field of a C struct: `(n + 1).uchr` converts integer arithmetic, `(n + 1).size` is its sizeof; `(x + 1.5).uchr` is the error `x.uchr` is; `.utf32` and `.codepoint` of a number are an error that names `.uchr` | — | `(n + 1).uchr` | 2026-10-23 |
 | 298 | kc refuses a BOM, a byte that is no UTF-8, and C's string and character prefixes, as kelvinc since #295, in its words, at the line | — | kc refuses `L"wide"` | 2026-10-23 |
+| 299 | A String holds a NUL, a cstr not: a literal made a String is every byte of it, `$"\x00mid"` four codepoints; `s.escape()` writes a NUL as `\u{0}`, and `unescape()` reads past one, so `"\x00mid".unescape().escape()` is `\u{0}mid` and reads back | — | `$"\x00mid".count` is 4 | 2026-10-23 |
 
 Notes:
 
@@ -891,6 +892,25 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (299) Agreed details: "Resolve the `"\x00mid".unescape().escape()`
+  issue. Though `"\x00mid"` is an invalid `cstr`, it must be valid as a
+  `String`", found by #290.
+  - KV_STRING_OF of a literal was kv_string_text, strlen's: `$"a\u{0}b"`
+    was one codepoint. KV_STRING_LIT, of a literal, passes C's sizeof
+    to kv_string_lit, written in Kelvin in runtime/string.k: a Bytes of
+    every byte, a String of it, checked. kelvinc writes it of `$"..."`,
+    `String("...")`, a literal where a String goes and the left of `+`;
+    kc the same, at its four places.
+  - escape() writes a NUL as `\u{0}`, which unescape() and a literal
+    (#292) read back, and the octal `\000` makes no digit after it
+    another's; unescape() reads past a NUL. Both stopped at one, as the
+    C they came from (#290) did.
+  - A cstr stops at its first NUL, as C's: `"\u{0}q"` on the right of
+    `+` is appended as text, `"`.
+  - Eight tests' `// c:` lines say KV_STRING_LIT now; two outputs
+    changed as meant: `$"\u{0}x".count` is 2, and the escape of a
+    NUL is `\u{0}`.
 
 - (298) Agreed details: "teach kc to refuse BOMs, invalid UTF-8 and
   prefixes as #298". IO's `.string`, which load() read a file with,
@@ -3327,6 +3347,7 @@ says "as agreed".
 | P308 | Details of #296 | lexer.c: lex_inline_c's line start, the top-level message; tests: error/inline_c_define.k, inline_c_include.k, inline_c_nested_import.k, preprocessor.k; run/inline_c_hash.k, run/inline_c.k; project/lib/geo.k; documents/c-interfaces.md, versusC.md | |
 | P309 | Details of #297 | parser.c: int_expr; property()'s .uchr, .size, .utf32; tests: run/number_expr_properties.k, error/uchr_of_float_expr.k, error/utf32_of_number.k; documents/properties.md | |
 | P310 | Details of #298 | selfhost/kc.k: utf8_len, source_error, load(); selfhost/lex.k: a prefix before a quote; selfhost/README.md | |
+| P311 | Details of #299 | kelvin_prelude.h: KV_STRING_LIT; runtime/string.k: kv_string_lit, escape, unescape; codegen.c: String literals; selfhost/gen.k: its four; tests: run/string_nul.k and ten updated; documents/strings.md, selfhost/README.md | |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -40,8 +40,8 @@ let main():int32 {
 // out: {name: "Ada Lovelace", age: 36} AdA LovelAce!
 // out: false
 // out: 0 [] 0
-// c: __attribute__((cleanup(kv_string_free))) kv_string s = KV_STRING_OF("héllo, κόσμε");
+// c: __attribute__((cleanup(kv_string_free))) kv_string s = KV_STRING_LIT("héllo, κόσμε");
 // c: KV_STRING_APPEND(&s, " 🌍");
 // c: kv_utf8_next(
 // c: kv_string_from_bytes(&b)
-// c: __attribute__((cleanup(_kv_person_free))) struct person p = {KV_STRING_OF("Ada"), 36};
+// c: __attribute__((cleanup(_kv_person_free))) struct person p = {KV_STRING_LIT("Ada"), 36};

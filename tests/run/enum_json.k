@@ -42,6 +42,6 @@ let main():int32 {
 // c: __attribute__((unused)) static inline void _kv_json_free(struct json *self);
 // c: KV_ARRAY_FUNCS(struct json, _kv_array_json, _kv_json_free, _kv_json_copy)
 // c: case 4: _kv_v.u.a = _kv_array_json_copy(&self->u.a); break;
-// c: __attribute__((cleanup(_kv_json_free))) struct json j = _kv_json_make_a(_kv_array_json_from((struct json [3]){_kv_json_make_n(1.0), _kv_json_make_s(KV_STRING_OF("x")), _kv_json_make_null()}, 3));
+// c: __attribute__((cleanup(_kv_json_free))) struct json j = _kv_json_make_a(_kv_array_json_from((struct json [3]){_kv_json_make_n(1.0), _kv_json_make_s(KV_STRING_LIT("x")), _kv_json_make_null()}, 3));
 // c: struct json t = _kv_json_make_s(kv_string_take(&s));
-// c: _kv_json_set_s(&j, KV_STRING_OF("set"));
+// c: _kv_json_set_s(&j, KV_STRING_LIT("set"));

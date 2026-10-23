@@ -43,4 +43,4 @@ let main():int32 {
 // c: _kv_array_f64 vb = _kv_array_f64_from((double [2]){1, 2.5}, 2);
 // c: _kv_array_i64 vc = _kv_array_i64_from(a, sizeof (a) / sizeof (a)[0]);
 // c: _kv_array_i64 vd = _kv_array_i64_copy(&vc);
-// c: _kv_array_String names = _kv_array_String_from((kv_string [2]){KV_STRING_OF("ann"), KV_STRING_OF("bob")}, 2);
+// c: _kv_array_String names = _kv_array_String_from((kv_string [2]){KV_STRING_LIT("ann"), KV_STRING_LIT("bob")}, 2);

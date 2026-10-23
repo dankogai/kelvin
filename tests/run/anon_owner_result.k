@@ -17,4 +17,4 @@ let main():int32 {
     return 0
 }
 // out: err("zero") #1 #2
-// c: kv_string_discard(KV_STRING_OF("dropped"));
+// c: kv_string_discard(KV_STRING_LIT("dropped"));

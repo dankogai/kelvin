@@ -1,7 +1,7 @@
 // s.escape(), s.unescape(), b.toBase64() and Bytes.fromBase64() at their
 // edges (#155, #164), which runtime/string.k and runtime/bytes.k now give,
 // written in Kelvin (#290): every escape, ones that are not, surrogate
-// pairs, a NUL, which ends escape() as it ended the C, and Base64 of 0 to 6
+// pairs, a NUL, which escape() writes as \u{0} (#299), and Base64 of 0 to 6
 // bytes in either alphabet, padded or not, read back with blanks
 let un(t:cstr) {
     let s = String(t)
@@ -58,10 +58,10 @@ let main():int32 {
 // out: \\uDE00 6 \\\\uDE00
 // out: \\u12 4 \\\\u12
 // out: A\\x4g\\xZ 8 A\\\\x4g\\\\xZ
-// out: \x0A\x0D\x09\x00\\"' 7 \x0A\x0D\x09
+// out: \x0A\x0D\x09\x00\\"' 7 \x0A\x0D\x09\\u{0}\\\\"'
 // out: \\q\\ 3 \\\\q\\\\
 // out: end\\ 4 end\\\\
-// out: \x00mid 4 
+// out: \x00mid 4 \\u{0}mid
 // out: \xC3\xA9\xC3\xA9 2 \\u{E9}\\u{E9}
 // out: 0    
 // out: 1 +g== -g== +g -g

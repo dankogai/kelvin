@@ -659,6 +659,7 @@ static char *expr_bare(Expr *e) {
             Expr *a = e->items.data[0], *b = e->items.data[1];
             const char *init = !strcmp(e->text, "copy") ? strfmt("kv_string_copy(&(%s))", expr(a))
                                : !strcmp(e->text, "take") ? strfmt("(%s)", expr(a))
+                               : a->kind == E_STRING ? strfmt("KV_STRING_LIT(%s)", expr(a)) /* every byte (#299) */
                                                           : strfmt("KV_STRING_OF(%s)", expr(a));
             return strfmt("({ kv_string _kv_cat = %s; KV_STRING_APPEND(&_kv_cat, %s); _kv_cat; })", init, expr(b));
         }
@@ -693,8 +694,11 @@ static char *expr_bare(Expr *e) {
             const char *f = owner_copy(e->type);
             return f ? strfmt("%s(%s)", f, expr(e->items.data[0])) : strfmt("(*(%s))", expr(e->items.data[0]));
         }
-        if (e->op && !strcmp(e->op, "string")) /* String(...) (#55) */
-            return e->items.len ? strfmt("KV_STRING_OF(%s)", expr(e->items.data[0])) : "kv_string_new()";
+        if (e->op && !strcmp(e->op, "string")) { /* String(...) (#55); of a literal its every byte, a NUL too (#299) */
+            Expr *x = e->items.len ? e->items.data[0] : NULL;
+            return !x ? "kv_string_new()"
+                      : strfmt(x->kind == E_STRING ? "KV_STRING_LIT(%s)" : "KV_STRING_OF(%s)", expr(x));
+        }
         if (e->op && !strcmp(e->op, "io") && e->type && e->text && !strcmp(e->text, "popen")) /* IO.popen (#87), straight (#110) */
             return strfmt("kv_io_popen(%s, %s)", expr(e->items.data[0]), expr(e->items.data[1]));
         if (e->op && !strcmp(e->op, "io") && e->type) /* IO(path, mode) (#82), IO(fd, mode) (#86): the IO, straight (#109) */

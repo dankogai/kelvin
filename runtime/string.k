@@ -52,6 +52,13 @@ static let is_blank_cp(c:u32):bool {
         c == 0x3000 || c == 0xFEFF
 }
 
+// $"..." of a literal (#299): its n bytes, a NUL among them too, which
+// C's sizeof counts and strlen does not; checked as UTF-8, as String(&b)
+let kv_string_lit(p:const any^, n:size_t):String {
+    let b = Bytes(p as const u8^, n)
+    return String(&b)
+}
+
 // s.trim(): a new String of s without the blanks at either end
 let kv_string_trim(s:const String^):String {
     var lo:int64 = -1
@@ -77,15 +84,16 @@ static let put_hex(out:String^, v:u32) {
     out^ += (digits[v % 16] as u32).uchr
 }
 
-// s.escape(): the text with each codepoint beyond ASCII as \u{...}, and a
-// backslash as \\, so that unescape reads it back; up to a NUL, as the C
-// before it went
+// s.escape(): the text with each codepoint beyond ASCII as \u{...}, a NUL
+// as \u{0} (#299), and a backslash as \\, so that unescape reads it back,
+// and a literal of it too: a String holds a NUL, which a cstr cannot
 let kv_string_escape(s:const String^):String {
     var out = $""
     for c in s^ {
         let cp:u32 = c.utf32
-        if cp == 0 { break }
-        if cp == '\\' {
+        if cp == 0 {
+            out += "\\u{0}"
+        } else if cp == '\\' {
             out += "\\\\"
         } else if cp < 0x80 {
             out += c
@@ -106,7 +114,7 @@ static let hex_value(c:u32):int64 {
     return -1
 }
 
-// the codepoint at i of cps, or 0 past the end, as the NUL there was
+// the codepoint at i of cps, or 0 past the end, which no escape's is
 static let cp_at(cps:const $[u32]^, i:int64):u32 {
     if i < cps^.count as int64 { return cps^[i] }
     return 0
@@ -130,8 +138,7 @@ static let hex_run(cps:const $[u32]^, i:int64, n:int64):int64 {
 let kv_string_unescape(s:const String^):String {
     var cps:$[u32] = $[]
     for c in s^ {
-        if c.utf32 == 0 { break }
-        cps += c.utf32
+        cps += c.utf32                           // a NUL too (#299)
     }
     var out = $""
     let n = cps.count as int64

@@ -207,6 +207,13 @@ let p := s.cstr                  // a borrow of the text, NUL-ended, for C
 var line = $`${s} has ${s.count} codepoints`   // a String built from a template (#67)
 ```
 
+- **A NUL** (#299): a String holds one, which a `cstr` cannot.
+  - `$"\x00mid"` is four codepoints, a literal made a String every
+    byte of it, `$"\u{0}mid"` too.
+  - `s.escape()` writes a NUL as `\u{0}`, which `unescape()` and a
+    literal read back, as they do `print`'s `\u0000`.
+  - A `cstr` stops at its first NUL, as C's does: `$"p" + "\u{0}q"` is
+    `"p"`, and `.cstr` of a String with one is cut there.
 - **Making one:** `$"text"` or `String("text")`, `String(s)` of a
   `cstr` or a byte array, `String(&b)` or `b.string()` of a `Bytes`,
   all checked for UTF-8.
@@ -278,7 +285,7 @@ to come.
 | | `.find(text)`, `.find(&t)` | the codepoint index of the first `text`, or -1 (#177) |
 | | `.has(text)`, `.starts(text)`, `.ends(text)` | whether `text` is there, at the start, at the end; `&t` too |
 | | `.trim()` | a new String without the blanks at either end |
-| | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, and a `\` as `\\`, a new String (#164); with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches instead |
+| | `.escape()` | the text with each codepoint beyond ASCII as `\u{...}`, a NUL as `\u{0}` (#299), and a `\` as `\\`, a new String (#164); with `#import <RegExp>`, `.escape(&re)` escapes what `re` matches instead |
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |

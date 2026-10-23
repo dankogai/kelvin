@@ -924,7 +924,7 @@ let gen_string_plus(n:int64) {
     }
     put("({ kv_string _kv_cat = ")
     if types[ya].kind != Y_STRING {
-        put("KV_STRING_OF(")
+        if nodes[a].kind == N_STR { put("KV_STRING_LIT(") } else { put("KV_STRING_OF(") }   // a literal's every byte (#299)
         gen_expr(a)
         put(")")
     } else if is_place(a) {
@@ -1634,7 +1634,7 @@ let gen_call(n:int64) {
             gen_expr(nodes[args].next)
             put(")")
         } else {
-            put("KV_STRING_OF(")
+            if nodes[args].kind == N_STR { put("KV_STRING_LIT(") } else { put("KV_STRING_OF(") }   // (#299)
             gen_expr(args)
             put(")")
         }
@@ -2300,7 +2300,7 @@ let gen_value(n:int64, y:int64) {
         return
     }
     if nodes[n].kind == N_STR && y >= 0 && types[y].kind == Y_STRING {   // a String of text where one goes (#234)
-        put("KV_STRING_OF(")
+        put("KV_STRING_LIT(")                            // its every byte, a NUL too (#299)
         gen_expr(n)
         put(")")
         return
@@ -2602,7 +2602,7 @@ let gen_expr(n:int64) {
     } else if k == N_STR {
         put_text(t, 0)
     } else if k == N_DSTR {
-        put("KV_STRING_OF(")
+        put("KV_STRING_LIT(")                            // $"...", its every byte, a NUL too (#299)
         put_text(t, 1)
         put(")")
     } else if k == N_BOOL {

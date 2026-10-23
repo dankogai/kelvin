@@ -101,4 +101,4 @@ let main():int32 {
 // out: {name: "held", f: <IO>}
 // c: __attribute__((cleanup(kv_io_free))) kv_io f =
 // c: while (kv_io_read_line(
-// c: kv_io_write_owned_string((kv_io *)&f, KV_STRING_OF("made\n"));
+// c: kv_io_write_owned_string((kv_io *)&f, KV_STRING_LIT("made\n"));
