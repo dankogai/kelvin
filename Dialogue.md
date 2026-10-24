@@ -7115,3 +7115,16 @@ error now; a value of the wrong type is kc's. Details are provisional
 P363.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 397. kc's Array([...]) with T inferred
+
+> teach kc Array([...]) with T inferred as #352
+
+**Claude** taught kc `Array([a, b])`, as kelvinc's #58: T the
+elements' one type, as of `$[a, b]`, so `Array([5, 3, 8])` is an
+`Array<i64>`. kelvinc's errors are in its words, of no element, of
+elements of no one type, and of what else it takes in `Array(...)`.
+Not yet kc's: `Array(&a)` with T inferred. Found, not fixed: kc has no
+`.count` of a `cstr`. Details are provisional P364.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

@@ -383,6 +383,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 349 | kc reads `Array<T>()` and `Dictionary<K, V>()`, as kelvinc's #57 and #65: an empty one of the type written, anywhere a value goes, inferred by `let`; without `()`, kelvinc's error; a count, the elements or a copy in them not yet kc's | `(T){0}` | kc's `var made = Array<String>()` | 2026-10-25 |
 | 350 | kc reads `Array<T>([a, b])`, `Array<T>(&a)` and `Array<T>(n)`, as kelvinc's #57 and #58: the elements, a copy of the Array lent, `n` zero elements; kelvinc's errors in its words, and an element of the wrong type in `$[...]` of a type written too | `_kv_array_T_copy(&a)`, `_kv_array_T_zeros(n)` | kc's `Array<int64>(&trio)` | 2026-10-25 |
 | 351 | kc reads `Dictionary<K, V>({k: v})` and `Dictionary<K, V>(&d)`, as kelvinc's #65: the entries, as `${k: v}` of K and V, and a copy of the Dictionary lent; kelvinc's errors in its words, and a key of the wrong kind in `${...}` of a type written too | `_kv_dict_K_V_copy(&d)` | kc's `Dictionary<String, int64>(&pantry)` | 2026-10-25 |
+| 352 | kc reads `Array([a, b])`, as kelvinc's #58: T the elements' one type, as of `$[a, b]`; kelvinc's errors in its words of no element, no one type, and of what else it takes in `Array(...)`; `Array(&a)` not yet kc's | — | kc's `Array([5, 3, 8])` | 2026-10-25 |
 
 Notes:
 
@@ -944,6 +945,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (352) Agreed details: "teach kc Array([...]) with T inferred as #352".
+  - parse.k: `Array` followed by `(` is parse_make's too, with no type,
+    ty -1; what is in the parentheses is read as of `Array<T>(...)`
+    (#350): the elements flag 3, `&a` 4, another 5, more 6 and 7.
+  - gen.k: type_of of such an N_MAKE is an Array of its first element's
+    type, as of `$[a, b]` (#266); gen_make_inferred checks that every
+    element has that type, a case word as `none` having none, then
+    writes it by gen_array, as `$[a, b]` of that type.
+  - kelvinc's errors, in its words: `Array([]) has no element type:
+    write Array<T>()`; `Array() has no element type: write Array<T>(),
+    or the elements, Array([...])`; `Array(x) has no element type:
+    ...`; `the elements have no one type kc sees here: write
+    Array<T>([...])`, kc for kelvinc; more, as of #350.
+  - Not yet: `Array(&a)`, a copy with T inferred, which kelvinc reads:
+    kc says to write `Array<T>(&a)`.
+  - Found, not fixed: kc has no `.count` of a `cstr`, as
+    `Array(["a"])[0].count`, nor of `$["a"]`'s.
+  - kc's build of a probe prints what kelvinc's does, with as many
+    allocations and no leak; selfhost/sample.k has them.
 
 - (351) Agreed details: "teach kc Dictionary<K, V>({...}) and
   Dictionary<K, V>(&d) as #351".
@@ -4503,6 +4524,7 @@ says "as agreed".
 | P361 | Details of #349 | selfhost/parse.k: N_MAKE, parse_make; selfhost/gen.k: type_of's N_MAKE, gen_make; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(n)`, `Array<T>([...])`, `Array<T>(&a)`, `Dictionary<K, V>({...})`, `Array([...])`, `Set<T>()`; kc's let of an Array of another type |
 | P362 | Details of #350 | selfhost/parse.k: parse_make's elements, `&a` and `n` (flags 3 to 7); selfhost/gen.k: gen_make's forms, gen_array's element check; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(a)` of a fixed array, `Array([...])`, `Dictionary<K, V>({...})` and `(&d)` |
 | P363 | Details of #351 | selfhost/parse.k: parse_brace_body, out of `${`'s branch; parse_make's entries and `&d`; selfhost/gen.k: gen_make_dict, dict_entries_fit in gen_dict; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(a)` of a fixed array, `Array([...])` |
+| P364 | Details of #352 | selfhost/parse.k: parse_make of `Array(`, ty -1; selfhost/gen.k: type_of's N_MAKE of the elements, gen_make_inferred; selfhost/sample.k; selfhost/README.md | kc's `Array(&a)`, `Array<T>(a)` of a fixed array; kc's `.count` of a `cstr` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

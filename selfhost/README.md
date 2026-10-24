@@ -525,8 +525,14 @@ kc reads what it is written in, and little more.
         another, '&d'`; `an empty Dictionary is written ${:}`.
       - kc's own where kelvinc leaves it to C: `a value of
         Dictionary<String, i64> is an i64, and this is text`.
-    - Not yet: `Array<T>(a)` of a fixed array, `Array([1, 2])` with T
-      inferred.
+    - `Array([a, b])` (#352), as kelvinc's #58: T the elements' one
+      type, as of `$[a, b]`: `Array([3, 1, 4])` an `Array<i64>`.
+      - kelvinc's errors, in its words: `Array([]) has no element type:
+        write Array<T>()`, `Array() has no element type: ...`,
+        `Array(x) has no element type: ...`, and of elements of no one
+        type, `none` among them, `write Array<T>([...])`.
+    - Not yet: `Array<T>(a)` of a fixed array; `Array(&a)` with T
+      inferred, which kelvinc reads: write `Array<T>(&a)`.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

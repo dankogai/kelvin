@@ -696,15 +696,19 @@ let parse_brace_body(t:int64):int64 {
 // (#350): flags 3, 4 and 5, b the first element, or a the one given;
 // flag 6 of more after the elements, 7 of more than one. Of a
 // Dictionary, Dictionary<K, V>({k: v}) and (&d) (#351): flag 3, a the
-// literal, read as ${...}; 4 of &d, 5 of another; 6 of more, c its token
+// literal, read as ${...}; 4 of &d, 5 of another; 6 of more, c its token.
+// Array(...), ty -1, its T the elements' of Array([a, b]) (#352)
 let parse_make():int64 {
     let n:int64 = make_node(N_MAKE, advance())
-    advance()                                    // <
-    if tok_is(nodes[n].t, "Array") {
+    if tok_is(nodes[n].t, "Array") && at_word("(") {
+        // Array([a, b]), ty -1: T is the elements' (#352)
+    } else if tok_is(nodes[n].t, "Array") {
+        advance()                                // <
         let elem:int64 = parse_type()
         expect(">")
         set_ty(n, type_of_kind(Y_ARRAY, elem, -1))
     } else {
+        advance()                                // <
         let key:int64 = parse_type()
         expect(",")
         let value:int64 = parse_type()
@@ -799,6 +803,7 @@ let parse_primary():int64 {
     let k:tkind = toks[t].kind
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
+    if k == T_ID && tok_is(t, "Array") && tok_is(t + 1, "(") { return parse_make() }   // Array([a, b]) (#352)
     if k == T_NUM {
         advance()
         return make_node(N_NUM, t)

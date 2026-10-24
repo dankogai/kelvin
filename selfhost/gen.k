@@ -692,6 +692,12 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
+    if k == N_MAKE && nodes[n].ty < 0 {                 // Array([a, b]): an Array of a's type (#352)
+        if nodes[n].flag != 3 || nodes[n].b < 0 || is_case_word(nodes[n].b) { return -1 }
+        let e:int64 = type_of(nodes[n].b)
+        if e < 0 { return -1 }
+        return type_of_kind(Y_ARRAY, e, -1)
+    }
     if k == N_MAKE { return nodes[n].ty }               // Array<T>(), Dictionary<K, V>() (#349)
     if k == N_METHOD && tok_is(t, "next") {             // it.next() of an Iterator: a T? (#326)
         let iy:int64 = type_of(nodes[n].a)
@@ -2620,7 +2626,42 @@ let gen_make_dict(n:int64, y:int64, w:const String^) {
     if h { hold_close(p) }
 }
 
+// Array([a, b]), T the elements' one type, as kelvinc's #58 and as
+// $[a, b] (#352); Array() and the rest kelvinc's errors in its words;
+// Array(&a), which kelvinc reads, not yet kc's
+let gen_make_inferred(n:int64) {
+    let f:int64 = nodes[n].flag
+    if f == 0 {
+        gen_error(n, "Array() has no element type: write Array<T>(), or the elements, Array([...])")
+    } else if f == 3 && nodes[n].b < 0 {
+        gen_error(n, "Array([]) has no element type: write Array<T>()")
+    } else if f == 3 {
+        var e:int64 = nodes[n].b
+        let y:int64 = is_case_word(e) ? 0 - 1 : type_of(e)
+        while e >= 0 {
+            if is_case_word(e) || type_of(e) != y || y < 0 {
+                gen_error(n, "the elements have no one type kc sees here: write Array<T>([...])")
+                return
+            }
+            e = nodes[e].next
+        }
+        gen_array(n, type_of(n))
+    } else if f == 4 {
+        gen_error(n, "kc reads Array([...]) with T inferred; not yet Array(&a): write Array<T>(&a)")
+    } else if f == 5 {
+        gen_error(n, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
+    } else if f == 6 {
+        gen_error(n, "Array([...]) takes the elements alone: expected ')'")
+    } else {
+        gen_error(n, "Array takes nothing, a count, the elements in [...], a fixed array, or a borrow of an Array")
+    }
+}
+
 let gen_make(n:int64) {
+    if nodes[n].ty < 0 {                                 // Array([a, b]) (#352)
+        gen_make_inferred(n)
+        return
+    }
     let y:int64 = nodes[n].ty
     let w:String = kelvin_type_text(y)
     if nodes[n].flag == 1 {                              // as kelvinc says it

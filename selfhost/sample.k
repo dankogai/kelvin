@@ -569,5 +569,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     var larder = Dictionary<String, int64>(&pantry)     // Dictionary<K, V>({...}) and Dictionary<K, V>(&d) (#351)
     larder["fig"] = 9
     println(pantry, " ", larder, " ", larder == pantry)
+    let guessed = Array([5, 3, 8])                      // Array([...]) with T inferred (#352)
+    println(guessed, " ", Array([$"x", $"y"]), " ", guessed.count)
     return 0
 }
