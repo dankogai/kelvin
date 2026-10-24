@@ -6920,3 +6920,14 @@ that kelvinc binds a let's `find` to a declared `V^` without a word,
 which kc refuses. Details are provisional P349.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 383. kc's Dictionary merge and merging
+
+> teach kc Dictionary merge and merging as #338
+
+**Claude** taught kc a Dictionary's `merge`, in place, and `merging`, a
+new Dictionary, as kelvinc writes them: e's entries added, each value
+copied, the function's value where keys meet, else e's, with kelvinc's
+errors in its words. Details are provisional P350.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

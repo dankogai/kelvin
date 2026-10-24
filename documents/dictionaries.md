@@ -166,6 +166,8 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
 - **Finding and changing**: `.find(k)`, a `V^` or `nullptr`, a `const
   V^` of a let; `.reserve(n)` and `.clear()`; and its text, `.pretty`
   and `.typename` (#337).
+- **Merging**: `.merge` and `.merging`, with a function where keys meet
+  or without (#338).
 - **map, filter, reduce, flatMap** (#330), and `mapWithKey`,
   `filterWithKey`, `reduceWithKey` (#331) and `flatMapWithKey` (#332),
   their anonymous functions' parameters named, `{ acc, v in ... }`, or
@@ -173,8 +175,8 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
 
 kc does not read yet:
 
-- `.merge` and `.merging` (#236), `??` and `!!` of two Dictionaries and
-  their `??=` and `!!=` (#237), and `d[k] ??= v` (#243);
+- `??` and `!!` of two Dictionaries and their `??=` and `!!=` (#237),
+  and `d[k] ??= v` (#243);
 - `.contains`, `.firstKey` and `.lastKey`, and their WithKey kin (#249).
 
 Where kc differs, a value that owns is given to an anonymous function as

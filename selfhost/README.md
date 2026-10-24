@@ -431,6 +431,10 @@ kc reads what it is written in, and little more.
   - `d.find(k)`, a `V^` to the value or `nullptr`, a `const V^` of a let;
     `d.pretty` and `d.typename`, as a Set's; `d.reserve(n)` and
     `d.clear()`, in place, of a var (#337).
+  - `d.merge(&e)`, in place, and `d.merging(&e)`, a new Dictionary, as
+    kelvinc's #236: e's entries added, each value copied; where d has
+    the key, the function's value, `d.merge(&e) { a, b in ... }`, else
+    e's; e by value moves in and is freed after (#338).
   - `d.keys` and `d.values` (#285), Arrays of copies in the order added,
     as a Set's `elements`: new values a variable then owns, of a
     Dictionary in a variable, a temporary, or through a borrow.

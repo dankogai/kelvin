@@ -509,5 +509,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     shelf.reserve(8)
     shelf.clear()
     println(shelf, " ", shelf.count)
+    var restock:Dictionary<String, int64> = ${"pear": 1, "plum": 4}   // merge and merging (#338)
+    println(stock.merging(&restock), " ", stock.merging(&restock) { a, b in a + b })
+    shelf.merge(&restock)
+    shelf.merge(stock.copy()) { a, b in a * 10 + b }
+    println(shelf)
     return 0
 }

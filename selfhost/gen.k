@@ -441,6 +441,9 @@ let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
 let iter_lazy_of(n:int64):int64
 let iter_lazy_type_of(n:int64):int64
+let merge_of(n:int64):int64    // prototypes: a Dictionary's merge and merging (#338)
+let gen_merge(n:int64)
+let put_merge_value(vy:int64)
 let eager_of(n:int64):int64    // prototypes: eager map and the rest (#329)
 let eager_type_of(n:int64):int64
 let gen_eager(n:int64)
@@ -702,6 +705,9 @@ let type_of(n:int64):int64 {
     if k == N_METHOD && iter_lazy_of(n) >= 0 { return iter_lazy_type_of(n) }   // it.lazy.map(f) of an Iterator (#328)
     if k == N_METHOD && lazy_of(n) >= 0 { return lazy_type_of(n) }   // s.lazy.map(f), a lazy Sequence (#324)
     if k == N_METHOD && eager_of(n) >= 0 { return eager_type_of(n) }   // xs.map(f) and the rest (#329)
+    if k == N_METHOD && (tok_is(t, "merge") || tok_is(t, "merging")) && merge_of(n) >= 0 {   // (#338)
+        return tok_is(t, "merging") ? type_of(nodes[n].a) : base_type(Y_VOID)
+    }
     if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
         let ly:int64 = lazy_field_type(nodes[n].a)
         if types[ly].kind == Y_ITER {                   // as kelvinc's (#328)
@@ -1985,6 +1991,10 @@ let gen_method(n:int64) {
     }
     if eager_of(n) >= 0 {                               // xs.map(f) and the rest (#329)
         gen_eager(n)
+        return
+    }
+    if (tok_is(nodes[n].t, "merge") || tok_is(nodes[n].t, "merging")) && merge_of(n) >= 0 {   // (#338)
+        gen_merge(n)
         return
     }
     let ny:int64 = tok_is(nodes[n].t, "next") ? type_of(nodes[n].a) : 0 - 1
@@ -4846,6 +4856,194 @@ let gen_eager_keyed(n:int64) {
         put("(&_kv_mr); ")
     }
     put(r.kind == 3 ? "} _kv_acc; })" : "} _kv_mo; })")
+}
+
+// ---------- a Dictionary's merge and merging (#338) ----------
+
+// d.merge(&e) in place and d.merging(&e) a new Dictionary, as kelvinc's
+// #236: e's entries added, each value copied; where d has the key, f of
+// d's value and the copy, which f owns both of, else the copy wins
+struct merge_rec {
+    node: int64
+    fn: int64               // f, or -1
+    lent: bool              // e by a borrow, &e, else by value, moved in
+}
+
+var merges:$[merge_rec]
+var merge_at:Dictionary<int64, int64>
+
+let merge_of(n:int64):int64 {
+    let seen = merge_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let a:int64 = nodes[n].a
+    let dy:int64 = type_of(a)
+    if dy < 0 || types[dy].kind != Y_DICT { return 0 - 1 }
+    let in_place = tok_is(nodes[n].t, "merge")
+    var me = $"'."
+    me += tok_text(nodes[n].t)
+    me += "'"
+    if in_place && !is_place(a) {                       // as kelvinc's
+        gen_error(n, "'.merge' changes a Dictionary in place, and this one an expression gives would be lost: bind it, or write '.merging(...)'")
+        return 0 - 1
+    }
+    if in_place && changed_root(a) >= 0 && how_declared(nodes[changed_root(a)].t) != 0 {
+        var m = $"'"
+        m += tok_text(nodes[changed_root(a)].t)
+        m += "' is a let and cannot change; declare it with var, or write '.merging(...)'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let other:int64 = nodes[n].b
+    if other < 0 {
+        var m = me.copy()
+        m += " takes the Dictionary to merge: '"
+        m += &me
+        m += "(&e)', and a function where keys meet, '"
+        m += &me
+        m += "(&e) { a, b in ... }'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let lent = nodes[other].kind == N_ADDR
+    let oy:int64 = type_of(lent ? nodes[other].a : other)
+    if oy != dy {
+        var m = me.copy()
+        m += " takes a Dictionary of the same key and value types, "
+        let dw:String = kelvin_type_text(dy)
+        m += &dw
+        m += ", or a borrow of one, and this is "
+        let ow:String = oy >= 0 ? kelvin_type_text(oy) : $"not one"
+        m += &ow
+        if lent && oy >= 0 { m += "^" }                  // a borrow's, as kelvinc names it
+        gen_error(other, m.cstr)
+        return 0 - 1
+    }
+    let vy:int64 = types[dy].elem
+    let f:int64 = nodes[other].next
+    var fn:int64 = 0 - 1
+    if f >= 0 {
+        if nodes[f].kind == N_ANON {
+            var ps:$[int64] = $[]
+            ps += vy
+            ps += vy
+            fn = anon_function_of(f, &ps, vy, &me)
+            if fn < 0 { return 0 - 1 }
+        } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+            fn = decl_named(nodes[f].t, D_FN)
+        }
+        let p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
+        if fn < 0 || p < 0 || nodes[p].next < 0 || nodes[nodes[p].next].next >= 0 || nodes[p].ty != vy || nodes[nodes[p].next].ty != vy || nodes[fn].ty != vy {
+            var m = me.copy()
+            m += " calls its function with the two values of a key in both, "
+            let vw:String = kelvin_type_text(vy)
+            m += &vw
+            m += ", and keeps what it gives"
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+    }
+    let r:merge_rec = {n, fn, lent}
+    merges += r
+    merge_at[n] = merges.count as int64 - 1
+    return merges.count as int64 - 1
+}
+
+let gen_merge(n:int64) {
+    let r:merge_rec = merges[merge_of(n)]
+    let a:int64 = nodes[n].a
+    let dy:int64 = type_of(a)
+    let vy:int64 = types[dy].elem
+    let other:int64 = nodes[n].b
+    let in_place = tok_is(nodes[n].t, "merge")
+    let lk:cstr := types[types[dy].name].kind == Y_STRING ? "KV_LK_TEXT" : "KV_LK_INT"
+    put("({ ")
+    put_ctype(dy)
+    if in_place {
+        put(" *_kv_md = &(")
+        gen_expr(a)
+        put("); ")
+    } else if is_place(a) {                              // merging: a copy of d, or d an expression gives, taken
+        put(" _kv_mm = ")
+        put_owner_prefix(dy)
+        put("_copy(&(")
+        gen_expr(a)
+        put(")); ")
+        put_ctype(dy)
+        put(" *_kv_md = &_kv_mm; ")
+    } else {
+        put(" _kv_mm = ")
+        gen_expr(a)
+        put("; ")
+        put_ctype(dy)
+        put(" *_kv_md = &_kv_mm; ")
+    }
+    if r.lent {
+        put("const ")
+        put_ctype(dy)
+        put(" *_kv_me = ")
+        gen_expr(other)
+        put("; ")
+    } else {                                             // e by value: held, and freed after
+        put("__attribute__((cleanup(")
+        put_free(dy)
+        put("))) ")
+        put_ctype(dy)
+        put(" _kv_mo = ")
+        if nodes[other].kind == N_ID && var_type(nodes[other].t) >= 0 {
+            put_owner_prefix(dy)
+            put("_take(&")
+            put_tok(nodes[other].t)
+            put(")")
+        } else {
+            gen_expr(other)
+        }
+        put("; const ")
+        put_ctype(dy)
+        put(" *_kv_me = &_kv_mo; ")
+    }
+    put("for (size_t _kv_mi = 0; _kv_mi < _kv_me->len; _kv_mi++) { if (!_kv_me->at[_kv_mi].live) continue; ")
+    put_owner_prefix(dy)
+    put("_entry *_kv_mx = ")
+    put_owner_prefix(dy)
+    put("_lookup(_kv_md, ")
+    put(lk)
+    put("(&_kv_me->at[_kv_mi].key), _kv_me->at[_kv_mi].hash); if (!_kv_mx) { ")
+    put_owner_prefix(dy)
+    put("_set(_kv_md, ")
+    put(lk)
+    put("(&_kv_me->at[_kv_mi].key), ")
+    put_merge_value(vy)
+    put("); continue; } ")
+    if r.fn >= 0 {                                       // where d has the key: f's value
+        put("_kv_mx->value = ")
+        put_fn_name(r.fn)
+        put("(_kv_mx->value, ")
+        put_merge_value(vy)
+        put(");")
+    } else if is_owner(vy) {                             // else the copy, the old one freed
+        put("{ ")
+        put_ctype(vy)
+        put(" _kv_mv = ")
+        put_merge_value(vy)
+        put("; ")
+        put_free(vy)
+        put("(&_kv_mx->value); _kv_mx->value = _kv_mv; }")
+    } else {
+        put("_kv_mx->value = ")
+        put_merge_value(vy)
+        put(";")
+    }
+    put(in_place ? " } (void)0; })" : " } _kv_mm; })")
+}
+
+// an entry's value of e, a copy where it owns
+let put_merge_value(vy:int64) {
+    if is_owner(vy) {
+        put_owner_prefix(vy)
+        put("_copy(&_kv_me->at[_kv_mi].value)")
+    } else {
+        put("_kv_me->at[_kv_mi].value")
+    }
 }
 
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional
