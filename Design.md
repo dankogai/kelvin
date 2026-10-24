@@ -372,6 +372,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 338 | kc reads a Dictionary's `merge` and `merging`, as kelvinc's #236: e's entries added, each value copied, a function's value where keys meet, else e's; with kelvinc's errors in its words | — | kc's `shelf.merge(&restock)` | 2026-10-24 |
 | 339 | kc reads a Dictionary's `contains`, `firstKey` and `lastKey`, and their WithKey forms, as kelvinc's #249: whether a value is there, and the key of the first or the last, a `K?`; of a value by `==` or of a function; with kelvinc's errors in its words | — | kc's `shelf.firstKey(3)` | 2026-10-24 |
 | 340 | kc reads `x ?? d` of an Optional that owns, as kelvinc's #250: x's value a copy where x is a place, else taken; d a copy where it is a place, else taken, made only where x is none; d's type checked in kelvinc's words | — | kc's `shelf.lastKey(4) ?? $"none"` | 2026-10-24 |
+| 341 | kc reads `none`, `ok(v)` and `err(e)` in a declaration and an assignment, as it read them in a return: `let n:int64? = none`, `n = none`, `d[k] = none`; a case the type has not in kelvinc's words | — | kc's `tag = none` | 2026-10-24 |
 
 Notes:
 
@@ -933,6 +934,27 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (341) Agreed details: "teach kc none in let and assignment as #341".
+  `ok(v)` and `err(e)` came too, read by the same path.
+  - gen.k: takes_borrow, asked of every declaration's value and every
+    assignment's to a name, typed the value, and a case word has no
+    type of its own: "this name is not known". It now passes them on
+    to gen_value, which reads them by the type that takes them, as it
+    did in a return.
+  - `d[k] = v` wrote v by gen_expr; a case word goes by gen_value, of
+    the entry's type.
+  - A case the type has not, `none` of a Result, `ok` or `err` of an
+    Optional, is kelvinc's error in its words; `var x = none` needs a
+    type, in kc's words of a value with none of its own.
+  - Found on the way, and fixed: an assignment to an owner that is an
+    enum with values, `xs = $[$"x"]` of a `$[String]?`, named its
+    temporary by serial after gen_value had made names of its own, so
+    C met an undeclared `_kv_vN`. An element's assignment from a call
+    had the same pattern. Each keeps its number now.
+  - kc's build of a probe prints what kelvinc's does, with no leak
+    under ASan's count; the fixpoint holds, and selfhost/sample.k has
+    them.
 
 - (340) Agreed details: "teach kc ?? of an Optional that owns as #340".
   - gen.k: gen_coalesce, which refused it, writes kelvinc's #250 C: x
@@ -4197,6 +4219,7 @@ says "as agreed".
 | P350 | Details of #338 | selfhost/gen.k: merge_of, gen_merge, put_merge_value; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | — |
 | P351 | Details of #339 | selfhost/gen.k: search_of, search_type_of, gen_search, fn_type_text, search_value_text; selfhost/parse.k: the trailing function; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | kc's `??` of an Optional that owns |
 | P352 | Details of #340 | selfhost/gen.k: gen_coalesce, value_mismatch_text; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | kc's `??` left to right; kc's `let n:T? = none` |
+| P353 | Details of #341 | selfhost/gen.k: takes_borrow, gen_assign, gen_value, inferred; selfhost/sample.k; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

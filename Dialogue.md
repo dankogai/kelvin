@@ -6957,3 +6957,16 @@ the way: kc reads `??` left to right, kelvinc right to left (#251), and
 kc does not read `let n:int64? = none`. Details are provisional P352.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 386. kc's none in let and assignment
+
+> teach kc none in let and assignment as #341
+
+**Claude** taught kc `none`, and `ok(v)` and `err(e)` with it, in a
+declaration and an assignment, as it read them in a return: `let
+n:int64? = none`, `n = none`, `d[k] = none`. A case the type has not is
+kelvinc's error in its words. Found on the way, and fixed: assigning
+an Optional that owns, as `xs = $[$"x"]`, wrote C that named a
+temporary it had not declared. Details are provisional P353.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

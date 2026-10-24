@@ -897,6 +897,7 @@ let article_of(w:const String^):cstr {
 // where a T^ that may change what it borrows goes (#272, #273); who
 // names what takes it, as kelvinc's lead
 let takes_borrow(n:int64, t:int64, who:const String^):bool {
+    if is_case_word(n) { return true }                  // none, ok(v), err(e): no borrow, and gen_value reads them (#341)
     let at = type_of(n)
     if at < 0 || t < 0 || types[at].kind != Y_PTR || types[at].name != 1 || types[t].kind != Y_PTR || types[t].name == 1 {
         return true
@@ -2596,6 +2597,21 @@ let gen_value(n:int64, y:int64) {
         gen_error(n, "some(v) makes no Optional: give v where the T? is expected")
         return
     }
+    if m < 0 && is_case_word(n) {                       // a case the type has not, as kelvinc says it (#341)
+        let w:int64 = nodes[n].kind == N_ID ? nodes[n].t : nodes[nodes[n].a].t
+        let result = nodes[d].c != 1 && tok_is(nodes[nodes[d].a].t, "ok") && tok_is(nodes[nodes[nodes[d].a].next].t, "err")
+        if nodes[d].c == 1 && (tok_is(w, "ok") || tok_is(w, "err")) {
+            var e = $"an Optional has no case '"
+            e += tok_text(w)
+            e += "': its cases are none and some; a Result has ok and err"
+            gen_error(n, e.cstr)
+            return
+        }
+        if result && tok_is(w, "none") {
+            gen_error(n, "a Result has no case 'none': write err(e), or ok(v)")
+            return
+        }
+    }
     var v = -1
     if m >= 0 && nodes[n].kind == N_CALL { v = nodes[n].b }
     if m < 0 && nodes[d].c == 1 && fits_value(n, some_type(y)) {
@@ -3252,7 +3268,9 @@ let inferred(n:int64):int64 {
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }
-    if k == N_EMPTY || k == N_INIT || k == N_NULL {
+    let w:int64 = k == N_ID ? nodes[v].t : k == N_CALL && nodes[nodes[v].a].kind == N_ID ? nodes[nodes[v].a].t : 0 - 1
+    let word = w >= 0 && is_case_word(v) && (tok_is(w, "none") || tok_is(w, "ok") || tok_is(w, "err") || tok_is(w, "some"))   // none, ok(v), err(e) (#341)
+    if k == N_EMPTY || k == N_INIT || k == N_NULL || word {
         gen_error(n, "this variable needs a type: write name:T, since this value has none of its own")
         return -1
     }
@@ -3564,7 +3582,11 @@ let gen_assign(n:int64) {
         put(", ")
         gen_key(into, key)
         put(", ")
-        gen_expr(nodes[n].b)
+        if is_case_word(nodes[n].b) {                    // d[k] = none of a V? (#341)
+            gen_value(nodes[n].b, types[into].elem)
+        } else {
+            gen_expr(nodes[n].b)
+        }
         put(")")
         if hold { hold_close(key) }
         put(";\n")
@@ -3639,10 +3661,11 @@ let gen_assign(n:int64) {
         put(");\n")
     } else if is_owner(y) && yk == Y_STRUCT && tok_is(t, "=") {
         serial += 1                                      // the new value first, then the old one freed (#217, #225)
+        let sv = serial                                  // its own: the value may make names too (#341)
         put("{ ")
         put_ctype(y)
         put(" _kv_v")
-        put_int(serial)
+        put_int(sv)
         put(" = ")
         gen_value(nodes[n].b, y)
         put("; ")
@@ -3652,16 +3675,17 @@ let gen_assign(n:int64) {
         put("); ")
         gen_expr(lhs)
         put(" = _kv_v")
-        put_int(serial)
+        put_int(sv)
         put("; }\n")
     } else if is_owner(y) {
         gen_error(n, "an owner is assigned only as a String")
     } else if has_element(lhs) && has_call(nodes[n].b) {
         serial += 1                                   // the value first, then where it goes
+        let sv = serial                               // its own: the value may make names too (#341)
         put("{ ")
         put_ctype(y)
         put(" _kv_v")
-        put_int(serial)
+        put_int(sv)
         put(" = ")
         gen_value(nodes[n].b, y)
         put("; ")
@@ -3669,7 +3693,7 @@ let gen_assign(n:int64) {
         put(" ")
         put_op(t)
         put(" _kv_v")
-        put_int(serial)
+        put_int(sv)
         put("; }\n")
     } else {
         gen_expr(lhs)

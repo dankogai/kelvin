@@ -516,5 +516,14 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(shelf)
     println(shelf.contains(4), " ", shelf.firstKey(3), " ", shelf.lastKey { v in v > 3 }, " ", shelf.containsWithKey { k, v in v > 20 }, " ", shelf.lastKeyWithKey { k, v in v < 10 })   // contains, firstKey and lastKey (#339)
     println(shelf.lastKey(4) ?? $"none", " ", shelf.firstKey(9) ?? "none", " ", restock.firstKey(4) ?? $"two", " ", shelf.lastKey(3) ?? restock.firstKey(1)!)   // ?? of an Optional that owns (#340)
+    let pending:int64? = none                         // none in let and assignment (#341)
+    var tag:String? = $"new"
+    var outcome:Result<int64, String> = ok(1)
+    println(pending, " ", tag, " ", outcome)
+    tag = none
+    outcome = err($"late")
+    var marks:Dictionary<String, int64?> = ${"ann": 90, "bob": 70}
+    marks["bob"] = none
+    println(tag ?? $"untagged", " ", outcome, " ", marks)
     return 0
 }

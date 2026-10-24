@@ -165,6 +165,15 @@ kc reads what it is written in, and little more.
       a pointer, is an error.
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
+  - `none`, `ok(v)` and `err(e)` where a variable of the type is
+    declared or assigned (#341): `let n:int64? = none`, `n = none`,
+    `r = err($"late")`, a member's `k.s = none`, an element's and an
+    entry's, `d[k] = none`.
+    - A case the type has not is kelvinc's error in its words: `a
+      Result has no case 'none': write err(e), or ok(v)`, `an Optional
+      has no case 'ok': its cases are none and some; a Result has ok
+      and err`.
+    - `var x = none` needs a type, as kelvinc says.
   - `x ?? d` of an Optional that owns (#340), as kelvinc's #250:
     `d.lastKey(v) ?? $"none"`, `w[k] ?? "none"`.
     - x's value is a copy where x is a place, else taken from it.
