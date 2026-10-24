@@ -152,9 +152,11 @@ kc reads what it is written in, and little more.
       prototypes of the struct's `_free` and `_copy`, which they call.
     - So a tree is built, copied, freed, printed, compared and walked
       by a function that calls itself.
-    - Not yet: a Dictionary of itself, which kelvinc has; two enums
-      that hold Arrays of each other, `$[$[node]]` or `$[node]?` are
-      not kelvinc's either.
+    - A Dictionary of itself the same way (#347), `KV_DICT_TYPE` and
+      `KV_DICT_FUNCS`: `enum js { arr: $[js]; obj: Dictionary<String,
+      js> }`, a document of JSON's shape.
+    - Two enums that hold Arrays of each other, `$[$[node]]` or
+      `$[node]?` are not kelvinc's either.
 - **Optional and Result** (#217): `T?`, `Optional<T>` and
   `Result<T, E>`, which kc makes as the enums with values kelvinc makes:
   `struct _kv_opt_T` of `none` and `some`, `struct _kv_res_T_E` of `ok`

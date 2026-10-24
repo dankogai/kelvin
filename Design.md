@@ -378,6 +378,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 344 | kc reads `==` and `!=` of a Result, as kelvinc's #79: the same case, and equal values; the other side a Result, a `T` wrapped as `ok(T)`, `ok(v)` or `err(e)`; a Result's elements in an Array, a Dictionary and a search compare too; a `T` where a Result goes is `ok(T)` in a declaration and a return as well; with kelvinc's errors in its words | — | kc's `outcome == err("late")` | 2026-10-25 |
 | 345 | kc reads `==` and `!=` of an enum with values, as kelvinc's #79: the same case, and equal values, both sides of the enum; its elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words, and `struct T` as kelvinc names a struct or an enum there | — | kc's `a == item.num(5)` | 2026-10-25 |
 | 346 | kc reads an enum with values, or a struct, that holds an Array of itself, as kelvinc writes one: the Array's type before the struct, its functions after it, with the prototypes of the struct's free and copy | `KV_ARRAY_TYPE` and `KV_ARRAY_FUNCS` by hand | kc's `enum shrub { leaf: int64; twigs: $[shrub] }` | 2026-10-25 |
+| 347 | kc reads an enum with values, or a struct, that holds a Dictionary of itself, as kelvinc writes one: the Dictionary's type before the struct, its functions after it, as an Array's of #346 | `KV_DICT_TYPE` and `KV_DICT_FUNCS` by hand | kc's `enum doc { word: String; fields: Dictionary<String, doc> }` | 2026-10-25 |
 
 Notes:
 
@@ -939,6 +940,23 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (347) Agreed details: "teach kc a Dictionary of itself as #347".
+  - gen.k: write_type's Dictionary does as its Array does since #346:
+    one whose values are a struct being written is `KV_DICT_TYPE`,
+    which needs only its name, held in held_arrays.
+  - write_held_arrays, after the struct's `};`, writes `KV_DICT_FUNCS`
+    of a held Dictionary, with what `KV_DICT` takes (put_dict_args, now
+    shared by the two).
+    - The prototypes of the struct's `_free` and `_copy` are written
+      once, before the first, so an enum that holds an Array and a
+      Dictionary of itself, as JSON's shape, has them once.
+  - So a document, `enum js { null; num: float64; str: String; arr:
+    $[js]; obj: Dictionary<String, js> }`, is built, copied, freed,
+    printed, compared and walked as under kelvinc, with as many
+    allocations and no leak; a Dictionary of an integer key too.
+  - Found, not fixed: `doc.fields(${:})` reaches C, where kelvinc says
+    `${:}` has no key and value types there.
 
 - (346) Agreed details: "teach kc an enum holding an Array of itself as
   #346".
@@ -4372,6 +4390,7 @@ says "as agreed".
 | P356 | Details of #344 | selfhost/gen.k: is_result, is_variant, value_case, eq_case; gen_variant_eq (gen_optional_eq), gen_opt_operand, opt_operand_owns, the Result's _eq; eq_type, need_eq, gen_value's ok(T), value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `==` of another enum with values; kc's `$[ok(1)]`, `ok(none)`, text into a `String?` or a Result of a String, `ok(1, 2)` |
 | P357 | Details of #345 | selfhost/gen.k: eq_type (eq_asked), has_eq_fn, need_eq, put_eq_code, gen_eq, the prototypes of any enum with values; gen_variant_eq of an enum (eq_type_text, enum_mismatch_text); is_place of `T.c`; gen_container_eq's `Array<struct P>`; selfhost/sample.k; selfhost/README.md | kc's operators of a type's own (#121); kc's enum holding an Array of itself |
 | P358 | Details of #346 | selfhost/gen.k: write_type (written 2 while a struct's members are written, KV_ARRAY_TYPE of an Array of it, held_arrays), write_held_arrays after the struct in write_type and gen_tagged; selfhost/sample.k; selfhost/README.md | kc's Dictionary of itself; kc's `xs += {2, $[]}` |
+| P359 | Details of #347 | selfhost/gen.k: write_type's Dictionary (KV_DICT_TYPE of one of a struct being written, held), put_dict_args, write_held_arrays (KV_DICT_FUNCS; the prototypes once); selfhost/sample.k; selfhost/README.md | kc's `doc.fields(${:})` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

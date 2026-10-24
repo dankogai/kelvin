@@ -6695,16 +6695,44 @@ let put_struct(name:int64) {
     put_tok(name)
 }
 
-var held_arrays:$[int64]                 // the Arrays of a struct written in it, their functions after it (#346)
+var held_arrays:$[int64]                 // the Arrays and Dictionaries of a struct written in it, their functions after it (#346, #347)
 
-// the functions of the Arrays of y that y holds, after y, as kelvinc's
-// emit_arrays_after: the prototypes of y's free and copy, which they
-// call, and KV_ARRAY_FUNCS (#346)
+// what KV_DICT and KV_DICT_FUNCS take of the Dictionary y, after the
+// macro's name: its key's and value's types, its name, and their
+// functions (#211, #347)
+let put_dict_args(y:int64) {
+    let key:int64 = types[y].name
+    let value:int64 = types[y].elem
+    if types[key].kind == Y_STRING {
+        put("kv_string, const uint8_t *, ")
+    } else {
+        put_ctype(key)
+        put(", ")
+        put_ctype(key)
+        put(", ")
+    }
+    put_ctype(value)
+    put(", ")
+    put_dict_name(y)
+    if types[key].kind == Y_STRING {
+        put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_MISSING_TEXT, kv_string_free, kv_string_copy, ")
+    } else {
+        put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
+    }
+    put_free_copy(value)
+    put(")\n")
+}
+
+// the functions of the Arrays and the Dictionaries of y that y holds,
+// after y, as kelvinc's emit_arrays_after: the prototypes of y's free
+// and copy, which they call, then KV_ARRAY_FUNCS (#346) and
+// KV_DICT_FUNCS (#347)
 let write_held_arrays(y:int64) {
+    var first = true
     for i in 0..<held_arrays.count as int64 {
         let a:int64 = held_arrays[i]
         if types[a].elem == y {
-            if is_owner(y) {
+            if first && is_owner(y) {
                 put("__attribute__((unused)) static inline void ")
                 put_owner_prefix(y)
                 put("_free(")
@@ -6717,13 +6745,19 @@ let write_held_arrays(y:int64) {
                 put_ctype(y)
                 put(" *self);\n")
             }
-            put("KV_ARRAY_FUNCS(")
-            put_ctype(y)
-            put(", ")
-            put_array_name(a)
-            put(", ")
-            put_free_copy(y)
-            put(")\n")
+            first = false
+            if types[a].kind == Y_DICT {
+                put("KV_DICT_FUNCS(")
+                put_dict_args(a)
+            } else {
+                put("KV_ARRAY_FUNCS(")
+                put_ctype(y)
+                put(", ")
+                put_array_name(a)
+                put(", ")
+                put_free_copy(y)
+                put(")\n")
+            }
         }
     }
 }
@@ -6964,7 +6998,8 @@ var written:Dictionary<int64, int64>     // the types whose C is written (#225),
 // element before the Array, a struct's members before the struct, an
 // enum's values before the enum (#225); a pointer needs no more than C's
 // name of what it points to. An Array of a struct that holds it is a
-// type before the struct, its functions after (#346)
+// type before the struct, its functions after (#346), and a Dictionary
+// of one (#347)
 let write_type(y:int64) {
     if y < 0 || written.has(y) { return }
     written[y] = 1
@@ -6992,25 +7027,15 @@ let write_type(y:int64) {
         let value:int64 = types[y].elem
         write_type(key)
         write_type(value)
+        if written.get(value, 0) == 2 {                  // j of enum j { obj: Dictionary<String, j> } (#347)
+            put("KV_DICT_TYPE(")
+            put_dict_name(y)
+            put(")\n")
+            held_arrays += y
+            return
+        }
         put("KV_DICT(")
-        if types[key].kind == Y_STRING {
-            put("kv_string, const uint8_t *, ")
-        } else {
-            put_ctype(key)
-            put(", ")
-            put_ctype(key)
-            put(", ")
-        }
-        put_ctype(value)
-        put(", ")
-        put_dict_name(y)
-        if types[key].kind == Y_STRING {
-            put(", KV_HASH_TEXT, KV_EQ_TEXT, KV_STORE_TEXT, KV_MISSING_TEXT, kv_string_free, kv_string_copy, ")
-        } else {
-            put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_MISSING_INT, KV_PLAIN_FREE, KV_PLAIN_COPY, ")
-        }
-        put_free_copy(value)
-        put(")\n")
+        put_dict_args(y)
     } else if k == Y_SET {                            // as kelvinc's set_args (#274)
         let e:int64 = types[y].elem
         write_type(e)

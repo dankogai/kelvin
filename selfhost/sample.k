@@ -33,6 +33,7 @@ let describe(v:item^):int64 {
 }
 
 enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
+enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
     switch s^ {
@@ -550,5 +551,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
     println(bush, " ", leaves(&bush), " ", bush == bush.copy())
+    var fields:Dictionary<String, doc> = ${:}
+    fields["title"] = doc.word($"kc")
+    var empty:Dictionary<String, doc> = ${:}
+    fields["body"] = doc.fields(empty)
+    let page = doc.fields(fields)
+    println(page, " ", page == page.copy(), " ", page != doc.word($"kc"))
     return 0
 }

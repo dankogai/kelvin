@@ -7044,3 +7044,17 @@ fixed: a Dictionary of itself, which kelvinc has, is not kc's yet.
 Details are provisional P358.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 392. kc's Dictionary of itself
+
+> teach kc a Dictionary of itself as #347
+
+**Claude** taught kc an enum with values, or a struct, that holds a
+Dictionary of itself, as #346 taught it an Array of itself: the
+Dictionary's type before the struct, its functions right after it. An
+enum of JSON's shape, holding both, is built, copied, freed, printed,
+compared and walked as under kelvinc. Found, not fixed: kc lets
+`doc.fields(${:})` reach C, where kelvinc says it has no types.
+Details are provisional P359.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
