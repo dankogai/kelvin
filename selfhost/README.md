@@ -216,6 +216,14 @@ kc reads what it is written in, and little more.
     kelvinc's errors, in its words.
   - `map`, `filter`, `reduce` and `flatMap` of #319 wait for kc's
     anonymous functions, as an Array's do.
+- **Sequences** (#322), as kelvinc's #321: `for x in s` of a struct
+  whose `let makeIterator():I` gives an iterator walks
+  `s.makeIterator()`, a fresh one held for the loop, so `s` stays as it
+  was, a let too.
+  - Where a struct has both `makeIterator` and `next`, `makeIterator`
+    wins, as kelvinc's.
+  - A var `makeIterator`, one that takes something or gives no
+    iterator, and two loop variables are kelvinc's errors, in its words.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.

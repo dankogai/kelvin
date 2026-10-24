@@ -188,7 +188,8 @@ let main():int32 {
 - **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
   methods and `for x in it` (#320), and these wait for its anonymous
   functions ([selfhost/README.md](../selfhost/README.md)).
-- **kc's Sequences**, `makeIterator()` (#321).
+- **kc's Sequences' methods**: kc walks a Sequence in `for` (#322), and
+  its `map` and the rest wait as an iterator's do.
 
 ## What each takes and gives
 

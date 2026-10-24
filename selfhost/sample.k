@@ -178,6 +178,14 @@ var countdown.next():int64? {
     return .n + 1
 }
 let count_from(n:int64):countdown { return {n} }
+struct span { lo: int64; hi: int64 }                 // a Sequence, its let makeIterator() (#322)
+struct span_walk { at: int64; hi: int64 }
+var span_walk.next():int64? {
+    if .at >= .hi { return none }
+    .at += 1
+    return .at - 1
+}
+let span.makeIterator():span_walk { return {.lo, .hi} }
 struct numbered { i: int64; last: int64 }
 extend numbered {
     var next():String? {
@@ -426,5 +434,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     var three:numbered = {0, 3}
     for w in three { named += &w }
     println(bumped, " ", box.n, " ", walked, " ", down.n, " ", counted, " ", named)
+    let span3:span = {1, 4}                           // a Sequence, walked afresh each time (#322)
+    var spanned:int64 = 0
+    for x in span3 { spanned += x }
+    for x in span3 { spanned += x * 10 }
+    println(spanned, " ", span3.lo, " ", span3.hi)
     return 0
 }

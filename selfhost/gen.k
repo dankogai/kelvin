@@ -3486,10 +3486,20 @@ let iterator_next(y:int64):int64 {
     return method_names.get(key, -1)
 }
 
+// the let method makeIterator of the struct y, which makes a value of y
+// a Sequence (#322), or -1
+let sequence_maker(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_STRUCT || types[y].name < 0 { return 0 - 1 }
+    var key:String = tok_text(types[y].name)
+    key += ".makeIterator"
+    return method_names.get(key, -1)
+}
+
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional
 // each pass, freed where it owns, x its some, up to none; the iterator
-// changes, a place by its address, and one an expression gives is held
-let gen_iter_each(n:int64, depth:int64, y:int64, f:int64) {
+// changes, a place by its address, and one an expression gives is held;
+// src, what it walks, the loop's own or a Sequence's makeIterator() (#322)
+let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
     let tn:String = tok_text(types[y].name)
     let oy:int64 = nodes[f].ty
     let ey:int64 = some_type(oy)
@@ -3513,7 +3523,6 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64) {
         gen_error(n, "two loop variables walk a Dictionary's entries; an iterator's values take one")
         return
     }
-    let src = nodes[n].a
     let place = changeable_place(src)
     let lead = $"for walks an iterator by its var next(), which changes "
     if place && !changes_var(src, &lead) { return }
@@ -3591,9 +3600,28 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64) {
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
+    let mk = sequence_maker(y)
+    if mk >= 0 {                                       // a Sequence (#322), as kelvinc's #321
+        if nodes[n].b >= 0 {
+            gen_error(n, "two loop variables walk a Dictionary's entries; a Sequence's values take one")
+            return
+        }
+        let iy:int64 = nodes[mk].ty
+        if nodes[mk].flag == 2 || nodes[mk].a >= 0 || iterator_next(iy) < 0 {
+            var m = $"a Sequence gives a fresh iterator by its makeIterator(), a let method that takes nothing and gives a value whose 'var next():T?' gives each value: write 'let "
+            m += tok_text(types[y].name)
+            m += ".makeIterator():I'"
+            gen_error(nodes[n].a, m.cstr)
+            return
+        }
+        let call:int64 = make_node(N_METHOD, nodes[mk].t)   // s.makeIterator(), a fresh iterator, held
+        nodes[call].a = nodes[n].a
+        gen_iter_each(n, depth, iy, iterator_next(iy), call)
+        return
+    }
     let f = iterator_next(y)
     if f >= 0 {                                        // an iterator (#320)
-        gen_iter_each(n, depth, y, f)
+        gen_iter_each(n, depth, y, f, nodes[n].a)
         return
     }
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)

@@ -6720,3 +6720,15 @@ walked afresh each time. A value with both `makeIterator` and `next` is
 a Sequence, as in Swift's `for`. Details are provisional P333.
 
 There are 984 tests, and all pass with clang and with gcc 15.
+
+### 367. kc's Sequences
+
+> teach kc Sequence and makeIterator as #322
+
+**Claude** taught kc a `for` over a Sequence, as kelvinc writes it: the
+call `s.makeIterator()`, a fresh iterator held for the loop, so the
+Sequence stays as it was, with kelvinc's errors in its words. A
+Sequence's `map` and the rest wait for kc's anonymous functions.
+Details are provisional P334.
+
+There are 984 tests, and all pass with clang and with gcc 15.
