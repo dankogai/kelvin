@@ -888,6 +888,8 @@ static Expr *iterator_array(Expr *it, Decl *next, Token *at);
 static Decl *sequence_maker(Type *t);
 static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at);
 static Expr *parse_lazy_op(Expr *base, Token *name, const char *member);
+static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member);
+static Expr *parse_lazy_fn(Expr *x, Token *name, const char *member, Type *elem, const char *me);
 static void reject_lazy_text(Expr *x, const char *who);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
@@ -1945,6 +1947,15 @@ static Expr *parse_postfix_steps(Expr *e) {
                 x->op = "iter_next";
                 x->type = iter_builtin_next(value_type(e))->ret;
                 e = x;
+                continue;
+            }
+            if (!call && !strcmp(member, "lazy") && is_iter(value_type(e))) { /* it.lazy.map(f) of an Iterator (#327) */
+                if (!is_p(peek(), ".") || (strcmp(peek2()->text, "map") && strcmp(peek2()->text, "filter")))
+                    error_at(name->pos, "'.lazy' makes '.map' or '.filter' after it lazy: write 'it.lazy.map { ... }' "
+                                        "or 'it.lazy.filter { ... }'");
+                advance();
+                Token *op = advance();
+                e = parse_iter_lazy(e, op, op->text);
                 continue;
             }
             Decl *lazy_rec = NULL;
@@ -10870,32 +10881,15 @@ static Decl *lazy_function(Decl *r, const char *name, Type *ret, Pos pos) {
     return d;
 }
 
-/* s.lazy.map(f), s.lazy.filter(f) (#323), Swift's: a lazy Sequence, a
-   struct kelvinc makes that holds base, the Sequence, a copy of it where
-   it is a place that owns; its makeIterator gives an iterator whose next
-   calls the base's next, and f, only when it is asked, so nothing is
-   gathered, and an endless Sequence may be walked in part. A lazy
-   Sequence's own map and filter are lazy too; the name read is member */
-static Expr *parse_lazy_op(Expr *base, Token *name, const char *member) {
+/* the function of .lazy.map or .lazy.filter (#323, #327), of each value
+   of type elem, as an Array's map or filter parses one; x the call, for
+   its messages */
+static Expr *parse_lazy_fn(Expr *x, Token *name, const char *member, Type *elem, const char *me) {
     bool is_map = !strcmp(member, "map");
-    const char *me = strfmt("'.lazy.%s'", member);
-    Type *bt = unqualified(value_type(base));
-    Decl *mk = sequence_maker(bt);
-    sequence_iterator(base, mk, name->pos); /* its makeIterator, checked */
-    Type *itt = unqualified(mk->ret);
-    Decl *nx = iterator_next(itt);
-    if (!nx->var_method || nx->params.len || !nx->ret || !is_optional_type(nx->ret))
-        error_at(name->pos, "%s walks an iterator by its next(), a var method that takes nothing and gives each value, "
-                            "then none: write 'var %s.next():T?'",
-                 me, nx->recv_name);
-    Type *elem = iterator_elem(nx);
     bool call = is_p(peek(), "(") && !line_ends_expression();
     if (!call && !(is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))
         error_at(peek()->pos, "%s takes a function of a value: write '.lazy.%s(f)' or '.lazy.%s { ... }'", me, member,
                  member);
-    Expr *x = new_expr(E_METHOD, name->pos);
-    x->a = base;
-    x->text = (char *)member;
     Type *ctx = xcalloc(1, sizeof *ctx);
     ctx->kind = T_FUNC;
     ctx->pos = name->pos;
@@ -10937,6 +10931,33 @@ static Expr *parse_lazy_op(Expr *base, Token *name, const char *member) {
     if (!is_map && strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
         error_at(f->pos, "%s takes a function that says whether to keep a value, a bool, and this gives %s", me,
                  kelvin_type(ft->elem));
+    return f;
+}
+
+/* s.lazy.map(f), s.lazy.filter(f) (#323), Swift's: a lazy Sequence, a
+   struct kelvinc makes that holds base, the Sequence, a copy of it where
+   it is a place that owns; its makeIterator gives an iterator whose next
+   calls the base's next, and f, only when it is asked, so nothing is
+   gathered, and an endless Sequence may be walked in part. A lazy
+   Sequence's own map and filter are lazy too; the name read is member */
+static Expr *parse_lazy_op(Expr *base, Token *name, const char *member) {
+    bool is_map = !strcmp(member, "map");
+    const char *me = strfmt("'.lazy.%s'", member);
+    Type *bt = unqualified(value_type(base));
+    Decl *mk = sequence_maker(bt);
+    sequence_iterator(base, mk, name->pos); /* its makeIterator, checked */
+    Type *itt = unqualified(mk->ret);
+    Decl *nx = iterator_next(itt);
+    if (!nx->var_method || nx->params.len || !nx->ret || !is_optional_type(nx->ret))
+        error_at(name->pos, "%s walks an iterator by its next(), a var method that takes nothing and gives each value, "
+                            "then none: write 'var %s.next():T?'",
+                 me, nx->recv_name);
+    Type *elem = iterator_elem(nx);
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->a = base;
+    x->text = (char *)member;
+    Expr *f = parse_lazy_fn(x, name, member, elem, me);
+    Type *ft = value_type(f);
     int n = ++lazy_serial;
     Decl *seq = lazy_record(strfmt("_kv_lazy%d", n), "base", bt, name->pos);
     Decl *walk = lazy_record(strfmt("_kv_lazy%d_it", n), "it", itt, name->pos);
@@ -10952,6 +10973,40 @@ static Expr *parse_lazy_op(Expr *base, Token *name, const char *member) {
     x->op = is_owner(bt) && owner_place(base) ? "lazy_make_copy" : "lazy_make";
     x->type = base_type(strfmt("struct %s", seq->name), name->pos);
     x->from = bt;
+    return x;
+}
+
+/* it.lazy.map(f), it.lazy.filter(f) of an Iterator<T> (#327): an
+   Iterator<U> whose state is it, moved in, and whose next asks it for each
+   value and calls f only as it is asked, kelvinc's adapter _kv_iterN;
+   one-shot, a plain Iterator, whose own map and filter are eager, so a
+   chain writes .lazy again */
+static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member) {
+    bool is_map = !strcmp(member, "map");
+    const char *me = strfmt("'.lazy.%s'", member);
+    Type *bt = unqualified(value_type(base));
+    Type *elem = bt->elem;
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->a = base;
+    x->text = (char *)member;
+    Expr *f = parse_lazy_fn(x, name, member, elem, me);
+    Type *ft = value_type(f);
+    Type *u = is_map ? unqualified(ft->elem) : elem;
+    move_argument(base, bt, "'.lazy'"); /* the Iterator moves in (O5) */
+    Decl *ad = new_decl(D_FN, name->pos, "static");
+    ad->name = strfmt("_kv_iter%d", ++iter_serial);
+    ad->ret = optional_type(name, u);
+    ad->iter_fn = f;
+    ad->iter_state = bt;
+    ad->lazy_op = member;
+    ad->lazy_next = iter_builtin_next(bt);
+    ad->lazy_lent = lends_param(f, 0);
+    ad->body = new_stmt(S_BLOCK, name->pos);
+    list_push(&anon_fns, ad);
+    x->op = "iter_make";
+    x->target = ad;
+    x->from = bt;
+    x->type = iter_type(name->pos, u);
     return x;
 }
 

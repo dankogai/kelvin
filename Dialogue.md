@@ -6793,3 +6793,16 @@ way, CI's ASan found #325 leaking an owned state assigned anew, which a
 commit of its own fixed. Details are provisional P338.
 
 There are 998 tests, and all pass with clang and with gcc 15.
+
+### 372. An Iterator's lazy map and filter
+
+> give Iterator lazy map and filter as #327
+
+**Claude** gave `Iterator<T>` `it.lazy.map(f)` and `it.lazy.filter(f)`:
+an `Iterator<U>` whose state is `it`, moved in, calling `f` only as each
+value is asked for. Its type is written, so a function returns a lazy
+chain, even of an Iterator that never ends; being a plain Iterator, its
+own `map` and `filter` are eager, so a chain writes `.lazy` again.
+Details are provisional P339.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

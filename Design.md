@@ -358,6 +358,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 324 | kc reads anonymous functions, `{ $0 * 2 }` and `{ (n:int64):int64 in ... }`, as the function of `.lazy.map` and `.lazy.filter`, and those of a Sequence, as kelvinc's #323, with kelvinc's errors in its words | — | kc's `span6.lazy.map({ $0 * $0 }).filter(is_odd)` | 2026-10-24 |
 | 325 | `Iterator<T>`, Swift's `sequence(state:next:)`: `Iterator(state) { ... }` and `Iterator(state, f)` make an iterator of a state on the heap and a function of it that gives each value, a `T?`, then `none`; `$0` is the state itself; `T` is the first `return v`'s, or written; an owner, walked by `for`, `next()`, `map` and the rest | — | `fibs():Iterator<int64>` | 2026-10-24 |
 | 326 | kc reads `Iterator<T>`, as kelvinc's #325: `Iterator(state) { ... }`, `Iterator(state, f)` and `Iterator<T>(...)`, `$0` the state itself, `T` the first `return v`'s; `for`, `next()`, return and passing; kelvinc's errors in its words | — | kc's `fib_upto(50)` | 2026-10-24 |
+| 327 | An Iterator's lazy `map` and `filter`: `it.lazy.map(f)` and `it.lazy.filter(f)` give an `Iterator<U>` whose state is `it`, moved in, whose next asks it for each value and calls `f` only as it is asked; a plain Iterator, whose own map and filter are eager, so a chain writes `.lazy` again | — | `naturals().lazy.filter({ ... }).lazy.map({ ... })` | 2026-10-24 |
 
 Notes:
 
@@ -919,6 +920,28 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (327) Agreed details: "give Iterator lazy map and filter as #327".
+  - parse_iter_lazy: `.lazy` of an Iterator<T>, before `.map` or
+    `.filter`, parses f as a lazy Sequence's does (parse_lazy_fn, split
+    from parse_lazy_op), and makes an Iterator<U> of the same C as
+    `Iterator(state) { ... }` (iter_make): its state the base Iterator,
+    moved in (O5), so the base holds nothing after.
+  - Its adapter, `_kv_iterN` with lazy_op, writes next as kelvinc's
+    lazy_body does (#323): kv_iter_next of the base, then f's value
+    (map) or the value f keeps (filter), up to none; a value that owns
+    is lent to an anonymous f, a copy given to a named one, and freed
+    unless filter keeps it; drop is kv_iter_free of the base.
+  - The result is a plain Iterator<U>: its type is written, so a
+    function returns a lazy chain, even of an Iterator that never ends,
+    and its own map, filter, reduce and flatMap are eager; a chain
+    writes `.lazy` again. A lazy Sequence's stay lazy, its type being
+    one kelvinc makes.
+  - `.lazy` alone or before another method, and using the base after,
+    are errors.
+  - tests/run/iterator_lazy.k, iterator_lazy_strings.k;
+    tests/error/iterator_lazy_alone.k, iterator_lazy_moved.k.
+  - kc reads none of it yet.
 
 - (326) Agreed details: "teach kc Iterator<T> as #326".
   - parse.k: Y_ITER, `Iterator<T>` as a type; N_ITER, `Iterator(...)`,
@@ -3947,6 +3970,7 @@ says "as agreed".
 | P336 | Details of #324 | selfhost/lex.k: $N; selfhost/parse.k: N_ANON, anon_ahead, parse_anon; selfhost/gen.k: anon_function, lazy_of, gen_lazy_make, put_lazy_heads, put_lazy_bodies; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P337 | Details of #325 | runtime/iter.k; modules/kelvin_prelude.h; src/lexer.c: Iterator; src/kelvin.h: Var.ref, Decl's iter fields; src/parser.c: iter_type, parse_iterator, the $0 by reference, iter_infer, iter_builtin_next, it.next(); src/codegen.c: the adapters, iter_make, iter_next, the ref parameter; editors/vscode grammar; documents/iterators.md, ownership.md, properties.md, README.md, versusC.md; tests | kc reads no Iterator<T> |
 | P338 | Details of #326 | selfhost/lex.k: a { inside parentheses keeps its lines; selfhost/parse.k: Y_ITER, N_ITER, parse_iterator, a { ... } list's newlines; selfhost/gen.k: iter_of, iter_function, first_return, gen_iter_make, put_iter_adapters, the ref parameter, $N as _kv_argN; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
+| P339 | Details of #327 | src/parser.c: parse_lazy_fn, parse_iter_lazy, the .lazy of an Iterator; src/codegen.c: the lazy adapter; documents/iterators.md; tests | kc reads no Iterator's .lazy |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

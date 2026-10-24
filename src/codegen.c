@@ -3632,6 +3632,50 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
+        if (d->iter_fn && d->lazy_op) { /* it.lazy.map(f), .filter(f) of an Iterator (#327) */
+            if (!d->body) {
+                line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);
+                line("static void %s_drop(void *_kv_s);", d->name);
+                break;
+            }
+            Type *in = d->lazy_next->ret, *elem = NULL;
+            int some = optional_some(in, &elem);
+            const char *copy = owner_copy(elem), *efree = owner_free(elem);
+            const char *arg = d->lazy_lent || !copy ? "_kv_o.u.some" : strfmt("%s(&_kv_o.u.some)", copy);
+            const char *out = strfmt("*(%s *)_kv_out", decl(d->ret, ""));
+            line("static void %s_next(void *_kv_s, void *_kv_out)", d->name);
+            line("{");
+            line("    for (;;) {");
+            line("        %s;", decl(in, "_kv_o"));
+            line("        kv_iter_next((kv_iter *)_kv_s, &_kv_o);");
+            line("        if (_kv_o.tag != %d) {", some);
+            line("            %s = %s();", out, optional_case(d->ret, "none"));
+            line("            return;");
+            line("        }");
+            if (!strcmp(d->lazy_op, "map")) {
+                Type *u = NULL;
+                optional_some(d->ret, &u);
+                line("        %s = %s(%s);", decl(u, "_kv_v"), expr(d->iter_fn), arg);
+                if (efree)
+                    line("        %s(&_kv_o.u.some);", efree);
+                line("        %s = %s(_kv_v);", out, optional_case(d->ret, "some"));
+                line("        return;");
+            } else {
+                line("        if (%s(%s)) {", expr(d->iter_fn), arg);
+                line("            %s = _kv_o;", out);
+                line("            return;");
+                line("        }");
+                if (efree)
+                    line("        %s(&_kv_o.u.some);", efree);
+            }
+            line("    }");
+            line("}");
+            line("static void %s_drop(void *_kv_s)", d->name);
+            line("{");
+            line("    kv_iter_free((kv_iter *)_kv_s);");
+            line("}");
+            break;
+        }
         if (d->iter_fn) { /* an Iterator's adapters (#325): next writes the T? of the state, drop frees it */
             const char *free = owner_free(d->iter_state);
             if (!d->body) {

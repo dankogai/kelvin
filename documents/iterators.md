@@ -8,7 +8,7 @@ value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
 `Sequence` does. `for x in s` walks either, and `map`, `filter`,
 `reduce` and `flatMap` take either as they take an Array (#319);
 `s.lazy.map` and `s.lazy.filter` call their function only as each value
-is asked for (#323).
+is asked for (#323), and so do an Iterator's (#327).
 
 **Where it lives:** the core. `Iterator<T>` is kv_iter, runtime/iter.k's, in `libkelvin`, linked without an import. An iterator of the program's own is a struct or a union with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
@@ -92,8 +92,9 @@ let main():int32 {
   it`, `map`, `filter`, `reduce` and `flatMap`, as the next sections
   have them.
   - A let is an error: walking changes it.
-  - It has no `.lazy`, which is a Sequence's, walked afresh, and no
-    text: `print` of one is an error.
+  - `it.lazy.map(f)` and `it.lazy.filter(f)` make another Iterator,
+    lazily (#327): see [Lazy](#lazy-slazymap-and-slazyfilter).
+  - It has no text: `print` of one is an error.
 
 ## An iterator of the program's: `var T.next():E?`
 
@@ -301,10 +302,48 @@ let main():int32 {
 - **The base** is held in the lazy Sequence: a copy of a place that
   owns, as `w.lazy.map { ... }` of a let `w` holding a String; one an
   expression gives moves in; it is freed with the lazy Sequence.
-- **An iterator** has no `.lazy`: an error says to give its type a
-  `let makeIterator()`, since a lazy Sequence is walked afresh.
+- **An iterator of the program's** has no `.lazy`: an error says to give
+  its type a `let makeIterator()`, since a lazy Sequence is walked
+  afresh.
 - In a `for` header, the function goes in parentheses,
   `.lazy.map({ ... })`, since a `{` there starts the body.
+
+### An Iterator's: `it.lazy.map` and `it.lazy.filter`
+
+```swift
+let naturals():Iterator<int64> {
+    return Iterator(0) {
+        $0 += 1
+        return $0                             // never none: it never ends
+    }
+}
+let evens_squared():Iterator<int64> {
+    return naturals().lazy.filter({ $0 % 2 == 0 }).lazy.map({ $0 * $0 })
+}
+
+let main():int32 {
+    for x in evens_squared() {                // 4,16,36,64,100,
+        if x > 100 { break }
+        print(x, ",")
+    }
+    println()
+    return 0
+}
+```
+
+- **`it.lazy.map(f)` and `it.lazy.filter(f)`** (#327) of an
+  `Iterator<T>` give an `Iterator<U>`: its state is `it`, moved in, and
+  its `next` asks `it` for each value and calls `f` only as it is asked.
+  - `it` holds nothing after, as a move leaves it; using it is an error.
+  - Its type is written, `Iterator<U>`, so a function returns a lazy
+    chain, as `evens_squared` does, of an Iterator that never ends.
+- **It is a plain Iterator**, walked once: its own `map`, `filter`,
+  `reduce` and `flatMap` are eager, as any Iterator's, so a lazy chain
+  writes `.lazy` again, `it.lazy.filter({ ... }).lazy.map({ ... })`.
+  - A lazy Sequence's map and filter stay lazy instead, its type being
+    one kelvinc makes; an Iterator's is the one `Iterator<U>`.
+- **The values** are as a lazy Sequence's: lent to an anonymous `f`, a
+  copy given to a named one, and freed unless `filter` keeps them.
 
 ## Not yet
 
@@ -315,6 +354,7 @@ let main():int32 {
   `.lazy.map` and `.lazy.filter` (#324) and `Iterator<T>` (#326), and the
   eager `map`, `filter`, `reduce` and `flatMap` wait, where kc's
   anonymous functions do not go yet.
+- **kc's `it.lazy.map` and `it.lazy.filter`** of an Iterator (#327).
 
 ## What each takes and gives
 
@@ -330,6 +370,8 @@ for x in it { ... }                    // x: E, each value, up to none; it chang
 for x in s { ... }                     // x: E, of s.makeIterator(); s stays
 s.lazy.map(f:(E):U)                    // a lazy Sequence of U: f runs as each is asked for
 s.lazy.filter(f:(E):bool)              // a lazy Sequence of the E f keeps
+it.lazy.map(f:(T):U): Iterator<U>      // it moves in; f runs as each is asked for
+it.lazy.filter(f:(T):bool): Iterator<T>
 it.map(f:(E):U): Array<U>
 it.filter(f:(E):bool): Array<E>
 it.reduce(init:A, f:(A, E):A): A
@@ -343,6 +385,7 @@ it.flatMap(f:(E):Array<U>): Array<U>
 | `Iterator<T>` | `Iterator(state) { ... }`, `Iterator(state, f)` | an iterator of the state and the function, which gives each value, then `none` (#325) |
 | | `.next()` on a var | the next value as `some`, then `none` (#325) |
 | | `for x in it`, `.map`, `.filter`, `.reduce`, `.flatMap` | as any iterator's (#325) |
+| | `.lazy.map(f)`, `.lazy.filter(f)` | an `Iterator<U>` of it, moved in, `f` called as each is asked for (#327) |
 | an iterator, `var T.next():E?` | `.next()` on a var | the next value as `some`, then `none`; it changes the iterator (#318) |
 | | `for x in it` | each value, up to `none`; a var goes on where `break` left it (#318) |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each value (#319) |
