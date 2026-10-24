@@ -6818,3 +6818,16 @@ in its words; a function trailing a method call's parentheses is now its
 last argument. Details are provisional P340.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 374. kc's eager map, filter, reduce and flatMap
+
+> teach kc eager map, filter, reduce and flatMap as #329
+
+**Claude** asked which receivers, and the user chose Arrays and
+iterators. kc now reads `map`, `filter`, `reduce` and `flatMap` of an
+Array, an iterator, a Sequence and an `Iterator<T>` as kelvinc writes
+them, gathering an iterator's values into an Array first, its anonymous
+functions taking `$0` and `$1`, with kelvinc's errors in its words.
+Dictionaries' and Sets' wait. Details are provisional P341.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

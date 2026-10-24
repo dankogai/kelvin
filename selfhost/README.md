@@ -246,6 +246,18 @@ kc reads what it is written in, and little more.
     copy, print and a function of another shape are kelvinc's errors.
   - A `{` inside parentheses keeps its lines, so a function written
     there, `Iterator(10, { (s:int64):int64? in ... })`, reads as one.
+- **Eager map, filter, reduce and flatMap** (#329), as kelvinc's #182,
+  #184 and #308: of an Array, a place or one an expression gives, held
+  and freed; of an iterator, a Sequence or an `Iterator<T>`, whose
+  values kc gathers into an Array first, as kelvinc does (#319).
+  - The function is one of the program's, or one kc makes of `{ ... }`,
+    `$0` and `$1` typed by where it goes: reduce's takes the value so
+    far, then an element.
+  - An element that owns is given to it as a copy, which it owns;
+    reduce's value so far moves in and out; flatMap's Arrays are joined.
+  - A function of another shape, a filter that gives no bool, and a
+    flatMap whose function gives no Array are kelvinc's errors.
+  - Dictionaries' and Sets' wait for a later number.
 - **An Iterator's lazy map and filter** (#328), as kelvinc's #327:
   `it.lazy.map(f)` and `it.lazy.filter(f)` of an `Iterator<T>` give an
   `Iterator<U>` of it, moved in, whose adapter `_kv_iterN_next` asks it

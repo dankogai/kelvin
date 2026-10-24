@@ -350,11 +350,9 @@ let main():int32 {
 - **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
   methods and `for x in it` (#320), and these wait for its anonymous
   functions ([selfhost/README.md](../selfhost/README.md)).
-- **kc's eager methods**: kc walks a Sequence in `for` (#322), reads
-  `.lazy.map` and `.lazy.filter` (#324) and `Iterator<T>` (#326), and the
-  eager `map`, `filter`, `reduce` and `flatMap` wait, where kc's
-  anonymous functions do not go yet.
-- kc reads an Iterator's `it.lazy.map` and `it.lazy.filter` (#328).
+- **Nothing of kc's**: kc reads Sequences (#322), `.lazy.map` and
+  `.lazy.filter` (#324, #328), `Iterator<T>` (#326), and the eager `map`,
+  `filter`, `reduce` and `flatMap` (#329).
 
 ## What each takes and gives
 

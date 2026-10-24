@@ -482,5 +482,8 @@ let main(argc:int32, argv:[cstr]):int32 {
         squares_seen += ","
     }
     println(squares_seen)
+    let digits_list:$[int64] = $[3, 1, 4, 1, 5]           // eager map, filter, reduce and flatMap (#329)
+    println(digits_list.map { $0 * 10 }, " ", digits_list.filter(is_odd), " ", digits_list.reduce(0) { $0 + $1 }, " ", digits_list.flatMap { $[$0, $0] })
+    println(span6.map { $0 + 1 }, " ", fib_upto(30).filter({ $0 > 2 }).map({ $0 * $0 }), " ", count_from(4).reduce(0) { $0 + $1 })
     return 0
 }

@@ -360,6 +360,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 326 | kc reads `Iterator<T>`, as kelvinc's #325: `Iterator(state) { ... }`, `Iterator(state, f)` and `Iterator<T>(...)`, `$0` the state itself, `T` the first `return v`'s; `for`, `next()`, return and passing; kelvinc's errors in its words | — | kc's `fib_upto(50)` | 2026-10-24 |
 | 327 | An Iterator's lazy `map` and `filter`: `it.lazy.map(f)` and `it.lazy.filter(f)` give an `Iterator<U>` whose state is `it`, moved in, whose next asks it for each value and calls `f` only as it is asked; a plain Iterator, whose own map and filter are eager, so a chain writes `.lazy` again | — | `naturals().lazy.filter({ ... }).lazy.map({ ... })` | 2026-10-24 |
 | 328 | kc reads an Iterator's `it.lazy.map(f)` and `it.lazy.filter(f)`, as kelvinc's #327, with kelvinc's errors in its words; a function trailing a method call's parentheses is its last argument | — | kc's `fib_upto(100).lazy.filter(is_odd).lazy.map({ $0 * $0 })` | 2026-10-24 |
+| 329 | kc reads eager `map`, `filter`, `reduce` and `flatMap` of an Array, an iterator, a Sequence and an `Iterator<T>`, as kelvinc's #182, #184, #308 and #319, its anonymous functions taking `$0` and `$1` there; kelvinc's errors in its words | — | kc's `digits_list.reduce(0) { $0 + $1 }` | 2026-10-24 |
 
 Notes:
 
@@ -921,6 +922,29 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (329) Agreed details: "teach kc eager map, filter, reduce and flatMap
+  as #329", the user choosing Arrays and iterators, Dictionaries and
+  Sets later.
+  - gen.k: anon_function_of makes a function of `{ ... }` of several
+    parameters, `$0`, `$1` typed by where it goes, its result asked or
+    its one expression's; anon_function, of one, stays.
+  - eager_of makes, the first time `xs.map(f)` and the rest is typed,
+    the record of its function, checked as kelvinc checks it: of an
+    Array, or of what walked_elem says walks, an iterator, a Sequence or
+    an Iterator<T>; a method of its own wins, and a lazy Sequence's map
+    and filter stay lazy (#324).
+  - gen_eager writes kelvinc's loop: an Array place by its address, one
+    an expression gives held in `_kv_mt` and freed; gen_gathered walks
+    an iterator, a Sequence's fresh one, or an Iterator<T> into an Array
+    first. An element that owns is given to f as a copy, which f owns;
+    filter keeps a copy; reduce's value so far moves in and out;
+    flatMap's Arrays are joined, their buffers freed.
+  - Walking an iterator place changes it, so a let is kelvinc's error;
+    a Sequence's walk is of a fresh iterator.
+  - parse.k: a function trails `.flatMap` as it trails `.map`.
+  - kc's build of a probe prints what kelvinc's does, the fixpoint
+    holds, and selfhost/sample.k has each kind.
 
 - (328) Agreed details: "teach kc Iterator lazy map and filter as #328".
   - gen.k: lazy_fn_of, split from lazy_of, checks the function of a
@@ -3990,6 +4014,7 @@ says "as agreed".
 | P338 | Details of #326 | selfhost/lex.k: a { inside parentheses keeps its lines; selfhost/parse.k: Y_ITER, N_ITER, parse_iterator, a { ... } list's newlines; selfhost/gen.k: iter_of, iter_function, first_return, gen_iter_make, put_iter_adapters, the ref parameter, $N as _kv_argN; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P339 | Details of #327 | src/parser.c: parse_lazy_fn, parse_iter_lazy, the .lazy of an Iterator; src/codegen.c: the lazy adapter; documents/iterators.md; tests | kc reads no Iterator's .lazy |
 | P340 | Details of #328 | selfhost/gen.k: lazy_fn_of, iter_lazy_of, gen_iter_value, the lazy adapter, lazy_field_type; selfhost/parse.k: a trailing function after a method call; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
+| P341 | Details of #329 | selfhost/gen.k: anon_function_of, walked_elem, eager_of, gen_gathered, gen_eager; selfhost/parse.k: a trailing function after .flatMap; selfhost/sample.k; selfhost/README.md; documents/iterators.md | Dictionaries' and Sets' later |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

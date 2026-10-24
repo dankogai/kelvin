@@ -441,6 +441,9 @@ let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
 let iter_lazy_of(n:int64):int64
 let iter_lazy_type_of(n:int64):int64
+let eager_of(n:int64):int64    // prototypes: eager map and the rest (#329)
+let eager_type_of(n:int64):int64
+let gen_eager(n:int64)
 let gen_iter_value(i:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
@@ -696,6 +699,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_METHOD && iter_lazy_of(n) >= 0 { return iter_lazy_type_of(n) }   // it.lazy.map(f) of an Iterator (#328)
     if k == N_METHOD && lazy_of(n) >= 0 { return lazy_type_of(n) }   // s.lazy.map(f), a lazy Sequence (#324)
+    if k == N_METHOD && eager_of(n) >= 0 { return eager_type_of(n) }   // xs.map(f) and the rest (#329)
     if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
         let ly:int64 = lazy_field_type(nodes[n].a)
         if types[ly].kind == Y_ITER {                   // as kelvinc's (#328)
@@ -1951,6 +1955,10 @@ let gen_method(n:int64) {
     }
     if lazy_of(n) >= 0 {                                // s.lazy.map(f), s.lazy.filter(f) (#324)
         gen_lazy_make(n)
+        return
+    }
+    if eager_of(n) >= 0 {                               // xs.map(f) and the rest (#329)
+        gen_eager(n)
         return
     }
     let ny:int64 = tok_is(nodes[n].t, "next") ? type_of(nodes[n].a) : 0 - 1
@@ -3677,26 +3685,37 @@ let lazy_method(recv:int64, name:cstr, y:int64, flag:int64):int64 {
     return d
 }
 
-// the function an anonymous function an, of a value of type ey, makes:
-// a function of the program kc writes after the others, its parameter
-// $0 of ey, or those written, its result written or its one expression's
-let anon_function(an:int64, ey:int64, me:const String^):int64 {
+// the function an anonymous function an makes, of values of the types
+// ps: a function of the program kc writes after the others, its
+// parameters $0, $1, ... of ps, or those written; its result written, ry
+// where one is asked (#329), or its one expression's
+let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):int64 {
     var name = $"_kv_"
     name += tok_text(nodes[current].t)
     name += "_fn"
     name += String(anon_fns.count as int64 + 1)
     let d:int64 = make_node(D_FN, made_token(&name))
     if nodes[an].flag == 1 {
-        var zero = $"$0"
-        let p:int64 = make_node(S_VAR, made_token(&zero))
-        nodes[p].ty = ey
-        nodes[p].flag = 1
-        nodes[d].a = p
+        var last:int64 = 0 - 1
+        for k in 0..<ps^.count as int64 {
+            var dollar = $"$"
+            dollar += String(k)
+            let p:int64 = make_node(S_VAR, made_token(&dollar))
+            nodes[p].ty = ps^[k]
+            nodes[p].flag = 1
+            if last < 0 {
+                nodes[d].a = p
+            } else {
+                nodes[last].next = p
+            }
+            last = p
+        }
     } else {
         nodes[d].a = nodes[an].a
     }
     nodes[d].b = nodes[an].b
     nodes[d].ty = nodes[an].ty
+    if nodes[d].ty < 0 && ry >= 0 { nodes[d].ty = ry }
     if nodes[d].ty < 0 {                               // the result its one expression gives
         let st:int64 = nodes[nodes[an].b].a
         if st < 0 || nodes[st].next >= 0 || nodes[st].kind != S_EXPR {
@@ -3717,6 +3736,13 @@ let anon_function(an:int64, ey:int64, me:const String^):int64 {
     decls += d
     anon_fns += d
     return d
+}
+
+// the function an anonymous function an, of a value of type ey, makes (#324)
+let anon_function(an:int64, ey:int64, me:const String^):int64 {
+    var ps:$[int64] = $[]
+    ps += ey
+    return anon_function_of(an, &ps, 0 - 1, me)
 }
 
 // the function of .lazy.map or .lazy.filter, n's, of each value of type
@@ -4230,6 +4256,320 @@ let put_iter_adapters(heads:bool) {
                 put(" *)_kv_s);\n}\n\n")
             }
         }
+    }
+}
+
+// ---------- eager map, filter, reduce, flatMap (#329) ----------
+
+// xs.map(f), .filter(f), .reduce(init, f), .flatMap(f) of an Array, as
+// kelvinc's #182, #184 and #308, or of an iterator, a Sequence or an
+// Iterator<T>, whose values kelvinc gathers into an Array first (#319,
+// #321, #325)
+struct eager_rec {
+    node: int64
+    kind: int64             // 1 map, 2 filter, 3 reduce, 4 flatMap
+    src: int64              // the receiver
+    src_y: int64            // its type
+    elem_y: int64           // what each element or value is
+    fn: int64               // the function, of the program or made of { ... }
+    out_y: int64            // what it gives
+}
+
+var eagers:$[eager_rec]
+var eager_at:Dictionary<int64, int64>
+
+// what each value of y gives where y walks: an Array's element, an
+// Iterator<T>'s T, an iterator's or a Sequence's next's some; -1 else
+let walked_elem(y:int64):int64 {
+    if y < 0 { return 0 - 1 }
+    if types[y].kind == Y_ARRAY || types[y].kind == Y_ITER { return types[y].elem }
+    let mk = sequence_maker(y)
+    if mk >= 0 {
+        let nx = iterator_next(nodes[mk].ty)
+        return nx >= 0 ? some_type(nodes[nx].ty) : 0 - 1
+    }
+    let nx = iterator_next(y)
+    return nx >= 0 ? some_type(nodes[nx].ty) : 0 - 1
+}
+
+// the eager method n calls, by its place in eagers; -1 where n is none
+let eager_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD { return 0 - 1 }
+    let t:int64 = nodes[n].t
+    var kind:int64 = 0
+    if tok_is(t, "map") { kind = 1 }
+    if tok_is(t, "filter") { kind = 2 }
+    if tok_is(t, "reduce") { kind = 3 }
+    if tok_is(t, "flatMap") { kind = 4 }
+    if kind == 0 { return 0 - 1 }
+    let seen = eager_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let a:int64 = nodes[n].a
+    if nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "lazy") { return 0 - 1 }
+    if names_type(a) || method_of(n) >= 0 { return 0 - 1 }      // a method of its own wins
+    let y:int64 = type_of(a)
+    if y < 0 || is_lazy_type(y) && kind <= 2 { return 0 - 1 }    // a lazy Sequence's map and filter are lazy (#324)
+    let ey:int64 = walked_elem(y)
+    if ey < 0 { return 0 - 1 }
+    var me = $"'."
+    me += tok_text(t)
+    me += "'"
+    var f:int64 = nodes[n].b
+    var init:int64 = 0 - 1
+    var acc:int64 = 0 - 1
+    if kind == 3 {
+        init = f
+        if init < 0 || nodes[init].next < 0 {
+            var m = me.copy()
+            m += " takes the value to start from, then a function: '.reduce(0) { $0 + $1 }'"
+            gen_error(n, m.cstr)
+            return 0 - 1
+        }
+        f = nodes[init].next
+        acc = type_of(init)
+        if acc < 0 { return 0 - 1 }
+    }
+    if f < 0 || nodes[f].next >= 0 {
+        var m = me.copy()
+        m += " takes one function"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    var ps:$[int64] = $[]
+    if kind == 3 { ps += acc }
+    ps += ey
+    var fn:int64 = 0 - 1
+    if nodes[f].kind == N_ANON {
+        fn = anon_function_of(f, &ps, kind == 3 ? acc : 0 - 1, &me)
+        if fn < 0 { return 0 - 1 }
+    } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+        fn = decl_named(nodes[f].t, D_FN)
+    }
+    var count:int64 = 0
+    var p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
+    while p >= 0 {
+        count += 1
+        p = nodes[p].next
+    }
+    if fn < 0 || count != ps.count as int64 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
+        var m = me.copy()
+        m += kind == 3 ? $" takes a function of two parameters, the value so far and an element, with a result" : $" takes a function of one parameter, an element, with a result"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let last_p:int64 = kind == 3 ? nodes[nodes[fn].a].next : nodes[fn].a
+    if nodes[last_p].ty != ey {
+        var m = me.copy()
+        m += " calls its function with each element, "
+        let ew:String = kelvin_type_text(ey)
+        m += &ew
+        m += ", and this takes "
+        let pw:String = kelvin_type_text(nodes[last_p].ty)
+        m += &pw
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let ry:int64 = nodes[fn].ty
+    if kind == 2 && types[ry].kind != Y_BOOL {
+        var m = me.copy()
+        if nodes[f].kind == N_ANON && nodes[f].flag == 1 {      // as kelvinc's (#239)
+            let e:int64 = nodes[nodes[nodes[f].b].a].a
+            m += " keeps what its function says true for, a bool, and this "
+            if nodes[e].kind == N_NUM {
+                m += "is a number: write 'true' or 'false'"
+            } else {
+                m += "gives "
+                if nodes[e].kind == N_BIN {
+                    m += "a number"
+                } else {
+                    let rw:String = kelvin_type_text(ry)
+                    m += &rw
+                }
+                m += ": compare it, as in 'x != 0'"
+            }
+        } else {
+            m += " takes a function that says whether to keep an element, a bool, and this gives "
+            let rw:String = kelvin_type_text(ry)
+            m += &rw
+        }
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if kind == 3 && (nodes[nodes[fn].a].ty != acc || ry != acc) {
+        var m = me.copy()
+        m += " calls its function with the value so far, "
+        let aw:String = kelvin_type_text(acc)
+        m += &aw
+        m += ", and keeps what it gives"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if kind == 4 && types[ry].kind != Y_ARRAY {
+        var m = me.copy()
+        m += " of an Array takes a function that gives an Array, and joins them into one; this gives "
+        let rw:String = kelvin_type_text(ry)
+        m += &rw
+        m += ", which '.map' takes"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    var out:int64 = ry
+    if kind == 1 { out = type_of_kind(Y_ARRAY, ry, -1) }
+    if kind == 2 { out = type_of_kind(Y_ARRAY, ey, -1) }
+    let r:eager_rec = {n, kind, a, y, ey, fn, out}
+    eagers += r
+    eager_at[n] = eagers.count as int64 - 1
+    return eagers.count as int64 - 1
+}
+
+let eager_type_of(n:int64):int64 {
+    return eagers[eager_of(n)].out_y
+}
+
+// the values of an iterator, a Sequence or an Iterator<T>, src of type y,
+// gathered into an Array of ey, walked to none, as kelvinc's (#319)
+let gen_gathered(src:int64, y:int64, ey:int64) {
+    let ay:int64 = type_of_kind(Y_ARRAY, ey, -1)
+    var iy:int64 = y
+    var walk:int64 = src
+    let mk = sequence_maker(y)
+    if mk >= 0 {                                         // a Sequence's fresh iterator, s.makeIterator()
+        iy = nodes[mk].ty
+        walk = make_node(N_METHOD, nodes[mk].t)
+        nodes[walk].a = src
+    }
+    let oy:int64 = types[iy].kind == Y_ITER ? optional_of(ey) : nodes[iterator_next(iy)].ty
+    put("({ ")
+    put_array_name(ay)
+    put(" _kv_ga = {0}; ")
+    if changeable_place(walk) {
+        put_ctype(iy)
+        put(" *_kv_gp = &(")
+        gen_expr(walk)
+        put("); ")
+    } else {
+        if is_owner(iy) {
+            put("__attribute__((cleanup(")
+            put_free(iy)
+            put("))) ")
+        }
+        put_ctype(iy)
+        put(" _kv_gv = ")
+        gen_expr(walk)
+        put("; ")
+        put_ctype(iy)
+        put(" *_kv_gp = &_kv_gv; ")
+    }
+    put("for (;;) { ")
+    put_ctype(oy)
+    if types[iy].kind == Y_ITER {
+        put(" _kv_go; kv_iter_next(_kv_gp, &_kv_go); ")
+    } else {
+        put(" _kv_go = ")
+        let nx = iterator_next(iy)
+        put_tok(nodes[nx].c)
+        put("__next(_kv_gp); ")
+    }
+    put("if (_kv_go.tag != ")
+    put_int(some_tag(oy))
+    put(") break; ")
+    put_array_name(ay)
+    put("_append(&_kv_ga, _kv_go.u.some); } _kv_ga; })")
+}
+
+// an element for the function: a copy of one that owns, which it owns (#329)
+let put_eager_arg(ey:int64) {
+    if is_owner(ey) {
+        put_owner_prefix(ey)
+        put("_copy(&_kv_ms->at[_kv_mi])")
+    } else {
+        put("_kv_ms->at[_kv_mi]")
+    }
+}
+
+// xs.map(f) and the rest (#329): a loop over the elements in a statement
+// expression, as kelvinc's; an Array an expression gives, or the values
+// of an iterator, held in _kv_mt and freed
+let gen_eager(n:int64) {
+    let r:eager_rec = eagers[eager_of(n)]
+    let ay:int64 = types[r.src_y].kind == Y_ARRAY ? r.src_y : type_of_kind(Y_ARRAY, r.elem_y, -1)
+    if types[r.src_y].kind != Y_ARRAY && sequence_maker(r.src_y) < 0 && changeable_place(r.src) {   // walking an iterator changes it; a Sequence's walk is a fresh one
+        let lead = $"walking an iterator changes it, as its var next() does, and this changes "
+        if !changes_var(r.src, &lead) { return }
+    }
+    put("({ ")
+    if types[r.src_y].kind == Y_ARRAY && is_place(r.src) {
+        put("__auto_type _kv_ms = &(")
+        gen_expr(r.src)
+        put("); ")
+    } else {
+        put("__attribute__((cleanup(")
+        put_free(ay)
+        put("))) ")
+        put_array_name(ay)
+        put(" _kv_mt = ")
+        if types[r.src_y].kind == Y_ARRAY {
+            gen_expr(r.src)
+        } else {
+            gen_gathered(r.src, r.src_y, r.elem_y)
+        }
+        put("; ")
+        put_array_name(ay)
+        put(" *_kv_ms = &_kv_mt; ")
+    }
+    if r.kind == 3 {
+        let init:int64 = nodes[n].b
+        put_ctype(r.out_y)
+        put(" _kv_acc = ")
+        if is_owner(r.out_y) && nodes[init].kind == N_ID && var_type(nodes[init].t) >= 0 {   // a var's moves in
+            put_owner_prefix(r.out_y)
+            put("_take(&")
+            put_tok(nodes[init].t)
+            put(")")
+        } else {
+            gen_expr(init)
+        }
+        put("; ")
+    } else {
+        put_array_name(r.kind == 4 ? r.out_y : r.out_y)
+        put(" _kv_mo = {0}; ")
+    }
+    put("for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++) ")
+    if r.kind == 1 {
+        put_array_name(r.out_y)
+        put("_append(&_kv_mo, ")
+        put_fn_name(r.fn)
+        put("(")
+        put_eager_arg(r.elem_y)
+        put(")); _kv_mo; })")
+    } else if r.kind == 2 {
+        put("if (")
+        put_fn_name(r.fn)
+        put("(")
+        put_eager_arg(r.elem_y)
+        put(")) ")
+        put_array_name(r.out_y)
+        put("_append(&_kv_mo, ")
+        put_eager_arg(r.elem_y)
+        put("); _kv_mo; })")
+    } else if r.kind == 3 {
+        put("_kv_acc = ")
+        put_fn_name(r.fn)
+        put("(_kv_acc, ")
+        put_eager_arg(r.elem_y)
+        put("); _kv_acc; })")
+    } else {
+        put("{ ")
+        put_array_name(r.out_y)
+        put(" _kv_mr = ")
+        put_fn_name(r.fn)
+        put("(")
+        put_eager_arg(r.elem_y)
+        put("); for (size_t _kv_mj = 0; _kv_mj < _kv_mr.count; _kv_mj++) ")
+        put_array_name(r.out_y)
+        put("_append(&_kv_mo, _kv_mr.at[_kv_mj]); _kv_mr.count = 0; ")
+        put_array_name(r.out_y)
+        put("_free(&_kv_mr); } _kv_mo; })")
     }
 }
 
