@@ -2559,13 +2559,67 @@ let gen_cond(n:int64) {
 // none and a T of a T? are what a variable of that type takes; a local
 // owner is copied, x.copy(), as kelvinc has it
 let gen_array(n:int64, given:int64)    // a prototype: Array<T>([a, b]) is $[a, b] of T (#350)
+let gen_dict(n:int64, given:int64)     // and Dictionary<K, V>({k: v}) ${k: v} of K and V (#351)
 
 // Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
 // #65: C's compound literal of its type. Without (), and with the
 // entries or a copy of a Dictionary, which kc does not make yet, an
 // error (#349). Of an Array (#350), as kelvinc's #57 and #58: [a, b] the
 // elements, as $[a, b] of T; &a a copy of another, by _copy; n, a count,
-// as many zero elements, by _zeros
+// as many zero elements, by _zeros. Of a Dictionary (#351), as kelvinc's
+// #65: {k: v} the entries, as ${k: v} of K and V; &d a copy of another
+// Dictionary<K, V>({k: v}) and Dictionary<K, V>(&d), as kelvinc's #65
+// (#351): the literal as ${...} of y, its errors as kelvinc says them;
+// a copy of the Dictionary &d lends, by _copy
+let gen_make_dict(n:int64, y:int64, w:const String^) {
+    let x:int64 = nodes[n].a
+    if nodes[n].flag == 0 {                              // Dictionary<K, V>(), an empty one (#349)
+        put("(")
+        put_ctype(y)
+        put("){0}")
+        return
+    }
+    if nodes[n].flag == 6 {
+        var m = $"expected ')', found '"
+        m += tok_text(nodes[n].c)
+        m += "'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if nodes[n].flag == 3 && nodes[x].kind == N_EMPTY {
+        if nodes[x].flag == 1 {
+            gen_error(x, "an empty Dictionary is written ${:}")
+            return
+        }
+        put("(")
+        put_ctype(y)
+        put("){0}")
+        return
+    }
+    if nodes[n].flag == 3 && nodes[x].kind == N_SET {
+        gen_error(x, "an entry of a Dictionary is written key: value")
+        return
+    }
+    if nodes[n].flag == 3 {
+        gen_dict(x, y)
+        return
+    }
+    let p:int64 = nodes[n].flag == 4 ? nodes[x].a : 0 - 1
+    if p < 0 || type_of(p) != y {
+        var m = w^.copy()
+        m += " takes nothing, the entries in {k: v, ...}, or a borrow of another, '&d'"
+        gen_error(x, m.cstr)
+        return
+    }
+    let h = needs_hold(p)                                // one an expression gives, held and freed after
+    if h { hold_open(p) }
+    put_dict_name(y)
+    put("_copy(")
+    gen_place(p)
+    put(")")
+    if h { hold_close(p) }
+}
+
 let gen_make(n:int64) {
     let y:int64 = nodes[n].ty
     let w:String = kelvin_type_text(y)
@@ -2580,8 +2634,12 @@ let gen_make(n:int64) {
     if nodes[n].flag == 2 {
         var m = $"kc makes an empty one alone, "
         m += &w
-        m += types[y].kind == Y_ARRAY ? "(); not yet of a fixed array" : "(); not yet of the entries or a copy"
+        m += "(); not yet of a fixed array"
         gen_error(n, m.cstr)
+        return
+    }
+    if types[y].kind == Y_DICT {                         // (#351)
+        gen_make_dict(n, y, &w)
         return
     }
     if nodes[n].flag == 6 {                              // as kelvinc says it (#350)
@@ -2845,6 +2903,60 @@ let one_entry_type(n:int64):bool {
     return true
 }
 
+// whether the entries of ${k: v} fit y, a Dictionary written: each key
+// text of a String key, else an integer, as kelvinc says it; each value
+// one of V, in kc's words, where kelvinc leaves it to C (#351)
+let dict_entries_fit(n:int64, y:int64):bool {
+    let key:int64 = types[y].name
+    let yw:String = kelvin_type_text(y)
+    var k = nodes[n].b
+    while k >= 0 {
+        let v:int64 = nodes[k].next
+        let kk:nkind = nodes[k].kind
+        let ky:int64 = kk == N_STR || kk == N_NUM ? 0 - 1 : type_of(k)
+        let kind:ykind = ky >= 0 ? types[ky].kind : Y_VOID
+        if types[key].kind == Y_STRING {
+            if kk != N_STR && kind != Y_STRING && kind != Y_CSTR {
+                var m = $"a key of "
+                m += &yw
+                m += " is text: a cstr, a template, or a String"
+                gen_error(k, m.cstr)
+                return false
+            }
+        } else {
+            let integer = (kk == N_NUM && !float_tok(nodes[k].t)) || kind == Y_I64 || kind == Y_I32 || kind == Y_U8 || kind == Y_U32
+            if !integer {
+                var m = $"a key of "
+                m += &yw
+                m += " is an integer"
+                if ky >= 0 {
+                    m += ", not "
+                    let kw:String = kelvin_type_text(ky)
+                    m += &kw
+                }
+                gen_error(k, m.cstr)
+                return false
+            }
+        }
+        let bad:String = value_mismatch_text(v, types[y].elem)
+        if bad.count > 0 {
+            var m = $"a value of "
+            m += &yw
+            m += " is "
+            let ew:String = kelvin_type_text(types[y].elem)
+            m += article_of(&ew)
+            m += " "
+            m += &ew
+            m += ", and this is "
+            m += &bad
+            gen_error(v, m.cstr)
+            return false
+        }
+        k = nodes[v].next
+    }
+    return true
+}
+
 // ${k: v} (#267): a new Dictionary, each entry set in order, a later key's
 // value winning, of y where one is written, else of the first entry's
 // types; a String key an expression gives is held while it is copied in,
@@ -2856,6 +2968,7 @@ let gen_dict(n:int64, given:int64) {
         y = type_of(n)
     }
     let elem:int64 = types[y].elem
+    if given >= 0 && !dict_entries_fit(n, y) { return }   // of the types written (#351)
     serial += 1
     let s = serial
     put("({ ")

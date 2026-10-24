@@ -382,6 +382,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 348 | kc takes an empty `$[]`, `${:}` or `${}` only where its type is written, as kelvinc does: a declaration's value, an element, a Dictionary's value, a struct's member, of the type's kind; elsewhere kelvinc's error in its words | — | kc's `doc.fields(${:})` refused | 2026-10-25 |
 | 349 | kc reads `Array<T>()` and `Dictionary<K, V>()`, as kelvinc's #57 and #65: an empty one of the type written, anywhere a value goes, inferred by `let`; without `()`, kelvinc's error; a count, the elements or a copy in them not yet kc's | `(T){0}` | kc's `var made = Array<String>()` | 2026-10-25 |
 | 350 | kc reads `Array<T>([a, b])`, `Array<T>(&a)` and `Array<T>(n)`, as kelvinc's #57 and #58: the elements, a copy of the Array lent, `n` zero elements; kelvinc's errors in its words, and an element of the wrong type in `$[...]` of a type written too | `_kv_array_T_copy(&a)`, `_kv_array_T_zeros(n)` | kc's `Array<int64>(&trio)` | 2026-10-25 |
+| 351 | kc reads `Dictionary<K, V>({k: v})` and `Dictionary<K, V>(&d)`, as kelvinc's #65: the entries, as `${k: v}` of K and V, and a copy of the Dictionary lent; kelvinc's errors in its words, and a key of the wrong kind in `${...}` of a type written too | `_kv_dict_K_V_copy(&d)` | kc's `Dictionary<String, int64>(&pantry)` | 2026-10-25 |
 
 Notes:
 
@@ -943,6 +944,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (351) Agreed details: "teach kc Dictionary<K, V>({...}) and
+  Dictionary<K, V>(&d) as #351".
+  - parse.k: what follows `${`, an empty Dictionary or Set, a Set, a
+    Dictionary's entries, is parse_brace_body now, so parse_make reads
+    `Dictionary<K, V>({k: v})` and `(${k: v})` alike, flag 3, a the
+    literal; `&d` flag 4, another flag 5; more, flag 6, c its token.
+  - gen.k, gen_make_dict, as kelvinc's #65:
+    - the entries by gen_dict of the type written; `${:}` and `{:}` an
+      empty one;
+    - `&d` a copy by `_kv_dict_K_V_copy`, of a Dictionary of K and V,
+      one an expression gives held and freed after.
+  - kelvinc's errors, in its words: `Dictionary<String, i64> takes
+    nothing, the entries in {k: v, ...}, or a borrow of another, '&d'`;
+    `an empty Dictionary is written ${:}`, of `{}`; `an entry of a
+    Dictionary is written key: value`; `expected ')', found ','`.
+  - Found on the way, and fixed: a key of the wrong kind in a
+    Dictionary of a type written, `${1: 2}` of String keys, reached C;
+    dict_entries_fit says kelvinc's `a key of Dictionary<String, i64> is
+    text: a cstr, a template, or a String`, and `is an integer, not
+    String`; a value of the wrong type is kc's `a value of
+    Dictionary<String, i64> is an i64, and this is text`, where kelvinc
+    leaves it to C.
+  - kc's build of a probe prints what kelvinc's does, with as many
+    allocations and no leak; selfhost/sample.k has them.
 
 - (350) Agreed details: "teach kc Array<T>(n), Array<T>([...]) and
   Array<T>(&a) as #350".
@@ -4476,6 +4502,7 @@ says "as agreed".
 | P360 | Details of #348 | selfhost/parse.k: `${}` flag 1; selfhost/gen.k: empty_fits, empty_error, gen_written (gen_var, a global, gen_init, gen_array, gen_dict), gen_expr's N_EMPTY and a side of a binary operator, gen_assign, inferred; selfhost/README.md | kc's `Dictionary<K, V>()` and `Array<T>()` |
 | P361 | Details of #349 | selfhost/parse.k: N_MAKE, parse_make; selfhost/gen.k: type_of's N_MAKE, gen_make; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(n)`, `Array<T>([...])`, `Array<T>(&a)`, `Dictionary<K, V>({...})`, `Array([...])`, `Set<T>()`; kc's let of an Array of another type |
 | P362 | Details of #350 | selfhost/parse.k: parse_make's elements, `&a` and `n` (flags 3 to 7); selfhost/gen.k: gen_make's forms, gen_array's element check; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(a)` of a fixed array, `Array([...])`, `Dictionary<K, V>({...})` and `(&d)` |
+| P363 | Details of #351 | selfhost/parse.k: parse_brace_body, out of `${`'s branch; parse_make's entries and `&d`; selfhost/gen.k: gen_make_dict, dict_entries_fit in gen_dict; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(a)` of a fixed array, `Array([...])` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -7101,3 +7101,17 @@ its own. Found on the way, and fixed: an element of the wrong type in
 Details are provisional P362.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 396. kc's Dictionary<K, V>({...}) and Dictionary<K, V>(&d)
+
+> teach kc Dictionary<K, V>({...}) and Dictionary<K, V>(&d) as #351
+
+**Claude** taught kc `Dictionary<K, V>({k: v})` and
+`Dictionary<K, V>(&d)`, as kelvinc's #65: the entries written, read as
+`${k: v}` of K and V, and a copy of the Dictionary lent. kelvinc's
+errors are in its words. Found on the way, and fixed: a key of the
+wrong kind in `${...}` of a type written reached C, and is kelvinc's
+error now; a value of the wrong type is kc's. Details are provisional
+P363.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

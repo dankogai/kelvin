@@ -565,5 +565,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     var quad = Array<int64>(&trio)
     quad += 8
     println(trio, " ", quad, " ", Array<String>(2), " ", Array<int64>(3))
+    let pantry = Dictionary<String, int64>({"fig": 2, "kiwi": 4})
+    var larder = Dictionary<String, int64>(&pantry)     // Dictionary<K, V>({...}) and Dictionary<K, V>(&d) (#351)
+    larder["fig"] = 9
+    println(pantry, " ", larder, " ", larder == pantry)
     return 0
 }

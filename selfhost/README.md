@@ -515,8 +515,18 @@ kc reads what it is written in, and little more.
       - kc's own where kelvinc leaves it to C: `Array<i64>(n) takes a
         count, and this is text`; `Array<String>(&a) copies an
         Array<String>, and this lends Array<i64>`.
+    - `Dictionary<K, V>({k: v})` and `Dictionary<K, V>(&d)` (#351), as
+      kelvinc's #65: the entries, read as `${k: v}` of K and V, `${...}`
+      or `{:}` too; a copy of the Dictionary that `&d` lends.
+      - kelvinc's errors, in its words: `a key of Dictionary<String,
+        i64> is text: a cstr, a template, or a String`, `is an integer,
+        not String`, of `${...}` of a type written too; `Dictionary<K,
+        V> takes nothing, the entries in {k: v, ...}, or a borrow of
+        another, '&d'`; `an empty Dictionary is written ${:}`.
+      - kc's own where kelvinc leaves it to C: `a value of
+        Dictionary<String, i64> is an i64, and this is text`.
     - Not yet: `Array<T>(a)` of a fixed array, `Array([1, 2])` with T
-      inferred, `Dictionary<K, V>({"a": 1})` and `(&d)`.
+      inferred.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

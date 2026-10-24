@@ -35,7 +35,8 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
     N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make;
-                // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one
+                // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one;
+                // of a Dictionary (#351), flag 3 of {k: v}, a the literal, 4 of &a, 5 of a, 6 of more, c the token
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -625,12 +626,77 @@ let parse_anon():int64 {
     return n
 }
 
+// what follows ${, or { where a Dictionary is written (#351), t the
+// opening: ${:}, an empty Dictionary (#211); ${}, an empty Set; ${a, b},
+// a Set (#274); ${k: v}, a Dictionary (#267)
+let parse_brace_body(t:int64):int64 {
+    skip_newlines()
+    if at_word(":") {
+        advance()
+        expect("}")
+        return make_node(N_EMPTY, t)
+    }
+    if at_word("}") {                           // ${}, an empty Set (#274)
+        advance()
+        let n:int64 = make_node(N_EMPTY, t)
+        nodes[n].flag = 1                       // a Set's, not ${:} (#348)
+        return n
+    }
+    if set_ahead() {                            // ${a, b}, a Set (#274)
+        let n:int64 = make_node(N_SET, t)
+        var last = -1
+        while !failed {
+            let e:int64 = parse_expr()
+            if last < 0 {
+                nodes[n].b = e
+            } else {
+                nodes[last].next = e
+            }
+            last = e
+            skip_newlines()
+            if !at_word(",") { break }
+            advance()
+            skip_newlines()
+            if at_word("}") { break }
+        }
+        expect("}")
+        return n
+    }
+    let n:int64 = make_node(N_DICT, t)          // ${k: v} (#267)
+    let saved = name_annotation
+    var last = -1
+    while !failed {
+        name_annotation = false                 // ${k: v}'s :, not k:T
+        let k:int64 = parse_expr()
+        name_annotation = saved
+        expect(":")
+        let v:int64 = parse_expr()
+        nodes[k].next = v
+        if last < 0 {
+            nodes[n].b = k
+        } else {
+            nodes[last].next = k
+        }
+        last = v
+        skip_newlines()
+        if !at_word(",") { break }
+        advance()
+        skip_newlines()
+        if at_word("}") { break }                 // a comma after the last
+    }
+    name_annotation = saved
+    expect("}")
+    return n
+}
+
 // Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
 // #65 (#349): ty the type; without (), flag 1, and with what else
 // kelvinc takes in them, flag 2, its tokens passed over, for gen's
 // errors. Of an Array, Array<T>([a, b]), Array<T>(&a) and Array<T>(n)
 // (#350): flags 3, 4 and 5, b the first element, or a the one given;
-// flag 6 of more after the elements, 7 of more than one
+// flag 6 of more after the elements, 7 of more than one. Of a
+// Dictionary, Dictionary<K, V>({k: v}) and (&d) (#351): flag 3, a the
+// literal, read as ${...}; 4 of &d, 5 of another; 6 of more, c its token
 let parse_make():int64 {
     let n:int64 = make_node(N_MAKE, advance())
     advance()                                    // <
@@ -670,12 +736,22 @@ let parse_make():int64 {
         if !at_word(")") {
             nodes[n].flag = 6
         }
+    } else if tok_is(nodes[n].t, "Dictionary") && (at_word("{") || at_word("${")) {   // the entries (#351)
+        nodes[n].a = parse_brace_body(advance())
+        nodes[n].flag = 3
+    } else if tok_is(nodes[n].t, "Dictionary") && !at_word(")") {   // &d, a copy (#351)
+        nodes[n].a = parse_expr()
+        nodes[n].flag = nodes[nodes[n].a].kind == N_ADDR ? 4 : 5
     } else if tok_is(nodes[n].t, "Array") && !at_word(")") {   // &a, a copy; n, a count (#350)
         nodes[n].a = parse_expr()
         nodes[n].flag = nodes[nodes[n].a].kind == N_ADDR ? 4 : 5
         if !at_word(")") {
             nodes[n].flag = 7
         }
+    }
+    if tok_is(nodes[n].t, "Dictionary") && nodes[n].flag >= 3 && !at_word(")") {
+        nodes[n].flag = 6                        // more, as kelvinc's: expected ')'
+        nodes[n].c = pos
     }
     var depth = 0
     while !failed && pos < toks.count as int64 && !(depth == 0 && at_word(")")) {
@@ -771,65 +847,9 @@ let parse_primary():int64 {
         expect("]")
         return n
     }
-    if at_word("${") {                          // ${:}, an empty Dictionary (#211)
+    if at_word("${") {                          // ${:}, ${}, ${a, b}, ${k: v} (#211, #267, #274)
         advance()
-        skip_newlines()
-        if at_word(":") {
-            advance()
-            expect("}")
-            return make_node(N_EMPTY, t)
-        }
-        if at_word("}") {                           // ${}, an empty Set (#274)
-            advance()
-            let n:int64 = make_node(N_EMPTY, t)
-            nodes[n].flag = 1                       // a Set's, not ${:} (#348)
-            return n
-        }
-        if set_ahead() {                            // ${a, b}, a Set (#274)
-            let n:int64 = make_node(N_SET, t)
-            var last = -1
-            while !failed {
-                let e:int64 = parse_expr()
-                if last < 0 {
-                    nodes[n].b = e
-                } else {
-                    nodes[last].next = e
-                }
-                last = e
-                skip_newlines()
-                if !at_word(",") { break }
-                advance()
-                skip_newlines()
-                if at_word("}") { break }
-            }
-            expect("}")
-            return n
-        }
-        let n:int64 = make_node(N_DICT, t)          // ${k: v} (#267)
-        let saved = name_annotation
-        var last = -1
-        while !failed {
-            name_annotation = false                 // ${k: v}'s :, not k:T
-            let k:int64 = parse_expr()
-            name_annotation = saved
-            expect(":")
-            let v:int64 = parse_expr()
-            nodes[k].next = v
-            if last < 0 {
-                nodes[n].b = k
-            } else {
-                nodes[last].next = k
-            }
-            last = v
-            skip_newlines()
-            if !at_word(",") { break }
-            advance()
-            skip_newlines()
-            if at_word("}") { break }                 // a comma after the last
-        }
-        name_annotation = saved
-        expect("}")
-        return n
+        return parse_brace_body(t)
     }
     if anon_ahead() { return parse_anon() }          // (#324)
     if at_word("{") {
