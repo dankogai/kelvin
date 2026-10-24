@@ -214,8 +214,8 @@ kc reads what it is written in, and little more.
     expression gives, `for x in count_from(3)`, is held.
   - A `next` of another shape, a let, or two loop variables are
     kelvinc's errors, in its words.
-  - `map`, `filter`, `reduce` and `flatMap` of #319 wait for kc's
-    anonymous functions, as an Array's do.
+  - `map`, `filter`, `reduce` and `flatMap` of #319 wait, as an Array's
+    do, where kc's anonymous functions do not go yet.
 - **Sequences** (#322), as kelvinc's #321: `for x in s` of a struct
   whose `let makeIterator():I` gives an iterator walks
   `s.makeIterator()`, a fresh one held for the loop, so `s` stays as it
@@ -224,6 +224,23 @@ kc reads what it is written in, and little more.
     wins, as kelvinc's.
   - A var `makeIterator`, one that takes something or gives no
     iterator, and two loop variables are kelvinc's errors, in its words.
+- **Anonymous functions** (#324), as kelvinc's: `{ $0 * 2 }`, its
+  parameter `$0` typed by where it goes, its result its one expression's,
+  and `{ (n:int64):int64 in ... }`, written; trailing, `s.lazy.map { ... }`,
+  or in parentheses.
+  - kc reads one as the function of `.lazy.map` and `.lazy.filter` alone:
+    elsewhere it is kc's error, as kc has no function values.
+  - kc writes each as a function of its own, `_kv_<fn>_fnN`, after the
+    others, enclosing nothing, as Kelvin's anonymous functions enclose
+    nothing.
+- **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
+  `s.lazy.filter(f)` of a Sequence, f a function of the program or an
+  anonymous one, give a lazy Sequence, whose structs and functions kc
+  makes as kelvinc does, `_kv_lazyN` and `_kv_lazyN_it`.
+  - Its own `map` and `filter` are lazy too, and chain.
+  - A value that owns is given to f as a copy, which f owns, and freed.
+  - `.lazy` alone or of an iterator, a filter that gives no `bool`, and
+    printing one are kelvinc's errors, in its words.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.

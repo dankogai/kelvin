@@ -355,6 +355,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 321 | Swift's `Sequence`: a value whose let `makeIterator()` gives a fresh iterator; `for x in s` and `map`, `filter`, `reduce` and `flatMap` walk that one, so `s` stays as it was and may be a let; where a value has both, `makeIterator` wins, as in Swift's `for` | — | `for x in s` twice gives 1,2,3,1,2,3, | 2026-10-24 |
 | 322 | kc reads Sequences, as kelvinc's #321: `for x in s` of a struct whose let `makeIterator()` gives an iterator walks a fresh one, held, so `s` stays as it was; `makeIterator` wins over `next`; kelvinc's errors in its words | — | kc's `for x in span3` twice | 2026-10-24 |
 | 323 | A Sequence's lazy `map` and `filter`, Swift's: `s.lazy.map(f)` and `s.lazy.filter(f)` give a lazy Sequence, a struct kelvinc makes that holds the base, whose iterator calls the base's `next` and `f` only as each value is asked for; its own `map` and `filter` are lazy, its `reduce` and `flatMap` eager; printing one is an error | — | `endless.lazy.filter({ $0 % 7 == 3 })` walked in part | 2026-10-24 |
+| 324 | kc reads anonymous functions, `{ $0 * 2 }` and `{ (n:int64):int64 in ... }`, as the function of `.lazy.map` and `.lazy.filter`, and those of a Sequence, as kelvinc's #323, with kelvinc's errors in its words | — | kc's `span6.lazy.map({ $0 * $0 }).filter(is_odd)` | 2026-10-24 |
 
 Notes:
 
@@ -916,6 +917,34 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (324) Agreed details: "teach kc lazy map and filter as #324", and,
+  asked how, as kc has no anonymous functions, the user chose both in
+  one number.
+  - lex.k: `$0`, `$1` are names.
+  - parse.k: N_ANON, an anonymous function, where `{` begins
+    `{ (x:T):R in ... }` or a body that names `$0` (anon_ahead), in
+    parentheses or trailing a `.map` or `.filter`.
+  - gen.k:
+    - anon_function makes a D_FN of one: `$0` of the value's type, or
+      the parameters written; its result written, or its one
+      expression's; written after the other functions, its prototype
+      before them, enclosing nothing.
+    - An anonymous function elsewhere is kc's error, kc having no
+      function values.
+    - lazy_of makes, the first time `s.lazy.map(f)` or a lazy
+      Sequence's map or filter is typed, the structs `_kv_lazyN { base }`
+      and `_kv_lazyN_it { it }`, and the D_FNs of their makeIterator and
+      next, found by name, as kelvinc's #323; put_lazy_heads and
+      put_lazy_bodies write their prototypes and bodies.
+    - The base is copied in from a place that owns, else moved in; a
+      value that owns is given to f as a copy, which f owns and frees,
+      and next frees its own, as kelvinc lends it to an anonymous f.
+    - `.lazy` alone or before another method, an iterator's `.lazy`, a
+      filter's function that gives no bool, and print of a lazy
+      Sequence are kelvinc's errors, in its words.
+  - kc's build of a probe prints what kelvinc's does, the fixpoint
+    holds, and selfhost/sample.k has a chain of each kind.
 
 - (323) Agreed details: "give Sequence lazy map and filter as #323".
   - Swift's spelling, `s.lazy.map(f)` and `s.lazy.filter(f)`, on a
@@ -3850,6 +3879,7 @@ says "as agreed".
 | P333 | Details of #321 | src/parser.c: sequence_maker, sequence_iterator, parse_for_each_held over parse_for_each_hold, the Sequence's methods; documents/iterators.md, flow-controls.md, structs.md, README.md, versusC.md; tests | kc reads no Sequence yet |
 | P334 | Details of #322 | selfhost/gen.k: sequence_maker, gen_each, gen_iter_each's src; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P335 | Details of #323 | src/kelvin.h: Decl's lazy fields; src/parser.c: lazy_record, lazy_function, parse_lazy_op, reject_lazy_text, lazy_records; src/codegen.c: lazy_body, lazy_make; documents/iterators.md; tests | kc reads no lazy Sequence |
+| P336 | Details of #324 | selfhost/lex.k: $N; selfhost/parse.k: N_ANON, anon_ahead, parse_anon; selfhost/gen.k: anon_function, lazy_of, gen_lazy_make, put_lazy_heads, put_lazy_bodies; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

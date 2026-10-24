@@ -32,6 +32,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_COND,     // a ? b : c (#232); t the ?
     N_ASYNC,    // async a, a call on a thread of its own (#313)
     N_AWAIT,    // await a, a Task's value (#313)
+    N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -513,6 +514,75 @@ let set_ahead():bool {
     return true
 }
 
+let parse_statement():int64    // prototypes: an anonymous function asks them (#324)
+let parse_typed(is_let:int64):int64
+
+// whether the { at the cursor begins an anonymous function (#324), as
+// kelvinc tells one: { (x:T):R in ... }, or a body that names $0
+let anon_ahead():bool {
+    if !at_word("{") { return false }
+    var i:int64 = pos + 1
+    while toks[i].kind == T_NL { i += 1 }
+    if tok_is(i, "(") && toks[i + 1].kind == T_ID && tok_is(i + 2, ":") { return true }
+    var depth:int64 = 0
+    while toks[i].kind != T_EOF {
+        if tok_is(i, "{") || tok_is(i, "${") { depth += 1 }
+        if tok_is(i, "}") {
+            if depth == 0 { return false }
+            depth -= 1
+        }
+        if toks[i].kind == T_ID && codes[toks[i].at] == '$' { return true }
+        i += 1
+    }
+    return false
+}
+
+// an anonymous function (#324): its parameters and result where written,
+// { (x:T):R in ... }, else $0, $1 as the context types them; its body the
+// statements to the }
+let parse_anon():int64 {
+    let n:int64 = make_node(N_ANON, advance())
+    skip_newlines()
+    if at_word("(") {
+        advance()
+        var last = -1
+        while !at_word(")") && !failed {
+            let p:int64 = parse_typed(1)
+            if last < 0 {
+                nodes[n].a = p
+            } else {
+                nodes[last].next = p
+            }
+            last = p
+            if at_word(",") { advance() }
+        }
+        expect(")")
+        if at_word(":") {
+            advance()
+            set_ty(n, parse_type())
+        }
+        expect("in")
+    } else {
+        nodes[n].flag = 1
+    }
+    let b:int64 = make_node(S_BLOCK, nodes[n].t)
+    var last = -1
+    skip_newlines()
+    while !at_word("}") && !failed {
+        let st:int64 = parse_statement()
+        if last < 0 {
+            nodes[b].a = st
+        } else {
+            nodes[last].next = st
+        }
+        last = st
+        skip_newlines()
+    }
+    expect("}")
+    nodes[n].b = b
+    return n
+}
+
 let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
@@ -622,6 +692,7 @@ let parse_primary():int64 {
         expect("}")
         return n
     }
+    if anon_ahead() { return parse_anon() }          // (#324)
     if at_word("{") {
         advance()
         let n:int64 = make_node(N_INIT, t)
@@ -719,6 +790,11 @@ let parse_steps(first:int64):int64 {
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
                 set_b(n, parse_args())
+                e = n
+            } else if (tok_is(t, "map") || tok_is(t, "filter")) && anon_ahead() {   // x.map { ... }, its function trailing (#324)
+                let n:int64 = make_node(N_METHOD, t)
+                nodes[n].a = e
+                set_b(n, parse_anon())
                 e = n
             } else {
                 let n:int64 = make_node(N_FIELD, t)

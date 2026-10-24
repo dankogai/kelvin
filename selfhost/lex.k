@@ -126,6 +126,11 @@ let lex_range(from:int64, to:int64, file:int64) {
                 i += 1
             }
             i += 2
+        } else if c == '$' && is_digit(code_at(i + 1)) {     // $0, an anonymous function's parameter (#324)
+            let s:int64 = i
+            i += 1
+            while i < to && is_digit(codes[i]) { i += 1 }
+            add_tok(T_ID, s, i - s, line, file)
         } else if is_alpha(c) {
             let s:int64 = i
             while i < to && (is_alpha(codes[i]) || is_digit(codes[i])) { i += 1 }

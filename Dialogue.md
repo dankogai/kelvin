@@ -6745,3 +6745,16 @@ walked in part. Its own `map` and `filter` stay lazy and chain; its
 text would not paste back. Details are provisional P335.
 
 There are 990 tests, and all pass with clang and with gcc 15.
+
+### 369. kc's lazy map and filter, and its anonymous functions
+
+> teach kc lazy map and filter as #324
+
+**Claude** asked how, as kc had no anonymous functions, and the user
+chose to teach kc both in one number. kc reads `{ $0 * 2 }` and
+`{ (n:int64):int64 in ... }` as the function of `.lazy.map` and
+`.lazy.filter`, writing each as a function of its own, and makes a lazy
+Sequence's structs and functions as kelvinc does, with kelvinc's errors
+in its words. Details are provisional P336.
+
+There are 990 tests, and all pass with clang and with gcc 15.

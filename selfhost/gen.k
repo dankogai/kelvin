@@ -426,6 +426,10 @@ let is_comparison(t:int64):bool {
 }
 
 let type_of(n:int64):int64
+let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
+let lazy_type_of(n:int64):int64
+let is_lazy_type(y:int64):bool
+let lazy_field_type(n:int64):int64
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -637,6 +641,14 @@ let type_of(n:int64):int64 {
         }
         return nodes[d].ty
     }
+    if k == N_ANON {
+        gen_error(n, "kc reads an anonymous function as the function of '.lazy.map' and '.lazy.filter' (#324): name a function elsewhere")
+        return -1
+    }
+    if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
+        let ly = lazy_field_type(n)
+        if ly != 0 - 2 { return ly }
+    }
     if k == N_FIELD {
         let e = tagged_named(nodes[n].a)
         if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.none (#215)
@@ -663,6 +675,11 @@ let type_of(n:int64):int64 {
         if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
         if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
         gen_error(n, "this member is not known")
+        return -1
+    }
+    if k == N_METHOD && lazy_of(n) >= 0 { return lazy_type_of(n) }   // s.lazy.map(f), a lazy Sequence (#324)
+    if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
+        gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
         return -1
     }
     if k == N_METHOD {
@@ -1695,6 +1712,16 @@ let gen_call(n:int64) {
         return
     }
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
+        var each:int64 = args
+        while each >= 0 {                          // a lazy Sequence has no text, as kelvinc's (#324)
+            if is_lazy_type(type_of(each)) {
+                var m = tok_text(nodes[f].t)
+                m += " cannot show a lazy Sequence, whose values are made only as they are asked for: walk it with for, or fold it, as in '.reduce'"
+                gen_error(each, m.cstr)
+                return
+            }
+            each = nodes[each].next
+        }
         var count = 0                              // the prelude's macro counts up to 16 (#214)
         var x = args
         while x >= 0 {
@@ -1882,7 +1909,13 @@ let gen_member(n:int64) {
 }
 
 // a.m(...) of what an expression gives: a held for the call (#227)
+let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
+
 let gen_method(n:int64) {
+    if lazy_of(n) >= 0 {                                // s.lazy.map(f), s.lazy.filter(f) (#324)
+        gen_lazy_make(n)
+        return
+    }
     let a:int64 = nodes[n].a
     if !needs_hold(a) {
         gen_method_of(n)
@@ -2892,6 +2925,14 @@ let gen_expr(n:int64) {
     }
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
+    if k == N_ANON {
+        type_of(n)                                       // its error (#324)
+        return
+    }
+    if k == N_FIELD && tok_is(t, "lazy") && lazy_field_type(n) != 0 - 2 {
+        gen_error(n, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
+        return
+    }
     if float_word(n) {                                   // nan, inf: gcc's and clang's constants (#262)
         put(word_no_case(t, "nan") ? "__builtin_nan(\"\")" : "__builtin_inf()")
     } else if k == N_ID && var_type(t) < 0 && !c_headers {
@@ -3493,6 +3534,338 @@ let sequence_maker(y:int64):int64 {
     var key:String = tok_text(types[y].name)
     key += ".makeIterator"
     return method_names.get(key, -1)
+}
+
+// ---------- lazy Sequences (#324) ----------
+
+let gen_signature(d:int64)    // a prototype: the functions kc makes are declared by it
+
+// a lazy Sequence kc makes for s.lazy.map(f) or s.lazy.filter(f), as
+// kelvinc's #323: the struct seq { base }, whose makeIterator, maker,
+// gives the struct walk { it } of the base's iterator, whose next, next,
+// asks the base's next, nx, and calls f, fn, as each value is asked for
+struct lazy_rec {
+    node: int64             // the s.lazy.map(f) it is made for
+    base: int64             // s, the base Sequence's expression
+    base_y: int64           // its type
+    mk: int64               // its makeIterator
+    nx: int64               // its iterator's next
+    fn: int64               // f, a function of the program or one kc makes of { ... }
+    map: bool               // map, else filter
+    seq: int64              // the lazy Sequence's struct, and its type
+    seq_y: int64
+    walk: int64             // its iterator's struct
+    maker: int64            // its makeIterator and its iterator's next
+    next: int64
+}
+
+var lazies:$[lazy_rec]
+var lazy_at:Dictionary<int64, int64>      // a node's lazy Sequence, by its place in lazies
+var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
+
+// whether y is a lazy Sequence's type
+let is_lazy_type(y:int64):bool {
+    for i in 0..<lazies.count as int64 {
+        if lazies[i].seq_y == y { return true }
+    }
+    return false
+}
+
+let lazy_type_of(n:int64):int64 {
+    return lazies[lazy_of(n)].seq_y
+}
+
+// the type of s.lazy alone, s's own where s is a Sequence, so that the
+// map or filter after it is read; -2 where s is no Sequence, and an
+// iterator's .lazy is kelvinc's error
+let lazy_field_type(n:int64):int64 {
+    let y:int64 = type_of(nodes[n].a)
+    if sequence_maker(y) >= 0 { return y }
+    if iterator_next(y) >= 0 {
+        gen_error(n, "'.lazy' is a Sequence's, whose makeIterator gives a fresh iterator each time, and this is an iterator: give its type a 'let makeIterator()', or walk it with for (#323)")
+        return -1
+    }
+    return 0 - 2
+}
+
+// a struct kc makes, of one member, named as token t
+let lazy_struct(t:int64, member:cstr, y:int64):int64 {
+    let d:int64 = make_node(D_STRUCT, t)
+    var name = String(member)
+    let f:int64 = make_node(S_VAR, made_token(&name))
+    nodes[f].ty = y
+    nodes[d].a = f
+    decls += d
+    return d
+}
+
+// a function kc makes, of the struct named as token recv: maker or next
+let lazy_method(recv:int64, name:cstr, y:int64, flag:int64):int64 {
+    var text = String(name)
+    let d:int64 = make_node(D_FN, made_token(&text))
+    nodes[d].c = recv
+    nodes[d].ty = y
+    nodes[d].flag = flag
+    decls += d
+    return d
+}
+
+// the function an anonymous function an, of a value of type ey, makes:
+// a function of the program kc writes after the others, its parameter
+// $0 of ey, or those written, its result written or its one expression's
+let anon_function(an:int64, ey:int64, me:const String^):int64 {
+    var name = $"_kv_"
+    name += tok_text(nodes[current].t)
+    name += "_fn"
+    name += String(anon_fns.count as int64 + 1)
+    let d:int64 = make_node(D_FN, made_token(&name))
+    if nodes[an].flag == 1 {
+        var zero = $"$0"
+        let p:int64 = make_node(S_VAR, made_token(&zero))
+        nodes[p].ty = ey
+        nodes[p].flag = 1
+        nodes[d].a = p
+    } else {
+        nodes[d].a = nodes[an].a
+    }
+    nodes[d].b = nodes[an].b
+    nodes[d].ty = nodes[an].ty
+    if nodes[d].ty < 0 {                               // the result its one expression gives
+        let st:int64 = nodes[nodes[an].b].a
+        if st < 0 || nodes[st].next >= 0 || nodes[st].kind != S_EXPR {
+            var m = me^.copy()
+            m += " takes a function whose body is one expression, whose value it gives: write its result's type, as in '{ (x:T):R in ... }'"
+            gen_error(an, m.cstr)
+            return 0 - 1
+        }
+        open_scope()
+        var p:int64 = nodes[d].a
+        while p >= 0 {
+            declare_as(nodes[p].t, nodes[p].ty, 2)
+            p = nodes[p].next
+        }
+        nodes[d].ty = type_of(nodes[st].a)
+        close_scope()
+    }
+    decls += d
+    anon_fns += d
+    return d
+}
+
+// the lazy Sequence that s.lazy.map(f) or s.lazy.filter(f), or a lazy
+// Sequence's map or filter, n, makes, by its place in lazies, made the
+// first time it is asked; -1 where n is none
+let lazy_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || !(tok_is(nodes[n].t, "map") || tok_is(nodes[n].t, "filter")) { return 0 - 1 }
+    let seen = lazy_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let a:int64 = nodes[n].a
+    var base:int64 = 0 - 1
+    if nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "lazy") {
+        if lazy_field_type(a) < 0 { return 0 - 1 }
+        base = nodes[a].a
+    } else if nodes[a].kind != N_FIELD || !tok_is(nodes[a].t, "lazy") {
+        if !is_lazy_type(type_of(a)) { return 0 - 1 }
+        base = a                                        // a lazy Sequence's own map and filter are lazy
+    }
+    let is_map = tok_is(nodes[n].t, "map")
+    var me = $"'.lazy."
+    me += tok_text(nodes[n].t)
+    me += "'"
+    let by:int64 = type_of(base)
+    let mk:int64 = sequence_maker(by)
+    let iy:int64 = nodes[mk].ty
+    let nx:int64 = iterator_next(iy)
+    if nodes[mk].flag == 2 || nodes[mk].a >= 0 || nx < 0 {
+        var m = $"a Sequence gives a fresh iterator by its makeIterator(), a let method that takes nothing and gives a value whose 'var next():T?' gives each value: write 'let "
+        m += tok_text(types[by].name)
+        m += ".makeIterator():I'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let ey:int64 = some_type(nodes[nx].ty)
+    if nodes[nx].flag != 2 || nodes[nx].a >= 0 || ey < 0 {
+        var m = me.copy()
+        m += " walks an iterator by its next(), a var method that takes nothing and gives each value, then none: write 'var "
+        m += tok_text(nodes[nx].c)
+        m += ".next():T?'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let f:int64 = nodes[n].b
+    var fn:int64 = 0 - 1
+    if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ANON {
+        fn = anon_function(f, ey, &me)
+        if fn < 0 { return 0 - 1 }
+    } else if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+        fn = decl_named(nodes[f].t, D_FN)
+    }
+    var p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
+    if fn < 0 || p < 0 || nodes[p].next >= 0 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
+        var m = me.copy()
+        m += " takes a function of one parameter, a value, with a result"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if nodes[p].ty != ey {
+        var m = me.copy()
+        m += " calls its function with each value, "
+        let ew:String = kelvin_type_text(ey)
+        m += &ew
+        m += ", and this takes "
+        let pw:String = kelvin_type_text(nodes[p].ty)
+        m += &pw
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag == 1 {
+        let e:int64 = nodes[nodes[nodes[f].b].a].a      // as kelvinc's: what an anonymous filter's one expression gives
+        var m = me.copy()
+        m += " looks for what its function says true for, a bool, and this "
+        if nodes[e].kind == N_NUM {
+            m += "is a number: write 'true' or 'false'"
+        } else {
+            m += "gives "
+            if nodes[e].kind == N_BIN {
+                m += "a number"
+            } else {
+                let rw:String = kelvin_type_text(nodes[fn].ty)
+                m += &rw
+            }
+            m += ": compare it, as in 'x != 0'"
+        }
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if !is_map && types[nodes[fn].ty].kind != Y_BOOL {
+        var m = me.copy()
+        m += " takes a function that says whether to keep a value, a bool, and this gives "
+        let rw:String = kelvin_type_text(nodes[fn].ty)
+        m += &rw
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let tag:int64 = lazies.count as int64 + 1
+    var sname = $"_kv_lazy"
+    sname += String(tag)
+    let seq_t:int64 = made_token(&sname)
+    sname += "_it"
+    let walk_t:int64 = made_token(&sname)
+    let seq:int64 = lazy_struct(seq_t, "base", by)
+    let walk:int64 = lazy_struct(walk_t, "it", iy)
+    let seq_y:int64 = type_of_kind(Y_STRUCT, -1, seq_t)
+    let walk_y:int64 = type_of_kind(Y_STRUCT, -1, walk_t)
+    let opt:int64 = is_map ? optional_of(nodes[fn].ty) : nodes[nx].ty
+    let maker:int64 = lazy_method(seq_t, "makeIterator", walk_y, 0)
+    let next:int64 = lazy_method(walk_t, "next", opt, 2)
+    index_names()                                       // its structs and functions, found by name
+    let r:lazy_rec = {n, base, by, mk, nx, fn, is_map, seq, seq_y, walk, maker, next}
+    lazies += r
+    lazy_at[n] = lazies.count as int64 - 1
+    return lazies.count as int64 - 1
+}
+
+// s.lazy.map(f) (#324): the lazy Sequence's struct, of s, a copy where s
+// is a place that owns, else s as it is, which moves in
+let gen_lazy_make(n:int64) {
+    let i = lazy_of(n)
+    let base = lazies[i].base
+    let by = lazies[i].base_y
+    put("((struct ")
+    put_tok(nodes[lazies[i].seq].t)
+    put("){")
+    if is_owner(by) && is_place(base) {
+        put_owner_prefix(by)
+        put("_copy(&(")
+        gen_expr(base)
+        put("))")
+    } else {
+        gen_expr(base)
+    }
+    put("})")
+}
+
+// the prototypes of the functions kc makes (#324), before the functions
+let put_lazy_heads() {
+    for i in 0..<anon_fns.count as int64 {
+        gen_signature(anon_fns[i])
+        put(";\n")
+    }
+    for i in 0..<lazies.count as int64 {
+        gen_signature(lazies[i].maker)
+        put(";\n")
+        gen_signature(lazies[i].next)
+        put(";\n")
+    }
+}
+
+// the tag of an Optional's some, of type y
+let some_tag(y:int64):int64 {
+    let d = tagged_of(y)
+    var m:int64 = nodes[d].a
+    while m >= 0 {
+        if tok_is(nodes[m].t, "some") { return case_tag(d, m) }
+        m = nodes[m].next
+    }
+    return 1
+}
+
+// each lazy Sequence's makeIterator, and its iterator's next, as kelvinc's
+// lazy_body (#323): a value that owns is given to f as a copy, which f
+// owns, and freed unless filter keeps it
+let put_lazy_bodies() {
+    for i in 0..<lazies.count as int64 {
+        let r:lazy_rec = lazies[i]
+        gen_signature(r.maker)
+        put("\n{\n    return (struct ")
+        put_tok(nodes[r.walk].t)
+        put("){")
+        put_tok(nodes[r.mk].c)
+        put("__")
+        put_tok(nodes[r.mk].t)
+        put("(self.base)};\n}\n\n")
+        let in_y:int64 = nodes[r.nx].ty
+        let ey:int64 = some_type(in_y)
+        let out_y:int64 = nodes[r.next].ty
+        gen_signature(r.next)
+        put("\n{\n    for (;;)\n    {\n        ")
+        put_ctype(in_y)
+        put(" _kv_o = ")
+        put_tok(nodes[r.nx].c)
+        put("__")
+        put_tok(nodes[r.nx].t)
+        put("(&_kv_selfp->it);\n        if (_kv_o.tag != ")
+        put_int(some_tag(in_y))
+        put(") return _kv_")
+        put_tok(types[out_y].name)
+        put("_make_none();\n        ")
+        if r.map {
+            put_ctype(nodes[r.fn].ty)
+            put(" _kv_v = ")
+        } else {
+            put("if (")
+        }
+        put_fn_name(r.fn)
+        put("(")
+        if is_owner(ey) {
+            put_owner_prefix(ey)
+            put("_copy(&_kv_o.u.some)")
+        } else {
+            put("_kv_o.u.some")
+        }
+        put(r.map ? ");\n" : ")) return _kv_o;\n")
+        if is_owner(ey) {
+            put("        ")
+            put_free(ey)
+            put("(&_kv_o.u.some);\n")
+        }
+        if r.map {
+            put("        return _kv_")
+            put_tok(types[out_y].name)
+            put("_make_some(_kv_v);\n")
+        }
+        put("    }\n}\n\n")
+    }
 }
 
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional
@@ -4776,6 +5149,12 @@ let gen_program() {
         let d:int64 = decls[i]
         if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed { gen_function(d) }
     }
+    var k:int64 = 0
+    while k < anon_fns.count as int64 && !failed {       // those kc makes of { ... }, which may make more (#324)
+        gen_function(anon_fns[k])
+        k += 1
+    }
+    if !failed { put_lazy_bodies() }
     var body:String = out.copy()
     out = head.copy()
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
@@ -4784,6 +5163,7 @@ let gen_program() {
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }
+        if nodes[d].kind == D_STRUCT { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }   // a lazy Sequence's (#324)
     }
     for i in 0..<shown.count as int64 {                 // the printers print needs, after the functions (#229)
         put("static void ")
@@ -4800,6 +5180,7 @@ let gen_program() {
         put(" *b);\n")
     }
     put_async_heads()                                   // async f(x)'s (#313)
+    put_lazy_heads()                                    // and the functions kc makes (#324)
     out += &body
     put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }

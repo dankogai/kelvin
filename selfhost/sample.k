@@ -186,6 +186,7 @@ var span_walk.next():int64? {
     return .at - 1
 }
 let span.makeIterator():span_walk { return {.lo, .hi} }
+let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
 struct numbered { i: int64; last: int64 }
 extend numbered {
     var next():String? {
@@ -439,5 +440,15 @@ let main(argc:int32, argv:[cstr]):int32 {
     for x in span3 { spanned += x }
     for x in span3 { spanned += x * 10 }
     println(spanned, " ", span3.lo, " ", span3.hi)
+    let span6:span = {1, 7}                           // lazy map and filter, and anonymous functions (#324)
+    var lazy_seen = $""
+    for x in span6.lazy.map({ $0 * $0 }).filter(is_odd) {
+        lazy_seen += String(x)
+        lazy_seen += ","
+    }
+    let plus = span6.lazy.filter { $0 > 4 }
+    var lazy_sum:int64 = 0
+    for x in plus.map({ (n:int64):int64 in n + 100 }) { lazy_sum += x }
+    println(lazy_seen, " ", lazy_sum)
     return 0
 }
