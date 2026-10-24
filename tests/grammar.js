@@ -158,6 +158,8 @@ const samples = [
     ['struct point { x: int64; y: int64 }', [['struct', 'storage.type'], ['point', 'entity.name.type']]],
     ['extend point { let norm:float64 { .x * .x } }', [['extend', 'storage.type'], ['point', 'entity.name.type'], ['float64', 'support.type.primitive']]],
     ['let point.norm():float64 { 1.0 }', [['point', 'entity.name.type'], ['norm', 'entity.name.function'], ['1.0', 'constant.numeric']]],
+    ['var countdown.next():int64? { none }', [['var', 'storage.type'], ['countdown', 'entity.name.type'], ['next', 'entity.name.function']]],
+    ['extend countdown { var next():int64? { none } }', [['var', 'storage.type'], ['next', 'entity.name.function']]],
     ['var p:int32^ := &x   // a reference', [[':=', 'keyword.operator.assignment.reference'], ['^', 'keyword.operator.pointer'], ['// a reference', 'comment.line']]],
     ['for i in 0..<n { if i == 3 { break } }', [['for', 'keyword.control'], ['in', 'keyword.control'], ['..<', 'keyword.operator.range'], ['break', 'keyword.control']]],
     ['var v = r ?? 0; let t = self.x as float64', [['??', 'keyword.operator.coalescing'], ['self', 'variable.language'], ['as', 'keyword.operator.word']]],

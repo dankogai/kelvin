@@ -164,6 +164,52 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
     - an array in a value that a call returns (`make().xs`, which C
       discards before the loop runs).
 
+## Iterators: `for x in it`
+
+`for x in it { ... }` walks an iterator (#318), Swift's: a value of a
+struct or union whose var method `next()` gives each value, then
+`none`.
+
+```swift
+struct countdown { n: int64 }
+var countdown.next():int64? {
+    if .n == 0 { return none }
+    .n -= 1
+    return .n + 1
+}
+let from(n:int64):countdown { return {n} }
+
+let main():int32 {
+    for x in from(3) { print(x, ",") }      // 3,2,1,
+    println()
+    var c:countdown = {5}
+    for x in c {
+        if x == 3 { break }
+    }
+    println(c.n)                            // 2: c goes on where it stopped
+    return 0
+}
+```
+
+- **`next`** is `var T.next():E?`: it takes nothing, changes the
+  iterator, and gives an Optional.
+  - `x` is each value, an `E`, and the loop ends at the first `none`.
+  - A let `next`, one that takes something, or one that gives no
+    Optional, is an error that names `var T.next():E?`.
+- **The loop changes the iterator**, as `next` does.
+  - A var walked in part, by `break`, goes on where it stopped; one
+    walked to the end stays at its end.
+  - A let, or one through a `const T^`, is an error.
+  - An iterator an expression gives, `for x in from(3)`, is held in a
+    hidden var for the loop, and freed after it where it owns.
+- **`x` is a let**, as in any `for`.
+  - An owner `next` gives, a `String`, is the loop's, freed at the end
+    of each pass, at `break` and at `continue`; `x` borrows it.
+  - `for x:E in it` writes its type, which is `next`'s; `for _ in it`
+    names none.
+- **Not yet:** Swift's `Sequence`, `makeIterator()`, which would walk
+  a collection of the program's afresh each time.
+
 ## Conditions are `bool`
 
 The type itself is in [bool.md](bool.md).

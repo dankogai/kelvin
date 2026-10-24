@@ -6658,3 +6658,26 @@ a Task with none, is refused in kelvinc's words. Details are
 provisional P329.
 
 There are 969 tests, and all pass with clang and with gcc 15.
+
+### 363. Iterators
+
+> I want an iterator so we can go like `for elem in iter {...}`. What
+> style should we pick? JavaScript style or Swift style or anything
+> else?
+
+**Claude** suggested Swift's: a value whose `next()` gives a `T?`,
+`none` ending the loop, since Kelvin has Optionals and finds a list by
+its shape already. JavaScript's `{value, done}` is an Optional built by
+hand, Python's ends with an exception, and generators need coroutines.
+It asked how `next()` changes its iterator, a method's `self` being a
+let, and whether Swift's `Sequence` comes too.
+
+> add Swift-style iterators as #318
+
+The user chose `var T.next()`, Kelvin's var where Swift says
+`mutating`, and the iterator alone. **Claude** added var methods,
+whose `self` is the caller's var, and `for x in it`, which calls
+`next()` until `none` and leaves a var where it stopped. Details are
+provisional P330.
+
+There are 978 tests, and all pass with clang and with gcc 15.

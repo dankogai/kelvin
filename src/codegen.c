@@ -1551,6 +1551,8 @@ static char *expr_bare(Expr *e) {
                                    : NULL;
             buf_printf(&args, ", %s", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
         }
+        if (e->method && e->method->var_method) /* the caller's var, by its address (#318) */
+            return strfmt("%s(&(%s)%s)", method_cname(e->method), recv, args.buf);
         if (e->method && e->method->cname) /* an overload, by the name its types give it (#158) */
             return strfmt("({ __auto_type %s = %s; %s(%s%s); })", tmp, recv, e->method->cname, tmp, args.buf);
         return strfmt("({ __auto_type %s = %s; _Generic((%s), %sdefault: kv_no_such_method)(%s%s); })", tmp, recv,
@@ -2427,6 +2429,33 @@ static void stmt(Stmt *s) {
             line("}");
             break;
         }
+        if (s->each == EACH_ITER) { /* an iterator (#318): next() into a hidden Optional, each pass, up to none */
+            Decl *r = kelvin_record(s->elem->name);
+            int some = 0;
+            for (int i = 0; i < r->members.len; i++)
+                if (!strcmp(((Var *)r->members.data[i])->name, "some"))
+                    some = i;
+            char *h = hidden(v, "opt");
+            const char *f = owner_free(s->elem);
+            sync(s->pos);
+            line("for (;;)");
+            line("{");
+            indent++;
+            sync(s->pos);
+            line("%s%s = %s(&(%s));", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(s->elem, h),
+                 method_cname(s->next), seq);
+            sync(s->pos);
+            line("if (%s.tag != %d)", h, some);
+            line("    break;");
+            if (v) {
+                sync(s->pos);
+                line("__attribute__((unused)) %s = %s.u.some;", decl(const_type(s->type), v), h);
+            }
+            stmt(s->body);
+            indent--;
+            line("}");
+            break;
+        }
         Type *reader = NULL; /* const E^, for the elements; NULL: unseen */
         if (s->elem && s->each != EACH_LIST) {
             reader = xcalloc(1, sizeof *reader);
@@ -2648,7 +2677,8 @@ static void register_method(const char *method, Type *recv, const char *fn) {
 
 static char *fn_head(Decl *d) {
     Buf params = {0};
-    if (d->recv && d->setter) { /* a setter's self is the caller's var (#132): a pointer, which self names in the body */
+    if (d->recv && (d->setter || d->var_method)) { /* a setter's self is the caller's var (#132), and a var method's
+                                                      (#318): a pointer, which self names in the body */
         Type *p = xcalloc(1, sizeof *p);
         p->kind = T_PTR;
         p->pos = d->recv->pos;
@@ -3525,7 +3555,7 @@ static void emit_decl(Decl *d) {
         }
         /* registered before the body, so a method can call itself; a
            setter (#132) is called by its own name, never dispatched */
-        if (d->recv && !d->setter)
+        if (d->recv && !d->setter && !d->var_method) /* a var method is called by its own name too (#318) */
             register_method(d->name, d->recv, method_cname(d));
         if (d->text_method) {
             /* T.cstr() (#53): the template's text, built in the method's
@@ -3593,10 +3623,11 @@ static void emit_decl(Decl *d) {
                     list_push(&count_cache, cache);
                 }
             }
-            if (d->setter || d->subscript)
-                line("#define self (*_kv_selfp)"); /* self is the caller's var (#132), or a subscript's receiver (#136) */
+            if (d->setter || d->subscript || d->var_method) /* self is the caller's var (#132, #318), or a
+                                                              subscript's receiver (#136) */
+                line("#define self (*_kv_selfp)");
             stmt(d->body);
-            if (d->setter || d->subscript)
+            if (d->setter || d->subscript || d->var_method)
                 line("#undef self");
         }
         break;

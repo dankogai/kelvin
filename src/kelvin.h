@@ -217,6 +217,7 @@ enum {
     EACH_DICT,     /* the entries of a Dictionary (#65), in order: key, or key and value */
     EACH_IO_READ,  /* f.read(n) (#82): the next n bytes at most, a Bytes the loop owns */
     EACH_IO_LINES, /* f.lines (#82): each line without its newline, a String the loop owns */
+    EACH_ITER,     /* an iterator (#318): its var next():T?, each some, up to none */
 };
 
 typedef struct Stmt Stmt;
@@ -236,6 +237,7 @@ struct Stmt {
     bool closed;       /* S_FOR_IN: a...b, not a..<b */
     bool from_argv;    /* S_FOR_EACH: s is main's argv, which C types char ** */
     int each;          /* S_FOR_EACH: EACH_* above */
+    Decl *next;        /* S_FOR_EACH: an iterator's var next():T? (#318) */
     Stmt *body, *els;  /* loop body / if-then, else */
     char *name;        /* S_GOTO, S_LABEL, S_FOR_IN; S_INLINE_C: the C (#198) */
     char *name2;       /* S_FOR_EACH: the value's name in for k, v in d (#65);
@@ -272,6 +274,7 @@ struct Decl {
                              overloaded or imported (#41), as sin__complex64 */
     bool attribute;       /* D_FN: let T.x:R { }, a computed attribute read as v.x, its getter (#131) */
     bool setter;          /* D_FN: the set(v) { } of var T.x:R { get set }, self the caller's var (#132) */
+    bool var_method;      /* D_FN: var T.m(...) { }, a method whose self is the caller's var (#318) */
     bool subscript;       /* D_FN: let T[](i):R { }, a function of the type T.[] whose first parameter is
                              _kv_selfp, a pointer self names; T.[]= its setter (#136) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,

@@ -869,6 +869,7 @@ static char owner_letter(const char *kind);
 static bool builtin_owner_kind(const char *kind);
 static bool no_value(Expr *e);
 static void reject_valueless_args(Expr *call);
+static void reject_var_method_receiver(Expr *recv, const char *member, Pos pos);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
 static Decl *optional_record(Type *t);
@@ -2887,6 +2888,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                         error_at(name->pos, "%s takes no such arguments: it has %d overloads, and these fit %s", what,
                                  mcands.len, maybe.len ? "more than one of them: convert an argument, as in 'x as f64'" : "none");
                 }
+                if (chosen && chosen->var_method) /* the caller's var (#318) */
+                    reject_var_method_receiver(x->a, member, name->pos);
                 if (chosen) { /* an owner given by value moves into the method (O5), as into a function */
                     x->method = chosen;
                     typed_args(x, chosen); /* p.m("x") of a String (#223), p.m(none) of an i64? (#222) */
@@ -7261,9 +7264,9 @@ static void reject_let_change(Expr *lhs, Token *t) {
         error_at(t->pos, "a let attribute and a var attribute's getter read self and never change it: a var "
                          "attribute's setter, 'set(v) { ... }', does");
     if (let && !strcmp(let, "self") && parsing_fn && parsing_fn->recv && !parsing_fn->setter)
-        error_at(t->pos, "a method reads self and never changes it: a var attribute's setter, 'set(v) { ... }', "
-                         "changes the caller's var, and so does a function that takes '%s^'",
-                 parsing_fn->recv_name);
+        error_at(t->pos, "a method reads self and never changes it, as a let method: a var method, 'var %s.%s(...)', "
+                         "changes the caller's var (#318)",
+                 parsing_fn->recv_name, parsing_fn->name);
     if (let && let_kind(let) == LET_PARAM)
         error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                  let, let);
@@ -9506,6 +9509,18 @@ static void reject_valueless_args(Expr *call) {
     }
 }
 
+/* the receiver of a var method (#318), which changes it: a variable, a
+   member, an element or what a pointer points to, not a let, nor
+   through a read-only borrow */
+static void reject_var_method_receiver(Expr *recv, const char *member, Pos pos) {
+    if (let_target(recv))
+        error_at(pos, "'.%s' is a var method, which changes '%s', a let: declare it with var", member, let_target(recv));
+    reject_const_change(recv, pos);
+    if (recv->kind != E_IDENT && recv->kind != E_FIELD && recv->kind != E_INDEX && recv->kind != E_DEREF)
+        error_at(pos, "'.%s' is a var method, which changes the value it is called on, so that value is a variable",
+                 member);
+}
+
 /* Does the statement expression e leave a value behind: one with no
    effect, or (with calls) a call of a Kelvin function, method or function
    value kelvinc sees has a result? */
@@ -10468,6 +10483,31 @@ static bool from_main_argv(Expr *e) {
    cannot see, such as getenv()'s, is walked like a pointer. x is a let,
    of the element's type unless written `for x:T in s`, and s is
    evaluated once. */
+/* the method next of t, a struct or union of the program, which makes a
+   value of t an iterator (#318), the one with no parameters where there
+   are more; NULL where t has none */
+static Decl *iterator_next(Type *t) {
+    t = t ? unqualified(t) : NULL;
+    if (!t || t->kind != T_BASE || !t->name)
+        return NULL;
+    Decl *found = NULL;
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (!d->recv || d->setter || d->attribute || d->type_fn || strcmp(d->name, "next") || !d->recv->name ||
+            strcmp(d->recv->name, t->name))
+            continue;
+        if (!found || (found->params.len && !d->params.len) || (!d->params.len && d->body))
+            found = d;
+    }
+    return found;
+}
+
+/* Is e a place a var method may change: a variable, a member, an
+   element, or what a pointer points to (#318)? */
+static bool changeable_place(Expr *e) {
+    return e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF;
+}
+
 static Stmt *parse_for_each(Stmt *s, Type *written) {
     s->kind = S_FOR_EACH;
     Expr *seq = s->expr;
@@ -10489,6 +10529,52 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     Decl *record = NULL;
     bool io_read = seq->kind == E_METHOD && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "read");
     bool io_lines = seq->kind == E_PROPERTY && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "lines");
+    Decl *next = io_read || io_lines ? NULL : iterator_next(t);
+    if (next) {
+        /* an iterator (#318): each value its var next():T? gives, up to
+           none; the loop changes it, as next does */
+        const char *tn = next->recv_name;
+        if (!next->var_method)
+            error_at(seq->pos, "for walks an iterator by its next(), which changes it, and '%s.next' is a let method, "
+                               "which reads it: write 'var %s.next():T?'",
+                     tn, tn);
+        if (next->params.len || !next->ret || !is_optional_type(next->ret))
+            error_at(seq->pos, "for walks an iterator by its next(), which takes nothing and gives each value, then "
+                               "none: write 'var %s.next():T?'",
+                     tn);
+        if (s->name2)
+            error_at(s->pos, "two loop variables walk a Dictionary's entries; an iterator's values take one");
+        if (let_target(seq))
+            error_at(seq->pos, "for walks an iterator by its var next(), which changes '%s', a let: declare it with var",
+                     let_target(seq));
+        reject_const_change(seq, seq->pos);
+        if (!changeable_place(seq))
+            error_at(seq->pos, "for walks an iterator by its var next(), which changes it, so it is a variable");
+        s->each = EACH_ITER;
+        s->next = next;
+        Decl *r = variant_record(next->ret);
+        for (int i = 0; i < r->members.len; i++) {
+            Var *m = r->members.data[i];
+            if (!strcmp(m->name, "some"))
+                elem = m->type;
+        }
+        if (written && strcmp(kelvin_type(written), kelvin_type(elem)))
+            error_at(written->pos, "the loop variable of %s is %s, what its next() gives, not %s", tn,
+                     kelvin_type(elem), kelvin_type(written));
+        s->elem = next->ret;
+        Type *x = xcalloc(1, sizeof *x);
+        *x = *elem;
+        x->is_const = x->is_volatile = false;
+        s->type = x;
+        open_scope();
+        if (strcmp(s->name, "_"))
+            declare_binding(s->name, x, LET_EACH);
+        if (!is_p(peek(), "{"))
+            error_at(peek()->pos, "expected '{': the body of 'for' is a block, as in 'for %s in s { ... }'", s->name);
+        s->body = parse_block();
+        close_scope();
+        return s;
+    }
     if (io_read || io_lines) {
         /* f.read(n): the next n bytes at most, a Bytes; f.lines: each line,
            a String (#82); the loop owns the one it holds, x borrows it */
@@ -10605,15 +10691,18 @@ static Stmt *parse_for_each_held(Stmt *s, Type *written) {
     Type *t = value_type(seq);
     bool io_walk = (seq->kind == E_METHOD && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "read")) ||
                    (seq->kind == E_PROPERTY && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "lines"));
-    if (io_walk || !is_owner(t) || owner_place(seq))
+    /* an iterator an expression gives, as for x in countdown(3), is held
+       in a hidden var, which its next() changes (#318) */
+    bool iter = !io_walk && iterator_next(t) && !changeable_place(seq);
+    if (!iter && (io_walk || !is_owner(t) || owner_place(seq)))
         return parse_for_each(s, written);
     Var *v = xcalloc(1, sizeof *v);
     v->name = strfmt("_kv_tmp%d", ++temp_serial);
     v->pos = seq->pos;
     v->type = unqualified(t);
     v->init = seq;
-    v->is_let = true;
-    declare_binding(v->name, v->type, LET_VALUE);
+    v->is_let = !iter;
+    declare_binding(v->name, v->type, iter ? LET_NONE : LET_VALUE);
     Expr *id = new_expr(E_IDENT, seq->pos);
     id->text = v->name;
     s->expr = id;
@@ -11275,6 +11364,10 @@ static void check_text_method(Decl *d, Token *name);
 
 static Decl *parse_method_of(Pos pos, const char *storage);
 
+/* the method parse_method reads next is a var method, var T.m(...)
+   (#318), whose self is the caller's var */
+static bool var_method_next;
+
 /* a method, with Self in scope as its receiver's type (#140) */
 static Decl *parse_method(Pos pos, const char *storage) {
     bool saved_scope = self_scope;
@@ -11338,6 +11431,8 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
     }
     Decl *d = new_decl(D_FN, pos, storage);
     reject_kv_name(name);
+    d->var_method = var_method_next;
+    var_method_next = false;
     /* T.cstr() defines a struct's or union's text (#53) */
     d->text_method = is_kw(name, "cstr");
     d->name = d->text_method ? advance()->text : expect_ident("a method name");
@@ -11376,7 +11471,12 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
        parentheses; its body has self, as a method's, which both read and
        never change (#137, #138) */
     d->attribute = !d->text_method && is_p(peek(), ":");
-    declare_binding("self", d->recv, LET_PARAM);
+    if (d->var_method && d->text_method)
+        error_at(name->pos, "'.cstr' reads a value and never changes it: write 'let %s.cstr()'", d->recv_name);
+    if (d->var_method && recv->kind == TK_KEYWORD && !spelled)
+        error_at(name->pos, "a var method changes the caller's var, which a built-in type's method cannot: declare it "
+                            "on a struct or a union of the program");
+    declare_binding("self", d->recv, d->var_method ? LET_NONE : LET_PARAM); /* the caller's var (#318) */
     if (d->attribute)
         reject_attribute_member(d->recv, name);
     if (!d->attribute)
@@ -12024,10 +12124,11 @@ static void parse_extend(Program *prog) {
             continue;
         }
         if (is_p(after, "(")) {
-            if (!is_let)
-                error_at(m->pos, "a method is a let: write 'let %s(...)'", nm->text);
+            if (!is_let && storage)
+                error_at(m->pos, "a function of the type has no self to change: write 'static let %s(...)'", nm->text);
             advance();
             top_name = strfmt("%s_%s", rname, nm->text);
+            var_method_next = !is_let; /* var m(...): self is the caller's var (#318) */
             add_top_decl(prog, parse_method(m->pos, storage));
         } else if (storage) {
             advance();
@@ -12782,7 +12883,8 @@ Program *parse(Token *tokens, int ntoks) {
                         d++;
                     else if (is_p(&toks[j], "}"))
                         d--;
-                    else if (d == 1 && is_kw(&toks[j], "let") && toks[j + 1].kind == TK_IDENT && is_p(&toks[j + 2], "(") &&
+                    else if (d == 1 && (is_kw(&toks[j], "let") || is_kw(&toks[j], "var")) && /* var m( (#318) */
+                             toks[j + 1].kind == TK_IDENT && is_p(&toks[j + 2], "(") &&
                              !(j > 0 && is_kw(&toks[j - 1], "static")))
                         list_push(&method_names, toks[j + 1].text);
                 }
@@ -12909,7 +13011,9 @@ Program *parse(Token *tokens, int ntoks) {
                          desc(n));
             if (!binding)
                 error_at(n->pos, "a function is declared with let: write '%s'", how);
-            if (is_kw(peek(), "var"))
+            if (is_kw(peek(), "var") && shape == 1 && !storage) /* var T.m(...) (#318): self is the caller's var */
+                var_method_next = true;
+            else if (is_kw(peek(), "var"))
                 error_at(peek()->pos, "a function is a let: write '%s', or, for a variable holding a function, "
                                       "'var f:(T):R := g'",
                          how);

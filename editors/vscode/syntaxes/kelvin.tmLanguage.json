@@ -454,7 +454,7 @@
           }
         },
         {
-          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z_0-9]*)\\s*(?=\\()",
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z_0-9]*)\\s*(?=\\()",
           "captures": {
             "1": {
               "name": "storage.type.kelvin"

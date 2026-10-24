@@ -145,9 +145,26 @@ let main():int32 {
   - `self.x += 1` or `self = v` in a method is an error.
   - It is `const` in C, as any `let` is, so `&self` is a `const T^`.
   - A copy changes: `var p = self`, then `p.x += dx`.
-  - What changes the caller's value is a `var` attribute's setter
+  - What changes the caller's value is a var method, below, a `var`
+    attribute's setter
     ([properties.md](properties.md#attributes-of-your-own-and-extend)),
     or a function that takes `T^`.
+- **A var method**, `var T.m(...)` (#318), changes the caller's value:
+  its `self` is the caller's var, as a setter's is.
+  - In `extend T { }` it is `var m(...)`.
+  - `.x += 1` and `self = v` go in it, and it calls let and var methods
+    on `self`.
+  - It is called on a var: a variable, a member, an element, or `p^`
+    of a borrow that may change it, as in `c.bump(2)`.
+    - On a let, through a `const T^`, or on a value a call gives, it is
+      an error.
+  - It is on a struct or a union of the program.
+    - A built-in type's is an error.
+    - So is `static var T.f()`: a function of the type has no self.
+  - In C, it takes `T *` and is called by its own name, `T__m(&c,
+    ...)`, never dispatched.
+  - An iterator's `next` is one: see
+    [flow-controls.md](flow-controls.md#iterators-for-x-in-it).
 - **`.x` is `self.x`** (#139) in a method, an attribute, a setter and a
   subscript: a member, an attribute or a method, `.w * .h`,
   `.scaled(2.0)`, `.is(just)`.
@@ -245,6 +262,8 @@ let main():int32 {
 | | `.cstr` | the derived text, `{x: 3, y: 4}`, or `T.cstr()`'s |
 | | `.size`, `.type`, `.typename` | `sizeof`; the type; its name, or the spelling of one with no tag |
 | | `.method(...)` | a method declared `let T.method()` |
+| | `.method(...)` on a var | a var method declared `var T.method()`, which changes it (#318) |
+| | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318) |
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |
