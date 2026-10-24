@@ -187,6 +187,16 @@ var span_walk.next():int64? {
 }
 let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
+let fib_upto(limit:int64):Iterator<int64> {             // an Iterator, a state and a function (#326)
+    return Iterator($[0, 1, limit]) {                  // what it needs, in its state: it encloses nothing
+        let r = $0[0]
+        if r > $0[2] { return none }
+        let next:int64 = $0[0] + $0[1]
+        $0[0] = $0[1]
+        $0[1] = next
+        return r
+    }
+}
 struct numbered { i: int64; last: int64 }
 extend numbered {
     var next():String? {
@@ -450,5 +460,20 @@ let main(argc:int32, argv:[cstr]):int32 {
     var lazy_sum:int64 = 0
     for x in plus.map({ (n:int64):int64 in n + 100 }) { lazy_sum += x }
     println(lazy_seen, " ", lazy_sum)
+    var fib_walk = fib_upto(50)                       // an Iterator, walked in part, then on (#326)
+    let fib0 = fib_walk.next()
+    var fib_seen = $""
+    for x in fib_walk {
+        fib_seen += String(x)
+        fib_seen += ","
+    }
+    var tick = Iterator(3) {
+        if $0 == 0 { return none }
+        $0 -= 1
+        return $0
+    }
+    var ticks:int64 = 0
+    for t in tick { ticks += t + 1 }
+    println(fib0, " ", fib_seen, " ", ticks)
     return 0
 }

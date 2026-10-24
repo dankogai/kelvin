@@ -233,6 +233,19 @@ kc reads what it is written in, and little more.
   - kc writes each as a function of its own, `_kv_<fn>_fnN`, after the
     others, enclosing nothing, as Kelvin's anonymous functions enclose
     nothing.
+- **`Iterator<T>`** (#326), as kelvinc's #325: `Iterator(state) { ... }`,
+  `Iterator(state, f)` and `Iterator<T>(...)`, of `kv_iter`.
+  - Its function's `$0`, or first parameter, is the state itself, a
+    pointer in C, `S *_kv_arg0_ref`, with `#define _kv_arg0
+    (*_kv_arg0_ref)` around its body; kc writes `$0` as `_kv_arg0`, as
+    kelvinc does.
+  - `T` is what the first `return v` gives, the locals before it typed
+    in turn, or written; kc writes the adapters `_kv_iterN_next` and
+    `_drop` after the functions.
+  - `for`, `it.next()` on a var, return and passing take it; a let, a
+    copy, print and a function of another shape are kelvinc's errors.
+  - A `{` inside parentheses keeps its lines, so a function written
+    there, `Iterator(10, { (s:int64):int64? in ... })`, reads as one.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

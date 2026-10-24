@@ -357,6 +357,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 323 | A Sequence's lazy `map` and `filter`, Swift's: `s.lazy.map(f)` and `s.lazy.filter(f)` give a lazy Sequence, a struct kelvinc makes that holds the base, whose iterator calls the base's `next` and `f` only as each value is asked for; its own `map` and `filter` are lazy, its `reduce` and `flatMap` eager; printing one is an error | — | `endless.lazy.filter({ $0 % 7 == 3 })` walked in part | 2026-10-24 |
 | 324 | kc reads anonymous functions, `{ $0 * 2 }` and `{ (n:int64):int64 in ... }`, as the function of `.lazy.map` and `.lazy.filter`, and those of a Sequence, as kelvinc's #323, with kelvinc's errors in its words | — | kc's `span6.lazy.map({ $0 * $0 }).filter(is_odd)` | 2026-10-24 |
 | 325 | `Iterator<T>`, Swift's `sequence(state:next:)`: `Iterator(state) { ... }` and `Iterator(state, f)` make an iterator of a state on the heap and a function of it that gives each value, a `T?`, then `none`; `$0` is the state itself; `T` is the first `return v`'s, or written; an owner, walked by `for`, `next()`, `map` and the rest | — | `fibs():Iterator<int64>` | 2026-10-24 |
+| 326 | kc reads `Iterator<T>`, as kelvinc's #325: `Iterator(state) { ... }`, `Iterator(state, f)` and `Iterator<T>(...)`, `$0` the state itself, `T` the first `return v`'s; `for`, `next()`, return and passing; kelvinc's errors in its words | — | kc's `fib_upto(50)` | 2026-10-24 |
 
 Notes:
 
@@ -918,6 +919,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (326) Agreed details: "teach kc Iterator<T> as #326".
+  - parse.k: Y_ITER, `Iterator<T>` as a type; N_ITER, `Iterator(...)`,
+    whose `{` after it, or after its comma, is always its function.
+  - lex.k: a `{` keeps its lines inside parentheses, its depth saved and
+    restored, so a function written in an Iterator's parentheses reads
+    as one; a `{ ... }` list skips its newlines.
+  - gen.k:
+    - `kv_iter` is Y_ITER's C, an owner as a Task is (#313).
+    - iter_of makes, the first time `Iterator(...)` is typed, the record
+      of its function: a function of the program, `S^` to T?, or one
+      iter_function makes of `{ ... }`, whose `$0`, or first written
+      parameter, is the state itself, flag 3, `S *_kv_arg0_ref` with
+      `#define _kv_arg0 (*_kv_arg0_ref)`; never moved in or freed.
+    - first_return types `T`: the body's statements in turn, its locals
+      declared, to the first `return v` that is not `none`.
+    - put_tok writes `$N` as `_kv_argN`, as kelvinc's c_name.
+    - gen_iter_make moves the state to the heap; put_iter_adapters
+      writes `_kv_iterN_next` and `_drop`, prototypes before the
+      functions, bodies after.
+    - gen_iter_each and `it.next()` call kv_iter_next.
+    - A let, a copy, print, a named function of another shape, and a
+      function that returns no value are kelvinc's errors.
+  - kc's build of a probe prints what kelvinc's does, the fixpoint holds,
+    and selfhost/sample.k has an Iterator walked in part.
 
 - (325) Agreed details: "add Iterator<T> as #325", after the user's
   proposal of Swift's `sequence(state:next:)` and Claude's answer: added
@@ -3920,6 +3946,7 @@ says "as agreed".
 | P335 | Details of #323 | src/kelvin.h: Decl's lazy fields; src/parser.c: lazy_record, lazy_function, parse_lazy_op, reject_lazy_text, lazy_records; src/codegen.c: lazy_body, lazy_make; documents/iterators.md; tests | kc reads no lazy Sequence |
 | P336 | Details of #324 | selfhost/lex.k: $N; selfhost/parse.k: N_ANON, anon_ahead, parse_anon; selfhost/gen.k: anon_function, lazy_of, gen_lazy_make, put_lazy_heads, put_lazy_bodies; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P337 | Details of #325 | runtime/iter.k; modules/kelvin_prelude.h; src/lexer.c: Iterator; src/kelvin.h: Var.ref, Decl's iter fields; src/parser.c: iter_type, parse_iterator, the $0 by reference, iter_infer, iter_builtin_next, it.next(); src/codegen.c: the adapters, iter_make, iter_next, the ref parameter; editors/vscode grammar; documents/iterators.md, ownership.md, properties.md, README.md, versusC.md; tests | kc reads no Iterator<T> |
+| P338 | Details of #326 | selfhost/lex.k: a { inside parentheses keeps its lines; selfhost/parse.k: Y_ITER, N_ITER, parse_iterator, a { ... } list's newlines; selfhost/gen.k: iter_of, iter_function, first_return, gen_iter_make, put_iter_adapters, the ref parameter, $N as _kv_argN; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

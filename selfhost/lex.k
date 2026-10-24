@@ -107,6 +107,7 @@ let lex_range(from:int64, to:int64, file:int64) {
     var i:int64 = from
     var line = 1
     var depth:int64 = 0              // ( and [ open
+    var outer:$[int64] = $[]         // the depth each open { was written at: a body inside parentheses has its lines (#326)
     while i < to && !failed {
         let c:uint32 = codes[i]
         if c == '\n' {
@@ -199,6 +200,11 @@ let lex_range(from:int64, to:int64, file:int64) {
             if c == '(' || c == '[' { depth += 1 }
             if c == '$' && code_at(i + 1) == '[' { depth += 1 }
             if c == ')' || c == ']' { depth -= 1 }
+            if c == '{' || (c == '$' && code_at(i + 1) == '{') {
+                outer += depth
+                depth = 0
+            }
+            if c == '}' && outer.count > 0 { depth = outer.pop() }
             add_tok(T_PUNCT, i, n, line, file)
             i += n
         }

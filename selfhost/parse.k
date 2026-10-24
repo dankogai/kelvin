@@ -33,6 +33,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ASYNC,    // async a, a call on a thread of its own (#313)
     N_AWAIT,    // await a, a Task's value (#313)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0
+    N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -76,6 +77,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_PTR,
     Y_ARGV,     // [cstr], main's argv
     Y_TASK,     // a Task (#313): its value elem, -1 of none
+    Y_ITER,     // an Iterator<T> (#326): its value elem
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -110,7 +112,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK
+        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER
     }
 }
 
@@ -282,6 +284,11 @@ let type_word(y:int64):String {
         s += &e
         return s
     case Y_STRUCT: return tok_text(types[y].name)
+    case Y_ITER:                                   // (#326)
+        var s = $"Iterator_"
+        var e = type_word(types[y].elem)
+        s += &e
+        return s
     case Y_TASK:                                   // (#313)
         var s = $"Task"
         if types[y].elem >= 0 {
@@ -428,6 +435,11 @@ let parse_bare_type():int64 {
         let error = parse_type()
         expect(">")
         y = result_of(value, error)
+    } else if tok_is(t, "Iterator") {            // Iterator<T> (#326)
+        expect("<")
+        let value:int64 = parse_type()
+        expect(">")
+        y = type_of_kind(Y_ITER, value, -1)
     } else if tok_is(t, "Task") {                // Task<R>, Task of none (#313)
         var value = -1
         if at_word("<") {
@@ -583,9 +595,40 @@ let parse_anon():int64 {
     return n
 }
 
+// Iterator(state) { ... }, Iterator(state, f), Iterator<T>(...) (#326), as
+// kelvinc's #325: a the state, b the function, ty T where written
+let parse_iterator():int64 {
+    let n:int64 = make_node(N_ITER, advance())
+    if at_word("<") {
+        advance()
+        set_ty(n, parse_type())
+        expect(">")
+    }
+    expect("(")
+    set_a(n, parse_expr())
+    if at_word(",") {
+        advance()
+        if at_word("{") {                                // a function is what goes here, as kelvinc reads it
+            set_b(n, parse_anon())
+        } else {
+            set_b(n, parse_expr())
+        }
+        expect(")")
+    } else {
+        expect(")")
+        if !at_word("{") {
+            parse_error("an Iterator takes a function of its state after it, 'Iterator(0) { ... }', or after a comma, 'Iterator(0, f)'; in a for, write it in the parentheses")
+            return n
+        }
+        set_b(n, parse_anon())
+    }
+    return n
+}
+
 let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
+    if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_NUM {
         advance()
         return make_node(N_NUM, t)
@@ -697,6 +740,7 @@ let parse_primary():int64 {
         advance()
         let n:int64 = make_node(N_INIT, t)
         var last = -1
+        skip_newlines()                                  // a { ... } of lines of its own, in parentheses too (#326)
         while !at_word("}") && !failed {
             let e:int64 = parse_expr()
             if last < 0 {
@@ -705,7 +749,9 @@ let parse_primary():int64 {
                 nodes[last].next = e
             }
             last = e
+            skip_newlines()
             if at_word(",") { advance() }
+            skip_newlines()
         }
         expect("}")
         return n

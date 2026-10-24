@@ -6779,3 +6779,17 @@ gives, an owner that `for`, `next()`, `map` and the rest walk. Details
 are provisional P337.
 
 There are 998 tests, and all pass with clang and with gcc 15.
+
+### 371. kc's Iterator<T>
+
+> teach kc Iterator<T> as #326
+
+**Claude** taught kc `Iterator(state) { ... }` and `Iterator(state, f)`
+as kelvinc writes them: the state on the heap, `$0` the state itself,
+`T` what the first `return v` gives, walked by `for` and `next()`, with
+kelvinc's errors in its words. kc's lexer now keeps the lines of a `{`
+inside parentheses, so a function written there reads as one. On the
+way, CI's ASan found #325 leaking an owned state assigned anew, which a
+commit of its own fixed. Details are provisional P338.
+
+There are 998 tests, and all pass with clang and with gcc 15.

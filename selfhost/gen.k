@@ -24,7 +24,12 @@ let put(s:cstr) {
 
 let put_tok(t:int64) {
     let at:int64 = toks[t].at
-    for i in 0..<toks[t].len {
+    var from = 0
+    if codes[at] == '$' && toks[t].len > 1 {           // $0 is _kv_arg0 in C, as kelvinc names it (#326)
+        out += "_kv_arg"
+        from = 1
+    }
+    for i in from..<toks[t].len {
         out += codes[at + i].uchr
     }
 }
@@ -213,6 +218,7 @@ let put_owner_prefix(y:int64) {
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                    // (#313)
+    case Y_ITER: put("kv_iter")                    // (#326)
     case Y_DICT: put_dict_name(y)
     case Y_SET: put_set_name(y)
     case Y_STRUCT:                                 // an enum with values: _kv_T (#215)
@@ -249,6 +255,7 @@ let put_ctype(y:int64) {
     case Y_STRING: put("kv_string")
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                                  // (#313)
+    case Y_ITER: put("kv_iter")                                  // (#326)
     case Y_UCHR: put("kv_uchr")
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
@@ -430,6 +437,8 @@ let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
 let lazy_type_of(n:int64):int64
 let is_lazy_type(y:int64):bool
 let lazy_field_type(n:int64):int64
+let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
+let gen_iter_make(n:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -642,8 +651,13 @@ let type_of(n:int64):int64 {
         return nodes[d].ty
     }
     if k == N_ANON {
-        gen_error(n, "kc reads an anonymous function as the function of '.lazy.map' and '.lazy.filter' (#324): name a function elsewhere")
+        gen_error(n, "kc reads an anonymous function as the function of '.lazy.map' and '.lazy.filter' (#324), and of an Iterator (#326): name a function elsewhere")
         return -1
+    }
+    if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
+    if k == N_METHOD && tok_is(t, "next") {             // it.next() of an Iterator: a T? (#326)
+        let iy:int64 = type_of(nodes[n].a)
+        if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
     }
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
         let ly = lazy_field_type(n)
@@ -1130,6 +1144,10 @@ let mangled(y:int64):String {
         return s
     case Y_SET:
         var s = $"Set_"
+        s += mangled(types[y].elem)
+        return s
+    case Y_ITER:                                       // (#326)
+        var s = $"Iterator_"
         s += mangled(types[y].elem)
         return s
     case Y_TASK:                                       // (#313)
@@ -1714,7 +1732,12 @@ let gen_call(n:int64) {
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
         var each:int64 = args
         while each >= 0 {                          // a lazy Sequence has no text, as kelvinc's (#324)
-            if is_lazy_type(type_of(each)) {
+            let ey:int64 = type_of(each)
+            if ey >= 0 && types[ey].kind == Y_ITER {      // as kelvinc's (#326)
+                gen_error(each, "an Iterator has no text: walk it with for, or gather it, as in '.map { $0 }'")
+                return
+            }
+            if is_lazy_type(ey) {
                 var m = tok_text(nodes[f].t)
                 m += " cannot show a lazy Sequence, whose values are made only as they are asked for: walk it with for, or fold it, as in '.reduce'"
                 gen_error(each, m.cstr)
@@ -1914,6 +1937,21 @@ let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
 let gen_method(n:int64) {
     if lazy_of(n) >= 0 {                                // s.lazy.map(f), s.lazy.filter(f) (#324)
         gen_lazy_make(n)
+        return
+    }
+    let ny:int64 = tok_is(nodes[n].t, "next") ? type_of(nodes[n].a) : 0 - 1
+    if ny >= 0 && types[ny].kind == Y_ITER {             // it.next() of an Iterator (#326), on a var
+        let lead = $"'.next' is a var method, which changes "
+        if !changes_var(nodes[n].a, &lead) { return }
+        if !changeable_place(nodes[n].a) {
+            gen_error(n, "'.next' is a var method, which changes the value it is called on, so that value is a variable")
+            return
+        }
+        put("({ ")
+        put_ctype(optional_of(types[ny].elem))
+        put(" _kv_nv; kv_iter_next(&(")
+        gen_expr(nodes[n].a)
+        put("), &_kv_nv); _kv_nv; })")
         return
     }
     let a:int64 = nodes[n].a
@@ -2929,6 +2967,10 @@ let gen_expr(n:int64) {
         type_of(n)                                       // its error (#324)
         return
     }
+    if k == N_ITER {                                     // (#326)
+        gen_iter_make(n)
+        return
+    }
     if k == N_FIELD && tok_is(t, "lazy") && lazy_field_type(n) != 0 - 2 {
         gen_error(n, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
         return
@@ -3120,6 +3162,12 @@ let type_text(y:int64):String {
         s += type_text(types[y].elem)
         s += ">"
         return s
+    case Y_ITER:                                     // Iterator<i64> (#326)
+        var s = $"Iterator<"
+        let e:String = kelvin_type_text(types[y].elem)
+        s += &e
+        s += ">"
+        return s
     case Y_TASK:                                     // as kelvinc names it, Task<Array<i64>> (#313)
         if types[y].elem < 0 { return $"Task" }
         var s = $"Task<"
@@ -3176,6 +3224,10 @@ let gen_var(n:int64) {
     if nodes[n].a >= 0 && !takes_borrow(nodes[n].a, y, &who) { return }
     if nodes[n].a >= 0 && types[y].kind == Y_TASK && is_place(nodes[n].a) {   // as kelvinc's (#313)
         gen_error(nodes[n].a, "a Task is not copied: pass it on, or await it")
+        return
+    }
+    if nodes[n].a >= 0 && types[y].kind == Y_ITER && is_place(nodes[n].a) {   // as kelvinc's (#326)
+        gen_error(nodes[n].a, "an Iterator is not copied: pass it on, or walk it")
         return
     }
     if is_owner(y) {
@@ -3868,15 +3920,224 @@ let put_lazy_bodies() {
     }
 }
 
+// ---------- Iterator<T> (#326) ----------
+
+// an Iterator kc makes of Iterator(state) { ... }, as kelvinc's #325: its
+// function, of the program or made of { ... }, over a state of type
+// state_y, whose adapters _kv_iterN_next and _drop kc writes
+struct iter_rec {
+    node: int64
+    state_y: int64
+    fn: int64
+    iter_y: int64
+}
+
+var iters:$[iter_rec]
+var iter_at:Dictionary<int64, int64>      // a node's Iterator, by its place in iters
+
+// the first value a function's body returns, as kc types it: the locals
+// before it declared in turn; -1 where it returns none alone
+let first_return(s0:int64):int64 {
+    var s:int64 = s0
+    while s >= 0 && !failed {
+        let k:nkind = nodes[s].kind
+        if k == S_VAR {
+            declare_as(nodes[s].t, nodes[s].ty >= 0 ? nodes[s].ty : inferred(s), nodes[s].flag == 1 ? 1 : 0)
+        } else if k == S_RETURN && nodes[s].a >= 0 && !(nodes[nodes[s].a].kind == N_ID && tok_is(nodes[nodes[s].a].t, "none")) {
+            return type_of(nodes[s].a)
+        } else if k == S_IF || k == S_WHILE || k == S_BLOCK {
+            open_scope()
+            let y:int64 = first_return(k == S_BLOCK ? nodes[s].a : nodes[nodes[s].b].a)
+            close_scope()
+            if y >= 0 { return y }
+            if k == S_IF && nodes[s].c >= 0 {
+                open_scope()
+                let z:int64 = first_return(nodes[nodes[s].c].kind == S_BLOCK ? nodes[nodes[s].c].a : nodes[s].c)
+                close_scope()
+                if z >= 0 { return z }
+            }
+        }
+        s = nodes[s].next
+    }
+    return 0 - 1
+}
+
+// the function an Iterator's { ... } makes, over a state of type sy: $0,
+// or its first parameter written, is the state itself, flag 3; its result
+// written, T? of the T written, or T? of its first `return v`
+let iter_function(an:int64, sy:int64, ty:int64):int64 {
+    var name = $"_kv_"
+    name += tok_text(nodes[current].t)
+    name += "_fn"
+    name += String(anon_fns.count as int64 + 1)
+    let d:int64 = make_node(D_FN, made_token(&name))
+    if nodes[an].flag == 1 {
+        var zero = $"$0"
+        let p:int64 = make_node(S_VAR, made_token(&zero))
+        nodes[p].ty = sy
+        nodes[p].flag = 3
+        nodes[d].a = p
+    } else {
+        nodes[d].a = nodes[an].a
+        if nodes[d].a < 0 || nodes[nodes[d].a].ty != sy {
+            gen_error(an, "an Iterator's function takes its state, which it changes")
+            return 0 - 1
+        }
+        nodes[nodes[d].a].flag = 3
+    }
+    nodes[d].b = nodes[an].b
+    nodes[d].ty = nodes[an].ty
+    if nodes[d].ty < 0 && ty >= 0 { nodes[d].ty = optional_of(ty) }
+    if nodes[d].ty < 0 {                                // T? of what its first `return v` gives, as kelvinc's
+        open_scope()
+        declare_as(nodes[nodes[d].a].t, sy, 0)
+        let ry:int64 = first_return(nodes[nodes[an].b].a)
+        close_scope()
+        if ry < 0 {
+            gen_error(an, "an Iterator's function gives each value, 'return v', then none, 'return none', and this returns no value: return one, or write the type, as in 'Iterator<int64>(...)'")
+            return 0 - 1
+        }
+        nodes[d].ty = optional_of(ry)
+    }
+    decls += d
+    anon_fns += d
+    return d
+}
+
+// the Iterator n makes, by its place in iters, made the first time it is
+// typed; -1 where it is in error
+let iter_of(n:int64):int64 {
+    let seen = iter_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let sy:int64 = type_of(nodes[n].a)
+    if sy < 0 { return 0 - 1 }
+    let f:int64 = nodes[n].b
+    var fn:int64 = 0 - 1
+    if nodes[f].kind == N_ANON {
+        fn = iter_function(f, sy, nodes[n].ty)
+        if fn < 0 { return 0 - 1 }
+    } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+        fn = decl_named(nodes[f].t, D_FN)
+        let p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
+        if p < 0 || nodes[p].next >= 0 || types[nodes[p].ty].kind != Y_PTR || types[nodes[p].ty].elem != sy {
+            var m = $"an Iterator's function takes its state, "
+            let sw:String = kelvin_type_text(sy)
+            m += &sw
+            m += ", by a borrow that may change it, "
+            m += &sw
+            m += "^"
+            if p >= 0 {
+                m += ", and this takes "
+                let pw:String = kelvin_type_text(nodes[p].ty)
+                m += &pw
+            }
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+    }
+    if fn < 0 || nodes[fn].ty < 0 || some_type(nodes[fn].ty) < 0 {
+        gen_error(n, "an Iterator takes a function of its state that gives each value, a T?, then none")
+        return 0 - 1
+    }
+    let ey:int64 = some_type(nodes[fn].ty)
+    if nodes[n].ty >= 0 && nodes[n].ty != ey {
+        var m = $"this Iterator gives "
+        let tw:String = kelvin_type_text(nodes[n].ty)
+        m += &tw
+        m += ", and its function gives "
+        let ew:String = kelvin_type_text(ey)
+        m += &ew
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let r:iter_rec = {n, sy, fn, type_of_kind(Y_ITER, ey, -1)}
+    iters += r
+    iter_at[n] = iters.count as int64 - 1
+    return iters.count as int64 - 1
+}
+
+let iter_type_of(n:int64):int64 {
+    let i = iter_of(n)
+    if i < 0 { return 0 - 1 }
+    return iters[i].iter_y
+}
+
+// Iterator(state) { ... } (#326): the state moved to the heap, as kelvinc's
+let gen_iter_make(n:int64) {
+    let i = iter_of(n)
+    if i < 0 { return }
+    let sy:int64 = iters[i].state_y
+    let a:int64 = nodes[n].a
+    put("({ ")
+    put_ctype(sy)
+    put(" *_kv_is = kv_alloc(sizeof *_kv_is); *_kv_is = ")
+    if is_owner(sy) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {   // a var's moves in
+        put_owner_prefix(sy)
+        put("_take(&")
+        put_tok(nodes[a].t)
+        put(")")
+    } else {
+        gen_expr(a)
+    }
+    put("; kv_iter_make(_kv_is, ")
+    if is_owner(sy) {
+        put("_kv_iter")
+        put_int(i + 1)
+        put("_drop")
+    } else {
+        put("NULL")
+    }
+    put(", _kv_iter")
+    put_int(i + 1)
+    put("_next); })")
+}
+
+// each Iterator's adapters: next writes the T? its function gives of the
+// state, drop frees a state that owns; heads, their prototypes alone
+let put_iter_adapters(heads:bool) {
+    for i in 0..<iters.count as int64 {
+        let r:iter_rec = iters[i]
+        put("static void _kv_iter")
+        put_int(i + 1)
+        put("_next(void *_kv_s, void *_kv_out)")
+        if heads {
+            put(";\n")
+        } else {
+            put("\n{\n    *(")
+            put_ctype(nodes[r.fn].ty)
+            put(" *)_kv_out = ")
+            put_fn_name(r.fn)
+            put("((")
+            put_ctype(r.state_y)
+            put(" *)_kv_s);\n}\n\n")
+        }
+        if is_owner(r.state_y) {
+            put("static void _kv_iter")
+            put_int(i + 1)
+            put("_drop(void *_kv_s)")
+            if heads {
+                put(";\n")
+            } else {
+                put("\n{\n    ")
+                put_free(r.state_y)
+                put("((")
+                put_ctype(r.state_y)
+                put(" *)_kv_s);\n}\n\n")
+            }
+        }
+    }
+}
+
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional
 // each pass, freed where it owns, x its some, up to none; the iterator
 // changes, a place by its address, and one an expression gives is held;
 // src, what it walks, the loop's own or a Sequence's makeIterator() (#322)
 let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
-    let tn:String = tok_text(types[y].name)
-    let oy:int64 = nodes[f].ty
+    let builtin = f < 0                                // an Iterator<T>'s, kv_iter_next (#326)
+    let tn:String = builtin ? $"Iterator" : tok_text(types[y].name)
+    let oy:int64 = builtin ? optional_of(types[y].elem) : nodes[f].ty
     let ey:int64 = some_type(oy)
-    if nodes[f].flag != 2 {
+    if !builtin && nodes[f].flag != 2 {
         var m = $"for walks an iterator by its next(), which changes it, and '"
         m += &tn
         m += ".next' is a let method, which reads it: write 'var "
@@ -3885,7 +4146,7 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
         gen_error(nodes[n].a, m.cstr)
         return
     }
-    if nodes[f].a >= 0 || ey < 0 {
+    if !builtin && (nodes[f].a >= 0 || ey < 0) {
         var m = $"for walks an iterator by its next(), which takes nothing and gives each value, then none: write 'var "
         m += &tn
         m += ".next():T?'"
@@ -3936,13 +4197,21 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
     put_ctype(oy)
     put(" _kv_o")
     put_int(s)
-    put(" = ")
-    put_tok(nodes[f].c)
-    put("__next(")
+    if builtin {
+        put("; kv_iter_next(")
+    } else {
+        put(" = ")
+        put_tok(nodes[f].c)
+        put("__next(")
+    }
     if place {
         gen_place(src)
     } else {
         put("&_kv_it")
+        put_int(s)
+    }
+    if builtin {
+        put(", &_kv_o")
         put_int(s)
     }
     put(");\n")
@@ -3973,6 +4242,10 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
+    if types[y].kind == Y_ITER {                       // an Iterator<T> (#326)
+        gen_iter_each(n, depth, y, 0 - 1, nodes[n].a)
+        return
+    }
     let mk = sequence_maker(y)
     if mk >= 0 {                                       // a Sequence (#322), as kelvinc's #321
         if nodes[n].b >= 0 {
@@ -4455,10 +4728,16 @@ let gen_signature(d:int64) {
     while p >= 0 {
         if p != nodes[d].a || takes_self { put(", ") }
         put_ctype(nodes[p].ty)
-        put(" ")
-        if is_owner(nodes[p].ty) { put("_kv_") }        // an owner taken by value: _kv_x_in, bound to x (#226)
-        put_tok(nodes[p].t)
-        if is_owner(nodes[p].ty) { put("_in") }
+        if nodes[p].flag == 3 {                         // an Iterator's state itself, by its address (#326)
+            put(" *")
+            put_tok(nodes[p].t)
+            put("_ref")
+        } else {
+            put(" ")
+            if is_owner(nodes[p].ty) { put("_kv_") }    // an owner taken by value: _kv_x_in, bound to x (#226)
+            put_tok(nodes[p].t)
+            if is_owner(nodes[p].ty) { put("_in") }
+        }
         p = nodes[p].next
     }
     put(")")
@@ -4468,7 +4747,7 @@ let gen_signature(d:int64) {
 let takes_owner(d:int64):bool {
     var p:int64 = nodes[d].a
     while p >= 0 {
-        if is_owner(nodes[p].ty) { return true }
+        if is_owner(nodes[p].ty) && nodes[p].flag != 3 { return true }
         p = nodes[p].next
     }
     return false
@@ -4658,6 +4937,17 @@ let gen_function(d:int64) {
     put("\n")
     let var_method = nodes[d].c >= 0 && nodes[d].flag == 2
     if var_method { put("#define self (*_kv_selfp)\n") }   // self is the caller's var (#320)
+    var rp:int64 = nodes[d].a
+    while rp >= 0 {                                      // an Iterator's state itself (#326)
+        if nodes[rp].flag == 3 {
+            put("#define ")
+            put_tok(nodes[rp].t)
+            put(" (*")
+            put_tok(nodes[rp].t)
+            put("_ref)\n")
+        }
+        rp = nodes[rp].next
+    }
     if is_main(d) {
         put("{\n")
         if uses_io && nodes[d].a >= 0 {
@@ -4681,7 +4971,7 @@ let gen_function(d:int64) {
         put("{\n")
         p = nodes[d].a
         while p >= 0 {
-            if is_owner(nodes[p].ty) {
+            if is_owner(nodes[p].ty) && nodes[p].flag != 3 {
                 put("    __attribute__((cleanup(")
                 put_free(nodes[p].ty)
                 put("))) ")
@@ -4701,6 +4991,15 @@ let gen_function(d:int64) {
         gen_block(nodes[d].b, 0)
     }
     if var_method { put("#undef self\n") }
+    rp = nodes[d].a
+    while rp >= 0 {
+        if nodes[rp].flag == 3 {
+            put("#undef ")
+            put_tok(nodes[rp].t)
+            put("\n")
+        }
+        rp = nodes[rp].next
+    }
     close_scope()
     put("\n")
 }
@@ -5155,6 +5454,7 @@ let gen_program() {
         k += 1
     }
     if !failed { put_lazy_bodies() }
+    if !failed { put_iter_adapters(false) }
     var body:String = out.copy()
     out = head.copy()
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
@@ -5181,6 +5481,7 @@ let gen_program() {
     }
     put_async_heads()                                   // async f(x)'s (#313)
     put_lazy_heads()                                    // and the functions kc makes (#324)
+    put_iter_adapters(true)                             // and an Iterator's adapters (#326)
     out += &body
     put_async_bodies()
     for i in 0..<shown.count as int64 { gen_show(shown[i]) }
