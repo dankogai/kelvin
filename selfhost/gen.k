@@ -6695,6 +6695,39 @@ let put_struct(name:int64) {
     put_tok(name)
 }
 
+var held_arrays:$[int64]                 // the Arrays of a struct written in it, their functions after it (#346)
+
+// the functions of the Arrays of y that y holds, after y, as kelvinc's
+// emit_arrays_after: the prototypes of y's free and copy, which they
+// call, and KV_ARRAY_FUNCS (#346)
+let write_held_arrays(y:int64) {
+    for i in 0..<held_arrays.count as int64 {
+        let a:int64 = held_arrays[i]
+        if types[a].elem == y {
+            if is_owner(y) {
+                put("__attribute__((unused)) static inline void ")
+                put_owner_prefix(y)
+                put("_free(")
+                put_ctype(y)
+                put(" *self);\n__attribute__((unused)) static inline ")
+                put_ctype(y)
+                put(" ")
+                put_owner_prefix(y)
+                put("_copy(const ")
+                put_ctype(y)
+                put(" *self);\n")
+            }
+            put("KV_ARRAY_FUNCS(")
+            put_ctype(y)
+            put(", ")
+            put_array_name(a)
+            put(", ")
+            put_free_copy(y)
+            put(")\n")
+        }
+    }
+}
+
 // an enum with values as kelvinc writes it (#215): a struct of a tag and
 // a union; its cases' names; _free, _take and _copy where a case owns;
 // and for each case, _make and _set, and _at, checked, of one with a value
@@ -6726,6 +6759,7 @@ let gen_tagged(d:int64) {
         m = nodes[m].next
     }
     put("};\n")
+    write_held_arrays(type_of_kind(Y_STRUCT, -1, name))    // an Array of it it holds (#346)
     let owns = tagged_owns(d)
     if owns {
         put("__attribute__((unused)) static inline void _kv_")
@@ -6924,18 +6958,28 @@ let gen_struct_owner(d:int64) {
     put("    return _kv_v;\n}\n\n")
 }
 
-var written:Dictionary<int64, int64>     // the types whose C is written (#225)
+var written:Dictionary<int64, int64>     // the types whose C is written (#225), 2 of a struct while it is (#346)
 
 // the C of type y once, after the types it holds by value: an Array's
 // element before the Array, a struct's members before the struct, an
 // enum's values before the enum (#225); a pointer needs no more than C's
-// name of what it points to
+// name of what it points to. An Array of a struct that holds it is a
+// type before the struct, its functions after (#346)
 let write_type(y:int64) {
     if y < 0 || written.has(y) { return }
     written[y] = 1
     let k:ykind = types[y].kind
     if k == Y_ARRAY {
         write_type(types[y].elem)
+        if written.get(types[y].elem, 0) == 2 {          // node of enum node { kids: $[node] }
+            put("KV_ARRAY_TYPE(")
+            put_ctype(types[y].elem)
+            put(", ")
+            put_array_name(y)
+            put(")\n")
+            held_arrays += y
+            return
+        }
         put("KV_ARRAY(")
         put_ctype(types[y].elem)
         put(", ")
@@ -6986,6 +7030,7 @@ let write_type(y:int64) {
             put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_LK_INT, KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
         }
     } else if k == Y_STRUCT {
+        written[y] = 2                                   // while what it holds is written (#346)
         let d = decl_named(types[y].name, D_STRUCT)
         if d >= 0 {
             var f:int64 = nodes[d].a
@@ -7006,6 +7051,8 @@ let write_type(y:int64) {
                 f = nodes[f].next
             }
             put("};\n\n")
+            written[y] = 1
+            write_held_arrays(y)
             if is_owner(y) { gen_struct_owner(d) }
             return
         }
@@ -7016,8 +7063,10 @@ let write_type(y:int64) {
                 write_type(nodes[m].ty)
                 m = nodes[m].next
             }
+            written[y] = 1
             gen_tagged(e)
         }
+        written[y] = 1
     }
 }
 

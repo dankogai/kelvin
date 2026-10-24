@@ -145,6 +145,16 @@ kc reads what it is written in, and little more.
       this is not one`; `case 'p' holds P, which has no '=='`.
     - `j < j`: kelvinc's error, and an operator of its own (#121) is
       not kc's yet.
+  - An enum or a struct that holds an Array of itself (#346), as
+    kelvinc writes one: `enum node { leaf: int64; kids: $[node] }`.
+    - The Array's type, `KV_ARRAY_TYPE`, comes before the struct, and
+      its functions, `KV_ARRAY_FUNCS`, right after it, with the
+      prototypes of the struct's `_free` and `_copy`, which they call.
+    - So a tree is built, copied, freed, printed, compared and walked
+      by a function that calls itself.
+    - Not yet: a Dictionary of itself, which kelvinc has; two enums
+      that hold Arrays of each other, `$[$[node]]` or `$[node]?` are
+      not kelvinc's either.
 - **Optional and Result** (#217): `T?`, `Optional<T>` and
   `Result<T, E>`, which kc makes as the enums with values kelvinc makes:
   `struct _kv_opt_T` of `none` and `some`, `struct _kv_res_T_E` of `ok`

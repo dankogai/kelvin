@@ -7030,3 +7030,17 @@ writes C that does not compile of `let <(a:J, b:J):bool`. Details are
 provisional P357.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 391. kc's enum holding an Array of itself
+
+> teach kc an enum holding an Array of itself as #346
+
+**Claude** taught kc an enum with values, or a struct, that holds an
+Array of itself, as kelvinc writes one: the Array's type before the
+struct, its functions right after it, with the prototypes of the
+struct's free and copy, which they call. A tree is built, copied,
+freed, printed, compared and walked as under kelvinc. Found, not
+fixed: a Dictionary of itself, which kelvinc has, is not kc's yet.
+Details are provisional P358.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

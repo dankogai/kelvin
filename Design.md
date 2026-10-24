@@ -377,6 +377,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 343 | kc reads `==` and `!=` of an Optional, as kelvinc's #79: two `none`, or two equal values; the other side a `T?`, a `T` wrapped, or `none`; an Optional's elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words | — | kc's `pending == none` | 2026-10-25 |
 | 344 | kc reads `==` and `!=` of a Result, as kelvinc's #79: the same case, and equal values; the other side a Result, a `T` wrapped as `ok(T)`, `ok(v)` or `err(e)`; a Result's elements in an Array, a Dictionary and a search compare too; a `T` where a Result goes is `ok(T)` in a declaration and a return as well; with kelvinc's errors in its words | — | kc's `outcome == err("late")` | 2026-10-25 |
 | 345 | kc reads `==` and `!=` of an enum with values, as kelvinc's #79: the same case, and equal values, both sides of the enum; its elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words, and `struct T` as kelvinc names a struct or an enum there | — | kc's `a == item.num(5)` | 2026-10-25 |
+| 346 | kc reads an enum with values, or a struct, that holds an Array of itself, as kelvinc writes one: the Array's type before the struct, its functions after it, with the prototypes of the struct's free and copy | `KV_ARRAY_TYPE` and `KV_ARRAY_FUNCS` by hand | kc's `enum shrub { leaf: int64; twigs: $[shrub] }` | 2026-10-25 |
 
 Notes:
 
@@ -938,6 +939,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (346) Agreed details: "teach kc an enum holding an Array of itself as
+  #346".
+  - gen.k: write_type writes a struct after the types it holds; one
+    that holds an Array of itself reached the Array first, whose
+    `KV_ARRAY` needs the struct whole and its `_free`: C refused it.
+  - Now, as kelvinc's emit_arrays_after:
+    - `written` is 2 of a struct while its members are written; an
+      Array of it met then is written as `KV_ARRAY_TYPE`, which needs
+      only the struct's name, and held (held_arrays);
+    - write_held_arrays, right after the struct's `};`, writes the
+      prototypes of its `_free` and `_copy`, where it owns, and
+      `KV_ARRAY_FUNCS`, before the `_free` that calls them.
+  - Of an enum with values (gen_tagged) and of a struct alike: `struct
+    tree { value: int64; children: $[tree] }` too.
+  - So a tree is built, copied, freed, printed, compared by `==` (#345)
+    and walked by a function that calls itself, with as many
+    allocations as kelvinc's build and no leak.
+  - Found, not fixed:
+    - a Dictionary of itself, `enum j { obj: Dictionary<String, j> }`,
+      which kelvinc has, is not kc's: "field has incomplete type";
+    - `r.children += {2, $[]}` reaches C, where kelvinc says a list is
+      not a value there.
+  - Neither compiler has two enums that hold Arrays of each other,
+    `$[$[g]]` or `$[k]?` of itself.
 
 - (345) Agreed details: "teach kc == of an enum with values as #345".
   - gen.k: every enum with values now has the `_kv_T_eq` that an
@@ -4345,6 +4371,7 @@ says "as agreed".
 | P355 | Details of #343 | selfhost/gen.k: gen_optional_eq, tagged_side, gen_opt_operand, the Optional's _eq; eq_type, need_eq, put_eq_code, gen_cond, value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `c ? $"n" : none` |
 | P356 | Details of #344 | selfhost/gen.k: is_result, is_variant, value_case, eq_case; gen_variant_eq (gen_optional_eq), gen_opt_operand, opt_operand_owns, the Result's _eq; eq_type, need_eq, gen_value's ok(T), value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `==` of another enum with values; kc's `$[ok(1)]`, `ok(none)`, text into a `String?` or a Result of a String, `ok(1, 2)` |
 | P357 | Details of #345 | selfhost/gen.k: eq_type (eq_asked), has_eq_fn, need_eq, put_eq_code, gen_eq, the prototypes of any enum with values; gen_variant_eq of an enum (eq_type_text, enum_mismatch_text); is_place of `T.c`; gen_container_eq's `Array<struct P>`; selfhost/sample.k; selfhost/README.md | kc's operators of a type's own (#121); kc's enum holding an Array of itself |
+| P358 | Details of #346 | selfhost/gen.k: write_type (written 2 while a struct's members are written, KV_ARRAY_TYPE of an Array of it, held_arrays), write_held_arrays after the struct in write_type and gen_tagged; selfhost/sample.k; selfhost/README.md | kc's Dictionary of itself; kc's `xs += {2, $[]}` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

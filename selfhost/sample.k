@@ -32,6 +32,19 @@ let describe(v:item^):int64 {
     return -1
 }
 
+enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
+
+let leaves(s:const shrub^):int64 {
+    switch s^ {
+    case leaf(n): return n
+    case twigs(ts):
+        var sum = 0
+        for x in ts { sum += leaves(&x) }
+        return sum
+    }
+    return -1
+}
+
 // Optional and Result (#217)
 let find(xs:$[int64]^, v:int64):int64? {
     for i in 0..<xs^.count as int64 {
@@ -535,5 +548,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let digits:$[Result<int64, String>] = $[parse_digit('4'), parse_digit('?'), 7]   // == of a Result (#344)
     println(outcome == err("late"), " ", parse_digit('7') == 7, " ", good != bad, " ", digits.firstIndex(7), " ", digits.contains(ok(5)), " ", outcome != err($"early"))
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
+    let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
+    println(bush, " ", leaves(&bush), " ", bush == bush.copy())
     return 0
 }
