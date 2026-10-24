@@ -168,7 +168,9 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 
 `for x in it { ... }` walks an iterator (#318), a value whose var
 method `next()` gives each value, then `none`; the loop changes it, so
-a var walked in part goes on where it stopped. The details are in
+a var walked in part goes on where it stopped. A Sequence (#321), whose
+let method `makeIterator()` gives a fresh iterator, is walked on that
+one and stays as it was. The details are in
 [iterators.md](iterators.md).
 
 ## Conditions are `bool`

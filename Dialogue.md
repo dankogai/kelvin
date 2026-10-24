@@ -6708,3 +6708,15 @@ through, is refused now too. The iterator's `map` and the rest wait for
 kc's anonymous functions. Details are provisional P332.
 
 There are 981 tests, and all pass with clang and with gcc 15.
+
+### 366. Sequences
+
+> add Sequence and makeIterator as #321
+
+**Claude** added Swift's `Sequence`: a value whose let `makeIterator()`
+gives a fresh iterator, which `for` and `map`, `filter`, `reduce` and
+`flatMap` walk, so the Sequence stays as it was, a let too, and is
+walked afresh each time. A value with both `makeIterator` and `next` is
+a Sequence, as in Swift's `for`. Details are provisional P333.
+
+There are 984 tests, and all pass with clang and with gcc 15.

@@ -872,6 +872,8 @@ static void reject_valueless_args(Expr *call);
 static void reject_var_method_receiver(Expr *recv, const char *member, Pos pos);
 static Decl *iterator_next(Type *t);
 static Expr *iterator_array(Expr *it, Decl *next, Token *at);
+static Decl *sequence_maker(Type *t);
+static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
 static Decl *optional_record(Type *t);
@@ -2191,7 +2193,15 @@ static Expr *parse_postfix_steps(Expr *e) {
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
                  !strcmp(member, "flatMap")) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())) &&
-                !method_named(e, member) && iterator_next(value_type(e)))
+                !method_named(e, member) && sequence_maker(value_type(e))) { /* a Sequence's (#321) */
+                if (is_owner(value_type(e)) && !owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "a Sequence that an expression gives: bind it to a variable first");
+                Expr *it = sequence_iterator(e, sequence_maker(value_type(e)), name->pos);
+                e = iterator_array(it, iterator_next(value_type(it)), name);
+            } else if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
+                        !strcmp(member, "flatMap")) &&
+                       (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())) &&
+                       !method_named(e, member) && iterator_next(value_type(e)))
                 e = iterator_array(e, iterator_next(value_type(e)), name); /* an iterator's (#319) */
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
                  !strcmp(member, "flatMap") || with_key) &&
@@ -10552,6 +10562,41 @@ static Expr *iterator_array(Expr *it, Decl *next, Token *at) {
     return x;
 }
 
+/* the method makeIterator of t, a struct or union of the program, which
+   makes a value of t a Sequence (#321), the one with no parameters where
+   there are more; NULL where t has none */
+static Decl *sequence_maker(Type *t) {
+    t = t ? unqualified(t) : NULL;
+    if (!t || t->kind != T_BASE || !t->name)
+        return NULL;
+    Decl *found = NULL;
+    for (int i = 0; i < functions.len; i++) {
+        Decl *d = functions.data[i];
+        if (!d->recv || d->setter || d->attribute || d->type_fn || strcmp(d->name, "makeIterator") ||
+            !d->recv->name || strcmp(d->recv->name, t->name))
+            continue;
+        if (!found || (found->params.len && !d->params.len) || (!d->params.len && d->body))
+            found = d;
+    }
+    return found;
+}
+
+/* s.makeIterator() (#321), the fresh iterator a Sequence gives, which the
+   loop or the method walks; s reads and never changes, so it may be a
+   let; at, where the error points */
+static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at) {
+    const char *tn = mk->recv_name;
+    if (mk->var_method || mk->params.len || !mk->ret || !iterator_next(mk->ret))
+        error_at(at, "a Sequence gives a fresh iterator by its makeIterator(), a let method that takes nothing and "
+                     "gives a value whose 'var next():T?' gives each value: write 'let %s.makeIterator():I'",
+                 tn);
+    Expr *call = new_expr(E_METHOD, seq->pos);
+    call->a = seq;
+    call->text = "makeIterator";
+    call->method = mk;
+    return call;
+}
+
 static Stmt *parse_for_each(Stmt *s, Type *written) {
     s->kind = S_FOR_EACH;
     Expr *seq = s->expr;
@@ -10722,10 +10767,48 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     return s;
 }
 
+static Stmt *parse_for_each_hold(Stmt *s, Type *written);
+
+/* for x in s of a Sequence (#321): x walks s.makeIterator(), a fresh
+   iterator held for the loop, and s stays as it was; a Sequence an
+   expression gives that owns is held first, around it, and freed after */
+static Stmt *parse_for_each_held(Stmt *s, Type *written) {
+    Expr *seq = s->expr;
+    Type *t = value_type(seq);
+    Decl *mk = sequence_maker(t);
+    if (!mk)
+        return parse_for_each_hold(s, written);
+    if (s->name2)
+        error_at(s->pos, "two loop variables walk a Dictionary's entries; a Sequence's values take one");
+    Stmt *decl = NULL;
+    if (is_owner(t) && !owner_place(seq)) {
+        Var *v = xcalloc(1, sizeof *v);
+        v->name = strfmt("_kv_tmp%d", ++temp_serial);
+        v->pos = seq->pos;
+        v->type = unqualified(t);
+        v->init = seq;
+        v->is_let = true;
+        declare_binding(v->name, v->type, LET_VALUE);
+        Expr *id = new_expr(E_IDENT, seq->pos);
+        id->text = v->name;
+        seq = id;
+        decl = new_stmt(S_VAR, s->pos);
+        list_push(&decl->vars, v);
+    }
+    s->expr = sequence_iterator(seq, mk, seq->pos);
+    Stmt *loop = parse_for_each_hold(s, written);
+    if (!decl)
+        return loop;
+    Stmt *block = new_stmt(S_BLOCK, s->pos);
+    list_push(&block->stmts, decl);
+    list_push(&block->stmts, loop);
+    return block;
+}
+
 /* for x in make() (#187): what the loop walks, held in a hidden let of a
    block around the loop, which frees it when the loop is done; an IO's
    .read(n) and .lines walk as they read, and are left as they are */
-static Stmt *parse_for_each_held(Stmt *s, Type *written) {
+static Stmt *parse_for_each_hold(Stmt *s, Type *written) {
     Expr *seq = s->expr;
     Type *t = value_type(seq);
     bool io_walk = (seq->kind == E_METHOD && seq->op && !strcmp(seq->op, "io") && !strcmp(seq->text, "read")) ||

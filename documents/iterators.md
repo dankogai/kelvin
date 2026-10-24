@@ -1,11 +1,12 @@
 # Iterators
 
 An iterator is a value whose `next()` gives each value in turn, then
-`none` (#318), as Swift's `IteratorProtocol` does. `for x in it` walks
-one, and `map`, `filter`, `reduce` and `flatMap` take one as they take
-an Array (#319).
+`none` (#318), as Swift's `IteratorProtocol` does. A Sequence is a
+value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
+`Sequence` does. `for x in s` walks either, and `map`, `filter`,
+`reduce` and `flatMap` take either as they take an Array (#319).
 
-**Where it lives:** the core. An iterator is a struct or a union of the program with a var method `next`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
+**Where it lives:** the core. An iterator is a struct or a union of the program with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
 ```swift
 struct countdown { n: int64 }
@@ -89,6 +90,49 @@ let main():int32 {
   - Two loop variables, `for k, v in it`, are a Dictionary's, and an
     error here.
 
+## A Sequence: `let T.makeIterator():I`
+
+```swift
+struct span { lo: int64; hi: int64 }           // a Sequence
+struct span_walk { at: int64; hi: int64 }      // its iterator
+var span_walk.next():int64? {
+    if .at >= .hi { return none }
+    .at += 1
+    return .at - 1
+}
+let span.makeIterator():span_walk { return {.lo, .hi} }
+
+let main():int32 {
+    let s:span = {1, 4}
+    for x in s { print(x, ",") }              // 1,2,3,
+    for x in s { print(x, ",") }              // 1,2,3, again: s stays as it was
+    println()
+    println(s.map { $0 * 10 })               // [10, 20, 30]
+    return 0
+}
+```
+
+- **A Sequence** (#321) is a value of a struct or a union of the
+  program with a method `makeIterator`.
+  - `makeIterator` is a let method that takes nothing and gives an
+    iterator, a value whose `var next():E?` gives each value.
+  - A var `makeIterator`, one that takes something, or one that gives
+    no iterator is an error that names `let T.makeIterator():I`.
+  - The iterator holds what it walks by value, a copy of what it needs,
+    as `span_walk` holds the bounds and a word's iterator holds a copy
+    of its String.
+- **`for x in s` walks `s.makeIterator()`**, a fresh iterator held for
+  the loop and freed after it where it owns.
+  - `s` reads and never changes: it may be a let, and each `for` over
+    it walks it afresh.
+  - A Sequence an expression gives, `for x in upto(3)`, is held for the
+    loop, and freed after it where it owns.
+  - `x` is as an iterator's, above.
+- **`map`, `filter`, `reduce` and `flatMap`**, below, walk a fresh
+  iterator too, and leave `s` as it was.
+- **A value with both** `makeIterator` and `next` is a Sequence, as in
+  Swift's `for`: `makeIterator` wins.
+
 ## `map`, `filter`, `reduce` and `flatMap`
 
 ```swift
@@ -129,22 +173,22 @@ let main():int32 {
 - **The rules are an Array's** (#182, #184, #244, #308): an anonymous
   function is lent each value, a named one given a copy, and they
   chain, as `it.filter { ... }.map { ... }.reduce(0) { ... }`.
-- **The iterator is walked to its end**, as a `for` leaves it: a var
+- **An iterator is walked to its end**, as a `for` leaves it: a var
   stays at its end, a let is an error, and one an expression gives is
   held and freed.
-- **A method of the iterator's own** of one of these names wins, as a
+  - A Sequence's are walked on a fresh iterator, from `makeIterator()`,
+    and the Sequence stays as it was (#321).
+- **A method of the value's own** of one of these names wins, as a
   struct's member wins over a property.
 
 ## Not yet
 
-- **Swift's `Sequence`**, `makeIterator()`, which would give a fresh
-  iterator each time, so that a collection of the program's is walked
-  afresh and stays as it was.
 - **Lazy methods**, Swift's `.lazy.map`, which would give an iterator
   rather than an Array, and so take an iterator that never ends.
 - **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
   methods and `for x in it` (#320), and these wait for its anonymous
   functions ([selfhost/README.md](../selfhost/README.md)).
+- **kc's Sequences**, `makeIterator()` (#321).
 
 ## What each takes and gives
 
@@ -153,7 +197,9 @@ Each line is written as it would be declared, in Kelvin's spelling.
 <!-- fragment -->
 ```swift
 var T.next():E?                        // an iterator: each value, then none
+let T.makeIterator():I                 // a Sequence: a fresh iterator, I one
 for x in it { ... }                    // x: E, each value, up to none; it changes
+for x in s { ... }                     // x: E, of s.makeIterator(); s stays
 it.map(f:(E):U): Array<U>
 it.filter(f:(E):bool): Array<E>
 it.reduce(init:A, f:(A, E):A): A
@@ -170,7 +216,10 @@ it.flatMap(f:(E):Array<U>): Array<U>
 | | `.filter(f)`, `.filter { ... }` | a new `Array<E>` of the values `f` says true for (#319) |
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each value, from `init`, of `init`'s type (#319) |
 | | `.flatMap(f)`, `.flatMap { ... }` | the Arrays `f` gives each value, concatenated, a new `Array<U>` (#319) |
+| a Sequence, `let T.makeIterator():I` | `.makeIterator()` | a fresh iterator, which the Sequence gives each time (#321) |
+| | `for x in s` | each value of a fresh iterator; `s` stays as it was, a let too (#321) |
+| | `.map`, `.filter`, `.reduce`, `.flatMap` | as an iterator's, of a fresh iterator; `s` stays as it was (#321) |
 
-An iterator has the properties of any struct or union, as
+An iterator and a Sequence have the properties of any struct or union, as
 [structs.md](structs.md) has them; the general ones are in
 [properties.md](properties.md).

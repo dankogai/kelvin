@@ -263,6 +263,7 @@ let main():int32 {
 | | `.method(...)` | a method declared `let T.method()` |
 | | `.method(...)` on a var | a var method declared `var T.method()`, which changes it (#318) |
 | | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318); see [iterators.md](iterators.md) |
+| | `for x in v` of a Sequence | each value of the fresh iterator its `let T.makeIterator():I` gives (#321) |
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |

@@ -352,6 +352,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 318 | Swift's iterators: `for x in it` walks a value whose `var T.next():E?` gives each value, then `none`; a var method, `var T.m(...)`, and `var m(...)` in `extend`, has the caller's var as its `self`, as a setter has, and is called on a var | — | `for x in from(3)` gives 3, 2, 1 | 2026-10-24 |
 | 319 | An iterator's `map`, `filter`, `reduce` and `flatMap`, Swift's `Sequence` methods, eager: the iterator walked to `none`, its values gathered into an Array that the Array's own method walks and frees; documents/iterators.md, a document of its own | — | `from(4).map { $0 * 10 }` is `[40, 30, 20, 10]` | 2026-10-24 |
 | 320 | kc reads var methods, `var T.m(...)` and `var m(...)` in extend, and `for x in it` over an iterator, as kelvinc's #318, with kelvinc's errors in its words; an iterator's `map` and the rest wait for kc's anonymous functions | — | kc's `for x in count_from(3)` | 2026-10-24 |
+| 321 | Swift's `Sequence`: a value whose let `makeIterator()` gives a fresh iterator; `for x in s` and `map`, `filter`, `reduce` and `flatMap` walk that one, so `s` stays as it was and may be a let; where a value has both, `makeIterator` wins, as in Swift's `for` | — | `for x in s` twice gives 1,2,3,1,2,3, | 2026-10-24 |
 
 Notes:
 
@@ -913,6 +914,24 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (321) Agreed details: "add Sequence and makeIterator as #321".
+  - sequence_maker finds `T.makeIterator`, which must be a let method
+    that takes nothing and gives an iterator (iterator_next of its
+    result), else an error names `let T.makeIterator():I`.
+  - sequence_iterator makes the call `s.makeIterator()`, an E_METHOD of
+    the method, which the loop and the methods walk as an iterator an
+    expression gives, held and freed (#318, #319).
+  - for: parse_for_each_held now sees a Sequence first, holds one that
+    owns and that an expression gives in a hidden let around the loop,
+    and hands the call to parse_for_each_hold, the #187 holder renamed.
+  - map, filter, reduce and flatMap: a Sequence's receiver is held as
+    an owner's method receiver is (#187), then walked by iterator_array.
+  - A value with both `makeIterator` and `next` is a Sequence, as
+    Swift's `for` calls makeIterator.
+  - kc reads no Sequence yet.
+  - tests/run/sequence.k; tests/error/sequence_var_maker.k,
+    sequence_not_iterator.k.
 
 - (320) Agreed details: "teach kc iterators and var methods as #320".
   - parse.k: `var T.m(...)` at the top and `var m(...)` in extend are
@@ -3782,6 +3801,7 @@ says "as agreed".
 | P330 | Details of #318 | src/kelvin.h: var_method, EACH_ITER, Stmt.next; src/parser.c: var methods, iterator_next, the loop; src/codegen.c: the self pointer and the loop; editors/vscode grammar; tests; documents/structs.md, flow-controls.md | kc reads neither yet |
 | P331 | Details of #319 | src/parser.c: iterator_elem, iterator_array, the hook before the Array methods; src/codegen.c: iter_array; documents/iterators.md, flow-controls.md, structs.md, README.md, versusC.md; tests | — |
 | P332 | Details of #320 | selfhost/parse.k: var methods; selfhost/gen.k: gen_signature, gen_function, gen_method_of, changeable_place, changes_var, may_change, iterator_next, gen_iter_each; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
+| P333 | Details of #321 | src/parser.c: sequence_maker, sequence_iterator, parse_for_each_held over parse_for_each_hold, the Sequence's methods; documents/iterators.md, flow-controls.md, structs.md, README.md, versusC.md; tests | kc reads no Sequence yet |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
