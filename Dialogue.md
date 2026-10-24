@@ -6886,3 +6886,14 @@ among them, where it named `.lazy.map`, `.lazy.filter` and an Iterator
 alone. Details are provisional P346.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 380. dictionaries.md, sets.md and kc
+
+> update dictionaries.md and sets.md for kc's progress as #335
+
+**Claude** gave each a section kc: what kc reads of a Dictionary and of
+a Set, what it does not read yet, found by probing kc with each row of
+their tables, and where it differs from kelvinc. Details are provisional
+P347.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

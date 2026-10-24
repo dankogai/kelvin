@@ -67,6 +67,29 @@ var e:${String} = ${}                    // empty; Set<String>() too
 - **Not yet:** `==`, `isSubset`, `-` for the difference, elements of
   other types.
 
+## kc
+
+kc, the compiler written in Kelvin, reads this much of a Set as kelvinc
+writes it ([selfhost/README.md](../selfhost/README.md)):
+
+- **The type and its values**: `Set<T>` of integers or Strings, `${a,
+  b}`, and `${}` or `{a, b}` where the type is written (#274), printed
+  as kelvinc prints one.
+- **Its elements**: `.insert(x)` and `+=`, `+= &t`, `.has(x)`,
+  `.remove(x)`, `.count`, `.copy()`, `.elements` (#278), and `for x in
+  s` in the order added.
+- **The algebra**: `.union(&t)`, `.intersection(&t)`, `.difference(&t)`
+  (#275), and `|`, `&`, `~` and `|=`, `&=`, `~=` (#276).
+- **map, filter, reduce and flatMap** (#330), map's a Set of integers or
+  Strings, as kelvinc's.
+
+kc does not read yet `.clear()`, `.reserve(n)`, `.pretty` and
+`.typename`.
+
+Where kc differs, a String element is given to an anonymous function as
+a copy, which it owns, where kelvinc lends it (#244); what prints is the
+same.
+
 ## Properties and methods
 
 | On | Property or method | Gives |

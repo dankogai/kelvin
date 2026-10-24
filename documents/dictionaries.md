@@ -150,6 +150,35 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     mapWithKey's (#241).
 - **Not yet:** keys of other types, `d[k, default]`.
 
+## kc
+
+kc, the compiler written in Kelvin, reads this much of a Dictionary as
+kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
+
+- **The type and its values**: `Dictionary<K, V>` of String or integer
+  keys (#211), `${k: v}` and `${:}` (#267), printed as kelvinc prints
+  one.
+- **Its entries**: `d[k] = v`, `d[k]!`, `d[k]` read whole, a `V?`
+  (#219), `d[k] += v`; `.has(k)`, `.get(k, default)`, `.remove(k)`
+  (#270), `.count`; a String key an expression gives held (#314).
+- **Walking and copying**: `for k, v in d` and `for k in d` (#269),
+  `.keys` and `.values` (#285), `.copy()`, `==` and `!=` (#288).
+- **map, filter, reduce, flatMap** (#330), and `mapWithKey`,
+  `filterWithKey`, `reduceWithKey` (#331) and `flatMapWithKey` (#332),
+  their anonymous functions' parameters named, `{ acc, v in ... }`, or
+  `$0` and `$1`.
+
+kc does not read yet:
+
+- `.find(k)`, `.clear()`, `.reserve(n)`, `.pretty`, `.typename`;
+- `.merge` and `.merging` (#236), `??` and `!!` of two Dictionaries and
+  their `??=` and `!!=` (#237), and `d[k] ??= v` (#243);
+- `.contains`, `.firstKey` and `.lastKey`, and their WithKey kin (#249).
+
+Where kc differs, a value that owns is given to an anonymous function as
+a copy, which it owns, where kelvinc lends it (#244); what prints is the
+same.
+
 ## Properties and methods
 
 | On | Property or method | Gives |
