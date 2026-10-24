@@ -303,6 +303,7 @@ let declare_as(t:int64, y:int64, how:int64) {
 let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
+let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
 let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
 let changes_var(n:int64, lead:const String^):bool
 let changed_root(n:int64):int64    // and type_of of &x (#272)
@@ -713,6 +714,11 @@ let type_of(n:int64):int64 {
         if nodes[n].flag == 4 {                         // Array(&a): a's type, an Array's (#353)
             let ay:int64 = type_of(nodes[nodes[n].a].a)
             return ay >= 0 && types[ay].kind == Y_ARRAY ? ay : 0 - 1
+        }
+        if nodes[n].flag == 5 {                         // Array(a) of a fixed array: of its elements (#355)
+            let fy:int64 = type_of(nodes[n].a)
+            if fy < 0 || types[fy].kind != Y_FIXED || fixed_inside(types[fy].elem) { return -1 }
+            return type_of_kind(Y_ARRAY, types[fy].elem, -1)
         }
         if nodes[n].flag != 3 || nodes[n].b < 0 || is_case_word(nodes[n].b) { return -1 }
         let e:int64 = type_of(nodes[n].b)
@@ -2662,6 +2668,43 @@ let gen_make_dict(n:int64, y:int64, w:const String^) {
     if h { hold_close(p) }
 }
 
+// an Array of the fixed array x's elements, as kelvinc's #57 and #58:
+// _from of it and its count; of another element type, kc's error, where
+// kelvinc's C warns; of fixed arrays, kelvinc's (#355)
+let gen_from_fixed(x:int64, y:int64) {
+    let fy:int64 = type_of(x)
+    let fe:int64 = types[fy].elem
+    if fixed_inside(fe) {                                // as kelvinc says it
+        var m = $"an Array of "
+        let ew:String = type_text(fe)
+        m += &ew
+        m += " is not here yet: an element is a value C returns"
+        gen_error(x, m.cstr)
+        return
+    }
+    if y >= 0 && fe != types[y].elem {
+        let w:String = kelvin_type_text(y)
+        var m = w.copy()
+        m += "(a) takes a fixed array of "
+        let ew:String = kelvin_type_text(types[y].elem)
+        m += &ew
+        m += ", and this is "
+        let fw:String = type_text(fy)
+        m += &fw
+        gen_error(x, m.cstr)
+        return
+    }
+    let ay:int64 = y >= 0 ? y : type_of_kind(Y_ARRAY, fe, -1)
+    put_array_name(ay)
+    put("_from(")
+    gen_expr(x)
+    put(", sizeof(")
+    gen_expr(x)
+    put(") / sizeof((")
+    gen_expr(x)
+    put(")[0]))")
+}
+
 // Array([a, b]), T the elements' one type, as kelvinc's #58 and as
 // $[a, b] (#352); Array(&a), a copy of the Array a, of its type (#353);
 // Array() and the rest kelvinc's errors in its words
@@ -2691,6 +2734,8 @@ let gen_make_inferred(n:int64) {
         gen_place(p)
         put(")")
         if h { hold_close(p) }
+    } else if f == 5 && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_FIXED {   // Array(a) of a fixed array (#355)
+        gen_from_fixed(nodes[n].a, 0 - 1)
     } else if f == 4 || f == 5 {                         // as kelvinc says it of what is no Array
         gen_error(n, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
     } else if f == 6 {
@@ -2716,9 +2761,8 @@ let gen_make(n:int64) {
         return
     }
     if nodes[n].flag == 2 {
-        var m = $"kc makes an empty one alone, "
-        m += &w
-        m += "(); not yet of a fixed array"
+        var m = w.copy()
+        m += " takes nothing, a count, the elements in [...], a fixed array, or a borrow of another"
         gen_error(n, m.cstr)
         return
     }
@@ -2758,6 +2802,10 @@ let gen_make(n:int64) {
         gen_place(p)
         put(")")
         if h { hold_close(p) }
+        return
+    }
+    if nodes[n].flag == 5 && type_of(x) >= 0 && types[type_of(x)].kind == Y_FIXED {   // Array<T>(a) of a fixed array (#355)
+        gen_from_fixed(x, y)
         return
     }
     if nodes[n].flag == 5 {                              // a count of zero elements
@@ -2893,6 +2941,14 @@ let gen_array(n:int64, given:int64) {
     if y < 0 {
         if !one_type(n) { return }
         y = type_of(n)
+    }
+    if fixed_inside(types[y].elem) {                     // $[a, b] of fixed arrays, as kelvinc says it (#355)
+        var m = $"an Array of "
+        let ew:String = type_text(types[y].elem)
+        m += &ew
+        m += " is not here yet: an element is a value C returns"
+        gen_error(n, m.cstr)
+        return
     }
     let elem:int64 = types[y].elem
     serial += 1

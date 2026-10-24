@@ -581,5 +581,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var sum_sq = 0
     for v in sq4 { sum_sq += v }
     println(sq4[3], " ", sq4.count, " ", board2[1][0], " ", board2.count, " ", zeros3.count, " ", sum_sq, " ", sq4.size)
+    var from_sq = Array(sq4)                            // Array<T>(a) and Array(a) of a fixed array (#355)
+    from_sq += 36
+    println(from_sq, " ", Array<int64>(sq4).count)
     return 0
 }

@@ -7157,3 +7157,16 @@ compound literals. Found in kelvinc, not fixed here: `println(a)` of a
 fixed array prints its address. Details are provisional P366.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 400. kc's Array<T>(a) of a fixed array
+
+> teach kc Array<T>(a) of a fixed array as #355
+
+**Claude** taught kc `Array<T>(a)` and `Array(a)` of a fixed array, as
+kelvinc's #57 and #58: an Array of copies of its elements, by `_from`.
+An Array of fixed arrays is kelvinc's error in its words, where
+kelvinc's `Array([a, a])` printed two addresses; a fixed array of
+another element type is kc's error, where kelvinc's C warns. Details
+are provisional P367.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
