@@ -135,6 +135,16 @@ kc reads what it is written in, and little more.
   - `switch v { case none: ... case num(n): ... }` binds the case's
     value, which the enum still owns; every case is named, or there is
     `default:`.
+  - `==` and `!=` (#345), as kelvinc's #79: the same case, and equal
+    values, by `_kv_T_eq`, as an Optional's (#343) and a Result's (#344).
+    - Both sides are of the enum: `a == item.num(5)`, `j != k`; nothing
+      is wrapped, so `j == none` and `j == 3` are kelvinc's errors.
+    - Its elements in an Array, a Dictionary and a search compare too:
+      `items.contains(item.none)`.
+    - kelvinc's errors, in its words: `'==' compares two struct J, and
+      this is not one`; `case 'p' holds P, which has no '=='`.
+    - `j < j`: kelvinc's error, and an operator of its own (#121) is
+      not kc's yet.
 - **Optional and Result** (#217): `T?`, `Optional<T>` and
   `Result<T, E>`, which kc makes as the enums with values kelvinc makes:
   `struct _kv_opt_T` of `none` and `some`, `struct _kv_res_T_E` of `ok`
@@ -196,7 +206,7 @@ kc reads what it is written in, and little more.
     - kelvinc's errors, in its words: `i64? has no operator '<':
       compare with == and !=`, `'==' compares two i64?, and this is
       String?`, and of one whose value has no `==`, a struct's.
-    - Of another enum with values, kc's error: not yet.
+    - Of another enum with values, the same since #345.
   - `==` and `!=` of a Result (#344), the same way: the same case,
     and equal values, by `_kv_res_T_E_eq`.
     - The other side is a Result, a `T` wrapped as `ok(T)`, `ok(v)`
@@ -395,8 +405,8 @@ kc reads what it is written in, and little more.
   its `==`; an Array or a Dictionary of them too.
   - kelvinc's errors, in its words: two of different types; elements or
     values with no `==`, a Set or a struct.
-  - An Optional (#343) or a Result (#344) in them compares; another
-    enum with values in them is kc's error: not yet.
+  - An Optional (#343), a Result (#344) or another enum with values
+    (#345) in them compares.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
   first or the last equal to `x`, an `i64?`, or `none`.
@@ -410,7 +420,8 @@ kc reads what it is written in, and little more.
     Dictionary's; an Array's is '.firstIndex'`, a Dictionary's
     `firstIndex` the other way.
   - Optional elements compare by `==` since #343, `ns.contains(none)`,
-    and Result elements since #344, `rs.contains(err($"x"))`.
+    Result elements since #344, `rs.contains(err($"x"))`, and those of
+    any enum with values since #345.
 - **An Array, a Dictionary or a Set has no arithmetic** (#287), as
   kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
   `an Array has no operator '+': compare its elements`, a Dictionary's

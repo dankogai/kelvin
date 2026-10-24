@@ -7014,3 +7014,19 @@ kc does not read `$[ok(1)]` or `ok(none)` in a declaration. Details
 are provisional P356.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 390. kc's == of an enum with values
+
+> teach kc == of an enum with values as #345
+
+**Claude** taught kc `==` and `!=` of any enum with values, as
+kelvinc's #79, by the path of an Optional's (#343) and a Result's
+(#344): the same case, and equal values, both sides of the enum. Its
+elements in an Array, a Dictionary and a search compare too. kelvinc's
+errors are in its words, naming `struct J` as it does; an operator of
+the enum's own (#121) is not kc's yet. Found on the way, and fixed:
+`l == json.none` took `json.none` for a place. Found, not fixed: kc
+writes C that does not compile of `let <(a:J, b:J):bool`. Details are
+provisional P357.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

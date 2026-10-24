@@ -534,5 +534,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(pending == none, " ", tag == $"untagged", " ", marks["ann"]! == 90, " ", marks.firstKey(none), " ", rolls.firstIndex(6) == 1, " ", gaps.lastIndex(none), " ", gaps == gaps2)
     let digits:$[Result<int64, String>] = $[parse_digit('4'), parse_digit('?'), 7]   // == of a Result (#344)
     println(outcome == err("late"), " ", parse_digit('7') == 7, " ", good != bad, " ", digits.firstIndex(7), " ", digits.contains(ok(5)), " ", outcome != err($"early"))
+    println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     return 0
 }

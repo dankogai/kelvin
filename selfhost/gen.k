@@ -1515,15 +1515,35 @@ var compared:$[int64]                       // the types whose T_eq is written, 
 
 let eq_case(y:int64):int64    // a prototype: what a case holds compares too
 
+// y as kelvinc names it in =='s errors: a struct and an enum with
+// values as struct T (#345), the rest as kelvin_type_text
+let eq_type_text(y:int64):String {
+    if types[y].kind == Y_STRUCT && !is_variant(y) {
+        var s = $"struct "
+        s += tok_text(types[y].name)
+        return s
+    }
+    return kelvin_type_text(y)
+}
+
+var eq_asked:Dictionary<int64, int64>      // the enums with values eq_type is asking of, 1 while it is
+
 // whether values of y compare with ==, as kelvinc's eq_type: an Array or
-// a Dictionary where its elements or values do, an Optional or a Result
-// where what its cases hold does (#343, #344); a Set, an IO or a struct
-// does not; another enum with values kc does not compare yet
+// a Dictionary where its elements or values do, an Optional, a Result or
+// an enum with values where what its cases hold does (#343, #344, #345);
+// a Set, an IO or a struct does not. An enum that holds itself, through
+// an Array, compares as far as it goes, as kelvinc's no_eq
 let eq_type(y:int64):bool {
     if y < 0 { return true }
     let k = types[y].kind
     if k == Y_ARRAY || k == Y_DICT { return eq_type(types[y].elem) }
-    if is_variant(y) { return eq_case(y) < 0 }
+    if tagged_of(y) >= 0 {
+        if eq_asked.get(y, 0) == 1 { return true }
+        eq_asked[y] = 1
+        let r = eq_case(y) < 0
+        eq_asked[y] = 0
+        return r
+    }
     if k == Y_SET || k == Y_IO || k == Y_STRUCT { return false }
     return true
 }
@@ -1538,10 +1558,10 @@ let eq_case(y:int64):int64 {
     return 0 - 1
 }
 
-// whether T_eq of y is written: an Array's, a Dictionary's, an Optional's,
-// a Result's
+// whether T_eq of y is written: an Array's, a Dictionary's, an enum with
+// values', an Optional and a Result among them
 let has_eq_fn(y:int64):bool {
-    return y >= 0 && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || is_variant(y))
+    return y >= 0 && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || tagged_of(y) >= 0)
 }
 
 // T_eq of y written after the functions, and of what it holds
@@ -1550,7 +1570,7 @@ let need_eq(y:int64) {
         if compared[i] == y { return }
     }
     compared += y
-    if !is_variant(y) {
+    if tagged_of(y) < 0 {
         if has_eq_fn(types[y].elem) { need_eq(types[y].elem) }
         return
     }
@@ -1567,7 +1587,7 @@ let put_eq_name(y:int64) {
     } else if types[y].kind == Y_DICT {
         put_dict_name(y)
     } else {
-        put_owner_prefix(y)                         // an Optional's, _kv_opt_T (#343); a Result's (#344)
+        put_owner_prefix(y)                         // an Optional's, _kv_opt_T (#343); a Result's (#344); _kv_T (#345)
     }
     put("_eq")
 }
@@ -1593,7 +1613,7 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(", &")
         put(z)
         put(")")
-    } else if is_variant(y) {                        // by value, as kelvinc's (#343, #344)
+    } else if tagged_of(y) >= 0 {                    // by value, as kelvinc's (#343, #344, #345)
         put_eq_name(y)
         put("(")
         put(x)
@@ -1635,15 +1655,25 @@ let gen_container_eq(n:int64) {
     }
     if !eq_type(types[ya].elem) {
         let e:int64 = types[ya].elem
-        if types[e].kind == Y_STRUCT && tagged_of(e) >= 0 && !is_variant(e) {
-            gen_error(n, "kc compares Arrays and Dictionaries of numbers, text, Optionals, Results, Arrays and Dictionaries; not yet of another enum with values")
-            return
-        }
         var m = $"'"
         let op:String = tok_text(t)
         m += &op
         m += "' of "
-        m += &ta
+        if types[e].kind == Y_STRUCT && !is_variant(e) {   // Array<struct P>, as kelvinc names it (#345)
+            if dict {
+                m += "Dictionary<"
+                let kw:String = kelvin_type_text(types[ya].name)
+                m += &kw
+                m += ", "
+            } else {
+                m += "Array<"
+            }
+            let sw:String = eq_type_text(e)
+            m += &sw
+            m += ">"
+        } else {
+            m += &ta
+        }
         if dict { m += " compares the values, and " } else { m += " compares the elements, and " }
         let et:String = kelvin_type_text(e)
         m += &et
@@ -1668,7 +1698,8 @@ let gen_container_eq(n:int64) {
     if ha { hold_close(a) }
 }
 
-// an Optional's _kv_T_eq, its two by value (#343), and a Result's (#344)
+// an enum with values' _kv_T_eq, its two by value: an Optional's (#343),
+// a Result's (#344), any (#345)
 let put_eq_head(y:int64) {
     put("__attribute__((unused)) static inline bool ")
     put_eq_name(y)
@@ -1701,9 +1732,9 @@ let opt_operand_owns(x:int64, rt:int64):bool {
 
 // x as a value of the Optional or the Result rt: itself, none read by rt,
 // a T wrapped, or ok(v) and err(e) of a Result (#344), a place's value
-// copied, so that it is not moved (#343)
+// copied, so that it is not moved (#343); of another enum, itself (#345)
 let gen_opt_operand(x:int64, rt:int64) {
-    if !is_case_word(x) && type_of(x) == rt {
+    if !is_case_word(x) && type_of(x) == rt || !is_variant(rt) {
         gen_expr(x)
         return
     }
@@ -1748,20 +1779,36 @@ let put_opt_operand(x:int64, rt:int64, name:cstr, s:int64) {
     put("; ")
 }
 
+// what the other side of == of rt, an enum with values, is, where it is
+// not one of rt, as kelvinc says it: a literal or a case word is not
+// one; else its type (#345)
+let enum_mismatch_text(x:int64):String {
+    let k:nkind = nodes[x].kind
+    let literal = k == N_NUM || k == N_CHAR || k == N_BOOL || k == N_STR || (k == N_UNARY && tok_is(nodes[x].t, "-") && nodes[nodes[x].a].kind == N_NUM)
+    if literal || is_case_word(x) { return $"not one" }
+    return eq_type_text(type_of(x))
+}
+
 // a == b, x != none of an Optional, r == err(e) of a Result, as kelvinc's
 // #79: the same case, and equal values, by _kv_T_eq; the other side one of
 // rt, a T wrapped, none, ok(v) or err(e). Each side is read once, and one
-// made here is freed after (#343, #344)
+// made here is freed after (#343, #344). Of another enum with values, the
+// other side is one of rt (#345)
 let gen_variant_eq(n:int64, rt:int64) {
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
     let b:int64 = nodes[n].b
-    let ow:String = kelvin_type_text(rt)
+    let ow:String = eq_type_text(rt)
     if !tok_is(t, "==") && !tok_is(t, "!=") {         // as kelvinc says it
         var m = ow.copy()
         m += " has no operator '"
         m += tok_text(t)
         m += "': compare with == and !="
+        if !is_variant(rt) {                         // one of its own is kelvinc's, not kc's
+            m += "; an operator of its own, as 'let "
+            m += tok_text(t)
+            m += "(a:T, b:T):T { ... }' (#121), is not kc's yet"
+        }
         gen_error(n, m.cstr)
         return
     }
@@ -1772,21 +1819,23 @@ let gen_variant_eq(n:int64, rt:int64) {
         let inner:int64 = nodes[c].ty
         m += "' of "
         m += &ow
-        if tagged_of(inner) >= 0 && !is_variant(inner) {
-            m += " compares the values: kc compares numbers, text, Optionals, Results, Arrays and Dictionaries; not yet another enum with values"
-        } else {
-            m += " compares the values, and case '"
-            m += tok_text(nodes[c].t)
-            m += "' holds "
-            let iw:String = kelvin_type_text(inner)
-            m += &iw
-            m += ", which has no '=='"
-        }
+        m += " compares the values, and case '"
+        m += tok_text(nodes[c].t)
+        m += "' holds "
+        let iw:String = kelvin_type_text(inner)
+        m += &iw
+        m += ", which has no '=='"
         gen_error(n, m.cstr)
         return
     }
-    var bad:String = value_mismatch_text(a, rt)
-    if bad.count == 0 { bad = value_mismatch_text(b, rt) }
+    var bad = $""
+    if is_variant(rt) {
+        bad = value_mismatch_text(a, rt)
+        if bad.count == 0 { bad = value_mismatch_text(b, rt) }
+    } else {
+        let other:int64 = !is_case_word(a) && type_of(a) == rt ? b : a
+        if is_case_word(other) || type_of(other) != rt { bad = enum_mismatch_text(other) }
+    }
     if bad.count > 0 {
         m += "' compares two "
         m += &ow
@@ -1810,11 +1859,11 @@ let gen_variant_eq(n:int64, rt:int64) {
     put("); })")
 }
 
-// T_eq of y, as kelvinc's emit_array_eq and emit_dict_eq; an Optional's
-// and a Result's as its _kv_T_eq of #79: the same case, and equal values
-// (#343, #344)
+// T_eq of y, as kelvinc's emit_array_eq and emit_dict_eq; an enum with
+// values' as its _kv_T_eq of #79: the same case, and equal values (#343,
+// #344, #345)
 let gen_eq(y:int64) {
-    if is_variant(y) {
+    if tagged_of(y) >= 0 {
         put_eq_head(y)
         put("\n{\n    if (a.tag != b.tag) return false;\n    switch (a.tag)\n    {\n")
         var m = nodes[tagged_of(y)].a
@@ -2465,6 +2514,7 @@ let is_place(n:int64):bool {
         let y = type_of(nodes[n].a)
         if y >= 0 && types[y].kind == Y_DICT { return false }
     }
+    if k == N_FIELD && tagged_named(nodes[n].a) >= 0 { return false }   // T.none, a case made here (#345)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
     if k == N_COND { return is_place(nodes[n].b) && is_place(nodes[n].c) }   // two places are one (#232)
@@ -3417,10 +3467,8 @@ let gen_expr(n:int64) {
         put(")")
     } else if k == N_BIN && tok_is(t, "??") {
         gen_coalesce(n)
-    } else if k == N_BIN && tagged_side(n) >= 0 && is_variant(tagged_side(n)) {
-        gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344)
-    } else if k == N_BIN && tagged_side(n) >= 0 && (tok_is(t, "==") || tok_is(t, "!=")) {
-        gen_error(n, "kc compares an Optional and a Result with '==' and '!='; not yet another enum with values")
+    } else if k == N_BIN && tagged_side(n) >= 0 {
+        gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344), of any enum with values (#345)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
     } else if k == N_BIN {
@@ -5422,7 +5470,7 @@ let value_mismatch_text(v:int64, vy:int64):String {
         if k != N_STR && !number {
             let y:int64 = type_of(v)
             if y == vy { return $"" }
-            if tagged_of(y) >= 0 { return kelvin_type_text(y) }
+            if tagged_of(y) >= 0 { return eq_type_text(y) }   // struct J, as kelvinc names it (#345)
         }
         return value_mismatch_text(v, inner)
     }
@@ -5521,14 +5569,6 @@ let search_of(n:int64):int64 {
     }
     if fn < 0 {                                         // a value, compared by the values' ==
         if !eq_type(vy) {
-            if types[vy].kind == Y_STRUCT && tagged_of(vy) >= 0 && !is_variant(vy) {
-                var m = me.copy()
-                m += " of an enum with values: kc compares numbers, text, Optionals, Results, Arrays and Dictionaries; give a function that says which, '"
-                m += tok_text(t)
-                m += " { ... }'"
-                gen_error(f, m.cstr)
-                return 0 - 1
-            }
             var m = me.copy()
             let vw:String = kelvin_type_text(vy)
             if dict {
@@ -7116,7 +7156,7 @@ let gen_program() {
         put("(kv_out *, const void *, int);\n")
     }
     for i in 0..<compared.count as int64 {              // and the == of Arrays and Dictionaries (#288)
-        if is_variant(compared[i]) {                    // an Optional's (#343), a Result's (#344)
+        if tagged_of(compared[i]) >= 0 {                // an enum with values': an Optional's (#343), a Result's (#344), any (#345)
             put_eq_head(compared[i])
             put(";\n")
         } else {

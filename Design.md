@@ -376,6 +376,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 342 | kc reads an Array's `contains`, `firstIndex` and `lastIndex`, as kelvinc's #248: whether an element is there, and the index of the first or the last, an `i64?`; of a value by `==` or of a function; with kelvinc's errors in its words | — | kc's `rolls.firstIndex(6)` | 2026-10-25 |
 | 343 | kc reads `==` and `!=` of an Optional, as kelvinc's #79: two `none`, or two equal values; the other side a `T?`, a `T` wrapped, or `none`; an Optional's elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words | — | kc's `pending == none` | 2026-10-25 |
 | 344 | kc reads `==` and `!=` of a Result, as kelvinc's #79: the same case, and equal values; the other side a Result, a `T` wrapped as `ok(T)`, `ok(v)` or `err(e)`; a Result's elements in an Array, a Dictionary and a search compare too; a `T` where a Result goes is `ok(T)` in a declaration and a return as well; with kelvinc's errors in its words | — | kc's `outcome == err("late")` | 2026-10-25 |
+| 345 | kc reads `==` and `!=` of an enum with values, as kelvinc's #79: the same case, and equal values, both sides of the enum; its elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words, and `struct T` as kelvinc names a struct or an enum there | — | kc's `a == item.num(5)` | 2026-10-25 |
 
 Notes:
 
@@ -937,6 +938,37 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (345) Agreed details: "teach kc == of an enum with values as #345".
+  - gen.k: every enum with values now has the `_kv_T_eq` that an
+    Optional's (#343) and a Result's (#344) had: has_eq_fn, need_eq,
+    put_eq_code, gen_eq and the prototypes ask tagged_of, not
+    is_variant.
+    - eq_type asks it of each case's value; an enum that holds itself,
+      through an Array, is asked once at a time (eq_asked), true while
+      it is, as kelvinc's no_eq is set as the enum is declared.
+  - gen_variant_eq serves any enum with values; one not an Optional or
+    a Result wraps nothing, so both sides are of the enum.
+  - kelvinc's errors, in its words, with `struct J` as it names a
+    struct or an enum there (eq_type_text):
+    - `'==' compares two struct J, and this is not one`, of a literal or
+      a bare word (enum_mismatch_text), else the other side's type;
+    - `'==' of struct K compares the values, and case 'p' holds P, which
+      has no '=='`;
+    - `struct J has no operator '<': compare with == and !=`; kelvinc
+      adds that the program may define one (#121), which kc says is
+      not kc's yet.
+  - Found on the way, and fixed:
+    - is_place took `T.none` for a place, as `T` is a name, and asked
+      the type of `T`: "this name is not known" in `l == json.none`;
+    - `'==' of Array<P>`, and of a Dictionary, now names `struct P` as
+      kelvinc does.
+  - Found, not fixed: kc parses `let <(a:J, b:J):bool` and writes C of
+    it that does not compile; an enum that holds an Array of itself
+    is not kc's, before #345 too.
+  - kc's build of a probe prints what kelvinc's does, with as many
+    allocations and no leak under ASan's count; the fixpoint holds,
+    and selfhost/sample.k has them.
 
 - (344) Agreed details: "teach kc == of a Result as #344".
   - gen.k: gen_optional_eq, now gen_variant_eq, serves a Result as it
@@ -4312,6 +4344,7 @@ says "as agreed".
 | P354 | Details of #342 | selfhost/gen.k: search_of, search_type_of, gen_search; selfhost/parse.k: the trailing function; selfhost/sample.k; selfhost/README.md | kc's `==` of Optional elements; kc's `{ (x ?? 0) > 2 }` |
 | P355 | Details of #343 | selfhost/gen.k: gen_optional_eq, tagged_side, gen_opt_operand, the Optional's _eq; eq_type, need_eq, put_eq_code, gen_cond, value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `c ? $"n" : none` |
 | P356 | Details of #344 | selfhost/gen.k: is_result, is_variant, value_case, eq_case; gen_variant_eq (gen_optional_eq), gen_opt_operand, opt_operand_owns, the Result's _eq; eq_type, need_eq, gen_value's ok(T), value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `==` of another enum with values; kc's `$[ok(1)]`, `ok(none)`, text into a `String?` or a Result of a String, `ok(1, 2)` |
+| P357 | Details of #345 | selfhost/gen.k: eq_type (eq_asked), has_eq_fn, need_eq, put_eq_code, gen_eq, the prototypes of any enum with values; gen_variant_eq of an enum (eq_type_text, enum_mismatch_text); is_place of `T.c`; gen_container_eq's `Array<struct P>`; selfhost/sample.k; selfhost/README.md | kc's operators of a type's own (#121); kc's enum holding an Array of itself |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
