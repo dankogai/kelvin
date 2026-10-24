@@ -55,16 +55,20 @@ println(j.n)                             // ends the program: case 'n' of json i
   - `json.n(1.5)` and `json.none` as an expression, with the value
     given by value, so an owner moves in (O5).
   - A case of a struct or array type takes its list,
-    `shape.rect({3.0, 4.0})`.
+    `shape.rect({3.0, 4.0})`; an array's is `[a, b]`, or an array of
+    its type, `shape.tri([3, 4, 5])` (#361), its elements copied in.
   - A variable declared without a value is at the first case, zeroed.
 - **Setting:** `v.n = 1.5` sets the case and its value, freeing what
   the value held if it owns.
-  - `v.rect = {3.0, 4.0}` takes a list.
+  - `v.rect = {3.0, 4.0}` takes a list, `v.tri = [6, 7, 8]` an array's.
   - `=` does not copy an owner into a case, as it copies none (#54):
     `v.s = t.copy()`, or move with `json.s(t)`.
 - **Reading:** `v.n` is the value of case `n`, checked at run time: if
   another case is current, the program ends with a message naming both.
   - It is a place: `v.rect.w += 1.0` and `v.s += "x"` change it.
+  - An array case's is its array, `v.tri[1]`, `v.tri.count`, of a
+    call's value too, `mk(4).tri[1]`; `switch` and `if let` bind a copy
+    of its elements (#361).
   - A case with no value cannot be read.
 - **Indexing** (#117): `v[k]` of an enum with values goes through its
   case that is a Dictionary when `k` is text, and its Array case when
@@ -91,7 +95,8 @@ println(j.n)                             // ends the program: case 'n' of json i
 - **`==` and `!=`** (#79) compare two of one type: the same case, and
   equal values, where every case's value has a `==` of its own (a
   number, a pointer, a `uchr`, a String, a Bytes, another enum with
-  values).
+  values, or an array of numbers, bools or pointers, element by element,
+  #361).
   - One with a struct or an Array in a case has none, so define an
     operator, or compare `.case` and the cases.
   - `j == json.n(1.5)` makes the case on the spot; one that would own,

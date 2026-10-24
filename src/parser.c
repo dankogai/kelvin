@@ -13007,6 +13007,9 @@ static void parse_cases(Decl *d) {
                 error_at(v->pos, "case '%s' is written twice", v->name);
             if (accept_p(":"))
                 v->type = parse_type_in(TYPE_DECL);
+            if (v->type && v->type->kind == T_ARRAY && !v->type->size) /* its count written, as kc's (#361) */
+                error_at(v->pos, "%s as a case takes its count: write [%s](N)", kelvin_type(v->type),
+                         kelvin_type(v->type->elem));
             if (is_p(peek(), "="))
                 error_at(peek()->pos, "a case of an enum with values is known by its name, not by a number");
             list_push(&d->members, v);
@@ -13022,7 +13025,8 @@ static void parse_cases(Decl *d) {
    struct or array type, its initializer list, as (T){...} */
 static Expr *case_value(Type *t) {
     Decl *r;
-    bool list = is_p(peek(), "{") && t && ((t->kind == T_BASE && type_class(t, &r) == 's') || t->kind == T_ARRAY);
+    bool list = (is_p(peek(), "{") && t && ((t->kind == T_BASE && type_class(t, &r) == 's') || t->kind == T_ARRAY)) ||
+                (is_p(peek(), "[") && t && t->kind == T_ARRAY); /* [a, b] of an array case (#361) */
     Expr *v;
     if (list) {
         v = new_expr(E_COMPOUND, peek()->pos);
@@ -13059,6 +13063,12 @@ static void check_variant_part(Token *at, const char *what, Type *t) {
 static bool eq_type(Type *t) {
     if (!t || t->kind == T_PTR || t->kind == T_FUNC)
         return true;
+    if (t->kind == T_ARRAY && t->size && t->elem) { /* an enum case's array, element by element (#361) */
+        Decl *r = NULL;
+        char c = type_class(t->elem, &r);
+        return c == 'i' || c == 'f' || t->elem->kind == T_PTR ||
+               (t->elem->kind == T_BASE && !strcmp(t->elem->name, "bool"));
+    }
     if (is_dict_owner(t) || is_array_owner(t)) /* a Dictionary (#235), an Array (#247) compares where its values do */
         return eq_type(t->elem);
     if (t->kind == T_ARRAY || t->cname || is_io(t))

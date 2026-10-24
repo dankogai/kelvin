@@ -944,6 +944,9 @@ static char *expr_bare(Expr *e) {
     case E_FIELD:
         if (e->op && !strcmp(e->op, "case") && e->target) { /* v.n of an enum with values, checked (#61) */
             char *recv = expr(e->a);
+            if (e->type && e->type->kind == T_ARRAY && !c_lvalue(e->a)) /* an array case of a value: held (#361) */
+                return strfmt("(*_kv_%s_at_%s((const struct %s[]){%s}))", e->target->name, e->text, e->target->name,
+                              recv);
             return c_lvalue(e->a) ? strfmt("(*_kv_%s_at_%s(&%s))", e->target->name, e->text, recv)
                                   : strfmt("_kv_%s_get_%s(%s)", e->target->name, e->text, recv);
         }
@@ -2242,7 +2245,10 @@ static void stmt(Stmt *s) {
                 stmt(x);
                 line("{");
                 indent++;
-                if (x->kind == S_CASE && x->name2) /* case n(x): (#119): x is the case's value, a let */
+                if (x->kind == S_CASE && x->name2 && x->type && x->type->kind == T_ARRAY) { /* a copy of an array's (#361) */
+                    line("__attribute__((unused)) %s;", decl(x->type, x->name2));
+                    line("memcpy(%s, %s.u.%s, sizeof %s);", x->name2, switch_subject, x->name, x->name2);
+                } else if (x->kind == S_CASE && x->name2) /* case n(x): (#119): x is the case's value, a let */
                     line("__attribute__((unused)) %s = %s.u.%s;", decl(const_type(x->type), x->name2), switch_subject,
                          x->name);
                 open = true;
@@ -2360,8 +2366,12 @@ static void stmt(Stmt *s) {
             line("{");
             indent++;
             sync(s->pos);
-            line("__attribute__((unused)) %s = %s%su.%s;", decl(const_type(s->type), s->name), h, s->closed ? "->" : ".",
-                 cname);
+            if (s->type && s->type->kind == T_ARRAY) { /* a copy of an array's elements (#361) */
+                line("__attribute__((unused)) %s;", decl(s->type, s->name));
+                line("memcpy(%s, %s%su.%s, sizeof %s);", s->name, h, s->closed ? "->" : ".", cname, s->name);
+            } else
+                line("__attribute__((unused)) %s = %s%su.%s;", decl(const_type(s->type), s->name), h,
+                     s->closed ? "->" : ".", cname);
             stmt(s->body);
             indent--;
             line("}");
@@ -3401,6 +3411,10 @@ static void emit_arrays_after(Decl *d) {
    uchr by its codepoint, an enum with values by its own _eq, the rest
    by C's == */
 static char *eq_code(Type *t, const char *x, const char *y) {
+    if (t->kind == T_ARRAY) /* an enum case's array, element by element (#361) */
+        return strfmt("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < sizeof(%s) / sizeof((%s)[0]); _kv_q++) if "
+                      "(!((%s)[_kv_q] == (%s)[_kv_q])) { _kv_r = false; break; } _kv_r; })",
+                      x, x, x, y);
     const char *f = owner_free(t);
     if (f && !strcmp(f, "kv_string_free"))
         return strfmt("kv_string_eq(&%s, &%s)", x, y);
@@ -3449,6 +3463,11 @@ static void emit_tagged_record(Decl *d, Type *recv) {
     for (int i = 0; i < d->members.len; i++)
         values = values || ((Var *)d->members.data[i])->type;
     line("/* %s */", d->spelling ? d->spelling : strfmt("enum %s: %s", d->name, "a tagged union"));
+    for (int i = 0; i < d->members.len; i++) { /* an array case's type, by a name (#361) */
+        Var *m = d->members.data[i];
+        if (m->type && m->type->kind == T_ARRAY)
+            line("typedef %s;", decl(m->type, strfmt("_kv_%s_%s_t", d->name, m->name)));
+    }
     line("struct %s", d->name);
     line("{");
     indent++;
@@ -3561,7 +3580,37 @@ static void emit_tagged_record(Decl *d, Type *recv) {
         Var *m = d->members.data[i];
         const char *check = strfmt("if (self->tag != %d) kv_case_fail(\"%s\", \"%s\", _kv_%s_cases[self->tag]);", i,
                                    d->spelling ? d->spelling : d->name, m->name, d->name);
-        if (m->type) {
+        if (m->type && m->type->kind == T_ARRAY) {
+            /* an array (#361): its elements copied in, as C assigns no array, and
+               read through _at, as C returns none */
+            char *mt = strfmt("_kv_%s_%s_t", d->name, m->name);
+            line("__attribute__((unused)) static inline %s *_kv_%s_at_%s(const %s *self)", mt, d->name, m->name, ctype);
+            line("{");
+            indent++;
+            line("%s", check);
+            line("return (%s *)&self->u.%s;", mt, m->name);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline void _kv_%s_set_%s(%s *self, const %s v)", d->name, m->name, ctype,
+                 mt);
+            line("{");
+            indent++;
+            if (owns)
+                line("_kv_%s_free(self);", d->name);
+            line("self->tag = %d;", i);
+            line("memcpy(self->u.%s, v, sizeof self->u.%s);", m->name, m->name);
+            indent--;
+            line("}");
+            line("__attribute__((unused)) static inline %s _kv_%s_make_%s(const %s v)", ctype, d->name, m->name, mt);
+            line("{");
+            indent++;
+            line("%s _kv_v = {0};", ctype);
+            line("_kv_v.tag = %d;", i);
+            line("memcpy(_kv_v.u.%s, v, sizeof _kv_v.u.%s);", m->name, m->name);
+            line("return _kv_v;");
+            indent--;
+            line("}");
+        } else if (m->type) {
             char *mt = decl(m->type, "");
             line("__attribute__((unused)) static inline %s *_kv_%s_at_%s(const %s *self)", mt, d->name, m->name, ctype);
             line("{");

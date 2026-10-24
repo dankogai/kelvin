@@ -47,6 +47,7 @@ let double_all(xs:[int64], n:int64) {
 
 let weekdays:[cstr] = ["mon", "tue", "wed"]            // fixed arrays as globals (#359)
 var hits:[int64](3)
+enum hull { round; sides: [int64](3) }                 // a fixed array as an enum's case value (#360, #361)
 enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
@@ -605,5 +606,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(total_of(sq4, sq4.count), " ", sq4[0], " ", total_of(tr.slots, 3))
     hits[1] += 2
     println(weekdays[2], " ", weekdays.count, " ", hits[1], " ", total_of(hits, hits.count))
+    let prism = hull.sides([3, 4, 5])
+    if let sides(s) = prism { println(prism, " ", s[2], " ", prism.sides.count, " ", prism == hull.sides([3, 4, 5])) }
     return 0
 }

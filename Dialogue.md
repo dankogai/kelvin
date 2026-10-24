@@ -7233,3 +7233,16 @@ the way, and fixed: kc could not read a case's value of a call's enum,
 as `mk(4).n`. Details are provisional P372.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 406. kelvinc's fixed arrays as enum case values
+
+> teach kelvinc fixed arrays as enum case values as #361
+
+**Claude** taught kelvinc a fixed array as an enum's case value, as kc
+has it since #360: `[a, b]` given or set, its elements copied in, bound
+to a copy by `switch` and `if let`, read of a call's value too, and
+compared element by element; a case of no count is kc's error in kc's
+words. Two tests, documents/enums.md and the kc sample have it.
+Details are provisional P373.
+
+There are 1004 tests, and all pass with clang and with gcc 15.
