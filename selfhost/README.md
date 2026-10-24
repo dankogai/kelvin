@@ -165,6 +165,16 @@ kc reads what it is written in, and little more.
       a pointer, is an error.
   - `x ?? d`, `if let some(v) = x { } else { }`, and what any enum with
     values has: `.is(c)`, `.some`, `.ok`, `.err`, `switch`.
+  - `x ?? d` of an Optional that owns (#340), as kelvinc's #250:
+    `d.lastKey(v) ?? $"none"`, `w[k] ?? "none"`.
+    - x's value is a copy where x is a place, else taken from it.
+    - d is a copy where it is a place, else taken, and is made only
+      where x is none.
+    - d of another type is kelvinc's error in its words, of any `??`:
+      `'??' of String? falls back to a String? or a String, and this
+      is a number`.
+    - kc reads `??` left to right, and `x ?? d` of a `T?` d is not
+      kc's yet, so `a ?? b ?? 0` is kelvinc's alone (#251, #252).
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
     `int64?`.
   - **Chains** (#221), as kelvinc's of #218: `x?.m`, `x?.f(...)` and

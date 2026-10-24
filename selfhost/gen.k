@@ -447,6 +447,7 @@ let put_merge_value(vy:int64)
 let search_of(n:int64):int64    // prototypes: a Dictionary's contains, firstKey and lastKey (#339)
 let search_type_of(n:int64):int64
 let gen_search(n:int64)
+let value_mismatch_text(v:int64, vy:int64):String    // a prototype: ?? asks it too (#340)
 let eager_of(n:int64):int64    // prototypes: eager map and the rest (#329)
 let eager_type_of(n:int64):int64
 let gen_eager(n:int64)
@@ -2636,9 +2637,27 @@ let gen_coalesce(n:int64) {
         gen_error(n, "?? takes an Optional on its left")
         return
     }
-    if is_owner(inner) {
-        gen_error(n, "?? of an Optional that owns: read it with if let, which kc frees")
-        return
+    let b:int64 = nodes[n].b
+    if type_of(b) != y {                             // y's type in Kelvin's words, as kelvinc's (#340)
+        let bad:String = value_mismatch_text(b, inner)
+        if bad.count > 0 {
+            var m = $"'??' of "
+            let ow:String = kelvin_type_text(y)
+            m += &ow
+            m += " falls back to "
+            let iw:String = kelvin_type_text(inner)
+            m += article_of(&iw)
+            m += " "
+            m += &ow
+            m += " or "
+            m += article_of(&iw)
+            m += " "
+            m += &iw
+            m += ", and this is "
+            m += &bad
+            gen_error(b, m.cstr)
+            return
+        }
     }
     serial += 1
     let s = serial                                   // its own: x may make names too (#221)
@@ -2648,12 +2667,48 @@ let gen_coalesce(n:int64) {
     put_int(s)
     put(" = ")
     gen_expr(nodes[n].a)
+    if is_owner(inner) {                             // as kelvinc's #250: x's value a copy where x is a place, else taken; y a copy where it is a place, else taken, made only where x has none (#340)
+        put("; ")
+        put_ctype(inner)
+        put(" _kv_r")
+        put_int(s)
+        put("; if (_kv_o")
+        put_int(s)
+        put(".tag == 1) _kv_r")
+        put_int(s)
+        put(" = ")
+        if is_place(nodes[n].a) {
+            put_owner_prefix(inner)
+            put("_copy(&_kv_o")
+            put_int(s)
+            put(".u.some)")
+        } else {
+            put("_kv_o")
+            put_int(s)
+            put(".u.some")
+        }
+        put("; else _kv_r")
+        put_int(s)
+        put(" = ")
+        if is_owner(type_of(b)) && is_place(b) {
+            put_owner_prefix(inner)
+            put("_copy(&(")
+            gen_expr(b)
+            put("))")
+        } else {
+            gen_value(b, inner)
+        }
+        put("; _kv_r")
+        put_int(s)
+        put("; })")
+        return
+    }
     put("; _kv_o")
     put_int(s)
     put(".tag == 1 ? _kv_o")
     put_int(s)
     put(".u.some : (")
-    gen_value(nodes[n].b, inner)
+    gen_value(b, inner)
     put("); })")
 }
 
@@ -5089,10 +5144,10 @@ let fn_type_text(fn:int64):String {
     return w
 }
 
-// whether v, given to look for, is not a value of type vy, as kelvinc's
-// check_typed_value: text and numbers by what they are; what only C sees
-// goes
-let search_value_text(v:int64, vy:int64):String {
+// what v is where a value of type vy goes and v is not one, as kelvinc's
+// check_typed_value says it: text and numbers by what they are, else its
+// type; "" where it is one, or what only C sees (#339, #340)
+let value_mismatch_text(v:int64, vy:int64):String {
     let k:nkind = nodes[v].kind
     let vk:ykind = types[vy].kind
     let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
@@ -5186,7 +5241,7 @@ let search_of(n:int64):int64 {
             gen_error(f, m.cstr)
             return 0 - 1
         }
-        let bad:String = search_value_text(f, vy)
+        let bad:String = value_mismatch_text(f, vy)
         if bad.count > 0 {
             var m = me.copy()
             m += " of "

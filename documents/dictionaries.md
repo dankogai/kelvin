@@ -179,10 +179,7 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
 kc does not read yet:
 
 - `??` and `!!` of two Dictionaries and their `??=` and `!!=` (#237),
-  and `d[k] ??= v` (#243);
-- `??` of a `K?` that owns, as `d.lastKey(v) ?? $"none"` of a String
-  key (#250): kc's `??` takes no Optional that owns; read it with
-  `if let`.
+  and `d[k] ??= v` (#243).
 
 Where kc differs, a value that owns is given to an anonymous function as
 a copy, which it owns, where kelvinc lends it (#244); what prints is the

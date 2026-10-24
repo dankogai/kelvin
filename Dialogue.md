@@ -6944,3 +6944,16 @@ kc's `??` takes no Optional that owns, so `d.lastKey(v) ?? $"none"` of
 a String key is not kc's yet. Details are provisional P351.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 385. kc's ?? of an Optional that owns
+
+> teach kc ?? of an Optional that owns as #340
+
+**Claude** taught kc `x ?? d` of an Optional that owns, as kelvinc
+writes it: x's value a copy where x is a place, else taken, and d a
+copy where it is a place, else taken, made only where x is none. d of
+another type is kelvinc's error in its words, of every `??`. Found on
+the way: kc reads `??` left to right, kelvinc right to left (#251), and
+kc does not read `let n:int64? = none`. Details are provisional P352.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
