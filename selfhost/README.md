@@ -453,9 +453,12 @@ kc reads what it is written in, and little more.
   - Never a result (#358): `a function cannot return an array, as C
     cannot: return a struct that holds one, or take one as a parameter
     and fill it`, where kelvinc leaves it to C.
-  - Not yet: a global, a case's value, a pointer to one, one in another
-    type, a parameter of owners or of fixed arrays; a count C computes,
-    as `[uint8](n)`;
+  - A global (#359), `var hits:[int64](3)`, `let weekdays:[cstr] =
+    [...]`, as a local's: C's `int64_t hits[3] = {0}`, a let's elements
+    const, `int64_t const primes[4]`; read and changed by any function.
+  - Not yet: a case's value, a pointer to one, one in another type, a
+    parameter of owners or of fixed arrays; a count C computes, as
+    `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

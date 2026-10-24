@@ -7208,3 +7208,14 @@ return a struct that holds one, or take one as a parameter and fill
 it`. Details are provisional P370.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 404. kc's fixed arrays as globals
+
+> teach kc fixed arrays as globals as #359
+
+**Claude** taught kc a fixed array as a global, as kelvinc's #49:
+declared as C's array, a let's elements const, and read and changed by
+any function as a local's is. A let's element assigned is kelvinc's
+error in its words. Details are provisional P371.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

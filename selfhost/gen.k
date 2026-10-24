@@ -4247,7 +4247,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a local's value, a struct's member or a parameter; not yet a global, a case's value, or one in another type")
+    gen_error(n, "kc reads a fixed array as a variable, a struct's member or a parameter; not yet a case's value, or one in another type")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -4261,10 +4261,13 @@ let fixed_elem_ok(y:int64):bool {
 
 // a fixed array's C declarator: its element type, name, and [N] for each
 // count, the outer first, as C's int64_t m[2][3] (#354)
+var fixed_const = false                  // a let global's elements, const in C (#359)
+
 let put_fixed_decl(y:int64, name:int64) {
     var base:int64 = y
     while types[base].kind == Y_FIXED { base = types[base].elem }
     put_ctype(base)
+    if fixed_const { put(" const") }                     // int64_t const g[3], const uint8_t * const s[2]
     put(" ")
     put_tok(name)
     var f:int64 = y
@@ -8021,7 +8024,7 @@ let gen_program() {
                 f = nodes[f].next
             }
         }
-        if nodes[d].kind == D_GLOBAL && fixed_inside(nodes[d].ty) {
+        if nodes[d].kind == D_GLOBAL && fixed_inside(nodes[d].ty) && types[nodes[d].ty].kind != Y_FIXED {   // a global's own is kc's (#359)
             fixed_refused(d)
             return
         }
@@ -8045,6 +8048,16 @@ let gen_program() {
             }
             if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
             if failed { return }
+            if types[nodes[d].ty].kind == Y_ARGV && nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_LIST {   // let names:[cstr] = ["a"] (#359)
+                set_ty(d, type_of_kind(Y_FIXED, base_type(Y_CSTR), 0 - 1))
+            }
+            if types[nodes[d].ty].kind == Y_FIXED {      // a global fixed array, as a local's, const of a let (#359)
+                fixed_const = nodes[d].flag == 1
+                gen_fixed_var(d)
+                fixed_const = false
+                if failed { return }
+                continue
+            }
             if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)

@@ -390,6 +390,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 356 | kc reads a fixed array as a struct's member, as kelvinc's #49: C's `int64_t xs[3]` in the struct, given `[a, b]` or `[T](n)` in `{...}`, read as a local's, printed as kelvinc prints it; its count written, its elements owning nothing | `struct bag { int64_t xs[3]; };` | kc's `struct tray { label: cstr; slots: [int64](3) }` | 2026-10-25 |
 | 357 | kc reads a fixed array as a parameter, as kelvinc's #49: a pointer in C, its count passed beside it; `[const T]` reads its elements, `[T]` changes the caller's; its argument a fixed array of its elements, not a let's to `[T]`; kelvinc's errors in its words, kc's where kelvinc leaves it to C | `int64_t sum(const int64_t *a, int64_t n)` | kc's `let total_of(xs:[const int64], n:int64)` | 2026-10-25 |
 | 358 | kc refuses a fixed array as a function's result for good, as C can have none: `a function cannot return an array, as C cannot: return a struct that holds one, or take one as a parameter and fill it`, where kelvinc leaves it to C | — | kc's `let c():[int64]` refused | 2026-10-25 |
+| 359 | kc reads a fixed array as a global, as kelvinc's #49: C's `int64_t hits[3] = {0}`, a let's elements const, read and changed by any function, as a local's | `int32_t table[4];` | kc's `let weekdays:[cstr] = ["mon", "tue", "wed"]` | 2026-10-25 |
 
 Notes:
 
@@ -951,6 +952,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (359) Agreed details: "teach kc fixed arrays as globals as #359".
+  - gen.k: gen_program writes a global of `[T](N)` or `[T]`, inferred
+    too, `let primes = [2, 3, 5, 7]`, by gen_fixed_var, as a local's
+    (#354): C's `int64_t hits[3] = {0}` and `{2, 3, 5, 7}`; a `[cstr]`
+    of elements is a fixed array, not main's argv.
+    - A let's elements are const: put_fixed_decl writes `const` after
+      the element type (fixed_const), `int64_t const primes[4]`, `const
+      uint8_t * const names[2]`, where `const` before it was written
+      twice of text.
+  - Any function reads and changes it as a local's, `table[i] += 1`,
+    `.count`, `for p in primes`; a let's element assigned is kelvinc's
+    error in its words, `'primes' is a let and cannot change`.
+  - kc's build of a probe prints what kelvinc's does; selfhost/sample.k
+    has them.
 
 - (358) Agreed details: "teach kc fixed arrays as results as #358". kelvinc
   has none, its C failing with `function cannot return array type`, as C
@@ -4659,6 +4675,7 @@ says "as agreed".
 | P368 | Details of #356 | selfhost/gen.k: write_type's member (put_fixed_decl) and Y_FIXED's element, member_fixed_ok, gen_written's `[a, b]`, show_value's fixed array (show_depth), need_show's member; selfhost/sample.k; selfhost/README.md | kc's member fixed array of owners, which kelvinc has |
 | P369 | Details of #357 | selfhost/parse.k: `[const T]` (-3); selfhost/gen.k: fixed_params (-2, -4), put_ctype and type_text of a parameter's, fixed_arg_ok in gen_arg_to, may_change of its element, gen_field's `.count` and `.size`, gen_each, gen_function; selfhost/sample.k; selfhost/README.md | kc's parameter of owners or of fixed arrays, `[T]^` |
 | P370 | Details of #358 | selfhost/gen.k: gen_function's result of `[T]` or `[T](N)`, fixed_refused's words; selfhost/README.md | — |
+| P371 | Details of #359 | selfhost/gen.k: gen_program's global of `[T](N)` or `[T]` by gen_fixed_var, fixed_const in put_fixed_decl; selfhost/sample.k; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

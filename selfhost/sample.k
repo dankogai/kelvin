@@ -44,6 +44,9 @@ let total_of(xs:[const int64], n:int64):int64 {        // fixed arrays as parame
 let double_all(xs:[int64], n:int64) {
     for i in 0..<n { xs[i] *= 2 }
 }
+
+let weekdays:[cstr] = ["mon", "tue", "wed"]            // fixed arrays as globals (#359)
+var hits:[int64](3)
 enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
@@ -600,5 +603,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(tr, " ", tr.slots.count, " ", tr.slots[2])
     double_all(sq4, sq4.count)
     println(total_of(sq4, sq4.count), " ", sq4[0], " ", total_of(tr.slots, 3))
+    hits[1] += 2
+    println(weekdays[2], " ", weekdays.count, " ", hits[1], " ", total_of(hits, hits.count))
     return 0
 }
