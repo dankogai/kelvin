@@ -7526,12 +7526,16 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     Type *gt = value_type(given);
                     if (gt && gt->kind == T_PTR && is_set_owner(gt->elem) && !strcmp(gt->elem->name, x->type->name)) {
                         x->text = "insert_all";
-                    } else {
-                        x->text = "insert";
-                        given = dict_key(given, x->type);
+                        list_push(&x->items, given);
+                        return x;
                     }
-                    list_push(&x->items, given);
-                    return x;
+                    /* s += f() of a String: its text held while it is inserted, as s.insert(f()) holds it (#315) */
+                    x->text = "insert";
+                    List temps = {0}, *saved_temps = chain_temps;
+                    chain_temps = &temps;
+                    list_push(&x->items, dict_key(given, x->type));
+                    chain_temps = saved_temps;
+                    return wrap_temps(x, &temps);
                 }
                 if (!owner_place(lhs))
                     error_at(t->pos, "'+=' on an owner that an expression gives: bind it to a variable first");
@@ -8192,12 +8196,17 @@ static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first) {
     }
     if (!e->items.len)
         e->text = "";
+    /* the text of a String an expression gives, held while the Set is made, where the
+       Set's type is written, as in a declaration, as well as in a chain (#315) */
+    List temps = {0}, *saved_temps = chain_temps;
+    chain_temps = &temps;
     for (int i = 0; i < e->items.len; i++)
         e->items.data[i] = dict_key(e->items.data[i], st);
+    chain_temps = saved_temps;
     init_depth--;
     brace_ends_condition = saved_brace;
     brace_in_for = saved_for;
-    return e;
+    return wrap_temps(e, &temps);
 }
 
 static Type *parse_dict_types(Token *kw) {
@@ -8340,12 +8349,15 @@ static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first) {
     expect_p("}");
     if (!dt)
         dt = e->type = dict_type(t, kt, vt);
+    List temps = {0}, *saved_temps = chain_temps; /* a key's text held, as a Set's element's (#315) */
+    chain_temps = &temps;
     for (int i = 0; i < e->designators.len; i++)
         e->designators.data[i] = dict_key(e->designators.data[i], dt);
+    chain_temps = saved_temps;
     init_depth--;
     brace_ends_condition = saved_brace;
     brace_in_for = saved_for;
-    return e;
+    return wrap_temps(e, &temps);
 }
 
 /* cstr (#52): a pointer to const u8 that kelvinc knows as text */

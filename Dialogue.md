@@ -6626,3 +6626,13 @@ refuses `s += f()` of a Set of Strings, which kc takes, and left that
 for a later number. Details are provisional P326.
 
 There are 964 tests, and all pass with clang and with gcc 15.
+
+### 360. kelvinc's held Set elements
+
+> fix kelvinc's s += f() of a Set<String> as #315
+
+**Claude** made kelvinc hold a String an expression gives in `s += f()`,
+and in `${f()}` and `${f(): v}` where their type is written, as it held
+one in `s.insert(f())`. Details are provisional P327.
+
+There are 965 tests, and all pass with clang and with gcc 15.

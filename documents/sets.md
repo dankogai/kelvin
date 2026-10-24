@@ -35,6 +35,8 @@ var e:${String} = ${}                    // empty; Set<String>() too
     or an initializer.
 - **Methods:** `insert(x)` (also `+=`), `true` if it was new;
   `+= &other` inserts another's elements.
+  - A String an expression gives is held while its text is copied in,
+    `s += f()` and `${f()}` as `s.insert(f())` (#315).
   - `has(x)`; `remove(x)`, `true` if it was there.
   - `union(&t)`, `intersection(&t)`, `difference(&t)`, new Sets.
   - `clear()`; `reserve(n)`; `copy()`.

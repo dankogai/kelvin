@@ -346,6 +346,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 312 | `async f(x)` makes a call on a POSIX thread of its own and gives a `Task<R>` of f's result, `Task` where it has none; `await t` waits and gives it, once; the arguments pass as any call's, a value copied and an owner moved in, and a pointer, cstr or array parameter is an error; f is a Kelvin function or a function value; a Task is an owner whose block's end awaits it | — | `let t = async fib(30); println(await t)` | 2026-10-24 |
 | 313 | kc reads `async f(x)`, `await t` and `Task<R>` as kelvinc's #312, of a Kelvin function: its environment and thread's function written before and after the functions; kelvinc's errors in its words; kc links `-lpthread`; kelvinc mangles `Task<R>` as `Task_R` | — | kc builds `await async fib(20)` | 2026-10-24 |
 | 314 | kc holds a String key an expression gives in `d[k] = v`, the checked `d[k]` and `d[k]` read whole, as it did for `d.has(k)` since #270, where it took the address of the value | — | `d[s.copy() + "x"] = 1` | 2026-10-24 |
+| 315 | kelvinc holds a String an expression gives as a Set's element or a Dictionary's key in `s += f()`, and in `${f()}` and `${f(): v}` where the type is written, as it held one in `s.insert(f())` and in a literal in a chain | — | `seen += label(5)` | 2026-10-24 |
 
 Notes:
 
@@ -907,6 +908,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (315) Agreed details: "fix kelvinc's s += f() of a Set<String> as
+  #315", found by #314.
+  - dict_key makes a String key its `.cstr`, and the `.cstr` of a String
+    an expression gives is held by make_temp in the temporaries of the
+    chain around it (#187, #245); `s.insert(f())` has one, the chain of
+    the call, but `s += f()` parsed its value alone, and `${f()}` where
+    the type is written, as in a declaration, is parsed with none.
+  - The Set's `+=`, set_of_list and dict_of_list each give dict_key a
+    list of their own, and wrap_temps holds the Strings around what
+    they make: `({ kv_string _kv_tmp1 = f(); _kv_set_String_insert(&s,
+    kv_bytes_cstr(&(_kv_tmp1).b)); })`.
+  - A probe of each, in a declaration, a return, an argument and an
+    assignment, prints what it should with no leak, and kc's build of
+    what kc reads prints the same; tests/run/set_held_keys.k.
 
 - (314) Agreed details: "fix kc's d[k] = v of an expression key as
   #314", found by #313.
@@ -3649,6 +3665,7 @@ says "as agreed".
 | P324 | Details of #312 | src/lexer.c, src/parser.c, src/codegen.c, src/kelvin.h, src/main.c: async, await, Task<R>; runtime/task.k; kelvin_prelude.h; GNUmakefile; tests/run.sh, tests/asan.sh, tests/asan/count.c, tests/grammar.js; editors/vscode grammar; tests: run/async_await.k, 15 error/async_*, await_*, task_*; documents/tasks.md (new), README.md, documents/README.md, versusC.md, properties.md, ownership.md, functions.md, c-contract.md | kc has no async yet |
 | P325 | Details of #313 | selfhost/parse.k, gen.k, kc.k: async, await, Task<R>; src/parser.c: mangled_type of a Task; selfhost/sample.k; selfhost/README.md; documents/tasks.md | found: kc's d[k] = v of a String key an expression gives |
 | P326 | Details of #314 | selfhost/gen.k: gen_assign, gen_lookup, gen_element hold the key; selfhost/sample.k; selfhost/README.md | found: kelvinc refuses s += f() of a Set<String> |
+| P327 | Details of #315 | src/parser.c: the Set's +=, set_of_list, dict_of_list hold their keys; tests: run/set_held_keys.k; documents/sets.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
