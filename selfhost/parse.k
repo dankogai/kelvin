@@ -875,7 +875,7 @@ let parse_steps(first:int64):int64 {
                     }
                 }
                 e = n
-            } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap")) && anon_ahead() {   // x.map { ... }, its function trailing (#324)
+            } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap") || tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey")) && anon_ahead() {   // x.map { ... }, its function trailing (#324)
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
                 set_b(n, parse_anon())

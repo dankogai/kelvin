@@ -4291,6 +4291,7 @@ struct eager_rec {
     elem_y: int64           // what each element or value is
     fn: int64               // the function, of the program or made of { ... }
     out_y: int64            // what it gives
+    with_key: bool          // mapWithKey and the rest of a Dictionary (#331): the key before the value
 }
 
 var eagers:$[eager_rec]
@@ -4315,10 +4316,15 @@ let eager_of(n:int64):int64 {
     if nodes[n].kind != N_METHOD { return 0 - 1 }
     let t:int64 = nodes[n].t
     var kind:int64 = 0
+    var with_key = false
     if tok_is(t, "map") { kind = 1 }
     if tok_is(t, "filter") { kind = 2 }
     if tok_is(t, "reduce") { kind = 3 }
     if tok_is(t, "flatMap") { kind = 4 }
+    if tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "reduceWithKey") {   // (#331)
+        with_key = true
+        kind = tok_is(t, "mapWithKey") ? 1 : tok_is(t, "filterWithKey") ? 2 : 3
+    }
     if kind == 0 { return 0 - 1 }
     let seen = eager_at.get(n, -1)
     if seen >= 0 { return seen }
@@ -4328,8 +4334,11 @@ let eager_of(n:int64):int64 {
     let y:int64 = type_of(a)
     if y < 0 || is_lazy_type(y) && kind <= 2 { return 0 - 1 }    // a lazy Sequence's map and filter are lazy (#324)
     let yk:ykind = types[y].kind
+    if with_key && yk != Y_DICT { return 0 - 1 }        // a Dictionary's alone
     let ey:int64 = yk == Y_DICT || yk == Y_SET ? types[y].elem : walked_elem(y)   // a Dictionary's values, a Set's elements (#330)
     if ey < 0 { return 0 - 1 }
+    let each = yk == Y_DICT ? $"value" : $"element"     // as kelvinc names it
+    let kt:int64 = !with_key ? 0 - 1 : types[types[y].name].kind == Y_STRING ? base_type(Y_CSTR) : types[y].name   // a String key's text, lent (#331)
     var me = $"'."
     me += tok_text(t)
     me += "'"
@@ -4356,6 +4365,7 @@ let eager_of(n:int64):int64 {
     }
     var ps:$[int64] = $[]
     if kind == 3 { ps += acc }
+    if with_key { ps += kt }
     ps += ey
     var fn:int64 = 0 - 1
     if nodes[f].kind == N_ANON {
@@ -4372,14 +4382,47 @@ let eager_of(n:int64):int64 {
     }
     if fn < 0 || count != ps.count as int64 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
         var m = me.copy()
-        m += kind == 3 ? $" takes a function of two parameters, the value so far and an element, with a result" : $" takes a function of one parameter, an element, with a result"
+        let article = yk == Y_DICT ? $"a " : $"an "
+        if kind == 3 && with_key {
+            m += " takes a function of three parameters, the value so far, a key and its value, with a result"
+        } else if with_key {
+            m += " takes a function of two parameters, a key and its value, with a result"
+        } else if kind == 3 {
+            m += " takes a function of two parameters, the value so far and "
+            m += &article
+            m += &each
+            m += ", with a result"
+        } else {
+            m += " takes a function of one parameter, "
+            m += &article
+            m += &each
+            m += ", with a result"
+        }
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    let last_p:int64 = kind == 3 ? nodes[nodes[fn].a].next : nodes[fn].a
+    var last_p:int64 = nodes[fn].a
+    while nodes[last_p].next >= 0 { last_p = nodes[last_p].next }
+    if with_key {                                       // as kelvinc's (#331)
+        var key_p:int64 = nodes[fn].a
+        if kind == 3 { key_p = nodes[key_p].next }
+        if nodes[key_p].ty != kt {
+            var m = me.copy()
+            m += " calls its function with each key, "
+            let kw:String = kelvin_type_text(kt)
+            m += &kw
+            m += ", and this takes "
+            let pw:String = kelvin_type_text(nodes[key_p].ty)
+            m += &pw
+            gen_error(n, m.cstr)
+            return 0 - 1
+        }
+    }
     if nodes[last_p].ty != ey {
         var m = me.copy()
-        m += " calls its function with each element, "
+        m += " calls its function with each "
+        m += &each
+        m += ", "
         let ew:String = kelvin_type_text(ey)
         m += &ew
         m += ", and this takes "
@@ -4449,7 +4492,7 @@ let eager_of(n:int64):int64 {
     var out:int64 = ry
     if kind == 1 { out = yk == Y_DICT ? type_of_kind(Y_DICT, ry, types[y].name) : yk == Y_SET ? type_of_kind(Y_SET, ry, -1) : type_of_kind(Y_ARRAY, ry, -1) }
     if kind == 2 { out = yk == Y_DICT || yk == Y_SET ? y : type_of_kind(Y_ARRAY, ey, -1) }
-    let r:eager_rec = {n, kind, a, y, ey, fn, out}
+    let r:eager_rec = {n, kind, a, y, ey, fn, out, with_key}
     eagers += r
     eager_at[n] = eagers.count as int64 - 1
     return eagers.count as int64 - 1
@@ -4681,6 +4724,14 @@ let gen_eager_keyed(n:int64) {
     }
     put_fn_name(r.fn)
     put(r.kind == 3 ? "(_kv_acc, " : "(")
+    if r.with_key {                                      // the key first, a String's text, lent (#331)
+        if types[ky].kind == Y_STRING {
+            put("KV_LK_TEXT(&_kv_ms->at[_kv_mi].key)")
+        } else {
+            put("_kv_ms->at[_kv_mi].key")
+        }
+        put(", ")
+    }
     if is_owner(r.elem_y) {
         put_owner_prefix(r.elem_y)
         put("_copy(&")

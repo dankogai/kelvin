@@ -6842,3 +6842,14 @@ whose parameters are named, `{ v in v * 2 }`, with kelvinc's errors in
 its words; the WithKey methods wait. Details are provisional P342.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 376. kc's mapWithKey, filterWithKey and reduceWithKey
+
+> teach kc mapWithKey, filterWithKey and reduceWithKey as #331
+
+**Claude** taught kc a Dictionary's `mapWithKey`, `filterWithKey` and
+`reduceWithKey` as kelvinc writes them, the function taking each key,
+a String's as its text, before its value, with kelvinc's errors in its
+words; flatMapWithKey waits. Details are provisional P343.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

@@ -264,6 +264,10 @@ kc reads what it is written in, and little more.
     flatMap the Sets unioned.
   - Its parameters may be named, `{ v in v * 2 }`, `{ acc, v in ... }`,
     typed by where it goes (#330), as kelvinc's (#236).
+  - **`mapWithKey`, `filterWithKey` and `reduceWithKey`** (#331), as
+    kelvinc's #241: the function takes each key before its value, a
+    String's as its text, a `cstr`, an integer as itself; mapWithKey's
+    gives the new value alone. flatMapWithKey waits.
 - **An Iterator's lazy map and filter** (#328), as kelvinc's #327:
   `it.lazy.map(f)` and `it.lazy.filter(f)` of an `Iterator<T>` give an
   `Iterator<U>` of it, moved in, whose adapter `_kv_iterN_next` asks it
