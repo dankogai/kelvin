@@ -7140,3 +7140,20 @@ not fixed here: `var e = Array(&g)` of a let is `const` in kelvinc's
 C, so appending to it warns. Details are provisional P365.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 399. kc's fixed arrays
+
+> teach kc Array<T>(a) of a fixed array as #354
+
+**Claude** found that kc had no fixed arrays for `Array<T>(a)` to take,
+and asked; the user chose fixed arrays first, as #354, and
+`Array<T>(a)` of one as #355. Claude taught kc fixed arrays, a local's
+alone, as kelvinc's #48 and #49: `[T](N)`, `[T]` counted by its
+elements, `[a, b]`, nested, `[T](n)` of zeros, `a[i]`, `.count`,
+`.size`, and `for x in a` as kelvinc's #30. kelvinc's errors are in its
+words, and kc's own where kelvinc leaves one to C. Not yet: members,
+parameters, results, globals, pointers to them, a count C computes, and
+compound literals. Found in kelvinc, not fixed here: `println(a)` of a
+fixed array prints its address. Details are provisional P366.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

@@ -574,5 +574,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     var echoed = Array(&quad)                           // Array(&a) with T inferred (#353)
     echoed += 1
     println(quad, " ", echoed)
+    var sq4 = [1, 4, 9, 16]                             // fixed arrays (#354)
+    sq4[3] = 25
+    let board2:[[int64](2)](2) = [[1, 2], [3, 4]]
+    let zeros3 = [uint8](3)
+    var sum_sq = 0
+    for v in sq4 { sum_sq += v }
+    println(sq4[3], " ", sq4.count, " ", board2[1][0], " ", board2.count, " ", zeros3.count, " ", sum_sq, " ", sq4.size)
     return 0
 }

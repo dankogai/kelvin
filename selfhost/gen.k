@@ -272,6 +272,9 @@ let put_ctype(y:int64) {
         put_ctype(types[y].elem)
         put(" *")
     case Y_ARGV: put("char **")
+    case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
+        put_ctype(types[y].elem)
+        put(" *")
     }
 }
 
@@ -692,6 +695,20 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
+    if k == N_LIST {                                     // [a, b], a fixed array of a's type; [T](n) (#354)
+        if nodes[n].flag == 1 { return type_of_kind(Y_FIXED, nodes[n].ty, tok_count(nodes[nodes[n].a].t)) }
+        let first:int64 = nodes[n].b
+        if first < 0 || is_case_word(first) { return -1 }
+        let e:int64 = type_of(first)
+        if e < 0 { return -1 }
+        var count = 0
+        var x = first
+        while x >= 0 {
+            count += 1
+            x = nodes[x].next
+        }
+        return type_of_kind(Y_FIXED, e, count)
+    }
     if k == N_MAKE && nodes[n].ty < 0 {                 // Array([a, b]): an Array of a's type (#352)
         if nodes[n].flag == 4 {                         // Array(&a): a's type, an Array's (#353)
             let ay:int64 = type_of(nodes[nodes[n].a].a)
@@ -726,6 +743,7 @@ let type_of(n:int64):int64 {
         }
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
+        if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336, #337)
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336, #337)
@@ -785,7 +803,7 @@ let type_of(n:int64):int64 {
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
-        if yk == Y_ARRAY || yk == Y_DICT { return types[y].elem }
+        if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
         if yk == Y_ARGV { return base_type(Y_CSTR) }
         return base_type(Y_U8)
     }
@@ -2012,6 +2030,10 @@ let gen_print_args(first:int64) {
     while a >= 0 {
         if a != first { put(", ") }
         let y = type_of(a)
+        if y >= 0 && types[y].kind == Y_FIXED && nodes[a].kind != N_LIST {   // kelvinc prints its address (#354)
+            gen_error(a, "a fixed array is printed by its elements, a[i]: kc does not print the array, whose address kelvinc prints")
+            return
+        }
         if y >= 0 && types[y].kind == Y_TASK {                   // as kelvinc's (#313)
             var m = $"a Task has no text: print its value, 'await "
             m += nodes[a].kind == N_ID ? tok_text(nodes[a].t) : $"t"
@@ -2223,7 +2245,17 @@ let gen_member(n:int64) {
         return
     }
     let yk:ykind = types[y].kind
-    if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
+    if yk == Y_FIXED && tok_is(t, "count") {             // a fixed array's, as kelvinc's (#354)
+        put("((int64_t)(sizeof(")
+        gen_expr(a)
+        put(") / sizeof((")
+        gen_expr(a)
+        put(")[0])))")
+    } else if yk == Y_FIXED && tok_is(t, "size") {
+        put("((int64_t)sizeof(")
+        gen_expr(a)
+        put("))")
+    } else if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         put("((int64_t)(")
         gen_expr(a)
         put(").count)")
@@ -3738,6 +3770,10 @@ let gen_expr(n:int64) {
         gen_make(n)
         return
     }
+    if k == N_LIST {                                     // as kelvinc says it, kc's for its compound literal (#354)
+        gen_error(n, "an array is not a value here: kc reads [a, b] as a declaration's value; not yet a compound literal, ([i32])[1, 2, 3] (#48)")
+        return
+    }
     if k == N_ITER {                                     // (#326)
         gen_iter_make(n)
         return
@@ -3918,6 +3954,17 @@ let type_text(y:int64):String {
     case Y_IO: return $"IO"
     case Y_UCHR: return $"uchr"
     case Y_ARGV: return $"[cstr]"
+    case Y_FIXED:                                    // [i64](3), as kelvinc names it (#354)
+        var s = $"["
+        s += type_text(types[y].elem)
+        s += "]"
+        if types[y].name >= 0 {
+            s += "("
+            let c:String = String(types[y].name)
+            s += &c
+            s += ")"
+        }
+        return s
     case Y_ARRAY:
         var s = $"$["
         s += type_text(types[y].elem)
@@ -3992,9 +4039,193 @@ let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     return false
 }
 
+// whether y holds a fixed array where kc does not take one: behind a
+// pointer, in an Array, a Dictionary, a Set or an enum with values (#354)
+let fixed_inside(y:int64):bool {
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    if k == Y_FIXED { return true }
+    if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_inside(types[y].elem) }
+    if k == Y_DICT { return fixed_inside(types[y].elem) || fixed_inside(types[y].name) }
+    let d = tagged_of(y)
+    if d >= 0 && types[y].name > eof_pos {               // an Optional's or a Result's, which kc makes
+        var m = nodes[d].a
+        while m >= 0 {
+            if fixed_inside(nodes[m].ty) { return true }
+            m = nodes[m].next
+        }
+    }
+    return false
+}
+
+let fixed_refused(n:int64) {
+    gen_error(n, "kc reads a fixed array as a local's value; not yet a member, a parameter, a result, a global, or one in another type")
+}
+
+// whether y may be a fixed array's element, as kc takes it: a number, a
+// bool, a cstr, a struct that owns nothing, or a fixed array in turn
+let fixed_elem_ok(y:int64):bool {
+    let k:ykind = types[y].kind
+    if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
+    if is_owner(y) || fixed_inside(y) { return false }
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT
+}
+
+// a fixed array's C declarator: its element type, name, and [N] for each
+// count, the outer first, as C's int64_t m[2][3] (#354)
+let put_fixed_decl(y:int64, name:int64) {
+    var base:int64 = y
+    while types[base].kind == Y_FIXED { base = types[base].elem }
+    put_ctype(base)
+    put(" ")
+    put_tok(name)
+    var f:int64 = y
+    while types[f].kind == Y_FIXED {
+        put("[")
+        put_int(types[f].name)
+        put("]")
+        f = types[f].elem
+    }
+}
+
+// [a, b] of the fixed array y: C's {a, b}, each by its element type, a
+// list within a list of its own (#354)
+let gen_fixed_list(v:int64, y:int64) {
+    let e:int64 = types[y].elem
+    put("{")
+    var x = nodes[v].b
+    while x >= 0 && !failed {
+        if x != nodes[v].b { put(", ") }
+        if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
+            gen_fixed_list(x, e)
+        } else {
+            gen_value(x, e)
+        }
+        x = nodes[x].next
+    }
+    put("}")
+}
+
+// whether the elements of [a, b] fit y, a fixed array: each of its element
+// type, as gen_array asks of $[a, b], no more than its count (#354)
+let fixed_list_fits(v:int64, y:int64):bool {
+    let e:int64 = types[y].elem
+    var count = 0
+    var x = nodes[v].b
+    while x >= 0 {
+        count += 1
+        if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
+            if !fixed_list_fits(x, e) { return false }
+        } else {
+            let bad:String = value_mismatch_text(x, e)
+            if bad.count > 0 || is_case_word(x) {
+                var m = $"an element of "
+                let aw:String = type_text(y)
+                m += &aw
+                m += " is "
+                let ew:String = kelvin_type_text(e)
+                m += article_of(&ew)
+                m += " "
+                m += &ew
+                m += ", and this is "
+                m += bad.count > 0 ? bad.copy() : $"not one"
+                gen_error(x, m.cstr)
+                return false
+            }
+        }
+        x = nodes[x].next
+    }
+    if types[y].name >= 0 && count > types[y].name {
+        var m = type_text(y)
+        m += " holds "
+        let c:String = String(types[y].name)
+        m += &c
+        m += " elements, and this gives "
+        let g:String = String(count)
+        m += &g
+        gen_error(v, m.cstr)
+        return false
+    }
+    return true
+}
+
+// let a:[T](N) = [a, b], var a = [1, 2], var z = [T](n), var a:[T](N): a
+// local fixed array, as kelvinc's #48 and #49, declared as C's T a[N] =
+// {a, b}, and {0} where nothing or [T](n) gives its elements (#354)
+let gen_fixed_var(n:int64) {
+    var y:int64 = nodes[n].ty
+    let v:int64 = nodes[n].a
+    if !fixed_elem_ok(types[y].elem) {
+        if is_owner(types[y].elem) {                     // as kelvinc says it
+            gen_error(n, "an array of owners is not here yet: a struct may hold them")
+        } else {
+            fixed_refused(n)
+        }
+        return
+    }
+    if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 {   // [T](n)
+        let zy:int64 = type_of(v)
+        if types[zy].name < 0 {
+            gen_error(nodes[v].a, "kc counts a fixed array by a number, [T](3); not yet a count C computes")
+            return
+        }
+        if types[y].name < 0 { y = zy }
+        if y != zy {
+            var m = $"'"
+            m += tok_text(nodes[n].t)
+            m += "' is "
+            let w:String = type_text(y)
+            m += &w
+            m += ", and this is "
+            let zw:String = type_text(zy)
+            m += &zw
+            gen_error(v, m.cstr)
+            return
+        }
+    } else if v >= 0 && nodes[v].kind == N_LIST {      // [a, b]
+        if nodes[v].b < 0 {
+            gen_error(v, "[] has no elements: write [T](N), N zero elements")
+            return
+        }
+        if !fixed_list_fits(v, y) { return }
+        if types[y].name < 0 { y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0) }
+    } else if v >= 0 {                                   // a copy, as C has none
+        gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+        return
+    } else if types[y].name < 0 {
+        var m = type_text(y)
+        m += " takes its count from its elements: write ["
+        let ew:String = type_text(types[y].elem)
+        m += &ew
+        m += "](N), or the elements"
+        gen_error(n, m.cstr)
+        return
+    }
+    set_ty(n, y)                                         // S_VAR declares it so
+    put_fixed_decl(y, nodes[n].t)
+    put(" = ")
+    if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 {
+        gen_fixed_list(v, y)
+    } else {
+        put("{0}")
+    }
+    put(";\n")
+}
+
 let gen_var(n:int64) {
     if nodes[n].ty < 0 { set_ty(n, inferred(n)) }
     if failed { return }
+    if types[nodes[n].ty].kind == Y_ARGV && nodes[n].a >= 0 && nodes[nodes[n].a].kind == N_LIST {   // let names:[cstr] = ["a"] (#354)
+        set_ty(n, type_of_kind(Y_FIXED, base_type(Y_CSTR), -1))
+    }
+    if types[nodes[n].ty].kind == Y_FIXED {              // (#354)
+        gen_fixed_var(n)
+        return
+    }
+    if fixed_inside(nodes[n].ty) {
+        fixed_refused(n)
+        return
+    }
     let y:int64 = nodes[n].ty
     if nodes[n].a >= 0 && !assigns_as(n, nodes[n].t, y, nodes[n].c == 1) { return }
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
@@ -4165,6 +4396,10 @@ let gen_assign(n:int64) {
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if types[y].kind == Y_FIXED {                        // C's, which kelvinc leaves to it (#354)
+        gen_error(n, "an array is not assigned: assign its elements, a[i]")
+        return
+    }
     if nodes[nodes[n].b].kind == N_EMPTY {               // d = ${:}: no type is written there, as kelvinc has it (#348)
         empty_error(nodes[n].b)
         return
@@ -6288,6 +6523,14 @@ let gen_each(n:int64, depth:int64) {
         gen_iter_each(n, depth, y, f, nodes[n].a)
         return
     }
+    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR {
+        var m = $"kc walks a fixed array of numbers, bools or text, to its count or a zero; not yet of "
+        let ew:String = type_text(types[y].elem)
+        m += &ew
+        m += ": index it, a[i]"
+        gen_error(nodes[n].a, m.cstr)                    // (#354)
+        return
+    }
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
         var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
         s += type_text(y)
@@ -6354,6 +6597,35 @@ let gen_each(n:int64, depth:int64) {
             put("].value;\n")
             declare_as(nodes[nodes[n].b].t, types[y].elem, 3)
         }
+    } else if types[y].kind == Y_FIXED {               // as kelvinc's #30: each element to its count, a zero the terminator (#354)
+        put("for (size_t _kv_i")
+        put_int(serial)
+        put(" = 0; _kv_i")
+        put_int(serial)
+        put(" < sizeof(")
+        gen_expr(nodes[n].a)
+        put(") / sizeof((")
+        gen_expr(nodes[n].a)
+        put(")[0]) && (")
+        gen_expr(nodes[n].a)
+        put(")[_kv_i")
+        put_int(serial)
+        put("] != 0; _kv_i")
+        put_int(serial)
+        put("++)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put_ctype(types[y].elem)
+        put(" ")
+        put_tok(nodes[n].t)
+        put(" = (")
+        gen_expr(nodes[n].a)
+        put(")[_kv_i")
+        put_int(serial)
+        put("];\n")
+        open_scope()
+        declare_as(nodes[n].t, types[y].elem, 3)
     } else if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
         put_int(serial)
@@ -6943,9 +7215,17 @@ let gen_function(d:int64) {
         gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
         return
     }
+    if fixed_inside(nodes[d].ty) {                       // (#354)
+        fixed_refused(d)
+        return
+    }
     open_scope()
     var p:int64 = nodes[d].a
     while p >= 0 {
+        if fixed_inside(nodes[p].ty) {
+            fixed_refused(p)
+            return
+        }
         declare_as(nodes[p].t, nodes[p].ty, nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271)
         p = nodes[p].next
     }
@@ -7469,6 +7749,23 @@ let gen_program() {
                 m = nodes[m].next
             }
             put("};\n\n")
+        }
+    }
+    for i in 0..<decls.count as int64 {                  // no fixed array in a struct or an enum yet (#354)
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1) {
+            var f:int64 = nodes[d].a
+            while f >= 0 {
+                if fixed_inside(nodes[f].ty) {
+                    fixed_refused(f)
+                    return
+                }
+                f = nodes[f].next
+            }
+        }
+        if nodes[d].kind == D_GLOBAL && fixed_inside(nodes[d].ty) {
+            fixed_refused(d)
+            return
         }
     }
     for i in 0..<decls.count as int64 {                  // the structs and the enums with values (#215), each

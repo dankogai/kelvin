@@ -34,6 +34,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_AWAIT,    // await a, a Task's value (#313)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
+    N_LIST,     // [b...], a fixed array's elements (#354); flag 1 of [ty](a), a zero elements
     N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make;
                 // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one;
                 // of a Dictionary (#351), flag 3 of {k: v}, a the literal, 4 of &a, 5 of a, 6 of more, c the token
@@ -81,6 +82,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_ARGV,     // [cstr], main's argv
     Y_TASK,     // a Task (#313): its value elem, -1 of none
     Y_ITER,     // an Iterator<T> (#326): its value elem
+    Y_FIXED,    // [T](N), a fixed array (#354): its element elem, its count name, -1 where its elements give it
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -145,8 +147,8 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         if y.kind == kind && y.elem == elem {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
-            } else if kind == Y_DICT || kind == Y_PTR {
-                if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272)
+            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED {
+                if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272); a fixed array's count (#354)
             } else {
                 return i
             }
@@ -357,6 +359,19 @@ let const_pointee(y:int64):int64 {
     return type_of_kind(Y_PTR, e, 1)
 }
 
+// the value of token t, a number of decimal digits, or -1: a fixed
+// array's count (#354)
+let tok_count(t:int64):int64 {
+    if toks[t].kind != T_NUM { return 0 - 1 }
+    var v = 0
+    for i in 0..<toks[t].len {
+        let c:uint32 = codes[toks[t].at + i]
+        if c < '0' || c > '9' { return 0 - 1 }
+        v = v * 10 + (c as int64 - 48)
+    }
+    return v
+}
+
 // const T^ and the rest (#272)
 let parse_type():int64 {
     if at_word("const") {
@@ -392,9 +407,30 @@ let parse_bare_type():int64 {
     }
     if at_word("[") {
         advance()
-        expect("cstr")
+        if at_word("cstr") && tok_is(pos + 1, "]") && !tok_is(pos + 2, "(") {   // [cstr], main's argv
+            advance()
+            advance()
+            return base_type(Y_ARGV)
+        }
+        let elem:int64 = parse_type()                // [T](N), [T] of a count its elements give (#354)
         expect("]")
-        return base_type(Y_ARGV)
+        var count = -1
+        if at_word("(") {
+            advance()
+            count = tok_count(pos)
+            if count < 0 {
+                parse_error("kc counts a fixed array by a number, [T](3); not yet a count C computes")
+                return base_type(Y_VOID)
+            }
+            advance()
+            expect(")")
+        }
+        var y:int64 = type_of_kind(Y_FIXED, elem, count)
+        while at_word("^") || at_word("?") {         // [T](N)^, which gen says is not kc's yet
+            y = at_word("?") ? optional_of(y) : type_of_kind(Y_PTR, y, -1)
+            advance()
+        }
+        return y
     }
     if !at_kind(T_ID) {
         parse_error("a type is expected")
@@ -807,6 +843,37 @@ let parse_primary():int64 {
     if k == T_NUM {
         advance()
         return make_node(N_NUM, t)
+    }
+    if at_word("[") {                                    // a fixed array's elements, or [T](n) (#354)
+        advance()
+        let n:int64 = make_node(N_LIST, t)
+        let word = tok_is(pos, "int64") || tok_is(pos, "int32") || tok_is(pos, "uint8") || tok_is(pos, "uint32") || tok_is(pos, "float64") || tok_is(pos, "float32") || tok_is(pos, "bool") || tok_is(pos, "cstr")
+        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") {   // [T](n), n zero elements
+            set_ty(n, parse_type())
+            expect("]")
+            expect("(")
+            nodes[n].a = parse_expr()
+            expect(")")
+            nodes[n].flag = 1
+            return n
+        }
+        var last = -1
+        skip_newlines()
+        while !failed && !at_word("]") {
+            let e:int64 = parse_expr()
+            if last < 0 {
+                nodes[n].b = e
+            } else {
+                nodes[last].next = e
+            }
+            last = e
+            skip_newlines()
+            if !at_word(",") { break }
+            advance()
+            skip_newlines()
+        }
+        expect("]")
+        return n
     }
     if k == T_CHAR {
         advance()

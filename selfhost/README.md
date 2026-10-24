@@ -419,6 +419,21 @@ kc reads what it is written in, and little more.
     values with no `==`, a Set or a struct.
   - An Optional (#343), a Result (#344) or another enum with values
     (#345) in them compares.
+- **Fixed arrays** (#354), as kelvinc's #48 and #49, a local's alone:
+  `[T](N)` of N elements, `[T]` of as many as its elements give.
+  - `var a = [3, 1, 4]`, `let b:[int64](3) = [1, 2, 3]`, `let m =
+    [[1, 2], [3, 4]]`, `var z = [uint8](4)` of zeros; C's `int64_t
+    a[3] = {3, 1, 4}`, `{0}` where nothing gives the elements.
+  - `a[i]`, read and assigned; `a.count`, `a.size`; `for x in a`, as
+    kelvinc's #30, each element to its count, a zero ending it early.
+  - kelvinc's errors, in its words: a let's element assigned, an array
+    of owners; kc's where kelvinc leaves it to C: more elements than its
+    count, an element of another type, `a = b`, `var p = a`, `[T]` with
+    no elements.
+  - `println(a)` is kc's error: kelvinc prints the array's address.
+  - Not yet: a member, a parameter, a result, a global, a pointer to
+    one, or one in another type; a count C computes, as `[uint8](n)`;
+    `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
   first or the last equal to `x`, an `i64?`, or `none`.
