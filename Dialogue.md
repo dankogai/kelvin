@@ -6897,3 +6897,14 @@ their tables, and where it differs from kelvinc. Details are provisional
 P347.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 381. kc's Set clear, reserve, pretty and typename
+
+> teach kc Set clear, reserve, pretty and typename as #336
+
+**Claude** taught kc a Set's `.pretty`, its text indented, in place
+where print shows it, else a new String; `.typename`; and `.reserve(n)`
+and `.clear()`, in place, as kelvinc writes them, so kc reads every row
+of sets.md's table. Details are provisional P348.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

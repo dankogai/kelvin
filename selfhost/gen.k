@@ -685,6 +685,8 @@ let type_of(n:int64):int64 {
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
+        if yk == Y_SET && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336)
+        if yk == Y_SET && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
@@ -1709,7 +1711,14 @@ let gen_print_args(first:int64) {
             gen_error(a, m.cstr)
             return
         }
-        if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
+        let pr:int64 = nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
+        if pr >= 0 && types[pr].kind == Y_SET && need_show(pr, a) {   // s.pretty where print shows it, written in place (#336)
+            put("({ __auto_type _kv_sv = (")
+            gen_expr(nodes[a].a)
+            put("); ")
+            put_show_name(pr)
+            put("(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, 0); (const uint8_t *)\"\"; })")
+        } else if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
             put("({ __auto_type _kv_sv = (")
             gen_expr(a)
             put("); ")
@@ -1797,7 +1806,7 @@ let gen_field(n:int64) {
         return
     }
     let y = type_of(n)
-    if y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR) {
+    if y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR) && !tok_is(nodes[n].t, "typename") {   // a type's name is text of its own (#336)
         gen_error(n, "this is a pointer into an owner that an expression gives, which is freed once the expression is done: bind it to a variable first")
         return
     }
@@ -1821,7 +1830,7 @@ let is_made_array(n:int64):bool {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return false }
     let t = nodes[n].t
-    if types[y].kind == Y_SET { return tok_is(t, "elements") }
+    if types[y].kind == Y_SET { return tok_is(t, "elements") || tok_is(t, "pretty") }   // a new String too (#336)
     return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values"))
 }
 
@@ -1912,6 +1921,18 @@ let gen_member(n:int64) {
         put(").count)")
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
+    } else if yk == Y_SET && tok_is(t, "pretty") {       // s.pretty (#336), as kelvinc's: its text indented, a new String
+        if !need_show(y, n) { return }
+        put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
+        gen_expr(a)
+        put("); ")
+        put_show_name(y)
+        put("(&(kv_out){.s = &_kv_ps, .width = 2}, &_kv_sv, 0); _kv_ps; })")
+    } else if yk == Y_SET && tok_is(t, "typename") {     // s.typename (#336): its type's name, text
+        put("\"")
+        let w:String = kelvin_type_text(y)
+        out += &w
+        put("\"")
     } else if yk == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values")) {   // d.keys, d.values (#285)
         gen_slots_array(a, y, tok_is(t, "keys") ? types[y].name : types[y].elem, tok_is(t, "values"))
     } else if yk == Y_IO {
@@ -2109,6 +2130,18 @@ let gen_method_of(n:int64) {
         gen_place(a)
         put(", ")
         gen_expr(other)
+        put(")")
+    } else if yk == Y_SET && (tok_is(t, "clear") || tok_is(t, "reserve")) {   // s.clear(), s.reserve(n) (#336), in place
+        if !may_change(a) { return }
+        put_set_name(y)
+        put("_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        if tok_is(t, "reserve") {
+            put(", ")
+            gen_expr(nodes[n].b)
+        }
         put(")")
     } else if yk == Y_SET && (tok_is(t, "has") || tok_is(t, "insert") || tok_is(t, "remove")) {   // s.has(x), s.insert(x), s.remove(x) (#274)
         let key:int64 = nodes[n].b

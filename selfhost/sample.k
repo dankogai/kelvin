@@ -495,5 +495,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(digit_set.map { $0 % 3 }, " ", digit_set.filter(is_odd), " ", digit_set.reduce(0) { acc, e in acc + e })
     println(stock.mapWithKey { k, v in String(k) + "!" }, " ", stock.filterWithKey { k, v in v < 5 }, " ", stock.reduceWithKey($"") { acc, k, v in acc + String(k) })   // the key first (#331)
     println(stock.flatMapWithKey(twin))               // each Dictionary merged (#332)
+    var spare = ${2, 7}                               // a Set's pretty, typename, reserve and clear (#336)
+    let spare_text:String = spare.pretty
+    println(spare.pretty, " ", spare_text.count, " ", spare.typename)
+    spare.reserve(8)
+    spare.clear()
+    println(spare, " ", spare.count)
     return 0
 }

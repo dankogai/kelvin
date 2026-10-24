@@ -367,6 +367,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 333 | documents/iterators.md says what kc reads of iterators, Sequences, `Iterator<T>` and their methods (#320 to #332), and where kc differs, in a section of its own in place of Not yet | — | its section kc | 2026-10-24 |
 | 334 | kc's error of an anonymous function where none is taken names every place kc takes one, an Iterator, `.lazy.map` and `.lazy.filter`, and the eager methods and their WithKey kin, where it named the first two alone | — | kc's `apply({ $0 * 2 })` | 2026-10-24 |
 | 335 | documents/dictionaries.md and sets.md each say, in a section kc, what kc reads of them, what it does not read yet, and where it differs | — | their sections kc | 2026-10-24 |
+| 336 | kc reads a Set's `.pretty`, `.typename`, `.reserve(n)` and `.clear()`, as kelvinc's: the text indented, in place in print, else a new String; the type's name; in place, of a var | — | kc's `spare.pretty` | 2026-10-24 |
 
 Notes:
 
@@ -928,6 +929,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (336) Agreed details: "teach kc Set clear, reserve, pretty and
+  typename as #336", the Set's of #335's not yet.
+  - gen.k: `s.pretty` is a new String, the Set's _kv_show_T at level 0
+    into it; where print shows it, gen_print_args writes it in place, as
+    kelvinc's (#123, #124); one of a Set an expression gives is held and
+    freed, a new value as `.elements` is (is_made_array).
+  - `s.typename` is the type's name, `Set<i64>`, a literal, so of a
+    Set an expression gives it is no pointer into it.
+  - `s.reserve(n)` and `s.clear()` call the Set's own, in place, of a
+    var: a let is kelvinc's error, in its words.
+  - documents/sets.md's section kc: kc reads every row of the table.
+  - kc's build of a probe prints what kelvinc's does, the fixpoint
+    holds, and selfhost/sample.k has each.
 
 - (335) Agreed details: "update dictionaries.md and sets.md for kc's
   progress as #335".
@@ -4102,6 +4117,7 @@ says "as agreed".
 | P345 | Details of #333 | documents/iterators.md: the section kc | — |
 | P346 | Details of #334 | selfhost/gen.k: the message of an anonymous function kc takes nowhere | — |
 | P347 | Details of #335 | documents/dictionaries.md, sets.md: the sections kc | — |
+| P348 | Details of #336 | selfhost/gen.k: a Set's pretty, typename, reserve and clear, pretty in print, is_made_array, gen_field's typename; selfhost/sample.k; selfhost/README.md; documents/sets.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

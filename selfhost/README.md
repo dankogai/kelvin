@@ -316,6 +316,9 @@ kc reads what it is written in, and little more.
     `s ~= t` in place (#276).
   - `s.elements`, an Array of copies in the order added, which a
     variable then owns (#278).
+  - `s.pretty`, its text indented, written in place where print shows
+    it, else a new String; `s.typename`, `Set<i64>`; `s.reserve(n)` and
+    `s.clear()`, in place, of a var (#336).
 - **`|`, `&` and `~` of numbers** (#276), bitwise, `~` the XOR, C's `^`,
   between `&&` and `==` as C's; `|=`, `&=`, `~=`.
   - `for x in s`, in the order added, each a let the Set owns; printed

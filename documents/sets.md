@@ -77,14 +77,15 @@ writes it ([selfhost/README.md](../selfhost/README.md)):
   as kelvinc prints one.
 - **Its elements**: `.insert(x)` and `+=`, `+= &t`, `.has(x)`,
   `.remove(x)`, `.count`, `.copy()`, `.elements` (#278), and `for x in
-  s` in the order added.
+  s` in the order added; `.reserve(n)` and `.clear()` (#336).
+- **Its text**: printed as kelvinc prints it, `.pretty` and `.typename`
+  (#336).
 - **The algebra**: `.union(&t)`, `.intersection(&t)`, `.difference(&t)`
   (#275), and `|`, `&`, `~` and `|=`, `&=`, `~=` (#276).
 - **map, filter, reduce and flatMap** (#330), map's a Set of integers or
   Strings, as kelvinc's.
 
-kc does not read yet `.clear()`, `.reserve(n)`, `.pretty` and
-`.typename`.
+kc reads every row of the table below.
 
 Where kc differs, a String element is given to an anonymous function as
 a copy, which it owns, where kelvinc lends it (#244); what prints is the
