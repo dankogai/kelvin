@@ -2557,6 +2557,50 @@ let gen_cond(n:int64) {
 // {a, b} of the struct s (#225): each member by its field's type, so that
 // none and a T of a T? are what a variable of that type takes; a local
 // owner is copied, x.copy(), as kelvinc has it
+// whether v, $[], ${:} or ${}, is of y's kind: an Array, a Dictionary,
+// a Set (#348)
+let empty_fits(v:int64, y:int64):bool {
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    if tok_is(nodes[v].t, "$[") { return k == Y_ARRAY }
+    if nodes[v].flag == 1 { return k == Y_SET }
+    return k == Y_DICT
+}
+
+// $[], ${:} or ${} where no type of its kind is written, as kelvinc says
+// it (#348)
+let empty_error(v:int64) {
+    if tok_is(nodes[v].t, "$[") {
+        gen_error(v, "Array([]) has no element type: write Array<T>()")
+    } else if nodes[v].flag == 1 {
+        gen_error(v, "${} has no element type here: write Set<T>(), or give the variable a type, as in 'var s:${String} = ${}'")
+    } else {
+        gen_error(v, "${:} has no key and value types here: write Dictionary<K, V>(), or give the variable a type, as in 'var d:${String: i64} = ${:}'")
+    }
+}
+
+// v where its type y is written, of a declaration, an element or a
+// member: $[], ${:} and ${} are taken here alone, of y's kind, as kelvinc
+// takes them (#348); else gen_value
+let gen_written(v:int64, y:int64) {
+    if nodes[v].kind != N_EMPTY {
+        gen_value(v, y)
+        return
+    }
+    if !empty_fits(v, y) {
+        let k:ykind = y >= 0 ? types[y].kind : Y_VOID
+        if k == Y_SET && !tok_is(nodes[v].t, "$[") {        // as kelvinc says it
+            gen_error(v, "an empty Set is written ${}; ${:} is an empty Dictionary")
+        } else if k == Y_DICT && nodes[v].flag == 1 {
+            gen_error(v, "an empty Dictionary is written ${:}")
+        } else {
+            empty_error(v)
+        }
+        return
+    }
+    put("{0}")
+}
+
 let gen_init(n:int64, s:int64) {
     put("{")
     var a:int64 = nodes[n].b
@@ -2571,7 +2615,7 @@ let gen_init(n:int64, s:int64) {
             gen_error(a, "an owner is not copied by '=' (#54): copy it with .copy()")
             return
         }
-        gen_value(a, nodes[f].ty)
+        gen_written(a, nodes[f].ty)                      // ${:} of a member (#348)
         a = nodes[a].next
         f = nodes[f].next
     }
@@ -2644,7 +2688,7 @@ let gen_array(n:int64, given:int64) {
             put_ctype(elem)
             put(")")
         }
-        gen_value(e, elem)
+        gen_written(e, elem)
         put("); ")
         e = nodes[e].next
     }
@@ -2735,7 +2779,7 @@ let gen_dict(n:int64, given:int64) {
             put_ctype(elem)
             put(")")
         }
-        gen_value(v, elem)
+        gen_written(v, elem)
         put(")")
         if hold { hold_close(k) }
         put("; ")
@@ -3413,6 +3457,14 @@ let gen_expr(n:int64) {
         type_of(n)                                       // its error (#324)
         return
     }
+    if k == N_BIN && nodes[nodes[n].a].kind == N_EMPTY { // xs == $[]: no type is written there (#348)
+        empty_error(nodes[n].a)
+        return
+    }
+    if k == N_BIN && nodes[nodes[n].b].kind == N_EMPTY {
+        empty_error(nodes[n].b)
+        return
+    }
     if k == N_ITER {                                     // (#326)
         gen_iter_make(n)
         return
@@ -3509,7 +3561,7 @@ let gen_expr(n:int64) {
         gen_args(nodes[n].b)
         put("}")
     } else if k == N_EMPTY {
-        put("{0}")
+        empty_error(n)                                   // where no type is written (#348)
     } else if k == N_ARRAY {
         gen_array(n, -1)
     } else if k == N_DICT {
@@ -3557,7 +3609,11 @@ let inferred(n:int64):int64 {
     }
     let w:int64 = k == N_ID ? nodes[v].t : k == N_CALL && nodes[nodes[v].a].kind == N_ID ? nodes[nodes[v].a].t : 0 - 1
     let word = w >= 0 && is_case_word(v) && (tok_is(w, "none") || tok_is(w, "ok") || tok_is(w, "err") || tok_is(w, "some"))   // none, ok(v), err(e) (#341)
-    if k == N_EMPTY || k == N_INIT || k == N_NULL || word {
+    if k == N_EMPTY {                                    // as kelvinc says it (#348)
+        empty_error(v)
+        return -1
+    }
+    if k == N_INIT || k == N_NULL || word {
         gen_error(n, "this variable needs a type: write name:T, since this value has none of its own")
         return -1
     }
@@ -3696,7 +3752,7 @@ let gen_var(n:int64) {
             put("0")
         }
     } else {
-        gen_value(nodes[n].a, y)                         // (#217)
+        gen_written(nodes[n].a, y)                       // (#217); ${:} (#348)
     }
     put(";\n")
 }
@@ -3836,6 +3892,10 @@ let gen_assign(n:int64) {
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if nodes[nodes[n].b].kind == N_EMPTY {               // d = ${:}: no type is written there, as kelvinc has it (#348)
+        empty_error(nodes[n].b)
+        return
+    }
     if nodes[lhs].kind == N_ID {                         // q := &x of a let (#273)
         var who = $"'"
         who += tok_text(nodes[lhs].t)
@@ -7164,7 +7224,7 @@ let gen_program() {
             put_tok(nodes[d].t)
             put(" = ")
             if nodes[d].a >= 0 {
-                gen_value(nodes[d].a, nodes[d].ty)
+                gen_written(nodes[d].a, nodes[d].ty)    // ${:} (#348)
             } else if is_owner(nodes[d].ty) || types[nodes[d].ty].kind == Y_STRUCT {
                 put("{0}")
             } else {

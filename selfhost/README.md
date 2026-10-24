@@ -487,6 +487,17 @@ kc reads what it is written in, and little more.
   `! - * / % + - < <= > >= == != && ||`, and `c ? a : b` (#232).
   - `c ? a : b` binds the loosest and groups to the right; a `?` right
     after a value and before `.` or `[` is a chain's instead.
+  - An empty `$[]`, `${:}` or `${}` is taken only where its type is
+    written (#348), as kelvinc takes it: a declaration's value, an
+    element of a list, a Dictionary's value, a struct's member.
+    - Of the type's kind: `let d:Dictionary<String, i64> = $[]` is
+      kelvinc's error, as are `${}` for `${:}` and the other way.
+    - Elsewhere, kelvinc's error in its words, so nothing reaches C
+      or is read as `none`: `doc.fields(${:})`, `f($[])`, `d = ${:}`,
+      `return $[]`, `xs == $[]`, `let o:Dictionary<String, i64>? =
+      ${:}`.
+    - kelvinc's errors say to write `Dictionary<K, V>()` or
+      `Array<T>()`, which kc does not read yet.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

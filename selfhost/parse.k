@@ -20,7 +20,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_CAST,     // a as ty
     N_ADDR,     // &a
     N_DEREF,    // a^
-    N_EMPTY,    // $[]
+    N_EMPTY,    // $[], ${:}; ${} flag 1 (#348)
     N_ARRAY,    // $[b...], an Array of its elements (#266)
     N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
     N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
@@ -715,7 +715,9 @@ let parse_primary():int64 {
         }
         if at_word("}") {                           // ${}, an empty Set (#274)
             advance()
-            return make_node(N_EMPTY, t)
+            let n:int64 = make_node(N_EMPTY, t)
+            nodes[n].flag = 1                       // a Set's, not ${:} (#348)
+            return n
         }
         if set_ahead() {                            // ${a, b}, a Set (#274)
             let n:int64 = make_node(N_SET, t)

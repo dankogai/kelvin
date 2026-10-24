@@ -379,6 +379,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 345 | kc reads `==` and `!=` of an enum with values, as kelvinc's #79: the same case, and equal values, both sides of the enum; its elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words, and `struct T` as kelvinc names a struct or an enum there | — | kc's `a == item.num(5)` | 2026-10-25 |
 | 346 | kc reads an enum with values, or a struct, that holds an Array of itself, as kelvinc writes one: the Array's type before the struct, its functions after it, with the prototypes of the struct's free and copy | `KV_ARRAY_TYPE` and `KV_ARRAY_FUNCS` by hand | kc's `enum shrub { leaf: int64; twigs: $[shrub] }` | 2026-10-25 |
 | 347 | kc reads an enum with values, or a struct, that holds a Dictionary of itself, as kelvinc writes one: the Dictionary's type before the struct, its functions after it, as an Array's of #346 | `KV_DICT_TYPE` and `KV_DICT_FUNCS` by hand | kc's `enum doc { word: String; fields: Dictionary<String, doc> }` | 2026-10-25 |
+| 348 | kc takes an empty `$[]`, `${:}` or `${}` only where its type is written, as kelvinc does: a declaration's value, an element, a Dictionary's value, a struct's member, of the type's kind; elsewhere kelvinc's error in its words | — | kc's `doc.fields(${:})` refused | 2026-10-25 |
 
 Notes:
 
@@ -940,6 +941,32 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (348) Agreed details: "teach kc doc.fields(${:}) refusal as #348".
+  - kelvinc reads `$[]`, `${:}` and `${}` with a type only where one is
+    written for them (parse_initializer_for): a declaration's value, an
+    element of a list, a Dictionary's value, a struct's member.
+    Elsewhere they have none, and kelvinc refuses them.
+  - kc read all three as N_EMPTY and wrote `{0}` wherever it met one, so
+    `doc.fields(${:})` and `f($[])` reached C, and `let o:Dictionary<K,
+    V>? = ${:}` was `none`.
+  - Now, gen.k:
+    - gen_written, a declaration's, a global's, an element's, a
+      Dictionary value's and a member's, takes N_EMPTY of the written
+      type's kind (empty_fits): `$[]` an Array, `${:}` a Dictionary,
+      `${}` a Set, flag 1 from parse.k;
+    - one of another kind is kelvinc's error: `an empty Set is written
+      ${}; ${:} is an empty Dictionary`, `an empty Dictionary is written
+      ${:}`, else the literal's own;
+    - anywhere else, gen_expr, a side of a binary operator, an
+      assignment and inference, kelvinc's error (empty_error):
+      `${:} has no key and value types here: write Dictionary<K, V>(),
+      ...`, `Array([]) has no element type: write Array<T>()`, `${} has
+      no element type here: write Set<T>(), ...`.
+  - Found, not fixed: kc does not read `Dictionary<K, V>()` or
+    `Array<T>()`, which kelvinc's errors say to write.
+  - Every place kelvinc takes them, kc's build still prints what
+    kelvinc's does; the fixpoint holds.
 
 - (347) Agreed details: "teach kc a Dictionary of itself as #347".
   - gen.k: write_type's Dictionary does as its Array does since #346:
@@ -4391,6 +4418,7 @@ says "as agreed".
 | P357 | Details of #345 | selfhost/gen.k: eq_type (eq_asked), has_eq_fn, need_eq, put_eq_code, gen_eq, the prototypes of any enum with values; gen_variant_eq of an enum (eq_type_text, enum_mismatch_text); is_place of `T.c`; gen_container_eq's `Array<struct P>`; selfhost/sample.k; selfhost/README.md | kc's operators of a type's own (#121); kc's enum holding an Array of itself |
 | P358 | Details of #346 | selfhost/gen.k: write_type (written 2 while a struct's members are written, KV_ARRAY_TYPE of an Array of it, held_arrays), write_held_arrays after the struct in write_type and gen_tagged; selfhost/sample.k; selfhost/README.md | kc's Dictionary of itself; kc's `xs += {2, $[]}` |
 | P359 | Details of #347 | selfhost/gen.k: write_type's Dictionary (KV_DICT_TYPE of one of a struct being written, held), put_dict_args, write_held_arrays (KV_DICT_FUNCS; the prototypes once); selfhost/sample.k; selfhost/README.md | kc's `doc.fields(${:})` |
+| P360 | Details of #348 | selfhost/parse.k: `${}` flag 1; selfhost/gen.k: empty_fits, empty_error, gen_written (gen_var, a global, gen_init, gen_array, gen_dict), gen_expr's N_EMPTY and a side of a binary operator, gen_assign, inferred; selfhost/README.md | kc's `Dictionary<K, V>()` and `Array<T>()` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

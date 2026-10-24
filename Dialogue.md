@@ -7058,3 +7058,18 @@ compared and walked as under kelvinc. Found, not fixed: kc lets
 Details are provisional P359.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 393. kc's refusal of doc.fields(${:})
+
+> teach kc doc.fields(${:}) refusal as #348
+
+**Claude** taught kc to take an empty `$[]`, `${:}` or `${}` only where
+its type is written, as kelvinc does: a declaration's value, an
+element, a Dictionary's value or a struct's member, of the type's
+kind. Elsewhere, as `doc.fields(${:})`, `f($[])`, `d = ${:}` or
+`return $[]`, kc gives kelvinc's error in its words, where it had
+written C that did not compile, or read `${:}` as `none` of an
+Optional. Found, not fixed: kc does not read `Dictionary<K, V>()`,
+which the error says to write. Details are provisional P360.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
