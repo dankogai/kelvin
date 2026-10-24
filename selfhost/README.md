@@ -117,6 +117,14 @@ kc reads what it is written in, and little more.
   - A body that ends in a value on any path, of a block, an `if` or a
     case, is kelvinc's error too, and in `main`, whose end returns 0,
     one with no effect.
+- **An argument with no value** (#317) is kelvinc's error of #316, in
+  its words: `println(tell(1))`, `xs.append(f.close())`.
+  - It covers a call, a method or `async`, given a call of a function or
+    method with no result, of `print` or `println`, or `await` of a Task
+    with none.
+  - A built-in method with no value counts too, as kelvinc's: an
+    Array's append, insert and remove(i, n), a clear, reserve or
+    compact, and an IO's write, flush, close, print, println and rewind.
 - **Enums with values** (#215): `enum item { none; num: int64; text:
   String }`, written as kelvinc writes one: a struct of a tag and a
   union, with `_kv_T_make_c`, `_at_c` (checked) and `_set_c`, and

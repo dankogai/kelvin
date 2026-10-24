@@ -1672,9 +1672,12 @@ let gen_print_args(first:int64) {
     }
 }
 
+let refuse_valueless_args(n:int64):bool    // a prototype: each call asks it (#317)
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
+    if refuse_valueless_args(n) { return }
     if nodes[f].kind == N_TYPE {
         if tok_is(nodes[f].t, "IO") {
             put("kv_io_open(")
@@ -1891,6 +1894,7 @@ let gen_method(n:int64) {
 let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    if refuse_valueless_args(n) { return }
     let f:int64 = method_of(n)
     if f >= 0 {                                                       // T__m(x, ...), T__f(...) (#213)
         put_tok(nodes[f].c)
@@ -2713,6 +2717,7 @@ let gen_async(n:int64) {
         gen_error(c, "'async' takes a call of a Kelvin function or a function value, whose types kelvinc sees, as in 'async f(x)'")
         return
     }
+    if refuse_valueless_args(c) { return }
     var a:int64 = nodes[c].b
     var p:int64 = nodes[d].a
     while a >= 0 && p >= 0 {                          // a pointer would share what it points to
@@ -3897,14 +3902,75 @@ let takes_owner(d:int64):bool {
 
 // ---------- a body's value (#286) ----------
 
-// whether e, a statement, has no value: println, print, or a call of a
-// function kc sees has no result, as kelvinc's no_value
+// whether the built-in method m of an owner of kind k has no value, as
+// kelvinc's builtin_no_value (#317): an Array's append, insert and
+// remove(i, n), any one's clear, reserve and compact, an IO's write,
+// flush, close, print, println and rewind
+let builtin_no_value(k:ykind, m:int64):bool {
+    if tok_is(m, "append") || tok_is(m, "clear") || tok_is(m, "reserve") || tok_is(m, "compact") { return true }
+    if tok_is(m, "insert") || tok_is(m, "remove") { return k == Y_ARRAY }
+    if k != Y_IO { return false }
+    return tok_is(m, "write") || tok_is(m, "flush") || tok_is(m, "close") || tok_is(m, "print") || tok_is(m, "println") || tok_is(m, "rewind")
+}
+
+// whether e, a statement, has no value: println, print, a call of a
+// function or method kc sees has no result, or of a built-in method with
+// none (#317), as kelvinc's no_value
 let no_value(e:int64):bool {
     let k = nodes[e].kind
     if k == N_COND { return no_value(nodes[e].b) || no_value(nodes[e].c) }
+    if k == N_METHOD {
+        let a:int64 = nodes[e].a
+        if nodes[a].kind == N_TYPE { return false }
+        let f:int64 = method_of(e)
+        if f >= 0 { return nodes[f].ty < 0 || types[nodes[f].ty].kind == Y_VOID }
+        if tagged_named(a) >= 0 { return false }
+        let y:int64 = type_of(a)
+        if y < 0 { return false }
+        let yk:ykind = types[y].kind
+        if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET && yk != Y_IO { return false }
+        return builtin_no_value(yk, nodes[e].t)
+    }
     if k != N_CALL && k != N_AWAIT { return false }       // await of a Task of none (#313)
     let y:int64 = type_of(e)
     return y >= 0 && types[y].kind == Y_VOID
+}
+
+// where the expression n starts: a call's or a method's at its callee or
+// receiver, as kelvinc points
+let start_of(n:int64):int64 {
+    var s = n
+    while nodes[s].kind == N_CALL || nodes[s].kind == N_METHOD {
+        s = nodes[s].a
+    }
+    return s
+}
+
+// an argument of the call or method n that kc sees has no value is an
+// error, as kelvinc's (#316, #317); true where one is
+let refuse_valueless_args(n:int64):bool {
+    var a:int64 = nodes[n].b
+    var k = 1
+    while a >= 0 {
+        if no_value(a) {
+            var m = $""
+            if nodes[a].kind == N_AWAIT {
+                m += "this Task has no value, as its function has no result, so it cannot be argument "
+            } else {
+                m += "this has no value, so it cannot be argument "
+            }
+            m += String(k)
+            m += " of '"
+            if nodes[n].kind == N_METHOD { m += "." }
+            m += tok_text(nodes[n].kind == N_METHOD ? nodes[n].t : nodes[nodes[n].a].t)
+            m += nodes[a].kind == N_AWAIT ? $"': await it alone, as a line of its own" : $"': make the call alone, as a line of its own"
+            gen_error(start_of(a), m.cstr)
+            return true
+        }
+        k += 1
+        a = nodes[a].next
+    }
+    return false
 }
 
 // whether e, a statement, leaves a value behind: one with no effect, or,

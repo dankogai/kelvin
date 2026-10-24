@@ -348,6 +348,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 314 | kc holds a String key an expression gives in `d[k] = v`, the checked `d[k]` and `d[k]` read whole, as it did for `d.has(k)` since #270, where it took the address of the value | — | `d[s.copy() + "x"] = 1` | 2026-10-24 |
 | 315 | kelvinc holds a String an expression gives as a Set's element or a Dictionary's key in `s += f()`, and in `${f()}` and `${f(): v}` where the type is written, as it held one in `s.insert(f())` and in a literal in a chain | — | `seen += label(5)` | 2026-10-24 |
 | 316 | kelvinc refuses an argument it sees has no value: a call of a function, method or function value with no result, C's `print` and `println`, a built-in method with none, as `f.print(...)` or `xs.clear()`, and `await t` of a Task with none, where C's compiler said `passing 'void'` | — | `println(tell(1))` is an error | 2026-10-24 |
+| 317 | kc refuses an argument it sees has no value, as kelvinc's #316, in its words: a call of a function or method with no result, `print` and `println`, a built-in method with none and `await` of a Task with none, given to a call, a method or `async` | — | kc's `println(tell(1))` is an error | 2026-10-24 |
 
 Notes:
 
@@ -909,6 +910,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (317) Agreed details: "teach kc to refuse a void argument as #317".
+  - kc's no_value, which a body's value used (#286), sees a method too:
+    one of the program's by its result, and a built-in one by
+    builtin_no_value, kelvinc's list of what kc has, an Array's append,
+    insert and remove(i, n), a clear, reserve or compact, an IO's write,
+    flush, close, print, println and rewind.
+  - refuse_valueless_args checks the arguments of each call, at the
+    start of gen_call and gen_method_of and in gen_async, and gives
+    kelvinc's message at where the call starts, as kc does, by line.
+  - kc's build of the four tests/error/arg_*no_value.k gives kelvinc's
+    message, and so do a method of the program, `async g(f(1))`, a ?:
+    and a String's append; pop, a Set's insert and remove, and a
+    Dictionary's remove stay values.
 
 - (316) Agreed details: "fix kelvinc's void call as an argument as
   #316", found by #310.
@@ -3684,6 +3699,7 @@ says "as agreed".
 | P326 | Details of #314 | selfhost/gen.k: gen_assign, gen_lookup, gen_element hold the key; selfhost/sample.k; selfhost/README.md | found: kelvinc refuses s += f() of a Set<String> |
 | P327 | Details of #315 | src/parser.c: the Set's +=, set_of_list, dict_of_list hold their keys; tests: run/set_held_keys.k; documents/sets.md | — |
 | P328 | Details of #316 | src/parser.c: no_value of a built-in method, reject_valueless_args in each postfix step; tests: error/arg_no_value.k, arg_builtin_no_value.k, arg_method_no_value.k, arg_await_no_value.k; documents/functions.md | — |
+| P329 | Details of #317 | selfhost/gen.k: builtin_no_value, no_value of a method, start_of, refuse_valueless_args in gen_call, gen_method_of, gen_async; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -6647,3 +6647,14 @@ of a function or method with no result, a built-in method with none and
 words. Details are provisional P328.
 
 There are 969 tests, and all pass with clang and with gcc 15.
+
+### 362. kc's void argument
+
+> teach kc to refuse a void argument as #317
+
+**Claude** taught kc kelvinc's error of #316: an argument kc sees has no
+value, a call with no result, a built-in method with none or `await` of
+a Task with none, is refused in kelvinc's words. Details are
+provisional P329.
+
+There are 969 tests, and all pass with clang and with gcc 15.
