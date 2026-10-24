@@ -293,6 +293,8 @@ let declare_as(t:int64, y:int64, how:int64) {
 let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
+let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
+let changes_var(n:int64, lead:const String^):bool
 let changed_root(n:int64):int64    // and type_of of &x (#272)
 
 // how name t was declared, as sym.how: 1 a global let; 0 a var, or a
@@ -1897,11 +1899,25 @@ let gen_method_of(n:int64) {
     if refuse_valueless_args(n) { return }
     let f:int64 = method_of(n)
     if f >= 0 {                                                       // T__m(x, ...), T__f(...) (#213)
+        if nodes[f].flag == 2 {                                       // a var method's receiver, a var (#320)
+            var lead = $"'."
+            lead += tok_text(t)
+            lead += "' is a var method, which changes "
+            if !changes_var(a, &lead) { return }
+            if !changeable_place(a) {
+                lead += "the value it is called on, so that value is a variable"
+                gen_error(n, lead.cstr)
+                return
+            }
+        }
         put_tok(nodes[f].c)
         put("__")
         put_tok(nodes[f].t)
         put("(")
-        if nodes[f].flag != 1 {
+        if nodes[f].flag == 2 {                                       // by its address, T__m(&(x), ...)
+            gen_place(a)
+            if nodes[n].b >= 0 { put(", ") }
+        } else if nodes[f].flag != 1 {
             gen_expr(a)
             if nodes[n].b >= 0 { put(", ") }
         }
@@ -3196,6 +3212,15 @@ let changed_root(n:int64):int64 {
 let may_change(n:int64):bool {
     var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
+    if nodes[d].kind == N_SELF && current >= 0 && nodes[current].c >= 0 && nodes[current].flag != 2 {   // (#320)
+        var m = $"a method reads self and never changes it, as a let method: a var method, 'var "
+        m += tok_text(nodes[current].c)
+        m += "."
+        m += tok_text(nodes[current].t)
+        m += "(...)', changes the caller's var (#318)"
+        gen_error(n, m.cstr)
+        return false
+    }
     if nodes[d].kind == N_DEREF {
         let p:int64 = type_of(nodes[d].a)
         if p >= 0 && types[p].kind == Y_PTR && types[p].name == 1 {
@@ -3228,6 +3253,38 @@ let may_change(n:int64):bool {
     }
     gen_error(n, s.cstr)
     return false
+}
+
+// whether n is a place a var method changes: a variable, self, a member,
+// an element, or what a pointer points to, as kelvinc's (#320)
+let changeable_place(n:int64):bool {
+    let k:nkind = nodes[n].kind
+    if k != N_ID && k != N_SELF && k != N_FIELD && k != N_INDEX && k != N_DEREF { return false }
+    return is_place(n)
+}
+
+// whether what place n changes is a var: where it is a let, or self in a
+// let method, or behind a read-only borrow, an error that goes on from
+// lead, in kelvinc's words (#320)
+let changes_var(n:int64, lead:const String^):bool {
+    var d = n
+    while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
+    var who = $""
+    if nodes[d].kind == N_SELF && current >= 0 && nodes[current].c >= 0 && nodes[current].flag != 2 {
+        who = $"self"
+    } else if nodes[d].kind == N_ID && how_declared(nodes[d].t) != 0 {
+        who = tok_text(nodes[d].t)
+    }
+    if who.count > 0 {
+        var m = lead^.copy()
+        m += "'"
+        m += &who
+        m += "', a let: declare it with var"
+        gen_error(n, m.cstr)
+        return false
+    }
+    if nodes[d].kind == N_DEREF { return may_change(n) }    // through a const T^, may_change's words
+    return true
 }
 
 let gen_assign(n:int64) {
@@ -3420,9 +3477,125 @@ let gen_return(n:int64) {
 }
 
 // for c in s { }: each codepoint of a String, or each element of an Array
+// the var method next of the struct y, which makes a value of y an
+// iterator (#320), or -1
+let iterator_next(y:int64):int64 {
+    if y < 0 || types[y].kind != Y_STRUCT || types[y].name < 0 { return 0 - 1 }
+    var key:String = tok_text(types[y].name)
+    key += ".next"
+    return method_names.get(key, -1)
+}
+
+// for x in it (#320), as kelvinc's #318: next() into a hidden Optional
+// each pass, freed where it owns, x its some, up to none; the iterator
+// changes, a place by its address, and one an expression gives is held
+let gen_iter_each(n:int64, depth:int64, y:int64, f:int64) {
+    let tn:String = tok_text(types[y].name)
+    let oy:int64 = nodes[f].ty
+    let ey:int64 = some_type(oy)
+    if nodes[f].flag != 2 {
+        var m = $"for walks an iterator by its next(), which changes it, and '"
+        m += &tn
+        m += ".next' is a let method, which reads it: write 'var "
+        m += &tn
+        m += ".next():T?'"
+        gen_error(nodes[n].a, m.cstr)
+        return
+    }
+    if nodes[f].a >= 0 || ey < 0 {
+        var m = $"for walks an iterator by its next(), which takes nothing and gives each value, then none: write 'var "
+        m += &tn
+        m += ".next():T?'"
+        gen_error(nodes[n].a, m.cstr)
+        return
+    }
+    if nodes[n].b >= 0 {
+        gen_error(n, "two loop variables walk a Dictionary's entries; an iterator's values take one")
+        return
+    }
+    let src = nodes[n].a
+    let place = changeable_place(src)
+    let lead = $"for walks an iterator by its var next(), which changes "
+    if place && !changes_var(src, &lead) { return }
+    let d = tagged_of(oy)
+    var some:int64 = 0 - 1
+    var c:int64 = nodes[d].a
+    while c >= 0 {
+        if tok_is(nodes[c].t, "some") { some = c }
+        c = nodes[c].next
+    }
+    serial += 1
+    let s = serial
+    put("{\n")
+    indent(depth + 1)
+    if !place {                                       // for x in from(3): held, and freed where it owns
+        if is_owner(y) {
+            put("__attribute__((cleanup(")
+            put_free(y)
+            put("))) ")
+        }
+        put_ctype(y)
+        put(" _kv_it")
+        put_int(s)
+        put(" = ")
+        gen_expr(src)
+        put(";\n")
+        indent(depth + 1)
+    }
+    put("for (;;)\n")
+    indent(depth + 1)
+    put("{\n")
+    indent(depth + 2)
+    if is_owner(oy) {
+        put("__attribute__((cleanup(")
+        put_free(oy)
+        put("))) ")
+    }
+    put_ctype(oy)
+    put(" _kv_o")
+    put_int(s)
+    put(" = ")
+    put_tok(nodes[f].c)
+    put("__next(")
+    if place {
+        gen_place(src)
+    } else {
+        put("&_kv_it")
+        put_int(s)
+    }
+    put(");\n")
+    indent(depth + 2)
+    put("if (_kv_o")
+    put_int(s)
+    put(".tag != ")
+    put_int(case_tag(d, some))
+    put(") break;\n")
+    indent(depth + 2)
+    put_ctype(ey)
+    put(" ")
+    put_tok(nodes[n].t)
+    put(" = _kv_o")
+    put_int(s)
+    put(".u.some;\n")
+    open_scope()
+    declare_as(nodes[n].t, ey, 3)                     // each value, a let (#271)
+    indent(depth + 2)
+    gen_block(nodes[n].c, depth + 2)
+    close_scope()
+    indent(depth + 1)
+    put("}\n")
+    indent(depth)
+    put("}\n")
+}
+
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
+    let f = iterator_next(y)
+    if f >= 0 {                                        // an iterator (#320)
+        gen_iter_each(n, depth, y, f)
+        return
+    }
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
         var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
         s += type_text(y)
@@ -3875,7 +4048,7 @@ let gen_signature(d:int64) {
     let takes_self:bool = recv >= 0 && nodes[d].flag != 1
     if takes_self {                                    // a method's self, a T, first
         put_ctype(type_of_kind(Y_STRUCT, -1, recv))
-        put(" self")
+        put(nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
     }
     if p < 0 && !takes_self { put("void") }
     while p >= 0 {
@@ -4068,6 +4241,10 @@ let implicit_return(d:int64) {
 
 let gen_function(d:int64) {
     current = d
+    if nodes[d].c >= 0 && nodes[d].flag == 2 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
+        gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
+        return
+    }
     open_scope()
     var p:int64 = nodes[d].a
     while p >= 0 {
@@ -4078,6 +4255,8 @@ let gen_function(d:int64) {
     if failed { return }
     gen_signature(d)
     put("\n")
+    let var_method = nodes[d].c >= 0 && nodes[d].flag == 2
+    if var_method { put("#define self (*_kv_selfp)\n") }   // self is the caller's var (#320)
     if is_main(d) {
         put("{\n")
         if uses_io && nodes[d].a >= 0 {
@@ -4120,6 +4299,7 @@ let gen_function(d:int64) {
     } else {
         gen_block(nodes[d].b, 0)
     }
+    if var_method { put("#undef self\n") }
     close_scope()
     put("\n")
 }

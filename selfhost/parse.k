@@ -48,7 +48,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_CASE,     // case a...: b...; flag 1 of default
     S_IFLET,    // if let t(flag) = a { b } else c (#217)
     // declarations
-    D_FN,       // t(a...):ty { b }, b -1 for a prototype
+    D_FN,       // t(a...):ty { b }, b -1 for a prototype; of a type c, flag 1 static, 2 a var method (#320)
     D_STRUCT,   // t { a... }
     D_GLOBAL,   // as S_VAR
     D_IMPORT,
@@ -1127,7 +1127,8 @@ let parse_enum():int64 {
 
 // extend T { let m(...) ... static let f(...) ... } (#213): a method takes
 // self, a T, first; a function of the type, static, does not; each goes
-// into decls as a D_FN whose c is T's token, its flag 1 where static
+// into decls as a D_FN whose c is T's token, its flag 1 where static, 2
+// for a var method, var m(...), whose self is the caller's var (#320)
 let parse_extend() {
     let recv:int64 = advance()
     self_name = recv
@@ -1139,7 +1140,15 @@ let parse_extend() {
             advance()
             is_static = 1
         }
-        expect("let")
+        if is_static == 0 && at_word("var") {
+            advance()
+            is_static = 2
+        } else if is_static == 1 && at_word("var") {
+            parse_error("a function of the type has no self to change: write 'static let'")
+            return
+        } else {
+            expect("let")
+        }
         let n:int64 = parse_function()
         nodes[n].c = recv
         nodes[n].flag = is_static
@@ -1171,13 +1180,15 @@ let parse_program() {
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             decls += parse_function()
-        } else if at_word("let") && tok_is(pos + 2, ".") && tok_is(pos + 4, "(") {   // let T.m(...) (#213)
+        } else if (at_word("let") || at_word("var")) && tok_is(pos + 2, ".") && tok_is(pos + 4, "(") {   // let T.m(...) (#213)
+            let is_var = at_word("var")                     // var T.m(...), self the caller's var (#320)
             advance()
             let recv:int64 = advance()
             advance()
             self_name = recv
             let n:int64 = parse_function()
             nodes[n].c = recv
+            if is_var { nodes[n].flag = 2 }
             self_name = 0 - 1
             decls += n
         } else if at_word("extend") {

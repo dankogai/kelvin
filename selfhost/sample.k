@@ -163,6 +163,32 @@ let shouted(s:const String^):String { s^ + "!" }
 let louder(s:String):String { s + "!" }              // a call on a thread of its own takes an owner (#313)
 let started(n:int64):Task<int64> { async fib(n) }
 
+struct tally_box { n: int64 }                        // a var method, self the caller's var (#320)
+var tally_box.bump(by:int64):int64 {
+    .n += by
+    return .n
+}
+extend tally_box {
+    var reset() { self.n = 0 }
+}
+struct countdown { n: int64 }                        // an iterator, its var next():T? (#320)
+var countdown.next():int64? {
+    if .n == 0 { return none }
+    .n -= 1
+    return .n + 1
+}
+let count_from(n:int64):countdown { return {n} }
+struct numbered { i: int64; last: int64 }
+extend numbered {
+    var next():String? {
+        .i += 1
+        if .i > .last { return none }
+        var s = $"w"
+        s += String(.i)
+        return s
+    }
+}
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -385,5 +411,20 @@ let main(argc:int32, argv:[cstr]):int32 {
     tally[louder(String("hey"))] = 2
     tally[$"asyncs"] += 10
     println(tally, " ", tally[louder(String("hey"))]!, " ", tally[$"async" + "s"] ?? 0)
+    var box:tally_box = {1}                           // var methods and iterators (#320)
+    let bumped = box.bump(2)
+    box.reset()
+    var down:countdown = {4}
+    var walked:int64 = 0
+    for x in down {
+        if x == 2 { break }
+        walked += x
+    }
+    var counted:int64 = 0
+    for x in count_from(3) { counted += x }
+    var named = $""
+    var three:numbered = {0, 3}
+    for w in three { named += &w }
+    println(bumped, " ", box.n, " ", walked, " ", down.n, " ", counted, " ", named)
     return 0
 }

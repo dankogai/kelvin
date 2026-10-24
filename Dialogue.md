@@ -6696,3 +6696,15 @@ first, so every `next()` runs before the first function. Details are
 provisional P331.
 
 There are 981 tests, and all pass with clang and with gcc 15.
+
+### 365. kc's iterators and var methods
+
+> teach kc iterators and var methods as #320
+
+**Claude** taught kc var methods, whose `self` is the caller's var, and
+`for x in it` over an iterator, as kelvinc writes them, with kelvinc's
+errors in its words; a let method that changes `self`, which kc had let
+through, is refused now too. The iterator's `map` and the rest wait for
+kc's anonymous functions. Details are provisional P332.
+
+There are 981 tests, and all pass with clang and with gcc 15.

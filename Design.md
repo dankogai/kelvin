@@ -351,6 +351,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 317 | kc refuses an argument it sees has no value, as kelvinc's #316, in its words: a call of a function or method with no result, `print` and `println`, a built-in method with none and `await` of a Task with none, given to a call, a method or `async` | — | kc's `println(tell(1))` is an error | 2026-10-24 |
 | 318 | Swift's iterators: `for x in it` walks a value whose `var T.next():E?` gives each value, then `none`; a var method, `var T.m(...)`, and `var m(...)` in `extend`, has the caller's var as its `self`, as a setter has, and is called on a var | — | `for x in from(3)` gives 3, 2, 1 | 2026-10-24 |
 | 319 | An iterator's `map`, `filter`, `reduce` and `flatMap`, Swift's `Sequence` methods, eager: the iterator walked to `none`, its values gathered into an Array that the Array's own method walks and frees; documents/iterators.md, a document of its own | — | `from(4).map { $0 * 10 }` is `[40, 30, 20, 10]` | 2026-10-24 |
+| 320 | kc reads var methods, `var T.m(...)` and `var m(...)` in extend, and `for x in it` over an iterator, as kelvinc's #318, with kelvinc's errors in its words; an iterator's `map` and the rest wait for kc's anonymous functions | — | kc's `for x in count_from(3)` | 2026-10-24 |
 
 Notes:
 
@@ -912,6 +913,29 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (320) Agreed details: "teach kc iterators and var methods as #320".
+  - parse.k: `var T.m(...)` at the top and `var m(...)` in extend are
+    D_FNs of flag 2; `static var` in extend is an error.
+  - gen.k, as kelvinc writes them:
+    - gen_signature takes `T *_kv_selfp`, and gen_function wraps the
+      body in `#define self (*_kv_selfp)` and `#undef self`.
+    - gen_method_of calls `T__m(&(x), ...)`, after changes_var and
+      changeable_place, which give kelvinc's errors of a let, a const
+      borrow, and a value a call gives.
+    - may_change refuses a change of `self` in a let method, in
+      kelvinc's words, which kc had let through to C's copy.
+    - gen_iter_each walks an iterator, iterator_next finding
+      `T.next`: next's Optional held each pass, freed where it owns, x
+      its some, a place by its address, an expression held.
+    - A built-in type's var method is kelvinc's error.
+  - kc has no anonymous functions, so #319's `map`, `filter`, `reduce`
+    and `flatMap` wait, as an Array's do.
+  - kc's build of a probe of each prints what kelvinc's does, and gives
+    kelvinc's message for tests/error/var_method_let.k,
+    var_method_value.k, var_method_builtin.k, iterator_let_next.k,
+    iterator_next_result.k, method_self_change.k and
+    method_self_assign.k; selfhost/sample.k has them.
 
 - (319) Agreed details: "iterator deserves a document of its own.
   write `iterators.md`. And since it is a sequence it should be
@@ -3757,6 +3781,7 @@ says "as agreed".
 | P329 | Details of #317 | selfhost/gen.k: builtin_no_value, no_value of a method, start_of, refuse_valueless_args in gen_call, gen_method_of, gen_async; selfhost/README.md | — |
 | P330 | Details of #318 | src/kelvin.h: var_method, EACH_ITER, Stmt.next; src/parser.c: var methods, iterator_next, the loop; src/codegen.c: the self pointer and the loop; editors/vscode grammar; tests; documents/structs.md, flow-controls.md | kc reads neither yet |
 | P331 | Details of #319 | src/parser.c: iterator_elem, iterator_array, the hook before the Array methods; src/codegen.c: iter_array; documents/iterators.md, flow-controls.md, structs.md, README.md, versusC.md; tests | — |
+| P332 | Details of #320 | selfhost/parse.k: var methods; selfhost/gen.k: gen_signature, gen_function, gen_method_of, changeable_place, changes_var, may_change, iterator_next, gen_iter_each; selfhost/sample.k; selfhost/README.md; documents/iterators.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

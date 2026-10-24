@@ -142,8 +142,9 @@ let main():int32 {
   afresh and stays as it was.
 - **Lazy methods**, Swift's `.lazy.map`, which would give an iterator
   rather than an Array, and so take an iterator that never ends.
-- **kc** reads neither iterators nor var methods
-  ([selfhost/README.md](../selfhost/README.md)).
+- **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
+  methods and `for x in it` (#320), and these wait for its anonymous
+  functions ([selfhost/README.md](../selfhost/README.md)).
 
 ## What each takes and gives
 

@@ -200,6 +200,22 @@ kc reads what it is written in, and little more.
     is `T__f(...)`: kelvinc's names, called straight, since kc sees the
     receiver's type where kelvinc lets C's `_Generic` choose.
   - `return {a, b}` is of the function's type.
+  - **A var method** (#320), `var T.m(...)` and `var m(...)` in
+    extend, as kelvinc's #318: `T__m(T *_kv_selfp, ...)`, `self` the
+    caller's var through `#define self (*_kv_selfp)`, called as
+    `T__m(&(x), ...)`.
+    - On a let, through a const borrow, or on a value a call gives, it
+      is kelvinc's error, in its words; so is a built-in type's, and a
+      let method that changes `self`.
+- **Iterators** (#320), as kelvinc's #318: `for x in it` walks a
+  struct whose `var next():T?` gives each value, then `none`.
+  - Each pass holds next's Optional, freed where it owns, and `x` its
+    some; the iterator changes, a var by its address, and one an
+    expression gives, `for x in count_from(3)`, is held.
+  - A `next` of another shape, a let, or two loop variables are
+    kelvinc's errors, in its words.
+  - `map`, `filter`, `reduce` and `flatMap` of #319 wait for kc's
+    anonymous functions, as an Array's do.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
@@ -494,7 +510,7 @@ libc is allowed, as it is to any C program; C of our own is not.
 
 ### Writing a compiler in Kelvin
 
-- **Methods cannot change `self`:**
+- **Methods could not change `self`** until var methods (#318, #320):
   - the parser's state is in globals;
   - the readers of examples/lambda.k are functions of a `reader^`;
   - kc's methods, since #213, are queries: `types[y].owns()`,
