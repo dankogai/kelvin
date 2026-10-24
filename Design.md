@@ -938,6 +938,10 @@ Notes:
       v's type (iter_infer), and each `return none` before it is wrapped
       then (iter_nones); a function with no value is an error.
     - A named f takes `S^`, the same C, `T? f(S *)`.
+    - The state that owns is one of the function's owned locals, so
+      `$0 = v` frees the old one and passing `$0` moves it, but the
+      function's end does not free it: the Iterator does. CI's ASan
+      found the first commit's `$0 = $0[1..<n]` leaking the old String.
     - kelvinc writes the adapters `_kv_iterN_next(void *, void *)` and,
       for a state that owns, `_kv_iterN_drop`, hoisted as an anonymous
       function is; the value is `({ S *_kv_is = kv_alloc(...); *_kv_is =

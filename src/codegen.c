@@ -3743,6 +3743,11 @@ static void emit_decl(Decl *d) {
                 list_push(&param_caches, "atexit(_kv_free_globals);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
+                if (p->ref && owner_free(p->type)) { /* an Iterator's state (#325): assigned and moved as a local, */
+                    list_push(&owner_locals, p->name); /* and freed by the Iterator, not here */
+                    list_push(&owner_locals, p->type);
+                    continue;
+                }
                 const char *frees = p->lent || p->ref ? NULL : owner_free(p->type); /* one lent is the caller's (#242, #244) */
                 if (frees) { /* an owner moved in (#54): the body's block frees it */
                     list_push(&param_caches, strfmt("__attribute__((cleanup(%s))) %s = _kv_%s_in;", frees,
