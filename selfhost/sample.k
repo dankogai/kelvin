@@ -187,6 +187,12 @@ var span_walk.next():int64? {
 }
 let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
+let twin(k:cstr, v:int64):Dictionary<String, int64> {    // a function flatMapWithKey takes (#332)
+    var r:Dictionary<String, int64> = ${:}
+    r[String(k)] = v
+    r[String(k) + "2"] = v * 2
+    return r
+}
 let fib_upto(limit:int64):Iterator<int64> {             // an Iterator, a state and a function (#326)
     return Iterator($[0, 1, limit]) {                  // what it needs, in its state: it encloses nothing
         let r = $0[0]
@@ -488,5 +494,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(stock.map { v in v * 10 }, " ", stock.filter { v in v > 3 }, " ", stock.reduce(0) { acc, v in acc + v })   // a Dictionary's and a Set's (#330)
     println(digit_set.map { $0 % 3 }, " ", digit_set.filter(is_odd), " ", digit_set.reduce(0) { acc, e in acc + e })
     println(stock.mapWithKey { k, v in String(k) + "!" }, " ", stock.filterWithKey { k, v in v < 5 }, " ", stock.reduceWithKey($"") { acc, k, v in acc + String(k) })   // the key first (#331)
+    println(stock.flatMapWithKey(twin))               // each Dictionary merged (#332)
     return 0
 }

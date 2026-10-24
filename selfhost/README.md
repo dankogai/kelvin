@@ -267,7 +267,8 @@ kc reads what it is written in, and little more.
   - **`mapWithKey`, `filterWithKey` and `reduceWithKey`** (#331), as
     kelvinc's #241: the function takes each key before its value, a
     String's as its text, a `cstr`, an integer as itself; mapWithKey's
-    gives the new value alone. flatMapWithKey waits.
+    gives the new value alone; flatMapWithKey's a Dictionary, merged in
+    (#332).
 - **An Iterator's lazy map and filter** (#328), as kelvinc's #327:
   `it.lazy.map(f)` and `it.lazy.filter(f)` of an `Iterator<T>` give an
   `Iterator<U>` of it, moved in, whose adapter `_kv_iterN_next` asks it

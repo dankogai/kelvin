@@ -4321,9 +4321,9 @@ let eager_of(n:int64):int64 {
     if tok_is(t, "filter") { kind = 2 }
     if tok_is(t, "reduce") { kind = 3 }
     if tok_is(t, "flatMap") { kind = 4 }
-    if tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "reduceWithKey") {   // (#331)
+    if tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "reduceWithKey") || tok_is(t, "flatMapWithKey") {   // (#331, #332)
         with_key = true
-        kind = tok_is(t, "mapWithKey") ? 1 : tok_is(t, "filterWithKey") ? 2 : 3
+        kind = tok_is(t, "mapWithKey") ? 1 : tok_is(t, "filterWithKey") ? 2 : tok_is(t, "reduceWithKey") ? 3 : 4
     }
     if kind == 0 { return 0 - 1 }
     let seen = eager_at.get(n, -1)
@@ -4477,7 +4477,7 @@ let eager_of(n:int64):int64 {
         m += ", and joins them into one; this gives "
         let rw:String = kelvin_type_text(ry)
         m += &rw
-        m += ", which '.map' takes"
+        m += with_key ? $", which '.mapWithKey' takes" : $", which '.map' takes"   // as kelvinc's (#332)
         gen_error(n, m.cstr)
         return 0 - 1
     }

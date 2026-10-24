@@ -6853,3 +6853,14 @@ a String's as its text, before its value, with kelvinc's errors in its
 words; flatMapWithKey waits. Details are provisional P343.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 377. kc's flatMapWithKey
+
+> teach kc flatMapWithKey as #332
+
+**Claude** taught kc a Dictionary's `flatMapWithKey` as kelvinc writes
+it: the key before the value, the Dictionaries the function gives
+merged, a later entry winning, with kelvinc's error in its words.
+Details are provisional P344.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
