@@ -497,7 +497,16 @@ kc reads what it is written in, and little more.
       `return $[]`, `xs == $[]`, `let o:Dictionary<String, i64>? =
       ${:}`.
     - kelvinc's errors say to write `Dictionary<K, V>()` or
-      `Array<T>()`, which kc does not read yet.
+      `Array<T>()`, which kc reads since #349.
+  - `Array<T>()` and `Dictionary<K, V>()` (#349), as kelvinc's #57 and
+    #65: an empty one of the type written, anywhere a value goes.
+    - `var xs = Array<int64>()` is an `Array<i64>`; an argument, a
+      case's value, a return, a member, `xs == Array<int64>()`.
+    - Without `()`, kelvinc's error: `Array<i64> is a type: make one
+      with Array<i64>(), or write it after ':'`.
+    - Not yet: what else kelvinc takes in them, a count, the elements
+      or a copy, `Array<T>(3)`, `Array<T>([1, 2])`, `Array<T>(&xs)`,
+      `Dictionary<K, V>({"a": 1})`; nor `Array([1, 2])`.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

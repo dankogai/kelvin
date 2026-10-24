@@ -557,5 +557,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     fields["body"] = doc.fields(empty)
     let page = doc.fields(fields)
     println(page, " ", page == page.copy(), " ", page != doc.word($"kc"))
+    var made = Array<String>()                          // Array<T>() and Dictionary<K, V>() (#349)
+    made += $"first"
+    let scores = Dictionary<String, int64>()
+    println(made, " ", scores, " ", doc.fields(Dictionary<String, doc>()), " ", Array<int64>().count)
     return 0
 }

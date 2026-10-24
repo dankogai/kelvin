@@ -7073,3 +7073,17 @@ Optional. Found, not fixed: kc does not read `Dictionary<K, V>()`,
 which the error says to write. Details are provisional P360.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 394. kc's Dictionary<K, V>() and Array<T>()
+
+> teach kc Dictionary<K, V>() and Array<T>() as #349
+
+**Claude** taught kc `Array<T>()` and `Dictionary<K, V>()`, as
+kelvinc's #57 and #65: an empty one of the type written, anywhere a
+value goes, so `var xs = Array<int64>()` infers its type and
+`doc.fields(Dictionary<String, doc>())` works. Without `()` it is
+kelvinc's error in its words; a count, the elements or a copy in them
+are not yet kc's. Found, not fixed: a typed let of an Array of another
+type reaches C, and kc assigns no Array. Details are provisional P361.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

@@ -34,6 +34,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_AWAIT,    // await a, a Task's value (#313)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
+    N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -623,6 +624,41 @@ let parse_anon():int64 {
     return n
 }
 
+// Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
+// #65 (#349): ty the type; without (), flag 1, and with what else
+// kelvinc takes in them, a count, the elements or a copy, flag 2, its
+// tokens passed over, for gen's errors
+let parse_make():int64 {
+    let n:int64 = make_node(N_MAKE, advance())
+    advance()                                    // <
+    if tok_is(nodes[n].t, "Array") {
+        let elem:int64 = parse_type()
+        expect(">")
+        set_ty(n, type_of_kind(Y_ARRAY, elem, -1))
+    } else {
+        let key:int64 = parse_type()
+        expect(",")
+        let value:int64 = parse_type()
+        expect(">")
+        set_ty(n, type_of_kind(Y_DICT, value, key))
+        optional_of(value)                       // V?, which d[k] read whole is (#219)
+    }
+    if !at_word("(") {
+        nodes[n].flag = 1
+        return n
+    }
+    advance()
+    var depth = 0
+    while !failed && pos < toks.count as int64 && !(depth == 0 && at_word(")")) {
+        nodes[n].flag = 2
+        if at_word("(") || at_word("[") || at_word("{") || at_word("$[") || at_word("${") { depth += 1 }
+        if at_word(")") || at_word("]") || at_word("}") { depth -= 1 }
+        advance()
+    }
+    expect(")")
+    return n
+}
+
 // Iterator(state) { ... }, Iterator(state, f), Iterator<T>(...) (#326), as
 // kelvinc's #325: a the state, b the function, ty T where written
 let parse_iterator():int64 {
@@ -657,6 +693,7 @@ let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
+    if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
     if k == T_NUM {
         advance()
         return make_node(N_NUM, t)

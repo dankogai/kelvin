@@ -692,6 +692,7 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
+    if k == N_MAKE { return nodes[n].ty }               // Array<T>(), Dictionary<K, V>() (#349)
     if k == N_METHOD && tok_is(t, "next") {             // it.next() of an Iterator: a T? (#326)
         let iy:int64 = type_of(nodes[n].a)
         if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
@@ -2557,6 +2558,32 @@ let gen_cond(n:int64) {
 // {a, b} of the struct s (#225): each member by its field's type, so that
 // none and a T of a T? are what a variable of that type takes; a local
 // owner is copied, x.copy(), as kelvinc has it
+// Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
+// #65: C's compound literal of its type. Without (), and with a count,
+// the elements or a copy, which kc does not make yet, an error (#349)
+let gen_make(n:int64) {
+    let y:int64 = nodes[n].ty
+    let w:String = kelvin_type_text(y)
+    if nodes[n].flag == 1 {                              // as kelvinc says it
+        var m = w.copy()
+        m += " is a type: make one with "
+        m += &w
+        m += "(), or write it after ':'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if nodes[n].flag == 2 {
+        var m = $"kc makes an empty one alone, "
+        m += &w
+        m += types[y].kind == Y_ARRAY ? "(); not yet of a count, the elements or a copy" : "(); not yet of the entries or a copy"
+        gen_error(n, m.cstr)
+        return
+    }
+    put("(")
+    put_ctype(y)
+    put("){0}")
+}
+
 // whether v, $[], ${:} or ${}, is of y's kind: an Array, a Dictionary,
 // a Set (#348)
 let empty_fits(v:int64, y:int64):bool {
@@ -3463,6 +3490,10 @@ let gen_expr(n:int64) {
     }
     if k == N_BIN && nodes[nodes[n].b].kind == N_EMPTY {
         empty_error(nodes[n].b)
+        return
+    }
+    if k == N_MAKE {                                     // Array<T>(), Dictionary<K, V>(), an empty one (#349)
+        gen_make(n)
         return
     }
     if k == N_ITER {                                     // (#326)
