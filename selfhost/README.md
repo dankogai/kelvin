@@ -531,8 +531,10 @@ kc reads what it is written in, and little more.
         write Array<T>()`, `Array() has no element type: ...`,
         `Array(x) has no element type: ...`, and of elements of no one
         type, `none` among them, `write Array<T>([...])`.
-    - Not yet: `Array<T>(a)` of a fixed array; `Array(&a)` with T
-      inferred, which kelvinc reads: write `Array<T>(&a)`.
+    - `Array(&a)` (#353), as kelvinc's #58: a copy of the Array that
+      `&a` lends, of its type, as `Array<T>(&a)` (#350); of what is no
+      Array, kelvinc's `Array(x) has no element type: ...`.
+    - Not yet: `Array<T>(a)` of a fixed array.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

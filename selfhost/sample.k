@@ -571,5 +571,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(pantry, " ", larder, " ", larder == pantry)
     let guessed = Array([5, 3, 8])                      // Array([...]) with T inferred (#352)
     println(guessed, " ", Array([$"x", $"y"]), " ", guessed.count)
+    var echoed = Array(&quad)                           // Array(&a) with T inferred (#353)
+    echoed += 1
+    println(quad, " ", echoed)
     return 0
 }

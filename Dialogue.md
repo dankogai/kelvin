@@ -7128,3 +7128,15 @@ Not yet kc's: `Array(&a)` with T inferred. Found, not fixed: kc has no
 `.count` of a `cstr`. Details are provisional P364.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 398. kc's Array(&a) with T inferred
+
+> teach kc Array(&a) with T inferred as #353
+
+**Claude** taught kc `Array(&a)`, as kelvinc's #58: a copy of the
+Array that `&a` lends, of its type, as `Array<T>(&a)` of #350. Of what
+is no Array, it is kelvinc's error in its words. Found, in kelvinc and
+not fixed here: `var e = Array(&g)` of a let is `const` in kelvinc's
+C, so appending to it warns. Details are provisional P365.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

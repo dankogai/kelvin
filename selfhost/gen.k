@@ -693,6 +693,10 @@ let type_of(n:int64):int64 {
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
     if k == N_MAKE && nodes[n].ty < 0 {                 // Array([a, b]): an Array of a's type (#352)
+        if nodes[n].flag == 4 {                         // Array(&a): a's type, an Array's (#353)
+            let ay:int64 = type_of(nodes[nodes[n].a].a)
+            return ay >= 0 && types[ay].kind == Y_ARRAY ? ay : 0 - 1
+        }
         if nodes[n].flag != 3 || nodes[n].b < 0 || is_case_word(nodes[n].b) { return -1 }
         let e:int64 = type_of(nodes[n].b)
         if e < 0 { return -1 }
@@ -2627,8 +2631,8 @@ let gen_make_dict(n:int64, y:int64, w:const String^) {
 }
 
 // Array([a, b]), T the elements' one type, as kelvinc's #58 and as
-// $[a, b] (#352); Array() and the rest kelvinc's errors in its words;
-// Array(&a), which kelvinc reads, not yet kc's
+// $[a, b] (#352); Array(&a), a copy of the Array a, of its type (#353);
+// Array() and the rest kelvinc's errors in its words
 let gen_make_inferred(n:int64) {
     let f:int64 = nodes[n].flag
     if f == 0 {
@@ -2646,9 +2650,16 @@ let gen_make_inferred(n:int64) {
             e = nodes[e].next
         }
         gen_array(n, type_of(n))
-    } else if f == 4 {
-        gen_error(n, "kc reads Array([...]) with T inferred; not yet Array(&a): write Array<T>(&a)")
-    } else if f == 5 {
+    } else if f == 4 && type_of(n) >= 0 {               // a copy, by its _copy, as Array<T>(&a) (#350, #353)
+        let p:int64 = nodes[nodes[n].a].a
+        let h = needs_hold(p)                            // one an expression gives, held and freed after
+        if h { hold_open(p) }
+        put_array_name(type_of(n))
+        put("_copy(")
+        gen_place(p)
+        put(")")
+        if h { hold_close(p) }
+    } else if f == 4 || f == 5 {                         // as kelvinc says it of what is no Array
         gen_error(n, "Array(x) has no element type: write Array<T>(x), or the elements, Array([...])")
     } else if f == 6 {
         gen_error(n, "Array([...]) takes the elements alone: expected ')'")
