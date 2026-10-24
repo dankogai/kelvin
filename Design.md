@@ -364,6 +364,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 330 | kc reads a Dictionary's and a Set's `map`, `filter`, `reduce` and `flatMap`, as kelvinc's #238, #307 and #308, and anonymous functions whose parameters are named, `{ v in v * 2 }`, as kelvinc's #236; kelvinc's errors in its words | — | kc's `stock.reduce(0) { acc, v in acc + v }` | 2026-10-24 |
 | 331 | kc reads a Dictionary's `mapWithKey`, `filterWithKey` and `reduceWithKey`, as kelvinc's #241: the key before the value, a String's as its text; kelvinc's errors in its words | — | kc's `stock.reduceWithKey($"") { acc, k, v in acc + String(k) }` | 2026-10-24 |
 | 332 | kc reads a Dictionary's `flatMapWithKey`, as kelvinc's #308: the key before the value, the Dictionaries the function gives merged, a later entry winning | — | kc's `stock.flatMapWithKey(twin)` | 2026-10-24 |
+| 333 | documents/iterators.md says what kc reads of iterators, Sequences, `Iterator<T>` and their methods (#320 to #332), and where kc differs, in a section of its own in place of Not yet | — | its section kc | 2026-10-24 |
 
 Notes:
 
@@ -925,6 +926,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (333) Agreed details: "update iterators.md for kc's progress as #333".
+  - Its Not yet held kc's alone, now all done, so a section kc takes its
+    place: what kc reads, #320, #322, #324, #326, #328, #329 and #330,
+    and where it differs:
+    - anonymous functions only where these take a function, kc having
+      no function types or values;
+    - a value that owns given to an anonymous function as a copy, where
+      kelvinc lends it, the output the same;
+    - an error said by its line, in kelvinc's words.
 
 - (332) Agreed details: "teach kc flatMapWithKey as #332".
   - gen.k: eager_of reads it as flatMap with the key first (#331), and
@@ -4063,6 +4074,7 @@ says "as agreed".
 | P342 | Details of #330 | selfhost/parse.k: names_in_ahead, flag 2; selfhost/gen.k: anon_function_of's named parameters, eager_of's Dictionaries and Sets, gen_eager_keyed, put_key_text; selfhost/sample.k; selfhost/README.md | WithKey later |
 | P343 | Details of #331 | selfhost/gen.k: eager_of's with_key, gen_eager_keyed's key; selfhost/parse.k: a trailing function after mapWithKey and filterWithKey; selfhost/sample.k; selfhost/README.md | flatMapWithKey in #332 |
 | P344 | Details of #332 | selfhost/gen.k: eager_of's flatMapWithKey, its message; selfhost/parse.k: a trailing function after flatMapWithKey; selfhost/sample.k; selfhost/README.md | — |
+| P345 | Details of #333 | documents/iterators.md: the section kc | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

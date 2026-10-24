@@ -6864,3 +6864,14 @@ merged, a later entry winning, with kelvinc's error in its words.
 Details are provisional P344.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 378. iterators.md and kc
+
+> update iterators.md for kc's progress as #333
+
+**Claude** replaced the document's Not yet, which held kc's gaps alone,
+with a section kc: what kc reads of iterators, Sequences, `Iterator<T>`
+and their methods, and where it differs from kelvinc. Details are
+provisional P345.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

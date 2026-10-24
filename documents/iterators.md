@@ -345,14 +345,34 @@ let main():int32 {
 - **The values** are as a lazy Sequence's: lent to an anonymous `f`, a
   copy given to a named one, and freed unless `filter` keeps them.
 
-## Not yet
+## kc
 
-- **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
-  methods and `for x in it` (#320), and these wait for its anonymous
-  functions ([selfhost/README.md](../selfhost/README.md)).
-- **Nothing of kc's**: kc reads Sequences (#322), `.lazy.map` and
-  `.lazy.filter` (#324, #328), `Iterator<T>` (#326), and the eager `map`,
-  `filter`, `reduce` and `flatMap` (#329).
+kc, the compiler written in Kelvin, reads all of this as kelvinc
+writes it ([selfhost/README.md](../selfhost/README.md)):
+
+- var methods and `for x in it` over an iterator of the program's
+  (#320);
+- Sequences, `makeIterator()` (#322);
+- `Iterator<T>`, a state and a function (#326);
+- `s.lazy.map` and `s.lazy.filter` of a Sequence (#324), and
+  `it.lazy.map` and `it.lazy.filter` of an Iterator (#328);
+- the eager `map`, `filter`, `reduce` and `flatMap` of an iterator, a
+  Sequence and an `Iterator<T>` (#329), as of an Array, a Dictionary
+  and a Set (#329, #330).
+
+Where kc differs:
+
+- **Anonymous functions** go only where these take a function: an
+  Iterator's, `.lazy.map` and `.lazy.filter`'s, and the eager methods'.
+  - kc has no function types or values, so `let f:(T):R := { ... }`
+    is kc's error.
+  - Their parameters are `$0`, `$1`, written, `{ (x:T):R in ... }`, or
+    named, `{ v in ... }` (#330).
+- **A value that owns** is given to an anonymous function as a copy,
+  which it owns and frees, where kelvinc lends it (#244); what a program
+  prints is the same.
+- **An error** is said by its line alone, where kelvinc says the line
+  and the column; the words are kelvinc's.
 
 ## What each takes and gives
 
