@@ -7219,3 +7219,17 @@ any function as a local's is. A let's element assigned is kelvinc's
 error in its words. Details are provisional P371.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 405. kc's fixed arrays as enum case values
+
+> teach kc fixed arrays as enum case values as #360
+
+**Claude** found that kelvinc's C failed on a fixed array as an enum's
+case value, and asked; the user chose "kc first, kelvinc later". Claude
+taught kc the case: a typedef of its array type, its elements copied in
+when it is made or set, bound to a copy by `switch` and `if let`, read
+through the case, printed, and compared element by element. Found on
+the way, and fixed: kc could not read a case's value of a call's enum,
+as `mk(4).n`. Details are provisional P372.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

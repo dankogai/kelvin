@@ -391,6 +391,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 357 | kc reads a fixed array as a parameter, as kelvinc's #49: a pointer in C, its count passed beside it; `[const T]` reads its elements, `[T]` changes the caller's; its argument a fixed array of its elements, not a let's to `[T]`; kelvinc's errors in its words, kc's where kelvinc leaves it to C | `int64_t sum(const int64_t *a, int64_t n)` | kc's `let total_of(xs:[const int64], n:int64)` | 2026-10-25 |
 | 358 | kc refuses a fixed array as a function's result for good, as C can have none: `a function cannot return an array, as C cannot: return a struct that holds one, or take one as a parameter and fill it`, where kelvinc leaves it to C | — | kc's `let c():[int64]` refused | 2026-10-25 |
 | 359 | kc reads a fixed array as a global, as kelvinc's #49: C's `int64_t hits[3] = {0}`, a let's elements const, read and changed by any function, as a local's | `int32_t table[4];` | kc's `let weekdays:[cstr] = ["mon", "tue", "wed"]` | 2026-10-25 |
+| 360 | kc reads a fixed array as an enum's case value, ahead of kelvinc, whose C failed there: a typedef of its type, its elements copied in by `[a, b]` or an array, bound to a copy by `switch` and `if let`, read through `v.c`, printed, `==` element by element; a case's value of a call's enum read through a one-element array | `typedef int64_t _kv_e_v_t[2]` | kc's `shape.tri([3, 4, 5])` | 2026-10-25 |
 
 Notes:
 
@@ -952,6 +953,29 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (360) Agreed details: "teach kc fixed arrays as enum case values as
+  #360". kelvinc's C failed there, `int64_t[2] v` in its functions; asked,
+  the user chose "kc first, kelvinc later", which #361 is.
+  - gen.k, gen_tagged: an array case's type is a typedef, `typedef int64_t
+    _kv_shape_tri_t[3]`, its union member of it; `_at` gives a pointer to
+    it, and `_set` and `_make` take its elements, as C passes them, and
+    copy them in by `memcpy`, as C assigns no array.
+  - `shape.tri([3, 4, 5])` and `s.tri = [9, 9, 9]` give C's compound
+    literal, `(int64_t[3]){3, 4, 5}` (gen_value of `[a, b]` where a fixed
+    array goes), and an array of its type its own.
+  - `switch` and `if let` bind a copy of the elements, a local's array, by
+    `memcpy`; `s.tri[i]`, `s.tri.count` and `for x in s.tri` read through
+    `_at`; printed `tri([3, 4, 5])`; `==` element by element, of numbers,
+    bools and text.
+  - Fixed on the way, before #360 too: a case's value of a call's enum,
+    `mk(4).n`, wrote `&(mk(4))`, which C refuses; it is read through a
+    one-element array, `(const struct sh[]){mk(4)}`, as kelvinc reads it,
+    and one that owns held in a temporary and freed, as before.
+  - kc's errors: `[i64] as a case takes its count`, `a case's fixed array
+    of owners is not kc's yet`; an Optional or a Result of one refused.
+  - kelvinc could not build these, so they are checked by hand, not in
+    selfhost/sample.k, which kelvinc builds too; #361 brings kelvinc.
 
 - (359) Agreed details: "teach kc fixed arrays as globals as #359".
   - gen.k: gen_program writes a global of `[T](N)` or `[T]`, inferred
@@ -4676,6 +4700,7 @@ says "as agreed".
 | P369 | Details of #357 | selfhost/parse.k: `[const T]` (-3); selfhost/gen.k: fixed_params (-2, -4), put_ctype and type_text of a parameter's, fixed_arg_ok in gen_arg_to, may_change of its element, gen_field's `.count` and `.size`, gen_each, gen_function; selfhost/sample.k; selfhost/README.md | kc's parameter of owners or of fixed arrays, `[T]^` |
 | P370 | Details of #358 | selfhost/gen.k: gen_function's result of `[T]` or `[T](N)`, fixed_refused's words; selfhost/README.md | — |
 | P371 | Details of #359 | selfhost/gen.k: gen_program's global of `[T](N)` or `[T]` by gen_fixed_var, fixed_const in put_fixed_decl; selfhost/sample.k; selfhost/README.md | — |
+| P372 | Details of #360 | selfhost/gen.k: gen_tagged's typedef, union member, `_at`, `_set` and `_make` of an array case (put_case_tname, fixed_case), gen_value's compound literal of `[a, b]`, the bindings of switch and if let, put_eq_code and eq_type of an array, gen_member of a call's enum, gen_assign's case set, the refusals; selfhost/README.md | kelvinc's (#361); kc's case of an array of owners |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -309,6 +309,9 @@ let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is writ
 let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
 let fixed_refused(n:int64)
+let put_fixed_base(y:int64)    // and a case's [a, b], a compound literal, asks these (#360)
+let put_fixed_counts(y:int64)
+let fixed_case(m:int64):bool    // and if let and switch bind a case's elements (#360)
 let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
 let changes_var(n:int64, lead:const String^):bool
 let changed_root(n:int64):int64    // and type_of of &x (#272)
@@ -1652,6 +1655,10 @@ let eq_type(y:int64):bool {
     if y < 0 { return true }
     let k = types[y].kind
     if k == Y_ARRAY || k == Y_DICT { return eq_type(types[y].elem) }
+    if k == Y_FIXED {                                    // a case's, by its elements (#360)
+        let e:int64 = types[y].elem
+        return is_number_kind(types[e].kind) || types[e].kind == Y_BOOL || types[e].kind == Y_CSTR
+    }
     if tagged_of(y) >= 0 {
         if eq_asked.get(y, 0) == 1 { return true }
         eq_asked[y] = 1
@@ -1728,6 +1735,16 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(", &")
         put(z)
         put(")")
+    } else if k == Y_FIXED {                         // element by element, as == compares each (#360)
+        put("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < sizeof(")
+        put(x)
+        put(") / sizeof((")
+        put(x)
+        put(")[0]); _kv_q++) if (!((")
+        put(x)
+        put(")[_kv_q] == (")
+        put(z)
+        put(")[_kv_q])) { _kv_r = false; break; } _kv_r; })")
     } else if tagged_of(y) >= 0 {                    // by value, as kelvinc's (#343, #344, #345)
         put_eq_name(y)
         put("(")
@@ -2320,13 +2337,26 @@ let gen_member(n:int64) {
     }
     let y:int64 = type_of(a)
     if y < 0 { return }
+    let lent = is_place(a) || held.get(a, 0 - 1) >= 0    // a place, or one held in a temporary (#227)
+    if tagged_of(y) >= 0 && !lent && is_owner(y) {      // of a call's enum that owns, which would go unfreed (#360)
+        gen_error(n, "kc reads a case's value of an enum that owns where a variable holds it: bind it first, 'let v = f()'")
+        return
+    }
     if tagged_of(y) >= 0 {                             // v.c, checked
         put("(*_kv_")
         put_tok(types[y].name)
         put("_at_")
         put_tok(t)
         put("(")
-        gen_place(a)
+        if lent {
+            gen_place(a)
+        } else {                                       // of a call's: a one-element array's, as kelvinc (#360)
+            put("(const struct ")
+            put_tok(types[y].name)
+            put("[]){")
+            gen_expr(a)
+            put("}")
+        }
         put("))")
         return
     }
@@ -2489,11 +2519,14 @@ let gen_method_of(n:int64) {
         put_tok(t)
         put("(")
         let v = nodes[n].b
+        let cm:int64 = case_named(e, t) ?? 0 - 1
         if v >= 0 && nodes[v].kind == N_ID && is_owner(type_of(v)) {   // a local owner moves in
             put_owner_prefix(type_of(v))
             put("_take(&")
             put_tok(nodes[v].t)
             put(")")
+        } else if v >= 0 && cm >= 0 && fixed_case(cm) {   // a fixed array's elements, by their type (#360)
+            gen_value(v, nodes[cm].ty)
         } else {
             gen_args(v)
         }
@@ -2946,12 +2979,14 @@ let empty_error(v:int64) {
 
 // whether the fixed array y may be member f of a struct: counted, of
 // numbers, bools, text or structs that own nothing, as a local's (#356)
-let member_fixed_ok(f:int64, y:int64):bool {
+let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
     var g:int64 = y
     while types[g].kind == Y_FIXED {
         if types[g].name < 0 {
             var m = type_text(g)
-            m += " as a member takes its count: write ["
+            m += " as "
+            m += what
+            m += " takes its count: write ["
             let ew:String = type_text(types[g].elem)
             m += &ew
             m += "](N)"
@@ -2961,7 +2996,9 @@ let member_fixed_ok(f:int64, y:int64):bool {
         g = types[g].elem
     }
     if is_owner(g) {                                     // which kelvinc's struct holds
-        gen_error(f, "a member's fixed array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing")
+        var m = String(what)
+        m += "'s fixed array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing"
+        gen_error(f, m.cstr)
         return false
     }
     if !fixed_elem_ok(y) {
@@ -3340,6 +3377,19 @@ let gen_set_op(n:int64, y:int64) {
 }
 
 let gen_value(n:int64, y:int64) {
+    if y >= 0 && types[y].kind == Y_FIXED && nodes[n].kind == N_LIST {   // a case's [a, b], C's compound literal (#360)
+        if nodes[n].flag == 0 && !fixed_list_fits(n, y) { return }
+        if nodes[n].flag == 1 && type_of(n) != y {
+            gen_error(n, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+            return
+        }
+        put("(")
+        put_fixed_base(y)
+        put_fixed_counts(y)
+        put(")")
+        if nodes[n].flag == 0 { gen_fixed_list(n, y) } else { put("{0}") }
+        return
+    }
     if y >= 0 && types[y].kind == Y_TASK {              // a Task of the value written (#313)
         let given:int64 = type_of(n)
         if given >= 0 && given != y {
@@ -4247,7 +4297,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a variable, a struct's member or a parameter; not yet a case's value, or one in another type")
+    gen_error(n, "kc reads a fixed array as a variable, a struct's member, an enum's case or a parameter; not yet one in another type, as an Optional, or behind a pointer")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -4264,12 +4314,22 @@ let fixed_elem_ok(y:int64):bool {
 var fixed_const = false                  // a let global's elements, const in C (#359)
 
 let put_fixed_decl(y:int64, name:int64) {
-    var base:int64 = y
-    while types[base].kind == Y_FIXED { base = types[base].elem }
-    put_ctype(base)
+    put_fixed_base(y)
     if fixed_const { put(" const") }                     // int64_t const g[3], const uint8_t * const s[2]
     put(" ")
     put_tok(name)
+    put_fixed_counts(y)
+}
+
+// a fixed array's element type, the innermost (#354)
+let put_fixed_base(y:int64) {
+    var base:int64 = y
+    while types[base].kind == Y_FIXED { base = types[base].elem }
+    put_ctype(base)
+}
+
+// a fixed array's counts, [2][3], the outer first (#354)
+let put_fixed_counts(y:int64) {
     var f:int64 = y
     while types[f].kind == Y_FIXED {
         put("[")
@@ -4610,7 +4670,8 @@ let gen_assign(n:int64) {
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
-    if types[y].kind == Y_FIXED {                        // C's, which kelvinc leaves to it (#354)
+    let case_set = nodes[lhs].kind == N_FIELD && tagged_of(type_of(nodes[lhs].a)) >= 0   // v.c = [a, b], its _set (#360)
+    if types[y].kind == Y_FIXED && !case_set {           // C's, which kelvinc leaves to it (#354)
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
         return
     }
@@ -4635,7 +4696,11 @@ let gen_assign(n:int64) {
         put("(")
         gen_place(nodes[lhs].a)
         put(", ")
-        gen_expr(nodes[n].b)
+        if types[y].kind == Y_FIXED {                    // [a, b], its elements by their type (#360)
+            gen_value(nodes[n].b, y)
+        } else {
+            gen_expr(nodes[n].b)
+        }
         put(");\n")
         return
     }
@@ -6963,14 +7028,27 @@ let gen_iflet(n:int64, depth:int64) {
     put("{\n")
     open_scope()
     indent(depth + 2)
-    put_ctype(nodes[m].ty)
-    put(" ")
-    put_tok(nodes[n].flag)
-    put(" = _kv_l")
-    put_int(s)
-    put("->u.")
-    put_tok(nodes[m].t)
-    put(";\n")
+    if fixed_case(m) {                                   // a copy of the elements, a local's array (#360)
+        put_fixed_decl(nodes[m].ty, nodes[n].flag)
+        put("; memcpy(")
+        put_tok(nodes[n].flag)
+        put(", _kv_l")
+        put_int(s)
+        put("->u.")
+        put_tok(nodes[m].t)
+        put(", sizeof ")
+        put_tok(nodes[n].flag)
+        put(");\n")
+    } else {
+        put_ctype(nodes[m].ty)
+        put(" ")
+        put_tok(nodes[n].flag)
+        put(" = _kv_l")
+        put_int(s)
+        put("->u.")
+        put_tok(nodes[m].t)
+        put(";\n")
+    }
     declare_as(nodes[n].flag, nodes[m].ty, 3)              // a case's value (#271)
     var st = nodes[nodes[n].b].a
     while st >= 0 && !failed {
@@ -7067,14 +7145,27 @@ let gen_switch(n:int64, depth:int64) {
             let m = case_named(td, case_word(first)) ?? 0 - 1    // case n(x): x is the case's value, the enum's still
             let x = nodes[first].b
             indent(depth + 2)
-            put_ctype(nodes[m].ty)
-            put(" ")
-            put_tok(nodes[x].t)
-            put(" = (")
-            gen_expr(nodes[n].a)
-            put(").u.")
-            put_tok(case_word(first))
-            put(";\n")
+            if fixed_case(m) {                           // a copy of the elements, a local's array (#360)
+                put_fixed_decl(nodes[m].ty, nodes[x].t)
+                put("; memcpy(")
+                put_tok(nodes[x].t)
+                put(", (")
+                gen_expr(nodes[n].a)
+                put(").u.")
+                put_tok(case_word(first))
+                put(", sizeof ")
+                put_tok(nodes[x].t)
+                put(");\n")
+            } else {
+                put_ctype(nodes[m].ty)
+                put(" ")
+                put_tok(nodes[x].t)
+                put(" = (")
+                gen_expr(nodes[n].a)
+                put(").u.")
+                put_tok(case_word(first))
+                put(";\n")
+            }
             declare_as(nodes[x].t, nodes[m].ty, 3)       // a case's value (#271)
         }
         var s:int64 = nodes[c].b
@@ -7610,15 +7701,45 @@ let write_held_arrays(y:int64) {
 // an enum with values as kelvinc writes it (#215): a struct of a tag and
 // a union; its cases' names; _free, _take and _copy where a case owns;
 // and for each case, _make and _set, and _at, checked, of one with a value
+// the name of a fixed array case's C type, _kv_e_v_t, a typedef (#360)
+let put_case_tname(name:int64, m:int64) {
+    put("_kv_")
+    put_tok(name)
+    put("_")
+    put_tok(nodes[m].t)
+    put("_t")
+}
+
+// whether case m holds a fixed array (#360)
+let fixed_case(m:int64):bool {
+    return nodes[m].ty >= 0 && types[nodes[m].ty].kind == Y_FIXED
+}
+
 let gen_tagged(d:int64) {
     let name = nodes[d].t
+    var m = nodes[d].a
+    while m >= 0 {                                       // a fixed array case's type, typedef int64_t _kv_e_v_t[2] (#360)
+        if fixed_case(m) {
+            put("typedef ")
+            put_fixed_base(nodes[m].ty)
+            put(" ")
+            put_case_tname(name, m)
+            put_fixed_counts(nodes[m].ty)
+            put(";\n")
+        }
+        m = nodes[m].next
+    }
     put_struct(name)
     put("\n{\n    uint8_t tag;\n    union\n    {\n")
-    var m = nodes[d].a
+    m = nodes[d].a
     while m >= 0 {
         if nodes[m].ty >= 0 {
             put("        ")
-            put_ctype(nodes[m].ty)
+            if fixed_case(m) {
+                put_case_tname(name, m)
+            } else {
+                put_ctype(nodes[m].ty)
+            }
             put(" ")
             put_tok(nodes[m].t)
             put(";\n")
@@ -7705,7 +7826,7 @@ let gen_tagged(d:int64) {
         let v = nodes[m].ty
         if v >= 0 {                                    // _at, checked
             put("__attribute__((unused)) static inline ")
-            put_ctype(v)
+            if fixed_case(m) { put_case_tname(name, m) } else { put_ctype(v) }   // a pointer to the array (#360)
             put(" *_kv_")
             put_tok(name)
             put("_at_")
@@ -7721,7 +7842,7 @@ let gen_tagged(d:int64) {
             put("\", _kv_")
             put_tok(name)
             put("_cases[self->tag]);\n    return (")
-            put_ctype(v)
+            if fixed_case(m) { put_case_tname(name, m) } else { put_ctype(v) }
             put(" *)&self->u.")
             put_tok(nodes[m].t)
             put(";\n}\n")
@@ -7735,7 +7856,12 @@ let gen_tagged(d:int64) {
         put(" *self")
         if v >= 0 {
             put(", ")
-            put_ctype(v)
+            if fixed_case(m) {                         // the elements, which C passes by their address (#360)
+                put("const ")
+                put_case_tname(name, m)
+            } else {
+                put_ctype(v)
+            }
             put(" v")
         }
         put(")\n{\n")
@@ -7747,7 +7873,13 @@ let gen_tagged(d:int64) {
         put("    self->tag = ")
         put_int(tag)
         put(";\n")
-        if v >= 0 {
+        if v >= 0 && fixed_case(m) {                   // copied in, as C assigns no array (#360)
+            put("    memcpy(self->u.")
+            put_tok(nodes[m].t)
+            put(", v, sizeof self->u.")
+            put_tok(nodes[m].t)
+            put(");\n")
+        } else if v >= 0 {
             put("    self->u.")
             put_tok(nodes[m].t)
             put(" = v;\n")
@@ -7760,7 +7892,11 @@ let gen_tagged(d:int64) {
         put("_make_")
         put_tok(nodes[m].t)
         put("(")
-        if v >= 0 {
+        if v >= 0 && fixed_case(m) {
+            put("const ")
+            put_case_tname(name, m)
+            put(" v")
+        } else if v >= 0 {
             put_ctype(v)
             put(" v")
         } else {
@@ -7771,7 +7907,13 @@ let gen_tagged(d:int64) {
         put(" _kv_v = {0};\n    _kv_v.tag = ")
         put_int(tag)
         put(";\n")
-        if v >= 0 {
+        if v >= 0 && fixed_case(m) {
+            put("    memcpy(_kv_v.u.")
+            put_tok(nodes[m].t)
+            put(", v, sizeof _kv_v.u.")
+            put_tok(nodes[m].t)
+            put(");\n")
+        } else if v >= 0 {
             put("    _kv_v.u.")
             put_tok(nodes[m].t)
             put(" = v;\n")
@@ -8015,8 +8157,9 @@ let gen_program() {
             var f:int64 = nodes[d].a
             while f >= 0 {
                 let fy:int64 = nodes[f].ty
-                if nodes[d].kind == D_STRUCT && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356)
-                    if !member_fixed_ok(f, fy) { return }
+                let user_enum = nodes[d].kind == D_ENUM && nodes[d].t < eof_pos   // not an Optional's, a Result's (#360)
+                if (nodes[d].kind == D_STRUCT || user_enum) && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356), a case's value (#360)
+                    if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member") { return }
                 } else if fixed_inside(fy) {
                     fixed_refused(f)
                     return

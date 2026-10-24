@@ -456,7 +456,14 @@ kc reads what it is written in, and little more.
   - A global (#359), `var hits:[int64](3)`, `let weekdays:[cstr] =
     [...]`, as a local's: C's `int64_t hits[3] = {0}`, a let's elements
     const, `int64_t const primes[4]`; read and changed by any function.
-  - Not yet: a case's value, a pointer to one, one in another type, a
+  - An enum's case value (#360), `enum shape { dot; tri: [int64](3) }`,
+    kc's alone: kelvinc's C fails there, so kc is ahead of it here.
+    - C's union member of a typedef, `typedef int64_t _kv_shape_tri_t[3]`;
+      `shape.tri([3, 4, 5])` and `s.tri = [...]` copy the elements in.
+    - `switch` and `if let` bind a copy, a local's array; `s.tri[i]`,
+      `s.tri.count`, printed `tri([3, 4, 5])`, `==` element by element.
+    - Not in selfhost/sample.k, which kelvinc builds too.
+  - Not yet: a pointer to one, one in another type, as an Optional, a
     parameter of owners or of fixed arrays; a count C computes, as
     `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
