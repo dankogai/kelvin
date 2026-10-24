@@ -529,5 +529,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     let names:$[String] = $[$"ann", $"bob", $"ann"]
     println(rolls.contains(6), " ", rolls.firstIndex(6), " ", rolls.lastIndex(6), " ", rolls.firstIndex { $0 < 3 }, " ", rolls.firstIndex(9) ?? -1)
     println(names.lastIndex("ann"), " ", names.contains($"bob"), " ", names.firstIndex { n in n.count > 3 }, " ", names.lastIndex { $0.count == 3 })
+    let gaps:$[int64?] = $[4, pending, 7]               // == of an Optional (#343)
+    let gaps2:$[int64?] = $[4, none, 7]
+    println(pending == none, " ", tag == $"untagged", " ", marks["ann"]! == 90, " ", marks.firstKey(none), " ", rolls.firstIndex(6) == 1, " ", gaps.lastIndex(none), " ", gaps == gaps2)
     return 0
 }

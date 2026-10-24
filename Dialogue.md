@@ -6984,3 +6984,17 @@ kc's: Optional elements by `==`. Found on the way: kc reads
 `{ (x ?? 0) > 2 }` as parameters. Details are provisional P354.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 388. kc's == of an Optional
+
+> teach kc == of an Optional as #343
+
+**Claude** taught kc `==` and `!=` of an Optional, as kelvinc's #79:
+two `none`, or two equal values, the other side a `T?`, a `T` wrapped,
+or `none`, each read once and freed where made. An Optional's elements
+in an Array, a Dictionary and a search compare too. kelvinc's errors
+are in its words; a Result is not yet kc's. Found on the way, and
+fixed: `$[$"a", none]` of a `String?`. Found, not fixed: kc does not
+read `c ? $"n" : none`. Details are provisional P355.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

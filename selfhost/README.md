@@ -184,6 +184,19 @@ kc reads what it is written in, and little more.
       is a number`.
     - kc reads `??` left to right, and `x ?? d` of a `T?` d is not
       kc's yet, so `a ?? b ?? 0` is kelvinc's alone (#251, #252).
+  - `==` and `!=` of an Optional (#343), as kelvinc's #79: two `none`,
+    or two equal values, by `_kv_opt_T_eq`, the same case and then
+    the values' `==`.
+    - The other side is a `T?`, a `T`, wrapped, or `none`: `a == 3`,
+      `x != none`, `s == "hi"`; each side is read once.
+    - An owner made here, `name(2) == $"n2"`, is freed after; a place
+      wrapped, `s == w`, is copied, where kelvinc moves it.
+    - An Optional's elements in an Array or a Dictionary compare too:
+      `ns == ms`, `ns.contains(none)`, `d.firstKey(none)`.
+    - kelvinc's errors, in its words: `i64? has no operator '<':
+      compare with == and !=`, `'==' compares two i64?, and this is
+      String?`, and of one whose value has no `==`, a struct's.
+    - Of a Result or another enum with values, kc's error: not yet.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
     `int64?`.
   - **Chains** (#221), as kelvinc's of #218: `x?.m`, `x?.f(...)` and
@@ -371,7 +384,8 @@ kc reads what it is written in, and little more.
   its `==`; an Array or a Dictionary of them too.
   - kelvinc's errors, in its words: two of different types; elements or
     values with no `==`, a Set or a struct.
-  - An enum with values in them is kc's error: not yet.
+  - An Optional in them compares (#343); a Result or another enum with
+    values in them is kc's error: not yet.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
   first or the last equal to `x`, an `i64?`, or `none`.
@@ -384,7 +398,7 @@ kc reads what it is written in, and little more.
     Array's `firstKey` is `an Array has no '.firstKey': it is a
     Dictionary's; an Array's is '.firstIndex'`, a Dictionary's
     `firstIndex` the other way.
-  - Optional elements compared by `==` are kc's error: not yet.
+  - Optional elements compare by `==` since #343: `ns.contains(none)`.
 - **An Array, a Dictionary or a Set has no arithmetic** (#287), as
   kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
   `an Array has no operator '+': compare its elements`, a Dictionary's

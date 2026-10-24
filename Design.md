@@ -374,6 +374,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 340 | kc reads `x ?? d` of an Optional that owns, as kelvinc's #250: x's value a copy where x is a place, else taken; d a copy where it is a place, else taken, made only where x is none; d's type checked in kelvinc's words | — | kc's `shelf.lastKey(4) ?? $"none"` | 2026-10-24 |
 | 341 | kc reads `none`, `ok(v)` and `err(e)` in a declaration and an assignment, as it read them in a return: `let n:int64? = none`, `n = none`, `d[k] = none`; a case the type has not in kelvinc's words | — | kc's `tag = none` | 2026-10-24 |
 | 342 | kc reads an Array's `contains`, `firstIndex` and `lastIndex`, as kelvinc's #248: whether an element is there, and the index of the first or the last, an `i64?`; of a value by `==` or of a function; with kelvinc's errors in its words | — | kc's `rolls.firstIndex(6)` | 2026-10-25 |
+| 343 | kc reads `==` and `!=` of an Optional, as kelvinc's #79: two `none`, or two equal values; the other side a `T?`, a `T` wrapped, or `none`; an Optional's elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words | — | kc's `pending == none` | 2026-10-25 |
 
 Notes:
 
@@ -935,6 +936,36 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (343) Agreed details: "teach kc == of an Optional as #343".
+  - gen.k: gen_optional_eq, where either side of `==` or `!=` is an
+    Optional, as kelvinc's #79: a statement expression that binds each
+    side once and calls `_kv_opt_T_eq`, by value.
+    - The other side is a `T?`, a `T` wrapped by gen_value of the T,
+      text a String, or `none`.
+    - A side made here that owns, a call's or a `T` wrapped, is freed
+      by cleanup; a place wrapped is copied, where kelvinc moves it.
+  - `_kv_opt_T_eq`, kelvinc's form, the same case and then the values'
+    `==`, is written after the functions with the Arrays' and the
+    Dictionaries' (#288); eq_type, need_eq and put_eq_code know it.
+    - So an Array, a Dictionary or a search of Optional elements
+      compares too, #342's gap.
+  - gen_cond, which writes a comparison in a condition bare, sends an
+    Optional's to gen_expr.
+  - kelvinc's errors, in its words: another operator, `i64? has no
+    operator '<': compare with == and !=`; another type, `'==' compares
+    two i64?, and this is String?`; a value with no `==`.
+    - Where kelvinc leaves the error to C, as `a == "x"`, kc says
+      `this is text`.
+    - A Result or another enum with values is kc's error: not yet.
+  - Found on the way, and fixed: an Array or a Dictionary literal of an
+    Optional that owns took `none` for a place it would copy,
+    `$[$"a", none]`.
+  - Found, not fixed: kc does not read `c ? $"n" : none`, an owner and
+    `none` as the two arms; "this name is not known".
+  - kc's build of a probe prints what kelvinc's does, with no leak
+    under ASan's count; the fixpoint holds, and selfhost/sample.k has
+    them.
 
 - (342) Agreed details: "teach kc Array contains, firstIndex and
   lastIndex as #342".
@@ -4243,6 +4274,7 @@ says "as agreed".
 | P352 | Details of #340 | selfhost/gen.k: gen_coalesce, value_mismatch_text; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | kc's `??` left to right; kc's `let n:T? = none` |
 | P353 | Details of #341 | selfhost/gen.k: takes_borrow, gen_assign, gen_value, inferred; selfhost/sample.k; selfhost/README.md | — |
 | P354 | Details of #342 | selfhost/gen.k: search_of, search_type_of, gen_search; selfhost/parse.k: the trailing function; selfhost/sample.k; selfhost/README.md | kc's `==` of Optional elements; kc's `{ (x ?? 0) > 2 }` |
+| P355 | Details of #343 | selfhost/gen.k: gen_optional_eq, tagged_side, gen_opt_operand, the Optional's _eq; eq_type, need_eq, put_eq_code, gen_cond, value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `c ? $"n" : none` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
