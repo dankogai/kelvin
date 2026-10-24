@@ -4247,7 +4247,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a local's value, a struct's member or a parameter; not yet a result, a global, a case's value, or one in another type")
+    gen_error(n, "kc reads a fixed array as a local's value, a struct's member or a parameter; not yet a global, a case's value, or one in another type")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -7428,6 +7428,10 @@ let gen_function(d:int64) {
     current = d
     if nodes[d].c >= 0 && nodes[d].flag == 2 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
         gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
+        return
+    }
+    if nodes[d].ty >= 0 && types[nodes[d].ty].kind == Y_FIXED {   // as C has it, which kelvinc leaves to it (#358)
+        gen_error(d, "a function cannot return an array, as C cannot: return a struct that holds one, or take one as a parameter and fill it")
         return
     }
     if fixed_inside(nodes[d].ty) {                       // (#354)

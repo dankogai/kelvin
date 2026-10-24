@@ -7196,3 +7196,15 @@ are in its words, and kc's own where kelvinc's C warns or walks past an
 array's end. Details are provisional P369.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 403. kc's refusal of a fixed array result
+
+> teach kc fixed arrays as results as #358
+
+**Claude** found that kelvinc returns no fixed array, as C returns none,
+and asked; the user chose a clear refusal. kc's error is now final, and
+says the way out: `a function cannot return an array, as C cannot:
+return a struct that holds one, or take one as a parameter and fill
+it`. Details are provisional P370.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

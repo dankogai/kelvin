@@ -450,9 +450,12 @@ kc reads what it is written in, and little more.
       and this is Array<i64>`; kc's where kelvinc leaves it to C or
       warns, as of a let's array to `[T]`.
     - `for x in xs` of one is kc's error: kelvinc's walks past its end.
-  - Not yet: a result, a global, a case's value, a pointer to one, one
-    in another type, a parameter of owners or of fixed arrays; a count C
-    computes, as `[uint8](n)`;
+  - Never a result (#358): `a function cannot return an array, as C
+    cannot: return a struct that holds one, or take one as a parameter
+    and fill it`, where kelvinc leaves it to C.
+  - Not yet: a global, a case's value, a pointer to one, one in another
+    type, a parameter of owners or of fixed arrays; a count C computes,
+    as `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
