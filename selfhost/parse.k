@@ -34,7 +34,8 @@ enum nkind {                    // the kinds of nodes (#210)
     N_AWAIT,    // await a, a Task's value (#313)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
-    N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make
+    N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make;
+                // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -626,8 +627,10 @@ let parse_anon():int64 {
 
 // Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
 // #65 (#349): ty the type; without (), flag 1, and with what else
-// kelvinc takes in them, a count, the elements or a copy, flag 2, its
-// tokens passed over, for gen's errors
+// kelvinc takes in them, flag 2, its tokens passed over, for gen's
+// errors. Of an Array, Array<T>([a, b]), Array<T>(&a) and Array<T>(n)
+// (#350): flags 3, 4 and 5, b the first element, or a the one given;
+// flag 6 of more after the elements, 7 of more than one
 let parse_make():int64 {
     let n:int64 = make_node(N_MAKE, advance())
     advance()                                    // <
@@ -648,9 +651,35 @@ let parse_make():int64 {
         return n
     }
     advance()
+    if tok_is(nodes[n].t, "Array") && at_word("[") {      // the elements (#350)
+        advance()
+        nodes[n].flag = 3
+        var last = -1
+        while !failed && !at_word("]") {
+            let e:int64 = parse_expr()
+            if last < 0 {
+                nodes[n].b = e
+            } else {
+                nodes[last].next = e
+            }
+            last = e
+            if !at_word(",") { break }
+            advance()
+        }
+        expect("]")
+        if !at_word(")") {
+            nodes[n].flag = 6
+        }
+    } else if tok_is(nodes[n].t, "Array") && !at_word(")") {   // &a, a copy; n, a count (#350)
+        nodes[n].a = parse_expr()
+        nodes[n].flag = nodes[nodes[n].a].kind == N_ADDR ? 4 : 5
+        if !at_word(")") {
+            nodes[n].flag = 7
+        }
+    }
     var depth = 0
     while !failed && pos < toks.count as int64 && !(depth == 0 && at_word(")")) {
-        nodes[n].flag = 2
+        if nodes[n].flag < 2 { nodes[n].flag = 2 }
         if at_word("(") || at_word("[") || at_word("{") || at_word("$[") || at_word("${") { depth += 1 }
         if at_word(")") || at_word("]") || at_word("}") { depth -= 1 }
         advance()

@@ -561,5 +561,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     made += $"first"
     let scores = Dictionary<String, int64>()
     println(made, " ", scores, " ", doc.fields(Dictionary<String, doc>()), " ", Array<int64>().count)
+    let trio = Array<int64>([2, 7, 1])                  // Array<T>([...]), Array<T>(&a) and Array<T>(n) (#350)
+    var quad = Array<int64>(&trio)
+    quad += 8
+    println(trio, " ", quad, " ", Array<String>(2), " ", Array<int64>(3))
     return 0
 }

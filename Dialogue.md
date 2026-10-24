@@ -7087,3 +7087,17 @@ are not yet kc's. Found, not fixed: a typed let of an Array of another
 type reaches C, and kc assigns no Array. Details are provisional P361.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 395. kc's Array<T>(n), Array<T>([...]) and Array<T>(&a)
+
+> teach kc Array<T>(n), Array<T>([...]) and Array<T>(&a) as #350
+
+**Claude** taught kc `Array<T>([a, b])`, `Array<T>(&a)` and
+`Array<T>(n)`, as kelvinc's #57 and #58: the elements written, a copy
+of the Array lent, and `n` zero elements. kelvinc's errors are in its
+words, and where kelvinc leaves one to C, as a count of text, kc says
+its own. Found on the way, and fixed: an element of the wrong type in
+`$[...]` of a type written reached C, and is kelvinc's error now.
+Details are provisional P362.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

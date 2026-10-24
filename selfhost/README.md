@@ -504,9 +504,19 @@ kc reads what it is written in, and little more.
       case's value, a return, a member, `xs == Array<int64>()`.
     - Without `()`, kelvinc's error: `Array<i64> is a type: make one
       with Array<i64>(), or write it after ':'`.
-    - Not yet: what else kelvinc takes in them, a count, the elements
-      or a copy, `Array<T>(3)`, `Array<T>([1, 2])`, `Array<T>(&xs)`,
-      `Dictionary<K, V>({"a": 1})`; nor `Array([1, 2])`.
+    - `Array<T>([a, b])`, `Array<T>(&a)` and `Array<T>(n)` (#350), as
+      kelvinc's #57 and #58: the elements, as `$[a, b]` of T; a copy
+      of the Array that `&a` lends, by its `_copy`; `n` zero elements,
+      by its `_zeros`, `""` of a String.
+      - kelvinc's errors, in its words: `Array<T>(a) would copy an
+        owner: write a.copy(), or Array<T>(&a)`; `an element of
+        Array<i64> is an i64, and this is text`, of `$[...]` of a type
+        written too; more than one.
+      - kc's own where kelvinc leaves it to C: `Array<i64>(n) takes a
+        count, and this is text`; `Array<String>(&a) copies an
+        Array<String>, and this lends Array<i64>`.
+    - Not yet: `Array<T>(a)` of a fixed array, `Array([1, 2])` with T
+      inferred, `Dictionary<K, V>({"a": 1})` and `(&d)`.
   - Its type is `a`'s, or `b`'s where `a` is a word, as `none`; each
     arm is read by the type that takes it, so `n % 2 == 0 ? n / 2 :
     none` is an `int64?`.

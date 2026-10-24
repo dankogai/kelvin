@@ -2558,9 +2558,14 @@ let gen_cond(n:int64) {
 // {a, b} of the struct s (#225): each member by its field's type, so that
 // none and a T of a T? are what a variable of that type takes; a local
 // owner is copied, x.copy(), as kelvinc has it
+let gen_array(n:int64, given:int64)    // a prototype: Array<T>([a, b]) is $[a, b] of T (#350)
+
 // Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
-// #65: C's compound literal of its type. Without (), and with a count,
-// the elements or a copy, which kc does not make yet, an error (#349)
+// #65: C's compound literal of its type. Without (), and with the
+// entries or a copy of a Dictionary, which kc does not make yet, an
+// error (#349). Of an Array (#350), as kelvinc's #57 and #58: [a, b] the
+// elements, as $[a, b] of T; &a a copy of another, by _copy; n, a count,
+// as many zero elements, by _zeros
 let gen_make(n:int64) {
     let y:int64 = nodes[n].ty
     let w:String = kelvin_type_text(y)
@@ -2575,8 +2580,63 @@ let gen_make(n:int64) {
     if nodes[n].flag == 2 {
         var m = $"kc makes an empty one alone, "
         m += &w
-        m += types[y].kind == Y_ARRAY ? "(); not yet of a count, the elements or a copy" : "(); not yet of the entries or a copy"
+        m += types[y].kind == Y_ARRAY ? "(); not yet of a fixed array" : "(); not yet of the entries or a copy"
         gen_error(n, m.cstr)
+        return
+    }
+    if nodes[n].flag == 6 {                              // as kelvinc says it (#350)
+        gen_error(n, "Array([...]) takes the elements alone: expected ')'")
+        return
+    }
+    if nodes[n].flag == 7 {
+        gen_error(n, "Array<T> takes nothing, a count, the elements in [...], a fixed array, or a borrow of an Array")
+        return
+    }
+    if nodes[n].flag == 3 {                              // the elements, each of T (#350)
+        gen_array(n, y)
+        return
+    }
+    let x:int64 = nodes[n].a
+    if nodes[n].flag == 4 {                              // a copy of the Array that &a lends
+        let p:int64 = nodes[x].a
+        if type_of(p) != y {
+            var m = w.copy()
+            m += "(&a) copies an "
+            m += &w
+            m += ", and this lends "
+            let pw:String = type_of(p) >= 0 ? kelvin_type_text(type_of(p)) : $"not one"
+            m += &pw
+            gen_error(x, m.cstr)
+            return
+        }
+        let h = needs_hold(p)                            // one an expression gives, held and freed after
+        if h { hold_open(p) }
+        put_array_name(y)
+        put("_copy(")
+        gen_place(p)
+        put(")")
+        if h { hold_close(p) }
+        return
+    }
+    if nodes[n].flag == 5 {                              // a count of zero elements
+        let xy:int64 = type_of(x)
+        if xy >= 0 && is_owner(xy) && is_place(x) {      // as kelvinc says it
+            gen_error(x, "Array<T>(a) would copy an owner: write a.copy(), or Array<T>(&a)")
+            return
+        }
+        let k:nkind = nodes[x].kind
+        if k == N_STR || (xy >= 0 && !is_number_kind(types[xy].kind) && types[xy].kind != Y_BOOL && types[xy].kind != Y_C) {
+            var m = w.copy()
+            m += "(n) takes a count, and this is "
+            let xw:String = k == N_STR ? $"text" : kelvin_type_text(xy)
+            m += &xw
+            gen_error(x, m.cstr)
+            return
+        }
+        put_array_name(y)
+        put("_zeros(")
+        gen_expr(x)
+        put(")")
         return
     }
     put("(")
@@ -2705,6 +2765,23 @@ let gen_array(n:int64, given:int64) {
         if is_owner(elem) && is_place(e) && !is_case_word(e) {   // none is no place (#343)
             gen_error(e, "an owner is not copied by '=' (#54): copy it with .copy()")
             return
+        }
+        if given >= 0 {                                  // of the type written, as kelvinc says it (#350)
+            let bad:String = value_mismatch_text(e, elem)
+            if bad.count > 0 {
+                var m = $"an element of "
+                let aw:String = kelvin_type_text(y)
+                m += &aw
+                m += " is "
+                let ew:String = kelvin_type_text(elem)
+                m += article_of(&ew)
+                m += " "
+                m += &ew
+                m += ", and this is "
+                m += &bad
+                gen_error(e, m.cstr)
+                return
+            }
         }
         put_array_name(y)
         put("_append(&_kv_l")
