@@ -65,6 +65,18 @@ kv_task kv_task_take(kv_task *t);
 kv_task kv_task_copy(const kv_task *t);
 void kv_task_assign(kv_task *t, kv_task v);
 void kv_task_discard(kv_task v);
+/* Iterator<T> (#325): a state and a function, Swift's sequence(state:next:),
+   runtime/iter.k's. state is the state on the heap, NULL once moved out;
+   next writes the T? the function gives of it into out; drop frees a
+   state that owns. A variable owns one, and its block's end frees it */
+typedef struct kv_iter { void *state; void (*drop)(void *); void (*next)(void *, void *); } kv_iter;
+kv_iter kv_iter_make(void *state, void (*drop)(void *), void (*next)(void *, void *));
+void kv_iter_next(kv_iter *it, void *out);
+void kv_iter_free(kv_iter *it);
+kv_iter kv_iter_take(kv_iter *it);
+kv_iter kv_iter_copy(const kv_iter *it);
+void kv_iter_assign(kv_iter *it, kv_iter v);
+void kv_iter_discard(kv_iter v);
 
 /* ---------- Bytes (#54): an owner, a growable array of u8 ---------- */
 

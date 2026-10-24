@@ -1,14 +1,16 @@
 # Iterators
 
 An iterator is a value whose `next()` gives each value in turn, then
-`none` (#318), as Swift's `IteratorProtocol` does. A Sequence is a
+`none` (#318), as Swift's `IteratorProtocol` does. `Iterator<T>` makes
+one of a state and a function (#325), as Swift's
+`sequence(state:next:)` does. A Sequence is a
 value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
 `Sequence` does. `for x in s` walks either, and `map`, `filter`,
 `reduce` and `flatMap` take either as they take an Array (#319);
 `s.lazy.map` and `s.lazy.filter` call their function only as each value
 is asked for (#323).
 
-**Where it lives:** the core. An iterator is a struct or a union of the program with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
+**Where it lives:** the core. `Iterator<T>` is kv_iter, runtime/iter.k's, in `libkelvin`, linked without an import. An iterator of the program's own is a struct or a union with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
 ```swift
 struct countdown { n: int64 }
@@ -34,7 +36,66 @@ let main():int32 {
 }
 ```
 
-## An iterator: `var T.next():E?`
+## `Iterator<T>`: a state and a function
+
+```swift
+let fibs():Iterator<int64> {
+    return Iterator($[0, 1]) {                // the state, and a function of it
+        let r = $0[0]
+        if r > 1000 { return none }           // then none
+        let next:int64 = $0[0] + $0[1]
+        $0[0] = $0[1]                         // $0 is the state itself
+        $0[1] = next
+        return r                              // each value
+    }
+}
+
+let main():int32 {
+    var it = fibs()
+    let first = it.next()                     // some(0)
+    for x in it {                             // 1,1,2,3,5,8,
+        if x > 10 { break }
+        print(x, ",")
+    }
+    println(" ", first, " ", fibs().filter { $0 % 2 == 0 })   // some(0) [0, 2, 8, 34, 144, 610]
+    return 0
+}
+```
+
+- **`Iterator(state) { ... }`** (#325), Swift's `sequence(state:next:)`,
+  is an `Iterator<T>` of the state and the function after it.
+  - The function gives each value, a `T?`, then `none`: `return v`
+    and `return none`.
+  - **`$0` is the state itself**: what the function changes stays
+    changed for the next call, as a var method's `self` does (#318).
+  - `T` is what its first `return v` gives; `return none` before it
+    waits for it. `Iterator<T>(state) { ... }` writes it.
+  - `{ (s:S):T? in ... }` writes the parameter, which is the state
+    itself too, and the result.
+  - `Iterator(state, f)` takes a function of the program's,
+    `let f(s:S^):T?`, given a borrow of the state that may change it.
+  - In a `for` header, the function goes inside the parentheses,
+    `Iterator(0, { ... })`, since a `{` there starts the body.
+- **The state** is a value: a number, a struct, or an owner, as
+  `$[0, 1]` or a String; an array is no value (#48), so it is an Array
+  or a struct instead.
+  - Kelvin has no tuples, so a pair of numbers is two elements of an
+    Array, or a struct, `Iterator<int64>((point){0, 1}) { ... }`.
+- **An `Iterator<T>` is an owner** ([ownership.md](ownership.md)).
+  - Its state is on the heap: one that owns moves in, a var's too,
+    and is freed with the Iterator.
+  - It moves by `return` and passing, as `fibs()` gives it and a
+    function that takes `var it:Iterator<T>` walks it; it is not
+    copied.
+  - The end of its block frees it, walked to its end or not.
+- **It is an iterator**, walked once: `it.next()` on a var, `for x in
+  it`, `map`, `filter`, `reduce` and `flatMap`, as the next sections
+  have them.
+  - A let is an error: walking changes it.
+  - It has no `.lazy`, which is a Sequence's, walked afresh, and no
+    text: `print` of one is an error.
+
+## An iterator of the program's: `var T.next():E?`
 
 - **An iterator** is a value of a struct or a union of the program
   with a method `next`.
@@ -261,6 +322,8 @@ Each line is written as it would be declared, in Kelvin's spelling.
 
 <!-- fragment -->
 ```swift
+Iterator(state:S) { ... }: Iterator<T>    // $0: the state itself; returns each T, then none
+Iterator(state:S, f:(S^):T?): Iterator<T>
 var T.next():E?                        // an iterator: each value, then none
 let T.makeIterator():I                 // a Sequence: a fresh iterator, I one
 for x in it { ... }                    // x: E, each value, up to none; it changes
@@ -277,6 +340,9 @@ it.flatMap(f:(E):Array<U>): Array<U>
 
 | On | Property or method | Gives |
 |---|---|---|
+| `Iterator<T>` | `Iterator(state) { ... }`, `Iterator(state, f)` | an iterator of the state and the function, which gives each value, then `none` (#325) |
+| | `.next()` on a var | the next value as `some`, then `none` (#325) |
+| | `for x in it`, `.map`, `.filter`, `.reduce`, `.flatMap` | as any iterator's (#325) |
 | an iterator, `var T.next():E?` | `.next()` on a var | the next value as `some`, then `none`; it changes the iterator (#318) |
 | | `for x in it` | each value, up to `none`; a var goes on where `break` left it (#318) |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each value (#319) |

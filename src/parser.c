@@ -208,6 +208,11 @@ static void require_module(const char *name, Pos pos) {
 
 bool uses_sys; /* a SYS.name read: main gives kv_sys_init its arguments (#302) */
 static bool infer_anon_result; /* .map { ... } (#80): the result is the body's, where kelvinc sees it */
+/* Iterator(state) { ... } (#325): the function's $0, or first parameter, is
+   the state itself, by its address; with no T written, its result is the
+   T? its first `return v` gives, and the `return none` before it wait */
+static bool anon_ref_first, anon_iter_infer;
+static List iter_nones;
 static const char *bool_anon_result; /* .filter { ... } (#239): what returns a bool, for its message */
 static Decl *filter_fn;               /* the function of a .filter being parsed, so named in a message (#239) */
 static int lend_anon_from = -1;       /* .sort { ... } (#242), .map { ... } (#244): its owner parameters from this one on are lent, not moved in */
@@ -424,7 +429,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -448,7 +453,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -616,6 +621,8 @@ static bool is_uchr(Type *t);
 static bool is_io(Type *t);
 static bool is_io_std(Expr *e);
 static bool is_task(Type *t);
+static bool is_iter(Type *t);
+static Type *iter_type(Pos pos, Type *value);
 static Type *parse_task_type(Token *kw);
 static Expr *parse_async(Token *kw);
 static Expr *parse_await(Token *kw);
@@ -873,6 +880,10 @@ static bool no_value(Expr *e);
 static void reject_valueless_args(Expr *call);
 static void reject_var_method_receiver(Expr *recv, const char *member, Pos pos);
 static Decl *iterator_next(Type *t);
+static Expr *parse_iterator(Token *t);
+static Decl *iter_builtin_next(Type *it);
+static Stmt *new_stmt(StmtKind kind, Pos pos);
+static Decl *new_decl(DeclKind kind, Pos pos, const char *storage);
 static Expr *iterator_array(Expr *it, Decl *next, Token *at);
 static Decl *sequence_maker(Type *t);
 static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at);
@@ -1109,6 +1120,19 @@ static Type *parse_type_in(TypeContext ctx) {
         t->is_const = base->is_const;
         t->is_volatile = base->is_volatile;
         parse_qualifiers(t);
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
+    if (is_kw(peek(), "Iterator")) { /* Iterator<T> (#325) */
+        Token *kw = advance();
+        if (!accept_p("<"))
+            error_at(peek()->pos, "an Iterator says what it gives, as in 'Iterator<int64>'");
+        Type *value = parse_type_in(TYPE_DECL);
+        if (is_p(peek(), ">>"))
+            toks[cur].text = ">";
+        else if (!accept_p(">"))
+            error_at(peek()->pos, "expected '>' after the value type of Iterator<T>");
+        Type *t = qualified_owner(base, iter_type(kw->pos, value), "an Iterator");
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -1911,6 +1935,18 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
+            if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */
+                advance();
+                expect_p(")");
+                reject_var_method_receiver(e, member, name->pos);
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->text = "next";
+                x->op = "iter_next";
+                x->type = iter_builtin_next(value_type(e))->ret;
+                e = x;
+                continue;
+            }
             Decl *lazy_rec = NULL;
             if (!call && !strcmp(member, "lazy") && iterator_next(value_type(e)) && !sequence_maker(value_type(e)) &&
                 !method_named(e, member) && !(expr_class(e, &lazy_rec) == 's' && record_has_field(lazy_rec, member)))
@@ -3574,6 +3610,8 @@ static Expr *parse_primary(void) {
         }
         return e;
     }
+    if (is_kw(t, "Iterator") && (is_p(peek2(), "(") || is_p(peek2(), "<")))
+        return parse_iterator(t); /* Iterator(state) { ... } (#325) */
     if (is_kw(t, "IO") && is_p(peek2(), "("))
         require_module("IO", t->pos);
     if (is_kw(t, "IO") && is_p(peek2(), "(")) {
@@ -5361,7 +5399,8 @@ static Type *value_type_of(Expr *e) {
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
-        if (e->op && (!strncmp(e->op, "iter_array", 10) || !strncmp(e->op, "lazy_make", 9))) /* (#319, #323) */
+        if (e->op && (!strncmp(e->op, "iter_array", 10) || !strncmp(e->op, "lazy_make", 9) ||
+                      !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next"))) /* (#319, #323, #325) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -6566,6 +6605,8 @@ static void reject_owners_to_c(Expr *call) {
             Expr *x = call->items.data[k];
             if (is_task(value_type(x))) /* (#312) */
                 error_at(x->pos, "a Task has no text: print its value, 'await %s'", x->kind == E_IDENT ? x->text : "t");
+            if (is_iter(value_type(x))) /* (#325) */
+                error_at(x->pos, "an Iterator has no text: walk it with for, or gather it, as in '.map { $0 }'");
             if (is_owner(value_type(x)) && !owner_place(x)) /* held while it prints (#187) */
                 call->items.data[k] = make_temp(x, strfmt("%s of an owner that an expression gives, which nothing would "
                                                           "free: bind it to a variable first",
@@ -6662,6 +6703,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 /* A C name made from a type, as c64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
+    if (is_iter(t)) /* Iterator<T> is Iterator_<T> (#325) */
+        return strfmt("Iterator_%s", mangled_type(t->elem));
     if (is_task(t)) /* Task<R> is Task_<R>, Task of none Task (#313) */
         return t->elem ? strfmt("Task_%s", mangled_type(t->elem)) : "Task";
     if (is_set_owner(t)) /* Set<T> is Set_<T> (#71) */
@@ -8186,6 +8229,130 @@ static bool is_task(Type *t) {
     return t && t->kind == T_BASE && t->cname && !strcmp(t->cname, "kv_task");
 }
 
+/* ---------- Iterator<T> (#325): a state and a function ---------- */
+
+/* Iterator<T>: an owner, kv_iter in C, whose state is on the heap */
+static Type *iter_type(Pos pos, Type *value) {
+    if (!value || value->kind == T_ARRAY)
+        error_at(pos, "an Iterator gives values, and an array is none: give an Array, $[...]");
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_BASE;
+    t->pos = pos;
+    t->elem = unqualified(value);
+    t->name = strfmt("Iterator<%s>", kelvin_type(t->elem));
+    t->cname = "kv_iter";
+    return t;
+}
+
+static bool is_iter(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && t->cname && !strcmp(t->cname, "kv_iter");
+}
+
+static int iter_serial;
+
+/* Iterator(state) { ... }, Iterator(state, f), Iterator<T>(...) (#325),
+   Swift's sequence(state:next:): an Iterator<T> of the state, moved to the
+   heap, and the function that gives each value of it, a T?, then none; its
+   $0 is the state itself, which it changes; f, named, takes a borrow of
+   the state that may change it, S^. kelvinc writes, as it hoists an
+   anonymous function, the adapter that calls it, _kv_iterN */
+static Expr *parse_iterator(Token *t) {
+    advance();
+    Type *value = NULL;
+    if (accept_p("<")) {
+        value = parse_type_in(TYPE_DECL);
+        if (is_p(peek(), ">>"))
+            toks[cur].text = ">";
+        else if (!accept_p(">"))
+            error_at(peek()->pos, "expected '>' after the value type of Iterator<T>");
+    }
+    expect_p("(");
+    bool saved_brace = brace_ends_condition, saved_for = brace_in_for, saved_annotation = ident_annotation_ok;
+    brace_ends_condition = brace_in_for = false;
+    ident_annotation_ok = true;
+    if (is_p(peek(), ")"))
+        error_at(peek()->pos, "an Iterator starts from a state, then a function of it: 'Iterator(0) { ... }'");
+    Expr *state = parse_assign();
+    Type *st = value_type(state) ? unqualified(value_type(state)) : arg_type(state);
+    if (!st)
+        error_at(state->pos, "an Iterator's state is of a type kelvinc sees: write it, as in '0 as int64', '$[0, 1]' or "
+                             "'(point){0, 1}'");
+    if (st->kind == T_ARRAY)
+        error_at(state->pos, "an Iterator's state is a value, and an array is none: give an Array, $[...], or a struct");
+    Type *ctx = xcalloc(1, sizeof *ctx);
+    ctx->kind = T_FUNC;
+    ctx->pos = t->pos;
+    list_push(&ctx->params, st);
+    ctx->elem = value ? optional_type(t, unqualified(value)) : NULL;
+    Expr *x = new_expr(E_METHOD, t->pos);
+    x->text = "Iterator";
+    Expr *f;
+    if (accept_p(",")) {
+        if (is_p(peek(), "{")) {
+            anon_ref_first = true;
+            anon_iter_infer = !value;
+            f = anon_arg(ctx, 1, 0, x, false);
+        } else {
+            f = parse_assign();
+        }
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        ident_annotation_ok = saved_annotation;
+        expect_p(")");
+    } else {
+        brace_ends_condition = saved_brace;
+        brace_in_for = saved_for;
+        ident_annotation_ok = saved_annotation;
+        expect_p(")");
+        if (!is_p(peek(), "{") || brace_ends_condition || line_starts_statement())
+            error_at(peek()->pos, "an Iterator takes a function of its state after it, 'Iterator(0) { ... }', or after a "
+                                  "comma, 'Iterator(0, f)'; in a for, write it in the parentheses");
+        anon_ref_first = true;
+        anon_iter_infer = !value;
+        f = anon_arg(ctx, 1, 0, x, true);
+        if (at_statement_level())
+            trailing_end = cur;
+    }
+    anon_ref_first = anon_iter_infer = false;
+    Type *ft = value_type(f);
+    Type *sp = xcalloc(1, sizeof *sp); /* S^, a named function's parameter */
+    sp->kind = T_PTR;
+    sp->pos = t->pos;
+    sp->elem = st;
+    bool anon = f->kind == E_FUNC;
+    if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem || !is_optional_type(ft->elem))
+        error_at(f->pos, "an Iterator takes a function of its state that gives each value, a T?, then none, and this is %s",
+                 ft ? kelvin_type(ft) : "not one");
+    Type *fp = unqualified(ft->params.data[0]);
+    if (strcmp(kelvin_type(fp), kelvin_type(anon ? st : sp)))
+        error_at(f->pos, "an Iterator's function takes its state, %s, %s, and this takes %s", kelvin_type(st),
+                 anon ? "which it changes" : strfmt("by a borrow that may change it, %s", kelvin_type(sp)),
+                 kelvin_type(fp));
+    Type *elem = NULL;
+    Decl *r = variant_record(ft->elem);
+    for (int i = 0; r && i < r->members.len; i++)
+        if (!strcmp(((Var *)r->members.data[i])->name, "some"))
+            elem = ((Var *)r->members.data[i])->type;
+    if (value && strcmp(kelvin_type(unqualified(value)), kelvin_type(elem)))
+        error_at(f->pos, "this Iterator gives %s, and its function gives %s", kelvin_type(value), kelvin_type(elem));
+    move_argument(state, st, "'Iterator'"); /* an owner moves in (O5) */
+    Decl *ad = new_decl(D_FN, t->pos, "static");
+    ad->name = strfmt("_kv_iter%d", ++iter_serial);
+    ad->ret = ft->elem;
+    ad->iter_fn = f;
+    ad->iter_state = st;
+    ad->body = new_stmt(S_BLOCK, t->pos);
+    list_push(&anon_fns, ad);
+    x->a = state;
+    x->op = "iter_make";
+    x->target = ad;
+    x->from = st;
+    x->type = iter_type(t->pos, elem);
+    return x;
+}
+
 static Type *parse_task_type(Token *kw) {
     if (!accept_p("<"))
         return task_type(kw->pos, NULL);
@@ -8505,7 +8672,7 @@ static bool is_owner(Type *t) {
         return is_owner(t->elem);
     if (t->kind != T_BASE)
         return false;
-    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t) || is_task(t))
+    if (is_bytes(t) || is_string(t) || is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_io(t) || is_task(t) || is_iter(t))
         return true;
     Decl *r;
     if (type_class(t, &r) != 's' || !r)
@@ -8608,6 +8775,8 @@ static void reject_owner_copy(Expr *value, Type *target, Pos pos) {
         return;
     if (is_task(target)) /* (#312) */
         error_at(pos, "a Task is not copied: pass it on, or await it");
+    if (is_iter(target)) /* (#325) */
+        error_at(pos, "an Iterator is not copied: pass it on, or walk it");
     char *what = value->kind == E_IDENT ? strfmt("'%s'", value->text) : "it";
     error_at(pos, "an owner is not copied by '=' (#54): copy its bytes with %s.copy(), or borrow it with ':= &%s'",
              what, value->kind == E_IDENT ? value->text : "...");
@@ -9903,9 +10072,14 @@ static Expr *parse_anon_fn(Type *ctx) {
     bool_anon_result = NULL;
     int lend_from = lend_anon_from; /* (#242, #244) */
     lend_anon_from = -1;
+    bool ref_first = anon_ref_first, iter_infer = anon_iter_infer; /* (#325) */
+    anon_ref_first = anon_iter_infer = false;
+    List saved_nones = iter_nones;
+    iter_nones = (List){0};
     Decl *saved_filter = filter_fn;
     Decl *d = new_decl(D_FN, open->pos, "static inline"); /* inline by default (#33) */
     d->name = anon_name();
+    d->iter_infer = iter_infer;
     Decl *saved_fn = parsing_fn;
     int saved_start = params_start, saved_end = params_end, saved_anon = anon_start, saved_kind = anon_kind,
         saved_init = init_depth;
@@ -9945,6 +10119,10 @@ static Expr *parse_anon_fn(Type *ctx) {
             /* lent (#242, #244): an element its caller keeps, read, never moved;
                a var asks for one of its own, a copy */
             p->lent = lend_from >= 0 && d->params.len >= lend_from && is_owner(p->type) && !mutable;
+            if (ref_first && !d->params.len) { /* an Iterator's state itself (#325) */
+                p->ref = true;
+                p->is_let = p->lent = false;
+            }
             declare_binding(p->name, param_type(p->type), p->lent ? LET_EACH : p->is_let ? LET_PARAM : LET_NONE);
             list_push(&d->params, p);
             if (!accept_p(","))
@@ -10002,7 +10180,11 @@ static Expr *parse_anon_fn(Type *ctx) {
             p->type = pt;
             p->is_let = true;
             p->lent = lend_from >= 0 && k >= lend_from && is_owner(pt); /* lent (#242, #244) */
-            declare_binding(p->name, param_type(p->type), p->lent ? LET_EACH : LET_PARAM);
+            if (ref_first && k == 0) { /* $0 of an Iterator's function: its state itself (#325) */
+                p->ref = true;
+                p->is_let = p->lent = false;
+            }
+            declare_binding(p->name, param_type(p->type), p->lent ? LET_EACH : p->is_let ? LET_PARAM : LET_NONE);
             list_push(&d->params, p);
         }
         d->ret = ctx->elem;
@@ -10039,6 +10221,10 @@ static Expr *parse_anon_fn(Type *ctx) {
                                       "and result, as in '{ (v:i64):i64 in v * 2 }', or convert the value, as in "
                                       "'i64(...)'");
     }
+    if (d->iter_infer && !d->ret) /* (#325) */
+        error_at(open->pos, "an Iterator's function gives each value, 'return v', then none, 'return none', and this "
+                            "returns no value: return one, or write the type, as in 'Iterator<int64>(...)'");
+    iter_nones = saved_nones;
     if (only && only->kind == S_EXPR && !d->ret && !has_effect(only->expr)) {
         if (anon_kind == ANON_BARE)
             error_at(only->expr->pos, "a list is not a value here: write a compound literal, as in "
@@ -10549,6 +10735,8 @@ static bool from_main_argv(Expr *e) {
    are more; NULL where t has none */
 static Decl *iterator_next(Type *t) {
     t = t ? unqualified(t) : NULL;
+    if (is_iter(t)) /* Iterator<T> (#325) */
+        return iter_builtin_next(t);
     if (!t || t->kind != T_BASE || !t->name)
         return NULL;
     Decl *found = NULL;
@@ -10567,6 +10755,18 @@ static Decl *iterator_next(Type *t) {
    element, or what a pointer points to (#318)? */
 static bool changeable_place(Expr *e) {
     return e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF;
+}
+
+/* the stand-in next of an Iterator<T> (#325), kv_iter_next, which
+   gives a T?, as a var method that takes nothing would */
+static Decl *iter_builtin_next(Type *it) {
+    Decl *d = new_decl(D_FN, it->pos, NULL);
+    d->name = "next";
+    d->recv_name = "Iterator";
+    d->var_method = true;
+    d->iter_builtin = true;
+    d->ret = optional_type(&(Token){.kind = TK_IDENT, .pos = it->pos, .text = "Iterator"}, unqualified(it)->elem);
+    return d;
 }
 
 /* what an iterator's next gives, its Optional's some (#318) */
@@ -11330,6 +11530,7 @@ static Stmt *parse_stmt_here(void) {
            in a function with a result, as in Swift, and in one without, has
            nothing to return (#35) */
         bool result = parsing_fn && parsing_fn->ret;
+        bool infer_iter = parsing_fn && parsing_fn->iter_infer && !parsing_fn->ret; /* (#325) */
         Decl *rd = NULL;
         char rc = result && parsing_fn->ret->kind == T_BASE && !parsing_fn->ret->cname ? type_class(parsing_fn->ret, &rd) : 0;
         if (is_p(peek(), "{") && result && !ret && !signature_ahead(cur) &&
@@ -11347,8 +11548,29 @@ static Stmt *parse_stmt_here(void) {
                 s->expr = c;
             }
         } else if (!is_p(peek(), ";") && !is_p(peek(), "}") && peek()->kind != TK_EOF && peek()->kind != TK_FILE_END &&
-                   (result || !newline_before())) {
+                   (result || infer_iter || !newline_before())) {
             s->expr = parse_expr();
+            if (infer_iter && s->expr->kind == E_IDENT && !strcmp(s->expr->text, "none") && binding_index("none") < 0) {
+                list_push(&iter_nones, s); /* an Iterator's none, before its type is seen (#325) */
+                end_statement();
+                return s;
+            }
+            if (infer_iter) { /* the first value an Iterator's function returns types it: T? of its T (#325) */
+                Type *vt = inferred_type(s->expr, s->expr->pos);
+                if (!vt)
+                    vt = arithmetic_type(s->expr);
+                if (!vt)
+                    error_at(s->expr->pos, "the values of this Iterator are of a type kelvinc does not see here: write it, "
+                                           "as in 'Iterator<int64>(...)', or convert the value, as in 'i64(...)'");
+                parsing_fn->ret = optional_type(&(Token){.kind = TK_IDENT, .pos = s->expr->pos, .text = "Iterator"},
+                                                unqualified(vt));
+                result = true;
+                for (int i = 0; i < iter_nones.len; i++) {
+                    Stmt *n = iter_nones.data[i];
+                    n->expr = optional_of(n->expr, parsing_fn->ret, n->expr->pos);
+                }
+                iter_nones.len = 0;
+            }
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
             if (result)
                 s->expr = optional_of(s->expr, parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */

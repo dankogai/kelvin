@@ -28,6 +28,7 @@ type's own are listed, with its methods, at the end of its document:
 | `OS` | [os.md](os.md#properties-and-methods) |
 | `SYS` | [sys.md](sys.md#properties-and-methods) |
 | `Task<T>` | [tasks.md](tasks.md#properties-and-methods) |
+| `Iterator<T>` | [iterators.md](iterators.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
 **Where it lives:** `.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.

@@ -172,6 +172,7 @@ const samples = [
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
     ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
+    ['let it:Iterator<int64> = Iterator(0, step)', [['Iterator', 'support.type']]],
     ['    #inline C { total += i; }', [['#inline', 'keyword.control.directive'], [' total += i; ', 'meta.embedded.block.c']]],
 ];
 for (const [line, wants] of samples) {

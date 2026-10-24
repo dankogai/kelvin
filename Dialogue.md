@@ -6758,3 +6758,24 @@ Sequence's structs and functions as kelvinc does, with kelvinc's errors
 in its words. Details are provisional P336.
 
 There are 990 tests, and all pass with clang and with gcc 15.
+
+### 370. Iterator<T>, a state and a function
+
+> I'm considering redesigning iterator. Instead of extending `struct`,
+> `enum`, or `union` with `.next()`, add the `Iterator<T>` type with the
+> constructor like Swift's `sequence(state, next)`.
+
+**Claude** found it fits Kelvin, whose anonymous functions enclose
+nothing, since the state comes to the function as `$0`; it suggested
+adding it beside the protocol of #318 rather than replacing it, one-shot,
+with lazy map and filter as they are, and noted that the example's
+`$0 = (a, b)` needs tuples, which Kelvin has none of.
+
+> add Iterator<T> as #325
+
+**Claude** added `Iterator(state) { ... }` and `Iterator(state, f)`: the
+state on the heap, `$0` the state itself, `T` what the first `return v`
+gives, an owner that `for`, `next()`, `map` and the rest walk. Details
+are provisional P337.
+
+There are 998 tests, and all pass with clang and with gcc 15.

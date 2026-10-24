@@ -179,6 +179,7 @@ typedef struct {
     Expr *init;
     bool is_let;      /* a let (#27): C's const */
     bool lent;        /* a parameter of an anonymous function lent an owner its caller keeps (#242, #244) */
+    bool ref;         /* $0 of an Iterator's function (#325): the state itself, by its address, which it changes */
     bool number;      /* a function's parameter that takes a number, to
                          which _Generic converts others (#41) */
 } Var;   /* also a parameter, struct member or enumerator */
@@ -283,6 +284,12 @@ struct Decl {
     const char *lazy_op;
     Expr *lazy_fn;
     bool lazy_lent;       /* lazy_fn is lent each value, an anonymous one (#244) */
+    /* an Iterator's (#325): iter_infer, an anonymous function whose result, a T?, its first
+       `return v` gives; iter_fn, the adapter kelvinc writes of the function over a state of
+       type iter_state, its ret the T?; iter_builtin, the stand-in next of kv_iter_next */
+    bool iter_infer, iter_builtin;
+    Expr *iter_fn;
+    Type *iter_state;
     bool subscript;       /* D_FN: let T[](i):R { }, a function of the type T.[] whose first parameter is
                              _kv_selfp, a pointer self names; T.[]= its setter (#136) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,

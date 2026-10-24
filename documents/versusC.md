@@ -134,7 +134,7 @@ Each document says so under its title. In short:
 | [sys.md](sys.md) | `SYS`: the arguments, the platform, exiting |
 | [tasks.md](tasks.md) | `async f(x)` and `await`: a call on a thread of its own, a `Task<R>` of its result (#312) |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
-| [iterators.md](iterators.md) | `var T.next():E?`, Sequences' `makeIterator()`, `for x in it`, and `map`, `filter`, `reduce` and `flatMap` of one |
+| [iterators.md](iterators.md) | `Iterator<T>`, a state and a function; `var T.next():E?`, Sequences' `makeIterator()`, `for x in it`, and `map`, `filter`, `reduce` and `flatMap` of one |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |
 | [strings.md](strings.md) | strings: `cstr`, literals, byte arrays, text on the stack, reading, walking, printing; `String`, text on the heap, `$"..."` and `` $`...` `` |

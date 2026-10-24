@@ -1,4 +1,4 @@
-# Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO` and `Task<T>`
+# Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, `Task<T>` and `Iterator<T>`
 
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
@@ -304,6 +304,18 @@ its own, and the value it will have.
 - An owner passed to the call moves in, as passing it always does (O5).
 
 The rest is in [tasks.md](tasks.md).
+
+## `Iterator<T>`
+
+An `Iterator<T>` (#325) is a state and a function of it, Swift's
+`sequence(state:next:)`: `Iterator($[0, 1]) { ... }`.
+
+- Its state is on the heap: one that owns moves in, as passing it
+  does (O5), and is freed with the Iterator.
+- It moves by `return` and passing, and is not copied.
+- The end of its block frees it, walked to its end or not.
+
+The rest is in [iterators.md](iterators.md#iteratort-a-state-and-a-function).
 
 ## When a check fails
 

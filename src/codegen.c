@@ -1260,9 +1260,27 @@ static char *expr_bare(Expr *e) {
                                    ? strfmt("%s%s _kv_iv = (%s); __auto_type _kv_ip = &_kv_iv;",
                                             f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a))
                                    : strfmt("__auto_type _kv_ip = &(%s);", expr(e->a));
-            return strfmt("({ %s %s _kv_ia = {0}; for (;;) { %s _kv_io = %s(_kv_ip); if (_kv_io.tag != %d) break; "
+            const char *get = e->method->iter_builtin /* an Iterator<T>'s (#325) */
+                                  ? strfmt("%s; kv_iter_next(_kv_ip, &_kv_io);", decl(e->method->ret, "_kv_io"))
+                                  : strfmt("%s = %s(_kv_ip);", decl(e->method->ret, "_kv_io"), method_cname(e->method));
+            return strfmt("({ %s %s _kv_ia = {0}; for (;;) { %s if (_kv_io.tag != %d) break; "
                           "%s_append(&_kv_ia, _kv_io.u.some); } _kv_ia; })",
-                          head, e->type->cname, decl(e->method->ret, ""), method_cname(e->method), some, e->type->cname);
+                          head, e->type->cname, get, some, e->type->cname);
+        }
+        if (e->op && !strcmp(e->op, "iter_next")) /* it.next() of an Iterator (#325) */
+            return strfmt("({ %s; kv_iter_next(&(%s), &_kv_nv); _kv_nv; })", decl(e->type, "_kv_nv"), expr(e->a));
+        if (e->op && !strcmp(e->op, "iter_make")) {
+            /* Iterator(state) { ... } (#325): the state moved to the heap, and
+               the adapters of its function, which kelvinc writes */
+            Expr *x = e->a;
+            const char *take = local_owner(x) ? owner_take(e->from) : NULL;
+            Type *sp = xcalloc(1, sizeof *sp);
+            sp->kind = T_PTR;
+            sp->pos = e->pos;
+            sp->elem = e->from;
+            return strfmt("({ %s = kv_alloc(sizeof *_kv_is); *_kv_is = %s; kv_iter_make(_kv_is, %s, %s_next); })",
+                          decl(sp, "_kv_is"), take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x),
+                          owner_free(e->from) ? strfmt("%s_drop", e->target->name) : "NULL", e->target->name);
         }
         if (e->op && e->type && (!strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                                  !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_flatMap", 13))) {
@@ -2465,8 +2483,13 @@ static void stmt(Stmt *s) {
             line("{");
             indent++;
             sync(s->pos);
-            line("%s%s = %s(&(%s));", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(s->elem, h),
-                 method_cname(s->next), seq);
+            if (s->next->iter_builtin) { /* an Iterator<T>'s (#325) */
+                line("%s%s;", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(s->elem, h));
+                line("kv_iter_next(&(%s), &%s);", seq, h);
+            } else {
+                line("%s%s = %s(&(%s));", f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(s->elem, h),
+                     method_cname(s->next), seq);
+            }
             sync(s->pos);
             line("if (%s.tag != %d)", h, some);
             line("    break;");
@@ -2809,6 +2832,13 @@ static char *fn_head(Decl *d) {
         const char *pname = owner_free(p->type) && d->body && !p->lent ? strfmt("_kv_%s_in", c_name(p->name)) : c_name(p->name);
         if (owner_free(p->type))
             t = p->type;
+        if (p->ref) { /* an Iterator's state, by its address (#325) */
+            t = xcalloc(1, sizeof *t);
+            t->kind = T_PTR;
+            t->pos = p->pos;
+            t->elem = p->type;
+            pname = strfmt("%s_ref", c_name(p->name));
+        }
         buf_printf(&params, "%s%s%s", params.len ? ", " : "", unused, argv ? strfmt(argv_c, p->name) : decl(t, pname));
     }
     if (d->variadic)
@@ -3602,6 +3632,26 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
+        if (d->iter_fn) { /* an Iterator's adapters (#325): next writes the T? of the state, drop frees it */
+            const char *free = owner_free(d->iter_state);
+            if (!d->body) {
+                line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);
+                if (free)
+                    line("static void %s_drop(void *_kv_s);", d->name);
+                break;
+            }
+            line("static void %s_next(void *_kv_s, void *_kv_out)", d->name);
+            line("{");
+            line("    *(%s *)_kv_out = %s((%s *)_kv_s);", decl(d->ret, ""), expr(d->iter_fn), decl(d->iter_state, ""));
+            line("}");
+            if (free) {
+                line("static void %s_drop(void *_kv_s)", d->name);
+                line("{");
+                line("    %s((%s *)_kv_s);", free, decl(d->iter_state, ""));
+                line("}");
+            }
+            break;
+        }
         if (d->task) { /* async f(x) (#312): its environment, the value first, and its thread's function */
             Expr *call = d->task_call;
             if (!d->body) {
@@ -3693,7 +3743,7 @@ static void emit_decl(Decl *d) {
                 list_push(&param_caches, "atexit(_kv_free_globals);");
             for (int i = 0; i < d->params.len; i++) {
                 Var *p = d->params.data[i];
-                const char *frees = p->lent ? NULL : owner_free(p->type); /* one lent is the caller's (#242, #244) */
+                const char *frees = p->lent || p->ref ? NULL : owner_free(p->type); /* one lent is the caller's (#242, #244) */
                 if (frees) { /* an owner moved in (#54): the body's block frees it */
                     list_push(&param_caches, strfmt("__attribute__((cleanup(%s))) %s = _kv_%s_in;", frees,
                                                     decl(p->type, c_name(p->name)), c_name(p->name)));
@@ -3714,7 +3764,14 @@ static void emit_decl(Decl *d) {
             if (d->setter || d->subscript || d->var_method) /* self is the caller's var (#132, #318), or a
                                                               subscript's receiver (#136) */
                 line("#define self (*_kv_selfp)");
+            for (int i = 0; i < d->params.len; i++) /* an Iterator's state itself (#325) */
+                if (((Var *)d->params.data[i])->ref)
+                    line("#define %s (*%s_ref)", c_name(((Var *)d->params.data[i])->name),
+                         c_name(((Var *)d->params.data[i])->name));
             stmt(d->body);
+            for (int i = 0; i < d->params.len; i++)
+                if (((Var *)d->params.data[i])->ref)
+                    line("#undef %s", c_name(((Var *)d->params.data[i])->name));
             if (d->setter || d->subscript || d->var_method)
                 line("#undef self");
         }
