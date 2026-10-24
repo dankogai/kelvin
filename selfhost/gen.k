@@ -685,8 +685,8 @@ let type_of(n:int64):int64 {
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
-        if yk == Y_SET && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336)
-        if yk == Y_SET && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336)
+        if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336, #337)
+        if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336, #337)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
@@ -724,6 +724,11 @@ let type_of(n:int64):int64 {
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
         if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
+        if tok_is(t, "find") && types[y].kind == Y_DICT {   // a V^ to the value, or nullptr; a const V^ of a let (#337)
+            let r:int64 = changed_root(nodes[n].a)
+            let fixed = r >= 0 && how_declared(nodes[r].t) != 0
+            return type_of_kind(Y_PTR, types[y].elem, fixed ? 1 : 0 - 1)
+        }
         if (tok_is(t, "remove") || tok_is(t, "insert")) && types[y].kind == Y_SET { return base_type(Y_BOOL) }   // (#274)
         if (tok_is(t, "union") || tok_is(t, "intersection") || tok_is(t, "difference")) && types[y].kind == Y_SET { return y }   // a new Set (#275)
         if (tok_is(t, "escape") || tok_is(t, "unescape")) && types[y].kind == Y_STRING { return y }   // a new String (#300)
@@ -1712,7 +1717,7 @@ let gen_print_args(first:int64) {
             return
         }
         let pr:int64 = nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
-        if pr >= 0 && types[pr].kind == Y_SET && need_show(pr, a) {   // s.pretty where print shows it, written in place (#336)
+        if pr >= 0 && (types[pr].kind == Y_SET || types[pr].kind == Y_DICT) && need_show(pr, a) {   // s.pretty where print shows it, written in place (#336, #337)
             put("({ __auto_type _kv_sv = (")
             gen_expr(nodes[a].a)
             put("); ")
@@ -1831,7 +1836,7 @@ let is_made_array(n:int64):bool {
     if y < 0 { return false }
     let t = nodes[n].t
     if types[y].kind == Y_SET { return tok_is(t, "elements") || tok_is(t, "pretty") }   // a new String too (#336)
-    return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values"))
+    return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values") || tok_is(t, "pretty"))   // (#337)
 }
 
 // an Array of copies of the elements of the Set or the keys or values of
@@ -1921,14 +1926,14 @@ let gen_member(n:int64) {
         put(").count)")
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
-    } else if yk == Y_SET && tok_is(t, "pretty") {       // s.pretty (#336), as kelvinc's: its text indented, a new String
+    } else if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") {   // s.pretty, d.pretty (#336, #337), as kelvinc's: its text indented, a new String
         if !need_show(y, n) { return }
         put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
         gen_expr(a)
         put("); ")
         put_show_name(y)
         put("(&(kv_out){.s = &_kv_ps, .width = 2}, &_kv_sv, 0); _kv_ps; })")
-    } else if yk == Y_SET && tok_is(t, "typename") {     // s.typename (#336): its type's name, text
+    } else if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") {   // s.typename, d.typename (#336, #337): its type's name, text
         put("\"")
         let w:String = kelvin_type_text(y)
         out += &w
@@ -2157,7 +2162,19 @@ let gen_method_of(n:int64) {
         gen_key_of(types[y].elem, key)
         put(")")
         if hold { hold_close(key) }
-    } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270)
+    } else if yk == Y_DICT && (tok_is(t, "clear") || tok_is(t, "reserve")) {   // d.clear(), d.reserve(n) (#337), in place
+        if !may_change(a) { return }
+        put_dict_name(y)
+        put("_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        if tok_is(t, "reserve") {
+            put(", ")
+            gen_expr(nodes[n].b)
+        }
+        put(")")
+    } else if yk == Y_DICT && (tok_is(t, "has") || tok_is(t, "get") || tok_is(t, "remove") || tok_is(t, "find")) {   // d.has(k), d.get(k, v) (#211), d.remove(k) (#270), d.find(k) (#337)
         let key:int64 = nodes[n].b
         if tok_is(t, "remove") && !may_change(a) { return }   // (#271)
         let hold = needs_hold(key)                        // a String key an expression gives, held for the call (#270)

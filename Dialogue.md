@@ -6908,3 +6908,15 @@ and `.clear()`, in place, as kelvinc writes them, so kc reads every row
 of sets.md's table. Details are provisional P348.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 382. kc's Dictionary find, clear, reserve, pretty and typename
+
+> teach kc Dictionary find, clear, reserve, pretty and typename as #337
+
+**Claude** taught kc a Dictionary's `.find(k)`, a `V^` or `nullptr`,
+`const` of a let; `.reserve(n)` and `.clear()`, in place; and
+`.pretty` and `.typename`, as kelvinc writes them. On the way it found
+that kelvinc binds a let's `find` to a declared `V^` without a word,
+which kc refuses. Details are provisional P349.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

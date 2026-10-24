@@ -428,6 +428,9 @@ kc reads what it is written in, and little more.
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`; `d.remove(k)`,
   which frees what the entry held and is `true` where it was there
   (#270).
+  - `d.find(k)`, a `V^` to the value or `nullptr`, a `const V^` of a let;
+    `d.pretty` and `d.typename`, as a Set's; `d.reserve(n)` and
+    `d.clear()`, in place, of a var (#337).
   - `d.keys` and `d.values` (#285), Arrays of copies in the order added,
     as a Set's `elements`: new values a variable then owns, of a
     Dictionary in a variable, a temporary, or through a borrow.

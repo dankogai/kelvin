@@ -163,6 +163,9 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
   (#270), `.count`; a String key an expression gives held (#314).
 - **Walking and copying**: `for k, v in d` and `for k in d` (#269),
   `.keys` and `.values` (#285), `.copy()`, `==` and `!=` (#288).
+- **Finding and changing**: `.find(k)`, a `V^` or `nullptr`, a `const
+  V^` of a let; `.reserve(n)` and `.clear()`; and its text, `.pretty`
+  and `.typename` (#337).
 - **map, filter, reduce, flatMap** (#330), and `mapWithKey`,
   `filterWithKey`, `reduceWithKey` (#331) and `flatMapWithKey` (#332),
   their anonymous functions' parameters named, `{ acc, v in ... }`, or
@@ -170,7 +173,6 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
 
 kc does not read yet:
 
-- `.find(k)`, `.clear()`, `.reserve(n)`, `.pretty`, `.typename`;
 - `.merge` and `.merging` (#236), `??` and `!!` of two Dictionaries and
   their `??=` and `!!=` (#237), and `d[k] ??= v` (#243);
 - `.contains`, `.firstKey` and `.lastKey`, and their WithKey kin (#249).

@@ -501,5 +501,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     spare.reserve(8)
     spare.clear()
     println(spare, " ", spare.count)
+    var shelf = stock.copy()                          // a Dictionary's find, pretty, typename, reserve and clear (#337)
+    let pear:int64^ := shelf.find("pear")
+    if pear != nullptr { pear^ += 100 }
+    let shelf_text:String = shelf.pretty
+    println(shelf.pretty, " ", shelf_text.count, " ", shelf.typename, " ", shelf.find("plum") == nullptr)
+    shelf.reserve(8)
+    shelf.clear()
+    println(shelf, " ", shelf.count)
     return 0
 }
