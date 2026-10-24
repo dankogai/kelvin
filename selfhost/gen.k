@@ -657,7 +657,7 @@ let type_of(n:int64):int64 {
         return nodes[d].ty
     }
     if k == N_ANON {
-        gen_error(n, "kc reads an anonymous function as the function of '.lazy.map' and '.lazy.filter' (#324), and of an Iterator (#326): name a function elsewhere")
+        gen_error(n, "kc reads an anonymous function only where one of these takes it: an Iterator, '.lazy.map' and '.lazy.filter', and map, filter, reduce, flatMap and their WithKey kin; kc has no function values, so call a function of the program here instead (#334)")
         return -1
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)

@@ -6875,3 +6875,14 @@ and their methods, and where it differs from kelvinc. Details are
 provisional P345.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 379. kc's anonymous function message
+
+> fix kc's stale anonymous function message as #334
+
+**Claude** made kc's error of an anonymous function where none is taken
+name every place kc takes one, the eager methods and their WithKey kin
+among them, where it named `.lazy.map`, `.lazy.filter` and an Iterator
+alone. Details are provisional P346.
+
+There are 1002 tests, and all pass with clang and with gcc 15.
