@@ -388,6 +388,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 354 | kc reads fixed arrays, as kelvinc's #48 and #49, a local's alone: `[T](N)`, `[T]` counted by its elements, `[a, b]`, nested, `[T](n)` of zeros; `a[i]`, `.count`, `.size`, `for x in a` as kelvinc's #30; kelvinc's errors in its words, kc's where kelvinc leaves it to C | `int64_t a[3] = {3, 1, 4};` | kc's `var sq4 = [1, 4, 9, 16]` | 2026-10-25 |
 | 355 | kc reads `Array<T>(a)` and `Array(a)` of a fixed array, as kelvinc's #57 and #58: an Array of its elements; an Array of fixed arrays kelvinc's error in its words, an element type of another kc's | `_kv_array_T_from(a, sizeof a / sizeof a[0])` | kc's `Array(sq4)` | 2026-10-25 |
 | 356 | kc reads a fixed array as a struct's member, as kelvinc's #49: C's `int64_t xs[3]` in the struct, given `[a, b]` or `[T](n)` in `{...}`, read as a local's, printed as kelvinc prints it; its count written, its elements owning nothing | `struct bag { int64_t xs[3]; };` | kc's `struct tray { label: cstr; slots: [int64](3) }` | 2026-10-25 |
+| 357 | kc reads a fixed array as a parameter, as kelvinc's #49: a pointer in C, its count passed beside it; `[const T]` reads its elements, `[T]` changes the caller's; its argument a fixed array of its elements, not a let's to `[T]`; kelvinc's errors in its words, kc's where kelvinc leaves it to C | `int64_t sum(const int64_t *a, int64_t n)` | kc's `let total_of(xs:[const int64], n:int64)` | 2026-10-25 |
 
 Notes:
 
@@ -949,6 +950,29 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (357) Agreed details: "teach kc fixed arrays as parameters as #357".
+  - parse.k: `[const T]`, count -3, a parameter's elements read alone.
+  - gen.k: before any signature is written, fixed_params gives each
+    parameter of `[T]` or `[T](N)` the parameter kind: count -2, or -4 of
+    `[const T]`, a pointer in C, `int64_t *a`, `const int64_t *a`, as
+    kelvinc's #49; type_text names it as kelvinc does, `const i64^`.
+    - `a[i]` is read, and assigned where it is `[T]`: may_change lets an
+      element of a -2 change, the caller's, and refuses one of a -4.
+    - `.count` and `.size` of one are kelvinc's error in its words: `'.count'
+      is a property of arrays, and this is i64^, a pointer: an array
+      passed to a function is one, so its count is passed beside it`.
+    - `for x in a` of one is kc's error, where kelvinc's walks past its
+      end and prints what it finds.
+  - fixed_arg_ok, an argument's: a fixed array of its elements, a local's,
+    a member, a parameter's, written as C passes it; to a `[T]`, not a
+    let's nor a `[const T]`'s, kc's error where kelvinc's C warns; of
+    another type, `'a' of 'sum' is a const i64^, and this is Array<i64>`,
+    kelvinc's words.
+  - Not yet: a parameter of owners or of fixed arrays, `[T]^`.
+  - Fixed on the way: the general refusal no longer names a parameter.
+  - kc's build of a probe prints what kelvinc's does; selfhost/sample.k
+    has them.
 
 - (356) Agreed details: "teach kc fixed arrays as struct members as #356".
   - gen.k: gen_program no longer refuses a struct's member of `[T](N)`
@@ -4622,6 +4646,7 @@ says "as agreed".
 | P366 | Details of #354 | selfhost/parse.k: Y_FIXED, N_LIST, `[T](N)` and `[T]` in parse_bare_type (tok_count), `[a, b]` and `[T](n)` in parse_primary, type_of_kind of a count; selfhost/gen.k: gen_fixed_var, put_fixed_decl, gen_fixed_list, fixed_list_fits, fixed_inside, fixed_refused; type_of, gen_field, gen_each, gen_print_args, gen_assign, gen_function, gen_program; selfhost/sample.k; selfhost/README.md | kc's `Array<T>(a)` and `Array(a)` of a fixed array (#355); fixed arrays as members, parameters, results, globals; VLAs; compound literals |
 | P367 | Details of #355 | selfhost/gen.k: gen_from_fixed, type_of's `Array(a)`, gen_make's and gen_make_inferred's fixed array, gen_array's Array of fixed arrays; selfhost/sample.k; selfhost/README.md | — |
 | P368 | Details of #356 | selfhost/gen.k: write_type's member (put_fixed_decl) and Y_FIXED's element, member_fixed_ok, gen_written's `[a, b]`, show_value's fixed array (show_depth), need_show's member; selfhost/sample.k; selfhost/README.md | kc's member fixed array of owners, which kelvinc has |
+| P369 | Details of #357 | selfhost/parse.k: `[const T]` (-3); selfhost/gen.k: fixed_params (-2, -4), put_ctype and type_text of a parameter's, fixed_arg_ok in gen_arg_to, may_change of its element, gen_field's `.count` and `.size`, gen_each, gen_function; selfhost/sample.k; selfhost/README.md | kc's parameter of owners or of fixed arrays, `[T]^` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -273,6 +273,7 @@ let put_ctype(y:int64) {
         put(" *")
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
+        if types[y].name == 0 - 4 { put("const ") }              // a parameter's, a pointer, of const elements (#357)
         put_ctype(types[y].elem)
         put(" *")
     }
@@ -979,6 +980,41 @@ let takes_borrow(n:int64, t:int64, who:const String^):bool {
     return false
 }
 
+// whether a goes to py, a parameter's array, as kelvinc's #49 has it: a
+// fixed array of its elements, a local's, a member, a parameter's; where
+// the parameter may change them, not a let's or a [const T]'s (#357)
+let fixed_arg_ok(a:int64, py:int64, who:const String^):bool {
+    let ay:int64 = nodes[a].kind == N_NUM || nodes[a].kind == N_STR ? 0 - 1 : type_of(a)
+    let pw:String = type_text(py)
+    if ay < 0 || types[ay].kind != Y_FIXED || types[ay].elem != types[py].elem {
+        var m = who^.copy()
+        m += " is "
+        m += article_of(&pw)
+        m += " "
+        m += &pw
+        m += ", and this is "
+        let aw:String = nodes[a].kind == N_NUM ? $"a number" : nodes[a].kind == N_STR ? $"text" : ay >= 0 ? kelvin_type_text(ay) : $"not one"
+        m += &aw
+        gen_error(a, m.cstr)
+        return false
+    }
+    if types[py].name == 0 - 4 || types[ay].name == 0 - 2 { return true }
+    let r:int64 = changed_root(a)
+    let let_s = types[ay].name == 0 - 4 || (r >= 0 && how_declared(nodes[r].t) != 0)
+    if !let_s { return true }
+    var m = who^.copy()
+    m += " is "
+    m += article_of(&pw)
+    m += " "
+    m += &pw
+    m += ", which may change its elements, and this is "
+    let aw:String = type_text(ay)
+    m += &aw
+    m += types[ay].name == 0 - 4 ? ", which reads them alone: write [const T] in the type taken" : ", a let's: write [const T] in the type taken, or pass a var's"
+    gen_error(a, m.cstr)
+    return false
+}
+
 // the argument a of the parameter p of d; false where it is an error
 let gen_arg_to(a:int64, p:int64, d:int64):bool {
     if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
@@ -998,6 +1034,12 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
     who += tok_text(nodes[d].t)
     who += "'"
     if !takes_borrow(a, nodes[p].ty, &who) { return false }
+    let py:int64 = nodes[p].ty
+    if py >= 0 && types[py].kind == Y_FIXED {            // an array, which C passes as a pointer (#357)
+        if !fixed_arg_ok(a, py, &who) { return false }
+        gen_expr(a)
+        return true
+    }
     gen_value(a, nodes[p].ty)
     return true
 }
@@ -2289,7 +2331,15 @@ let gen_member(n:int64) {
         return
     }
     let yk:ykind = types[y].kind
-    if yk == Y_FIXED && tok_is(t, "count") {             // a fixed array's, as kelvinc's (#354)
+    if yk == Y_FIXED && types[y].name < 0 && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
+        var m = $"'."
+        m += tok_text(t)
+        m += "' is a property of arrays, and this is "
+        let w:String = type_text(y)
+        m += &w
+        m += ", a pointer: an array passed to a function is one, so its count is passed beside it"
+        gen_error(n, m.cstr)
+    } else if yk == Y_FIXED && tok_is(t, "count") {      // a fixed array's, as kelvinc's (#354)
         put("((int64_t)(sizeof(")
         gen_expr(a)
         put(") / sizeof((")
@@ -4087,7 +4137,13 @@ let type_text(y:int64):String {
     case Y_UCHR: return $"uchr"
     case Y_ARGV: return $"[cstr]"
     case Y_FIXED:                                    // [i64](3), as kelvinc names it (#354)
-        var s = $"["
+        if types[y].name == 0 - 2 || types[y].name == 0 - 4 {   // a parameter's: i64^, as kelvinc names it (#357)
+            var s = types[y].name == 0 - 4 ? $"const " : $""
+            s += type_text(types[y].elem)
+            s += "^"
+            return s
+        }
+        var s = types[y].name == 0 - 3 ? $"[const " : $"["
         s += type_text(types[y].elem)
         s += "]"
         if types[y].name >= 0 {
@@ -4191,7 +4247,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a local's value or a struct's member; not yet a parameter, a result, a global, a case's value, or one in another type")
+    gen_error(n, "kc reads a fixed array as a local's value, a struct's member or a parameter; not yet a result, a global, a case's value, or one in another type")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -4287,6 +4343,13 @@ let fixed_list_fits(v:int64, y:int64):bool {
 let gen_fixed_var(n:int64) {
     var y:int64 = nodes[n].ty
     let v:int64 = nodes[n].a
+    if types[y].name == 0 - 3 {                          // [const T] of a local: a let's (#357)
+        if nodes[n].flag != 1 {
+            gen_error(n, "a var of [const T] would not change its elements: declare it with let")
+            return
+        }
+        y = type_of_kind(Y_FIXED, types[y].elem, 0 - 1)
+    }
     if !fixed_elem_ok(types[y].elem) {
         if is_owner(types[y].elem) {                     // as kelvinc says it
             gen_error(n, "an array of owners is not here yet: a struct may hold them")
@@ -4445,6 +4508,22 @@ let changed_root(n:int64):int64 {
 // a change of place n where its variable is a let is an error, in
 // kelvinc's words (#271); whether n may change
 let may_change(n:int64):bool {
+    var e = n                                           // a[i] of a parameter's array, its caller's element (#357)
+    while nodes[e].kind == N_FIELD || nodes[e].kind == N_INDEX {
+        if nodes[e].kind == N_INDEX {
+            let ay:int64 = type_of(nodes[e].a)
+            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 2 { return true }
+            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 4 {
+                var m = $"this changes an element of a "
+                let w:String = type_text(ay)
+                m += &w
+                m += ", which reads them alone, as [const T] takes them: take [T] to change them"
+                gen_error(n, m.cstr)
+                return false
+            }
+        }
+        e = nodes[e].a
+    }
     var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
     if nodes[d].kind == N_SELF && current >= 0 && nodes[current].c >= 0 && nodes[current].flag != 2 {   // (#320)
@@ -6655,6 +6734,10 @@ let gen_each(n:int64, depth:int64) {
         gen_iter_each(n, depth, y, f, nodes[n].a)
         return
     }
+    if types[y].kind == Y_FIXED && types[y].name < 0 {   // a parameter's, where kelvinc's link fails (#357)
+        gen_error(nodes[n].a, "a parameter's array is a pointer, of no count: walk 0..<n, and index it, a[i]")
+        return
+    }
     if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR {
         var m = $"kc walks a fixed array of numbers, bools or text, to its count or a zero; not yet of "
         let ew:String = type_text(types[y].elem)
@@ -7354,7 +7437,17 @@ let gen_function(d:int64) {
     open_scope()
     var p:int64 = nodes[d].a
     while p >= 0 {
-        if fixed_inside(nodes[p].ty) {
+        let pty:int64 = nodes[p].ty
+        let as_param = pty >= 0 && types[pty].kind == Y_FIXED && (types[pty].name == 0 - 2 || types[pty].name == 0 - 4)
+        if as_param && !fixed_elem_ok(types[pty].elem) || as_param && types[types[pty].elem].kind == Y_FIXED {
+            if is_owner(types[pty].elem) {
+                gen_error(p, "a parameter's array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing")
+            } else {
+                fixed_refused(p)
+            }
+            return
+        }
+        if !as_param && fixed_inside(pty) {
             fixed_refused(p)
             return
         }
@@ -7846,9 +7939,29 @@ let write_type(y:int64) {
     }
 }
 
+// a parameter's [T] or [T](N) is a pointer, as kelvinc's #49 and C have
+// it: its type the parameter kind, -2, or -4 of [const T], before any
+// signature is written (#357)
+let fixed_params() {
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind == D_FN {
+            var p:int64 = nodes[d].a
+            while p >= 0 {
+                let y:int64 = nodes[p].ty
+                if y >= 0 && types[y].kind == Y_FIXED {
+                    set_ty(p, type_of_kind(Y_FIXED, types[y].elem, types[y].name == 0 - 3 ? 0 - 4 : 0 - 2))
+                }
+                p = nodes[p].next
+            }
+        }
+    }
+}
+
 let gen_program() {
     index_names()
     count_overloads()
+    fixed_params()
     put("/* generated by kc, selfhost/kc.k */\n")
     put("#if !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)\n")
     put("#ifndef _XOPEN_SOURCE\n#define _XOPEN_SOURCE 700\n#endif\n")

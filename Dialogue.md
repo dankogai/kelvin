@@ -7183,3 +7183,16 @@ where kelvinc's may: not yet kc's. Found in kelvinc, not fixed here:
 zeros as a member's value fail in its C. Details are provisional P368.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 402. kc's fixed arrays as parameters
+
+> teach kc fixed arrays as parameters as #357
+
+**Claude** taught kc a fixed array as a parameter, as kelvinc's #49: a
+pointer in C, its count passed beside it, `[const T]` reading its
+elements and `[T]` changing the caller's. Its argument is a fixed array
+of its elements, and a let's goes to `[const T]` alone. kelvinc's errors
+are in its words, and kc's own where kelvinc's C warns or walks past an
+array's end. Details are provisional P369.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

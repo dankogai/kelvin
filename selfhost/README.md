@@ -440,8 +440,19 @@ kc reads what it is written in, and little more.
     as kelvinc prints it, `{label: "eggs", slots: [6, 12, 18]}`.
     - Its count is written, `[T](N)`; its elements own nothing, where
       kelvinc's may: not yet kc's.
-  - Not yet: a parameter, a result, a global, a case's value, a pointer
-    to one, or one in another type; a count C computes, as `[uint8](n)`;
+  - A parameter (#357), `xs:[const int64]` or `xs:[int64]`, as kelvinc's
+    #49: a pointer in C, `const int64_t *xs`, whose count is passed beside
+    it; `xs[i]` read, and assigned where it is `[T]`, the caller's.
+    - Its argument is a fixed array of its elements: a local's, a member,
+      another parameter's; to `[T]`, not a let's or a `[const T]`'s.
+    - kelvinc's errors, in its words: `'.count' is a property of arrays,
+      and this is i64^, a pointer: ...`; `'a' of 'sum' is a const i64^,
+      and this is Array<i64>`; kc's where kelvinc leaves it to C or
+      warns, as of a let's array to `[T]`.
+    - `for x in xs` of one is kc's error: kelvinc's walks past its end.
+  - Not yet: a result, a global, a case's value, a pointer to one, one
+    in another type, a parameter of owners or of fixed arrays; a count C
+    computes, as `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

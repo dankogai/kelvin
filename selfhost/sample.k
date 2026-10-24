@@ -34,6 +34,16 @@ let describe(v:item^):int64 {
 
 enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
 struct tray { label: cstr; slots: [int64](3) }        // a fixed array as a member (#356)
+
+let total_of(xs:[const int64], n:int64):int64 {        // fixed arrays as parameters (#357)
+    var t = 0
+    for i in 0..<n { t += xs[i] }
+    return t
+}
+
+let double_all(xs:[int64], n:int64) {
+    for i in 0..<n { xs[i] *= 2 }
+}
 enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
@@ -588,5 +598,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     var tr:tray = {"eggs", [6, 12, 0]}
     tr.slots[2] = 18
     println(tr, " ", tr.slots.count, " ", tr.slots[2])
+    double_all(sq4, sq4.count)
+    println(total_of(sq4, sq4.count), " ", sq4[0], " ", total_of(tr.slots, 3))
     return 0
 }

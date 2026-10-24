@@ -82,7 +82,8 @@ enum ykind {                    // the kinds of types (#210)
     Y_ARGV,     // [cstr], main's argv
     Y_TASK,     // a Task (#313): its value elem, -1 of none
     Y_ITER,     // an Iterator<T> (#326): its value elem
-    Y_FIXED,    // [T](N), a fixed array (#354): its element elem, its count name, -1 where its elements give it
+    Y_FIXED,    // [T](N), a fixed array (#354): its element elem, its count name, -1 where its elements give it;
+                // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357)
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -412,9 +413,15 @@ let parse_bare_type():int64 {
             advance()
             return base_type(Y_ARGV)
         }
+        let constant = at_word("const")             // [const T], a parameter's elements read alone (#357)
+        if constant { advance() }
         let elem:int64 = parse_type()                // [T](N), [T] of a count its elements give (#354)
         expect("]")
-        var count = -1
+        var count:int64 = constant ? 0 - 3 : 0 - 1
+        if constant && at_word("(") {
+            parse_error("kc reads [const T] without a count, a parameter's; not yet [const T](N)")
+            return base_type(Y_VOID)
+        }
         if at_word("(") {
             advance()
             count = tok_count(pos)
