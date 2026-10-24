@@ -279,6 +279,8 @@ static List *chain_temps;
 static int temp_serial;
 static Decl *nested_outer; /* the function a function being parsed is defined inside (#180) */
 static List proto_copies;  /* the prototype copies of hoisted functions and their originals, in pairs (#180) */
+static List lazy_records;  /* the structs of lazy Sequences (#323), written before the function that makes them */
+static int lazy_serial;
 enum { ANON_BARE, ANON_WRITTEN, ANON_CONTEXT };
 static int anon_kind;
 static int trailing_end = -1;
@@ -874,6 +876,8 @@ static Decl *iterator_next(Type *t);
 static Expr *iterator_array(Expr *it, Decl *next, Token *at);
 static Decl *sequence_maker(Type *t);
 static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at);
+static Expr *parse_lazy_op(Expr *base, Token *name, const char *member);
+static void reject_lazy_text(Expr *x, const char *who);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
 static Decl *optional_record(Type *t);
@@ -1907,6 +1911,30 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
+            Decl *lazy_rec = NULL;
+            if (!call && !strcmp(member, "lazy") && iterator_next(value_type(e)) && !sequence_maker(value_type(e)) &&
+                !method_named(e, member) && !(expr_class(e, &lazy_rec) == 's' && record_has_field(lazy_rec, member)))
+                error_at(name->pos, "'.lazy' is a Sequence's, whose makeIterator gives a fresh iterator each time, and "
+                                    "this is an iterator: give its type a 'let makeIterator()', or walk it with for (#323)");
+            if (!call && !strcmp(member, "lazy") && sequence_maker(value_type(e)) && !method_named(e, member) &&
+                !(expr_class(e, &lazy_rec) == 's' && record_has_field(lazy_rec, member))) {
+                /* s.lazy.map(f), s.lazy.filter(f) (#323): a lazy Sequence */
+                if (!is_p(peek(), ".") || (strcmp(peek2()->text, "map") && strcmp(peek2()->text, "filter")))
+                    error_at(name->pos, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' "
+                                        "or 's.lazy.filter { ... }'");
+                advance();
+                Token *op = advance();
+                if (is_owner(value_type(e)) && !owner_place(e)) /* held, then moved in (#187) */
+                    e = make_temp(e, "a Sequence that an expression gives: bind it to a variable first");
+                e = parse_lazy_op(e, op, op->text);
+                continue;
+            }
+            Decl *lazy_of = NULL;
+            if (value_type(e) && type_class(value_type(e), &lazy_of) == 's' && lazy_of && lazy_of->lazy && (!strcmp(member, "map") || !strcmp(member, "filter")) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
+                e = parse_lazy_op(e, name, member); /* a lazy Sequence's own map and filter are lazy (#323) */
+                continue;
+            }
             if (!strcmp(member, "pretty")) {
                 /* v.pretty (#124): the value's text indented, a line for each
                    item of a [] or {}, as a String; where print shows it, it
@@ -2783,6 +2811,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                         Type *vt = value_type(v);
                         if (vt && vt->kind == T_FUNC)
                             error_at(v->pos, "'.%s' cannot show a function: a function has no text", member);
+                        reject_lazy_text(v, strfmt("'.%s'", member)); /* (#323) */
                     }
                     print_records_as_text(x);
                     if (x->items.len > 16)
@@ -5332,7 +5361,7 @@ static Type *value_type_of(Expr *e) {
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
-        if (e->op && !strncmp(e->op, "iter_array", 10)) /* an iterator's values (#319) */
+        if (e->op && (!strncmp(e->op, "iter_array", 10) || !strncmp(e->op, "lazy_make", 9))) /* (#319, #323) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -9313,6 +9342,18 @@ static void print_records_as_text(Expr *call) {
 }
 
 /* print and println cannot show a function (#31) */
+/* print and println of a lazy Sequence (#323), whose values are made as
+   they are asked for: its own text would not paste back, and its values'
+   would call its function */
+static void reject_lazy_text(Expr *x, const char *who) {
+    Decl *r = NULL;
+    Type *t = value_type(x);
+    if (t && type_class(t, &r) == 's' && r && r->lazy)
+        error_at(x->pos, "%s cannot show a lazy Sequence, whose values are made only as they are asked for: walk it "
+                         "with for, or fold it, as in '.reduce'",
+                 who);
+}
+
 static void check_print_args(Expr *call) {
     if (call->a->kind != E_IDENT || (strcmp(call->a->text, "print") && strcmp(call->a->text, "println")))
         return;
@@ -9321,6 +9362,7 @@ static void check_print_args(Expr *call) {
         Type *t = value_type(x);
         if (t && t->kind == T_FUNC)
             error_at(x->pos, "%s cannot show a function: a function has no text", call->a->text);
+        reject_lazy_text(x, call->a->text);
     }
     print_records_as_text(call);
     /* the prelude's macro counts up to 16 values (P22); beyond, C's error
@@ -10595,6 +10637,122 @@ static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at) {
     call->text = "makeIterator";
     call->method = mk;
     return call;
+}
+
+/* a struct kelvinc makes for a lazy Sequence (#323), named, of one member */
+static Decl *lazy_record(const char *name, const char *member, Type *t, Pos pos) {
+    Decl *r = new_decl(D_STRUCT, pos, NULL);
+    r->name = (char *)name;
+    r->has_body = true;
+    r->lazy = true;
+    Var *m = xcalloc(1, sizeof *m);
+    m->pos = pos;
+    m->name = (char *)member;
+    m->type = t;
+    list_push(&r->members, m);
+    list_push(&records, r);
+    list_push(&lazy_records, r);
+    return r;
+}
+
+/* a function of a lazy Sequence (#323), its body kelvinc's: hoisted as an
+   anonymous function is, its prototype before the function that makes it */
+static Decl *lazy_function(Decl *r, const char *name, Type *ret, Pos pos) {
+    Decl *d = new_decl(D_FN, pos, "static");
+    d->recv = base_type(strfmt("struct %s", r->name), pos);
+    d->recv_name = r->name;
+    d->name = (char *)name;
+    d->ret = ret;
+    d->cname = strfmt("%s__%s", r->name, name);
+    d->body = new_stmt(S_BLOCK, pos);
+    list_push(&functions, d);
+    list_push(&anon_fns, d);
+    return d;
+}
+
+/* s.lazy.map(f), s.lazy.filter(f) (#323), Swift's: a lazy Sequence, a
+   struct kelvinc makes that holds base, the Sequence, a copy of it where
+   it is a place that owns; its makeIterator gives an iterator whose next
+   calls the base's next, and f, only when it is asked, so nothing is
+   gathered, and an endless Sequence may be walked in part. A lazy
+   Sequence's own map and filter are lazy too; the name read is member */
+static Expr *parse_lazy_op(Expr *base, Token *name, const char *member) {
+    bool is_map = !strcmp(member, "map");
+    const char *me = strfmt("'.lazy.%s'", member);
+    Type *bt = unqualified(value_type(base));
+    Decl *mk = sequence_maker(bt);
+    sequence_iterator(base, mk, name->pos); /* its makeIterator, checked */
+    Type *itt = unqualified(mk->ret);
+    Decl *nx = iterator_next(itt);
+    if (!nx->var_method || nx->params.len || !nx->ret || !is_optional_type(nx->ret))
+        error_at(name->pos, "%s walks an iterator by its next(), a var method that takes nothing and gives each value, "
+                            "then none: write 'var %s.next():T?'",
+                 me, nx->recv_name);
+    Type *elem = iterator_elem(nx);
+    bool call = is_p(peek(), "(") && !line_ends_expression();
+    if (!call && !(is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))
+        error_at(peek()->pos, "%s takes a function of a value: write '.lazy.%s(f)' or '.lazy.%s { ... }'", me, member,
+                 member);
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->a = base;
+    x->text = (char *)member;
+    Type *ctx = xcalloc(1, sizeof *ctx);
+    ctx->kind = T_FUNC;
+    ctx->pos = name->pos;
+    list_push(&ctx->params, elem);
+    ctx->elem = is_map ? NULL : base_type("bool", name->pos);
+    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+    Expr *f;
+    infer_anon_result = is_map;
+    bool_anon_result = is_map ? NULL : me;
+    lend_anon_from = 0; /* each value lent (#244) */
+    if (call) {
+        advance();
+        ident_annotation_ok = true;
+        brace_ends_condition = false;
+        if (is_p(peek(), ")"))
+            error_at(peek()->pos, "%s takes a function of a value: write '.lazy.%s(f)' or '.lazy.%s { ... }'", me, member,
+                     member);
+        f = is_p(peek(), "{") ? anon_arg(ctx, 1, 0, x, false) : parse_assign();
+        if (is_p(peek(), ","))
+            error_at(peek()->pos, "%s takes one function", me);
+        ident_annotation_ok = saved;
+        brace_ends_condition = saved_brace;
+        expect_p(")");
+    } else {
+        f = anon_arg(ctx, 1, 0, x, true);
+        if (at_statement_level())
+            trailing_end = cur;
+    }
+    infer_anon_result = false;
+    bool_anon_result = NULL;
+    lend_anon_from = -1;
+    Type *ft = value_type(f);
+    if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem)
+        error_at(f->pos, "%s takes a function of one parameter, a value, with a result, and this is %s", me,
+                 ft ? kelvin_type(ft) : "not one");
+    if (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(elem)))
+        error_at(f->pos, "%s calls its function with each value, %s, and this takes %s", me, kelvin_type(elem),
+                 kelvin_type(ft->params.data[0]));
+    if (!is_map && strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
+        error_at(f->pos, "%s takes a function that says whether to keep a value, a bool, and this gives %s", me,
+                 kelvin_type(ft->elem));
+    int n = ++lazy_serial;
+    Decl *seq = lazy_record(strfmt("_kv_lazy%d", n), "base", bt, name->pos);
+    Decl *walk = lazy_record(strfmt("_kv_lazy%d_it", n), "it", itt, name->pos);
+    Type *walk_t = base_type(strfmt("struct %s", walk->name), name->pos);
+    Decl *maker = lazy_function(seq, "makeIterator", walk_t, name->pos);
+    maker->lazy_maker = mk;
+    Decl *next = lazy_function(walk, "next", is_map ? optional_type(name, unqualified(ft->elem)) : nx->ret, name->pos);
+    next->var_method = true;
+    next->lazy_op = member;
+    next->lazy_fn = f;
+    next->lazy_next = nx;
+    next->lazy_lent = lends_param(f, 0);
+    x->op = is_owner(bt) && owner_place(base) ? "lazy_make_copy" : "lazy_make";
+    x->type = base_type(strfmt("struct %s", seq->name), name->pos);
+    x->from = bt;
+    return x;
 }
 
 static Stmt *parse_for_each(Stmt *s, Type *written) {
@@ -12940,6 +13098,9 @@ static Expr *parse_case_initializer(Type *t, Decl *r) {
    declared before it, so that it may use them, and defined after it, so
    that they may use it and everything it declares */
 static void add_top_decl(Program *prog, Decl *d) {
+    for (int i = 0; i < lazy_records.len; i++) /* a lazy Sequence's structs (#323), before their functions */
+        list_push(&prog->decls, lazy_records.data[i]);
+    lazy_records.len = 0;
     if (anon_fns.len && (d->kind == D_STRUCT || d->kind == D_UNION) && d->name) {
         Decl *tag = xcalloc(1, sizeof *tag); /* struct s; for the prototypes */
         *tag = *d;
@@ -12968,6 +13129,8 @@ Program *parse(Token *tokens, int ntoks) {
     cur = 0;
     anon_fns = (List){0};
     proto_copies = (List){0};
+    lazy_records = (List){0};
+    lazy_serial = 0;
     anon_records = (List){0};
     anon_names = (List){0};
     top_name = NULL;

@@ -275,6 +275,14 @@ struct Decl {
     bool attribute;       /* D_FN: let T.x:R { }, a computed attribute read as v.x, its getter (#131) */
     bool setter;          /* D_FN: the set(v) { } of var T.x:R { get set }, self the caller's var (#132) */
     bool var_method;      /* D_FN: var T.m(...) { }, a method whose self is the caller's var (#318) */
+    /* a lazy Sequence (#323): D_STRUCT lazy, one kelvinc makes for s.lazy.map(f) or .filter(f); its
+       makeIterator, lazy_maker the base's, and its iterator's next, lazy_op "map" or "filter" of
+       lazy_fn over lazy_next, the base iterator's, written by kelvinc */
+    bool lazy;
+    Decl *lazy_maker, *lazy_next;
+    const char *lazy_op;
+    Expr *lazy_fn;
+    bool lazy_lent;       /* lazy_fn is lent each value, an anonymous one (#244) */
     bool subscript;       /* D_FN: let T[](i):R { }, a function of the type T.[] whose first parameter is
                              _kv_selfp, a pointer self names; T.[]= its setter (#136) */
     bool type_fn;         /* D_FN: static let T.name(...), a function of the type, no self,

@@ -6732,3 +6732,16 @@ Sequence's `map` and the rest wait for kc's anonymous functions.
 Details are provisional P334.
 
 There are 984 tests, and all pass with clang and with gcc 15.
+
+### 368. Lazy map and filter
+
+> give Sequence lazy map and filter as #323
+
+**Claude** added Swift's `s.lazy.map(f)` and `s.lazy.filter(f)`: a lazy
+Sequence, whose iterator calls `f` only as each value is asked for, so
+nothing is gathered, a `break` stops it, and an endless Sequence is
+walked in part. Its own `map` and `filter` stay lazy and chain; its
+`reduce` and `flatMap` are eager. Printing one is an error, since its
+text would not paste back. Details are provisional P335.
+
+There are 990 tests, and all pass with clang and with gcc 15.

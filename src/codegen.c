@@ -287,6 +287,7 @@ static char *show_key(Type *t);
 static void need_show(Type *t);
 static char *pretty_width(Expr *e);
 static char *method_cname(Decl *d);
+static void lazy_body(Decl *d);
 
 /* the _Generic associations `<C type>: <function>, ` for a method name */
 static char *dispatch(const char *method) {
@@ -1240,6 +1241,11 @@ static char *expr_bare(Expr *e) {
             const char *init = !strcmp(e->op, "array_sorted_tmp") ? strfmt("(%s)", expr(e->a))
                                                                   : strfmt("%s_copy(&(%s))", e->from->cname, expr(e->a));
             return strfmt("({ %s _kv_so = %s; %s; _kv_so; })", e->from->cname, init, strfmt(sort, "&_kv_so"));
+        }
+        if (e->op && !strncmp(e->op, "lazy_make", 9)) { /* a lazy Sequence (#323): its base held, a copy where it owns */
+            const char *copy = !strcmp(e->op, "lazy_make_copy") ? owner_copy(e->from) : NULL;
+            return strfmt("((%s){%s})", decl(e->type, ""),
+                          copy ? strfmt("%s(&(%s))", copy, expr(e->a)) : expr(e->a));
         }
         if (e->op && !strncmp(e->op, "iter_array", 10)) {
             /* an iterator's values (#319), next() to none, each some moved
@@ -2692,6 +2698,67 @@ static void register_method(const char *method, Type *recv, const char *fn) {
     list_push(&methods, m);
 }
 
+/* the some and the none of an Optional, by its maker (#323) */
+static char *optional_case(Type *opt, const char *c) {
+    return strfmt("_kv_%s_make_%s", kelvin_record(opt->name)->name, c);
+}
+
+/* an Optional's some: its tag, and the type of its value (#323) */
+static int optional_some(Type *opt, Type **value) {
+    Decl *r = kelvin_record(opt->name);
+    for (int i = 0; i < r->members.len; i++)
+        if (!strcmp(((Var *)r->members.data[i])->name, "some")) {
+            if (value)
+                *value = ((Var *)r->members.data[i])->type;
+            return i;
+        }
+    return 1;
+}
+
+/* the body of a lazy Sequence's makeIterator, or of its iterator's next
+   (#323): next asks the base iterator for each value, and gives f's of it
+   (map) or the value where f keeps it (filter), up to none; a value that
+   owns is lent to an anonymous f, given a copy where f is named, and freed
+   unless filter keeps it */
+static void lazy_body(Decl *d) {
+    line("{");
+    indent++;
+    if (d->lazy_maker) {
+        line("return (%s){%s(self.base)};", decl(d->ret, ""), method_cname(d->lazy_maker));
+        indent--;
+        line("}");
+        return;
+    }
+    Type *in = d->lazy_next->ret, *elem = NULL;
+    int some = optional_some(in, &elem);
+    const char *copy = owner_copy(elem), *free = owner_free(elem);
+    const char *arg = d->lazy_lent || !copy ? "_kv_o.u.some" : strfmt("%s(&_kv_o.u.some)", copy);
+    const char *f = expr(d->lazy_fn);
+    line("for (;;)");
+    line("{");
+    indent++;
+    line("%s _kv_o = %s(&_kv_selfp->it);", decl(in, ""), method_cname(d->lazy_next));
+    line("if (_kv_o.tag != %d)", some);
+    line("    return %s();", optional_case(d->ret, "none"));
+    if (!strcmp(d->lazy_op, "map")) {
+        Type *u = NULL;
+        optional_some(d->ret, &u);
+        line("%s _kv_v = %s(%s);", decl(u, ""), f, arg);
+        if (free)
+            line("%s(&_kv_o.u.some);", free);
+        line("return %s(_kv_v);", optional_case(d->ret, "some"));
+    } else {
+        line("if (%s(%s))", f, arg);
+        line("    return _kv_o;");
+        if (free)
+            line("%s(&_kv_o.u.some);", free);
+    }
+    indent--;
+    line("}");
+    indent--;
+    line("}");
+}
+
 static char *fn_head(Decl *d) {
     Buf params = {0};
     if (d->recv && (d->setter || d->var_method)) { /* a setter's self is the caller's var (#132), and a var method's
@@ -3639,6 +3706,10 @@ static void emit_decl(Decl *d) {
                     list_push(&count_cache, p->name);
                     list_push(&count_cache, cache);
                 }
+            }
+            if (d->lazy_maker || d->lazy_op) { /* a lazy Sequence's (#323), kelvinc's own */
+                lazy_body(d);
+                break;
             }
             if (d->setter || d->subscript || d->var_method) /* self is the caller's var (#132, #318), or a
                                                               subscript's receiver (#136) */

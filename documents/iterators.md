@@ -4,7 +4,9 @@ An iterator is a value whose `next()` gives each value in turn, then
 `none` (#318), as Swift's `IteratorProtocol` does. A Sequence is a
 value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
 `Sequence` does. `for x in s` walks either, and `map`, `filter`,
-`reduce` and `flatMap` take either as they take an Array (#319).
+`reduce` and `flatMap` take either as they take an Array (#319);
+`s.lazy.map` and `s.lazy.filter` call their function only as each value
+is asked for (#323).
 
 **Where it lives:** the core. An iterator is a struct or a union of the program with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
@@ -181,15 +183,75 @@ let main():int32 {
 - **A method of the value's own** of one of these names wins, as a
   struct's member wins over a property.
 
+## Lazy: `s.lazy.map` and `s.lazy.filter`
+
+```swift
+struct span { lo: int64; hi: int64 }
+struct span_walk { at: int64; hi: int64 }
+var span_walk.next():int64? {
+    if .at >= .hi { return none }
+    .at += 1
+    return .at - 1
+}
+let span.makeIterator():span_walk { return {.lo, .hi} }
+let tens(n:int64):int64 {
+    println("tens of ", n)
+    return n * 10
+}
+
+let main():int32 {
+    let s:span = {1, 5}
+    let m = s.lazy.map(tens)                  // nothing called yet
+    for x in m {                              // tens of 1, got 10, tens of 2, got 20
+        println("got ", x)
+        if x == 20 { break }
+    }
+    let endless:span = {0, 1000000000}
+    for x in endless.lazy.filter({ $0 % 7 == 3 }) {
+        if x > 30 { break }                   // 3,10,17,24,
+        print(x, ",")
+    }
+    println()
+    return 0
+}
+```
+
+- **`s.lazy.map(f)` and `s.lazy.filter(f)`** (#323), Swift's, give a
+  lazy Sequence: one whose iterator calls the base's `next()`, and `f`,
+  only when it is asked for a value.
+  - Nothing is gathered: `f` runs between the loop's passes, a `break`
+    stops it, and an endless Sequence is walked as far as it is asked.
+  - `.map`'s value is a Sequence of what `f` gives; `.filter`'s, of the
+    values `f` says true for, a `bool`.
+  - `.lazy` stands before `map` or `filter` alone; with nothing after
+    it, or another method, it is an error.
+- **A lazy Sequence is a Sequence** of a struct kelvinc makes, whose
+  type is not written: bind it with `let`, walk it with `for`, as often
+  as wanted, each walk afresh.
+  - Its own `map` and `filter` are lazy too, so they chain:
+    `s.lazy.map({ ... }).filter({ ... })`.
+  - Its `reduce` and `flatMap` are eager, as any Sequence's: they walk
+    it to its end.
+  - `print` and `println` of one are errors: its values are made only as
+    they are asked for, and its own text would not paste back.
+- **The values** are as an Array's map has them (#244): each is lent to
+  an anonymous `f`, a named `f` is given a copy, and the one `next`
+  gave is freed, unless `filter` keeps it.
+- **The base** is held in the lazy Sequence: a copy of a place that
+  owns, as `w.lazy.map { ... }` of a let `w` holding a String; one an
+  expression gives moves in; it is freed with the lazy Sequence.
+- **An iterator** has no `.lazy`: an error says to give its type a
+  `let makeIterator()`, since a lazy Sequence is walked afresh.
+- In a `for` header, the function goes in parentheses,
+  `.lazy.map({ ... })`, since a `{` there starts the body.
+
 ## Not yet
 
-- **Lazy methods**, Swift's `.lazy.map`, which would give an iterator
-  rather than an Array, and so take an iterator that never ends.
 - **kc's `map`, `filter`, `reduce` and `flatMap`**: kc reads var
   methods and `for x in it` (#320), and these wait for its anonymous
   functions ([selfhost/README.md](../selfhost/README.md)).
 - **kc's Sequences' methods**: kc walks a Sequence in `for` (#322), and
-  its `map` and the rest wait as an iterator's do.
+  its `map` and the rest, `.lazy` too, wait as an iterator's do.
 
 ## What each takes and gives
 
@@ -201,6 +263,8 @@ var T.next():E?                        // an iterator: each value, then none
 let T.makeIterator():I                 // a Sequence: a fresh iterator, I one
 for x in it { ... }                    // x: E, each value, up to none; it changes
 for x in s { ... }                     // x: E, of s.makeIterator(); s stays
+s.lazy.map(f:(E):U)                    // a lazy Sequence of U: f runs as each is asked for
+s.lazy.filter(f:(E):bool)              // a lazy Sequence of the E f keeps
 it.map(f:(E):U): Array<U>
 it.filter(f:(E):bool): Array<E>
 it.reduce(init:A, f:(A, E):A): A
@@ -220,7 +284,11 @@ it.flatMap(f:(E):Array<U>): Array<U>
 | a Sequence, `let T.makeIterator():I` | `.makeIterator()` | a fresh iterator, which the Sequence gives each time (#321) |
 | | `for x in s` | each value of a fresh iterator; `s` stays as it was, a let too (#321) |
 | | `.map`, `.filter`, `.reduce`, `.flatMap` | as an iterator's, of a fresh iterator; `s` stays as it was (#321) |
+| | `.lazy.map(f)`, `.lazy.map { ... }` | a lazy Sequence of what `f` gives, `f` called as each is asked for (#323) |
+| | `.lazy.filter(f)`, `.lazy.filter { ... }` | a lazy Sequence of the values `f` keeps (#323) |
+| a lazy Sequence | `.map`, `.filter` | lazy too, chained (#323) |
+| | `for x in l`, `.reduce`, `.flatMap` | as any Sequence's: a fresh walk each time (#323) |
 
-An iterator and a Sequence have the properties of any struct or union, as
+An iterator and a Sequence of the program have the properties of any struct or union, as
 [structs.md](structs.md) has them; the general ones are in
 [properties.md](properties.md).
