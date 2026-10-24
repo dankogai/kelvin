@@ -866,6 +866,9 @@ static Type *dict_type(Token *at, Type *key, Type *val);
 static bool is_dict_owner(Type *t);
 static Type *set_type(Token *at, Type *elem);
 static char owner_letter(const char *kind);
+static bool builtin_owner_kind(const char *kind);
+static bool no_value(Expr *e);
+static void reject_valueless_args(Expr *call);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
 static Decl *optional_record(Type *t);
@@ -1682,6 +1685,7 @@ static Expr *chained(Expr *e, Token *t) {
 
 static Expr *parse_postfix_steps(Expr *e) {
     for (;;) {
+        reject_valueless_args(e);
         if (line_ends_expression() || cur == postfix_stop)
             return e;
         Token *t = peek();
@@ -8420,6 +8424,15 @@ static char owner_letter(const char *kind) {
     return kind && kind[0] == 's' && kind[1] == 'e' ? 't' : kind ? kind[0] : 0;
 }
 
+/* Is kind one that builtin_owner gives, a built-in method's (#316)? */
+static bool builtin_owner_kind(const char *kind) {
+    static const char *kinds[] = {"bytes", "string", "array", "dict", "set", "io", NULL};
+    for (int i = 0; kinds[i]; i++)
+        if (!strcmp(kind, kinds[i]))
+            return true;
+    return false;
+}
+
 static const char *builtin_owner(Type *t) {
     return is_bytes(t)         ? "bytes"
            : is_string(t)      ? "string"
@@ -9419,14 +9432,33 @@ static void reject_returned_text(Expr *e, bool anon) {
                  text->text, text->text);
 }
 
+/* Is a built-in method of an owner, of kind's letter, one with no value:
+   an Array's or a Bytes's append, insert and remove(i, n), any one's
+   clear, reserve and compact, an IO's write, flush, close, print, println
+   and rewind (#316)? */
+static bool builtin_no_value(char ok, const char *m) {
+    if (!strncmp(m, "append", 6) || !strcmp(m, "clear") || !strcmp(m, "reserve") || !strcmp(m, "compact"))
+        return true;
+    if (!strcmp(m, "insert") || !strcmp(m, "remove"))
+        return ok == 'a' || ok == 'b';
+    static const char *io[] = {"write", "flush", "close", "print", "println", "rewind", NULL};
+    for (int i = 0; ok == 'i' && io[i]; i++)
+        if (!strcmp(m, io[i]))
+            return true;
+    return false;
+}
+
 /* Does kelvinc see that e has no value: a call of print or println, of a
-   Kelvin function, method or function value with no result, or of
-   _Pragma or asm, or a comma or ?: with one? */
+   Kelvin function, method or function value with no result, of a
+   built-in method with none, or of _Pragma or asm, or a comma or ?: with
+   one? */
 static bool no_value(Expr *e) {
     switch (e->kind) {
     case E_CALL: {
         if (e->op && !strcmp(e->op, "await")) /* of a Task without a value (#312) */
             return !e->type;
+        if (!e->a)
+            return false;
         static const char *words[] = {"print", "println", "_Pragma", "__asm__", "__asm", "asm", NULL};
         if (e->a->kind == E_IDENT && binding_index(e->a->text) < 0)
             for (int i = 0; words[i]; i++)
@@ -9436,6 +9468,8 @@ static bool no_value(Expr *e) {
         return t && t->kind == T_FUNC && !t->elem;
     }
     case E_METHOD: {
+        if (e->op && builtin_owner_kind(e->op))
+            return builtin_no_value(owner_letter(e->op), e->text);
         Decl *m = e->method ? e->method : method_named(e->a, e->text);
         return m && !m->ret;
     }
@@ -9445,6 +9479,30 @@ static bool no_value(Expr *e) {
         return no_value(e->b) || no_value(e->c);
     default:
         return false;
+    }
+}
+
+/* An argument kelvinc sees has no value, a call of a function with no
+   result among them, is an error here rather than C's (#316) */
+static void reject_valueless_args(Expr *call) {
+    if (call->kind != E_CALL && call->kind != E_METHOD)
+        return;
+    for (int k = 0; k < call->items.len; k++) {
+        Expr *x = call->items.data[k], *at = x;
+        if (!x || !no_value(x))
+            continue;
+        while ((at->kind == E_CALL || at->kind == E_METHOD) && at->a) /* where the call starts */
+            at = at->a;
+        const char *who = call->kind == E_METHOD                                ? strfmt("'.%s'", call->text)
+                          : call->a && call->a->kind == E_IDENT && call->a->text ? strfmt("'%s'", call->a->text)
+                                                                                : "this function";
+        if (x->kind == E_CALL && x->op && !strcmp(x->op, "await"))
+            error_at(at->pos, "this Task has no value, as its function has no result, so it cannot be argument %d of "
+                              "%s: await it alone, as a line of its own",
+                     k + 1, who);
+        error_at(at->pos, "this has no value, so it cannot be argument %d of %s: make the call alone, as a line of its "
+                          "own",
+                 k + 1, who);
     }
 }
 

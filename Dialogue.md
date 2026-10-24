@@ -6636,3 +6636,14 @@ and in `${f()}` and `${f(): v}` where their type is written, as it held
 one in `s.insert(f())`. Details are provisional P327.
 
 There are 965 tests, and all pass with clang and with gcc 15.
+
+### 361. kelvinc's void call as an argument
+
+> fix kelvinc's void call as an argument as #316
+
+**Claude** made kelvinc refuse an argument it sees has no value, a call
+of a function or method with no result, a built-in method with none and
+`await` of a Task with none, which C's compiler had refused in its own
+words. Details are provisional P328.
+
+There are 969 tests, and all pass with clang and with gcc 15.

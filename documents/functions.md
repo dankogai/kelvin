@@ -59,6 +59,12 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     'length' is a node^, and this is node: give a borrow, '&a'`.
   - C's own functions, a C typedef and a function type are left to
     C.
+  - A call with no value is no argument (#316), C's function's
+    included: `println(greet("x"))` is an error that says to make the
+    call alone, as a line of its own.
+    - So is a method with none, a Kelvin one or a built-in one, as
+      `f.print(...)` or `xs.clear()`.
+    - So is `await t` of a Task of a function with no result.
 - **`return {...}`** (#77) takes the function's result type, as a
   declaration's `{...}` does.
   - `return {0, 0}` in a function that returns a `point`.
