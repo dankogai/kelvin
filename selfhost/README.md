@@ -435,6 +435,15 @@ kc reads what it is written in, and little more.
     kelvinc's #236: e's entries added, each value copied; where d has
     the key, the function's value, `d.merge(&e) { a, b in ... }`, else
     e's; e by value moves in and is freed after (#338).
+  - `d.contains(v)`, `d.firstKey(v)` and `d.lastKey(v)`, as kelvinc's
+    #249: whether `v` is among the values, by their `==`, and the key
+    of the first or the last in the order added, a `K?` of a copy, or
+    `none` (#339).
+    - Of a function, `d.contains { v in v > 4 }`, the values it says
+      true for; `containsWithKey`, `firstKeyWithKey` and
+      `lastKeyWithKey` take each key and its value, as #331's.
+    - `v` is looked at, not moved; one an expression gives is held and
+      freed after, as is a Dictionary an expression gives.
   - `d.keys` and `d.values` (#285), Arrays of copies in the order added,
     as a Set's `elements`: new values a variable then owns, of a
     Dictionary in a variable, a temporary, or through a borrow.

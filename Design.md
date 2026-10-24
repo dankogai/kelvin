@@ -370,6 +370,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 336 | kc reads a Set's `.pretty`, `.typename`, `.reserve(n)` and `.clear()`, as kelvinc's: the text indented, in place in print, else a new String; the type's name; in place, of a var | — | kc's `spare.pretty` | 2026-10-24 |
 | 337 | kc reads a Dictionary's `.find(k)`, `.reserve(n)`, `.clear()`, `.pretty` and `.typename`, as kelvinc's: a `V^` or `nullptr`, a `const V^` of a let; in place, of a var; its text indented, and its type's name | — | kc's `shelf.find("pear")` | 2026-10-24 |
 | 338 | kc reads a Dictionary's `merge` and `merging`, as kelvinc's #236: e's entries added, each value copied, a function's value where keys meet, else e's; with kelvinc's errors in its words | — | kc's `shelf.merge(&restock)` | 2026-10-24 |
+| 339 | kc reads a Dictionary's `contains`, `firstKey` and `lastKey`, and their WithKey forms, as kelvinc's #249: whether a value is there, and the key of the first or the last, a `K?`; of a value by `==` or of a function; with kelvinc's errors in its words | — | kc's `shelf.firstKey(3)` | 2026-10-24 |
 
 Notes:
 
@@ -931,6 +932,27 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (339) Agreed details: "teach kc Dictionary contains, firstKey and
+  lastKey as #339". Their WithKey forms came too, the same loop with
+  the key given first, as #331's.
+  - gen.k: search_of makes the record of the call the first time it is
+    typed, as kelvinc checks it: a value of the value type, whose type
+    compares, or a function, of the program's or made of `{ ... }`, of
+    each value, or each key and its value, saying true or false.
+  - gen_search writes kelvinc's loop over the live entries, from the
+    first or the last, to the first value equal to v or that the
+    function says true for, given a copy of one that owns: contains a
+    bool, the others some of a copy of the key, or none.
+  - v made here, as a String of text, is freed after; one an expression
+    gives is held, as a Dictionary an expression gives is.
+  - parse.k: the six take a trailing function, `d.contains { ... }`.
+  - Found on the way: kc's `??` takes no Optional that owns, so
+    `d.lastKey(v) ?? $"none"` of a String key, kelvinc's since #250, is
+    not kc's yet; documents/dictionaries.md lists it.
+  - kc's build of a probe prints what kelvinc's does, with no leak
+    under ASan's count; the fixpoint holds, and selfhost/sample.k has
+    them.
 
 - (338) Agreed details: "teach kc Dictionary merge and merging as #338".
   - gen.k: merge_of makes the record of `d.merge(&e)` or
@@ -4151,6 +4173,7 @@ says "as agreed".
 | P348 | Details of #336 | selfhost/gen.k: a Set's pretty, typename, reserve and clear, pretty in print, is_made_array, gen_field's typename; selfhost/sample.k; selfhost/README.md; documents/sets.md | — |
 | P349 | Details of #337 | selfhost/gen.k: a Dictionary's find, reserve, clear, pretty and typename; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | kelvinc binds a let's find to a V^ |
 | P350 | Details of #338 | selfhost/gen.k: merge_of, gen_merge, put_merge_value; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | — |
+| P351 | Details of #339 | selfhost/gen.k: search_of, search_type_of, gen_search, fn_type_text, search_value_text; selfhost/parse.k: the trailing function; selfhost/sample.k; selfhost/README.md; documents/dictionaries.md | kc's `??` of an Optional that owns |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

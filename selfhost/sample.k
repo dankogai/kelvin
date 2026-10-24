@@ -514,5 +514,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     shelf.merge(&restock)
     shelf.merge(stock.copy()) { a, b in a * 10 + b }
     println(shelf)
+    println(shelf.contains(4), " ", shelf.firstKey(3), " ", shelf.lastKey { v in v > 3 }, " ", shelf.containsWithKey { k, v in v > 20 }, " ", shelf.lastKeyWithKey { k, v in v < 10 })   // contains, firstKey and lastKey (#339)
     return 0
 }

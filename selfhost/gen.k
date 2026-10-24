@@ -444,6 +444,9 @@ let iter_lazy_type_of(n:int64):int64
 let merge_of(n:int64):int64    // prototypes: a Dictionary's merge and merging (#338)
 let gen_merge(n:int64)
 let put_merge_value(vy:int64)
+let search_of(n:int64):int64    // prototypes: a Dictionary's contains, firstKey and lastKey (#339)
+let search_type_of(n:int64):int64
+let gen_search(n:int64)
 let eager_of(n:int64):int64    // prototypes: eager map and the rest (#329)
 let eager_type_of(n:int64):int64
 let gen_eager(n:int64)
@@ -708,6 +711,7 @@ let type_of(n:int64):int64 {
     if k == N_METHOD && (tok_is(t, "merge") || tok_is(t, "merging")) && merge_of(n) >= 0 {   // (#338)
         return tok_is(t, "merging") ? type_of(nodes[n].a) : base_type(Y_VOID)
     }
+    if k == N_METHOD && search_of(n) >= 0 { return search_type_of(n) }   // d.contains(v), d.firstKey(v) and the rest (#339)
     if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
         let ly:int64 = lazy_field_type(nodes[n].a)
         if types[ly].kind == Y_ITER {                   // as kelvinc's (#328)
@@ -1995,6 +1999,10 @@ let gen_method(n:int64) {
     }
     if (tok_is(nodes[n].t, "merge") || tok_is(nodes[n].t, "merging")) && merge_of(n) >= 0 {   // (#338)
         gen_merge(n)
+        return
+    }
+    if search_of(n) >= 0 {                              // d.contains(v), d.firstKey(v) and the rest (#339)
+        gen_search(n)
         return
     }
     let ny:int64 = tok_is(nodes[n].t, "next") ? type_of(nodes[n].a) : 0 - 1
@@ -5044,6 +5052,326 @@ let put_merge_value(vy:int64) {
     } else {
         put("_kv_me->at[_kv_mi].value")
     }
+}
+
+// ---------- a Dictionary's contains, firstKey and lastKey (#339) ----------
+
+// d.contains(v), d.firstKey(v), d.lastKey(v), as kelvinc's #249: whether
+// v is among the values, by their ==, and the key of the first or the
+// last in the order added, a K?; of a function, the values it says true
+// for, and WithKey of each key and its value
+struct search_rec {
+    node: int64
+    fn: int64               // the function, or -1 of a value v
+    with_key: bool
+}
+
+var searches:$[search_rec]
+var search_at:Dictionary<int64, int64>
+
+let is_search_name(t:int64):bool {
+    return tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey")
+}
+
+// a function's type as kelvinc writes it, (i64, i64):bool
+let fn_type_text(fn:int64):String {
+    var w = $"("
+    var p:int64 = nodes[fn].a
+    while p >= 0 {
+        let pw:String = kelvin_type_text(nodes[p].ty)
+        w += &pw
+        if nodes[p].next >= 0 { w += ", " }
+        p = nodes[p].next
+    }
+    w += "):"
+    let rw:String = nodes[fn].ty >= 0 ? kelvin_type_text(nodes[fn].ty) : $"void"
+    w += &rw
+    return w
+}
+
+// whether v, given to look for, is not a value of type vy, as kelvinc's
+// check_typed_value: text and numbers by what they are; what only C sees
+// goes
+let search_value_text(v:int64, vy:int64):String {
+    let k:nkind = nodes[v].kind
+    let vk:ykind = types[vy].kind
+    let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
+    if k == N_STR { return vk == Y_STRING || vk == Y_CSTR ? $"" : $"text" }
+    if number { return is_number_kind(vk) ? $"" : $"a number" }
+    let y:int64 = type_of(v)
+    if y < 0 || y == vy || (is_number_kind(types[y].kind) && is_number_kind(vk)) { return $"" }
+    if types[y].kind == Y_CSTR { return vk == Y_STRING ? $"" : $"text" }
+    return kelvin_type_text(y)
+}
+
+let search_of(n:int64):int64 {
+    let seen = search_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let t:int64 = nodes[n].t
+    if !is_search_name(t) { return 0 - 1 }
+    let a:int64 = nodes[n].a
+    let dy:int64 = type_of(a)
+    if dy < 0 || types[dy].kind != Y_DICT { return 0 - 1 }
+    let with_key = tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey")
+    let vy:int64 = types[dy].elem
+    let ky:int64 = types[dy].name
+    let kt:int64 = types[ky].kind == Y_STRING ? base_type(Y_CSTR) : ky   // a String key's text, lent, as #331's
+    var me = $"'."
+    me += tok_text(t)
+    me += "'"
+    let f:int64 = nodes[n].b
+    if f < 0 {                                          // as kelvinc's
+        var m = me.copy()
+        if with_key {
+            m += " takes a function of a key and its value: '."
+            m += tok_text(t)
+            m += " { k, v in ... }'"
+        } else {
+            m += " takes the value to look for, '."
+            m += tok_text(t)
+            m += "(x)', or a function that says which, '."
+            m += tok_text(t)
+            m += " { $0 > 0 }'"
+        }
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if nodes[f].next >= 0 {
+        var m = me.copy()
+        m += nodes[nodes[f].next].kind == N_ANON ? $" takes one function, and this would be a second" : $" takes one value to look for, or one function"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    var fn:int64 = 0 - 1
+    var ps:$[int64] = $[]
+    if with_key { ps += kt }
+    ps += vy
+    if nodes[f].kind == N_ANON {
+        fn = anon_function_of(f, &ps, 0 - 1, &me)
+        if fn < 0 { return 0 - 1 }
+    } else if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) >= 0 {
+        fn = decl_named(nodes[f].t, D_FN)
+    }
+    if fn < 0 && with_key {
+        var m = me.copy()
+        m += " takes a function of two parameters, a key and its value, with a result, and this is "
+        let y:int64 = nodes[f].kind == N_NUM || nodes[f].kind == N_STR ? 0 - 1 : type_of(f)
+        let w:String = y >= 0 ? kelvin_type_text(y) : $"not one"
+        m += &w
+        gen_error(f, m.cstr)
+        return 0 - 1
+    }
+    if fn < 0 {                                         // a value, compared by the values' ==
+        if !eq_type(vy) {
+            if types[vy].kind == Y_STRUCT && tagged_of(vy) >= 0 {
+                var m = me.copy()
+                m += " of an enum with values: kc compares numbers, text, Arrays and Dictionaries; give a function that says which, '"
+                m += tok_text(t)
+                m += " { ... }'"
+                gen_error(f, m.cstr)
+                return 0 - 1
+            }
+            var m = me.copy()
+            m += " of Dictionary<"                       // a struct's tagged, as kelvinc names it
+            let kw:String = kelvin_type_text(ky)
+            m += &kw
+            m += types[vy].kind == Y_STRUCT ? $", struct " : $", "
+            let vw:String = kelvin_type_text(vy)
+            m += &vw
+            m += "> compares the values, and "
+            m += &vw
+            m += " has no '==': give a function that says which, '."
+            m += tok_text(t)
+            m += " { ... }'"
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+        let bad:String = search_value_text(f, vy)
+        if bad.count > 0 {
+            var m = me.copy()
+            m += " of "
+            let dw:String = kelvin_type_text(dy)
+            m += &dw
+            m += " looks for "
+            let vw:String = kelvin_type_text(vy)
+            m += article_of(&vw)
+            m += " "
+            m += &vw
+            m += ", and this is "
+            m += &bad
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+        if types[vy].kind == Y_ARRAY || types[vy].kind == Y_DICT { need_eq(vy) }
+    } else {
+        var count:int64 = 0
+        var p:int64 = nodes[fn].a
+        while p >= 0 {
+            count += 1
+            p = nodes[p].next
+        }
+        if count != ps.count as int64 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
+            var m = me.copy()
+            m += with_key ? $" takes a function of two parameters, a key and its value, with a result, and this is " : $" takes a function of one parameter, a value, with a result, and this is "
+            let w:String = fn_type_text(fn)
+            m += &w
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+        let first_p:int64 = nodes[fn].a
+        if with_key && nodes[first_p].ty != kt {
+            var m = me.copy()
+            m += " calls its function with each key, "
+            let kw:String = kelvin_type_text(kt)
+            m += &kw
+            m += ", and this takes "
+            let pw:String = kelvin_type_text(nodes[first_p].ty)
+            m += &pw
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+        let last_p:int64 = with_key ? nodes[first_p].next : first_p
+        if nodes[last_p].ty != vy {
+            var m = me.copy()
+            m += " calls its function with each value, "
+            let vw:String = kelvin_type_text(vy)
+            m += &vw
+            m += ", and this takes "
+            let pw:String = kelvin_type_text(nodes[last_p].ty)
+            m += &pw
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+        let ry:int64 = nodes[fn].ty
+        if types[ry].kind != Y_BOOL {
+            var m = me.copy()
+            if nodes[f].kind == N_ANON && nodes[f].flag != 0 {   // as kelvinc's, of what its one expression gives
+                let e:int64 = nodes[nodes[nodes[f].b].a].a
+                m += " looks for what its function says true for, a bool, and this "
+                if nodes[e].kind == N_NUM {
+                    m += "is a number: write 'true' or 'false'"
+                } else {
+                    m += "gives "
+                    if nodes[e].kind == N_BIN {
+                        m += "a number"
+                    } else {
+                        let rw:String = kelvin_type_text(ry)
+                        m += &rw
+                    }
+                    m += ": compare it, as in 'x != 0'"
+                }
+            } else {
+                m += with_key ? $" takes a function that says whether a key and its value is the one, a bool, and this gives " : $" takes a function that says whether a value is the one, a bool, and this gives "
+                let rw:String = kelvin_type_text(ry)
+                m += &rw
+            }
+            gen_error(f, m.cstr)
+            return 0 - 1
+        }
+    }
+    let r:search_rec = {n, fn, with_key}
+    searches += r
+    search_at[n] = searches.count as int64 - 1
+    return searches.count as int64 - 1
+}
+
+let search_type_of(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    if tok_is(t, "contains") || tok_is(t, "containsWithKey") { return base_type(Y_BOOL) }
+    return optional_of(types[type_of(nodes[n].a)].name)
+}
+
+// a loop over the live entries, in the order added or from the last, to
+// the first value equal to v, or that f says true for, given a copy of
+// one that owns; contains gives a bool, the others some of a copy of the
+// key or none. A Dictionary an expression gives is held in _kv_mt, and v
+// an owner an expression gives is held too, both freed after
+let gen_search(n:int64) {
+    let r:search_rec = searches[search_of(n)]
+    let t:int64 = nodes[n].t
+    let a:int64 = nodes[n].a
+    let dy:int64 = type_of(a)
+    let vy:int64 = types[dy].elem
+    let ky:int64 = types[dy].name
+    let v:int64 = nodes[n].b
+    let contains = tok_is(t, "contains") || tok_is(t, "containsWithKey")
+    let last = tok_is(t, "lastKey") || tok_is(t, "lastKeyWithKey")
+    let hold = r.fn < 0 && needs_hold(v)
+    if hold { hold_open(v) }
+    put("({ ")
+    if is_place(a) {
+        put("__auto_type _kv_ms = &(")
+        gen_expr(a)
+        put("); ")
+    } else {
+        put("__attribute__((cleanup(")
+        put_free(dy)
+        put("))) ")
+        put_ctype(dy)
+        put(" _kv_mt = ")
+        gen_expr(a)
+        put("; ")
+        put_ctype(dy)
+        put(" *_kv_ms = &_kv_mt; ")
+    }
+    if r.fn < 0 {
+        if is_owner(vy) && !is_place(v) && !hold {       // a String of text made here, freed after
+            put("__attribute__((cleanup(")
+            put_free(vy)
+            put("))) ")
+        }
+        put_ctype(vy)
+        put(" _kv_cx = ")
+        if hold { gen_expr(v) } else { gen_value(v, vy) }   // the held one by its name
+        put("; ")
+    }
+    let ry:int64 = contains ? 0 - 1 : search_type_of(n)
+    if contains {
+        put("bool _kv_r = false; ")
+    } else {
+        put_ctype(ry)
+        put(" _kv_r = _kv_")
+        put_tok(types[ry].name)
+        put("_make_none(); ")
+    }
+    put(last ? "for (size_t _kv_mi = _kv_ms->len; _kv_mi-- > 0;)" : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++)")
+    put(" if (_kv_ms->at[_kv_mi].live) if (")
+    if r.fn < 0 {
+        put_eq_code(vy, "_kv_ms->at[_kv_mi].value", "_kv_cx")
+    } else {
+        put_fn_name(r.fn)
+        put("(")
+        if r.with_key {                                  // the key first, a String's text, lent
+            if types[ky].kind == Y_STRING {
+                put("KV_LK_TEXT(&_kv_ms->at[_kv_mi].key)")
+            } else {
+                put("_kv_ms->at[_kv_mi].key")
+            }
+            put(", ")
+        }
+        if is_owner(vy) {
+            put_owner_prefix(vy)
+            put("_copy(&_kv_ms->at[_kv_mi].value)")
+        } else {
+            put("_kv_ms->at[_kv_mi].value")
+        }
+        put(")")
+    }
+    if contains {
+        put(") { _kv_r = true; break; } _kv_r; })")
+    } else {
+        put(") { _kv_r = _kv_")
+        put_tok(types[ry].name)
+        put("_make_some(")
+        if is_owner(ky) {
+            put_owner_prefix(ky)
+            put("_copy(&_kv_ms->at[_kv_mi].key)")
+        } else {
+            put("_kv_ms->at[_kv_mi].key")
+        }
+        put("); break; } _kv_r; })")
+    }
+    if hold { hold_close(v) }
 }
 
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional

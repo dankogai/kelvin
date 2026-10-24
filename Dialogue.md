@@ -6931,3 +6931,16 @@ copied, the function's value where keys meet, else e's, with kelvinc's
 errors in its words. Details are provisional P350.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 384. kc's Dictionary contains, firstKey and lastKey
+
+> teach kc Dictionary contains, firstKey and lastKey as #339
+
+**Claude** taught kc a Dictionary's `contains`, `firstKey` and
+`lastKey`, and their WithKey forms, as kelvinc writes them: whether a
+value is there, by `==` or by a function, and the key of the first or
+the last, a `K?`, with kelvinc's errors in its words. Found on the way:
+kc's `??` takes no Optional that owns, so `d.lastKey(v) ?? $"none"` of
+a String key is not kc's yet. Details are provisional P351.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

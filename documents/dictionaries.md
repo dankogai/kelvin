@@ -168,6 +168,9 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
   and `.typename` (#337).
 - **Merging**: `.merge` and `.merging`, with a function where keys meet
   or without (#338).
+- **Searching the values**: `.contains`, `.firstKey` and `.lastKey`, of
+  a value or a function, and `.containsWithKey`, `.firstKeyWithKey`
+  and `.lastKeyWithKey` (#339).
 - **map, filter, reduce, flatMap** (#330), and `mapWithKey`,
   `filterWithKey`, `reduceWithKey` (#331) and `flatMapWithKey` (#332),
   their anonymous functions' parameters named, `{ acc, v in ... }`, or
@@ -177,7 +180,9 @@ kc does not read yet:
 
 - `??` and `!!` of two Dictionaries and their `??=` and `!!=` (#237),
   and `d[k] ??= v` (#243);
-- `.contains`, `.firstKey` and `.lastKey`, and their WithKey kin (#249).
+- `??` of a `K?` that owns, as `d.lastKey(v) ?? $"none"` of a String
+  key (#250): kc's `??` takes no Optional that owns; read it with
+  `if let`.
 
 Where kc differs, a value that owns is given to an anonymous function as
 a copy, which it owns, where kelvinc lends it (#244); what prints is the
