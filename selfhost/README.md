@@ -196,7 +196,18 @@ kc reads what it is written in, and little more.
     - kelvinc's errors, in its words: `i64? has no operator '<':
       compare with == and !=`, `'==' compares two i64?, and this is
       String?`, and of one whose value has no `==`, a struct's.
-    - Of a Result or another enum with values, kc's error: not yet.
+    - Of another enum with values, kc's error: not yet.
+  - `==` and `!=` of a Result (#344), the same way: the same case,
+    and equal values, by `_kv_res_T_E_eq`.
+    - The other side is a Result, a `T` wrapped as `ok(T)`, `ok(v)`
+      or `err(e)`: `r == 42`, `e == err($"empty")`.
+    - `ok(v)` and `err(e)` made here are freed after; a place in
+      them, `ok(w)`, is copied, where kelvinc moves it.
+    - A Result's elements compare too: `rs.contains(err($"x"))`.
+    - kelvinc's errors, in its words: `case 'err' holds P, which has
+      no '=='`, `a Result has no case 'some'`.
+    - A `T` where a Result goes, `let p:Result<i64, i32> = 3` or
+      `return s`, is `ok(T)` too.
   - kc's own `load` gives `Result<int64, String>`, and `case_named` an
     `int64?`.
   - **Chains** (#221), as kelvinc's of #218: `x?.m`, `x?.f(...)` and
@@ -384,8 +395,8 @@ kc reads what it is written in, and little more.
   its `==`; an Array or a Dictionary of them too.
   - kelvinc's errors, in its words: two of different types; elements or
     values with no `==`, a Set or a struct.
-  - An Optional in them compares (#343); a Result or another enum with
-    values in them is kc's error: not yet.
+  - An Optional (#343) or a Result (#344) in them compares; another
+    enum with values in them is kc's error: not yet.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
   first or the last equal to `x`, an `i64?`, or `none`.
@@ -398,7 +409,8 @@ kc reads what it is written in, and little more.
     Array's `firstKey` is `an Array has no '.firstKey': it is a
     Dictionary's; an Array's is '.firstIndex'`, a Dictionary's
     `firstIndex` the other way.
-  - Optional elements compare by `==` since #343: `ns.contains(none)`.
+  - Optional elements compare by `==` since #343, `ns.contains(none)`,
+    and Result elements since #344, `rs.contains(err($"x"))`.
 - **An Array, a Dictionary or a Set has no arithmetic** (#287), as
   kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
   `an Array has no operator '+': compare its elements`, a Dictionary's

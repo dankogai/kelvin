@@ -531,6 +531,30 @@ let some_type(y:int64):int64 {
     return nodes[nodes[nodes[d].a].next].ty
 }
 
+// whether y is a Result, the enum with values kc makes of ok and err (#344)
+let is_result(y:int64):bool {
+    let d = tagged_of(y)
+    return d >= 0 && nodes[d].c != 1 && types[y].name > eof_pos && tok_is(nodes[nodes[d].a].t, "ok")
+}
+
+// whether y is an Optional or a Result, whose == kc writes (#343, #344)
+let is_variant(y:int64):bool {
+    return some_type(y) >= 0 || is_result(y)
+}
+
+// the case a T on the side of a variant's == is wrapped in: an
+// Optional's some, a Result's ok; or -1 (#344)
+let value_case(y:int64):int64 {
+    if some_type(y) >= 0 { return nodes[nodes[tagged_of(y)].a].next }
+    if is_result(y) { return nodes[tagged_of(y)].a }
+    return 0 - 1
+}
+
+let wrap_type(y:int64):int64 {
+    let m = value_case(y)
+    return m >= 0 ? nodes[m].ty : 0 - 1
+}
+
 // whether n is a case's word of the enum d, which no name of the program
 // takes: none, or some of some(v), ok of ok(v), err of err(e)
 let case_word_of(n:int64, d:int64):int64 {
@@ -1489,22 +1513,35 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
 
 var compared:$[int64]                       // the types whose T_eq is written, in order
 
+let eq_case(y:int64):int64    // a prototype: what a case holds compares too
+
 // whether values of y compare with ==, as kelvinc's eq_type: an Array or
-// a Dictionary where its elements or values do, an Optional where what
-// it holds does (#343); a Set, an IO or a struct does not; a Result or
-// another enum with values kc does not compare yet
+// a Dictionary where its elements or values do, an Optional or a Result
+// where what its cases hold does (#343, #344); a Set, an IO or a struct
+// does not; another enum with values kc does not compare yet
 let eq_type(y:int64):bool {
     if y < 0 { return true }
     let k = types[y].kind
     if k == Y_ARRAY || k == Y_DICT { return eq_type(types[y].elem) }
-    if some_type(y) >= 0 { return eq_type(some_type(y)) }
+    if is_variant(y) { return eq_case(y) < 0 }
     if k == Y_SET || k == Y_IO || k == Y_STRUCT { return false }
     return true
 }
 
-// whether T_eq of y is written: an Array's, a Dictionary's, an Optional's
+// the first case of the variant y whose value has no ==, or -1
+let eq_case(y:int64):int64 {
+    var m = nodes[tagged_of(y)].a
+    while m >= 0 {
+        if nodes[m].ty >= 0 && !eq_type(nodes[m].ty) { return m }
+        m = nodes[m].next
+    }
+    return 0 - 1
+}
+
+// whether T_eq of y is written: an Array's, a Dictionary's, an Optional's,
+// a Result's
 let has_eq_fn(y:int64):bool {
-    return y >= 0 && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || some_type(y) >= 0)
+    return y >= 0 && (types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || is_variant(y))
 }
 
 // T_eq of y written after the functions, and of what it holds
@@ -1513,8 +1550,15 @@ let need_eq(y:int64) {
         if compared[i] == y { return }
     }
     compared += y
-    let e:int64 = some_type(y) >= 0 ? some_type(y) : types[y].elem
-    if has_eq_fn(e) { need_eq(e) }
+    if !is_variant(y) {
+        if has_eq_fn(types[y].elem) { need_eq(types[y].elem) }
+        return
+    }
+    var m = nodes[tagged_of(y)].a                    // what each case holds (#344)
+    while m >= 0 {
+        if has_eq_fn(nodes[m].ty) { need_eq(nodes[m].ty) }
+        m = nodes[m].next
+    }
 }
 
 let put_eq_name(y:int64) {
@@ -1523,7 +1567,7 @@ let put_eq_name(y:int64) {
     } else if types[y].kind == Y_DICT {
         put_dict_name(y)
     } else {
-        put_owner_prefix(y)                         // an Optional's, _kv_opt_T (#343)
+        put_owner_prefix(y)                         // an Optional's, _kv_opt_T (#343); a Result's (#344)
     }
     put("_eq")
 }
@@ -1549,7 +1593,7 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(", &")
         put(z)
         put(")")
-    } else if some_type(y) >= 0 {                    // by value, as kelvinc's (#343)
+    } else if is_variant(y) {                        // by value, as kelvinc's (#343, #344)
         put_eq_name(y)
         put("(")
         put(x)
@@ -1591,8 +1635,8 @@ let gen_container_eq(n:int64) {
     }
     if !eq_type(types[ya].elem) {
         let e:int64 = types[ya].elem
-        if types[e].kind == Y_STRUCT && tagged_of(e) >= 0 && some_type(e) < 0 {
-            gen_error(n, "kc compares Arrays and Dictionaries of numbers, text, Optionals, Arrays and Dictionaries; not yet of a Result or another enum with values")
+        if types[e].kind == Y_STRUCT && tagged_of(e) >= 0 && !is_variant(e) {
+            gen_error(n, "kc compares Arrays and Dictionaries of numbers, text, Optionals, Results, Arrays and Dictionaries; not yet of another enum with values")
             return
         }
         var m = $"'"
@@ -1624,7 +1668,7 @@ let gen_container_eq(n:int64) {
     if ha { hold_close(a) }
 }
 
-// an Optional's _kv_T_eq, its two by value (#343)
+// an Optional's _kv_T_eq, its two by value (#343), and a Result's (#344)
 let put_eq_head(y:int64) {
     put("__attribute__((unused)) static inline bool ")
     put_eq_name(y)
@@ -1645,36 +1689,46 @@ let tagged_side(n:int64):int64 {
     return 0 - 1
 }
 
-// whether x, a side of == of the Optional rt, is a value made here that
-// is freed after: one an expression gives, or a T wrapped, a copy of a
-// place; not a place of rt, nor none
+// whether x, a side of == of the Optional or the Result rt, is a value
+// made here that is freed after: one an expression gives, a T wrapped, a
+// copy of a place, ok(v) or err(e) (#344); not a place of rt, nor none
 let opt_operand_owns(x:int64, rt:int64):bool {
-    if !is_owner(rt) || is_case_word(x) { return false }
+    if !is_owner(rt) { return false }
+    if is_case_word(x) { return nodes[x].kind == N_CALL && is_result(rt) }
     if type_of(x) == rt { return !is_place(x) }
     return true
 }
 
-// x as a value of the Optional rt: itself, a case word read by rt, or a
-// T wrapped, a place's copied, so that it is not moved (#343)
+// x as a value of the Optional or the Result rt: itself, none read by rt,
+// a T wrapped, or ok(v) and err(e) of a Result (#344), a place's value
+// copied, so that it is not moved (#343)
 let gen_opt_operand(x:int64, rt:int64) {
     if !is_case_word(x) && type_of(x) == rt {
         gen_expr(x)
         return
     }
+    var m:int64 = value_case(rt)
+    var v = x
     if is_case_word(x) {
-        gen_value(x, rt)
-        return
+        m = case_word_of(x, tagged_of(rt))
+        if m < 0 || !is_result(rt) || nodes[x].kind != N_CALL || nodes[x].b < 0 {
+            gen_value(x, rt)                             // none, and the errors of a case rt has not
+            return
+        }
+        v = nodes[x].b
     }
-    let inner:int64 = some_type(rt)
+    let cy:int64 = nodes[m].ty
     put_owner_prefix(rt)
-    put("_make_some(")
-    if is_place(x) && is_owner(inner) {
-        put_owner_prefix(inner)
+    put("_make_")
+    put_tok(nodes[m].t)
+    put("(")
+    if is_place(v) && is_owner(cy) {
+        put_owner_prefix(cy)
         put("_copy(")
-        gen_place(x)
+        gen_place(v)
         put(")")
     } else {
-        gen_value(x, inner)                              // text a String, a T a T? of a T?? (#229)
+        gen_value(v, cy)                                 // text a String, a T a T? of a T?? (#229)
     }
     put(")")
 }
@@ -1694,10 +1748,11 @@ let put_opt_operand(x:int64, rt:int64, name:cstr, s:int64) {
     put("; ")
 }
 
-// a == b, x != none of an Optional, as kelvinc's #79: the same case, and
-// equal values, by _kv_T_eq; the other side a T?, a T wrapped, or none.
-// Each side is read once, and one made here is freed after (#343)
-let gen_optional_eq(n:int64, rt:int64) {
+// a == b, x != none of an Optional, r == err(e) of a Result, as kelvinc's
+// #79: the same case, and equal values, by _kv_T_eq; the other side one of
+// rt, a T wrapped, none, ok(v) or err(e). Each side is read once, and one
+// made here is freed after (#343, #344)
+let gen_variant_eq(n:int64, rt:int64) {
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
     let b:int64 = nodes[n].b
@@ -1710,16 +1765,19 @@ let gen_optional_eq(n:int64, rt:int64) {
         gen_error(n, m.cstr)
         return
     }
-    let inner:int64 = some_type(rt)
+    let c:int64 = eq_case(rt)
     var m = $"'"
     m += tok_text(t)
-    if !eq_type(inner) {
+    if c >= 0 {
+        let inner:int64 = nodes[c].ty
         m += "' of "
         m += &ow
-        if tagged_of(inner) >= 0 && some_type(inner) < 0 {
-            m += " compares the values: kc compares numbers, text, Optionals, Arrays and Dictionaries; not yet a Result or another enum with values"
+        if tagged_of(inner) >= 0 && !is_variant(inner) {
+            m += " compares the values: kc compares numbers, text, Optionals, Results, Arrays and Dictionaries; not yet another enum with values"
         } else {
-            m += " compares the values, and case 'some' holds "
+            m += " compares the values, and case '"
+            m += tok_text(nodes[c].t)
+            m += "' holds "
             let iw:String = kelvin_type_text(inner)
             m += &iw
             m += ", which has no '=='"
@@ -1753,13 +1811,30 @@ let gen_optional_eq(n:int64, rt:int64) {
 }
 
 // T_eq of y, as kelvinc's emit_array_eq and emit_dict_eq; an Optional's
-// as its _kv_T_eq of #79: the same case, and equal values (#343)
+// and a Result's as its _kv_T_eq of #79: the same case, and equal values
+// (#343, #344)
 let gen_eq(y:int64) {
-    if some_type(y) >= 0 {
+    if is_variant(y) {
         put_eq_head(y)
-        put("\n{\n    if (a.tag != b.tag) return false;\n    switch (a.tag)\n    {\n    case 1: return ")
-        put_eq_code(some_type(y), "a.u.some", "b.u.some")
-        put(";\n    default: return true;\n    }\n}\n")
+        put("\n{\n    if (a.tag != b.tag) return false;\n    switch (a.tag)\n    {\n")
+        var m = nodes[tagged_of(y)].a
+        var i = 0
+        while m >= 0 {
+            if nodes[m].ty >= 0 {
+                put("    case ")
+                put_int(i)
+                put(": return ")
+                var x = $"a.u."
+                x += tok_text(nodes[m].t)
+                var z = $"b.u."
+                z += tok_text(nodes[m].t)
+                put_eq_code(nodes[m].ty, x.cstr, z.cstr)
+                put(";\n")
+            }
+            i += 1
+            m = nodes[m].next
+        }
+        put("    default: return true;\n    }\n}\n")
         return
     }
     put("__attribute__((unused)) static inline bool ")
@@ -2455,7 +2530,7 @@ let gen_init(n:int64, s:int64) {
 
 // a case's value made where an enum with values is expected (#217): none,
 // ok(v), err(e) by the type that takes them, and a T where a T? goes as
-// some(T), as kelvinc has them, whose some(v) is a pattern alone; a local
+// some(T), where a Result goes as ok(T) (#344), as kelvinc has them, whose some(v) is a pattern alone; a local
 // owner moves in; else the expression as it is
 // whether n is a value that t takes, as some(n) where a t? goes: a t; a
 // number literal of any number; {a, b} of a struct; one a t of a t? takes
@@ -2767,11 +2842,15 @@ let gen_value(n:int64, y:int64) {
             gen_error(n, "a Result has no case 'none': write err(e), or ok(v)")
             return
         }
+        if result && tok_is(w, "some") {                  // as kelvinc says it (#344)
+            gen_error(n, "a Result has no case 'some': write ok(v), or err(e) (#224)")
+            return
+        }
     }
     var v = -1
     if m >= 0 && nodes[n].kind == N_CALL { v = nodes[n].b }
-    if m < 0 && nodes[d].c == 1 && fits_value(n, some_type(y)) {
-        m = nodes[nodes[d].a].next
+    if m < 0 && value_case(y) >= 0 && fits_value(n, wrap_type(y)) {   // a T as some(T), and as ok(T) of a Result (#344)
+        m = value_case(y)
         v = n
     }
     if m < 0 {
@@ -3338,10 +3417,10 @@ let gen_expr(n:int64) {
         put(")")
     } else if k == N_BIN && tok_is(t, "??") {
         gen_coalesce(n)
-    } else if k == N_BIN && tagged_side(n) >= 0 && some_type(tagged_side(n)) >= 0 {
-        gen_optional_eq(n, tagged_side(n))               // a == b, x != none of an Optional (#343)
+    } else if k == N_BIN && tagged_side(n) >= 0 && is_variant(tagged_side(n)) {
+        gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344)
     } else if k == N_BIN && tagged_side(n) >= 0 && (tok_is(t, "==") || tok_is(t, "!=")) {
-        gen_error(n, "kc compares an Optional with '==' and '!='; not yet a Result or another enum with values")
+        gen_error(n, "kc compares an Optional and a Result with '==' and '!='; not yet another enum with values")
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
     } else if k == N_BIN {
@@ -5338,8 +5417,8 @@ let value_mismatch_text(v:int64, vy:int64):String {
     let vk:ykind = types[vy].kind
     let number = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM)
     if is_case_word(v) { return $"" }                   // none, ok(v), err(e): gen_value reads them by the type (#343)
-    let inner:int64 = some_type(vy)
-    if inner >= 0 {                                     // an Optional, or the T it holds, wrapped (#343)
+    let inner:int64 = wrap_type(vy)
+    if inner >= 0 {                                     // an Optional, or the T it holds, wrapped (#343); a Result's ok (#344)
         if k != N_STR && !number {
             let y:int64 = type_of(v)
             if y == vy { return $"" }
@@ -5442,9 +5521,9 @@ let search_of(n:int64):int64 {
     }
     if fn < 0 {                                         // a value, compared by the values' ==
         if !eq_type(vy) {
-            if types[vy].kind == Y_STRUCT && tagged_of(vy) >= 0 && some_type(vy) < 0 {
+            if types[vy].kind == Y_STRUCT && tagged_of(vy) >= 0 && !is_variant(vy) {
                 var m = me.copy()
-                m += " of a Result or an enum with values: kc compares numbers, text, Optionals, Arrays and Dictionaries; give a function that says which, '"
+                m += " of an enum with values: kc compares numbers, text, Optionals, Results, Arrays and Dictionaries; give a function that says which, '"
                 m += tok_text(t)
                 m += " { ... }'"
                 gen_error(f, m.cstr)
@@ -5456,9 +5535,9 @@ let search_of(n:int64):int64 {
                 m += " of Dictionary<"                   // a struct's tagged, as kelvinc names it
                 let kw:String = kelvin_type_text(ky)
                 m += &kw
-                m += types[vy].kind == Y_STRUCT && some_type(vy) < 0 ? $", struct " : $", "
+                m += types[vy].kind == Y_STRUCT && !is_variant(vy) ? $", struct " : $", "
             } else {
-                m += types[vy].kind == Y_STRUCT && some_type(vy) < 0 ? $" of Array<struct " : $" of Array<"
+                m += types[vy].kind == Y_STRUCT && !is_variant(vy) ? $" of Array<struct " : $" of Array<"
             }
             m += &vw
             m += "> compares the "
@@ -5599,7 +5678,7 @@ let gen_search(n:int64) {
     let contains = tok_is(t, "contains") || tok_is(t, "containsWithKey")
     let last = tok_is(t, "lastKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "lastIndex")
     let at:cstr := dict ? "_kv_ms->at[_kv_mi].value" : "_kv_ms->at[_kv_mi]"
-    let opt = some_type(vy) >= 0                         // an Optional's v, wrapped (#343)
+    let opt = is_variant(vy)                             // an Optional's v, wrapped (#343), a Result's (#344)
     let hold = r.fn < 0 && !opt && needs_hold(v)
     if hold { hold_open(v) }
     put("({ ")
@@ -7037,7 +7116,7 @@ let gen_program() {
         put("(kv_out *, const void *, int);\n")
     }
     for i in 0..<compared.count as int64 {              // and the == of Arrays and Dictionaries (#288)
-        if some_type(compared[i]) >= 0 {                // an Optional's (#343)
+        if is_variant(compared[i]) {                    // an Optional's (#343), a Result's (#344)
             put_eq_head(compared[i])
             put(";\n")
         } else {

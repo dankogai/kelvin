@@ -375,6 +375,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 341 | kc reads `none`, `ok(v)` and `err(e)` in a declaration and an assignment, as it read them in a return: `let n:int64? = none`, `n = none`, `d[k] = none`; a case the type has not in kelvinc's words | — | kc's `tag = none` | 2026-10-24 |
 | 342 | kc reads an Array's `contains`, `firstIndex` and `lastIndex`, as kelvinc's #248: whether an element is there, and the index of the first or the last, an `i64?`; of a value by `==` or of a function; with kelvinc's errors in its words | — | kc's `rolls.firstIndex(6)` | 2026-10-25 |
 | 343 | kc reads `==` and `!=` of an Optional, as kelvinc's #79: two `none`, or two equal values; the other side a `T?`, a `T` wrapped, or `none`; an Optional's elements in an Array, a Dictionary and a search compare too; with kelvinc's errors in its words | — | kc's `pending == none` | 2026-10-25 |
+| 344 | kc reads `==` and `!=` of a Result, as kelvinc's #79: the same case, and equal values; the other side a Result, a `T` wrapped as `ok(T)`, `ok(v)` or `err(e)`; a Result's elements in an Array, a Dictionary and a search compare too; a `T` where a Result goes is `ok(T)` in a declaration and a return as well; with kelvinc's errors in its words | — | kc's `outcome == err("late")` | 2026-10-25 |
 
 Notes:
 
@@ -936,6 +937,41 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (344) Agreed details: "teach kc == of a Result as #344".
+  - gen.k: gen_optional_eq, now gen_variant_eq, serves a Result as it
+    served an Optional (#343): each side bound once, then `_kv_res_T_E_eq`,
+    by value.
+    - is_result tells a Result, the enum kc makes of ok and err;
+      is_variant is an Optional or a Result; value_case is the case a
+      bare `T` is wrapped in, an Optional's some, a Result's ok.
+    - The other side is a Result, a `T` wrapped as `ok(T)`, or `ok(v)`
+      and `err(e)`, made by gen_opt_operand.
+    - `ok(v)` and `err(e)` made here own where the Result does, and are
+      freed by cleanup; a place in them, `ok(w)`, is copied, where
+      kelvinc moves it.
+  - The Result's `_eq`, kelvinc's form, a case per case that holds a
+    value: `case 0: return a.u.ok == b.u.ok;` and then `case 1:` of err.
+    - eq_type asks it of each case's value (eq_case), and need_eq
+      writes what each case holds.
+    - So an Array, a Dictionary or a search of Result elements
+      compares too.
+  - Found on the way, and fixed: a `T` where a Result goes, as
+    `let p:Result<i64, i32> = 3`, `return s` and `$[..., 7]`, reached C
+    as it was; gen_value now wraps it as `ok(T)`, as it wraps some(T).
+  - kelvinc's errors, in its words: another operator, another type,
+    `case 'ok' holds P, which has no '=='` and the same of err, and `a
+    Result has no case 'some': write ok(v), or err(e) (#224)`.
+    - Where kelvinc leaves the error to C, as `r == "x"`, kc says
+      `this is text`.
+    - Another enum with values is kc's error: not yet.
+  - Found, not fixed, from before: kc does not read `$[ok(1)]`,
+    `${1: ok(1)}`, `rs += ok(1)` or `ok(none)` in a declaration; text
+    where a `String?` or a Result of a String goes reaches C; `ok(1,
+    2)` drops the 2.
+  - kc's builds of two probes print what kelvinc's do, with no leak
+    under ASan's count; the fixpoint holds, and selfhost/sample.k has
+    them.
 
 - (343) Agreed details: "teach kc == of an Optional as #343".
   - gen.k: gen_optional_eq, where either side of `==` or `!=` is an
@@ -4275,6 +4311,7 @@ says "as agreed".
 | P353 | Details of #341 | selfhost/gen.k: takes_borrow, gen_assign, gen_value, inferred; selfhost/sample.k; selfhost/README.md | — |
 | P354 | Details of #342 | selfhost/gen.k: search_of, search_type_of, gen_search; selfhost/parse.k: the trailing function; selfhost/sample.k; selfhost/README.md | kc's `==` of Optional elements; kc's `{ (x ?? 0) > 2 }` |
 | P355 | Details of #343 | selfhost/gen.k: gen_optional_eq, tagged_side, gen_opt_operand, the Optional's _eq; eq_type, need_eq, put_eq_code, gen_cond, value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `c ? $"n" : none` |
+| P356 | Details of #344 | selfhost/gen.k: is_result, is_variant, value_case, eq_case; gen_variant_eq (gen_optional_eq), gen_opt_operand, opt_operand_owns, the Result's _eq; eq_type, need_eq, gen_value's ok(T), value_mismatch_text, gen_search; selfhost/sample.k; selfhost/README.md | kc's `==` of another enum with values; kc's `$[ok(1)]`, `ok(none)`, text into a `String?` or a Result of a String, `ok(1, 2)` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

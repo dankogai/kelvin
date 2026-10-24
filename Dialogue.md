@@ -6998,3 +6998,19 @@ fixed: `$[$"a", none]` of a `String?`. Found, not fixed: kc does not
 read `c ? $"n" : none`. Details are provisional P355.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 389. kc's == of a Result
+
+> teach kc == of a Result as #344
+
+**Claude** taught kc `==` and `!=` of a Result, as kelvinc's #79, by
+the path an Optional's took in #343: the same case, and equal values,
+the other side a Result, a `T` wrapped as `ok(T)`, `ok(v)` or `err(e)`.
+A Result's elements in an Array, a Dictionary and a search compare
+too. kelvinc's errors are in its words; another enum with values is
+not yet kc's. Found on the way, and fixed: a `T` where a Result goes,
+in a declaration or a return, reached C unwrapped. Found, not fixed:
+kc does not read `$[ok(1)]` or `ok(none)` in a declaration. Details
+are provisional P356.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

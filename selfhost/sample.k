@@ -532,5 +532,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let gaps:$[int64?] = $[4, pending, 7]               // == of an Optional (#343)
     let gaps2:$[int64?] = $[4, none, 7]
     println(pending == none, " ", tag == $"untagged", " ", marks["ann"]! == 90, " ", marks.firstKey(none), " ", rolls.firstIndex(6) == 1, " ", gaps.lastIndex(none), " ", gaps == gaps2)
+    let digits:$[Result<int64, String>] = $[parse_digit('4'), parse_digit('?'), 7]   // == of a Result (#344)
+    println(outcome == err("late"), " ", parse_digit('7') == 7, " ", good != bad, " ", digits.firstIndex(7), " ", digits.contains(ok(5)), " ", outcome != err($"early"))
     return 0
 }
