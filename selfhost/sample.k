@@ -475,5 +475,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     var ticks:int64 = 0
     for t in tick { ticks += t + 1 }
     println(fib0, " ", fib_seen, " ", ticks)
+    var odd_squares = fib_upto(100).lazy.filter(is_odd).lazy.map({ $0 * $0 })   // an Iterator made lazy (#328)
+    var squares_seen = $""
+    for x in odd_squares {
+        squares_seen += String(x)
+        squares_seen += ","
+    }
+    println(squares_seen)
     return 0
 }

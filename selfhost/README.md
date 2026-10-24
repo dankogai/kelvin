@@ -246,6 +246,14 @@ kc reads what it is written in, and little more.
     copy, print and a function of another shape are kelvinc's errors.
   - A `{` inside parentheses keeps its lines, so a function written
     there, `Iterator(10, { (s:int64):int64? in ... })`, reads as one.
+- **An Iterator's lazy map and filter** (#328), as kelvinc's #327:
+  `it.lazy.map(f)` and `it.lazy.filter(f)` of an `Iterator<T>` give an
+  `Iterator<U>` of it, moved in, whose adapter `_kv_iterN_next` asks it
+  for each value and calls f as it is asked; a plain Iterator, so a
+  chain writes `.lazy` again.
+  - A function trailing a method call's parentheses, `x.m(a) { ... }`,
+    is its last argument, so `.lazy` before another method is kelvinc's
+    error, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

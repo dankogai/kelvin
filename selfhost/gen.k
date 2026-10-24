@@ -439,6 +439,9 @@ let is_lazy_type(y:int64):bool
 let lazy_field_type(n:int64):int64
 let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
+let iter_lazy_of(n:int64):int64
+let iter_lazy_type_of(n:int64):int64
+let gen_iter_value(i:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -691,9 +694,15 @@ let type_of(n:int64):int64 {
         gen_error(n, "this member is not known")
         return -1
     }
+    if k == N_METHOD && iter_lazy_of(n) >= 0 { return iter_lazy_type_of(n) }   // it.lazy.map(f) of an Iterator (#328)
     if k == N_METHOD && lazy_of(n) >= 0 { return lazy_type_of(n) }   // s.lazy.map(f), a lazy Sequence (#324)
     if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
-        gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
+        let ly:int64 = lazy_field_type(nodes[n].a)
+        if types[ly].kind == Y_ITER {                   // as kelvinc's (#328)
+            gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 'it.lazy.map { ... }' or 'it.lazy.filter { ... }'")
+        } else {
+            gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
+        }
         return -1
     }
     if k == N_METHOD {
@@ -1935,6 +1944,11 @@ let gen_member(n:int64) {
 let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
 
 let gen_method(n:int64) {
+    let il:int64 = iter_lazy_of(n)
+    if il >= 0 {                                        // it.lazy.map(f) of an Iterator (#328)
+        gen_iter_value(il)
+        return
+    }
     if lazy_of(n) >= 0 {                                // s.lazy.map(f), s.lazy.filter(f) (#324)
         gen_lazy_make(n)
         return
@@ -3632,6 +3646,7 @@ let lazy_type_of(n:int64):int64 {
 // iterator's .lazy is kelvinc's error
 let lazy_field_type(n:int64):int64 {
     let y:int64 = type_of(nodes[n].a)
+    if y >= 0 && types[y].kind == Y_ITER { return y }  // an Iterator's, lazy too (#328)
     if sequence_maker(y) >= 0 { return y }
     if iterator_next(y) >= 0 {
         gen_error(n, "'.lazy' is a Sequence's, whose makeIterator gives a fresh iterator each time, and this is an iterator: give its type a 'let makeIterator()', or walk it with for (#323)")
@@ -3704,6 +3719,66 @@ let anon_function(an:int64, ey:int64, me:const String^):int64 {
     return d
 }
 
+// the function of .lazy.map or .lazy.filter, n's, of each value of type
+// ey: one of the program's or one kc makes of { ... }, checked as kelvinc
+// checks it (#324, #328); -1 where it is in error
+let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
+    let f:int64 = nodes[n].b
+    var fn:int64 = 0 - 1
+    if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ANON {
+        fn = anon_function(f, ey, me)
+        if fn < 0 { return 0 - 1 }
+    } else if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+        fn = decl_named(nodes[f].t, D_FN)
+    }
+    var p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
+    if fn < 0 || p < 0 || nodes[p].next >= 0 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
+        var m = me^.copy()
+        m += " takes a function of one parameter, a value, with a result"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if nodes[p].ty != ey {
+        var m = me^.copy()
+        m += " calls its function with each value, "
+        let ew:String = kelvin_type_text(ey)
+        m += &ew
+        m += ", and this takes "
+        let pw:String = kelvin_type_text(nodes[p].ty)
+        m += &pw
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag == 1 {
+        let e:int64 = nodes[nodes[nodes[f].b].a].a      // as kelvinc's: what an anonymous filter's one expression gives
+        var m = me^.copy()
+        m += " looks for what its function says true for, a bool, and this "
+        if nodes[e].kind == N_NUM {
+            m += "is a number: write 'true' or 'false'"
+        } else {
+            m += "gives "
+            if nodes[e].kind == N_BIN {
+                m += "a number"
+            } else {
+                let rw:String = kelvin_type_text(nodes[fn].ty)
+                m += &rw
+            }
+            m += ": compare it, as in 'x != 0'"
+        }
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if !is_map && types[nodes[fn].ty].kind != Y_BOOL {
+        var m = me^.copy()
+        m += " takes a function that says whether to keep a value, a bool, and this gives "
+        let rw:String = kelvin_type_text(nodes[fn].ty)
+        m += &rw
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    return fn
+}
+
 // the lazy Sequence that s.lazy.map(f) or s.lazy.filter(f), or a lazy
 // Sequence's map or filter, n, makes, by its place in lazies, made the
 // first time it is asked; -1 where n is none
@@ -3714,7 +3789,8 @@ let lazy_of(n:int64):int64 {
     let a:int64 = nodes[n].a
     var base:int64 = 0 - 1
     if nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "lazy") {
-        if lazy_field_type(a) < 0 { return 0 - 1 }
+        let ly:int64 = lazy_field_type(a)
+        if ly < 0 || types[ly].kind == Y_ITER { return 0 - 1 }   // an Iterator's is iter_lazy_of's (#328)
         base = nodes[a].a
     } else if nodes[a].kind != N_FIELD || !tok_is(nodes[a].t, "lazy") {
         if !is_lazy_type(type_of(a)) { return 0 - 1 }
@@ -3744,59 +3820,8 @@ let lazy_of(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    let f:int64 = nodes[n].b
-    var fn:int64 = 0 - 1
-    if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ANON {
-        fn = anon_function(f, ey, &me)
-        if fn < 0 { return 0 - 1 }
-    } else if f >= 0 && nodes[f].next < 0 && nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
-        fn = decl_named(nodes[f].t, D_FN)
-    }
-    var p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1
-    if fn < 0 || p < 0 || nodes[p].next >= 0 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
-        var m = me.copy()
-        m += " takes a function of one parameter, a value, with a result"
-        gen_error(n, m.cstr)
-        return 0 - 1
-    }
-    if nodes[p].ty != ey {
-        var m = me.copy()
-        m += " calls its function with each value, "
-        let ew:String = kelvin_type_text(ey)
-        m += &ew
-        m += ", and this takes "
-        let pw:String = kelvin_type_text(nodes[p].ty)
-        m += &pw
-        gen_error(n, m.cstr)
-        return 0 - 1
-    }
-    if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag == 1 {
-        let e:int64 = nodes[nodes[nodes[f].b].a].a      // as kelvinc's: what an anonymous filter's one expression gives
-        var m = me.copy()
-        m += " looks for what its function says true for, a bool, and this "
-        if nodes[e].kind == N_NUM {
-            m += "is a number: write 'true' or 'false'"
-        } else {
-            m += "gives "
-            if nodes[e].kind == N_BIN {
-                m += "a number"
-            } else {
-                let rw:String = kelvin_type_text(nodes[fn].ty)
-                m += &rw
-            }
-            m += ": compare it, as in 'x != 0'"
-        }
-        gen_error(n, m.cstr)
-        return 0 - 1
-    }
-    if !is_map && types[nodes[fn].ty].kind != Y_BOOL {
-        var m = me.copy()
-        m += " takes a function that says whether to keep a value, a bool, and this gives "
-        let rw:String = kelvin_type_text(nodes[fn].ty)
-        m += &rw
-        gen_error(n, m.cstr)
-        return 0 - 1
-    }
+    let fn:int64 = lazy_fn_of(n, ey, is_map, &me)
+    if fn < 0 { return 0 - 1 }
     let tag:int64 = lazies.count as int64 + 1
     var sname = $"_kv_lazy"
     sname += String(tag)
@@ -3930,6 +3955,8 @@ struct iter_rec {
     state_y: int64
     fn: int64
     iter_y: int64
+    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328)
+    src: int64              // the state's expression: the state, or the Iterator made lazy
 }
 
 var iters:$[iter_rec]
@@ -4050,10 +4077,39 @@ let iter_of(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    let r:iter_rec = {n, sy, fn, type_of_kind(Y_ITER, ey, -1)}
+    let r:iter_rec = {n, sy, fn, type_of_kind(Y_ITER, ey, -1), 0, nodes[n].a}
     iters += r
     iter_at[n] = iters.count as int64 - 1
     return iters.count as int64 - 1
+}
+
+// the Iterator it.lazy.map(f) or it.lazy.filter(f), n, makes of an
+// Iterator<T> (#328), as kelvinc's #327: its state the Iterator, moved in;
+// -1 where n is none
+let iter_lazy_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || !(tok_is(nodes[n].t, "map") || tok_is(nodes[n].t, "filter")) { return 0 - 1 }
+    let a:int64 = nodes[n].a
+    if nodes[a].kind != N_FIELD || !tok_is(nodes[a].t, "lazy") { return 0 - 1 }
+    let seen = iter_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let by:int64 = type_of(nodes[a].a)
+    if by < 0 || types[by].kind != Y_ITER { return 0 - 1 }
+    let is_map = tok_is(nodes[n].t, "map")
+    var me = $"'.lazy."
+    me += tok_text(nodes[n].t)
+    me += "'"
+    let ey:int64 = types[by].elem
+    let fn:int64 = lazy_fn_of(n, ey, is_map, &me)
+    if fn < 0 { return 0 - 1 }
+    let uy:int64 = is_map ? nodes[fn].ty : ey
+    let r:iter_rec = {n, by, fn, type_of_kind(Y_ITER, uy, -1), is_map ? 1 : 2, nodes[a].a}
+    iters += r
+    iter_at[n] = iters.count as int64 - 1
+    return iters.count as int64 - 1
+}
+
+let iter_lazy_type_of(n:int64):int64 {
+    return iters[iter_lazy_of(n)].iter_y
 }
 
 let iter_type_of(n:int64):int64 {
@@ -4065,9 +4121,13 @@ let iter_type_of(n:int64):int64 {
 // Iterator(state) { ... } (#326): the state moved to the heap, as kelvinc's
 let gen_iter_make(n:int64) {
     let i = iter_of(n)
-    if i < 0 { return }
+    if i >= 0 { gen_iter_value(i) }
+}
+
+// an Iterator's value, iters[i]'s: its state, or the Iterator made lazy, moved to the heap (#326, #328)
+let gen_iter_value(i:int64) {
     let sy:int64 = iters[i].state_y
-    let a:int64 = nodes[n].a
+    let a:int64 = iters[i].src
     put("({ ")
     put_ctype(sy)
     put(" *_kv_is = kv_alloc(sizeof *_kv_is); *_kv_is = ")
@@ -4102,6 +4162,51 @@ let put_iter_adapters(heads:bool) {
         put("_next(void *_kv_s, void *_kv_out)")
         if heads {
             put(";\n")
+        } else if r.op != 0 {                         // it.lazy.map(f), .filter(f) (#328), as kelvinc's #327
+            let ey:int64 = types[r.state_y].elem
+            let in_y:int64 = optional_of(ey)
+            let out_y:int64 = optional_of(types[r.iter_y].elem)
+            put("\n{\n    for (;;) {\n        ")
+            put_ctype(in_y)
+            put(" _kv_o;\n        kv_iter_next((kv_iter *)_kv_s, &_kv_o);\n        if (_kv_o.tag != ")
+            put_int(some_tag(in_y))
+            put(") {\n            *(")
+            put_ctype(out_y)
+            put(" *)_kv_out = _kv_")
+            put_tok(types[out_y].name)
+            put("_make_none();\n            return;\n        }\n        ")
+            if r.op == 1 {
+                put_ctype(types[r.iter_y].elem)
+                put(" _kv_v = ")
+            } else {
+                put("if (")
+            }
+            put_fn_name(r.fn)
+            put("(")
+            if is_owner(ey) {
+                put_owner_prefix(ey)
+                put("_copy(&_kv_o.u.some)")
+            } else {
+                put("_kv_o.u.some")
+            }
+            put(r.op == 1 ? ");\n" : ")) {\n            *(")
+            if r.op == 2 {
+                put_ctype(out_y)
+                put(" *)_kv_out = _kv_o;\n            return;\n        }\n")
+            }
+            if is_owner(ey) {
+                put("        ")
+                put_free(ey)
+                put("(&_kv_o.u.some);\n")
+            }
+            if r.op == 1 {
+                put("        *(")
+                put_ctype(out_y)
+                put(" *)_kv_out = _kv_")
+                put_tok(types[out_y].name)
+                put("_make_some(_kv_v);\n        return;\n")
+            }
+            put("    }\n}\n\n")
         } else {
             put("\n{\n    *(")
             put_ctype(nodes[r.fn].ty)

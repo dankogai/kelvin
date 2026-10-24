@@ -6806,3 +6806,15 @@ own `map` and `filter` are eager, so a chain writes `.lazy` again.
 Details are provisional P339.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 373. kc's Iterator lazy map and filter
+
+> teach kc Iterator lazy map and filter as #328
+
+**Claude** taught kc an Iterator's `it.lazy.map(f)` and
+`it.lazy.filter(f)` as kelvinc writes them: an Iterator of the Iterator,
+moved in, calling `f` as each value is asked for, with kelvinc's errors
+in its words; a function trailing a method call's parentheses is now its
+last argument. Details are provisional P340.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

@@ -836,6 +836,16 @@ let parse_steps(first:int64):int64 {
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
                 set_b(n, parse_args())
+                if anon_ahead() {                        // x.m(a) { ... }: a function trailing, the last argument (#328)
+                    let an:int64 = parse_anon()
+                    if nodes[n].b < 0 {
+                        nodes[n].b = an
+                    } else {
+                        var last:int64 = nodes[n].b
+                        while nodes[last].next >= 0 { last = nodes[last].next }
+                        nodes[last].next = an
+                    }
+                }
                 e = n
             } else if (tok_is(t, "map") || tok_is(t, "filter")) && anon_ahead() {   // x.map { ... }, its function trailing (#324)
                 let n:int64 = make_node(N_METHOD, t)

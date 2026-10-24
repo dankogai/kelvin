@@ -354,7 +354,7 @@ let main():int32 {
   `.lazy.map` and `.lazy.filter` (#324) and `Iterator<T>` (#326), and the
   eager `map`, `filter`, `reduce` and `flatMap` wait, where kc's
   anonymous functions do not go yet.
-- **kc's `it.lazy.map` and `it.lazy.filter`** of an Iterator (#327).
+- kc reads an Iterator's `it.lazy.map` and `it.lazy.filter` (#328).
 
 ## What each takes and gives
 
