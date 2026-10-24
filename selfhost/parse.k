@@ -32,7 +32,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_COND,     // a ? b : c (#232); t the ?
     N_ASYNC,    // async a, a call on a thread of its own (#313)
     N_AWAIT,    // await a, a Task's value (#313)
-    N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0
+    N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
     // statements
     S_VAR,      // t:ty = a
@@ -529,6 +529,18 @@ let set_ahead():bool {
 let parse_statement():int64    // prototypes: an anonymous function asks them (#324)
 let parse_typed(is_let:int64):int64
 
+// whether the tokens from i are names, by commas, then `in`: the
+// parameters of an anonymous function named without their types (#330)
+let names_in_ahead(i0:int64):bool {
+    var i:int64 = i0
+    while toks[i].kind == T_ID {
+        if tok_is(i + 1, "in") { return true }
+        if !tok_is(i + 1, ",") { return false }
+        i += 2
+    }
+    return false
+}
+
 // whether the { at the cursor begins an anonymous function (#324), as
 // kelvinc tells one: { (x:T):R in ... }, or a body that names $0
 let anon_ahead():bool {
@@ -536,6 +548,7 @@ let anon_ahead():bool {
     var i:int64 = pos + 1
     while toks[i].kind == T_NL { i += 1 }
     if tok_is(i, "(") && toks[i + 1].kind == T_ID && tok_is(i + 2, ":") { return true }
+    if names_in_ahead(i) { return true }                // { v in ... }, { acc, v in ... } (#330)
     var depth:int64 = 0
     while toks[i].kind != T_EOF {
         if tok_is(i, "{") || tok_is(i, "${") { depth += 1 }
@@ -572,6 +585,21 @@ let parse_anon():int64 {
         if at_word(":") {
             advance()
             set_ty(n, parse_type())
+        }
+        expect("in")
+    } else if names_in_ahead(pos) {                      // { v in ... }: named, typed by where it goes (#330)
+        nodes[n].flag = 2
+        var last = -1
+        while !at_word("in") && !failed {
+            let p:int64 = make_node(S_VAR, advance())
+            nodes[p].flag = 1
+            if last < 0 {
+                nodes[n].a = p
+            } else {
+                nodes[last].next = p
+            }
+            last = p
+            if at_word(",") { advance() }
         }
         expect("in")
     } else {

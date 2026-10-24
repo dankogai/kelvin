@@ -6831,3 +6831,14 @@ functions taking `$0` and `$1`, with kelvinc's errors in its words.
 Dictionaries' and Sets' wait. Details are provisional P341.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 375. kc's Dictionary and Set map, filter, reduce and flatMap
+
+> teach kc Dictionary and Set map, filter, reduce and flatMap as #330
+
+**Claude** taught kc a Dictionary's and a Set's `map`, `filter`,
+`reduce` and `flatMap` as kelvinc writes them, and anonymous functions
+whose parameters are named, `{ v in v * 2 }`, with kelvinc's errors in
+its words; the WithKey methods wait. Details are provisional P342.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

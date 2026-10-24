@@ -257,7 +257,13 @@ kc reads what it is written in, and little more.
     reduce's value so far moves in and out; flatMap's Arrays are joined.
   - A function of another shape, a filter that gives no bool, and a
     flatMap whose function gives no Array are kelvinc's errors.
-  - Dictionaries' and Sets' wait for a later number.
+  - **A Dictionary's and a Set's** (#330), as kelvinc's #238, #307 and
+    #308: a Dictionary's of its values, map keeping the keys, filter
+    the entries it keeps, flatMap the Dictionaries merged, a later entry
+    winning; a Set's of its elements, map a Set of integers or Strings,
+    flatMap the Sets unioned.
+  - Its parameters may be named, `{ v in v * 2 }`, `{ acc, v in ... }`,
+    typed by where it goes (#330), as kelvinc's (#236).
 - **An Iterator's lazy map and filter** (#328), as kelvinc's #327:
   `it.lazy.map(f)` and `it.lazy.filter(f)` of an `Iterator<T>` give an
   `Iterator<U>` of it, moved in, whose adapter `_kv_iterN_next` asks it

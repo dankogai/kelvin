@@ -3710,6 +3710,24 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
             }
             last = p
         }
+    } else if nodes[an].flag == 2 {                    // { v in ... }: each named, typed by where it goes (#330)
+        nodes[d].a = nodes[an].a
+        var p:int64 = nodes[d].a
+        var k:int64 = 0
+        while p >= 0 {
+            if k < ps^.count as int64 { nodes[p].ty = ps^[k] }
+            k += 1
+            p = nodes[p].next
+        }
+        if k != ps^.count as int64 {                     // as kelvinc says it
+            var m = $"this function names "
+            m += String(k)
+            m += k == 1 ? $" parameter" : $" parameters"
+            m += ", and it is called with "
+            m += String(ps^.count as int64)
+            gen_error(an, m.cstr)
+            return 0 - 1
+        }
     } else {
         nodes[d].a = nodes[an].a
     }
@@ -3775,7 +3793,7 @@ let lazy_fn_of(n:int64, ey:int64, is_map:bool, me:const String^):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag == 1 {
+    if !is_map && types[nodes[fn].ty].kind != Y_BOOL && nodes[f].kind == N_ANON && nodes[f].flag != 0 {
         let e:int64 = nodes[nodes[nodes[f].b].a].a      // as kelvinc's: what an anonymous filter's one expression gives
         var m = me^.copy()
         m += " looks for what its function says true for, a bool, and this "
@@ -4309,7 +4327,8 @@ let eager_of(n:int64):int64 {
     if names_type(a) || method_of(n) >= 0 { return 0 - 1 }      // a method of its own wins
     let y:int64 = type_of(a)
     if y < 0 || is_lazy_type(y) && kind <= 2 { return 0 - 1 }    // a lazy Sequence's map and filter are lazy (#324)
-    let ey:int64 = walked_elem(y)
+    let yk:ykind = types[y].kind
+    let ey:int64 = yk == Y_DICT || yk == Y_SET ? types[y].elem : walked_elem(y)   // a Dictionary's values, a Set's elements (#330)
     if ey < 0 { return 0 - 1 }
     var me = $"'."
     me += tok_text(t)
@@ -4372,7 +4391,7 @@ let eager_of(n:int64):int64 {
     let ry:int64 = nodes[fn].ty
     if kind == 2 && types[ry].kind != Y_BOOL {
         var m = me.copy()
-        if nodes[f].kind == N_ANON && nodes[f].flag == 1 {      // as kelvinc's (#239)
+        if nodes[f].kind == N_ANON && nodes[f].flag != 0 {      // as kelvinc's (#239), named too (#330)
             let e:int64 = nodes[nodes[nodes[f].b].a].a
             m += " keeps what its function says true for, a bool, and this "
             if nodes[e].kind == N_NUM {
@@ -4404,18 +4423,32 @@ let eager_of(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    if kind == 4 && types[ry].kind != Y_ARRAY {
+    let whole:ykind = yk == Y_DICT || yk == Y_SET ? yk : Y_ARRAY   // what flatMap's function gives, and joins
+    if kind == 4 && types[ry].kind != whole {
         var m = me.copy()
-        m += " of an Array takes a function that gives an Array, and joins them into one; this gives "
+        let what = whole == Y_DICT ? $"a Dictionary" : whole == Y_SET ? $"a Set" : $"an Array"
+        m += " of "
+        m += &what
+        m += " takes a function that gives "
+        m += &what
+        m += ", and joins them into one; this gives "
         let rw:String = kelvin_type_text(ry)
         m += &rw
         m += ", which '.map' takes"
         gen_error(n, m.cstr)
         return 0 - 1
     }
+    if kind == 1 && yk == Y_SET && types[ry].kind != Y_STRING && types[ry].kind != Y_I64 && types[ry].kind != Y_I32 && types[ry].kind != Y_U8 && types[ry].kind != Y_U32 {
+        var m = $"'.map' of a Set makes a Set, whose elements are integers or Strings, and this gives "   // as kelvinc's (#307)
+        let rw:String = kelvin_type_text(ry)
+        m += &rw
+        m += ": map its elements, 's.elements.map'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
     var out:int64 = ry
-    if kind == 1 { out = type_of_kind(Y_ARRAY, ry, -1) }
-    if kind == 2 { out = type_of_kind(Y_ARRAY, ey, -1) }
+    if kind == 1 { out = yk == Y_DICT ? type_of_kind(Y_DICT, ry, types[y].name) : yk == Y_SET ? type_of_kind(Y_SET, ry, -1) : type_of_kind(Y_ARRAY, ry, -1) }
+    if kind == 2 { out = yk == Y_DICT || yk == Y_SET ? y : type_of_kind(Y_ARRAY, ey, -1) }
     let r:eager_rec = {n, kind, a, y, ey, fn, out}
     eagers += r
     eager_at[n] = eagers.count as int64 - 1
@@ -4490,8 +4523,14 @@ let put_eager_arg(ey:int64) {
 // xs.map(f) and the rest (#329): a loop over the elements in a statement
 // expression, as kelvinc's; an Array an expression gives, or the values
 // of an iterator, held in _kv_mt and freed
+let gen_eager_keyed(n:int64)    // a prototype: a Dictionary's and a Set's (#330)
+
 let gen_eager(n:int64) {
     let r:eager_rec = eagers[eager_of(n)]
+    if types[r.src_y].kind == Y_DICT || types[r.src_y].kind == Y_SET {
+        gen_eager_keyed(n)
+        return
+    }
     let ay:int64 = types[r.src_y].kind == Y_ARRAY ? r.src_y : type_of_kind(Y_ARRAY, r.elem_y, -1)
     if types[r.src_y].kind != Y_ARRAY && sequence_maker(r.src_y) < 0 && changeable_place(r.src) {   // walking an iterator changes it; a Sequence's walk is a fresh one
         let lead = $"walking an iterator changes it, as its var next() does, and this changes "
@@ -4571,6 +4610,141 @@ let gen_eager(n:int64) {
         put_array_name(r.out_y)
         put("_free(&_kv_mr); } _kv_mo; })")
     }
+}
+
+// the key of a Dictionary's entry, or a Set's element, at expression at,
+// as its _set and _insert take it: a String's text, an integer itself
+let put_key_text(ky:int64, at:cstr) {
+    put(types[ky].kind == Y_STRING ? "KV_LK_TEXT(&" : "KV_LK_INT(&")
+    put(at)
+    put(")")
+}
+
+// d.map(f) and the rest of a Dictionary, s.map(f) and the rest of a Set
+// (#330), as kelvinc's #238, #307 and #308: a loop over the live entries,
+// in the order added, f given a copy of each value or element that owns;
+// one an expression gives held in _kv_mt and freed
+let gen_eager_keyed(n:int64) {
+    let r:eager_rec = eagers[eager_of(n)]
+    let y:int64 = r.src_y
+    let dict = types[y].kind == Y_DICT
+    let ky:int64 = dict ? types[y].name : types[y].elem
+    let at:cstr := dict ? "_kv_ms->at[_kv_mi].value" : "_kv_ms->at[_kv_mi].key"
+    put("({ ")
+    if is_place(r.src) {
+        put("__auto_type _kv_ms = &(")
+        gen_expr(r.src)
+        put("); ")
+    } else {
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+        put_ctype(y)
+        put(" _kv_mt = ")
+        gen_expr(r.src)
+        put("; ")
+        put_ctype(y)
+        put(" *_kv_ms = &_kv_mt; ")
+    }
+    if r.kind == 3 {
+        let init:int64 = nodes[n].b
+        put_ctype(r.out_y)
+        put(" _kv_acc = ")
+        if is_owner(r.out_y) && nodes[init].kind == N_ID && var_type(nodes[init].t) >= 0 {
+            put_owner_prefix(r.out_y)
+            put("_take(&")
+            put_tok(nodes[init].t)
+            put(")")
+        } else {
+            gen_expr(init)
+        }
+        put("; ")
+    } else {
+        put_ctype(r.out_y)
+        put(" _kv_mo = {0}; ")
+        if r.kind == 1 {
+            put_owner_prefix(r.out_y)
+            put("_reserve(&_kv_mo, _kv_ms->count); ")
+        }
+    }
+    put("for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live) { ")
+    if r.kind == 3 {
+        put("_kv_acc = ")
+    } else if r.kind == 1 {
+        put_ctype(types[r.out_y].elem)
+        put(" _kv_mv = ")
+    } else if r.kind == 2 {
+        put("if (")
+    } else {
+        put_ctype(r.out_y)
+        put(" _kv_mr = ")
+    }
+    put_fn_name(r.fn)
+    put(r.kind == 3 ? "(_kv_acc, " : "(")
+    if is_owner(r.elem_y) {
+        put_owner_prefix(r.elem_y)
+        put("_copy(&")
+        put(at)
+        put(")")
+    } else {
+        put(at)
+    }
+    put(r.kind == 2 ? ")) " : "); ")
+    if r.kind == 1 && dict {                             // the same key, f's value
+        put_owner_prefix(r.out_y)
+        put("_set(&_kv_mo, ")
+        put_key_text(ky, "_kv_ms->at[_kv_mi].key")
+        put(", _kv_mv); ")
+    } else if r.kind == 1 {                              // what f gives, a new Set's element, a String's text
+        put_owner_prefix(r.out_y)
+        put("_insert(&_kv_mo, ")
+        put_key_text(types[r.out_y].elem, "_kv_mv")
+        put(types[types[r.out_y].elem].kind == Y_STRING ? "); kv_string_free(&_kv_mv); " : "); ")
+    } else if r.kind == 2 && dict {                      // the entry f keeps, its value a copy
+        put_owner_prefix(y)
+        put("_set(&_kv_mo, ")
+        put_key_text(ky, "_kv_ms->at[_kv_mi].key")
+        put(", ")
+        if is_owner(r.elem_y) {
+            put_owner_prefix(r.elem_y)
+            put("_copy(&")
+            put(at)
+            put(")")
+        } else {
+            put(at)
+        }
+        put("); ")
+    } else if r.kind == 2 {
+        put_owner_prefix(y)
+        put("_insert(&_kv_mo, ")
+        put_key_text(ky, "_kv_ms->at[_kv_mi].key")
+        put("); ")
+    } else if r.kind == 4 && dict {                      // each Dictionary f gives merged in, a later entry winning
+        let rv:int64 = types[r.out_y].elem
+        put("for (size_t _kv_mj = 0; _kv_mj < _kv_mr.len; _kv_mj++) if (_kv_mr.at[_kv_mj].live) ")
+        put_owner_prefix(r.out_y)
+        put("_set(&_kv_mo, ")
+        put_key_text(types[r.out_y].name, "_kv_mr.at[_kv_mj].key")
+        put(", ")
+        if is_owner(rv) {
+            put_owner_prefix(rv)
+            put("_copy(&_kv_mr.at[_kv_mj].value)")
+        } else {
+            put("_kv_mr.at[_kv_mj].value")
+        }
+        put("); ")
+        put_free(r.out_y)
+        put("(&_kv_mr); ")
+    } else if r.kind == 4 {                              // each Set f gives unioned in
+        put("for (size_t _kv_mj = 0; _kv_mj < _kv_mr.len; _kv_mj++) if (_kv_mr.at[_kv_mj].live) ")
+        put_owner_prefix(r.out_y)
+        put("_insert(&_kv_mo, ")
+        put_key_text(types[r.out_y].elem, "_kv_mr.at[_kv_mj].key")
+        put("); ")
+        put_free(r.out_y)
+        put("(&_kv_mr); ")
+    }
+    put(r.kind == 3 ? "} _kv_acc; })" : "} _kv_mo; })")
 }
 
 // for x in it (#320), as kelvinc's #318: next() into a hidden Optional

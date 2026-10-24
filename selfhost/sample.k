@@ -485,5 +485,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let digits_list:$[int64] = $[3, 1, 4, 1, 5]           // eager map, filter, reduce and flatMap (#329)
     println(digits_list.map { $0 * 10 }, " ", digits_list.filter(is_odd), " ", digits_list.reduce(0) { $0 + $1 }, " ", digits_list.flatMap { $[$0, $0] })
     println(span6.map { $0 + 1 }, " ", fib_upto(30).filter({ $0 > 2 }).map({ $0 * $0 }), " ", count_from(4).reduce(0) { $0 + $1 })
+    println(stock.map { v in v * 10 }, " ", stock.filter { v in v > 3 }, " ", stock.reduce(0) { acc, v in acc + v })   // a Dictionary's and a Set's (#330)
+    println(digit_set.map { $0 % 3 }, " ", digit_set.filter(is_odd), " ", digit_set.reduce(0) { acc, e in acc + e })
     return 0
 }
