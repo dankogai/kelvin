@@ -6970,3 +6970,17 @@ an Optional that owns, as `xs = $[$"x"]`, wrote C that named a
 temporary it had not declared. Details are provisional P353.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 387. kc's Array contains, firstIndex and lastIndex
+
+> teach kc Array contains, firstIndex and lastIndex as #342
+
+**Claude** taught kc an Array's `contains`, `firstIndex` and
+`lastIndex`, as kelvinc's #248, by the path a Dictionary's took in
+#339: whether an element is there, and the index of the first or the
+last, an `i64?`, of a value by `==` or of a function. kelvinc's errors
+are in its words, and a Dictionary's name on an Array is one. Not yet
+kc's: Optional elements by `==`. Found on the way: kc reads
+`{ (x ?? 0) > 2 }` as parameters. Details are provisional P354.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

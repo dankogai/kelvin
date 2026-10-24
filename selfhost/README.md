@@ -372,6 +372,19 @@ kc reads what it is written in, and little more.
   - kelvinc's errors, in its words: two of different types; elements or
     values with no `==`, a Set or a struct.
   - An enum with values in them is kc's error: not yet.
+- **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
+  a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
+  first or the last equal to `x`, an `i64?`, or `none`.
+  - `x` is compared by the elements' `==`; of a function,
+    `xs.firstIndex { $0 > 2 }`, the elements it says true for, given a
+    copy of one that owns.
+  - `x` is looked at, not moved; one an expression gives is held and
+    freed after, as is an Array an expression gives.
+  - kelvinc's errors, in its words, as of a Dictionary's (#339): an
+    Array's `firstKey` is `an Array has no '.firstKey': it is a
+    Dictionary's; an Array's is '.firstIndex'`, a Dictionary's
+    `firstIndex` the other way.
+  - Optional elements compared by `==` are kc's error: not yet.
 - **An Array, a Dictionary or a Set has no arithmetic** (#287), as
   kelvinc has it, in its words: `xs + 2`, `2 + xs`, `d < d2`, `s - t`,
   `an Array has no operator '+': compare its elements`, a Dictionary's

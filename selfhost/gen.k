@@ -5133,12 +5133,14 @@ let put_merge_value(vy:int64) {
     }
 }
 
-// ---------- a Dictionary's contains, firstKey and lastKey (#339) ----------
+// ---------- searching an Array or a Dictionary (#339, #342) ----------
 
 // d.contains(v), d.firstKey(v), d.lastKey(v), as kelvinc's #249: whether
 // v is among the values, by their ==, and the key of the first or the
 // last in the order added, a K?; of a function, the values it says true
-// for, and WithKey of each key and its value
+// for, and WithKey of each key and its value. xs.contains(x),
+// xs.firstIndex(x), xs.lastIndex(x), as kelvinc's #248, the same of an
+// Array's elements, the index an i64? (#342)
 struct search_rec {
     node: int64
     fn: int64               // the function, or -1 of a value v
@@ -5149,7 +5151,7 @@ var searches:$[search_rec]
 var search_at:Dictionary<int64, int64>
 
 let is_search_name(t:int64):bool {
-    return tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey")
+    return tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "firstIndex") || tok_is(t, "lastIndex")
 }
 
 // a function's type as kelvinc writes it, (i64, i64):bool
@@ -5190,11 +5192,31 @@ let search_of(n:int64):int64 {
     if !is_search_name(t) { return 0 - 1 }
     let a:int64 = nodes[n].a
     let dy:int64 = type_of(a)
-    if dy < 0 || types[dy].kind != Y_DICT { return 0 - 1 }
+    if dy < 0 || (types[dy].kind != Y_DICT && types[dy].kind != Y_ARRAY) { return 0 - 1 }
+    let dict = types[dy].kind == Y_DICT
     let with_key = tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey")
+    let index_name = tok_is(t, "firstIndex") || tok_is(t, "lastIndex")
+    if dict ? index_name : !index_name && !tok_is(t, "contains") {   // the other's name, as kelvinc's
+        var m = dict ? $"a Dictionary has no '." : $"an Array has no '."
+        m += tok_text(t)
+        m += dict ? $"': its values are found by key, '." : $"': it is a Dictionary's; an Array's is '."
+        let first = tok_is(t, "firstKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "firstIndex")
+        if tok_is(t, "containsWithKey") {
+            m += "contains"
+        } else if dict {
+            m += first ? $"firstKey" : $"lastKey"
+        } else {
+            m += first ? $"firstIndex" : $"lastIndex"
+        }
+        m += "'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    let each = dict ? $"value" : $"element"
+    let an_each = dict ? $"a value" : $"an element"
     let vy:int64 = types[dy].elem
-    let ky:int64 = types[dy].name
-    let kt:int64 = types[ky].kind == Y_STRING ? base_type(Y_CSTR) : ky   // a String key's text, lent, as #331's
+    let ky:int64 = dict ? types[dy].name : 0 - 1
+    let kt:int64 = !dict ? 0 - 1 : types[ky].kind == Y_STRING ? base_type(Y_CSTR) : ky   // a String key's text, lent, as #331's
     var me = $"'."
     me += tok_text(t)
     me += "'"
@@ -5206,7 +5228,9 @@ let search_of(n:int64):int64 {
             m += tok_text(t)
             m += " { k, v in ... }'"
         } else {
-            m += " takes the value to look for, '."
+            m += " takes the "
+            m += &each
+            m += " to look for, '."
             m += tok_text(t)
             m += "(x)', or a function that says which, '."
             m += tok_text(t)
@@ -5217,7 +5241,13 @@ let search_of(n:int64):int64 {
     }
     if nodes[f].next >= 0 {
         var m = me.copy()
-        m += nodes[nodes[f].next].kind == N_ANON ? $" takes one function, and this would be a second" : $" takes one value to look for, or one function"
+        if nodes[nodes[f].next].kind == N_ANON {
+            m += " takes one function, and this would be a second"
+        } else {
+            m += " takes one "
+            m += &each
+            m += " to look for, or one function"
+        }
         gen_error(n, m.cstr)
         return 0 - 1
     }
@@ -5251,13 +5281,19 @@ let search_of(n:int64):int64 {
                 return 0 - 1
             }
             var m = me.copy()
-            m += " of Dictionary<"                       // a struct's tagged, as kelvinc names it
-            let kw:String = kelvin_type_text(ky)
-            m += &kw
-            m += types[vy].kind == Y_STRUCT ? $", struct " : $", "
             let vw:String = kelvin_type_text(vy)
+            if dict {
+                m += " of Dictionary<"                   // a struct's tagged, as kelvinc names it
+                let kw:String = kelvin_type_text(ky)
+                m += &kw
+                m += types[vy].kind == Y_STRUCT ? $", struct " : $", "
+            } else {
+                m += types[vy].kind == Y_STRUCT ? $" of Array<struct " : $" of Array<"
+            }
             m += &vw
-            m += "> compares the values, and "
+            m += "> compares the "
+            m += &each
+            m += "s, and "
             m += &vw
             m += " has no '==': give a function that says which, '."
             m += tok_text(t)
@@ -5291,7 +5327,13 @@ let search_of(n:int64):int64 {
         }
         if count != ps.count as int64 || nodes[fn].ty < 0 || types[nodes[fn].ty].kind == Y_VOID {
             var m = me.copy()
-            m += with_key ? $" takes a function of two parameters, a key and its value, with a result, and this is " : $" takes a function of one parameter, a value, with a result, and this is "
+            if with_key {
+                m += " takes a function of two parameters, a key and its value, with a result, and this is "
+            } else {
+                m += " takes a function of one parameter, "
+                m += &an_each
+                m += ", with a result, and this is "
+            }
             let w:String = fn_type_text(fn)
             m += &w
             gen_error(f, m.cstr)
@@ -5312,7 +5354,9 @@ let search_of(n:int64):int64 {
         let last_p:int64 = with_key ? nodes[first_p].next : first_p
         if nodes[last_p].ty != vy {
             var m = me.copy()
-            m += " calls its function with each value, "
+            m += " calls its function with each "
+            m += &each
+            m += ", "
             let vw:String = kelvin_type_text(vy)
             m += &vw
             m += ", and this takes "
@@ -5340,7 +5384,13 @@ let search_of(n:int64):int64 {
                     m += ": compare it, as in 'x != 0'"
                 }
             } else {
-                m += with_key ? $" takes a function that says whether a key and its value is the one, a bool, and this gives " : $" takes a function that says whether a value is the one, a bool, and this gives "
+                if with_key {
+                    m += " takes a function that says whether a key and its value is the one, a bool, and this gives "
+                } else {
+                    m += " takes a function that says whether "
+                    m += &an_each
+                    m += " is the one, a bool, and this gives "
+                }
                 let rw:String = kelvin_type_text(ry)
                 m += &rw
             }
@@ -5357,24 +5407,28 @@ let search_of(n:int64):int64 {
 let search_type_of(n:int64):int64 {
     let t:int64 = nodes[n].t
     if tok_is(t, "contains") || tok_is(t, "containsWithKey") { return base_type(Y_BOOL) }
-    return optional_of(types[type_of(nodes[n].a)].name)
+    let dy:int64 = type_of(nodes[n].a)
+    return optional_of(types[dy].kind == Y_DICT ? types[dy].name : base_type(Y_I64))   // an Array's index, an i64? (#342)
 }
 
 // a loop over the live entries, in the order added or from the last, to
 // the first value equal to v, or that f says true for, given a copy of
 // one that owns; contains gives a bool, the others some of a copy of the
 // key or none. A Dictionary an expression gives is held in _kv_mt, and v
-// an owner an expression gives is held too, both freed after
+// an owner an expression gives is held too, both freed after. An Array's
+// the same over its elements, some of the index (#342)
 let gen_search(n:int64) {
     let r:search_rec = searches[search_of(n)]
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
     let dy:int64 = type_of(a)
+    let dict = types[dy].kind == Y_DICT
     let vy:int64 = types[dy].elem
-    let ky:int64 = types[dy].name
+    let ky:int64 = dict ? types[dy].name : 0 - 1
     let v:int64 = nodes[n].b
     let contains = tok_is(t, "contains") || tok_is(t, "containsWithKey")
-    let last = tok_is(t, "lastKey") || tok_is(t, "lastKeyWithKey")
+    let last = tok_is(t, "lastKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "lastIndex")
+    let at:cstr := dict ? "_kv_ms->at[_kv_mi].value" : "_kv_ms->at[_kv_mi]"
     let hold = r.fn < 0 && needs_hold(v)
     if hold { hold_open(v) }
     put("({ ")
@@ -5413,10 +5467,15 @@ let gen_search(n:int64) {
         put_tok(types[ry].name)
         put("_make_none(); ")
     }
-    put(last ? "for (size_t _kv_mi = _kv_ms->len; _kv_mi-- > 0;)" : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++)")
-    put(" if (_kv_ms->at[_kv_mi].live) if (")
+    if dict {
+        put(last ? "for (size_t _kv_mi = _kv_ms->len; _kv_mi-- > 0;)" : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++)")
+        put(" if (_kv_ms->at[_kv_mi].live) if (")
+    } else {
+        put(last ? "for (size_t _kv_mi = _kv_ms->count; _kv_mi-- > 0;)" : "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++)")
+        put(" if (")
+    }
     if r.fn < 0 {
-        put_eq_code(vy, "_kv_ms->at[_kv_mi].value", "_kv_cx")
+        put_eq_code(vy, at, "_kv_cx")
     } else {
         put_fn_name(r.fn)
         put("(")
@@ -5430,9 +5489,11 @@ let gen_search(n:int64) {
         }
         if is_owner(vy) {
             put_owner_prefix(vy)
-            put("_copy(&_kv_ms->at[_kv_mi].value)")
+            put("_copy(&")
+            put(at)
+            put(")")
         } else {
-            put("_kv_ms->at[_kv_mi].value")
+            put(at)
         }
         put(")")
     }
@@ -5442,7 +5503,9 @@ let gen_search(n:int64) {
         put(") { _kv_r = _kv_")
         put_tok(types[ry].name)
         put("_make_some(")
-        if is_owner(ky) {
+        if !dict {
+            put("(int64_t)_kv_mi")
+        } else if is_owner(ky) {
             put_owner_prefix(ky)
             put("_copy(&_kv_ms->at[_kv_mi].key)")
         } else {

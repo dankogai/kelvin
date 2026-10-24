@@ -525,5 +525,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     var marks:Dictionary<String, int64?> = ${"ann": 90, "bob": 70}
     marks["bob"] = none
     println(tag ?? $"untagged", " ", outcome, " ", marks)
+    let rolls:$[int64] = $[3, 6, 2, 6, 1]             // an Array's contains, firstIndex and lastIndex (#342)
+    let names:$[String] = $[$"ann", $"bob", $"ann"]
+    println(rolls.contains(6), " ", rolls.firstIndex(6), " ", rolls.lastIndex(6), " ", rolls.firstIndex { $0 < 3 }, " ", rolls.firstIndex(9) ?? -1)
+    println(names.lastIndex("ann"), " ", names.contains($"bob"), " ", names.firstIndex { n in n.count > 3 }, " ", names.lastIndex { $0.count == 3 })
     return 0
 }
