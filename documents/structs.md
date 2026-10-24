@@ -163,8 +163,7 @@ let main():int32 {
     - So is `static var T.f()`: a function of the type has no self.
   - In C, it takes `T *` and is called by its own name, `T__m(&c,
     ...)`, never dispatched.
-  - An iterator's `next` is one: see
-    [flow-controls.md](flow-controls.md#iterators-for-x-in-it).
+  - An iterator's `next` is one: see [iterators.md](iterators.md).
 - **`.x` is `self.x`** (#139) in a method, an attribute, a setter and a
   subscript: a member, an attribute or a method, `.w * .h`,
   `.scaled(2.0)`, `.is(just)`.
@@ -263,7 +262,7 @@ let main():int32 {
 | | `.size`, `.type`, `.typename` | `sizeof`; the type; its name, or the spelling of one with no tag |
 | | `.method(...)` | a method declared `let T.method()` |
 | | `.method(...)` on a var | a var method declared `var T.method()`, which changes it (#318) |
-| | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318) |
+| | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318); see [iterators.md](iterators.md) |
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |

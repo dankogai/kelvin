@@ -870,6 +870,8 @@ static bool builtin_owner_kind(const char *kind);
 static bool no_value(Expr *e);
 static void reject_valueless_args(Expr *call);
 static void reject_var_method_receiver(Expr *recv, const char *member, Pos pos);
+static Decl *iterator_next(Type *t);
+static Expr *iterator_array(Expr *it, Decl *next, Token *at);
 static Type *optional_type(Token *at, Type *inner);
 static Type *variant_type(Token *at, const char *kind, Type *a, Type *b);
 static Decl *optional_record(Type *t);
@@ -2186,6 +2188,11 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = wrap_temps(x, &held);
                 continue;
             }
+            if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
+                 !strcmp(member, "flatMap")) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement())) &&
+                !method_named(e, member) && iterator_next(value_type(e)))
+                e = iterator_array(e, iterator_next(value_type(e)), name); /* an iterator's (#319) */
             if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
                  !strcmp(member, "flatMap") || with_key) &&
                 value_type(e) &&
@@ -5314,6 +5321,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && !strcmp(e->op, "case_set"))
             return NULL;
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
+            return e->type;
+        if (e->op && !strncmp(e->op, "iter_array", 10)) /* an iterator's values (#319) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -10508,6 +10517,41 @@ static bool changeable_place(Expr *e) {
     return e->kind == E_IDENT || e->kind == E_FIELD || e->kind == E_INDEX || e->kind == E_DEREF;
 }
 
+/* what an iterator's next gives, its Optional's some (#318) */
+static Type *iterator_elem(Decl *next) {
+    Decl *r = variant_record(next->ret);
+    for (int i = 0; r && i < r->members.len; i++) {
+        Var *m = r->members.data[i];
+        if (!strcmp(m->name, "some"))
+            return m->type;
+    }
+    return NULL;
+}
+
+/* it.map, .filter, .reduce, .flatMap (#319): the iterator walked to its
+   end, its values gathered into an Array that the expression gives, which
+   the Array's own method then walks and frees (#183); a var walked so
+   stays at its end, as a for leaves it; at, the method's name */
+static Expr *iterator_array(Expr *it, Decl *next, Token *at) {
+    const char *tn = next->recv_name;
+    if (!next->var_method || next->params.len || !next->ret || !is_optional_type(next->ret))
+        error_at(at->pos, "'.%s' walks an iterator by its next(), a var method that takes nothing and gives each "
+                          "value, then none: write 'var %s.next():T?'",
+                 at->text, tn);
+    if (let_target(it))
+        error_at(at->pos, "'.%s' walks an iterator by its var next(), which changes '%s', a let: declare it with var",
+                 at->text, let_target(it));
+    reject_const_change(it, at->pos);
+    Expr *x = new_expr(E_METHOD, at->pos);
+    x->a = it;
+    x->text = "next";
+    x->op = changeable_place(it) ? "iter_array" : "iter_array_tmp";
+    x->method = next;
+    x->from = unqualified(value_type(it));
+    x->type = array_type(at, iterator_elem(next));
+    return x;
+}
+
 static Stmt *parse_for_each(Stmt *s, Type *written) {
     s->kind = S_FOR_EACH;
     Expr *seq = s->expr;
@@ -10552,12 +10596,7 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
             error_at(seq->pos, "for walks an iterator by its var next(), which changes it, so it is a variable");
         s->each = EACH_ITER;
         s->next = next;
-        Decl *r = variant_record(next->ret);
-        for (int i = 0; i < r->members.len; i++) {
-            Var *m = r->members.data[i];
-            if (!strcmp(m->name, "some"))
-                elem = m->type;
-        }
+        elem = iterator_elem(next);
         if (written && strcmp(kelvin_type(written), kelvin_type(elem)))
             error_at(written->pos, "the loop variable of %s is %s, what its next() gives, not %s", tn,
                      kelvin_type(elem), kelvin_type(written));

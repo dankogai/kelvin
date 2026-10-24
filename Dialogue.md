@@ -6681,3 +6681,18 @@ whose `self` is the caller's var, and `for x in it`, which calls
 provisional P330.
 
 There are 978 tests, and all pass with clang and with gcc 15.
+
+### 364. A document of iterators, and their map, filter, reduce, flatMap
+
+> iterator deserves a document of its own. write `iterators.md`. And
+> since it is a sequence it should be equipped with `.map`,`.filter`,
+> `.reduce`, and `.flatmap`.
+
+**Claude** wrote documents/iterators.md, and gave an iterator `map`,
+`filter`, `reduce` and `flatMap`, as Kelvin spells it elsewhere: eager,
+as Swift's `Sequence` methods are, each walking the iterator to its end
+and giving what an Array's gives. The values are gathered into an Array
+first, so every `next()` runs before the first function. Details are
+provisional P331.
+
+There are 981 tests, and all pass with clang and with gcc 15.

@@ -1241,6 +1241,23 @@ static char *expr_bare(Expr *e) {
                                                                   : strfmt("%s_copy(&(%s))", e->from->cname, expr(e->a));
             return strfmt("({ %s _kv_so = %s; %s; _kv_so; })", e->from->cname, init, strfmt(sort, "&_kv_so"));
         }
+        if (e->op && !strncmp(e->op, "iter_array", 10)) {
+            /* an iterator's values (#319), next() to none, each some moved
+               into a new Array; one an expression gives is held and freed */
+            Decl *r = kelvin_record(e->method->ret->name);
+            int some = 0;
+            for (int i = 0; i < r->members.len; i++)
+                if (!strcmp(((Var *)r->members.data[i])->name, "some"))
+                    some = i;
+            const char *f = owner_free(e->from);
+            const char *head = !strcmp(e->op, "iter_array_tmp")
+                                   ? strfmt("%s%s _kv_iv = (%s); __auto_type _kv_ip = &_kv_iv;",
+                                            f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a))
+                                   : strfmt("__auto_type _kv_ip = &(%s);", expr(e->a));
+            return strfmt("({ %s %s _kv_ia = {0}; for (;;) { %s _kv_io = %s(_kv_ip); if (_kv_io.tag != %d) break; "
+                          "%s_append(&_kv_ia, _kv_io.u.some); } _kv_ia; })",
+                          head, e->type->cname, decl(e->method->ret, ""), method_cname(e->method), some, e->type->cname);
+        }
         if (e->op && e->type && (!strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
                                  !strncmp(e->op, "array_reduce", 12) || !strncmp(e->op, "array_flatMap", 13))) {
             /* xs.map(f) (#182), xs.filter(f), xs.reduce(init, f) (#184): a loop

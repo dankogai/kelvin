@@ -350,6 +350,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 316 | kelvinc refuses an argument it sees has no value: a call of a function, method or function value with no result, C's `print` and `println`, a built-in method with none, as `f.print(...)` or `xs.clear()`, and `await t` of a Task with none, where C's compiler said `passing 'void'` | — | `println(tell(1))` is an error | 2026-10-24 |
 | 317 | kc refuses an argument it sees has no value, as kelvinc's #316, in its words: a call of a function or method with no result, `print` and `println`, a built-in method with none and `await` of a Task with none, given to a call, a method or `async` | — | kc's `println(tell(1))` is an error | 2026-10-24 |
 | 318 | Swift's iterators: `for x in it` walks a value whose `var T.next():E?` gives each value, then `none`; a var method, `var T.m(...)`, and `var m(...)` in `extend`, has the caller's var as its `self`, as a setter has, and is called on a var | — | `for x in from(3)` gives 3, 2, 1 | 2026-10-24 |
+| 319 | An iterator's `map`, `filter`, `reduce` and `flatMap`, Swift's `Sequence` methods, eager: the iterator walked to `none`, its values gathered into an Array that the Array's own method walks and frees; documents/iterators.md, a document of its own | — | `from(4).map { $0 * 10 }` is `[40, 30, 20, 10]` | 2026-10-24 |
 
 Notes:
 
@@ -911,6 +912,31 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (319) Agreed details: "iterator deserves a document of its own.
+  write `iterators.md`. And since it is a sequence it should be
+  equipped with `.map`, `.filter`, `.reduce`, and `.flatmap`."
+  - `flatMap`, as Kelvin spells it on an Array, a Dictionary, a Set,
+    an Optional and a Result (#81, #308), for the user's `.flatmap`.
+  - Eager, as Swift's `Sequence` methods are: each gives what an
+    Array's gives, an `Array<U>`, an `Array<E>`, a value.
+  - iterator_array makes an E_METHOD, op iter_array (a place) or
+    iter_array_tmp (an expression, held and freed by cleanup where it
+    owns), typed `Array<E>`: next() to none, each some moved in by
+    `_append`. It is an Array an expression gives, so the Array's map,
+    filter, reduce and flatMap (#182, #184, #308) walk it and free it
+    (#183), and their rules, a lent or copied element (#244) and
+    chaining, come as they are.
+    - So every next() runs before the first f, where Swift's take
+      turns; iterators.md says so.
+  - The receiver is changed as for's is: a var is left at its end, a
+    let or a const borrow is an error, and a `next` of another shape is
+    an error that names `var T.next():T?`; a method of the iterator's
+    own of the name wins.
+  - documents/iterators.md holds #318 and #319; flow-controls.md keeps
+    a paragraph that points to it, and the indexes list it.
+  - tests/run/iterator_methods.k; tests/error/iterator_map_let.k,
+    iterator_map_next.k.
 
 - (318) Agreed details: "add Swift-style iterators as #318", after the
   user chose `var T.next()` for a method that changes its self, Kelvin's
@@ -3730,6 +3756,7 @@ says "as agreed".
 | P328 | Details of #316 | src/parser.c: no_value of a built-in method, reject_valueless_args in each postfix step; tests: error/arg_no_value.k, arg_builtin_no_value.k, arg_method_no_value.k, arg_await_no_value.k; documents/functions.md | — |
 | P329 | Details of #317 | selfhost/gen.k: builtin_no_value, no_value of a method, start_of, refuse_valueless_args in gen_call, gen_method_of, gen_async; selfhost/README.md | — |
 | P330 | Details of #318 | src/kelvin.h: var_method, EACH_ITER, Stmt.next; src/parser.c: var methods, iterator_next, the loop; src/codegen.c: the self pointer and the loop; editors/vscode grammar; tests; documents/structs.md, flow-controls.md | kc reads neither yet |
+| P331 | Details of #319 | src/parser.c: iterator_elem, iterator_array, the hook before the Array methods; src/codegen.c: iter_array; documents/iterators.md, flow-controls.md, structs.md, README.md, versusC.md; tests | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
