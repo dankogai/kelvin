@@ -304,6 +304,10 @@ let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
+let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is written by gen_written (#356)
+let fixed_list_fits(v:int64, y:int64):bool
+let gen_fixed_list(v:int64, y:int64)
+let fixed_refused(n:int64)
 let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
 let changes_var(n:int64, lead:const String^):bool
 let changed_root(n:int64):int64    // and type_of of &x (#272)
@@ -1478,7 +1482,8 @@ let need_show(y:int64, n:int64):bool {
     let d = tagged_of(y)
     var m:int64 = d >= 0 ? nodes[d].a : nodes[struct_of(y)].a
     while m >= 0 {
-        let v = nodes[m].ty
+        var v = nodes[m].ty
+        while v >= 0 && types[v].kind == Y_FIXED { v = types[v].elem }   // a member's fixed array, by its elements (#356)
         if v >= 0 && !plain_shown(v) {
             if !shown_by_type(v) {
                 gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
@@ -1514,8 +1519,41 @@ let put_self(path:cstr, t:int64) {
 
 // the value of v at self->path, t its name, as kelvinc shows it: text
 // quoted, an enum with values or a struct by its _kv_show_T at level
+var show_depth = 0                       // the loop of a fixed array's elements, nested, in a printer (#356)
+
 let show_value(v:int64, path:cstr, t:int64, level:cstr) {
     let k:ykind = types[v].kind
+    if k == Y_FIXED {                                    // [7, 8, 9], every element, as kelvinc prints a member's (#356)
+        let d = show_depth
+        show_depth += 1
+        put("kv_out_put(o, \"[\");\n    for (size_t _kv_i")
+        put_int(d)
+        put(" = 0; _kv_i")
+        put_int(d)
+        put(" < sizeof ")
+        put_self(path, t)
+        put(" / sizeof ")
+        put_self(path, t)
+        put("[0]; _kv_i")
+        put_int(d)
+        put("++)\n    {\n    kv_out_sep(o, ")
+        put(level)
+        put(", _kv_i")
+        put_int(d)
+        put(" == 0);\n    ")
+        var p = String(path)
+        if t >= 0 { p += tok_text(t) }
+        p += "[_kv_i"
+        let ds:String = String(d)
+        p += &ds
+        p += "]"
+        show_value(types[v].elem, p.cstr, 0 - 1, level)
+        put("    }\n    kv_out_end(o, ")
+        put(level)
+        put(");\n    kv_out_put(o, \"]\");\n")
+        show_depth -= 1
+        return
+    }
     if k == Y_STRING {
         put("kv_out_quoted(o, (")
         put_self(path, t)
@@ -2856,10 +2894,48 @@ let empty_error(v:int64) {
     }
 }
 
+// whether the fixed array y may be member f of a struct: counted, of
+// numbers, bools, text or structs that own nothing, as a local's (#356)
+let member_fixed_ok(f:int64, y:int64):bool {
+    var g:int64 = y
+    while types[g].kind == Y_FIXED {
+        if types[g].name < 0 {
+            var m = type_text(g)
+            m += " as a member takes its count: write ["
+            let ew:String = type_text(types[g].elem)
+            m += &ew
+            m += "](N)"
+            gen_error(f, m.cstr)
+            return false
+        }
+        g = types[g].elem
+    }
+    if is_owner(g) {                                     // which kelvinc's struct holds
+        gen_error(f, "a member's fixed array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing")
+        return false
+    }
+    if !fixed_elem_ok(y) {
+        fixed_refused(f)
+        return false
+    }
+    return true
+}
+
 // v where its type y is written, of a declaration, an element or a
 // member: $[], ${:} and ${} are taken here alone, of y's kind, as kelvinc
-// takes them (#348); else gen_value
+// takes them (#348); else gen_value. A member's fixed array takes [a, b]
+// and [T](n) (#356)
 let gen_written(v:int64, y:int64) {
+    if y >= 0 && types[y].kind == Y_FIXED {
+        if nodes[v].kind == N_LIST && nodes[v].flag == 0 {
+            if fixed_list_fits(v, y) { gen_fixed_list(v, y) }
+        } else if nodes[v].kind == N_LIST && type_of(v) == y {
+            put("{0}")
+        } else {
+            gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
+        }
+        return
+    }
     if nodes[v].kind != N_EMPTY {
         gen_value(v, y)
         return
@@ -4115,7 +4191,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a local's value; not yet a member, a parameter, a result, a global, or one in another type")
+    gen_error(n, "kc reads a fixed array as a local's value or a struct's member; not yet a parameter, a result, a global, a case's value, or one in another type")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -7723,6 +7799,8 @@ let write_type(y:int64) {
         } else {
             put(", KV_HASH_INT, KV_EQ_INT, KV_STORE_INT, KV_LK_INT, KV_PLAIN_FREE, KV_PLAIN_COPY)\n")
         }
+    } else if k == Y_FIXED {                            // a member's, after its element's type (#356)
+        write_type(types[y].elem)
     } else if k == Y_STRUCT {
         written[y] = 2                                   // while what it holds is written (#346)
         let d = decl_named(types[y].name, D_STRUCT)
@@ -7738,9 +7816,13 @@ let write_type(y:int64) {
             f = nodes[d].a
             while f >= 0 {
                 put("    ")
-                put_ctype(nodes[f].ty)
-                put(" ")
-                put_tok(nodes[f].t)
+                if types[nodes[f].ty].kind == Y_FIXED {
+                    put_fixed_decl(nodes[f].ty, nodes[f].t)   // int64_t xs[3] (#356)
+                } else {
+                    put_ctype(nodes[f].ty)
+                    put(" ")
+                    put_tok(nodes[f].t)
+                }
                 put(";\n")
                 f = nodes[f].next
             }
@@ -7812,7 +7894,10 @@ let gen_program() {
         if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1) {
             var f:int64 = nodes[d].a
             while f >= 0 {
-                if fixed_inside(nodes[f].ty) {
+                let fy:int64 = nodes[f].ty
+                if nodes[d].kind == D_STRUCT && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356)
+                    if !member_fixed_ok(f, fy) { return }
+                } else if fixed_inside(fy) {
                     fixed_refused(f)
                     return
                 }

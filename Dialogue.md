@@ -7170,3 +7170,16 @@ another element type is kc's error, where kelvinc's C warns. Details
 are provisional P367.
 
 There are 1002 tests, and all pass with clang and with gcc 15.
+
+### 401. kc's fixed arrays as struct members
+
+> teach kc fixed arrays as struct members as #356
+
+**Claude** taught kc a fixed array as a struct's member, as kelvinc's
+#49: declared in the struct as C's array, given `[a, b]` or `[T](n)` in
+`{...}`, read and changed as a local's, and printed as kelvinc prints
+it, every element. Its count is written, and its elements own nothing,
+where kelvinc's may: not yet kc's. Found in kelvinc, not fixed here:
+zeros as a member's value fail in its C. Details are provisional P368.
+
+There are 1002 tests, and all pass with clang and with gcc 15.

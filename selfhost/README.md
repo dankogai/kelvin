@@ -434,8 +434,14 @@ kc reads what it is written in, and little more.
   - An Array of its elements, `Array(a)` and `Array<T>(a)` (#355); an
     Array of fixed arrays, `Array(m)` and `$[a, a]`, is kelvinc's error,
     `an Array of [i64](2) is not here yet: ...`.
-  - Not yet: a member, a parameter, a result, a global, a pointer to
-    one, or one in another type; a count C computes, as `[uint8](n)`;
+  - A struct's member (#356), `struct tray { label: cstr; slots:
+    [int64](3) }`: C's `int64_t slots[3]`, given `[a, b]` or `[T](n)` in
+    `{...}`, read as a local's, `tr.slots[1]`, `tr.slots.count`; printed
+    as kelvinc prints it, `{label: "eggs", slots: [6, 12, 18]}`.
+    - Its count is written, `[T](N)`; its elements own nothing, where
+      kelvinc's may: not yet kc's.
+  - Not yet: a parameter, a result, a global, a case's value, a pointer
+    to one, or one in another type; a count C computes, as `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

@@ -33,6 +33,7 @@ let describe(v:item^):int64 {
 }
 
 enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
+struct tray { label: cstr; slots: [int64](3) }        // a fixed array as a member (#356)
 enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
@@ -584,5 +585,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var from_sq = Array(sq4)                            // Array<T>(a) and Array(a) of a fixed array (#355)
     from_sq += 36
     println(from_sq, " ", Array<int64>(sq4).count)
+    var tr:tray = {"eggs", [6, 12, 0]}
+    tr.slots[2] = 18
+    println(tr, " ", tr.slots.count, " ", tr.slots[2])
     return 0
 }
