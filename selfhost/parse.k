@@ -384,6 +384,8 @@ let parse_type():int64 {
             parse_error("a qualifier of a Dictionary is the variable's: a let does not change")
         } else if types[y].kind == Y_SET {
             parse_error("a qualifier of a Set is the variable's: a let does not change")
+        } else if types[y].kind == Y_FIXED || (types[y].kind == Y_PTR && types[types[y].elem].kind == Y_FIXED) {   // as kelvinc says it (#362)
+            parse_error("a qualifier of an array is its elements': write it inside the brackets, as in '[const u8]'")
         }
         return const_pointee(y)
     }

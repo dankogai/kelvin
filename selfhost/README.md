@@ -465,7 +465,15 @@ kc reads what it is written in, and little more.
     - A case's value of a call's enum, `mk(4).tri[1]`, is read through
       a one-element array, as kelvinc's; one that owns is held and freed
       after, as kelvinc holds it.
-  - Not yet: a pointer to one, one in another type, as an Optional, a
+  - Behind a pointer (#362), `[int64](4)^`, as kelvinc's P61: a local's
+    by `:=`, a parameter, a member, a result; C's `__typeof__(int64_t[4])
+    *q`, which goes wherever a C type does.
+    - `q^[i]`, `q^.count`, `for x in q^`; `q.count` and `q[i]` are errors,
+      kelvinc's words of `.count`, where its `q[i]` reads an address.
+    - Its count and elements are the argument's, and a let's array goes
+      to it alone where it reads: kc's errors, where kelvinc's C warns;
+      `const [int64](4)^` is kelvinc's error in its words.
+  - Not yet: one in another type, as an Optional, `[T]^` of no count, a
     parameter of owners or of fixed arrays; a count C computes, as
     `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.

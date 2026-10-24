@@ -241,6 +241,9 @@ let put_free_copy(y:int64) {
 }
 
 
+let put_fixed_base(y:int64)    // prototypes: put_ctype, a case's [a, b] and a [T](N)^ ask these (#360, #362)
+let put_fixed_counts(y:int64)
+
 let put_ctype(y:int64) {
     switch types[y].kind {                                       // every kind of type (#210)
     case Y_VOID, Y_C: put("void")
@@ -273,9 +276,16 @@ let put_ctype(y:int64) {
         put(" *")
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
-        if types[y].name == 0 - 4 { put("const ") }              // a parameter's, a pointer, of const elements (#357)
-        put_ctype(types[y].elem)
-        put(" *")
+        if types[y].name >= 0 {                                  // __typeof__(int64_t[4]), which a pointer to one takes (#362)
+            put("__typeof__(")
+            put_fixed_base(y)
+            put_fixed_counts(y)
+            put(")")
+        } else {
+            if types[y].name == 0 - 4 { put("const ") }          // a parameter's, a pointer, of const elements (#357)
+            put_ctype(types[y].elem)
+            put(" *")
+        }
     }
 }
 
@@ -309,8 +319,6 @@ let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is writ
 let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
 let fixed_refused(n:int64)
-let put_fixed_base(y:int64)    // and a case's [a, b], a compound literal, asks these (#360)
-let put_fixed_counts(y:int64)
 let fixed_case(m:int64):bool    // and if let and switch bind a case's elements (#360)
 let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
 let changes_var(n:int64, lead:const String^):bool
@@ -758,6 +766,7 @@ let type_of(n:int64):int64 {
         let yk:ykind = types[y].kind
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
+        if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336, #337)
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336, #337)
@@ -1018,6 +1027,38 @@ let fixed_arg_ok(a:int64, py:int64, who:const String^):bool {
     return false
 }
 
+// whether a goes where py, a [T](N)^, goes: a pointer to an array of its
+// elements and count, nullptr, where kelvinc's C warns; not a let's where
+// what it points to may change, as #272 has it (#362)
+let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
+    if py < 0 || types[py].kind != Y_PTR || types[types[py].elem].kind != Y_FIXED || nodes[a].kind == N_NULL { return true }
+    let ay:int64 = type_of(a)
+    let pw:String = type_text(py)
+    if ay < 0 || types[ay].kind != Y_PTR || types[ay].elem != types[py].elem {
+        var m = who^.copy()
+        m += " is "
+        m += article_of(&pw)
+        m += " "
+        m += &pw
+        m += ", and this is "
+        let aw:String = ay >= 0 ? type_text(ay) : $"not one"
+        m += &aw
+        gen_error(a, m.cstr)
+        return false
+    }
+    if types[ay].name == 1 && types[py].name != 1 {
+        var m = who^.copy()
+        m += " is "
+        m += article_of(&pw)
+        m += " "
+        m += &pw
+        m += ", which may change what it points to, and this is a let's: borrow a var"
+        gen_error(a, m.cstr)
+        return false
+    }
+    return true
+}
+
 // the argument a of the parameter p of d; false where it is an error
 let gen_arg_to(a:int64, p:int64, d:int64):bool {
     if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
@@ -1036,6 +1077,7 @@ let gen_arg_to(a:int64, p:int64, d:int64):bool {
     who += "' of '"
     who += tok_text(nodes[d].t)
     who += "'"
+    if !fixed_ptr_ok(a, nodes[p].ty, &who) { return false }
     if !takes_borrow(a, nodes[p].ty, &who) { return false }
     let py:int64 = nodes[p].ty
     if py >= 0 && types[py].kind == Y_FIXED {            // an array, which C passes as a pointer (#357)
@@ -2361,7 +2403,8 @@ let gen_member(n:int64) {
         return
     }
     let yk:ykind = types[y].kind
-    if yk == Y_FIXED && types[y].name < 0 && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
+    let fixed_ptr = yk == Y_PTR && types[types[y].elem].kind == Y_FIXED   // q.count of a [T](N)^, as kelvinc says it (#362)
+    if (yk == Y_FIXED && types[y].name < 0 || fixed_ptr) && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
         var m = $"'."
         m += tok_text(t)
         m += "' is a property of arrays, and this is "
@@ -3686,6 +3729,10 @@ let gen_chain(n:int64) {
 // read whole (#219); C's element
 let gen_element(n:int64) {
     let y:int64 = type_of(nodes[n].a)
+    if y >= 0 && types[y].kind == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // where kelvinc's C reads an address (#362)
+        gen_error(n, "this points to an array: index what it points to, q^[i]")
+        return
+    }
     if y >= 0 && types[y].kind == Y_ARRAY {
         put("(*")
         put_array_name(y)
@@ -4283,6 +4330,10 @@ let fixed_inside(y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
     if k == Y_FIXED { return true }
+    if k == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // [T](N)^, a pointer to one, counted (#362)
+        let e:int64 = types[y].elem
+        return types[e].name < 0 || !fixed_elem_ok(e)
+    }
     if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_inside(types[y].elem) }
     if k == Y_DICT { return fixed_inside(types[y].elem) || fixed_inside(types[y].name) }
     let d = tagged_of(y)
@@ -4297,7 +4348,7 @@ let fixed_inside(y:int64):bool {
 }
 
 let fixed_refused(n:int64) {
-    gen_error(n, "kc reads a fixed array as a variable, a struct's member, an enum's case or a parameter; not yet one in another type, as an Optional, or behind a pointer")
+    gen_error(n, "kc reads a fixed array as a variable, a struct's member, an enum's case, a parameter, or behind a pointer of its count, [T](N)^; not yet one in another type, as an Optional")
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
@@ -4489,6 +4540,7 @@ let gen_var(n:int64) {
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
     who += tok_text(nodes[n].t)
     who += "'"
+    if nodes[n].a >= 0 && !fixed_ptr_ok(nodes[n].a, y, &who) { return }   // q := &a of a [T](N)^ (#362)
     if nodes[n].a >= 0 && !takes_borrow(nodes[n].a, y, &who) { return }
     if nodes[n].a >= 0 && types[y].kind == Y_TASK && is_place(nodes[n].a) {   // as kelvinc's (#313)
         gen_error(nodes[n].a, "a Task is not copied: pass it on, or await it")

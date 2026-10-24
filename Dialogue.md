@@ -7246,3 +7246,17 @@ words. Two tests, documents/enums.md and the kc sample have it.
 Details are provisional P373.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 407. kc's fixed arrays behind pointers
+
+> teach kc fixed arrays behind pointers as #362
+
+**Claude** taught kc a pointer to a fixed array of its count,
+`[int64](4)^`, as kelvinc's P61: a local's by `:=`, a parameter, a
+member or a result, written in C as `__typeof__(int64_t[4]) *`, and
+indexed through, `q^[i]`. kelvinc's errors are in its words, and kc's
+own where kelvinc's C warns, as of a count of another, or reads an
+address, as `q[0]`. Not yet: `[T]^` of no count. Details are
+provisional P374.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

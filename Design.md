@@ -393,6 +393,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 359 | kc reads a fixed array as a global, as kelvinc's #49: C's `int64_t hits[3] = {0}`, a let's elements const, read and changed by any function, as a local's | `int32_t table[4];` | kc's `let weekdays:[cstr] = ["mon", "tue", "wed"]` | 2026-10-25 |
 | 360 | kc reads a fixed array as an enum's case value, ahead of kelvinc, whose C failed there: a typedef of its type, its elements copied in by `[a, b]` or an array, bound to a copy by `switch` and `if let`, read through `v.c`, printed, `==` element by element; a case's value of a call's enum read through a one-element array | `typedef int64_t _kv_e_v_t[2]` | kc's `shape.tri([3, 4, 5])` | 2026-10-25 |
 | 361 | kelvinc reads a fixed array as an enum's case value, as kc does since #360: `[a, b]` given or set, a typedef of its type, its elements copied in, bound to a copy by `switch` and `if let`, read of a call's value too, `==` element by element; a case of no count kc's error | `typedef int64_t _kv_e_v_t[2]` | `shape.tri([3, 4, 5])` | 2026-10-25 |
+| 362 | kc reads a fixed array behind a pointer of its count, `[T](N)^`, as kelvinc's P61: a local's by `:=`, a parameter, a member, a result; `q^[i]`, `q^.count`, `for x in q^`; kelvinc's errors in its words, kc's where kelvinc's C warns or reads an address | `__typeof__(int64_t[4]) *q` | kc's `let sqp:[int64](4)^ := &sq4` | 2026-10-25 |
 
 Notes:
 
@@ -954,6 +955,29 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (362) Agreed details: "teach kc fixed arrays behind pointers as #362".
+  - gen.k: put_ctype of a counted fixed array is `__typeof__(int64_t[4])`,
+    so its pointer, `__typeof__(int64_t[4]) *`, goes wherever a C type
+    does, where kelvinc writes C's `int64_t (*q)[4]`; fixed_inside takes a
+    pointer to a counted one, of elements a local's may hold.
+    - A local's by `:=`, a parameter, a member, a result: `q^[i]` read and
+      assigned, the pointer's `^` being what changes, `q^.count`, `for x in
+      q^`.
+  - kelvinc's errors, in its words: `q.count` is `'.count' is a property of
+    arrays, and this is [i64](4)^, a pointer: ...`; parse.k refuses `const
+    [int64](4)^`, `a qualifier of an array is its elements': write it inside
+    the brackets, as in '[const u8]'`.
+  - kc's own, where kelvinc's C warns or reads what it should not
+    (fixed_ptr_ok, in an argument and a `:=`): `'a' of 'head' is a
+    [i64](4)^, and this is [i64](3)^`; a let's array behind one that may
+    change it, `... which may change what it points to, and this is a
+    let's: borrow a var`; `q[0]`, `this points to an array: index what it
+    points to, q^[i]`, where kelvinc's prints an address.
+  - `println(q)` prints the address, as kelvinc prints any pointer.
+  - Not yet: `[T]^` of no count, which kelvinc reads.
+  - kc's build of a probe prints what kelvinc's does; selfhost/sample.k
+    has them.
 
 - (361) Agreed details: "teach kelvinc fixed arrays as enum case values
   as #361", the "kelvinc later" of #360, so that the two read them alike.
@@ -4726,6 +4750,7 @@ says "as agreed".
 | P371 | Details of #359 | selfhost/gen.k: gen_program's global of `[T](N)` or `[T]` by gen_fixed_var, fixed_const in put_fixed_decl; selfhost/sample.k; selfhost/README.md | — |
 | P372 | Details of #360 | selfhost/gen.k: gen_tagged's typedef, union member, `_at`, `_set` and `_make` of an array case (put_case_tname, fixed_case), gen_value's compound literal of `[a, b]`, the bindings of switch and if let, put_eq_code and eq_type of an array, gen_member of a call's enum, gen_assign's case set, the refusals; selfhost/README.md | kelvinc's (#361); kc's case of an array of owners |
 | P373 | Details of #361 | src/parser.c: case_value's `[a, b]`, parse_cases' count, eq_type of an array; src/codegen.c: emit_tagged_record's typedef, `_at`, `_set` and `_make` of an array case, the bindings of switch and if let, eq_code of an array, a case's array of a call's value; tests/run/enum_array_case.k, tests/error/enum_array_case_count.k; documents/enums.md; selfhost/sample.k; selfhost/README.md | kc's case of an array of owners, which kelvinc reads |
+| P374 | Details of #362 | selfhost/parse.k: `const [T](N)^` refused; selfhost/gen.k: put_ctype's `__typeof__`, fixed_inside of a pointer, fixed_ptr_ok in gen_arg_to and gen_var, gen_field's `q.count`, gen_element's `q[i]`; selfhost/sample.k; selfhost/README.md | kc's `[T]^` of no count, which kelvinc reads |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
