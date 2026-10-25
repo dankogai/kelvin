@@ -86,6 +86,9 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
   - kelvinc compiles with `-ffp-contract=off`, so clang computes
     `a * b + c` with two roundings, as gcc does, and the results are
     the same with both *(provisional P55)*.
+- **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
+  (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
+  - With `<math>`, `x.abs()`, its method, is the same.
 - **`x ** y`** is C's `pow`, where either is a floating-point number
   (#380), with no import: `2.0 ** 0.5` is 1.4142135623730951, and
   `2.0 ** -1` 0.5.
@@ -110,6 +113,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
+| | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |
 

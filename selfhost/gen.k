@@ -815,6 +815,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
+        if tok_is(t, "abs") && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, of its type (#381)
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
@@ -4276,6 +4277,31 @@ let gen_expr(n:int64) {
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
         return
+    }
+    if k == N_FIELD && tok_is(t, "abs") && type_of(nodes[n].a) >= 0 {
+        let ay:int64 = type_of(nodes[n].a)
+        let ak:ykind = types[ay].kind
+        if ak == Y_F64 || ak == Y_F32 {                  // x.abs (#381), as kelvinc's: fabs
+            put(ak == Y_F32 ? "__builtin_fabsf(" : "__builtin_fabs(")
+            gen_expr(nodes[n].a)
+            put(")")
+            return
+        }
+        if ak == Y_I64 || ak == Y_I32 {                  // negated in its unsigned type, where i64's least wraps
+            let u:cstr := ak == Y_I64 ? "uint64_t" : "uint32_t"
+            put("({ ")
+            put_ctype(ay)
+            put(" _kv_ab = (")
+            gen_expr(nodes[n].a)
+            put("); (")
+            put_ctype(ay)
+            put(")(_kv_ab < 0 ? 0u - (")
+            put(u)
+            put(")_kv_ab : (")
+            put(u)
+            put(")_kv_ab); })")
+            return
+        }
     }
     if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)

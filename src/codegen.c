@@ -1299,6 +1299,16 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
+        if (e->op && !strcmp(e->op, "num_abs")) {
+            /* x.abs (#381): fabs of a floating-point number; a signed integer
+               negated in its unsigned type, where it wraps, its least too */
+            const char *n = e->type->name;
+            if (n[0] == 'f')
+                return strfmt("%s(%s)", !strcmp(n, "f32") ? "__builtin_fabsf" : "__builtin_fabs", expr(e->a));
+            const char *t = decl(e->type, ""), *u = !strcmp(n, "i128") ? "unsigned __int128" : strfmt("uint%s_t", n + 1);
+            return strfmt("({ %s _kv_ab = (%s); (%s)(_kv_ab < 0 ? 0u - (%s)_kv_ab : (%s)_kv_ab); })", t, expr(e->a), t, u,
+                          u);
+        }
         if (e->op && !strncmp(e->op, "pow_", 4)) {
             /* b ** e and b.pow(e, m) (#380): C's pow, powf or cpow; of
                integers, multiplying in a u64, or a u128 of 128 bits, which

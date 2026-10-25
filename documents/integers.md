@@ -2,7 +2,8 @@
 
 Every number in Kelvin says its size. This document has the integer
 types, their literals, the two ways to convert any number, how a
-number is read from text, and powers, `**` and `pow` (#380). Floats are in
+number is read from text, powers, `**` and `pow` (#380), and `.abs`
+(#381). Floats are in
 [floatingpoint.md](floatingpoint.md), and `bool` in [bool.md](bool.md).
 The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
@@ -198,10 +199,36 @@ let main():int32 {
   - Its type is what C gives `b % m`; `b`, `e` and `m` are integers of
     64 bits or fewer.
 
+## Magnitude: `.abs`
+
+```swift
+let main():int32 {
+    let n:i64 = -3
+    let a:i32 = 3
+    let b:i32 = 10
+    let least:i8 = -128
+    println(n.abs, " ", (a - b).abs, " ", (-5).abs, " ", least.abs)   // 3 7 5 -128
+    return 0
+}
+```
+
+- **`x.abs`** of a signed integer, `i8` to `i128`, is its magnitude, of
+  its own type (#381): an `i8`'s is an `i8`.
+  - Of arithmetic it is of the type C gives it: `(a - b).abs` of two
+    `i32`s is an `i32`, and `(-k).abs` of an `i8` an `i32`, as C
+    promotes `-k`.
+  - It is a property, with no parentheses, and needs no import.
+- **A signed integer's least** has no magnitude its type holds, so it
+  stays as it is, as two's complement negates it, wrapping as `-` and
+  `**` do: `least.abs` of an `i8` -128 is -128.
+- **An unsigned integer** has no `.abs`: it is never negative.
+- A struct's field named `abs`, and an attribute of your own, win.
+
 ## Properties and methods
 
 | On | Property | Gives |
 |---|---|---|
+| signed integers | `.abs` | the magnitude, of its type; the least stays as it is (#381) |
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |

@@ -673,5 +673,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     var power3:int64 = 3
     power3 **= 4
     println(2 ** 10, " ", -2 ** 2, " ", 2.0 ** 0.5, " ", octets3.upperBound ** 2, " ", power3, " ", 3.pow(4), " ", 4.pow(13, 497))   // b ** e, b.pow(e, m) (#380)
+    println((0 - power3).abs, " ", (-2.5).abs, " ", (power3 - 100).abs)   // x.abs (#381)
     return 0
 }

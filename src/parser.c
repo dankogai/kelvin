@@ -5681,7 +5681,7 @@ static Type *value_type_of(Expr *e) {
                       !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next") || !strcmp(e->op, "iter_prefix") ||
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
                       !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
-                      !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4))) /* (#319, #323, #325, #372, #373, #380) */
+                      !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4) || !strcmp(e->op, "num_abs"))) /* (#319, #323, #325, #372, #373, #380, #381) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -7443,7 +7443,83 @@ static bool int_expr(Expr *e) {
     }
 }
 
+/* a number's type in C's arithmetic, promoted, as an operand of `-`
+   gives: i8 to u16 an i32 */
+static Type *promoted_number(Type *t) {
+    if (!t)
+        return NULL;
+    const char *n = t->name;
+    if (!strcmp(n, "i8") || !strcmp(n, "i16") || !strcmp(n, "u8") || !strcmp(n, "u16"))
+        return base_type("i32", t->pos);
+    return t;
+}
+
+/* an integer type's rank in C's conversions, 0 of none */
+static int number_rank(const char *n) {
+    static const char *ranks[] = {"i32", "u32", "i64", "u64", "i128", "u128", NULL};
+    for (int i = 0; ranks[i]; i++)
+        if (!strcmp(n, ranks[i]))
+            return i / 2 + 1;
+    return 0;
+}
+
+/* the number type kelvinc sees an expression has (#381): its own, a
+   literal's, an i64 or an f64, and of a prefix and arithmetic C's
+   promotions and conversions of the operands it sees; NULL otherwise */
+static Type *seen_number_type(Expr *e) {
+    Type *t = value_type(e);
+    while (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (t)
+        return t->kind == T_BASE ? unqualified(t) : NULL;
+    const char *lit = literal_type(e);
+    if (lit)
+        return base_type(lit, e->pos);
+    if (e->kind == E_LITERAL && e->text[0] == '\'')
+        return base_type("i32", e->pos);
+    if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~")))
+        return promoted_number(seen_number_type(e->a));
+    if (e->kind == E_BINARY && (!strcmp(e->op, "<<") || !strcmp(e->op, ">>")))
+        return promoted_number(seen_number_type(e->a));
+    if (e->kind != E_BINARY || !strchr("+-*/%&|~", e->op[0]) || e->op[1])
+        return NULL;
+    Type *a = promoted_number(seen_number_type(e->a)), *b = promoted_number(seen_number_type(e->b));
+    if (!a || !b)
+        return NULL;
+    if (!strcmp(a->name, "f64") || !strcmp(b->name, "f64"))
+        return base_type("f64", e->pos);
+    if (!strcmp(a->name, "f32") || !strcmp(b->name, "f32"))
+        return base_type("f32", e->pos);
+    int ra = number_rank(a->name), rb = number_rank(b->name);
+    if (!ra || !rb)
+        return NULL;
+    if (ra != rb)
+        return ra > rb ? a : b;
+    return a->name[0] == 'u' ? a : b;
+}
+
 static Expr *property(Expr *e, Token *name, char *member) {
+    if (!strcmp(member, "abs")) {
+        /* x.abs (#381): the magnitude of a signed integer or a floating-point
+           number, of its type; a signed integer's least stays as it is, as
+           two's complement negates it. An unsigned integer has none, nor
+           what kelvinc cannot see, which C is left to; a field wins */
+        Decl *record;
+        char c = expr_class(e, &record);
+        Type *t = c == 's' || c == 'c' ? NULL : seen_number_type(e);
+        static const char *signed_numbers[] = {"i8", "i16", "i32", "i64", "i128", "f32", "f64", NULL};
+        bool fits = false;
+        for (int i = 0; t && signed_numbers[i]; i++)
+            fits = fits || !strcmp(t->name, signed_numbers[i]);
+        if (!fits || e->is_bool)
+            return NULL;
+        Expr *x = new_expr(E_METHOD, name->pos);
+        x->a = e;
+        x->text = "abs";
+        x->op = "num_abs";
+        x->type = base_type(t->name, name->pos);
+        return x;
+    }
     if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && !is_uchr(value_type(e)) && number_expr(e))
         error_at(name->pos, "'.%s' is a uchr's codepoint, and this is a number, one already: '.uchr' makes a uchr of "
                             "an integer (#297)",

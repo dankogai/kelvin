@@ -7521,3 +7521,21 @@ Kelvin over a u128. kc writes the same and says kelvinc's errors.
 Details are provisional P392.
 
 There are 1042 tests, and all pass with clang and with gcc 15.
+
+### 426. A number's .abs
+
+> add `.abs` to all signed numeric types as #381
+>
+> DO NOT ADD `.abs` to unsigned ints from the first place.  Proceed with that in mind.
+
+**Claude** asked whether it is a property or a method, what the least of
+a signed integer gives, and what an unsigned integer's `.abs` does. The
+user chose the property `x.abs`, as written, `<math>`'s `x.abs()` method
+kept; the least wrapping, staying as it is, as `**` wraps; and, firmly,
+no `.abs` for unsigned integers at all, not even an error of its own, so
+`u.abs` is any member a number has not. It is of the value's type, a
+signed integer negated in its unsigned counterpart, a floating-point one
+C's fabs; kelvinc now sees the type C gives a prefix and arithmetic, so
+`(a - b).abs` works. kc writes the same. Details are provisional P393.
+
+There are 1044 tests, and all pass with clang and with gcc 15.
