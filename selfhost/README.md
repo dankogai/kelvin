@@ -500,8 +500,11 @@ kc reads what it is written in, and little more.
     C's `uint8_t m[2][n]`, zeroed as one, every count C computes an
     integer; kelvinc's C fails on the former, its `= {0}` of a variable
     length, and leaves the latter unset.
-  - Not yet: one in another type, as an Optional, a parameter of fixed
-    arrays;
+  - Never in an Optional or a Result (#368), as kelvinc refuses one by
+    design, in its words: `an Optional holds a value, and an array is none:
+    hold an Array, $[i64]`, `a Result holds ...`, of a local's, a member's,
+    a parameter's, a result's or a global's type.
+  - Not yet: one in an Array, a parameter of fixed arrays;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

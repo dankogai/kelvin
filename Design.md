@@ -399,6 +399,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 365 | kc reads a parameter's fixed array of owners, `[String]` and `[const String]`, as kelvinc does: its elements lent, the caller's, read, changed and assigned through it; and refuses a part of an owner copied by `let` or `=`, or returned, in kelvinc's words, where kc aliased it | `kv_string *const a` | kc's `let hail(ns:[String], n:int64)` | 2026-10-25 |
 | 366 | kc reads a fixed array of a count C computes, as kelvinc's P61, a local var's: C's array of a variable length, zeroed by `memset`; a let of one kelvinc's error in its words; elements given, a global's, a member's kc's errors; `[T](n)` of any type's name | `uint8_t line[n]; memset(line, 0, sizeof line);` | kc's `var strip = [uint8](width5)` | 2026-10-25 |
 | 367 | kc reads a count C computes within another fixed array, `[[uint8](n)](2)`, a local var's: C's `uint8_t m[2][n]`, zeroed as one; every count C computes an integer | `uint8_t m[2][n]; memset(m, 0, sizeof m);` | kc's `var grid2:[[int64](width5)](2)` | 2026-10-25 |
+| 368 | kc refuses a fixed array in an Optional or a Result for good, as kelvinc does by design, in its words: `an Optional holds a value, and an array is none: hold an Array, $[i64]`, and of a Result | — | kc's `let o:[int64](2)? = none` refused | 2026-10-25 |
 
 Notes:
 
@@ -960,6 +961,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (368) Agreed details: "teach kc fixed arrays in an Optional as #368".
+  kelvinc refuses one by design, `an Optional holds a value, and an array
+  is none: hold an Array, $[i64]`; asked, the user chose kelvinc's
+  refusal over a feature of kc's own.
+  - gen.k: refuse_fixed says it in kelvinc's words where an Optional or a
+    Result in the type holds a fixed array (fixed_variant), of a Result's
+    ok or err alike, `a Result holds ...`, naming the element type as
+    kelvinc's `$[cstr]`; else kc's not yet, as before.
+    - At the refusals of a local's, a parameter's, a result's, a member's
+      and a global's type; the declarations' loop leaves the enum kc makes
+      of an Optional or a Result to the place that uses it, so the error is
+      on that line, as kelvinc's.
+  - `$[[int64](2)?]` is refused with the Optional's words, where kelvinc
+    first says an Array's type has no count.
 
 - (367) Agreed details: "teach kc [[T](n)](2) as #367", #366's not yet.
   - parse.k: where a value goes, `[` before `[` is zeros of a type where
@@ -4865,6 +4881,7 @@ says "as agreed".
 | P377 | Details of #365 | selfhost/gen.k: gen_function's parameter of owners, owner_part in gen_var, gen_assign and gen_return; selfhost/sample.k; selfhost/README.md | — |
 | P378 | Details of #366 | selfhost/parse.k: a type's count of an expression (-10 - its node), `[T](n)` of any name; selfhost/gen.k: type_of's and type_text's count, put_fixed_counts, gen_fixed_var's VLA (computed_ok, fixed_computed), the parameter checks by their codes; selfhost/sample.k; selfhost/README.md | kc's `[[uint8](n)](2)` |
 | P379 | Details of #367 | selfhost/parse.k: bracket_type_ahead, `[[T](n)](2)` read as zeros; selfhost/gen.k: computed_ok of each count; selfhost/sample.k; selfhost/README.md | — |
+| P380 | Details of #368 | selfhost/gen.k: fixed_variant, refuse_fixed at the refusals of a local, a parameter, a result, a member, a global; the declarations' loop leaves an Optional's and a Result's to their use; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -7324,3 +7324,15 @@ here: its C fails on the former, and it leaves the latter unset. Details
 are provisional P379.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 413. kc's refusal of a fixed array in an Optional
+
+> teach kc fixed arrays in an Optional as #368
+
+**Claude** found that kelvinc refuses a fixed array in an Optional by
+design, and asked; the user chose kelvinc's refusal. kc now says it in
+kelvinc's words, of an Optional and a Result alike, wherever such a
+type is written: `an Optional holds a value, and an array is none: hold
+an Array, $[i64]`. Details are provisional P380.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

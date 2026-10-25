@@ -4372,6 +4372,52 @@ let fixed_inside(y:int64):bool {
     return false
 }
 
+// the Optional or the Result in y that holds a fixed array, or -1 (#368)
+let fixed_variant(y:int64):int64 {
+    if y < 0 { return 0 - 1 }
+    let k:ykind = types[y].kind
+    if is_variant(y) {
+        var m:int64 = nodes[tagged_of(y)].a
+        while m >= 0 {
+            let cy:int64 = nodes[m].ty
+            if cy >= 0 && types[cy].kind == Y_FIXED { return y }
+            let r:int64 = fixed_variant(cy)
+            if r >= 0 { return r }
+            m = nodes[m].next
+        }
+        return 0 - 1
+    }
+    if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_variant(types[y].elem) }
+    if k == Y_DICT {
+        let r:int64 = fixed_variant(types[y].elem)
+        return r >= 0 ? r : fixed_variant(types[y].name)
+    }
+    return 0 - 1
+}
+
+// a fixed array in y where kc takes none: in an Optional or a Result,
+// kelvinc's error in its words, as it refuses one by design; else kc's
+// not yet (#368)
+let refuse_fixed(n:int64, y:int64) {
+    let v:int64 = fixed_variant(y)
+    if v < 0 {
+        fixed_refused(n)
+        return
+    }
+    var fe:int64 = 0 - 1
+    var m:int64 = nodes[tagged_of(v)].a
+    while m >= 0 {
+        if nodes[m].ty >= 0 && types[nodes[m].ty].kind == Y_FIXED && fe < 0 { fe = types[nodes[m].ty].elem }
+        m = nodes[m].next
+    }
+    var s = some_type(v) >= 0 ? $"an Optional" : $"a Result"
+    s += " holds a value, and an array is none: hold an Array, $["
+    let ew:String = type_text(fe)
+    s += &ew
+    s += "]"
+    gen_error(n, s.cstr)
+}
+
 let fixed_refused(n:int64) {
     gen_error(n, "kc reads a fixed array as a variable, a struct's member, an enum's case, a parameter, or behind a pointer of its count, [T](N)^; not yet one in another type, as an Optional")
 }
@@ -4631,7 +4677,7 @@ let gen_var(n:int64) {
         return
     }
     if fixed_inside(nodes[n].ty) {
-        fixed_refused(n)
+        refuse_fixed(n, nodes[n].ty)                     // an Optional's, kelvinc's words (#368)
         return
     }
     let y:int64 = nodes[n].ty
@@ -7710,7 +7756,7 @@ let gen_function(d:int64) {
         return
     }
     if fixed_inside(nodes[d].ty) {                       // (#354)
-        fixed_refused(d)
+        refuse_fixed(d, nodes[d].ty)
         return
     }
     open_scope()
@@ -7725,7 +7771,7 @@ let gen_function(d:int64) {
             return
         }
         if !as_param && fixed_inside(pty) {
-            fixed_refused(p)
+            refuse_fixed(p, pty)
             return
         }
         declare_as(nodes[p].t, nodes[p].ty, nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271)
@@ -8403,7 +8449,8 @@ let gen_program() {
     }
     for i in 0..<decls.count as int64 {                  // no fixed array in a struct or an enum yet (#354)
         let d:int64 = decls[i]
-        if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1) {
+        let made = nodes[d].kind == D_ENUM && nodes[d].t > eof_pos   // an Optional's, a Result's: refused where it is used (#368)
+        if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1 && !made) {
             var f:int64 = nodes[d].a
             while f >= 0 {
                 let fy:int64 = nodes[f].ty
@@ -8411,14 +8458,14 @@ let gen_program() {
                 if (nodes[d].kind == D_STRUCT || user_enum) && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356), a case's value (#360)
                     if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member") { return }
                 } else if fixed_inside(fy) {
-                    fixed_refused(f)
+                    refuse_fixed(f, fy)
                     return
                 }
                 f = nodes[f].next
             }
         }
         if nodes[d].kind == D_GLOBAL && fixed_inside(nodes[d].ty) && types[nodes[d].ty].kind != Y_FIXED {   // a global's own is kc's (#359)
-            fixed_refused(d)
+            refuse_fixed(d, nodes[d].ty)
             return
         }
     }
