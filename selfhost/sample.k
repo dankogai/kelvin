@@ -40,6 +40,12 @@ let hail(ns:[String], n:int64) {                       // a parameter's array of
     for i in 0..<n { ns[i] += "!" }
 }
 
+let rows_sum(m:[[int64](2)], rows:int64):int64 {     // a parameter of fixed arrays, its rows' count written (#370)
+    var t = 0
+    for i in 0..<rows { t += m[i][0] + m[i][1] }
+    return t
+}
+
 let letters_in(ns:[const String], n:int64):int64 {
     var t = 0
     for i in 0..<n { t += ns[i].count as int64 }
@@ -648,5 +654,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     var rows2:$[[int64]] = $[[1, 2], [3]]                // [T] in $[...] an Array, its lists Arrays (#369)
     rows2[1] += 4
     println(rows2, " ", rows2[1].count, " ", Array([[5], [6, 7]]))
+    var pairs = [[1, 2], [3, 4], [5, 6]]
+    println(rows_sum(pairs, pairs.count), " ", pairs[2][1])
     return 0
 }

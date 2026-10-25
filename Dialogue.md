@@ -7348,3 +7348,15 @@ fixed array of a count in an Array, or in a Dictionary or a Set, is
 kelvinc's error in its words. Details are provisional P381.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 415. kc's fixed array parameters of fixed arrays
+
+> teach kc fixed array parameters of fixed arrays as #370
+
+**Claude** taught kc a parameter of fixed arrays, `m:[[int64](3)]`, as
+kelvinc reads it: a pointer to its rows in C, indexed `m[i][j]`, the
+rows' count written and its own passed beside it, of owners too. Rows of
+no count and of another count are kc's errors, and `[const [T](N)]` is
+kelvinc's in its words. Details are provisional P382.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

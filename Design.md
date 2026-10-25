@@ -401,6 +401,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 367 | kc reads a count C computes within another fixed array, `[[uint8](n)](2)`, a local var's: C's `uint8_t m[2][n]`, zeroed as one; every count C computes an integer | `uint8_t m[2][n]; memset(m, 0, sizeof m);` | kc's `var grid2:[[int64](width5)](2)` | 2026-10-25 |
 | 368 | kc refuses a fixed array in an Optional or a Result for good, as kelvinc does by design, in its words: `an Optional holds a value, and an array is none: hold an Array, $[i64]`, and of a Result | — | kc's `let o:[int64](2)? = none` refused | 2026-10-25 |
 | 369 | kc reads a fixed array in an Array as kelvinc does: `[T]` in `$[...]` an Array in turn, `$[[int64]]`, and a list among `$[...]`'s or `Array([...])`'s elements an Array, `$[[1, 2], [3]]`; a count in it, `Array<[T]>()`, a Dictionary's and a Set's kelvinc's errors in its words | — | kc's `var rows2:$[[int64]] = $[[1, 2], [3]]` | 2026-10-25 |
+| 370 | kc reads a parameter of fixed arrays, `m:[[int64](3)]`, as kelvinc does: a pointer to its rows in C, `m[i][j]`, its rows' count written and its count passed beside it, of owners too; rows of no count, `[const [T](N)]` and rows of another count are errors | `__typeof__(int64_t[3]) *m` | kc's `let rows_sum(m:[[int64](2)], rows:int64)` | 2026-10-25 |
 
 Notes:
 
@@ -962,6 +963,25 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (370) Agreed details: "teach kc fixed array parameters of fixed arrays
+  as #370", #357's not yet.
+  - gen.k: gen_function takes a parameter of `[[T](N)]`, each inner count
+    written, its innermost elements of a local's or owners, lent: put_ctype
+    of the parameter kind gives `__typeof__(int64_t[3]) *m`, a pointer to
+    its rows, as kelvinc's `int64_t (*const m)[3]`; `m[i][j]`, `m[i].count`.
+    - Its argument's rows are of its type, by fixed_arg_ok's elements alike:
+      rows of another count are kc's error, `'m' of 'f' is a [i64](3)^, and
+      this is [[i64](2)](2)`, where kelvinc's C warns; a let's to it alone
+      where it reads, as #357.
+    - `m.count` is kelvinc's error in its words, of `[i64](3)^`.
+  - kc's own: rows of no count, `[[T]]`, `a parameter's array of arrays
+    counts the inner ones, as C must: [[T](N)]`, which kelvinc takes and C
+    cannot index.
+  - parse.k: `[const [T](N)]` is kelvinc's `a qualifier of an array is its
+    elements': write it inside the brackets, as in '[const u8]'`.
+  - kc's build of a probe prints what kelvinc's does; selfhost/sample.k
+    has them.
 
 - (369) Agreed details: "teach kc fixed arrays in an Array as #369". kelvinc
   reads `[T]` in `$[...]` as an Array, `$[[i64]]` an Array of Arrays, and a
@@ -4904,6 +4924,7 @@ says "as agreed".
 | P379 | Details of #367 | selfhost/parse.k: bracket_type_ahead, `[[T](n)](2)` read as zeros; selfhost/gen.k: computed_ok of each count; selfhost/sample.k; selfhost/README.md | — |
 | P380 | Details of #368 | selfhost/gen.k: fixed_variant, refuse_fixed at the refusals of a local, a parameter, a result, a member, a global; the declarations' loop leaves an Optional's and a Result's to their use; selfhost/README.md | — |
 | P381 | Details of #369 | selfhost/parse.k: grown, lists_grow, `$[[T](N)]` refused; selfhost/gen.k: fixed_container_text in refuse_fixed; selfhost/sample.k; selfhost/README.md | — |
+| P382 | Details of #370 | selfhost/gen.k: gen_function's parameter of counted rows; selfhost/parse.k: `[const [T](N)]` refused; selfhost/sample.k; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

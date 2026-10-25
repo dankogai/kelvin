@@ -466,6 +466,10 @@ let parse_bare_type():int64 {
         let constant = at_word("const")             // [const T], a parameter's elements read alone (#357)
         if constant { advance() }
         let elem:int64 = parse_type()                // [T](N), [T] of a count its elements give (#354)
+        if constant && types[elem].kind == Y_FIXED { // [const [T](N)], as kelvinc says it (#370)
+            parse_error("a qualifier of an array is its elements': write it inside the brackets, as in '[const u8]'")
+            return base_type(Y_VOID)
+        }
         expect("]")
         var count:int64 = constant ? 0 - 3 : 0 - 1
         if constant && at_word("(") {

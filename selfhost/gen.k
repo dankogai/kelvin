@@ -7799,8 +7799,18 @@ let gen_function(d:int64) {
         let pty:int64 = nodes[p].ty
         let as_param = pty >= 0 && types[pty].kind == Y_FIXED && (types[pty].name == 0 - 2 || types[pty].name == 0 - 4)
         let pe:int64 = as_param ? types[pty].elem : 0 - 1
-        let owners = pe >= 0 && is_owner(pe) && !fixed_inside(pe)   // a String, an Array, a struct that owns: lent, its caller's (#365)
-        if as_param && !fixed_elem_ok(pe) && !owners || as_param && types[pe].kind == Y_FIXED {
+        var inner:int64 = pe                             // of fixed arrays, each counted, its rows (#370)
+        var counted = true
+        while inner >= 0 && types[inner].kind == Y_FIXED {
+            if types[inner].name < 0 { counted = false }
+            inner = types[inner].elem
+        }
+        if as_param && !counted {
+            gen_error(p, "a parameter's array of arrays counts the inner ones, as C must: [[T](N)]")
+            return
+        }
+        let owners = inner >= 0 && is_owner(inner) && !fixed_inside(inner)   // a String, an Array, a struct that owns: lent, its caller's (#365)
+        if as_param && !fixed_elem_ok(pe) && !owners {
             fixed_refused(p)
             return
         }

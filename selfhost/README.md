@@ -513,7 +513,12 @@ kc reads what it is written in, and little more.
       a value C returns`; a Set's, `a key of a Dictionary is an integer or
       a String, not [i64]`; `$[a]` of a fixed array, which kelvinc's prints
       as addresses, the Array's words.
-  - Not yet: a parameter of fixed arrays;
+  - A parameter of fixed arrays (#370), `m:[[int64](3)]`, as kelvinc's: a
+    pointer to its rows in C, `__typeof__(int64_t[3]) *m`, `m[i][j]`, the
+    rows' count written, its count passed beside it; of owners too, lent.
+    - `[[T]]`, rows of no count, is kc's error, which C cannot index;
+      `[const [T](N)]` kelvinc's `a qualifier of an array is its elements'`;
+      rows of another count kc's error, where kelvinc's C warns.
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
