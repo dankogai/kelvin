@@ -327,6 +327,7 @@ let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
+let owner_part(v:int64):bool    // a prototype: let, = and return refuse what it says (#365)
 let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is written by gen_written (#356)
 let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
@@ -4559,6 +4560,10 @@ let gen_var(n:int64) {
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
     who += tok_text(nodes[n].t)
     who += "'"
+    if nodes[n].a >= 0 && owner_part(nodes[n].a) && nodes[n].c != 1 {   // as kelvinc says it, an alias else (#365)
+        gen_error(nodes[n].a, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+        return
+    }
     if nodes[n].a >= 0 && !fixed_ptr_ok(nodes[n].a, y, &who) { return }   // q := &a of a [T](N)^ (#362)
     if nodes[n].a >= 0 && !takes_borrow(nodes[n].a, y, &who) { return }
     if nodes[n].a >= 0 && types[y].kind == Y_TASK && is_place(nodes[n].a) {   // as kelvinc's (#313)
@@ -4746,6 +4751,10 @@ let gen_assign(n:int64) {
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
         return
     }
+    if is_owner(y) && owner_part(nodes[n].b) && tok_is(t, "=") {   // x = p.s, an alias else (#365)
+        gen_error(nodes[n].b, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+        return
+    }
     if nodes[nodes[n].b].kind == N_EMPTY {               // d = ${:}: no type is written there, as kelvinc has it (#348)
         empty_error(nodes[n].b)
         return
@@ -4910,6 +4919,20 @@ let gen_assign(n:int64) {
     }
 }
 
+// whether v is a part of an owner, a member, an element or what a pointer
+// points to, that owns: what = would alias and return would move out of
+// its owner, as kelvinc refuses them (#365)
+let owner_part(v:int64):bool {
+    let k:nkind = nodes[v].kind
+    if k != N_FIELD && k != N_INDEX && k != N_DEREF { return false }
+    if k == N_FIELD && (tagged_named(nodes[v].a) >= 0 || names_type(nodes[v].a)) { return false }   // T.none, a value made
+    if k == N_FIELD {                                    // a struct's member or a case's value, not a property that makes one, as f.string
+        let y:int64 = type_of(nodes[v].a)
+        if y < 0 || (struct_of(y) < 0 && tagged_of(y) < 0) { return false }
+    }
+    return is_place(v) && is_owner(type_of(v))
+}
+
 let gen_return(n:int64) {
     let a:int64 = nodes[n].a
     if a < 0 {
@@ -4932,6 +4955,10 @@ let gen_return(n:int64) {
             put(");\n")
             return
         }
+    }
+    if owner_part(a) {                                   // as kelvinc says it (#365)
+        gen_error(a, "an owner is returned as a whole variable, which moves out: a part of one is copied with .copy()")
+        return
     }
     put("return ")
     if nodes[a].kind == N_INIT {                         // return {a, b}: of the function's type (#213)
@@ -7612,12 +7639,10 @@ let gen_function(d:int64) {
     while p >= 0 {
         let pty:int64 = nodes[p].ty
         let as_param = pty >= 0 && types[pty].kind == Y_FIXED && (types[pty].name == 0 - 2 || types[pty].name == 0 - 4)
-        if as_param && !fixed_elem_ok(types[pty].elem) || as_param && types[types[pty].elem].kind == Y_FIXED {
-            if is_owner(types[pty].elem) {
-                gen_error(p, "a parameter's array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing")
-            } else {
-                fixed_refused(p)
-            }
+        let pe:int64 = as_param ? types[pty].elem : 0 - 1
+        let owners = pe >= 0 && is_owner(pe) && !fixed_inside(pe)   // a String, an Array, a struct that owns: lent, its caller's (#365)
+        if as_param && !fixed_elem_ok(pe) && !owners || as_param && types[pe].kind == Y_FIXED {
+            fixed_refused(p)
             return
         }
         if !as_param && fixed_inside(pty) {

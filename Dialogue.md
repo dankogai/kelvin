@@ -7287,3 +7287,15 @@ frees them all. Not yet: a parameter of owners. Details are
 provisional P376.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 410. kc's fixed array parameters of owners
+
+> teach kc fixed array parameters of owners as #365
+
+**Claude** taught kc a parameter's fixed array of owners, as kelvinc
+reads it: its elements lent and still the caller's, read, changed and
+assigned through `[T]`. Found on the way, and fixed: kc copied a part of
+an owner by `let` and `=`, and returned it, so that it was freed twice;
+kc now refuses them in kelvinc's words. Details are provisional P377.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

@@ -483,9 +483,14 @@ kc reads what it is written in, and little more.
       or it says there is no length to walk.
   - A local's or a global's of owners is kelvinc's error in its words, `an
     array of owners is not here yet: a struct may hold them`.
-  - Not yet: one in another type, as an Optional, a parameter of owners,
-    which kelvinc reads, or of fixed arrays; a count C computes, as
-    `[uint8](n)`;
+  - A parameter's array of owners (#365), `ns:[String]` or `ns:[const
+    String]`: its elements lent, the caller's, read, changed and assigned
+    through it, as kelvinc's; a member's array, of a var where they change.
+  - A part of an owner, a member, an element or `p^` that owns, is not
+    copied by `let` or `=`, nor returned: kelvinc's errors in its words,
+    where kc aliased it and freed it twice, as `let s = a[0]`, before #365.
+  - Not yet: one in another type, as an Optional, a parameter of fixed
+    arrays; a count C computes, as `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

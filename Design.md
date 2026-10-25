@@ -396,6 +396,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 362 | kc reads a fixed array behind a pointer of its count, `[T](N)^`, as kelvinc's P61: a local's by `:=`, a parameter, a member, a result; `q^[i]`, `q^.count`, `for x in q^`; kelvinc's errors in its words, kc's where kelvinc's C warns or reads an address | `__typeof__(int64_t[4]) *q` | kc's `let sqp:[int64](4)^ := &sq4` | 2026-10-25 |
 | 363 | kc reads a pointer to a fixed array of no count, `[T]^`, as kelvinc does: C's pointer to an array of no bound, which any count's `&a` of its elements goes to, and which goes to a counted one; `q^[i]`, its count passed beside it; `q^.count` and `for x in q^` kc's errors | `__typeof__(int64_t[]) *q` | kc's `let add_up(a:[int64]^, n:int64)` | 2026-10-25 |
 | 364 | kc reads a fixed array of owners as a struct's member and an enum's case value, as kelvinc does: the struct or the enum owns, each element freed and copied with it; `[a, b]` of values, a variable among them refused; a local's or a global's kelvinc's error in its words | a loop of `kv_string_free` | kc's `struct crew { ship: cstr; names: [String](2) }` | 2026-10-25 |
+| 365 | kc reads a parameter's fixed array of owners, `[String]` and `[const String]`, as kelvinc does: its elements lent, the caller's, read, changed and assigned through it; and refuses a part of an owner copied by `let` or `=`, or returned, in kelvinc's words, where kc aliased it | `kv_string *const a` | kc's `let hail(ns:[String], n:int64)` | 2026-10-25 |
 
 Notes:
 
@@ -957,6 +958,28 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (365) Agreed details: "teach kc fixed array parameters of owners as
+  #365", #364's not yet.
+  - gen.k: gen_function takes a parameter's `[T]` or `[const T]` of an
+    owner, a String, an Array, a struct or an enum that owns: a pointer
+    in C, as of #357, its elements lent, never freed by the function.
+    - Read, changed and assigned through `[T]`, `ns[i] += "!"`, `a[0] =
+      $"zed"`, freeing the old, as kelvinc's; its argument a member's
+      array, of a var where they change, as #357 has it, where kelvinc
+      takes a let's.
+  - Found on the way, and fixed: kc copied a part of an owner, a member, an
+    element or `p^` that owns, by `let` and `=`, and returned it, so that
+    it was freed twice, `let s = a[0]` a use after free under ASan;
+    kelvinc refuses them, and kc now does in its words (owner_part):
+    - `an owner is not copied by '=' (#54): copy its bytes with it.copy(),
+      or borrow it with ':= &...'`;
+    - `an owner is returned as a whole variable, which moves out: a part of
+      one is copied with .copy()`.
+    - owner_part takes a struct's member and a case's value, not a
+      property that makes a value, as `f.string`, nor `T.none`.
+  - kc's build of a probe prints what kelvinc's does, no leak; selfhost/
+    sample.k has them; kc builds itself with the check.
 
 - (364) Agreed details: "teach kc fixed arrays of owners as #364". kelvinc
   holds them in a struct's member and an enum's case, and refuses a
@@ -4798,6 +4821,7 @@ says "as agreed".
 | P374 | Details of #362 | selfhost/parse.k: `const [T](N)^` refused; selfhost/gen.k: put_ctype's `__typeof__`, fixed_inside of a pointer, fixed_ptr_ok in gen_arg_to and gen_var, gen_field's `q.count`, gen_element's `q[i]`; selfhost/sample.k; selfhost/README.md | kc's `[T]^` of no count, which kelvinc reads |
 | P375 | Details of #363 | selfhost/gen.k: put_ctype's `__typeof__(T[])`, fixed_inside of a pointer of no count, fixed_ptr_ok's counts alike, gen_field's and gen_each's errors; selfhost/sample.k; selfhost/README.md | — |
 | P376 | Details of #364 | selfhost/gen.k: is_owner of a counted fixed array, put_fixed_free and put_fixed_copy in gen_struct_owner and gen_tagged, member_fixed_ok of owners, fixed_list_fits of a variable; selfhost/sample.k; selfhost/README.md | kc's parameter of owners, which kelvinc reads; kelvinc's leak of a member of two counts of owners |
+| P377 | Details of #365 | selfhost/gen.k: gen_function's parameter of owners, owner_part in gen_var, gen_assign and gen_return; selfhost/sample.k; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

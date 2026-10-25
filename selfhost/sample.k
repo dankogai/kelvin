@@ -36,6 +36,16 @@ enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Arra
 struct tray { label: cstr; slots: [int64](3) }        // a fixed array as a member (#356)
 struct crew { ship: cstr; names: [String](2) }         // of owners, freed and copied with it (#364)
 
+let hail(ns:[String], n:int64) {                       // a parameter's array of owners, its caller's (#365)
+    for i in 0..<n { ns[i] += "!" }
+}
+
+let letters_in(ns:[const String], n:int64):int64 {
+    var t = 0
+    for i in 0..<n { t += ns[i].count as int64 }
+    return t
+}
+
 let total_of(xs:[const int64], n:int64):int64 {        // fixed arrays as parameters (#357)
     var t = 0
     for i in 0..<n { t += xs[i] }
@@ -626,5 +636,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let backup = aboard.copy()
     aboard.names[0] = $"cy"
     println(aboard, " ", backup.names[0], " ", backup.names[1].count)
+    hail(aboard.names, 2)
+    println(aboard.names[1], " ", letters_in(aboard.names, 2), " ", letters_in(backup.names, 2))
     return 0
 }
