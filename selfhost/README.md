@@ -489,8 +489,15 @@ kc reads what it is written in, and little more.
   - A part of an owner, a member, an element or `p^` that owns, is not
     copied by `let` or `=`, nor returned: kelvinc's errors in its words,
     where kc aliased it and freed it twice, as `let s = a[0]`, before #365.
+  - A count C computes (#366), as kelvinc's P61, a local var's: `var line =
+    [uint8](n)`, `var b:[int64](n + 1)`, C's `uint8_t line[n]; memset(line,
+    0, sizeof line);`, zeroed where kelvinc leaves the latter unset.
+    - `'z' is a let of a count computed at run time, which C cannot fill:
+      write 'var z'`, kelvinc's; elements given, a global's, a member's, a
+      count of text, kc's errors, where kelvinc leaves them to C.
+    - `[T](n)` reads any type's name, a struct's too, `[pt](2)`.
   - Not yet: one in another type, as an Optional, a parameter of fixed
-    arrays; a count C computes, as `[uint8](n)`;
+    arrays, `[[uint8](n)](2)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

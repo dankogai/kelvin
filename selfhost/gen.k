@@ -728,7 +728,10 @@ let type_of(n:int64):int64 {
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
     if k == N_LIST {                                     // [a, b], a fixed array of a's type; [T](n) (#354)
-        if nodes[n].flag == 1 { return type_of_kind(Y_FIXED, nodes[n].ty, tok_count(nodes[nodes[n].a].t)) }
+        if nodes[n].flag == 1 {                         // [T](n) of a count C computes, -10 - its node (#366)
+            let c:int64 = nodes[nodes[n].a].kind == N_NUM ? tok_count(nodes[nodes[n].a].t) : 0 - 1
+            return type_of_kind(Y_FIXED, nodes[n].ty, c >= 0 ? c : 0 - 10 - nodes[n].a)
+        }
         let first:int64 = nodes[n].b
         if first < 0 || is_case_word(first) { return -1 }
         let e:int64 = type_of(first)
@@ -2426,7 +2429,7 @@ let gen_member(n:int64) {
         var m = type_text(y)
         m += " has no count, which C does not keep: pass it beside it"
         gen_error(n, m.cstr)
-    } else if (yk == Y_FIXED && types[y].name < 0 || fixed_ptr) && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
+    } else if (yk == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) || fixed_ptr) && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
         var m = $"'."
         m += tok_text(t)
         m += "' is a property of arrays, and this is "
@@ -4260,7 +4263,12 @@ let type_text(y:int64):String {
         var s = types[y].name == 0 - 3 ? $"[const " : $"["
         s += type_text(types[y].elem)
         s += "]"
-        if types[y].name >= 0 {
+        if types[y].name <= 0 - 10 {                     // [u8](n), of a count C computes (#366)
+            let c:int64 = 0 - 10 - types[y].name
+            s += "("
+            s += nodes[c].kind == N_ID ? tok_text(nodes[c].t) : $"n"
+            s += ")"
+        } else if types[y].name >= 0 {
             s += "("
             let c:String = String(types[y].name)
             s += &c
@@ -4401,7 +4409,11 @@ let put_fixed_counts(y:int64) {
     var f:int64 = y
     while types[f].kind == Y_FIXED {
         put("[")
-        put_int(types[f].name)
+        if types[f].name <= 0 - 10 {                    // a count C computes (#366)
+            gen_expr(0 - 10 - types[f].name)
+        } else {
+            put_int(types[f].name)
+        }
         put("]")
         f = types[f].elem
     }
@@ -4471,6 +4483,62 @@ let fixed_list_fits(v:int64, y:int64):bool {
     return true
 }
 
+// whether a fixed array holds one of a count C computes, deeper in (#366)
+let fixed_computed(y:int64):bool {
+    var f:int64 = y
+    while types[f].kind == Y_FIXED {
+        if types[f].name <= 0 - 10 { return true }
+        f = types[f].elem
+    }
+    return false
+}
+
+// whether n, of y, a count C computes, is a var's in a function, its count
+// an integer, given no elements, as C has it; else kelvinc's error, or
+// kc's where kelvinc leaves it to C (#366)
+let computed_ok(n:int64, y:int64, v:int64):bool {
+    if nodes[n].kind == D_GLOBAL {
+        gen_error(n, "a global's array is counted by a number: a count computed at run time is a local var's")
+        return false
+    }
+    if nodes[n].flag == 1 && v < 0 {                     // as kelvinc says it
+        var m = $"a let needs a value: write 'let "
+        m += tok_text(nodes[n].t)
+        m += " = ...', or 'var "
+        m += tok_text(nodes[n].t)
+        m += "' if it changes later"
+        gen_error(n, m.cstr)
+        return false
+    }
+    if nodes[n].flag == 1 {                              // as kelvinc says it
+        var m = $"'"
+        m += tok_text(nodes[n].t)
+        m += "' is a let of a count computed at run time, which C cannot fill: write 'var "
+        m += tok_text(nodes[n].t)
+        m += "'"
+        gen_error(n, m.cstr)
+        return false
+    }
+    if fixed_computed(types[y].elem) {
+        gen_error(n, "kc reads an array of a count computed at run time, the outer one; not yet within another")
+        return false
+    }
+    if v >= 0 && !(nodes[v].kind == N_LIST && nodes[v].flag == 1) {
+        gen_error(v, "an array of a count computed at run time takes no elements in C: give them one by one, a[i] = ...")
+        return false
+    }
+    let c:int64 = 0 - 10 - types[y].name
+    let cy:int64 = type_of(c)
+    if nodes[c].kind == N_STR || cy < 0 || !is_number_kind(types[cy].kind) || types[cy].kind == Y_F64 || types[cy].kind == Y_F32 {
+        var m = $"an array's count is an integer, and this is "
+        let w:String = nodes[c].kind == N_STR ? $"text" : cy >= 0 ? kelvin_type_text(cy) : $"not one"
+        m += &w
+        gen_error(c, m.cstr)
+        return false
+    }
+    return true
+}
+
 // let a:[T](N) = [a, b], var a = [1, 2], var z = [T](n), var a:[T](N): a
 // local fixed array, as kelvinc's #48 and #49, declared as C's T a[N] =
 // {a, b}, and {0} where nothing or [T](n) gives its elements (#354)
@@ -4492,13 +4560,22 @@ let gen_fixed_var(n:int64) {
         }
         return
     }
+    let zeros_computed = v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 && type_of(v) >= 0 && types[type_of(v)].name <= 0 - 10
+    if types[y].name <= 0 - 10 || zeros_computed || fixed_computed(types[y].elem) {   // a count C computes, a local var's (#366)
+        if types[y].name == 0 - 1 { y = type_of(v) }
+        if !computed_ok(n, y, v) { return }
+        set_ty(n, y)
+        put_fixed_decl(y, nodes[n].t)
+        put("; memset(")
+        put_tok(nodes[n].t)
+        put(", 0, sizeof ")
+        put_tok(nodes[n].t)
+        put(");\n")
+        return
+    }
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 {   // [T](n)
         let zy:int64 = type_of(v)
-        if types[zy].name < 0 {
-            gen_error(nodes[v].a, "kc counts a fixed array by a number, [T](3); not yet a count C computes")
-            return
-        }
-        if types[y].name < 0 { y = zy }
+        if types[y].name == 0 - 1 { y = zy }
         if y != zy {
             var m = $"'"
             m += tok_text(nodes[n].t)
@@ -6904,7 +6981,7 @@ let gen_each(n:int64, depth:int64) {
         gen_error(nodes[n].a, "an array of no count has no length to walk: walk 0..<n, and index it, q^[i]")
         return
     }
-    if types[y].kind == Y_FIXED && types[y].name < 0 {   // a parameter's, where kelvinc's link fails (#357)
+    if types[y].kind == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) {   // a parameter's, where kelvinc's link fails (#357)
         gen_error(nodes[n].a, "a parameter's array is a pointer, of no count: walk 0..<n, and index it, a[i]")
         return
     }

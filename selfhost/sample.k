@@ -638,5 +638,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(aboard, " ", backup.names[0], " ", backup.names[1].count)
     hail(aboard.names, 2)
     println(aboard.names[1], " ", letters_in(aboard.names, 2), " ", letters_in(backup.names, 2))
+    let width5:int64 = sq4.count + 1
+    var strip = [uint8](width5)                          // a count C computes, a VLA (#366)
+    strip[width5 - 1] = 9
+    println(strip.count, " ", strip[width5 - 1], " ", strip[0])
     return 0
 }

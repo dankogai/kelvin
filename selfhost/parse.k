@@ -83,7 +83,8 @@ enum ykind {                    // the kinds of types (#210)
     Y_TASK,     // a Task (#313): its value elem, -1 of none
     Y_ITER,     // an Iterator<T> (#326): its value elem
     Y_FIXED,    // [T](N), a fixed array (#354): its element elem, its count name, -1 where its elements give it;
-                // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357)
+                // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357);
+                // -10 - n of a count C computes, node n (#366)
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -348,6 +349,7 @@ let result_of(t:int64, e:int64):int64 {
 
 // ---------- types as written ----------
 
+let parse_expr():int64    // a prototype: the parsers call each other, a type's count too (#366)
 let parse_type():int64    // a prototype: a type's parts are types
 let parse_bare_type():int64
 
@@ -426,12 +428,12 @@ let parse_bare_type():int64 {
         }
         if at_word("(") {
             advance()
-            count = tok_count(pos)
-            if count < 0 {
-                parse_error("kc counts a fixed array by a number, [T](3); not yet a count C computes")
-                return base_type(Y_VOID)
+            count = tok_is(pos + 1, ")") ? tok_count(pos) : 0 - 1
+            if count < 0 {                           // a count C computes, a local's (#366): -10 - its node
+                count = 0 - 10 - parse_expr()
+            } else {
+                advance()
             }
-            advance()
             expect(")")
         }
         var y:int64 = type_of_kind(Y_FIXED, elem, count)
@@ -527,7 +529,6 @@ let parse_bare_type():int64 {
 
 // ---------- expressions ----------
 
-let parse_expr():int64    // a prototype: the parsers call each other
 
 // the arguments of a call after its (, up to its ), as a list
 let parse_args():int64 {
@@ -856,7 +857,7 @@ let parse_primary():int64 {
     if at_word("[") {                                    // a fixed array's elements, or [T](n) (#354)
         advance()
         let n:int64 = make_node(N_LIST, t)
-        let word = tok_is(pos, "int64") || tok_is(pos, "int32") || tok_is(pos, "uint8") || tok_is(pos, "uint32") || tok_is(pos, "float64") || tok_is(pos, "float32") || tok_is(pos, "bool") || tok_is(pos, "cstr")
+        let word = toks[pos].kind == T_ID                // [T](n) of a type's name: a list is no function (#366)
         if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") {   // [T](n), n zero elements
             set_ty(n, parse_type())
             expect("]")

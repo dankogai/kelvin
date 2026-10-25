@@ -7299,3 +7299,16 @@ an owner by `let` and `=`, and returned it, so that it was freed twice;
 kc now refuses them in kelvinc's words. Details are provisional P377.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 411. kc's fixed arrays of a count C computes
+
+> teach kc fixed arrays with a count C computes as #366
+
+**Claude** taught kc a fixed array of a count computed at run time, as
+kelvinc's P61, a local var's: C's array of a variable length, zeroed by
+`memset`, read and walked as a counted one. A let of one is kelvinc's
+error in its words; elements given, a global's and a member's are kc's
+errors, where kelvinc leaves them to C. `[T](n)` now reads any type's
+name, a struct's too. Details are provisional P378.
+
+There are 1004 tests, and all pass with clang and with gcc 15.
