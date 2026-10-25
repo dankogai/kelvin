@@ -1331,6 +1331,23 @@ static char *expr_bare(Expr *e) {
                                 : down ? "if (_kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and '.reversed()' "
                                          "walks one from its end: take its first few, '.prefix(n)'\"); "
                                        : "";
+            if (!strcmp(e->op, "range_iter_stride")) {
+                /* r.stride(n) (#379): its step a T, never 0; a negative one, from its end down, which one
+                   without an end has not */
+                bool sign = e->from->elem->name[0] != 'u';
+                return strfmt("({ %s _kv_ri = (%s); %s = (%s); if (_kv_rs == 0) kv_array_fail(\"'.stride(n)' stepped "
+                              "by 0, which never moves\"); %s%s; struct %s_st *_kv_is = kv_alloc(sizeof *_kv_is); "
+                              "_kv_is->at = %s; _kv_is->end = %s; _kv_is->step = _kv_rs; _kv_is->go = _kv_r_go; "
+                              "kv_iter_make(_kv_is, NULL, %s_next); })",
+                              e->from->cname, expr(e->a), decl(e->from->elem, "_kv_rs"), expr(e->items.data[0]),
+                              sign ? "if (_kv_rs < 0 && _kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and "
+                                     "'.stride(n)' of a negative n walks one from its end: take its first few, "
+                                     "'.prefix(n)'\"); "
+                                   : "",
+                              range_walk(e->from->elem, "_kv_ri", "_kv_r"), e->target->name,
+                              sign ? "_kv_rs < 0 ? _kv_r_end : _kv_r_lo" : "_kv_r_lo",
+                              sign ? "_kv_rs < 0 ? _kv_r_lo : _kv_r_end" : "_kv_r_end", e->target->name);
+            }
             return strfmt("({ %s _kv_ri = (%s); %s%s; struct %s_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = "
                           "%s; _kv_is->end = %s; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, %s_next); })",
                           e->from->cname, expr(e->a), check, range_walk(e->from->elem, "_kv_ri", "_kv_r"), e->target->name,
@@ -3860,11 +3877,13 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
-        if (d->lazy_op && (!strcmp(d->lazy_op, "range") || !strcmp(d->lazy_op, "range_down"))) {
+        if (d->lazy_op && !strncmp(d->lazy_op, "range", 5)) {
             /* a Range's Iterator (#373): next gives where it is, then steps
                while it is short of its end, so it never passes T's largest */
+            bool stride = !strcmp(d->lazy_op, "range_stride");
             if (!d->body) {
-                line("struct %s_st { %s, end; bool go; };", d->name, decl(d->iter_state->elem, "at"));
+                line("struct %s_st { %s, end%s; bool go; };", d->name, decl(d->iter_state->elem, "at"),
+                     stride ? ", step" : "");
                 line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);
                 break;
             }
@@ -3878,6 +3897,18 @@ static void emit_decl(Decl *d) {
             line("    return;");
             line("}");
             line("%s = %s(_kv_p->at);", out, optional_case(d->ret, "some"));
+            if (stride) { /* r.stride(n) (#379): on while a whole step is left, reckoned as a __int128 */
+                if (d->iter_state->elem->name[0] == 'u')
+                    line("_kv_p->go = (__int128)_kv_p->end - _kv_p->at >= _kv_p->step;");
+                else
+                    line("_kv_p->go = _kv_p->step > 0 ? (__int128)_kv_p->end - _kv_p->at >= _kv_p->step : "
+                         "(__int128)_kv_p->at - _kv_p->end >= -(__int128)_kv_p->step;");
+                line("if (_kv_p->go)");
+                line("    _kv_p->at += _kv_p->step;");
+                indent--;
+                line("}");
+                break;
+            }
             line("_kv_p->go = _kv_p->at != _kv_p->end;");
             line("_kv_p->at %s= _kv_p->go;", !strcmp(d->lazy_op, "range_down") ? "-" : "+"); /* r.reversed() down (#378) */
             indent--;

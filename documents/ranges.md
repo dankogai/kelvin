@@ -5,7 +5,7 @@ lower bound up to an upper one. It is a Sequence, walked by `for` and
 by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
 [iterators.md](iterators.md) has them; it has a `count` and a
 `contains(x)` (#374), its `lowerBound` and `upperBound` (#375), `==`
-and `!=` (#376), and `reversed()` (#378).
+and `!=` (#376), `reversed()` (#378) and `stride(n)` (#379).
 
 **Where it lives:** the core. A Range is kelvinc's own, a struct of its
 bounds written into the program's C, with nothing linked; the Iterator
@@ -31,7 +31,9 @@ let main():int32 {
     println(c.lowerBound, " ", c.upperBound, " ", r.upperBound)       // 1 3 5
     println(r == 0..<5, " ", r == 0...4, " ", small == 250...)       // true false true
     for i in c.reversed() { print(i, ",") }                         // 3,2,1,
+    for i in (0..<10).stride(-3) { print(i, ",") }                  // 9,6,3,0,
     println()
+    println((0..<10).stride(3).map { $0 }, " ", naturals.stride(5).prefix(3).map { $0 })   // [0, 3, 6, 9] [0, 5, 10]
     return 0
 }
 ```
@@ -168,6 +170,29 @@ let main():int32 {
 - A descending Range is not a value: it would have no text to paste
   back.
 
+## Every n-th: `stride(n)`
+
+- **`r.stride(n)`** is an `Iterator<T>` of every `n`-th value, from
+  `lo` up, lazily, as Swift's `stride(from:to:by:)` (#379).
+  - `(0..<10).stride(3)` is 0, 3, 6, 9: it stops where a whole step no
+    longer fits, and never steps past the end.
+  - One without an end strides up to its type's largest, and stops
+    there: `(0...).stride(5)` is as good as endless.
+  - It is an Iterator, walked once, as `reversed()` is.
+- **A negative `n`** walks from its last value down to `lo`:
+  `(0..<10).stride(-3)` is 9, 6, 3, 0.
+  - A Range without an end has no last value: written so,
+    `(0...).stride(-2)` is an error, and one whose end is known only at
+    run time ends the program, as its `.reversed()` does.
+- **`n` is a `T`**, as C converts an argument.
+  - So a Range of an unsigned `T` never strides down: a written
+    negative step, `b.stride(-1)` of a `Range<uint8>`, is an error that
+    says to walk it down with `.reversed()`.
+- **A step of 0** never moves: `.stride(0)` is an error, and one known
+  only at run time ends the program.
+- **The step is written alone**, `r.stride(2)`: Kelvin has no argument
+  labels, so Swift's `stride(by: 2)` is an error that says so.
+
 ## Slices
 
 - **`xs[lo..<hi]`** slices an Array, a String or a Bytes as before
@@ -198,6 +223,7 @@ let main():int32 {
 | | `.prefix(n)` | the Range of its first `n` values |
 | | `.prefix { ... }` | an `Iterator<T>` of the values before the first `f` says false for |
 | | `.reversed()` | an `Iterator<T>` of its values from the last down, lazily (#378) |
+| | `.stride(n)` | an `Iterator<T>` of every `n`-th value, from `lo` up, or down from the last of a negative `n`, lazily (#379) |
 | | `xs[r]` | a slice of an Array, a String or a Bytes, a new one (#377) |
 
 ## kc
@@ -222,4 +248,3 @@ kc reads every row of the table above but `${r}`.
 ## Not yet
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
-- Stepped ranges, `stride`.

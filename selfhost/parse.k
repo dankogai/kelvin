@@ -1110,6 +1110,10 @@ let parse_steps(first:int64):int64 {
                 advance()
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
+                if tok_is(t, "stride") && toks[pos].kind == T_ID && tok_is(pos + 1, ":") {   // r.stride(by: 2), as kelvinc says it (#379)
+                    advance()
+                    parse_error("'.stride' takes its step alone, as in 'r.stride(2)': Kelvin has no argument labels")
+                }
                 set_b(n, parse_args())
                 if anon_ahead() {                        // x.m(a) { ... }: a function trailing, the last argument (#328)
                     let an:int64 = parse_anon()

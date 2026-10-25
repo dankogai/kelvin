@@ -2042,6 +2042,50 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = x;
                     continue;
                 }
+                if (call && !strcmp(member, "stride")) {
+                    /* r.stride(n) (#379): an Iterator<T> of every n-th value, from lo up, or of a negative n,
+                       from its last value down; n is a T, as C converts it */
+                    advance();
+                    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")"))
+                        error_at(peek()->pos, "'.stride' takes a step, an integer, as in 'r.stride(2)'");
+                    Expr *v = parse_assign();
+                    if (is_p(peek(), ":") && v->kind == E_IDENT)
+                        error_at(peek()->pos, "'.stride' takes its step alone, as in 'r.stride(2)': Kelvin has no "
+                                              "argument labels");
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.stride' takes one integer");
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                    Decl *r;
+                    char c = expr_class(v, &r);
+                    bool flag = v->is_bool || bool_shape(v);
+                    if (flag || (c != 'i' && c != 'u'))
+                        error_at(v->pos, "'.stride' takes an integer, and this is %s",
+                                 flag ? "a bool" : c == 'f' ? "a floating-point number" : value_type(v) ? kelvin_type(value_type(v)) : "not one");
+                    Type *rt = unqualified(value_type(e));
+                    Expr *lit = v->kind == E_PREFIX && !strcmp(v->op, "-") ? v->a : v;
+                    bool negative = lit != v && lit->kind == E_LITERAL && isdigit((unsigned char)lit->text[0]);
+                    if (lit == v && v->kind == E_LITERAL && !strcmp(v->text, "0"))
+                        error_at(v->pos, "'.stride(0)' never moves: step by a number other than 0");
+                    if (negative && rt->elem->name[0] == 'u')
+                        error_at(v->pos, "a %s steps by a %s, which is never negative: walk it down with '.reversed()'",
+                                 kelvin_type(rt), kelvin_type(rt->elem));
+                    if (negative && is_range_literal(e) && !e->b)
+                        error_at(name->pos, "'.stride(-%s)' walks a Range from its end, and %s has none: take the first "
+                                            "few, as in '.prefix(10).stride(-%s)'",
+                                 lit->text, e->a->kind == E_LITERAL ? strfmt("%s...", e->a->text) : "lo...", lit->text);
+                    Expr *x = range_iter(e, NULL, name->pos);
+                    x->op = "range_iter_stride";
+                    x->text = "stride";
+                    list_push(&x->items, v);
+                    x->target->lazy_op = "range_stride";
+                    e = x;
+                    continue;
+                }
                 if (call && !strcmp(member, "contains")) { /* r.contains(x) (#374): whether x is one of its values */
                     advance();
                     bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
@@ -2077,7 +2121,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = range_iter(e, member, name->pos); /* then the Iterator's, below */
                 else if (strcmp(member, "pretty") && strcmp(member, "size"))
                     error_at(name->pos, "a Range has lowerBound, upperBound, count, contains, map, filter, reduce, "
-                                        "flatMap, lazy, prefix and reversed, and '.%s' is none of them",
+                                        "flatMap, lazy, prefix, reversed and stride, and '.%s' is none of them",
                              member);
             }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */

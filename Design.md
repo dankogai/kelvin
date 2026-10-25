@@ -410,6 +410,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 376 | Ranges compare with `==` and `!=`: equal when of the same kind and bounds, as they print, as Swift's, so `0..<5 != 0...4`; two of `lo...` by `lo` alone; of two integer types by value; an Array and an Optional of Ranges compare by them; kelvinc and kc | the kinds and the bounds as `__int128`s | `r == 0..<5` | 2026-10-25 |
 | 377 | `xs[r]` slices an Array, a String or a Bytes by a Range value as by one written: `lo..<hi` up to `hi`, `lo...hi` past it, `lo...` to the count; out of range the program ends; kelvinc, and kc, which so slices by a range written too | the slice of its bounds, read at run time | `let r = 1..<3; xs[r]` | 2026-10-25 |
 | 378 | `r.reversed()` is an `Iterator<T>` of a Range's values from the last down to `lo`, lazily, as Swift's `ReversedCollection`; one without an end has none to start from, an error written so and the program's end otherwise; kelvinc and kc | the Range's Iterator, started at its end and stepping down while short of `lo` | `for i in (0..<n).reversed()` | 2026-10-25 |
+| 379 | `r.stride(n)` is an `Iterator<T>` of every n-th value of a Range, from `lo` up, or of a negative `n` from its last value down, lazily; `n` is a `T`, never 0, and written alone, Kelvin having no argument labels; kelvinc and kc | the Range's Iterator with a step, on while a whole step is left, reckoned as a `__int128` | `for i in (0..<10).stride(3)` | 2026-10-25 |
 
 Notes:
 
@@ -971,6 +972,16 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (379) Agreed details: "add `.stride(by:)` to Range". The user chose
+  plain `.stride(n)`, as Kelvin has no argument labels anywhere; a step
+  of `T`, so an unsigned Range walks down with `.reversed()` instead; and
+  a negative step walking from the last value down, as `.reversed()`.
+  - A lazy `Iterator<T>`, as `.reversed()`'s; it goes on while a whole
+    step is left, so it never steps past the end or wraps.
+  - Errors: a step of 0, written so, or at run time the program's end; a
+    written negative step of an unsigned `T`, or of `lo...`, which at run
+    time ends the program; `stride(by: n)`; one integer.
 
 - (378) Agreed details: "add `.reversed()` to Range". The user chose a
   lazy `Iterator<T>`, not an Array, so `(0..<n).reversed()` allocates
@@ -5057,6 +5068,7 @@ says "as agreed".
 | P388 | Details of #376 | src/parser.c: parse_binary's Range ==, op range_eq, a Range? left to the Optional's ==, eq_type of a Range; src/codegen.c: range_eq, eq_code of a Range; selfhost/gen.k: range_operand_error, is_range_eq, gen_range_eq in gen_expr and gen_cond, put_eq_code of a Range; documents/ranges.md; tests/run/range_eq.k, tests/error/range_eq_number.k, tests/error/range_operator.k of `<` | — |
 | P389 | Details of #377 | src/parser.c: the slice of a Range value (text "range"), the String index refused once read; src/codegen.c: the slice of `_kv_sr`'s lo and hi or count; selfhost/gen.k: type_of's slice, is_slice, gen_slice, is_place; documents/ranges.md, arrays.md, strings.md, bytes.md; tests/run/slice_range.k, tests/error/range_slice_value.k of a Dictionary | — |
 | P390 | Details of #378 | src/parser.c: the Range's reversed, range_iter of lazy_op "range_down", op range_iter_down; src/codegen.c: the adapter's step down, the state from the end; selfhost/gen.k: type_of's reversed, range_iter_of's op 6, gen_iter_value's and put_iter_adapters' down; documents/ranges.md; tests/run/range_reversed.k, tests/error/range_reversed_no_end.k, tests/error/range_method.k's words | — |
+| P391 | Details of #379 | src/parser.c: the Range's stride, its step's checks, range_iter of lazy_op "range_stride", op range_iter_stride; src/codegen.c: the state's step, the adapter's whole-step check, the start by the step's sign; selfhost/parse.k: `stride(by:)`'s error; selfhost/gen.k: type_of's stride, gen_range_stride, range_unsigned, range_iter_of's op 7, gen_iter_value's and put_iter_adapters' stride; documents/ranges.md; tests/run/range_stride.k, tests/error/range_stride_no_end.k, range_stride_zero.k, range_stride_unsigned.k, range_stride_label.k, tests/error/range_method.k's words | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

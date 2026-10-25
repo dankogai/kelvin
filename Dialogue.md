@@ -7484,3 +7484,19 @@ short of `lo`, so it never wraps. kc writes the same and says kelvinc's
 errors. Details are provisional P390.
 
 There are 1029 tests, and all pass with clang and with gcc 15.
+
+### 424. A Range's stride(n)
+
+> add `.stride(by:)` to Range as #379
+
+**Claude** asked what a negative step should do, what type the step is,
+and whether the `by:` label is required, Kelvin having no argument labels
+anywhere else. The user chose a negative step walking from the last value
+down, as `.reversed()` does; a step of the Range's `T`, an unsigned Range
+walking down with `.reversed()` instead; and plain `.stride(n)`, as Kelvin
+still has no call-site labels, so `stride(by: 2)` is an error that says
+so. It is a lazy `Iterator<T>` that goes on while a whole step is left, so
+it never wraps; a step of 0 is refused. kc writes the same and says
+kelvinc's errors. Details are provisional P391.
+
+There are 1034 tests, and all pass with clang and with gcc 15.

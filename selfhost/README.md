@@ -379,6 +379,10 @@ kc reads what it is written in, and little more.
   - `r.reversed()` (#378), an Iterator kc makes of it that steps down,
     iter_rec op 6; one without an end is kelvinc's error, or ends the
     program.
+  - `r.stride(n)` (#379), an Iterator kc makes of it that steps by `n`,
+    a `T`, iter_rec op 7, down from the end of a negative one; a step of
+    0, a negative one of an unsigned `T` or of one without an end, and
+    `stride(by: n)` are kelvinc's errors.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -669,5 +669,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(octets3 == 1...3, " ", octets3 != 1..<3, " ", naturals == 0...4)   // == and != (#376)
     println($[5, 6, 7, 8][octets3], " ", $"kelvin"[naturals.prefix(3)], " ", $[5, 6, 7][1...])   // xs[r] (#377)
     println(octets3.reversed().map { $0 * 10 }, " ", naturals.prefix(5).reversed().prefix(2).map { $0 })   // r.reversed() (#378)
+    println(naturals.stride(3).prefix(3).map { $0 }, " ", (0..<10).stride(-4).map { $0 }, " ", octets3.stride(2).map { $0 })   // r.stride(n) (#379)
     return 0
 }

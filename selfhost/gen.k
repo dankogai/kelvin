@@ -506,6 +506,8 @@ let gen_range_member(n:int64)
 let is_range_eq(n:int64):bool
 let gen_range_eq(n:int64)
 let is_slice(n:int64):bool
+let range_unsigned(y:int64):bool
+let gen_range_stride(n:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -861,6 +863,7 @@ let type_of(n:int64):int64 {
         if y < 0 { return -1 }
         if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE && tok_is(t, "reversed") { return type_of_kind(Y_ITER, types[y].elem, -1) }   // r.reversed(), down (#378)
+        if types[y].kind == Y_RANGE && tok_is(t, "stride") { return type_of_kind(Y_ITER, types[y].elem, -1) }     // r.stride(n) (#379)
         if types[y].kind == Y_RANGE {                                    // as kelvinc's (#373)
             range_member_error(n)
             return -1
@@ -4257,6 +4260,10 @@ let gen_expr(n:int64) {
         if i >= 0 { gen_iter_value(i) }
         return
     }
+    if k == N_METHOD && tok_is(t, "stride") && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
+        gen_range_stride(n)                              // r.stride(n) (#379)
+        return
+    }
     if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)
         return
@@ -5734,9 +5741,9 @@ struct iter_rec {
     state_y: int64
     fn: int64
     iter_y: int64
-    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328), 3 of x.prefix(n), 4 of x.prefix(f) (#372), 5 of a Range (#373), 6 of its reversed() (#378)
+    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328), 3 of x.prefix(n), 4 of x.prefix(f) (#372), 5 of a Range (#373), 6 of its reversed() (#378), 7 of its stride(n) (#379)
     src: int64              // the state's expression: the state, or the Iterator made lazy
-    count: int64            // prefix(n)'s n; -1 else
+    count: int64            // prefix(n)'s n, stride(n)'s n (#379); -1 else
 }
 
 var iters:$[iter_rec]
@@ -6005,7 +6012,7 @@ let range_type_of(n:int64):int64 {
 
 // a member of a Range that it has not, as kelvinc says it
 let range_member_error(n:int64) {
-    var m = $"a Range has lowerBound, upperBound, count, contains, map, filter, reduce, flatMap, lazy, prefix and reversed, and '."
+    var m = $"a Range has lowerBound, upperBound, count, contains, map, filter, reduce, flatMap, lazy, prefix, reversed and stride, and '."
     m += tok_text(nodes[n].t)
     m += "' is none of them"
     gen_error(n, m.cstr)
@@ -6051,18 +6058,82 @@ let put_range_walk(ey:int64, r:cstr, p:cstr) {
 }
 
 // the Iterator kc makes of the Range of an N_RITER, n (#373), or of
-// r.reversed() (#378), down: where it is, where it ends and whether it
-// goes on
+// r.reversed() (#378), down, or of r.stride(n) (#379): where it is, where
+// it ends and whether it goes on
 let range_iter_of(n:int64):int64 {
     let seen = iter_at.get(n, -1)
     if seen >= 0 { return seen }
     let ry:int64 = type_of(nodes[n].a)
     if ry < 0 { return 0 - 1 }
-    let op:int64 = nodes[n].kind == N_METHOD ? 6 : 5     // r.reversed(), from its end down (#378)
-    let r:iter_rec = {n, ry, 0 - 1, type_of_kind(Y_ITER, types[ry].elem, -1), op, nodes[n].a, 0 - 1}
+    let stride = nodes[n].kind == N_METHOD && tok_is(nodes[n].t, "stride")
+    let op:int64 = stride ? 7 : nodes[n].kind == N_METHOD ? 6 : 5     // r.reversed(), from its end down (#378); r.stride(n) (#379)
+    let r:iter_rec = {n, ry, 0 - 1, type_of_kind(Y_ITER, types[ry].elem, -1), op, nodes[n].a, stride ? nodes[n].b : 0 - 1}
     iters += r
     iter_at[n] = iters.count as int64 - 1
     return iters.count as int64 - 1
+}
+
+// whether a Range<T>'s T, y, is unsigned, which steps never down (#379)
+let range_unsigned(y:int64):bool {
+    return y >= 0 && (types[y].kind == Y_U8 || types[y].kind == Y_U32)
+}
+
+// r.stride(n) (#379), as kelvinc's: n one integer, a T, never 0; a
+// negative one walks from the end, which a Range of unsigned T, or one
+// written without an end, has not
+let gen_range_stride(n:int64) {
+    let a:int64 = nodes[n].a
+    let ry:int64 = type_of(a)
+    let v:int64 = nodes[n].b
+    if v < 0 {
+        gen_error(n, "'.stride' takes a step, an integer, as in 'r.stride(2)'")
+        return
+    }
+    if nodes[v].next >= 0 {
+        gen_error(nodes[v].next, "'.stride' takes one integer")
+        return
+    }
+    let vy:int64 = type_of(v)
+    if vy < 0 { return }
+    let k:ykind = types[vy].kind
+    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+        var m = $"'.stride' takes an integer, and this is "
+        let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : type_text(vy)
+        m += &w
+        gen_error(v, m.cstr)
+        return
+    }
+    if nodes[v].kind == N_NUM && tok_is(nodes[v].t, "0") {
+        gen_error(v, "'.stride(0)' never moves: step by a number other than 0")
+        return
+    }
+    let negative = nodes[v].kind == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM
+    if negative && range_unsigned(types[ry].elem) {
+        var m = $"a "
+        let w:String = kelvin_type_text(ry)
+        m += &w
+        m += " steps by a "
+        let e:String = kelvin_type_text(types[ry].elem)
+        m += &e
+        m += ", which is never negative: walk it down with '.reversed()'"
+        gen_error(v, m.cstr)
+        return
+    }
+    if negative && nodes[a].kind == N_RANGE && nodes[a].flag == 2 {
+        let lo:int64 = nodes[a].a
+        let step:String = tok_text(nodes[nodes[v].a].t)
+        var m = $"'.stride(-"
+        m += &step
+        m += ")' walks a Range from its end, and "
+        if nodes[lo].kind == N_NUM { m += tok_text(nodes[lo].t) } else { m += "lo" }
+        m += "... has none: take the first few, as in '.prefix(10).stride(-"
+        m += &step
+        m += ")'"
+        gen_error(n, m.cstr)
+        return
+    }
+    let i = range_iter_of(n)
+    if i >= 0 { gen_iter_value(i) }
 }
 
 // whether n is an operator of a Range, which has none: kelvinc's error
@@ -6228,6 +6299,26 @@ let gen_iter_value(i:int64) {
     let sy:int64 = iters[i].state_y
     let a:int64 = iters[i].src
     let prefix = iters[i].op == 3 || iters[i].op == 4
+    if iters[i].op == 7 {                                // r.stride(n) (#379): its step a T, never 0; a negative one, from its end down
+        let sign = !range_unsigned(types[sy].elem)
+        put("({ ")
+        put_ctype(sy)
+        put(" _kv_ri = (")
+        gen_expr(a)
+        put("); ")
+        put_ctype(types[sy].elem)
+        put(" _kv_rs = (")
+        gen_expr(iters[i].count)
+        put("); if (_kv_rs == 0) kv_array_fail(\"'.stride(n)' stepped by 0, which never moves\"); ")
+        if sign { put("if (_kv_rs < 0 && _kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and '.stride(n)' of a negative n walks one from its end: take its first few, '.prefix(n)'\"); ") }
+        put_range_walk(types[sy].elem, "_kv_ri", "_kv_r")
+        put("; struct _kv_iter")
+        put_int(i + 1)
+        put(sign ? "_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = _kv_rs < 0 ? _kv_r_end : _kv_r_lo; _kv_is->end = _kv_rs < 0 ? _kv_r_lo : _kv_r_end; _kv_is->step = _kv_rs; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, _kv_iter" : "_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = _kv_r_lo; _kv_is->end = _kv_r_end; _kv_is->step = _kv_rs; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, _kv_iter")
+        put_int(i + 1)
+        put("_next); })")
+        return
+    }
     if iters[i].op == 5 || iters[i].op == 6 {            // a Range's (#373), down (#378): where it starts, ends and goes, as kelvinc's
         let down = iters[i].op == 6
         put("({ ")
@@ -6285,12 +6376,12 @@ let gen_iter_value(i:int64) {
 let put_iter_adapters(heads:bool) {
     for i in 0..<iters.count as int64 {
         let r:iter_rec = iters[i]
-        if heads && (r.op == 5 || r.op == 6) {           // a Range's state (#373, #378)
+        if heads && (r.op == 5 || r.op == 6 || r.op == 7) {   // a Range's state (#373, #378), its step (#379)
             put("struct _kv_iter")
             put_int(i + 1)
             put("_st { ")
             put_ctype(types[r.state_y].elem)
-            put(" at, end; bool go; };\n")
+            put(r.op == 7 ? " at, end, step; bool go; };\n" : " at, end; bool go; };\n")
         }
         if heads && (r.op == 3 || r.op == 4) {           // x.prefix(n)'s state (#372)
             put("struct _kv_iter")
@@ -6304,7 +6395,7 @@ let put_iter_adapters(heads:bool) {
         put("_next(void *_kv_s, void *_kv_out)")
         if heads {
             put(";\n")
-        } else if r.op == 5 || r.op == 6 {               // a Range's (#373): where it is, then a step short of its end, as kelvinc's; down (#378)
+        } else if r.op == 5 || r.op == 6 || r.op == 7 {  // a Range's (#373): where it is, then a step short of its end, as kelvinc's; down (#378); by n (#379)
             let out_y:int64 = optional_of(types[r.state_y].elem)
             put("\n{\n    struct _kv_iter")
             put_int(i + 1)
@@ -6316,9 +6407,16 @@ let put_iter_adapters(heads:bool) {
             put_ctype(out_y)
             put(" *)_kv_out = _kv_")
             put_tok(types[out_y].name)
-            put("_make_some(_kv_p->at);\n    _kv_p->go = _kv_p->at != _kv_p->end;\n    _kv_p->at ")
-            put(r.op == 6 ? "-" : "+")
-            put("= _kv_p->go;\n}\n\n")
+            put("_make_some(_kv_p->at);\n")
+            if r.op == 7 && range_unsigned(types[r.state_y].elem) {   // r.stride(n) (#379): on while a whole step is left, as a __int128
+                put("    _kv_p->go = (__int128)_kv_p->end - _kv_p->at >= _kv_p->step;\n    if (_kv_p->go)\n        _kv_p->at += _kv_p->step;\n}\n\n")
+            } else if r.op == 7 {
+                put("    _kv_p->go = _kv_p->step > 0 ? (__int128)_kv_p->end - _kv_p->at >= _kv_p->step : (__int128)_kv_p->at - _kv_p->end >= -(__int128)_kv_p->step;\n    if (_kv_p->go)\n        _kv_p->at += _kv_p->step;\n}\n\n")
+            } else {
+                put("    _kv_p->go = _kv_p->at != _kv_p->end;\n    _kv_p->at ")
+                put(r.op == 6 ? "-" : "+")
+                put("= _kv_p->go;\n}\n\n")
+            }
         } else if r.op == 3 || r.op == 4 {               // x.prefix(n), x.prefix(f) (#372), as kelvinc's
             let ey:int64 = types[r.iter_y].elem
             let out_y:int64 = optional_of(ey)
