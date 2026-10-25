@@ -400,6 +400,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 366 | kc reads a fixed array of a count C computes, as kelvinc's P61, a local var's: C's array of a variable length, zeroed by `memset`; a let of one kelvinc's error in its words; elements given, a global's, a member's kc's errors; `[T](n)` of any type's name | `uint8_t line[n]; memset(line, 0, sizeof line);` | kc's `var strip = [uint8](width5)` | 2026-10-25 |
 | 367 | kc reads a count C computes within another fixed array, `[[uint8](n)](2)`, a local var's: C's `uint8_t m[2][n]`, zeroed as one; every count C computes an integer | `uint8_t m[2][n]; memset(m, 0, sizeof m);` | kc's `var grid2:[[int64](width5)](2)` | 2026-10-25 |
 | 368 | kc refuses a fixed array in an Optional or a Result for good, as kelvinc does by design, in its words: `an Optional holds a value, and an array is none: hold an Array, $[i64]`, and of a Result | — | kc's `let o:[int64](2)? = none` refused | 2026-10-25 |
+| 369 | kc reads a fixed array in an Array as kelvinc does: `[T]` in `$[...]` an Array in turn, `$[[int64]]`, and a list among `$[...]`'s or `Array([...])`'s elements an Array, `$[[1, 2], [3]]`; a count in it, `Array<[T]>()`, a Dictionary's and a Set's kelvinc's errors in its words | — | kc's `var rows2:$[[int64]] = $[[1, 2], [3]]` | 2026-10-25 |
 
 Notes:
 
@@ -961,6 +962,26 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (369) Agreed details: "teach kc fixed arrays in an Array as #369". kelvinc
+  reads `[T]` in `$[...]` as an Array, `$[[i64]]` an Array of Arrays, and a
+  list among `$[...]`'s elements as an Array, and refuses a fixed array in
+  any other container; kc now the same.
+  - parse.k: `$[T]`'s `[T]`, of no count, is an Array of what it holds,
+    nested too (grown); one of a count is kelvinc's `an Array grows, and has
+    no count in its type: write $[[i64]], and give the elements or a count
+    where it is made`.
+    - A list among the elements of `$[...]`, `Array([...])` and `Array<T>([...])`
+      is an Array, its lists too (lists_grow), as kelvinc's #58.
+  - gen.k: refuse_fixed says kelvinc's words of an Array's, a Dictionary's
+    or a Set's fixed array (fixed_container_text): `an Array of [i64] is not
+    here yet: an element is a value C returns`, of `Array<[T]>()` and a
+    Dictionary's value; `a key of a Dictionary is an integer or a String,
+    not [i64]`, of a Set's and a key.
+  - `$[a]` of a fixed array is the Array's words, where kelvinc's prints the
+    elements' addresses.
+  - kc's builds print what kelvinc's do, as many allocations, no leak;
+    selfhost/sample.k has them.
 
 - (368) Agreed details: "teach kc fixed arrays in an Optional as #368".
   kelvinc refuses one by design, `an Optional holds a value, and an array
@@ -4882,6 +4903,7 @@ says "as agreed".
 | P378 | Details of #366 | selfhost/parse.k: a type's count of an expression (-10 - its node), `[T](n)` of any name; selfhost/gen.k: type_of's and type_text's count, put_fixed_counts, gen_fixed_var's VLA (computed_ok, fixed_computed), the parameter checks by their codes; selfhost/sample.k; selfhost/README.md | kc's `[[uint8](n)](2)` |
 | P379 | Details of #367 | selfhost/parse.k: bracket_type_ahead, `[[T](n)](2)` read as zeros; selfhost/gen.k: computed_ok of each count; selfhost/sample.k; selfhost/README.md | — |
 | P380 | Details of #368 | selfhost/gen.k: fixed_variant, refuse_fixed at the refusals of a local, a parameter, a result, a member, a global; the declarations' loop leaves an Optional's and a Result's to their use; selfhost/README.md | — |
+| P381 | Details of #369 | selfhost/parse.k: grown, lists_grow, `$[[T](N)]` refused; selfhost/gen.k: fixed_container_text in refuse_fixed; selfhost/sample.k; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

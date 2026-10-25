@@ -410,11 +410,41 @@ let parse_type():int64 {
     return parse_bare_type()
 }
 
+// [T] in $[...], an Array in turn, as kelvinc reads $[[i64]] (#369)
+let grown(y:int64):int64 {
+    if types[y].kind == Y_FIXED && (types[y].name == 0 - 1 || types[y].name == 0 - 3) {
+        return type_of_kind(Y_ARRAY, grown(types[y].elem), -1)
+    }
+    return y
+}
+
+// a list among $[...]'s elements, an Array in turn, its lists too (#369)
+let lists_grow(e:int64) {
+    if nodes[e].kind != N_LIST || nodes[e].flag != 0 { return }
+    nodes[e].kind = N_ARRAY
+    var x:int64 = nodes[e].b
+    while x >= 0 {
+        lists_grow(x)
+        x = nodes[x].next
+    }
+}
+
 let parse_bare_type():int64 {
     if at_word("$[") {
         advance()
-        let elem:int64 = parse_type()
+        var elem:int64 = parse_type()
         expect("]")
+        if types[elem].kind == Y_FIXED && types[elem].name != 0 - 1 && types[elem].name != 0 - 3 {   // as kelvinc says it (#369)
+            var b:int64 = elem
+            while types[b].kind == Y_FIXED { b = types[b].elem }
+            var m = $"an Array grows, and has no count in its type: write $[["
+            let w:String = type_word(b)
+            m += &w
+            m += "]], and give the elements or a count where it is made"
+            parse_error(m.cstr)
+            return base_type(Y_VOID)
+        }
+        elem = grown(elem)
         var y:int64 = type_of_kind(Y_ARRAY, elem, -1)
         while at_word("^") || at_word("?") {
             if at_word("?") {
@@ -789,6 +819,7 @@ let parse_make():int64 {
         var last = -1
         while !failed && !at_word("]") {
             let e:int64 = parse_expr()
+            lists_grow(e)                            // Array([[1], [2, 3]]), as kelvinc's #58 (#369)
             if last < 0 {
                 nodes[n].b = e
             } else {
@@ -932,6 +963,7 @@ let parse_primary():int64 {
         var last = -1
         while !failed {
             let e:int64 = parse_expr()
+            lists_grow(e)                            // $[[1, 2], [3]], an Array of Arrays, as kelvinc's (#369)
             if last < 0 {
                 nodes[n].b = e
             } else {

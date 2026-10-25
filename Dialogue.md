@@ -7336,3 +7336,15 @@ type is written: `an Optional holds a value, and an array is none: hold
 an Array, $[i64]`. Details are provisional P380.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 414. kc's fixed arrays in an Array
+
+> teach kc fixed arrays in an Array as #369
+
+**Claude** taught kc what kelvinc reads there: `[T]` in `$[...]` is an
+Array in turn, `$[[int64]]` an Array of Arrays, and a list among the
+elements of `$[...]` or `Array([...])` is an Array, `$[[1, 2], [3]]`. A
+fixed array of a count in an Array, or in a Dictionary or a Set, is
+kelvinc's error in its words. Details are provisional P381.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

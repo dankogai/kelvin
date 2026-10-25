@@ -645,5 +645,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var grid2:[[int64](width5)](2)                       // a count C computes within another (#367)
     grid2[1][width5 - 1] = 4
     println(grid2.count, " ", grid2[0].count, " ", grid2[1][width5 - 1])
+    var rows2:$[[int64]] = $[[1, 2], [3]]                // [T] in $[...] an Array, its lists Arrays (#369)
+    rows2[1] += 4
+    println(rows2, " ", rows2[1].count, " ", Array([[5], [6, 7]]))
     return 0
 }

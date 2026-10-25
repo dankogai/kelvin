@@ -4398,8 +4398,42 @@ let fixed_variant(y:int64):int64 {
 // a fixed array in y where kc takes none: in an Optional or a Result,
 // kelvinc's error in its words, as it refuses one by design; else kc's
 // not yet (#368)
+// kelvinc's words of an Array, a Dictionary or a Set in y that holds a
+// fixed array, or "" (#369)
+let fixed_container_text(y:int64):String {
+    if y < 0 { return $"" }
+    let k:ykind = types[y].kind
+    if k == Y_ARRAY || k == Y_DICT || k == Y_SET {
+        let e:int64 = types[y].elem
+        let key:int64 = k == Y_SET ? e : k == Y_DICT ? types[y].name : 0 - 1
+        if key >= 0 && types[key].kind == Y_FIXED {
+            var m = $"a key of a Dictionary is an integer or a String, not "
+            let w:String = type_text(key)
+            m += &w
+            return m
+        }
+        if k != Y_SET && types[e].kind == Y_FIXED {
+            var m = $"an Array of "
+            let w:String = type_text(e)
+            m += &w
+            m += " is not here yet: an element is a value C returns"
+            return m
+        }
+        var r:String = fixed_container_text(e)
+        if r.count == 0 && key >= 0 { r = fixed_container_text(key) }
+        return r
+    }
+    if k == Y_PTR { return fixed_container_text(types[y].elem) }
+    return $""
+}
+
 let refuse_fixed(n:int64, y:int64) {
     let v:int64 = fixed_variant(y)
+    let held:String = v < 0 ? fixed_container_text(y) : $""
+    if v < 0 && held.count > 0 {                         // as kelvinc says it (#369)
+        gen_error(n, held.cstr)
+        return
+    }
     if v < 0 {
         fixed_refused(n)
         return

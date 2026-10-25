@@ -504,7 +504,16 @@ kc reads what it is written in, and little more.
     design, in its words: `an Optional holds a value, and an array is none:
     hold an Array, $[i64]`, `a Result holds ...`, of a local's, a member's,
     a parameter's, a result's or a global's type.
-  - Not yet: one in an Array, a parameter of fixed arrays;
+  - In an Array (#369), as kelvinc reads it: `[T]` in `$[...]` is an Array in
+    turn, `$[[int64]]` an Array of Arrays, and a list among `$[...]`'s or
+    `Array([...])`'s elements an Array, `$[[1, 2], [3]]`.
+    - Of a count, `$[[int64](2)]`, kelvinc's `an Array grows, and has no
+      count in its type: write $[[i64]], ...`; `Array<[T]>()` and a
+      Dictionary's value, `an Array of [i64] is not here yet: an element is
+      a value C returns`; a Set's, `a key of a Dictionary is an integer or
+      a String, not [i64]`; `$[a]` of a fixed array, which kelvinc's prints
+      as addresses, the Array's words.
+  - Not yet: a parameter of fixed arrays;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
