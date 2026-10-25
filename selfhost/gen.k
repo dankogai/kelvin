@@ -823,7 +823,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "sign") && (yk == Y_F64 || yk == Y_F32) { return optional_of(base_type(Y_BOOL)) }   // a floating-point x.sign, a bool? (#383)
         if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
         if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, x.sign, of its type (#381, #382)
-        if tok_is(t, "isNaN") && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382)
+        if (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382), x.isInfinite, x.isFinite (#384)
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
@@ -4287,8 +4287,8 @@ let gen_expr(n:int64) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
         return
     }
-    if k == N_FIELD && tok_is(t, "isNaN") && type_of(nodes[n].a) >= 0 && power_float(type_of(nodes[n].a)) {
-        put("((bool)__builtin_isnan(")                   // x.isNaN (#382), as kelvinc's
+    if k == N_FIELD && (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && type_of(nodes[n].a) >= 0 && power_float(type_of(nodes[n].a)) {
+        put(tok_is(t, "isNaN") ? "((bool)__builtin_isnan(" : tok_is(t, "isInfinite") ? "((bool)__builtin_isinf(" : "((bool)__builtin_isfinite(")   // x.isNaN (#382), x.isInfinite, x.isFinite (#384), as kelvinc's
         gen_expr(nodes[n].a)
         put("))")
         return
@@ -5360,7 +5360,7 @@ let gen_float_set(n:int64) {
 let gen_assign(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
-    if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
+    if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN") || tok_is(nodes[lhs].t, "isInfinite") || tok_is(nodes[lhs].t, "isFinite")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
         if !may_change(lhs) { return }                  // a number's own (#381, #382, #383)
         gen_float_set(n)
         return

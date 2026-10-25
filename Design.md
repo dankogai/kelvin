@@ -415,6 +415,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 381 | `x.abs`, a property, the magnitude of a signed integer or a floating-point number, of its type, with no import; a signed integer's least stays as it is, as two's complement negates it; unsigned integers have none; kelvinc and kc | E_METHOD num_abs: negated in the unsigned counterpart, or fabs and fabsf; seen_number_type, C's types of a prefix and arithmetic | `(a - b).abs` | 2026-10-26 |
 | 382 | `x.sign`, a property, -1, 0 or 1 of a signed integer's own type; of a floating-point number 1.0 or -1.0 by its sign bit, zeros too, NaN of NaN, as Rust's signum; `x.isNaN` of a floating-point number; none for unsigned integers and complex numbers; kelvinc and kc | E_METHOD num_sign and num_isnan beside #381's num_abs: copysign, and `(x > 0) - (x < 0)` | `x.abs * x.sign == x` | 2026-10-26 |
 | 383 | A floating-point number's `x.sign` a `bool?`, true by its sign bit's 0, false by its 1, none of NaN; `x.exponent` and `x.significand` IEEE 754's raw fields as i64s, the exponent biased, the significand the fraction's bits; each set, `x.sign = b`, `x.exponent = e`, `x.significand = s`, within its field or the program's end; `b ?? false` of a `bool?` prints `true`; kelvinc and kc | E_METHOD num_sign, num_exponent, num_significand, and num_set of an assignment to one, over the bits by memcpy | `x.exponent += 1` | 2026-10-26 |
+| 384 | `x.isInfinite` and `x.isFinite` of a floating-point number, Swift's, beside `x.isNaN`, read only, with no import; kelvinc and kc | E_METHOD num_isinf and num_isfinite: C's isinf and isfinite | `if x.isFinite` | 2026-10-26 |
 
 Notes:
 
@@ -976,6 +977,13 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (384) Agreed details: "Do we have `.isInfinity` for floating points?
+  If missing, give it to them". It was missing, but for `<math>`'s
+  `x.isinf`. The user chose Swift's pair, `x.isInfinite` and
+  `x.isFinite`, over `.isInfinity` as written, and that it come first,
+  as #384: the Unicode names, begun as #384 and set aside, are #385, and
+  `<=>` #386.
 
 - (383) Agreed details: "change `.sign` for floating points to return
   `bool?` ... and make it a setter", with `.exponent` and
@@ -5134,6 +5142,7 @@ says "as agreed".
 | P393 | Details of #381 | src/parser.c: property's abs, seen_number_type, promoted_number, number_rank, value_type's num_abs; src/codegen.c: num_abs; selfhost/gen.k: type_of's and gen_expr's abs; documents/integers.md, floatingpoint.md, properties.md; tests/run/abs.k, abs_small.k | — |
 | P394 | Details of #382 | src/parser.c: property's sign and isNaN, value_type's num_ ops; src/codegen.c: num_sign, num_isnan; selfhost/gen.k: type_of's and gen_expr's sign and isNaN, power_float's prototype; documents/integers.md, floatingpoint.md, properties.md, math.md; tests/run/sign.k, sign_small.k | — |
 | P395 | Details of #383 | src/parser.c: property's sign of a floating-point number, exponent and significand, x->from; the num_ setters in assign_to; `??` of a `bool?` is_bool; src/codegen.c: num_sign of a floating-point number, num_exponent, num_significand, num_set, optional_case's prototype; selfhost/gen.k: type_of's and gen_expr's fields, gen_float_set, float_field_at, float_field_mask, compound_op, gen_coalesce's bool; documents/floatingpoint.md, integers.md, properties.md; tests/run/float_fields.k, sign.k and sign_small.k's float sign, tests/error/float_exponent_range.k, float_significand_range.k, float_sign_bool.k, float_abs_set.k | — |
+| P396 | Details of #384 | src/parser.c: property's isInfinite and isFinite; src/codegen.c: num_isinf, num_isfinite; selfhost/gen.k: type_of's, gen_expr's and gen_assign's; documents/floatingpoint.md, properties.md, math.md; tests/run/infinite.k, tests/error/float_isfinite_set.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

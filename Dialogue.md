@@ -7573,3 +7573,16 @@ of a `bool?` was found printing 1, in kelvinc and in kc, and it prints
 does not read yet. `<=>` is #384. Details are provisional P395.
 
 There are 1051 tests, and all pass with clang and with gcc 15.
+
+### 429. A floating-point number's .isInfinite and .isFinite
+
+> Do we have `.isInfinity` for floating points?  If missing, give it to them
+
+**Claude** found it missing, but for `<math>`'s `x.isinf`, and set aside
+the Unicode names, begun as #384, whose files were new and not yet
+used. It asked of the spelling and of the number. The user chose Swift's
+pair, `x.isInfinite` and `x.isFinite`, beside `x.isNaN`, and this as
+#384; the Unicode names are #385 and `<=>` #386. kc writes the same.
+Details are provisional P396.
+
+There are 1053 tests, and all pass with clang and with gcc 15.

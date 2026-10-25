@@ -400,6 +400,8 @@ kc reads what it is written in, and little more.
   raw fields as i64s, each set in the var that holds `x`, `x.sign = b`,
   `x.exponent += 1`, within its field or the program ends; and `b ?? false`
   of a `bool?` a bool, which prints `true`.
+- **`x.isInfinite`** and **`x.isFinite`** (#384), as kelvinc's, Swift's
+  pair beside `x.isNaN`.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

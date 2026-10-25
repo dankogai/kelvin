@@ -111,11 +111,15 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
   - A value outside its field is an error, written so, and ends the
     program otherwise: `kelvin: '.exponent' of an f64 is 0 to 2047, and
     this set is past it`.
-- **The others are read**: `x.abs = y` and `x.isNaN = b` are errors that
-  say they are worked out of the value.
+- **The others are read**: `x.abs = y`, `x.isNaN = b` and the like are
+  errors that say they are worked out of the value.
 - **`x.isNaN`** is whether it is NaN, a `bool` (#382), with no import:
   `(0.0 / 0.0).isNaN` is true; an integer has none.
   - `<math>`'s `x.isnan` is the same.
+- **`x.isInfinite`** is whether it is `inf` or `-inf`, and
+  **`x.isFinite`** whether it is neither infinite nor NaN, `bool`s, as
+  Swift's (#384), with no import: `(1e308 * 10.0).isInfinite` is true.
+  - `<math>`'s `x.isinf` and `x.isfinite` are the same.
 - **`x ** y`** is C's `pow`, where either is a floating-point number
   (#380), with no import: `2.0 ** 0.5` is 1.4142135623730951, and
   `2.0 ** -1` 0.5.
@@ -146,6 +150,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | | `.exponent`, `.exponent = e` | the biased exponent field, an `i64`, 0...2047 or 0...255, read and set (#383) |
 | | `.significand`, `.significand = s` | the fraction's bits, an `i64`, 0...2^52 - 1 or 0...2^23 - 1, read and set (#383) |
 | | `.isNaN` | whether it is NaN, a `bool` (#382) |
+| | `.isInfinite`, `.isFinite` | whether it is `inf` or `-inf`; whether it is neither infinite nor NaN, `bool`s (#384) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |
 

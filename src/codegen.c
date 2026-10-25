@@ -1302,6 +1302,10 @@ static char *expr_bare(Expr *e) {
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
         if (e->op && !strcmp(e->op, "num_isnan")) /* x.isNaN (#382) */
             return strfmt("((bool)__builtin_isnan(%s))", expr(e->a));
+        if (e->op && !strcmp(e->op, "num_isinf")) /* x.isInfinite (#384): +inf or -inf */
+            return strfmt("((bool)__builtin_isinf(%s))", expr(e->a));
+        if (e->op && !strcmp(e->op, "num_isfinite")) /* x.isFinite (#384): neither infinite nor NaN */
+            return strfmt("((bool)__builtin_isfinite(%s))", expr(e->a));
         if (e->op && (!strcmp(e->op, "num_exponent") || !strcmp(e->op, "num_significand") ||
                       !strcmp(e->op, "num_set") || (!strcmp(e->op, "num_sign") && e->from->name[0] == 'f'))) {
             /* x.sign, x.exponent and x.significand of a floating-point number

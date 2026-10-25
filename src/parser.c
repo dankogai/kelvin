@@ -7501,12 +7501,13 @@ static Type *seen_number_type(Expr *e) {
 
 static Expr *property(Expr *e, Token *name, char *member) {
     if (!strcmp(member, "abs") || !strcmp(member, "sign") || !strcmp(member, "isNaN") || !strcmp(member, "exponent") ||
-        !strcmp(member, "significand")) {
+        !strcmp(member, "significand") || !strcmp(member, "isInfinite") || !strcmp(member, "isFinite")) {
         /* x.abs (#381): the magnitude of a signed integer or a floating-point
            number, of its type; a signed integer's least stays as it is, as
            two's complement negates it. x.sign (#382): -1, 0 or 1 of its
            type; of a floating-point number a bool? (#383), true by its sign
            bit's 0 and false by its 1, zeros too, none of NaN. x.isNaN (#382),
+           x.isInfinite and x.isFinite (#384), Swift's,
            x.exponent and x.significand (#383), IEEE 754's raw fields as an
            i64, of a floating-point number. An unsigned integer has none,
            nor a complex number, nor what kelvinc cannot see, which C is
@@ -7516,7 +7517,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Type *t = c == 's' || c == 'c' ? NULL : seen_number_type(e);
         static const char *signed_numbers[] = {"i8", "i16", "i32", "i64", "i128", "f32", "f64", NULL};
         bool fits = false;
-        bool floating = !strcmp(member, "isNaN") || !strcmp(member, "exponent") || !strcmp(member, "significand");
+        bool test = !strcmp(member, "isNaN") || !strcmp(member, "isInfinite") || !strcmp(member, "isFinite");
+        bool floating = test || !strcmp(member, "exponent") || !strcmp(member, "significand");
         for (int i = floating ? 5 : 0; t && signed_numbers[i]; i++)
             fits = fits || !strcmp(t->name, signed_numbers[i]);
         if (!fits || e->is_bool)
@@ -7529,8 +7531,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
                 : !strcmp(member, "sign")     ? "num_sign"
                 : !strcmp(member, "exponent") ? "num_exponent"
                 : member[0] == 's'            ? "num_significand"
+                : !strcmp(member, "isInfinite") ? "num_isinf"
+                : !strcmp(member, "isFinite") ? "num_isfinite"
                                               : "num_isnan";
-        if (!strcmp(member, "isNaN"))
+        if (test)
             x->type = base_type("bool", name->pos);
         else if (!strcmp(member, "exponent") || !strcmp(member, "significand"))
             x->type = base_type("i64", name->pos);
@@ -7538,7 +7542,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
             x->type = optional_type(name, base_type("bool", name->pos));
         else
             x->type = base_type(t->name, name->pos);
-        x->is_bool = member[0] == 'i';
+        x->is_bool = test;
         return x;
     }
     if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && !is_uchr(value_type(e)) && number_expr(e))
