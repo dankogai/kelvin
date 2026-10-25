@@ -1829,6 +1829,13 @@ static char *operand_before(Expr *e) {
 
 /* The function that frees an owner of type t (#54): kv_bytes_free, or a
    struct's derived _kv_T_free; NULL for a type that owns nothing */
+/* an array's innermost element type, past each count: of [[String](2)](2), String (#371) */
+static Type *array_base(Type *t) {
+    while (t && t->kind == T_ARRAY)
+        t = t->elem;
+    return t;
+}
+
 static const char *owner_free(Type *t) {
     if (!t)
         return NULL;
@@ -1849,7 +1856,7 @@ static const char *owner_free(Type *t) {
         return NULL;
     for (int i = 0; i < r->members.len; i++) {
         Type *m = ((Var *)r->members.data[i])->type;
-        if (m && (owner_free(m) || (m->kind == T_ARRAY && owner_free(m->elem))))
+        if (m && (owner_free(m) || (m->kind == T_ARRAY && owner_free(array_base(m))))) /* its innermost (#371) */
             return strfmt("_kv_%s_free", r->name);
     }
     return NULL;
@@ -3442,10 +3449,12 @@ static void emit_derived_copy(Decl *d, Type *recv) {
         const char *f = m->type ? owner_copy(m->type) : NULL;
         if (f) {
             line("_kv_v.%s = %s(&self->%s);", m->name, f, m->name);
-        } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(m->type->elem))) {
-            line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof self->%s[0]; _kv_i++)", m->name, m->name);
+        } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(array_base(m->type)))) {
+            /* each innermost element, whatever its counts (#371) */
+            char *bt = decl(array_base(m->type), "");
+            line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof(%s); _kv_i++)", m->name, bt);
             indent++;
-            line("_kv_v.%s[_kv_i] = %s(&self->%s[_kv_i]);", m->name, f, m->name);
+            line("((%s *)_kv_v.%s)[_kv_i] = %s(&((const %s *)self->%s)[_kv_i]);", bt, m->name, f, bt, m->name);
             indent--;
         }
     }
@@ -3510,11 +3519,12 @@ static void emit_tagged_record(Decl *d, Type *recv) {
             const char *f = m->type ? owner_free(m->type) : NULL;
             if (f) {
                 line("case %d: %s(&self->u.%s); break;", i, f, m->name);
-            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_free(m->type->elem))) {
+            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_free(array_base(m->type)))) {
+                char *bt = decl(array_base(m->type), ""); /* each innermost element (#371) */
                 line("case %d:", i);
                 indent++;
-                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof self->u.%s[0]; _kv_i++)", m->name, m->name);
-                line("    %s(&self->u.%s[_kv_i]);", f, m->name);
+                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof(%s); _kv_i++)", m->name, bt);
+                line("    %s(&((%s *)self->u.%s)[_kv_i]);", f, bt, m->name);
                 line("break;");
                 indent--;
             }
@@ -3543,11 +3553,12 @@ static void emit_tagged_record(Decl *d, Type *recv) {
             const char *f = m->type ? owner_copy(m->type) : NULL;
             if (f) {
                 line("case %d: _kv_v.u.%s = %s(&self->u.%s); break;", i, m->name, f, m->name);
-            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(m->type->elem))) {
+            } else if (m->type && m->type->kind == T_ARRAY && (f = owner_copy(array_base(m->type)))) {
+                char *bt = decl(array_base(m->type), ""); /* each innermost element (#371) */
                 line("case %d:", i);
                 indent++;
-                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof self->u.%s[0]; _kv_i++)", m->name, m->name);
-                line("    _kv_v.u.%s[_kv_i] = %s(&self->u.%s[_kv_i]);", m->name, f, m->name);
+                line("for (size_t _kv_i = 0; _kv_i < sizeof self->u.%s / sizeof(%s); _kv_i++)", m->name, bt);
+                line("    ((%s *)_kv_v.u.%s)[_kv_i] = %s(&((const %s *)self->u.%s)[_kv_i]);", bt, m->name, f, bt, m->name);
                 line("break;");
                 indent--;
             }
@@ -3944,11 +3955,11 @@ static void emit_decl(Decl *d) {
                     const char *f = owner_free(m->type);
                     if (f) {
                         line("%s(&self->%s);", f, m->name);
-                    } else if (m->type->kind == T_ARRAY && (f = owner_free(m->type->elem))) {
-                        line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof self->%s[0]; _kv_i++)", m->name,
-                             m->name);
+                    } else if (m->type->kind == T_ARRAY && (f = owner_free(array_base(m->type)))) {
+                        char *bt = decl(array_base(m->type), ""); /* each innermost element, whatever its counts (#371) */
+                        line("for (size_t _kv_i = 0; _kv_i < sizeof self->%s / sizeof(%s); _kv_i++)", m->name, bt);
                         indent++;
-                        line("%s(&self->%s[_kv_i]);", f, m->name);
+                        line("%s(&((%s *)self->%s)[_kv_i]);", f, bt, m->name);
                         indent--;
                     }
                 }

@@ -402,6 +402,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 368 | kc refuses a fixed array in an Optional or a Result for good, as kelvinc does by design, in its words: `an Optional holds a value, and an array is none: hold an Array, $[i64]`, and of a Result | — | kc's `let o:[int64](2)? = none` refused | 2026-10-25 |
 | 369 | kc reads a fixed array in an Array as kelvinc does: `[T]` in `$[...]` an Array in turn, `$[[int64]]`, and a list among `$[...]`'s or `Array([...])`'s elements an Array, `$[[1, 2], [3]]`; a count in it, `Array<[T]>()`, a Dictionary's and a Set's kelvinc's errors in its words | — | kc's `var rows2:$[[int64]] = $[[1, 2], [3]]` | 2026-10-25 |
 | 370 | kc reads a parameter of fixed arrays, `m:[[int64](3)]`, as kelvinc does: a pointer to its rows in C, `m[i][j]`, its rows' count written and its count passed beside it, of owners too; rows of no count, `[const [T](N)]` and rows of another count are errors | `__typeof__(int64_t[3]) *m` | kc's `let rows_sum(m:[[int64](2)], rows:int64)` | 2026-10-25 |
+| 371 | kelvinc frees and copies each innermost element of a member's or a case's array of arrays of owners, `[[String](2)](2)`, where it saw no owner in an array of arrays and leaked them | a loop of `kv_string_free` over the innermost elements | `struct pair { grid: [[String](2)](2) }` | 2026-10-25 |
 
 Notes:
 
@@ -963,6 +964,22 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (371) Agreed details: "teach kelvinc to free the inner elements of
+  [[String](2)](2) as #371", found in #364.
+  - src/codegen.c: owner_free of a struct asked a member's array of its
+    element, which an array of arrays is not an owner of, so the struct
+    was no owner to codegen while the parser's is_owner said it was; its
+    elements went unfreed, 4 of 8 live at exit.
+  - array_base, an array's innermost element type, is asked instead, and
+    the struct's `_free` and `_copy` and the enum's loop over every
+    innermost element through a pointer to it, `kv_string_free(&((kv_string
+    *)self->grid)[_kv_i])`, whatever the counts, as kc's since #364.
+  - tests/run/array_owner_rows.k, of a member and a case, which
+    tests/asan.sh fails without it: the C did not compile, `_kv_pair_copy`
+    undeclared.
+  - kelvinc's builds of #364's probes now have nothing live at exit, as
+    many allocations as kc's.
 
 - (370) Agreed details: "teach kc fixed array parameters of fixed arrays
   as #370", #357's not yet.
@@ -4925,6 +4942,7 @@ says "as agreed".
 | P380 | Details of #368 | selfhost/gen.k: fixed_variant, refuse_fixed at the refusals of a local, a parameter, a result, a member, a global; the declarations' loop leaves an Optional's and a Result's to their use; selfhost/README.md | — |
 | P381 | Details of #369 | selfhost/parse.k: grown, lists_grow, `$[[T](N)]` refused; selfhost/gen.k: fixed_container_text in refuse_fixed; selfhost/sample.k; selfhost/README.md | — |
 | P382 | Details of #370 | selfhost/gen.k: gen_function's parameter of counted rows; selfhost/parse.k: `[const [T](N)]` refused; selfhost/sample.k; selfhost/README.md | — |
+| P383 | Details of #371 | src/codegen.c: array_base, owner_free of a struct's member, emit_derived_copy, the struct's free, the enum's free and copy; tests/run/array_owner_rows.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

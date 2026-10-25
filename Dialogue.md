@@ -7360,3 +7360,15 @@ no count and of another count are kc's errors, and `[const [T](N)]` is
 kelvinc's in its words. Details are provisional P382.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 416. kelvinc's inner elements of [[String](2)](2)
+
+> teach kelvinc to free the inner elements of [[String](2)](2) as #371
+
+**Claude** fixed kelvinc's member, or case, of an array of arrays of
+owners: its codegen saw no owner there, so it neither freed nor copied
+the inner elements; each innermost element is now freed and copied,
+whatever the counts, as kc's since #364. A new test, which ASan fails
+without the fix, has it. Details are provisional P383.
+
+There are 1005 tests, and all pass with clang and with gcc 15.
