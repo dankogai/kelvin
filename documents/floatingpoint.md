@@ -89,6 +89,14 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 - **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
   (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
   - With `<math>`, `x.abs()`, its method, is the same.
+- **`x.sign`** is 1.0 or -1.0, of its type, by its sign bit, as Rust's
+  `signum` (#382), with no import.
+  - So `0.0.sign` is 1.0 and `(-0.0).sign` -1.0, and `x.abs * x.sign`
+    is `x`, zeros and infinities too.
+  - `nan.sign` is NaN.
+- **`x.isNaN`** is whether it is NaN, a `bool` (#382), with no import:
+  `(0.0 / 0.0).isNaN` is true; an integer has none.
+  - `<math>`'s `x.isnan` is the same.
 - **`x ** y`** is C's `pow`, where either is a floating-point number
   (#380), with no import: `2.0 ** 0.5` is 1.4142135623730951, and
   `2.0 ** -1` 0.5.
@@ -114,6 +122,8 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
+| | `.sign` | 1.0 or -1.0 by its sign bit, of its type; NaN of NaN (#382) |
+| | `.isNaN` | whether it is NaN, a `bool` (#382) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |
 

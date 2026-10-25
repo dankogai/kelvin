@@ -7539,3 +7539,18 @@ C's fabs; kelvinc now sees the type C gives a prefix and arithmetic, so
 `(a - b).abs` works. kc writes the same. Details are provisional P393.
 
 There are 1044 tests, and all pass with clang and with gcc 15.
+
+### 427. A number's .sign, and .isNaN
+
+> add `.sign` to all signed numeric types as #382.  `.signum`looks too pedantic and lesser used.  Should we also consider itroducing `<=>`, the UFO operator 😛   Also be careful not to add it to `Complex` since complex numbers are NOT compatable.
+
+**Claude** asked of its type, of a floating-point zero and NaN, and of
+`<=>`. The user chose the value's own type, -1, 0 or 1; for a
+floating-point number 1.0 for +0.0, -1.0 for -0.0 and NaN for NaN, as
+Rust's signum; and `<=>` later, as #383. The user asked too that
+`T.isNaN` be there, for both floating-point types, and it was not: `<math>`
+had only `x.isnan`, so `x.isNaN` came with it. Neither unsigned integers
+nor complex numbers have `.sign`, nor integers `.isNaN`. kc writes the
+same. Details are provisional P394.
+
+There are 1046 tests, and all pass with clang and with gcc 15.

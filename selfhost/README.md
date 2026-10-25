@@ -392,6 +392,9 @@ kc reads what it is written in, and little more.
 - **`x.abs`** (#381), as kelvinc's: of kc's signed integers, negated in
   the unsigned type, where the least wraps, and of its floating-point
   numbers, fabs; its unsigned ones have none.
+- **`x.sign`** and **`x.isNaN`** (#382), as kelvinc's: -1, 0 or 1 of a
+  signed integer's type, a floating-point number's 1.0 or -1.0 by its
+  sign bit, NaN of NaN; whether a floating-point number is NaN.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

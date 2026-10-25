@@ -510,6 +510,7 @@ let range_unsigned(y:int64):bool
 let gen_range_stride(n:int64)
 let power_type(a:int64, b:int64):int64    // prototypes: b ** e and b.pow(e, m) (#380)
 let power_int(y:int64):bool
+let power_float(y:int64):bool
 let power_operand(v:int64):bool
 let pow_arity(n:int64):bool
 let pow_method_type(n:int64):int64
@@ -815,7 +816,8 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
-        if tok_is(t, "abs") && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, of its type (#381)
+        if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, x.sign, of its type (#381, #382)
+        if tok_is(t, "isNaN") && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382)
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
@@ -4277,6 +4279,30 @@ let gen_expr(n:int64) {
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
         return
+    }
+    if k == N_FIELD && tok_is(t, "isNaN") && type_of(nodes[n].a) >= 0 && power_float(type_of(nodes[n].a)) {
+        put("((bool)__builtin_isnan(")                   // x.isNaN (#382), as kelvinc's
+        gen_expr(nodes[n].a)
+        put("))")
+        return
+    }
+    if k == N_FIELD && tok_is(t, "sign") && type_of(nodes[n].a) >= 0 {
+        let sy:int64 = type_of(nodes[n].a)               // x.sign (#382), as kelvinc's: -1, 0 or 1 of its type;
+        let sk:ykind = types[sy].kind                    // a floating-point one's by its sign bit, NaN of NaN
+        if sk == Y_F64 || sk == Y_F32 || sk == Y_I64 || sk == Y_I32 {
+            put("({ ")
+            put_ctype(sy)
+            put(" _kv_sg = (")
+            gen_expr(nodes[n].a)
+            if sk == Y_F64 || sk == Y_F32 {
+                put(sk == Y_F32 ? "); _kv_sg != _kv_sg ? _kv_sg : __builtin_copysignf(1.0f, _kv_sg); })" : "); _kv_sg != _kv_sg ? _kv_sg : __builtin_copysign(1.0, _kv_sg); })")
+            } else {
+                put("); (")
+                put_ctype(sy)
+                put(")((_kv_sg > 0) - (_kv_sg < 0)); })")
+            }
+            return
+        }
     }
     if k == N_FIELD && tok_is(t, "abs") && type_of(nodes[n].a) >= 0 {
         let ay:int64 = type_of(nodes[n].a)

@@ -2,8 +2,8 @@
 
 Every number in Kelvin says its size. This document has the integer
 types, their literals, the two ways to convert any number, how a
-number is read from text, powers, `**` and `pow` (#380), and `.abs`
-(#381). Floats are in
+number is read from text, powers, `**` and `pow` (#380), `.abs`
+(#381) and `.sign` (#382). Floats are in
 [floatingpoint.md](floatingpoint.md), and `bool` in [bool.md](bool.md).
 The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
@@ -224,11 +224,24 @@ let main():int32 {
 - **An unsigned integer** has no `.abs`: it is never negative.
 - A struct's field named `abs`, and an attribute of your own, win.
 
+## Sign: `.sign`
+
+- **`x.sign`** of a signed integer is -1, 0 or 1, of its own type, as
+  Rust's `signum` (#382): `(-3).sign` is -1, and an `i8`'s is an `i8`.
+  - So `x.abs * x.sign == x`, the least too.
+  - Of arithmetic it is of the type C gives it, as `.abs` is:
+    `(a - b).sign`.
+  - It is a property, with no parentheses, and needs no import.
+- **An unsigned integer** has no `.sign`, nor a complex number, which
+  has no order.
+- A struct's field named `sign`, and an attribute of your own, win.
+
 ## Properties and methods
 
 | On | Property | Gives |
 |---|---|---|
 | signed integers | `.abs` | the magnitude, of its type; the least stays as it is (#381) |
+| | `.sign` | -1, 0 or 1, of its type (#382) |
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |

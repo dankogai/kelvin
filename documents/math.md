@@ -48,7 +48,8 @@ let main():int32 {
   `f64.min`, and the same of `f32`, `f32.pi`, `f32.epsilon`.
   - `f32.epsilon` is larger than `f64.epsilon`, as C's `FLT_EPSILON`
     is.
-- **Tests**: `x.isnan`, `x.isinf` and `x.isfinite`.
+- **Tests**: `x.isnan`, `x.isinf` and `x.isfinite`; the core's
+  `x.isNaN` (#382) needs no import.
 - **`x.i`** is `x` rotated a quarter turn: `1.0.i` is `c64(0.0, 1.0)`,
   `(0.5:f32).i` a `c32`, and `z.i` of a complex number is `z` times
   `i`, so `1.0.i.i` is `-1`.

@@ -5681,7 +5681,7 @@ static Type *value_type_of(Expr *e) {
                       !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next") || !strcmp(e->op, "iter_prefix") ||
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
                       !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
-                      !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4) || !strcmp(e->op, "num_abs"))) /* (#319, #323, #325, #372, #373, #380, #381) */
+                      !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4) || !strncmp(e->op, "num_", 4))) /* (#319, #323, #325, #372, #373, #380, #381, #382) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -7499,25 +7499,30 @@ static Type *seen_number_type(Expr *e) {
 }
 
 static Expr *property(Expr *e, Token *name, char *member) {
-    if (!strcmp(member, "abs")) {
+    if (!strcmp(member, "abs") || !strcmp(member, "sign") || !strcmp(member, "isNaN")) {
         /* x.abs (#381): the magnitude of a signed integer or a floating-point
            number, of its type; a signed integer's least stays as it is, as
-           two's complement negates it. An unsigned integer has none, nor
-           what kelvinc cannot see, which C is left to; a field wins */
+           two's complement negates it. x.sign (#382): -1, 0 or 1 of its
+           type; of a floating-point number its sign bit's, 1.0 or -1.0,
+           zeros too, and NaN of NaN, as Rust's signum. x.isNaN (#382) of a
+           floating-point number. An unsigned integer has none, nor a
+           complex number, nor what kelvinc cannot see, which C is left
+           to; a field wins */
         Decl *record;
         char c = expr_class(e, &record);
         Type *t = c == 's' || c == 'c' ? NULL : seen_number_type(e);
         static const char *signed_numbers[] = {"i8", "i16", "i32", "i64", "i128", "f32", "f64", NULL};
         bool fits = false;
-        for (int i = 0; t && signed_numbers[i]; i++)
+        for (int i = !strcmp(member, "isNaN") ? 5 : 0; t && signed_numbers[i]; i++)
             fits = fits || !strcmp(t->name, signed_numbers[i]);
         if (!fits || e->is_bool)
             return NULL;
         Expr *x = new_expr(E_METHOD, name->pos);
         x->a = e;
-        x->text = "abs";
-        x->op = "num_abs";
-        x->type = base_type(t->name, name->pos);
+        x->text = member;
+        x->op = !strcmp(member, "abs") ? "num_abs" : !strcmp(member, "sign") ? "num_sign" : "num_isnan";
+        x->type = base_type(member[0] == 'i' ? "bool" : t->name, name->pos);
+        x->is_bool = member[0] == 'i';
         return x;
     }
     if ((!strcmp(member, "utf32") || !strcmp(member, "codepoint")) && !is_uchr(value_type(e)) && number_expr(e))

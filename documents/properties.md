@@ -55,8 +55,11 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - A `cstr`'s `.count` is its `strlen` (#52); a `String`'s its
     codepoints (#55).
 - **`x.abs`** is the magnitude of a signed integer or a floating-point
-  number, of its type (#381); an unsigned integer has none. See
-  [integers.md](integers.md) and [floatingpoint.md](floatingpoint.md).
+  number, of its type (#381), and **`x.sign`** its sign, -1, 0 or 1,
+  1.0 or -1.0 (#382); an unsigned integer has neither, nor a complex
+  number. **`x.isNaN`** is whether a floating-point number is NaN
+  (#382). See [integers.md](integers.md) and
+  [floatingpoint.md](floatingpoint.md).
 - **`c.utf32`** and **`c.codepoint`** are a `uchr`'s number, a `u32`,
   and **`n.uchr`** an integer's codepoint (#56); `n.utf32` of a number
   is an error that names `.uchr` (#297); see

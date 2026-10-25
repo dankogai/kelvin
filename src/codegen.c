@@ -1299,6 +1299,17 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
+        if (e->op && !strcmp(e->op, "num_isnan")) /* x.isNaN (#382) */
+            return strfmt("((bool)__builtin_isnan(%s))", expr(e->a));
+        if (e->op && !strcmp(e->op, "num_sign")) {
+            /* x.sign (#382): -1, 0 or 1 of its type; of a floating-point
+               number 1.0 or -1.0 by its sign bit, zeros too, NaN of NaN */
+            const char *n = e->type->name, *t = decl(e->type, "");
+            if (n[0] == 'f')
+                return strfmt("({ %s _kv_sg = (%s); _kv_sg != _kv_sg ? _kv_sg : %s; })", t, expr(e->a),
+                              !strcmp(n, "f32") ? "__builtin_copysignf(1.0f, _kv_sg)" : "__builtin_copysign(1.0, _kv_sg)");
+            return strfmt("({ %s _kv_sg = (%s); (%s)((_kv_sg > 0) - (_kv_sg < 0)); })", t, expr(e->a), t);
+        }
         if (e->op && !strcmp(e->op, "num_abs")) {
             /* x.abs (#381): fabs of a floating-point number; a signed integer
                negated in its unsigned type, where it wraps, its least too */
