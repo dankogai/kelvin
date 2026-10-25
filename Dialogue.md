@@ -7312,3 +7312,15 @@ errors, where kelvinc leaves them to C. `[T](n)` now reads any type's
 name, a struct's too. Details are provisional P378.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 412. kc's [[T](n)](2)
+
+> teach kc [[T](n)](2) as #367
+
+**Claude** taught kc a count C computes within another fixed array,
+`[[uint8](n)](2)` and `var g:[[int64](n)](3)`, a local var's: C's array
+of a variable length within, zeroed as one. Found in kelvinc, not fixed
+here: its C fails on the former, and it leaves the latter unset. Details
+are provisional P379.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

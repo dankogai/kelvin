@@ -362,6 +362,22 @@ let const_pointee(y:int64):int64 {
     return type_of_kind(Y_PTR, e, 1)
 }
 
+// whether the [ before pos, of [[T](n)](2), closes with ]( : a type's
+// array of zeros, not a list of lists (#367)
+let bracket_type_ahead():bool {
+    var depth = 1
+    var k:int64 = pos
+    while k < toks.count as int64 {
+        if tok_is(k, "[") || tok_is(k, "$[") { depth += 1 }
+        if tok_is(k, "]") {
+            depth -= 1
+            if depth == 0 { return tok_is(k + 1, "(") }
+        }
+        k += 1
+    }
+    return false
+}
+
 // the value of token t, a number of decimal digits, or -1: a fixed
 // array's count (#354)
 let tok_count(t:int64):int64 {
@@ -858,7 +874,7 @@ let parse_primary():int64 {
         advance()
         let n:int64 = make_node(N_LIST, t)
         let word = toks[pos].kind == T_ID                // [T](n) of a type's name: a list is no function (#366)
-        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") {   // [T](n), n zero elements
+        if word && tok_is(pos + 1, "]") && tok_is(pos + 2, "(") || at_word("[") && bracket_type_ahead() {   // [T](n), n zero elements; [[T](n)](2) (#367)
             set_ty(n, parse_type())
             expect("]")
             expect("(")

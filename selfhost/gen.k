@@ -4519,22 +4519,24 @@ let computed_ok(n:int64, y:int64, v:int64):bool {
         gen_error(n, m.cstr)
         return false
     }
-    if fixed_computed(types[y].elem) {
-        gen_error(n, "kc reads an array of a count computed at run time, the outer one; not yet within another")
-        return false
-    }
     if v >= 0 && !(nodes[v].kind == N_LIST && nodes[v].flag == 1) {
         gen_error(v, "an array of a count computed at run time takes no elements in C: give them one by one, a[i] = ...")
         return false
     }
-    let c:int64 = 0 - 10 - types[y].name
-    let cy:int64 = type_of(c)
-    if nodes[c].kind == N_STR || cy < 0 || !is_number_kind(types[cy].kind) || types[cy].kind == Y_F64 || types[cy].kind == Y_F32 {
-        var m = $"an array's count is an integer, and this is "
-        let w:String = nodes[c].kind == N_STR ? $"text" : cy >= 0 ? kelvin_type_text(cy) : $"not one"
-        m += &w
-        gen_error(c, m.cstr)
-        return false
+    var f:int64 = y                                      // each count C computes, the outer and the inner (#367)
+    while types[f].kind == Y_FIXED {
+        if types[f].name <= 0 - 10 {
+            let c:int64 = 0 - 10 - types[f].name
+            let cy:int64 = type_of(c)
+            if nodes[c].kind == N_STR || cy < 0 || !is_number_kind(types[cy].kind) || types[cy].kind == Y_F64 || types[cy].kind == Y_F32 {
+                var m = $"an array's count is an integer, and this is "
+                let w:String = nodes[c].kind == N_STR ? $"text" : cy >= 0 ? kelvin_type_text(cy) : $"not one"
+                m += &w
+                gen_error(c, m.cstr)
+                return false
+            }
+        }
+        f = types[f].elem
     }
     return true
 }

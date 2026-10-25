@@ -642,5 +642,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     var strip = [uint8](width5)                          // a count C computes, a VLA (#366)
     strip[width5 - 1] = 9
     println(strip.count, " ", strip[width5 - 1], " ", strip[0])
+    var grid2:[[int64](width5)](2)                       // a count C computes within another (#367)
+    grid2[1][width5 - 1] = 4
+    println(grid2.count, " ", grid2[0].count, " ", grid2[1][width5 - 1])
     return 0
 }

@@ -496,8 +496,12 @@ kc reads what it is written in, and little more.
       write 'var z'`, kelvinc's; elements given, a global's, a member's, a
       count of text, kc's errors, where kelvinc leaves them to C.
     - `[T](n)` reads any type's name, a struct's too, `[pt](2)`.
+  - Within another (#367): `var m = [[uint8](n)](2)` and `var g:[[int64](n)](3)`,
+    C's `uint8_t m[2][n]`, zeroed as one, every count C computes an
+    integer; kelvinc's C fails on the former, its `= {0}` of a variable
+    length, and leaves the latter unset.
   - Not yet: one in another type, as an Optional, a parameter of fixed
-    arrays, `[[uint8](n)](2)`;
+    arrays;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
