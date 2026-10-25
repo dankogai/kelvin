@@ -3,7 +3,8 @@
 A range is a value of its own, `Range<T>` (#373): the integers from a
 lower bound up to an upper one. It is a Sequence, walked by `for` and
 by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
-[iterators.md](iterators.md) has them.
+[iterators.md](iterators.md) has them, and it has a `count` and a
+`contains(x)` (#374).
 
 **Where it lives:** the core. A Range is kelvinc's own, a struct of its
 bounds written into the program's C, with nothing linked; the Iterator
@@ -25,6 +26,7 @@ let main():int32 {
     println(naturals.prefix(3), " ", naturals.lazy.map { $0 * $0 }.prefix(4).map { $0 })   // 0..<3 [0, 1, 4, 9]
     let small:Range<uint8> = 250...
     println(small, " ", small.prefix(10))     // 250... 250...255
+    println(r.count, " ", r.contains(4), " ", small.contains(-1))   // 5 true false
     return 0
 }
 ```
@@ -66,8 +68,25 @@ let main():int32 {
   - A typed one shows its bounds alone: `Range<uint8>`'s `1...3` pastes
     back as a `Range<i64>`, as a `u8`'s `3` does as an `i64`.
 - **It has no operators**: `r == s` and the rest are errors.
-- **Its other methods are not yet**: `.count`, `.contains(x)`, its
-  bounds; `r.count` is an error that names what a Range has.
+- **Its bounds are not yet** read alone; `r.lo` is an error that names
+  what a Range has.
+
+## Counting and asking: `count` and `contains`
+
+- **`r.count`** is how many values it has, a `u64`, as an Array's count
+  (#374).
+  - `(1...3).count` is 3, and `(5..<1).count` 0.
+  - A Range without an end has no count: written so, `(0...).count` is
+    an error, and one whose end is known only at run time ends the
+    program, as its `.map` does.
+  - So does one of 2^64 values, `0...` of a `u64` up to its largest,
+    which no `u64` counts.
+- **`r.contains(x)`** is whether `x` is one of its values, a `bool`.
+  - `x` is any integer, compared by its value: `(0..<5).contains(4)` is
+    true, and a `Range<uint8>`'s `.contains(-1)` false.
+  - One without an end has every value from `lo` up to its type's
+    largest, so `(0...).contains(9)` is true.
+  - A floating-point number or a `bool` is an error.
 
 ## Walking: `for i in r`
 
@@ -117,6 +136,8 @@ let main():int32 {
 | `Range<T>` | `lo..<hi`, `lo...hi`, `lo...`, `..<hi`, `...hi` | a Range: without `hi`, with it, up to `T`'s largest, from 0 |
 | | `print(r)`, `${r}` | `0..<5`, `1...3`, `0...`, as written |
 | | `for i in r` | each value, from `lo` |
+| | `.count` | how many values, a `u64` (#374) |
+| | `.contains(x)` | whether `x`, an integer, is one of them, a `bool` (#374) |
 | | `.map { ... }`, `.map(f)` | an Array of what `f` gives each value |
 | | `.filter { ... }`, `.filter(f)` | an Array of the values `f` says true for |
 | | `.reduce(init) { ... }`, `.reduce(init, f)` | the values folded, from `init` |
@@ -132,6 +153,8 @@ it ([selfhost/README.md](../selfhost/README.md)), with these
 differences:
 
 - **`T`** is one of kc's integers, `i64`, `i32`, `u8` or `u32`.
+- **`r.count`** is an `i64`, as kc's counts are; the values are the
+  same.
 - **A `for` over a range** counts with an `i64`, as kc's always has;
   the values are the same.
   - kc's `for` writes no type, so `for i:U in r` is not kc's.
@@ -144,5 +167,4 @@ kc reads every row of the table above but `${r}`.
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
 - Reversed and stepped ranges, `stride`.
-- `==`, `.count`, `.contains(x)`, the bounds, and slicing by a Range
-  value.
+- `==`, the bounds, and slicing by a Range value.

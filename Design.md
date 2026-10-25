@@ -405,6 +405,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 371 | kelvinc frees and copies each innermost element of a member's or a case's array of arrays of owners, `[[String](2)](2)`, where it saw no owner in an array of arrays and leaked them | a loop of `kv_string_free` over the innermost elements | `struct pair { grid: [[String](2)](2) }` | 2026-10-25 |
 | 372 | kelvinc and kc read `x.prefix(n)` and `x.prefix { ... }`, Haskell's take and takeWhile: of an Iterator, an iterator or a Sequence a lazy `Iterator<T>` that asks its base no more after, so an Iterator that never ends gives the first few; of an Array, a String, a Dictionary or a Set a new one of its kind | an adapter of a state holding the base, the count left and a flag; a slice, or a loop to the first false | `Iterator(-1) { $0 += 1; return $0 }.prefix(10)` | 2026-10-25 |
 | 373 | A range is a value of its own, `Range<T>`, `T` an integer type and `i64` where unwritten: `a..<b`, `a...b`, `a...` up to `T`'s largest, and `..<b` and `...b` from 0; a Sequence with `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`; kelvinc and kc | a struct of the bounds and a kind; its walk a counter with a flag that stops at the end, never past it | `let naturals = 0...; println(naturals.prefix(5))` | 2026-10-25 |
+| 374 | A Range has `r.count`, how many values, a `u64` as an Array's count, and `r.contains(x)`, whether an integer `x` is one of them, a `bool`; one without an end has no count, an error written so and the program's end otherwise; kelvinc and kc | a count of the walk's lo and end; contains compared as a `__int128` | `(1...3).count`, `(0..<5).contains(4)` | 2026-10-25 |
 
 Notes:
 
@@ -966,6 +967,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (374) Agreed details: "add `.count` and `.contains` to Range".
+  - `r.count` is a `u64`, as an Array's; kc's an `i64`, as its counts
+    are. `lo...` written so is an error, and a Range whose end is known
+    only at run time ends the program, as its `.map` does (#373); so
+    does one of 2^64 values, which no `u64` counts.
+  - `r.contains(x)` takes any integer, compared by its value, a
+    `__int128` holding both, so a `Range<uint8>`'s `.contains(-1)` is
+    false; one without an end holds every value up to `T`'s largest.
+  - Errors: a count of `lo...`, a `contains` of no integer, none, or
+    more than one; the member error now names `count` and `contains`.
 
 - (373) Agreed details: "make ranges a distinct type as `Range<IntType>`
   where `IntType` defaults to `i64`", a Sequence with `.map`, `.filter`,
@@ -4993,6 +5005,7 @@ says "as agreed".
 | P383 | Details of #371 | src/codegen.c: array_base, owner_free of a struct's member, emit_derived_copy, the struct's free, the enum's free and copy; tests/run/array_owner_rows.k | — |
 | P384 | Details of #372 | src/parser.c: prefix_receiver, parse_prefix, the op table; src/codegen.c: the prefix adapter of the D_FN, iter_prefix, array_/dict_/set_/string_prefix; selfhost/gen.k: iter_rec ops 3 and 4, prefix_arg, iter_prefix_of, prefix_rec, gen_prefix; selfhost/parse.k: prefix's trailing function; tests/run/prefix.k, tests/error/prefix_*.k | — |
 | P385 | Details of #373 | src/lexer.c: `Range`; src/parser.c: RANGE_PREC between the comparisons and the shifts, range_ends, make_range (E_METHOD op "range"), range_type, range_iter (the adapter of lazy_op "range"), the Range's methods, parse_prefix's range_prefix, parse_for_range, `..<n`, `...n` and `lo...` in a for, a slice read through a range, string_of_literal's fitting; src/codegen.c: the typedef of each Range<T> after the prelude, range_max, range_walk, range, range_prefix, range_iter, the adapter, S_FOR_IN of a Range value, its printer; selfhost/lex.k: `...`; selfhost/parse.k: N_RANGE, N_RITER, Y_RANGE, range_ends, the for's flags; selfhost/gen.k: range_type_of, iter_rec op 5, gen_range_gathered, the Range's prefix, loops and printer, put_range_types; documents/ranges.md; tests/run/range_value.k, tests/run/range_no_end.k, tests/error/range_*.k | `_kv_range_i64`, `_KV_RANGE_i64` |
+| P386 | Details of #374 | src/parser.c: the Range's count and contains, ops range_count and range_contains; src/codegen.c: their statement expressions, a `(bool)` of contains so that it prints `true`; selfhost/gen.k: type_of's count and contains, gen_range_member; documents/ranges.md; tests/run/range_count.k, tests/run/range_count_wide.k, tests/error/range_count_no_end.k, tests/error/range_contains_float.k, tests/error/range_method.k of `.first` | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

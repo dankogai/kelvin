@@ -7409,3 +7409,18 @@ documents/ranges.md is its document. kc writes the same and says
 kelvinc's errors. Details are provisional P385.
 
 There are 1018 tests, and all pass with clang and with gcc 15.
+
+### 419. A Range's count and contains
+
+> add `.count` and `.contains` to Range as #374
+
+**Claude** gave a Range `r.count`, how many values it has, a `u64` as
+an Array's count is, and `r.contains(x)`, whether an integer `x` is one
+of them, compared by its value whatever its type. A Range without an end
+has no count: written so it is an error, and at run time the program
+ends, as its `.map` does; one of 2^64 values ends it too. `contains`
+first printed `1` for `true`, as C typed it an `int`, and is now a
+`bool`. kc writes the same, its count an `i64`, and says kelvinc's
+errors. Details are provisional P386.
+
+There are 1022 tests, and all pass with clang and with gcc 15.

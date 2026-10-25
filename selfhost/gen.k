@@ -502,6 +502,7 @@ let range_iter_of(n:int64):int64
 let range_max(y:int64):cstr
 let put_range_walk(ey:int64, r:cstr, p:cstr)
 let range_operand_error(n:int64):bool
+let gen_range_member(n:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -802,6 +803,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
+        if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
             range_member_error(n)
             return -1
@@ -853,6 +855,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "is") { return base_type(Y_BOOL) }
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
+        if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE {                                    // as kelvinc's (#373)
             range_member_error(n)
             return -1
@@ -4162,6 +4165,10 @@ let gen_expr(n:int64) {
         return
     }
     if range_operand_error(n) { return }                 // a Range has no operators (#373)
+    if (k == N_FIELD && tok_is(t, "count") || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
+        gen_range_member(n)                              // r.count, r.contains(x) (#374)
+        return
+    }
     if k == N_FIELD && tok_is(t, "lazy") && lazy_field_type(n) != 0 - 2 {
         let ly:int64 = type_of(nodes[n].a)
         if ly >= 0 && types[ly].kind == Y_RANGE {        // as kelvinc's (#373)
@@ -5904,7 +5911,7 @@ let range_type_of(n:int64):int64 {
 
 // a member of a Range that it has not, as kelvinc says it
 let range_member_error(n:int64) {
-    var m = $"a Range has map, filter, reduce, flatMap, lazy and prefix, and '."
+    var m = $"a Range has count, contains, map, filter, reduce, flatMap, lazy and prefix, and '."
     m += tok_text(nodes[n].t)
     m += "' is none of them"
     gen_error(n, m.cstr)
@@ -5973,6 +5980,59 @@ let range_operand_error(n:int64):bool {
     m += "': walk it, or gather its values, as in '.map { $0 }'"
     gen_error(n, m.cstr)
     return true
+}
+
+// r.count and r.contains(x), n (#374), as kelvinc's: the count of one
+// without an end ends the program, and is kelvinc's error written so;
+// x is compared as a __int128, which holds any of kc's integers
+let gen_range_member(n:int64) {
+    let a:int64 = nodes[n].a
+    let ry:int64 = type_of(a)
+    let ey:int64 = types[ry].elem
+    if nodes[n].kind == N_FIELD {
+        if nodes[a].kind == N_RANGE && nodes[a].flag == 2 {
+            let lo:int64 = nodes[a].a
+            var m = $"'.count' counts a Range to its end, and "
+            if nodes[lo].kind == N_NUM { m += tok_text(nodes[lo].t) } else { m += "lo" }
+            m += "... has none: take the first few, as in '.prefix(10).count'"
+            gen_error(n, m.cstr)
+            return
+        }
+        put("({ ")
+        put_ctype(ry)
+        put(" _kv_rc = (")
+        gen_expr(a)
+        put("); if (_kv_rc.kind == 2) kv_array_fail(\"this Range has no end, and '.count' counts one to its end: take its first few, '.prefix(n)'\"); ")
+        put_range_walk(ey, "_kv_rc", "_kv_c")
+        put("; _kv_c_go ? (int64_t)((uint64_t)_kv_c_end - (uint64_t)_kv_c_lo + 1) : (int64_t)0; })")
+        return
+    }
+    let v:int64 = nodes[n].b
+    if v < 0 {
+        gen_error(n, "'.contains' takes an integer, as in 'r.contains(3)'")
+        return
+    }
+    if nodes[v].next >= 0 {
+        gen_error(nodes[v].next, "'.contains' takes one integer")
+        return
+    }
+    let vy:int64 = type_of(v)
+    if vy < 0 { return }
+    let k:ykind = types[vy].kind
+    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+        var m = $"'.contains' takes an integer, and this is "
+        let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : type_text(vy)
+        m += &w
+        gen_error(v, m.cstr)
+        return
+    }
+    put("({ ")
+    put_ctype(ry)
+    put(" _kv_rh = (")
+    gen_expr(a)
+    put("); __int128 _kv_rv = (")
+    gen_expr(v)
+    put("); (bool)(_kv_rv >= _kv_rh.lo && (_kv_rh.kind ? _kv_rv <= _kv_rh.hi : _kv_rv < _kv_rh.hi)); })")
 }
 
 // each Range<T>'s struct, T's lo and hi and its kind, where the program

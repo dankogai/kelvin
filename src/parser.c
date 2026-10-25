@@ -894,6 +894,7 @@ static Expr *parse_prefix(Expr *e, Token *name, bool call);
 static bool prefix_receiver(Type *t);
 static Type *range_type(Pos pos, Type *elem);
 static bool is_integer_type(Type *t);
+static bool bool_shape(Expr *e);
 static bool is_range(Type *t);
 static bool is_range_literal(Expr *e);
 static Expr *make_range(Expr *lo, Expr *hi, int kind, Pos pos);
@@ -1977,7 +1978,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
-            if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix */
+            if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix; count and contains (#374) */
                 bool fn_next = call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement());
                 if (!strcmp(member, "prefix") && fn_next) {
                     e = parse_prefix(e, name, call);
@@ -1992,12 +1993,56 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = parse_iter_lazy(range_iter(e, NULL, name->pos), op, op->text);
                     continue;
                 }
+                if (!call && !strcmp(member, "count")) { /* r.count (#374): its values, a u64, as an Array's */
+                    if (is_range_literal(e) && !e->b)
+                        error_at(name->pos, "'.count' counts a Range to its end, and %s has none: take the first few, "
+                                            "as in '.prefix(10).count'",
+                                 e->a->kind == E_LITERAL ? strfmt("%s...", e->a->text) : "lo...");
+                    Expr *x = new_expr(E_METHOD, name->pos);
+                    x->a = e;
+                    x->text = "count";
+                    x->op = "range_count";
+                    x->from = unqualified(value_type(e));
+                    x->type = base_type("u64", name->pos);
+                    e = x;
+                    continue;
+                }
+                if (call && !strcmp(member, "contains")) { /* r.contains(x) (#374): whether x is one of its values */
+                    advance();
+                    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+                    ident_annotation_ok = true;
+                    brace_ends_condition = false;
+                    if (is_p(peek(), ")"))
+                        error_at(peek()->pos, "'.contains' takes an integer, as in 'r.contains(3)'");
+                    Expr *v = parse_assign();
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.contains' takes one integer");
+                    ident_annotation_ok = saved;
+                    brace_ends_condition = saved_brace;
+                    expect_p(")");
+                    Decl *r;
+                    char c = expr_class(v, &r);
+                    bool flag = v->is_bool || bool_shape(v);
+                    if (flag || (c != 'i' && c != 'u'))
+                        error_at(v->pos, "'.contains' takes an integer, and this is %s",
+                                 flag ? "a bool" : c == 'f' ? "a floating-point number" : value_type(v) ? kelvin_type(value_type(v)) : "not one");
+                    Expr *x = new_expr(E_METHOD, name->pos);
+                    x->a = e;
+                    x->text = "contains";
+                    x->op = "range_contains";
+                    list_push(&x->items, v);
+                    x->from = unqualified(value_type(e));
+                    x->type = base_type("bool", name->pos);
+                    x->is_bool = true;
+                    e = x;
+                    continue;
+                }
                 if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
                      !strcmp(member, "flatMap")) && fn_next)
                     e = range_iter(e, member, name->pos); /* then the Iterator's, below */
                 else if (strcmp(member, "pretty") && strcmp(member, "size"))
-                    error_at(name->pos, "a Range has map, filter, reduce, flatMap, lazy and prefix, and '.%s' is none "
-                                        "of them",
+                    error_at(name->pos, "a Range has count, contains, map, filter, reduce, flatMap, lazy and prefix, and "
+                                        "'.%s' is none of them",
                              member);
             }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */

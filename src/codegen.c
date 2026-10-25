@@ -1287,6 +1287,20 @@ static char *expr_bare(Expr *e) {
                           ": _kv_pl < %s ? (%s)(_kv_pl + 1) : _kv_pl, _kv_pt && _kv_pl == %s}; })",
                           ct, expr(e->a), expr(e->items.data[0]), range_walk(t, "_kv_rp", "_kv_p"), tn, ct, mx, tn, mx);
         }
+        if (e->op && !strcmp(e->op, "range_count")) {
+            /* r.count (#374): its values, a u64; one without an end, or with
+               2^64 values, which no u64 holds, ends the program */
+            return strfmt("({ %s _kv_rc = (%s); if (_kv_rc.kind == 2) kv_array_fail(\"this Range has no end, and "
+                          "'.count' counts one to its end: take its first few, '.prefix(n)'\"); %s; if (_kv_c_go && "
+                          "(uint64_t)_kv_c_end - (uint64_t)_kv_c_lo == UINT64_MAX) kv_array_fail(\"this Range has 2^64 "
+                          "values, more than a count holds\"); _kv_c_go ? (uint64_t)_kv_c_end - (uint64_t)_kv_c_lo + 1 "
+                          ": (uint64_t)0; })",
+                          e->from->cname, expr(e->a), range_walk(e->from->elem, "_kv_rc", "_kv_c"));
+        }
+        if (e->op && !strcmp(e->op, "range_contains")) /* r.contains(x) (#374): compared as a __int128, which holds any of them */
+            return strfmt("({ %s _kv_rh = (%s); __int128 _kv_rv = (%s); (bool)(_kv_rv >= _kv_rh.lo && (_kv_rh.kind ? "
+                          "_kv_rv <= _kv_rh.hi : _kv_rv < _kv_rh.hi)); })",
+                          e->from->cname, expr(e->a), expr(e->items.data[0]));
         if (e->op && !strncmp(e->op, "range_iter", 10)) {
             /* a Range's Iterator (#373): where it starts, ends and whether it
                goes, on the heap; one that '.map' and its kin walk to its end

@@ -366,6 +366,9 @@ kc reads what it is written in, and little more.
     kc makes of it, `_kv_iterN`; `.prefix(n)` is a Range.
   - It prints as written, `0..<5`; its operators and other members are
     kelvinc's errors, in its words.
+  - `r.count`, an `i64` as kc's counts are, and `r.contains(x)`, compared
+    as a `__int128` (#374); a count without an end is kelvinc's error,
+    or ends the program.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc
