@@ -7471,3 +7471,16 @@ an Array or a String by either. The test that refused `xs[r]` now
 refuses slicing a Dictionary. Details are provisional P389.
 
 There are 1027 tests, and all pass with clang and with gcc 15.
+
+### 423. A Range's reversed()
+
+> add `.reversed()` to Range as #378
+
+**Claude** asked what it should give, as a descending Range would have no
+text to paste back, and what of a Range without an end; the user chose a
+lazy `Iterator<T>`, from the last value down to the first, and a refusal
+of one without an end, as its `.count` refuses. It steps down only while
+short of `lo`, so it never wraps. kc writes the same and says kelvinc's
+errors. Details are provisional P390.
+
+There are 1029 tests, and all pass with clang and with gcc 15.

@@ -4,8 +4,8 @@ A range is a value of its own, `Range<T>` (#373): the integers from a
 lower bound up to an upper one. It is a Sequence, walked by `for` and
 by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
 [iterators.md](iterators.md) has them; it has a `count` and a
-`contains(x)` (#374), its `lowerBound` and `upperBound` (#375), and
-`==` and `!=` (#376).
+`contains(x)` (#374), its `lowerBound` and `upperBound` (#375), `==`
+and `!=` (#376), and `reversed()` (#378).
 
 **Where it lives:** the core. A Range is kelvinc's own, a struct of its
 bounds written into the program's C, with nothing linked; the Iterator
@@ -30,6 +30,8 @@ let main():int32 {
     println(r.count, " ", r.contains(4), " ", small.contains(-1))   // 5 true false
     println(c.lowerBound, " ", c.upperBound, " ", r.upperBound)       // 1 3 5
     println(r == 0..<5, " ", r == 0...4, " ", small == 250...)       // true false true
+    for i in c.reversed() { print(i, ",") }                         // 3,2,1,
+    println()
     return 0
 }
 ```
@@ -150,6 +152,22 @@ let main():int32 {
 - **`r.prefix { ... }`** is an `Iterator<T>` of the values up to the
   first its function says false for, lazily, Haskell's `takeWhile`.
 
+## Backwards: `reversed()`
+
+- **`r.reversed()`** is an `Iterator<T>` of its values from the last
+  down to `lo`, lazily, as Swift's `ReversedCollection` (#378).
+  - `for i in (0..<n).reversed()` counts `n - 1` down to 0, and holds
+    nothing on the heap but the Iterator's state.
+  - It never steps past `lo`, so `(0...3).reversed()` of a `u8` ends at
+    0.
+  - It is an Iterator, walked once: `.map`, `.filter`, `.prefix` and
+    `.lazy` are an Iterator's ([iterators.md](iterators.md)).
+- **A Range without an end** has no end to start from: written so,
+  `(0...).reversed()` is an error, and one whose end is known only at
+  run time ends the program, as its `.count` does.
+- A descending Range is not a value: it would have no text to paste
+  back.
+
 ## Slices
 
 - **`xs[lo..<hi]`** slices an Array, a String or a Bytes as before
@@ -179,6 +197,7 @@ let main():int32 {
 | | `.lazy.map { ... }`, `.lazy.filter { ... }` | an `Iterator<U>`, lazily |
 | | `.prefix(n)` | the Range of its first `n` values |
 | | `.prefix { ... }` | an `Iterator<T>` of the values before the first `f` says false for |
+| | `.reversed()` | an `Iterator<T>` of its values from the last down, lazily (#378) |
 | | `xs[r]` | a slice of an Array, a String or a Bytes, a new one (#377) |
 
 ## kc
@@ -203,4 +222,4 @@ kc reads every row of the table above but `${r}`.
 ## Not yet
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
-- Reversed and stepped ranges, `stride`.
+- Stepped ranges, `stride`.

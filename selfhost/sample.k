@@ -668,5 +668,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(octets3.lowerBound, " ", octets3.upperBound, " ", naturals.lowerBound)   // its bounds (#375)
     println(octets3 == 1...3, " ", octets3 != 1..<3, " ", naturals == 0...4)   // == and != (#376)
     println($[5, 6, 7, 8][octets3], " ", $"kelvin"[naturals.prefix(3)], " ", $[5, 6, 7][1...])   // xs[r] (#377)
+    println(octets3.reversed().map { $0 * 10 }, " ", naturals.prefix(5).reversed().prefix(2).map { $0 })   // r.reversed() (#378)
     return 0
 }

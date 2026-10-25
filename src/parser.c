@@ -2026,6 +2026,22 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = x;
                     continue;
                 }
+                if (call && !strcmp(member, "reversed")) { /* r.reversed() (#378): an Iterator<T> from its last value down */
+                    advance();
+                    if (!is_p(peek(), ")"))
+                        error_at(peek()->pos, "'.reversed()' takes nothing");
+                    expect_p(")");
+                    if (is_range_literal(e) && !e->b)
+                        error_at(name->pos, "'.reversed()' walks a Range from its end, and %s has none: take the first "
+                                            "few, as in '.prefix(10).reversed()'",
+                                 e->a->kind == E_LITERAL ? strfmt("%s...", e->a->text) : "lo...");
+                    Expr *x = range_iter(e, NULL, name->pos);
+                    x->op = "range_iter_down";
+                    x->text = "reversed";
+                    x->target->lazy_op = "range_down";
+                    e = x;
+                    continue;
+                }
                 if (call && !strcmp(member, "contains")) { /* r.contains(x) (#374): whether x is one of its values */
                     advance();
                     bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
@@ -2061,7 +2077,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = range_iter(e, member, name->pos); /* then the Iterator's, below */
                 else if (strcmp(member, "pretty") && strcmp(member, "size"))
                     error_at(name->pos, "a Range has lowerBound, upperBound, count, contains, map, filter, reduce, "
-                                        "flatMap, lazy and prefix, and '.%s' is none of them",
+                                        "flatMap, lazy, prefix and reversed, and '.%s' is none of them",
                              member);
             }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */

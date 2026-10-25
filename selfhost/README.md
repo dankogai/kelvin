@@ -376,6 +376,9 @@ kc reads what it is written in, and little more.
   - `xs[r]` (#377), a slice of an Array or a String by a range written,
     `xs[1..<3]`, or a value, a new one; what an expression gives is
     held while it is copied.
+  - `r.reversed()` (#378), an Iterator kc makes of it that steps down,
+    iter_rec op 6; one without an end is kelvinc's error, or ends the
+    program.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -1323,15 +1323,18 @@ static char *expr_bare(Expr *e) {
             /* a Range's Iterator (#373): where it starts, ends and whether it
                goes, on the heap; one that '.map' and its kin walk to its end
                has one, or the program ends */
+            bool down = !strcmp(e->op, "range_iter_down"); /* r.reversed() (#378): from its end down to lo */
             const char *check = !strcmp(e->op, "range_iter_all")
                                     ? strfmt("if (_kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and '.%s' walks "
                                              "one to its end: take its first few, '.prefix(n)'\"); ",
                                              e->text)
-                                    : "";
+                                : down ? "if (_kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and '.reversed()' "
+                                         "walks one from its end: take its first few, '.prefix(n)'\"); "
+                                       : "";
             return strfmt("({ %s _kv_ri = (%s); %s%s; struct %s_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = "
-                          "_kv_r_lo; _kv_is->end = _kv_r_end; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, %s_next); })",
+                          "%s; _kv_is->end = %s; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, %s_next); })",
                           e->from->cname, expr(e->a), check, range_walk(e->from->elem, "_kv_ri", "_kv_r"), e->target->name,
-                          e->target->name);
+                          down ? "_kv_r_end" : "_kv_r_lo", down ? "_kv_r_lo" : "_kv_r_end", e->target->name);
         }
         if (e->op && !strcmp(e->op, "iter_next")) /* it.next() of an Iterator (#325) */
             return strfmt("({ %s; kv_iter_next(&(%s), &_kv_nv); _kv_nv; })", decl(e->type, "_kv_nv"), expr(e->a));
@@ -3857,7 +3860,7 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
-        if (d->lazy_op && !strcmp(d->lazy_op, "range")) {
+        if (d->lazy_op && (!strcmp(d->lazy_op, "range") || !strcmp(d->lazy_op, "range_down"))) {
             /* a Range's Iterator (#373): next gives where it is, then steps
                while it is short of its end, so it never passes T's largest */
             if (!d->body) {
@@ -3876,7 +3879,7 @@ static void emit_decl(Decl *d) {
             line("}");
             line("%s = %s(_kv_p->at);", out, optional_case(d->ret, "some"));
             line("_kv_p->go = _kv_p->at != _kv_p->end;");
-            line("_kv_p->at += _kv_p->go;");
+            line("_kv_p->at %s= _kv_p->go;", !strcmp(d->lazy_op, "range_down") ? "-" : "+"); /* r.reversed() down (#378) */
             indent--;
             line("}");
             break;
