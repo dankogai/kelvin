@@ -254,6 +254,7 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
   and `s[...hi]` are new Strings of those codepoints; a range past the
   count ends the program.
+  - `s[r]` slices by a Range value as well (#377).
 - **Comparing:** `==` and `!=` compare two Strings by their bytes, and
   `<`, `<=`, `>` and `>=` order them by their bytes, codepoint order
   for UTF-8, `"Zed" < "ann"` (#185); two Strings in variables, as for
@@ -294,6 +295,7 @@ to come.
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
+| | `s[r]` | a slice by a Range value, a new String (#377) |
 | | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` codepoints, or of those before the first `f` says false for, `f` of a `uchr` (#372) |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with `#import <RegExp>` (#157), `re` a `$/.../`: [regexp.md](regexp.md) |

@@ -408,6 +408,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 374 | A Range has `r.count`, how many values, a `u64` as an Array's count, and `r.contains(x)`, whether an integer `x` is one of them, a `bool`; one without an end has no count, an error written so and the program's end otherwise; kelvinc and kc | a count of the walk's lo and end; contains compared as a `__int128` | `(1...3).count`, `(0..<5).contains(4)` | 2026-10-25 |
 | 375 | A Range has `r.lowerBound` and `r.upperBound`, its bounds as written, of `T`, as Swift's: `(0..<5).upperBound` is 5, `(1...3).upperBound` 3, `(..<4).lowerBound` 0; one without an end has no upper bound, an error written so and the program's end otherwise; kelvinc and kc | the struct's lo and hi | `(1...3).upperBound` | 2026-10-25 |
 | 376 | Ranges compare with `==` and `!=`: equal when of the same kind and bounds, as they print, as Swift's, so `0..<5 != 0...4`; two of `lo...` by `lo` alone; of two integer types by value; an Array and an Optional of Ranges compare by them; kelvinc and kc | the kinds and the bounds as `__int128`s | `r == 0..<5` | 2026-10-25 |
+| 377 | `xs[r]` slices an Array, a String or a Bytes by a Range value as by one written: `lo..<hi` up to `hi`, `lo...hi` past it, `lo...` to the count; out of range the program ends; kelvinc, and kc, which so slices by a range written too | the slice of its bounds, read at run time | `let r = 1..<3; xs[r]` | 2026-10-25 |
 
 Notes:
 
@@ -969,6 +970,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (377) Agreed details: "let `xs[r]` slice by a Range value".
+  - The bounds are the Range's, read at run time: `lo..<hi` up to `hi`,
+    `lo...hi` to `hi + 1`, `lo...` to the count; a slice out of range
+    ends the program in the words of #68's.
+  - `s[r]` of a String is a slice, so a String's index is refused once
+    read, where it is no range.
+  - kc had no slices: a range written in `[...]` is a Range there, so kc
+    slices an Array or a String by a range written and by a value alike;
+    kc has no Bytes.
+  - Errors: a Dictionary or a Set sliced, in #68's words.
 
 - (376) Agreed details: "add `==` and `!=` to Range". The user chose
   equality by the kind and the bounds, as Swift's and as a Range prints,
@@ -5033,6 +5045,7 @@ says "as agreed".
 | P386 | Details of #374 | src/parser.c: the Range's count and contains, ops range_count and range_contains; src/codegen.c: their statement expressions, a `(bool)` of contains so that it prints `true`; selfhost/gen.k: type_of's count and contains, gen_range_member; documents/ranges.md; tests/run/range_count.k, tests/run/range_count_wide.k, tests/error/range_count_no_end.k, tests/error/range_contains_float.k, tests/error/range_method.k of `.first` | — |
 | P387 | Details of #375 | src/parser.c: the Range's lowerBound and upperBound, ops range_lower and range_upper, the member error naming them; src/codegen.c: `(r).lo`, and hi checked for an end; selfhost/gen.k: type_of's bounds, gen_range_member's; documents/ranges.md; tests/run/range_bounds.k, tests/error/range_upper_no_end.k, tests/error/range_method.k's words | — |
 | P388 | Details of #376 | src/parser.c: parse_binary's Range ==, op range_eq, a Range? left to the Optional's ==, eq_type of a Range; src/codegen.c: range_eq, eq_code of a Range; selfhost/gen.k: range_operand_error, is_range_eq, gen_range_eq in gen_expr and gen_cond, put_eq_code of a Range; documents/ranges.md; tests/run/range_eq.k, tests/error/range_eq_number.k, tests/error/range_operator.k of `<` | — |
+| P389 | Details of #377 | src/parser.c: the slice of a Range value (text "range"), the String index refused once read; src/codegen.c: the slice of `_kv_sr`'s lo and hi or count; selfhost/gen.k: type_of's slice, is_slice, gen_slice, is_place; documents/ranges.md, arrays.md, strings.md, bytes.md; tests/run/slice_range.k, tests/error/range_slice_value.k of a Dictionary | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

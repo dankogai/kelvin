@@ -373,6 +373,9 @@ kc reads what it is written in, and little more.
     end is kelvinc's error, or ends the program.
   - `r == s` and `r != s` (#376), of the kind and the bounds by value, an
     Array's and an Optional's of them too.
+  - `xs[r]` (#377), a slice of an Array or a String by a range written,
+    `xs[1..<3]`, or a value, a new one; what an expression gives is
+    held while it is copied.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

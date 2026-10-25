@@ -181,7 +181,8 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - **Properties** `count`, `capacity`, `at` (the elements as a `T^`),
     `size`, `typename`.
 - **Slices** (#68): `xs[lo..<hi]`, `xs[lo...hi]`, `xs[lo...]` to the
-  end, `xs[..<hi]` and `xs[...hi]` from the start.
+  end, `xs[..<hi]` and `xs[...hi]` from the start, and `xs[r]` of a
+  Range value, `let r = 1..<3` (#377, [ranges.md](ranges.md)).
   - Each is a new Array of copies of those elements, which a variable
     then owns.
   - A range past the count ends the program with a message.
@@ -315,6 +316,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.at` | the elements, a `T^` borrow, unchecked |
 | | `xs[i]` | an element, checked: out of range ends the program |
 | | `xs[lo..<hi]`, `[lo...hi]`, `[lo...]`, `[..<hi]`, `[...hi]` | a slice, a new Array (#68) |
+| | `xs[r]` | a slice by a Range value, a new Array (#377) |
 | | `.append(x)`, `+=` | an element; `&x` of one, copied (#206); `&other` of an Array, its elements copied; or an Array an expression gives (moved in) |
 | | `.insert(i, x)`, `.remove(i, n)`, `.pop()` | changes, in place; `insert` copies `&x` as `append` does (#206); `pop` gives the last element |
 | | `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |

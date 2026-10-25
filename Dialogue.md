@@ -7458,3 +7458,16 @@ Comparable, so `<` and the rest stay errors by design, and ranges.md no
 longer lists them as not yet.
 
 There are 1026 tests, and all pass with clang and with gcc 15.
+
+### 422. xs[r], a slice by a Range value
+
+> let `xs[r]` slice by a Range value as #377
+
+**Claude** let `xs[r]` slice an Array, a String or a Bytes by a Range
+value as by one written: up to `hi`, past it where closed, to the end
+without one, and out of range the program ends as before. kc had no
+slices; as a range written in brackets is a Range there, kc now slices
+an Array or a String by either. The test that refused `xs[r]` now
+refuses slicing a Dictionary. Details are provisional P389.
+
+There are 1027 tests, and all pass with clang and with gcc 15.

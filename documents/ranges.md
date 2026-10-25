@@ -154,8 +154,12 @@ let main():int32 {
 
 - **`xs[lo..<hi]`** slices an Array, a String or a Bytes as before
   (#68), its bounds written: [arrays.md](arrays.md).
-- A Range value does not index yet: `xs[r]` is an error that says to
-  write its bounds.
+- **`xs[r]`** slices by a Range value as by one written (#377).
+  - `lo..<hi` is from `lo` up to `hi`, `lo...hi` past `hi`, and `lo...`
+    to the end, its count.
+  - One out of range ends the program, as a written one does:
+    `kelvin: range 4..<10 is out of range: the Array has 5`.
+  - A Dictionary or a Set is not sliced: `d[r]` is an error.
 
 ## Properties and methods
 
@@ -175,6 +179,7 @@ let main():int32 {
 | | `.lazy.map { ... }`, `.lazy.filter { ... }` | an `Iterator<U>`, lazily |
 | | `.prefix(n)` | the Range of its first `n` values |
 | | `.prefix { ... }` | an `Iterator<T>` of the values before the first `f` says false for |
+| | `xs[r]` | a slice of an Array, a String or a Bytes, a new one (#377) |
 
 ## kc
 
@@ -189,6 +194,8 @@ differences:
   the values are the same.
   - kc's `for` writes no type, so `for i:U in r` is not kc's.
 - **Templates** are not kc's, so neither is `${r}`.
+- **Slices** are of an Array or a String, by a range written or a value
+  (#377): kc has no Bytes.
 - **An error** is said by its line alone; the words are kelvinc's.
 
 kc reads every row of the table above but `${r}`.
@@ -197,4 +204,3 @@ kc reads every row of the table above but `${r}`.
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
 - Reversed and stepped ranges, `stride`.
-- Slicing by a Range value.

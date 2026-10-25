@@ -505,6 +505,7 @@ let range_operand_error(n:int64):bool
 let gen_range_member(n:int64)
 let is_range_eq(n:int64):bool
 let gen_range_eq(n:int64)
+let is_slice(n:int64):bool
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -881,6 +882,17 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         let yk:ykind = types[y].kind
+        let iy:int64 = nodes[n].b >= 0 ? type_of(nodes[n].b) : 0 - 1
+        if iy >= 0 && types[iy].kind == Y_RANGE {                    // xs[r], a slice, a new one (#377)
+            if yk != Y_ARRAY && yk != Y_STRING {
+                var m = $"a slice [lo..<hi] is of an Array, a String or a Bytes, and this is "
+                let w:String = kelvin_type_text(y)
+                m += &w
+                gen_error(n, m.cstr)
+                return -1
+            }
+            return y
+        }
         if yk == Y_DICT && nodes[n].flag == 1 { return optional_of(types[y].elem) }    // d[k] read whole (#219)
         if yk == Y_ARRAY || yk == Y_DICT || yk == Y_FIXED { return types[y].elem }   // a fixed array's (#354)
         if yk == Y_ARGV { return base_type(Y_CSTR) }
@@ -2836,6 +2848,7 @@ let is_place(n:int64):bool {
     }
     if k == N_FIELD && tagged_named(nodes[n].a) >= 0 { return false }   // T.none, a case made here (#345)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
+    if is_slice(n) { return false }                          // xs[r], a new one (#377)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
     if k == N_COND { return is_place(nodes[n].b) && is_place(nodes[n].c) }   // two places are one (#232)
     return k == N_ID || k == N_DEREF || k == N_SELF
@@ -3921,6 +3934,39 @@ let gen_moved(n:int64, y:int64) {
 
 // a[i] of what an expression gives (#227): a held, an element that owns
 // copied out of it; a Dictionary's lookup is a copy already (#219)
+// whether n is xs[r], a slice of an Array or a String by a Range, written
+// or a value (#377)
+let is_slice(n:int64):bool {
+    if nodes[n].kind != N_INDEX || nodes[n].b < 0 { return false }
+    let iy:int64 = type_of(nodes[n].b)
+    return iy >= 0 && types[iy].kind == Y_RANGE
+}
+
+// xs[r] (#377), as kelvinc's: a copy of the elements, or the codepoints,
+// from lo up to hi, past it where closed, to the count without one; one
+// out of range ends the program, as kelvinc's slice does; what an
+// expression gives held while it is copied
+let gen_slice(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let hold = needs_hold(a)
+    if hold { hold_open(a) }
+    put("({ __auto_type _kv_sr = (")
+    gen_expr(nodes[n].b)
+    put("); ")
+    if types[y].kind == Y_STRING {
+        put("kv_string_slice(")
+    } else {
+        put_array_name(y)
+        put("_slice(")
+    }
+    gen_place(a)
+    put(", _kv_sr.lo, _kv_sr.kind == 2 ? (")
+    gen_place(a)
+    put(")->count : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi); })")
+    if hold { hold_close(a) }
+}
+
 let gen_index(n:int64) {
     let a:int64 = nodes[n].a
     let y = type_of(n)
@@ -4239,6 +4285,8 @@ let gen_expr(n:int64) {
         gen_field(n)
     } else if k == N_METHOD {
         gen_method(n)
+    } else if k == N_INDEX && is_slice(n) {
+        gen_slice(n)                                 // xs[r], xs[lo..<hi] (#377)
     } else if k == N_INDEX && needs_hold(nodes[n].a) {
         gen_index(n)                                 // of what an expression gives (#227)
     } else if k == N_INDEX {

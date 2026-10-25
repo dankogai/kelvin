@@ -1762,9 +1762,9 @@ static Expr *parse_postfix_steps(Expr *e) {
             advance();
             return chained(e, t);
         }
-        if (is_p(peek(), "[") && is_string(value_type(e)) && !bracket_is_slice(cur))
-            error_at(peek()->pos, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
-                                  "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
+        /* a String is not indexed, but sliced, by a range written or a Range value (#377), seen once read */
+        bool string_index = is_p(peek(), "[") && is_string(value_type(e)) && !bracket_is_slice(cur);
+        Pos string_at = peek()->pos;
         if (is_p(peek(), "[") && is_bytes(value_type(e)) && !owner_place(e)) /* held (#187) */
             e = make_temp(e, "indexing a Bytes that an expression gives: bind it to a variable first");
         if (accept_p("[")) {
@@ -1774,7 +1774,7 @@ static Expr *parse_postfix_steps(Expr *e) {
             brace_ends_condition = false;
             Expr *x = new_expr(E_INDEX, t->pos);
             x->a = e;
-            bool slice = false, closed = false;
+            bool slice = false, closed = false, by_range = false;
             if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* [..<hi], [...hi] (#68) */
                 slice = true;
                 closed = is_p(peek(), "...");
@@ -1791,9 +1791,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                     closed = r->b && !strcmp(r->text, "...");
                     x->b = r->a;
                     x->c = r->b;
-                } else if (is_range(value_type(x->b))) {
-                    error_at(x->b->pos, "a slice is written 'xs[lo..<hi]', and a Range value does not index: write its "
-                                        "bounds");
+                } else if (is_range(value_type(x->b))) { /* xs[r] of a Range value (#377): its bounds, read at run time */
+                    slice = by_range = true;
                 }
                 if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* [lo..<hi], [lo...hi], [lo...] (#68) */
                     slice = true;
@@ -1809,6 +1808,9 @@ static Expr *parse_postfix_steps(Expr *e) {
             }
             ident_annotation_ok = saved;
             brace_ends_condition = saved_brace;
+            if (string_index && !slice)
+                error_at(string_at, "a String is not indexed by codepoint, which would walk it: walk it with 'for c in "
+                                    "s', or index its bytes, 's.bytes^[i]'; a slice, 's[lo..<hi]', copies codepoints");
             expect_p("]");
             {
                 /* v[i], v[r, c] of a type with a subscript (#136): its getter,
@@ -1885,7 +1887,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = make_temp(e, "a slice of an owner that an expression gives: bind it to a variable first");
                     x->a = e;
                 }
-                for (int k = 0; k < 2; k++) {
+                for (int k = 0; k < 2 && !by_range; k++) {
                     Expr *bound = k ? x->c : x->b;
                     Decl *r;
                     char c = bound ? expr_class(bound, &r) : 'i';
@@ -1896,7 +1898,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                                        : "not one");
                 }
                 x->op = "slice";
-                x->text = closed ? "closed" : "open";
+                x->text = by_range ? "range" : closed ? "closed" : "open";
                 x->type = unqualified(st);
                 e = x;
                 continue;

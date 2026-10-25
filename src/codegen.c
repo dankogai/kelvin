@@ -933,11 +933,18 @@ static char *expr_bare(Expr *e) {
             const char *lo = e->b ? expr(e->b) : "0";
             const char *hi = e->c ? (!strcmp(e->text, "closed") ? strfmt("(%s) + 1", expr(e->c)) : expr(e->c))
                                   : strfmt("(%s).count", seq);
+            const char *head = "";
+            if (!strcmp(e->text, "range")) { /* xs[r] of a Range value (#377): lo up to hi, past it closed, the count without one */
+                head = strfmt("({ __auto_type _kv_sr = (%s); ", expr(e->b));
+                lo = "_kv_sr.lo";
+                hi = strfmt("_kv_sr.kind == 2 ? (%s).count : _kv_sr.kind ? (uint64_t)_kv_sr.hi + 1 : (uint64_t)_kv_sr.hi", seq);
+            }
+            const char *tail = *head ? "; })" : "";
             if (!strcmp(e->type->name, "String"))
-                return strfmt("kv_string_slice(&%s, %s, %s)", seq, lo, hi);
+                return strfmt("%skv_string_slice(&%s, %s, %s)%s", head, seq, lo, hi, tail);
             if (!strcmp(e->type->name, "Bytes"))
-                return strfmt("kv_bytes_slice(&%s, %s, %s)", seq, lo, hi);
-            return strfmt("%s_slice(&%s, %s, %s)", e->type->cname, seq, lo, hi);
+                return strfmt("%skv_bytes_slice(&%s, %s, %s)%s", head, seq, lo, hi, tail);
+            return strfmt("%s%s_slice(&%s, %s, %s)%s", head, e->type->cname, seq, lo, hi, tail);
         }
         if (e->a && e->op && !strcmp(e->op, "dict") && e->type) /* d[k] of a Dictionary, checked (#65) */
             return strfmt("(*%s_at(&%s, %s))", e->type->cname, expr(e->a), expr(e->b));

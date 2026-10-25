@@ -1,6 +1,8 @@
-// a slice is written with its bounds, not a Range value (#373)
+// xs[r] slices an Array, a String or a Bytes by a Range value (#377), and a Dictionary is none
 let main():int32 {
-    let r = 1..<2; let xs = $[1, 2, 3]; let ys = xs[r]
+    let r = 0..<1
+    let d = ${"a": 1}
+    let x = d[r]
     return 0
 }
-// error: a slice is written 'xs[lo..<hi]', and a Range value does not index: write its bounds
+// error: a slice [lo..<hi] is of an Array, a String or a Bytes, and this is Dictionary<String, i64>

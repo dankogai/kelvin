@@ -62,7 +62,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   whether it would pass as a String.
 - **`b[lo..<hi]`**, `b[lo...hi]`, `b[lo...]`, `b[..<hi]` and
   `b[...hi]` (#68) are new Bytes of those bytes; a range past the count
-  ends the program.
+  ends the program; `b[r]` slices by a Range value (#377).
 - **`for x in b`** gives each byte.
 - **`b.append(x)`**, also `b += x`, takes text, a byte, `&other`, or a
   Bytes an expression gives; `b.insert(i, x)` the same at i,
@@ -114,6 +114,7 @@ far as they are.
 | `.insert(i, x)`, `.remove(i, n)`, `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
 | `.copy()`, `.string()` | a new Bytes; a new String, checked |
 | `b[lo..<hi]` | a slice, a new Bytes (#68) |
+| `b[r]` | a slice by a Range value, a new Bytes (#377) |
 | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |
 | `.escape()` | the bytes as text, a String: each that is not printable ASCII as `\xHH`, a `\` as `\\` (#166); with `<RegExp>`, `.escape(&re)` what `re` matches too (#168) |
 | `Bytes([...])` | the bytes written out (#172) |
