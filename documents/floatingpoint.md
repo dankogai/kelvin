@@ -89,11 +89,30 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 - **`x.abs`** is the magnitude, of its type, C's `fabs` or `fabsf`
   (#381), with no import: `(-2.5).abs` is 2.5, and `(-0.0).abs` 0.0.
   - With `<math>`, `x.abs()`, its method, is the same.
-- **`x.sign`** is 1.0 or -1.0, of its type, by its sign bit, as Rust's
-  `signum` (#382), with no import.
-  - So `0.0.sign` is 1.0 and `(-0.0).sign` -1.0, and `x.abs * x.sign`
-    is `x`, zeros and infinities too.
-  - `nan.sign` is NaN.
+- **`x.sign`** is a `bool?`, by its sign bit (#382, #383), with no
+  import: `true` for positive, `false` for negative, `none` of NaN.
+  - So `0.0.sign` is `some(true)` and `(-0.0).sign` `some(false)`;
+    `x.sign ?? true` reads it as a `bool`.
+  - **`x.sign = b`** sets the bit, a `bool`, in the var that holds `x`:
+    `x.sign = false` makes it negative, zeros and NaN too; `x.sign =
+    none` is an error.
+- **`x.exponent`** and **`x.significand`** are IEEE 754's two other
+  fields of its bits, as `i64`s (#383), with no import.
+  - The exponent is biased, as stored: 0 to 2047 of an `f64`, 0 to 255
+    of an `f32`, `1.0.exponent` 1023.
+  - The significand is the fraction's bits, without the leading 1: 0 to
+    2^52 - 1 of an `f64`, 0 to 2^23 - 1 of an `f32`, `1.5.significand`
+    2^51.
+  - With the sign they make the bits, every one: 0 for zeros and
+    subnormals, the most for infinities and NaN.
+  - **`x.exponent = e`** and **`x.significand = s`** set them, in the
+    var that holds `x`, as `x += e` sets it: `x.exponent += 1` doubles
+    a normal `x`.
+  - A value outside its field is an error, written so, and ends the
+    program otherwise: `kelvin: '.exponent' of an f64 is 0 to 2047, and
+    this set is past it`.
+- **The others are read**: `x.abs = y` and `x.isNaN = b` are errors that
+  say they are worked out of the value.
 - **`x.isNaN`** is whether it is NaN, a `bool` (#382), with no import:
   `(0.0 / 0.0).isNaN` is true; an integer has none.
   - `<math>`'s `x.isnan` is the same.
@@ -122,7 +141,10 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
 | | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.abs` | the magnitude, `fabs` or `fabsf`, of its type (#381) |
-| | `.sign` | 1.0 or -1.0 by its sign bit, of its type; NaN of NaN (#382) |
+| | `.sign` | a `bool?` by its sign bit: `true` positive, `false` negative, `none` of NaN (#382, #383) |
+| | `.sign = b` | sets the sign bit, a `bool` (#383) |
+| | `.exponent`, `.exponent = e` | the biased exponent field, an `i64`, 0...2047 or 0...255, read and set (#383) |
+| | `.significand`, `.significand = s` | the fraction's bits, an `i64`, 0...2^52 - 1 or 0...2^23 - 1, read and set (#383) |
 | | `.isNaN` | whether it is NaN, a `bool` (#382) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |

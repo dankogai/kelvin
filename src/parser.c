@@ -5212,6 +5212,7 @@ static Expr *parse_coalescing(void) {
         e->paren = true;
         e->op = "coalesce"; /* its type is the value's, for inference */
         e->type = some->type;
+        e->is_bool = some->type->kind == T_BASE && !strcmp(some->type->name, "bool"); /* b ?? false prints true (#383) */
         bare_tags = true;
         char *ck = kelvin_type(unqualified(ct));
         char *lead = r /* a T? too (#252), a Result (#253) */
@@ -7499,29 +7500,44 @@ static Type *seen_number_type(Expr *e) {
 }
 
 static Expr *property(Expr *e, Token *name, char *member) {
-    if (!strcmp(member, "abs") || !strcmp(member, "sign") || !strcmp(member, "isNaN")) {
+    if (!strcmp(member, "abs") || !strcmp(member, "sign") || !strcmp(member, "isNaN") || !strcmp(member, "exponent") ||
+        !strcmp(member, "significand")) {
         /* x.abs (#381): the magnitude of a signed integer or a floating-point
            number, of its type; a signed integer's least stays as it is, as
            two's complement negates it. x.sign (#382): -1, 0 or 1 of its
-           type; of a floating-point number its sign bit's, 1.0 or -1.0,
-           zeros too, and NaN of NaN, as Rust's signum. x.isNaN (#382) of a
-           floating-point number. An unsigned integer has none, nor a
-           complex number, nor what kelvinc cannot see, which C is left
-           to; a field wins */
+           type; of a floating-point number a bool? (#383), true by its sign
+           bit's 0 and false by its 1, zeros too, none of NaN. x.isNaN (#382),
+           x.exponent and x.significand (#383), IEEE 754's raw fields as an
+           i64, of a floating-point number. An unsigned integer has none,
+           nor a complex number, nor what kelvinc cannot see, which C is
+           left to; a field wins */
         Decl *record;
         char c = expr_class(e, &record);
         Type *t = c == 's' || c == 'c' ? NULL : seen_number_type(e);
         static const char *signed_numbers[] = {"i8", "i16", "i32", "i64", "i128", "f32", "f64", NULL};
         bool fits = false;
-        for (int i = !strcmp(member, "isNaN") ? 5 : 0; t && signed_numbers[i]; i++)
+        bool floating = !strcmp(member, "isNaN") || !strcmp(member, "exponent") || !strcmp(member, "significand");
+        for (int i = floating ? 5 : 0; t && signed_numbers[i]; i++)
             fits = fits || !strcmp(t->name, signed_numbers[i]);
         if (!fits || e->is_bool)
             return NULL;
         Expr *x = new_expr(E_METHOD, name->pos);
         x->a = e;
         x->text = member;
-        x->op = !strcmp(member, "abs") ? "num_abs" : !strcmp(member, "sign") ? "num_sign" : "num_isnan";
-        x->type = base_type(member[0] == 'i' ? "bool" : t->name, name->pos);
+        x->from = base_type(t->name, name->pos);
+        x->op = !strcmp(member, "abs")        ? "num_abs"
+                : !strcmp(member, "sign")     ? "num_sign"
+                : !strcmp(member, "exponent") ? "num_exponent"
+                : member[0] == 's'            ? "num_significand"
+                                              : "num_isnan";
+        if (!strcmp(member, "isNaN"))
+            x->type = base_type("bool", name->pos);
+        else if (!strcmp(member, "exponent") || !strcmp(member, "significand"))
+            x->type = base_type("i64", name->pos);
+        else if (!strcmp(member, "sign") && t->name[0] == 'f')
+            x->type = optional_type(name, base_type("bool", name->pos));
+        else
+            x->type = base_type(t->name, name->pos);
         x->is_bool = member[0] == 'i';
         return x;
     }
@@ -8171,6 +8187,61 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 c->target = setter;
                 for (int k = 0; k < lhs->items.len; k++)
                     list_push(&c->items, lhs->items.data[k]);
+                list_push(&c->items, v);
+                return c;
+            }
+            if (lhs->kind == E_METHOD && lhs->op && !strncmp(lhs->op, "num_", 4)) {
+                /* x.sign = b, x.exponent = e, x.significand = s of a
+                   floating-point number (#383): its bits set, in the var
+                   that holds it; e and s within their fields, or the program
+                   ends; the others are read, never set */
+                bool fl = lhs->from && lhs->from->name[0] == 'f';
+                bool sign = !strcmp(lhs->op, "num_sign");
+                if (!fl || !(sign || !strcmp(lhs->op, "num_exponent") || !strcmp(lhs->op, "num_significand")))
+                    error_at(t->pos, "'.%s' of %s is read, never set: it is worked out of the value", lhs->text,
+                             fl ? "a floating-point number" : "an integer");
+                if (!strcmp(t->text, ":="))
+                    error_at(t->pos, "':=' sets a reference: '.%s' is set with '='", lhs->text);
+                if (let_target(lhs->a))
+                    error_at(t->pos, "'%s' is a let and cannot change; declare it with var", let_target(lhs->a));
+                reject_const_change(lhs->a, t->pos); /* through a read-only borrow (#273) */
+                if (lhs->a->kind != E_IDENT && lhs->a->kind != E_FIELD && lhs->a->kind != E_INDEX &&
+                    lhs->a->kind != E_DEREF)
+                    error_at(t->pos, "'.%s' changes the number it is of, so that number is a variable", lhs->text);
+                Expr *v = parse_assign();
+                assign_ok = ok;
+                bool f64 = !strcmp(lhs->from->name, "f64");
+                if (strcmp(t->text, "=")) {
+                    if (sign)
+                        error_at(t->pos, "'.sign' is set with '=', and a bool: true for positive, false for negative");
+                    if (!repeatable(lhs->a))
+                        error_at(t->pos, "'x.%s %s y' is 'x.%s = x.%s %.*s y', which reads x twice, so x may not hold "
+                                         "a call",
+                                 lhs->text, t->text, lhs->text, lhs->text, (int)strlen(t->text) - 1, t->text);
+                    Expr *bin = new_expr(E_BINARY, t->pos);
+                    bin->op = strfmt("%.*s", (int)strlen(t->text) - 1, t->text);
+                    bin->a = lhs;
+                    bin->b = v;
+                    v = !strcmp(bin->op, "**") ? power_of(lhs, v, t->pos) : bin;
+                }
+                if (sign && !(v->is_bool || seen_bool(v) || bool_shape(v)))
+                    error_at(v->pos, "'.sign' of a floating-point number is set with a bool: true for positive, false "
+                                     "for negative");
+                long long most = !strcmp(lhs->op, "num_exponent") ? (f64 ? 2047 : 255)
+                                                                  : (f64 ? (1LL << 52) - 1 : (1LL << 23) - 1);
+                if (!sign && power_class(v) != 'i')
+                    error_at(v->pos, "'.%s' is set with an integer, and this is %s", lhs->text,
+                             power_class(v) == 'f' ? "a floating-point number" : power_operand_text(v));
+                unsigned long long mag;
+                bool neg;
+                if (!sign && int_literal_value(v, &mag, &neg) && ((neg && mag) || mag > (unsigned long long)most))
+                    error_at(v->pos, "'.%s' of an %s is 0 to %lld, and this is %s%s", lhs->text, lhs->from->name, most,
+                             neg ? "-" : "", v->kind == E_PREFIX ? v->a->text : v->text);
+                Expr *c = new_expr(E_METHOD, t->pos);
+                c->a = lhs->a;
+                c->text = lhs->text;
+                c->op = "num_set";
+                c->from = lhs->from;
                 list_push(&c->items, v);
                 return c;
             }

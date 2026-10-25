@@ -675,5 +675,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(2 ** 10, " ", -2 ** 2, " ", 2.0 ** 0.5, " ", octets3.upperBound ** 2, " ", power3, " ", 3.pow(4), " ", 4.pow(13, 497))   // b ** e, b.pow(e, m) (#380)
     println((0 - power3).abs, " ", (-2.5).abs, " ", (power3 - 100).abs)   // x.abs (#381)
     println((0 - power3).sign, " ", (-0.0).sign, " ", (power3 - 81).sign, " ", (0.0 / 0.0).isNaN)   // x.sign, x.isNaN (#382)
+    var bits3:float64 = -2.5
+    bits3.sign = true
+    bits3.exponent += 1
+    println(bits3, " ", bits3.sign, " ", bits3.exponent, " ", bits3.significand, " ", bits3.sign ?? false)   // a float's fields (#383)
     return 0
 }

@@ -151,6 +151,7 @@ static void sync(Pos p) {
 static char *expr(Expr *e);
 static const char *range_max(Type *t);
 static char *range_walk(Type *t, const char *r, const char *p);
+static char *optional_case(Type *opt, const char *c);
 static char *text_number(Expr *e);
 static char *dispatch_call(Expr *e);
 static char *operand_before(Expr *e);
@@ -1301,13 +1302,39 @@ static char *expr_bare(Expr *e) {
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
         if (e->op && !strcmp(e->op, "num_isnan")) /* x.isNaN (#382) */
             return strfmt("((bool)__builtin_isnan(%s))", expr(e->a));
-        if (e->op && !strcmp(e->op, "num_sign")) {
-            /* x.sign (#382): -1, 0 or 1 of its type; of a floating-point
-               number 1.0 or -1.0 by its sign bit, zeros too, NaN of NaN */
-            const char *n = e->type->name, *t = decl(e->type, "");
-            if (n[0] == 'f')
-                return strfmt("({ %s _kv_sg = (%s); _kv_sg != _kv_sg ? _kv_sg : %s; })", t, expr(e->a),
-                              !strcmp(n, "f32") ? "__builtin_copysignf(1.0f, _kv_sg)" : "__builtin_copysign(1.0, _kv_sg)");
+        if (e->op && (!strcmp(e->op, "num_exponent") || !strcmp(e->op, "num_significand") ||
+                      !strcmp(e->op, "num_set") || (!strcmp(e->op, "num_sign") && e->from->name[0] == 'f'))) {
+            /* x.sign, x.exponent and x.significand of a floating-point number
+               (#383): IEEE 754's fields of its bits, read, or set in the var
+               that holds it, e and s within their fields or the program ends */
+            bool f64 = !strcmp(e->from->name, "f64");
+            const char *ft = f64 ? "double" : "float", *bt = f64 ? "uint64_t" : "uint32_t";
+            int size = f64 ? 8 : 4, at_sign = f64 ? 63 : 31, at_exp = f64 ? 52 : 23;
+            const char *field = !strcmp(e->text, "sign") ? "0x1" : !strcmp(e->text, "exponent") ? (f64 ? "0x7ff" : "0xff")
+                                                                                              : (f64 ? "0xfffffffffffff" : "0x7fffff");
+            int shift = !strcmp(e->text, "sign") ? at_sign : !strcmp(e->text, "exponent") ? at_exp : 0;
+            if (!strcmp(e->op, "num_sign"))
+                return strfmt("({ %s _kv_fv = (%s); _kv_fv != _kv_fv ? %s() : %s((bool)!__builtin_signbit(_kv_fv)); })",
+                              ft, expr(e->a), optional_case(e->type, "none"), optional_case(e->type, "some"));
+            if (strcmp(e->op, "num_set"))
+                return strfmt("({ %s _kv_fv = (%s); %s _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, %d); (int64_t)(_kv_fb >> "
+                              "%d & %s); })",
+                              ft, expr(e->a), bt, size, shift, field);
+            const char *check =
+                !strcmp(e->text, "sign")
+                    ? ""
+                    : strfmt("if (_kv_fs < 0 || _kv_fs > (int64_t)%s) kv_array_fail(\"'.%s' of an %s is 0 to %s, and this "
+                             "set is past it\"); ",
+                             field, e->text, e->from->name,
+                             !strcmp(e->text, "exponent") ? (f64 ? "2047" : "255") : (f64 ? "2^52 - 1" : "2^23 - 1"));
+            return strfmt("({ %s *_kv_fp = &(%s); %s _kv_fs = (%s); %s%s _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, %d); "
+                          "_kv_fb = (_kv_fb & ~((%s)%s << %d)) | ((%s)%s_kv_fs << %d); __builtin_memcpy(_kv_fp, &_kv_fb, "
+                          "%d); (void)0; })",
+                          ft, expr(e->a), !strcmp(e->text, "sign") ? "bool" : "int64_t", expr(e->items.data[0]), check, bt,
+                          size, bt, field, shift, bt, !strcmp(e->text, "sign") ? "!" : "", shift, size);
+        }
+        if (e->op && !strcmp(e->op, "num_sign")) { /* x.sign (#382): -1, 0 or 1 of a signed integer's type */
+            const char *t = decl(e->type, "");
             return strfmt("({ %s _kv_sg = (%s); (%s)((_kv_sg > 0) - (_kv_sg < 0)); })", t, expr(e->a), t);
         }
         if (e->op && !strcmp(e->op, "num_abs")) {

@@ -511,6 +511,10 @@ let gen_range_stride(n:int64)
 let power_type(a:int64, b:int64):int64    // prototypes: b ** e and b.pow(e, m) (#380)
 let power_int(y:int64):bool
 let power_float(y:int64):bool
+let power_int_literal(v:int64):bool
+let power_magnitude(v:int64):int64
+let float_field_at(t:int64, wide:bool):cstr    // (#383)
+let float_field_mask(t:int64, wide:bool):cstr
 let power_operand(v:int64):bool
 let pow_arity(n:int64):bool
 let pow_method_type(n:int64):int64
@@ -816,6 +820,8 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
+        if tok_is(t, "sign") && (yk == Y_F64 || yk == Y_F32) { return optional_of(base_type(Y_BOOL)) }   // a floating-point x.sign, a bool? (#383)
+        if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
         if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, x.sign, of its type (#381, #382)
         if tok_is(t, "isNaN") && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382)
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
@@ -3764,13 +3770,14 @@ let gen_coalesce(n:int64) {
         put("; })")
         return
     }
-    put("; _kv_o")
+    let flag = types[inner].kind == Y_BOOL               // b ?? false a bool, which prints true, as kelvinc's (#383)
+    put(flag ? "; (bool)(_kv_o" : "; _kv_o")
     put_int(s)
     put(".tag == 1 ? _kv_o")
     put_int(s)
     put(".u.some : (")
     gen_value(b, inner)
-    put("); })")
+    put(flag ? ")); })" : "); })")
 }
 
 // d[k] read whole (#219): some of a copy of the entry's value, or none
@@ -4289,20 +4296,40 @@ let gen_expr(n:int64) {
     if k == N_FIELD && tok_is(t, "sign") && type_of(nodes[n].a) >= 0 {
         let sy:int64 = type_of(nodes[n].a)               // x.sign (#382), as kelvinc's: -1, 0 or 1 of its type;
         let sk:ykind = types[sy].kind                    // a floating-point one's by its sign bit, NaN of NaN
-        if sk == Y_F64 || sk == Y_F32 || sk == Y_I64 || sk == Y_I32 {
+        if sk == Y_F64 || sk == Y_F32 {                  // a bool? (#383): true by its sign bit's 0, none of NaN
+            let oy:int64 = optional_of(base_type(Y_BOOL))
+            put("({ ")
+            put_ctype(sy)
+            put(" _kv_fv = (")
+            gen_expr(nodes[n].a)
+            put("); _kv_fv != _kv_fv ? _kv_")
+            put_tok(types[oy].name)
+            put("_make_none() : _kv_")
+            put_tok(types[oy].name)
+            put("_make_some((bool)!__builtin_signbit(_kv_fv)); })")
+            return
+        }
+        if sk == Y_I64 || sk == Y_I32 {
             put("({ ")
             put_ctype(sy)
             put(" _kv_sg = (")
             gen_expr(nodes[n].a)
-            if sk == Y_F64 || sk == Y_F32 {
-                put(sk == Y_F32 ? "); _kv_sg != _kv_sg ? _kv_sg : __builtin_copysignf(1.0f, _kv_sg); })" : "); _kv_sg != _kv_sg ? _kv_sg : __builtin_copysign(1.0, _kv_sg); })")
-            } else {
-                put("); (")
-                put_ctype(sy)
-                put(")((_kv_sg > 0) - (_kv_sg < 0)); })")
-            }
+            put("); (")
+            put_ctype(sy)
+            put(")((_kv_sg > 0) - (_kv_sg < 0)); })")
             return
         }
+    }
+    if k == N_FIELD && (tok_is(t, "exponent") || tok_is(t, "significand")) && power_float(type_of(nodes[n].a)) {
+        let wide = types[type_of(nodes[n].a)].kind == Y_F64     // IEEE 754's fields (#383), as kelvinc's
+        put(wide ? "({ double _kv_fv = (" : "({ float _kv_fv = (")
+        gen_expr(nodes[n].a)
+        put(wide ? "); uint64_t _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, 8); (int64_t)(_kv_fb >> " : "); uint32_t _kv_fb; __builtin_memcpy(&_kv_fb, &_kv_fv, 4); (int64_t)(_kv_fb >> ")
+        put(float_field_at(t, wide))
+        put(" & ")
+        put(float_field_mask(t, wide))
+        put("); })")
+        return
     }
     if k == N_FIELD && tok_is(t, "abs") && type_of(nodes[n].a) >= 0 {
         let ay:int64 = type_of(nodes[n].a)
@@ -5172,9 +5199,172 @@ let changes_var(n:int64, lead:const String^):bool {
     return true
 }
 
+// the operator of a compound assignment, + of +=
+let compound_op(t:int64):cstr {
+    if tok_is(t, "+=") { return "+" }
+    if tok_is(t, "-=") { return "-" }
+    if tok_is(t, "*=") { return "*" }
+    if tok_is(t, "/=") { return "/" }
+    if tok_is(t, "%=") { return "%" }
+    if tok_is(t, "|=") { return "|" }
+    if tok_is(t, "&=") { return "&" }
+    if tok_is(t, "~=") { return "^" }
+    return "**"
+}
+
+// where a floating-point number's field begins, and its mask, as kelvinc
+// writes them (#383)
+let float_field_at(t:int64, wide:bool):cstr {
+    if tok_is(t, "sign") { return wide ? "63" : "31" }
+    if tok_is(t, "exponent") { return wide ? "52" : "23" }
+    return "0"
+}
+
+let float_field_mask(t:int64, wide:bool):cstr {
+    if tok_is(t, "sign") { return "0x1" }
+    if tok_is(t, "exponent") { return wide ? "0x7ff" : "0xff" }
+    return wide ? "0xfffffffffffff" : "0x7fffff"
+}
+
+// x.sign = b, x.exponent = e, x.significand = s of a floating-point
+// number (#383), as kelvinc's: its bits set in the var that holds it, e
+// and s within their fields or the program ends; x.abs and the rest are
+// read, never set
+let gen_float_set(n:int64) {
+    let lhs:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    let f:int64 = nodes[lhs].t
+    let x:int64 = nodes[lhs].a
+    let xy:int64 = type_of(x)
+    let fl = power_float(xy)
+    let sign = tok_is(f, "sign")
+    if !fl || !(sign || tok_is(f, "exponent") || tok_is(f, "significand")) {
+        var m = $"'."
+        m += tok_text(f)
+        m += fl ? "' of a floating-point number is read, never set: it is worked out of the value" : "' of an integer is read, never set: it is worked out of the value"
+        gen_error(n, m.cstr)
+        return
+    }
+    if tok_is(t, ":=") {
+        var m = $"':=' sets a reference: '."
+        m += tok_text(f)
+        m += "' is set with '='"
+        gen_error(n, m.cstr)
+        return
+    }
+    let k:nkind = nodes[x].kind
+    if k != N_ID && k != N_FIELD && k != N_INDEX && k != N_DEREF {
+        var m = $"'."
+        m += tok_text(f)
+        m += "' changes the number it is of, so that number is a variable"
+        gen_error(n, m.cstr)
+        return
+    }
+    let v:int64 = nodes[n].b
+    let compound = !tok_is(t, "=")
+    if compound && sign {
+        gen_error(n, "'.sign' is set with '=', and a bool: true for positive, false for negative")
+        return
+    }
+    if compound && has_call(x) {
+        var m = $"'x."
+        m += tok_text(f)
+        m += " "
+        m += tok_text(t)
+        m += " y' is 'x."
+        m += tok_text(f)
+        m += " = x."
+        m += tok_text(f)
+        m += " "
+        m += compound_op(t)
+        m += " y', which reads x twice, so x may not hold a call"
+        gen_error(n, m.cstr)
+        return
+    }
+    if sign && nodes[v].kind == N_ID && tok_is(nodes[v].t, "none") {   // a NaN's sign is its own, as kelvinc says it
+        gen_error(v, "'.sign' of a floating-point number is set with a bool: true for positive, false for negative")
+        return
+    }
+    let vy:int64 = type_of(v)
+    if vy < 0 { return }
+    if sign && types[vy].kind != Y_BOOL {
+        gen_error(v, "'.sign' of a floating-point number is set with a bool: true for positive, false for negative")
+        return
+    }
+    if !sign && !power_int(vy) {
+        var m = $"'."
+        m += tok_text(f)
+        m += "' is set with an integer, and this is "
+        let w:String = power_float(vy) ? $"a floating-point number" : types[vy].kind == Y_BOOL ? $"a bool" : nodes[v].kind == N_STR || types[vy].kind == Y_CSTR ? $"text" : kelvin_type_text(vy)
+        m += &w
+        gen_error(v, m.cstr)
+        return
+    }
+    let wide = types[xy].kind == Y_F64
+    let most:int64 = tok_is(f, "exponent") ? (wide ? 2047 : 255) : (wide ? 4503599627370495 : 8388607)
+    if !sign && power_int_literal(v) && ((nodes[v].kind == N_UNARY && power_magnitude(v) != 0) || power_magnitude(v) < 0 || power_magnitude(v) > most) {
+        var m = $"'."
+        m += tok_text(f)
+        m += wide ? "' of an f64 is 0 to " : "' of an f32 is 0 to "
+        m += tok_is(f, "exponent") ? (wide ? "2047" : "255") : (wide ? "4503599627370495" : "8388607")
+        m += ", and this is "
+        if nodes[v].kind == N_UNARY {
+            m += "-"
+            m += tok_text(nodes[nodes[v].a].t)
+        } else {
+            m += tok_text(nodes[v].t)
+        }
+        gen_error(v, m.cstr)
+        return
+    }
+    let bt:cstr := wide ? "uint64_t" : "uint32_t"
+    put(wide ? "({ double *_kv_fp = &(" : "({ float *_kv_fp = &(")
+    gen_expr(x)
+    put(sign ? "); bool _kv_fs = (" : "); int64_t _kv_fs = (")
+    if compound && tok_is(t, "**=") {
+        gen_power(lhs, v)
+    } else if compound {
+        gen_expr(lhs)
+        put(" ")
+        put(compound_op(t))
+        put(" (")
+        gen_expr(v)
+        put(")")
+    } else {
+        gen_expr(v)
+    }
+    put("); ")
+    if !sign {
+        put("if (_kv_fs < 0 || _kv_fs > (int64_t)")
+        put(float_field_mask(f, wide))
+        put(") kv_array_fail(\"'.")
+        put_tok(f)
+        put(wide ? "' of an f64 is 0 to " : "' of an f32 is 0 to ")
+        put(tok_is(f, "exponent") ? (wide ? "2047" : "255") : (wide ? "2^52 - 1" : "2^23 - 1"))
+        put(", and this set is past it\"); ")
+    }
+    put(bt)
+    put(wide ? " _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, 8); _kv_fb = (_kv_fb & ~((" : " _kv_fb; __builtin_memcpy(&_kv_fb, _kv_fp, 4); _kv_fb = (_kv_fb & ~((")
+    put(bt)
+    put(")")
+    put(float_field_mask(f, wide))
+    put(" << ")
+    put(float_field_at(f, wide))
+    put(")) | ((")
+    put(bt)
+    put(sign ? ")!_kv_fs << " : ")_kv_fs << ")
+    put(float_field_at(f, wide))
+    put(wide ? "); __builtin_memcpy(_kv_fp, &_kv_fb, 8); (void)0; });\n" : "); __builtin_memcpy(_kv_fp, &_kv_fb, 4); (void)0; });\n")
+}
+
 let gen_assign(n:int64) {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
+        if !may_change(lhs) { return }                  // a number's own (#381, #382, #383)
+        gen_float_set(n)
+        return
+    }
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }

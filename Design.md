@@ -414,6 +414,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 380 | `b ** e`, Python's power, of every number: tighter than a prefix on its left, right to left; of integers the base's promoted type, wrapping as `*`, a negative exponent the program's end, `0 ** 0` 1, two literals worked out as an i64; of floating-point numbers C's pow, two literals worked out; of `_Complex` cpow, of `c64` and `c32` `<math>`'s operator; `b.pow(e)` and `b.pow(e, m)`, Python's `pow(b, e, m)`, of integers; `x **= y`; kelvinc and kc | E_METHOD pow_int, pow_float, pow_complex, pow_mod; the runtime's kv_pow_mod in runtime/pow.k, over a u128 | `2 ** 10`, `n.pow(e, m)` | 2026-10-26 |
 | 381 | `x.abs`, a property, the magnitude of a signed integer or a floating-point number, of its type, with no import; a signed integer's least stays as it is, as two's complement negates it; unsigned integers have none; kelvinc and kc | E_METHOD num_abs: negated in the unsigned counterpart, or fabs and fabsf; seen_number_type, C's types of a prefix and arithmetic | `(a - b).abs` | 2026-10-26 |
 | 382 | `x.sign`, a property, -1, 0 or 1 of a signed integer's own type; of a floating-point number 1.0 or -1.0 by its sign bit, zeros too, NaN of NaN, as Rust's signum; `x.isNaN` of a floating-point number; none for unsigned integers and complex numbers; kelvinc and kc | E_METHOD num_sign and num_isnan beside #381's num_abs: copysign, and `(x > 0) - (x < 0)` | `x.abs * x.sign == x` | 2026-10-26 |
+| 383 | A floating-point number's `x.sign` a `bool?`, true by its sign bit's 0, false by its 1, none of NaN; `x.exponent` and `x.significand` IEEE 754's raw fields as i64s, the exponent biased, the significand the fraction's bits; each set, `x.sign = b`, `x.exponent = e`, `x.significand = s`, within its field or the program's end; `b ?? false` of a `bool?` prints `true`; kelvinc and kc | E_METHOD num_sign, num_exponent, num_significand, and num_set of an assignment to one, over the bits by memcpy | `x.exponent += 1` | 2026-10-26 |
 
 Notes:
 
@@ -975,6 +976,23 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (383) Agreed details: "change `.sign` for floating points to return
+  `bool?` ... and make it a setter", with `.exponent` and
+  `.significand`. The user's two descriptions were crossed, and the user
+  agreed they were: `.exponent` is the exponent field and `.significand`
+  the significand's. The user chose properties with setters, as Kelvin's
+  attributes have, over methods; IEEE 754's raw fields, the exponent
+  biased, 0...2047 or 0...255, and the significand the fraction's bits;
+  and a sign set with a bool, zeros by their bit, so `(-0.0).sign` is
+  `some(false)`, `none` an error.
+  - It replaces #382's 1.0 and -1.0 of a floating-point `.sign`; an
+    integer's stays -1, 0 or 1, read only.
+  - A set is in the var that holds the number; compound sets, as
+    `x.exponent += 1`, read it twice, so it may not hold a call.
+  - `b ?? false` of a `bool?` printed 1, in kelvinc and kc, text that does
+    not paste back: it is a bool now, and prints `true`.
+  - `<=>`, planned as #383, is #384.
 
 - (382) Agreed details: "add `.sign` to all signed numeric types", not
   `.signum`, and not to complex numbers, which have no order. The user
@@ -5115,6 +5133,7 @@ says "as agreed".
 | P392 | Details of #380 | src/lexer.c: `**` and `**=`; src/parser.c: parse_unary's power, power_of, pow_method, int_literal_value, power_product, promoted_int, power_class, the literals worked out, `**=` at each compound site, `**` an operator a struct defines, parse_cast's error, C's `T **` declarations; src/codegen.c: pow_int, pow_float, pow_complex, pow_mod; runtime/pow.k (kv_pow_mod, kv_pow_inverse), modules/kelvin_prelude.h; GNUmakefile: kelvinc links -lm; modules/math.k: c64's and c32's `**`; selfhost/lex.k, parse.k: the tokens, the power, the cast's error; selfhost/gen.k: power_type, gen_power, gen_power_literals, gen_power_floats, pow_method_type, gen_pow_method, pow_arity, `**=`; selfhost/kc.k: math.h and string.h; editors/vscode grammar; documents/operators.md, integers.md, floatingpoint.md, math.md, structs.md, README.md; tests/run/power.k, power_complex.k, tests/error/power_negative.k, power_literal_overflow.k, power_bool.k, power_after_as.k, pow_mod_zero.k, pow_arity.k | — |
 | P393 | Details of #381 | src/parser.c: property's abs, seen_number_type, promoted_number, number_rank, value_type's num_abs; src/codegen.c: num_abs; selfhost/gen.k: type_of's and gen_expr's abs; documents/integers.md, floatingpoint.md, properties.md; tests/run/abs.k, abs_small.k | — |
 | P394 | Details of #382 | src/parser.c: property's sign and isNaN, value_type's num_ ops; src/codegen.c: num_sign, num_isnan; selfhost/gen.k: type_of's and gen_expr's sign and isNaN, power_float's prototype; documents/integers.md, floatingpoint.md, properties.md, math.md; tests/run/sign.k, sign_small.k | — |
+| P395 | Details of #383 | src/parser.c: property's sign of a floating-point number, exponent and significand, x->from; the num_ setters in assign_to; `??` of a `bool?` is_bool; src/codegen.c: num_sign of a floating-point number, num_exponent, num_significand, num_set, optional_case's prototype; selfhost/gen.k: type_of's and gen_expr's fields, gen_float_set, float_field_at, float_field_mask, compound_op, gen_coalesce's bool; documents/floatingpoint.md, integers.md, properties.md; tests/run/float_fields.k, sign.k and sign_small.k's float sign, tests/error/float_exponent_range.k, float_significand_range.k, float_sign_bool.k, float_abs_set.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

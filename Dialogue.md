@@ -7554,3 +7554,22 @@ nor complex numbers have `.sign`, nor integers `.isNaN`. kc writes the
 same. Details are provisional P394.
 
 There are 1046 tests, and all pass with clang and with gcc 15.
+
+### 428. A floating-point number's fields
+
+> change `.sign()` for floating points to return `bool?` where true for positive, false for negative, and `none` for `NaN`. Also make it a setter.
+>
+> * add `.exponent(e)` to return `i64` that gets and sets the significand of `self`.  fatal error if `e` goes out of bounds.
+> * add `.significand(s)` to return `i64` that gets and sets the exponent part of self.  fatal error `s` it is out ouf bounds
+
+**Claude** asked whether the two descriptions were crossed, whether they
+are properties with setters or methods, what the i64s hold, and what the
+sign's setter takes. The user agreed they were crossed, and chose
+properties with setters, IEEE 754's raw fields, the exponent biased, and
+a sign set with a bool, zeros by their bit. A set is in the var that holds
+the number, within its field, or the program ends. On the way `b ?? false`
+of a `bool?` was found printing 1, in kelvinc and in kc, and it prints
+`true` now. kc writes the same, but for `o == none` of a `bool?`, which kc
+does not read yet. `<=>` is #384. Details are provisional P395.
+
+There are 1051 tests, and all pass with clang and with gcc 15.

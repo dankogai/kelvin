@@ -395,6 +395,11 @@ kc reads what it is written in, and little more.
 - **`x.sign`** and **`x.isNaN`** (#382), as kelvinc's: -1, 0 or 1 of a
   signed integer's type, a floating-point number's 1.0 or -1.0 by its
   sign bit, NaN of NaN; whether a floating-point number is NaN.
+- **A floating-point number's fields** (#383), as kelvinc's: `x.sign` a
+  `bool?` by its sign bit, `x.exponent` and `x.significand` IEEE 754's
+  raw fields as i64s, each set in the var that holds `x`, `x.sign = b`,
+  `x.exponent += 1`, within its field or the program ends; and `b ?? false`
+  of a `bool?` a bool, which prints `true`.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc
