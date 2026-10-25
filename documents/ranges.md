@@ -3,8 +3,8 @@
 A range is a value of its own, `Range<T>` (#373): the integers from a
 lower bound up to an upper one. It is a Sequence, walked by `for` and
 by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
-[iterators.md](iterators.md) has them, and it has a `count` and a
-`contains(x)` (#374).
+[iterators.md](iterators.md) has them; it has a `count` and a
+`contains(x)` (#374), and its `lowerBound` and `upperBound` (#375).
 
 **Where it lives:** the core. A Range is kelvinc's own, a struct of its
 bounds written into the program's C, with nothing linked; the Iterator
@@ -27,6 +27,7 @@ let main():int32 {
     let small:Range<uint8> = 250...
     println(small, " ", small.prefix(10))     // 250... 250...255
     println(r.count, " ", r.contains(4), " ", small.contains(-1))   // 5 true false
+    println(c.lowerBound, " ", c.upperBound, " ", r.upperBound)       // 1 3 5
     return 0
 }
 ```
@@ -68,8 +69,19 @@ let main():int32 {
   - A typed one shows its bounds alone: `Range<uint8>`'s `1...3` pastes
     back as a `Range<i64>`, as a `u8`'s `3` does as an `i64`.
 - **It has no operators**: `r == s` and the rest are errors.
-- **Its bounds are not yet** read alone; `r.lo` is an error that names
-  what a Range has.
+- **A member it has not**, `r.first`, is an error that names what a
+  Range has.
+
+## Its bounds: `lowerBound` and `upperBound`
+
+- **`r.lowerBound`** and **`r.upperBound`** are its bounds as written,
+  of `T`, as Swift's (#375).
+  - `(0..<5).upperBound` is 5, which it does not hold, and
+    `(1...3).upperBound` 3, which it does.
+  - `(..<4).lowerBound` is 0.
+- **A Range without an end** has no upper bound: written so,
+  `(0...).upperBound` is an error, and one whose end is known only at
+  run time ends the program, as its `.count` does.
 
 ## Counting and asking: `count` and `contains`
 
@@ -136,6 +148,7 @@ let main():int32 {
 | `Range<T>` | `lo..<hi`, `lo...hi`, `lo...`, `..<hi`, `...hi` | a Range: without `hi`, with it, up to `T`'s largest, from 0 |
 | | `print(r)`, `${r}` | `0..<5`, `1...3`, `0...`, as written |
 | | `for i in r` | each value, from `lo` |
+| | `.lowerBound`, `.upperBound` | its bounds as written, of `T` (#375) |
 | | `.count` | how many values, a `u64` (#374) |
 | | `.contains(x)` | whether `x`, an integer, is one of them, a `bool` (#374) |
 | | `.map { ... }`, `.map(f)` | an Array of what `f` gives each value |
@@ -167,4 +180,4 @@ kc reads every row of the table above but `${r}`.
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
 - Reversed and stepped ranges, `stride`.
-- `==`, the bounds, and slicing by a Range value.
+- `==`, and slicing by a Range value.

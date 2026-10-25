@@ -665,5 +665,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     var evens3 = naturals.lazy.filter { $0 % 2 == 0 }.prefix(3)
     println(naturals, " ", octets3.map { $0 * 2 }, " ", naturals.prefix(4), " ", evens3.map { $0 }, " ", (..<4).reduce(0) { $0 + $1 })
     println(octets3.count, " ", naturals.contains(7), " ", octets3.contains(0))   // r.count, r.contains(x) (#374)
+    println(octets3.lowerBound, " ", octets3.upperBound, " ", naturals.lowerBound)   // its bounds (#375)
     return 0
 }

@@ -1978,7 +1978,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
-            if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix; count and contains (#374) */
+            if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix; count and contains (#374); its bounds (#375) */
                 bool fn_next = call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement());
                 if (!strcmp(member, "prefix") && fn_next) {
                     e = parse_prefix(e, name, call);
@@ -2004,6 +2004,23 @@ static Expr *parse_postfix_steps(Expr *e) {
                     x->op = "range_count";
                     x->from = unqualified(value_type(e));
                     x->type = base_type("u64", name->pos);
+                    e = x;
+                    continue;
+                }
+                if (!call && (!strcmp(member, "lowerBound") || !strcmp(member, "upperBound"))) {
+                    /* r.lowerBound, r.upperBound (#375): its bounds as written, of T, as Swift's; lo... has no
+                       upper one */
+                    bool upper = member[0] == 'u';
+                    if (upper && is_range_literal(e) && !e->b)
+                        error_at(name->pos, "'.upperBound' is a Range's end, and %s has none: its values go up to its "
+                                            "type's largest",
+                                 e->a->kind == E_LITERAL ? strfmt("%s...", e->a->text) : "lo...");
+                    Expr *x = new_expr(E_METHOD, name->pos);
+                    x->a = e;
+                    x->text = member;
+                    x->op = upper ? "range_upper" : "range_lower";
+                    x->from = unqualified(value_type(e));
+                    x->type = x->from->elem;
                     e = x;
                     continue;
                 }
@@ -2041,8 +2058,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                      !strcmp(member, "flatMap")) && fn_next)
                     e = range_iter(e, member, name->pos); /* then the Iterator's, below */
                 else if (strcmp(member, "pretty") && strcmp(member, "size"))
-                    error_at(name->pos, "a Range has count, contains, map, filter, reduce, flatMap, lazy and prefix, and "
-                                        "'.%s' is none of them",
+                    error_at(name->pos, "a Range has lowerBound, upperBound, count, contains, map, filter, reduce, "
+                                        "flatMap, lazy and prefix, and '.%s' is none of them",
                              member);
             }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */

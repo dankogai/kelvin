@@ -804,6 +804,7 @@ let type_of(n:int64):int64 {
         }
         let yk:ykind = types[y].kind
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
+        if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
             range_member_error(n)
             return -1
@@ -4165,8 +4166,8 @@ let gen_expr(n:int64) {
         return
     }
     if range_operand_error(n) { return }                 // a Range has no operators (#373)
-    if (k == N_FIELD && tok_is(t, "count") || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
-        gen_range_member(n)                              // r.count, r.contains(x) (#374)
+    if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
+        gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)
         return
     }
     if k == N_FIELD && tok_is(t, "lazy") && lazy_field_type(n) != 0 - 2 {
@@ -5911,7 +5912,7 @@ let range_type_of(n:int64):int64 {
 
 // a member of a Range that it has not, as kelvinc says it
 let range_member_error(n:int64) {
-    var m = $"a Range has count, contains, map, filter, reduce, flatMap, lazy and prefix, and '."
+    var m = $"a Range has lowerBound, upperBound, count, contains, map, filter, reduce, flatMap, lazy and prefix, and '."
     m += tok_text(nodes[n].t)
     m += "' is none of them"
     gen_error(n, m.cstr)
@@ -5982,13 +5983,35 @@ let range_operand_error(n:int64):bool {
     return true
 }
 
-// r.count and r.contains(x), n (#374), as kelvinc's: the count of one
+// r.count and r.contains(x), n (#374), and its bounds (#375), as kelvinc's: the count of one
 // without an end ends the program, and is kelvinc's error written so;
 // x is compared as a __int128, which holds any of kc's integers
 let gen_range_member(n:int64) {
     let a:int64 = nodes[n].a
     let ry:int64 = type_of(a)
     let ey:int64 = types[ry].elem
+    if nodes[n].kind == N_FIELD && tok_is(nodes[n].t, "lowerBound") {   // r.lowerBound (#375)
+        put("((")
+        gen_expr(a)
+        put(").lo)")
+        return
+    }
+    if nodes[n].kind == N_FIELD && tok_is(nodes[n].t, "upperBound") {   // r.upperBound (#375): one without an end has none
+        if nodes[a].kind == N_RANGE && nodes[a].flag == 2 {
+            let lo:int64 = nodes[a].a
+            var m = $"'.upperBound' is a Range's end, and "
+            if nodes[lo].kind == N_NUM { m += tok_text(nodes[lo].t) } else { m += "lo" }
+            m += "... has none: its values go up to its type's largest"
+            gen_error(n, m.cstr)
+            return
+        }
+        put("({ ")
+        put_ctype(ry)
+        put(" _kv_ru = (")
+        gen_expr(a)
+        put("); if (_kv_ru.kind == 2) kv_array_fail(\"this Range has no end, and '.upperBound' is its end: its values go up to its type's largest\"); _kv_ru.hi; })")
+        return
+    }
     if nodes[n].kind == N_FIELD {
         if nodes[a].kind == N_RANGE && nodes[a].flag == 2 {
             let lo:int64 = nodes[a].a

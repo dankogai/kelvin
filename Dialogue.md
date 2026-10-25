@@ -7424,3 +7424,17 @@ first printed `1` for `true`, as C typed it an `int`, and is now a
 errors. Details are provisional P386.
 
 There are 1022 tests, and all pass with clang and with gcc 15.
+
+### 420. A Range's lowerBound and upperBound
+
+> add `.lowerBound` and `.upperBound` to Range as #375
+
+**Claude** gave a Range `r.lowerBound` and `r.upperBound`, its bounds as
+written, of its integer type, as Swift's: a half-open one's upper bound
+is past its last value, a closed one's its last, and `..<4`'s lower
+bound 0. A Range without an end has no upper bound, as Swift's
+`PartialRangeFrom` has none: written so it is an error, and at run time
+the program ends, as its `.count` does. kc writes the same and says
+kelvinc's errors. Details are provisional P387.
+
+There are 1024 tests, and all pass with clang and with gcc 15.

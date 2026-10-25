@@ -1287,6 +1287,12 @@ static char *expr_bare(Expr *e) {
                           ": _kv_pl < %s ? (%s)(_kv_pl + 1) : _kv_pl, _kv_pt && _kv_pl == %s}; })",
                           ct, expr(e->a), expr(e->items.data[0]), range_walk(t, "_kv_rp", "_kv_p"), tn, ct, mx, tn, mx);
         }
+        if (e->op && !strcmp(e->op, "range_lower")) /* r.lowerBound (#375) */
+            return strfmt("((%s).lo)", expr(e->a));
+        if (e->op && !strcmp(e->op, "range_upper")) /* r.upperBound (#375): one without an end has none */
+            return strfmt("({ %s _kv_ru = (%s); if (_kv_ru.kind == 2) kv_array_fail(\"this Range has no end, and "
+                          "'.upperBound' is its end: its values go up to its type's largest\"); _kv_ru.hi; })",
+                          e->from->cname, expr(e->a));
         if (e->op && !strcmp(e->op, "range_count")) {
             /* r.count (#374): its values, a u64; one without an end, or with
                2^64 values, which no u64 holds, ends the program */

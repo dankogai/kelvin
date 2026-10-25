@@ -369,6 +369,8 @@ kc reads what it is written in, and little more.
   - `r.count`, an `i64` as kc's counts are, and `r.contains(x)`, compared
     as a `__int128` (#374); a count without an end is kelvinc's error,
     or ends the program.
+  - `r.lowerBound` and `r.upperBound` (#375); the upper one without an
+    end is kelvinc's error, or ends the program.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc
