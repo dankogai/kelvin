@@ -171,6 +171,14 @@ let decl_named(t:int64, kind:nkind):int64    // a prototype: put_ctype and is_ow
 let is_owner(y:int64):bool {
     if y < 0 { return false }
     if types[y].owns() { return true }
+    if types[y].kind == Y_FIXED {                        // a counted one owns where its elements do (#364)
+        var e:int64 = y
+        while types[e].kind == Y_FIXED {
+            if types[e].name < 0 { return false }
+            e = types[e].elem
+        }
+        return is_owner(e)
+    }
     let d = tagged_of(y)
     if d >= 0 { return tagged_owns(d) }
     if types[y].kind != Y_STRUCT { return false }
@@ -324,6 +332,8 @@ let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
 let fixed_refused(n:int64)
 let fixed_case(m:int64):bool    // and if let and switch bind a case's elements (#360)
+let put_fixed_free(y:int64, path:cstr)    // and an enum's free and copy loop over a case's owners (#364)
+let put_fixed_copy(y:int64, to:cstr, from:cstr)
 let changeable_place(n:int64):bool    // prototypes: a var method's call asks them (#320)
 let changes_var(n:int64, lead:const String^):bool
 let changed_root(n:int64):int64    // and type_of of &x (#272)
@@ -3049,12 +3059,7 @@ let member_fixed_ok(f:int64, y:int64, what:cstr):bool {
         }
         g = types[g].elem
     }
-    if is_owner(g) {                                     // which kelvinc's struct holds
-        var m = String(what)
-        m += "'s fixed array of owners is not kc's yet: kc's hold numbers, bools, text and structs that own nothing"
-        gen_error(f, m.cstr)
-        return false
-    }
+    if is_owner(g) && !fixed_inside(g) { return true }   // owners, as kelvinc's struct holds them (#364)
     if !fixed_elem_ok(y) {
         fixed_refused(f)
         return false
@@ -4429,6 +4434,9 @@ let fixed_list_fits(v:int64, y:int64):bool {
         count += 1
         if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
             if !fixed_list_fits(x, e) { return false }
+        } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
+            gen_error(x, "an owner is not copied by '=' (#54): copy it with .copy()")
+            return false
         } else {
             let bad:String = value_mismatch_text(x, e)
             if bad.count > 0 || is_case_word(x) {
@@ -7836,7 +7844,15 @@ let gen_tagged(d:int64) {
         put(" *self)\n{\n    switch (self->tag)\n    {\n")
         m = nodes[d].a
         while m >= 0 {
-            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
+            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) && fixed_case(m) {   // each element (#364)
+                put("    case ")
+                put_int(case_tag(d, m))
+                put(": ")
+                var path = $"self->u."
+                path += tok_text(nodes[m].t)
+                put_fixed_free(nodes[m].ty, path.cstr)
+                put(" break;\n")
+            } else if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
                 put("    case ")
                 put_int(case_tag(d, m))
                 put(": ")
@@ -7872,7 +7888,17 @@ let gen_tagged(d:int64) {
         put(" _kv_v = *self;\n    switch (self->tag)\n    {\n")
         m = nodes[d].a
         while m >= 0 {
-            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
+            if nodes[m].ty >= 0 && is_owner(nodes[m].ty) && fixed_case(m) {   // each element (#364)
+                put("    case ")
+                put_int(case_tag(d, m))
+                put(": ")
+                var to = $"_kv_v.u."
+                to += tok_text(nodes[m].t)
+                var from = $"self->u."
+                from += tok_text(nodes[m].t)
+                put_fixed_copy(nodes[m].ty, to.cstr, from.cstr)
+                put(" break;\n")
+            } else if nodes[m].ty >= 0 && is_owner(nodes[m].ty) {
                 put("    case ")
                 put_int(case_tag(d, m))
                 put(": _kv_v.u.")
@@ -7991,6 +8017,45 @@ let gen_tagged(d:int64) {
     put("\n")
 }
 
+// each element of a fixed array of owners freed, or copied, at path, as
+// kelvinc's loops: one loop of its innermost elements, whatever its counts
+// (#364)
+let put_fixed_free(y:int64, path:cstr) {
+    var e:int64 = y
+    while types[e].kind == Y_FIXED { e = types[e].elem }
+    put("for (size_t _kv_i = 0; _kv_i < sizeof ")
+    put(path)
+    put(" / sizeof(")
+    put_ctype(e)
+    put("); _kv_i++) ")
+    put_free(e)
+    put("(&((")
+    put_ctype(e)
+    put(" *)")
+    put(path)
+    put(")[_kv_i]);")
+}
+
+let put_fixed_copy(y:int64, to:cstr, from:cstr) {
+    var e:int64 = y
+    while types[e].kind == Y_FIXED { e = types[e].elem }
+    put("for (size_t _kv_i = 0; _kv_i < sizeof ")
+    put(from)
+    put(" / sizeof(")
+    put_ctype(e)
+    put("); _kv_i++) ((")
+    put_ctype(e)
+    put(" *)")
+    put(to)
+    put(")[_kv_i] = ")
+    put_owner_prefix(e)
+    put("_copy(&((const ")
+    put_ctype(e)
+    put(" *)")
+    put(from)
+    put(")[_kv_i]);")
+}
+
 // a struct's functions where it owns (#225), as kelvinc writes them: its
 // members freed, taken and copied
 let gen_struct_owner(d:int64) {
@@ -8002,7 +8067,13 @@ let gen_struct_owner(d:int64) {
     put(" *self)\n{\n")
     var f = nodes[d].a
     while f >= 0 {
-        if is_owner(nodes[f].ty) {
+        if is_owner(nodes[f].ty) && types[nodes[f].ty].kind == Y_FIXED {   // each element (#364)
+            var path = $"self->"
+            path += tok_text(nodes[f].t)
+            put("    ")
+            put_fixed_free(nodes[f].ty, path.cstr)
+            put("\n")
+        } else if is_owner(nodes[f].ty) {
             put("    ")
             put_free(nodes[f].ty)
             put("(&self->")
@@ -8032,7 +8103,15 @@ let gen_struct_owner(d:int64) {
     put(" _kv_v = *self;\n")
     f = nodes[d].a
     while f >= 0 {
-        if is_owner(nodes[f].ty) {
+        if is_owner(nodes[f].ty) && types[nodes[f].ty].kind == Y_FIXED {   // each element (#364)
+            var to = $"_kv_v."
+            to += tok_text(nodes[f].t)
+            var from = $"self->"
+            from += tok_text(nodes[f].t)
+            put("    ")
+            put_fixed_copy(nodes[f].ty, to.cstr, from.cstr)
+            put("\n")
+        } else if is_owner(nodes[f].ty) {
             put("    _kv_v.")
             put_tok(nodes[f].t)
             put(" = ")

@@ -34,6 +34,7 @@ let describe(v:item^):int64 {
 
 enum shrub { leaf: int64; twigs: $[shrub] }           // an enum holding an Array of itself (#346)
 struct tray { label: cstr; slots: [int64](3) }        // a fixed array as a member (#356)
+struct crew { ship: cstr; names: [String](2) }         // of owners, freed and copied with it (#364)
 
 let total_of(xs:[const int64], n:int64):int64 {        // fixed arrays as parameters (#357)
     var t = 0
@@ -620,5 +621,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     sqp^[1] = 7
     println(first_of(&sq4), " ", sqp^[1], " ", sqp^.count, " ", sq4[1])
     println(add_up(&sq4, sq4.count), " ", add_up(&tr.slots, 3))
+    var aboard:crew = {"kelvin", [$"ann", $"bob"]}
+    aboard.names[1] += "!"
+    let backup = aboard.copy()
+    aboard.names[0] = $"cy"
+    println(aboard, " ", backup.names[0], " ", backup.names[1].count)
     return 0
 }

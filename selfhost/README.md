@@ -438,8 +438,10 @@ kc reads what it is written in, and little more.
     [int64](3) }`: C's `int64_t slots[3]`, given `[a, b]` or `[T](n)` in
     `{...}`, read as a local's, `tr.slots[1]`, `tr.slots.count`; printed
     as kelvinc prints it, `{label: "eggs", slots: [6, 12, 18]}`.
-    - Its count is written, `[T](N)`; its elements own nothing, where
-      kelvinc's may: not yet kc's.
+    - Its count is written, `[T](N)`; its elements may own since #364:
+      `names: [String](2)`, and an enum's case too, as kelvinc has them;
+      each element freed and copied with it, one loop of its innermost
+      elements, two counts too, where kelvinc's leaks the inner ones.
   - A parameter (#357), `xs:[const int64]` or `xs:[int64]`, as kelvinc's
     #49: a pointer in C, `const int64_t *xs`, whose count is passed beside
     it; `xs[i]` read, and assigned where it is `[T]`, the caller's.
@@ -479,8 +481,11 @@ kc reads what it is written in, and little more.
     count passed beside it.
     - `q^.count` and `for x in q^` are kc's errors, where kelvinc's C fails
       or it says there is no length to walk.
-  - Not yet: one in another type, as an Optional, a parameter of owners or
-    of fixed arrays; a count C computes, as `[uint8](n)`;
+  - A local's or a global's of owners is kelvinc's error in its words, `an
+    array of owners is not here yet: a struct may hold them`.
+  - Not yet: one in another type, as an Optional, a parameter of owners,
+    which kelvinc reads, or of fixed arrays; a count C computes, as
+    `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

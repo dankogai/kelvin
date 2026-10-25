@@ -7273,3 +7273,17 @@ count and a walk over it are kc's errors, where kelvinc's C fails.
 Details are provisional P375.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 409. kc's fixed arrays of owners
+
+> teach kc fixed arrays of owners as #364
+
+**Claude** taught kc a fixed array of owners as a struct's member and an
+enum's case value, as kelvinc holds them: the struct or the enum owns,
+and each element is freed and copied with it; a local's and a global's
+stay kelvinc's error in its words. Found in kelvinc, not fixed here: a
+member of two counts of owners leaks its inner elements, where kc's
+frees them all. Not yet: a parameter of owners. Details are
+provisional P376.
+
+There are 1004 tests, and all pass with clang and with gcc 15.
