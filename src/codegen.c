@@ -1287,6 +1287,11 @@ static char *expr_bare(Expr *e) {
                           ": _kv_pl < %s ? (%s)(_kv_pl + 1) : _kv_pl, _kv_pt && _kv_pl == %s}; })",
                           ct, expr(e->a), expr(e->items.data[0]), range_walk(t, "_kv_rp", "_kv_p"), tn, ct, mx, tn, mx);
         }
+        if (e->op && !strcmp(e->op, "range_eq")) /* r == s, r != s (#376): kind and bounds by value; lo...'s hi is no bound */
+            return strfmt("({ __auto_type _kv_ea = (%s); __auto_type _kv_eb = (%s); (bool)(%s(_kv_ea.kind == _kv_eb.kind && "
+                          "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
+                          "(__int128)_kv_eb.hi))); })",
+                          expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
         if (e->op && !strcmp(e->op, "range_lower")) /* r.lowerBound (#375) */
             return strfmt("((%s).lo)", expr(e->a));
         if (e->op && !strcmp(e->op, "range_upper")) /* r.upperBound (#375): one without an end has none */
@@ -3582,6 +3587,9 @@ static char *eq_code(Type *t, const char *x, const char *y) {
     Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
     if (r && r->tagged)
         return strfmt("_kv_%s_eq(%s, %s)", r->name, x, y);
+    if (is_container(t, "_kv_range_")) /* a Range, by its kind and bounds, lo...'s hi none (#376) */
+        return strfmt("((%s).kind == (%s).kind && (%s).lo == (%s).lo && ((%s).kind == 2 || (%s).hi == (%s).hi))", x, y, x, y,
+                      x, x, y);
     if (t->cname && (!strncmp(t->cname, "_kv_dict_", 9) || !strncmp(t->cname, "_kv_array_", 10))) /* by its _eq (#235, #247) */
         return strfmt("%s_eq(&%s, &%s)", t->cname, x, y);
     return strfmt("%s == %s", x, y);

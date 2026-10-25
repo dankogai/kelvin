@@ -4,7 +4,8 @@ A range is a value of its own, `Range<T>` (#373): the integers from a
 lower bound up to an upper one. It is a Sequence, walked by `for` and
 by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
 [iterators.md](iterators.md) has them; it has a `count` and a
-`contains(x)` (#374), and its `lowerBound` and `upperBound` (#375).
+`contains(x)` (#374), its `lowerBound` and `upperBound` (#375), and
+`==` and `!=` (#376).
 
 **Where it lives:** the core. A Range is kelvinc's own, a struct of its
 bounds written into the program's C, with nothing linked; the Iterator
@@ -28,6 +29,7 @@ let main():int32 {
     println(small, " ", small.prefix(10))     // 250... 250...255
     println(r.count, " ", r.contains(4), " ", small.contains(-1))   // 5 true false
     println(c.lowerBound, " ", c.upperBound, " ", r.upperBound)       // 1 3 5
+    println(r == 0..<5, " ", r == 0...4, " ", small == 250...)       // true false true
     return 0
 }
 ```
@@ -68,7 +70,21 @@ let main():int32 {
     that holds one show it so.
   - A typed one shows its bounds alone: `Range<uint8>`'s `1...3` pastes
     back as a `Range<i64>`, as a `u8`'s `3` does as an `i64`.
-- **It has no operators**: `r == s` and the rest are errors.
+- **It compares** with `==` and `!=` (#376), as Swift's: two Ranges are
+  equal when they are of the same kind and bounds, as they print.
+  - So `0..<5 == 0..<5`, but `0..<5 != 0...4` and `0..<0 != 1..<1`,
+    though each pair walks the same values.
+  - Two of `lo...` are equal where their `lo` is, whatever their types'
+    largest.
+  - Ranges of two integer types compare by value: a `Range<uint8>`'s
+    `0..<5` is a `Range<i64>`'s.
+  - So an Array of Ranges has `==`, `contains` and `firstIndex`, and a
+    `Range<T>?` compares as an Optional does.
+  - A Range compares with a Range alone: `r == 3` is an error.
+- **It has no order**, by design, as Swift's `Range` is Equatable and not
+  Comparable: of `-100..<10` and `0...10`, one has more values and the
+  other the larger bound, and neither is larger. `<` and the rest are
+  errors.
 - **A member it has not**, `r.first`, is an error that names what a
   Range has.
 
@@ -149,6 +165,7 @@ let main():int32 {
 | | `print(r)`, `${r}` | `0..<5`, `1...3`, `0...`, as written |
 | | `for i in r` | each value, from `lo` |
 | | `.lowerBound`, `.upperBound` | its bounds as written, of `T` (#375) |
+| | `r == s`, `r != s` | whether of the same kind and bounds, a `bool` (#376) |
 | | `.count` | how many values, a `u64` (#374) |
 | | `.contains(x)` | whether `x`, an integer, is one of them, a `bool` (#374) |
 | | `.map { ... }`, `.map(f)` | an Array of what `f` gives each value |
@@ -180,4 +197,4 @@ kc reads every row of the table above but `${r}`.
 
 - Ranges of floating-point numbers, as Swift's `Range<Double>`.
 - Reversed and stepped ranges, `stride`.
-- `==`, and slicing by a Range value.
+- Slicing by a Range value.

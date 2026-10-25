@@ -4696,8 +4696,29 @@ static Expr *parse_binary(int min_prec) {
                 error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
                                  "a 'var p:u8^ := s'");
         }
-        if (is_range(value_type(e->a)) || is_range(value_type(e->b))) /* (#373) */
-            error_at(t->pos, "a Range has no operator '%s': walk it, or gather its values, as in '.map { $0 }'", e->op);
+        Type *range_other = is_range(value_type(e->a)) ? value_type(e->b) : value_type(e->a);
+        if ((is_range(value_type(e->a)) || is_range(value_type(e->b))) &&
+            !(range_other && variant_record(range_other))) { /* (#373); a Range? compares as an Optional (#376) */
+            bool eq = !strcmp(e->op, "==") || !strcmp(e->op, "!=");
+            if (!eq)
+                error_at(t->pos, "a Range has no operator '%s', but == and !=: walk it, or gather its values, as in "
+                                 "'.map { $0 }'",
+                         e->op);
+            Expr *other = is_range(value_type(e->a)) ? e->b : e->a;
+            if (!is_range(value_type(other)))
+                error_at(other->pos, "a Range compares with a Range, and this is %s",
+                         value_type(other) ? kelvin_type(value_type(other)) : literal_type(other) ? literal_type(other) : "not one");
+            /* r == s, r != s (#376): of the same kind and bounds, as printed, compared by value */
+            Expr *x = new_expr(E_METHOD, t->pos);
+            x->a = e->a;
+            x->b = e->b;
+            x->text = (char *)e->op;
+            x->op = "range_eq";
+            x->type = base_type("bool", t->pos);
+            x->is_bool = true;
+            lhs = x;
+            continue;
+        }
         if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
             !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s + c (#183) */
             /* a uchr compares by its codepoint, with a uchr or a number
@@ -13544,6 +13565,8 @@ static bool eq_type(Type *t) {
     }
     if (is_dict_owner(t) || is_array_owner(t)) /* a Dictionary (#235), an Array (#247) compares where its values do */
         return eq_type(t->elem);
+    if (is_range(t)) /* a Range, by its kind and bounds (#376) */
+        return true;
     if (t->kind == T_ARRAY || t->cname || is_io(t))
         return false;
     if (is_string(t) || is_bytes(t) || is_uchr(t))

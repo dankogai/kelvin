@@ -407,6 +407,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 373 | A range is a value of its own, `Range<T>`, `T` an integer type and `i64` where unwritten: `a..<b`, `a...b`, `a...` up to `T`'s largest, and `..<b` and `...b` from 0; a Sequence with `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`; kelvinc and kc | a struct of the bounds and a kind; its walk a counter with a flag that stops at the end, never past it | `let naturals = 0...; println(naturals.prefix(5))` | 2026-10-25 |
 | 374 | A Range has `r.count`, how many values, a `u64` as an Array's count, and `r.contains(x)`, whether an integer `x` is one of them, a `bool`; one without an end has no count, an error written so and the program's end otherwise; kelvinc and kc | a count of the walk's lo and end; contains compared as a `__int128` | `(1...3).count`, `(0..<5).contains(4)` | 2026-10-25 |
 | 375 | A Range has `r.lowerBound` and `r.upperBound`, its bounds as written, of `T`, as Swift's: `(0..<5).upperBound` is 5, `(1...3).upperBound` 3, `(..<4).lowerBound` 0; one without an end has no upper bound, an error written so and the program's end otherwise; kelvinc and kc | the struct's lo and hi | `(1...3).upperBound` | 2026-10-25 |
+| 376 | Ranges compare with `==` and `!=`: equal when of the same kind and bounds, as they print, as Swift's, so `0..<5 != 0...4`; two of `lo...` by `lo` alone; of two integer types by value; an Array and an Optional of Ranges compare by them; kelvinc and kc | the kinds and the bounds as `__int128`s | `r == 0..<5` | 2026-10-25 |
 
 Notes:
 
@@ -968,6 +969,21 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (376) Agreed details: "add `==` and `!=` to Range". The user chose
+  equality by the kind and the bounds, as Swift's and as a Range prints,
+  not by the values walked; and ranges of two integer types compared by
+  value, not an error.
+  - `0..<4 != 0...3` and `0..<0 != 1..<1`; `lo...` of two types are
+    equal by `lo`, their `hi` being no bound.
+  - An Array of Ranges has `==`, `contains` and `firstIndex`; a
+    `Range<T>?` compares as an Optional, `o == 0..<2`.
+  - Errors: a Range compared with what is no Range, and `<` and the
+    other operators, in words that name `==` and `!=`.
+  - A Range has no order, by design, not for later: the user pointed
+    out that of `-100..<10` and `0...10` one has more values and the
+    other the larger bound, so a Range is equatable, not comparable, as
+    Swift's.
 
 - (375) Agreed details: "add `.lowerBound` and `.upperBound` to Range".
   - They are the bounds as written, of `T`, Swift's names and meaning:
@@ -5016,6 +5032,7 @@ says "as agreed".
 | P385 | Details of #373 | src/lexer.c: `Range`; src/parser.c: RANGE_PREC between the comparisons and the shifts, range_ends, make_range (E_METHOD op "range"), range_type, range_iter (the adapter of lazy_op "range"), the Range's methods, parse_prefix's range_prefix, parse_for_range, `..<n`, `...n` and `lo...` in a for, a slice read through a range, string_of_literal's fitting; src/codegen.c: the typedef of each Range<T> after the prelude, range_max, range_walk, range, range_prefix, range_iter, the adapter, S_FOR_IN of a Range value, its printer; selfhost/lex.k: `...`; selfhost/parse.k: N_RANGE, N_RITER, Y_RANGE, range_ends, the for's flags; selfhost/gen.k: range_type_of, iter_rec op 5, gen_range_gathered, the Range's prefix, loops and printer, put_range_types; documents/ranges.md; tests/run/range_value.k, tests/run/range_no_end.k, tests/error/range_*.k | `_kv_range_i64`, `_KV_RANGE_i64` |
 | P386 | Details of #374 | src/parser.c: the Range's count and contains, ops range_count and range_contains; src/codegen.c: their statement expressions, a `(bool)` of contains so that it prints `true`; selfhost/gen.k: type_of's count and contains, gen_range_member; documents/ranges.md; tests/run/range_count.k, tests/run/range_count_wide.k, tests/error/range_count_no_end.k, tests/error/range_contains_float.k, tests/error/range_method.k of `.first` | — |
 | P387 | Details of #375 | src/parser.c: the Range's lowerBound and upperBound, ops range_lower and range_upper, the member error naming them; src/codegen.c: `(r).lo`, and hi checked for an end; selfhost/gen.k: type_of's bounds, gen_range_member's; documents/ranges.md; tests/run/range_bounds.k, tests/error/range_upper_no_end.k, tests/error/range_method.k's words | — |
+| P388 | Details of #376 | src/parser.c: parse_binary's Range ==, op range_eq, a Range? left to the Optional's ==, eq_type of a Range; src/codegen.c: range_eq, eq_code of a Range; selfhost/gen.k: range_operand_error, is_range_eq, gen_range_eq in gen_expr and gen_cond, put_eq_code of a Range; documents/ranges.md; tests/run/range_eq.k, tests/error/range_eq_number.k, tests/error/range_operator.k of `<` | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

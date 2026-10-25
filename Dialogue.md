@@ -7438,3 +7438,23 @@ the program ends, as its `.count` does. kc writes the same and says
 kelvinc's errors. Details are provisional P387.
 
 There are 1024 tests, and all pass with clang and with gcc 15.
+
+### 421. A Range's == and !=
+
+> add `==` and `!=` to Range as #376
+
+**Claude** asked what makes two Ranges equal; the user chose the kind and
+the bounds, as Swift's and as a Range prints, so `0..<5 != 0...4`, and
+ranges of two integer types compared by value. Two Ranges without an
+end are equal where their lower bounds are. An Array of Ranges now has
+`==`, `contains` and `firstIndex`, and a `Range<T>?` compares as an
+Optional. kc writes the same and says kelvinc's errors. Details are
+provisional P388.
+
+> You've suggested "add `<` and the rest to Range as #377" but that is ridiculous.  Consider `(-100..<10) < (0...10)`.  lhs has more elements yet rhs has larger upper bound.  Which is larger?  I think `Range`is not comparable though it is equatable.
+
+**Claude** agreed: a Range has no order, as Swift's is Equatable and not
+Comparable, so `<` and the rest stay errors by design, and ranges.md no
+longer lists them as not yet.
+
+There are 1026 tests, and all pass with clang and with gcc 15.

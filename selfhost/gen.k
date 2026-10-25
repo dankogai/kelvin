@@ -503,6 +503,8 @@ let range_max(y:int64):cstr
 let put_range_walk(ey:int64, r:cstr, p:cstr)
 let range_operand_error(n:int64):bool
 let gen_range_member(n:int64)
+let is_range_eq(n:int64):bool
+let gen_range_eq(n:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -1854,6 +1856,22 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(")[_kv_q] == (")
         put(z)
         put(")[_kv_q])) { _kv_r = false; break; } _kv_r; })")
+    } else if k == Y_RANGE {                         // its kind and bounds, lo...'s hi none, as kelvinc's (#376)
+        put("((")
+        put(x)
+        put(").kind == (")
+        put(z)
+        put(").kind && (")
+        put(x)
+        put(").lo == (")
+        put(z)
+        put(").lo && ((")
+        put(x)
+        put(").kind == 2 || (")
+        put(x)
+        put(").hi == (")
+        put(z)
+        put(").hi))")
     } else if tagged_of(y) >= 0 {                    // by value, as kelvinc's (#343, #344, #345)
         put_eq_name(y)
         put("(")
@@ -2841,7 +2859,11 @@ let gen_string_eq(a:int64, b:int64) {
 
 // a condition: a comparison without the parentheses C would warn of
 let gen_cond(n:int64) {
-    if range_operand_error(n) { return }                 // a Range has no operators (#373)
+    if is_range_eq(n) {                                  // (#376)
+        gen_range_eq(n)
+        return
+    }
+    if range_operand_error(n) { return }                 // a Range has no operators (#373) but == and != (#376)
     if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
         let y:int64 = type_of(nodes[n].a)
         let owners = tagged_side(n) >= 0 || builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // an Optional's == (#343), String ==, xs == ys (#288), refusals (#287)
@@ -4165,7 +4187,11 @@ let gen_expr(n:int64) {
         if i >= 0 { gen_iter_value(i) }
         return
     }
-    if range_operand_error(n) { return }                 // a Range has no operators (#373)
+    if is_range_eq(n) {                                  // r == s, r != s (#376)
+        gen_range_eq(n)
+        return
+    }
+    if range_operand_error(n) { return }                 // a Range has no operators (#373) but == and != (#376)
     if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)
         return
@@ -5975,12 +6001,45 @@ let range_operand_error(n:int64):bool {
     if nodes[n].kind != N_BIN { return false }
     let ay:int64 = type_of(nodes[n].a)
     let by:int64 = type_of(nodes[n].b)
-    if (ay < 0 || types[ay].kind != Y_RANGE) && (by < 0 || types[by].kind != Y_RANGE) { return false }
+    let ar = ay >= 0 && types[ay].kind == Y_RANGE
+    let br = by >= 0 && types[by].kind == Y_RANGE
+    if !ar && !br { return false }
+    let t:int64 = nodes[n].t
+    if tok_is(t, "==") || tok_is(t, "!=") {             // r == s, r != s (#376); a Range? compares as an Optional
+        let other:int64 = ar ? nodes[n].b : nodes[n].a
+        let oy:int64 = ar ? by : ay
+        if (ar && br) || (oy >= 0 && tagged_of(oy) >= 0) { return false }
+        var m = $"a Range compares with a Range, and this is "
+        let w:String = oy >= 0 ? type_text(oy) : $"not one"
+        m += &w
+        gen_error(other, m.cstr)
+        return true
+    }
     var m = $"a Range has no operator '"
-    m += tok_text(nodes[n].t)
-    m += "': walk it, or gather its values, as in '.map { $0 }'"
+    m += tok_text(t)
+    m += "', but == and !=: walk it, or gather its values, as in '.map { $0 }'"
     gen_error(n, m.cstr)
     return true
+}
+
+// whether n is r == s or r != s of two Ranges (#376)
+let is_range_eq(n:int64):bool {
+    if nodes[n].kind != N_BIN || !(tok_is(nodes[n].t, "==") || tok_is(nodes[n].t, "!=")) { return false }
+    let ay:int64 = type_of(nodes[n].a)
+    let by:int64 = type_of(nodes[n].b)
+    return ay >= 0 && by >= 0 && types[ay].kind == Y_RANGE && types[by].kind == Y_RANGE
+}
+
+// r == s, r != s (#376), as kelvinc's: the kinds and the bounds, compared
+// by value, of any of kc's integers; lo...'s hi is no bound
+let gen_range_eq(n:int64) {
+    put("({ __auto_type _kv_ea = (")
+    gen_expr(nodes[n].a)
+    put("); __auto_type _kv_eb = (")
+    gen_expr(nodes[n].b)
+    put("); (bool)(")
+    if tok_is(nodes[n].t, "!=") { put("!") }
+    put("(_kv_ea.kind == _kv_eb.kind && (__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == (__int128)_kv_eb.hi))); })")
 }
 
 // r.count and r.contains(x), n (#374), and its bounds (#375), as kelvinc's: the count of one
