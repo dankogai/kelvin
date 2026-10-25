@@ -118,6 +118,9 @@ for i in 0..<count {          // C: for (int i = 0; i < count; i++)
 for i in 1...n { ... }     // C: for (int i = 1; i <= n; i++)
 for _ in 0..<3 { ... }     // a loop that needs no counter
 for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would
+for i in ..<3 { ... }      // from 0 (#373)
+for i in 0... { ... }      // no end: a break ends it, or its type's largest
+for i in r { ... }         // r a Range value: its values
 ```
 
 - `i` is a `let` in the body, and `a` and `b` are evaluated once.
@@ -127,8 +130,9 @@ for b:uint8 in 250...255 { }  // ends, where C's b <= 255 never would
   - A range is of integers *(provisional P40)*.
 - A bound is an expression down to the shifts, so `0..<n - 1` stops before
   `n - 1`. `continue` and `break` work as in any loop.
-- Ranges exist only in `for` for now: there are no range values, and no
-  reversed or stepped ranges yet.
+- `..<b` and `...b` start at 0, and `a...` has no end (#373).
+- A range is also a value, `Range<T>`, which `for i in r` walks:
+  [ranges.md](ranges.md). There are no reversed or stepped ranges yet.
 
 ## Sequences: `for x in s`
 

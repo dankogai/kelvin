@@ -105,6 +105,7 @@ cc -std=c11 -O0 -g0 -Wno-unknown-warning-option -Wno-pointer-sign \
 | `Array<T>`, `$[T]` | `_kv_array_T`, of `KV_ARRAY` |
 | `Dictionary<K, V>` | `_kv_dict_K_V`, of `KV_DICT` |
 | `Set<T>` | `_kv_set_T`, of `KV_SET` |
+| `Range<T>` | `_kv_range_T`, `struct _kv_range_T { T lo, hi; uint8_t kind; }`, guarded by `_KV_RANGE_T`: kind 0 `lo..<hi`, 1 `lo...hi`, 2 `lo...`, whose `hi` is `T`'s largest (#373) |
 
 - **A `let`** is `const` where C allows it; a `var` is not.
 - **A type in a name** is spelled by its Kelvin name, `i64`, `String`,

@@ -404,6 +404,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 370 | kc reads a parameter of fixed arrays, `m:[[int64](3)]`, as kelvinc does: a pointer to its rows in C, `m[i][j]`, its rows' count written and its count passed beside it, of owners too; rows of no count, `[const [T](N)]` and rows of another count are errors | `__typeof__(int64_t[3]) *m` | kc's `let rows_sum(m:[[int64](2)], rows:int64)` | 2026-10-25 |
 | 371 | kelvinc frees and copies each innermost element of a member's or a case's array of arrays of owners, `[[String](2)](2)`, where it saw no owner in an array of arrays and leaked them | a loop of `kv_string_free` over the innermost elements | `struct pair { grid: [[String](2)](2) }` | 2026-10-25 |
 | 372 | kelvinc and kc read `x.prefix(n)` and `x.prefix { ... }`, Haskell's take and takeWhile: of an Iterator, an iterator or a Sequence a lazy `Iterator<T>` that asks its base no more after, so an Iterator that never ends gives the first few; of an Array, a String, a Dictionary or a Set a new one of its kind | an adapter of a state holding the base, the count left and a flag; a slice, or a loop to the first false | `Iterator(-1) { $0 += 1; return $0 }.prefix(10)` | 2026-10-25 |
+| 373 | A range is a value of its own, `Range<T>`, `T` an integer type and `i64` where unwritten: `a..<b`, `a...b`, `a...` up to `T`'s largest, and `..<b` and `...b` from 0; a Sequence with `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`; kelvinc and kc | a struct of the bounds and a kind; its walk a counter with a flag that stops at the end, never past it | `let naturals = 0...; println(naturals.prefix(5))` | 2026-10-25 |
 
 Notes:
 
@@ -965,6 +966,33 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (373) Agreed details: "make ranges a distinct type as `Range<IntType>`
+  where `IntType` defaults to `i64`", a Sequence with `.map`, `.filter`,
+  `.reduce`, `.flatMap` and `.prefix`, of integers for now; `0...` an
+  infinite sequence, `...end` `0...end`, `..<end` `0..<end`, and
+  `-n..<n` as expected. The user confirmed `-n...<n` meant `-n..<n`,
+  and chose: `0...` stops at `T`'s largest, the eager methods refuse
+  one without an end; `.prefix(n)` a Range and `.prefix { ... }` an
+  `Iterator<T>`; kelvinc and kc in one change.
+  - A range binds tighter than a comparison and looser than the shifts,
+    as Swift's; `lo...` ends where the next token starts no value.
+  - `T` is written, or the upper bound's type, else the lower one's,
+    else `i64`, as a `for`'s (#28); a range given where a `Range<T>` or
+    a `Range<T>?` goes is of that `T`.
+  - A Range is a value, copied, owning nothing; its text is as written,
+    `0..<5`, `1...3`, `0...`, and pastes back.
+  - `lo..<hi` past its end walks nothing; `prefix(n)` of 0 or less is
+    `lo..<lo`, and of `lo...` up to `T`'s largest `lo...hi`.
+  - The eager methods of `lo...` written so are an error; of one whose
+    end is known at run time, the program ends, as a check does (#174).
+  - `.lazy.map`, `.lazy.filter` and `.prefix { ... }` give an Iterator,
+    walked once; `for i in r` walks a Range afresh.
+  - Errors: `..<` without an end, a range of a range, a bound that is
+    no integer, `Range<T>` of a type that is none, an operator of a
+    Range, a member it has not, `xs[r]` of a Range value.
+  - Not yet: floating-point ranges, reversed and stepped ones, `==`,
+    `.count`, `.contains`, the bounds, slicing by a Range value.
 
 - (372) Agreed details: "add `.prefix(n)` and `.prefix { ... }` to all
   that iterates", take and takeWhile, needed for an Iterator that never
@@ -4964,6 +4992,7 @@ says "as agreed".
 | P382 | Details of #370 | selfhost/gen.k: gen_function's parameter of counted rows; selfhost/parse.k: `[const [T](N)]` refused; selfhost/sample.k; selfhost/README.md | — |
 | P383 | Details of #371 | src/codegen.c: array_base, owner_free of a struct's member, emit_derived_copy, the struct's free, the enum's free and copy; tests/run/array_owner_rows.k | — |
 | P384 | Details of #372 | src/parser.c: prefix_receiver, parse_prefix, the op table; src/codegen.c: the prefix adapter of the D_FN, iter_prefix, array_/dict_/set_/string_prefix; selfhost/gen.k: iter_rec ops 3 and 4, prefix_arg, iter_prefix_of, prefix_rec, gen_prefix; selfhost/parse.k: prefix's trailing function; tests/run/prefix.k, tests/error/prefix_*.k | — |
+| P385 | Details of #373 | src/lexer.c: `Range`; src/parser.c: RANGE_PREC between the comparisons and the shifts, range_ends, make_range (E_METHOD op "range"), range_type, range_iter (the adapter of lazy_op "range"), the Range's methods, parse_prefix's range_prefix, parse_for_range, `..<n`, `...n` and `lo...` in a for, a slice read through a range, string_of_literal's fitting; src/codegen.c: the typedef of each Range<T> after the prelude, range_max, range_walk, range, range_prefix, range_iter, the adapter, S_FOR_IN of a Range value, its printer; selfhost/lex.k: `...`; selfhost/parse.k: N_RANGE, N_RITER, Y_RANGE, range_ends, the for's flags; selfhost/gen.k: range_type_of, iter_rec op 5, gen_range_gathered, the Range's prefix, loops and printer, put_range_types; documents/ranges.md; tests/run/range_value.k, tests/run/range_no_end.k, tests/error/range_*.k | `_kv_range_i64`, `_KV_RANGE_i64` |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

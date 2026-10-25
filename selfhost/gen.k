@@ -267,6 +267,10 @@ let put_ctype(y:int64) {
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                                  // (#313)
     case Y_ITER: put("kv_iter")                                  // (#326)
+    case Y_RANGE:                                                // _kv_range_i64 (#373)
+        put("_kv_range_")
+        let w:String = mangled(types[y].elem)
+        put(w.cstr)
     case Y_UCHR: put("kv_uchr")
     case Y_ARRAY: put_array_name(y)
     case Y_DICT: put_dict_name(y)
@@ -492,6 +496,12 @@ let eager_of(n:int64):int64    // prototypes: eager map and the rest (#329)
 let eager_type_of(n:int64):int64
 let gen_eager(n:int64)
 let gen_iter_value(i:int64)
+let range_type_of(n:int64):int64    // prototypes: a Range's (#373)
+let range_member_error(n:int64)
+let range_iter_of(n:int64):int64
+let range_max(y:int64):cstr
+let put_range_walk(ey:int64, r:cstr, p:cstr)
+let range_operand_error(n:int64):bool
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -699,6 +709,11 @@ let type_of(n:int64):int64 {
         if e < 0 { return -1 }
         return type_of_kind(Y_ARRAY, e, -1)
     }
+    if k == N_RANGE { return range_type_of(n) }          // lo..<hi and the rest, a Range<T> (#373)
+    if k == N_RITER {                                    // the Iterator<T> of a Range (#373)
+        let ry:int64 = type_of(nodes[n].a)
+        return ry >= 0 ? type_of_kind(Y_ITER, types[ry].elem, -1) : 0 - 1
+    }
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
     if k == N_DSTR { return base_type(Y_STRING) }
@@ -787,6 +802,10 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
+        if yk == Y_RANGE {                                               // as kelvinc's (#373)
+            range_member_error(n)
+            return -1
+        }
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
@@ -816,7 +835,9 @@ let type_of(n:int64):int64 {
     if k == N_METHOD && search_of(n) >= 0 { return search_type_of(n) }   // d.contains(v), d.firstKey(v) and the rest (#339)
     if k == N_METHOD && !failed && nodes[nodes[n].a].kind == N_FIELD && tok_is(nodes[nodes[n].a].t, "lazy") && lazy_field_type(nodes[n].a) >= 0 {
         let ly:int64 = lazy_field_type(nodes[n].a)
-        if types[ly].kind == Y_ITER {                   // as kelvinc's (#328)
+        if types[ly].kind == Y_RANGE {                  // as kelvinc's (#373)
+            gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 'r.lazy.map { ... }' or 'r.lazy.filter { ... }'")
+        } else if types[ly].kind == Y_ITER {            // as kelvinc's (#328)
             gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 'it.lazy.map { ... }' or 'it.lazy.filter { ... }'")
         } else {
             gen_error(nodes[n].a, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
@@ -832,6 +853,10 @@ let type_of(n:int64):int64 {
         if tok_is(t, "is") { return base_type(Y_BOOL) }
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
+        if types[y].kind == Y_RANGE {                                    // as kelvinc's (#373)
+            range_member_error(n)
+            return -1
+        }
         if tok_is(t, "copy") { return y }
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
@@ -1360,6 +1385,10 @@ let mangled(y:int64):String {
         var s = $"Iterator_"
         s += mangled(types[y].elem)
         return s
+    case Y_RANGE:                                      // (#373)
+        var s = $"Range_"
+        s += mangled(types[y].elem)
+        return s
     case Y_TASK:                                       // (#313)
         var s = $"Task"
         if types[y].elem >= 0 {
@@ -1575,7 +1604,7 @@ let plain_shown(v:int64):bool {
 // whether print shows y by a _kv_show_T of its own: an enum with values
 // (an Optional, a Result), a struct, an Array or a Dictionary (#268)
 let shown_by_type(y:int64):bool {
-    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET)
+    return y >= 0 && (tagged_of(y) >= 0 || struct_of(y) >= 0 || types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET || types[y].kind == Y_RANGE)
 }
 
 // whether print can show a value of y, an enum with values (an Optional, a
@@ -1584,6 +1613,10 @@ let shown_by_type(y:int64):bool {
 let need_show(y:int64, n:int64):bool {
     if shown_types.has(y) { return true }
     shown_types[y] = 1
+    if types[y].kind == Y_RANGE {                        // 0..<3, as kelvinc prints it (#373)
+        shown += y
+        return true
+    }
     if types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET {   // its elements (#230, #274), its values (#268)
         let v = types[y].elem
         if !plain_shown(v) && !shown_by_type(v) {
@@ -1620,6 +1653,8 @@ let put_show_name(y:int64) {
         put_dict_name(y)                                  // _kv_show__kv_dict_String_i64 (#268)
     } else if types[y].kind == Y_SET {
         put_set_name(y)                                   // _kv_show__kv_set_i64 (#274)
+    } else if types[y].kind == Y_RANGE {
+        put_ctype(y)                                      // _kv_show__kv_range_i64 (#373)
     } else {
         put_tok(types[y].name)
     }
@@ -2120,6 +2155,15 @@ let gen_show(y:int64) {
     put("static void ")
     put_show_name(y)
     put("(kv_out *o, const void *_kv_v, int level)\n{\n    const ")
+    if types[y].kind == Y_RANGE {                         // 0..<3, 1...3, 0..., which paste back, as kelvinc's (#373)
+        put_ctype(y)
+        put(" *self = _kv_v;\n    (void)level;\n    ")
+        show_value(types[y].elem, "lo", 0 - 1, "level")
+        put("    kv_out_put(o, self->kind ? \"...\" : \"..<\");\n    if (self->kind != 2)\n    {\n    ")
+        show_value(types[y].elem, "hi", 0 - 1, "level")
+        put("    }\n}\n\n")
+        return
+    }
     if types[y].kind == Y_ARRAY {                         // [1, 2], [] where empty (#230)
         put_array_name(y)
         put(" *self = _kv_v;\n    __attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;\n")
@@ -2793,6 +2837,7 @@ let gen_string_eq(a:int64, b:int64) {
 
 // a condition: a comparison without the parentheses C would warn of
 let gen_cond(n:int64) {
+    if range_operand_error(n) { return }                 // a Range has no operators (#373)
     if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
         let y:int64 = type_of(nodes[n].a)
         let owners = tagged_side(n) >= 0 || builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // an Optional's == (#343), String ==, xs == ys (#288), refusals (#287)
@@ -3456,6 +3501,10 @@ let gen_set_op(n:int64, y:int64) {
 }
 
 let gen_value(n:int64, y:int64) {
+    if nodes[n].kind == N_RANGE && y >= 0 {             // a range where a Range<T> or a Range<T>? goes is of T (#373)
+        let ry:int64 = types[y].kind == Y_RANGE ? y : some_type(y)
+        if ry >= 0 && types[ry].kind == Y_RANGE { nodes[n].ty = ry }
+    }
     if y >= 0 && types[y].kind == Y_FIXED && nodes[n].kind == N_LIST {   // a case's [a, b], C's compound literal (#360)
         if nodes[n].flag == 0 && !fixed_list_fits(n, y) { return }
         if nodes[n].flag == 1 && type_of(n) != y {
@@ -4093,8 +4142,33 @@ let gen_expr(n:int64) {
         gen_iter_make(n)
         return
     }
+    if k == N_RANGE {                                    // lo..<hi, lo...hi, lo... (#373): kind 0, 1, 2, as kelvinc's
+        let ry:int64 = type_of(n)
+        if ry < 0 { return }
+        put("((")
+        put_ctype(ry)
+        put("){")
+        if nodes[n].a >= 0 { gen_expr(nodes[n].a) } else { put("0") }
+        put(", ")
+        if nodes[n].b >= 0 { gen_expr(nodes[n].b) } else { put(range_max(types[ry].elem)) }
+        put(", ")
+        put_int(nodes[n].flag)
+        put("})")
+        return
+    }
+    if k == N_RITER {                                    // a Range's Iterator, kc's (#373)
+        let i = range_iter_of(n)
+        if i >= 0 { gen_iter_value(i) }
+        return
+    }
+    if range_operand_error(n) { return }                 // a Range has no operators (#373)
     if k == N_FIELD && tok_is(t, "lazy") && lazy_field_type(n) != 0 - 2 {
-        gen_error(n, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
+        let ly:int64 = type_of(nodes[n].a)
+        if ly >= 0 && types[ly].kind == Y_RANGE {        // as kelvinc's (#373)
+            gen_error(n, "'.lazy' makes '.map' or '.filter' after it lazy: write 'r.lazy.map { ... }' or 'r.lazy.filter { ... }'")
+        } else {
+            gen_error(n, "'.lazy' makes '.map' or '.filter' after it lazy: write 's.lazy.map { ... }' or 's.lazy.filter { ... }'")
+        }
         return
     }
     if float_word(n) {                                   // nan, inf: gcc's and clang's constants (#262)
@@ -4317,6 +4391,12 @@ let type_text(y:int64):String {
     case Y_ITER:                                     // Iterator<i64> (#326)
         var s = $"Iterator<"
         let e:String = kelvin_type_text(types[y].elem)
+        s += &e
+        s += ">"
+        return s
+    case Y_RANGE:                                    // Range<i64> (#373)
+        var s = $"Range<"
+        let e:String = type_text(types[y].elem)
         s += &e
         s += ">"
         return s
@@ -5208,7 +5288,7 @@ let lazy_type_of(n:int64):int64 {
 // iterator's .lazy is kelvinc's error
 let lazy_field_type(n:int64):int64 {
     let y:int64 = type_of(nodes[n].a)
-    if y >= 0 && types[y].kind == Y_ITER { return y }  // an Iterator's, lazy too (#328)
+    if y >= 0 && (types[y].kind == Y_ITER || types[y].kind == Y_RANGE) { return y }  // an Iterator's, lazy too (#328), a Range's (#373)
     if sequence_maker(y) >= 0 { return y }
     if iterator_next(y) >= 0 {
         gen_error(n, "'.lazy' is a Sequence's, whose makeIterator gives a fresh iterator each time, and this is an iterator: give its type a 'let makeIterator()', or walk it with for (#323)")
@@ -5553,7 +5633,7 @@ struct iter_rec {
     state_y: int64
     fn: int64
     iter_y: int64
-    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328), 3 of x.prefix(n), 4 of x.prefix(f) (#372)
+    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328), 3 of x.prefix(n), 4 of x.prefix(f) (#372), 5 of a Range (#373)
     src: int64              // the state's expression: the state, or the Iterator made lazy
     count: int64            // prefix(n)'s n; -1 else
 }
@@ -5691,7 +5771,14 @@ let iter_lazy_of(n:int64):int64 {
     if nodes[a].kind != N_FIELD || !tok_is(nodes[a].t, "lazy") { return 0 - 1 }
     let seen = iter_at.get(n, -1)
     if seen >= 0 { return seen }
-    let by:int64 = type_of(nodes[a].a)
+    var base:int64 = nodes[a].a
+    var by:int64 = type_of(base)
+    if by >= 0 && types[by].kind == Y_RANGE {           // a Range's values, of an Iterator kc makes of it (#373)
+        let w:int64 = make_node(N_RITER, nodes[base].t)
+        nodes[w].a = base
+        base = w
+        by = type_of(w)
+    }
     if by < 0 || types[by].kind != Y_ITER { return 0 - 1 }
     let is_map = tok_is(nodes[n].t, "map")
     var me = $"'.lazy."
@@ -5701,7 +5788,7 @@ let iter_lazy_of(n:int64):int64 {
     let fn:int64 = lazy_fn_of(n, ey, is_map, &me)
     if fn < 0 { return 0 - 1 }
     let uy:int64 = is_map ? nodes[fn].ty : ey
-    let r:iter_rec = {n, by, fn, type_of_kind(Y_ITER, uy, -1), is_map ? 1 : 2, nodes[a].a, 0 - 1}
+    let r:iter_rec = {n, by, fn, type_of_kind(Y_ITER, uy, -1), is_map ? 1 : 2, base, 0 - 1}
     iters += r
     iter_at[n] = iters.count as int64 - 1
     return iters.count as int64 - 1
@@ -5760,6 +5847,13 @@ let iter_prefix_of(n:int64):int64 {
         sy = nodes[mk].ty
         src = make_node(N_METHOD, nodes[mk].t)
         nodes[src].a = a
+    } else if types[y].kind == Y_RANGE {                 // r.prefix { ... }: of an Iterator kc makes of it (#373)
+        let b:int64 = nodes[n].b
+        let fn_arg = b >= 0 && (nodes[b].kind == N_ANON || nodes[b].kind == N_ID && var_type(nodes[b].t) < 0 && decl_named(nodes[b].t, D_FN) >= 0)
+        if !fn_arg { return 0 - 1 }                      // r.prefix(n), a Range: prefix_of's
+        src = make_node(N_RITER, nodes[a].t)
+        nodes[src].a = a
+        sy = type_of(src)
     } else if types[y].kind != Y_ITER && iterator_next(y) < 0 {
         return 0 - 1
     }
@@ -5775,6 +5869,135 @@ let iter_prefix_of(n:int64):int64 {
 
 let iter_prefix_type_of(n:int64):int64 {
     return iters[iter_prefix_of(n)].iter_y
+}
+
+// ---------- Range<T> (#373) ----------
+
+// the Range<T> of a range n, as kelvinc's: T the upper bound's type where
+// kc sees it, else the lower one's, else i64; or the Range<T> it is given
+// to (gen_value); a bound that is no integer kelvinc's error
+let range_type_of(n:int64):int64 {
+    if nodes[n].ty >= 0 { return nodes[n].ty }
+    var ey:int64 = 0 - 1
+    var i = 0
+    while i < 2 {
+        let b:int64 = i == 0 ? nodes[n].b : nodes[n].a
+        i += 1
+        if b < 0 { continue }
+        let by:int64 = type_of(b)
+        if by < 0 { return 0 - 1 }
+        let k:ykind = types[by].kind
+        if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+            var m = $"a range is of integers, not "
+            let w:String = type_text(by)
+            m += &w
+            gen_error(b, m.cstr)
+            return 0 - 1
+        }
+        let literal = nodes[b].kind == N_NUM || nodes[b].kind == N_CHAR || (nodes[b].kind == N_UNARY && nodes[nodes[b].a].kind == N_NUM)
+        if ey < 0 && !literal && k != Y_C { ey = by }
+    }
+    if ey < 0 { ey = base_type(Y_I64) }
+    nodes[n].ty = type_of_kind(Y_RANGE, ey, -1)
+    return nodes[n].ty
+}
+
+// a member of a Range that it has not, as kelvinc says it
+let range_member_error(n:int64) {
+    var m = $"a Range has map, filter, reduce, flatMap, lazy and prefix, and '."
+    m += tok_text(nodes[n].t)
+    m += "' is none of them"
+    gen_error(n, m.cstr)
+}
+
+// T's largest, where a Range<T> without an end stops
+let range_max(y:int64):cstr {
+    let k:ykind = y >= 0 ? types[y].kind : Y_I64
+    return k == Y_I32 ? "INT32_MAX" : k == Y_U8 ? "UINT8_MAX" : k == Y_U32 ? "UINT32_MAX" : "INT64_MAX"
+}
+
+// a Range's walk, as kelvinc's: of the Range r, the hidden p_lo, p_go and
+// p_end of T, ey: from lo, whether it goes on at all, where it ends
+let put_range_walk(ey:int64, r:cstr, p:cstr) {
+    put_ctype(ey)
+    put(" ")
+    put(p)
+    put("_lo = (")
+    put(r)
+    put(").lo, ")
+    put(p)
+    put("_go = (")
+    put(r)
+    put(").kind ? ")
+    put(p)
+    put("_lo <= (")
+    put(r)
+    put(").hi : ")
+    put(p)
+    put("_lo < (")
+    put(r)
+    put(").hi, ")
+    put(p)
+    put("_end = (")
+    put(r)
+    put(").kind || !")
+    put(p)
+    put("_go ? (")
+    put(r)
+    put(").hi : (")
+    put(r)
+    put(").hi - 1")
+}
+
+// the Iterator kc makes of the Range of an N_RITER, n (#373): where it is,
+// where it ends and whether it goes on
+let range_iter_of(n:int64):int64 {
+    let seen = iter_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let ry:int64 = type_of(nodes[n].a)
+    if ry < 0 { return 0 - 1 }
+    let r:iter_rec = {n, ry, 0 - 1, type_of_kind(Y_ITER, types[ry].elem, -1), 5, nodes[n].a, 0 - 1}
+    iters += r
+    iter_at[n] = iters.count as int64 - 1
+    return iters.count as int64 - 1
+}
+
+// whether n is an operator of a Range, which has none: kelvinc's error
+let range_operand_error(n:int64):bool {
+    if nodes[n].kind != N_BIN { return false }
+    let ay:int64 = type_of(nodes[n].a)
+    let by:int64 = type_of(nodes[n].b)
+    if (ay < 0 || types[ay].kind != Y_RANGE) && (by < 0 || types[by].kind != Y_RANGE) { return false }
+    var m = $"a Range has no operator '"
+    m += tok_text(nodes[n].t)
+    m += "': walk it, or gather its values, as in '.map { $0 }'"
+    gen_error(n, m.cstr)
+    return true
+}
+
+// each Range<T>'s struct, T's lo and hi and its kind, where the program
+// makes a Range (#373): of each integer kc has, guarded as kelvinc's
+let put_range_types() {
+    var used = range_values > 0
+    for i in 0..<types.count as int64 {
+        if types[i].kind == Y_RANGE { used = true }
+    }
+    if !used { return }
+    let words:[cstr] = ["i64", "i32", "u8", "u32"]
+    let ctypes:[cstr] = ["int64_t", "int32_t", "uint8_t", "uint32_t"]
+    for i in 0..<4 {
+        put("#ifndef _KV_RANGE_")
+        put(words[i])
+        put("\n#define _KV_RANGE_")
+        put(words[i])
+        put("\ntypedef struct _kv_range_")
+        put(words[i])
+        put(" { ")
+        put(ctypes[i])
+        put(" lo, hi; uint8_t kind; } _kv_range_")
+        put(words[i])
+        put(";\n#endif\n")
+    }
 }
 
 let iter_type_of(n:int64):int64 {
@@ -5793,7 +6016,21 @@ let gen_iter_make(n:int64) {
 let gen_iter_value(i:int64) {
     let sy:int64 = iters[i].state_y
     let a:int64 = iters[i].src
-    let prefix = iters[i].op >= 3
+    let prefix = iters[i].op == 3 || iters[i].op == 4
+    if iters[i].op == 5 {                                // a Range's (#373): where it starts, ends and goes, as kelvinc's
+        put("({ ")
+        put_ctype(sy)
+        put(" _kv_ri = (")
+        gen_expr(a)
+        put("); ")
+        put_range_walk(types[sy].elem, "_kv_ri", "_kv_r")
+        put("; struct _kv_iter")
+        put_int(i + 1)
+        put("_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = _kv_r_lo; _kv_is->end = _kv_r_end; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, _kv_iter")
+        put_int(i + 1)
+        put("_next); })")
+        return
+    }
     put("({ ")
     if prefix {                                          // x.prefix(n): the base, the count and the flag (#372)
         put("struct _kv_iter")
@@ -5835,7 +6072,14 @@ let gen_iter_value(i:int64) {
 let put_iter_adapters(heads:bool) {
     for i in 0..<iters.count as int64 {
         let r:iter_rec = iters[i]
-        if heads && r.op >= 3 {                          // x.prefix(n)'s state (#372)
+        if heads && r.op == 5 {                          // a Range's state (#373)
+            put("struct _kv_iter")
+            put_int(i + 1)
+            put("_st { ")
+            put_ctype(types[r.state_y].elem)
+            put(" at, end; bool go; };\n")
+        }
+        if heads && (r.op == 3 || r.op == 4) {           // x.prefix(n)'s state (#372)
             put("struct _kv_iter")
             put_int(i + 1)
             put("_st { ")
@@ -5847,7 +6091,20 @@ let put_iter_adapters(heads:bool) {
         put("_next(void *_kv_s, void *_kv_out)")
         if heads {
             put(";\n")
-        } else if r.op >= 3 {                            // x.prefix(n), x.prefix(f) (#372), as kelvinc's
+        } else if r.op == 5 {                            // a Range's (#373): where it is, then a step short of its end, as kelvinc's
+            let out_y:int64 = optional_of(types[r.state_y].elem)
+            put("\n{\n    struct _kv_iter")
+            put_int(i + 1)
+            put("_st *_kv_p = _kv_s;\n    if (!_kv_p->go) {\n        *(")
+            put_ctype(out_y)
+            put(" *)_kv_out = _kv_")
+            put_tok(types[out_y].name)
+            put("_make_none();\n        return;\n    }\n    *(")
+            put_ctype(out_y)
+            put(" *)_kv_out = _kv_")
+            put_tok(types[out_y].name)
+            put("_make_some(_kv_p->at);\n    _kv_p->go = _kv_p->at != _kv_p->end;\n    _kv_p->at += _kv_p->go;\n}\n\n")
+        } else if r.op == 3 || r.op == 4 {               // x.prefix(n), x.prefix(f) (#372), as kelvinc's
             let ey:int64 = types[r.iter_y].elem
             let out_y:int64 = optional_of(ey)
             let in_y:int64 = types[r.state_y].kind == Y_ITER ? out_y : nodes[iterator_next(r.state_y)].ty
@@ -5955,7 +6212,7 @@ let put_iter_adapters(heads:bool) {
             put("_drop(void *_kv_s)")
             if heads {
                 put(";\n")
-            } else if r.op >= 3 {
+            } else if r.op == 3 || r.op == 4 {
                 put("\n{\n    ")
                 put_free(r.state_y)
                 put("(&((struct _kv_iter")
@@ -5996,7 +6253,7 @@ var eager_at:Dictionary<int64, int64>
 // Iterator<T>'s T, an iterator's or a Sequence's next's some; -1 else
 let walked_elem(y:int64):int64 {
     if y < 0 { return 0 - 1 }
-    if types[y].kind == Y_ARRAY || types[y].kind == Y_ITER { return types[y].elem }
+    if types[y].kind == Y_ARRAY || types[y].kind == Y_ITER || types[y].kind == Y_RANGE { return types[y].elem }   // a Range's (#373)
     let mk = sequence_maker(y)
     if mk >= 0 {
         let nx = iterator_next(nodes[mk].ty)
@@ -6030,6 +6287,18 @@ let eager_of(n:int64):int64 {
     if y < 0 || is_lazy_type(y) && kind <= 2 { return 0 - 1 }    // a lazy Sequence's map and filter are lazy (#324)
     let yk:ykind = types[y].kind
     if with_key && yk != Y_DICT { return 0 - 1 }        // a Dictionary's alone
+    if yk == Y_RANGE && nodes[a].kind == N_RANGE && nodes[a].flag == 2 {   // lo... has no end to walk to, as kelvinc says it (#373)
+        let lo:int64 = nodes[a].a
+        var m = $"'."
+        m += tok_text(t)
+        m += "' walks a Range to its end, and "
+        if nodes[lo].kind == N_NUM { m += tok_text(nodes[lo].t) } else { m += "lo" }
+        m += "... has none: take the first few, as in '.prefix(10)."
+        m += tok_text(t)
+        m += "', or walk it lazily, '.lazy.map'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
     let ey:int64 = yk == Y_DICT || yk == Y_SET ? types[y].elem : walked_elem(y)   // a Dictionary's values, a Set's elements (#330)
     if ey < 0 { return 0 - 1 }
     let each = yk == Y_DICT ? $"value" : $"element"     // as kelvinc names it
@@ -6248,6 +6517,27 @@ let gen_gathered(src:int64, y:int64, ey:int64) {
     put("_append(&_kv_ga, _kv_go.u.some); } _kv_ga; })")
 }
 
+// the values of a Range, src of type y, gathered into an Array, as
+// kelvinc's (#373): one without an end has none to walk to, and the
+// program ends, as kelvinc says it, of the method t
+let gen_range_gathered(src:int64, y:int64, t:int64) {
+    let ey:int64 = types[y].elem
+    let ay:int64 = type_of_kind(Y_ARRAY, ey, -1)
+    put("({ ")
+    put_array_name(ay)
+    put(" _kv_ga = {0}; ")
+    put_ctype(y)
+    put(" _kv_gr = (")
+    gen_expr(src)
+    put("); if (_kv_gr.kind == 2) kv_array_fail(\"this Range has no end, and '.")
+    put_tok(t)
+    put("' walks one to its end: take its first few, '.prefix(n)'\"); for (")
+    put_range_walk(ey, "_kv_gr", "_kv_g")
+    put("; _kv_g_go; _kv_g_go = _kv_g_lo != _kv_g_end, _kv_g_lo += _kv_g_go) ")
+    put_array_name(ay)
+    put("_append(&_kv_ga, _kv_g_lo); _kv_ga; })")
+}
+
 // an element for the function: a copy of one that owns, which it owns (#329)
 let put_eager_arg(ey:int64) {
     if is_owner(ey) {
@@ -6270,7 +6560,7 @@ let gen_eager(n:int64) {
         return
     }
     let ay:int64 = types[r.src_y].kind == Y_ARRAY ? r.src_y : type_of_kind(Y_ARRAY, r.elem_y, -1)
-    if types[r.src_y].kind != Y_ARRAY && sequence_maker(r.src_y) < 0 && changeable_place(r.src) {   // walking an iterator changes it; a Sequence's walk is a fresh one
+    if types[r.src_y].kind != Y_ARRAY && types[r.src_y].kind != Y_RANGE && sequence_maker(r.src_y) < 0 && changeable_place(r.src) {   // walking an iterator changes it; a Sequence's walk is a fresh one, a Range's too (#373)
         let lead = $"walking an iterator changes it, as its var next() does, and this changes "
         if !changes_var(r.src, &lead) { return }
     }
@@ -6287,6 +6577,8 @@ let gen_eager(n:int64) {
         put(" _kv_mt = ")
         if types[r.src_y].kind == Y_ARRAY {
             gen_expr(r.src)
+        } else if types[r.src_y].kind == Y_RANGE {      // a Range's values, which end (#373)
+            gen_range_gathered(r.src, r.src_y, nodes[n].t)
         } else {
             gen_gathered(r.src, r.src_y, r.elem_y)
         }
@@ -6518,7 +6810,7 @@ let prefix_of(n:int64):int64 {
     let y:int64 = type_of(a)
     if y < 0 { return 0 - 1 }
     let yk:ykind = types[y].kind
-    if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET { return 0 - 1 }
+    if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET && yk != Y_RANGE { return 0 - 1 }   // r.prefix(n), a Range (#373)
     let ey:int64 = yk == Y_STRING ? base_type(Y_UCHR) : types[y].elem
     let fn:int64 = prefix_arg(n, ey)
     if fn == 0 - 1 { return 0 - 1 }
@@ -6548,6 +6840,29 @@ let gen_prefix(n:int64) {
     let y:int64 = r.src_y
     let yk:ykind = types[y].kind
     let a:int64 = nodes[n].a
+    if yk == Y_RANGE {                                  // r.prefix(n) (#373): the Range of its first n, as kelvinc's
+        let ey:int64 = types[y].elem
+        put("({ ")
+        put_ctype(y)
+        put(" _kv_rp = (")
+        gen_expr(a)
+        put("); int64_t _kv_pn = (")
+        gen_expr(nodes[n].b)
+        put("); ")
+        put_range_walk(ey, "_kv_rp", "_kv_p")
+        put(", _kv_pl = _kv_p_lo; bool _kv_pt = _kv_p_go && _kv_pn > 0; if (_kv_pt) _kv_pl = (uint64_t)(_kv_pn - 1) >= (uint64_t)_kv_p_end - (uint64_t)_kv_p_lo ? _kv_p_end : (")
+        put_ctype(ey)
+        put(")((uint64_t)_kv_p_lo + (uint64_t)(_kv_pn - 1)); (")
+        put_ctype(y)
+        put("){_kv_p_lo, !_kv_pt ? _kv_p_lo : _kv_pl < ")
+        put(range_max(ey))
+        put(" ? (")
+        put_ctype(ey)
+        put(")(_kv_pl + 1) : _kv_pl, _kv_pt && _kv_pl == ")
+        put(range_max(ey))
+        put("}; })")
+        return
+    }
     put("({ ")
     if is_place(a) {
         put("__auto_type _kv_ms = &(")
@@ -7319,6 +7634,74 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
+    if types[y].kind == Y_RANGE {                      // a Range's values (#373), its kind read at run time, as kelvinc's
+        if nodes[n].b >= 0 {
+            gen_error(n, "two loop variables walk a Dictionary's entries, 'for k, v in d': a Range counts with one")
+            return
+        }
+        let ey:int64 = types[y].elem
+        serial += 1
+        var r = $"_kv_range"
+        r += String(serial)
+        put("{\n")
+        indent(depth + 1)
+        put_ctype(y)
+        put(" ")
+        put(r.cstr)
+        put(" = ")
+        gen_expr(nodes[n].a)
+        put(";\n")
+        indent(depth + 1)
+        put("for (")
+        put_ctype(ey)
+        put(" ")
+        put_tok(nodes[n].t)
+        put(" = (")
+        put(r.cstr)
+        put(").lo, _kv_go")
+        put_int(serial)
+        put(" = (")
+        put(r.cstr)
+        put(").kind ? ")
+        put_tok(nodes[n].t)
+        put(" <= (")
+        put(r.cstr)
+        put(").hi : ")
+        put_tok(nodes[n].t)
+        put(" < (")
+        put(r.cstr)
+        put(").hi, _kv_end")
+        put_int(serial)
+        put(" = (")
+        put(r.cstr)
+        put(").kind || !_kv_go")
+        put_int(serial)
+        put(" ? (")
+        put(r.cstr)
+        put(").hi : (")
+        put(r.cstr)
+        put(").hi - 1; _kv_go")
+        put_int(serial)
+        put("; _kv_go")
+        put_int(serial)
+        put(" = ")
+        put_tok(nodes[n].t)
+        put(" != _kv_end")
+        put_int(serial)
+        put(", ")
+        put_tok(nodes[n].t)
+        put(" += _kv_go")
+        put_int(serial)
+        put(")\n")
+        open_scope()
+        declare_as(nodes[n].t, ey, 4)                  // a let, as a range's count (#271)
+        indent(depth + 1)
+        gen_block(nodes[n].c, depth + 1)
+        close_scope()
+        indent(depth)
+        put("}\n")
+        return
+    }
     if types[y].kind == Y_ITER {                       // an Iterator<T> (#326)
         gen_iter_each(n, depth, y, 0 - 1, nodes[n].a)
         return
@@ -7807,18 +8190,44 @@ let gen_stmt(n:int64, depth:int64) {
         put("for (int64_t ")
         put_tok(nodes[n].t)
         put(" = ")
-        gen_expr(nodes[n].a)
+        if nodes[n].a >= 0 { gen_expr(nodes[n].a) } else { put("0") }      // ..<n, ...n from 0 (#373)
         put(", _kv_end")
         put_int(serial)
         put(" = ")
-        gen_expr(nodes[n].b)
-        put("; ")
-        put_tok(nodes[n].t)
-        put(" < _kv_end")
-        put_int(serial)
-        put("; ")
-        put_tok(nodes[n].t)
-        put("++)\n")
+        if nodes[n].b >= 0 {
+            gen_expr(nodes[n].b)
+        } else {                                         // lo... up to its type's largest (#373)
+            put(range_max(nodes[n].a >= 0 ? type_of(nodes[n].a) : 0 - 1))
+        }
+        if nodes[n].flag == 0 {
+            put("; ")
+            put_tok(nodes[n].t)
+            put(" < _kv_end")
+            put_int(serial)
+            put("; ")
+            put_tok(nodes[n].t)
+            put("++)\n")
+        } else {                                         // a...b stops at b, never past it, as kelvinc's (#373)
+            put(", _kv_go")
+            put_int(serial)
+            put(" = ")
+            put_tok(nodes[n].t)
+            put(" <= _kv_end")
+            put_int(serial)
+            put("; _kv_go")
+            put_int(serial)
+            put("; _kv_go")
+            put_int(serial)
+            put(" = ")
+            put_tok(nodes[n].t)
+            put(" != _kv_end")
+            put_int(serial)
+            put(", ")
+            put_tok(nodes[n].t)
+            put(" += _kv_go")
+            put_int(serial)
+            put(")\n")
+        }
         open_scope()
         declare_as(nodes[n].t, base_type(Y_I64), 4)        // the range's count (#271)
         indent(depth)
@@ -8746,6 +9155,7 @@ let gen_program() {
     put("#endif\n")
     put("#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n")
     put("#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <kelvin_prelude.h>\n")
+    put_range_types()                                    // (#373)
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_IMPORT && nodes[d].flag == 1 {

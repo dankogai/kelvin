@@ -8,7 +8,9 @@ value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
 `Sequence` does. `for x in s` walks either, and `map`, `filter`,
 `reduce` and `flatMap` take either as they take an Array (#319);
 `s.lazy.map` and `s.lazy.filter` call their function only as each value
-is asked for (#323), and so do an Iterator's (#327).
+is asked for (#323), and so do an Iterator's (#327). A range,
+`Range<T>`, is one of integers, walked the same way:
+[ranges.md](ranges.md) (#373).
 
 **Where it lives:** the core. `Iterator<T>` is kv_iter, runtime/iter.k's, in `libkelvin`, linked without an import. An iterator of the program's own is a struct or a union with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
@@ -400,7 +402,8 @@ writes it ([selfhost/README.md](../selfhost/README.md)):
 - the eager `map`, `filter`, `reduce` and `flatMap` of an iterator, a
   Sequence and an `Iterator<T>` (#329), as of an Array, a Dictionary
   and a Set (#329, #330);
-- `x.prefix(n)` and `x.prefix { ... }` of all of these (#372).
+- `x.prefix(n)` and `x.prefix { ... }` of all of these (#372);
+- `Range<T>`, as [ranges.md](ranges.md) has it (#373).
 
 Where kc differs:
 
@@ -464,6 +467,9 @@ it.prefix(f:(E):bool): Iterator<E>    // those before the first f says false for
 | | `.prefix(n)`, `.prefix { ... }` | an `Iterator<E>` of a fresh iterator, as an `Iterator<T>`'s; `s` stays, a lazy Sequence too (#372) |
 | a lazy Sequence | `.map`, `.filter` | lazy too, chained (#323) |
 | | `for x in l`, `.reduce`, `.flatMap` | as any Sequence's: a fresh walk each time (#323) |
+| `Range<T>` | `for i in r`, `.map`, `.filter`, `.reduce`, `.flatMap` | as a Sequence's, of its integers; one without an end is an error, or ends the program (#373) |
+| | `.lazy.map(f)`, `.lazy.filter(f)` | an `Iterator<U>` of its values, lazily (#373) |
+| | `.prefix(n)`, `.prefix { ... }` | the Range of its first `n` values; an `Iterator<T>` of those before the first `f` says false for (#373) |
 
 An iterator and a Sequence of the program have the properties of any struct or union, as
 [structs.md](structs.md) has them; the general ones are in

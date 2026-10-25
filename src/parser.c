@@ -16,6 +16,7 @@
 static Token *toks;
 static int cur;
 static bool pragma_statement; /* parsing `_Pragma("...");` as a statement */
+static bool in_slice;         /* parsing a slice's bounds, xs[lo..<hi], which it checks itself (#68, #373) */
 /* In a ternary's middle operand and a case label, `: name` is the
    separator, not a type annotation `expr:T` with a typedef name. */
 static bool ident_annotation_ok = true;
@@ -429,7 +430,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -453,7 +454,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator") && !is_kw(t, "Range");
 }
 
 /* toString(), fmt() and String wait for a true string type (#22) */
@@ -891,6 +892,12 @@ static Expr *parse_lazy_op(Expr *base, Token *name, const char *member);
 static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member);
 static Expr *parse_prefix(Expr *e, Token *name, bool call);
 static bool prefix_receiver(Type *t);
+static Type *range_type(Pos pos, Type *elem);
+static bool is_integer_type(Type *t);
+static bool is_range(Type *t);
+static bool is_range_literal(Expr *e);
+static Expr *make_range(Expr *lo, Expr *hi, int kind, Pos pos);
+static Expr *range_iter(Expr *r, const char *eager, Pos pos);
 static Expr *parse_lazy_fn(Expr *x, Token *name, const char *member, Type *elem, const char *me);
 static void reject_lazy_text(Expr *x, const char *who);
 static Type *optional_type(Token *at, Type *inner);
@@ -911,6 +918,7 @@ static Type *parse_dict_types(Token *kw);
 static Expr *dict_of_list(Token *t, Type *dt, Token *open, Expr *first);
 static Expr *dict_key(Expr *k, Type *dt);
 static Expr *string_of_literal(Expr *x, Type *target);
+static Expr *string_of_ranged(Expr *x, Type *target);
 static Type *inferred_type(Expr *e, Pos pos);
 static Expr *property(Expr *e, Token *name, char *member);
 static bool is_text_type(Type *t);
@@ -1137,6 +1145,23 @@ static Type *parse_type_in(TypeContext ctx) {
         else if (!accept_p(">"))
             error_at(peek()->pos, "expected '>' after the value type of Iterator<T>");
         Type *t = qualified_owner(base, iter_type(kw->pos, value), "an Iterator");
+        type_start = cur;
+        return parse_type_suffixes(t, ctx);
+    }
+    if (is_kw(peek(), "Range")) { /* Range<T>, Range (#373) */
+        Token *kw = advance();
+        Type *value = NULL;
+        if (accept_p("<")) {
+            value = parse_type_in(TYPE_DECL);
+            if (is_p(peek(), ">>"))
+                toks[cur].text = ">";
+            else if (!accept_p(">"))
+                error_at(peek()->pos, "expected '>' after the integer type of Range<T>");
+        }
+        Type *t = range_type(kw->pos, value ? value : base_type("i64", kw->pos));
+        t->is_const = base->is_const;
+        t->is_volatile = base->is_volatile;
+        parse_qualifiers(t);
         type_start = cur;
         return parse_type_suffixes(t, ctx);
     }
@@ -1755,7 +1780,20 @@ static Expr *parse_postfix_steps(Expr *e) {
                 advance();
                 x->c = parse_expr();
             } else {
+                bool saved_slice = in_slice;
+                in_slice = true;
                 x->b = parse_expr();
+                in_slice = saved_slice;
+                if (is_range_literal(x->b) && !x->b->paren) { /* [lo..<hi], [lo...hi], [lo...] (#68), read as a range (#373) */
+                    Expr *r = x->b;
+                    slice = true;
+                    closed = r->b && !strcmp(r->text, "...");
+                    x->b = r->a;
+                    x->c = r->b;
+                } else if (is_range(value_type(x->b))) {
+                    error_at(x->b->pos, "a slice is written 'xs[lo..<hi]', and a Range value does not index: write its "
+                                        "bounds");
+                }
                 if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* [lo..<hi], [lo...hi], [lo...] (#68) */
                     slice = true;
                     closed = is_p(peek(), "...");
@@ -1939,6 +1977,29 @@ static Expr *parse_postfix_steps(Expr *e) {
                                : expect_ident("a member or method name");
             /* a `(` on the next line starts the next statement (#35) */
             bool call = is_p(peek(), "(") && !line_ends_expression();
+            if (is_range(value_type(e))) { /* a Range's (#373): a Sequence's four, lazy and prefix */
+                bool fn_next = call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement());
+                if (!strcmp(member, "prefix") && fn_next) {
+                    e = parse_prefix(e, name, call);
+                    continue;
+                }
+                if (!call && !strcmp(member, "lazy")) {
+                    if (!is_p(peek(), ".") || (strcmp(peek2()->text, "map") && strcmp(peek2()->text, "filter")))
+                        error_at(name->pos, "'.lazy' makes '.map' or '.filter' after it lazy: write 'r.lazy.map { ... }' "
+                                            "or 'r.lazy.filter { ... }'");
+                    advance();
+                    Token *op = advance();
+                    e = parse_iter_lazy(range_iter(e, NULL, name->pos), op, op->text);
+                    continue;
+                }
+                if ((!strcmp(member, "map") || !strcmp(member, "filter") || !strcmp(member, "reduce") ||
+                     !strcmp(member, "flatMap")) && fn_next)
+                    e = range_iter(e, member, name->pos); /* then the Iterator's, below */
+                else if (strcmp(member, "pretty") && strcmp(member, "size"))
+                    error_at(name->pos, "a Range has map, filter, reduce, flatMap, lazy and prefix, and '.%s' is none "
+                                        "of them",
+                             member);
+            }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */
                 advance();
                 expect_p(")");
@@ -3222,11 +3283,11 @@ static Expr *parse_template(void) {
             /* ${v.pretty} (#126): the text indented, by the printer, not a
                String the template would have to free */
             v->op = "tpl_show";
-        } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct)) {
+        } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct) || is_range(ct)) {
             /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
                kelvinc's printer of it (#123), cut as a string value is in a
                template's room, and whole in $`...` */
-            if (!owner_place(v))
+            if (!owner_place(v) && !is_range(ct)) /* a Range owns nothing (#373) */
                 error_at(v->pos, "%s that an expression gives in a template, which nothing would free: bind it to a "
                                  "variable first",
                          is_dict_owner(ct) ? "a Dictionary" : is_set_owner(ct) ? "a Set" : "an Array");
@@ -4492,8 +4553,8 @@ static int binary_prec(Token *t) {
     static const struct { const char *op; int prec; } table[] = {
         {"||", 1}, {"&&", 2}, {"|", 3}, {"~", 4}, {"&", 5},
         {"==", 6}, {"!=", 6}, {"<", 7}, {">", 7}, {"<=", 7}, {">=", 7},
-        {"<<", 8}, {">>", 8}, {"+", 9}, {"-", 9}, {"*", 10}, {"/", 10}, {"%", 10},
-    };
+        {"<<", 9}, {">>", 9}, {"+", 10}, {"-", 10}, {"*", 11}, {"/", 11}, {"%", 11},
+    }; /* 8 is a range's, ..< and ... (#373) */
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (!strcmp(t->text, table[i].op))
             return table[i].prec;
@@ -4502,10 +4563,45 @@ static int binary_prec(Token *t) {
 
 static bool assigned_after(int j);
 
+/* the precedence of a range's ..< and ... (#373): below the shifts, above
+   the comparisons, as Swift's; a bound is an expression down to the shifts */
+#define RANGE_PREC 8
+
+/* Does the range whose ... is the token before t end there, as lo... does
+   (#373): t starts no operand, or starts the next line? */
+static bool range_ends(Token *t) {
+    bool member = is_p(t, ".") && t[1].kind == TK_IDENT; /* .at, self's member (#139) */
+    return (!starts_operand(t) && !member) || line_break(t - 1, t);
+}
+
 static Expr *parse_binary(int min_prec) {
-    Expr *lhs = parse_cast();
+    Expr *lhs;
+    if (min_prec <= RANGE_PREC && (is_p(peek(), "..<") || is_p(peek(), "..."))) { /* ..<hi, ...hi from 0 (#373) */
+        Token *op = advance();
+        if (range_ends(peek()))
+            error_at(op->pos, "'%s' before a value is a range from 0, as in '%s10', and this has no end", op->text, op->text);
+        lhs = make_range(NULL, parse_binary(RANGE_PREC + 1), is_p(op, "..."), op->pos);
+    } else {
+        lhs = parse_cast();
+    }
     for (;;) {
         Token *t = peek();
+        if (min_prec <= RANGE_PREC && (is_p(t, "..<") || is_p(t, "..."))) { /* lo..<hi, lo...hi, lo... (#373) */
+            if (is_range_literal(lhs) && !lhs->paren)
+                error_at(t->pos, "a range's bounds are integers, and this would be a range of a range");
+            advance();
+            bool closed = is_p(t, "...");
+            if (range_ends(peek())) {
+                if (!closed && in_slice && is_p(peek(), "]"))
+                    error_at(peek()->pos, "a slice to the end is written [lo...]; '..<' needs an end");
+                if (!closed)
+                    error_at(t->pos, "'..<' needs an end, as in '0..<10'; a range without one is 'lo...'");
+                lhs = make_range(lhs, NULL, 2, t->pos);
+            } else {
+                lhs = make_range(lhs, parse_binary(RANGE_PREC + 1), closed, t->pos);
+            }
+            continue;
+        }
         int prec = binary_prec(t);
         if (prec < min_prec)
             return lhs;
@@ -4538,6 +4634,8 @@ static Expr *parse_binary(int min_prec) {
                 error_at(t->pos, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step "
                                  "a 'var p:u8^ := s'");
         }
+        if (is_range(value_type(e->a)) || is_range(value_type(e->b))) /* (#373) */
+            error_at(t->pos, "a Range has no operator '%s': walk it, or gather its values, as in '.map { $0 }'", e->op);
         if ((is_uchr(value_type(e->a)) || is_uchr(value_type(e->b))) &&
             !(!strcmp(e->op, "+") && (is_string(value_type(e->a)) || is_string(value_type(e->b))))) { /* s + c (#183) */
             /* a uchr compares by its codepoint, with a uchr or a number
@@ -5420,7 +5518,8 @@ static Type *value_type_of(Expr *e) {
         if (e->op && (!strncmp(e->op, "iter_array", 10) || !strncmp(e->op, "lazy_make", 9) ||
                       !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next") || !strcmp(e->op, "iter_prefix") ||
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
-                      !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13))) /* (#319, #323, #325, #372) */
+                      !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
+                      !strncmp(e->op, "range", 5))) /* (#319, #323, #325, #372, #373) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -6725,6 +6824,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
 static char *mangled_type(Type *t) {
     if (is_iter(t)) /* Iterator<T> is Iterator_<T> (#325) */
         return strfmt("Iterator_%s", mangled_type(t->elem));
+    if (is_range(t)) /* Range<T> is Range_<T> (#373) */
+        return strfmt("Range_%s", mangled_type(t->elem));
     if (is_task(t)) /* Task<R> is Task_<R>, Task of none Task (#313) */
         return t->elem ? strfmt("Task_%s", mangled_type(t->elem)) : "Task";
     if (is_set_owner(t)) /* Set<T> is Set_<T> (#71) */
@@ -8272,6 +8373,112 @@ static bool is_iter(Type *t) {
 
 static int iter_serial;
 
+/* ---------- Range<T> (#373): the integers from one bound to another ---------- */
+
+/* Range<T>, Range<i64> where T is not written: a value, _kv_range_T in C,
+   of T's lo and hi and a kind, 0 for lo..<hi, 1 for lo...hi, 2 for lo...,
+   whose hi is T's largest; the struct is written once, before the
+   declarations */
+static bool range_int(Type *u) {
+    static const char *ints[] = {"i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", NULL};
+    for (int i = 0; u && u->kind == T_BASE && ints[i]; i++)
+        if (!strcmp(u->name, ints[i]))
+            return true;
+    return false;
+}
+
+static Type *range_type(Pos pos, Type *elem) {
+    Type *u = elem ? unqualified(elem) : NULL;
+    if (!range_int(u))
+        error_at(pos, "a Range is of integers, i8 to i64 or u8 to u64, and this is %s; convert its bounds, "
+                      "as in 'i64(n)'",
+                 u ? kelvin_type(u) : "a type kelvinc does not see");
+    Type *t = xcalloc(1, sizeof *t);
+    t->kind = T_BASE;
+    t->pos = pos;
+    t->elem = u;
+    t->name = strfmt("Range<%s>", kelvin_type(u));
+    t->cname = strfmt("_kv_range_%s", u->name);
+    for (int i = 0; i < program->ranges.len; i++)
+        if (!strcmp(((Type *)program->ranges.data[i])->cname, t->cname))
+            return t;
+    list_push(&program->ranges, t);
+    return t;
+}
+
+static bool is_range(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    return t && t->kind == T_BASE && t->cname && !strncmp(t->cname, "_kv_range_", 10);
+}
+
+/* a range written out, lo..<hi, lo...hi, lo..., ..<hi or ...hi (#373) */
+static bool is_range_literal(Expr *e) { return e && e->kind == E_METHOD && e->op && !strcmp(e->op, "range"); }
+
+/* the Range of lo and hi, kind 0 for ..<, 1 for ..., 2 for lo... (#373): no
+   lo is 0, and no hi T's largest; T is the upper bound's type where
+   kelvinc sees it, else the lower one's, else i64, as a for's (#28), or
+   the Range<T> it is given to (string_of_literal) */
+static Expr *make_range(Expr *lo, Expr *hi, int kind, Pos pos) {
+    Type *t = NULL;
+    for (int i = 0; i < 2 && !in_slice; i++) {
+        Expr *bound = i == 0 ? hi : lo;
+        if (!bound)
+            continue;
+        Type *seen = value_type(bound);
+        const char *lit = literal_type(bound);
+        bool flag = bound->is_bool || seen_bool(bound) || bool_shape(bound);
+        if (flag || (seen && !is_integer_type(seen)))
+            error_at(bound->pos, "a range is of integers, not %s", flag ? "bool" : kelvin_type(seen));
+        if (lit && strcmp(lit, "i64"))
+            error_at(bound->pos, "a range is of integers, not %s", lit);
+        if (!t && seen)
+            t = seen;
+    }
+    if (!lo) {
+        lo = new_expr(E_LITERAL, pos);
+        lo->text = "0";
+    }
+    Expr *x = new_expr(E_METHOD, pos);
+    x->op = "range";
+    x->text = kind == 0 ? "..<" : "...";
+    x->a = lo;
+    x->b = hi;
+    x->type = range_type(pos, t ? t : base_type("i64", pos));
+    return x;
+}
+
+/* the Iterator<T> of a Range's values (#373), kelvinc's adapter _kv_iterN,
+   whose state is where it is, where it ends, and whether it goes on; eager,
+   the method that walks it to its end, '.map' and its kin, which a Range
+   without one would never finish: written so, lo..., an error, and at run
+   time the program ends */
+static Expr *range_iter(Expr *r, const char *eager, Pos pos) {
+    Type *rt = unqualified(value_type(r));
+    if (eager) {
+        Expr *w = r;
+        if (is_range_literal(w) && !w->b)
+            error_at(pos, "'.%s' walks a Range to its end, and %s has none: take the first few, as in "
+                          "'.prefix(10).%s', or walk it lazily, '.lazy.map'",
+                     eager, w->a->kind == E_LITERAL ? strfmt("%s...", w->a->text) : "lo...", eager);
+    }
+    Decl *ad = new_decl(D_FN, pos, "static");
+    ad->name = strfmt("_kv_iter%d", ++iter_serial);
+    ad->ret = optional_type(&(Token){.kind = TK_IDENT, .pos = pos, .text = "Range"}, rt->elem);
+    ad->iter_state = rt;
+    ad->lazy_op = "range";
+    ad->body = new_stmt(S_BLOCK, pos);
+    list_push(&anon_fns, ad);
+    Expr *x = new_expr(E_METHOD, pos);
+    x->a = r;
+    x->text = (char *)(eager ? eager : "lazy");
+    x->op = eager ? "range_iter_all" : "range_iter";
+    x->target = ad;
+    x->from = rt;
+    x->type = iter_type(pos, rt->elem);
+    return x;
+}
+
 /* Iterator(state) { ... }, Iterator(state, f), Iterator<T>(...) (#325),
    Swift's sequence(state:next:): an Iterator<T> of the state, moved to the
    heap, and the function that gives each value of it, a T?, then none; its
@@ -8465,9 +8672,20 @@ static Type *parse_dict_types(Token *kw) {
     return dict_type(kw, key, val);
 }
 
+/* a range returned where a Range<T> or a Range<T>? is the result is of T (#373) */
+static Expr *string_of_ranged(Expr *x, Type *target) { return is_range_literal(x) ? string_of_literal(x, target) : x; }
+
 /* a string literal where a String is expected (#70): String("...") of it,
    as an Array's, a Dictionary's or a struct's String takes it */
 static Expr *string_of_literal(Expr *x, Type *target) {
+    Decl *opt = target && is_range_literal(x) && !is_range(target) ? optional_record(target) : NULL;
+    for (int i = 0; opt && i < opt->members.len; i++) /* a Range<T>? takes one too */
+        if (!strcmp(((Var *)opt->members.data[i])->name, "some"))
+            target = ((Var *)opt->members.data[i])->type;
+    if (target && is_range(target) && is_range_literal(x)) { /* a range where a Range<T> goes is of T (#373) */
+        x->type = range_type(x->pos, unqualified(target)->elem);
+        return x;
+    }
     if (!target || !is_string(target) || x->kind != E_STRING)
         return x;
     Expr *e = new_expr(E_CALL, x->pos);
@@ -8943,7 +9161,7 @@ static Type *inferred_type(Expr *e, Pos pos) {
         return cstr_type(pos);
     if (e->kind == E_FUNC && has_local_size(e->type))
         return NULL; /* a length that names a parameter needs a written type */
-    if (e->kind == E_CAST || e->kind == E_FUNC)
+    if (e->kind == E_CAST || e->kind == E_FUNC || is_range_literal(e)) /* a range is a Range<T> (#373) */
         return e->type;
     if (seen_bool(e))
         return base_type("bool", pos);
@@ -9499,7 +9717,7 @@ static Type *method_param_type(List *cands, Decl *m, int k) {
    Dictionary or a Set? */
 static bool showable(Type *t) {
     Decl *record;
-    return t && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) ||
+    return t && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_range(t) ||
                  (type_class(t, &record) == 's' && record));
 }
 
@@ -9878,7 +10096,7 @@ static void implicit_return_of(Decl *d) {
         last->kind = S_RETURN;
         last->closed = false; /* its owner is returned, not dropped (#81) */
         pick_overload(last->expr, d->ret);
-        last->expr = optional_of(last->expr, d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
+        last->expr = optional_of(string_of_ranged(last->expr, d->ret), d->ret, last->expr->pos); /* a T, or none, of a T? result, as return wraps it (#114) */
         reject_record_mismatch(last->expr, d->ret, last->expr->pos); /* a T? where a T goes (#218) */
         require_bool_return(last->expr, d);                            /* a bool of a bool function (#240) */
         if (!d->text_method) /* T.cstr() returns its template to the caller's buffer (#53) */
@@ -11024,7 +11242,7 @@ static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member) {
 static bool prefix_receiver(Type *t) {
     t = unqualified(t);
     return t && (sequence_maker(t) || iterator_next(t) || is_iter(t) || is_array_owner(t) || is_dict_owner(t) ||
-                 is_set_owner(t) || is_string(t));
+                 is_set_owner(t) || is_string(t) || is_range(t));
 }
 
 /* x.prefix(n) and x.prefix { ... } (#372), Haskell's take and takeWhile,
@@ -11058,6 +11276,8 @@ static Expr *parse_prefix(Expr *e, Token *name, bool call) {
         elem = vt->elem;
     } else if (is_string(vt)) {
         elem = base_type("uchr", name->pos);
+    } else if (is_range(vt)) {
+        elem = vt->elem; /* a Range's (#373): of n a Range, of f an Iterator of it, below */
     } else {
         elem = vt->elem; /* an Array's element, a Set's, a Dictionary's value */
     }
@@ -11121,6 +11341,18 @@ static Expr *parse_prefix(Expr *e, Token *name, bool call) {
                      kelvin_type(ft->elem));
     }
     list_push(&x->items, n ? n : f);
+    if (is_range(vt) && n) { /* r.prefix(n) (#373): the Range of its first n values */
+        x->op = "range_prefix";
+        x->from = vt;
+        x->type = vt;
+        return x;
+    }
+    if (is_range(vt)) { /* r.prefix { ... } (#373): lazy, of the Range's Iterator */
+        base = range_iter(e, NULL, name->pos);
+        x->a = base;
+        bt = unqualified(value_type(base));
+        next = iter_builtin_next(bt);
+    }
     if (next) { /* lazy: an Iterator<T> of the base, moved in */
         if (!mk && is_owner(bt))
             move_argument(base, bt, "'.prefix'");
@@ -11388,6 +11620,29 @@ static Stmt *parse_for_each_hold(Stmt *s, Type *written) {
     return block;
 }
 
+/* for x in r of a Range (#373): x walks its values, the kind read at run
+   time, a let of T, or written 'for x:U in r', each converted */
+static Stmt *parse_for_range(Stmt *s, Type *written) {
+    if (s->name2)
+        error_at(s->pos, "two loop variables walk a Dictionary's entries, 'for k, v in d': a Range counts with one");
+    if (written && !is_integer_type(written))
+        error_at(written->pos, "a range is of integers, not %s", kelvin_type(written));
+    s->each = 1;
+    s->elem = unqualified(value_type(s->expr))->elem;
+    Type *plain = xcalloc(1, sizeof *plain);
+    *plain = *(written ? written : s->elem);
+    plain->is_const = plain->is_volatile = false;
+    s->type = plain;
+    open_scope();
+    if (strcmp(s->name, "_"))
+        declare_binding(s->name, plain, LET_RANGE);
+    if (!is_p(peek(), "{"))
+        error_at(peek()->pos, "expected '{': the body of 'for' is a block, as in 'for %s in r { ... }'", s->name);
+    s->body = parse_block();
+    close_scope();
+    return s;
+}
+
 static Stmt *parse_for_in(Pos pos) {
     Stmt *s = new_stmt(S_FOR_IN, pos);
     Token *name = peek();
@@ -11404,31 +11659,45 @@ static Stmt *parse_for_in(Pos pos) {
     int prec = binary_prec(&(Token){.kind = TK_PUNCT, .text = "<<"});
     bool saved_brace = brace_ends_condition, saved_for = brace_in_for;
     brace_ends_condition = brace_in_for = true; /* `for c in s {` */
-    s->expr = parse_binary(prec);
+    if (is_p(peek(), "..<") || is_p(peek(), "...")) { /* for i in ..<n, ...n: from 0 (#373) */
+        s->expr = new_expr(E_LITERAL, peek()->pos);
+        s->expr->text = "0";
+    } else {
+        s->expr = parse_binary(prec);
+    }
     brace_ends_condition = saved_brace;
     brace_in_for = saved_for;
     if (is_p(peek(), ".."))
         error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
-    if (!is_p(peek(), "...") && !is_p(peek(), "..<"))
+    if (!is_p(peek(), "...") && !is_p(peek(), "..<")) {
+        if (is_range(value_type(s->expr)))
+            return parse_for_range(s, written);
         return parse_for_each_held(s, written);
+    }
     if (s->name2)
         error_at(pos, "two loop variables walk a Dictionary's entries, 'for k, v in d': a range counts with one");
     if (accept_p("..."))
         s->closed = true;
     else if (!accept_p("..<"))
         error_at(peek()->pos, "expected '..<' or '...' in a range, as in '0..<n' or '1...n'");
-    bool saved = brace_ends_condition;
-    saved_for = brace_in_for;
-    brace_ends_condition = brace_in_for = true;
-    s->step = parse_binary(prec);
-    brace_ends_condition = saved;
-    brace_in_for = saved_for;
+    if (s->closed && is_p(peek(), "{")) { /* for i in 0... { }: up to the type's largest (#373) */
+        s->step = NULL;
+    } else {
+        bool saved = brace_ends_condition;
+        saved_for = brace_in_for;
+        brace_ends_condition = brace_in_for = true;
+        s->step = parse_binary(prec);
+        brace_ends_condition = saved;
+        brace_in_for = saved_for;
+    }
     /* both bounds, and a written type, must be integers */
     if (written && !is_integer_type(written))
         error_at(written->pos, "a range is of integers, not %s", kelvin_type(written));
     Type *t = written;
     for (int i = 0; i < 2; i++) {
         Expr *bound = i == 0 ? s->step : s->expr;
+        if (!bound)
+            continue;
         Type *seen = value_type(bound);
         const char *lit = literal_type(bound);
         if (seen && !is_integer_type(seen))
@@ -11440,6 +11709,10 @@ static Stmt *parse_for_in(Pos pos) {
     }
     if (!t)
         t = base_type("i64", name->pos);
+    if (!s->step && !range_int(unqualified(t)))
+        error_at(t->pos, "a range without an end walks up to its type's largest, and this is %s: write the type, as in "
+                         "'for %s:int64 in 0... { }'",
+                 kelvin_type(t), s->name);
     /* the counter must change: drop const and volatile from the bound's type */
     Type *plain = xcalloc(1, sizeof *plain);
     *plain = *t;
@@ -11766,7 +12039,7 @@ static Stmt *parse_stmt_here(void) {
             }
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
             if (result)
-                s->expr = optional_of(s->expr, parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
+                s->expr = optional_of(string_of_ranged(s->expr, parsing_fn->ret), parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */
             if (result)
                 require_bool_return(s->expr, parsing_fn); /* a bool of a bool function (#240) */

@@ -11,13 +11,13 @@
 /* C11 keywords plus Kelvin's own: as, the sized types, bool, true, false,
    any (only as any^, C's void *), nullptr, cstr (u8^), let and var (#27),
    and String (shelved until Kelvin has a true string type, #22); Task,
-   async and await, its threads (#312). C's
+   async and await, its threads (#312); Range (#373). C's
    numeric type names stay reserved so they can be rejected with a hint.
    `in` is a keyword only in `for i in ...`. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
     "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
-    "Task", "async", "await", "Iterator",
+    "Task", "async", "await", "Iterator", "Range",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -45,8 +45,8 @@ static const struct { const char *word, *hint; } foreign_keywords[] = {
    `^=` is absent, because `p^ = x` assigns through a pointer; XOR-assign
    is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`.
    `:=` assigns references (pointers); `=` assigns values. `..<` and
-   `...` make ranges in `for i in ...` (#28); `..` is lexed only to
-   point at them. */
+   `...` make ranges, in `for i in ...` (#28) and as values (#373); `..`
+   is lexed only to point at them. */
 static const char *puncts[] = {
     "...", "..<", "<<=", ">>=", "?\?=", "!!=", "..",
     "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||",

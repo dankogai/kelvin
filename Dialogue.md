@@ -7388,3 +7388,24 @@ the same and says kelvinc's errors. The example's body is written with
 are provisional P384.
 
 There are 1009 tests, and all pass with clang and with gcc 15.
+
+### 418. Range<T>
+
+> make ranges a distinct type as `Range<IntType>` where `IntType` defaults to `i64`.
+> * It is a sequence so it has `.map`, `.filter`, `.reduce` and `.flatMap`. of course, don't forget `.prefix`.
+> * Some languages including Swift support `Range<AnyNumber>` where `AnyNumber` includes `FloatingPoint` types well.  buy for the time being let `Range` support just integers.
+> * `0...` is an infinite sequence of integers while `...end` means `0...end` and `..<end` means `0..end`.  Yet `-n...<n` should work as expected.
+> * Don't forge to give it a document
+
+**Claude** asked four things: whether `-n...<n` meant `-n..<n`, which
+the user confirmed; where `0...` stops and what the eager methods do
+of it, and the user chose `T`'s largest and a refusal, at compile time
+where it is written so and at run time otherwise; what `.prefix` gives,
+and the user chose a Range of `.prefix(n)` and an `Iterator<T>` of
+`.prefix { ... }`; and one change of kelvinc and kc. A range is now a
+value, `Range<T>`, of its bounds and a kind, printed as written; it
+walks as a Sequence, and `for` takes every form, a Range value too.
+documents/ranges.md is its document. kc writes the same and says
+kelvinc's errors. Details are provisional P385.
+
+There are 1018 tests, and all pass with clang and with gcc 15.

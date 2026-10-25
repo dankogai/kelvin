@@ -193,7 +193,7 @@ typedef enum {
     S_WHILE,
     S_DO,
     S_FOR,
-    S_FOR_IN,    /* for i in a..<b { } and for i in a...b { } (#28) */
+    S_FOR_IN,    /* for i in a..<b { } and for i in a...b { } (#28); of a Range value (#373) */
     S_FOR_EACH,  /* for x in s { }: each element of a sequence (#30) */
     S_SWITCH,
     S_CASE,
@@ -230,14 +230,14 @@ struct Stmt {
     List vars;         /* S_VAR: Var * */
     Expr *expr;        /* condition, value, case label */
     Stmt *init;        /* S_FOR */
-    Expr *step;        /* S_FOR; S_FOR_IN: the upper bound; S_FOR_EACH: a
-                          let array parameter's declared length */
+    Expr *step;        /* S_FOR; S_FOR_IN: the upper bound, NULL for lo... (#373);
+                          S_FOR_EACH: a let array parameter's declared length */
     Type *type;        /* S_FOR_IN, S_FOR_EACH: the loop variable's (NULL: unseen) */
     Type *elem;        /* S_FOR_EACH: what s holds (NULL: unseen); for a
                           list, the node's pointer */
     bool closed;       /* S_FOR_IN: a...b, not a..<b */
     bool from_argv;    /* S_FOR_EACH: s is main's argv, which C types char ** */
-    int each;          /* S_FOR_EACH: EACH_* above */
+    int each;          /* S_FOR_EACH: EACH_* above; S_FOR_IN: 1 where expr is a Range value (#373) */
     Decl *next;        /* S_FOR_EACH: an iterator's var next():T? (#318) */
     Stmt *body, *els;  /* loop body / if-then, else */
     char *name;        /* S_GOTO, S_LABEL, S_FOR_IN; S_INLINE_C: the C (#198) */
@@ -319,6 +319,7 @@ typedef struct {
     List views;        /* DictView *: d.keys and d.values used (#66), the Arrays they give */
     List array_decls;  /* intptr_t: the index of the top-level decl that first uses it */
     List modules; /* char *: the modules imported, IO, OS, JSON (#143) */
+    List ranges;  /* Type *: each Range<T> (#373), whose struct is written before the declarations */
 } Program;
 
 extern bool lib_mode;            /* kelvinc --lib (#146): the file becomes libkM, with no main */

@@ -355,6 +355,17 @@ kc reads what it is written in, and little more.
   - A value that owns is given to f as a copy, which f owns.
   - A count that is no integer, and a function that gives no `bool`,
     are kelvinc's errors, in its words.
+- **`Range<T>`** (#373), as kelvinc's: a range is a value.
+  - `a..<b`, `a...b`, `a...` to its type's largest, `..<b` and `...b`
+    from 0, of kc's integers; `...` is a token now.
+  - Its struct, `_kv_range_T`, is written where a program makes one.
+  - `for i in` takes every form, and `for i in r` a Range value.
+  - `map`, `filter`, `reduce` and `flatMap` gather its values; one
+    without an end is kelvinc's error, or ends the program.
+  - `.lazy.map`, `.lazy.filter` and `.prefix { ... }` walk an Iterator
+    kc makes of it, `_kv_iterN`; `.prefix(n)` is a Range.
+  - It prints as written, `0..<5`; its operators and other members are
+    kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

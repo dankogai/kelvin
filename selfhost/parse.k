@@ -38,13 +38,15 @@ enum nkind {                    // the kinds of nodes (#210)
     N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make;
                 // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one;
                 // of a Dictionary (#351), flag 3 of {k: v}, a the literal, 4 of &a, 5 of a, 6 of more, c the token
+    N_RANGE,    // a..<b, a...b (flag 1), a... (flag 2, b -1); ..<b and ...b, a -1 of 0 (#373); ty the Range<T> it is
+    N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
     S_EXPR,
     S_IF,       // if a { b } else c
     S_WHILE,
-    S_FOR,      // for t in a..<b { c }
+    S_FOR,      // for t in a..<b { c }; flag 1 of a...b, 2 of a... (b -1), a -1 of ..<b and ...b (#373)
     S_EACH,     // for t in a { c }; for t, b in a of a Dictionary, b the value's name (#269)
     S_RETURN,
     S_BREAK,
@@ -85,6 +87,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_FIXED,    // [T](N), a fixed array (#354): its element elem, its count name, -1 where its elements give it;
                 // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357);
                 // -10 - n of a count C computes, node n (#366)
+    Y_RANGE,    // a Range<T> (#373): its integers elem
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -133,6 +136,7 @@ var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
 var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
+var range_values = 0       // the ranges that are values, not a for's (#373): then each Range<T>'s struct is written
 
 // whether token t names a C header: <x.h> or "x.h"
 let is_header(t:int64):bool {
@@ -293,6 +297,11 @@ let type_word(y:int64):String {
     case Y_STRUCT: return tok_text(types[y].name)
     case Y_ITER:                                   // (#326)
         var s = $"Iterator_"
+        var e = type_word(types[y].elem)
+        s += &e
+        return s
+    case Y_RANGE:                                  // (#373)
+        var s = $"Range_"
         var e = type_word(types[y].elem)
         s += &e
         return s
@@ -540,6 +549,22 @@ let parse_bare_type():int64 {
         let value:int64 = parse_type()
         expect(">")
         y = type_of_kind(Y_ITER, value, -1)
+    } else if tok_is(t, "Range") {               // Range<T>, Range of i64 (#373)
+        var value:int64 = base_type(Y_I64)
+        if at_word("<") {
+            advance()
+            value = parse_type()
+            expect(">")
+        }
+        let k:ykind = types[value].kind
+        if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 {
+            var m = $"a Range is of integers, i8 to i64 or u8 to u64, and this is "
+            let w:String = type_word(value)
+            m += &w
+            m += "; convert its bounds, as in 'i64(n)'"
+            parse_error(m.cstr)
+        }
+        y = type_of_kind(Y_RANGE, value, -1)
     } else if tok_is(t, "Task") {                // Task<R>, Task of none (#313)
         var value = -1
         if at_word("<") {
@@ -1172,15 +1197,63 @@ let binding_power():int64 {
     if at_word("~") { return 4 }
     if at_word("&") { return 5 }
     if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 6 }
-    if at_word("??") { return 7 }                // a value, or what an Optional holds (#217)
-    if at_word("+") || at_word("-") { return 8 }
-    if at_word("*") || at_word("/") || at_word("%") { return 9 }
-    return 0
+    if at_word("??") { return 8 }                // a value, or what an Optional holds (#217)
+    if at_word("+") || at_word("-") { return 9 }
+    if at_word("*") || at_word("/") || at_word("%") { return 10 }
+    return 0                                     // 7 is a range's, ..< and ... (#373)
+}
+
+// whether the range whose ... was just read ends here, as lo... does
+// (#373): what follows starts no value, or the next line
+let range_ends():bool {
+    if at_kind(T_NL) || at_kind(T_EOF) { return true }
+    if !at_kind(T_PUNCT) { return false }
+    return !(at_word("(") || at_word("-") || at_word("!") || at_word("&") || at_word("$[") || at_word("${") || at_word("[") || at_word("."))
 }
 
 let parse_binary(min:int64):int64 {
-    var e:int64 = parse_unary()
+    var e:int64 = 0 - 1
+    if min <= 7 && (at_word("..<") || at_word("...")) {      // ..<hi, ...hi, from 0 (#373)
+        let t:int64 = advance()
+        if range_ends() {
+            var m = $"'"
+            m += tok_text(t)
+            m += "' before a value is a range from 0, as in '"
+            m += tok_text(t)
+            m += "10', and this has no end"
+            parse_error(m.cstr)
+            return 0 - 1
+        }
+        e = make_node(N_RANGE, t)
+        range_values += 1
+        if tok_is(t, "...") { nodes[e].flag = 1 }
+        set_b(e, parse_binary(8))
+    } else {
+        e = parse_unary()
+    }
     while !failed {
+        if min <= 7 && (at_word("..<") || at_word("...")) {  // lo..<hi, lo...hi, lo... (#373)
+            if nodes[e].kind == N_RANGE {
+                parse_error("a range's bounds are integers, and this would be a range of a range")
+                return 0 - 1
+            }
+            let t:int64 = advance()
+            let r:int64 = make_node(N_RANGE, t)
+            range_values += 1
+            nodes[r].a = e
+            if range_ends() {
+                if tok_is(t, "..<") {
+                    parse_error("'..<' needs an end, as in '0..<10'; a range without one is 'lo...'")
+                    return 0 - 1
+                }
+                nodes[r].flag = 2
+            } else {
+                if tok_is(t, "...") { nodes[r].flag = 1 }
+                set_b(r, parse_binary(8))
+            }
+            e = r
+            continue
+        }
         let p:int64 = binding_power()
         if p == 0 || p < min { return e }
         let t:int64 = advance()
@@ -1360,11 +1433,12 @@ let parse_statement():int64 {
         }
         expect("in")
         let from:int64 = parse_expr()
-        if at_word("..<") {
-            advance()
+        if !failed && nodes[from].kind == N_RANGE {      // for i in a..<b; a...b, a..., ..<b, ...b, flag as the range's (#373)
             let n:int64 = make_node(S_FOR, v)
-            nodes[n].a = from
-            set_b(n, parse_expr())
+            nodes[n].a = nodes[from].a
+            nodes[n].b = nodes[from].b
+            nodes[n].flag = nodes[from].flag
+            range_values -= 1
             set_c(n, parse_block())
             return n
         }

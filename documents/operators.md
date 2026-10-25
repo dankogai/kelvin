@@ -18,16 +18,16 @@ each operator means for its types.
 | 4 | `* / %` | `a * b` | `a * b` |
 | 5 | `+ -` | `a + b` | `a + b` |
 | 6 | `<< >>` | `a << b` | `a << b` |
-| 7 | `< <= > >=` | `a < b` (a `bool`) | `a < b` (an `int`) |
-| 8 | `== !=` | `a == b` (a `bool`) | `a == b` |
-| 9 | `&` | `a & b` | `a & b` |
-| 10 | XOR | `a ~ b` | `a ^ b` |
-| 11 | `\|` | `a \| b` | `a \| b` |
-| 12 | `&&` | `a && b` (`bool`s) | `a && b` |
-| 13 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
-| 14 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251); `a ?? b` of two `T?` a `T?` (#252), of two Results a Result (#253) | |
-| 15 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
-| 16 | ranges | `a..<b`, `a...b` (in `for` only) | |
+| 7 | ranges | `a..<b`, `a...b`, `a...`, `..<b`, `...b`, a `Range<T>` (#373) | |
+| 8 | `< <= > >=` | `a < b` (a `bool`) | `a < b` (an `int`) |
+| 9 | `== !=` | `a == b` (a `bool`) | `a == b` |
+| 10 | `&` | `a & b` | `a & b` |
+| 11 | XOR | `a ~ b` | `a ^ b` |
+| 12 | `\|` | `a \| b` | `a \| b` |
+| 13 | `&&` | `a && b` (`bool`s) | `a && b` |
+| 14 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
+| 15 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251); `a ?? b` of two `T?` a `T?` (#252), of two Results a Result (#253) | |
+| 16 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
 | 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |
 | 18 | `,` | `a, b` (in a `for` clause, an assignment list) | `a, b` |
 
@@ -64,7 +64,9 @@ is `a ?? (b ?? 0)`, the first value of the chain or 0.
   (#51).
   - `i++` on a number is an error that says `i += 1`, and `++p` an
     error that says `p++`.
-- **`a..<b` and `a...b`** are ranges, in `for i in` only (#28).
+- **`a..<b` and `a...b`** are ranges, in `for i in` (#28) and as values,
+  `Range<T>`, with `a...`, `..<b` and `...b` (#373): see
+  [ranges.md](ranges.md).
 - **`.`** reaches a field, a method (`x.m()`), a property (`x.size`,
   `s.count`, `p.isNull`) and a type (`v.type`).
   - `x.name(...)` is a method call when some type defines the method, a

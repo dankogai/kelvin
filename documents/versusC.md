@@ -134,6 +134,7 @@ Each document says so under its title. In short:
 | [sys.md](sys.md) | `SYS`: the arguments, the platform, exiting |
 | [tasks.md](tasks.md) | `async f(x)` and `await`: a call on a thread of its own, a `Task<R>` of its result (#312) |
 | [sets.md](sets.md) | `Set<T>`, `${T}`: elements, `has`, `insert`, the set algebra, walking |
+| [ranges.md](ranges.md) | `Range<T>`: `a..<b`, `a...b`, `a...`, `..<b`, `...b`, a Sequence of integers, `map`, `filter`, `reduce`, `flatMap`, `lazy`, `prefix` (#373) |
 | [iterators.md](iterators.md) | `Iterator<T>`, a state and a function; `var T.next():E?`, Sequences' `makeIterator()`, `for x in it`, and `map`, `filter`, `reduce` and `flatMap` of one |
 | [dictionaries.md](dictionaries.md) | `Dictionary<K, V>`, `${K: V}`: entries, lookup, `keys` and `values`, walking |
 | [arrays.md](arrays.md) | `[T]` and `[T](N)`, `[...]` initializers, `.count`, `[T](n)`, arrays and pointers; `Array<T>`, `$[T]`, the growable one on the heap |

@@ -42,6 +42,9 @@ the design decisions, numbered `#N` throughout, are in
   entries, lookup, `keys` and `values`, walking.
 - [sets.md](sets.md): `Set<T>`, `${T}`: elements, `has`, `insert`, the
   set algebra, walking.
+- [ranges.md](ranges.md): `Range<T>`, `a..<b`, `a...b`, `a...`, a
+  Sequence of integers, with `map`, `filter`, `reduce`, `lazy` and
+  `prefix` (#373).
 - [iterators.md](iterators.md): `Iterator<T>`, a state and a function,
   `var T.next():E?`, Sequences' `makeIterator()`, `for x in it`, and
   `map`, `filter`, `reduce` and `flatMap` of one (#318, #319, #321, #325).

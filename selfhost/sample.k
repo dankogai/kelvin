@@ -660,5 +660,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     var firsts = counting.prefix(10).prefix { $0 * $0 < 30 }
     let smalls = $[$"a", $"bb", $"ccc"].prefix { $0.count < 3 }
     println(firsts.map { $0 }, " ", smalls, " ", $"kelvin".prefix(3), " ", ${3, 1, 4}.prefix(2))
+    let naturals = 0...                                  // Range<T>: a value, a Sequence (#373)
+    let octets3:Range<uint8> = 1...3
+    var evens3 = naturals.lazy.filter { $0 % 2 == 0 }.prefix(3)
+    println(naturals, " ", octets3.map { $0 * 2 }, " ", naturals.prefix(4), " ", evens3.map { $0 }, " ", (..<4).reduce(0) { $0 + $1 })
     return 0
 }

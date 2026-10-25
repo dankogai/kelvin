@@ -49,6 +49,7 @@ static List count_cache;  /* name, cache name, in pairs; innermost last */
 static List param_caches; /* the declarations a function's body block starts with */
 static const char *count_cache_of(const char *name);
 static const char *owner_free(Type *t);
+static bool is_container(Type *t, const char *prefix);
 static const char *owner_take(Type *t);
 static char *eq_code(Type *t, const char *x, const char *y);
 static const char *owner_copy(Type *t);
@@ -148,6 +149,8 @@ static void sync(Pos p) {
 /* ---------- types ---------- */
 
 static char *expr(Expr *e);
+static const char *range_max(Type *t);
+static char *range_walk(Type *t, const char *r, const char *p);
 static char *text_number(Expr *e);
 static char *dispatch_call(Expr *e);
 static char *operand_before(Expr *e);
@@ -1270,6 +1273,34 @@ static char *expr_bare(Expr *e) {
                           "%s_append(&_kv_ia, _kv_io.u.some); } _kv_ia; })",
                           head, e->type->cname, get, some, e->type->cname);
         }
+        if (e->op && !strcmp(e->op, "range")) /* lo..<hi, lo...hi, lo... (#373): kind 0, 1, 2 */
+            return strfmt("((%s){%s, %s, %d})", e->type->cname, expr(e->a), e->b ? expr(e->b) : range_max(e->type->elem),
+                          !e->b ? 2 : !strcmp(e->text, "...") ? 1 : 0);
+        if (e->op && !strcmp(e->op, "range_prefix")) {
+            /* r.prefix(n) (#373): the Range of its first n values, lo..<hi
+               where hi fits in T, else lo...hi; none, lo..<lo */
+            Type *t = e->from->elem;
+            const char *ct = e->from->cname, *mx = range_max(t), *tn = decl(t, "");
+            return strfmt("({ %s _kv_rp = (%s); int64_t _kv_pn = (%s); %s, _kv_pl = _kv_p_lo; bool _kv_pt = _kv_p_go && "
+                          "_kv_pn > 0; if (_kv_pt) _kv_pl = (uint64_t)(_kv_pn - 1) >= (uint64_t)_kv_p_end - (uint64_t)_kv_p_lo "
+                          "? _kv_p_end : (%s)((uint64_t)_kv_p_lo + (uint64_t)(_kv_pn - 1)); (%s){_kv_p_lo, !_kv_pt ? _kv_p_lo "
+                          ": _kv_pl < %s ? (%s)(_kv_pl + 1) : _kv_pl, _kv_pt && _kv_pl == %s}; })",
+                          ct, expr(e->a), expr(e->items.data[0]), range_walk(t, "_kv_rp", "_kv_p"), tn, ct, mx, tn, mx);
+        }
+        if (e->op && !strncmp(e->op, "range_iter", 10)) {
+            /* a Range's Iterator (#373): where it starts, ends and whether it
+               goes, on the heap; one that '.map' and its kin walk to its end
+               has one, or the program ends */
+            const char *check = !strcmp(e->op, "range_iter_all")
+                                    ? strfmt("if (_kv_ri.kind == 2) kv_array_fail(\"this Range has no end, and '.%s' walks "
+                                             "one to its end: take its first few, '.prefix(n)'\"); ",
+                                             e->text)
+                                    : "";
+            return strfmt("({ %s _kv_ri = (%s); %s%s; struct %s_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->at = "
+                          "_kv_r_lo; _kv_is->end = _kv_r_end; _kv_is->go = _kv_r_go; kv_iter_make(_kv_is, NULL, %s_next); })",
+                          e->from->cname, expr(e->a), check, range_walk(e->from->elem, "_kv_ri", "_kv_r"), e->target->name,
+                          e->target->name);
+        }
         if (e->op && !strcmp(e->op, "iter_next")) /* it.next() of an Iterator (#325) */
             return strfmt("({ %s; kv_iter_next(&(%s), &_kv_nv); _kv_nv; })", decl(e->type, "_kv_nv"), expr(e->a));
         if (e->op && !strcmp(e->op, "iter_prefix")) {
@@ -1862,6 +1893,25 @@ static char *text_number(Expr *e) {
     return tmp ? strfmt("({ __auto_type %s = ((void)0, %s); %s; })", tmp, v, c) : c;
 }
 
+/* T's largest, where a Range<T> without an end stops (#373) */
+static const char *range_max(Type *t) {
+    static const char *names[][2] = {{"i8", "INT8_MAX"},   {"i16", "INT16_MAX"}, {"i32", "INT32_MAX"},
+                                     {"i64", "INT64_MAX"}, {"u8", "UINT8_MAX"},  {"u16", "UINT16_MAX"},
+                                     {"u32", "UINT32_MAX"}, {"u64", "UINT64_MAX"}};
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+        if (t && t->kind == T_BASE && !strcmp(t->name, names[i][0]))
+            return names[i][1];
+    return "INT64_MAX";
+}
+
+/* a Range's walk (#373), into the hidden lo, end and go of type T named by
+   p: from lo, whether it goes on at all, and where it ends, inclusive */
+static char *range_walk(Type *t, const char *r, const char *p) {
+    return strfmt("%s = (%s).lo, %s_go = (%s).kind ? %s_lo <= (%s).hi : %s_lo < (%s).hi, %s_end = (%s).kind || !%s_go ? "
+                  "(%s).hi : (%s).hi - 1",
+                  decl(t, strfmt("%s_lo", p)), r, p, r, p, r, p, r, p, r, p, r, r);
+}
+
 static char *expr(Expr *e) {
     char *s = expr_bare(e);
     return e->paren ? strfmt("(%s)", s) : s;
@@ -1912,7 +1962,7 @@ static const char *owner_free(Type *t) {
         return "kv_string_free";
     if (!strcmp(t->name, "IO"))
         return "kv_io_free";
-    if (t->cname) /* Array<T> (#57) */
+    if (t->cname && !is_container(t, "_kv_range_")) /* Array<T> (#57); a Range owns nothing (#373) */
         return strfmt("%s_free", t->cname);
     Decl *r = kelvin_record(t->name);
     if (!r || r->kind != D_STRUCT)
@@ -2500,8 +2550,25 @@ static void stmt(Stmt *s) {
            copy of the counter. a...b stops at b without stepping past
            it, so 0...255 as a u8 ends (#28). */
         const char *v = strcmp(s->name, "_") ? s->name : NULL;
+        if (s->each == 1) { /* for x in r of a Range (#373): its walk, read at run time */
+            char *r = hidden(v, "range"), *w = hidden(v, "walk");
+            line("{");
+            indent++;
+            line("__auto_type %s = %s;", r, expr(s->expr));
+            line("for (%s; %s_go; %s_go = %s_lo != %s_end, %s_lo += %s_go)", range_walk(s->elem, r, w), w, w, w, w, w, w);
+            line("{");
+            indent++;
+            if (v)
+                line("%s = %s_lo;", decl(const_type(s->type), v), w);
+            stmt(s->body);
+            indent--;
+            line("}");
+            indent--;
+            line("}");
+            break;
+        }
         char *i = hidden(v, "count"), *end = hidden(v, "end"), *go = s->closed ? hidden(v, "go") : NULL;
-        char *lo = expr(s->expr), *hi = expr(s->step);
+        char *lo = expr(s->expr), *hi = s->step ? expr(s->step) : (char *)range_max(s->type); /* lo... (#373) */
         if (s->closed)
             line("for (%s = %s, %s = %s, %s = %s <= %s; %s; %s = %s != %s, %s += %s)", decl(s->type, i), lo, end,
                  hi, go, i, end, go, go, i, end, i, go);
@@ -3755,6 +3822,30 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
+        if (d->lazy_op && !strcmp(d->lazy_op, "range")) {
+            /* a Range's Iterator (#373): next gives where it is, then steps
+               while it is short of its end, so it never passes T's largest */
+            if (!d->body) {
+                line("struct %s_st { %s, end; bool go; };", d->name, decl(d->iter_state->elem, "at"));
+                line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);
+                break;
+            }
+            const char *out = strfmt("*(%s *)_kv_out", decl(d->ret, ""));
+            line("static void %s_next(void *_kv_s, void *_kv_out)", d->name);
+            line("{");
+            indent++;
+            line("struct %s_st *_kv_p = _kv_s;", d->name);
+            line("if (!_kv_p->go) {");
+            line("    %s = %s();", out, optional_case(d->ret, "none"));
+            line("    return;");
+            line("}");
+            line("%s = %s(_kv_p->at);", out, optional_case(d->ret, "some"));
+            line("_kv_p->go = _kv_p->at != _kv_p->end;");
+            line("_kv_p->at += _kv_p->go;");
+            indent--;
+            line("}");
+            break;
+        }
         if (d->lazy_op && !strncmp(d->lazy_op, "prefix", 6)) {
             /* x.prefix(n), x.prefix { ... } (#372): an Iterator<T> whose state is
                the base, an Iterator's kv_iter or an iterator, a count left and a
@@ -4134,6 +4225,7 @@ static bool has_show(Type *t) {
     if (!t || t->kind != T_BASE)
         return false;
     return is_container(t, "_kv_array_") || is_container(t, "_kv_dict_") || is_container(t, "_kv_set_") ||
+           is_container(t, "_kv_range_") ||
            kelvin_record(t->name) != NULL;
 }
 
@@ -4270,6 +4362,20 @@ static void emit_show(Type *t) {
     line("{");
     indent++;
     line("__attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;");
+    if (is_container(t, "_kv_range_")) { /* 0..<3, 1...3, 0... as written, which paste back (#373) */
+        line("const %s *self = _kv_v;", t->cname);
+        show_value(t->elem, "self->lo", 0);
+        line("kv_out_put(o, self->kind ? \"...\" : \"..<\");");
+        line("if (self->kind != 2)");
+        line("{");
+        indent++;
+        show_value(t->elem, "self->hi", 0);
+        indent--;
+        line("}");
+        indent--;
+        line("}");
+        return;
+    }
     if (t->cname) {
         line("const %s *self = _kv_v;", t->cname);
         bool dict = is_container(t, "_kv_dict_"), set = is_container(t, "_kv_set_");
@@ -4378,6 +4484,11 @@ char *gen_program(Program *prog, bool with_lines) {
                    "#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n"
                    "#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n"
                    "#include <kelvin_prelude.h>\n");
+    for (int i = 0; i < prog->ranges.len; i++) { /* each Range<T> (#373): T's lo and hi, and its kind */
+        Type *t = prog->ranges.data[i];
+        buf_printf(&out, "#ifndef _KV_RANGE_%s\n#define _KV_RANGE_%s\ntypedef struct %s { %s, hi; uint8_t kind; } %s;\n#endif\n",
+                   t->elem->name, t->elem->name, t->cname, decl(t->elem, "lo"), t->cname);
+    }
     program = prog;
     methods = (List){0};
     cstr_used = (List){0};
