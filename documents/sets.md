@@ -50,6 +50,9 @@ var e:${String} = ${}                    // empty; Set<String>() too
   - `flatMap` (#308): the Sets its function gives each element,
     unioned, which makes a Set a monad: `s.flatMap { Set<int64>({$0,
     $0 + 1}) }`.
+  - `prefix(n)` and `prefix { ... }` (#372): a new Set of the first `n`
+    elements in the order added, or of those before the first the
+    function says false for.
 - **Operators** (#73): `s | t` is the union, `s & t` the intersection
   and `s ~ t` the symmetric difference (what is in one, not both), new
   Sets of two in variables.
@@ -108,6 +111,7 @@ same.
 | | `.elements` | an Array of copies, in the order added |
 | | `.map { ... }`, `.map(f)` | a new Set of what `f` gives each element, an integer or a String (#307) |
 | | `.filter { ... }`, `.filter(f)` | a new Set of the elements `f` says true for (#307) |
+| | `.prefix(n)`, `.prefix { ... }` | a new Set of the first `n` elements in the order added, or of those before the first `f` says false for (#372) |
 | | `.reduce(init) { ... }`, `.reduce(init, f)` | the elements folded in the order added, from `init` (#307) |
 | | `.flatMap { ... }`, `.flatMap(f)` | the Sets `f` gives each element, unioned (#308) |
 | | `for x in s` | each element, in the order added |

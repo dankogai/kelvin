@@ -656,5 +656,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(rows2, " ", rows2[1].count, " ", Array([[5], [6, 7]]))
     var pairs = [[1, 2], [3, 4], [5, 6]]
     println(rows_sum(pairs, pairs.count), " ", pairs[2][1])
+    var counting = Iterator(-1) { $0 += 1; return $0 }   // x.prefix(n), x.prefix { ... }: take, takeWhile (#372)
+    var firsts = counting.prefix(10).prefix { $0 * $0 < 30 }
+    let smalls = $[$"a", $"bb", $"ccc"].prefix { $0.count < 3 }
+    println(firsts.map { $0 }, " ", smalls, " ", $"kelvin".prefix(3), " ", ${3, 1, 4}.prefix(2))
     return 0
 }

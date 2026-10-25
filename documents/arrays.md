@@ -221,6 +221,14 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - What the function returns is a `bool` (#239), as any function's
     of a `bool` result (#240): `{ $0 + 1 }` or `{ x in x }` of numbers
     is an error that says to compare, as in `x != 0`.
+- **`xs.prefix(n)`** and **`xs.prefix { ... }`** (#372), Haskell's
+  `take` and `takeWhile`, are a new Array of the first `n` elements, or
+  of those before the first the function says false for.
+  - `n` past the count gives them all; 0 or less, none.
+  - An owner element is copied in, and lent to an anonymous function,
+    as filter's is (#244).
+  - An Array an expression gives is freed after, so it chains:
+    `xs.map { $0 * 2 }.prefix(3)`.
 - **`xs.reduce(init) { ... }`** (#184) is the value of the function of
   the value so far and each element, from `init`, of `init`'s type:
   `xs.reduce(0) { $0 + $1 }`, `xs.reduce(0, add)`, `names.reduce($"")
@@ -313,6 +321,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 | | `.copy()` | a new Array, each element copied |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each element, `U` whatever `f` gives (#182) |
 | | `.filter(f)`, `.filter { ... }` | a new `Array<T>` of the elements `f` says true for (#184) |
+| | `.prefix(n)`, `.prefix { ... }` | a new `Array<T>` of the first `n` elements, or of those before the first `f` says false for (#372) |
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each element, from `init`, of `init`'s type (#184) |
 | | `.flatMap(f)`, `.flatMap { ... }` | the Arrays `f` gives each element, concatenated, a new `Array<U>` (#308) |
 | | `.sort()`, `.sort(f)`, `.sort { ... }` | sorts a `var` Array in place, by `f`, true where its first goes before its second, or by `<` (#185) |

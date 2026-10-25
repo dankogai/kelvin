@@ -476,6 +476,11 @@ let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
 let iter_lazy_of(n:int64):int64
 let iter_lazy_type_of(n:int64):int64
+let iter_prefix_of(n:int64):int64    // prototypes: x.prefix(n), x.prefix { ... } (#372)
+let iter_prefix_type_of(n:int64):int64
+let walked_elem(y:int64):int64
+let prefix_of(n:int64):int64
+let gen_prefix(n:int64)
 let merge_of(n:int64):int64    // prototypes: a Dictionary's merge and merging (#338)
 let gen_merge(n:int64)
 let put_merge_value(vy:int64)
@@ -801,6 +806,8 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_METHOD && iter_lazy_of(n) >= 0 { return iter_lazy_type_of(n) }   // it.lazy.map(f) of an Iterator (#328)
+    if k == N_METHOD && iter_prefix_of(n) >= 0 { return iter_prefix_type_of(n) }   // it.prefix(n), lazily (#372)
+    if k == N_METHOD && prefix_of(n) >= 0 { return type_of(nodes[n].a) }   // xs.prefix(n), a new one of its kind (#372)
     if k == N_METHOD && lazy_of(n) >= 0 { return lazy_type_of(n) }   // s.lazy.map(f), a lazy Sequence (#324)
     if k == N_METHOD && eager_of(n) >= 0 { return eager_type_of(n) }   // xs.map(f) and the rest (#329)
     if k == N_METHOD && (tok_is(t, "merge") || tok_is(t, "merging")) && merge_of(n) >= 0 {   // (#338)
@@ -2504,6 +2511,15 @@ let gen_method(n:int64) {
     let il:int64 = iter_lazy_of(n)
     if il >= 0 {                                        // it.lazy.map(f) of an Iterator (#328)
         gen_iter_value(il)
+        return
+    }
+    let ip:int64 = iter_prefix_of(n)
+    if ip >= 0 {                                        // it.prefix(n), it.prefix { ... } (#372)
+        gen_iter_value(ip)
+        return
+    }
+    if prefix_of(n) >= 0 {                              // xs.prefix(n), xs.prefix { ... } (#372)
+        gen_prefix(n)
         return
     }
     if lazy_of(n) >= 0 {                                // s.lazy.map(f), s.lazy.filter(f) (#324)
@@ -5537,8 +5553,9 @@ struct iter_rec {
     state_y: int64
     fn: int64
     iter_y: int64
-    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328)
+    op: int64               // 0 of Iterator(...), 1 of it.lazy.map(f), 2 of it.lazy.filter(f) (#328), 3 of x.prefix(n), 4 of x.prefix(f) (#372)
     src: int64              // the state's expression: the state, or the Iterator made lazy
+    count: int64            // prefix(n)'s n; -1 else
 }
 
 var iters:$[iter_rec]
@@ -5659,7 +5676,7 @@ let iter_of(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    let r:iter_rec = {n, sy, fn, type_of_kind(Y_ITER, ey, -1), 0, nodes[n].a}
+    let r:iter_rec = {n, sy, fn, type_of_kind(Y_ITER, ey, -1), 0, nodes[n].a, 0 - 1}
     iters += r
     iter_at[n] = iters.count as int64 - 1
     return iters.count as int64 - 1
@@ -5684,7 +5701,7 @@ let iter_lazy_of(n:int64):int64 {
     let fn:int64 = lazy_fn_of(n, ey, is_map, &me)
     if fn < 0 { return 0 - 1 }
     let uy:int64 = is_map ? nodes[fn].ty : ey
-    let r:iter_rec = {n, by, fn, type_of_kind(Y_ITER, uy, -1), is_map ? 1 : 2, nodes[a].a}
+    let r:iter_rec = {n, by, fn, type_of_kind(Y_ITER, uy, -1), is_map ? 1 : 2, nodes[a].a, 0 - 1}
     iters += r
     iter_at[n] = iters.count as int64 - 1
     return iters.count as int64 - 1
@@ -5692,6 +5709,72 @@ let iter_lazy_of(n:int64):int64 {
 
 let iter_lazy_type_of(n:int64):int64 {
     return iters[iter_lazy_of(n)].iter_y
+}
+
+// what x.prefix(...), n, takes (#372): a count, an integer, -2, or a
+// function of each value, of type ey, that says whether to keep it,
+// checked as kelvinc checks them; -1 where it is in error
+let prefix_arg(n:int64, ey:int64):int64 {
+    let b:int64 = nodes[n].b
+    if b < 0 {
+        gen_error(n, "'.prefix' takes a count, '.prefix(n)', or a function of a value, '.prefix { ... }'")
+        return 0 - 1
+    }
+    if nodes[b].next >= 0 {
+        gen_error(nodes[b].next, "'.prefix' takes one count, or one function")
+        return 0 - 1
+    }
+    if nodes[b].kind == N_ANON || nodes[b].kind == N_ID && var_type(nodes[b].t) < 0 && decl_named(nodes[b].t, D_FN) >= 0 {
+        let me = $"'.prefix'"
+        return lazy_fn_of(n, ey, false, &me)
+    }
+    let cy:int64 = type_of(b)
+    if cy < 0 { return 0 - 1 }
+    let k:ykind = types[cy].kind
+    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+        var m = $"'.prefix' takes a count, an integer, or a function that says whether to keep each value, and this is "
+        let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : kelvin_type_text(cy)
+        m += &w
+        gen_error(b, m.cstr)
+        return 0 - 1
+    }
+    return 0 - 2
+}
+
+// the Iterator x.prefix(n) or x.prefix { ... }, n, makes of an
+// Iterator<T>, an iterator or a Sequence (#372), as kelvinc's: its state
+// the base, moved in, or a Sequence's fresh iterator, with the count left
+// and whether it is done; -1 where n is none
+let iter_prefix_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || !tok_is(nodes[n].t, "prefix") { return 0 - 1 }
+    let seen = iter_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let a:int64 = nodes[n].a
+    if names_type(a) || method_of(n) >= 0 { return 0 - 1 }      // a method of its own wins
+    let y:int64 = type_of(a)
+    if y < 0 { return 0 - 1 }
+    var sy:int64 = y
+    var src:int64 = a
+    let mk = sequence_maker(y)
+    if mk >= 0 {                                         // a Sequence's fresh iterator, s.makeIterator()
+        sy = nodes[mk].ty
+        src = make_node(N_METHOD, nodes[mk].t)
+        nodes[src].a = a
+    } else if types[y].kind != Y_ITER && iterator_next(y) < 0 {
+        return 0 - 1
+    }
+    let ey:int64 = walked_elem(y)
+    if ey < 0 { return 0 - 1 }
+    let fn:int64 = prefix_arg(n, ey)
+    if fn == 0 - 1 { return 0 - 1 }
+    let r:iter_rec = {n, sy, fn < 0 ? 0 - 1 : fn, type_of_kind(Y_ITER, ey, -1), fn < 0 ? 3 : 4, src, fn < 0 ? nodes[n].b : 0 - 1}
+    iters += r
+    iter_at[n] = iters.count as int64 - 1
+    return iters.count as int64 - 1
+}
+
+let iter_prefix_type_of(n:int64):int64 {
+    return iters[iter_prefix_of(n)].iter_y
 }
 
 let iter_type_of(n:int64):int64 {
@@ -5710,9 +5793,22 @@ let gen_iter_make(n:int64) {
 let gen_iter_value(i:int64) {
     let sy:int64 = iters[i].state_y
     let a:int64 = iters[i].src
+    let prefix = iters[i].op >= 3
     put("({ ")
-    put_ctype(sy)
-    put(" *_kv_is = kv_alloc(sizeof *_kv_is); *_kv_is = ")
+    if prefix {                                          // x.prefix(n): the base, the count and the flag (#372)
+        put("struct _kv_iter")
+        put_int(i + 1)
+        put("_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->left = (int64_t)(")
+        if iters[i].count >= 0 {
+            gen_expr(iters[i].count)
+        } else {
+            put("0")
+        }
+        put("); _kv_is->done = false; _kv_is->base = ")
+    } else {
+        put_ctype(sy)
+        put(" *_kv_is = kv_alloc(sizeof *_kv_is); *_kv_is = ")
+    }
     if is_owner(sy) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {   // a var's moves in
         put_owner_prefix(sy)
         put("_take(&")
@@ -5739,11 +5835,66 @@ let gen_iter_value(i:int64) {
 let put_iter_adapters(heads:bool) {
     for i in 0..<iters.count as int64 {
         let r:iter_rec = iters[i]
+        if heads && r.op >= 3 {                          // x.prefix(n)'s state (#372)
+            put("struct _kv_iter")
+            put_int(i + 1)
+            put("_st { ")
+            put_ctype(r.state_y)
+            put(" base; int64_t left; bool done; };\n")
+        }
         put("static void _kv_iter")
         put_int(i + 1)
         put("_next(void *_kv_s, void *_kv_out)")
         if heads {
             put(";\n")
+        } else if r.op >= 3 {                            // x.prefix(n), x.prefix(f) (#372), as kelvinc's
+            let ey:int64 = types[r.iter_y].elem
+            let out_y:int64 = optional_of(ey)
+            let in_y:int64 = types[r.state_y].kind == Y_ITER ? out_y : nodes[iterator_next(r.state_y)].ty
+            put("\n{\n    struct _kv_iter")
+            put_int(i + 1)
+            put("_st *_kv_p = _kv_s;\n    if (")
+            put(r.op == 3 ? "_kv_p->left <= 0" : "_kv_p->done")
+            put(") {\n        *(")
+            put_ctype(out_y)
+            put(" *)_kv_out = _kv_")
+            put_tok(types[out_y].name)
+            put("_make_none();\n        return;\n    }\n")
+            if r.op == 3 { put("    _kv_p->left--;\n") }
+            put("    ")
+            put_ctype(in_y)
+            if types[r.state_y].kind == Y_ITER {
+                put(" _kv_o;\n    kv_iter_next(&_kv_p->base, &_kv_o);\n")
+            } else {
+                put(" _kv_o = ")
+                put_tok(nodes[iterator_next(r.state_y)].c)
+                put("__next(&_kv_p->base);\n")
+            }
+            if r.op == 4 {
+                put("    if (_kv_o.tag == ")
+                put_int(some_tag(in_y))
+                put(" && !")
+                put_fn_name(r.fn)
+                put("(")
+                if is_owner(ey) {
+                    put_owner_prefix(ey)
+                    put("_copy(&_kv_o.u.some)")
+                } else {
+                    put("_kv_o.u.some")
+                }
+                put(")) {\n        _kv_p->done = true;\n")
+                if is_owner(ey) {
+                    put("        ")
+                    put_free(ey)
+                    put("(&_kv_o.u.some);\n")
+                }
+                put("        _kv_o = _kv_")
+                put_tok(types[out_y].name)
+                put("_make_none();\n    }\n")
+            }
+            put("    *(")
+            put_ctype(out_y)
+            put(" *)_kv_out = _kv_o;\n}\n\n")
         } else if r.op != 0 {                         // it.lazy.map(f), .filter(f) (#328), as kelvinc's #327
             let ey:int64 = types[r.state_y].elem
             let in_y:int64 = optional_of(ey)
@@ -5804,6 +5955,12 @@ let put_iter_adapters(heads:bool) {
             put("_drop(void *_kv_s)")
             if heads {
                 put(";\n")
+            } else if r.op >= 3 {
+                put("\n{\n    ")
+                put_free(r.state_y)
+                put("(&((struct _kv_iter")
+                put_int(i + 1)
+                put("_st *)_kv_s)->base);\n}\n\n")
             } else {
                 put("\n{\n    ")
                 put_free(r.state_y)
@@ -6334,6 +6491,137 @@ let gen_eager_keyed(n:int64) {
         put("(&_kv_mr); ")
     }
     put(r.kind == 3 ? "} _kv_acc; })" : "} _kv_mo; })")
+}
+
+// ---------- prefix (#372) ----------
+
+// xs.prefix(n) or xs.prefix { ... } of an Array, a String, a Dictionary
+// or a Set, as kelvinc's #372: a new one of its kind, of the first n, or
+// of those before the first the function says false for
+struct prefix_rec {
+    node: int64
+    src_y: int64
+    elem_y: int64           // what the function is given: an element, a value, a uchr
+    fn: int64               // the function; -1 of a count
+}
+
+var prefixes:$[prefix_rec]
+var prefix_at:Dictionary<int64, int64>
+
+// the prefix n takes, by its place in prefixes; -1 where n is none
+let prefix_of(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || !tok_is(nodes[n].t, "prefix") { return 0 - 1 }
+    let seen = prefix_at.get(n, -1)
+    if seen >= 0 { return seen }
+    let a:int64 = nodes[n].a
+    if names_type(a) || method_of(n) >= 0 { return 0 - 1 }      // a method of its own wins
+    let y:int64 = type_of(a)
+    if y < 0 { return 0 - 1 }
+    let yk:ykind = types[y].kind
+    if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET { return 0 - 1 }
+    let ey:int64 = yk == Y_STRING ? base_type(Y_UCHR) : types[y].elem
+    let fn:int64 = prefix_arg(n, ey)
+    if fn == 0 - 1 { return 0 - 1 }
+    let r:prefix_rec = {n, y, ey, fn < 0 ? 0 - 1 : fn}
+    prefixes += r
+    prefix_at[n] = prefixes.count as int64 - 1
+    return prefixes.count as int64 - 1
+}
+
+// an element, a value or a key for the function, at expression at: a
+// copy of one that owns, which it owns, as kc's eager ones give it (#329)
+let put_prefix_arg(ey:int64, at:cstr) {
+    if is_owner(ey) {
+        put_owner_prefix(ey)
+        put("_copy(&")
+        put(at)
+        put(")")
+    } else {
+        put(at)
+    }
+}
+
+// xs.prefix(n), xs.prefix { ... } (#372): a statement expression, as
+// kelvinc's; one an expression gives held in _kv_mt and freed
+let gen_prefix(n:int64) {
+    let r:prefix_rec = prefixes[prefix_of(n)]
+    let y:int64 = r.src_y
+    let yk:ykind = types[y].kind
+    let a:int64 = nodes[n].a
+    put("({ ")
+    if is_place(a) {
+        put("__auto_type _kv_ms = &(")
+        gen_expr(a)
+        put("); ")
+    } else {
+        put("__attribute__((cleanup(")
+        put_free(y)
+        put("))) ")
+        put_ctype(y)
+        put(" _kv_mt = ")
+        gen_expr(a)
+        put("; ")
+        put_ctype(y)
+        put(" *_kv_ms = &_kv_mt; ")
+    }
+    if r.fn < 0 {
+        put("int64_t _kv_pn = (")
+        gen_expr(nodes[n].b)
+        put("); ")
+    }
+    if (yk == Y_ARRAY || yk == Y_STRING) && r.fn < 0 {      // the first n, a slice
+        put("size_t _kv_pc = _kv_pn <= 0 ? 0 : (uint64_t)_kv_pn < _kv_ms->count ? (size_t)_kv_pn : _kv_ms->count; ")
+        if yk == Y_STRING {
+            put("kv_string_slice")
+        } else {
+            put_ctype(y)
+            put("_slice")
+        }
+        put("(_kv_ms, 0, _kv_pc); })")
+        return
+    }
+    if yk == Y_STRING {                                  // the codepoints before the first f says false for
+        put("const uint8_t *_kv_pp = _kv_ms->b.at, *_kv_pe = _kv_pp ? _kv_pp + _kv_ms->b.count : _kv_pp; size_t _kv_pc = 0; while (_kv_pp < _kv_pe) { kv_uchr _kv_pu = {kv_utf8_next(&_kv_pp)}; if (!")
+        put_fn_name(r.fn)
+        put("(_kv_pu)) break; _kv_pc++; } kv_string_slice(_kv_ms, 0, _kv_pc); })")
+        return
+    }
+    put_ctype(y)
+    put(" _kv_mo = {0}; ")
+    if yk == Y_ARRAY {
+        put("for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++) { if (!")
+        put_fn_name(r.fn)
+        put("(")
+        put_prefix_arg(r.elem_y, "_kv_ms->at[_kv_mi]")
+        put(")) break; ")
+        put_ctype(y)
+        put("_append(&_kv_mo, ")
+        put_prefix_arg(r.elem_y, "_kv_ms->at[_kv_mi]")
+        put("); } _kv_mo; })")
+        return
+    }
+    let dict = yk == Y_DICT
+    let ky:int64 = dict ? types[y].name : types[y].elem
+    let at:cstr := dict ? "_kv_ms->at[_kv_mi].value" : "_kv_ms->at[_kv_mi].key"
+    if r.fn < 0 { put("int64_t _kv_pk = 0; ") }
+    put("for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live) { ")
+    if r.fn < 0 {
+        put("if (_kv_pk >= _kv_pn) break; _kv_pk++; ")
+    } else {
+        put("if (!")
+        put_fn_name(r.fn)
+        put("(")
+        put_prefix_arg(r.elem_y, at)
+        put(")) break; ")
+    }
+    put_owner_prefix(y)
+    put(dict ? "_set(&_kv_mo, " : "_insert(&_kv_mo, ")
+    put_key_text(ky, "_kv_ms->at[_kv_mi].key")
+    if dict {
+        put(", ")
+        put_prefix_arg(r.elem_y, at)
+    }
+    put("); } _kv_mo; })")
 }
 
 // ---------- a Dictionary's merge and merging (#338) ----------

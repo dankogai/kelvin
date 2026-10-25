@@ -345,6 +345,47 @@ let main():int32 {
 - **The values** are as a lazy Sequence's: lent to an anonymous `f`, a
   copy given to a named one, and freed unless `filter` keeps them.
 
+## The first few: `x.prefix(n)` and `x.prefix { ... }`
+
+```swift
+let naturals():Iterator<int64> {
+    return Iterator(-1) {
+        $0 += 1
+        return $0                             // never none: it never ends
+    }
+}
+
+let main():int32 {
+    var ten = naturals().prefix(10)           // 0 to 9, then none
+    println(ten.map { $0 * $0 })              // [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+    var small = naturals().prefix { $0 * $0 < 20 }.prefix(3)
+    for x in small { print(x, ",") }          // 0,1,2,
+    println(" ", $[5, 6, 7].prefix(2))        // [5, 6]
+    return 0
+}
+```
+
+- **`x.prefix(n)` and `x.prefix { ... }`** (#372) are Haskell's `take`
+  and `takeWhile`: the first `n` values, or those before the first the
+  function says false for.
+- **Of an Iterator, an iterator or a Sequence** they give an
+  `Iterator<T>`, lazily, as `it.lazy.map` does (#327).
+  - Its `next` asks the base for a value only while the count lasts,
+    or until the function says false; then it gives `none` and asks no
+    more. So an Iterator that never ends gives the first few.
+  - The base moves in, an Iterator or an iterator of the program's; a
+    Sequence, a lazy one too, gives a fresh iterator and stays.
+  - It is a plain Iterator, so `prefix` chains, and `map`, `filter`,
+    `reduce` and `flatMap` of it walk only what it gives.
+  - A value is lent to an anonymous function, a copy given to a named
+    one; the one the function says false for is freed.
+- **Of an Array, a String, a Dictionary or a Set** they give a new one
+  of that kind, eagerly ([arrays.md](arrays.md),
+  [strings.md](strings.md), [dictionaries.md](dictionaries.md),
+  [sets.md](sets.md)).
+- `n` of 0 or less gives none; the function gives a `bool`, as
+  filter's.
+
 ## kc
 
 kc, the compiler written in Kelvin, reads all of this as kelvinc
@@ -358,7 +399,8 @@ writes it ([selfhost/README.md](../selfhost/README.md)):
   `it.lazy.map` and `it.lazy.filter` of an Iterator (#328);
 - the eager `map`, `filter`, `reduce` and `flatMap` of an iterator, a
   Sequence and an `Iterator<T>` (#329), as of an Array, a Dictionary
-  and a Set (#329, #330).
+  and a Set (#329, #330);
+- `x.prefix(n)` and `x.prefix { ... }` of all of these (#372).
 
 Where kc differs:
 
@@ -394,6 +436,8 @@ it.map(f:(E):U): Array<U>
 it.filter(f:(E):bool): Array<E>
 it.reduce(init:A, f:(A, E):A): A
 it.flatMap(f:(E):Array<U>): Array<U>
+it.prefix(n:int64): Iterator<E>       // the first n, lazily; it moves in
+it.prefix(f:(E):bool): Iterator<E>    // those before the first f says false for
 ```
 
 ## Properties and methods
@@ -404,17 +448,20 @@ it.flatMap(f:(E):Array<U>): Array<U>
 | | `.next()` on a var | the next value as `some`, then `none` (#325) |
 | | `for x in it`, `.map`, `.filter`, `.reduce`, `.flatMap` | as any iterator's (#325) |
 | | `.lazy.map(f)`, `.lazy.filter(f)` | an `Iterator<U>` of it, moved in, `f` called as each is asked for (#327) |
+| | `.prefix(n)`, `.prefix { ... }` | an `Iterator<T>` of it, moved in, of the first `n` values, or of those before the first `f` says false for (#372) |
 | an iterator, `var T.next():E?` | `.next()` on a var | the next value as `some`, then `none`; it changes the iterator (#318) |
 | | `for x in it` | each value, up to `none`; a var goes on where `break` left it (#318) |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each value (#319) |
 | | `.filter(f)`, `.filter { ... }` | a new `Array<E>` of the values `f` says true for (#319) |
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each value, from `init`, of `init`'s type (#319) |
 | | `.flatMap(f)`, `.flatMap { ... }` | the Arrays `f` gives each value, concatenated, a new `Array<U>` (#319) |
+| | `.prefix(n)`, `.prefix { ... }` | an `Iterator<E>` of it, moved in, as an `Iterator<T>`'s (#372) |
 | a Sequence, `let T.makeIterator():I` | `.makeIterator()` | a fresh iterator, which the Sequence gives each time (#321) |
 | | `for x in s` | each value of a fresh iterator; `s` stays as it was, a let too (#321) |
 | | `.map`, `.filter`, `.reduce`, `.flatMap` | as an iterator's, of a fresh iterator; `s` stays as it was (#321) |
 | | `.lazy.map(f)`, `.lazy.map { ... }` | a lazy Sequence of what `f` gives, `f` called as each is asked for (#323) |
 | | `.lazy.filter(f)`, `.lazy.filter { ... }` | a lazy Sequence of the values `f` keeps (#323) |
+| | `.prefix(n)`, `.prefix { ... }` | an `Iterator<E>` of a fresh iterator, as an `Iterator<T>`'s; `s` stays, a lazy Sequence too (#372) |
 | a lazy Sequence | `.map`, `.filter` | lazy too, chained (#323) |
 | | `for x in l`, `.reduce`, `.flatMap` | as any Sequence's: a fresh walk each time (#323) |
 

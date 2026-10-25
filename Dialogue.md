@@ -7372,3 +7372,19 @@ whatever the counts, as kc's since #364. A new test, which ASan fails
 without the fix, has it. Details are provisional P383.
 
 There are 1005 tests, and all pass with clang and with gcc 15.
+
+### 417. x.prefix(n) and x.prefix { ... }
+
+> add `.prefix(n)` and `.prefix { ... }` to all that iterates. the first form is `take` of Haskell and the latter is `takeWhile`. This is needed for infinite iterators like `Iterator(-1){ $0 += 1; $0 }`.
+
+**Claude** asked what each kind should give and how to stage it; the
+user chose Swift-like results, in one change of kelvinc and kc. An
+Iterator, an iterator or a Sequence gives a lazy `Iterator<T>` that asks
+its base no more after the count, or after the first false, so an
+Iterator that never ends gives the first few and they chain; an Array,
+a String, a Dictionary or a Set gives a new one of its kind. kc writes
+the same and says kelvinc's errors. The example's body is written with
+`return $0`, as a body of several statements returns its value. Details
+are provisional P384.
+
+There are 1009 tests, and all pass with clang and with gcc 15.

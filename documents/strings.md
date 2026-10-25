@@ -237,6 +237,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   the text a `cstr` or a String borrowed, `s.find(&t)`.
 - **`s.trim()`** is a new String without the blanks at either end,
   the spaces, tabs and line ends JS's `\s` lists, U+3000 among them.
+- **`s.prefix(n)`** and **`s.prefix { ... }`** (#372) are a new String
+  of the first `n` codepoints, or of those before the first the
+  function says false for: `s.prefix { $0 != ' ' }`.
+  - The function takes each codepoint, a `uchr`.
+  - `n` past the count gives the whole text; 0 or less, none.
 - **Properties:** `count` (the codepoints), `cstr` (a borrow of the
   text), `bytes` (its Bytes, read only), `size`, `typename`.
   - `.cstr` of a String an expression gives lives until the call or
@@ -289,6 +294,7 @@ to come.
 | | `.unescape()` | the escapes read back: `\u{...}`, `\uHHHH` (a surrogate pair joined), `\xHH`, `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\'`; what is none stays as written; with `#import <RegExp>`, `.unescape(&re)` reads back what `re` matches alone (#165) |
 | | `for c in s` | each codepoint, a `uchr` |
 | | `s[lo..<hi]` | a slice by codepoint, a new String (#68); `s[i]` is an error |
+| | `.prefix(n)`, `.prefix { ... }` | a new String of the first `n` codepoints, or of those before the first `f` says false for, `f` of a `uchr` (#372) |
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with `#import <RegExp>` (#157), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes |

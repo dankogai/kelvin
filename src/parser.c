@@ -889,6 +889,8 @@ static Decl *sequence_maker(Type *t);
 static Expr *sequence_iterator(Expr *seq, Decl *mk, Pos at);
 static Expr *parse_lazy_op(Expr *base, Token *name, const char *member);
 static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member);
+static Expr *parse_prefix(Expr *e, Token *name, bool call);
+static bool prefix_receiver(Type *t);
 static Expr *parse_lazy_fn(Expr *x, Token *name, const char *member, Type *elem, const char *me);
 static void reject_lazy_text(Expr *x, const char *who);
 static Type *optional_type(Token *at, Type *inner);
@@ -1980,6 +1982,11 @@ static Expr *parse_postfix_steps(Expr *e) {
             if (value_type(e) && type_class(value_type(e), &lazy_of) == 's' && lazy_of && lazy_of->lazy && (!strcmp(member, "map") || !strcmp(member, "filter")) &&
                 (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
                 e = parse_lazy_op(e, name, member); /* a lazy Sequence's own map and filter are lazy (#323) */
+                continue;
+            }
+            if (!strcmp(member, "prefix") && !method_named(e, member) && prefix_receiver(value_type(e)) &&
+                (call || (is_p(peek(), "{") && !brace_ends_condition && !line_starts_statement()))) {
+                e = parse_prefix(e, name, call); /* xs.prefix(n), xs.prefix { ... } (#372) */
                 continue;
             }
             if (!strcmp(member, "pretty")) {
@@ -5411,7 +5418,9 @@ static Type *value_type_of(Expr *e) {
         if (e->op && !strcmp(e->op, "record_copy")) /* s.copy() of a struct that owns (#61) */
             return e->type;
         if (e->op && (!strncmp(e->op, "iter_array", 10) || !strncmp(e->op, "lazy_make", 9) ||
-                      !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next"))) /* (#319, #323, #325) */
+                      !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next") || !strcmp(e->op, "iter_prefix") ||
+                      !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
+                      !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13))) /* (#319, #323, #325, #372) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -11007,6 +11016,135 @@ static Expr *parse_iter_lazy(Expr *base, Token *name, const char *member) {
     x->target = ad;
     x->from = bt;
     x->type = iter_type(name->pos, u);
+    return x;
+}
+
+/* what .prefix takes (#372): all that iterates, a Sequence, an iterator,
+   an Iterator<T>, an Array, a Dictionary, a Set, a String */
+static bool prefix_receiver(Type *t) {
+    t = unqualified(t);
+    return t && (sequence_maker(t) || iterator_next(t) || is_iter(t) || is_array_owner(t) || is_dict_owner(t) ||
+                 is_set_owner(t) || is_string(t));
+}
+
+/* x.prefix(n) and x.prefix { ... } (#372), Haskell's take and takeWhile,
+   Swift's prefix(_:) and prefix(while:): the first n values, or those up
+   to the first that f says false for. Of an Array, a Dictionary, a Set or
+   a String, a new one of the kind, eager; of what may be endless, a
+   Sequence, an iterator or an Iterator<T>, a lazy Iterator<T> whose next
+   asks the base only for the values it gives, so that
+   Iterator(-1) { $0 += 1; $0 }.prefix(10) ends: kelvinc's adapter
+   _kv_iterN, its state the base, moved in, a count left and a flag */
+static Expr *parse_prefix(Expr *e, Token *name, bool call) {
+    const char *me = "'.prefix'";
+    Type *vt = unqualified(value_type(e));
+    Decl *mk = sequence_maker(vt), *nx = mk ? NULL : iterator_next(vt);
+    bool iter = !mk && !nx && is_iter(vt);
+    Expr *base = e;
+    Type *bt = vt, *elem = NULL;
+    Decl *next = NULL;
+    if (mk) { /* a Sequence: a fresh iterator of it */
+        if (is_owner(vt) && !owner_place(e))
+            e = make_temp(e, "a Sequence that an expression gives: bind it to a variable first");
+        base = sequence_iterator(e, mk, name->pos);
+        bt = unqualified(value_type(base));
+        next = iterator_next(bt);
+        elem = iterator_elem(next);
+    } else if (nx) {
+        next = nx;
+        elem = iterator_elem(nx);
+    } else if (iter) {
+        next = iter_builtin_next(vt);
+        elem = vt->elem;
+    } else if (is_string(vt)) {
+        elem = base_type("uchr", name->pos);
+    } else {
+        elem = vt->elem; /* an Array's element, a Set's, a Dictionary's value */
+    }
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->a = base;
+    x->text = "prefix";
+    Type *ctx = xcalloc(1, sizeof *ctx);
+    ctx->kind = T_FUNC;
+    ctx->pos = name->pos;
+    list_push(&ctx->params, elem);
+    ctx->elem = base_type("bool", name->pos);
+    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+    Expr *n = NULL, *f = NULL;
+    bool_anon_result = me;
+    lend_anon_from = 0; /* each value lent (#244) */
+    if (call) {
+        advance();
+        ident_annotation_ok = true;
+        brace_ends_condition = false;
+        if (is_p(peek(), ")"))
+            error_at(peek()->pos, "%s takes a count, '.prefix(n)', or a function of a value, '.prefix { ... }'", me);
+        if (is_p(peek(), "{")) {
+            f = anon_arg(ctx, 1, 0, x, false);
+        } else {
+            Expr *a = parse_assign();
+            Type *at = value_type(a);
+            if (at && at->kind == T_FUNC)
+                f = a;
+            else
+                n = a;
+        }
+        if (is_p(peek(), ","))
+            error_at(peek()->pos, "%s takes one count, or one function", me);
+        ident_annotation_ok = saved;
+        brace_ends_condition = saved_brace;
+        expect_p(")");
+    } else {
+        f = anon_arg(ctx, 1, 0, x, true);
+        if (at_statement_level())
+            trailing_end = cur;
+    }
+    bool_anon_result = NULL;
+    lend_anon_from = -1;
+    if (n) {
+        Decl *r;
+        char c = expr_class(n, &r);
+        bool flag = n->is_bool || bool_shape(n);
+        if (flag || (c != 'i' && c != 'u'))
+            error_at(n->pos, "%s takes a count, an integer, or a function that says whether to keep each value, and this is %s",
+                     me, flag ? "a bool" : c == 'f' ? "a floating-point number" : value_type(n) ? kelvin_type(value_type(n)) : "not one");
+    } else {
+        Type *ft = value_type(f);
+        if (!ft || ft->kind != T_FUNC || ft->params.len != 1 || !ft->elem)
+            error_at(f->pos, "%s takes a function of one parameter, a value, with a result, and this is %s", me,
+                     ft ? kelvin_type(ft) : "not one");
+        if (strcmp(kelvin_type(unqualified(ft->params.data[0])), kelvin_type(elem)))
+            error_at(f->pos, "%s calls its function with each value, %s, and this takes %s", me, kelvin_type(elem),
+                     kelvin_type(ft->params.data[0]));
+        if (strcmp(kelvin_type(unqualified(ft->elem)), "bool"))
+            error_at(f->pos, "%s takes a function that says whether to keep a value, a bool, and this gives %s", me,
+                     kelvin_type(ft->elem));
+    }
+    list_push(&x->items, n ? n : f);
+    if (next) { /* lazy: an Iterator<T> of the base, moved in */
+        if (!mk && is_owner(bt))
+            move_argument(base, bt, "'.prefix'");
+        Decl *ad = new_decl(D_FN, name->pos, "static");
+        ad->name = strfmt("_kv_iter%d", ++iter_serial);
+        ad->ret = next->ret;
+        ad->iter_fn = f;
+        ad->iter_state = bt;
+        ad->lazy_op = f ? "prefix_while" : "prefix";
+        ad->lazy_next = next;
+        ad->lazy_lent = f ? lends_param(f, 0) : false;
+        ad->body = new_stmt(S_BLOCK, name->pos);
+        list_push(&anon_fns, ad);
+        x->op = "iter_prefix";
+        x->target = ad;
+        x->from = bt;
+        x->type = iter_type(name->pos, elem);
+        return x;
+    }
+    const char *kind = is_string(vt) ? "string" : is_dict_owner(vt) ? "dict" : is_set_owner(vt) ? "set" : "array";
+    x->op = strfmt("%s_prefix%s%s%s", kind, f ? "While" : "", owner_place(e) ? "" : "_tmp",
+                   f && lends_param(f, 0) ? "_lent" : "");
+    x->from = vt;
+    x->type = vt;
     return x;
 }
 

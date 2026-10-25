@@ -403,6 +403,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 369 | kc reads a fixed array in an Array as kelvinc does: `[T]` in `$[...]` an Array in turn, `$[[int64]]`, and a list among `$[...]`'s or `Array([...])`'s elements an Array, `$[[1, 2], [3]]`; a count in it, `Array<[T]>()`, a Dictionary's and a Set's kelvinc's errors in its words | — | kc's `var rows2:$[[int64]] = $[[1, 2], [3]]` | 2026-10-25 |
 | 370 | kc reads a parameter of fixed arrays, `m:[[int64](3)]`, as kelvinc does: a pointer to its rows in C, `m[i][j]`, its rows' count written and its count passed beside it, of owners too; rows of no count, `[const [T](N)]` and rows of another count are errors | `__typeof__(int64_t[3]) *m` | kc's `let rows_sum(m:[[int64](2)], rows:int64)` | 2026-10-25 |
 | 371 | kelvinc frees and copies each innermost element of a member's or a case's array of arrays of owners, `[[String](2)](2)`, where it saw no owner in an array of arrays and leaked them | a loop of `kv_string_free` over the innermost elements | `struct pair { grid: [[String](2)](2) }` | 2026-10-25 |
+| 372 | kelvinc and kc read `x.prefix(n)` and `x.prefix { ... }`, Haskell's take and takeWhile: of an Iterator, an iterator or a Sequence a lazy `Iterator<T>` that asks its base no more after, so an Iterator that never ends gives the first few; of an Array, a String, a Dictionary or a Set a new one of its kind | an adapter of a state holding the base, the count left and a flag; a slice, or a loop to the first false | `Iterator(-1) { $0 += 1; return $0 }.prefix(10)` | 2026-10-25 |
 
 Notes:
 
@@ -965,6 +966,25 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
+- (372) Agreed details: "add `.prefix(n)` and `.prefix { ... }` to all
+  that iterates", take and takeWhile, needed for an Iterator that never
+  ends; the user chose Swift-like results, and kelvinc and kc in one
+  change.
+  - Of an `Iterator<T>`, an iterator of the program's, a Sequence or a
+    lazy Sequence: an `Iterator<T>`, lazily.
+    - Its state holds the base, moved in (a Sequence's fresh iterator),
+      the count left and whether it is done.
+    - next gives none once the count is spent, or at the first value the
+      function says false for, which is freed, and asks no more.
+  - Of an Array, a String (codepoints, f of a `uchr`), a Dictionary (f
+    of a value) or a Set: a new one of its kind, in insertion order; a
+    receiver an expression gives is held and freed.
+  - A count of 0 or less gives none, past the count all.
+  - Errors: a count that is no integer (a float, a bool, a String), a
+    function that gives no bool, as filter's; kc says kelvinc's words.
+  - Fixed arrays have no prefix, as they have no map or filter.
+  - Not here: `{ $0 += 1; $0 }`, a last expression of several
+    statements as the result; kc's comparison of a `uchr`.
 - (371) Agreed details: "teach kelvinc to free the inner elements of
   [[String](2)](2) as #371", found in #364.
   - src/codegen.c: owner_free of a struct asked a member's array of its
@@ -4943,6 +4963,7 @@ says "as agreed".
 | P381 | Details of #369 | selfhost/parse.k: grown, lists_grow, `$[[T](N)]` refused; selfhost/gen.k: fixed_container_text in refuse_fixed; selfhost/sample.k; selfhost/README.md | — |
 | P382 | Details of #370 | selfhost/gen.k: gen_function's parameter of counted rows; selfhost/parse.k: `[const [T](N)]` refused; selfhost/sample.k; selfhost/README.md | — |
 | P383 | Details of #371 | src/codegen.c: array_base, owner_free of a struct's member, emit_derived_copy, the struct's free, the enum's free and copy; tests/run/array_owner_rows.k | — |
+| P384 | Details of #372 | src/parser.c: prefix_receiver, parse_prefix, the op table; src/codegen.c: the prefix adapter of the D_FN, iter_prefix, array_/dict_/set_/string_prefix; selfhost/gen.k: iter_rec ops 3 and 4, prefix_arg, iter_prefix_of, prefix_rec, gen_prefix; selfhost/parse.k: prefix's trailing function; tests/run/prefix.k, tests/error/prefix_*.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -1097,7 +1097,7 @@ let parse_steps(first:int64):int64 {
                     }
                 }
                 e = n
-            } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap") || tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "flatMapWithKey") || tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "firstIndex") || tok_is(t, "lastIndex")) && anon_ahead() {   // x.map { ... }, its function trailing (#324), d.contains { ... } and the rest (#339), xs.firstIndex { ... } (#342)
+            } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap") || tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "flatMapWithKey") || tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "firstIndex") || tok_is(t, "lastIndex") || tok_is(t, "prefix")) && anon_ahead() {   // x.map { ... }, its function trailing (#324), d.contains { ... } and the rest (#339), xs.firstIndex { ... } (#342), x.prefix { ... } (#372)
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
                 set_b(n, parse_anon())

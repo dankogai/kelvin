@@ -1272,6 +1272,69 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "iter_next")) /* it.next() of an Iterator (#325) */
             return strfmt("({ %s; kv_iter_next(&(%s), &_kv_nv); _kv_nv; })", decl(e->type, "_kv_nv"), expr(e->a));
+        if (e->op && !strcmp(e->op, "iter_prefix")) {
+            /* x.prefix(n), x.prefix { ... } (#372): its state on the heap, the base
+               moved in, the count, and the adapters kelvinc writes */
+            Expr *x = e->a;
+            const char *take = local_owner(x) ? owner_take(e->from) : NULL;
+            Expr *n = e->target->lazy_op && !strcmp(e->target->lazy_op, "prefix") ? e->items.data[0] : NULL;
+            return strfmt("({ struct %s_st *_kv_is = kv_alloc(sizeof *_kv_is); _kv_is->base = %s; _kv_is->left = "
+                          "(int64_t)(%s); _kv_is->done = false; kv_iter_make(_kv_is, %s_drop, %s_next); })",
+                          e->target->name, take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x), n ? expr(n) : "0",
+                          e->target->name, e->target->name);
+        }
+        if (e->op && e->type && (!strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
+                                 !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13))) {
+            /* xs.prefix(n), xs.prefix { ... } (#372): a new one of the kind, of the
+               first n, or of those up to the first f says false for; an owner
+               element copied in, and given f as filter gives it; a receiver an
+               expression gives held in _kv_mt and freed */
+            Type *ct = e->from;
+            bool tmp = strstr(e->op, "_tmp") != NULL, lent = strstr(e->op, "_lent") != NULL;
+            bool whilef = strstr(e->op, "While") != NULL;
+            const char *cname = !strncmp(e->op, "string", 6) ? "kv_string" : ct->cname;
+            const char *head = tmp ? strfmt("__attribute__((cleanup(%s_free))) %s _kv_mt = (%s); __auto_type _kv_ms = &_kv_mt;",
+                                            cname, cname, expr(e->a))
+                                   : strfmt("__auto_type _kv_ms = &(%s);", expr(e->a));
+            const char *arg0 = expr(e->items.data[0]);
+            const char *clamp = "int64_t _kv_pn = (%s); size_t _kv_pc = _kv_pn <= 0 ? 0 : (uint64_t)_kv_pn < _kv_ms->count "
+                                "? (size_t)_kv_pn : _kv_ms->count;";
+            if (!strncmp(e->op, "string", 6)) {
+                if (!whilef)
+                    return strfmt("({ %s %s kv_string_slice(_kv_ms, 0, _kv_pc); })", head, strfmt(clamp, arg0));
+                return strfmt("({ %s const uint8_t *_kv_pp = _kv_ms->b.at, *_kv_pe = _kv_pp ? _kv_pp + _kv_ms->b.count : "
+                              "_kv_pp; size_t _kv_pc = 0; while (_kv_pp < _kv_pe) { kv_uchr _kv_pu = {kv_utf8_next(&_kv_pp)}; "
+                              "if (!(%s(_kv_pu))) break; _kv_pc++; } kv_string_slice(_kv_ms, 0, _kv_pc); })",
+                              head, arg0);
+            }
+            if (!strncmp(e->op, "array", 5)) {
+                if (!whilef)
+                    return strfmt("({ %s %s %s_slice(_kv_ms, 0, _kv_pc); })", head, strfmt(clamp, arg0), cname);
+                const char *copy = owner_copy(ct->elem);
+                const char *elem = copy ? strfmt("%s(&_kv_ms->at[_kv_mi])", copy) : "_kv_ms->at[_kv_mi]";
+                return strfmt("({ %s %s _kv_mo = {0}; for (size_t _kv_mi = 0; _kv_mi < _kv_ms->count; _kv_mi++) { if "
+                              "(!(%s(%s))) break; %s_append(&_kv_mo, %s); } _kv_mo; })",
+                              head, cname, arg0, lent ? "_kv_ms->at[_kv_mi]" : elem, cname, elem);
+            }
+            const char *loop = "for (size_t _kv_mi = 0; _kv_mi < _kv_ms->len; _kv_mi++) if (_kv_ms->at[_kv_mi].live)";
+            const char *stop = whilef ? "" : strfmt("int64_t _kv_pn = (%s); int64_t _kv_pk = 0;", arg0);
+            if (!strncmp(e->op, "dict", 4)) {
+                const char *lk = !strcmp(ct->key->name, "String") ? "KV_LK_TEXT" : "KV_LK_INT";
+                const char *copy = owner_copy(ct->elem);
+                const char *value = copy ? strfmt("%s(&_kv_ms->at[_kv_mi].value)", copy) : "_kv_ms->at[_kv_mi].value";
+                const char *test = whilef ? strfmt("if (!(%s(%s))) break;", arg0, lent ? "_kv_ms->at[_kv_mi].value" : value)
+                                          : "if (_kv_pk >= _kv_pn) break; _kv_pk++;";
+                return strfmt("({ %s %s %s _kv_mo = {0}; %s { %s %s_set(&_kv_mo, %s(&_kv_ms->at[_kv_mi].key), %s); } "
+                              "_kv_mo; })",
+                              head, stop, cname, loop, test, cname, lk, value);
+            }
+            const char *at = "_kv_ms->at[_kv_mi].key";
+            const char *copy = owner_copy(ct->elem);
+            const char *test = whilef ? strfmt("if (!(%s(%s))) break;", arg0, lent || !copy ? at : strfmt("%s(&%s)", copy, at))
+                                      : "if (_kv_pk >= _kv_pn) break; _kv_pk++;";
+            return strfmt("({ %s %s %s _kv_mo = {0}; %s { %s %s_insert(&_kv_mo, %s); } _kv_mo; })", head, stop, cname,
+                          loop, test, cname, !strcmp(ct->elem->name, "String") ? strfmt("KV_LK_TEXT(&%s)", at) : at);
+        }
         if (e->op && !strcmp(e->op, "iter_make")) {
             /* Iterator(state) { ... } (#325): the state moved to the heap, and
                the adapters of its function, which kelvinc writes */
@@ -3692,6 +3755,71 @@ static void emit_decl(Decl *d) {
         mapped_line = -1;
         break;
     case D_FN:
+        if (d->lazy_op && !strncmp(d->lazy_op, "prefix", 6)) {
+            /* x.prefix(n), x.prefix { ... } (#372): an Iterator<T> whose state is
+               the base, an Iterator's kv_iter or an iterator, a count left and a
+               flag; next gives the base's next value while the count lasts, or
+               while f says true, and asks it no more after; drop frees it */
+            bool builtin = d->lazy_next->iter_builtin;
+            const char *bfree = owner_free(d->iter_state);
+            if (!d->body) {
+                line("struct %s_st { %s; int64_t left; bool done; };", d->name, decl(d->iter_state, "base"));
+                line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);
+                line("static void %s_drop(void *_kv_s);", d->name);
+                break;
+            }
+            Type *elem = NULL;
+            int some = optional_some(d->ret, &elem);
+            const char *copy = owner_copy(elem), *efree = owner_free(elem);
+            const char *out = strfmt("*(%s *)_kv_out", decl(d->ret, ""));
+            const char *none = strfmt("%s()", optional_case(d->ret, "none"));
+            line("static void %s_next(void *_kv_s, void *_kv_out)", d->name);
+            line("{");
+            indent++;
+            line("struct %s_st *_kv_p = _kv_s;", d->name);
+            if (!strcmp(d->lazy_op, "prefix")) {
+                line("if (_kv_p->left <= 0) {");
+                line("    %s = %s;", out, none);
+                line("    return;");
+                line("}");
+                line("_kv_p->left--;");
+                if (builtin)
+                    line("kv_iter_next(&_kv_p->base, _kv_out);");
+                else
+                    line("%s = %s(&_kv_p->base);", out, method_cname(d->lazy_next));
+            } else {
+                const char *arg = d->lazy_lent || !copy ? "_kv_o.u.some" : strfmt("%s(&_kv_o.u.some)", copy);
+                line("if (_kv_p->done) {");
+                line("    %s = %s;", out, none);
+                line("    return;");
+                line("}");
+                line("%s;", decl(d->ret, "_kv_o"));
+                if (builtin)
+                    line("kv_iter_next(&_kv_p->base, &_kv_o);");
+                else
+                    line("_kv_o = %s(&_kv_p->base);", method_cname(d->lazy_next));
+                line("if (_kv_o.tag == %d && %s(%s)) {", some, expr(d->iter_fn), arg);
+                line("    %s = _kv_o;", out);
+                line("    return;");
+                line("}");
+                line("if (_kv_o.tag == %d) {", some);
+                line("    _kv_p->done = true;");
+                if (efree)
+                    line("    %s(&_kv_o.u.some);", efree);
+                line("}");
+                line("%s = %s;", out, none);
+            }
+            indent--;
+            line("}");
+            line("static void %s_drop(void *_kv_s)", d->name);
+            line("{");
+            if (bfree)
+                line("    %s(&((struct %s_st *)_kv_s)->base);", bfree, d->name);
+            else
+                line("    (void)_kv_s;");
+            line("}");
+            break;
+        }
         if (d->iter_fn && d->lazy_op) { /* it.lazy.map(f), .filter(f) of an Iterator (#327) */
             if (!d->body) {
                 line("static void %s_next(void *_kv_s, void *_kv_out);", d->name);

@@ -342,6 +342,19 @@ kc reads what it is written in, and little more.
   - A function trailing a method call's parentheses, `x.m(a) { ... }`,
     is its last argument, so `.lazy` before another method is kelvinc's
     error, in its words.
+- **`x.prefix(n)` and `x.prefix { ... }`** (#372), as kelvinc's:
+  Haskell's `take` and `takeWhile`.
+  - Of an `Iterator<T>`, an iterator or a Sequence: an `Iterator<T>`,
+    lazily.
+    - Its state, `struct _kv_iterN_st`, holds the base, the count left
+      and whether it is done.
+    - The base moves in; a Sequence gives a fresh iterator and stays.
+    - So `Iterator(-1) { ... }.prefix(10)` ends, and chains.
+  - Of an Array, a String, a Dictionary or a Set: a new one of its kind.
+    - A String's function takes each codepoint, a `uchr`.
+  - A value that owns is given to f as a copy, which f owns.
+  - A count that is no integer, and a function that gives no `bool`,
+    are kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -133,6 +133,9 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     - A String key is given as its text, a `cstr`, lent; an integer
       key as itself.
     - `mapWithKey`'s function gives the new value alone: the keys stay.
+  - **`d.prefix(n)`** and **`d.prefix { v in ... }`** (#372) are a new
+    Dictionary of the first `n` entries in the order added, or of those
+    before the first value the function says false for.
 - **Searching the values** (#249), as an Array's elements (#248):
   `d.contains(v)` is whether `v` is among the values, a `bool`;
   `d.firstKey(v)` and `d.lastKey(v)` the key of the first and the last
@@ -214,6 +217,7 @@ same.
 | | `.map { v in ... }` | a new Dictionary of the same keys, each value the function's (#238) |
 | | `.filter { v in ... }` | a new Dictionary of the entries whose value the function says true for (#238) |
 | | `.reduce(init) { acc, v in ... }` | the values folded, in the order added (#238) |
+| | `.prefix(n)`, `.prefix { v in ... }` | a new Dictionary of the first `n` entries in the order added, or of those before the first value `f` says false for (#372) |
 | | `.mapWithKey { k, v in ... }`, `.filterWithKey { k, v in ... }`, `.reduceWithKey(init) { acc, k, v in ... }` | the same, of each key, a `cstr` of a String's, and its value (#241) |
 | | `.flatMap { v in ... }`, `.flatMapWithKey { k, v in ... }` | the Dictionaries the function gives, merged in the order added, a later entry winning (#308) |
 | | `.contains(v)`, `.contains { v in ... }` | whether `v`, or a value the function says true for, is there, a `bool` (#249) |
