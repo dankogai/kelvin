@@ -42,10 +42,11 @@ MOD_SHLIBS := modules/libkIO.$(SO) modules/libkOS.$(SO)
 
 all: kelvinc modules/libkelvin.a modules/$(SHLIB) $(MOD_LIBS) $(MOD_SHLIBS) $(KELVIN_LIBS)
 
-# kelvinc checks a $/.../ literal (#163) with the pattern parser of RegExp and the Unicode tables
+# kelvinc checks a $/.../ literal (#163) with the pattern parser of RegExp and the Unicode tables;
+# it works out a power of two literals with libm's pow (#380)
 CHECK_OBJS := build/runtime/regexp_parse.o build/runtime/unicode_tables.o
 kelvinc: $(OBJS) $(CHECK_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(CHECK_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(CHECK_OBJS) -lm
 
 build/%.o: src/%.c src/kelvin.h | build
 	$(CC) $(CFLAGS) -c -o $@ $<

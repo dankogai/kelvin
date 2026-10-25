@@ -240,6 +240,8 @@ kv_string kv_string_lit(const void *p, size_t n);
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
+/* b.pow(e, m) (#380), Python's pow(b, e, m): runtime/pow.k's */
+__int128 kv_pow_mod(__int128 b, __int128 e, __int128 m);
 /* a slice (#68): lo..<hi within count, else the program ends */
 void kv_slice_range(size_t lo, size_t hi, size_t count, const char *what);
 kv_bytes kv_bytes_slice(const kv_bytes *b, size_t lo, size_t hi);

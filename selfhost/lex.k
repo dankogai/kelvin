@@ -94,6 +94,8 @@ let punct_len(i:int64):int64 {
     if c == '.' && d == '.' && code_at(i + 2) == '<' { return 3 }
     if c == '.' && d == '.' && code_at(i + 2) == '.' { return 3 }      // ... of a range (#373)
     if c == '$' && (d == '[' || d == '{') { return 2 }    // $[ of an Array, ${:} of a Dictionary (#211)
+    if c == '*' && d == '*' && code_at(i + 2) == '=' { return 3 }      // **= (#380)
+    if c == '*' && d == '*' { return 2 }                   // ** of a power (#380)
     if (c == '=' || c == '!' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == '|' || c == '&' || c == '~') && d == '=' { return 2 }   // |= &= ~= (#276)
     if c == '&' && d == '&' { return 2 }
     if c == '?' && d == '?' { return 2 }                   // ?? (#217)

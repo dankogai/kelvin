@@ -2,7 +2,8 @@
 
 Kelvin keeps C's operators and C's precedence, with a few spellings
 moved: `^` dereferences, `~` is XOR, `:=` assigns a reference, `as`
-converts, and assignment, `++` and `--` are statements. This document
+converts, and assignment, `++` and `--` are statements; `**` raises to
+a power, Python's (#380). This document
 is the table, highest precedence first; the other documents say what
 each operator means for its types.
 
@@ -13,31 +14,33 @@ each operator means for its types.
 | Level | Operators | Kelvin | C |
 |------:|-----------|--------|---|
 | 1 | postfix | `p^`, `a[i]`, `f(x)`, `s.m`, `p^.m`, `x.prop`, `x.method()`, `p++`, `p--` (statements) | `*p`, `a[i]`, `f(x)`, `s.m`, `p->m`, `x++` |
-| 2 | prefix | `&x`, `-x`, `+x`, `!b`, `~n`, `try r` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
-| 3 | conversion | `x as T`, `x:T`, `T(x)` | `(T)x` |
-| 4 | `* / %` | `a * b` | `a * b` |
-| 5 | `+ -` | `a + b` | `a + b` |
-| 6 | `<< >>` | `a << b` | `a << b` |
-| 7 | ranges | `a..<b`, `a...b`, `a...`, `..<b`, `...b`, a `Range<T>` (#373) | |
-| 8 | `< <= > >=` | `a < b` (a `bool`) | `a < b` (an `int`) |
-| 9 | `== !=` | `a == b` (a `bool`) | `a == b` |
-| 10 | `&` | `a & b` | `a & b` |
-| 11 | XOR | `a ~ b` | `a ^ b` |
-| 12 | `\|` | `a \| b` | `a \| b` |
-| 13 | `&&` | `a && b` (`bool`s) | `a && b` |
-| 14 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
-| 15 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251); `a ?? b` of two `T?` a `T?` (#252), of two Results a Result (#253) | |
-| 16 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
-| 17 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`; `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |
-| 18 | `,` | `a, b` (in a `for` clause, an assignment list) | `a, b` |
+| 2 | power | `a ** b`, right to left, its right operand a prefix's: `-2 ** 2` is `-(2 ** 2)`, `2 ** -1` is `2 ** (-1)` (#380) | `pow(a, b)` |
+| 3 | prefix | `&x`, `-x`, `+x`, `!b`, `~n`, `try r` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
+| 4 | conversion | `x as T`, `x:T`, `T(x)` | `(T)x` |
+| 5 | `* / %` | `a * b` | `a * b` |
+| 6 | `+ -` | `a + b` | `a + b` |
+| 7 | `<< >>` | `a << b` | `a << b` |
+| 8 | ranges | `a..<b`, `a...b`, `a...`, `..<b`, `...b`, a `Range<T>` (#373) | |
+| 9 | `< <= > >=` | `a < b` (a `bool`) | `a < b` (an `int`) |
+| 10 | `== !=` | `a == b` (a `bool`) | `a == b` |
+| 11 | `&` | `a & b` | `a & b` |
+| 12 | XOR | `a ~ b` | `a ^ b` |
+| 13 | `\|` | `a \| b` | `a \| b` |
+| 14 | `&&` | `a && b` (`bool`s) | `a && b` |
+| 15 | `\|\|` | `a \|\| b` (`bool`s) | `a \|\| b` |
+| 16 | `?? !!` | `x ?? d`, an Optional's value or `d` (#72); `d0 ?? d1` and `d0 !! d1` of Dictionaries, `d0`'s values kept or `d1`'s taken (#237); right to left, `a ?? b ?? 0` is `a ?? (b ?? 0)` (#251); `a ?? b` of two `T?` a `T?` (#252), of two Results a Result (#253) | |
+| 17 | `?:` | `c ? a : b` (`c` a `bool`); `c ? v : none` where a `T?` is expected (#116) | `c ? a : b` |
+| 18 | assignment (statements) | `=`, `:=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `&=`, `~=`, `\|=`, `**=` (#380); `??=`, `!!=` of Dictionaries (#237) and of an entry, `d[k] ??= v` (#243) | `=`, `+=`, ..., `^=` |
+| 19 | `,` | `a, b` (in a `for` clause, an assignment list) | `a, b` |
 
 So `6 & 3 == 3` is still `6 & (3 == 3)`, as in C, and `a + b as i64`
-is `a + (b as i64)`: `as` binds tighter than every binary operator and
-looser than the prefix ones, so `-x as u8` is `(-x) as u8`.
+is `a + (b as i64)`: `as` binds tighter than every binary operator but
+`**` and looser than the prefix ones, so `-x as u8` is `(-x) as u8`.
 
 The binary operators group left to right, as C's, but for `??` and
 `!!`, which group right to left, as Swift's `??` (#251): `a ?? b ?? 0`
-is `a ?? (b ?? 0)`, the first value of the chain or 0.
+is `a ?? (b ?? 0)`, the first value of the chain or 0. `**` groups right
+to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
 
 ## What moved, and why
 
@@ -64,6 +67,19 @@ is `a ?? (b ?? 0)`, the first value of the chain or 0.
   (#51).
   - `i++` on a number is an error that says `i += 1`, and `++p` an
     error that says `p++`.
+- **`a ** b`** raises `a` to the power `b`, as Python's (#380); C has
+  no such operator, only `pow`.
+  - It binds tighter than a prefix on its left, so `-2 ** 2` is -4, and
+    its right operand may be one, `2 ** -x`.
+  - It binds tighter than `as` and `x:T` too, so `x as f64 ** 2` is an
+    error that says `(x as T) ** y`.
+  - Of two integers it is an integer, of the base's promoted type, as
+    C's `<<` gives, wrapping as `*` does; a negative exponent ends the
+    program, and `0 ** 0` is 1. See [integers.md](integers.md).
+  - Of a floating-point number it is C's `pow`: see
+    [floatingpoint.md](floatingpoint.md); of `c64` and `c32`, `<math>`'s
+    operator, and of C's `_Complex`, `cpow`.
+  - `x **= y` is `x = x ** y`.
 - **`a..<b` and `a...b`** are ranges, in `for i in` (#28) and as values,
   `Range<T>`, with `a...`, `..<b` and `...b` (#373): see
   [ranges.md](ranges.md).
@@ -77,8 +93,9 @@ is `a ?? (b ?? 0)`, the first value of the chain or 0.
 
 ## Operators on structs
 
-A struct or union may define `+ - * / % == != < <= > >=` and unary `-`
-(#42), as functions named by the operator and chosen by their types:
+A struct or union may define `+ - * / % == != < <= > >=`, `**` (#380)
+and unary `-` (#42), as functions named by the operator and chosen by
+their types:
 
 ```swift
 struct money { cents: int64 }

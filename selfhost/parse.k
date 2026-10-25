@@ -1059,7 +1059,7 @@ let adjacent(a:int64, b:int64):bool {
 let place_follows():bool {
     if at_word(".") || at_word("[") || at_word("^") || at_word("=") || at_word(":=") { return true }
     if at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") { return true }
-    if at_word("|=") || at_word("&=") || at_word("~=") { return true }   // (#276)
+    if at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") { return true }   // (#276, #380)
     return at_word("!") && adjacent(pos - 1, pos)
 }
 
@@ -1182,12 +1182,27 @@ let parse_unary():int64 {
         return n
     }
     var e:int64 = parse_postfix()
+    if at_word("**") {                                   // b ** e (#380): tighter than a prefix on its left, right to left
+        let t:int64 = advance()
+        let n:int64 = make_node(N_BIN, t)
+        nodes[n].a = e
+        set_b(n, parse_unary())
+        e = n
+    }
     while at_word("as") || annotation_ahead() {          // x as T, x:T (#264)
         let t:int64 = advance()
         let n:int64 = make_node(N_CAST, t)
         nodes[n].a = e
         set_ty(n, parse_type())
         e = n
+        if at_word("**") {                               // as kelvinc says it (#380)
+            if tok_is(t, "as") {
+                parse_error("'**' binds tighter than 'as': write '(x as T) ** y'")
+            } else {
+                parse_error("'**' binds tighter than ':': write '(x:T) ** y'")
+            }
+            return 0 - 1
+        }
     }
     return e
 }
@@ -1469,7 +1484,7 @@ let parse_statement():int64 {
         return parse_block()
     }
     let e:int64 = parse_expr()
-    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") {
+    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())

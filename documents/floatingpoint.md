@@ -86,6 +86,20 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
   - kelvinc compiles with `-ffp-contract=off`, so clang computes
     `a * b + c` with two roundings, as gcc does, and the results are
     the same with both *(provisional P55)*.
+- **`x ** y`** is C's `pow`, where either is a floating-point number
+  (#380), with no import: `2.0 ** 0.5` is 1.4142135623730951, and
+  `2.0 ** -1` 0.5.
+  - The operands convert as `*` converts them: an `f64` where either is
+    one, or a floating-point literal, so `powf` only where each is an
+    `f32` or an integer, `f ** 3` of an `f32` an `f32`.
+  - It binds tighter than a prefix on its left and groups right to
+    left, as Python's: `-x ** 2` is `-(x ** 2)`. See
+    [operators.md](operators.md).
+  - Two literals are worked out by kelvinc, with C's `pow`, so a
+    global's value may be one, `let root2:f64 = 2.0 ** 0.5`.
+  - `x **= y` is `x = x ** y`.
+  - Of C's `_Complex` it is `cpow`; of `c64` and `c32`, `<math>`'s
+    `**` ([math.md](math.md)).
 
 ## Properties and methods
 
@@ -95,6 +109,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |
+| | `x ** y` | C's `pow` or `powf`, the operands converted as `*` converts them (#380) |
 | | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.f64`, `.f32` | read a number from text, `f64("1.5")` |
 

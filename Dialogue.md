@@ -7500,3 +7500,24 @@ it never wraps; a step of 0 is refused. kc writes the same and says
 kelvinc's errors. Details are provisional P391.
 
 There are 1034 tests, and all pass with clang and with gcc 15.
+
+### 425. Powers: `**` and `pow`
+
+> add the binary `**` operators to all numeric types.  integers, floating points and even complex numbers.
+>
+> * for integer types, add `b.pow(e)` that does `b ** e` AND `b.pow(e,m)` which returns `(b ** e) mod m)`.  Same as python's `pow(b,e,m)`.
+
+**Claude** asked how `**` should bind, what an integer to a negative
+power is, what overflow does, and whether `**=` comes along. The user
+chose Python's precedence, a negative integer exponent ending the
+program, reciprocals being out of an integer's domain, with `0 ** 0 == 1`;
+wrapping as `*` does; and `**=`. Of integers `**` multiplies in a u64,
+its type the base's promoted, as C's `<<` gives; two literals are worked
+out by kelvinc, an i64 as a literal is, so `2 ** 40` is no `int`
+overflow. Of floating-point numbers it is C's pow, of C's `_Complex`
+cpow, and `<math>`'s `c64` and `c32` define it. `b.pow(e, m)` is Python's
+`pow(b, e, m)`, a negative `e` included, by runtime/pow.k, written in
+Kelvin over a u128. kc writes the same and says kelvinc's errors.
+Details are provisional P392.
+
+There are 1042 tests, and all pass with clang and with gcc 15.

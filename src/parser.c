@@ -9,6 +9,7 @@
 #include "kelvin.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1424,6 +1425,9 @@ static void typed_args(Expr *call, Decl *d);
 static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
+static Expr *power_of(Expr *a, Expr *b, Pos pos);
+static char power_class(Expr *x);
+static Expr *pow_method(Expr *b, Token *name);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
@@ -1511,7 +1515,8 @@ static int binary_prec(Token *t);
    postfix or a separator does? */
 static bool continues_expression(Token *t) {
     static const char *ops[] = {"(", "[", ".", "^", "?", ":", ",", ")", "]", "..<", "...", "=", ":=", "+=", "-=",
-                                "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", "??", "!!", "?\?=", "!!=", NULL};
+                                "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", "??", "!!", "?\?=", "!!=", "**",
+                                "**=", NULL};
     for (int i = 0; ops[i]; i++)
         if (is_p(t, ops[i]))
             return true;
@@ -1663,7 +1668,7 @@ static bool place_follows(void) {
     if (line_ends_expression())
         return false;
     static const char *ops[] = {".", "[", "^", "=", ":=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", "<<=",
-                                ">>=", "++", "--", "?\?=", "!!=", NULL}; /* d[k] ?\?= v, d[k] !!= v (#243) */
+                                ">>=", "++", "--", "?\?=", "!!=", "**=", NULL}; /* d[k] ?\?= v, d[k] !!= v (#243) */
     for (int i = 0; ops[i]; i++)
         if (is_p(peek(), ops[i]))
             return true;
@@ -2123,6 +2128,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                     error_at(name->pos, "a Range has lowerBound, upperBound, count, contains, map, filter, reduce, "
                                         "flatMap, lazy, prefix, reversed and stride, and '.%s' is none of them",
                              member);
+            }
+            if (call && !strcmp(member, "pow") && power_class(e) == 'i' && !e->is_bool) {
+                e = pow_method(e, name); /* b.pow(e), b.pow(e, m) of an integer (#380) */
+                continue;
             }
             if (call && !strcmp(member, "next") && is_iter(value_type(e))) { /* it.next() of an Iterator (#325) */
                 advance();
@@ -4558,7 +4567,7 @@ static Expr *parse_unary(void) {
                                           kelvin_type(value_type(e->a))));
         return !strcmp(e->op, "-") ? resolve_operator(e, "-", e->a, NULL) : e; /* -z (#42) */
     }
-    if (is_p(t, "*"))
+    if (is_p(t, "*") || is_p(t, "**"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
     if (is_kw(t, "async"))
         return parse_async(advance());
@@ -4634,7 +4643,13 @@ static Expr *parse_unary(void) {
         }
         return e;
     }
-    return parse_postfix_chain();
+    Expr *base = parse_postfix_chain();
+    if (!is_p(peek(), "**"))
+        return base;
+    /* b ** e (#380): tighter than a prefix on its left, -2 ** 2 being -4,
+       and right to left, its exponent a prefix's operand, 2 ** -x */
+    Token *op = advance();
+    return power_of(base, parse_unary(), op->pos);
 }
 
 /* cast := unary { ('as' | ':') type }
@@ -4666,6 +4681,8 @@ static Expr *parse_cast(void) {
         c->a = e;
         c->type = parse_type_in(TYPE_AS);
         e = c;
+        if (is_p(peek(), "**")) /* (#380) */
+            error_at(peek()->pos, "'**' binds tighter than '%s': write '(x%sT) ** y'", t->text, is_kw(t, "as") ? " as " : ":");
     }
     return e;
 }
@@ -5664,7 +5681,7 @@ static Type *value_type_of(Expr *e) {
                       !strcmp(e->op, "iter_make") || !strcmp(e->op, "iter_next") || !strcmp(e->op, "iter_prefix") ||
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
                       !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
-                      !strncmp(e->op, "range", 5))) /* (#319, #323, #325, #372, #373) */
+                      !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4))) /* (#319, #323, #325, #372, #373, #380) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -6964,6 +6981,293 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     return call;
 }
 
+/* ---------- b ** e and b.pow(e, m) (#380) ---------- */
+
+/* a literal integer written in digits, possibly negated: its magnitude in
+   *mag and its sign in *neg; false of anything else */
+static bool int_literal_value(Expr *e, unsigned long long *mag, bool *neg) {
+    *neg = false;
+    if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+"))) {
+        *neg = e->op[0] == '-';
+        e = e->a;
+    }
+    if (e->kind != E_LITERAL || !isdigit((unsigned char)e->text[0]) || !literal_type(e) || strcmp(literal_type(e), "i64"))
+        return false;
+    const char *t = e->text;
+    bool binary = t[0] == '0' && (t[1] == 'b' || t[1] == 'B');
+    *mag = strtoull(binary ? t + 2 : t, NULL, binary ? 2 : 0);
+    return true;
+}
+
+/* an operand's type as kelvinc sees it, unqualified, or NULL */
+static Type *power_type(Expr *x) {
+    Type *t = value_type(x);
+    return t ? unqualified(t) : NULL;
+}
+
+/* what kelvinc sees of an operand of '**', as expr_class: 'i' an integer,
+   'f' a floating-point number, also through a prefix -, + or ~ and
+   arithmetic, whose operands it sees */
+static char power_class(Expr *x) {
+    Decl *r;
+    char c = expr_class(x, &r);
+    if (c != 'u' || power_type(x))
+        return c;
+    if (x->kind == E_PREFIX && (!strcmp(x->op, "-") || !strcmp(x->op, "+") || !strcmp(x->op, "~")))
+        return power_class(x->a);
+    if (x->kind == E_BINARY && strchr("+-*/%&|~", x->op[0]) && (!x->op[1] || !strcmp(x->op, "<<") || !strcmp(x->op, ">>"))) {
+        char a = power_class(x->a), b = x->op[0] == '<' || x->op[0] == '>' ? 'i' : power_class(x->b);
+        return a == 'f' || b == 'f' ? (a == 'u' || b == 'u' ? 'u' : 'f') : a == 'i' && b == 'i' ? 'i' : 'u';
+    }
+    return c;
+}
+
+/* Is e a floating-point literal in digits, possibly negated? */
+static bool power_float_literal(Expr *e) {
+    Expr *lit = e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")) ? e->a : e;
+    return lit->kind == E_LITERAL && (isdigit((unsigned char)lit->text[0]) || lit->text[0] == '.') &&
+           literal_type(lit) && !strcmp(literal_type(lit), "f64");
+}
+
+/* a numeric literal's value, possibly negated, as a double */
+static double power_literal_double(Expr *e) {
+    bool neg = e->kind == E_PREFIX && !strcmp(e->op, "-");
+    Expr *lit = e->kind == E_PREFIX ? e->a : e;
+    unsigned long long m;
+    bool n;
+    double v = power_float_literal(lit) ? strtod(lit->text, NULL) : int_literal_value(lit, &m, &n) ? (double)m : 0.0;
+    return neg ? -v : v;
+}
+
+/* x * y, or 2^63 + 1 where it is more than 2^63, past every i64 */
+static unsigned long long power_product(unsigned long long x, unsigned long long y) {
+    unsigned long long cap = (unsigned long long)INT64_MAX + 2;
+    if (!x || !y)
+        return 0;
+    if (x >= cap || y >= cap || x > cap / y)
+        return cap;
+    return x * y;
+}
+
+/* an integer operand's type in C's arithmetic, promoted, as a shift's
+   left one is: i8 to u16 and an enum an i32; a literal in digits an
+   i64, as a let infers one; NULL where only C sees it */
+static Type *promoted_int(Expr *x, Pos pos) {
+    if (literal_type(x))
+        return base_type("i64", pos);
+    if (x->kind == E_LITERAL && x->text[0] == '\'')
+        return base_type("i32", pos);
+    Type *t = power_type(x);
+    while (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (!t || t->kind != T_BASE)
+        return NULL;
+    const char *n = t->name;
+    if (!strcmp(n, "i8") || !strcmp(n, "i16") || !strcmp(n, "u8") || !strcmp(n, "u16") || !strncmp(n, "enum ", 5))
+        return base_type("i32", pos);
+    static const char *ints[] = {"i32", "i64", "i128", "u32", "u64", "u128", NULL};
+    for (int i = 0; ints[i]; i++)
+        if (!strcmp(n, ints[i]))
+            return base_type(n, pos);
+    return NULL;
+}
+
+/* How an operand of '**' shows in a message */
+static char *power_operand_text(Expr *x) {
+    Type *t = value_type(x);
+    if (x->kind == E_STRING || is_text_expr(x))
+        return "text";
+    if (x->is_bool || seen_bool(x) || bool_shape(x))
+        return "a bool";
+    return t ? kelvin_type(t) : "a value kelvinc cannot see";
+}
+
+/* b ** e (#380): a number to a power, Python's, grouping right to left
+   and binding tighter than a prefix on its left. Of two integers, an
+   integer of the base's promoted type, as C's << gives, by multiplying,
+   which wraps as '*' does; a negative exponent ends the program, and two
+   literals are worked out here, exactly, an i64 as a literal is, so
+   2 ** 40 is 1099511627776. Of
+   a floating-point number, C's pow of the operands converted as '*'
+   converts them, two literals worked out here too; of C's _Complex, cpow; of a struct, the operator it
+   defines, as c64's of <math> */
+static Expr *power_of(Expr *a, Expr *b, Pos pos) {
+    Expr *e = new_expr(E_BINARY, pos);
+    e->op = "**";
+    e->a = a;
+    e->b = b;
+    Type *ta = value_type(a), *tb = value_type(b);
+    char ca = power_class(a), cb = power_class(b);
+    if (ca == 's' || cb == 's' || (ta && tagged_record(ta)) || (tb && tagged_record(tb)) || may_be_record(a) ||
+        may_be_record(b))
+        return resolve_operator(e, "**", a, b);
+    Expr *sides[2] = {a, b};
+    char cls[2] = {ca, cb};
+    bool complex = false;
+    for (int k = 0; k < 2; k++) {
+        Type *t = power_type(sides[k]);
+        bool cx = t && t->kind == T_BASE && strstr(t->name, "_Complex");
+        complex = complex || cx;
+        bool flag = sides[k]->is_bool || seen_bool(sides[k]) || bool_shape(sides[k]);
+        if (flag || (cls[k] != 'i' && cls[k] != 'f' && !cx)) {
+            if (!flag && cls[k] == 'u' && !t)
+                error_at(sides[k]->pos, "'**' takes numbers, and kelvinc cannot see this one's type: convert it, as "
+                                        "in 'x as i64' or 'x as f64'");
+            error_at(sides[k]->pos, "'**' takes numbers, and this is %s", power_operand_text(sides[k]));
+        }
+    }
+    Expr *x = new_expr(E_METHOD, pos);
+    x->text = "**";
+    x->paren = true;
+    x->a = a; /* the base, and the exponent its one argument */
+    list_push(&x->items, b);
+    if (complex) { /* C's _Complex: cpow, of f64 unless each is f32's */
+        bool f32 = true;
+        for (int k = 0; k < 2; k++) {
+            Type *t = power_type(sides[k]);
+            if (cls[k] == 'i')
+                continue;
+            f32 = f32 && t && t->kind == T_BASE && !strncmp(t->name, "f32", 3);
+        }
+        x->op = "pow_complex";
+        x->type = base_type(f32 ? "f32 _Complex" : "f64 _Complex", pos);
+        return x;
+    }
+    unsigned long long im;
+    bool ineg;
+    if ((ca == 'f' || cb == 'f') && (power_float_literal(a) || int_literal_value(a, &im, &ineg)) &&
+        (power_float_literal(b) || int_literal_value(b, &im, &ineg))) {
+        /* two literals, one floating-point: worked out here, by C's pow, so a global's value may be one */
+        double v = pow(power_literal_double(a), power_literal_double(b));
+        Expr *lit = new_expr(E_LITERAL, pos);
+        lit->text = isnan(v) ? "nan" : isinf(v) ? "inf" : strfmt("%.17g", fabs(v));
+        if (!isnan(v) && !isinf(v) && !strpbrk(lit->text, ".eEn"))
+            lit->text = strfmt("%s.0", lit->text);
+        if (isnan(v) || !signbit(v))
+            return lit;
+        Expr *n = new_expr(E_PREFIX, pos);
+        n->op = "-";
+        n->a = lit;
+        n->paren = true;
+        return n;
+    }
+    if (ca == 'f' || cb == 'f') { /* pow or powf: an f32 where neither is an f64, nor a literal one */
+        bool f32 = true;
+        for (int k = 0; k < 2; k++) {
+            if (cls[k] != 'f')
+                continue;
+            Type *t = power_type(sides[k]);
+            f32 = f32 && !literal_type(sides[k]) && t && t->kind == T_BASE && !strcmp(t->name, "f32");
+        }
+        x->op = "pow_float";
+        x->type = base_type(f32 ? "f32" : "f64", pos);
+        return x;
+    }
+    unsigned long long bm, em;
+    bool bneg, eneg;
+    bool blit = int_literal_value(a, &bm, &bneg), elit = int_literal_value(b, &em, &eneg);
+    if (elit && eneg && em)
+        error_at(b->pos, "'**' of integers takes an exponent of 0 or more, and this is -%s: a power of an integer "
+                         "less than 0 is no integer, but a floating-point one's is, as in '2.0 ** -1'",
+                 b->a->text);
+    if (blit && elit) { /* both literals: worked out here, as written */
+        unsigned long long r = 1, base = bm;
+        for (unsigned long long k = em; k; k >>= 1) {
+            if (k & 1)
+                r = power_product(r, base);
+            if (k > 1)
+                base = power_product(base, base);
+        }
+        bool over = r > (unsigned long long)INT64_MAX + 1;
+        bool neg = bneg && (em & 1) && r;
+        if (over || (!neg && r > INT64_MAX))
+            error_at(pos, "'**' of two literals is an i64, as a literal is, and this is past its %s: raise a "
+                          "floating-point number, as in '2.0 ** 64', or convert, as in 'u64(2) ** 63'",
+                     neg ? "least" : "largest");
+        Expr *lit = new_expr(E_LITERAL, pos);
+        unsigned long long v = (unsigned long long)r;
+        lit->text = strfmt("%llu", v);
+        if (neg && v > INT64_MAX) { /* (-2) ** 63, i64's least */
+            lit->text = strfmt("0x%llx", v);
+            Expr *c = new_expr(E_CAST, pos);
+            c->type = base_type("i64", pos);
+            c->a = lit;
+            c->paren = true;
+            return c;
+        }
+        if (!neg)
+            return lit;
+        Expr *n = new_expr(E_PREFIX, pos);
+        n->op = "-";
+        n->a = lit;
+        n->paren = true;
+        return n;
+    }
+    x->op = "pow_int";
+    x->type = promoted_int(a, pos);
+    x->from = elit ? NULL : promoted_int(b, pos); /* the exponent's type, NULL of a literal, or of what C alone sees */
+    x->target = NULL;
+    return x;
+}
+
+/* b.pow(e) of an integer (#380), b ** e; b.pow(e, m), Python's
+   pow(b, e, m): b to the e, mod m, worked out without overflow, the sign
+   of m's, a negative e taking the inverse of b mod m. Its type is what C
+   gives b % m; b, e and m are integers of 64 bits or fewer */
+static Expr *pow_method(Expr *b, Token *name) {
+    advance();
+    bool saved = ident_annotation_ok, saved_brace = brace_ends_condition;
+    ident_annotation_ok = true;
+    brace_ends_condition = false;
+    List args = {0};
+    while (!is_p(peek(), ")")) {
+        list_push(&args, parse_assign());
+        if (!accept_p(","))
+            break;
+    }
+    ident_annotation_ok = saved;
+    brace_ends_condition = saved_brace;
+    expect_p(")");
+    if (args.len < 1 || args.len > 2)
+        error_at(name->pos, "'.pow' of an integer takes an exponent, '.pow(e)', or an exponent and a modulus, "
+                            "'.pow(e, m)'");
+    if (args.len == 1)
+        return power_of(b, args.data[0], name->pos);
+    Expr *e = args.data[0], *m = args.data[1];
+    Expr *sides[3] = {b, e, m};
+    Type *types[3];
+    for (int k = 0; k < 3; k++) {
+        Expr *v = sides[k];
+        bool flag = v->is_bool || seen_bool(v) || bool_shape(v);
+        if (flag || power_class(v) != 'i')
+            error_at(v->pos, "'.pow(e, m)' takes integers, and this is %s",
+                     power_class(v) == 'f' ? "a floating-point number" : power_operand_text(v));
+        types[k] = promoted_int(v, v->pos);
+        if (types[k] && strstr(types[k]->name, "128"))
+            error_at(v->pos, "'.pow(e, m)' takes integers of 64 bits or fewer, and this is %s", kelvin_type(types[k]));
+    }
+    unsigned long long mm;
+    bool mneg;
+    if (int_literal_value(m, &mm, &mneg) && mm == 0)
+        error_at(m->pos, "'.pow(e, m)' takes a modulus other than 0");
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->text = "pow";
+    x->op = "pow_mod";
+    x->paren = true;
+    x->a = b;
+    list_push(&x->items, e);
+    list_push(&x->items, m);
+    if (types[0] && types[2]) { /* C's arithmetic conversions of b and m, as b % m */
+        const char *n0 = types[0]->name, *n2 = types[2]->name;
+        const char *n = !strcmp(n0, "u64") || !strcmp(n2, "u64")   ? "u64"
+                        : !strcmp(n0, "i64") || !strcmp(n2, "i64") ? "i64"
+                        : !strcmp(n0, "u32") || !strcmp(n2, "u32") ? "u32"
+                                                                   : "i32";
+        x->type = base_type(n, name->pos);
+    }
+    return x;
+}
+
 /* A C name made from a type, as c64, u8p for u8^, a3 for [3], and
    F...E around a function type's parameters, its result after the E */
 static char *mangled_type(Type *t) {
@@ -7011,7 +7315,7 @@ static char *mangled_type(Type *t) {
    _kv_add_op__... Two that would get the same C name are an error. */
 static void name_functions(void) {
     static const struct { const char *op, *word; } words[] = {
-        {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"},
+        {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"}, {"**", "pow"},
         {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}};
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
@@ -7501,7 +7805,7 @@ static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
              target->text, target->text, target->text);
 }
 
-static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", NULL};
+static const char *assign_ops[] = {"=", ":=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "~=", "|=", "**=", NULL};
 
 /* Is e the same value, or the same place, when evaluated twice: no
    call or assignment in it? */
@@ -7771,7 +8075,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     bin->op = strfmt("%.*s", (int)strlen(t->text) - 1, t->text);
                     bin->a = lhs;
                     bin->b = v;
-                    v = overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
+                    v = !strcmp(bin->op, "**") ? power_of(lhs, v, t->pos) /* v[i] **= y (#380) */
+                        : overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
                             ? resolve_operator(bin, bin->op, lhs, v)
                             : bin;
                 }
@@ -7822,7 +8127,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                     bin->op = strfmt("%.*s", (int)strlen(t->text) - 1, t->text);
                     bin->a = lhs;
                     bin->b = v;
-                    v = overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
+                    v = !strcmp(bin->op, "**") ? power_of(lhs, v, t->pos) /* v[i] **= y (#380) */
+                        : overloadable_op(&(Token){.kind = TK_PUNCT, .text = (char *)bin->op})
                             ? resolve_operator(bin, bin->op, lhs, v)
                             : bin;
                 }
@@ -8008,6 +8314,12 @@ static Expr *assign_to(Expr *lhs, bool ok) {
             if (!strcmp(t->text, ":=") && lhs->kind == E_IDENT && target_type(lhs) && target_type(lhs)->kind == T_PTR)
                 check_typed_value(e->b, target_type(lhs), strfmt("'%s' is", lhs->text), e->b->pos); /* q := &x of a let (#273) */
             reject_template_escape(lhs, e->b, t->pos);
+            if (!strcmp(e->op, "**=")) { /* x **= y is x = x ** y (#380) */
+                if (!repeatable(lhs))
+                    error_at(lhs->pos, "'x **= y' is 'x = x ** y', which evaluates x twice, so x may not hold a call");
+                e->op = "=";
+                e->b = power_of(lhs, e->b, t->pos);
+            }
             /* z += w with an operator a struct defines is z = z + w (#42) */
             if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {
                 Expr *bin = new_expr(E_BINARY, t->pos);
@@ -9549,8 +9861,8 @@ static void reject_c_declaration(void) {
     Buf suffix = {0};
     buf_puts(&suffix, "");
     bool block = false;
-    while (is_p(&toks[i], "*")) {
-        buf_puts(&suffix, "^");
+    while (is_p(&toks[i], "*") || is_p(&toks[i], "**")) { /* `**`, a power's token since #380, is two here */
+        buf_puts(&suffix, is_p(&toks[i], "**") ? "^^" : "^");
         for (i++; is_qualifier(&toks[i]); i++)
             buf_printf(&suffix, " %s", toks[i].text);
     }
@@ -12277,7 +12589,7 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
 
 /* the operators a Kelvin struct may define (#42) */
 static bool overloadable_op(Token *t) {
-    static const char *ops[] = {"+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", NULL};
+    static const char *ops[] = {"+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "**", NULL}; /* ** (#380) */
     for (int i = 0; ops[i]; i++)
         if (is_p(t, ops[i]))
             return true;

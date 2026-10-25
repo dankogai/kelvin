@@ -68,6 +68,12 @@ let main():int32 {
   - Each is written in `extend c64 { }` as
     `static let +(a:Self, b:Self):Self` (#135, #140), and a mixed one
     as `static let +(a:Self, b:f64):Self`.
+- **Powers**: `z ** w` is `pow(z, w)` (#380), of two of one kind or one
+  and a real number of its parts' type, either way round: `i ** i` is
+  `{real: 0.20787957635076193, imag: 0.0}`, and `z **= 2.0` squares
+  `z`.
+  - It binds as Kelvin's `**` does ([operators.md](operators.md)):
+    tighter than a prefix on its left, right to left.
 - **The functions**: `conj`, `abs`, `arg`, `norm` (`abs` squared),
   `exp`, `log`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `sinh`, `cosh`,
   `tanh` and their inverses, which take their principal values, with
@@ -111,5 +117,6 @@ c64(real:float64, imag:float64):c64, c64(real:float64):c64, c64(z:c32):c64, pola
 | | `.exp()`, `.log()`, `.sqrt()`, `.sin()`, ..., `.conj()` | the function, as `z.exp()` |
 | | `.abs()`, `.arg()`, `.norm()` | an `f64` or `f32` |
 | | `.pow(w)` | `z` to the power `w`, a `c64` or `c32` |
+| | `z ** w` | `pow(z, w)`, with a `c64`, a `c32` or a real number of its parts' type on either side (#380) |
 | | `.i` | `z` times `i` |
 | | `.cstr`, `${z}`, `println(z)` | `{real: 1.0, imag: 2.0}` |

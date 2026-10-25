@@ -12,7 +12,9 @@
 // headers, `#import <x.h> as C`, are C's, as libc is (#207).
 #import <IO>
 #import <stdio.h> as C            // remove
-#import <stdlib.h> as C           // getenv
+#import <stdlib.h> as C           // getenv, strtod
+#import <math.h> as C             // pow, of a power of literals (#380)
+#import <string.h> as C           // strpbrk
 #import <unistd.h> as C           // getpid
 #import "lex.k"
 #import "parse.k"

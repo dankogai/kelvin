@@ -383,6 +383,12 @@ kc reads what it is written in, and little more.
     a `T`, iter_rec op 7, down from the end of a negative one; a step of
     0, a negative one of an unsigned `T` or of one without an end, and
     `stride(by: n)` are kelvinc's errors.
+- **Powers** (#380), as kelvinc's: `b ** e`, tighter than a prefix on its
+  left and right to left, of kc's integers by multiplying in a u64, which
+  wraps, and of its floating-point numbers by C's pow; two literals
+  worked out, the floating-point ones by C's pow, which kc calls;
+  `b.pow(e)`, `b.pow(e, m)` by the runtime's kv_pow_mod, and `x **= y`.
+  kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

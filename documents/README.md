@@ -14,7 +14,8 @@ the design decisions, numbered `#N` throughout, are in
   quote text, expressions, lines and `;`, assignment as a statement,
   the C habits kelvinc catches.
 - [operators.md](operators.md): every operator with C's precedence,
-  and what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges.
+  and what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges; `**`,
+  Python's power (#380).
 - [flow-controls.md](flow-controls.md): `if`, `while`, `do`, `for`,
   ranges, `for x in s`, and conditions as `bool`.
 - [functions.md](functions.md): `let f(...)`, functions of a type,
@@ -23,9 +24,10 @@ the design decisions, numbered `#N` throughout, are in
 ## Values
 
 - [integers.md](integers.md): `int8` to `uint128`, their literals,
-  conversions of any number, numbers from text.
+  conversions of any number, numbers from text, powers, `**`, `b.pow(e)`
+  and `b.pow(e, m)` (#380).
 - [floatingpoint.md](floatingpoint.md): `float32` and `float64`, their
-  literals, reading, printing and text, C's complex types.
+  literals, reading, printing and text, `x ** y`, C's complex types.
 - [bool.md](bool.md): `bool`, `true` and `false`, where a `bool` comes
   from, conditions, converting.
 - [strings.md](strings.md): `cstr`, literals, byte arrays and text on

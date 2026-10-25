@@ -670,5 +670,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     println($[5, 6, 7, 8][octets3], " ", $"kelvin"[naturals.prefix(3)], " ", $[5, 6, 7][1...])   // xs[r] (#377)
     println(octets3.reversed().map { $0 * 10 }, " ", naturals.prefix(5).reversed().prefix(2).map { $0 })   // r.reversed() (#378)
     println(naturals.stride(3).prefix(3).map { $0 }, " ", (0..<10).stride(-4).map { $0 }, " ", octets3.stride(2).map { $0 })   // r.stride(n) (#379)
+    var power3:int64 = 3
+    power3 **= 4
+    println(2 ** 10, " ", -2 ** 2, " ", 2.0 ** 0.5, " ", octets3.upperBound ** 2, " ", power3, " ", 3.pow(4), " ", 4.pow(13, 497))   // b ** e, b.pow(e, m) (#380)
     return 0
 }

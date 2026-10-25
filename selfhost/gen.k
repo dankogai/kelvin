@@ -508,6 +508,13 @@ let gen_range_eq(n:int64)
 let is_slice(n:int64):bool
 let range_unsigned(y:int64):bool
 let gen_range_stride(n:int64)
+let power_type(a:int64, b:int64):int64    // prototypes: b ** e and b.pow(e, m) (#380)
+let power_int(y:int64):bool
+let power_operand(v:int64):bool
+let pow_arity(n:int64):bool
+let pow_method_type(n:int64):int64
+let gen_power(a:int64, b:int64)
+let gen_pow_method(n:int64)
 let is_case_word(n:int64):bool    // prototypes: type_of and gen_value ask them of c ? a : b (#232)
 let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
@@ -864,6 +871,7 @@ let type_of(n:int64):int64 {
         if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE && tok_is(t, "reversed") { return type_of_kind(Y_ITER, types[y].elem, -1) }   // r.reversed(), down (#378)
         if types[y].kind == Y_RANGE && tok_is(t, "stride") { return type_of_kind(Y_ITER, types[y].elem, -1) }     // r.stride(n) (#379)
+        if tok_is(t, "pow") && power_int(y) { return pow_method_type(n) }   // b.pow(e), b.pow(e, m) (#380)
         if types[y].kind == Y_RANGE {                                    // as kelvinc's (#373)
             range_member_error(n)
             return -1
@@ -910,6 +918,7 @@ let type_of(n:int64):int64 {
         if is_comparison(t) { return base_type(Y_BOOL) }
         if tok_is(t, "??") { return some_type(type_of(nodes[n].a)) }   // (#217)
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
+        if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return type_of(nodes[n].a)
     }
     if k == N_CAST { return nodes[n].ty }
@@ -4264,6 +4273,10 @@ let gen_expr(n:int64) {
         gen_range_stride(n)                              // r.stride(n) (#379)
         return
     }
+    if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
+        gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
+        return
+    }
     if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)
         return
@@ -4329,6 +4342,8 @@ let gen_expr(n:int64) {
         gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344), of any enum with values (#345)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
+    } else if k == N_BIN && tok_is(t, "**") {
+        gen_power(nodes[n].a, nodes[n].b)                // b ** e (#380)
     } else if k == N_BIN {
         let y:int64 = type_of(nodes[n].a)
         reject_cstr_math(n)                              // "a" + "b", "a" + 1, x - y (#283)
@@ -4409,7 +4424,9 @@ let inferred(n:int64):int64 {
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
     let set_op = k == N_BIN && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_SET   // s | t, a Set, as kelvinc infers it (#276)
-    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284)
+    if k == N_BIN && tok_is(nodes[v].t, "**") && (!power_operand(nodes[v].a) || !power_operand(nodes[v].b)) { return -1 }   // as kelvinc says it (#380)
+    if k == N_METHOD && tok_is(nodes[v].t, "pow") && power_int(type_of(nodes[v].a)) && !pow_arity(v) { return -1 }
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }
@@ -5109,6 +5126,18 @@ let gen_assign(n:int64) {
     if !may_change(lhs) { return }                      // (#271)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
+    if tok_is(t, "**=") {                                // x **= y is x = x ** y (#380), as kelvinc's
+        if has_call(lhs) {
+            gen_error(lhs, "'x **= y' is 'x = x ** y', which evaluates x twice, so x may not hold a call")
+            return
+        }
+        if !power_operand(lhs) || !power_operand(nodes[n].b) { return }
+        gen_expr(lhs)
+        put(" = ")
+        gen_power(lhs, nodes[n].b)
+        put(";\n")
+        return
+    }
     let case_set = nodes[lhs].kind == N_FIELD && tagged_of(type_of(nodes[lhs].a)) >= 0   // v.c = [a, b], its _set (#360)
     if types[y].kind == Y_FIXED && !case_set {           // C's, which kelvinc leaves to it (#354)
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
@@ -6134,6 +6163,301 @@ let gen_range_stride(n:int64) {
     }
     let i = range_iter_of(n)
     if i >= 0 { gen_iter_value(i) }
+}
+
+// ---------- b ** e and b.pow(e, m) (#380) ----------
+
+// whether y is one of kc's integers, or a floating-point type
+let power_int(y:int64):bool {
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32
+}
+
+let power_float(y:int64):bool {
+    return y >= 0 && (types[y].kind == Y_F64 || types[y].kind == Y_F32)
+}
+
+// whether v is a literal in digits, possibly negated: an integer, or a
+// floating-point one
+let power_int_literal(v:int64):bool {
+    let w:int64 = nodes[v].kind == N_UNARY && tok_is(nodes[v].t, "-") ? nodes[v].a : v
+    return nodes[w].kind == N_NUM && !float_tok(nodes[w].t)
+}
+
+let power_float_literal(v:int64):bool {
+    let w:int64 = nodes[v].kind == N_UNARY && tok_is(nodes[v].t, "-") ? nodes[v].a : v
+    return nodes[w].kind == N_NUM && float_tok(nodes[w].t)
+}
+
+// an integer operand's type, promoted as C promotes a shift's left one,
+// a u8 an i32, a literal an i64 as kelvinc has it
+let power_promoted(v:int64):int64 {
+    if power_int_literal(v) { return base_type(Y_I64) }
+    let y:int64 = type_of(v)
+    if y >= 0 && types[y].kind == Y_U8 { return base_type(Y_I32) }
+    return y
+}
+
+// b ** e's type, as kelvinc's: of integers the base's promoted; else an
+// f32 where neither is an f64, nor a floating-point literal
+let power_type(a:int64, b:int64):int64 {
+    let ay:int64 = type_of(a)
+    let by:int64 = type_of(b)
+    if !(power_int(ay) || power_float(ay)) || !(power_int(by) || power_float(by)) { return 0 - 1 }
+    if power_float(ay) || power_float(by) {
+        let fa = !power_float(ay) || (types[ay].kind == Y_F32 && !power_float_literal(a))
+        let fb = !power_float(by) || (types[by].kind == Y_F32 && !power_float_literal(b))
+        return base_type(fa && fb ? Y_F32 : Y_F64)
+    }
+    return power_promoted(a)
+}
+
+// whether v may be an operand of '**', else kelvinc's error
+let power_operand(v:int64):bool {
+    let y:int64 = type_of(v)
+    if y < 0 { return false }
+    if power_int(y) || power_float(y) { return true }
+    let k:ykind = types[y].kind
+    if k == Y_C {
+        gen_error(v, "'**' takes numbers, and kelvinc cannot see this one's type: convert it, as in 'x as i64' or 'x as f64'")
+        return false
+    }
+    var m = $"'**' takes numbers, and this is "
+    let w:String = k == Y_BOOL ? $"a bool" : nodes[v].kind == N_STR || k == Y_CSTR ? $"text" : kelvin_type_text(y)
+    m += &w
+    gen_error(v, m.cstr)
+    return false
+}
+
+// a literal integer's magnitude, written in decimal, 0x, 0b or C's octal;
+// -1 past i64's largest
+let power_magnitude(v:int64):int64 {
+    let w:int64 = nodes[v].kind == N_UNARY ? nodes[v].a : v
+    let at:int64 = toks[nodes[w].t].at
+    let n:int64 = toks[nodes[w].t].len
+    var base:int64 = 10
+    var i:int64 = 0
+    if n > 1 && codes[at] == '0' && (codes[at + 1] == 'x' || codes[at + 1] == 'X') {
+        base = 16
+        i = 2
+    } else if n > 1 && codes[at] == '0' && (codes[at + 1] == 'b' || codes[at + 1] == 'B') {
+        base = 2
+        i = 2
+    } else if n > 1 && codes[at] == '0' {
+        base = 8
+        i = 1
+    }
+    var m:int64 = 0
+    while i < n {
+        let c:uint32 = codes[at + i]
+        var d:int64 = 0
+        if c >= '0' && c <= '9' {
+            d = c as int64 - 48
+        } else if c >= 'a' && c <= 'f' {
+            d = c as int64 - 87
+        } else if c >= 'A' && c <= 'F' {
+            d = c as int64 - 55
+        }
+        if m > (9223372036854775807 - d) / base { return 0 - 1 }
+        m = m * base + d
+        i += 1
+    }
+    return m
+}
+
+// x * y of two magnitudes, -1 of one past i64's largest
+let power_product(x:int64, y:int64):int64 {
+    if x == 0 || y == 0 { return 0 }
+    if x < 0 || y < 0 || x > 9223372036854775807 / y { return 0 - 1 }
+    return x * y
+}
+
+// b ** e of two integer literals, worked out as kelvinc does: an i64
+let gen_power_literals(a:int64, b:int64) {
+    let bm:int64 = power_magnitude(a)
+    var em:int64 = power_magnitude(b)
+    if em < 0 { em = 9223372036854775807 }
+    var r:int64 = 1
+    var x:int64 = bm
+    var k:int64 = em
+    while k > 0 {
+        if k % 2 == 1 { r = power_product(r, x) }
+        k = k / 2
+        if k > 0 { x = power_product(x, x) }
+    }
+    let neg = nodes[a].kind == N_UNARY && em % 2 == 1 && r != 0
+    if r < 0 {
+        var shift:int64 = 0                              // (-2) ** 63, i64's least: |b| 2^k, and k e is 63
+        var p:int64 = bm
+        while p > 1 && p % 2 == 0 {
+            p = p / 2
+            shift += 1
+        }
+        if neg && p == 1 && shift > 0 && 63 % shift == 0 && 63 / shift == em {
+            put("(-9223372036854775807 - 1)")
+            return
+        }
+        var m = $"'**' of two literals is an i64, as a literal is, and this is past its "
+        m += neg ? "least" : "largest"
+        m += ": raise a floating-point number, as in '2.0 ** 64', or convert, as in 'u64(2) ** 63'"
+        gen_error(a, m.cstr)
+        return
+    }
+    if neg { put("(-") }
+    put_int(r)
+    if neg { put(")") }
+}
+
+// a literal's value, possibly negated, as an f64
+let power_double(v:int64):float64 {
+    let neg = nodes[v].kind == N_UNARY
+    let w:int64 = neg ? nodes[v].a : v
+    var x:float64 = 0.0
+    if power_float_literal(w) {
+        let s:String = tok_text(nodes[w].t)
+        x = strtod(s.cstr, nullptr)
+    } else {
+        x = power_magnitude(w) as float64
+    }
+    return neg ? 0.0 - x : x
+}
+
+// b ** e of two literals, one floating-point, worked out by C's pow, as
+// kelvinc does, so a global's value may be one
+let gen_power_floats(a:int64, b:int64) {
+    let v:float64 = pow(power_double(a), power_double(b))
+    if v != v {
+        put("__builtin_nan(\"\")")
+        return
+    }
+    let neg = signbit(v) != 0
+    let m:float64 = fabs(v)
+    if neg { put("(-") }
+    if m > 1.7976931348623157e308 {
+        put("__builtin_inf()")
+    } else {
+        var buf:[uint8](40)
+        snprintf(&buf[0], 40, "%.17g", m)
+        let text:cstr := &buf[0]
+        put(text)
+        if strpbrk(text, ".e") == nullptr { put(".0") }
+    }
+    if neg { put(")") }
+}
+
+// b ** e (#380), as kelvinc writes it: of a floating-point number, C's pow
+// or powf; of integers, multiplying in a u64, which wraps as '*' does, the
+// exponent never negative; two literals worked out here
+let gen_power(a:int64, b:int64) {
+    if !power_operand(a) || !power_operand(b) { return }
+    let ay:int64 = type_of(a)
+    let by:int64 = type_of(b)
+    let lits = (power_int_literal(a) || power_float_literal(a)) && (power_int_literal(b) || power_float_literal(b))
+    if power_float(ay) || power_float(by) {
+        if lits {
+            gen_power_floats(a, b)
+            return
+        }
+        let single = types[power_type(a, b)].kind == Y_F32
+        put(single ? "__builtin_powf((float)(" : "__builtin_pow((double)(")
+        gen_expr(a)
+        put(single ? "), (float)(" : "), (double)(")
+        gen_expr(b)
+        put("))")
+        return
+    }
+    if power_int_literal(b) && nodes[b].kind == N_UNARY && power_magnitude(b) != 0 {
+        var m = $"'**' of integers takes an exponent of 0 or more, and this is -"
+        m += tok_text(nodes[nodes[b].a].t)
+        m += ": a power of an integer less than 0 is no integer, but a floating-point one's is, as in '2.0 ** -1'"
+        gen_error(b, m.cstr)
+        return
+    }
+    if lits {
+        gen_power_literals(a, b)
+        return
+    }
+    let rt:int64 = power_promoted(a)
+    put("({ ")
+    put_ctype(rt)
+    put(" _kv_pb = (")
+    gen_expr(a)
+    put("); ")
+    let ey:int64 = power_int_literal(b) ? base_type(Y_I64) : power_promoted(b)
+    put_ctype(ey)
+    put(" _kv_pe = (")
+    gen_expr(b)
+    put("); ")
+    if !power_int_literal(b) && types[ey].kind != Y_U32 {
+        put("if (_kv_pe < 0) kv_array_fail(\"'**' of integers takes an exponent of 0 or more: a power of an integer less than 0 is no integer\"); ")
+    }
+    put("uint64_t _kv_pr = 1, _kv_px = (uint64_t)_kv_pb; for (uint64_t _kv_pn = (uint64_t)_kv_pe; _kv_pn; _kv_pn >>= 1) { if (_kv_pn & 1) _kv_pr *= _kv_px; _kv_px *= _kv_px; } (")
+    put_ctype(rt)
+    put(")_kv_pr; })")
+}
+
+// b.pow(e) and b.pow(e, m)'s type: b ** e's, or what C gives b % m
+let pow_method_type(n:int64):int64 {
+    let e:int64 = nodes[n].b
+    if e < 0 { return 0 - 1 }
+    let m:int64 = nodes[e].next
+    if m < 0 { return power_type(nodes[n].a, e) }
+    let by:int64 = power_promoted(nodes[n].a)
+    let my:int64 = power_promoted(m)
+    if by < 0 || my < 0 { return 0 - 1 }
+    if types[by].kind == Y_I64 || types[my].kind == Y_I64 { return base_type(Y_I64) }
+    if types[by].kind == Y_U32 || types[my].kind == Y_U32 { return base_type(Y_U32) }
+    return base_type(Y_I32)
+}
+
+// whether b.pow(...) has one argument or two, else kelvinc's error
+let pow_arity(n:int64):bool {
+    let e:int64 = nodes[n].b
+    if e < 0 || (nodes[e].next >= 0 && nodes[nodes[e].next].next >= 0) {
+        gen_error(n, "'.pow' of an integer takes an exponent, '.pow(e)', or an exponent and a modulus, '.pow(e, m)'")
+        return false
+    }
+    return true
+}
+
+// b.pow(e) of an integer, b ** e; b.pow(e, m), Python's pow(b, e, m), the
+// runtime's kv_pow_mod, as kelvinc writes them
+let gen_pow_method(n:int64) {
+    let b:int64 = nodes[n].a
+    let e:int64 = nodes[n].b
+    if !pow_arity(n) { return }
+    let m:int64 = nodes[e].next
+    if m < 0 {
+        gen_power(b, e)
+        return
+    }
+    var v:int64 = b
+    for k in 0..<3 {
+        let y:int64 = type_of(v)
+        if y < 0 { return }
+        if !power_int(y) {
+            var msg = $"'.pow(e, m)' takes integers, and this is "
+            let w:String = power_float(y) ? $"a floating-point number" : types[y].kind == Y_BOOL ? $"a bool" : nodes[v].kind == N_STR || types[y].kind == Y_CSTR ? $"text" : kelvin_type_text(y)
+            msg += &w
+            gen_error(v, msg.cstr)
+            return
+        }
+        v = k == 0 ? e : m
+    }
+    if power_int_literal(m) && power_magnitude(m) == 0 {
+        gen_error(m, "'.pow(e, m)' takes a modulus other than 0")
+        return
+    }
+    put("((")
+    put_ctype(pow_method_type(n))
+    put(")kv_pow_mod((__int128)(")
+    gen_expr(b)
+    put("), (__int128)(")
+    gen_expr(e)
+    put("), (__int128)(")
+    gen_expr(m)
+    put(")))")
 }
 
 // whether n is an operator of a Range, which has none: kelvinc's error

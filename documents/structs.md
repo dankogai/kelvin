@@ -209,8 +209,9 @@ let main():int32 {
 ## Operators: `let +(a:T, b:T):T`
 
 A struct, a union or an enum with values (#121) may define
-`+ - * / % == != < <= > >=` and unary `-`, as functions named by the
-operator, overloaded by their types as other functions are (#42):
+`+ - * / % == != < <= > >=`, `**` (#380) and unary `-`, as functions
+named by the operator, overloaded by their types as other functions are
+(#42):
 
 ```swift
 struct money { cents: int64 }
@@ -234,7 +235,8 @@ let main():int32 {
 - An operator takes two values, or one for `-`, of which at least one
   is a Kelvin struct or union, and has a result.
   - Other operators (`<<`, `!`, `+=`) cannot be defined.
-  - Precedence is C's.
+  - Precedence is C's, and `**`'s Python's, as Kelvin's `**` is
+    ([operators.md](operators.md)); `x **= y` is `x = x ** y`.
   - A definition is a `let` at the top level, `let +(a:T, b:U):R`, or a
     `static let +(a:T, b:U):R` in `extend T { }` (#135), as Swift's
     `static func +`.
@@ -265,6 +267,7 @@ let main():int32 {
 | | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318); see [iterators.md](iterators.md) |
 | | `for x in v` of a Sequence | each value of the fresh iterator its `let T.makeIterator():I` gives (#321) |
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
+| | `a ** b` | an operator declared `let **(a:T, b:U):T` (#380) |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |
 | with a `[u8]` member | its `.cstr` | up to 60 bytes of it |

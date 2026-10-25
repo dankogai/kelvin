@@ -1,8 +1,8 @@
 # Integers
 
 Every number in Kelvin says its size. This document has the integer
-types, their literals, the two ways to convert any number, and how a
-number is read from text. Floats are in
+types, their literals, the two ways to convert any number, how a
+number is read from text, and powers, `**` and `pow` (#380). Floats are in
 [floatingpoint.md](floatingpoint.md), and `bool` in [bool.md](bool.md).
 The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
@@ -145,11 +145,67 @@ looser than prefix operators, and it chains left to right
     compile as a cast.
 
 
+## Powers: `**` and `pow`
+
+```swift
+let kib:i64 = 2 ** 10                    // 1024, worked out by kelvinc
+
+let main():int32 {
+    let n:i64 = 3
+    println(n ** 4, " ", -2 ** 2, " ", 2 ** 3 ** 2, " ", 0 ** 0)   // 81 -4 512 1
+    println(n.pow(4), " ", 4.pow(13, 497), " ", 3.pow(-1, 7))      // 81 445 5
+    var x:i64 = 5
+    x **= 2                              // 25
+    println(x, " ", kib)
+    return 0
+}
+```
+
+- **`b ** e`** of two integers is `b` to the power `e`, as Python's
+  (#380); see [operators.md](operators.md) for where it binds.
+  - It is of `b`'s type, promoted as C promotes a shift's left operand:
+    a `u8` or an `i16` gives an `i32`, an `i64` an `i64`, whatever `e`
+    is.
+  - It wraps as `*` does, as so many multiplications would: `n ** 40`
+    of an `i64` 3 is 3^40 mod 2^64, and `w ** 64` of a `u64` 2 is 0.
+  - `0 ** 0` is 1.
+- **A negative exponent** has no integer power, as a reciprocal is no
+  integer.
+  - Written so, `2 ** -1` is an error that says to raise a
+    floating-point number, `2.0 ** -1`.
+  - One known only at run time ends the program, as a division by 0
+    does: `kelvin: '**' of integers takes an exponent of 0 or more`.
+- **Two literals** are worked out by kelvinc, exactly, into one: so
+  `2 ** 40` is 1099511627776, and a global's value may be one.
+  - The power is an `i64`, as a literal is: `2 ** 63` is an error that
+    says to write `2.0 ** 63`, or `u64(2) ** 63`, which wraps as a
+    `u64`.
+  - Otherwise a literal base is an `i64` too: `2 ** n` counts past
+    `i32`.
+- **Its type is seen**, so `let y = n ** 2` needs no written type,
+  where `n * 2` does.
+- **`b.pow(e)`** is `b ** e`.
+- **`b.pow(e, m)`** is `b` to the `e`, mod `m`, as Python's
+  `pow(b, e, m)`.
+  - It never overflows: the runtime multiplies in 128 bits, so
+    `2.pow(1000, m)` of any `m` is exact.
+  - The result has `m`'s sign, as Python's `%` gives: `4.pow(13, 497)`
+    is 445, and `4.pow(13, -497)` is -52.
+  - A negative `e` takes the inverse of `b` mod `m`: `3.pow(-1, 7)` is
+    5. Where `b` and `m` share a factor there is none, and the program
+    ends.
+  - `m` of 0 is an error, written so, and ends the program otherwise.
+  - Its type is what C gives `b % m`; `b`, `e` and `m` are integers of
+    64 bits or fewer.
+
 ## Properties and methods
 
 | On | Property | Gives |
 |---|---|---|
-| integers | `.size` | `sizeof`, a `size_t` |
+| integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
+| | `.pow(e)` | `b ** e` (#380) |
+| | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |
+| | `.size` | `sizeof`, a `size_t` |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text, as `print` shows it, in the block's buffer |
 | | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |

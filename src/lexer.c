@@ -46,10 +46,11 @@ static const struct { const char *word, *hint; } foreign_keywords[] = {
    is `~=`. `->` is not Kelvin; it is lexed only to point at `p^.m`.
    `:=` assigns references (pointers); `=` assigns values. `..<` and
    `...` make ranges, in `for i in ...` (#28) and as values (#373); `..`
-   is lexed only to point at them. */
+   is lexed only to point at them. `**` raises to a power, `**=` its
+   assignment (#380). */
 static const char *puncts[] = {
-    "...", "..<", "<<=", ">>=", "?\?=", "!!=", "..",
-    "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||",
+    "...", "..<", "<<=", ">>=", "?\?=", "!!=", "**=", "..",
+    "**", "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||",
     "+=", "-=", "*=", "/=", "%=", "&=", "|=", "~=", ":=", "??", "!!",
     "+", "-", "*", "/", "%", "&", "|", "^", "~", "!", "<", ">", "=",
     "?", ":", ";", ",", ".", "(", ")", "[", "]", "{", "}", NULL,

@@ -1299,6 +1299,40 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
+        if (e->op && !strncmp(e->op, "pow_", 4)) {
+            /* b ** e and b.pow(e, m) (#380): C's pow, powf or cpow; of
+               integers, multiplying in a u64, or a u128 of 128 bits, which
+               wraps as '*' does, the exponent never negative; pow(b, e, m)
+               the runtime's, which multiplies in a u128 */
+            const char *a = expr(e->a), *b = expr(e->items.data[0]);
+            if (!strcmp(e->op, "pow_float"))
+                return !strcmp(e->type->name, "f32") ? strfmt("__builtin_powf((float)(%s), (float)(%s))", a, b)
+                                                     : strfmt("__builtin_pow((double)(%s), (double)(%s))", a, b);
+            if (!strcmp(e->op, "pow_complex"))
+                return strfmt("%s(%s, %s)", !strcmp(e->type->name, "f32 _Complex") ? "__builtin_cpowf" : "__builtin_cpow",
+                              a, b);
+            if (!strcmp(e->op, "pow_mod"))
+                return strfmt("(%s)kv_pow_mod((__int128)(%s), (__int128)(%s), (__int128)(%s))",
+                              e->type ? decl(e->type, "") : strfmt("__typeof__((%s) %% (%s))", a,
+                                                                 expr(e->items.data[1])),
+                              a, b, expr(e->items.data[1]));
+            bool wide = e->type && strstr(e->type->name, "128");
+            const char *w = wide ? "unsigned __int128" : "uint64_t";
+            const char *rt = e->type ? decl(e->type, "") : strfmt("__typeof__(+(%s))", a);
+            Expr *x = e->items.data[0];
+            bool known = e->from != NULL, sign = !known || e->from->name[0] == 'i';
+            bool ewide = known && strstr(e->from->name, "128");
+            const char *et = known ? decl(e->from, "") : "int64_t";
+            bool literal = x->kind == E_LITERAL || (x->kind == E_PREFIX && x->a->kind == E_LITERAL);
+            return strfmt("({ %s _kv_pb = (%s); %s _kv_pe = (%s); %s%s _kv_pr = 1, _kv_px = (%s)_kv_pb; for (%s _kv_pn = "
+                          "(%s)_kv_pe; _kv_pn; _kv_pn >>= 1) { if (_kv_pn & 1) _kv_pr *= _kv_px; _kv_px *= _kv_px; } "
+                          "(%s)_kv_pr; })",
+                          rt, a, et, b,
+                          sign && !literal ? "if (_kv_pe < 0) kv_array_fail(\"'**' of integers takes an exponent of 0 "
+                                             "or more: a power of an integer less than 0 is no integer\"); "
+                                           : "",
+                          w, w, ewide ? "unsigned __int128" : "uint64_t", ewide ? "unsigned __int128" : "uint64_t", rt);
+        }
         if (e->op && !strcmp(e->op, "range_lower")) /* r.lowerBound (#375) */
             return strfmt("((%s).lo)", expr(e->a));
         if (e->op && !strcmp(e->op, "range_upper")) /* r.upperBound (#375): one without an end has none */

@@ -671,6 +671,11 @@ extend c64 {
     let norm():f64 { norm(self) }
     let pow(w:Self):Self { pow(self, w) }
     let i:Self { Self(0.0 - .imag, .real) }
+
+    // z ** w (#380), pow's: a c64 or an f64 on either side
+    static let **(a:Self, b:Self):Self { pow(a, b) }
+    static let **(a:Self, b:f64):Self { pow(a, b) }
+    static let **(a:f64, b:Self):Self { pow(a, b) }
 }
 
 extend c32 {
@@ -696,4 +701,9 @@ extend c32 {
     let norm():f32 { norm(self) }
     let pow(w:Self):Self { pow(self, w) }
     let i:Self { Self(0.0:f32 - .imag, .real) }
+
+    // z ** w (#380), pow's: a c32 or an f32 on either side
+    static let **(a:Self, b:Self):Self { pow(a, b) }
+    static let **(a:Self, b:f32):Self { pow(a, b) }
+    static let **(a:f32, b:Self):Self { pow(a, b) }
 }
