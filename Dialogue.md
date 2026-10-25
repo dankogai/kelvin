@@ -7260,3 +7260,16 @@ address, as `q[0]`. Not yet: `[T]^` of no count. Details are
 provisional P374.
 
 There are 1004 tests, and all pass with clang and with gcc 15.
+
+### 408. kc's [T]^ of no count
+
+> teach kc [T]^ of no count as #363
+
+**Claude** taught kc a pointer to a fixed array of no count, `[int64]^`,
+as kelvinc reads it: C's pointer to an array of no bound, which any
+count's array of its elements goes to, and which goes to a counted one.
+Its elements are indexed through it, its count passed beside it; its
+count and a walk over it are kc's errors, where kelvinc's C fails.
+Details are provisional P375.
+
+There are 1004 tests, and all pass with clang and with gcc 15.

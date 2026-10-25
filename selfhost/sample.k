@@ -50,6 +50,12 @@ var hits:[int64](3)
 enum hull { round; sides: [int64](3) }                 // a fixed array as an enum's case value (#360, #361)
 
 let first_of(a:[int64](4)^):int64 { a^[0] }            // a fixed array behind a pointer (#362)
+
+let add_up(a:[int64]^, n:int64):int64 {                // and of no count, any count's (#363)
+    var s = 0
+    for i in 0..<n { s += a^[i] }
+    return s
+}
 enum doc { word: String; fields: Dictionary<String, doc> }   // and a Dictionary of itself (#347)
 
 let leaves(s:const shrub^):int64 {
@@ -613,5 +619,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     let sqp:[int64](4)^ := &sq4
     sqp^[1] = 7
     println(first_of(&sq4), " ", sqp^[1], " ", sqp^.count, " ", sq4[1])
+    println(add_up(&sq4, sq4.count), " ", add_up(&tr.slots, 3))
     return 0
 }

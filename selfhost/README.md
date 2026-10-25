@@ -473,9 +473,14 @@ kc reads what it is written in, and little more.
     - Its count and elements are the argument's, and a let's array goes
       to it alone where it reads: kc's errors, where kelvinc's C warns;
       `const [int64](4)^` is kelvinc's error in its words.
-  - Not yet: one in another type, as an Optional, `[T]^` of no count, a
-    parameter of owners or of fixed arrays; a count C computes, as
-    `[uint8](n)`;
+  - Behind a pointer of no count (#363), `[int64]^`, as kelvinc reads it:
+    C's `__typeof__(int64_t[]) *`, which any count's `&a` of its elements
+    goes to, and which goes to a counted one, as C has it; `q^[i]`, its
+    count passed beside it.
+    - `q^.count` and `for x in q^` are kc's errors, where kelvinc's C fails
+      or it says there is no length to walk.
+  - Not yet: one in another type, as an Optional, a parameter of owners or
+    of fixed arrays; a count C computes, as `[uint8](n)`;
     `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the

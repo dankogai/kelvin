@@ -281,6 +281,10 @@ let put_ctype(y:int64) {
             put_fixed_base(y)
             put_fixed_counts(y)
             put(")")
+        } else if types[y].name == 0 - 1 {                       // __typeof__(int64_t[]), of no count, [T]^'s (#363)
+            put("__typeof__(")
+            put_ctype(types[y].elem)
+            put("[])")
         } else {
             if types[y].name == 0 - 4 { put("const ") }          // a parameter's, a pointer, of const elements (#357)
             put_ctype(types[y].elem)
@@ -1034,7 +1038,10 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
     if py < 0 || types[py].kind != Y_PTR || types[types[py].elem].kind != Y_FIXED || nodes[a].kind == N_NULL { return true }
     let ay:int64 = type_of(a)
     let pw:String = type_text(py)
-    if ay < 0 || types[ay].kind != Y_PTR || types[ay].elem != types[py].elem {
+    let pe:int64 = types[py].elem
+    let ae:int64 = ay >= 0 && types[ay].kind == Y_PTR ? types[ay].elem : 0 - 1
+    let alike = ae >= 0 && types[ae].kind == Y_FIXED && types[ae].elem == types[pe].elem && (types[ae].name == types[pe].name || types[ae].name == 0 - 1 || types[pe].name == 0 - 1)   // a count of none takes any, as C has it (#363)
+    if !alike {
         var m = who^.copy()
         m += " is "
         m += article_of(&pw)
@@ -2404,7 +2411,11 @@ let gen_member(n:int64) {
     }
     let yk:ykind = types[y].kind
     let fixed_ptr = yk == Y_PTR && types[types[y].elem].kind == Y_FIXED   // q.count of a [T](N)^, as kelvinc says it (#362)
-    if (yk == Y_FIXED && types[y].name < 0 || fixed_ptr) && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
+    if yk == Y_FIXED && types[y].name == 0 - 1 && (tok_is(t, "count") || tok_is(t, "size")) {   // q^.count of a [T]^, where kelvinc's C fails (#363)
+        var m = type_text(y)
+        m += " has no count, which C does not keep: pass it beside it"
+        gen_error(n, m.cstr)
+    } else if (yk == Y_FIXED && types[y].name < 0 || fixed_ptr) && (tok_is(t, "count") || tok_is(t, "size")) {   // a parameter's, as kelvinc says it (#357)
         var m = $"'."
         m += tok_text(t)
         m += "' is a property of arrays, and this is "
@@ -4330,9 +4341,9 @@ let fixed_inside(y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
     if k == Y_FIXED { return true }
-    if k == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // [T](N)^, a pointer to one, counted (#362)
+    if k == Y_PTR && types[types[y].elem].kind == Y_FIXED {   // [T](N)^, a pointer to one, counted (#362), or of no count (#363)
         let e:int64 = types[y].elem
-        return types[e].name < 0 || !fixed_elem_ok(e)
+        return types[e].name < 0 - 1 || !fixed_elem_ok(e)
     }
     if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_inside(types[y].elem) }
     if k == Y_DICT { return fixed_inside(types[y].elem) || fixed_inside(types[y].name) }
@@ -6852,6 +6863,10 @@ let gen_each(n:int64, depth:int64) {
     let f = iterator_next(y)
     if f >= 0 {                                        // an iterator (#320)
         gen_iter_each(n, depth, y, f, nodes[n].a)
+        return
+    }
+    if types[y].kind == Y_FIXED && types[y].name == 0 - 1 {   // q^ of a [T]^, as kelvinc refuses it (#363)
+        gen_error(nodes[n].a, "an array of no count has no length to walk: walk 0..<n, and index it, q^[i]")
         return
     }
     if types[y].kind == Y_FIXED && types[y].name < 0 {   // a parameter's, where kelvinc's link fails (#357)
