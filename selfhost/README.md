@@ -409,6 +409,10 @@ kc reads what it is written in, and little more.
   it is declared, or declared twice in a block is kelvinc's error, in its
   words; arithmetic of literals alone infers an i64 or an f64, each
   integer reckoned an i64.
+- **`fallthrough`** (#386), as kelvinc's, Swift's: a goto to a label on
+  the next case's block, `_kv_fall` and that case's node; outside a
+  switch, in its last case, or into a case that binds, kelvinc's error, in
+  its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -961,6 +961,10 @@ static Decl *switch_record;
 /* the depth of blocks being parsed, and the depth at which the cases of
    the switch being parsed are written: at the top of its block (#63) */
 static int block_depth, case_depth = -1;
+/* a fallthrough of the case being parsed (#386), and where: the next case
+   is its, which must come and must bind nothing */
+static bool fall_pending;
+static Pos fall_pos;
 static void parse_case_label(Stmt *s);
 static void check_switch(Stmt *s);
 static Type *parse_type(void);
@@ -12648,9 +12652,16 @@ static Stmt *parse_stmt_here(void) {
         }
         Decl *saved = switch_record;
         int saved_depth = case_depth;
+        bool saved_fall = fall_pending;
+        Pos saved_fall_pos = fall_pos;
         switch_record = tr;
         case_depth = block_depth + 1;
+        fall_pending = false;
         s->body = parse_block();
+        if (fall_pending)
+            error_at(fall_pos, "'fallthrough' in the last case of a switch, which has no next case to go on into");
+        fall_pending = saved_fall;
+        fall_pos = saved_fall_pos;
         case_depth = saved_depth;
         switch_record = saved;
         check_switch(s);
@@ -12677,6 +12688,10 @@ static Stmt *parse_stmt_here(void) {
             last->els = more;
             last = more;
         }
+        if (fall_pending && s->name2)
+            error_at(fall_pos, "'fallthrough' cannot go on into a case that binds a value, 'case %s(%s):'", s->name,
+                     s->name2);
+        fall_pending = false;
         expect_p(":");
         return s;
     }
@@ -12685,6 +12700,7 @@ static Stmt *parse_stmt_here(void) {
             error_at(pos, "'default' outside a switch");
         if (case_depth != block_depth)
             error_at(pos, "'default' is written at the top of the switch's block, not inside a statement of it");
+        fall_pending = false;
         expect_p(":");
         return new_stmt(S_DEFAULT, pos);
     }
@@ -12695,6 +12711,14 @@ static Stmt *parse_stmt_here(void) {
     if (accept_kw("continue")) {
         end_statement();
         return new_stmt(S_CONTINUE, pos);
+    }
+    if (accept_kw("fallthrough")) { /* Swift's (#386): on into the next case's body, its label unchecked */
+        if (case_depth < 0)
+            error_at(pos, "'fallthrough' outside a switch");
+        fall_pending = true;
+        fall_pos = pos;
+        end_statement();
+        return new_stmt(S_FALLTHROUGH, pos);
     }
     if (accept_kw("return")) {
         Stmt *s = new_stmt(S_RETURN, pos);

@@ -67,8 +67,12 @@ static List global_owners; /* Var *: the program's global owners, freed at exit 
 static Stmt *switch_block;
 static bool switch_closed;
 static char *switch_subject; /* the switch's value, for case n(x): (#119) */
+/* the label of the next case's body, once a fallthrough of the case being
+   emitted jumps there (#386) */
+static char *fall_label;
 static bool is_jump(Stmt *s) {
-    return s && (s->kind == S_BREAK || s->kind == S_RETURN || s->kind == S_CONTINUE || s->kind == S_GOTO);
+    return s && (s->kind == S_BREAK || s->kind == S_RETURN || s->kind == S_CONTINUE || s->kind == S_GOTO ||
+                 s->kind == S_FALLTHROUGH);
 }
 static List owner_locals; /* name, type, in pairs: the owners of the function's blocks (#54) */
 static bool local_owner(Expr *e);
@@ -2575,6 +2579,7 @@ static void stmt(Stmt *s) {
             line("%s", (char *)param_caches.data[i]);
         param_caches.len = 0;
         bool sw = s == switch_block, closed = sw && switch_closed, open = false;
+        char *outer_fall = fall_label;
         switch_block = NULL;
         Stmt *prev = NULL;
         for (int i = 0; i < s->stmts.len; i++) {
@@ -2589,6 +2594,12 @@ static void stmt(Stmt *s) {
                     line("}");
                 }
                 stmt(x);
+                if (open && fall_label) { /* the case before falls through to here (#386) */
+                    indent--;
+                    line("%s:", fall_label);
+                    indent++;
+                }
+                fall_label = NULL;
                 line("{");
                 indent++;
                 if (x->kind == S_CASE && x->name2 && x->type && x->type->kind == T_ARRAY) { /* a copy of an array's (#361) */
@@ -2610,6 +2621,8 @@ static void stmt(Stmt *s) {
             indent--;
             line("}");
         }
+        if (sw)
+            fall_label = outer_fall;
         if (closed) {
             indent--;
             line("default:");
@@ -3040,6 +3053,11 @@ static void stmt(Stmt *s) {
         break;
     case S_CONTINUE:
         line("continue;");
+        break;
+    case S_FALLTHROUGH: /* on into the next case's body, past its label (#386) */
+        if (!fall_label)
+            fall_label = hidden(NULL, "fall");
+        line("goto %s;", fall_label);
         break;
     case S_RETURN:
         if (s->expr && moves_out(s->expr)) /* an owner moves out (#54), an arm of ?: too (#203) */

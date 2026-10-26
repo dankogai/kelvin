@@ -52,8 +52,8 @@ do {
 ## Switch: a case ends at the next
 
 `switch` is Swift's, not C's (#63): no parentheses are needed, a case
-ends where the next begins, with no `break` and no fallthrough, and
-every value is handled.
+ends where the next begins, with no `break` and no fallthrough unless
+it says `fallthrough` (#386), and every value is handled.
 
 <!-- fragment -->
 ```swift
@@ -66,6 +66,15 @@ case 1, 2:                      // one body for both
     println("one")
 default:
     println("big")
+}
+switch n {
+case 3:
+    println("three")
+    fallthrough                 // on into case 2's body, as C would
+case 2:
+    println("two or three")
+default:
+    break
 }
 switch s {                      // an enum with values (#61), by its cases
 case none: return 0.0
@@ -96,6 +105,16 @@ case rect(q): return q.w * q.h
   - Any other switch has `default:`.
 - **`break`** leaves the switch, as in C, and `continue` goes on with
   the loop around it; `return` returns. `goto` is C's.
+- **`fallthrough`** (#386), Swift's, goes on into the body of the next
+  case, as C does without a `break`.
+  - The next case's label is not checked: its body just runs.
+  - It may be anywhere in its case, in an `if` or a loop of it too, and
+    belongs to the innermost switch.
+  - The case's owners are freed as it leaves, as at a `break`.
+  - The last case has no next one, and a case that binds, `case n(x):`,
+    has no value to bind there: either is an error.
+  - `fallthrough` is a keyword, so no name.
+  - In C it is a `goto` to a label on the next case's block.
 - **In C**, each case is a block of its own, so a variable declared in
   one is its own, ending with a `break` unless it ends with a jump.
   - A switch exhaustive by its cases gets

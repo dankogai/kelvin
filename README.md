@@ -37,7 +37,8 @@ So far the changes from C are:
   Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested
   with `j.is(n)` and `switch j { case n: ... }`
 - `switch` is Swift's: a case ends at the next, `case 1, 2:` shares a
-  body, and every value is handled, by every case or by `default:`
+  body, `fallthrough` goes on into the next, and every value is handled,
+  by every case or by `default:`
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
   functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters

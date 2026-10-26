@@ -683,5 +683,19 @@ let main(argc:int32, argv:[cstr]):int32 {
     let ♾️ = 1.0/0.0
     let 時間 = 60 * 60
     println(♾️, " ", 時間, " ", ♾️.isInfinite, " ", 時間 * 24)   // names past ASCII, arithmetic of literals (#385)
+    var fell:String = $""
+    for k in 0..<4 {
+        switch k {                                    // fallthrough, on into the next case (#386)
+        case 3:
+            fell += "three "
+            fallthrough
+        case 2:
+            fell += "two "
+            if k == 2 { fallthrough }
+        case 1: fell += "one "
+        default: fell += "| "
+        }
+    }
+    println(fell)
     return 0
 }

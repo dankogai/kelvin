@@ -500,7 +500,7 @@
       "patterns": [
         {
           "name": "keyword.control.kelvin",
-          "match": "\\b(?:if|else|while|do|for|in|switch|case|default|break|continue|return|goto|try|async|await)\\b"
+          "match": "\\b(?:if|else|while|do|for|in|switch|case|default|break|continue|fallthrough|return|goto|try|async|await)\\b"
         },
         {
           "name": "storage.type.kelvin",

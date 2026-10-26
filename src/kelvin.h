@@ -201,6 +201,7 @@ typedef enum {
     S_DEFAULT,
     S_BREAK,
     S_CONTINUE,
+    S_FALLTHROUGH, /* fallthrough: on into the next case's body (#386) */
     S_RETURN,
     S_GOTO,
     S_LABEL,

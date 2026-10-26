@@ -51,6 +51,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `union { int i; float f; } u;` | `var u:union{i:i32, f:f32}` (#60) |
 | `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch j { case n: ... }` (#61) |
 | `switch (n) { case 1: case 2: ...; break; default: ... }` | `switch n { case 1, 2: ... default: ... }`: a case ends at the next, no fallthrough, every value handled (#63) |
+| `case 1: ...; /* no break */ case 2: ...` | `case 1: ...; fallthrough` then `case 2: ...`: Swift's, on into the next case's body (#386) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
@@ -160,8 +161,8 @@ Each document says so under its title. In short:
 - Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`,
   `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
-  and `cstr` *(provisional P11)*, `as` (#14), and `let` and `var`
-  (#27).
+  and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
+  (#27), and `fallthrough` (#386).
   - `in` is a keyword only in `for i in ...` and in an anonymous
     function's `{ (a:T) in ... }`, so C names called `in` still work.
 - It also rejects C compiler keywords beyond C11, such as
@@ -187,8 +188,9 @@ These are C features without a Kelvin spelling so far:
   has no spelling yet
 - bit-fields
 - unnamed parameters
-- fallthrough between cases, and a case inside a statement of the
-  switch (Duff's device): a case ends at the next (#63)
+- a case inside a statement of the switch (Duff's device): a case is
+  written at the top of the switch's block (#63); `fallthrough` (#386)
+  goes from one case into the next
 - nested or local struct/union/enum definitions; a struct, a union or an
   enum with values and no tag, `{x:f64, y:f64}`, `union{i:i32, f:f32}`,
   `enum{i:i32, f:f32}`, goes where a type goes instead (#59, #60, #61)

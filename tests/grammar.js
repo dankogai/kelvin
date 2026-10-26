@@ -171,6 +171,7 @@ const samples = [
     ['let v = $[nan, -inf, Infinity]; nan("x"); Self.inf', [['nan', 'constant.numeric.decimal'], ['inf', 'constant.numeric.decimal'], ['Infinity', 'constant.numeric.decimal']]],
     ['#inline C { static int one(void) { return \'}\' + "{"; } }', [['#inline', 'keyword.control.directive'], ['C', 'support.constant.language'], [' static int one(void) ', 'meta.embedded.block.c'], ["'}'", 'string.quoted.single.c'], ['"{"', 'string.quoted.double.c']]],
     ['let after = 1', [['let', 'storage.type']]],
+    ['switch n { case 1: fallthrough }', [['switch', 'keyword.control'], ['case', 'keyword.control'], ['fallthrough', 'keyword.control']]],
     ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
     ['let it:Iterator<int64> = Iterator(0, step)', [['Iterator', 'support.type']]],
     ['let 二倍(n:int64):int64 { 二倍2(♾️(n)) }', [['二倍', 'entity.name.function'], ['♾️', 'entity.name.function']]], /* names past ASCII (#385) */

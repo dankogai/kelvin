@@ -9100,7 +9100,12 @@ let gen_iflet(n:int64, depth:int64) {
     put("}\n")
 }
 
-// whether s leaves its case: a return, a break, a continue
+// the case a fallthrough goes on into (#386): -1 in a switch's last case,
+// -2 outside a switch; and the fallthrough that does, or -1
+var fall_to:int64 = 0 - 2
+var fall_from:int64 = 0 - 1
+
+// whether s leaves its case: a return, a break, a continue, a fallthrough
 let is_jump(s:int64):bool {
     if s < 0 { return false }
     return nodes[s].jumps()
@@ -9145,8 +9150,14 @@ let gen_switch(n:int64, depth:int64) {
     indent(depth)
     put("{\n")
     var whole = false
+    let outer_to = fall_to
+    let outer_from = fall_from
+    fall_from = 0 - 1
     var c:int64 = nodes[n].b
     while c >= 0 && !failed {
+        let fell = fall_from
+        fall_to = nodes[c].next
+        fall_from = 0 - 1
         if nodes[c].flag == 1 {
             whole = true
             indent(depth)
@@ -9170,10 +9181,24 @@ let gen_switch(n:int64, depth:int64) {
                 v = nodes[v].next
             }
         }
+        let first = nodes[c].a
+        if fell >= 0 {                                   // the case before falls through to here (#386)
+            if td >= 0 && first >= 0 && nodes[first].kind == N_CALL {
+                var m = $"'fallthrough' cannot go on into a case that binds a value, 'case "
+                m += tok_text(case_word(first))
+                m += "("
+                m += tok_text(nodes[nodes[first].b].t)
+                m += "):'"
+                gen_error(fell, m.cstr)
+            }
+            indent(depth)
+            put("_kv_fall")
+            put_int(c)
+            put(":\n")
+        }
         indent(depth + 1)
         put("{\n")
         open_scope()
-        let first = nodes[c].a
         if td >= 0 && first >= 0 && nodes[first].kind == N_CALL && !failed {
             let m = case_named(td, case_word(first)) ?? 0 - 1    // case n(x): x is the case's value, the enum's still
             let x = nodes[first].b
@@ -9217,6 +9242,8 @@ let gen_switch(n:int64, depth:int64) {
         put("}\n")
         c = nodes[c].next
     }
+    fall_to = outer_to
+    fall_from = outer_from
     if !whole {
         let y:int64 = type_of(nodes[n].a)
         var d = -1
@@ -9340,6 +9367,13 @@ let gen_stmt(n:int64, depth:int64) {
     case S_RETURN: gen_return(n)
     case S_BREAK: put("break;\n")
     case S_CONTINUE: put("continue;\n")
+    case S_FALL:                                                 // on into the next case's body, past its label (#386)
+        if fall_to == 0 - 2 { gen_error(n, "'fallthrough' outside a switch") }
+        if fall_to == 0 - 1 { gen_error(n, "'fallthrough' in the last case of a switch, which has no next case to go on into") }
+        fall_from = n
+        put("goto _kv_fall")
+        put_int(fall_to)
+        put(";\n")
     default: gen_error(n, "this statement is not known")
     }
 }

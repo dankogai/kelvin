@@ -7605,3 +7605,18 @@ one unknown or declared twice. kc writes the same, from its own tables in
 Kelvin. Details are provisional P397.
 
 There are 1059 tests, and all pass with clang and with gcc 15.
+
+### 431. fallthrough
+
+> let's tackle "Not available yet" section of versusC.md, one by one.  Let's begin with an easy one.  Add `fallthrough` to `switch - case`.  This may be the least used feature of Swift but it is still there.
+
+**Claude** added Swift's `fallthrough` as #386: it goes on into the next
+case's body, its label unchecked, from anywhere in its case, and belongs
+to the innermost switch. As in Swift it is an error outside a switch, in
+the last case, and into a case that binds a value, and `fallthrough` is
+a keyword now. The C is a `goto` to a label on the next case's block, so
+the owners of the case it leaves are freed, and no C compiler warns. kc
+does the same, with kelvinc's errors. versusC.md keeps only Duff's device
+out; `<=>` comes later. Details are provisional P398.
+
+There are 1064 tests, and all pass with clang and with gcc 15.

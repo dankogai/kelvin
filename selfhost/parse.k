@@ -51,6 +51,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_RETURN,
     S_BREAK,
     S_CONTINUE,
+    S_FALL,     // fallthrough, on into the next case's body (#386)
     S_BLOCK,    // a, the first statement
     S_SWITCH,   // switch a { b, the first case }
     S_CASE,     // case a...: b...; flag 1 of default
@@ -113,9 +114,9 @@ extend node {                                      // (#213)
     static let leaf(kind:nkind, t:int64):Self {
         return {kind, -1, -1, -1, t, -1, -1, 0}
     }
-    // whether it leaves a case: a return, a break, a continue
+    // whether it leaves a case: a return, a break, a continue, a fallthrough
     let jumps():bool {
-        return .kind == S_RETURN || .kind == S_BREAK || .kind == S_CONTINUE
+        return .kind == S_RETURN || .kind == S_BREAK || .kind == S_CONTINUE || .kind == S_FALL
     }
 }
 
@@ -1473,9 +1474,10 @@ let parse_statement():int64 {
         end_statement()
         return n
     }
-    if at_word("break") || at_word("continue") {
+    if at_word("break") || at_word("continue") || at_word("fallthrough") {
         var kind:nkind = S_BREAK
         if at_word("continue") { kind = S_CONTINUE }
+        if at_word("fallthrough") { kind = S_FALL }       // Swift's (#386)
         let n:int64 = make_node(kind, advance())
         end_statement()
         return n
