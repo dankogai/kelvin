@@ -668,6 +668,7 @@ let set_ahead():bool {
 
 let parse_statement():int64    // prototypes: an anonymous function asks them (#324)
 let parse_typed(is_let:int64):int64
+let unnamed_param(p:int64, k:int64, anon:bool)
 
 // whether the tokens from i are names, by commas, then `in`: the
 // parameters of an anonymous function named without their types (#330)
@@ -711,8 +712,11 @@ let parse_anon():int64 {
     if at_word("(") {
         advance()
         var last = -1
+        var k:int64 = 0
         while !at_word(")") && !failed {
             let p:int64 = parse_typed(1)
+            unnamed_param(p, k, true)
+            k += 1
             if last < 0 {
                 nodes[n].a = p
             } else {
@@ -730,9 +734,12 @@ let parse_anon():int64 {
     } else if names_in_ahead(pos) {                      // { v in ... }: named, typed by where it goes (#330)
         nodes[n].flag = 2
         var last = -1
+        var k:int64 = 0
         while !at_word("in") && !failed {
             let p:int64 = make_node(S_VAR, advance())
             nodes[p].flag = 1
+            unnamed_param(p, k, true)                    // { _, b in ... } (#388)
+            k += 1
             if last < 0 {
                 nodes[n].a = p
             } else {
@@ -1357,6 +1364,21 @@ let parse_var(is_let:int64):int64 {
     return n
 }
 
+// a parameter written `_`, unnamed as C's f(int) (#388): _kv_argk, the
+// k-th, as kelvinc names it, so that `_` stands for several and the body
+// reads none by `_`; an anonymous function's is $k, which kc writes so
+// and its body may read
+let unnamed_param(p:int64, k:int64, anon:bool) {
+    let t:int64 = nodes[p].t
+    if !tok_is(t, "_") { return }
+    var name = anon ? $"$" : $"_kv_arg"
+    name += String(k)
+    let u:int64 = made_token(&name)
+    toks[u].line = toks[t].line
+    toks[u].file = toks[t].file
+    nodes[p].t = u
+}
+
 // a parameter or a member, whose type is written
 let parse_typed(is_let:int64):int64 {
     if toks[pos + 1].kind != T_PUNCT || !tok_is(pos + 1, ":") { parse_error("a parameter or a member says its type: name:T") }
@@ -1549,6 +1571,7 @@ let parse_function():int64 {
     let n:int64 = make_node(D_FN, advance())
     expect("(")
     var last = -1
+    var k:int64 = 0
     while !at_word(")") && !failed {
         var is_let = 1
         if at_word("var") {                     // a var parameter may change (#271)
@@ -1556,6 +1579,8 @@ let parse_function():int64 {
             is_let = 0
         }
         let p:int64 = parse_typed(is_let)
+        unnamed_param(p, k, false)
+        k += 1
         if last < 0 {
             nodes[n].a = p
         } else {

@@ -34,6 +34,12 @@ let put_tok(t:int64) {
     }
 }
 
+// whether token t starts with _kv_, a name of kelvinc's own (#388)
+let kelvin_word(t:int64):bool {
+    let at:int64 = toks[t].at
+    return toks[t].len >= 4 && codes[at] == '_' && codes[at + 1] == 'k' && codes[at + 2] == 'v' && codes[at + 3] == '_'
+}
+
 // whether token t holds more than ASCII (#385)
 let wide_tok(t:int64):bool {
     for i in 0..<toks[t].len {
@@ -468,6 +474,11 @@ let declare_as(t:int64, y:int64, how:int64) {
 }
 
 let declare(t:int64, y:int64) { declare_as(t, y, 0) }
+
+// a loop's variable: `for _ in` names none, as kelvinc's (#388)
+let declare_each(t:int64, y:int64, how:int64) {
+    if !tok_is(t, "_") { declare_as(t, y, how) }
+}
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
@@ -940,9 +951,20 @@ let type_of(n:int64):int64 {
     if k == N_SELF { return type_of_kind(Y_STRUCT, -1, nodes[current].c) }      // (#213)
     if float_word(n) { return base_type(Y_F64) }                      // nan, inf (#262)
     if k == N_ID {
+        if t < eof_pos && kelvin_word(t) {               // as an unnamed parameter's (#388)
+            var m = $"names starting with _kv_ are kelvinc's own, in the C it writes: '"
+            m += tok_text(t)
+            m += "' is none of the program's"
+            gen_error(n, m.cstr)
+            return -1
+        }
         let y:int64 = var_type(t)
         if y < 0 && wide_tok(t) {                        // a name past ASCII is Kelvin's (#385)
             if decl_named(t, D_FN) < 0 { unknown_wide(n, t) }
+            return -1
+        }
+        if y < 0 && tok_is(t, "_") && decl_named(t, D_FN) < 0 {   // (#388)
+            gen_error(n, "'_' names nothing to read: it leaves out a name, as of an unnamed parameter or of 'for _ in'")
             return -1
         }
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
@@ -4869,6 +4891,8 @@ let gen_expr(n:int64) {
     }
     if float_word(n) {                                   // nan, inf: gcc's and clang's constants (#262)
         put(word_no_case(t, "nan") ? "__builtin_nan(\"\")" : "__builtin_inf()")
+    } else if k == N_ID && var_type(t) < 0 && tok_is(t, "_") && decl_named(t, D_FN) < 0 {
+        gen_error(n, "'_' names nothing to read: it leaves out a name, as of an unnamed parameter or of 'for _ in'")   // (#388)
     } else if k == N_ID && var_type(t) < 0 && wide_tok(t) && decl_named(t, D_FN) < 0 {
         unknown_wide(n, t)                               // (#385)
     } else if k == N_ID && var_type(t) < 0 && !c_headers {
@@ -9015,7 +9039,7 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
     put_int(s)
     put(".u.some;\n")
     open_scope()
-    declare_as(nodes[n].t, ey, 3)                     // each value, a let (#271)
+    declare_each(nodes[n].t, ey, 3)                     // each value, a let (#271)
     indent(depth + 2)
     gen_block(nodes[n].c, depth + 2)
     close_scope()
@@ -9088,7 +9112,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put(")\n")
         open_scope()
-        declare_as(nodes[n].t, ey, 4)                  // a let, as a range's count (#271)
+        declare_each(nodes[n].t, ey, 4)                  // a let, as a range's count (#271)
         indent(depth + 1)
         gen_block(nodes[n].c, depth + 1)
         close_scope()
@@ -9193,7 +9217,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("].key;\n")
         open_scope()
-        declare_as(nodes[n].t, keyed, 3)                  // (#271)
+        declare_each(nodes[n].t, keyed, 3)                  // (#271)
         if nodes[n].b >= 0 {
             indent(depth + 2)
             put_ctype(types[y].elem)
@@ -9204,7 +9228,7 @@ let gen_each(n:int64, depth:int64) {
             put(").at[_kv_i")
             put_int(serial)
             put("].value;\n")
-            declare_as(nodes[nodes[n].b].t, types[y].elem, 3)
+            declare_each(nodes[nodes[n].b].t, types[y].elem, 3)
         }
     } else if types[y].kind == Y_FIXED {               // as kelvinc's #30: each element to its count, a zero the terminator (#354)
         put("for (size_t _kv_i")
@@ -9234,7 +9258,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("];\n")
         open_scope()
-        declare_as(nodes[n].t, types[y].elem, 3)
+        declare_each(nodes[n].t, types[y].elem, 3)
     } else if types[y].kind == Y_STRING {
         put("const uint8_t *_kv_p")
         put_int(serial)
@@ -9264,7 +9288,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put(")};\n")
         open_scope()
-        declare_as(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
+        declare_each(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
     } else {
         put("for (size_t _kv_i")
         put_int(serial)
@@ -9287,7 +9311,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("];\n")
         open_scope()
-        declare_as(nodes[n].t, types[y].elem, 3)          // (#271)
+        declare_each(nodes[n].t, types[y].elem, 3)          // (#271)
     }
     indent(depth + 2)
     gen_block(nodes[n].c, depth + 2)
@@ -9650,7 +9674,7 @@ let gen_stmt(n:int64, depth:int64) {
             put(")\n")
         }
         open_scope()
-        declare_as(nodes[n].t, base_type(Y_I64), 4)        // the range's count (#271)
+        declare_each(nodes[n].t, base_type(Y_I64), 4)        // the range's count (#271)
         indent(depth)
         gen_block(nodes[n].c, depth)
         close_scope()

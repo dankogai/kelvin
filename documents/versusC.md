@@ -32,6 +32,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `int (*p)[4];` | `var p:[i32](4)^` |
 | `const char *const s = t;` | `let s:const u8^ := t` |
 | `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
+| `void on_signal(int) { ... }`, a parameter unnamed | `let on_signal(_:i32) { ... }`: `_` may stand for several, and is never read (#388) |
 | `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
 | `(void *)0`, `NULL` | `nullptr` |
@@ -174,6 +175,8 @@ Each document says so under its title. In short:
 - Names starting with `_kv_` belong to the C that kelvinc writes, and
   `kv_` and `KV_` ones to its runtime, so Kelvin cannot declare them
   *(provisional P44)*.
+  - Nor can it read a `_kv_` name (#388), such as `_kv_arg0`, an
+    unnamed parameter's.
   - kelvinc names what it writes after the source, as in `_kv_n_text`
     for the text buffer of `n.hex`, `_kv_i_count` for the counter of
     `for i in`, and `_kv_main_fn` for an anonymous function in `main`.
@@ -188,7 +191,6 @@ These are C features without a Kelvin spelling so far:
 
 - an array of functions, or a pointer to a function type: `[(i64):i64](4)`
   has no spelling yet
-- unnamed parameters
 - a case inside a statement of the switch (Duff's device): a case is
   written at the top of the switch's block (#63); `fallthrough` (#386)
   goes from one case into the next

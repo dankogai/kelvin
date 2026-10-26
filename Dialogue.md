@@ -7647,3 +7647,25 @@ the prelude's inline functions; kc has no u64, so its `bv.value` is C's.
 `!!yes` in an older test became `! !yes`. Details are provisional P399.
 
 There are 1077 tests, and all pass with clang and with gcc 15.
+
+### 433. Unnamed parameters
+
+> next on the Not available yet list: unnamed parameters.  Before we go, would you explain a little bit what you mean by "unnamed parameters"?
+
+**Claude** explained them as C's `f(int)`: a parameter given only its
+type, in a prototype, or in a callback that must fit a signature but
+ignores an argument. Kelvin then took `_` as an ordinary name, read in
+the body, and two of them were C's error. The user chose `_`, as Swift's
+and Rust's.
+
+> go ahead with `_`.
+
+**Claude** made a parameter written `_` unnamed, as #388: it takes its
+argument and is never read, and `_` may stand for several. The C names
+the k-th `_kv_argk`, as an anonymous function's `$k`, which still reads
+it there. Reading `_`, as of `for _ in` too, was C's error and is
+kelvinc's now; reading a `_kv_` name is refused, as declaring one was. kc
+does the same, and no longer declares `for _ in`'s name. Details are
+provisional P400.
+
+There are 1081 tests, and all pass with clang and with gcc 15.

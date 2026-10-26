@@ -421,6 +421,11 @@ kc reads what it is written in, and little more.
   integers too, `>>` lexed as one and split where it closes a type's
   `<...>`. kc has no u64, so `bv.value` is what only C sees: `as int64`
   reads it. kelvinc's errors, in its words.
+- **Unnamed parameters** (#388), as kelvinc's: a parameter written `_`
+  is a token kc makes, `_kv_argk` of the k-th, or `$k` of an anonymous
+  function's, which its body may read; `_` may stand for several; `for _
+  in` declares no name, and reading `_` or any `_kv_` name is kelvinc's
+  error, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

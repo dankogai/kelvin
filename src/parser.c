@@ -3744,6 +3744,13 @@ static Expr *parse_primary(void) {
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
         if (t->kind == TK_IDENT && !ascii_name(t->text))
             reject_unknown_name(t); /* (#385) */
+        if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4)) /* as an unnamed parameter's (#388) */
+            error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: '%s' is none of the "
+                             "program's",
+                     t->text);
+        if (t->kind == TK_IDENT && !strcmp(t->text, "_") && binding_index("_") < 0 && !function_named("_"))
+            error_at(t->pos, "'_' names nothing to read: it leaves out a name, as of an unnamed parameter or of "
+                             "'for _ in'"); /* (#388) */
         /* an owner moved out is dead until assigned anew (#54) */
         if (t->kind == TK_IDENT && is_moved(t->text) && !is_p(peek(), "="))
             error_at(t->pos, "'%s' was moved out and holds nothing now: assign it anew before using it", t->text);
@@ -10238,6 +10245,16 @@ static Var *parse_var(bool with_init, int let) {
     return v;
 }
 
+/* parameter k of a function: `_:T` is unnamed (#388), as C's `f(int)`,
+   a name of kelvinc's own that the body cannot spell, so that `_` may
+   stand for several parameters and none is read */
+static Var *parse_param(int k) {
+    Var *p = parse_var(false, LET_NONE);
+    if (!strcmp(p->name, "_"))
+        p->name = strfmt("_kv_arg%d", k);
+    return p;
+}
+
 /* let|var name[: type] [= or := init] {, ...} (#27): each name is in
    scope after its declarator. A let is C's const, so it needs a value,
    except in an extern declaration. */
@@ -11308,7 +11325,7 @@ static Expr *parse_anon_fn(Type *ctx) {
             }
             bool mutable = accept_kw("var");
             reject_c_fn_pointer(cur, "");
-            Var *p = parse_var(false, LET_NONE);
+            Var *p = parse_param(d->params.len);
             p->is_let = !mutable;
             /* lent (#242, #244): an element its caller keeps, read, never moved;
                a var asks for one of its own, a copy */
@@ -11353,7 +11370,8 @@ static Expr *parse_anon_fn(Type *ctx) {
             p->name = strfmt("$%d", k);
             if (named) {
                 Token *nt = advance();
-                p->name = nt->text;
+                if (strcmp(nt->text, "_")) /* { _, b in ... } leaves $0 unnamed (#388) */
+                    p->name = nt->text;
                 reject_kv_name(nt);
                 if (k + 1 < ctx->params.len)
                     expect_p(",");
@@ -13230,7 +13248,7 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
         }
         bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
         reject_c_fn_pointer(cur, "");
-        Var *p = parse_var(false, LET_NONE);
+        Var *p = parse_param(d->params.len);
         p->is_let = !mutable;
         p->number = numeric_type(param_type(p->type));
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
@@ -13432,7 +13450,7 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         }
         bool mutable = accept_kw("var"); /* parameters are lets unless var (#27) */
         reject_c_fn_pointer(cur, "");
-        Var *p = parse_var(false, LET_NONE);
+        Var *p = parse_param(d->params.len);
         p->is_let = !mutable;
         p->number = numeric_type(param_type(p->type));
         declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
@@ -13789,7 +13807,7 @@ static void parse_subscript(Program *prog, Pos pos, bool is_let, Token *recv, Ty
     expect_p("(");
     while (!is_p(peek(), ")")) {
         reject_c_fn_pointer(cur, "");
-        Var *p = parse_var(false, LET_NONE);
+        Var *p = parse_param(g->params.len);
         p->is_let = true;
         p->number = numeric_type(param_type(p->type));
         declare_binding(p->name, param_type(p->type), LET_PARAM);

@@ -42,7 +42,8 @@ So far the changes from C are:
 - variables are declared with `let`, which never changes (C's `const`), or
   `var`: `let k = 42`, `var n:i32 = 0`; the type follows the name, and
   functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters
-  are lets unless written `var`
+  are lets unless written `var`, and `_` leaves one unnamed,
+  `let on_signal(_:i32)` (#388)
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
 - XOR is `~`

@@ -241,6 +241,7 @@ var span_walk.next():int64? {
 }
 let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
+let but_first(_:int64, _:String, n:int64):int64 { n }  // unnamed parameters, `_` (#388)
 let twin(k:cstr, v:int64):Dictionary<String, int64> {    // a function flatMapWithKey takes (#332)
     var r:Dictionary<String, int64> = ${:}
     r[String(k)] = v
@@ -706,5 +707,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     bset <<= 1
     println(bset, " ", bset[7], " ", bset.value as int64, " ", bset & bmask, " ", bset | bmask)
     println(bset ~ bmask, " ", ~bmask == bmask, " ", bset >> 2, " ", 1 << 3)
+    var rounds = 0
+    for _ in 0..<3 { rounds += 1 }
+    let threes = $[4, 5, 6]
+    println(but_first(1, $"unseen", 7), " ", rounds, " ", threes.map { _ in 1 }, " ", threes.reduce(0) { acc, _ in acc + 1 })
     return 0
 }

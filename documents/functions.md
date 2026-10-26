@@ -45,8 +45,16 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     `let f(var p:u8^):() { p := p.next }` may move `p`.
   - A method's `self` is a let too (#138): a copy, `var p = self`,
     changes; see [structs.md](structs.md#methods).
-  - Parameters must be named: C's unnamed `f(int)` is not available
-    yet.
+  - A parameter written `_` is unnamed (#388), as C's `f(int)`: the
+    function takes the argument and never reads it.
+    - `let on_signal(_:i32) { ... }` fits a callback's signature;
+      `_` may stand for several parameters, `let last(_:i64, _:i64,
+      z:i64):i64`.
+    - Reading `_` is an error, and so is reading the name kelvinc
+      gives it in the C, `_kv_arg0` for the first.
+    - An anonymous function's is still `$0`, `$1`, ...:
+      `{ (_:i64, _:i64):i64 in $0 + $1 }`, and `{ _, b in b }` names
+      only its second.
 - **An argument is of its parameter's type** (#257), as a
   declaration's value is (#255), once converted and lent: text becomes
   a String, a `T` or `none` an Optional, an owner an expression gives
