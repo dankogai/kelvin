@@ -81,6 +81,39 @@ static void step(Lexer *lx) {
     lx->p++;
 }
 
+/* the codepoint of the UTF-8 at p, and its bytes in *n; U+FFFD of one
+   malformed */
+static uint32_t lex_codepoint(const char *s, int *n) {
+    const unsigned char *p = (const unsigned char *)s;
+    if (p[0] < 0xc0) {
+        *n = 1;
+        return p[0];
+    }
+    int len = p[0] >= 0xf0 ? 4 : p[0] >= 0xe0 ? 3 : 2;
+    uint32_t c = p[0] & (0x7f >> len);
+    for (int i = 1; i < len; i++) {
+        if ((p[i] & 0xc0) != 0x80) {
+            *n = i;
+            return 0xfffd;
+        }
+        c = c << 6 | (p[i] & 0x3f);
+    }
+    *n = len;
+    return c;
+}
+
+/* Does a name begin, or go on, at p (#385)? ASCII's letters and _, and
+   digits after the first, and past ASCII UAX #31's XID_Start and
+   XID_Continue and emoji; its bytes in *n */
+static bool name_char(const char *p, bool first, int *n) {
+    unsigned char c = (unsigned char)*p;
+    *n = 1;
+    if (c < 0x80)
+        return isalpha(c) || c == '_' || (!first && isdigit(c));
+    uint32_t cp = lex_codepoint(p, n);
+    return first ? ident_start(cp) : ident_continue(cp);
+}
+
 static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char *end) {
     if (lx->len == lx->cap) {
         lx->cap = lx->cap ? lx->cap * 2 : 256;
@@ -744,10 +777,12 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             lex_import(&lx);
             continue;
         }
-        if (isalpha((unsigned char)c) || c == '_') {
+        int name_len;
+        if (name_char(lx.p, true, &name_len)) { /* a name, of Unicode's letters and emoji too (#385) */
             const char *start = lx.p;
-            while (isalnum((unsigned char)*lx.p) || *lx.p == '_')
-                step(&lx);
+            for (bool first = true; *lx.p && name_char(lx.p, first, &name_len); first = false)
+                for (int k = 0; k < name_len; k++)
+                    step(&lx);
             push(&lx, TK_IDENT, pos, start, lx.p);
             Token *t = &lx.toks[lx.len - 1];
             if ((*lx.p == '"' || *lx.p == '\'') && (!strcmp(t->text, "L") || !strcmp(t->text, "u") ||
@@ -818,6 +853,12 @@ Token *lex(const char *file, const char *src, int *ntoks) {
                 match = puncts[i];
                 break;
             }
+        if (!match && (unsigned char)c >= 0x80) { /* (#385) */
+            int n;
+            uint32_t cp = lex_codepoint(lx.p, &n);
+            error_at(pos, "'%.*s' (U+%04X) is neither an operator nor in a name: a name holds letters, digits, _ and emoji",
+                     n, lx.p, cp);
+        }
         if (!match)
             error_at(pos, "unexpected character '%c'", c);
         const char *start = lx.p;

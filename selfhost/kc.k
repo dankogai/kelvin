@@ -16,6 +16,7 @@
 #import <math.h> as C             // pow, of a power of literals (#380)
 #import <string.h> as C           // strpbrk
 #import <unistd.h> as C           // getpid
+#import "ident.k"                 // the codepoints of a name past ASCII (#385)
 #import "lex.k"
 #import "parse.k"
 #import "gen.k"
@@ -267,7 +268,8 @@ let main(argc:int32, argv:[cstr]):int32 {
         println("kc: cannot write ", cfile)
         return 1
     }
-    g.write(&out)
+    let c_text:String = ascii_names(&out)              // a name past ASCII in ASCII (#385)
+    g.write(&c_text)
     g.close()
     if emit_c { return 0 }
     var args:$[String] = $[]

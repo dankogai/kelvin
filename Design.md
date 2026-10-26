@@ -416,6 +416,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 382 | `x.sign`, a property, -1, 0 or 1 of a signed integer's own type; of a floating-point number 1.0 or -1.0 by its sign bit, zeros too, NaN of NaN, as Rust's signum; `x.isNaN` of a floating-point number; none for unsigned integers and complex numbers; kelvinc and kc | E_METHOD num_sign and num_isnan beside #381's num_abs: copysign, and `(x > 0) - (x < 0)` | `x.abs * x.sign == x` | 2026-10-26 |
 | 383 | A floating-point number's `x.sign` a `bool?`, true by its sign bit's 0, false by its 1, none of NaN; `x.exponent` and `x.significand` IEEE 754's raw fields as i64s, the exponent biased, the significand the fraction's bits; each set, `x.sign = b`, `x.exponent = e`, `x.significand = s`, within its field or the program's end; `b ?? false` of a `bool?` prints `true`; kelvinc and kc | E_METHOD num_sign, num_exponent, num_significand, and num_set of an assignment to one, over the bits by memcpy | `x.exponent += 1` | 2026-10-26 |
 | 384 | `x.isInfinite` and `x.isFinite` of a floating-point number, Swift's, beside `x.isNaN`, read only, with no import; kelvinc and kc | E_METHOD num_isinf and num_isfinite: C's isinf and isfinite | `if x.isFinite` | 2026-10-26 |
+| 385 | A name may hold Unicode: UAX #31's XID_Start and XID_Continue and emoji with their components, past ASCII; compared as written; in the C spelled in ASCII, `_kv_u` and each other codepoint as `_hex_`; one past ASCII unknown, used before it is declared, or declared twice in a block is Kelvin's error, with a variation selector's difference named; arithmetic of literals alone infers an i64 or an f64, reckoned in 64 bits; kelvinc and kc | src/ident.c and selfhost/ident.k of tools/gen_ident.py; the lexer's name_char; ascii_names over the C; literal_arithmetic and widen_literals | `let ♾️ = 1.0/0.0` | 2026-10-26 |
 
 Notes:
 
@@ -977,6 +978,27 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (385) Agreed details: "`.k` is written in a valid Unicode and it
+  should accept a valid identifier as `♾️`. `let ♾️ = 1.0/0.0` must be
+  considered a valid sentence unless `♾️` is defined a priori". The user
+  chose UAX #31's identifiers plus emoji, as `♾` is a symbol, no letter,
+  so UAX #31 alone would refuse it; names compared as written, `♾` and
+  `♾️` two; and this as #385, after #384, `<=>` #386.
+  - `1.0/0.0` gave no type, as #47 infers none from arithmetic; the
+    user chose that arithmetic of literals alone infer one, an `f64`
+    where any is one, else an `i64`, each integer literal then cast to an
+    i64 so C reckons it in 64 bits; arithmetic of a variable still needs
+    a written type.
+  - C compilers refuse emoji in names, so the C has every name past
+    ASCII in ASCII, by a last pass over the C that leaves text, comments
+    and #include lines alone; `_kv_` keeps it from any name of the
+    program's.
+  - So C cannot say such a name: one unknown, used before it is
+    declared, or declared twice in a block is Kelvin's error. A name of
+    ASCII stays C's to declare.
+  - The tables are generated, as libkUnicodeData's are, and kc has its
+    own of the same ranges in Kelvin, not the runtime's C.
 
 - (384) Agreed details: "Do we have `.isInfinity` for floating points?
   If missing, give it to them". It was missing, but for `<math>`'s
@@ -5143,6 +5165,7 @@ says "as agreed".
 | P394 | Details of #382 | src/parser.c: property's sign and isNaN, value_type's num_ ops; src/codegen.c: num_sign, num_isnan; selfhost/gen.k: type_of's and gen_expr's sign and isNaN, power_float's prototype; documents/integers.md, floatingpoint.md, properties.md, math.md; tests/run/sign.k, sign_small.k | — |
 | P395 | Details of #383 | src/parser.c: property's sign of a floating-point number, exponent and significand, x->from; the num_ setters in assign_to; `??` of a `bool?` is_bool; src/codegen.c: num_sign of a floating-point number, num_exponent, num_significand, num_set, optional_case's prototype; selfhost/gen.k: type_of's and gen_expr's fields, gen_float_set, float_field_at, float_field_mask, compound_op, gen_coalesce's bool; documents/floatingpoint.md, integers.md, properties.md; tests/run/float_fields.k, sign.k and sign_small.k's float sign, tests/error/float_exponent_range.k, float_significand_range.k, float_sign_bool.k, float_abs_set.k | — |
 | P396 | Details of #384 | src/parser.c: property's isInfinite and isFinite; src/codegen.c: num_isinf, num_isfinite; selfhost/gen.k: type_of's, gen_expr's and gen_assign's; documents/floatingpoint.md, properties.md, math.md; tests/run/infinite.k, tests/error/float_isfinite_set.k | — |
+| P397 | Details of #385 | tools/gen_ident.py; src/ident.c and selfhost/ident.k, which it writes; src/kelvin.h: ident_start, ident_continue; src/lexer.c: lex_codepoint, name_char, the error of a symbol in no name; src/codegen.c: utf8_codepoint, ascii_names; src/parser.c: ascii_name, name_known, reject_unknown_name, declare_binding's twice, literal_arithmetic, widen_literals; selfhost/lex.k: name_start, name_continue, hex4; selfhost/gen.k: wide_tok, name_known_text, unknown_wide, literal_arith, widened, ascii_names, put_c_word, hex_lower, declare_as's twice; selfhost/kc.k: ident.k, the C written by ascii_names; editors/vscode grammar's names, tests/grammar.js's sample; documents/grammar.md; tests/run/unicode_names.k, literal_arithmetic.k, tests/error/unicode_name_selector.k, unicode_not_name.k, unicode_redeclared.k, unicode_unknown_name.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

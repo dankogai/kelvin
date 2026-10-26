@@ -77,6 +77,30 @@ let is_digit(c:uint32):bool {
     return c >= '0' && c <= '9'
 }
 
+// whether c may begin a name, and go on with one (#385): ASCII's letters
+// and _, digits after the first, and past ASCII ident.k's, UAX #31's
+// XID_Start and XID_Continue and emoji, as kelvinc's
+let name_start(c:uint32):bool {
+    return is_alpha(c) || (c >= 128 && ident_start(c as int64))
+}
+
+let name_continue(c:uint32):bool {
+    return is_alpha(c) || is_digit(c) || (c >= 128 && ident_continue(c as int64))
+}
+
+// c as four hex digits or more, upper case, as U+%04X writes it
+let hex4(c:uint32):String {
+    let digits:cstr := "0123456789ABCDEF"
+    var p:uint32 = 268435456
+    while p > 4096 && c / p == 0 { p = p / 16 }
+    var s = $""
+    while p > 0 {
+        s += digits[(c / p) % 16].uchr
+        p = p / 16
+    }
+    return s
+}
+
 let add_tok(kind:tkind, at:int64, len:int64, line:int64, file:int64) {
     let t:tok = {kind, at, len, line, file}
     toks += t
@@ -135,9 +159,9 @@ let lex_range(from:int64, to:int64, file:int64) {
             i += 1
             while i < to && is_digit(codes[i]) { i += 1 }
             add_tok(T_ID, s, i - s, line, file)
-        } else if is_alpha(c) {
+        } else if name_start(c) {                        // a name, of Unicode's letters and emoji too (#385)
             let s:int64 = i
-            while i < to && (is_alpha(codes[i]) || is_digit(codes[i])) { i += 1 }
+            while i < to && name_continue(codes[i]) { i += 1 }
             let q:uint32 = code_at(i)
             let one = i - s == 1 && (codes[s] == 'L' || codes[s] == 'u' || codes[s] == 'U')
             let wide8 = i - s == 2 && codes[s] == 'u' && codes[s + 1] == '8'
@@ -198,6 +222,14 @@ let lex_range(from:int64, to:int64, file:int64) {
             while b > a && codes[b - 1] != '>' && codes[b - 1] != '"' { b -= 1 }
             if a >= b { lex_error(file, line, "only #import <x>, #import \"x.k\" and #import <x.h> as C are known") }
             add_tok(T_IMPORT, a, b - a, line, file)
+        } else if c >= 128 {                             // as kelvinc says it (#385)
+            var m = $"'"
+            m += c.uchr
+            m += "' (U+"
+            let h:String = hex4(c)
+            m += &h
+            m += ") is neither an operator nor in a name: a name holds letters, digits, _ and emoji"
+            lex_error(file, line, m.cstr)
         } else {
             let n:int64 = punct_len(i)
             if c == '(' || c == '[' { depth += 1 }

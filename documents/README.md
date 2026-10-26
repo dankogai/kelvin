@@ -10,9 +10,9 @@ the design decisions, numbered `#N` throughout, are in
 
 - [versusC.md](versusC.md): Kelvin versus C, every difference in one
   table, and this list of documents with what each holds.
-- [grammar.md](grammar.md): declarations, type inference, the ways to
-  quote text, expressions, lines and `;`, assignment as a statement,
-  the C habits kelvinc catches.
+- [grammar.md](grammar.md): names, Unicode's and emoji too (#385),
+  declarations, type inference, the ways to quote text, expressions,
+  lines and `;`, assignment as a statement, the C habits kelvinc catches.
 - [operators.md](operators.md): every operator with C's precedence,
   and what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges; `**`,
   Python's power (#380).

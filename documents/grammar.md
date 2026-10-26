@@ -15,6 +15,46 @@ and [arrays.md](arrays.md); the statements that control flow are in
 - A BOM, or a byte that is no UTF-8, is an error at the line and column
   where it stands; an overlong form and a surrogate are none.
 
+**A name is Unicode's** (#385): ASCII's letters, digits and `_`, and past
+ASCII the letters and digits of UAX #31, XID_Start and XID_Continue, and
+emoji with their components.
+
+```swift
+struct point { x: float64; ♾️: float64 }
+let 二倍(n:int64):int64 { n * 2 }
+
+let main():int32 {
+    let ♾️ = 1.0/0.0
+    let café = 二倍(3)
+    let p:point = {1.0, ♾️}
+    println(♾️, " ", café, " ", p)   // inf 6 {x: 1.0, ♾️: inf}
+    return 0
+}
+```
+
+- **Any name** may be one: a variable's, a function's, a member's, a
+  type's.
+  - `é`, `π` and `変数` are names, as are `♾️`, `🐶`, `👩‍💻` and a
+    flag, `🇯🇵`.
+  - A symbol that is not a letter, a digit or an emoji is in none:
+    `x→y` and `×2` are errors that name the codepoint, and so are `x₁`
+    and `x²`, whose digits UAX #31 counts as no digits.
+- **Two names are the same** when their codepoints are, as written, as
+  C and Rust compare them.
+  - So `♾` and `♾️`, which has U+FE0F after it, are two; using one where
+  only the other is declared is an error that says they differ by a
+  variation selector.
+  - Neither are `é` written as one codepoint and `e` with an accent the
+    same name.
+- **A name past ASCII is Kelvin's**: C could not declare one, so using
+  it before it is declared, or declaring it twice in a block, is
+  Kelvin's error, in its own spelling.
+- **The C has it in ASCII**, as C compilers refuse emoji in names:
+  `_kv_u`, then each ASCII letter or digit as it is and any other
+  codepoint as `_`, its hex, `_`, so `♾️` is `_kv_u_267e__fe0f_`.
+  - The text a struct prints keeps the name, `{♾️: inf}`, so it pastes
+    back.
+
 ## Declarations
 
 A variable is declared with `let` or `var`, and the type follows the name
@@ -83,6 +123,11 @@ infers the type from the value:
 - an integer literal is `i64`: `let i = 42`, `var m = -1`
 - a floating literal is `f64`: `let d = 1.5`, `let e = 1e9`, and so
   are `nan` and `inf` (#261), `let x = -inf`
+- arithmetic of literals alone is an `f64` where any of them is one, and
+  an `i64` otherwise, as a literal is (#385): `let ♾️ = 1.0/0.0`,
+  `let hour = 60 * 60`
+  - It is reckoned in 64 bits, each literal an `i64`, so
+    `let big = 65536 * 65536` is 4294967296, not C's `int` overflowing.
 - a `bool` is `bool`: `var done = false`, `let ok = a < b`,
   `let both = ok && f(x)` (#24, #25), as is a `bool` variable or the
   `bool` result of a Kelvin function or method
@@ -106,8 +151,8 @@ infers the type from the value:
 
 Anything else needs a written type:
 
-- arithmetic (`let y = x + 1`), whose type is C's promotion of its
-  operands (`small + 1` is an `i32`, not an `i8`)
+- arithmetic of a variable (`let y = x + 1`), whose type is C's
+  promotion of its operands (`small + 1` is an `i32`, not an `i8`)
 - `.size` and `.addr`
 - any value only C sees, such as a C function's result
   (`let n = strlen(s)`), a macro, or a `bool` from a C function

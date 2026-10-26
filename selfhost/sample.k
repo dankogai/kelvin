@@ -680,5 +680,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     bits3.exponent += 1
     println(bits3, " ", bits3.sign, " ", bits3.exponent, " ", bits3.significand, " ", bits3.sign ?? false)   // a float's fields (#383)
     println(bits3.isFinite, " ", bits3.isInfinite, " ", (1.0 / 0.0).isInfinite, " ", (0.0 / 0.0).isFinite)   // x.isInfinite, x.isFinite (#384)
+    let ♾️ = 1.0/0.0
+    let 時間 = 60 * 60
+    println(♾️, " ", 時間, " ", ♾️.isInfinite, " ", 時間 * 24)   // names past ASCII, arithmetic of literals (#385)
     return 0
 }

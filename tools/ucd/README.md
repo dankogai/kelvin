@@ -3,7 +3,9 @@
 The data files of the Unicode Character Database, version 18.0.0, from
 https://www.unicode.org/Public/UCD/latest/ucd/ (#156), fetched on
 2026-10-17. tools/gen_unicode.py makes runtime/unicode_tables.c and
-runtime/unicode_names.c from them, which `make` runs, and
+runtime/unicode_names.c from them, which `make` runs, tools/gen_ident.py
+src/ident.c and selfhost/ident.k, the codepoints of a name past ASCII
+(#385), and
 tests/run/unicode_normalization.k and unicode_graphemes.k read
 NormalizationTest.txt and GraphemeBreakTest.txt as their references.
 

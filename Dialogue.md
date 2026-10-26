@@ -7586,3 +7586,22 @@ pair, `x.isInfinite` and `x.isFinite`, beside `x.isNaN`, and this as
 Details are provisional P396.
 
 There are 1053 tests, and all pass with clang and with gcc 15.
+
+### 430. Names past ASCII
+
+> `.k` is written in a valid Unicode and it should accept a valide identifier as `♾️`.  `let ♾️ = 1.0/0.0` must be considered a valid sentene unless `♾️` is defined a priori.
+>
+> resume the Unicode identifiers as #385
+
+**Claude** noted that `♾` is a symbol, which UAX #31 alone would refuse,
+and asked which characters a name holds, when two names are the same,
+and the number. The user chose UAX #31's identifiers plus emoji, names
+compared as written, and this as #385, after `.isInfinite` took #384.
+`let ♾️ = 1.0/0.0` failed besides for want of a type, as #47 infers none
+from arithmetic; the user chose that arithmetic of literals alone infer
+one, reckoned in 64 bits. C compilers refuse emoji in names, so the C has
+each name past ASCII in ASCII, and kelvinc says itself what C would of
+one unknown or declared twice. kc writes the same, from its own tables in
+Kelvin. Details are provisional P397.
+
+There are 1059 tests, and all pass with clang and with gcc 15.

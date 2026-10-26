@@ -34,6 +34,132 @@ let put_tok(t:int64) {
     }
 }
 
+// whether token t holds more than ASCII (#385)
+let wide_tok(t:int64):bool {
+    for i in 0..<toks[t].len {
+        if codes[toks[t].at + i] >= 128 { return true }
+    }
+    return false
+}
+
+
+// c in lower-case hex, as %x writes it
+let hex_lower(c:uint32):String {
+    let digits:cstr := "0123456789abcdef"
+    var p:uint32 = 268435456
+    while p > 1 && c / p == 0 { p = p / 16 }
+    var s = $""
+    while p > 0 {
+        s += digits[(c / p) % 16].uchr
+        p = p / 16
+    }
+    return s
+}
+
+// whether c goes on with a name in the C kc writes: ASCII's letters,
+// digits and _, and any codepoint past ASCII
+let c_name_char(c:uint32):bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c >= 128
+}
+
+// a word of the C, as kelvinc's ascii_names writes it (#385): one that
+// holds more than ASCII is _kv_u, then each ASCII letter or digit as it is
+// and any other codepoint as _, its hex, _
+let put_c_word(r:String^, w:const String^, wide:bool) {
+    var first = true
+    var digit = false
+    for c in w^ {
+        if first { digit = c.utf32 >= '0' && c.utf32 <= '9' }
+        first = false
+    }
+    if !wide || digit {
+        r^ += w
+        return
+    }
+    r^ += "_kv_u"
+    for c in w^ {
+        let v:uint32 = c.utf32
+        if (v >= 'a' && v <= 'z') || (v >= 'A' && v <= 'Z') || (v >= '0' && v <= '9') {
+            r^ += c
+        } else {
+            r^ += "_"
+            let h:String = hex_lower(v)
+            r^ += &h
+            r^ += "_"
+        }
+    }
+}
+
+// the C kc writes, each name past ASCII spelled in ASCII, as kelvinc's
+// (#385); text, a character, a comment and an #include line as they are
+let ascii_names(s:const String^):String {
+    var r = $""
+    var w = $""
+    var wide = false
+    var mode:int64 = 0                                   // 0 code, 1 text, 2 a character, 3 a comment, 4 to the line's end, 5 a directive's word
+    var escaped = false
+    var prev:uint32 = 10
+    var directive = $""
+    for c in s^ {
+        let v:uint32 = c.utf32
+        if mode == 0 && c_name_char(v) {
+            w += c
+            wide = wide || v >= 128
+            prev = v
+            continue
+        }
+        if w.count > 0 {
+            put_c_word(&r, &w, wide)
+            w = $""
+            wide = false
+        }
+        if mode == 5 {
+            if (v >= 'a' && v <= 'z') {
+                directive += c
+                r += c
+                prev = v
+                continue
+            }
+            mode = directive == $"include" ? 4 : 0
+            directive = $""
+        }
+        r += c
+        if mode == 0 {
+            if v == '"' {
+                mode = 1
+            } else if v == 39 {
+                mode = 2
+            } else if v == '*' && prev == '/' {
+                mode = 3
+            } else if v == '/' && prev == '/' {
+                mode = 4
+            } else if v == '#' && prev == 10 {
+                mode = 5
+            }
+            prev = v
+            continue
+        }
+        if mode == 1 || mode == 2 {
+            if escaped {
+                escaped = false
+            } else if v == 92 {
+                escaped = true
+            } else if (mode == 1 && v == '"') || (mode == 2 && v == 39) {
+                mode = 0
+            }
+        } else if mode == 3 && v == '/' && prev == '*' {
+            mode = 0
+            prev = 0
+            continue
+        } else if mode == 4 && v == 10 {
+            mode = 0
+        }
+        prev = v
+    }
+    if w.count > 0 { put_c_word(&r, &w, wide) }
+    return r
+}
+
 // an error at token t, as gen_error's at a node
 let tok_error(t:int64, what:cstr) {
     if !failed {
@@ -323,6 +449,19 @@ let close_scope() {
 }
 
 let declare_as(t:int64, y:int64, how:int64) {
+    if wide_tok(t) && marks.count > 0 {                  // as kelvinc says it (#385)
+        var i:int64 = locals.count as int64 - 1
+        while i >= marks[marks.count - 1] {
+            if same_text(locals[i].t, t) {
+                var m = $"'"
+                m += tok_text(t)
+                m += "' is declared already in this block"
+                tok_error(t, m.cstr)
+                return
+            }
+            i -= 1
+        }
+    }
     let s:sym = {t, y, how}
     locals += s
 }
@@ -449,6 +588,66 @@ let var_type(t:int64):int64 {
     if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }
     return -1
 }
+
+let float_tok(t:int64):bool    // a prototype: literal_arith asks it (#385)
+
+// whether the program declares a name of this text, as kelvinc's name_known
+let name_known_text(s:const String^):bool {
+    for i in 0..<locals.count as int64 {
+        let w:String = tok_text(locals[i].t)
+        if w == s^ { return true }
+    }
+    if decls.count as int64 > indexed { index_names() }
+    let name:String = s^.copy()
+    return fn_names.get(name, -1) >= 0 || global_names.get(name, -1) >= 0 || struct_names.get(name, -1) >= 0 || enum_names.get(name, -1) >= 0 || enumerators.get(name, -1) >= 0
+}
+
+// a name past ASCII not declared where it is used (#385), in kelvinc's
+// words, with the one that differs by a variation selector, U+FE0F
+let unknown_wide(n:int64, t:int64) {
+    let name:String = tok_text(t)
+    var with = name.copy()
+    with += "\u{FE0F}"
+    var without = $""
+    for i in 0..<toks[t].len {
+        let c:uint32 = codes[toks[t].at + i]
+        if c != 65038 && c != 65039 { without += c.uchr }
+    }
+    var near = $""
+    if name_known_text(&with) {
+        near = with.copy()
+    } else if without.count != name.count && name_known_text(&without) {
+        near = without.copy()
+    }
+    var m = $"'"
+    m += &name
+    if near.count > 0 {
+        m += "' is not known, but '"
+        m += &near
+        m += "', which differs from it by a variation selector, U+FE0F, is"
+    } else {
+        m += "' is not known: declare it before it is used"
+    }
+    gen_error(n, m.cstr)
+}
+
+// arithmetic of literals alone (#385), as kelvinc's: 1 of integers, 2
+// where any is floating-point, 0 of anything else
+let literal_arith(v:int64):int64 {
+    let k:nkind = nodes[v].kind
+    if k == N_NUM { return float_tok(nodes[v].t) ? 2 : 1 }
+    if k == N_UNARY && tok_is(nodes[v].t, "-") { return literal_arith(nodes[v].a) }
+    if k != N_BIN { return 0 }
+    let t:int64 = nodes[v].t
+    if !(tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~")) { return 0 }
+    let a:int64 = literal_arith(nodes[v].a)
+    let b:int64 = literal_arith(nodes[v].b)
+    if a == 0 || b == 0 { return 0 }
+    return a == 2 || b == 2 ? 2 : 1
+}
+
+var widened:Dictionary<int64, bool>     // arithmetic of integer literals whose type was inferred, an i64 (#385)
+var widen_ints = false                  // while it is written, each literal an i64, as kelvinc casts it
 
 // the type of a member of a struct
 let field_type(sy:int64, t:int64):int64 {
@@ -741,6 +940,10 @@ let type_of(n:int64):int64 {
     if float_word(n) { return base_type(Y_F64) }                      // nan, inf (#262)
     if k == N_ID {
         let y:int64 = var_type(t)
+        if y < 0 && wide_tok(t) {                        // a name past ASCII is Kelvin's (#385)
+            if decl_named(t, D_FN) < 0 { unknown_wide(n, t) }
+            return -1
+        }
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
         if y < 0 { gen_error(n, "this name is not known") }
         return y
@@ -753,6 +956,10 @@ let type_of(n:int64):int64 {
         }
         if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
         let d:int64 = call_target(n)                       // the overload its arguments fit (#234)
+        if nodes[f].kind == N_ID && wide_tok(nodes[f].t) && (d < 0 || (toks[nodes[d].t].file == toks[nodes[f].t].file && nodes[d].t > nodes[f].t)) {
+            unknown_wide(n, nodes[f].t)                  // declared where it is used, as kelvinc has it (#385)
+            return -1
+        }
         if d < 0 && c_headers { return base_type(Y_C) }      // a C header's function (#207)
         if d < 0 {
             gen_error(n, "this function is not known")
@@ -4371,12 +4578,18 @@ let gen_expr(n:int64) {
     }
     if float_word(n) {                                   // nan, inf: gcc's and clang's constants (#262)
         put(word_no_case(t, "nan") ? "__builtin_nan(\"\")" : "__builtin_inf()")
+    } else if k == N_ID && var_type(t) < 0 && wide_tok(t) && decl_named(t, D_FN) < 0 {
+        unknown_wide(n, t)                               // (#385)
     } else if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
     } else if k == N_NULL {
         put("NULL")
     } else if k == N_SELF {
         put("self")
+    } else if k == N_NUM && widen_ints && !float_tok(t) {
+        put("((int64_t)")                                // an i64, as kelvinc casts it (#385)
+        put_tok(t)
+        put(")")
     } else if k == N_NUM || k == N_CHAR || k == N_ID {
         put_tok(t)
     } else if k == N_STR {
@@ -4421,6 +4634,10 @@ let gen_expr(n:int64) {
         gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344), of any enum with values (#345)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
+    } else if k == N_BIN && !widen_ints && widened.get(n, false) {
+        widen_ints = true                                // arithmetic of integer literals, inferred an i64 (#385)
+        gen_expr(n)
+        widen_ints = false
     } else if k == N_BIN && tok_is(t, "**") {
         gen_power(nodes[n].a, nodes[n].b)                // b ** e (#380)
     } else if k == N_BIN {
@@ -4503,6 +4720,11 @@ let inferred(n:int64):int64 {
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
     let set_op = k == N_BIN && type_of(nodes[v].a) >= 0 && types[type_of(nodes[v].a)].kind == Y_SET   // s | t, a Set, as kelvinc infers it (#276)
+    if k == N_BIN && literal_arith(v) == 2 { return base_type(Y_F64) }   // 1.0 / 0.0, of literals alone (#385)
+    if k == N_BIN && literal_arith(v) == 1 {             // 60 * 60, reckoned in an i64
+        widened[v] = true
+        return base_type(Y_I64)
+    }
     if k == N_BIN && tok_is(nodes[v].t, "**") && (!power_operand(nodes[v].a) || !power_operand(nodes[v].b)) { return -1 }   // as kelvinc says it (#380)
     if k == N_METHOD && tok_is(nodes[v].t, "pow") && power_int(type_of(nodes[v].a)) && !pow_arity(v) { return -1 }
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380)

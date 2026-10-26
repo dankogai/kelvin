@@ -7,6 +7,7 @@
 #define KELVIN_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -331,5 +332,10 @@ char *gen_header(Program *prog); /* its M.kh: the declarations, the bodies dropp
 
 Program *parse(Token *toks, int ntoks);
 char *gen_program(Program *prog, bool line_directives);
+
+/* the codepoints past ASCII a name may begin with, and go on with (#385):
+   src/ident.c, which tools/gen_ident.py writes */
+bool ident_start(uint32_t c);
+bool ident_continue(uint32_t c);
 
 #endif

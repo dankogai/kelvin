@@ -72,6 +72,22 @@ static void close_scope(void) {
 }
 
 static void declare_binding(const char *name, Type *type, int let) {
+    int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
+    bool wide = false;
+    for (const char *q = name; *q; q++)
+        wide = wide || (unsigned char)*q >= 0x80;
+    for (int i = scope_names.len - 1; wide && i >= here; i--)
+        if (!strcmp(scope_names.data[i], name)) {
+            /* a name past ASCII declared twice in a block (#385), which C
+               would say in the name it gives it */
+            Pos pos = toks[cur > 0 ? cur - 1 : 0].pos;
+            for (int k = cur; k >= 0 && k > cur - 64; k--)
+                if (toks[k].text && !strcmp(toks[k].text, name)) {
+                    pos = toks[k].pos;
+                    break;
+                }
+            error_at(pos, "'%s' is declared already in this block", name);
+        }
     list_push(&scope_names, (void *)name);
     list_push(&scope_types, type);
     list_push(&scope_lets, (void *)(intptr_t)let);
@@ -1426,6 +1442,9 @@ static char *signature(Decl *d);
 static bool user_operator_on(const char *op, Type *t);
 static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b);
 static Expr *power_of(Expr *a, Expr *b, Pos pos);
+static bool ascii_name(const char *s);
+static bool name_known(const char *s);
+static void reject_unknown_name(Token *t);
 static char power_class(Expr *x);
 static Expr *pow_method(Expr *b, Token *name);
 static Expr *parse_initializer_for(Type *t);
@@ -3657,6 +3676,8 @@ static Expr *parse_primary(void) {
             error_at(t->pos, "a function of a type has no self: '%s' is called as %s(...), with no value before it; "
                              "a method, 'let %s.name()', has one",
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
+        if (t->kind == TK_IDENT && !ascii_name(t->text))
+            reject_unknown_name(t); /* (#385) */
         /* an owner moved out is dead until assigned anew (#54) */
         if (t->kind == TK_IDENT && is_moved(t->text) && !is_p(peek(), "="))
             error_at(t->pos, "'%s' was moved out and holds nothing now: assign it anew before using it", t->text);
@@ -9767,6 +9788,83 @@ static Type *list_type(Expr *e, Pos pos) {
     return a;
 }
 
+/* Is a name all ASCII (#385)? */
+static bool ascii_name(const char *s) {
+    for (; *s; s++)
+        if ((unsigned char)*s >= 0x80)
+            return false;
+    return true;
+}
+
+/* Does the program declare the name, as a variable, a function or a type? */
+static bool name_known(const char *s) {
+    return binding_index(s) >= 0 || function_named(s) || lookup_type(s);
+}
+
+/* a name past ASCII that the program has not declared where it is used
+   (#385), which C could not have: Kelvin's error, as C's would be of one
+   of ASCII, with the one that differs from it by a variation selector,
+   U+FE0F, where the program declares that */
+static void reject_unknown_name(Token *t) {
+    if (name_known(t->text))
+        return;
+    const char *near = NULL;
+    size_t n = strlen(t->text);
+    char *with = strfmt("%s\xef\xb8\x8f", t->text);
+    char *without = xstrdup(t->text);
+    for (char *q; (q = strstr(without, "\xef\xb8\x8f")) || (q = strstr(without, "\xef\xb8\x8e"));)
+        memmove(q, q + 3, strlen(q + 3) + 1);
+    if (name_known(with))
+        near = with;
+    else if (strlen(without) != n && name_known(without))
+        near = without;
+    if (near)
+        error_at(t->pos, "'%s' is not known, but '%s', which differs from it by a variation selector, U+FE0F, is",
+                 t->text, near);
+    error_at(t->pos, "'%s' is not known: declare it before it is used", t->text);
+}
+
+/* the type of arithmetic of literals alone (#385), "i64" or "f64", as a
+   literal's, "f64" where any is one; NULL of anything else: digits, -,
+   +, ~, the binary arithmetic and bitwise operators, parentheses */
+static const char *literal_arithmetic(Expr *e) {
+    if (e->kind == E_LITERAL)
+        return isdigit((unsigned char)e->text[0]) || e->text[0] == '.' ? literal_type(e) : NULL;
+    if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+") || !strcmp(e->op, "~")))
+        return literal_arithmetic(e->a);
+    if (e->kind != E_BINARY)
+        return NULL;
+    static const char *ops[] = {"+", "-", "*", "/", "%", "<<", ">>", "&", "|", "~", NULL};
+    bool op = false;
+    for (int i = 0; ops[i]; i++)
+        op = op || !strcmp(e->op, ops[i]);
+    const char *a = op ? literal_arithmetic(e->a) : NULL, *b = a ? literal_arithmetic(e->b) : NULL;
+    if (!b)
+        return NULL;
+    return !strcmp(a, "f64") || !strcmp(b, "f64") ? "f64" : "i64";
+}
+
+/* the integer literals of arithmetic of literals, each made an i64, so
+   that C reckons 65536 * 65536 in 64 bits, as the i64 it infers (#385) */
+static void widen_literals(Expr *e) {
+    if (e->kind == E_LITERAL && literal_type(e) && !strcmp(literal_type(e), "i64")) {
+        Expr *lit = xcalloc(1, sizeof *lit);
+        *lit = *e;
+        lit->paren = false;
+        e->kind = E_CAST;
+        e->a = lit;
+        e->type = base_type("i64", e->pos);
+        e->text = NULL;
+        e->paren = true;
+        return;
+    }
+    if (e->kind == E_PREFIX || e->kind == E_BINARY) {
+        widen_literals(e->a);
+        if (e->kind == E_BINARY)
+            widen_literals(e->b);
+    }
+}
+
 static Type *inferred_type(Expr *e, Pos pos) {
     if (e->kind == E_INIT)
         return list_type(e, pos);
@@ -9788,6 +9886,11 @@ static Type *inferred_type(Expr *e, Pos pos) {
     const char *lit = literal_type(e);
     if (lit)
         return base_type(lit, pos);
+    if (e->kind == E_BINARY && (lit = literal_arithmetic(e))) { /* 1.0 / 0.0, 60 * 60 (#385) */
+        if (!strcmp(lit, "i64"))
+            widen_literals(e);
+        return base_type(lit, pos);
+    }
     /* any other value whose type kelvinc sees (#47): a Kelvin function's
        or method's result, a variable, a field, p^, a[i], &x, a compound
        literal, a template's text; but not arithmetic, whose type is C's

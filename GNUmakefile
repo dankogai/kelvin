@@ -87,6 +87,10 @@ build/runtime/unicode_%.o: runtime/unicode_%.c modules/kelvin_prelude.h modules/
 runtime/unicode_tables.c runtime/unicode_names.c: tools/gen_unicode.py $(wildcard tools/ucd/*.txt)
 	python3 -I tools/gen_unicode.py
 
+# the codepoints of a name past ASCII (#385), kelvinc's and kc's
+src/ident.c selfhost/ident.k: tools/gen_ident.py tools/ucd/DerivedCoreProperties.txt tools/ucd/emoji-data.txt
+	python3 -I tools/gen_ident.py
+
 modules/UnicodeData.kh: modules/UnicodeData.k $(UD_OBJS) kelvinc modules/libkelvin.a modules/$(SHLIB)
 	./kelvinc --lib modules/UnicodeData.k $(UD_OBJS) -o modules
 

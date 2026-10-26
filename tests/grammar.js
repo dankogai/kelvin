@@ -173,6 +173,7 @@ const samples = [
     ['let after = 1', [['let', 'storage.type']]],
     ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
     ['let it:Iterator<int64> = Iterator(0, step)', [['Iterator', 'support.type']]],
+    ['let 二倍(n:int64):int64 { 二倍2(♾️(n)) }', [['二倍', 'entity.name.function'], ['♾️', 'entity.name.function']]], /* names past ASCII (#385) */
     ['    #inline C { total += i; }', [['#inline', 'keyword.control.directive'], [' total += i; ', 'meta.embedded.block.c']]],
 ];
 for (const [line, wants] of samples) {

@@ -402,6 +402,13 @@ kc reads what it is written in, and little more.
   of a `bool?` a bool, which prints `true`.
 - **`x.isInfinite`** and **`x.isFinite`** (#384), as kelvinc's, Swift's
   pair beside `x.isNaN`.
+- **Names past ASCII** (#385), as kelvinc's: ident.k, which
+  tools/gen_ident.py writes from tools/ucd/, has UAX #31's XID_Start and
+  XID_Continue and emoji; the lexer takes them, ascii_names spells them in
+  ASCII in the C, `_kv_u...`, and a name past ASCII unknown, used before
+  it is declared, or declared twice in a block is kelvinc's error, in its
+  words; arithmetic of literals alone infers an i64 or an f64, each
+  integer reckoned an i64.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

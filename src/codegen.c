@@ -230,6 +230,94 @@ static char *decl(Type *t, const char *name) { return declarator(t, name, false)
 /* the C name of a Kelvin name: an anonymous function's $0 is kv_arg0 (#32) */
 static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("_kv_arg%s", name + 1) : name; }
 
+/* the codepoint of the UTF-8 at p, and its bytes in *n */
+static uint32_t utf8_codepoint(const unsigned char *p, int *n) {
+    if (p[0] < 0xc0 || !p[1]) {
+        *n = 1;
+        return p[0];
+    }
+    int len = p[0] >= 0xf0 ? 4 : p[0] >= 0xe0 ? 3 : 2;
+    uint32_t c = p[0] & (0x7f >> len);
+    for (int i = 1; i < len; i++) {
+        if ((p[i] & 0xc0) != 0x80) {
+            *n = i;
+            return 0xfffd;
+        }
+        c = c << 6 | (p[i] & 0x3f);
+    }
+    *n = len;
+    return c;
+}
+
+/* The C kelvinc writes, with each name that holds more than ASCII (#385),
+   which C compilers refuse where it is an emoji, spelled in ASCII:
+   _kv_u, then each letter or digit of ASCII as it is and any other
+   codepoint as _, its hex, _, so ♾️ is _kv_u_267e__fe0f_. Text, a
+   character, a comment and an #include line are left as they are */
+static char *ascii_names(const char *c) {
+    Buf b = {0};
+    buf_puts(&b, "");
+    const unsigned char *p = (const unsigned char *)c;
+    bool line_start = true;
+    while (*p) {
+        if (line_start && !strncmp((const char *)p, "#include", 8)) {
+            while (*p && *p != '\n')
+                buf_putn(&b, (const char *)p++, 1);
+            continue;
+        }
+        line_start = *p == '\n';
+        if (*p == '"' || *p == '\'') {
+            unsigned char q = *p;
+            buf_putn(&b, (const char *)p++, 1);
+            while (*p && *p != q) {
+                if (*p == '\\' && p[1])
+                    buf_putn(&b, (const char *)p++, 1);
+                buf_putn(&b, (const char *)p++, 1);
+            }
+            if (*p)
+                buf_putn(&b, (const char *)p++, 1);
+            continue;
+        }
+        if (p[0] == '/' && p[1] == '*') {
+            const unsigned char *e = (const unsigned char *)strstr((const char *)p + 2, "*/");
+            size_t n = e ? (size_t)(e + 2 - p) : strlen((const char *)p);
+            buf_putn(&b, (const char *)p, n);
+            p += n;
+            continue;
+        }
+        if (p[0] == '/' && p[1] == '/') {
+            while (*p && *p != '\n')
+                buf_putn(&b, (const char *)p++, 1);
+            continue;
+        }
+        if (isalnum(*p) || *p == '_' || *p >= 0x80) {
+            const unsigned char *start = p;
+            bool wide = false;
+            while (isalnum(*p) || *p == '_' || *p >= 0x80) {
+                wide = wide || *p >= 0x80;
+                p++;
+            }
+            if (!wide || isdigit(*start)) {
+                buf_putn(&b, (const char *)start, (size_t)(p - start));
+                continue;
+            }
+            buf_puts(&b, "_kv_u");
+            for (const unsigned char *q = start; q < p;) {
+                int n;
+                uint32_t cp = utf8_codepoint(q, &n);
+                if (cp < 0x80 && isalnum((int)cp))
+                    buf_putn(&b, (const char *)q, 1);
+                else
+                    buf_printf(&b, "_%x_", cp);
+                q += n;
+            }
+            continue;
+        }
+        buf_putn(&b, (const char *)p++, 1);
+    }
+    return b.buf;
+}
+
 /* A hidden name that kelvinc writes (#38): _kv_ and the name of what it
    comes from, then its kind, as _kv_n_text for n.hex's buffer, numbered
    1, 2, ... when it repeats in a function; or, when nothing names it,
@@ -4699,5 +4787,5 @@ char *gen_program(Program *prog, bool with_lines) {
         }
         line("}");
     }
-    return out.buf ? out.buf : xstrdup("");
+    return ascii_names(out.buf ? out.buf : "");
 }
