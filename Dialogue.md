@@ -7620,3 +7620,30 @@ does the same, with kelvinc's errors. versusC.md keeps only Duff's device
 out; `<=>` comes later. Details are provisional P398.
 
 There are 1064 tests, and all pass with clang and with gcc 15.
+
+### 432. Bits instead of bit-fields
+
+> now the bit-fields.
+>
+> * we do not support C-style bitfields, period.
+> * Instead, we introduce `struct Bits { value:i64 } `and use `value`as a storage of bits.  And extend it to manipulate each bit
+> * To make it easier we tweak `Bool`a bit.  Introduce `!!i` operator where `i` is an iteger type and returns `false` IFF `i == 0`and `true` IFF `i == 1`.  Any other value is runtime error.  It is NOT `!(!b)`. `!!` no space in between `!` is a prefix operator which returns a "single bit integer" into `Bool`.
+> * And `Int(b)` or `b:Int` which returns `0` on `false` and `1` on `true`.
+> * It is made ore restrictive because `var bv = Bits(); bv[0] = !!0`as seemless, but not implicit as possible.
+> * `bv[n] |=, &=, ~=` works as expected.
+> * and the whole struct ops like `bv0 |= bv1` and such works like `i64_0 |= i64_1`.
+> * maybe it should have a `.flip(n)` where `n` is the bit local to flip
+> * to name flags, you can simply use enums.
+
+**Claude** asked four things. Kelvin's `i64(b)` and `b.i64` already are
+`Int(b)`; a Bits is made `Bits()` or `Bits(n)` and printed `Bits(0b101)`,
+which pastes back; the prefix `~`, `==`, `!=`, `<<` and `>>` join `|`, `&`
+and `~`; and `!!b` of a bool is an error that hints `! !b`. The user also
+made `value` a `u64`. A bit is set with a bool alone, so `!!n` is the way
+in from an integer; a place and a shift are 0 to 63, checked, and past
+them the program ends, as an index past its count does. An enum's value
+is a place, so flags have names. kelvinc and kc both make it, through
+the prelude's inline functions; kc has no u64, so its `bv.value` is C's.
+`!!yes` in an older test became `! !yes`. Details are provisional P399.
+
+There are 1077 tests, and all pass with clang and with gcc 15.

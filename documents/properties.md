@@ -14,6 +14,7 @@ type's own are listed, with its methods, at the end of its document:
 | integers | [integers.md](integers.md#properties-and-methods) |
 | `f32`, `f64` | [floatingpoint.md](floatingpoint.md#properties-and-methods) |
 | `bool` | [bool.md](bool.md#properties-and-methods) |
+| `Bits` | [bits.md](bits.md#properties-and-methods) |
 | pointers | [pointers.md](pointers.md#properties-and-methods) |
 | `cstr`, `String`, `uchr` | [strings.md](strings.md#properties-and-methods) |
 | arrays, `Array<T>` | [arrays.md](arrays.md#properties-and-methods) |

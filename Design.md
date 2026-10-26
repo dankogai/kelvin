@@ -418,6 +418,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 384 | `x.isInfinite` and `x.isFinite` of a floating-point number, Swift's, beside `x.isNaN`, read only, with no import; kelvinc and kc | E_METHOD num_isinf and num_isfinite: C's isinf and isfinite | `if x.isFinite` | 2026-10-26 |
 | 385 | A name may hold Unicode: UAX #31's XID_Start and XID_Continue and emoji with their components, past ASCII; compared as written; in the C spelled in ASCII, `_kv_u` and each other codepoint as `_hex_`; one past ASCII unknown, used before it is declared, or declared twice in a block is Kelvin's error, with a variation selector's difference named; arithmetic of literals alone infers an i64 or an f64, reckoned in 64 bits; kelvinc and kc | src/ident.c and selfhost/ident.k of tools/gen_ident.py; the lexer's name_char; ascii_names over the C; literal_arithmetic and widen_literals | `let ♾️ = 1.0/0.0` | 2026-10-26 |
 | 386 | `fallthrough` in a switch's case, Swift's: on into the next case's body, its label unchecked, from anywhere in the case, of the innermost switch; the case's owners freed as it leaves; outside a switch, in the last case, or into a case that binds, an error; a keyword; kelvinc and kc | S_FALLTHROUGH: a goto to a label on the next case's block | `case 3: fallthrough` | 2026-10-26 |
+| 387 | `Bits`, 64 bits in a `u64`, `.value`, in C's bit-fields' stead, which stay out: `Bits()`, `Bits(n)`; `bv[n]` a bool, 0 the lowest, set with `=`, `\|=`, `&=` and `~=` of a bool; `bv.flip(n)`; `\|`, `&`, `~`, `==`, `!=` of two, `~bv`, `<<` and `>>`, and their assignments, as of the u64s; a place or a shift 0 to 63, a literal checked, a value past it ending the program; an enum's value names a bit; printed `Bits(0b101)`, which pastes back; `!!n` the bool of an integer 0 or 1, any other ending the program, no two nots; kelvinc and kc | the prelude's `kv_bits` and inline kv_bits_ functions, runtime/bits.c's text; E_METHOD bits_ and bit_of | `bv[busy] = !!n` | 2026-10-26 |
 
 Notes:
 
@@ -979,6 +980,27 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (387) Agreed details: "now the bit-fields. we do not support C-style
+  bitfields, period. Instead, we introduce `struct Bits { value:i64 }`
+  and use `value` as a storage of bits", with `!!i` the bool of an
+  integer 0 or 1, any other a runtime error, and not `!(!b)`; `bv[n]`,
+  `|=`, `&=`, `~=` of a bit, the whole's operators as an i64's, `.flip(n)`,
+  and enums to name the flags.
+  - The user chose `value` a `u64`, not an `i64`; `Int(b)` is the
+    `i64(b)` and `b.i64` Kelvin has, 0 or 1; `Bits()` and `Bits(n)`,
+    printed `Bits(0b101)`, which pastes back; besides `|`, `&` and `~`,
+    the prefix `~`, `==` and `!=`, and `<<` and `>>`; `!!b` of a bool an
+    error that hints `! !b`, so `!!` is no longer two nots.
+  - A bit is set with a bool alone, so `bv[0] = 1` is an error that
+    names `!!n`: as seamless as the user asked, but not implicit.
+  - A place, and a shift, is 0 to 63, a literal checked; past it the
+    program ends, as an index past an Array's count does, where C's
+    shift would be undefined.
+  - An enum's value is a place, so `bv[busy]` names a flag; a place or
+    `Bits(n)` takes an integer of 64 bits or fewer.
+  - `Bits` is a keyword, and the prelude's `kv_bits`; kc has no u64, so
+    its `bv.value` is what only C sees.
 
 - (386) Agreed details: "let's tackle "Not available yet" section of
   versusC.md, one by one. Let's begin with an easy one. Add
@@ -5184,6 +5206,7 @@ says "as agreed".
 | P396 | Details of #384 | src/parser.c: property's isInfinite and isFinite; src/codegen.c: num_isinf, num_isfinite; selfhost/gen.k: type_of's, gen_expr's and gen_assign's; documents/floatingpoint.md, properties.md, math.md; tests/run/infinite.k, tests/error/float_isfinite_set.k | — |
 | P397 | Details of #385 | tools/gen_ident.py; src/ident.c and selfhost/ident.k, which it writes; src/kelvin.h: ident_start, ident_continue; src/lexer.c: lex_codepoint, name_char, the error of a symbol in no name; src/codegen.c: utf8_codepoint, ascii_names; src/parser.c: ascii_name, name_known, reject_unknown_name, declare_binding's twice, literal_arithmetic, widen_literals; selfhost/lex.k: name_start, name_continue, hex4; selfhost/gen.k: wide_tok, name_known_text, unknown_wide, literal_arith, widened, ascii_names, put_c_word, hex_lower, declare_as's twice; selfhost/kc.k: ident.k, the C written by ascii_names; editors/vscode grammar's names, tests/grammar.js's sample; documents/grammar.md; tests/run/unicode_names.k, literal_arithmetic.k, tests/error/unicode_name_selector.k, unicode_not_name.k, unicode_redeclared.k, unicode_unknown_name.k | — |
 | P398 | Details of #386 | src/kelvin.h: S_FALLTHROUGH; src/lexer.c: the keyword; src/parser.c: fall_pending, fall_pos, the errors; src/codegen.c: fall_label, is_jump's, the label of the next case; selfhost/parse.k: S_FALL; selfhost/gen.k: fall_to, fall_from, gen_switch's label; editors/vscode grammar, tests/grammar.js's sample; README.md, documents/flow-controls.md, versusC.md; tests/run/switch_fallthrough.k, tests/error/fallthrough_outside_switch.k, fallthrough_last_case.k, fallthrough_into_binding.k, fallthrough_name.k | — |
+| P399 | Details of #387 | modules/kelvin_prelude.h: kv_bits, kv_bit_place, kv_bit_shift, kv_bits_at, _put, _or, _and, _xor, _flip, _shl, _shr, KV_BIT_OF, the _Generic lists; runtime/bits.c; src/lexer.c: the keyword; src/parser.c: is_bits, check_bit_number, is_maker, Bits(...), !!, ~, bv[n], .value, .flip, the operators and assignments; src/codegen.c: the bits_ ops, kv_bits's text and ==; selfhost/lex.k: << >> <<= >>=; selfhost/parse.k: Y_BITS, close_angle, !!, ~, the shifts; selfhost/gen.k: is_bits, bit_number, gen_bits, gen_bits_assign; documents/bits.md, versusC.md, bool.md, operators.md, dictionaries.md, properties.md, README.md; tests/run/dict_fill.k's `! !yes`; tests/run/bits.k, bit_bool.k, bits_place_failure.k, bit_bool_failure.k, bits_shift_failure.k; tests/error/bits_place_range.k, bits_set_int.k, bit_bool_of_bool.k, bit_bool_literal.k, bits_operator.k, bits_integer_operand.k, bits_let.k, bits_member.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

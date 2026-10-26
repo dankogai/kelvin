@@ -12,13 +12,13 @@
    any (only as any^, C's void *), nullptr, cstr (u8^), let and var (#27),
    and String (shelved until Kelvin has a true string type, #22); Task,
    async and await, its threads (#312); Range (#373); fallthrough, Swift's
-   (#386). C's
+   (#386); Bits (#387). C's
    numeric type names stay reserved so they can be rejected with a hint.
    `in` is a keyword only in `for i in ...`. */
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
     "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
-    "Task", "async", "await", "Iterator", "Range", "fallthrough",
+    "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",

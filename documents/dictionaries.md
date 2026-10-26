@@ -101,7 +101,8 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
   - The two are of one key type and one value type. A place is
     copied, and one an expression gives is taken and freed.
   - `!!` binds as `??` does, looser than `||` and tighter than `?:`;
-    `!!x` before a value is still two `!`s.
+    `!!n` before a value is the `bool` of an integer 0 or 1 (#387),
+    and two `!`s are written `! !b`.
   - Both group right to left (#251): `d0 ?? d1 !! d2` is
     `d0 ?? (d1 !! d2)`.
 - **`d[k] ??= v`** sets the entry only where `k` is absent, and

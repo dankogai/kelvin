@@ -89,6 +89,7 @@ enum ykind {                    // the kinds of types (#210)
                 // -3 of [const T]; a parameter's, a pointer, -2, and -4 of its const elements (#357);
                 // -10 - n of a count C computes, node n (#366)
     Y_RANGE,    // a Range<T> (#373): its integers elem
+    Y_BITS,     // a Bits (#387): 64 bits in a u64, kv_bits in C
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -227,6 +228,17 @@ let expect(w:cstr) {
     advance()
 }
 
+// the > that closes a type's <...>, the first of a >> too, which the
+// lexer reads as a shift (#387): that token is left as its second >
+let close_angle() {
+    if at_word(">>") {
+        toks[pos].at += 1
+        toks[pos].len = 1
+        return
+    }
+    expect(">")
+}
+
 let skip_newlines() {
     while at_kind(T_NL) { advance() }
 }
@@ -273,6 +285,7 @@ let type_word(y:int64):String {
     case Y_STRING: return $"String"
     case Y_IO: return $"IO"
     case Y_UCHR: return $"uchr"
+    case Y_BITS: return $"Bits"
     case Y_PTR:
         var s = type_word(types[y].elem)
         s += "p"
@@ -531,31 +544,33 @@ let parse_bare_type():int64 {
         y = base_type(Y_IO)
     } else if tok_is(t, "uchr") {
         y = base_type(Y_UCHR)
+    } else if tok_is(t, "Bits") {                // (#387)
+        y = base_type(Y_BITS)
     } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
         y = type_of_kind(Y_STRUCT, -1, self_name)
     } else if tok_is(t, "Optional") {            // Optional<T>, T? (#217)
         expect("<")
         let inner = parse_type()
-        expect(">")
+        close_angle()
         y = optional_of(inner)
     } else if tok_is(t, "Result") {              // Result<T, E> (#217)
         expect("<")
         let value = parse_type()
         expect(",")
         let error = parse_type()
-        expect(">")
+        close_angle()
         y = result_of(value, error)
     } else if tok_is(t, "Iterator") {            // Iterator<T> (#326)
         expect("<")
         let value:int64 = parse_type()
-        expect(">")
+        close_angle()
         y = type_of_kind(Y_ITER, value, -1)
     } else if tok_is(t, "Range") {               // Range<T>, Range of i64 (#373)
         var value:int64 = base_type(Y_I64)
         if at_word("<") {
             advance()
             value = parse_type()
-            expect(">")
+            close_angle()
         }
         let k:ykind = types[value].kind
         if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 {
@@ -571,20 +586,20 @@ let parse_bare_type():int64 {
         if at_word("<") {
             advance()
             value = parse_type()
-            expect(">")
+            close_angle()
         }
         y = type_of_kind(Y_TASK, value, -1)
     } else if tok_is(t, "Set") {                 // Set<T> (#274)
         expect("<")
         let elem:int64 = parse_type()
-        expect(">")
+        close_angle()
         y = type_of_kind(Y_SET, elem, -1)
     } else if tok_is(t, "Dictionary") {          // Dictionary<K, V> (#211)
         expect("<")
         let key:int64 = parse_type()
         expect(",")
         let value:int64 = parse_type()
-        expect(">")
+        close_angle()
         y = type_of_kind(Y_DICT, value, key)
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     } else {
@@ -827,14 +842,14 @@ let parse_make():int64 {
     } else if tok_is(nodes[n].t, "Array") {
         advance()                                // <
         let elem:int64 = parse_type()
-        expect(">")
+        close_angle()
         set_ty(n, type_of_kind(Y_ARRAY, elem, -1))
     } else {
         advance()                                // <
         let key:int64 = parse_type()
         expect(",")
         let value:int64 = parse_type()
-        expect(">")
+        close_angle()
         set_ty(n, type_of_kind(Y_DICT, value, key))
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     }
@@ -898,7 +913,7 @@ let parse_iterator():int64 {
     if at_word("<") {
         advance()
         set_ty(n, parse_type())
-        expect(">")
+        close_angle()
     }
     expect("(")
     set_a(n, parse_expr())
@@ -1037,7 +1052,7 @@ let parse_primary():int64 {
         if tok_is(t, "true") || tok_is(t, "false") { return make_node(N_BOOL, t) }
         if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
-        if tok_is(t, "IO") || tok_is(t, "String") { return make_node(N_TYPE, t) }
+        if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") { return make_node(N_TYPE, t) }   // Bits(n) (#387)
         return make_node(N_ID, t)
     }
     if at_word(".") && toks[pos + 1].kind == T_ID {        // .x, self's member x (#213)
@@ -1060,7 +1075,7 @@ let adjacent(a:int64, b:int64):bool {
 let place_follows():bool {
     if at_word(".") || at_word("[") || at_word("^") || at_word("=") || at_word(":=") { return true }
     if at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") { return true }
-    if at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") { return true }   // (#276, #380)
+    if at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") { return true }   // (#276, #380, #387)
     return at_word("!") && adjacent(pos - 1, pos)
 }
 
@@ -1154,7 +1169,15 @@ let parse_postfix():int64 {
 }
 
 let parse_unary():int64 {
-    if at_word("-") || at_word("!") {
+    if at_word("!") && tok_is(pos + 1, "!") && adjacent(pos, pos + 1) {   // !!n, a bit's bool, flag 1 (#387)
+        let t:int64 = advance()
+        advance()
+        let n:int64 = make_node(N_UNARY, t)
+        nodes[n].flag = 1
+        set_a(n, parse_unary())
+        return n
+    }
+    if at_word("-") || at_word("!") || at_word("~") {     // ~ of a Bits (#387)
         let t:int64 = advance()
         let n:int64 = make_node(N_UNARY, t)
         set_a(n, parse_unary())
@@ -1218,8 +1241,9 @@ let binding_power():int64 {
     if at_word("&") { return 5 }
     if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 6 }
     if at_word("??") { return 8 }                // a value, or what an Optional holds (#217)
-    if at_word("+") || at_word("-") { return 9 }
-    if at_word("*") || at_word("/") || at_word("%") { return 10 }
+    if at_word("<<") || at_word(">>") { return 9 }    // between ranges and +, as C's (#387)
+    if at_word("+") || at_word("-") { return 10 }
+    if at_word("*") || at_word("/") || at_word("%") { return 11 }
     return 0                                     // 7 is a range's, ..< and ... (#373)
 }
 
@@ -1486,7 +1510,7 @@ let parse_statement():int64 {
         return parse_block()
     }
     let e:int64 = parse_expr()
-    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") {
+    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())

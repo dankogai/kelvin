@@ -31,6 +31,9 @@ let set = bool(flags & 4)           // a number to a bool: zero is false
     `println(a == b)` prints `true` or `false`; see
     [operators.md](operators.md).
   - A `bool` variable, field or function result is one as it is.
+  - `!!n` (#387) is the `bool` of an integer 0 or 1, a bit: `false` of
+    0, `true` of 1, and any other ends the program; `bv[n]` of a
+    `Bits` is one; see [bits.md](bits.md).
 - **Inference** (#24, #25): `var done = false`, `let ok = a < b` and
   `let both = ok && f(x)` are `bool`s, as is the `bool` result of a
   Kelvin function or method; see [grammar.md](grammar.md).
@@ -43,6 +46,7 @@ let set = bool(flags & 4)           // a number to a bool: zero is false
   does: zero is `false` and anything else `true`; see
   [integers.md](integers.md#conversions-no-c-casts).
   - `bool(p)` of a pointer tells it from `nullptr`, as in C.
+  - The way back, `i64(b)` or `b.i64`, is 0 or 1.
   - `bool` reads no text: `bool(s)` of a string, which is never
     `nullptr`, is an error.
 - **Printing:** `print` shows `true` or `false`, and so does `.cstr`;
@@ -56,5 +60,6 @@ let set = bool(flags & 4)           // a number to a bool: zero is false
 | | `.type`, `.typename` | the type, where a type goes; its name, `bool` |
 | | `.cstr` | `true` or `false`, in the block's buffer |
 | | `.i8` ... `.u64`, `.f32`, `.f64` | a conversion, `i64(v)` written after the value: 1 or 0 |
+| integer | `!!n` | the `bool` of 0 or 1, `false` or `true`; any other ends the program (#387) |
 
 The details are in [properties.md](properties.md).

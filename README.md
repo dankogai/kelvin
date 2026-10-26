@@ -52,7 +52,9 @@ So far the changes from C are:
   `i128`/`u128`, `f32`, `f64`, or by their full names `uint8`, `int64`,
   `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
   and `let i = 42` is an `i64`
-- `bool`, `true` and `false` are built in
+- `bool`, `true` and `false` are built in; `!!n` is the `bool` of an
+  integer 0 or 1, and `Bits`, 64 bits each a `bool` by its place, takes
+  the place of C's bit-fields (#387)
 - C headers are imported with `#import <stdio.h> as C`, and C of your
   own goes in `#inline C { ... }` (#197)
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or

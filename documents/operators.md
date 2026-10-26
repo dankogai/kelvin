@@ -15,7 +15,7 @@ each operator means for its types.
 |------:|-----------|--------|---|
 | 1 | postfix | `p^`, `a[i]`, `f(x)`, `s.m`, `p^.m`, `x.prop`, `x.method()`, `p++`, `p--` (statements) | `*p`, `a[i]`, `f(x)`, `s.m`, `p->m`, `x++` |
 | 2 | power | `a ** b`, right to left, its right operand a prefix's: `-2 ** 2` is `-(2 ** 2)`, `2 ** -1` is `2 ** (-1)` (#380) | `pow(a, b)` |
-| 3 | prefix | `&x`, `-x`, `+x`, `!b`, `~n`, `try r` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
+| 3 | prefix | `&x`, `-x`, `+x`, `!b`, `~n`, `!!n` (a bit's `bool`, #387), `try r` | `&x`, `-x`, `+x`, `!b`, `~n` (no `*p`, no `++x`) |
 | 4 | conversion | `x as T`, `x:T`, `T(x)` | `(T)x` |
 | 5 | `* / %` | `a * b` | `a * b` |
 | 6 | `+ -` | `a + b` | `a + b` |

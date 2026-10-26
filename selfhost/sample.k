@@ -697,5 +697,14 @@ let main(argc:int32, argv:[cstr]):int32 {
         }
     }
     println(fell)
+    var bset = Bits()                                 // Bits, each bit a bool by its place (#387)
+    bset[dark] = true
+    bset[1] = !!1
+    bset[1] |= false
+    bset.flip(2)
+    let bmask = Bits(12)
+    bset <<= 1
+    println(bset, " ", bset[7], " ", bset.value as int64, " ", bset & bmask, " ", bset | bmask)
+    println(bset ~ bmask, " ", ~bmask == bmask, " ", bset >> 2, " ", 1 << 3)
     return 0
 }

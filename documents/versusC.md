@@ -52,6 +52,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `struct { uint8_t tag; union { double n; ... } u; } j;` and a `switch` on the tag by hand | `enum json { null; n: f64; s: String; a: Array<json> }`: `json.n(1.5)`, `j.is(n)`, `j.n` checked, `switch j { case n: ... }` (#61) |
 | `switch (n) { case 1: case 2: ...; break; default: ... }` | `switch n { case 1, 2: ... default: ... }`: a case ends at the next, no fallthrough, every value handled (#63) |
 | `case 1: ...; /* no break */ case 2: ...` | `case 1: ...; fallthrough` then `case 2: ...`: Swift's, on into the next case's body (#386) |
+| `struct s { unsigned ready : 1, busy : 1; };`, `s.ready = 1` | `struct s { flags: Bits }` and `enum flag { ready, busy }`: `s.flags[ready] = true`, `s.flags[busy] = !!n` (#387) |
 | `*p` | `p^` |
 | `**pp` | `pp^^` |
 | `*p++ = *q++;` | `p^ = q^; p++; q++` (`++` is a statement, for pointers, #26, #51) |
@@ -122,6 +123,7 @@ Each document says so under its title. In short:
 | [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
 | [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text, C's complex types |
 | [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
+| [bits.md](bits.md) | `Bits`, 64 bits in a `u64`, `bv[n]` a `bool`, `.flip(n)`, the bitwise operators, `!!n` (#387) |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
@@ -162,7 +164,7 @@ Each document says so under its title. In short:
   `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
-  (#27), and `fallthrough` (#386).
+  (#27), `fallthrough` (#386) and `Bits` (#387).
   - `in` is a keyword only in `for i in ...` and in an anonymous
     function's `{ (a:T) in ... }`, so C names called `in` still work.
 - It also rejects C compiler keywords beyond C11, such as
@@ -186,7 +188,6 @@ These are C features without a Kelvin spelling so far:
 
 - an array of functions, or a pointer to a function type: `[(i64):i64](4)`
   has no spelling yet
-- bit-fields
 - unnamed parameters
 - a case inside a statement of the switch (Duff's device): a case is
   written at the top of the switch's block (#63); `fallthrough` (#386)
@@ -228,6 +229,10 @@ These C features stay out, as decided (#294):
     which also make generics harder to use and to build; they wait for
     a neat way to constrain types.
 - **Literal suffixes**: see [integers.md](integers.md).
+- **Bit-fields**: `unsigned a : 1` packs as the platform's ABI decides.
+  - A struct holds a `Bits` (#387) instead, 64 bits in a `u64`, each a
+    `bool` by its place, and an enum names the flags: `s.flags[busy]`.
+  - See [bits.md](bits.md).
 - **The preprocessor**: Kelvin's directives, `#import` and
   `#inline C { ... }`, are its only ones.
   - `#inline C { ... }` holds no C preprocessor directive, and no

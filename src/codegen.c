@@ -173,6 +173,7 @@ static const char *c_type_name(const char *name) {
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
         {"uchr", "kv_uchr"}, /* a codepoint (#56) */
+        {"Bits", "kv_bits"}, /* 64 bits in a u64 (#387) */
         {"IO", "kv_io"}, /* stdio as an owner (#82) */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
@@ -1392,6 +1393,41 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
+        if (e->op && (!strncmp(e->op, "bits_", 5) || !strcmp(e->op, "bit_of"))) {
+            /* Bits (#387), kv_bits in C: its u64 as .value, each bit by its
+               place, checked, through the prelude's kv_bits_ functions */
+            const char *n = e->items.len ? expr(e->items.data[0]) : "";
+            if (!strcmp(e->op, "bit_of")) /* !!n: the bool of an integer 0 or 1 */
+                return strfmt("KV_BIT_OF(%s)", expr(e->a));
+            if (!strcmp(e->op, "bits_make"))
+                return strfmt("((kv_bits){(uint64_t)(%s)})", expr(e->a));
+            if (!strcmp(e->op, "bits_value"))
+                return strfmt("(%s).value", expr(e->a));
+            if (!strcmp(e->op, "bits_value_set"))
+                return strfmt("(%s).value %s (%s)", expr(e->a), c_op(e->text), n);
+            if (!strcmp(e->op, "bits_at"))
+                return strfmt("kv_bits_at(%s, (uint64_t)(%s))", expr(e->a), n);
+            if (!strcmp(e->op, "bits_set")) {
+                const char *f = !strcmp(e->text, "=") ? "put" : !strcmp(e->text, "|=") ? "or" : !strcmp(e->text, "&=") ? "and" : "xor";
+                return strfmt("kv_bits_%s(&(%s), (uint64_t)(%s), %s)", f, expr(e->a), n, expr(e->items.data[1]));
+            }
+            if (!strcmp(e->op, "bits_flip"))
+                return strfmt("kv_bits_flip(&(%s), (uint64_t)(%s))", expr(e->a), n);
+            if (!strcmp(e->op, "bits_not"))
+                return strfmt("((kv_bits){~(%s).value})", expr(e->a));
+            bool shift = e->text[0] == '<' || e->text[0] == '>';
+            const char *sh = e->text[0] == '<' ? "shl" : "shr";
+            if (!strcmp(e->op, "bits_assign")) /* bv |= b, bv <<= n: in the var that holds bv */
+                return shift ? strfmt("({ kv_bits *_kv_bp = &(%s); *_kv_bp = kv_bits_%s(*_kv_bp, (uint64_t)(%s)); (void)0; })",
+                                      expr(e->a), sh, n)
+                             : strfmt("({ kv_bits *_kv_bp = &(%s); _kv_bp->value %s (%s).value; (void)0; })", expr(e->a),
+                                      c_op(e->text), n);
+            if (shift) /* bits_op: bv << n, bv >> n */
+                return strfmt("kv_bits_%s(%s, (uint64_t)(%s))", sh, expr(e->a), n);
+            if (!strcmp(e->text, "==") || !strcmp(e->text, "!="))
+                return strfmt("((bool)((%s).value %s (%s).value))", expr(e->a), e->text, n);
+            return strfmt("((kv_bits){(%s).value %s (%s).value})", expr(e->a), c_op(e->text), n);
+        }
         if (e->op && !strcmp(e->op, "num_isnan")) /* x.isNaN (#382) */
             return strfmt("((bool)__builtin_isnan(%s))", expr(e->a));
         if (e->op && !strcmp(e->op, "num_isinf")) /* x.isInfinite (#384): +inf or -inf */
@@ -3296,7 +3332,7 @@ static char *text_bound(Type *t, const char *lv) {
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
-        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "4"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "4"},  {"Bits", "72"},
         {"f32 _Complex", "31"},         {"f64 _Complex", "49"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
@@ -3365,6 +3401,7 @@ static const char *template_bound(Expr *x) {
     static const struct { const char *type, *bound; } numbers[] = {
         {"i8", "4"},   {"u8", "3"},   {"i16", "6"},   {"u16", "5"},    {"i32", "11"}, {"u32", "10"}, {"i64", "20"},
         {"u64", "20"}, {"i128", "40"}, {"u128", "39"}, {"f32", "15"}, {"f64", "24"}, {"bool", "5"}, {"uchr", "4"},
+        {"Bits", "72"},
     };
     for (size_t i = 0; i < sizeof numbers / sizeof numbers[0]; i++)
         if (!strcmp(t->name, numbers[i].type))
@@ -3402,6 +3439,7 @@ static char *text_writer(Type *t, const char *lv) {
         {"u8", "kv_cstr_u64"},    {"u16", "kv_cstr_u64"},  {"u32", "kv_cstr_u64"},  {"u64", "kv_cstr_u64"},
         {"i128", "kv_cstr_i128"}, {"u128", "kv_cstr_u128"}, {"f32", "kv_cstr_f32"}, {"f64", "kv_cstr_f64"},
         {"bool", "kv_cstr_bool"}, {"f32 _Complex", "kv_cstr_cf"}, {"f64 _Complex", "kv_cstr_cd"},
+        {"Bits", "kv_cstr_bits"}, /* Bits(0b...) (#387) */
     };
     for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)
         if (!strcmp(t->name, direct[i].type))
@@ -3803,6 +3841,8 @@ static char *eq_code(Type *t, const char *x, const char *y) {
         return strfmt("kv_bytes_eq(&%s, &%s)", x, y);
     if (!strcmp(decl(t, ""), "kv_uchr"))
         return strfmt("%s.cp == %s.cp", x, y);
+    if (!strcmp(decl(t, ""), "kv_bits")) /* a Bits by its u64 (#387) */
+        return strfmt("%s.value == %s.value", x, y);
     Decl *r = t->kind == T_BASE ? kelvin_record(t->name) : NULL;
     if (r && r->tagged)
         return strfmt("_kv_%s_eq(%s, %s)", r->name, x, y);

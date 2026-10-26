@@ -413,6 +413,14 @@ kc reads what it is written in, and little more.
   the next case's block, `_kv_fall` and that case's node; outside a
   switch, in its last case, or into a case that binds, kelvinc's error, in
   its words.
+- **`Bits`** (#387), as kelvinc's: Y_BITS, the prelude's `kv_bits`;
+  `Bits(n)`, `bv[n]` read and set with `=`, `|=`, `&=` and `~=`,
+  `bv.flip(n)`, `|`, `&`, `~`, `==` and `!=` of two, `~bv`, `<<` and
+  `>>` and their assignments, through the prelude's kv_bits_ functions;
+  `!!n`, two adjacent `!`, the bool of an integer 0 or 1; the shifts of
+  integers too, `>>` lexed as one and split where it closes a type's
+  `<...>`. kc has no u64, so `bv.value` is what only C sees: `as int64`
+  reads it. kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -528,7 +528,7 @@
         },
         {
           "name": "support.type.kelvin",
-          "match": "\\b(?:bool|any|cstr|uchr|size_t|String|Bytes|Array|Dictionary|Set|Optional|Result|IO|Task|Iterator|Range|Match|BytesMatch|RegExp|c64|c32|complex64|complex32)\\b"
+          "match": "\\b(?:bool|any|cstr|uchr|size_t|String|Bytes|Array|Dictionary|Set|Optional|Result|IO|Task|Iterator|Range|Bits|Match|BytesMatch|RegExp|c64|c32|complex64|complex32)\\b"
         }
       ]
     },
