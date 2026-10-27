@@ -66,6 +66,9 @@ let main():int32 {
   - Nothing but a comment may follow the closing `}` on its line.
 - **What it may hold:** C at file scope: functions, globals, types and
   their constants.
+  - Assembly too, GNU C's `__asm__ __volatile__(...)`, which Kelvin
+    leaves to C (#399): `#inline C { __asm__ __volatile__("nop"); }`
+    among a function's statements.
   - No line of C's preprocessor (#296): a `#` that begins a line,
     `#include`, `#define`, `#if`, is an error.
     - A header is `#import <x.h> as C` before the block; a constant is

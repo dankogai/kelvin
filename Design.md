@@ -430,6 +430,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 396 | `alignas(N)` or `alignas(T)`, C23's name, before the declaration of a variable, a global, a static or a struct's member, where `static` and `inline` go: C's `_Alignas`, each name taking it; `N` a power of two where a literal; `x.align` stays its type's; on a function, a type or a statement, twice, and `_Alignas`, errors; kelvinc and kc | Var align, align_type; `_Alignas(...)` before the type | `alignas(16) var buf:[u8](64)` | 2026-10-27 |
 | 397 | `_Generic` left out on purpose: a function of one name takes several types by its overloads (#41), as methods, operators and the built-in properties do, kelvinc choosing where it sees the types and writing `_Generic` itself where only C does; written, `_Generic` is an error that says so; kelvinc and kc | versusC.md's Left out on purpose | `let f(x:i64)` and `let f(x:f64)` | 2026-10-28 |
 | 398 | `typeof(x)` and `typeof(T)`, C23's, kept C-compatible: `x`'s type with its own qualifiers, a `let`'s `const` too, which `x.type` leaves; any expression, C's `__typeof__` where kelvinc does not see it; `typeof(T)` is `T`; where a type goes, in `sizeof`, `as` and compound literals; `typeof` reserved; `typeof x`, `__typeof__` and `typeof_unqual` errors that name these; kelvinc and kc, kc of a variable whose type is written | parse_c_typeof, T_TYPEOF named `typeof(...)` | `var a:typeof(n)` | 2026-10-28 |
+| 399 | Assembly left out on purpose: `__asm__ __volatile__ (...)`, `__asm__`, `__asm` and `asm(...)`, GNU C's, go in `#inline C { __asm__ __volatile__("..."); }`; written in Kelvin, errors that say so, and `__volatile__` one that names `volatile`; `asm` stays a name; kelvinc and kc | the foreign keywords' hints; `__asm__(...)` no longer a statement passed through | `#inline C { __asm__ __volatile__("nop"); }` | 2026-10-28 |
 
 Notes:
 
@@ -991,6 +992,18 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (399) Agreed details: "next on the Not available yet list: __asm__
+  __volatile__ . They are not exactly parts of C standard (GCC extension
+  that happens to be supported by clang). We already have `#inline C` so
+  we should leave them up there."
+  - Claude asked whether `__asm__(...)`, which Kelvin passed through as
+    a statement, should stay; the user chose that all assembly be
+    refused, `#inline C` its one place.
+  - `__asm__` and `__asm` are C compiler keywords refused with a hint to
+    `#inline C`; `asm(...)` too, where no name of the program is `asm`;
+    `__volatile__` and `__volatile` name `volatile`.
+  - tests/run/stmt_macros.k's `__asm__("nop")` moved into `#inline C`.
 
 - (398) Agreed details: "next on the Not available yet list: typeof.
   keep it. C-compatible".
@@ -5393,6 +5406,7 @@ says "as agreed".
 | P408 | Details of #396 | src/lexer.c: the keyword; src/kelvin.h: Var align, align_type; src/parser.c: align_next, align_type_next, align_tok, align_used, parse_alignas, end_alignas, parse_var_list's and the globals' alignment, a member's own, parse_stmt's and parse_storage_inline's, take_inline's error; src/codegen.c: var_decl's and a member's _Alignas; selfhost/parse.k: parse_alignas, take_alignas, end_alignas, refuse_alignas, aligned; selfhost/gen.k: put_alignas; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, structs.md, versusC.md; tests/run/alignas.k; tests/error/alignas_power.k, alignas_function.k, alignas_struct.k, alignas_c11.k, alignas_statement.k, alignas_twice.k | — |
 | P409 | Details of #397 | src/parser.c: parse_primary's _Generic; selfhost/parse.k: the same; documents/versusC.md; tests/error/generic_left_out.k | — |
 | P410 | Details of #398 | src/lexer.c: the keyword, `__typeof__`'s and `typeof_unqual`'s hints; src/parser.c: parse_c_typeof, starts_type, type_shape_end, kelvin_type of `typeof(...)`; selfhost/parse.k: typeof in parse_bare_type, written_type; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, versusC.md; tests/run/typeof.k; tests/error/typeof_no_paren.k, typeof_gnu.k, typeof_unqual.k, typeof_reserved.k | — |
+| P411 | Details of #399 | src/lexer.c: `__asm__`, `__asm`, `__volatile__` and `__volatile` among the foreign keywords; src/parser.c: `asm(...)`, the statement words without assembly; selfhost/parse.k: the same errors; documents/versusC.md, c-interfaces.md; tests/run/stmt_macros.k; tests/error/asm_left_out.k, asm_call.k, volatile_gnu.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

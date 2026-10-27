@@ -1263,6 +1263,17 @@ let parse_primary():int64 {
     let k:tkind = toks[t].kind
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
+    if k == T_ID && (tok_is(t, "__asm__") || tok_is(t, "__asm")) {   // assembly, left out on purpose (#399), as kelvinc says it
+        var m = $"'"
+        m += tok_text(t)
+        m += "' is a C compiler keyword; use #inline C { __asm__ __volatile__(\"...\"); }, as C"
+        parse_error(m.cstr)
+        return make_node(N_NULL, advance())
+    }
+    if k == T_ID && tok_is(t, "asm") && tok_is(t + 1, "(") && !local_named(t) {
+        parse_error("assembly is C's, a GNU extension, left out on purpose: write it in #inline C { __asm__ __volatile__(\"...\"); }")
+        return make_node(N_NULL, advance())
+    }
     if k == T_ID && tok_is(t, "_Generic") {              // left out on purpose (#397), as kelvinc says it
         parse_error("'_Generic' is C11's, left out on purpose: a function of one name takes several types by overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)")
         return make_node(N_NULL, advance())

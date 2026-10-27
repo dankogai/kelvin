@@ -190,8 +190,8 @@ Each document says so under its title. In short:
     `for i in`, and `_kv_main_fn` for an anonymous function in `main`.
   - A repeat gets 1, 2, ..., and with no name to derive from, a number
     from 0, as in `_kv_text0` (#38).
-- `__asm__(...)` and `__attribute__((...))` remain usable, and
-  `_Pragma("...")` works as a statement. `fn` is not reserved.
+- `__attribute__((...))` remains usable, and `_Pragma("...")` works as
+  a statement. `fn` is not reserved.
 
 ## Not available yet
 
@@ -204,7 +204,6 @@ These are C features without a Kelvin spelling so far:
   goes from one case into the next
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
-- `__asm__ __volatile__ (...)` (two names in a row; `__asm__(...)` works)
 - `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
   (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
   work)
@@ -233,6 +232,13 @@ These C features stay out, as decided (#294):
     which also make generics harder to use and to build; they wait for
     a neat way to constrain types.
 - **Literal suffixes**: see [integers.md](integers.md).
+- **Assembly** (#399), `__asm__ __volatile__ (...)`, `__asm__` and
+  `asm(...)`: GNU C's extension, which clang follows, no part of the C
+  standard.
+  - It is C's, so it goes in `#inline C { __asm__ __volatile__("nop"); }`,
+    among a function's statements or at the top level.
+  - Written in Kelvin, it is an error that says so, and `__volatile__`
+    one that names `volatile`; `asm` stays a name of the program's.
 - **`_Generic`** (#397): a function of one name already takes several
   types, by its overloads, `let f(x:i64)` and `let f(x:f64)` (#41), and
   so do methods, operators and the built-in properties.

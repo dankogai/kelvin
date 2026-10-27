@@ -10,7 +10,7 @@ let main():int32 {
     CHECK(x == 1);
     BLOCK(y);
     static_assert(sizeof(int32) == 4, "i32 is 4 bytes");
-    __asm__("nop");
+    #inline C { __asm__ __volatile__("nop"); }   /* assembly is C's (#399) */
     printf("%d %d\n", x, y);
     return 0;
 }

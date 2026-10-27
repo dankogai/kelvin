@@ -475,6 +475,9 @@ kc reads what it is written in, and little more.
 - **`typeof`** (#398), as kelvinc's: `typeof(T)` is `T`, and `typeof(x)`
   of a variable is the type its declaration writes, written_type's; of one
   inferred, or of an expression, it is not kc's yet, and says so.
+- **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
+  `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
+  `#inline C`, which kc skips.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

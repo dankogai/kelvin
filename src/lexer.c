@@ -41,6 +41,10 @@ static const struct { const char *word, *hint; } foreign_keywords[] = {
     {"__float128", NULL}, {"__fp16", NULL}, {"__bf16", NULL}, {"_Decimal32", NULL},
     {"_Decimal64", NULL}, {"_Decimal128", NULL}, {"__signed__", NULL}, {"__signed", NULL},
     {"__complex__", NULL}, {"__complex", NULL},
+    /* GNU C's assembly, left out on purpose (#399): C's own, in #inline C */
+    {"__asm__", "#inline C { __asm__ __volatile__(\"...\"); }, as C"},
+    {"__asm", "#inline C { __asm__ __volatile__(\"...\"); }, as C"},
+    {"__volatile__", "volatile"}, {"__volatile", "volatile"},
 };
 
 /* Longest first, for greedy matching. Differences from C:

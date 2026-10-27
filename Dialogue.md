@@ -7849,3 +7849,19 @@ errors that name the Kelvin spellings. kc reads `typeof(T)` and
 P410.
 
 There are 1129 tests, and all pass with clang and with gcc 15.
+
+### 444. Assembly, left out
+
+> next on the Not available yet list: __asm__ __volatile__ .  They are not exactly parts of C standard (GCC extension that happens to be supported by clang).  We already have `#inline C` so we should leave them up there.
+
+**Claude** asked whether `__asm__(...)`, which Kelvin passed through as a
+statement, should stay; the user chose that all assembly be refused.
+
+**Claude** made it #399: `__asm__ __volatile__ (...)`, `__asm__`, `__asm`
+and `asm(...)` are left out on purpose, as GNU C's, and go in `#inline C
+{ __asm__ __volatile__("..."); }`; written in Kelvin, each is an error
+that says so, and `__volatile__` one that names `volatile`. `asm` stays a
+name of the program's. A test's `__asm__("nop")` moved into `#inline C`.
+kc says the same. Details are provisional P411.
+
+There are 1132 tests, and all pass with clang and with gcc 15.

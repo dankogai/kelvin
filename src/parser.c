@@ -3696,6 +3696,10 @@ static bool float_word(const char *s) {
 
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (t->kind == TK_IDENT && !strcmp(t->text, "asm") && is_p(peek2(), "(") && binding_index("asm") < 0 &&
+        !function_named("asm")) /* GNU C's asm(...), left out on purpose (#399) */
+        error_at(t->pos, "assembly is C's, a GNU extension, left out on purpose: write it in #inline C { __asm__ "
+                         "__volatile__(\"...\"); }");
     if (is_kw(t, "_Generic")) /* left out on purpose (#397) */
         error_at(t->pos, "'_Generic' is C11's, left out on purpose: a function of one name takes several types by "
                          "overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)");
@@ -10666,7 +10670,7 @@ static void reject_c_declaration(void) {
         type = strfmt("%s %s", toks[i].text, toks[i + 1].text);
         i += 2;
     } else if (toks[i].kind == TK_IDENT || (is_base_word(&toks[i]) && !is_kw(&toks[i], "_Complex"))) {
-        static const char *statement_words[] = {"__asm__", "__asm", "asm", "__attribute__", "_Pragma", NULL};
+        static const char *statement_words[] = {"__attribute__", "_Pragma", NULL};
         for (int k = 0; statement_words[k]; k++)
             if (!strcmp(toks[i].text, statement_words[k]))
                 return;
@@ -11212,7 +11216,7 @@ static bool no_value(Expr *e) {
             return !e->type;
         if (!e->a)
             return false;
-        static const char *words[] = {"print", "println", "_Pragma", "__asm__", "__asm", "asm", NULL};
+        static const char *words[] = {"print", "println", "_Pragma", NULL};
         if (e->a->kind == E_IDENT && binding_index(e->a->text) < 0)
             for (int i = 0; words[i]; i++)
                 if (!strcmp(e->a->text, words[i]))
