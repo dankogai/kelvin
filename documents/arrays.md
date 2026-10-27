@@ -133,8 +133,9 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
   them, or put them in a struct, whose text shows them as `[a, b]`.
 - **`.isNull`**, `.addr` and `.hex` are not for arrays, which are never
   null: write `(&a[0]).addr`.
-- **An array of functions**, or a pointer to a function type, has no
-  spelling yet.
+- **An array of functions** is `[(i64):i64](4)`, an `Array<(i64):i64>`
+  grows, and a `Dictionary<String, (i64):i64>` is a dispatch table
+  (#403); see [functions.md](functions.md#function-types-t-ur).
 - **`Array(a)`** copies a fixed array into a growable one, and
   `Array([1, 2, 3])` makes one of the elements written, and
   `Array([[1], [2, 3]])` an Array of Arrays (#57, #58).

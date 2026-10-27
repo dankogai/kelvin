@@ -210,8 +210,17 @@ let u:():() := tick        // the same, the result written out (#141)
   `nullptr` until assigned, and is compared with `nullptr`
   (`if f != nullptr`). A `let` one is a `const` pointer.
 - The result takes every suffix after it, so `(i64):i64^` returns a
-  pointer; an array of functions, or a pointer to a function type, has no
-  spelling yet, and kelvinc says so.
+  pointer.
+  - **A pointer to a function type** groups it in parentheses,
+    `((i64):i64)^` (#403), C's `int64_t (**)(int64_t)`, as kelvinc
+    prints the type of `&f`: `let pf:((i64):i64)^ := &f`, then
+    `pf^(3)`, or `out^ := g` to hand a function back.
+  - **An array of functions** is any array's spelling, `[(i64):i64](4)`
+    (#403); `Array<(i64):i64>`, `Set` and `Dictionary<String, (i64):i64>`
+    hold them too, a dispatch table: `table["inc"]!(5)`.
+  - `typealias op = (i64):i64` (#403) names a function type, which
+    `^` may follow, `op^`, and which reads where any type goes:
+    `[op](4)`, `Array<op>`, `let apply(f:op, n:i64)`.
 - A Kelvin function's name has its function type.
   - `let g:(i64):i64 := f` works, `if f {` asks for a comparison, and
     `f.size` is a pointer's size.

@@ -40,6 +40,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `_Alignof(double)`, `alignof(double)` | `alignof(f64)`, C23's name; a value's is `x.align` (#395) |
 | `_Alignas(16) unsigned char buf[64];` | `alignas(16) var buf:[u8](64)`, C23's name, before the declaration as `static` is (#396) |
 | `T(x);`, C's declaration of `x` where `T` is a typedef | `x as T` converts; a statement `name(x)` of a name kelvinc does not see is `if (1) name(x);` in C, so a typedef there is C's error, not a declaration (#402) |
+| `int (*ops[4])(int)`, `int (**out)(int)`, `typedef int (*op)(int);` | `var ops:[(i32):i32](4)`, `out:((i32):i32)^`, `typealias op = (i32):i32`; `Array<op>` and `Dictionary<String, op>` too (#403) |
 | `void on_signal(int) { ... }`, a parameter unnamed | `let on_signal(_:i32) { ... }`: `_` may stand for several, and is never read (#388) |
 | `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
@@ -196,10 +197,8 @@ Each document says so under its title. In short:
 
 ## Not available yet
 
-These are C features without a Kelvin spelling so far:
-
-- an array of functions, or a pointer to a function type: `[(i64):i64](4)`
-  has no spelling yet
+These are C features without a Kelvin spelling so far: none, as of
+#403. Each C feature Kelvin lacks is left out on purpose, below.
 
 ## Left out on purpose
 

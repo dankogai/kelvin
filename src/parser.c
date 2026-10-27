@@ -581,6 +581,7 @@ static bool is_maker(Token *t) { return is_converter(t) || is_kw(t, "Bits"); }
 #define SHELVED_HINT "is not a method: a value's text is 'x.cstr', and String(x.cstr) a String (#22, #55)"
 
 static bool starts_type(Token *t);
+static Type *fn_alias(const char *name);
 
 /* Does `(` begin a parenthesized type, as in sizeof(T) or (T){...}?
    `(i32(x) + 1)` does not: a type name directly followed by `(` is a
@@ -877,10 +878,42 @@ static bool type_is_field(int i, int dot) {
     return !t || c == 'c' || c == 'u' || (c == 's' && record_has_field(r, "type"));
 }
 
+static int type_shape_end(int i);
+
+/* the end of a function type's shape at the ( at token i (#403):
+   (T, U):R, its result written, or ((T):R)^, a pointer to one; -1 for any
+   other, as (x) and (a + b) are */
+static int fn_shape_end(int i) {
+    int k = i + 1, params = 0;
+    bool grouped = false;
+    while (!is_p(&toks[k], ")")) {
+        int e = is_p(&toks[k], "...") ? k + 1 : type_shape_end(k);
+        if (e < 0)
+            return -1;
+        grouped = params == 0 && is_p(&toks[k], "(");
+        params++;
+        if (is_p(&toks[e], ","))
+            k = e + 1;
+        else if (is_p(&toks[e], ")"))
+            k = e;
+        else
+            return -1;
+    }
+    int j = k + 1;
+    if (is_p(&toks[j], ":")) {
+        if (is_p(&toks[j + 1], "(") && is_p(&toks[j + 2], ")") && !is_p(&toks[j + 3], ":"))
+            return j + 3; /* :(), no result (#141) */
+        return type_shape_end(j + 1);
+    }
+    return grouped && params == 1 && is_p(&toks[j], "^") ? type_suffix_end(j) : -1;
+}
+
 static int type_shape_end(int i) {
     int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    if (is_p(&toks[i], "(")) /* (i64):i64, ((i64):i64)^ (#403) */
+        return fn_shape_end(i);
     if (is_kw(&toks[i], "typeof") && is_p(&toks[i + 1], "(")) /* typeof(x) (#398) */
         return type_suffix_end(skip_group(i + 1));
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "[")) /* $[T], an Array<T> (#64) */
@@ -983,7 +1016,8 @@ static bool is_qualifier(Token *t) { return is_kw(t, "const") || is_kw(t, "volat
 static bool starts_type(Token *t) {
     reject_c_int_name(t);
     return is_base_word(t) || is_qualifier(t) || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum") ||
-           is_kw(t, "typeof") || is_p(t, "["); /* [T], an array (#49); typeof(x) (#398) */
+           is_kw(t, "typeof") || is_p(t, "[") || /* [T], an array (#49); typeof(x) (#398) */
+           (t->kind == TK_IDENT && fn_alias(t->text)); /* an alias of a function type (#403) */
 }
 
 static void parse_qualifiers(Type *t) {
@@ -1208,6 +1242,25 @@ static bool void_result_ahead(void) {
     return is_p(peek(), "(") && is_p(peek2(), ")") && !is_p(peek_at(2), ":");
 }
 
+/* whether t is a function type, or a pointer or an array of one (#403) */
+static bool fn_typed(Type *t) {
+    return t && (t->kind == T_FUNC || ((t->kind == T_PTR || t->kind == T_ARRAY) && fn_typed(t->elem)));
+}
+
+/* typealias op = (i64):i64 (#403): the aliases of function types, which
+   are no one token another may stand for, as other aliases are: char *,
+   Type * in pairs */
+static List fn_aliases;
+
+static Type *fn_alias(const char *name) {
+    for (int i = 0; i + 1 < fn_aliases.len; i += 2)
+        if (!strcmp(fn_aliases.data[i], name))
+            return fn_aliases.data[i + 1];
+    return NULL;
+}
+
+static Type *parse_type_suffixes(Type *t, TypeContext ctx);
+
 static Type *parse_fn_type(TypeContext ctx) {
     Token *open = expect_p("(");
     Type *t = xcalloc(1, sizeof *t);
@@ -1243,9 +1296,15 @@ static Type *parse_fn_type(TypeContext ctx) {
             advance();
         } else
             t->elem = parse_type_in(ctx);
-    } else if (is_p(peek(), "^") || is_p(peek(), "[")) {
-        error_at(peek()->pos, "a pointer to a function type, or an array of functions, has no spelling yet (#31): "
-                              "a function type is already a pointer, and several can go in a struct");
+    } else if (is_p(peek(), "^") && t->params.len == 1 && !t->variadic && fn_typed(t->params.data[0])) {
+        /* ((i64):i64)^, a pointer to a function type, as kelvinc prints it
+           (#403): the parentheses group the type, as (i64):i64^ is a
+           function giving an i64^ */
+        return parse_type_suffixes(t->params.data[0], ctx);
+    } else if (is_p(peek(), "^")) {
+        error_at(peek()->pos, "a pointer to a function type groups the type in parentheses: ((i64):i64)^ (#403)");
+    } else if (is_p(peek(), "[")) {
+        error_at(peek()->pos, "an array of functions is written [T](N), as any array: [(i64):i64](4) (#403)");
     }
     return t;
 }
@@ -1413,9 +1472,8 @@ static Type *parse_type_in(TypeContext ctx) {
             at->is_const |= q.is_const;
             at->is_volatile |= q.is_volatile;
         }
-        if (t->kind == T_FUNC && (is_p(peek(), "^") || is_p(peek(), "[")))
-            error_at(peek()->pos, "a pointer to a function type, or an array of functions, has no spelling yet "
-                                  "(#31): a function type is already a pointer, and several can go in a struct");
+        if (t->kind == T_FUNC && is_p(peek(), "^")) /* x.type of a function, as (i64):i64 (#403) */
+            error_at(peek()->pos, "a pointer to a function type groups the type in parentheses: ((i64):i64)^ (#403)");
         return parse_type_suffixes(t, ctx);
     }
     if (is_base_word(peek()) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
@@ -1442,6 +1500,17 @@ static Type *parse_type_in(TypeContext ctx) {
         self_word(peek()); /* Self is T (#140) */
         reject_c_int_name(peek());
         Token *name = peek();
+        Type *fa = name->kind == TK_IDENT ? fn_alias(name->text) : NULL;
+        if (fa) { /* an alias of a function type (#403): the type, which ^ and [n] may follow */
+            advance();
+            Type *t = xcalloc(1, sizeof *t);
+            *t = *fa;
+            t->pos = name->pos;
+            t->is_const |= base->is_const;
+            t->is_volatile |= base->is_volatile;
+            parse_qualifiers(t);
+            return parse_type_suffixes(t, ctx);
+        }
         if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
             error_at(name->pos, "expected a type, found %s", desc(name));
         if (is_kw(name, "IO"))
@@ -14431,6 +14500,15 @@ static void parse_typealias(void) {
     if (!accept_p("="))
         error_at(peek()->pos, "expected '=' after the alias's name: 'typealias %s = T'", name->text);
     Token *target = peek();
+    if (is_p(target, "(")) { /* typealias op = (i64):i64 (#403) */
+        Type *t = parse_type();
+        if (!fn_typed(t))
+            error_at(target->pos, "an alias in parentheses is of a function type, as in 'typealias op = (i64):i64'");
+        list_push(&fn_aliases, (void *)name->text);
+        list_push(&fn_aliases, t);
+        end_statement();
+        return;
+    }
     bool base = is_base_word(target) && !is_kw(target, "any") && !is_kw(target, "_Complex");
     if (!base && !(target->kind == TK_IDENT && record_named(target->text)))
         error_at(target->pos, "'%s' is not a type kelvinc sees: an alias is of a struct, union or enum with values "
@@ -15418,6 +15496,7 @@ Program *parse(Token *tokens, int ntoks) {
     records = (List){0};
     local_types = local_type_depths = local_enums = local_enum_at = hidden_names = ended_types = (List){0};
     inline_next = false;
+    fn_aliases = (List){0};
     align_next = NULL;
     align_type_next = NULL;
     align_used = false;

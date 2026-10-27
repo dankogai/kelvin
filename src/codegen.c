@@ -3662,6 +3662,19 @@ static bool declares_elem(Decl *d, Type *t) {
 static bool is_dict(Type *t) { return t->cname && !strncmp(t->cname, "_kv_dict_", 9); }
 static bool is_set(Type *t) { return t->cname && !strncmp(t->cname, "_kv_set_", 8); }
 
+/* whether t holds a function type (#403), as (i64):i64 or ((i64):i64)^ */
+static bool has_fn_type(Type *t) {
+    return t && (t->kind == T_FUNC || ((t->kind == T_PTR || t->kind == T_ARRAY) && has_fn_type(t->elem)));
+}
+
+/* an element's type as one C type name, which the containers' macros
+   take as `T *at`: a function type's declarator, int64_t (*)(int64_t),
+   is __typeof__(...) (#403) */
+static char *elem_type(Type *t) {
+    char *d = decl(t, "");
+    return has_fn_type(t) ? strfmt("__typeof__(%s)", d) : d;
+}
+
 /* the arguments of KV_SET (#71) */
 static char *set_args(Type *t) {
     bool text = !strcmp(t->key->name, "String");
@@ -3678,7 +3691,7 @@ static char *dict_args(Type *t) {
     bool text = !strcmp(t->key->name, "String");
     const char *vf = owner_free(t->elem);
     return strfmt("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s", decl(t->key, ""),
-                  text ? "const uint8_t *" : decl(t->key, ""), decl(t->elem, ""), t->cname,
+                  text ? "const uint8_t *" : decl(t->key, ""), elem_type(t->elem), t->cname,
                   text ? "KV_HASH_TEXT" : "KV_HASH_INT", text ? "KV_EQ_TEXT" : "KV_EQ_INT",
                   text ? "KV_STORE_TEXT" : "KV_STORE_INT", text ? "KV_MISSING_TEXT" : "KV_MISSING_INT",
                   text ? "kv_string_free" : "KV_PLAIN_FREE", text ? "kv_string_copy" : "KV_PLAIN_COPY",
@@ -3811,7 +3824,7 @@ static void emit_arrays_before(int i) {
             continue;
         }
         const char *f = owner_free(t->elem); /* an element that owns is freed and copied with it */
-        line("KV_ARRAY(%s, %s, %s, %s)", decl(t->elem, ""), t->cname, f ? f : "KV_PLAIN_FREE",
+        line("KV_ARRAY(%s, %s, %s, %s)", elem_type(t->elem), t->cname, f ? f : "KV_PLAIN_FREE",
              f ? owner_copy(t->elem) : "KV_PLAIN_COPY");
         emit_array_eq(t);
     }

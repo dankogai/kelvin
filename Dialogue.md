@@ -7924,3 +7924,24 @@ a statement macro stays one. kc does the same. Details are provisional
 P414.
 
 There are 1136 tests, and all pass with clang and with gcc 15.
+
+### 448. Function types wherever a type goes
+
+> next on the Not available yet list: an array of functions.  What do you recommend?
+
+**Claude** found the item partly stale: `[(i64):i64](4)` worked already.
+What remained: `Array` and `Dictionary` of a function type wrote C that
+did not compile, a pointer to a function type kelvinc printed,
+`((i64):i64)^`, but refused to read, and `typealias` of a function type.
+
+> go with a single #403, all three
+
+**Claude** made it #403: the containers write their element of a
+function type as `__typeof__(...)`; `((i64):i64)^` is a pointer to a
+function type, as kelvinc prints it; and `typealias op = (i64):i64`
+names one, `op^` its pointer. The type lookahead reads function types, so
+the value `[(i64):i64](2)` does too. C's order, `((i64):i64)[4]`, is an
+error that names `[(i64):i64](4)`. Two older tests took the new messages.
+versusC.md's Not available yet is empty now. Details are provisional P415.
+
+There are 1138 tests, and all pass with clang and with gcc 15.

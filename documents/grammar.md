@@ -94,6 +94,8 @@ static var calls:int32
   before a dot, `A.of(1, 2)`, as a converter, `(A){...}`, and as an
   `extend`'s; `T` is a struct, union or enum with values declared
   before it, or a built-in type.
+  - Or a function type (#403), `typealias op = (i64):i64`, read as
+    that type wherever a type goes, `op^` a pointer to it.
   - `complex64` is `typealias complex64 = c64` in modules/math.k
     (#150), and `a.typename` is `T`'s name.
   - C's `typedef` is an error that names `typealias` (#294).
