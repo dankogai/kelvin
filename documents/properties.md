@@ -57,6 +57,19 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - As for `.size`, a struct's field of the name wins.
   - `alignof` takes a type alone, as C's does; `_Alignof` and
     `__alignof__` are errors that name these.
+- **`alignas(N)` or `alignas(T)`** (#396), C23's name, goes before a
+  declaration, where `static` and `inline` go, and aligns what it
+  declares as C's `_Alignas` does:
+  `alignas(16) var buf:[u8](64)`, `static alignas(32) var pad:i64`,
+  and, in a struct, `alignas(16) data: [u8](32)`, which aligns the
+  struct too.
+  - Each name of the declaration takes it: `alignas(8) let a = 1, b = 2`.
+  - `N` is a power of two, checked where it is a literal; one below the
+    type's own alignment is the C compiler's error.
+  - `x.align` stays its type's, as C's `_Alignof(__typeof__(x))`:
+    `alignas` aligns the variable, not its type.
+  - On a function, a type or a statement, or written twice, it is an
+    error; `_Alignas` is one that names it.
 - **`a.count`** is an array's number of elements (#49), `a.size` its
   bytes; see [arrays.md](arrays.md).
   - A `cstr`'s `.count` is its `strlen` (#52); a `String`'s its

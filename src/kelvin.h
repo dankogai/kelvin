@@ -184,6 +184,8 @@ typedef struct {
     bool ref;         /* $0 of an Iterator's function (#325): the state itself, by its address, which it changes */
     bool number;      /* a function's parameter that takes a number, to
                          which _Generic converts others (#41) */
+    struct Expr *align; /* alignas(N) before its declaration (#396), C's _Alignas(N); */
+    Type *align_type;   /* or alignas(T) */
     char *cname;      /* an enumerator of an enum defined inside a function (#391): its name
                          in C, _kv_main_red, the program's of the top level; name the block's */
 } Var;   /* also a parameter, struct member or enumerator */

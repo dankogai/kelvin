@@ -748,6 +748,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     bump_by(&tally_r, &step_r)
     static_assert(light + middle == 5)
     println(alignof(int64), " ", trip.align, " ", tally_r.align)   // alignof(T), x.align (#395)
+    alignas(32) var lane:[uint8](16)                     // alignas (#396): C's _Alignas
+    lane[0] = 9
+    println(lane[0], " ", lane.count)
     println(cube(3), " ", side.area(), " ", tally_r)
     let hi_bytes:cstr := "hi"
     for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)

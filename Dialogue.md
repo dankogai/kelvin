@@ -7809,3 +7809,15 @@ writes. kc does the same, with kelvinc's errors. Details are provisional
 P407.
 
 There are 1116 tests, and all pass with clang and with gcc 15.
+
+### 441. alignas
+
+**Claude** made `alignas` #396, as the user chose: `alignas(N)` or
+`alignas(T)`, C23's name, before the declaration of a variable, a global,
+a static or a struct's member, is C's `_Alignas`, each name of the
+declaration taking it. A literal `N` is checked a power of two, and
+`x.align` stays its type's. Before a function, a type or a statement,
+twice, and C11's `_Alignas` are errors. kc does the same, with kelvinc's
+errors. Details are provisional P408.
+
+There are 1123 tests, and all pass with clang and with gcc 15.

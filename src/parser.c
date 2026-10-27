@@ -10441,10 +10441,58 @@ static void parse_var_one(List *out, bool is_let, const char *storage) {
     list_push(out, v);
 }
 
+/* alignas(N) or alignas(T) (#396), C23's name, before a declaration of a
+   variable or a member, which each of its names takes; spent where a
+   declaration takes it, else an error at the next */
+static Expr *align_next;
+static Type *align_type_next;
+static Token *align_tok;
+static bool align_used;
+
+static void parse_alignas(void) {
+    if (is_kw(peek(), "_Alignas"))
+        error_at(peek()->pos, "'_Alignas' is C11's spelling: Kelvin writes alignas(N) or alignas(T) before the "
+                              "declaration");
+    if (!is_kw(peek(), "alignas"))
+        return;
+    if (align_next || align_type_next)
+        error_at(peek()->pos, "'alignas' is written once");
+    align_tok = advance();
+    if (paren_type_ahead(true)) {
+        advance();
+        align_type_next = parse_type();
+    } else {
+        expect_p("(");
+        align_next = parse_conditional();
+        unsigned long long n;
+        bool neg;
+        if (int_literal_value(align_next, &n, &neg) && (neg || !n || (n & (n - 1))))
+            error_at(align_next->pos, "an alignment is a power of two, as C's: 1, 2, 4, 8, 16, ...");
+    }
+    expect_p(")");
+    align_used = false;
+}
+
+static void end_alignas(void) {
+    if ((align_next || align_type_next) && !align_used)
+        error_at(align_tok->pos, "'alignas' is for a variable or a member: 'alignas(16) var buf:[u8](64)'");
+    align_next = NULL;
+    align_type_next = NULL;
+    align_used = false;
+}
+
 static void parse_var_list(List *out, bool is_let, const char *storage) {
+    Expr *ae = align_next; /* (#396): each name takes it */
+    Type *at = align_type_next;
+    align_used = true;
+    int from = out->len;
     do
         parse_var_one(out, is_let, storage);
     while (accept_p(","));
+    for (int i = from; i < out->len; i++) {
+        ((Var *)out->data[i])->align = ae;
+        ((Var *)out->data[i])->align_type = at;
+    }
 }
 
 static const char *parse_storage(void) {
@@ -10474,9 +10522,12 @@ static void parse_inline(void) {
 static const char *parse_storage_inline(void) {
     if (inline_next)
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
+    end_alignas();
+    parse_alignas(); /* alignas(16) var buf:[u8](64) (#396), before or after static */
     parse_inline();
     const char *storage = parse_storage();
     parse_inline();
+    parse_alignas();
     if (inline_next && storage && !strcmp(storage, "extern"))
         error_at(inline_tok->pos, "an extern function is defined elsewhere: 'inline' is for one defined here");
     if (inline_next && !is_kw(peek(), "let") && !is_kw(peek(), "var"))
@@ -11912,6 +11963,7 @@ static bool reject_bare_declaration(int i) {
 static Stmt *parse_declaration(void) {
     Stmt *s = new_stmt(S_VAR, peek()->pos);
     s->storage = parse_storage();
+    parse_alignas(); /* static alignas(16) var (#396) */
     bool is_let = accept_kw("let");
     if (!is_let && !accept_kw("var"))
         error_at(peek()->pos, "expected 'let' or 'var'");
@@ -12988,6 +13040,12 @@ static void parse_static_assert(Expr **cond, char **message) {
 
 static Stmt *parse_stmt(void) {
     int saved = stmt_start;
+    end_alignas(); /* the declaration before took it, or nothing did (#396) */
+    if (is_kw(peek(), "alignas") || is_kw(peek(), "_Alignas")) {
+        parse_alignas();
+        if (!binding_ahead(cur))
+            error_at(align_tok->pos, "'alignas' is for a variable or a member: 'alignas(16) var buf:[u8](64)'");
+    }
     stmt_start = cur;
     Stmt *s = parse_stmt_here();
     stmt_start = saved;
@@ -13522,6 +13580,8 @@ static Decl *parse_fn(Pos pos, const char *storage) {
    a plain function's, an operator's, or a function of a type's (#111) */
 /* the function just begun takes the inline before it (#392): C's static inline */
 static void take_inline(Decl *d) {
+    if (align_next || align_type_next) /* (#396) */
+        error_at(align_tok->pos, "'alignas' is for a variable or a member: a function's alignment is the C compiler's");
     if (!inline_next)
         return;
     inline_next = false;
@@ -14582,9 +14642,20 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 nest_outer = NULL;
                 list_push(&program->decls, n); /* before the function it is in too (#391) */
             } else {
+                Expr *outer_e = align_next; /* a member's own alignas(16) data: [u8](64) (#396), */
+                Type *outer_t = align_type_next; /* not one written before the struct */
+                align_next = NULL;
+                align_type_next = NULL;
+                parse_alignas();
+                Expr *ae = align_next;
+                Type *at = align_type_next;
+                align_next = outer_e;
+                align_type_next = outer_t;
                 do {
                     reject_c_fn_pointer(cur, "");
                     Var *m = parse_var(false, LET_NONE);
+                    m->align = ae;
+                    m->align_type = at;
                     if (kind == D_UNION && is_owner(m->type))
                         error_at(m->pos, "a union cannot hold an owner (#54): which member to free is unknown");
                     if (parsing_fn && has_local_size(m->type)) /* (#391) */
@@ -15266,6 +15337,9 @@ Program *parse(Token *tokens, int ntoks) {
     records = (List){0};
     local_types = local_type_depths = local_enums = local_enum_at = hidden_names = ended_types = (List){0};
     inline_next = false;
+    align_next = NULL;
+    align_type_next = NULL;
+    align_used = false;
     functions = (List){0};
     method_names = (List){0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
@@ -15452,11 +15526,16 @@ Program *parse(Token *tokens, int ntoks) {
                functions' prototypes in its initializer (#32), so that
                those may use the globals before it */
             bool is_let = is_kw(advance(), "let");
+            Expr *ae = align_next; /* (#396): each name takes it */
+            Type *at = align_type_next;
+            align_used = true;
             do {
                 Decl *d = new_decl(D_VAR, t->pos, storage);
                 top_name = peek()->kind == TK_IDENT ? peek()->text : NULL;
                 parse_var_one(&d->members, is_let, storage);
                 Var *v = d->members.data[d->members.len - 1];
+                v->align = ae;
+                v->align_type = at;
                 if (v->init && is_owner(v->type)) /* a global owner (#178): C initializes a global with a constant alone */
                     error_at(v->init->pos,
                              "'%s' is a global %s, which C initializes with a constant alone, and an owner is made by a "
@@ -15488,6 +15567,7 @@ Program *parse(Token *tokens, int ntoks) {
     }
     if (inline_next) /* (#392) */
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
+    end_alignas(); /* (#396) */
     name_functions();
     /* a Dictionary has == where its values compare (#235), known once every
        enum's no_eq is: an enum of the values may hold the Dictionary */

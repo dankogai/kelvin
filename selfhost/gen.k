@@ -5352,6 +5352,18 @@ let fixed_elem_ok(y:int64):bool {
 // count, the outer first, as C's int64_t m[2][3] (#354)
 var fixed_const = false                  // a let global's elements, const in C (#359)
 
+// _Alignas(N) or _Alignas(T) of a variable or member n written alignas (#396)
+let put_alignas(n:int64) {
+    for i in 0..<aligned.count as int64 {
+        if aligned[i] == n {
+            put("_Alignas(")
+            if aligned_exprs[i] >= 0 { gen_expr(aligned_exprs[i]) } else { put_ctype(aligned_types[i]) }
+            put(") ")
+            return
+        }
+    }
+}
+
 let put_fixed_decl(y:int64, name:int64) {
     put_fixed_base(y)
     if fixed_const { put(" const") }                     // int64_t const g[3], const uint8_t * const s[2]
@@ -5530,6 +5542,7 @@ let gen_fixed_var(n:int64) {
         if types[y].name == 0 - 1 { y = type_of(v) }
         if !computed_ok(n, y, v) { return }
         set_ty(n, y)
+        put_alignas(n)
         put_fixed_decl(y, nodes[n].t)
         put("; memset(")
         put_tok(nodes[n].t)
@@ -5573,6 +5586,7 @@ let gen_fixed_var(n:int64) {
         return
     }
     set_ty(n, y)                                         // S_VAR declares it so
+    put_alignas(n)                                       // (#396)
     put_fixed_decl(y, nodes[n].t)
     put(" = ")
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 {
@@ -5621,6 +5635,7 @@ let gen_var(n:int64) {
         put_free(y)
         put("))) ")
     }
+    put_alignas(n)                                       // (#396)
     put_ctype(y)
     put(" ")
     put_tok(nodes[n].t)
@@ -10626,6 +10641,7 @@ let write_type(y:int64) {
             f = nodes[d].a
             while f >= 0 {
                 put("    ")
+                put_alignas(f)                           // (#396)
                 if types[nodes[f].ty].kind == Y_FIXED {
                     put_fixed_decl(nodes[f].ty, nodes[f].t)   // int64_t xs[3] (#356)
                 } else {
@@ -10835,6 +10851,7 @@ let gen_program() {
                 continue
             }
             if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
+            put_alignas(d)                               // (#396)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
             put(" ")

@@ -2460,6 +2460,8 @@ static char *var_decl(const char *storage, Var *v) {
                             ? owner_free(v->type)
                             : NULL;
     char *d = decl(v->is_let && !owner_free(v->type) ? const_type(v->type) : v->type, v->name);
+    if (v->align || v->align_type) /* alignas(N) (#396), C's _Alignas, a specifier before the type */
+        d = strfmt("_Alignas(%s) %s", v->align ? expr(v->align) : decl(v->align_type, ""), d);
     if (frees)
         d = strfmt("__attribute__((cleanup(%s))) %s", frees, d);
     if ((owner_free(v->type) || tagged_type(v->type)) && !v->init) /* an enum with values starts at its first case (#61) */
@@ -4459,6 +4461,8 @@ static void emit_decl(Decl *d) {
             sync(m->pos);
             if (d->kind == D_ENUM)
                 line("%s%s,", m->cname ? m->cname : m->name, m->init ? strfmt(" = %s", expr(m->init)) : ""); /* (#391) */
+            else if (m->align || m->align_type) /* (#396) */
+                line("_Alignas(%s) %s;", m->align ? expr(m->align) : decl(m->align_type, ""), decl(m->type, m->name));
             else
                 line("%s;", decl(m->type, m->name));
         }

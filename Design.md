@@ -427,6 +427,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 393 | `restrict`: a pointer's own qualifier, after its `^` as `u8^ const` is, on a parameter, a variable, a `cstr`; C's `T *restrict`, the programmer's promise; `.typename` spells it; a function type's parameter takes a function without it, as C's; before the type, on a non-pointer or on a function type, an error; kelvinc and kc | Type is_restrict; kc's pointer name 2, or 3 with a const T | `let copy(dst:u8^ restrict, src:const u8^ restrict, n:i64)` | 2026-10-27 |
 | 394 | `static_assert(cond)`, `static_assert(cond, "message")`, C23's name: C's `_Static_assert`, which the C compiler judges at the Kelvin line; at the top level and in a block; the message the condition as written where none is, adjacent literals joined; a variable in the condition, a let too, `_Static_assert`, a message of no string literal, and a name `static_assert` are errors; left out of a module's `M.kh`; kelvinc and kc | D_ASSERT, S_ASSERT | `static_assert(sizeof(i64) == 8, "i64 is eight bytes")` | 2026-10-27 |
 | 395 | `alignof(T)`, C23's name, as `sizeof(T)` is C's: C's `_Alignof`; `x.align`, a value's type's alignment, as `x.size` is its size, a struct's field of the name winning; both `size_t`; `alignof` of a value, without parentheses, `_Alignof`, `__alignof__` and a name `alignof` are errors that name these; kelvinc and kc | E_SIZEOF_TYPE of op alignof; E_PROPERTY align, `_Alignof(__typeof__(x))` | `alignof(f64)`, `p.align` | 2026-10-27 |
+| 396 | `alignas(N)` or `alignas(T)`, C23's name, before the declaration of a variable, a global, a static or a struct's member, where `static` and `inline` go: C's `_Alignas`, each name taking it; `N` a power of two where a literal; `x.align` stays its type's; on a function, a type or a statement, twice, and `_Alignas`, errors; kelvinc and kc | Var align, align_type; `_Alignas(...)` before the type | `alignas(16) var buf:[u8](64)` | 2026-10-27 |
 
 Notes:
 
@@ -988,6 +989,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (396) Agreed details: the second of "_Alignas and alignof"; the user
+  chose `alignas` before the declaration, where `static` and `inline`
+  go, over after the type, as it is no part of the type.
+  - It takes a number or a type, as C23's `alignas`: a literal is
+    checked a power of two; one below the type's own alignment is left
+    to the C compiler, which knows the layout.
+  - Each name of the declaration takes it, as each declarator of C's
+    does; a member's raises its struct's alignment, as in C.
+  - `x.align` stays its type's, C's `_Alignof(__typeof__(x))`: alignas
+    aligns the object, not its type.
+  - Before a function, a type or a statement, or twice, it is an error,
+    and so is C11's `_Alignas`, which names it.
 
 - (395) Agreed details: "next on the Not available yet list: _Alignas and
   alignof". The user chose `alignof(T)` and `x.align`, over either alone,
@@ -5350,6 +5364,7 @@ says "as agreed".
 | P405 | Details of #393 | src/kelvin.h: Type is_restrict; src/parser.c: parse_qualifiers's restrict, kelvin_type's, unqualified and own_unqualified, the values that drop qualifiers; src/codegen.c: declarator's restrict; selfhost/parse.k: ptr_const, ptr_restrict, restrict_of, refuse_restrict, const_pointee; selfhost/gen.k: put_ctype's and type_text's restrict, ptr_const's checks; documents/pointers.md, versusC.md; tests/run/restrict_pointers.k; tests/error/restrict_before_type.k, restrict_not_pointer.k, restrict_function_type.k | — |
 | P406 | Details of #394 | src/lexer.c: the keyword; src/kelvin.h: D_ASSERT, S_ASSERT, Decl cond; src/parser.c: unconstant, parse_static_assert, the top level's and a block's; src/codegen.c: _Static_assert; selfhost/parse.k: S_ASSERT, D_ASSERT, parse_assert; selfhost/gen.k: unconstant, gen_assert; editors/vscode: the keyword; tests/grammar.js; documents/flow-controls.md, versusC.md; tests/run/static_assert.k; tests/error/static_assert_failed.k, static_assert_variable.k, static_assert_c11.k, static_assert_message.k, static_assert_reserved.k | — |
 | P407 | Details of #395 | src/lexer.c: the keyword, `__alignof__`'s hint; src/parser.c: alignof(T), `_Alignof`, `.align` beside `.size`; src/codegen.c: `_Alignof`; selfhost/parse.k: N_ALIGN; selfhost/gen.k: value_align, gen_align; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, operators.md, versusC.md, and the tables of integers.md, floatingpoint.md, bool.md, arrays.md, structs.md, pointers.md; tests/run/alignof.k; tests/error/alignof_value.k, alignof_c11.k, alignof_no_paren.k, alignof_gnu.k, alignof_reserved.k | — |
+| P408 | Details of #396 | src/lexer.c: the keyword; src/kelvin.h: Var align, align_type; src/parser.c: align_next, align_type_next, align_tok, align_used, parse_alignas, end_alignas, parse_var_list's and the globals' alignment, a member's own, parse_stmt's and parse_storage_inline's, take_inline's error; src/codegen.c: var_decl's and a member's _Alignas; selfhost/parse.k: parse_alignas, take_alignas, end_alignas, refuse_alignas, aligned; selfhost/gen.k: put_alignas; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, structs.md, versusC.md; tests/run/alignas.k; tests/error/alignas_power.k, alignas_function.k, alignas_struct.k, alignas_c11.k, alignas_statement.k, alignas_twice.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

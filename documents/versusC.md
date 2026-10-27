@@ -38,6 +38,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `void copy(char *restrict d, const char *restrict s);` | `let copy(d:u8^ restrict, s:const u8^ restrict)`: after the `^`, as a pointer's own `const` (#393) |
 | `_Static_assert(sizeof(long) == 8, "64 bits");` | `static_assert(sizeof(i64) == 8, "64 bits")`, C23's name, the message optional (#394) |
 | `_Alignof(double)`, `alignof(double)` | `alignof(f64)`, C23's name; a value's is `x.align` (#395) |
+| `_Alignas(16) unsigned char buf[64];` | `alignas(16) var buf:[u8](64)`, C23's name, before the declaration as `static` is (#396) |
 | `void on_signal(int) { ... }`, a parameter unnamed | `let on_signal(_:i32) { ... }`: `_` may stand for several, and is never read (#388) |
 | `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
@@ -172,7 +173,7 @@ Each document says so under its title. In short:
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
   (#27), `fallthrough` (#386), `Bits` (#387), `static_assert`
-  (#394) and `alignof` (#395).
+  (#394), `alignof` (#395) and `alignas` (#396).
   - `in` is a keyword only in `for i in ...` and in an anonymous
     function's `{ (a:T) in ... }`, so C names called `in` still work.
 - It also rejects C compiler keywords beyond C11, such as
@@ -201,7 +202,7 @@ These are C features without a Kelvin spelling so far:
 - a case inside a statement of the switch (Duff's device): a case is
   written at the top of the switch's block (#63); `fallthrough` (#386)
   goes from one case into the next
-- `_Alignas` and `_Generic`
+- `_Generic`
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 - `typeof` (a reserved C compiler keyword, P20; `v.type` is Kelvin's

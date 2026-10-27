@@ -158,6 +158,12 @@ var block_depth:int64 = 0
 var fn_tok:int64 = 0 - 1       // the token of the function being read, which names them
 var local_next = false         // the struct or enum parse_struct or parse_enum reads is defined in a block (#391)
 var inline_fns:$[int64]        // the functions written inline (#392), C's static inline
+var align_expr:int64 = 0 - 1   // alignas(N) before the declaration being read (#396): N
+var align_type:int64 = 0 - 1   // or alignas(T): T
+var align_tok:int64 = 0 - 1
+var aligned:$[int64]           // the variables and members so declared, and their N or T in turn
+var aligned_exprs:$[int64]
+var aligned_types:$[int64]
 var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
 var range_values = 0       // the ranges that are values, not a for's (#373): then each Range<T>'s struct is written
 
@@ -1770,6 +1776,59 @@ let parse_switch():int64 {
     return n
 }
 
+// alignas(N) or alignas(T) before a declaration (#396), as kelvinc's: a
+// number, a power of two where it is a literal, or a type
+let parse_alignas() {
+    if at_word("_Alignas") {
+        parse_error("'_Alignas' is C11's spelling: Kelvin writes alignas(N) or alignas(T) before the declaration")
+        return
+    }
+    if !at_word("alignas") { return }
+    if align_expr >= 0 || align_type >= 0 {
+        parse_error("'alignas' is written once")
+        return
+    }
+    align_tok = advance()
+    expect("(")
+    if at_kind(T_NUM) {
+        let t:int64 = pos
+        align_expr = parse_expr()
+        var v:int64 = 0
+        for i in 0..<toks[t].len {
+            let c:uint32 = codes[toks[t].at + i]
+            if c >= '0' && c <= '9' { v = v * 10 + (c - '0') as int64 }
+        }
+        if nodes[align_expr].kind == N_NUM && (v == 0 || (v & (v - 1)) != 0) {
+            parse_error("an alignment is a power of two, as C's: 1, 2, 4, 8, 16, ...")
+        }
+    } else {
+        align_type = parse_type()
+    }
+    expect(")")
+}
+
+// the alignas before it, if any, given to the variable or member n (#396)
+let take_alignas(n:int64) {
+    if align_expr < 0 && align_type < 0 { return }
+    aligned += n
+    aligned_exprs += align_expr
+    aligned_types += align_type
+}
+
+// the alignas, spent where a declaration took it (#396)
+let end_alignas() {
+    align_expr = 0 - 1
+    align_type = 0 - 1
+}
+
+// an alignas that no variable or member follows (#396), as kelvinc says it
+let refuse_alignas() {
+    if align_expr >= 0 || align_type >= 0 {
+        parse_error("'alignas' is for a variable or a member: 'alignas(16) var buf:[u8](64)'")
+        end_alignas()
+    }
+}
+
 // static_assert(cond) or static_assert(cond, "message") (#394), as
 // kelvinc's: C's _Static_assert, which C judges as it compiles
 let parse_assert(kind:nkind):int64 {
@@ -1805,6 +1864,10 @@ let parse_statement():int64 {
         return parse_switch()
     }
     if at_word("static_assert") || at_word("_Static_assert") { return parse_assert(S_ASSERT) }   // (#394)
+    if at_word("alignas") || at_word("_Alignas") {       // alignas(16) var buf:[u8](48) (#396)
+        parse_alignas()
+        if !at_word("var") && !at_word("let") { refuse_alignas() }
+    }
     if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
         let is_struct = at_word("struct")                // a type defined in a block (#391): the block's from here
         advance()                                        // on, written before the function in C
@@ -1829,6 +1892,8 @@ let parse_statement():int64 {
         let is_let = 0
         advance()
         let n:int64 = parse_var(is_let)
+        take_alignas(n)                                  // (#396)
+        end_alignas()
         if tok_is(t, "let") { nodes[n].flag = 1 }
         end_statement()
         return n
@@ -1992,7 +2057,14 @@ let parse_struct():int64 {
             skip_newlines()
             continue
         }
+        let outer_e:int64 = align_expr                  // a member's own alignas(16) data: [u8](32) (#396),
+        let outer_t:int64 = align_type                  // not one written before the struct
+        end_alignas()
+        parse_alignas()
         let f:int64 = parse_typed(0)
+        take_alignas(f)
+        align_expr = outer_e
+        align_type = outer_t
         if last < 0 {
             nodes[n].a = f
         } else {
@@ -2129,6 +2201,8 @@ let parse_extend() {
 let parse_program() {
     skip_newlines()
     while !at_kind(T_EOF) && !failed {
+        parse_alignas()                                  // alignas(64) var line:[u8](64) (#396)
+        parse_alignas()                                  // a second, kelvinc's error
         let inl:bool = parse_inline(false)              // inline let f(...) (#392)
         if inl && toks[pos + 1].kind == T_ID && tok_is(pos + 1, "main") {
             parse_error("main is C's main, called once: it is not inline")
@@ -2177,6 +2251,17 @@ let parse_program() {
             decls += n
         } else {
             parse_error("a declaration is expected")
+        }
+        if align_expr >= 0 || align_type >= 0 {          // (#396)
+            if decls.count as int64 > first && nodes[decls[decls.count - 1]].kind == D_GLOBAL {
+                take_alignas(decls[decls.count - 1])
+                end_alignas()
+            } else if decls.count as int64 > first && nodes[decls[decls.count - 1]].kind == D_FN {
+                parse_error("'alignas' is for a variable or a member: a function's alignment is the C compiler's")
+                end_alignas()
+            } else {
+                refuse_alignas()
+            }
         }
         if inl {
             if decls.count as int64 == first || nodes[decls[decls.count - 1]].kind != D_FN {

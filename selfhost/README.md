@@ -465,6 +465,11 @@ kc reads what it is written in, and little more.
   field `align` that is no struct's own, value_align; gen_align writes C's
   `_Alignof`, of a value its `__typeof__`'s, an i64 as kc has no size_t;
   `_Alignof` and `alignof` of a value kelvinc's errors, in its words.
+- **`alignas`** (#396), as kelvinc's: parse_alignas before a global, a
+  local or a struct's member, a number, checked where a literal, or a
+  type; take_alignas keeps the variable or member in aligned, and
+  put_alignas writes `_Alignas(...)` before its type; on a function, a
+  struct or a statement, or twice, kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

@@ -508,7 +508,7 @@
         },
         {
           "name": "storage.modifier.kelvin",
-          "match": "\\b(?:static|extern|const|volatile|inline|restrict)\\b"
+          "match": "\\b(?:static|extern|const|volatile|inline|restrict|alignas)\\b"
         },
         {
           "name": "keyword.operator.word.kelvin",
