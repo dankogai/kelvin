@@ -9172,7 +9172,7 @@ let gen_each(n:int64, depth:int64) {
     }
     if nodes[n].b >= 0 && types[y].kind != Y_DICT {    // as kelvinc says it (#269)
         var s = $"two loop variables walk a Dictionary's entries, 'for k, v in d', and this is "
-        s += type_text(y)
+        s += nodes[nodes[n].a].kind == N_STR ? $"not one" : type_text(y)    // "hi", which only C sees, as kelvinc says it
         gen_error(n, s.cstr)
         return
     }
@@ -9295,6 +9295,37 @@ let gen_each(n:int64, depth:int64) {
         put(")};\n")
         open_scope()
         declare_each(nodes[n].t, base_type(Y_UCHR), 3)      // (#271)
+    } else if types[y].kind == Y_CSTR {                // a cstr's bytes, up to its NUL, as kelvinc's #30
+        let literal = nodes[src].kind == N_STR          // "hi" is C's char[], which only C sees: c is a char
+        put("for (")
+        put(literal ? "__auto_type" : "const uint8_t *")
+        put(" _kv_p")
+        put_int(serial)
+        put(" = ")
+        gen_expr(src)
+        put("; _kv_p")
+        put_int(serial)
+        put(" != 0 && *_kv_p")
+        put_int(serial)
+        put(" != 0; _kv_p")
+        put_int(serial)
+        put("++)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        if literal {
+            put("const __typeof__(*_kv_p")
+            put_int(serial)
+            put(") ")
+        } else {
+            put("const uint8_t ")
+        }
+        put_tok(nodes[n].t)
+        put(" = *_kv_p")
+        put_int(serial)
+        put(";\n")
+        open_scope()
+        declare_each(nodes[n].t, base_type(literal ? Y_C : Y_U8), 3)
     } else {
         put("for (size_t _kv_i")
         put_int(serial)

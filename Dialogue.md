@@ -7694,3 +7694,17 @@ back. A C enum's enumerators stay C's. kc does the same, with kelvinc's
 errors. Details are provisional P401.
 
 There are 1089 tests, and all pass with clang and with gcc 15.
+
+### 435. kc's for over a cstr
+
+> kc ... crashes at compile time on a loop over a C string literal: `for c in "hi" { print(c) }`
+
+**Claude** found gen_each with no case of a cstr: it fell to an Array's,
+whose element type of a cstr is -1, and `types[-1]` ended kc, of a cstr
+variable too. kc now walks one as kelvinc does, each byte up to the NUL,
+as #390: of a cstr `c` is a `u8`, `print(c)` printing `104`; of a
+literal, which kelvinc sees no type of, it is C's `char`, by
+`__typeof__`, printing `h`. Two loop variables of a literal are refused
+in kelvinc's words. Details are provisional P402.
+
+There are 1089 tests, and all pass with clang and with gcc 15.

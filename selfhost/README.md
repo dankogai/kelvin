@@ -434,6 +434,13 @@ kc reads what it is written in, and little more.
   type, an expression and a method's or an extend's head; kelvin_name
   spells it so in kelvinc's errors, in its words, and in a wrong case's;
   kc_made tells it from an Optional's and a Result's.
+- **`for c in` a cstr** (#390), as kelvinc's #30: each byte up to the
+  NUL.
+  - Of a cstr, `s` or `t.cstr`, `c` is a `u8`, so `print(c)` prints
+    `104`.
+  - Of a literal, `"hi"`, it is C's `char`, what only C sees, as kelvinc
+    sees no type of a literal: `print(c)` prints `h`.
+  - kc died of an index of -1 there before: it took a cstr for an Array.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

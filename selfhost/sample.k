@@ -730,5 +730,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     let box1:parcel = {parcel.wrap.ribbon(2), {3, 4}}
     let side:parcel.dims = {5, 6}
     println(box1, " ", box1.cost(), " ", side.area(), " ", box1.w.ribbons(), " ", parcel.wrap.plain)
+    let hi_bytes:cstr := "hi"
+    for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)
+    for c in hi_bytes { print(" ", c) }
+    println()
     return 0
 }
