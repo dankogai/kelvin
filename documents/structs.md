@@ -76,11 +76,11 @@ println(a, " ", b.area(), " ", b.typename)   // {k: sides(4), s: {w: 2.0, h: 3.0
 - **A C enum** defined inside keeps C's enumerators: `light` is a
   constant of the program, as in C, and only the type's name has a
   path.
-- **Inside a function**, see the next section (#390).
+- **Inside a function**, see the next section (#391).
 
 ## Defined in a function
 
-A struct, a union or an enum may be defined in a block (#390), as in C
+A struct, a union or an enum may be defined in a block (#391), as in C
 and Swift:
 
 ```swift

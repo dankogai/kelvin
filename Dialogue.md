@@ -7709,7 +7709,7 @@ in kelvinc's words. Details are provisional P402.
 
 There are 1089 tests, and all pass with clang and with gcc 15.
 
-### 435. Types defined in a function
+### 436. Types defined in a function
 
 > struct, union and enum definitions inside a function.  is there a reason not to support it?
 
@@ -7724,13 +7724,42 @@ of such a type wait.
 
 > go for it
 
-**Claude** made it #390: a struct, a union or an enum among a block's
+**Claude** made it #391: a struct, a union or an enum among a block's
 statements is the block's from there to its end, its inner blocks and
 anonymous functions too, with its text and `.typename` its own name and
 types defined inside it as #389 has them. A C enum's enumerators are the
 block's, `_kv_main_red` in C. A name twice in a block, one used after its
 block ends, an array member counted by a local, and a method of such a
 type are kelvinc's errors. kc does the same, with kelvinc's errors.
-Details are provisional P402.
+Details are provisional P403. Its commit says #390, which the kc fix of a
+cstr's loop took first; the user chose that the fix keep it, and this
+became #391.
 
 There are 1094 tests, and all pass with clang and with gcc 15.
+
+### 437. inline
+
+> next on the Not available yet list: inline, restrict, _Static_assert.  They should be supported, too.  Your opinion?
+
+**Claude** agreed, with one number each. `inline let f(...)` would be C's
+`static inline`, since C11's bare `inline` wants a definition elsewhere
+and fails to link at -O0, and a module's `M.kh` would keep an inline
+function's body, so that a program inlines it. `restrict` would follow a
+pointer's `^`, as `u8^ const` does, and `static_assert(c, "message")`,
+C23's name with the message optional, would be C's `_Static_assert`,
+which the C compiler judges.
+
+> go for it
+
+**Claude** found that the kc fix of a cstr's loop, made in a session of
+its own, had taken #390 as well; the user chose that it keep the number,
+so types defined in a function became #391, and these #392 to #394.
+
+**Claude** made `inline` #392: before `let`, or before or after `static`,
+on a function, a method, an operator, an attribute and a function of the
+type, in `extend` too, it is `static inline` in C, and `kelvinc --lib`
+copies its body into `M.kh`. On a variable, a type, an `extern` prototype
+or `main`, or twice, it is an error. kc does the same, with kelvinc's
+errors. Details are provisional P404.
+
+There are 1100 tests, and all pass with clang and with gcc 15.

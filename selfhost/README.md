@@ -441,13 +441,17 @@ kc reads what it is written in, and little more.
   - Of a literal, `"hi"`, it is C's `char`, what only C sees, as kelvinc
     sees no type of a literal: `print(c)` prints `h`.
   - kc died of an index of -1 there before: it took a cstr for an Array.
-- **Types defined in a block** (#390), as kelvinc's: a struct or an enum
+- **Types defined in a block** (#391), as kelvinc's: a struct or an enum
   among a block's statements is a token kc makes, `_kv_main_point`, of the
   function and its name, written before the function; local_types keeps
   it to the block's end, ahead of a type of the top level, and a C enum's
   enumerators are the block's, `_kv_main_red`, until an enum turns out to
   have values; a name twice in a block, one whose block has ended, and a
   method of such a type are kelvinc's errors, in its words.
+- **`inline`** (#392), as kelvinc's: before `let`, or before or after
+  `static` in `extend`, a function or a method in inline_fns, whose
+  signature gen_signature writes `static inline`; kelvinc's errors, in its
+  words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

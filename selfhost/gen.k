@@ -9753,6 +9753,7 @@ let is_main(d:int64):bool {
 }
 
 let gen_signature(d:int64) {
+    if is_inline(d) { put("static inline ") }          // (#392)
     put_ctype(nodes[d].ty)
     put(" ")
     let recv:int64 = nodes[d].c

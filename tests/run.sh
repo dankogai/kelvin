@@ -111,6 +111,9 @@ elif ! grep -qx 'double geo_area(geo_size s);' "$tmp/project/modules/geo.kh" ||
     ! grep -qx 'struct geo_cache { int hits; };' "$tmp/project/modules/geo.kh" ||
     grep -q 'geo_half\|geo_cache_now' "$tmp/project/modules/geo.kh"; then
     bad tests/project/lib/geo.k "does not give geo.kh the declarations of its #inline C, and them alone (#199)"
+elif ! grep -qx 'inline let halved(v:float64):float64 { v / 2.0 }' "$tmp/project/modules/geo.kh" ||
+    ! grep -q '^ *inline let swapped():Self { return {.y, .x} }' "$tmp/project/modules/geo.kh"; then
+    bad tests/project/lib/geo.k "does not give geo.kh an inline function's body (#392)"
 elif [ ! -f "$tmp/project/modules/libkgeo.$so" ]; then
     bad tests/project/lib/geo.k "does not build libkgeo.$so, the shared library (#147)"
 elif ! "$CC" -o "$tmp/geo_c" tests/project/geo_c.c "$tmp/project/modules/libkgeo.$so" "$(pwd)/modules/libkelvin.$so" \

@@ -421,8 +421,9 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 387 | `Bits`, 64 bits in a `u64`, `.value`, in C's bit-fields' stead, which stay out: `Bits()`, `Bits(n)`; `bv[n]` a bool, 0 the lowest, set with `=`, `\|=`, `&=` and `~=` of a bool; `bv.flip(n)`; `\|`, `&`, `~`, `==`, `!=` of two, `~bv`, `<<` and `>>`, and their assignments, as of the u64s; a place or a shift 0 to 63, a literal checked, a value past it ending the program; an enum's value names a bit; printed `Bits(0b101)`, which pastes back; `!!n` the bool of an integer 0 or 1, any other ending the program, no two nots; kelvinc and kc | the prelude's `kv_bits` and inline kv_bits_ functions, runtime/bits.c's text; E_METHOD bits_ and bit_of | `bv[busy] = !!n` | 2026-10-26 |
 | 388 | Unnamed parameters: a parameter written `_` takes its argument and is never read, as C's `f(int)`; `_` may stand for several; of a function, a method, `var _`, an anonymous function, where its `$k` still reads it, and `{ _, b in ... }`; reading `_` is an error, so is reading `for _ in`'s, and reading a `_kv_` name, as declaring one is; kelvinc and kc | parse_param, `_kv_argk` in the C, as `$k` is | `let on_signal(_:i32) { ... }` | 2026-10-27 |
 | 389 | Types defined inside a struct or a union, as Swift's: a struct, a union or an enum in its body; bare there, in the other types defined there, and in the methods, attributes and extend of each; a path outside, `shape.size` as a type, `shape.kind.round` and `shape.kind.sides(4)` as values, `shape.size.unit()`; methods on the path, `let shape.size.area()`, `extend shape.kind { }`; text and `.typename` spell the path; a C enum's enumerators stay C's; a bare name outside, a path to nothing, a name twice, and a type named as the C name are errors; kelvinc and kc | `struct shape__size`, written before shape; Decl outer and kelvin_name; record_spelled, record_path, fold_nested_heads | `struct shape { struct size { w: f64 }; s: size }` | 2026-10-27 |
-| 390 | Types defined in a function, as C's and Swift's: a struct, a union or an enum among a block's statements, the block's from its definition to its end, in its inner blocks and its anonymous functions too, hiding a type of the top level of the name; a C enum's enumerators the block's; text and `.typename` its own name; types defined inside it (#389); a name twice in a block, one whose block has ended, an array member counted by a local, and a method of such a type are errors; kelvinc and kc | a type of the top level in C, `_kv_main_pair`, a number for another of the name, written before the function; its enumerators `_kv_main_red` | `struct pair { a: i64 }` in `main` | 2026-10-27 |
 | 390 | kc walks a cstr, `for c in s`, as kelvinc's #30 does, where it died of an index of -1, taking it for an Array: each byte up to the NUL, a `u8` of a cstr, and C's `char` of a literal, `"hi"`, which only C sees, as kelvinc sees no type of a literal; two loop variables of a literal refused in kelvinc's words | a pointer walked to the NUL, `__auto_type` and `__typeof__(*p)` of a literal | `for c in "hi" { print(c) }` | 2026-10-27 |
+| 391 | Types defined in a function, as C's and Swift's: a struct, a union or an enum among a block's statements, the block's from its definition to its end, in its inner blocks and its anonymous functions too, hiding a type of the top level of the name; a C enum's enumerators the block's; text and `.typename` its own name; types defined inside it (#389); a name twice in a block, one whose block has ended, an array member counted by a local, and a method of such a type are errors; kelvinc and kc | a type of the top level in C, `_kv_main_pair`, a number for another of the name, written before the function; its enumerators `_kv_main_red` | `struct pair { a: i64 }` in `main` | 2026-10-27 |
+| 392 | `inline`: before `let`, or before or after `static`, on a function, a method, an operator, an attribute and a function of the type, in `extend` too; C's `static inline`; in a module, its body copied into `M.kh`, so that an importer inlines it; on a variable, a type, an `extern` prototype or `main`, or twice, an error; kelvinc and kc | storage `static inline`; gen_header copies the body | `inline let sq(x:i64):i64 { x * x }` | 2026-10-27 |
 
 Notes:
 
@@ -985,18 +986,23 @@ Notes:
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
 
-- (390) Agreed details: "kc crashes at compile time on a loop over a C
-  string literal", which kelvinc compiles; it predates #388.
-  - selfhost/gen.k: gen_each had no case of a cstr, so it fell to an
-    Array's, whose element type of a cstr is -1: `types[-1]` ended kc.
-  - A cstr's own case walks a pointer to the NUL, as kelvinc's
-    EACH_POINTER: `const uint8_t *`, and `c` a `u8`, `print(c)` `104`.
-  - A literal is kelvinc's EACH_UNSEEN, as it sees no type of one:
-    `__auto_type` and `const __typeof__(*p)`, C's `char`, which kc
-    declares as what only C sees, Y_C; `print(c)` prints `h`.
-  - `for a, b in "hi"` says `and this is not one`, kelvinc's words, not
-    `cstr`.
-- (390) Agreed details: "struct, union and enum definitions inside a
+- (392) Agreed details: "next on the Not available yet list: inline,
+  restrict, _Static_assert. They should be supported, too. Your
+  opinion?" Claude agreed and proposed each, one number apiece, and the
+  user said "go for it".
+  - `inline let f(...)` is C's `static inline`, not C11's bare `inline`,
+    which needs an external definition elsewhere and fails to link at
+    -O0: a program is one C file, where `static inline` is the meaning.
+  - In a program it is mostly a hint, as `cc -O2` inlines a small static
+    function anyway; it matters in a module, whose `M.kh` keeps an inline
+    function's body, as a C header does, so that an importer inlines
+    it. The body uses what the header declares.
+  - `inline` goes before `let`, or before or after `static`, so that
+    `static inline let T.f()` and `inline static let T.f()` are both a
+    function of the type.
+  - `restrict` (#393) and `static_assert` (#394) follow.
+
+- (391) Agreed details: "struct, union and enum definitions inside a
   function. is there a reason not to support it?" Claude found none but
   C's: the functions kelvinc writes for each type are of the top level,
   where C's block-scoped type is unknown, so the type is written there
@@ -1014,7 +1020,21 @@ Notes:
   - A member's array counts by a number: the type is written before the
     function, where its locals are unknown.
   - A name used after its block ends is kelvinc's error, not C's.
+  - Numbered #391 here: its commit, 3293700, says #390, which the kc fix
+    of a cstr's loop, cdcaa43, took first; the user chose that the fix
+    keep it.
 
+- (390) Agreed details: "kc crashes at compile time on a loop over a C
+  string literal", which kelvinc compiles; it predates #388.
+  - selfhost/gen.k: gen_each had no case of a cstr, so it fell to an
+    Array's, whose element type of a cstr is -1: `types[-1]` ended kc.
+  - A cstr's own case walks a pointer to the NUL, as kelvinc's
+    EACH_POINTER: `const uint8_t *`, and `c` a `u8`, `print(c)` `104`.
+  - A literal is kelvinc's EACH_UNSEEN, as it sees no type of one:
+    `__auto_type` and `const __typeof__(*p)`, C's `char`, which kc
+    declares as what only C sees, Y_C; `print(c)` prints `h`.
+  - `for a, b in "hi"` says `and this is not one`, kelvinc's words, not
+    `cstr`.
 - (389) Agreed details: "next on the Not available yet list: nested
   struct definitions. Is there a reason not to support them?" Claude
   answered that C's are odd: a struct defined inside a struct is a type
@@ -5282,8 +5302,9 @@ says "as agreed".
 | P399 | Details of #387 | modules/kelvin_prelude.h: kv_bits, kv_bit_place, kv_bit_shift, kv_bits_at, _put, _or, _and, _xor, _flip, _shl, _shr, KV_BIT_OF, the _Generic lists; runtime/bits.c; src/lexer.c: the keyword; src/parser.c: is_bits, check_bit_number, is_maker, Bits(...), !!, ~, bv[n], .value, .flip, the operators and assignments; src/codegen.c: the bits_ ops, kv_bits's text and ==; selfhost/lex.k: << >> <<= >>=; selfhost/parse.k: Y_BITS, close_angle, !!, ~, the shifts; selfhost/gen.k: is_bits, bit_number, gen_bits, gen_bits_assign; documents/bits.md, versusC.md, bool.md, operators.md, dictionaries.md, properties.md, README.md; tests/run/dict_fill.k's `! !yes`; tests/run/bits.k, bit_bool.k, bits_place_failure.k, bit_bool_failure.k, bits_shift_failure.k; tests/error/bits_place_range.k, bits_set_int.k, bit_bool_of_bool.k, bit_bool_literal.k, bits_operator.k, bits_integer_operand.k, bits_let.k, bits_member.k | — |
 | P400 | Details of #388 | src/parser.c: parse_param, the names-only form's `_`, the errors of reading `_` and a `_kv_` name; selfhost/parse.k: unnamed_param; selfhost/gen.k: declare_each, kelvin_word, the errors; documents/functions.md, versusC.md, README.md; tests/run/unnamed_params.k; tests/error/unnamed_param_read.k, for_underscore_read.k, kv_reserved_read.k | — |
 | P401 | Details of #389 | src/kelvin.h: Decl outer, kelvin_name; src/parser.c: record_body, nest_outer, nested_record, nested_anywhere, record_spelled, record_path, the nested definitions in parse_record, the paths in parse_type_in, paren_type_ahead and T.x, fold_nested_heads, kelvin_type and record_spelling of the path, the errors; src/codegen.c: a union's text and a wrong case's message; tests/docs.sh: a method on a path at the margin; selfhost/parse.k: nested_of, outer_of, own_of, records_seen, body_struct, nest_outer, locals_seen, nested_tok, is_nested, scoped_type, local_named, kelvin_name, record_name, type_path, head_method; selfhost/gen.k: kc_made, the path in type_text and kv_case_fail; documents/structs.md, unions.md, versusC.md, README.md; tests/run/nested_types.k, nested_type_methods.k, nested_case_failure.k; tests/error/nested_type_outside.k, nested_type_twice.k, nested_type_c_name.k, nested_type_c_name_later.k, nested_type_unknown.k | — |
-| P402 | Details of #390 | src/kelvin.h: Var cname; src/parser.c: local_types, local_type_depths, local_enums, local_enum_at, ended_types, close_scope's pruning, record_local, hidden_names, hidden_name, local_enum_of, record_spelled's blocks, a definition as a statement, the enumerators' C names, the switch's, the errors; src/codegen.c: an enumerator's C name; selfhost/parse.k: local_types, local_enums, local_own_of, ended_types, hidden_token, local_enum_named, block_depth in parse_block, fn_tok, local_next, parse_enum's hidden enumerators, the errors; documents/structs.md, enums.md, versusC.md, README.md; tests/run/local_types.k; tests/error/local_type_ended.k, local_type_twice.k, local_type_method.k, local_type_local_count.k | — |
 | P402 | Details of #390 | selfhost/gen.k: gen_each's cstr case, its error of two loop variables; selfhost/sample.k; selfhost/README.md | — |
+| P403 | Details of #391 | src/kelvin.h: Var cname; src/parser.c: local_types, local_type_depths, local_enums, local_enum_at, ended_types, close_scope's pruning, record_local, hidden_names, hidden_name, local_enum_of, record_spelled's blocks, a definition as a statement, the enumerators' C names, the switch's, the errors; src/codegen.c: an enumerator's C name; selfhost/parse.k: local_types, local_enums, local_own_of, ended_types, hidden_token, local_enum_named, block_depth in parse_block, fn_tok, local_next, parse_enum's hidden enumerators, the errors; documents/structs.md, enums.md, versusC.md, README.md; tests/run/local_types.k; tests/error/local_type_ended.k, local_type_twice.k, local_type_method.k, local_type_local_count.k | — |
+| P404 | Details of #392 | src/parser.c: inline_next, inline_tok, parse_inline, parse_storage_inline, take_inline in parse_fn_tail and parse_method_of, gen_header's inline bodies; selfhost/parse.k: inline_fns, parse_inline, is_inline; selfhost/gen.k: gen_signature's static inline; documents/functions.md, modules.md, versusC.md; tests/run.sh: geo.kh's inline bodies; tests/project/lib/geo.k, geo_user.k; tests/run/inline_functions.k; tests/error/inline_variable.k, inline_struct.k, inline_extern.k, inline_main.k, inline_twice.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

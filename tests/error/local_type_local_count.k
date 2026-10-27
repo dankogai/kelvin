@@ -1,4 +1,4 @@
-// a type defined inside a function is written before it in C (#390), where
+// a type defined inside a function is written before it in C (#391), where
 // its locals are not known: an array member counts by a number
 let main():i32 {
     let n = 4

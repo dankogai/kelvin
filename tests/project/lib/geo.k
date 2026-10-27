@@ -39,11 +39,14 @@ extend point {
         set(v) { if name[0] == 'x' { .x = v } else { .y = v } }
     }
     let scaled(k:float64):Self { return {twice(.x) * k / 2.0, .y * k} }   // a method, using the helper
+    inline let swapped():Self { return {.y, .x} }            // inline in extend (#392)
     static let +(a:Self, b:Self):Self { return {a.x + b.x, a.y + b.y} }
     static let ==(a:Self, b:Self):bool { a.x == b.x && a.y == b.y }
     let cstr():cstr { `(${.x}, ${.y})` }                  // its text
 }
 let point.dist(to:Self):float64 { hypot(to.x - .x, to.y - .y) }   // alone
+inline let point.sum():float64 { .x + .y }               // inline (#392): its body in geo.kh too
+inline let halved(v:float64):float64 { v / 2.0 }
 let shape.area():float64 {
     switch self {
     case circle(r): return 3.0 * r * r

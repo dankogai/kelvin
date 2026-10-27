@@ -33,7 +33,8 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `const char *const s = t;` | `let s:const u8^ := t` |
 | `long add(long a, long b) { ... }` | `let add(a:i64, b:i64):i64 { ... }` (parameters are lets) |
 | `struct shape { struct size { double w, h; } s; };`, `struct size` a type of the file | `struct shape { struct size { w: f64; h: f64 }; s: size }`: `size` inside shape, `shape.size` outside, as in Swift (#389) |
-| `int main(void) { struct pair { int a; } p = {1}; ... }`, a type of the block | `struct pair { a: i32 }` in the block, then `var p:pair = {1}`: the block's, `_kv_main_pair` in C (#390) |
+| `int main(void) { struct pair { int a; } p = {1}; ... }`, a type of the block | `struct pair { a: i32 }` in the block, then `var p:pair = {1}`: the block's, `_kv_main_pair` in C (#391) |
+| `static inline int sq(int x) { return x * x; }` | `inline let sq(x:i32):i32 { x * x }`: C's `static inline`, its body in a module's `.kh` too (#392) |
 | `void on_signal(int) { ... }`, a parameter unnamed | `let on_signal(_:i32) { ... }`: `_` may stand for several, and is never read (#388) |
 | `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
 | `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
@@ -196,7 +197,7 @@ These are C features without a Kelvin spelling so far:
 - a case inside a statement of the switch (Duff's device): a case is
   written at the top of the switch's block (#63); `fallthrough` (#386)
   goes from one case into the next
-- `inline`, `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
+- `restrict`, `_Alignas`, `_Static_assert`, `_Generic`
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 - `alignof` and `typeof` (reserved C compiler keywords, P20; `v.type` is

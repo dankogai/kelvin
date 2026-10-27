@@ -66,7 +66,7 @@ static List mixed_choices; /* c ? s : make() of an owner, not yet returned, and 
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 
-/* the types defined inside a function (#390), Decl *, the block's alone,
+/* the types defined inside a function (#391), Decl *, the block's alone,
    with the depth of scope_marks each was defined at; and the enumerators
    of an enum so defined, Var *, with the index of each one's binding */
 static List local_types, local_type_depths, local_enums, local_enum_at;
@@ -359,11 +359,11 @@ static Decl *parse_record(Pos pos, DeclKind kind);
 static Decl *record_body;
 /* the struct or union a nested definition is read in (#389), which names it */
 static Decl *nest_outer;
-/* the record parse_record reads next is defined inside a function (#390) */
+/* the record parse_record reads next is defined inside a function (#391) */
 static bool record_local;
-static List hidden_names; /* char *: the C names given so (#390), each once */
+static List hidden_names; /* char *: the C names given so (#391), each once */
 
-/* the C name of a type or an enumerator defined inside a function (#390):
+/* the C name of a type or an enumerator defined inside a function (#391):
    _kv_main_point, then _kv_main_point1, 2, ... */
 static char *hidden_name(const char *name) {
     for (int k = 0;; k++) {
@@ -407,7 +407,7 @@ static Decl *record_spelled(const char *name) {
         if (n)
             return n;
     }
-    for (int i = local_types.len - 1; i >= 0; i--) { /* one defined in a block around it (#390) */
+    for (int i = local_types.len - 1; i >= 0; i--) { /* one defined in a block around it (#391) */
         Decl *r = local_types.data[i];
         if (!strcmp(r->kelvin_name, name))
             return r;
@@ -782,7 +782,7 @@ static const char *let_target(Expr *e);
 static void reject_const_change(Expr *e, Pos pos);
 static Type *value_type(Expr *e);
 
-/* the enum defined in a block (#390) of the enumerator that a name, or
+/* the enum defined in a block (#391) of the enumerator that a name, or
    its C name, names here, or NULL */
 static Decl *local_enum_of(const char *name) {
     int b = binding_index(name);
@@ -1463,7 +1463,7 @@ static Type *parse_type_in(TypeContext ctx) {
                 error_at(name->pos, "'%s' is defined in %s, and named %s outside it", name->text,
                          record_spelling(n->outer), n->kelvin_name);
             for (int i = 0; i < ended_types.len; i++)
-                if (!strcmp(((Decl *)ended_types.data[i])->kelvin_name, name->text)) /* (#390) */
+                if (!strcmp(((Decl *)ended_types.data[i])->kelvin_name, name->text)) /* (#391) */
                     error_at(name->pos, "'%s' is defined in a block that has ended: a type defined inside a function "
                                         "is known to the end of its block",
                              name->text);
@@ -3885,7 +3885,7 @@ static Expr *parse_primary(void) {
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
         if (t->kind == TK_IDENT && !ascii_name(t->text))
             reject_unknown_name(t); /* (#385) */
-        if (t->kind == TK_IDENT && local_enums.len) { /* an enumerator of the block's enum (#390): its C name */
+        if (t->kind == TK_IDENT && local_enums.len) { /* an enumerator of the block's enum (#391): its C name */
             int b = binding_index(t->text);
             for (int i = local_enums.len - 1; i >= 0; i--)
                 if ((int)(intptr_t)local_enum_at.data[i] == b)
@@ -10434,6 +10434,35 @@ static const char *parse_storage(void) {
     return NULL;
 }
 
+/* inline let f(...) (#392): C's static inline, the function parse_fn_tail
+   reads next, `inline` written before or after static */
+static bool inline_next;
+static Token *inline_tok;
+
+static void parse_inline(void) {
+    if (!is_kw(peek(), "inline"))
+        return;
+    if (inline_next)
+        error_at(peek()->pos, "'inline' is written once");
+    inline_tok = advance();
+    inline_next = true;
+}
+
+/* the storage of a declaration with its inline (#392), which only a function
+   defined here takes */
+static const char *parse_storage_inline(void) {
+    if (inline_next)
+        error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
+    parse_inline();
+    const char *storage = parse_storage();
+    parse_inline();
+    if (inline_next && storage && !strcmp(storage, "extern"))
+        error_at(inline_tok->pos, "an extern function is defined elsewhere: 'inline' is for one defined here");
+    if (inline_next && !is_kw(peek(), "let") && !is_kw(peek(), "var"))
+        error_at(inline_tok->pos, "'inline' is for a function, a method or an operator: 'inline let f(...) { ... }'");
+    return storage;
+}
+
 /* ---------- statements ---------- */
 
 static Stmt *parse_stmt(void);
@@ -12901,7 +12930,7 @@ static Stmt *parse_stmt_here(void) {
     if (binding_ahead(cur)) {
         int at = cur + 1 + (is_kw(t, "static") || is_kw(t, "extern"));
         Decl *lr = toks[at].kind == TK_IDENT && is_p(&toks[at + 1], ".") ? record_path(at, NULL) : NULL;
-        if (lr && lr->kelvin_name && !strncmp(lr->name, "_kv_", 4)) /* (#390) */
+        if (lr && lr->kelvin_name && !strncmp(lr->name, "_kv_", 4)) /* (#391) */
             error_at(toks[at].pos, "a method of a type defined inside a function is not available yet: define %s at "
                                    "the top level, or write a function that takes it",
                      lr->kelvin_name);
@@ -13238,7 +13267,7 @@ static Stmt *parse_stmt_here(void) {
     }
     if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT &&
         is_p(peek_at(2), "{")) {
-        /* a type defined inside a function (#390): the block's, from here
+        /* a type defined inside a function (#391): the block's, from here
            on; a type of the top level in C, written before the function */
         advance();
         record_local = true;
@@ -13401,7 +13430,18 @@ static Decl *parse_fn(Pos pos, const char *storage) {
 
 /* the parameters, the result and the body of a function, after its name:
    a plain function's, an operator's, or a function of a type's (#111) */
+/* the function just begun takes the inline before it (#392): C's static inline */
+static void take_inline(Decl *d) {
+    if (!inline_next)
+        return;
+    inline_next = false;
+    if (!d->op && !d->recv && !d->type_fn && d->name && !strcmp(d->name, "main"))
+        error_at(inline_tok->pos, "main is C's main, called once: it is not inline");
+    d->storage = "static inline";
+}
+
 static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
+    take_inline(d);
     if (!d->op)
         declare_name(d->name);
     d->bind_index = scope_names.len - 1; /* a nested function is found by its binding (#180) */
@@ -13561,6 +13601,7 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         return parse_fn_tail(d, name, pos);
     }
     Decl *d = new_decl(D_FN, pos, storage);
+    take_inline(d); /* (#392) */
     reject_kv_name(name);
     d->var_method = var_method_next;
     var_method_next = false;
@@ -14211,7 +14252,7 @@ static void parse_extend(Program *prog) {
         if (m->kind == TK_EOF || m->kind == TK_FILE_END)
             error_at(recv->pos, "extend has no closing '}'");
         stmt_start = cur;
-        const char *storage = parse_storage();
+        const char *storage = parse_storage_inline();
         if (storage && !strcmp(storage, "extern"))
             error_at(m->pos, "extern is not for a member of extend: declare it at the top level");
         if (!is_kw(peek(), "let") && !is_kw(peek(), "var"))
@@ -14393,7 +14434,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
             if (same && !same->outer)
                 error_at(nt->pos, "%s is %s in C, the name of a type declared already: rename one of them",
                          d->kelvin_name, d->name);
-        } else if (record_local) { /* struct point { ... } in a block (#390): the block's, _kv_main_point in C */
+        } else if (record_local) { /* struct point { ... } in a block (#391): the block's, _kv_main_point in C */
             for (int i = local_types.len - 1;
                  i >= 0 && (int)(intptr_t)local_type_depths.data[i] == scope_marks.len; i--)
                 if (!strcmp(((Decl *)local_types.data[i])->kelvin_name, d->name))
@@ -14431,7 +14472,7 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                     error_at(v->pos, "'%s' is a case of %s, a word of the program: name the enumerator otherwise",
                              v->name, record_spelling(wr));
                 declare_name(v->name);
-                if (parsing_fn) { /* the block's (#390), _kv_main_red in C */
+                if (parsing_fn) { /* the block's (#391), _kv_main_red in C */
                     v->cname = hidden_name(v->name);
                     list_push(&local_enums, v);
                     list_push(&local_enum_at, (void *)(intptr_t)(scope_names.len - 1));
@@ -14449,14 +14490,14 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 nest_outer = d;
                 Decl *n = parse_record(kw->pos, is_kw(kw, "struct") ? D_STRUCT : is_kw(kw, "union") ? D_UNION : D_ENUM);
                 nest_outer = NULL;
-                list_push(&program->decls, n); /* before the function it is in too (#390) */
+                list_push(&program->decls, n); /* before the function it is in too (#391) */
             } else {
                 do {
                     reject_c_fn_pointer(cur, "");
                     Var *m = parse_var(false, LET_NONE);
                     if (kind == D_UNION && is_owner(m->type))
                         error_at(m->pos, "a union cannot hold an owner (#54): which member to free is unknown");
-                    if (parsing_fn && has_local_size(m->type)) /* (#390) */
+                    if (parsing_fn && has_local_size(m->type)) /* (#391) */
                         error_at(m->pos, "a type defined inside a function is written before it in C, where its "
                                          "locals are not known: '%s' of %s counts by one; write the count",
                                  m->name, kelvin_type(m->type));
@@ -15134,6 +15175,7 @@ Program *parse(Token *tokens, int ntoks) {
     scope_marks = (List){0};
     records = (List){0};
     local_types = local_type_depths = local_enums = local_enum_at = hidden_names = ended_types = (List){0};
+    inline_next = false;
     functions = (List){0};
     method_names = (List){0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
@@ -15203,8 +15245,8 @@ Program *parse(Token *tokens, int ntoks) {
         }
         stmt_start = cur;
         top_name = NULL;
-        ended_types.len = 0; /* a function's own (#390) */
-        const char *storage = parse_storage();
+        ended_types.len = 0; /* a function's own (#391) */
+        const char *storage = parse_storage_inline();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");
         if (!binding && !storage && peek()->kind == TK_IDENT && !strcmp(peek()->text, "typealias")) {
@@ -15348,6 +15390,8 @@ Program *parse(Token *tokens, int ntoks) {
             error_at(peek()->pos, "expected a declaration (let name(...):type, let or var name, struct, union, enum), found %s", desc(peek()));
         }
     }
+    if (inline_next) /* (#392) */
+        error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     name_functions();
     /* a Dictionary has == where its values compare (#235), known once every
        enum's no_eq is: an enum of the values may hold the Dictionary */
@@ -15746,8 +15790,10 @@ char *gen_header(Program *prog) {
             continue;
         }
         int k = i;
+        k += is_kw(&toks[k], "inline"); /* (#392) */
         if (is_kw(&toks[k], "static") || is_kw(&toks[k], "extern"))
             k++;
+        k += is_kw(&toks[k], "inline");
         if ((is_kw(&toks[k], "let") || is_kw(&toks[k], "var")) && fn_like(k + 1)) {
             int end;
             if (header_end(k + 1, &end) == 'b')
@@ -15780,8 +15826,14 @@ char *gen_header(Program *prog) {
         }
         int k = i;
         const char *storage = NULL;
-        if (is_kw(t, "static") || is_kw(t, "extern"))
+        bool inl = is_kw(&toks[k], "inline"); /* inline let f(...) (#392): its body too, for the importer to inline */
+        k += inl;
+        if (is_kw(&toks[k], "static") || is_kw(&toks[k], "extern"))
             storage = toks[k++].text;
+        if (is_kw(&toks[k], "inline")) {
+            inl = true;
+            k++;
+        }
         if (is_kw(&toks[k], "struct") || is_kw(&toks[k], "union") || is_kw(&toks[k], "enum")) {
             int end = decl_end(i);
             buf_printf(&b, "%s\n", raw_text(i, end));
@@ -15804,9 +15856,13 @@ char *gen_header(Program *prog) {
             List block_seen = {0}; /* a prototype and its definition are one, within the block (#168) */
             for (int m = open + 1; m < close;) {
                 int end;
-                char how = header_end(m, &end);
+                int h = m + is_kw(&toks[m], "inline"); /* (#392) */
+                h += is_kw(&toks[h], "static");
+                h += is_kw(&toks[h], "inline");
+                bool inl = h > m + is_kw(&toks[m], "static");
+                char how = header_end(inl ? h : m, &end);
                 char *text = how == 't' ? type_attribute_decl(prog, m, false) : raw_text(m, end);
-                if (how == 'b' && is_kw(&toks[m + 1], "cstr"))
+                if (how == 'b' && (is_kw(&toks[m + 1], "cstr") || inl))
                     text = raw_text(m, group_end(end) + 1); /* T.cstr() (#53) is inline: its body too */
                 if (!text_listed(&block_seen, text)) {
                     list_push(&block_seen, text);
@@ -15825,7 +15881,7 @@ char *gen_header(Program *prog) {
                 bool file_local = storage && !strcmp(storage, "static") && toks[k + 1].kind == TK_IDENT &&
                                   is_p(&toks[k + 2], "(");
                 char *text = how == 't' ? type_attribute_decl(prog, i, true) : raw_text(i, end);
-                if (how == 'b' && is_p(&toks[k + 2], ".") && is_kw(&toks[k + 3], "cstr"))
+                if (how == 'b' && ((is_p(&toks[k + 2], ".") && is_kw(&toks[k + 3], "cstr")) || inl))
                     text = raw_text(i, group_end(end) + 1); /* let T.cstr():cstr { ... } (#53) is inline */
                 if (!file_local && !text_listed(&seen, text)) {
                     list_push(&seen, text);

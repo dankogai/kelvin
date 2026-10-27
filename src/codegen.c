@@ -4449,7 +4449,7 @@ static void emit_decl(Decl *d) {
             Var *m = d->members.data[i];
             sync(m->pos);
             if (d->kind == D_ENUM)
-                line("%s%s,", m->cname ? m->cname : m->name, m->init ? strfmt(" = %s", expr(m->init)) : ""); /* (#390) */
+                line("%s%s,", m->cname ? m->cname : m->name, m->init ? strfmt(" = %s", expr(m->init)) : ""); /* (#391) */
             else
                 line("%s;", decl(m->type, m->name));
         }

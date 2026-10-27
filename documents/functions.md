@@ -31,6 +31,17 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     - So is `let f(...)` inside a function, where a let holds an
       anonymous function (#32).
   - A prototype ends with `;` or the end of its line instead of a body.
+  - **`inline`** (#392) goes before `let`, or before or after `static`:
+    `inline let sq(x:i64):i64 { x * x }`, on a function, a method, an
+    operator, an attribute and a function of the type, in `extend` too.
+    - It is C's `static inline`: a program is one C file, where that
+      means exactly "inline this here", and C11's bare `inline` would
+      need a definition elsewhere besides.
+    - `cc -O2` inlines a small function anyway; in a module, an inline
+      function keeps its body in `M.kh`, so that the programs that
+      import it inline it too (see [modules.md](modules.md)).
+    - On a variable, a type or an `extern` prototype, on `main`, or
+      written twice, it is an error.
   - With no `: type`, the function returns nothing (C's `void`)
     *(provisional P5)*.
     - `:()` says so in writing (#141): `let shout(name:cstr):() { ... }`.

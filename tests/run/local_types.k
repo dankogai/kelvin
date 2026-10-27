@@ -1,4 +1,4 @@
-// a struct, union or enum defined inside a function (#390): the block's,
+// a struct, union or enum defined inside a function (#391): the block's,
 // from its definition to the block's end, hiding a type of the top level
 // of its name; a type of the top level in C, _kv_main_pair, written before
 // the function; a C enum's enumerators the block's too

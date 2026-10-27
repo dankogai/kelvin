@@ -33,7 +33,7 @@ So far the changes from C are:
   members where a type goes, `var v:{x:f64, y:f64} = {3.0, 4.0}`,
   `var u:union{i:i32, f:f32}`; one defined inside a struct is named
   bare there and by its path outside, `shape.size` (#389), and one
-  defined in a function is its block's (#390)
+  defined in a function is its block's (#391)
 - an `enum` whose cases carry values is a union that knows its case,
   with a byte for the tag: `enum json { null; n: f64; s: String; a:
   Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested

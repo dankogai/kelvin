@@ -109,6 +109,10 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   - A C function's prototype, `let exp(x:f64):f64` with no body, is
     `extern let exp(x:f64):f64` there: in a `.kh`, a prototype without
     `extern` is the library's own function.
+  - An `inline` function, method or operator (#392) is copied with its
+    body, so that a program inlines it, as C's `static inline` in a
+    header: it uses what the header declares, not a `static` helper of
+    the module.
   - `T.cstr()` is copied with its body: a text method is inline, sized
     by its template, in each file that uses the type.
   - A `static let f()` of the file, C's static, is left out; a

@@ -1,4 +1,4 @@
-// a type defined inside a function (#390) is known to the end of its block
+// a type defined inside a function (#391) is known to the end of its block
 let main():i32 {
     if true {
         struct pair { a:i64 }
