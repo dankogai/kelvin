@@ -432,6 +432,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 398 | `typeof(x)` and `typeof(T)`, C23's, kept C-compatible: `x`'s type with its own qualifiers, a `let`'s `const` too, which `x.type` leaves; any expression, C's `__typeof__` where kelvinc does not see it; `typeof(T)` is `T`; where a type goes, in `sizeof`, `as` and compound literals; `typeof` reserved; `typeof x`, `__typeof__` and `typeof_unqual` errors that name these; kelvinc and kc, kc of a variable whose type is written | parse_c_typeof, T_TYPEOF named `typeof(...)` | `var a:typeof(n)` | 2026-10-28 |
 | 399 | Assembly left out on purpose: `__asm__ __volatile__ (...)`, `__asm__`, `__asm` and `asm(...)`, GNU C's, go in `#inline C { __asm__ __volatile__("..."); }`; written in Kelvin, errors that say so, and `__volatile__` one that names `volatile`; `asm` stays a name; kelvinc and kc | the foreign keywords' hints; `__asm__(...)` no longer a statement passed through | `#inline C { __asm__ __volatile__("nop"); }` | 2026-10-28 |
 | 400 | `sizeof(FILE^)` left out on purpose: kelvinc reads no C header, so a header's type and its value are one to it, and `FILE^` is a dereference, as `stdout^` is; every object pointer has one size, `sizeof(any^)`, and `f.size` is a variable's | versusC.md's Left out on purpose | `sizeof(any^)` | 2026-10-28 |
+| 401 | Duff's device left out on purpose: a case stays at the top of the switch's block (#63), as in Swift; what it does is written with `fallthrough` (#386), a cascade for the remainder, then whole blocks in a loop, and `cc -O2` unrolls a loop itself | versusC.md's Left out on purpose; flow-controls.md's example | a cascade, then a loop | 2026-10-28 |
 
 Notes:
 
@@ -993,6 +994,15 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (401) Agreed details: "next on the Not available yet list: Duff's
+  device. It must be possible now that Kelvin has `fallthrough`." Claude
+  answered that `fallthrough` writes what it does, a cascade for the
+  remainder and whole blocks in a loop, but not its shape, a case inside
+  the loop: that is a jump into a loop's middle, which C's cleanup of an
+  owner refuses, and which would undo the switch's checks; `cc -O2`
+  unrolls a loop itself. The user chose to leave it out on purpose, "an
+  obsolete sleight of hand anyway".
 
 - (400) Agreed details: "next on the Not available yet list:
   sizeof(FILE^). Would you explain you raised this? AFAIK sizeof(T^) is
@@ -5420,6 +5430,7 @@ says "as agreed".
 | P410 | Details of #398 | src/lexer.c: the keyword, `__typeof__`'s and `typeof_unqual`'s hints; src/parser.c: parse_c_typeof, starts_type, type_shape_end, kelvin_type of `typeof(...)`; selfhost/parse.k: typeof in parse_bare_type, written_type; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, versusC.md; tests/run/typeof.k; tests/error/typeof_no_paren.k, typeof_gnu.k, typeof_unqual.k, typeof_reserved.k | — |
 | P411 | Details of #399 | src/lexer.c: `__asm__`, `__asm`, `__volatile__` and `__volatile` among the foreign keywords; src/parser.c: `asm(...)`, the statement words without assembly; selfhost/parse.k: the same errors; documents/versusC.md, c-interfaces.md; tests/run/stmt_macros.k; tests/error/asm_left_out.k, asm_call.k, volatile_gnu.k | — |
 | P412 | Details of #400 | documents/versusC.md; tests/run/sizeof_c_pointer.k | — |
+| P413 | Details of #401 | documents/versusC.md, flow-controls.md; tests/run/duff_fallthrough.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

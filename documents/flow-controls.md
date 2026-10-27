@@ -115,6 +115,25 @@ case rect(q): return q.w * q.h
     has no value to bind there: either is an error.
   - `fallthrough` is a keyword, so no name.
   - In C it is a `goto` to a label on the next case's block.
+  - Duff's device, a case inside a loop of the switch, is left out on
+    purpose (#401); what it does is a cascade, then a loop:
+
+    ```swift
+    let copy(to:u8^, from:const u8^, count:i64):() {
+        var i = 0
+        switch count % 4 {                  // the remainder, falling through
+        case 3: to[i] = from[i]; i += 1; fallthrough
+        case 2: to[i] = from[i]; i += 1; fallthrough
+        case 1: to[i] = from[i]; i += 1
+        default: break
+        }
+        while i < count {                   // then whole blocks of 4
+            to[i] = from[i]; to[i + 1] = from[i + 1]
+            to[i + 2] = from[i + 2]; to[i + 3] = from[i + 3]
+            i += 4
+        }
+    }
+    ```
 - **In C**, each case is a block of its own, so a variable declared in
   one is its own, ending with a `break` unless it ends with a jump.
   - A switch exhaustive by its cases gets

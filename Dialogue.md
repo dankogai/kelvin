@@ -7885,3 +7885,21 @@ and `x.size` named there, and a test of them. Details are provisional
 P412.
 
 There are 1133 tests, and all pass with clang and with gcc 15.
+
+### 446. Duff's device, left out
+
+> next on the Not available yet list: Duff's device.  It must be possible now that Kelvin has `fallthrough`.
+
+**Claude** answered that `fallthrough` writes what Duff's device does, a
+cascade of cases for the remainder and then whole blocks in a loop, which
+it showed working, but not its shape: a case inside the loop is a jump
+into a loop's middle, which C's cleanup of an owner refuses and which
+would undo the switch's checks, and `cc -O2` unrolls a loop itself.
+
+> go with left out on purpose.  I have already expressed it is an obsolete sleight of hand anyway.
+
+**Claude** moved Duff's device to Left out on purpose as #401, with the
+cascade and the loop in flow-controls.md and a test of them. Details are
+provisional P413.
+
+There are 1134 tests, and all pass with clang and with gcc 15.

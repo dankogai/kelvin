@@ -199,9 +199,6 @@ These are C features without a Kelvin spelling so far:
 
 - an array of functions, or a pointer to a function type: `[(i64):i64](4)`
   has no spelling yet
-- a case inside a statement of the switch (Duff's device): a case is
-  written at the top of the switch's block (#63); `fallthrough` (#386)
-  goes from one case into the next
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 
@@ -243,6 +240,14 @@ These C features stay out, as decided (#294):
   - Every object pointer has one size, so `sizeof(any^)` is the size of
     any, and `f.size` that of a variable's.
   - `sizeof(FILE)` and `sizeof(size_t)` are C's, as written.
+- **Duff's device** (#401), a case inside a statement of the switch, a
+  jump into a loop's middle: a sleight of hand of 1983, which `cc -O2`
+  does better now, unrolling the loop itself.
+  - A case is written at the top of the switch's block (#63), as in
+    Swift; one inside an `if` or a loop is an error.
+  - What it does is written with `fallthrough` (#386): the remainder by
+    a cascade of cases, then whole blocks in a loop; see
+    [flow-controls.md](flow-controls.md).
 - **`_Generic`** (#397): a function of one name already takes several
   types, by its overloads, `let f(x:i64)` and `let f(x:f64)` (#41), and
   so do methods, operators and the built-in properties.
