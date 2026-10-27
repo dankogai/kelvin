@@ -3692,6 +3692,9 @@ static bool float_word(const char *s) {
 
 static Expr *parse_primary(void) {
     Token *t = peek();
+    if (is_kw(t, "_Generic")) /* left out on purpose (#397) */
+        error_at(t->pos, "'_Generic' is C11's, left out on purpose: a function of one name takes several types by "
+                         "overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)");
     if (t->regexp && !record_named("RegExp")) /* $/.../ (#157) is RegExp.compile(...), of the module */
         error_at(t->pos, "a $/.../ literal is a RegExp, which needs #import <RegExp>");
     self_word(t); /* Self.f(), Self.x, Self(v) (#140) */

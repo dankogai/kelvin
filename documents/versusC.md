@@ -202,7 +202,6 @@ These are C features without a Kelvin spelling so far:
 - a case inside a statement of the switch (Duff's device): a case is
   written at the top of the switch's block (#63); `fallthrough` (#386)
   goes from one case into the next
-- `_Generic`
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
 - `typeof` (a reserved C compiler keyword, P20; `v.type` is Kelvin's
@@ -236,6 +235,13 @@ These C features stay out, as decided (#294):
     which also make generics harder to use and to build; they wait for
     a neat way to constrain types.
 - **Literal suffixes**: see [integers.md](integers.md).
+- **`_Generic`** (#397): a function of one name already takes several
+  types, by its overloads, `let f(x:i64)` and `let f(x:f64)` (#41), and
+  so do methods, operators and the built-in properties.
+  - kelvinc chooses the overload where it sees the arguments' types,
+    and writes C's `_Generic` itself where only C sees them, so a
+    program never needs to.
+  - Written, it is an error that says so.
 - **Bit-fields**: `unsigned a : 1` packs as the platform's ABI decides.
   - A struct holds a `Bits` (#387) instead, 64 bits in a `u64`, each a
     `bool` by its place, and an enum names the flags: `s.flags[busy]`.

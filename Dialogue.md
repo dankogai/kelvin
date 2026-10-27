@@ -7821,3 +7821,16 @@ twice, and C11's `_Alignas` are errors. kc does the same, with kelvinc's
 errors. Details are provisional P408.
 
 There are 1123 tests, and all pass with clang and with gcc 15.
+
+### 442. _Generic, left out
+
+> next on the Not available yet list: _Generic.  Forget _Generic.  Though our generics is shallower than C++, Swift and many other (owing to its nature to compile to C11), our functions are already multi-dispatch and more generic than shabby C's.
+
+**Claude** moved `_Generic` to Left out on purpose as #397: a function of
+one name takes several types by its overloads (#41), as methods,
+operators and the built-in properties do, and kelvinc writes `_Generic`
+itself where only C sees a type. Written, `_Generic` is now an error that
+says so, in kelvinc and kc, in place of "expected an expression".
+Details are provisional P409.
+
+There are 1124 tests, and all pass with clang and with gcc 15.

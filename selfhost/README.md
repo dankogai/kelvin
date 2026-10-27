@@ -470,6 +470,8 @@ kc reads what it is written in, and little more.
   type; take_alignas keeps the variable or member in aligned, and
   put_alignas writes `_Alignas(...)` before its type; on a function, a
   struct or a statement, or twice, kelvinc's errors, in its words.
+- **`_Generic`** (#397), left out on purpose, as kelvinc's: written, it
+  is kelvinc's error, in its words, naming overloads.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

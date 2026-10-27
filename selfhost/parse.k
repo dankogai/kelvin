@@ -1233,6 +1233,10 @@ let parse_primary():int64 {
     let k:tkind = toks[t].kind
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
+    if k == T_ID && tok_is(t, "_Generic") {              // left out on purpose (#397), as kelvinc says it
+        parse_error("'_Generic' is C11's, left out on purpose: a function of one name takes several types by overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)")
+        return make_node(N_NULL, advance())
+    }
     if k == T_ID && (tok_is(t, "alignof") || tok_is(t, "_Alignof")) {   // alignof(T) (#395), C23's name
         advance()
         let n:int64 = make_node(N_ALIGN, t)
