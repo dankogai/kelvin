@@ -308,6 +308,7 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
 |---|---|---|
 | a fixed array `[T](N)` | `.count` | the elements, `sizeof(a) / sizeof(a[0])`, a VLA's too (#49) |
 | | `.size` | the bytes |
+| | `.align` | its elements' alignment, `alignof` (#395) |
 | | `.typename` | `[i32](4)` |
 | | `a[i]` | an element, unchecked, as C has it |
 | | `for x in a` | each element |

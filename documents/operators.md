@@ -112,6 +112,7 @@ Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
 ## Not operators
 
 - `sizeof x` and `sizeof(T)` are C's; `x.size` is the same (#21).
+- `alignof(T)` is C23's, C's `_Alignof`; `x.align` is a value's (#395).
 - There is no `,` operator in an expression: a list of assignments is a
   statement, and a `for` clause takes one.
 - There is no `?:` on templates' room: `c ? `a` : `b`` is text, and the

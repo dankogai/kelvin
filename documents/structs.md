@@ -338,6 +338,7 @@ let main():int32 {
 | any struct kelvinc sees | `.member` | a field, a place |
 | | `.cstr` | the derived text, `{x: 3, y: 4}`, or `T.cstr()`'s |
 | | `.size`, `.type`, `.typename` | `sizeof`; the type; its name, or the spelling of one with no tag |
+| | `.align` | its type's alignment, `alignof`, a `size_t` (#395); a field of the name wins |
 | | `.method(...)` | a method declared `let T.method()` |
 | | `.method(...)` on a var | a var method declared `var T.method()`, which changes it (#318) |
 | | `for x in v` | each value of an iterator's `var T.next():E?`, up to `none` (#318); see [iterators.md](iterators.md) |

@@ -1070,8 +1070,8 @@ static char *expr_bare(Expr *e) {
         return strfmt("(%s)%s", decl(e->type, ""), expr(e->a));
     case E_COMPOUND: /* without an initializer, [T](n): zero-filled (#49) */
         return strfmt("(%s)%s", decl(e->type, ""), e->a ? initializer(e->a) : "{0}");
-    case E_SIZEOF_TYPE:
-        return strfmt("sizeof(%s)", decl(e->type, ""));
+    case E_SIZEOF_TYPE: /* alignof(T) (#395) too, C's _Alignof */
+        return strfmt("%s(%s)", e->op && !strcmp(e->op, "alignof") ? "_Alignof" : "sizeof", decl(e->type, ""));
     case E_SIZEOF_EXPR:
         /* sizeof(name) may name a C typedef, so keep single parentheses.
            Any other parenthesized operand gets double parentheses, so that
@@ -1171,6 +1171,8 @@ static char *expr_bare(Expr *e) {
         }
         if (!strcmp(e->text, "size"))
             return strfmt("sizeof(%s)", recv);
+        if (!strcmp(e->text, "align")) /* x.align (#395): its type's */
+            return strfmt("_Alignof(__typeof__(%s))", recv);
         if (!strcmp(e->text, "count") && e->op && !strcmp(e->op, "cstr")) {
             /* strlen, measured at the first use of a local's or a
                parameter's and kept until the scope ends (#52) */
@@ -3385,7 +3387,7 @@ static const char *template_bound(Expr *x) {
             return strfmt("(_kv_%s_cstr_size - 1)", r->name);
         if (!strcmp(p, "dec") || !strcmp(p, "hex") || !strcmp(p, "oct") || !strcmp(p, "bin"))
             return strfmt("(%s - 1)", number_text_size(p));
-        if (!strcmp(p, "size") || !strcmp(p, "addr") || !strcmp(p, "count"))
+        if (!strcmp(p, "size") || !strcmp(p, "align") || !strcmp(p, "addr") || !strcmp(p, "count"))
             return "20";
         /* .cstr of a string is the string; .typename */
         if (strcmp(p, "next") && strcmp(p, "prev"))

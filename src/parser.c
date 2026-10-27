@@ -4916,6 +4916,19 @@ static Expr *parse_unary(void) {
         e->recv_type = parsing_fn->ret;
         return e;
     }
+    if (is_kw(peek(), "_Alignof"))
+        error_at(peek()->pos, "'_Alignof' is C11's spelling: Kelvin writes alignof(T), and a value's is x.align");
+    if (is_kw(peek(), "alignof")) { /* alignof(T) (#395), C23's name: C's _Alignof */
+        Token *a = advance();
+        if (!paren_type_ahead(true))
+            error_at(a->pos, "alignof takes a type, as C's does: alignof(T); a value's alignment is x.align");
+        advance();
+        Expr *e = new_expr(E_SIZEOF_TYPE, a->pos);
+        e->type = parse_type();
+        e->op = "alignof";
+        expect_p(")");
+        return e;
+    }
     if (accept_kw("sizeof")) {
         if (tag_name_ahead(peek(), true))
             error_at(peek()->pos, "sizeof a type needs parentheses: sizeof(%s)", peek()->text);
@@ -6239,8 +6252,8 @@ static void require_bool(Expr *e) {
     } else if (e->kind == E_STRING) {
         what = "a string", hint = "s != nullptr";
     } else if (e->kind == E_PROPERTY) {
-        bool number = !strcmp(e->text, "size") || !strcmp(e->text, "addr");
-        what = !strcmp(e->text, "size") ? "size_t" : number ? "uintptr_t" : "u8^";
+        bool number = !strcmp(e->text, "size") || !strcmp(e->text, "align") || !strcmp(e->text, "addr");
+        what = !strcmp(e->text, "size") || !strcmp(e->text, "align") ? "size_t" : number ? "uintptr_t" : "u8^";
         hint = number ? strfmt("x.%s != 0", e->text) : "x != nullptr";
     } else {
         Type *t = value_type(e);
@@ -6281,7 +6294,8 @@ static char expr_class(Expr *e, Decl **record) {
     case E_STRING:
         return 'n';
     case E_PROPERTY: /* .size, .addr, .count, .capacity, .utf32, .codepoint and .case are integers */
-        if ((e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "addr") ||
+        if ((e->op && !strcmp(e->op, "tagged")) || !strcmp(e->text, "size") || !strcmp(e->text, "align") ||
+            !strcmp(e->text, "addr") ||
             !strcmp(e->text, "count") || !strcmp(e->text, "capacity") || !strcmp(e->text, "utf32") ||
             !strcmp(e->text, "codepoint"))
             return 'i';
@@ -6689,8 +6703,8 @@ static Type *arg_type(Expr *e) {
     case E_SIZEOF_TYPE:
     case E_SIZEOF_EXPR:
         return base_type("size_t", e->pos);
-    case E_PROPERTY: /* .size and .count are C's size_t */
-        if (!strcmp(e->text, "size") || !strcmp(e->text, "count"))
+    case E_PROPERTY: /* .size, .align and .count are C's size_t */
+        if (!strcmp(e->text, "size") || !strcmp(e->text, "align") || !strcmp(e->text, "count"))
             return base_type("size_t", e->pos);
         break;
     case E_BINARY: {
@@ -8155,7 +8169,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
             error_at(name->pos, "'.addr' is a property of pointers and functions");
         }
     }
-    bool is_size = !strcmp(member, "size");
+    bool is_size = !strcmp(member, "size") || !strcmp(member, "align"); /* x.align, as x.size (#395) */
     bool is_cstr = !strcmp(member, "cstr");
     bool is_text = !strcmp(member, "dec") || !strcmp(member, "hex") || !strcmp(member, "oct") || !strcmp(member, "bin");
     if (!is_size && !is_text && !is_cstr)
@@ -11330,8 +11344,9 @@ static Expr *text_in_buffer(Expr *e) {
         return !strcmp(e->op, "&") && e->a->kind == E_INDEX ? text_in_buffer(e->a->a) : NULL;
     case E_PROPERTY: {
         /* .typename is a string literal C chooses (#34), .addr a number (#37) */
-        if (!strcmp(e->text, "size") || !strcmp(e->text, "typename") || !strcmp(e->text, "type") ||
-            !strcmp(e->text, "addr") || !strcmp(e->text, "count") || !strcmp(e->text, "isNull") ||
+        if (!strcmp(e->text, "size") || !strcmp(e->text, "align") || !strcmp(e->text, "typename") ||
+            !strcmp(e->text, "type") || !strcmp(e->text, "addr") || !strcmp(e->text, "count") ||
+            !strcmp(e->text, "isNull") ||
             !strcmp(e->text, "utf32") || !strcmp(e->text, "codepoint") || !strcmp(e->text, "capacity") ||
             (e->op && !strcmp(e->op, "tagged")))
             return NULL; /* .count and .isNull are numbers too (#49, #50), and a uchr's codepoint (#156) */
@@ -12914,7 +12929,7 @@ static char *raw_text(int i, int end);
    not count as a constant, or NULL; sizeof and .size read none */
 static const char *unconstant(Expr *e) {
     if (!e || e->kind == E_SIZEOF_TYPE || e->kind == E_SIZEOF_EXPR ||
-        (e->kind == E_PROPERTY && e->text && !strcmp(e->text, "size")))
+        (e->kind == E_PROPERTY && e->text && (!strcmp(e->text, "size") || !strcmp(e->text, "align"))))
         return NULL;
     if (e->kind == E_IDENT)
         return lookup_type(e->text) && !enum_of(e->text) && !function_named(e->text) ? e->text : NULL;

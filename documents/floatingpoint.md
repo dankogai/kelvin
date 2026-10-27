@@ -140,6 +140,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 | On | Property | Gives |
 |---|---|---|
 | `f32`, `f64` | `.size` | `sizeof`, a `size_t` |
+| | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text `print` shows, every digit with a point, `1.0`, `0.10000000000000001` (#258, #259), in the block's buffer |
 | | `.dec`, `.hex` | `%+.17g` and C's `%a`, each with a sign |

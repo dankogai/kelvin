@@ -153,6 +153,7 @@ Kelvin has no `void` type:
 | | `.addr` | the address as a number, a `uintptr_t` (#37) |
 | | `.hex` | the address as text, `0x` and all its digits |
 | | `.size`, `.type`, `.typename` | a pointer's size; the type; its name |
+| | `.align` | a pointer's alignment, `alignof`, a `size_t` (#395) |
 | a pointer | `.next`, `.prev` | `p + 1`, `p - 1` (#26); `p++`, `p--` step it (#51) |
 | | `p^` | what it points to; `p^.member` |
 | `u8^`, `i8^` | `.cstr` | the text itself; `.count` is not a pointer's |

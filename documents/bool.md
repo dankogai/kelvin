@@ -57,6 +57,7 @@ let set = bool(flags & 4)           // a number to a bool: zero is false
 | On | Property | Gives |
 |---|---|---|
 | `bool` | `.size` | `sizeof`, a `size_t` |
+| | `.align` | `alignof(bool)`, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name, `bool` |
 | | `.cstr` | `true` or `false`, in the block's buffer |
 | | `.i8` ... `.u64`, `.f32`, `.f64` | a conversion, `i64(v)` written after the value: 1 or 0 |

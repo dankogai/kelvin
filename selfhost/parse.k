@@ -40,6 +40,7 @@ enum nkind {                    // the kinds of nodes (#210)
                 // of a Dictionary (#351), flag 3 of {k: v}, a the literal, 4 of &a, 5 of a, 6 of more, c the token
     N_RANGE,    // a..<b, a...b (flag 1), a... (flag 2, b -1); ..<b and ...b, a -1 of 0 (#373); ty the Range<T> it is
     N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
+    N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -1226,6 +1227,22 @@ let parse_primary():int64 {
     let k:tkind = toks[t].kind
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
+    if k == T_ID && (tok_is(t, "alignof") || tok_is(t, "_Alignof")) {   // alignof(T) (#395), C23's name
+        advance()
+        let n:int64 = make_node(N_ALIGN, t)
+        if tok_is(t, "_Alignof") {
+            parse_error("'_Alignof' is C11's spelling: Kelvin writes alignof(T), and a value's is x.align")
+            return n
+        }
+        if !at_word("(") {
+            parse_error("alignof takes a type, as C's does: alignof(T); a value's alignment is x.align")
+            return n
+        }
+        advance()
+        set_ty(n, parse_type())
+        expect(")")
+        return n
+    }
     if k == T_ID && tok_is(t, "Array") && tok_is(t + 1, "(") { return parse_make() }   // Array([a, b]) (#352)
     if k == T_NUM {
         advance()

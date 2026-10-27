@@ -919,6 +919,14 @@ let is_string_plus(n:int64):bool {
     return !is_owner(ya) && yb >= 0 && types[yb].kind == Y_STRING
 }
 
+// whether n is x.align (#395), a value's alignment, as kelvinc's: not a
+// struct's field of the name, nor a case of an enum
+let value_align(n:int64):bool {
+    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "align") || tagged_named(nodes[n].a) >= 0 { return false }
+    let y:int64 = type_of(nodes[n].a)
+    return y >= 0 && !(types[y].kind == Y_STRUCT && (field_type(y, nodes[n].t) >= 0 || tagged_of(y) >= 0))
+}
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -1040,6 +1048,8 @@ let type_of(n:int64):int64 {
         let iy:int64 = type_of(nodes[n].a)
         if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
     }
+    if k == N_ALIGN { return base_type(Y_I64) }         // alignof(T) (#395)
+    if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
         let ly = lazy_field_type(n)
         if ly != 0 - 2 { return ly }
@@ -4731,6 +4741,31 @@ let gen_bits_assign(n:int64):bool {
     return true
 }
 
+// alignof(T) and x.align (#395), as kelvinc's: C's _Alignof, of a value
+// its __typeof__'s; whether n is one, written
+let gen_align(n:int64):bool {
+    let k = nodes[n].kind
+    let a:int64 = nodes[n].a
+    if k == N_ALIGN {                                    // alignof(T) (#395), as kelvinc's: C's _Alignof
+        let y:int64 = nodes[n].ty
+        if types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) < 0 && decl_named(types[y].name, D_ENUM) < 0 && var_type(types[y].name) >= 0 {
+            gen_error(n, "alignof takes a type, as C's does: alignof(T); a value's alignment is x.align")
+            return true
+        }
+        put("((int64_t)_Alignof(")
+        put_ctype(y)
+        put("))")
+        return true
+    }
+    if k == N_FIELD && value_align(n) {                  // x.align (#395), its type's: C's _Alignof of its __typeof__
+        put("((int64_t)_Alignof(__typeof__(")
+        gen_expr(a)
+        put(")))")
+        return true
+    }
+    return false
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
@@ -4739,6 +4774,7 @@ let gen_expr(n:int64) {
         return
     }
     if gen_bits(n) { return }                            // a Bits's (#387)
+    if gen_align(n) { return }                           // (#395)
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     if k == N_ANON {

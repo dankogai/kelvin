@@ -7792,3 +7792,20 @@ module's `M.kh` leaves it out. kc does the same, with kelvinc's errors.
 Details are provisional P406.
 
 There are 1110 tests, and all pass with clang and with gcc 15.
+
+### 440. alignof
+
+> next on the Not available yet list: _Alignas and alignof
+
+**Claude** asked how each is spelled. The user chose `alignof(T)`, C23's
+name as `sizeof(T)` is C's, with `x.align` for a value, as `x.size` is,
+and `alignas(N)` before the declaration, where `static` and `inline` go.
+
+**Claude** made `alignof` #395: `alignof(T)` is C's `_Alignof`, and
+`x.align` its type's, `_Alignof(__typeof__(x))`, both a `size_t`, a
+struct's field `align` winning. `alignof` of a value, `_Alignof`,
+`__alignof__` and a name `alignof` are errors that say what Kelvin
+writes. kc does the same, with kelvinc's errors. Details are provisional
+P407.
+
+There are 1116 tests, and all pass with clang and with gcc 15.

@@ -512,7 +512,7 @@
         },
         {
           "name": "keyword.operator.word.kelvin",
-          "match": "\\b(?:as|sizeof)\\b"
+          "match": "\\b(?:as|sizeof|alignof)\\b"
         },
         {
           "name": "variable.language.kelvin",

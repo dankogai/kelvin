@@ -249,6 +249,7 @@ let main():int32 {
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |
 | | `.size` | `sizeof`, a `size_t` |
+| | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
 | | `.cstr` | the text, as `print` shows it, in the block's buffer |
 | | `.dec`, `.hex`, `.oct`, `.bin` | text in that base, signed ones with a sign, `0x`/`0o`/`0b` prefixed |

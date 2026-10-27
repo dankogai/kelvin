@@ -34,7 +34,7 @@ type's own are listed, with its methods, at the end of its document:
 
 **Where it lives:** `.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.
 
-## `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
+## `.size`, `.align`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 
 Properties are written without parentheses:
 
@@ -51,6 +51,12 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 
 - **`x.size`** is `sizeof(x)`. A function's `.size`, and its `sizeof`,
   are a pointer's size, since its name is a function value (#31).
+- **`x.align`** (#395) is its type's alignment, C's
+  `_Alignof(__typeof__(x))`, a `size_t`; `alignof(T)`, C23's name, is
+  a type's, as `sizeof(T)` is its size.
+  - As for `.size`, a struct's field of the name wins.
+  - `alignof` takes a type alone, as C's does; `_Alignof` and
+    `__alignof__` are errors that name these.
 - **`a.count`** is an array's number of elements (#49), `a.size` its
   bytes; see [arrays.md](arrays.md).
   - A `cstr`'s `.count` is its `strlen` (#52); a `String`'s its

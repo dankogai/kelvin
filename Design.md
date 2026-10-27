@@ -426,6 +426,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 392 | `inline`: before `let`, or before or after `static`, on a function, a method, an operator, an attribute and a function of the type, in `extend` too; C's `static inline`; in a module, its body copied into `M.kh`, so that an importer inlines it; on a variable, a type, an `extern` prototype or `main`, or twice, an error; kelvinc and kc | storage `static inline`; gen_header copies the body | `inline let sq(x:i64):i64 { x * x }` | 2026-10-27 |
 | 393 | `restrict`: a pointer's own qualifier, after its `^` as `u8^ const` is, on a parameter, a variable, a `cstr`; C's `T *restrict`, the programmer's promise; `.typename` spells it; a function type's parameter takes a function without it, as C's; before the type, on a non-pointer or on a function type, an error; kelvinc and kc | Type is_restrict; kc's pointer name 2, or 3 with a const T | `let copy(dst:u8^ restrict, src:const u8^ restrict, n:i64)` | 2026-10-27 |
 | 394 | `static_assert(cond)`, `static_assert(cond, "message")`, C23's name: C's `_Static_assert`, which the C compiler judges at the Kelvin line; at the top level and in a block; the message the condition as written where none is, adjacent literals joined; a variable in the condition, a let too, `_Static_assert`, a message of no string literal, and a name `static_assert` are errors; left out of a module's `M.kh`; kelvinc and kc | D_ASSERT, S_ASSERT | `static_assert(sizeof(i64) == 8, "i64 is eight bytes")` | 2026-10-27 |
+| 395 | `alignof(T)`, C23's name, as `sizeof(T)` is C's: C's `_Alignof`; `x.align`, a value's type's alignment, as `x.size` is its size, a struct's field of the name winning; both `size_t`; `alignof` of a value, without parentheses, `_Alignof`, `__alignof__` and a name `alignof` are errors that name these; kelvinc and kc | E_SIZEOF_TYPE of op alignof; E_PROPERTY align, `_Alignof(__typeof__(x))` | `alignof(f64)`, `p.align` | 2026-10-27 |
 
 Notes:
 
@@ -987,6 +988,17 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (395) Agreed details: "next on the Not available yet list: _Alignas and
+  alignof". The user chose `alignof(T)` and `x.align`, over either alone,
+  and a prefix `alignas(N)` (#396).
+  - `alignof(T)` is C23's name, as `sizeof(T)` stays C's: a type in
+    parentheses, as C's `_Alignof` takes.
+  - `x.align` is a value's, as `x.size` is its size: C's
+    `_Alignof(__typeof__(x))`; a struct's own field `align` wins, as
+    `size` does.
+  - `alignof` is a reserved word now, no longer a C compiler keyword
+    refused (P20); `__alignof__` and `_Alignof` say what Kelvin writes.
 
 - (394) Agreed details: the third of the user's "inline, restrict,
   _Static_assert", as Claude proposed and the user agreed ("go for it").
@@ -5337,6 +5349,7 @@ says "as agreed".
 | P404 | Details of #392 | src/parser.c: inline_next, inline_tok, parse_inline, parse_storage_inline, take_inline in parse_fn_tail and parse_method_of, gen_header's inline bodies; selfhost/parse.k: inline_fns, parse_inline, is_inline; selfhost/gen.k: gen_signature's static inline; documents/functions.md, modules.md, versusC.md; tests/run.sh: geo.kh's inline bodies; tests/project/lib/geo.k, geo_user.k; tests/run/inline_functions.k; tests/error/inline_variable.k, inline_struct.k, inline_extern.k, inline_main.k, inline_twice.k | — |
 | P405 | Details of #393 | src/kelvin.h: Type is_restrict; src/parser.c: parse_qualifiers's restrict, kelvin_type's, unqualified and own_unqualified, the values that drop qualifiers; src/codegen.c: declarator's restrict; selfhost/parse.k: ptr_const, ptr_restrict, restrict_of, refuse_restrict, const_pointee; selfhost/gen.k: put_ctype's and type_text's restrict, ptr_const's checks; documents/pointers.md, versusC.md; tests/run/restrict_pointers.k; tests/error/restrict_before_type.k, restrict_not_pointer.k, restrict_function_type.k | — |
 | P406 | Details of #394 | src/lexer.c: the keyword; src/kelvin.h: D_ASSERT, S_ASSERT, Decl cond; src/parser.c: unconstant, parse_static_assert, the top level's and a block's; src/codegen.c: _Static_assert; selfhost/parse.k: S_ASSERT, D_ASSERT, parse_assert; selfhost/gen.k: unconstant, gen_assert; editors/vscode: the keyword; tests/grammar.js; documents/flow-controls.md, versusC.md; tests/run/static_assert.k; tests/error/static_assert_failed.k, static_assert_variable.k, static_assert_c11.k, static_assert_message.k, static_assert_reserved.k | — |
+| P407 | Details of #395 | src/lexer.c: the keyword, `__alignof__`'s hint; src/parser.c: alignof(T), `_Alignof`, `.align` beside `.size`; src/codegen.c: `_Alignof`; selfhost/parse.k: N_ALIGN; selfhost/gen.k: value_align, gen_align; editors/vscode: the keyword; tests/grammar.js; documents/properties.md, operators.md, versusC.md, and the tables of integers.md, floatingpoint.md, bool.md, arrays.md, structs.md, pointers.md; tests/run/alignof.k; tests/error/alignof_value.k, alignof_c11.k, alignof_no_paren.k, alignof_gnu.k, alignof_reserved.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

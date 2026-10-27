@@ -18,7 +18,7 @@
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
     "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
-    "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits", "static_assert",
+    "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits", "static_assert", "alignof",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -33,7 +33,7 @@ static const char *keywords[] = {
    C's prefix dereference and `(typeof(x))-1` a cast. Kelvin rejects them. */
 static const struct { const char *word, *hint; } foreign_keywords[] = {
     {"__extension__", NULL}, {"__real__", NULL}, {"__real", NULL}, {"__imag__", NULL},
-    {"__imag", NULL}, {"__alignof__", NULL}, {"__alignof", NULL}, {"alignof", NULL},
+    {"__imag", NULL}, {"__alignof__", "alignof(T) or x.align"}, {"__alignof", "alignof(T) or x.align"},
     {"__typeof__", NULL}, {"__typeof", NULL}, {"typeof", NULL}, {"typeof_unqual", NULL},
     {"__typeof_unqual__", NULL}, {"_BitInt", NULL}, {"__int128", "i128 or u128"},
     {"__auto_type", NULL}, {"__label__", NULL}, {"_Float16", NULL}, {"_Float128", NULL},

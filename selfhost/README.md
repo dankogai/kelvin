@@ -461,6 +461,10 @@ kc reads what it is written in, and little more.
   written or the condition's own text, a variable in the condition and
   C11's spelling kelvinc's errors, in its words. kc has no `sizeof`, so
   its conditions are of numbers and enumerators.
+- **`alignof(T)` and `x.align`** (#395), as kelvinc's: N_ALIGN, and a
+  field `align` that is no struct's own, value_align; gen_align writes C's
+  `_Alignof`, of a value its `__typeof__`'s, an i64 as kc has no size_t;
+  `_Alignof` and `alignof` of a value kelvinc's errors, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc
