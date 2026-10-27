@@ -990,7 +990,12 @@ static void parse_qualifiers(Type *t) {
             t->is_const = true;
         else if (accept_kw("volatile"))
             t->is_volatile = true;
-        else
+        else if (is_kw(peek(), "restrict")) { /* u8^ restrict (#393): the pointer's, as C's */
+            Token *r = advance();
+            if (t->kind != T_PTR)
+                error_at(r->pos, "'restrict' is a pointer's: write it after the ^, as in 'u8^ restrict'");
+            t->is_restrict = true;
+        } else
             return;
     }
 }
@@ -5626,6 +5631,8 @@ static bool bare_tags;
 /* the Kelvin spelling of a type, for messages */
 static char *kelvin_type(Type *t) {
     const char *q = t->is_const && t->is_volatile ? "const volatile" : t->is_const ? "const" : t->is_volatile ? "volatile" : "";
+    if (t->is_restrict) /* u8^ restrict (#393) */
+        q = *q ? strfmt("%s restrict", q) : "restrict";
     switch (t->kind) {
     case T_BASE: {
         Decl *ar = anon_record_of(t); /* a struct with no tag, by its members (#59) */
@@ -6462,21 +6469,21 @@ static bool called_as_c(const char *name) {
 /* A type without its own qualifiers, as an argument's value has it */
 static Type *unqualified(Type *t) {
     t = param_type(t);
-    if (!t->is_const && !t->is_volatile)
+    if (!t->is_const && !t->is_volatile && !t->is_restrict)
         return t;
     Type *u = xcalloc(1, sizeof *u);
     *u = *t;
-    u->is_const = u->is_volatile = false;
+    u->is_const = u->is_volatile = u->is_restrict = false;
     return u;
 }
 
 /* t without its own qualifiers, an array staying an array */
 static Type *own_unqualified(Type *t) {
-    if (!t->is_const && !t->is_volatile)
+    if (!t->is_const && !t->is_volatile && !t->is_restrict)
         return t;
     Type *u = xcalloc(1, sizeof *u);
     *u = *t;
-    u->is_const = u->is_volatile = false;
+    u->is_const = u->is_volatile = u->is_restrict = false;
     return u;
 }
 
@@ -12587,7 +12594,7 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
         s->elem = next->ret;
         Type *x = xcalloc(1, sizeof *x);
         *x = *elem;
-        x->is_const = x->is_volatile = false;
+        x->is_const = x->is_volatile = x->is_restrict = false;
         s->type = x;
         open_scope();
         if (strcmp(s->name, "_"))
@@ -12686,7 +12693,7 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     if (x) {
         Type *plain = xcalloc(1, sizeof *plain);
         *plain = *x;
-        plain->is_const = plain->is_volatile = false;
+        plain->is_const = plain->is_volatile = plain->is_restrict = false;
         x = plain;
     }
     s->type = x;
@@ -12696,7 +12703,7 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     if (s->name2 && strcmp(s->name2, "_")) {
         Type *vt = xcalloc(1, sizeof *vt);
         *vt = *s->elem;
-        vt->is_const = vt->is_volatile = false;
+        vt->is_const = vt->is_volatile = vt->is_restrict = false;
         declare_binding(s->name2, vt, LET_EACH);
     }
     if (!is_p(peek(), "{"))
@@ -12787,7 +12794,7 @@ static Stmt *parse_for_range(Stmt *s, Type *written) {
     s->elem = unqualified(value_type(s->expr))->elem;
     Type *plain = xcalloc(1, sizeof *plain);
     *plain = *(written ? written : s->elem);
-    plain->is_const = plain->is_volatile = false;
+    plain->is_const = plain->is_volatile = plain->is_restrict = false;
     s->type = plain;
     open_scope();
     if (strcmp(s->name, "_"))
@@ -12872,7 +12879,7 @@ static Stmt *parse_for_in(Pos pos) {
     /* the counter must change: drop const and volatile from the bound's type */
     Type *plain = xcalloc(1, sizeof *plain);
     *plain = *t;
-    plain->is_const = plain->is_volatile = false;
+    plain->is_const = plain->is_volatile = plain->is_restrict = false;
     plain->unqual = plain->kind == T_TYPEOF; /* also those __typeof__ keeps (#34) */
     t = plain;
     s->type = t;
@@ -13005,7 +13012,7 @@ static Stmt *parse_stmt_here(void) {
             s->elem = unqualified(et);
             Type *vt = xcalloc(1, sizeof *vt);
             *vt = *((Var *)r->members.data[s->each])->type;
-            vt->is_const = vt->is_volatile = false;
+            vt->is_const = vt->is_volatile = vt->is_restrict = false;
             s->type = vt;
             s->closed = s->expr->kind == E_IDENT || s->expr->kind == E_FIELD || s->expr->kind == E_INDEX ||
                         s->expr->kind == E_DEREF; /* a place: read where it is */

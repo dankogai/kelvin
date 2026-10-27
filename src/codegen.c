@@ -190,8 +190,9 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
         return strfmt("%s%s%s%s%s", t->is_const ? "const " : "", t->is_volatile ? "volatile " : "",
                       t->cname ? t->cname : c_type_name(t->name), *inner ? " " : "", inner);
     case T_PTR: {
-        char *q = strfmt("%s%s", t->is_const ? "const" : "",
-                         t->is_volatile ? (t->is_const ? " volatile" : "volatile") : "");
+        char *q = strfmt("%s%s%s", t->is_const ? "const" : "",
+                         t->is_volatile ? (t->is_const ? " volatile" : "volatile") : "",
+                         t->is_restrict ? (t->is_const || t->is_volatile ? " restrict" : "restrict") : ""); /* (#393) */
         char *s = strfmt("*%s%s%s", q, *q && *inner ? " " : "", inner);
         return declarator(t->elem, s, true);
     }

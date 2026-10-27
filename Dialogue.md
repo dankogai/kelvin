@@ -7763,3 +7763,17 @@ or `main`, or twice, it is an error. kc does the same, with kelvinc's
 errors. Details are provisional P404.
 
 There are 1100 tests, and all pass with clang and with gcc 15.
+
+### 438. restrict
+
+> commit and push when the battery passes, then restrict
+
+**Claude** committed #392 and made `restrict` #393: a pointer's own
+qualifier, after its `^` as its own `const` is, `u8^ restrict`, C's
+`T *restrict`, on a parameter, a variable and a `cstr`. It is the
+programmer's promise, as in C. `.typename` spells it, and a function type
+compares without it, as C's does. Before the type, on a non-pointer or on
+a function type, it is an error that says where it goes. kc does the
+same, with kelvinc's errors. Details are provisional P405.
+
+There are 1104 tests, and all pass with clang and with gcc 15.

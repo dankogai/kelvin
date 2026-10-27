@@ -21,6 +21,18 @@ and `.isNull` are in [properties.md](properties.md).
 
 - `p^` is C's `*p`, and `p^.m` is `p->m`: postfix, so it chains left to
   right, and `p^[i]` is `(*p)[i]`. `->` is an error with a hint.
+- **`restrict`** (#393) follows a pointer's `^`, as its own `const`
+  does: `let copy(dst:u8^ restrict, src:const u8^ restrict, n:i64)` is
+  C's `uint8_t *restrict dst`.
+  - It is the programmer's promise, as in C, that nothing else reaches
+    what the pointer points to while it is used, so that the C compiler
+    may keep it in registers; kelvinc cannot check it.
+  - It qualifies a pointer alone, a `cstr` too, not a function type: on
+    anything else, or before the type, it is an error that says where it
+    goes.
+  - `.typename` spells it, `u8^ restrict`, and a parameter's leaves a
+    function type as C's does: `(u8^):u8` takes a function of
+    `u8^ restrict`.
 
 ## Prefix `&`
 

@@ -585,13 +585,37 @@ let parse_expr():int64    // a prototype: the parsers call each other, a type's 
 let parse_type():int64    // a prototype: a type's parts are types
 let parse_bare_type():int64
 
+// whether pointer type y points to a const T, const T^ (#272): its name 1,
+// or 3 where it is restrict too (#393)
+let ptr_const(y:int64):bool {
+    return types[y].name == 1 || types[y].name == 3
+}
+
+// whether pointer type y is restrict, T^ restrict (#393): its name 2, or 3
+let ptr_restrict(y:int64):bool {
+    return types[y].name == 2 || types[y].name == 3
+}
+
+// the pointer type y after its ^, restrict where that follows (#393), as
+// C's T *restrict
+let restrict_of(y:int64):int64 {
+    if !at_word("restrict") { return y }
+    advance()
+    return type_of_kind(Y_PTR, types[y].elem, types[y].name == 1 ? 3 : 2)
+}
+
+// restrict anywhere but after a ^, as kelvinc says it (#393)
+let refuse_restrict() {
+    if at_word("restrict") { parse_error("'restrict' is a pointer's: write it after the ^, as in 'u8^ restrict'") }
+}
+
 // T^ of y, its innermost pointer to a const T: const T^, a borrow through
 // which T does not change, as C's const T * (#272)
 let const_pointee(y:int64):int64 {
     if types[y].kind != Y_PTR { return y }
     let e:int64 = types[y].elem
     if types[e].kind == Y_PTR { return type_of_kind(Y_PTR, const_pointee(e), types[y].name) }
-    return type_of_kind(Y_PTR, e, 1)
+    return type_of_kind(Y_PTR, e, ptr_restrict(y) ? 3 : 1)
 }
 
 // whether the [ before pos, of [[T](n)](2), closes with ]( : a type's
@@ -681,11 +705,14 @@ let parse_bare_type():int64 {
         while at_word("^") || at_word("?") {
             if at_word("?") {
                 y = optional_of(y)               // $[T]?, an Optional (#221)
+                advance()
             } else {
                 y = type_of_kind(Y_PTR, y, -1)
+                advance()
+                y = restrict_of(y)
             }
-            advance()
         }
+        refuse_restrict()
         return y
     }
     if at_word("[") {
@@ -729,6 +756,7 @@ let parse_bare_type():int64 {
         parse_error("a type is expected")
         return base_type(Y_VOID)
     }
+    refuse_restrict()                            // restrict T^ (#393)
     let t:int64 = advance()
     var y = -1
     if tok_is(t, "int64") {
@@ -852,13 +880,17 @@ let parse_bare_type():int64 {
     while at_word("^") || at_word("?") || at_word("??") {
         if at_word("??") {                       // T??, which lexes as ?? (#229)
             y = optional_of(optional_of(y))
+            advance()
         } else if at_word("?") {
             y = optional_of(y)                   // T?, an Optional (#217)
+            advance()
         } else {
             y = type_of_kind(Y_PTR, y, -1)
+            advance()
+            y = restrict_of(y)                   // T^ restrict (#393)
         }
-        advance()
     }
+    refuse_restrict()
     return y
 }
 

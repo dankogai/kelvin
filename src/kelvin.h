@@ -97,6 +97,7 @@ struct Type {
     char *name;       /* T_BASE: "int", "unsigned long", "struct Point";
                          T_TYPEOF: the value as written, for messages */
     bool is_const, is_volatile;
+    bool is_restrict; /* T_PTR: u8^ restrict (#393), C's restrict, the pointer's own */
     bool cstr;        /* T_PTR: a cstr, immutable text (#52): const u8 behind it */
     char *cname;      /* T_BASE Array<T> (#57): its C name, _kv_array_<T>; elem is T;
                          Dictionary<K, V> (#65): _kv_dict_<K>_<V>; key is K, elem is V;

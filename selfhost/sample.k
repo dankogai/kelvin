@@ -243,6 +243,7 @@ let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
 let but_first(_:int64, _:String, n:int64):int64 { n }  // unnamed parameters, `_` (#388)
 inline let cube(n:int64):int64 { n * n * n }            // inline (#392): C's static inline
+let bump_by(a:int64^ restrict, b:const int64^ restrict) { a^ += b^ }   // restrict (#393): C's T *restrict
 struct parcel {                                       // types defined inside a struct (#389): bare there, a path outside
     enum wrap { plain; ribbon: int64 }
     struct dims { w: int64; h: int64 }
@@ -741,7 +742,10 @@ let main(argc:int32, argv:[cstr]):int32 {
         println(north)
     }
     println(trip, " ", legs, " ", way, " ", north, " ", trip.to - trip.from)
-    println(cube(3), " ", side.area())
+    var tally_r:int64 = 1
+    let step_r:int64 = 41
+    bump_by(&tally_r, &step_r)
+    println(cube(3), " ", side.area(), " ", tally_r)
     let hi_bytes:cstr := "hi"
     for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)
     for c in hi_bytes { print(" ", c) }

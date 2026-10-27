@@ -422,9 +422,10 @@ let put_ctype(y:int64) {
         }                                                        // else a C header's typedef (#207)
         put_tok(types[y].name)
     case Y_PTR:
-        if types[y].name == 1 { put("const ") }         // const T^ (#272)
+        if ptr_const(y) { put("const ") }               // const T^ (#272)
         put_ctype(types[y].elem)
         put(" *")
+        if ptr_restrict(y) { put("restrict") }          // T^ restrict (#393)
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
         if types[y].name >= 0 {                                  // __typeof__(int64_t[4]), which a pointer to one takes (#362)
@@ -1320,7 +1321,7 @@ let article_of(w:const String^):cstr {
 let takes_borrow(n:int64, t:int64, who:const String^):bool {
     if is_case_word(n) { return true }                  // none, ok(v), err(e): no borrow, and gen_value reads them (#341)
     let at = type_of(n)
-    if at < 0 || t < 0 || types[at].kind != Y_PTR || types[at].name != 1 || types[t].kind != Y_PTR || types[t].name == 1 {
+    if at < 0 || t < 0 || types[at].kind != Y_PTR || !ptr_const(at) || types[t].kind != Y_PTR || ptr_const(t) {
         return true
     }
     var m = who^.copy()
@@ -1394,7 +1395,7 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
         gen_error(a, m.cstr)
         return false
     }
-    if types[ay].name == 1 && types[py].name != 1 {
+    if ptr_const(ay) && !ptr_const(py) {
         var m = who^.copy()
         m += " is "
         m += article_of(&pw)
@@ -5119,10 +5120,11 @@ let type_text(y:int64):String {
         s += "]"
         return s
     case Y_PTR:
-        var s = types[y].name == 1 ? $"const " : $""     // (#272)
+        var s = ptr_const(y) ? $"const " : $""           // (#272)
         let e = type_text(types[y].elem)
         s += &e
         s += "^"
+        if ptr_restrict(y) { s += " restrict" }          // (#393)
         return s
     case Y_DICT:
         var s = $"Dictionary<"
@@ -5679,7 +5681,7 @@ let may_change(n:int64):bool {
     }
     if nodes[d].kind == N_DEREF {
         let p:int64 = type_of(nodes[d].a)
-        if p >= 0 && types[p].kind == Y_PTR && types[p].name == 1 {
+        if p >= 0 && types[p].kind == Y_PTR && ptr_const(p) {
             var s = $"this changes what a "
             s += type_text(p)
             s += " points to, a read-only borrow, as a let's is: borrow a var, or take it without const"

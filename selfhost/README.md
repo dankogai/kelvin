@@ -452,6 +452,10 @@ kc reads what it is written in, and little more.
   `static` in `extend`, a function or a method in inline_fns, whose
   signature gen_signature writes `static inline`; kelvinc's errors, in its
   words.
+- **`restrict`** (#393), as kelvinc's: after a `^`, a pointer type
+  whose name is 2, or 3 where it points to a const T, ptr_const and
+  ptr_restrict telling them; put_ctype writes `T *restrict`; elsewhere
+  kelvinc's error, in its words.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

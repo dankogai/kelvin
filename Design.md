@@ -424,6 +424,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 390 | kc walks a cstr, `for c in s`, as kelvinc's #30 does, where it died of an index of -1, taking it for an Array: each byte up to the NUL, a `u8` of a cstr, and C's `char` of a literal, `"hi"`, which only C sees, as kelvinc sees no type of a literal; two loop variables of a literal refused in kelvinc's words | a pointer walked to the NUL, `__auto_type` and `__typeof__(*p)` of a literal | `for c in "hi" { print(c) }` | 2026-10-27 |
 | 391 | Types defined in a function, as C's and Swift's: a struct, a union or an enum among a block's statements, the block's from its definition to its end, in its inner blocks and its anonymous functions too, hiding a type of the top level of the name; a C enum's enumerators the block's; text and `.typename` its own name; types defined inside it (#389); a name twice in a block, one whose block has ended, an array member counted by a local, and a method of such a type are errors; kelvinc and kc | a type of the top level in C, `_kv_main_pair`, a number for another of the name, written before the function; its enumerators `_kv_main_red` | `struct pair { a: i64 }` in `main` | 2026-10-27 |
 | 392 | `inline`: before `let`, or before or after `static`, on a function, a method, an operator, an attribute and a function of the type, in `extend` too; C's `static inline`; in a module, its body copied into `M.kh`, so that an importer inlines it; on a variable, a type, an `extern` prototype or `main`, or twice, an error; kelvinc and kc | storage `static inline`; gen_header copies the body | `inline let sq(x:i64):i64 { x * x }` | 2026-10-27 |
+| 393 | `restrict`: a pointer's own qualifier, after its `^` as `u8^ const` is, on a parameter, a variable, a `cstr`; C's `T *restrict`, the programmer's promise; `.typename` spells it; a function type's parameter takes a function without it, as C's; before the type, on a non-pointer or on a function type, an error; kelvinc and kc | Type is_restrict; kc's pointer name 2, or 3 with a const T | `let copy(dst:u8^ restrict, src:const u8^ restrict, n:i64)` | 2026-10-27 |
 
 Notes:
 
@@ -985,6 +986,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (393) Agreed details: the second of the user's "inline, restrict,
+  _Static_assert", as Claude proposed and the user agreed ("go for it").
+  - `restrict` follows the pointer's `^`, where its own `const` goes,
+    `u8^ const`, so that `const u8^ restrict` reads as C's
+    `const uint8_t *restrict`.
+  - kelvinc cannot check what it promises, as C cannot: it is passed to
+    the C compiler, which may keep a value in a register for it.
+  - It is the pointer's own qualifier, so it drops where a value's type
+    drops its qualifiers, `var q = p`, and a function type compares
+    without it, as C's does.
+  - It goes on an object's pointer alone: before the type, on a number,
+    or on a function type, it is an error that says where it goes.
 
 - (392) Agreed details: "next on the Not available yet list: inline,
   restrict, _Static_assert. They should be supported, too. Your
@@ -5305,6 +5319,7 @@ says "as agreed".
 | P402 | Details of #390 | selfhost/gen.k: gen_each's cstr case, its error of two loop variables; selfhost/sample.k; selfhost/README.md | — |
 | P403 | Details of #391 | src/kelvin.h: Var cname; src/parser.c: local_types, local_type_depths, local_enums, local_enum_at, ended_types, close_scope's pruning, record_local, hidden_names, hidden_name, local_enum_of, record_spelled's blocks, a definition as a statement, the enumerators' C names, the switch's, the errors; src/codegen.c: an enumerator's C name; selfhost/parse.k: local_types, local_enums, local_own_of, ended_types, hidden_token, local_enum_named, block_depth in parse_block, fn_tok, local_next, parse_enum's hidden enumerators, the errors; documents/structs.md, enums.md, versusC.md, README.md; tests/run/local_types.k; tests/error/local_type_ended.k, local_type_twice.k, local_type_method.k, local_type_local_count.k | — |
 | P404 | Details of #392 | src/parser.c: inline_next, inline_tok, parse_inline, parse_storage_inline, take_inline in parse_fn_tail and parse_method_of, gen_header's inline bodies; selfhost/parse.k: inline_fns, parse_inline, is_inline; selfhost/gen.k: gen_signature's static inline; documents/functions.md, modules.md, versusC.md; tests/run.sh: geo.kh's inline bodies; tests/project/lib/geo.k, geo_user.k; tests/run/inline_functions.k; tests/error/inline_variable.k, inline_struct.k, inline_extern.k, inline_main.k, inline_twice.k | — |
+| P405 | Details of #393 | src/kelvin.h: Type is_restrict; src/parser.c: parse_qualifiers's restrict, kelvin_type's, unqualified and own_unqualified, the values that drop qualifiers; src/codegen.c: declarator's restrict; selfhost/parse.k: ptr_const, ptr_restrict, restrict_of, refuse_restrict, const_pointee; selfhost/gen.k: put_ctype's and type_text's restrict, ptr_const's checks; documents/pointers.md, versusC.md; tests/run/restrict_pointers.k; tests/error/restrict_before_type.k, restrict_not_pointer.k, restrict_function_type.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
