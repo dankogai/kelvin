@@ -426,6 +426,14 @@ kc reads what it is written in, and little more.
   function's, which its body may read; `_` may stand for several; `for _
   in` declares no name, and reading `_` or any `_kv_` name is kelvinc's
   error, in its words.
+- **Types defined inside a struct** (#389), as kelvinc's, Swift's: a
+  struct or an enum in a struct's body is a token kc makes, `point__kind`,
+  its C name, written before the struct; nested_of, outer_of and own_of
+  keep each, and scoped_type and type_path read a bare name in the struct
+  and its methods, a local's name aside, and a path, `point.kind`, in a
+  type, an expression and a method's or an extend's head; kelvin_name
+  spells it so in kelvinc's errors, in its words, and in a wrong case's;
+  kc_made tells it from an Optional's and a Result's.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

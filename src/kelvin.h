@@ -302,6 +302,10 @@ struct Decl {
                              template, written into the caller's buffer (#53) */
     char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
                              {x: f64, y: f64}; name is _kv_anonN */
+    struct Decl *outer;   /* D_STRUCT/D_UNION/D_ENUM defined inside a struct or union (#389): that
+                             one; name is outer's, __, its own, as point__kind, and kelvin_name
+                             the path Kelvin writes, point.kind */
+    char *kelvin_name;
     bool tagged;          /* D_STRUCT: an enum with values (#61), a tagged union:
                              members are its cases, type NULL for one with no value */
     char *no_eq;          /* D_STRUCT tagged (#79): NULL when every case's value compares

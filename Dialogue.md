@@ -7669,3 +7669,28 @@ does the same, and no longer declares `for _ in`'s name. Details are
 provisional P400.
 
 There are 1081 tests, and all pass with clang and with gcc 15.
+
+### 434. Types defined inside a struct
+
+> next on the Not available yet list: nested struct definitions.  Is there a reason not to support them?
+
+**Claude** found no deep reason, only C's oddities: a struct defined
+inside a struct is a type of the whole file in C, so two structs cannot
+each have their own `inner`; one defined inside a function belongs to its
+block, which the functions kelvinc writes for each type cannot see.
+Swift's scoping would name it `inner` inside and `outer.inner` outside,
+with `outer__inner` in C; a local one would be hoisted under a hidden
+name.
+
+> go with Swift's scoping; local ones as the next number
+
+**Claude** made it #389: a struct, a union or an enum defined inside a
+struct or a union is bare there and in the methods of each, and a path
+outside, as a type, an enum's cases and a function of the type, with its
+methods declared on the path. In C it is `struct shape__size`, written
+first. Its text and `.typename` spell the path, so a union's text and a
+wrong case's message no longer show the C name, and `Array<a.b>` reads
+back. A C enum's enumerators stay C's. kc does the same, with kelvinc's
+errors. Details are provisional P401.
+
+There are 1089 tests, and all pass with clang and with gcc 15.

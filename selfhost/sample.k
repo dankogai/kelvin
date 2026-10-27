@@ -242,6 +242,22 @@ var span_walk.next():int64? {
 let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
 let but_first(_:int64, _:String, n:int64):int64 { n }  // unnamed parameters, `_` (#388)
+struct parcel {                                       // types defined inside a struct (#389): bare there, a path outside
+    enum wrap { plain; ribbon: int64 }
+    struct dims { w: int64; h: int64 }
+    w: wrap
+    d: dims
+}
+let parcel.dims.area():int64 { .w * .h }
+let parcel.cost():int64 { .d.area() + (.w.is(plain) ? 0 : 5) }
+extend parcel.wrap {
+    let ribbons():int64 {
+        switch self {
+        case plain: return 0
+        case ribbon: return self.ribbon
+        }
+    }
+}
 let twin(k:cstr, v:int64):Dictionary<String, int64> {    // a function flatMapWithKey takes (#332)
     var r:Dictionary<String, int64> = ${:}
     r[String(k)] = v
@@ -711,5 +727,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]
     println(but_first(1, $"unseen", 7), " ", rounds, " ", threes.map { _ in 1 }, " ", threes.reduce(0) { acc, _ in acc + 1 })
+    let box1:parcel = {parcel.wrap.ribbon(2), {3, 4}}
+    let side:parcel.dims = {5, 6}
+    println(box1, " ", box1.cost(), " ", side.area(), " ", box1.w.ribbons(), " ", parcel.wrap.plain)
     return 0
 }

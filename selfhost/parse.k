@@ -137,6 +137,13 @@ var sets:$[int64]          // every Set type, so (#274)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
+var nested_of:Dictionary<String, int64>    // a type defined in a struct (#389), by its C name, point__kind: its token, of that name
+var outer_of:Dictionary<String, int64>     // and the token of the struct it is defined in
+var own_of:Dictionary<String, int64>       // and its own name's token, kind
+var records_seen:Dictionary<String, int64> // every struct and enum read so far, by its C name (#389)
+var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
+var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
+var locals_seen:$[int64]       // the names declared in the function being read, which a nested type's bare name yields to (#389)
 var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
 var range_values = 0       // the ranges that are values, not a for's (#373): then each Range<T>'s struct is written
 
@@ -269,6 +276,126 @@ let made_token(s:String^):int64 {
     let t:tok = {T_ID, at, codes.count as int64 - at, 0, 0}
     toks += t
     return toks.count as int64 - 1
+}
+
+// ---------- types nested in a struct (#389) ----------
+
+// the token of the type nested in the one named by token o as token w's
+// text names, o.w, or -1
+let nested_tok(o:int64, w:int64):int64 {
+    var name:String = tok_text(o)
+    name += "__"
+    let own:String = tok_text(w)
+    name += &own
+    return nested_of.get(name, -1)
+}
+
+// whether token t is a type kc names, point__kind, for one nested (#389)
+let is_nested(t:int64):bool {
+    let name:String = tok_text(t)
+    return nested_of.get(name, -1) == t
+}
+
+// the type a bare name w names where it is written, as kelvinc's, Swift's:
+// one nested in the struct whose body or method this is, or in one around
+// it, else w itself
+let scoped_type(w:int64):int64 {
+    var s:int64 = body_struct >= 0 ? body_struct : self_name
+    while s >= 0 {
+        let n:int64 = nested_tok(s, w)
+        if n >= 0 { return n }
+        let name:String = tok_text(s)
+        s = outer_of.get(name, -1)
+    }
+    return w
+}
+
+// whether the function being read declares a name as token t's
+let local_named(t:int64):bool {
+    for l in locals_seen {
+        if same_text(l, t) { return true }
+    }
+    return false
+}
+
+// the path Kelvin writes of the type named by token t: point.kind of
+// point__kind (#389), else its name
+let kelvin_name(t:int64):String {
+    if !is_nested(t) { return tok_text(t) }
+    let name:String = tok_text(t)
+    var s:String = kelvin_name(outer_of.get(name, -1))
+    s += "."
+    let own:String = tok_text(own_of.get(name, -1))
+    s += &own
+    return s
+}
+
+// the name token of a struct or an enum at the cursor, which a nested one
+// (#389) makes of its outer's, point__kind, as kelvinc names it, with
+// kelvinc's errors
+let record_name():int64 {
+    let t:int64 = advance()
+    if nest_outer < 0 {
+        let name:String = tok_text(t)
+        let same:int64 = nested_of.get(name, -1)
+        if same >= 0 {
+            var m:String = kelvin_name(same)
+            m += " is "
+            m += &name
+            m += " in C, the name of this type: rename one of them"
+            parse_error(m.cstr)
+        }
+        records_seen[name] = t
+        return t
+    }
+    if nested_tok(nest_outer, t) >= 0 {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' is defined in "
+        let o:String = kelvin_name(nest_outer)
+        m += &o
+        m += " already"
+        parse_error(m.cstr)
+    }
+    var name:String = tok_text(nest_outer)
+    name += "__"
+    let own:String = tok_text(t)
+    name += &own
+    let u:int64 = made_token(&name)
+    toks[u].line = toks[t].line
+    toks[u].file = toks[t].file
+    if records_seen.get(name, -1) >= 0 {
+        var m:String = kelvin_name(nest_outer)
+        m += "."
+        m += &own
+        m += " is "
+        m += &name
+        m += " in C, the name of a type declared already: rename one of them"
+        parse_error(m.cstr)
+    }
+    nested_of[name] = u
+    outer_of[name] = nest_outer
+    own_of[name] = t
+    records_seen[name] = u
+    return u
+}
+
+// the token after a path of nested types from token i (#389)
+var path_end:int64 = 0
+
+// the type a path of names from token i names, point.kind, its first a
+// bare name as scoped_type has it; path_end the token after it
+let type_path(i:int64):int64 {
+    var t:int64 = scoped_type(i)
+    var k:int64 = i + 1
+    while tok_is(k, ".") && toks[k + 1].kind == T_ID {
+        let n:int64 = nested_tok(t, k + 1)
+        if n < 0 { break }
+        t = n
+        k += 2
+    }
+    path_end = k
+    return t
 }
 
 // the part of a made name a type gives, as kelvinc's: i64, String, Array_i64
@@ -603,7 +730,33 @@ let parse_bare_type():int64 {
         y = type_of_kind(Y_DICT, value, key)
         optional_of(value)                       // V?, which d[k] read whole is (#219)
     } else {
-        y = type_of_kind(Y_STRUCT, -1, t)
+        let nt:int64 = type_path(t)                  // point.kind, or kind in point (#389)
+        while pos < path_end { advance() }
+        let name:String = tok_text(nt)
+        if tok_is(pos, ".") && toks[pos + 1].kind == T_ID && !tok_is(pos + 1, "type") && records_seen.get(name, -1) >= 0 {
+            var m:String = kelvin_name(nt)
+            m += " has no type '"
+            m += tok_text(pos + 1)
+            m += "' defined in it"
+            parse_error(m.cstr)
+        } else if nt == t && records_seen.get(name, -1) < 0 {
+            for c, own in own_of {                       // as kelvinc says it of the first
+                if same_text(own, t) {
+                    var m = $"'"
+                    m += &name
+                    m += "' is defined in "
+                    let o:String = kelvin_name(outer_of.get(c, -1))
+                    m += &o
+                    m += ", and named "
+                    let k:String = kelvin_name(nested_of.get(c, -1))
+                    m += &k
+                    m += " outside it"
+                    parse_error(m.cstr)
+                    break
+                }
+            }
+        }
+        y = type_of_kind(Y_STRUCT, -1, nt)
     }
     while at_word("^") || at_word("?") || at_word("??") {
         if at_word("??") {                       // T??, which lexes as ?? (#229)
@@ -1060,6 +1213,11 @@ let parse_primary():int64 {
         if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") { return make_node(N_TYPE, t) }   // Bits(n) (#387)
+        if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {
+            let nt:int64 = type_path(t)                  // point.kind.none, kind.none in point's method (#389)
+            while pos < path_end { advance() }
+            return make_node(N_ID, nt)
+        }
         return make_node(N_ID, t)
     }
     if at_word(".") && toks[pos + 1].kind == T_ID {        // .x, self's member x (#213)
@@ -1350,6 +1508,7 @@ let end_statement() {
 // what the value gives, found when it is written (#214); c is 1 of :=
 let parse_var(is_let:int64):int64 {
     let t:int64 = advance()
+    locals_seen += t                                     // a name a nested type's bare one yields to (#389)
     let n:int64 = make_node(S_VAR, t)
     nodes[n].flag = is_let
     if at_word(":") {
@@ -1567,8 +1726,15 @@ let parse_block():int64 {
 
 // ---------- declarations ----------
 
+// whether a method's head is at token i, T.m( or point.kind.m( (#389)
+let head_method(i:int64):bool {
+    type_path(i)
+    return tok_is(path_end, ".") && tok_is(path_end + 2, "(")
+}
+
 let parse_function():int64 {
     let n:int64 = make_node(D_FN, advance())
+    while locals_seen.count > 0 { locals_seen.pop() }    // (#389)
     expect("(")
     var last = -1
     var k:int64 = 0
@@ -1599,13 +1765,29 @@ let parse_function():int64 {
     return n
 }
 
+let parse_enum():int64    // a prototype: a struct defines one inside (#389)
+
 let parse_struct():int64 {
-    let n:int64 = make_node(D_STRUCT, advance())
+    let n:int64 = make_node(D_STRUCT, record_name())
     type_of_kind(Y_STRUCT, -1, nodes[n].t)
     expect("{")
+    let saved_body:int64 = body_struct
+    let saved_outer:int64 = nest_outer
+    body_struct = nodes[n].t                         // its members name its nested types bare (#389)
+    nest_outer = 0 - 1
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
+        if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
+            let is_struct = at_word("struct")            // a type of its own, defined inside (#389): point.kind,
+            advance()                                    // written before this one in C
+            nest_outer = nodes[n].t
+            decls += is_struct ? parse_struct() : parse_enum()
+            nest_outer = 0 - 1
+            if at_word(",") || at_word(";") { advance() }
+            skip_newlines()
+            continue
+        }
         let f:int64 = parse_typed(0)
         if last < 0 {
             nodes[n].a = f
@@ -1613,10 +1795,12 @@ let parse_struct():int64 {
             nodes[last].next = f
         }
         last = f
-        if at_word(";") { advance() }
+        if at_word(";") || at_word(",") { advance() }
         skip_newlines()
     }
     expect("}")
+    body_struct = saved_body
+    nest_outer = saved_outer
     return n
 }
 
@@ -1624,7 +1808,7 @@ let parse_struct():int64 {
 // an enum with values (#215), where a case says the type of its value:
 // then the enum's flag is 1, and each case's ty its value's, or -1
 let parse_enum():int64 {
-    let n:int64 = make_node(D_ENUM, advance())
+    let n:int64 = make_node(D_ENUM, record_name())
     expect("{")
     skip_newlines()
     var last = -1
@@ -1656,7 +1840,8 @@ let parse_enum():int64 {
 // into decls as a D_FN whose c is T's token, its flag 1 where static, 2
 // for a var method, var m(...), whose self is the caller's var (#320)
 let parse_extend() {
-    let recv:int64 = advance()
+    let recv:int64 = type_path(pos)                      // extend point.kind { } (#389)
+    while pos < path_end { advance() }
     self_name = recv
     expect("{")
     skip_newlines()
@@ -1706,10 +1891,11 @@ let parse_program() {
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             decls += parse_function()
-        } else if (at_word("let") || at_word("var")) && tok_is(pos + 2, ".") && tok_is(pos + 4, "(") {   // let T.m(...) (#213)
+        } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_method(pos + 1) {   // let T.m(...) (#213)
             let is_var = at_word("var")                     // var T.m(...), self the caller's var (#320)
             advance()
-            let recv:int64 = advance()
+            let recv:int64 = type_path(pos)                 // let point.kind.m(...) (#389)
+            while pos < path_end { advance() }
             advance()
             self_name = recv
             let n:int64 = parse_function()

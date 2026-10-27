@@ -34,6 +34,12 @@ let put_tok(t:int64) {
     }
 }
 
+// whether token t names a type kc makes, an Optional's or a Result's, and
+// not one nested in a struct, whose name kc makes too (#389)
+let kc_made(t:int64):bool {
+    return t > eof_pos && !is_nested(t)
+}
+
 // whether token t starts with _kv_, a name of kelvinc's own (#388)
 let kelvin_word(t:int64):bool {
     let at:int64 = toks[t].at
@@ -813,7 +819,7 @@ let some_type(y:int64):int64 {
 // whether y is a Result, the enum with values kc makes of ok and err (#344)
 let is_result(y:int64):bool {
     let d = tagged_of(y)
-    return d >= 0 && nodes[d].c != 1 && types[y].name > eof_pos && tok_is(nodes[nodes[d].a].t, "ok")
+    return d >= 0 && nodes[d].c != 1 && kc_made(types[y].name) && tok_is(nodes[nodes[d].a].t, "ok")
 }
 
 // whether y is an Optional or a Result, whose == kc writes (#343, #344)
@@ -1693,7 +1699,7 @@ let mangled(y:int64):String {
             s += mangled(some_type(y))
             return s
         }
-        if d >= 0 && types[y].name > eof_pos {          // a Result, made by kc
+        if d >= 0 && kc_made(types[y].name) {          // a Result, made by kc
             let m = nodes[d].a
             var s = $"res_"
             s += mangled(nodes[m].ty)
@@ -5156,7 +5162,7 @@ let type_text(y:int64):String {
             s += "?"
             return s
         }
-        if d >= 0 && types[y].name > eof_pos {           // made by kc, as no Optional: Result<T, E>
+        if d >= 0 && kc_made(types[y].name) {           // made by kc, as no Optional: Result<T, E>
             let m = nodes[d].a
             var s = $"Result<"
             s += type_text(nodes[m].ty)
@@ -5165,7 +5171,7 @@ let type_text(y:int64):String {
             s += ">"
             return s
         }
-        return tok_text(types[y].name)
+        return kelvin_name(types[y].name)                 // point.kind, of one nested (#389)
     default: return $"a type only C sees"
     }
 }
@@ -5200,7 +5206,7 @@ let fixed_inside(y:int64):bool {
     if k == Y_PTR || k == Y_ARRAY || k == Y_SET { return fixed_inside(types[y].elem) }
     if k == Y_DICT { return fixed_inside(types[y].elem) || fixed_inside(types[y].name) }
     let d = tagged_of(y)
-    if d >= 0 && types[y].name > eof_pos {               // an Optional's or a Result's, which kc makes
+    if d >= 0 && kc_made(types[y].name) {               // an Optional's or a Result's, which kc makes
         var m = nodes[d].a
         while m >= 0 {
             if fixed_inside(nodes[m].ty) { return true }
@@ -10272,7 +10278,8 @@ let gen_tagged(d:int64) {
             put(" *self)\n{\n    if (self->tag != ")
             put_int(tag)
             put(") kv_case_fail(\"")
-            put_tok(name)
+            let shown:String = kelvin_name(name)                 // point.kind, of one nested (#389)
+            out += &shown
             put("\", \"")
             put_tok(nodes[m].t)
             put("\", _kv_")
@@ -10643,12 +10650,12 @@ let gen_program() {
     }
     for i in 0..<decls.count as int64 {                  // no fixed array in a struct or an enum yet (#354)
         let d:int64 = decls[i]
-        let made = nodes[d].kind == D_ENUM && nodes[d].t > eof_pos   // an Optional's, a Result's: refused where it is used (#368)
+        let made = nodes[d].kind == D_ENUM && kc_made(nodes[d].t)   // an Optional's, a Result's: refused where it is used (#368)
         if nodes[d].kind == D_STRUCT || (nodes[d].kind == D_ENUM && nodes[d].flag == 1 && !made) {
             var f:int64 = nodes[d].a
             while f >= 0 {
                 let fy:int64 = nodes[f].ty
-                let user_enum = nodes[d].kind == D_ENUM && nodes[d].t < eof_pos   // not an Optional's, a Result's (#360)
+                let user_enum = nodes[d].kind == D_ENUM && !kc_made(nodes[d].t)   // not an Optional's, a Result's (#360)
                 if (nodes[d].kind == D_STRUCT || user_enum) && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356), a case's value (#360)
                     if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member") { return }
                 } else if fixed_inside(fy) {

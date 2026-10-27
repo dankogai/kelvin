@@ -3602,8 +3602,9 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
         mapped_line = -1;
         return;
     }
+    const char *uname = d->spelling ? d->spelling : d->kelvin_name ? d->kelvin_name : d->name; /* shape.bits (#389) */
     if (d->kind == D_UNION) {
-        buf_printf(&size, "%d", (int)strlen(d->spelling ? d->spelling : d->name) + 9);
+        buf_printf(&size, "%d", (int)strlen(uname) + 9);
     } else {
         int fixed = 3; /* {, } and the NUL */
         for (int i = 0; i < d->members.len; i++) {
@@ -3623,7 +3624,7 @@ static void emit_derived_cstr(Decl *d, Type *recv) {
     indent++;
     if (d->kind == D_UNION) {
         line("(void)self;");
-        line("kv_cstr_put(_kv_buf, \"<%s>\");", d->spelling ? d->spelling : strfmt("union %s", d->name));
+        line("kv_cstr_put(_kv_buf, \"<%s>\");", d->spelling ? d->spelling : strfmt("union %s", uname));
     } else {
         line("uint8_t *_kv_p = _kv_buf;");
         line("_kv_p = kv_cstr_put(_kv_p, \"{\");");
@@ -4007,7 +4008,7 @@ static void emit_tagged_record(Decl *d, Type *recv) {
     for (int i = 0; i < d->members.len; i++) {
         Var *m = d->members.data[i];
         const char *check = strfmt("if (self->tag != %d) kv_case_fail(\"%s\", \"%s\", _kv_%s_cases[self->tag]);", i,
-                                   d->spelling ? d->spelling : d->name, m->name, d->name);
+                                   d->spelling ? d->spelling : d->kelvin_name ? d->kelvin_name : d->name, m->name, d->name);
         if (m->type && m->type->kind == T_ARRAY) {
             /* an array (#361): its elements copied in, as C assigns no array, and
                read through _at, as C returns none */
@@ -4051,7 +4052,7 @@ static void emit_tagged_record(Decl *d, Type *recv) {
             line("{");
             indent++;
             line("if (self.tag != %d) kv_case_fail(\"%s\", \"%s\", _kv_%s_cases[self.tag]);", i,
-                 d->spelling ? d->spelling : d->name, m->name, d->name);
+                 d->spelling ? d->spelling : d->kelvin_name ? d->kelvin_name : d->name, m->name, d->name);
             line("return self.u.%s;", m->name);
             indent--;
             line("}");
@@ -4727,7 +4728,7 @@ static void emit_show(Type *t) {
         line("kv_out_put(o, _kv_%s_cstr(*self, _kv_b));", r->name);
     } else if (r->kind == D_UNION) {
         line("(void)self;");
-        line("kv_out_put(o, \"<%s>\");", r->spelling ? r->spelling : strfmt("union %s", r->name));
+        line("kv_out_put(o, \"<%s>\");", r->spelling ? r->spelling : strfmt("union %s", r->kelvin_name ? r->kelvin_name : r->name));
     } else if (r->tagged) { /* n(v), none */
         line("switch (self->tag)");
         line("{");

@@ -39,7 +39,7 @@ extract() {
         for (i = 1; i <= k; i++) {
             l = line[i]
             if (depth == 0 && (l ~ /^(#import|struct |union |enum |extend |typealias )/ ||
-                               l ~ /^(static |extern )?(let|var) [A-Za-z_][A-Za-z_0-9]*\.[A-Za-z_][A-Za-z_0-9]*[(:]/ ||
+                               l ~ /^(static |extern )?(let|var) [A-Za-z_][A-Za-z_0-9]*(\.[A-Za-z_][A-Za-z_0-9]*)+[(:]/ ||
                                l ~ /^(let|var) [A-Za-z_][A-Za-z_0-9]*\[\]/ ||
                                l ~ /^(static |extern )?let [A-Za-z_][A-Za-z_0-9]*\(/)) {
                 top = top l "\n"

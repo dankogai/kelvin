@@ -339,6 +339,65 @@ static Var *param_named(const char *name) {
 
 static Decl *function_named(const char *name);
 
+static bool is_p(Token *t, const char *s);
+
+/* the struct whose body is being read, whose nested types its members
+   name bare (#389), or NULL */
+static Decl *record_body;
+/* the struct or union a nested definition is read in (#389), which names it */
+static Decl *nest_outer;
+
+/* the struct, union or enum nested in r as `name` (#389), r.name, or NULL */
+static Decl *nested_record(Decl *r, const char *name) {
+    if (!r || !r->name)
+        return NULL;
+    Decl *n = record_named(strfmt("%s__%s", r->name, name));
+    return n && n->outer == r ? n : NULL;
+}
+
+/* a struct, union or enum nested in another (#389) whose own name is
+   `name`, the first defined, or NULL */
+static Decl *nested_anywhere(const char *name) {
+    for (int i = 0; i < records.len; i++) {
+        Decl *r = records.data[i];
+        if (r->outer && !strcmp(strrchr(r->kelvin_name, '.') + 1, name))
+            return r;
+    }
+    return NULL;
+}
+
+/* the struct, union or enum that a name written in the source names: one
+   nested (#389) in the record whose body, member or extend this is, or in
+   one around it, as Swift's, before one declared at the top level */
+static Decl *record_spelled(const char *name) {
+    Decl *in = record_body;
+    if (!in && self_scope && self_tok && self_tok->kind == TK_IDENT)
+        in = record_named(self_tok->text);
+    for (Decl *s = in; s; s = s->outer) {
+        Decl *n = nested_record(s, name);
+        if (n)
+            return n;
+    }
+    return record_named(name);
+}
+
+/* the record a path of names from token i names, point.kind (#389), and
+   the token after it in *end */
+static Decl *record_path(int i, int *end) {
+    Decl *r = toks[i].kind == TK_IDENT ? record_spelled(toks[i].text) : NULL;
+    int k = i + 1;
+    while (r && is_p(&toks[k], ".") && toks[k + 1].kind == TK_IDENT) {
+        Decl *n = nested_record(r, toks[k + 1].text);
+        if (!n)
+            break;
+        r = n;
+        k += 2;
+    }
+    if (end)
+        *end = k;
+    return r;
+}
+
 /* Is the token a tag's bare name (#29) where an expression could stand
    too, as in sizeof(point) or (point^)p? Only for a tag defined in Kelvin:
    C headers often give a C struct's name to a function or variable too
@@ -346,7 +405,7 @@ static Decl *function_named(const char *name);
    decides. A Kelvin variable of that name wins, and so does a Kelvin
    function, except in sizeof, where a function's size is never meant. */
 static bool tag_name_ahead(Token *t, bool in_sizeof) {
-    Decl *r = t->kind == TK_IDENT ? record_named(t->text) : NULL;
+    Decl *r = t->kind == TK_IDENT ? record_spelled(t->text) : NULL;
     if (!r || !r->has_body)
         return false;
     if (!in_scope(t->text))
@@ -500,8 +559,11 @@ static bool paren_type_ahead(bool in_sizeof) {
     if (dot >= 0) /* sizeof(v.type), unless .type is a field there (#34) */
         return !type_is_field(cur + 1, dot) && is_p(&toks[type_suffix_end(dot + 2)], ")");
     if (tag_name_ahead(peek2(), in_sizeof)) {
-        /* sizeof(point), (point^)p: a tag's bare name, then the type's end */
-        Token *n = peek_at(2);
+        /* sizeof(point), (point^)p: a tag's bare name, or a path, point.kind
+           (#389), then the type's end */
+        int end;
+        record_path(cur + 1, &end);
+        Token *n = &toks[end];
         return is_p(n, ")") || is_p(n, "^") || is_p(n, "[") || is_qualifier(n);
     }
     if (!starts_type(peek2()))
@@ -1327,9 +1389,20 @@ static Type *parse_type_in(TypeContext ctx) {
             return parse_type_suffixes(p, ctx);
         }
         base->name = name->text;
-        Decl *tag = name->kind == TK_IDENT ? record_named(name->text) : NULL;
-        if (tag)
+        int end;
+        Decl *tag = name->kind == TK_IDENT ? record_path(cur - 1, &end) : NULL;
+        if (tag) {
+            while (cur < end) /* point.kind, a type nested in point (#389) */
+                advance();
             base->name = tag_type_name(tag); /* point is struct point (#29) */
+            if (ctx == TYPE_DECL && is_p(peek(), ".") && peek2()->kind == TK_IDENT && strcmp(peek2()->text, "type"))
+                error_at(peek2()->pos, "%s has no type '%s' defined in it", record_spelling(tag), peek2()->text);
+        } else if (ctx == TYPE_DECL && name->kind == TK_IDENT) {
+            Decl *n = nested_anywhere(name->text);
+            if (n) /* (#389) */
+                error_at(name->pos, "'%s' is defined in %s, and named %s outside it", name->text,
+                         record_spelling(n->outer), n->kelvin_name);
+        }
         parse_qualifiers(base);
         if (is_kw(name, "any") && !is_p(peek(), "^"))
             error_at(name->pos, "'any' exists only as 'any^', C's void *");
@@ -3691,36 +3764,39 @@ static Expr *parse_primary(void) {
         }
     }
     if (t->kind == TK_IDENT && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
-        (binding_index(t->text) < 0 || (function_named(t->text) && record_named(t->text)))) {
+        (binding_index(t->text) < 0 || (function_named(t->text) && record_spelled(t->text)))) {
         /* T.n(x) and T.none make a value of an enum with values (#61); T.name
-           and T.x also where a function is named as the type is, RegExp(...) (#162) */
-        Decl *r = record_named(t->text);
+           and T.x also where a function is named as the type is, RegExp(...) (#162);
+           T a path of nested types too, point.kind.none (#389) */
+        int end;
+        Decl *r = record_path(cur, &end);
+        int path = r && is_p(&toks[end], ".") && toks[end + 1].kind == TK_IDENT ? end - cur - 1 : 0;
+        if (r && !path && end > cur + 1)
+            r = NULL; /* point.kind alone: a type, not a value */
         int k;
-        Var *c = r && r->tagged ? case_named(r, peek_at(2)->text, &k) : NULL;
+        Var *c = r && r->tagged ? case_named(r, peek_at(path + 2)->text, &k) : NULL;
         if (c) {
-            advance();
-            advance();
+            for (int i = 0; i < path + 2; i++)
+                advance();
             Token *cn = advance();
             return case_maker(t, cn, r, c);
         }
         if (r && r->name) { /* T.x, a type attribute (#133): the global T__x */
-            char *cn = strfmt("%s__%s", t->text, peek_at(2)->text);
+            char *cn = strfmt("%s__%s", r->name, peek_at(path + 2)->text);
             for (int i = 0; i < type_attrs.len; i++)
                 if (!strcmp(type_attrs.data[i], cn) && binding_index(cn) >= 0) {
-                    advance();
-                    advance();
-                    advance();
+                    for (int j = 0; j < path + 3; j++)
+                        advance();
                     Expr *e = new_expr(E_IDENT, t->pos);
                     e->text = cn;
                     return e;
                 }
         }
         if (r && r->name) { /* T.name(...): a function of the type (#111), a name that overloads may share */
-            char *full = strfmt("%s.%s", t->text, peek_at(2)->text);
+            char *full = strfmt("%s.%s", r->name, peek_at(path + 2)->text);
             if (function_named(full)) {
-                advance();
-                advance();
-                advance();
+                for (int j = 0; j < path + 3; j++)
+                    advance();
                 Expr *e = new_expr(E_IDENT, t->pos);
                 e->text = full;
                 List cands = overloads_of(full, NULL);
@@ -5486,9 +5562,12 @@ static char *kelvin_type(Type *t) {
             return strfmt("%s%s%s", q, *q ? " " : "", ar->spelling);
         /* .typename (#34) spells a Kelvin tag by its bare name (#29) */
         const char *n = t->name;
-        for (int k = 0; bare_tags && k < 3; k++) {
+        for (int k = 0; k < 3; k++) {
             const char *kw = k == 0 ? "struct " : k == 1 ? "union " : "enum ";
-            if (!strncmp(n, kw, strlen(kw)) && record_named(n + strlen(kw)))
+            Decl *r = strncmp(n, kw, strlen(kw)) ? NULL : record_named(n + strlen(kw));
+            if (r && r->kelvin_name) /* point.kind, not point__kind, a path, which reads back (#389) */
+                n = r->kelvin_name;
+            else if (r && bare_tags)
                 n += strlen(kw);
         }
         return strfmt("%s%s%s", q, *q ? " " : "", n);
@@ -5697,7 +5776,7 @@ static bool type_has_expr(Type *t) {
 
 static Type *parse_typeof(int dot) {
     Token *head = peek();
-    Decl *tag = head->kind == TK_IDENT ? record_named(head->text) : NULL;
+    Decl *tag = head->kind == TK_IDENT ? record_spelled(head->text) : NULL;
     if (tag && tag->has_body && !in_scope(head->text) && dot == cur + 1)
         error_at(head->pos, "'%s' is a type already: write '%s', not '%s.type'", head->text, head->text,
                  head->text);
@@ -14211,9 +14290,30 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
         d->name = NULL; /* anonymous enum: a group of int constants */
     else {
         reject_kv_name(peek());
+        Token *nt = peek();
         d->name = expect_ident("a tag name");
+        if (nest_outer) { /* struct point { enum kind { ... } } (#389): point.kind, point__kind in C */
+            if (nested_record(nest_outer, d->name))
+                error_at(nt->pos, "'%s' is defined in %s already", d->name, record_spelling(nest_outer));
+            d->outer = nest_outer;
+            d->kelvin_name = strfmt("%s.%s", nest_outer->kelvin_name ? nest_outer->kelvin_name : nest_outer->name,
+                                    d->name);
+            d->name = strfmt("%s__%s", nest_outer->name, d->name);
+            Decl *same = record_named(d->name);
+            if (same && !same->outer)
+                error_at(nt->pos, "%s is %s in C, the name of a type declared already: rename one of them",
+                         d->kelvin_name, d->name);
+        }
+    }
+    if (!d->outer && d->name) {
+        Decl *same = record_named(d->name);
+        if (same && same->outer)
+            error_at(pos, "%s is %s in C, the name of this type: rename one of them", same->kelvin_name, d->name);
     }
     list_push(&records, d);
+    Decl *saved_body = record_body, *saved_outer = nest_outer;
+    record_body = d; /* its members name its nested types bare (#389) */
+    nest_outer = NULL;
     if (accept_p("{")) {
         d->has_body = true;
         if (tagged)
@@ -14236,6 +14336,15 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 list_push(&d->members, v);
                 if (!accept_p(","))
                     break;
+            } else if ((is_kw(peek(), "struct") || is_kw(peek(), "union") || is_kw(peek(), "enum")) &&
+                       peek2()->kind == TK_IDENT && is_p(peek_at(2), "{")) {
+                /* a type of its own, defined inside (#389): point.kind, as Swift's;
+                   written before this one in C */
+                Token *kw = advance();
+                nest_outer = d;
+                Decl *n = parse_record(kw->pos, is_kw(kw, "struct") ? D_STRUCT : is_kw(kw, "union") ? D_UNION : D_ENUM);
+                nest_outer = NULL;
+                add_top_decl(program, n);
             } else {
                 do {
                     reject_c_fn_pointer(cur, "");
@@ -14249,7 +14358,10 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
         }
         expect_p("}");
     }
-    end_statement();
+    record_body = saved_body;
+    nest_outer = saved_outer;
+    if (!d->outer || !accept_p(",")) /* struct s { struct t { n:i64 }, m:t } (#389) */
+        end_statement();
     return d;
 }
 
@@ -14728,6 +14840,8 @@ static char *case_list(Decl *r) {
 static char *record_spelling(Decl *r) {
     if (r->spelling)
         return r->spelling;
+    if (r->kelvin_name) /* point.kind (#389) */
+        return r->kelvin_name;
     return r->name;
 }
 
@@ -14816,11 +14930,77 @@ static void add_top_decl(Program *prog, Decl *d) {
     anon_fns.len = 0;
 }
 
+/* the C names of the types nested in the struct or union whose body opens
+   at token i (#389), prefix theirs, into *names */
+static void nested_names(int open, const char *prefix, List *names) {
+    int end = skip_nested(open);
+    for (int k = open + 1, depth = 0; k < end; k++) {
+        if (is_p(&toks[k], "{") || is_p(&toks[k], "(") || is_p(&toks[k], "["))
+            depth++;
+        else if (is_p(&toks[k], "}") || is_p(&toks[k], ")") || is_p(&toks[k], "]"))
+            depth--;
+        else if (!depth && (is_kw(&toks[k], "struct") || is_kw(&toks[k], "union") || is_kw(&toks[k], "enum")) &&
+                 toks[k + 1].kind == TK_IDENT && is_p(&toks[k + 2], "{")) {
+            char *name = strfmt("%s__%s", prefix, toks[k + 1].text);
+            list_push(names, name);
+            if (!is_kw(&toks[k], "enum"))
+                nested_names(k + 2, name, names);
+        }
+    }
+}
+
+static bool listed(List *names, const char *name) {
+    for (int i = 0; i < names->len; i++)
+        if (!strcmp(names->data[i], name))
+            return true;
+    return false;
+}
+
+/* let point.kind.isRound(), static let, var, extend point.kind { } (#389):
+   the receiver, a path of nested types at the head of a top-level
+   declaration, where no variable's path can stand, folded into one name,
+   point__kind, the type's C name, as a type of the top level is named */
+static void fold_nested_heads(void) {
+    List names = {0};
+    for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "{"))
+            depth++;
+        else if (is_p(&toks[i], "}"))
+            depth--;
+        if (!depth && (is_kw(&toks[i], "struct") || is_kw(&toks[i], "union")) && toks[i + 1].kind == TK_IDENT &&
+            is_p(&toks[i + 2], "{"))
+            nested_names(i + 2, toks[i + 1].text, &names);
+    }
+    if (!names.len)
+        return;
+    for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
+        if (is_p(&toks[i], "{"))
+            depth++;
+        else if (is_p(&toks[i], "}"))
+            depth--;
+        if (depth || !(is_kw(&toks[i], "let") || is_kw(&toks[i], "var") ||
+                       (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, "extend"))))
+            continue;
+        Token *t = &toks[i + 1];
+        while (t->kind == TK_IDENT && is_p(&t[1], ".") && t[2].kind == TK_IDENT) {
+            char *name = strfmt("%s__%s", t->text, t[2].text);
+            if (!listed(&names, name))
+                break;
+            t->text = name;
+            int n = 0;
+            while (t[n].kind != TK_EOF)
+                n++;
+            memmove(&t[1], &t[3], (size_t)(n - 2) * sizeof *t); /* the EOF too */
+        }
+    }
+}
+
 Program *parse(Token *tokens, int ntoks) {
     (void)ntoks;
     c_called = (List){0};
     toks = tokens;
     cur = 0;
+    fold_nested_heads();
     anon_fns = (List){0};
     proto_copies = (List){0};
     lazy_records = (List){0};

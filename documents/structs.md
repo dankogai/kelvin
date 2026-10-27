@@ -39,6 +39,45 @@ let q = (point){.y = 7}     // a compound literal; q is a point
     functions and variables too (`stat`, `timezone`)
     *(provisional P41)*.
 
+## Defined inside: `shape.size`
+
+A struct, a union or an enum may be defined inside a struct or a union
+(#389), as in Swift:
+
+```swift
+struct shape {
+    enum kind { round; sides: int64 }
+    struct size { w: float64; h: float64 }
+    k: kind                          // bare inside shape
+    s: size
+}
+let shape.size.area():float64 { return .w * .h }
+let shape.grown():size { return {.s.w * 2.0, .s.h * 2.0} }
+var a:shape = {shape.kind.sides(4), {2.0, 3.0}}
+let b:shape.size = a.grown()         // a path outside
+println(a, " ", b.area(), " ", b.typename)   // {k: sides(4), s: {w: 2.0, h: 3.0}} 24.0 shape.size
+```
+
+- **Its name is bare** inside the one it is defined in: in its members,
+  in the other types defined there, and in the methods, attributes and
+  `extend` of each.
+- **Outside, it is a path:** `shape.size` as a type, `shape.kind.round`
+  and `shape.kind.sides(4)` as values, `shape.size.unit()` for a
+  function of the type.
+  - A bare `size` there is an error that names the path.
+  - A path goes as deep as the definitions do: `a.b.c`.
+- **Its methods** are declared on the path: `let shape.size.area()`,
+  `static let shape.size.unit()`, `extend shape.kind { ... }`.
+- **Its text and `.typename`** spell the path: `shape.size`,
+  `Array<shape.size>`, `<union shape.bits>`.
+- **In C** it is a type of the top level, `struct shape__size`, written
+  before the one it is defined in.
+  - A type the program names `shape__size` too is an error: rename one.
+- **A C enum** defined inside keeps C's enumerators: `light` is a
+  constant of the program, as in C, and only the type's name has a
+  path.
+- **Inside a function**, a definition is not available yet.
+
 ## Without a tag: `{x:f64, y:f64}`
 
 A struct may be written where a type goes, by its members alone (#59):

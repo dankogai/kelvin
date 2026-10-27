@@ -47,7 +47,9 @@ let main():int32 {
     and it cannot hold an owner either.
 - **A union that knows its case** is `enum` with values, in
   [enums.md](enums.md) (#61).
-- Not yet: a union defined inside a struct.
+- **Defined inside a struct** or a union (#389), `union bits { ... }`
+  is named `bits` there and `shape.bits` outside, as a struct is (see
+  [structs.md](structs.md#defined-inside-shapesize)).
 
 ## Properties and methods
 
