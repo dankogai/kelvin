@@ -52,6 +52,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_BREAK,
     S_CONTINUE,
     S_FALL,     // fallthrough, on into the next case's body (#386)
+    S_ASSERT,   // static_assert(a, b...) (#394): c the condition's first token, flag the token after it, b the message's first or -1
     S_BLOCK,    // a, the first statement
     S_SWITCH,   // switch a { b, the first case }
     S_CASE,     // case a...: b...; flag 1 of default
@@ -61,7 +62,8 @@ enum nkind {                    // the kinds of nodes (#210)
     D_STRUCT,   // t { a... }
     D_GLOBAL,   // as S_VAR
     D_IMPORT,
-    D_ENUM      // enum t { a... }, each an N_ID, its a a value or -1
+    D_ENUM,     // enum t { a... }, each an N_ID, its a a value or -1
+    D_ASSERT    // as S_ASSERT, at the top level (#394)
 }
 
 enum ykind {                    // the kinds of types (#210)
@@ -1751,6 +1753,32 @@ let parse_switch():int64 {
     return n
 }
 
+// static_assert(cond) or static_assert(cond, "message") (#394), as
+// kelvinc's: C's _Static_assert, which C judges as it compiles
+let parse_assert(kind:nkind):int64 {
+    let n:int64 = make_node(kind, advance())
+    nodes[n].b = 0 - 1
+    if tok_is(nodes[n].t, "_Static_assert") {
+        parse_error("'_Static_assert' is C11's spelling: Kelvin writes static_assert(cond, \"message\"), its message optional")
+        return n
+    }
+    expect("(")
+    nodes[n].c = pos
+    set_a(n, parse_expr())
+    nodes[n].flag = pos
+    if at_word(",") {
+        advance()
+        if !at_kind(T_STR) {
+            parse_error("a static_assert's message is a string literal: static_assert(cond, \"message\")")
+            return n
+        }
+        nodes[n].b = pos
+        while at_kind(T_STR) { advance() }
+    }
+    expect(")")
+    return n
+}
+
 let parse_struct():int64    // prototypes: a block defines types too (#391)
 let parse_enum():int64
 
@@ -1759,6 +1787,7 @@ let parse_statement():int64 {
     if at_word("switch") {
         return parse_switch()
     }
+    if at_word("static_assert") || at_word("_Static_assert") { return parse_assert(S_ASSERT) }   // (#394)
     if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
         let is_struct = at_word("struct")                // a type defined in a block (#391): the block's from here
         advance()                                        // on, written before the function in C
@@ -2088,7 +2117,9 @@ let parse_program() {
             parse_error("main is C's main, called once: it is not inline")
         }
         let first:int64 = decls.count as int64
-        if at_kind(T_IMPORT) {
+        if at_word("static_assert") || at_word("_Static_assert") {
+            decls += parse_assert(D_ASSERT)             // (#394)
+        } else if at_kind(T_IMPORT) {
             let n:int64 = make_node(D_IMPORT, advance())
             if tok_is(nodes[n].t, "<IO>") { nodes[n].flag = 1 }
             if is_header(nodes[n].t) {

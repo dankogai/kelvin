@@ -12908,6 +12908,69 @@ static bool holds_label(int i) {
     return false;
 }
 
+static char *raw_text(int i, int end);
+
+/* a variable that a static_assert's condition reads (#394), which C does
+   not count as a constant, or NULL; sizeof and .size read none */
+static const char *unconstant(Expr *e) {
+    if (!e || e->kind == E_SIZEOF_TYPE || e->kind == E_SIZEOF_EXPR ||
+        (e->kind == E_PROPERTY && e->text && !strcmp(e->text, "size")))
+        return NULL;
+    if (e->kind == E_IDENT)
+        return lookup_type(e->text) && !enum_of(e->text) && !function_named(e->text) ? e->text : NULL;
+    const char *v = unconstant(e->a);
+    v = v ? v : unconstant(e->b);
+    v = v ? v : unconstant(e->c);
+    for (int i = 0; !v && i < e->items.len; i++)
+        v = unconstant(e->items.data[i]);
+    return v;
+}
+
+/* static_assert(cond) or static_assert(cond, "message") (#394), C23's
+   name: C's _Static_assert, which the C compiler judges as it compiles,
+   its message the condition as written where none is */
+static void parse_static_assert(Expr **cond, char **message) {
+    Token *kw = advance();
+    if (is_kw(kw, "_Static_assert"))
+        error_at(kw->pos, "'_Static_assert' is C11's spelling: Kelvin writes static_assert(cond, \"message\"), its "
+                          "message optional");
+    expect_p("(");
+    int start = cur;
+    *cond = parse_assign();
+    int end = cur;
+    const char *v = unconstant(*cond);
+    if (v)
+        error_at((*cond)->pos, "a static_assert is judged as C compiles, before the program runs, and '%s' is a "
+                               "variable, which C does not count as a constant",
+                 v);
+    if (accept_p(",")) {
+        if (peek()->kind != TK_STRING || peek()->tpl)
+            error_at(peek()->pos, "a static_assert's message is a string literal: static_assert(cond, \"message\")");
+        Buf b = {0};
+        while (peek()->kind == TK_STRING && !peek()->tpl)
+            buf_printf(&b, "%s%s", b.len ? " " : "", advance()->text);
+        *message = b.buf;
+    } else {
+        const char *t = raw_text(start, end);
+        Buf b = {0};
+        buf_puts(&b, "\"");
+        for (; *t; t++) {
+            if (*t == '\\' || *t == '"')
+                buf_printf(&b, "\\%c", *t);
+            else if (*t == '\n')
+                buf_puts(&b, " ");
+            else if (*t == '?')
+                buf_puts(&b, "\\?");
+            else
+                buf_putn(&b, t, 1);
+        }
+        buf_puts(&b, "\"");
+        *message = b.buf;
+    }
+    expect_p(")");
+    end_statement();
+}
+
 static Stmt *parse_stmt(void) {
     int saved = stmt_start;
     stmt_start = cur;
@@ -13159,6 +13222,11 @@ static Stmt *parse_stmt_here(void) {
     if (accept_kw("continue")) {
         end_statement();
         return new_stmt(S_CONTINUE, pos);
+    }
+    if (is_kw(peek(), "static_assert") || is_kw(peek(), "_Static_assert")) { /* (#394) */
+        Stmt *s = new_stmt(S_ASSERT, pos);
+        parse_static_assert(&s->expr, &s->name);
+        return s;
     }
     if (accept_kw("fallthrough")) { /* Swift's (#386): on into the next case's body, its label unchecked */
         if (case_depth < 0)
@@ -15253,6 +15321,12 @@ Program *parse(Token *tokens, int ntoks) {
         stmt_start = cur;
         top_name = NULL;
         ended_types.len = 0; /* a function's own (#391) */
+        if (is_kw(peek(), "static_assert") || is_kw(peek(), "_Static_assert")) { /* (#394) */
+            Decl *d = new_decl(D_ASSERT, t->pos, NULL);
+            parse_static_assert(&d->cond, &d->name);
+            list_push(&prog->decls, d);
+            continue;
+        }
         const char *storage = parse_storage_inline();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");

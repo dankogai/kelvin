@@ -173,6 +173,7 @@ const samples = [
     ['let after = 1', [['let', 'storage.type']]],
     ['var bv = Bits(); bv[0] = !!n', [['Bits', 'support.type']]],
     ['switch n { case 1: fallthrough }', [['switch', 'keyword.control'], ['case', 'keyword.control'], ['fallthrough', 'keyword.control']]],
+    ['static_assert(n == 1)', [['static_assert', 'keyword.control']]],
     ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
     ['let it:Iterator<int64> = Iterator(0, step)', [['Iterator', 'support.type']]],
     ['let 二倍(n:int64):int64 { 二倍2(♾️(n)) }', [['二倍', 'entity.name.function'], ['♾️', 'entity.name.function']]], /* names past ASCII (#385) */

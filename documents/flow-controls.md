@@ -223,3 +223,32 @@ no truthiness, so compare instead:
   - `while fgets(...)` fails that way, and so does `if isdigit(c)` (an
     `int`), which needs `!= 0`.
 
+## Checked as it compiles: `static_assert`
+
+`static_assert(cond, "message")` (#394), C23's name, is C's
+`_Static_assert`: the C compiler judges it as it compiles, and a
+condition that does not hold stops the build at its line, with its
+message.
+
+```swift
+struct point { x: int32; y: int32 }
+enum color { red, green, blue }
+static_assert(sizeof(int64) == 8, "int64 is eight bytes")
+static_assert(sizeof(point) == 8)        // the message: the condition, as written
+static_assert(blue == 2)
+var p:point = {1, 2}
+static_assert(p.size == 8)               // in a block too
+```
+
+- **It goes at the top level and in a block**, and the message is
+  optional: without one, it is the condition as written.
+  - The message is a string literal; adjacent ones join, as in C.
+- **The condition is a constant to C:** numbers, `sizeof`, `.size`,
+  enumerators.
+  - A variable, a let of the top level too, is none, and kelvinc says
+    so before C does.
+- **`_Static_assert` is an error** that names `static_assert`, as
+  Kelvin writes `bool` for `_Bool`; `static_assert` is a reserved word.
+- **In a module**, `kelvinc --lib` checks it as it builds the library,
+  and `M.kh` leaves it out.
+

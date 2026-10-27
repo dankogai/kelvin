@@ -1286,6 +1286,7 @@ let reject_cstr_math(n:int64) {
 }
 
 let gen_expr(n:int64)
+let gen_assert(n:int64)    // a prototype: a block's static_assert asks it (#394)
 
 let gen_value(n:int64, y:int64)
 
@@ -9723,6 +9724,7 @@ let gen_stmt(n:int64, depth:int64) {
     case S_RETURN: gen_return(n)
     case S_BREAK: put("break;\n")
     case S_CONTINUE: put("continue;\n")
+    case S_ASSERT: gen_assert(n)                                 // (#394)
     case S_FALL:                                                 // on into the next case's body, past its label (#386)
         if fall_to == 0 - 2 { gen_error(n, "'fallthrough' outside a switch") }
         if fall_to == 0 - 1 { gen_error(n, "'fallthrough' in the last case of a switch, which has no next case to go on into") }
@@ -10637,6 +10639,68 @@ let fixed_params() {
     }
 }
 
+// the token of a variable that static_assert's condition n reads (#394),
+// which C does not count as a constant, or -1; .size reads none
+let unconstant(n:int64):int64 {
+    if n < 0 { return 0 - 1 }
+    let k = nodes[n].kind
+    if k == N_ID {
+        let name:String = tok_text(nodes[n].t)
+        return var_type(nodes[n].t) >= 0 && enumerators.get(name, -1) < 0 ? nodes[n].t : 0 - 1
+    }
+    if k == N_FIELD && tok_is(nodes[n].t, "size") { return 0 - 1 }
+    if k == N_BIN || k == N_UNARY || k == N_CAST || k == N_COND || k == N_FIELD {
+        var v:int64 = unconstant(nodes[n].a)
+        if v < 0 && (k == N_BIN || k == N_COND) { v = unconstant(nodes[n].b) }
+        if v < 0 && k == N_COND { v = unconstant(nodes[n].c) }
+        return v
+    }
+    return 0 - 1
+}
+
+// static_assert(cond, "message") (#394), as kelvinc's: C's _Static_assert,
+// which C judges as it compiles, its message the condition as written
+// where none is
+let gen_assert(n:int64) {
+    let v:int64 = unconstant(nodes[n].a)
+    if v >= 0 {
+        var m = $"a static_assert is judged as C compiles, before the program runs, and '"
+        m += tok_text(v)
+        m += "' is a variable, which C does not count as a constant"
+        gen_error(n, m.cstr)
+        return
+    }
+    put("_Static_assert(")
+    gen_cond(nodes[n].a)
+    put(", ")
+    if nodes[n].b >= 0 {
+        var t:int64 = nodes[n].b
+        while toks[t].kind == T_STR {
+            if t > nodes[n].b { put(" ") }
+            put_text(t, 0)
+            t += 1
+        }
+    } else {
+        put("\"")
+        let last:int64 = nodes[n].flag - 1
+        for i in toks[nodes[n].c].at..<toks[last].at + toks[last].len {
+            let c:uint32 = codes[i]
+            if c == '\\' || c == '"' {
+                put("\\")
+                out += c.uchr
+            } else if c == '\n' {
+                put(" ")
+            } else if c == '?' {
+                put("\\?")
+            } else {
+                out += c.uchr
+            }
+        }
+        put("\"")
+    }
+    put(");\n")
+}
+
 let gen_program() {
     index_names()
     count_overloads()
@@ -10716,6 +10780,7 @@ let gen_program() {
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
+        if nodes[d].kind == D_ASSERT { gen_assert(d) }   // (#394)
         if nodes[d].kind == D_GLOBAL {
             if nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_ASYNC {      // as kelvinc's (#313)
                 gen_error(nodes[d].a, "'async' starts a call on a thread of its own, in a function: write it in one")

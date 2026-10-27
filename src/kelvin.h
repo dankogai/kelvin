@@ -209,6 +209,7 @@ typedef enum {
     S_GOTO,
     S_LABEL,
     S_INLINE_C,  /* #inline C { ... } in a function (#198): name is the C */
+    S_ASSERT,    /* static_assert(cond, "message") (#394): expr the condition, name the message, a C literal */
 } StmtKind;
 
 /* what `for x in s` walks (#30) */
@@ -250,7 +251,9 @@ struct Stmt {
                           S_CASE: the name case n(x): binds to the value (#119) */
 };
 
-typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM, D_INLINE_C } DeclKind;
+typedef enum { D_IMPORT, D_FN, D_VAR, D_STRUCT, D_UNION, D_ENUM, D_INLINE_C,
+               D_ASSERT /* static_assert(cond, "message") at the top level (#394): cond, name the message */
+} DeclKind;
 
 struct Decl {
     DeclKind kind;
@@ -305,6 +308,7 @@ struct Decl {
                              template, written into the caller's buffer (#53) */
     char *spelling;       /* D_STRUCT with no tag (#59): its Kelvin spelling,
                              {x: f64, y: f64}; name is _kv_anonN */
+    struct Expr *cond;    /* D_ASSERT: the condition (#394) */
     struct Decl *outer;   /* D_STRUCT/D_UNION/D_ENUM defined inside a struct or union (#389): that
                              one; name is outer's, __, its own, as point__kind, and kelvin_name
                              the path Kelvin writes, point.kind */

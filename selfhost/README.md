@@ -456,6 +456,11 @@ kc reads what it is written in, and little more.
   whose name is 2, or 3 where it points to a const T, ptr_const and
   ptr_restrict telling them; put_ctype writes `T *restrict`; elsewhere
   kelvinc's error, in its words.
+- **`static_assert`** (#394), as kelvinc's: S_ASSERT in a block and
+  D_ASSERT at the top level, `_Static_assert` in C, the message as
+  written or the condition's own text, a variable in the condition and
+  C11's spelling kelvinc's errors, in its words. kc has no `sizeof`, so
+  its conditions are of numbers and enumerators.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

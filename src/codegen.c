@@ -3107,6 +3107,9 @@ static void stmt(Stmt *s) {
     case S_GOTO:
         line("goto %s;", s->name);
         break;
+    case S_ASSERT: /* (#394) */
+        line("_Static_assert(%s, %s);", cond(s->expr), s->name);
+        break;
     case S_INLINE_C:
         /* C of a function's own (#198), as written, its lines the .k's,
            seeing the locals by their C names */
@@ -4102,6 +4105,9 @@ static void emit_decl(Decl *d) {
     switch (d->kind) {
     case D_IMPORT:
         line("#include %s", d->name);
+        break;
+    case D_ASSERT: /* static_assert(cond, "message") (#394): C judges it */
+        line("_Static_assert(%s, %s);", cond(d->cond), d->name);
         break;
     case D_INLINE_C:
         /* C of the program's own (#197), as written, its lines the .k's:

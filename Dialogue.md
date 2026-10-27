@@ -7777,3 +7777,18 @@ a function type, it is an error that says where it goes. kc does the
 same, with kelvinc's errors. Details are provisional P405.
 
 There are 1104 tests, and all pass with clang and with gcc 15.
+
+### 439. static_assert
+
+> commit and push when the battery passes, then static_assert
+
+**Claude** committed #393 and made `static_assert` #394:
+`static_assert(cond)` or `static_assert(cond, "message")`, C23's name, at
+the top level and in a block, is C's `_Static_assert`, which the C
+compiler judges at the Kelvin line; without a message, the condition as
+written is one. A variable in the condition, `_Static_assert`, a message
+of no string literal and a name `static_assert` are kelvinc's errors. A
+module's `M.kh` leaves it out. kc does the same, with kelvinc's errors.
+Details are provisional P406.
+
+There are 1110 tests, and all pass with clang and with gcc 15.
