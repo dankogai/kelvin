@@ -66,9 +66,21 @@ static List mixed_choices; /* c ? s : make() of an owner, not yet returned, and 
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
 
+/* the types defined inside a function (#390), Decl *, the block's alone,
+   with the depth of scope_marks each was defined at; and the enumerators
+   of an enum so defined, Var *, with the index of each one's binding */
+static List local_types, local_type_depths, local_enums, local_enum_at;
+static List ended_types; /* Decl *: those whose block has ended, of the top-level declaration being read */
+
 static void close_scope(void) {
     scope_names.len = scope_types.len = scope_lets.len = scope_moved.len =
         (int)(intptr_t)scope_marks.data[--scope_marks.len];
+    while (local_types.len && (int)(intptr_t)local_type_depths.data[local_types.len - 1] > scope_marks.len) {
+        list_push(&ended_types, local_types.data[local_types.len - 1]);
+        local_types.len = --local_type_depths.len;
+    }
+    while (local_enums.len && (int)(intptr_t)local_enum_at.data[local_enums.len - 1] >= scope_names.len)
+        local_enums.len = --local_enum_at.len;
 }
 
 static void declare_binding(const char *name, Type *type, int let) {
@@ -340,12 +352,32 @@ static Var *param_named(const char *name) {
 static Decl *function_named(const char *name);
 
 static bool is_p(Token *t, const char *s);
+static Decl *parse_record(Pos pos, DeclKind kind);
 
 /* the struct whose body is being read, whose nested types its members
    name bare (#389), or NULL */
 static Decl *record_body;
 /* the struct or union a nested definition is read in (#389), which names it */
 static Decl *nest_outer;
+/* the record parse_record reads next is defined inside a function (#390) */
+static bool record_local;
+static List hidden_names; /* char *: the C names given so (#390), each once */
+
+/* the C name of a type or an enumerator defined inside a function (#390):
+   _kv_main_point, then _kv_main_point1, 2, ... */
+static char *hidden_name(const char *name) {
+    for (int k = 0;; k++) {
+        char *c = k ? strfmt("_kv_%s_%s%d", top_name ? top_name : "local", name, k)
+                    : strfmt("_kv_%s_%s", top_name ? top_name : "local", name);
+        bool used = false;
+        for (int i = 0; !used && i < hidden_names.len; i++)
+            used = !strcmp(hidden_names.data[i], c);
+        if (!used) {
+            list_push(&hidden_names, c);
+            return c;
+        }
+    }
+}
 
 /* the struct, union or enum nested in r as `name` (#389), r.name, or NULL */
 static Decl *nested_record(Decl *r, const char *name) {
@@ -370,10 +402,18 @@ static Decl *nested_anywhere(const char *name) {
    nested (#389) in the record whose body, member or extend this is, or in
    one around it, as Swift's, before one declared at the top level */
 static Decl *record_spelled(const char *name) {
-    Decl *in = record_body;
-    if (!in && self_scope && self_tok && self_tok->kind == TK_IDENT)
-        in = record_named(self_tok->text);
-    for (Decl *s = in; s; s = s->outer) {
+    for (Decl *s = record_body; s; s = s->outer) {
+        Decl *n = nested_record(s, name);
+        if (n)
+            return n;
+    }
+    for (int i = local_types.len - 1; i >= 0; i--) { /* one defined in a block around it (#390) */
+        Decl *r = local_types.data[i];
+        if (!strcmp(r->kelvin_name, name))
+            return r;
+    }
+    Decl *in = self_scope && self_tok && self_tok->kind == TK_IDENT ? record_named(self_tok->text) : NULL;
+    for (Decl *s = record_body ? NULL : in; s; s = s->outer) {
         Decl *n = nested_record(s, name);
         if (n)
             return n;
@@ -742,8 +782,28 @@ static const char *let_target(Expr *e);
 static void reject_const_change(Expr *e, Pos pos);
 static Type *value_type(Expr *e);
 
+/* the enum defined in a block (#390) of the enumerator that a name, or
+   its C name, names here, or NULL */
+static Decl *local_enum_of(const char *name) {
+    int b = binding_index(name);
+    for (int i = local_enums.len - 1; i >= 0; i--) {
+        Var *v = local_enums.data[i];
+        if (strcmp(v->cname, name) && (int)(intptr_t)local_enum_at.data[i] != b)
+            continue;
+        for (int k = 0; k < records.len; k++) {
+            Decl *r = records.data[k];
+            for (int m = 0; r->kind == D_ENUM && m < r->members.len; m++)
+                if (r->members.data[m] == v)
+                    return r;
+        }
+    }
+    return NULL;
+}
+
 /* Is name a Kelvin enumerator that no local hides? */
 static bool enumerator_named(const char *name) {
+    if (local_enum_of(name))
+        return true;
     int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
     int i = binding_index(name);
     if (i < 0 || i >= global_end)
@@ -1402,6 +1462,11 @@ static Type *parse_type_in(TypeContext ctx) {
             if (n) /* (#389) */
                 error_at(name->pos, "'%s' is defined in %s, and named %s outside it", name->text,
                          record_spelling(n->outer), n->kelvin_name);
+            for (int i = 0; i < ended_types.len; i++)
+                if (!strcmp(((Decl *)ended_types.data[i])->kelvin_name, name->text)) /* (#390) */
+                    error_at(name->pos, "'%s' is defined in a block that has ended: a type defined inside a function "
+                                        "is known to the end of its block",
+                             name->text);
         }
         parse_qualifiers(base);
         if (is_kw(name, "any") && !is_p(peek(), "^"))
@@ -3820,6 +3885,12 @@ static Expr *parse_primary(void) {
                      parsing_fn->name, parsing_fn->name, parsing_fn->recv_name);
         if (t->kind == TK_IDENT && !ascii_name(t->text))
             reject_unknown_name(t); /* (#385) */
+        if (t->kind == TK_IDENT && local_enums.len) { /* an enumerator of the block's enum (#390): its C name */
+            int b = binding_index(t->text);
+            for (int i = local_enums.len - 1; i >= 0; i--)
+                if ((int)(intptr_t)local_enum_at.data[i] == b)
+                    e->text = ((Var *)local_enums.data[i])->cname;
+        }
         if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4)) /* as an unnamed parameter's (#388) */
             error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: '%s' is none of the "
                              "program's",
@@ -6493,6 +6564,9 @@ static bool kelvin_record(Type *t) {
 
 /* The Kelvin enum that declares the enumerator name, or NULL */
 static Decl *enum_of(const char *name) {
+    Decl *l = local_enum_of(name);
+    if (l)
+        return l;
     if (!enumerator_named(name))
         return NULL;
     for (int k = 0; k < records.len; k++) {
@@ -11881,14 +11955,14 @@ static void check_switch(Stmt *s) {
         for (int k = 0; !found && k < labels.len; k++) {
             Stmt *c = labels.data[k];
             found = tr ? c->name && !strcmp(c->name, m->name)
-                       : c->expr->kind == E_IDENT && !strcmp(c->expr->text, m->name);
+                       : c->expr->kind == E_IDENT && !strcmp(c->expr->text, m->cname ? m->cname : m->name);
         }
         if (!found)
             buf_printf(&missing, "%s%s", n++ ? ", " : "", m->name);
     }
     if (n)
         error_at(s->pos, "switch on %s is not exhaustive: %s %s missing; write every %s, or add 'default:'",
-                 tr ? record_spelling(tr) : pe->name, missing.buf, n == 1 ? "is" : "are", tr ? "case" : "enumerator");
+                 record_spelling(tr ? tr : pe), missing.buf, n == 1 ? "is" : "are", tr ? "case" : "enumerator");
     s->closed = true;
 }
 
@@ -12826,6 +12900,11 @@ static Stmt *parse_stmt_here(void) {
         return new_stmt(S_EMPTY, pos);
     if (binding_ahead(cur)) {
         int at = cur + 1 + (is_kw(t, "static") || is_kw(t, "extern"));
+        Decl *lr = toks[at].kind == TK_IDENT && is_p(&toks[at + 1], ".") ? record_path(at, NULL) : NULL;
+        if (lr && lr->kelvin_name && !strncmp(lr->name, "_kv_", 4)) /* (#390) */
+            error_at(toks[at].pos, "a method of a type defined inside a function is not available yet: define %s at "
+                                   "the top level, or write a function that takes it",
+                     lr->kelvin_name);
         reject_c_fn_pointer(at, "var ");
         if (function_shape(at) == 2 && params_ahead(at + 1)) {
             /* let f(...):R { ... } inside a function (#180): a function of the
@@ -13156,6 +13235,17 @@ static Stmt *parse_stmt_here(void) {
         pragma_statement = false;
         end_statement();
         return s;
+    }
+    if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && peek2()->kind == TK_IDENT &&
+        is_p(peek_at(2), "{")) {
+        /* a type defined inside a function (#390): the block's, from here
+           on; a type of the top level in C, written before the function */
+        advance();
+        record_local = true;
+        Decl *d = parse_record(pos, is_kw(t, "struct") ? D_STRUCT : is_kw(t, "union") ? D_UNION : D_ENUM);
+        record_local = false;
+        list_push(&program->decls, d);
+        return new_stmt(S_EMPTY, pos);
     }
     reject_c_declaration();
     bool call_like = (is_maker(t) && is_p(peek2(), "(")) ||
@@ -14303,6 +14393,16 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
             if (same && !same->outer)
                 error_at(nt->pos, "%s is %s in C, the name of a type declared already: rename one of them",
                          d->kelvin_name, d->name);
+        } else if (record_local) { /* struct point { ... } in a block (#390): the block's, _kv_main_point in C */
+            for (int i = local_types.len - 1;
+                 i >= 0 && (int)(intptr_t)local_type_depths.data[i] == scope_marks.len; i--)
+                if (!strcmp(((Decl *)local_types.data[i])->kelvin_name, d->name))
+                    error_at(nt->pos, "'%s' is defined in this block already", d->name);
+            d->kelvin_name = d->name;
+            d->name = hidden_name(d->name);
+            list_push(&local_types, d);
+            list_push(&local_type_depths, (void *)(intptr_t)scope_marks.len);
+            record_local = false;
         }
     }
     if (!d->outer && d->name) {
@@ -14331,6 +14431,11 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                     error_at(v->pos, "'%s' is a case of %s, a word of the program: name the enumerator otherwise",
                              v->name, record_spelling(wr));
                 declare_name(v->name);
+                if (parsing_fn) { /* the block's (#390), _kv_main_red in C */
+                    v->cname = hidden_name(v->name);
+                    list_push(&local_enums, v);
+                    list_push(&local_enum_at, (void *)(intptr_t)(scope_names.len - 1));
+                }
                 if (accept_p("="))
                     v->init = parse_conditional();
                 list_push(&d->members, v);
@@ -14344,13 +14449,17 @@ static Decl *parse_record(Pos pos, DeclKind kind) {
                 nest_outer = d;
                 Decl *n = parse_record(kw->pos, is_kw(kw, "struct") ? D_STRUCT : is_kw(kw, "union") ? D_UNION : D_ENUM);
                 nest_outer = NULL;
-                add_top_decl(program, n);
+                list_push(&program->decls, n); /* before the function it is in too (#390) */
             } else {
                 do {
                     reject_c_fn_pointer(cur, "");
                     Var *m = parse_var(false, LET_NONE);
                     if (kind == D_UNION && is_owner(m->type))
                         error_at(m->pos, "a union cannot hold an owner (#54): which member to free is unknown");
+                    if (parsing_fn && has_local_size(m->type)) /* (#390) */
+                        error_at(m->pos, "a type defined inside a function is written before it in C, where its "
+                                         "locals are not known: '%s' of %s counts by one; write the count",
+                                 m->name, kelvin_type(m->type));
                     list_push(&d->members, m);
                 } while (accept_p(","));
                 end_statement();
@@ -15024,6 +15133,7 @@ Program *parse(Token *tokens, int ntoks) {
     scope_moved = (List){0};
     scope_marks = (List){0};
     records = (List){0};
+    local_types = local_type_depths = local_enums = local_enum_at = hidden_names = ended_types = (List){0};
     functions = (List){0};
     method_names = (List){0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
@@ -15093,6 +15203,7 @@ Program *parse(Token *tokens, int ntoks) {
         }
         stmt_start = cur;
         top_name = NULL;
+        ended_types.len = 0; /* a function's own (#390) */
         const char *storage = parse_storage();
         /* a function, a method and an operator are lets (#45) */
         bool binding = is_kw(peek(), "let") || is_kw(peek(), "var");

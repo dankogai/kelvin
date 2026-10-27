@@ -30,7 +30,10 @@ println(j.n)                             // ends the program: case 'n' of json i
   C's enum: `color` is a type, `red` an integer constant, and `c.cstr`
   its number.
 - **An anonymous `enum { a, b }`** at the top level is a group of int
-  constants, as in C. A `switch` on a Kelvin enum lists every
+  constants, as in C.
+- **Defined in a function** (#390), its enumerators are the block's,
+  as in C, `_kv_main_red` in the C kelvinc writes; see
+  [structs.md](structs.md#defined-in-a-function). A `switch` on a Kelvin enum lists every
   enumerator, or has `default:` (#63).
 
 ## An enum with values: `enum T { none; some: i32 }`

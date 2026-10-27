@@ -730,6 +730,16 @@ let main(argc:int32, argv:[cstr]):int32 {
     let box1:parcel = {parcel.wrap.ribbon(2), {3, 4}}
     let side:parcel.dims = {5, 6}
     println(box1, " ", box1.cost(), " ", side.area(), " ", box1.w.ribbons(), " ", parcel.wrap.plain)
+    struct leg { from: int64; to: int64 }              // types defined in a block (#390): the block's, _kv_main_leg in C
+    enum heading { north, south }
+    let trip:leg = {2, 9}
+    let way = south
+    var legs = $[trip]
+    if true {
+        enum heading { east, north }
+        println(north)
+    }
+    println(trip, " ", legs, " ", way, " ", north, " ", trip.to - trip.from)
     let hi_bytes:cstr := "hi"
     for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)
     for c in hi_bytes { print(" ", c) }

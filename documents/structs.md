@@ -76,7 +76,44 @@ println(a, " ", b.area(), " ", b.typename)   // {k: sides(4), s: {w: 2.0, h: 3.0
 - **A C enum** defined inside keeps C's enumerators: `light` is a
   constant of the program, as in C, and only the type's name has a
   path.
-- **Inside a function**, a definition is not available yet.
+- **Inside a function**, see the next section (#390).
+
+## Defined in a function
+
+A struct, a union or an enum may be defined in a block (#390), as in C
+and Swift:
+
+```swift
+let area(w:float64, h:float64):float64 {
+    struct rect { w: float64; h: float64 }
+    enum unit { mm, cm }
+    let r:rect = {w, h}
+    let u = cm
+    return u == cm ? r.w * r.h : 0.0
+}
+println(area(2.0, 3.0))                 // 6.0
+```
+
+- **Its name is the block's**, from its definition to the block's end,
+  in the blocks inside it, and in anonymous functions written there.
+  - It hides a type of the top level of the name, and an inner block
+    may define another.
+  - A name defined twice in one block, or used after its block ends,
+    is an error.
+- **Everything a type has**, it has: initializers, text and
+  `.typename`, which spell its own name, `Array<rect>`, types defined
+  inside it (#389), cases of an enum with values.
+- **A C enum's enumerators** are the block's too, as in C: `cm` is
+  known to the block's end, and hides a constant of the top level.
+- **In C** it is a type of the top level under a name of kelvinc's own,
+  `struct _kv_area_rect`, with a number for another of the name in the
+  same function, written before the function, with its enumerators
+  named so, `_kv_area_cm`.
+  - So a member's array counts by a number, not by a local of the
+    function, which C does not know there.
+- **Not yet:** a method of such a type, `let rect.m()` inside the
+  function, is an error: define the type at the top level, or write a
+  function that takes it.
 
 ## Without a tag: `{x:f64, y:f64}`
 

@@ -144,6 +144,16 @@ var records_seen:Dictionary<String, int64> // every struct and enum read so far,
 var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
 var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
 var locals_seen:$[int64]       // the names declared in the function being read, which a nested type's bare name yields to (#389)
+var local_types:$[int64]       // the types defined in the blocks being read (#390): the tokens kc names them by, _kv_main_point
+var local_type_depths:$[int64] // and the depth of the block each is in
+var local_enums:$[int64]       // the enumerators of the enums so defined, by their tokens, _kv_main_red
+var local_enum_depths:$[int64]
+var local_own_of:Dictionary<String, int64>   // each one's own name's token, by its C name
+var ended_types:$[int64]       // the types of the function whose blocks have ended
+var hidden_seen:Dictionary<String, int64>    // the C names given so, each once
+var block_depth:int64 = 0
+var fn_tok:int64 = 0 - 1       // the token of the function being read, which names them
+var local_next = false         // the struct or enum parse_struct or parse_enum reads is defined in a block (#390)
 var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
 var range_values = 0       // the ranges that are values, not a for's (#373): then each Range<T>'s struct is written
 
@@ -300,7 +310,20 @@ let is_nested(t:int64):bool {
 // one nested in the struct whose body or method this is, or in one around
 // it, else w itself
 let scoped_type(w:int64):int64 {
-    var s:int64 = body_struct >= 0 ? body_struct : self_name
+    var s:int64 = body_struct
+    while s >= 0 {
+        let n:int64 = nested_tok(s, w)
+        if n >= 0 { return n }
+        let name:String = tok_text(s)
+        s = outer_of.get(name, -1)
+    }
+    var i:int64 = local_types.count as int64 - 1
+    while i >= 0 {                                       // one defined in a block around it (#390)
+        let u:int64 = local_types[i]
+        if same_text(local_own_of.get(tok_text(u), -1), w) { return u }
+        i -= 1
+    }
+    s = body_struct >= 0 ? 0 - 1 : self_name
     while s >= 0 {
         let n:int64 = nested_tok(s, w)
         if n >= 0 { return n }
@@ -308,6 +331,43 @@ let scoped_type(w:int64):int64 {
         s = outer_of.get(name, -1)
     }
     return w
+}
+
+// the token kc names a type or an enumerator defined in a block by (#390),
+// _kv_main_point, then _kv_main_point1, 2, ..., as kelvinc names it
+let hidden_token(t:int64):int64 {
+    var k:int64 = 0
+    while true {
+        var name = $"_kv_"
+        let f:String = fn_tok >= 0 ? tok_text(fn_tok) : $"local"
+        name += &f
+        name += "_"
+        let own:String = tok_text(t)
+        name += &own
+        if k > 0 { name += String(k) }
+        if hidden_seen.get(name, -1) < 0 {
+            let u:int64 = made_token(&name)
+            toks[u].line = toks[t].line
+            toks[u].file = toks[t].file
+            hidden_seen[name] = u
+            local_own_of[name] = t
+            return u
+        }
+        k += 1
+    }
+    return t
+}
+
+// the enumerator of an enum defined in a block that token t names (#390),
+// its token, or -1
+let local_enum_named(t:int64):int64 {
+    var i:int64 = local_enums.count as int64 - 1
+    while i >= 0 {
+        let u:int64 = local_enums[i]
+        if same_text(local_own_of.get(tok_text(u), -1), t) { return u }
+        i -= 1
+    }
+    return 0 - 1
 }
 
 // whether the function being read declares a name as token t's
@@ -321,6 +381,8 @@ let local_named(t:int64):bool {
 // the path Kelvin writes of the type named by token t: point.kind of
 // point__kind (#389), else its name
 let kelvin_name(t:int64):String {
+    let block_own:int64 = local_own_of.get(tok_text(t), -1)
+    if block_own >= 0 && !is_nested(t) { return tok_text(block_own) }   // a block's (#390)
     if !is_nested(t) { return tok_text(t) }
     let name:String = tok_text(t)
     var s:String = kelvin_name(outer_of.get(name, -1))
@@ -335,6 +397,25 @@ let kelvin_name(t:int64):String {
 // kelvinc's errors
 let record_name():int64 {
     let t:int64 = advance()
+    if nest_outer < 0 && local_next {                    // struct point { } in a block (#390): the block's
+        local_next = false
+        var i:int64 = local_types.count as int64 - 1
+        while i >= 0 && local_type_depths[i] == block_depth {
+            if same_text(local_own_of.get(tok_text(local_types[i]), -1), t) {
+                var m = $"'"
+                m += tok_text(t)
+                m += "' is defined in this block already"
+                parse_error(m.cstr)
+            }
+            i -= 1
+        }
+        let u:int64 = hidden_token(t)
+        let name:String = tok_text(u)
+        records_seen[name] = u
+        local_types += u
+        local_type_depths += block_depth
+        return u
+    }
     if nest_outer < 0 {
         let name:String = tok_text(t)
         let same:int64 = nested_of.get(name, -1)
@@ -740,6 +821,15 @@ let parse_bare_type():int64 {
             m += "' defined in it"
             parse_error(m.cstr)
         } else if nt == t && records_seen.get(name, -1) < 0 {
+            for e in ended_types {                       // (#390)
+                if same_text(local_own_of.get(tok_text(e), -1), t) {
+                    var m = $"'"
+                    m += &name
+                    m += "' is defined in a block that has ended: a type defined inside a function is known to the end of its block"
+                    parse_error(m.cstr)
+                    break
+                }
+            }
             for c, own in own_of {                       // as kelvinc says it of the first
                 if same_text(own, t) {
                     var m = $"'"
@@ -1213,6 +1303,8 @@ let parse_primary():int64 {
         if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") { return make_node(N_TYPE, t) }   // Bits(n) (#387)
+        let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
+        if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#390)
         if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {
             let nt:int64 = type_path(t)                  // point.kind.none, kind.none in point's method (#389)
             while pos < path_end { advance() }
@@ -1626,10 +1718,33 @@ let parse_switch():int64 {
     return n
 }
 
+let parse_struct():int64    // prototypes: a block defines types too (#390)
+let parse_enum():int64
+
 let parse_statement():int64 {
     let t:int64 = pos
     if at_word("switch") {
         return parse_switch()
+    }
+    if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
+        let is_struct = at_word("struct")                // a type defined in a block (#390): the block's from here
+        advance()                                        // on, written before the function in C
+        local_next = true
+        decls += is_struct ? parse_struct() : parse_enum()
+        local_next = false
+        return make_node(S_BLOCK, t)
+    }
+    if (at_word("var") || at_word("let")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ".") {
+        var r:int64 = type_path(pos + 1)                 // let pair.m() of a block's pair (#390)
+        while is_nested(r) { r = outer_of.get(tok_text(r), -1) }
+        if r != pos + 1 && local_own_of.get(tok_text(r), -1) >= 0 {
+            var m = $"a method of a type defined inside a function is not available yet: define "
+            let k:String = kelvin_name(type_path(pos + 1))
+            m += &k
+            m += " at the top level, or write a function that takes it"
+            parse_error(m.cstr)
+            return make_node(S_BLOCK, t)
+        }
     }
     if at_word("var") || at_word("let") {
         let is_let = 0
@@ -1708,6 +1823,7 @@ let parse_statement():int64 {
 let parse_block():int64 {
     let n:int64 = make_node(S_BLOCK, pos)
     expect("{")
+    block_depth += 1
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
@@ -1721,6 +1837,15 @@ let parse_block():int64 {
         skip_newlines()
     }
     expect("}")
+    block_depth -= 1
+    while local_types.count > 0 && local_type_depths[local_type_depths.count - 1] > block_depth {   // the block's own end (#390)
+        ended_types += local_types.pop()
+        local_type_depths.pop()
+    }
+    while local_enums.count > 0 && local_enum_depths[local_enum_depths.count - 1] > block_depth {
+        local_enums.pop()
+        local_enum_depths.pop()
+    }
     return n
 }
 
@@ -1735,6 +1860,8 @@ let head_method(i:int64):bool {
 let parse_function():int64 {
     let n:int64 = make_node(D_FN, advance())
     while locals_seen.count > 0 { locals_seen.pop() }    // (#389)
+    while ended_types.count > 0 { ended_types.pop() }    // (#390)
+    fn_tok = nodes[n].t
     expect("(")
     var last = -1
     var k:int64 = 0
@@ -1764,8 +1891,6 @@ let parse_function():int64 {
     if at_word("{") { set_b(n, parse_block()) }
     return n
 }
-
-let parse_enum():int64    // a prototype: a struct defines one inside (#389)
 
 let parse_struct():int64 {
     let n:int64 = make_node(D_STRUCT, record_name())
@@ -1808,19 +1933,29 @@ let parse_struct():int64 {
 // an enum with values (#215), where a case says the type of its value:
 // then the enum's flag is 1, and each case's ty its value's, or -1
 let parse_enum():int64 {
+    let local:bool = local_next || block_depth > 0       // its enumerators the block's (#390)
     let n:int64 = make_node(D_ENUM, record_name())
     expect("{")
     skip_newlines()
     var last = -1
+    var hidden:int64 = 0
     while !at_word("}") && !failed {
         let m:int64 = make_node(N_ID, advance())
         if at_word(":") {
             advance()
             set_ty(m, parse_type())
             nodes[n].flag = 1
-        } else if at_word("=") {
-            advance()
-            set_a(m, parse_expr())
+        } else {
+            if local {                                   // _kv_main_red, the block's (#390)
+                nodes[m].t = hidden_token(nodes[m].t)
+                local_enums += nodes[m].t
+                local_enum_depths += block_depth
+                hidden += 1
+            }
+            if at_word("=") {
+                advance()
+                set_a(m, parse_expr())
+            }
         }
         if last < 0 {
             nodes[n].a = m
@@ -1832,6 +1967,19 @@ let parse_enum():int64 {
         skip_newlines()
     }
     expect("}")
+    if nodes[n].flag == 1 && hidden > 0 {                // an enum with values: its cases keep their names
+        var m:int64 = nodes[n].a
+        while m >= 0 {
+            let own:int64 = local_own_of.get(tok_text(nodes[m].t), -1)
+            if own >= 0 && nodes[m].ty < 0 { nodes[m].t = own }
+            m = nodes[m].next
+        }
+        while hidden > 0 {
+            local_enums.pop()
+            local_enum_depths.pop()
+            hidden -= 1
+        }
+    }
     return n
 }
 

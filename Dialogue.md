@@ -7708,3 +7708,29 @@ literal, which kelvinc sees no type of, it is C's `char`, by
 in kelvinc's words. Details are provisional P402.
 
 There are 1089 tests, and all pass with clang and with gcc 15.
+
+### 435. Types defined in a function
+
+> struct, union and enum definitions inside a function.  is there a reason not to support it?
+
+**Claude** found no reason but one of C's: the functions kelvinc writes
+for each type, its text, ==, free and its Arrays, are of the top level,
+where a type C scopes to a block is unknown. So the C has it at the top
+level under a name of kelvinc's own, `_kv_main_pair`, before the
+function, while Kelvin knows it in the block alone, as #180 does a
+function. Claude proposed that it hide a type of the top level of its
+name, that a C enum's enumerators be the block's too, and that a method
+of such a type wait.
+
+> go for it
+
+**Claude** made it #390: a struct, a union or an enum among a block's
+statements is the block's from there to its end, its inner blocks and
+anonymous functions too, with its text and `.typename` its own name and
+types defined inside it as #389 has them. A C enum's enumerators are the
+block's, `_kv_main_red` in C. A name twice in a block, one used after its
+block ends, an array member counted by a local, and a method of such a
+type are kelvinc's errors. kc does the same, with kelvinc's errors.
+Details are provisional P402.
+
+There are 1094 tests, and all pass with clang and with gcc 15.
