@@ -547,7 +547,7 @@ static char *expect_ident(const char *what) {
 /* Kelvin's numeric types always say their size. C's own names for them
    are rejected with a suggestion. */
 static const char *base_words[] = {"i8",  "i16",  "i32", "i64",  "i128",     "u8",   "u16",    "u32",
-                                   "u64", "u128", "f32", "f64", "bool", "_Complex", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", "Bits", NULL};
+                                   "u64", "u128", "f32", "f64", "bool", "any", "cstr", "Bytes", "String", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "Task", "Iterator", "Range", "Bits", NULL};
 
 static const struct { const char *c, *kelvin; } dead_words[] = {
     {"char", "u8 (or i8)"},
@@ -571,7 +571,7 @@ static bool is_base_word(Token *t) {
 
 /* built-in types that can be used as converters: i32(x), f64(n), bool(v) */
 static bool is_converter(Token *t) {
-    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "_Complex") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator") && !is_kw(t, "Range") && !is_kw(t, "Bits");
+    return is_base_word(t) && !is_kw(t, "any") && !is_kw(t, "cstr") && !is_kw(t, "Bytes") && !is_kw(t, "String") && !is_kw(t, "Array") && !is_kw(t, "Dictionary") && !is_kw(t, "Set") && !is_kw(t, "Optional") && !is_kw(t, "Result") && !is_kw(t, "IO") && !is_kw(t, "Task") && !is_kw(t, "Iterator") && !is_kw(t, "Range") && !is_kw(t, "Bits");
 }
 
 /* a type whose name before `(` makes a value: a converter, or Bits (#387) */
@@ -980,8 +980,7 @@ static int type_shape_end(int i) {
         return -1; /* String is shelved (#22), but read as a type to say so */
     }
     for (i++;;) {
-        if (kelvin_for_c_word(&toks[i]) || is_qualifier(&toks[i]) || is_p(&toks[i], "^") ||
-            is_kw(&toks[i], "_Complex"))
+        if (kelvin_for_c_word(&toks[i]) || is_qualifier(&toks[i]) || is_p(&toks[i], "^"))
             i++;
         else if (is_p(&toks[i], "["))
             i = skip_group(i);
@@ -1485,7 +1484,7 @@ static Type *parse_type_in(TypeContext ctx) {
         base->name = strfmt("%s %s", kw, expect_ident("a tag name"));
     } else {
         /* one built-in type name, or a C typedef name such as FILE or
-           size_t from an imported header; f32 and f64 may be _Complex */
+           size_t from an imported header */
         if (peek()->kind == TK_IDENT && !strcmp(peek()->text, "Self") && self_scope && self_spelled) {
             /* Self of a type with no tag (#140): its spelling */
             advance();
@@ -1511,7 +1510,7 @@ static Type *parse_type_in(TypeContext ctx) {
             parse_qualifiers(t);
             return parse_type_suffixes(t, ctx);
         }
-        if (name->kind != TK_IDENT && (!is_base_word(name) || is_kw(name, "_Complex")))
+        if (name->kind != TK_IDENT && !is_base_word(name))
             error_at(name->pos, "expected a type, found %s", desc(name));
         if (is_kw(name, "IO"))
             require_module("IO", name->pos); /* the type too (#144) */
@@ -1549,8 +1548,6 @@ static Type *parse_type_in(TypeContext ctx) {
         parse_qualifiers(base);
         if (is_kw(name, "any") && !is_p(peek(), "^"))
             error_at(name->pos, "'any' exists only as 'any^', C's void *");
-        if ((is_kw(name, "f32") || is_kw(name, "f64")) && accept_kw("_Complex"))
-            base->name = strfmt("%s _Complex", name->text);
     }
     parse_qualifiers(base);
     return parse_type_suffixes(base, ctx);
@@ -4725,7 +4722,7 @@ static Expr *parse_primary(void) {
                 Buf type = {0};
                 buf_puts(&type, t->text);
                 for (int i = cur + 1;;) {
-                    if (is_qualifier(&toks[i]) || is_kw(&toks[i], "_Complex")) {
+                    if (is_qualifier(&toks[i])) {
                         buf_printf(&type, " %s", toks[i++].text);
                     } else if (is_p(&toks[i], "^")) {
                         buf_puts(&type, toks[i++].text);
@@ -5784,8 +5781,7 @@ static int ref_kind(Type *t) {
     if (!strncmp(n, "struct ", 7) || !strncmp(n, "union ", 6) || !strncmp(n, "enum ", 5))
         return 0;
     for (int i = 0; base_words[i]; i++)
-        if (!strcmp(n, base_words[i]) || (!strncmp(n, base_words[i], strlen(base_words[i])) &&
-                                           !strcmp(n + strlen(base_words[i]), " _Complex")))
+        if (!strcmp(n, base_words[i]))
             return 0;
     return -1;
 }
@@ -5879,8 +5875,7 @@ static char type_class(Type *t, Decl **record) {
         }
         return 'c';
     }
-    if (is_base_word(&(Token){.kind = TK_KEYWORD, .text = (char *)n}) || !strcmp(n, "f32 _Complex") ||
-        !strcmp(n, "f64 _Complex"))
+    if (is_base_word(&(Token){.kind = TK_KEYWORD, .text = (char *)n}))
         return 'n'; /* bool, complex */
     return 'u';     /* a C typedef name */
 }
@@ -7576,7 +7571,7 @@ static char *power_operand_text(Expr *x) {
    literals are worked out here, exactly, an i64 as a literal is, so
    2 ** 40 is 1099511627776. Of
    a floating-point number, C's pow of the operands converted as '*'
-   converts them, two literals worked out here too; of C's _Complex, cpow; of a struct, the operator it
+   converts them, two literals worked out here too; of a struct, the operator it
    defines, as c64's of <math> */
 static Expr *power_of(Expr *a, Expr *b, Pos pos) {
     Expr *e = new_expr(E_BINARY, pos);
@@ -7590,13 +7585,10 @@ static Expr *power_of(Expr *a, Expr *b, Pos pos) {
         return resolve_operator(e, "**", a, b);
     Expr *sides[2] = {a, b};
     char cls[2] = {ca, cb};
-    bool complex = false;
     for (int k = 0; k < 2; k++) {
         Type *t = power_type(sides[k]);
-        bool cx = t && t->kind == T_BASE && strstr(t->name, "_Complex");
-        complex = complex || cx;
         bool flag = sides[k]->is_bool || seen_bool(sides[k]) || bool_shape(sides[k]);
-        if (flag || (cls[k] != 'i' && cls[k] != 'f' && !cx)) {
+        if (flag || (cls[k] != 'i' && cls[k] != 'f')) {
             if (!flag && cls[k] == 'u' && !t)
                 error_at(sides[k]->pos, "'**' takes numbers, and kelvinc cannot see this one's type: convert it, as "
                                         "in 'x as i64' or 'x as f64'");
@@ -7608,18 +7600,6 @@ static Expr *power_of(Expr *a, Expr *b, Pos pos) {
     x->paren = true;
     x->a = a; /* the base, and the exponent its one argument */
     list_push(&x->items, b);
-    if (complex) { /* C's _Complex: cpow, of f64 unless each is f32's */
-        bool f32 = true;
-        for (int k = 0; k < 2; k++) {
-            Type *t = power_type(sides[k]);
-            if (cls[k] == 'i')
-                continue;
-            f32 = f32 && t && t->kind == T_BASE && !strncmp(t->name, "f32", 3);
-        }
-        x->op = "pow_complex";
-        x->type = base_type(f32 ? "f32 _Complex" : "f64 _Complex", pos);
-        return x;
-    }
     unsigned long long im;
     bool ineg;
     if ((ca == 'f' || cb == 'f') && (power_float_literal(a) || int_literal_value(a, &im, &ineg)) &&
@@ -10738,7 +10718,7 @@ static void reject_c_declaration(void) {
             return;
         type = strfmt("%s %s", toks[i].text, toks[i + 1].text);
         i += 2;
-    } else if (toks[i].kind == TK_IDENT || (is_base_word(&toks[i]) && !is_kw(&toks[i], "_Complex"))) {
+    } else if (toks[i].kind == TK_IDENT || is_base_word(&toks[i])) {
         static const char *statement_words[] = {"__attribute__", "_Pragma", NULL};
         for (int k = 0; statement_words[k]; k++)
             if (!strcmp(toks[i].text, statement_words[k]))
@@ -10747,10 +10727,6 @@ static void reject_c_declaration(void) {
             return;
         type = toks[i].text;
         i++;
-        if (is_kw(&toks[i], "_Complex")) {
-            type = strfmt("%s _Complex", type);
-            i++;
-        }
     } else {
         return;
     }
@@ -13921,7 +13897,7 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
     if (spelled) {
         /* the receiver is the type of its spelling */
     } else if (recv->kind == TK_KEYWORD) {
-        if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
+        if (is_kw(recv, "any") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have methods", recv->text);
         d->recv = base_type(recv->text, recv->pos);
     } else {
@@ -14016,7 +13992,7 @@ static Type *attribute_receiver(Token *recv, Type *spelled, char **recv_name) {
     }
     *recv_name = recv->text;
     if (recv->kind == TK_KEYWORD) {
-        if (is_kw(recv, "any") || is_kw(recv, "_Complex") || is_kw(recv, "cstr"))
+        if (is_kw(recv, "any") || is_kw(recv, "cstr"))
             error_at(recv->pos, "'%s' cannot have attributes", recv->text);
         if (is_kw(recv, "IO"))
             require_module("IO", recv->pos);
@@ -14509,7 +14485,7 @@ static void parse_typealias(void) {
         end_statement();
         return;
     }
-    bool base = is_base_word(target) && !is_kw(target, "any") && !is_kw(target, "_Complex");
+    bool base = is_base_word(target) && !is_kw(target, "any");
     if (!base && !(target->kind == TK_IDENT && record_named(target->text)))
         error_at(target->pos, "'%s' is not a type kelvinc sees: an alias is of a struct, union or enum with values "
                               "declared before it, or of a built-in type",

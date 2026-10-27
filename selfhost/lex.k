@@ -177,6 +177,9 @@ let lex_range(from:int64, to:int64, file:int64) {
                 lex_error(file, line, m.cstr)
             }
             add_tok(T_ID, s, i - s, line, file)
+            if tok_is(toks.count as int64 - 1, "_Complex") {   // C99's, left out on purpose (#404), as kelvinc says it
+                lex_error(file, line, "'_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 or c32, Kelvin's own")
+            }
         } else if is_digit(c) {
             let s:int64 = i
             let hex = c == '0' && (code_at(i + 1) == 'x' || code_at(i + 1) == 'X')

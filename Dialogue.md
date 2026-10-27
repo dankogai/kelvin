@@ -7945,3 +7945,17 @@ error that names `[(i64):i64](4)`. Two older tests took the new messages.
 versusC.md's Not available yet is empty now. Details are provisional P415.
 
 There are 1138 tests, and all pass with clang and with gcc 15.
+
+### 449. _Complex, unsupported
+
+> unsupport `_Complex`. error if the compiler encounters this cursed word.  IMHO it was one of the worst feature of C99.  We've shown we could do much better than that in `<math>`.
+
+**Claude** made it #404: `_Complex` is an error wherever Kelvin is
+written, naming `<math>`'s `c64` and `c32`, and so are GNU's `__complex__`
+and `__complex`. kelvinc's `f32 _Complex` and `f64 _Complex`, with `cpow`
+for their `**`, are gone; `<math>` never used them. A value whose type
+only C sees, a header's typedef of one, still prints as C hands it over.
+Two tests moved off the word, and kc says the same. Details are
+provisional P416.
+
+There are 1140 tests, and all pass with clang and with gcc 15.

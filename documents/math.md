@@ -58,7 +58,8 @@ let main():int32 {
 ## Complex numbers: `c64` and `c32`
 
 - **The types**: `c64`, with `real` and `imag` of `f64`, and `c32`,
-  with `f32` parts, structs without C's `_Complex`; `complex64` and
+  with `f32` parts, structs: C99's `_Complex` is left out on purpose
+  (#404), an error that names these; `complex64` and
   `complex32` are their aliases (#150), the same types by the size of
   the whole.
   - `c128` waits for `f128`.

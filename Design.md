@@ -435,6 +435,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 401 | Duff's device left out on purpose: a case stays at the top of the switch's block (#63), as in Swift; what it does is written with `fallthrough` (#386), a cascade for the remainder, then whole blocks in a loop, and `cc -O2` unrolls a loop itself | versusC.md's Left out on purpose; flow-controls.md's example | a cascade, then a loop | 2026-10-28 |
 | 402 | A statement `name(x)` or `name(x) = v` of a name kelvinc does not see, its one argument shaped as a declarator, `x`, `x^`, `x[i]`, is `if (1) name(x);` in C, where a declaration is no statement: a call and a macro are as before, and a C typedef there, which C would read as a declaration shadowing `x`, is C's error; Kelvin's functions, variables and `print` as written; kelvinc and kc | Stmt c_guard, declaration_shaped | `if (1) free(buf);` | 2026-10-28 |
 | 403 | Function types wherever a type goes: `[(i64):i64](N)`, as already; `Array`, `Set` and `Dictionary` of them, their element `__typeof__(...)` in C; a pointer to one, `((i64):i64)^`, as kelvinc prints `&f`'s type; `typealias op = (i64):i64`, `op^` its pointer; the type lookahead reads `(T):R` and `((T):R)^`; C's order, `((i64):i64)[4]`, and an ungrouped `(T)^` errors that name the spellings; versusC.md's Not available yet empty | elem_type, fn_typed, fn_aliases, fn_shape_end | `Dictionary<String, (i64):i64>` | 2026-10-28 |
+| 404 | `_Complex` unsupported: C99's complex type is left out on purpose, `<math>`'s `c64` and `c32` Kelvin's own; the word is an error that names them, as GNU's `__complex__` and `__complex` are; kelvinc's `f32 _Complex` and `f64 _Complex`, and `cpow` for their `**` (#380), are gone; a value whose type only C sees, a header's typedef of one, still prints | the lexer's error | `let z = c64(1.0, 2.0)` | 2026-10-28 |
 
 Notes:
 
@@ -996,6 +997,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (404) Agreed details: "unsupport `_Complex`. error if the compiler
+  encounters this cursed word. IMHO it was one of the worst feature of
+  C99. We've shown we could do much better than that in `<math>`."
+  - The lexer refuses `_Complex` wherever Kelvin is written, naming
+    `<math>`'s `c64` and `c32`; GNU's `__complex__` and `__complex`
+    name them too. `#inline C` is C's, and keeps it.
+  - kelvinc's `f32 _Complex` and `f64 _Complex`, their C names, text and
+    template sizes, and `cpow` for their `**` (#380), are removed.
+  - The prelude and runtime still print a value of C's `_Complex` that
+    only C sees, a header's typedef of one, `1.0+2.0i`: that is C's,
+    handed over.
+  - tests/run/cstr.k's member is the header's `dc_t` now, and
+    power_complex.k is of `c64` and `c32` alone.
 
 - (403) Agreed details: "next on the Not available yet list: an array of
   functions. What do you recommend?" Claude found it partly stale:
@@ -5471,6 +5486,7 @@ says "as agreed".
 | P413 | Details of #401 | documents/versusC.md, flow-controls.md; tests/run/duff_fallthrough.k | — |
 | P414 | Details of #402 | src/kelvin.h: Stmt c_guard; src/parser.c: declarator_like, declaration_shaped; src/codegen.c: S_EXPR's if (1); selfhost/gen.k: declarator_like, declaration_shaped, S_EXPR's and S_ASSIGN's if (1); documents/grammar.md, versusC.md; tests/run/c_call_guard.k; tests/error/typedef_call_statement.k | — |
 | P415 | Details of #403 | src/codegen.c: has_fn_type, elem_type in KV_ARRAY, KV_DICT and KV_SET; src/parser.c: fn_typed, fn_aliases, fn_alias, parse_fn_type's grouped pointer and errors, parse_type_in's alias, starts_type, fn_shape_end, parse_typealias of a function type; documents/functions.md, arrays.md, grammar.md, versusC.md; tests/run/function_type_containers.k; tests/error/fn_array_c_order.k, and fn_type_pointer.k and type_function_array.k anew | — |
+| P416 | Details of #404 | src/lexer.c: `_Complex`'s error, `__complex__`'s and `__complex`'s hints, the keyword gone; src/parser.c: `_Complex` gone from the types, the converters, the receivers, the aliases, the declaration hints and `**`; src/codegen.c: its C names, text and sizes, and pow_complex; selfhost/lex.k: the same error; documents/versusC.md, c-interfaces.md, floatingpoint.md, properties.md, operators.md, math.md, README.md; tests/run/cstr.k, power_complex.k; tests/error/c_decl_complex.k, complex_left_out.k, complex_gnu.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -78,7 +78,7 @@ to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
     program, and `0 ** 0` is 1. See [integers.md](integers.md).
   - Of a floating-point number it is C's `pow`: see
     [floatingpoint.md](floatingpoint.md); of `c64` and `c32`, `<math>`'s
-    operator, and of C's `_Complex`, `cpow`.
+    operator.
   - `x **= y` is `x = x ** y`.
 - **`a..<b` and `a...b`** are ranges, in `for i in` (#28) and as values,
   `Range<T>`, with `a...`, `..<b` and `...b` (#373): see

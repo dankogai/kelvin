@@ -24,7 +24,7 @@ static const char *keywords[] = {
     "inline", "int", "long", "register", "restrict", "return", "short",
     "signed", "sizeof", "static", "struct", "switch", "typedef", "union",
     "unsigned", "void", "volatile", "while", "_Alignas", "_Alignof",
-    "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary", "_Noreturn",
+    "_Atomic", "_Bool", "_Generic", "_Imaginary", "_Noreturn",
     "_Static_assert", "_Thread_local", NULL,
 };
 
@@ -40,7 +40,7 @@ static const struct { const char *word, *hint; } foreign_keywords[] = {
     {"__auto_type", NULL}, {"__label__", NULL}, {"_Float16", NULL}, {"_Float128", NULL},
     {"__float128", NULL}, {"__fp16", NULL}, {"__bf16", NULL}, {"_Decimal32", NULL},
     {"_Decimal64", NULL}, {"_Decimal128", NULL}, {"__signed__", NULL}, {"__signed", NULL},
-    {"__complex__", NULL}, {"__complex", NULL},
+    {"__complex__", "c64 or c32 of #import <math> (#404)"}, {"__complex", "c64 or c32 of #import <math> (#404)"},
     /* GNU C's assembly, left out on purpose (#399): C's own, in #inline C */
     {"__asm__", "#inline C { __asm__ __volatile__(\"...\"); }, as C"},
     {"__asm", "#inline C { __asm__ __volatile__(\"...\"); }, as C"},
@@ -799,6 +799,9 @@ Token *lex(const char *file, const char *src, int *ntoks) {
             for (int i = 0; keywords[i]; i++)
                 if (!strcmp(t->text, keywords[i]))
                     t->kind = TK_KEYWORD;
+            if (!strcmp(t->text, "_Complex")) /* C99's, left out on purpose (#404) */
+                error_at(pos, "'_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 "
+                              "or c32, Kelvin's own");
             /* the full names of the number types (#151): int64 is i64, uint8 u8,
                float32 f32, each the keyword by another name */
             static const struct { const char *full, *name; } full_names[] = {

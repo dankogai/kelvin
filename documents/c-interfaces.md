@@ -160,8 +160,11 @@ let main():int32 {
 - A Kelvin function may overload a C function of the same name, which
   still takes the numbers: `let sqrt(v:vec):f64` beside C's `sqrt`
   ([functions.md](functions.md)).
-- C's `_Complex` types are `f32 _Complex` and `f64 _Complex`; Kelvin's
-  own complex numbers are structs ([modules.md](modules.md)).
+- C99's `_Complex` is left out on purpose (#404): the word is an error
+  that names `<math>`'s `c64` and `c32`, Kelvin's own complex numbers,
+  structs ([math.md](math.md)).
+  - A value whose type only C sees, a header's typedef of one, still
+    prints, `1.0+2.0i`, as C hands it over.
 
 ### C typedef names
 

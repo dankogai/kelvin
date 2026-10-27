@@ -27,7 +27,7 @@ the design decisions, numbered `#N` throughout, are in
   conversions of any number, numbers from text, powers, `**`, `b.pow(e)`
   and `b.pow(e, m)` (#380).
 - [floatingpoint.md](floatingpoint.md): `float32` and `float64`, their
-  literals, reading, printing and text, `x ** y`, C's complex types.
+  literals, reading, printing and text, `x ** y`.
 - [bool.md](bool.md): `bool`, `true` and `false`, where a `bool` comes
   from, conditions, converting.
 - [bits.md](bits.md): `Bits`, 64 bits in a `u64`, each a `bool` by its

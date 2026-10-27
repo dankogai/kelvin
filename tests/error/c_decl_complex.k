@@ -1,4 +1,4 @@
-// error: declarations are written 'var name:type', as in 'var z:f64 _Complex'
+// error: '_Complex' is C99's complex type, left out on purpose: #import <math> and write c64 or c32, Kelvin's own
 #import <stdio.h> as C
 #import "include_types.h" as C
 struct pt { x:int32; y:int32; };

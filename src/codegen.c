@@ -168,7 +168,6 @@ static const char *c_type_name(const char *name) {
         {"u8", "uint8_t"},  {"u16", "uint16_t"},  {"u32", "uint32_t"},  {"u64", "uint64_t"},
         {"i128", "__int128"}, {"u128", "unsigned __int128"},
         {"f32", "float"},     {"f64", "double"},
-        {"f32 _Complex", "float _Complex"}, {"f64 _Complex", "double _Complex"},
         {"any", "void"}, /* any^ is void * */
         {"Bytes", "kv_bytes"}, /* an owner (#54) */
         {"String", "kv_string"}, /* codepoints on a Bytes (#55) */
@@ -1491,9 +1490,6 @@ static char *expr_bare(Expr *e) {
             if (!strcmp(e->op, "pow_float"))
                 return !strcmp(e->type->name, "f32") ? strfmt("__builtin_powf((float)(%s), (float)(%s))", a, b)
                                                      : strfmt("__builtin_pow((double)(%s), (double)(%s))", a, b);
-            if (!strcmp(e->op, "pow_complex"))
-                return strfmt("%s(%s, %s)", !strcmp(e->type->name, "f32 _Complex") ? "__builtin_cpowf" : "__builtin_cpow",
-                              a, b);
             if (!strcmp(e->op, "pow_mod"))
                 return strfmt("(%s)kv_pow_mod((__int128)(%s), (__int128)(%s), (__int128)(%s))",
                               e->type ? decl(e->type, "") : strfmt("__typeof__((%s) %% (%s))", a,
@@ -3341,7 +3337,6 @@ static char *text_bound(Type *t, const char *lv) {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
         {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "4"},  {"Bits", "72"},
-        {"f32 _Complex", "31"},         {"f64 _Complex", "49"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
         if (!strcmp(t->name, scalars[i].type))
@@ -3446,7 +3441,7 @@ static char *text_writer(Type *t, const char *lv) {
         {"i8", "kv_cstr_i64"},    {"i16", "kv_cstr_i64"},  {"i32", "kv_cstr_i64"},  {"i64", "kv_cstr_i64"},
         {"u8", "kv_cstr_u64"},    {"u16", "kv_cstr_u64"},  {"u32", "kv_cstr_u64"},  {"u64", "kv_cstr_u64"},
         {"i128", "kv_cstr_i128"}, {"u128", "kv_cstr_u128"}, {"f32", "kv_cstr_f32"}, {"f64", "kv_cstr_f64"},
-        {"bool", "kv_cstr_bool"}, {"f32 _Complex", "kv_cstr_cf"}, {"f64 _Complex", "kv_cstr_cd"},
+        {"bool", "kv_cstr_bool"},
         {"Bits", "kv_cstr_bits"}, /* Bits(0b...) (#387) */
     };
     for (size_t i = 0; i < sizeof direct / sizeof direct[0]; i++)

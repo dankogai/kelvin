@@ -131,7 +131,7 @@ Each document says so under its title. In short:
 | [grammar.md](grammar.md) | declarations, type inference, quoting text (`"..."`, `` `...` ``, `"""..."""`, `$"..."`), expressions, lines and `;`, assignment as a statement, C habits kelvinc catches |
 | [operators.md](operators.md) | every operator, C's precedence, what moved: `^`, `~`, `&`, `as`, `:=`, `p++`, ranges |
 | [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
-| [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text, C's complex types |
+| [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text |
 | [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
 | [bits.md](bits.md) | `Bits`, 64 bits in a `u64`, `bv[n]` a `bool`, `.flip(n)`, the bitwise operators, `!!n` (#387) |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
@@ -246,6 +246,13 @@ These C features stay out, as decided (#294):
   - What it does is written with `fallthrough` (#386): the remainder by
     a cascade of cases, then whole blocks in a loop; see
     [flow-controls.md](flow-controls.md).
+- **`_Complex`** (#404), C99's complex type: `<math>`'s `c64` and `c32`
+  are Kelvin's own, structs with their operators, functions and methods,
+  `z ** w` too.
+  - The word is an error that names them, and so are GNU's
+    `__complex__` and `__complex`.
+  - A value whose type only C sees, a header's typedef of one, still
+    prints, `1.0+2.0i`.
 - **`_Generic`** (#397): a function of one name already takes several
   types, by its overloads, `let f(x:i64)` and `let f(x:f64)` (#41), and
   so do methods, operators and the built-in properties.

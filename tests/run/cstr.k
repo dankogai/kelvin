@@ -6,7 +6,7 @@ struct segment { from:struct point; to:struct point; tag:cstr; };
 struct poly { name:uint8^; corners:[struct point](3); grid:[[uint8](2)](2); scale:float64; };
 union number { i:int32; f:float32; };
 struct buf { n:int32; a:[int32]; };            // flexible array member
-struct mixed { t:ticks_t; who:name_t; o:struct opaque; z:float64 _Complex; on:bool; next:struct mixed^; };
+struct mixed { t:ticks_t; who:name_t; o:struct opaque; z:dc_t; on:bool; next:struct mixed^; };   // dc_t: C's double _Complex, which Kelvin leaves to C (#404)
 struct named { si:int8^; text:cstr; };
 struct labeled { label:label_t; full:full_t; n:int32; };
 struct image { w:int32; h:int32; px:[uint8](1048576); };   // its text would be megabytes

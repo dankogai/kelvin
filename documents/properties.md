@@ -136,8 +136,9 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     Floats are as `print` shows them (#258, #259), every digit with a
     point: `0.1.cstr` is `0.10000000000000001`, `1.0.cstr` is `1.0`.
   - **`bool`** is `true` or `false`.
-  - **C's `_Complex` numbers** are `1.0+2.0i`; `c64` and `c32`
-    of modules/math.k are structs, `{real: 1.0, imag: 2.0}`.
+  - **`c64` and `c32`** of modules/math.k are structs,
+    `{real: 1.0, imag: 2.0}`; a value of C's `_Complex`, which only C
+    sees, as a header's typedef of one, is `1.0+2.0i` (#404).
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
     addresses (`nullptr` for null, #260), but a function has no text (#31).

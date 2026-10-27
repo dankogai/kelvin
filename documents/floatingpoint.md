@@ -21,15 +21,14 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 |--------|---|
 | `f32` `f64` | `float`, `double` |
 | `float32` `float64` | the same, by their full names (#151) |
-| `f32 _Complex` `f64 _Complex` | C's complex types |
 
 - **The types:** `f32` and `f64`, also by their full names `float32`
   and `float64` (#151), the same type by another name, `var x:float64`,
   `float32(n)`, `float64.pi`.
   - C's `float` and `double` are errors that suggest the Kelvin name.
   - `long double` has no Kelvin spelling yet, and `f128` waits too.
-  - `f32 _Complex` and `f64 _Complex` are C's complex types; Kelvin's
-    own `c64` and `c32` are in modules/math.k, with the
+  - C99's `_Complex` is left out on purpose (#404); Kelvin's own
+    complex numbers, `c64` and `c32`, are in modules/math.k, with the
     functions of `math.h` as functions and methods, `x.sin()`, and the
     constants as attributes of the type, `f64.pi` (#148); see
     [modules.md](modules.md).
@@ -132,8 +131,7 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
   - Two literals are worked out by kelvinc, with C's `pow`, so a
     global's value may be one, `let root2:f64 = 2.0 ** 0.5`.
   - `x **= y` is `x = x ** y`.
-  - Of C's `_Complex` it is `cpow`; of `c64` and `c32`, `<math>`'s
-    `**` ([math.md](math.md)).
+  - Of `c64` and `c32` it is `<math>`'s `**` ([math.md](math.md)).
 
 ## Properties and methods
 
