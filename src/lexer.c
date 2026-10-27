@@ -18,7 +18,7 @@
 static const char *keywords[] = {
     "as", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
     "f32", "f64", "bool", "true", "false", "String", "any", "nullptr", "cstr", "Bytes", "uchr", "Array", "Dictionary", "Set", "Optional", "Result", "IO", "OS", "SYS", "try", "let", "var",
-    "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits", "static_assert", "alignof", "alignas",
+    "Task", "async", "await", "Iterator", "Range", "fallthrough", "Bits", "static_assert", "alignof", "alignas", "typeof",
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if",
     "inline", "int", "long", "register", "restrict", "return", "short",
@@ -34,8 +34,9 @@ static const char *keywords[] = {
 static const struct { const char *word, *hint; } foreign_keywords[] = {
     {"__extension__", NULL}, {"__real__", NULL}, {"__real", NULL}, {"__imag__", NULL},
     {"__imag", NULL}, {"__alignof__", "alignof(T) or x.align"}, {"__alignof", "alignof(T) or x.align"},
-    {"__typeof__", NULL}, {"__typeof", NULL}, {"typeof", NULL}, {"typeof_unqual", NULL},
-    {"__typeof_unqual__", NULL}, {"_BitInt", NULL}, {"__int128", "i128 or u128"},
+    {"__typeof__", "typeof(x) or x.type"}, {"__typeof", "typeof(x) or x.type"},
+    {"typeof_unqual", "x.type, whose own qualifiers do not come along"},
+    {"__typeof_unqual__", "x.type, whose own qualifiers do not come along"}, {"_BitInt", NULL}, {"__int128", "i128 or u128"},
     {"__auto_type", NULL}, {"__label__", NULL}, {"_Float16", NULL}, {"_Float128", NULL},
     {"__float128", NULL}, {"__fp16", NULL}, {"__bf16", NULL}, {"_Decimal32", NULL},
     {"_Decimal64", NULL}, {"_Decimal128", NULL}, {"__signed__", NULL}, {"__signed", NULL},

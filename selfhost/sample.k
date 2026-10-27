@@ -751,6 +751,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     alignas(32) var lane:[uint8](16)                     // alignas (#396): C's _Alignas
     lane[0] = 9
     println(lane[0], " ", lane.count)
+    var lane2:typeof(tally_r) = 40                      // typeof(x) (#398), C23's
+    lane2 += 2
+    println(lane2, " ", 7 as typeof(int64))
     println(cube(3), " ", side.area(), " ", tally_r)
     let hi_bytes:cstr := "hi"
     for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)

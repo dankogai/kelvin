@@ -175,6 +175,7 @@ const samples = [
     ['switch n { case 1: fallthrough }', [['switch', 'keyword.control'], ['case', 'keyword.control'], ['fallthrough', 'keyword.control']]],
     ['static_assert(n == 1)', [['static_assert', 'keyword.control']]],
     ['let a = alignof(f64)', [['alignof', 'keyword.operator.word']]],
+    ['var b:typeof(a) = 1', [['typeof', 'keyword.operator.word']]],
     ['alignas(16) var buf:[u8](64)', [['alignas', 'storage.modifier']]],
     ['let t:Task<int64> = async fib(n); println(await t)', [['Task', 'support.type'], ['async', 'keyword.control'], ['await', 'keyword.control']]],
     ['let it:Iterator<int64> = Iterator(0, step)', [['Iterator', 'support.type']]],

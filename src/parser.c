@@ -881,6 +881,8 @@ static int type_shape_end(int i) {
     int start = i;
     while (is_qualifier(&toks[i]))
         i++;
+    if (is_kw(&toks[i], "typeof") && is_p(&toks[i + 1], "(")) /* typeof(x) (#398) */
+        return type_suffix_end(skip_group(i + 1));
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "[")) /* $[T], an Array<T> (#64) */
         return type_suffix_end(skip_group(i + 1));
     if (is_p(&toks[i], "$") && is_p(&toks[i + 1], "{")) /* ${K: V}, a Dictionary<K, V> (#70) */
@@ -981,7 +983,7 @@ static bool is_qualifier(Token *t) { return is_kw(t, "const") || is_kw(t, "volat
 static bool starts_type(Token *t) {
     reject_c_int_name(t);
     return is_base_word(t) || is_qualifier(t) || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum") ||
-           is_p(t, "["); /* [T], an array (#49) */
+           is_kw(t, "typeof") || is_p(t, "["); /* [T], an array (#49); typeof(x) (#398) */
 }
 
 static void parse_qualifiers(Type *t) {
@@ -1103,6 +1105,8 @@ static void parse_case_label(Stmt *s);
 static void check_switch(Stmt *s);
 static Type *parse_type(void);
 static Type *parse_typeof(int dot);
+static Type *parse_c_typeof(void);
+static char *raw_text(int i, int end);
 
 /* Does e name a local or a parameter, which means something else, or
    nothing, in another scope? (#32) */
@@ -1391,8 +1395,8 @@ static Type *parse_type_in(TypeContext ctx) {
         return parse_type_suffixes(t, ctx);
     }
     int dot = typeof_at(cur);
-    if (dot >= 0) { /* v.type (#34) */
-        Type *t = parse_typeof(dot);
+    if (dot >= 0 || is_kw(peek(), "typeof")) { /* v.type (#34), typeof(v) (#398) */
+        Type *t = dot >= 0 ? parse_typeof(dot) : parse_c_typeof();
         Type q = {0};
         q.is_const = base->is_const;
         q.is_volatile = base->is_volatile;
@@ -5666,8 +5670,8 @@ static char *kelvin_type(Type *t) {
         }
         return strfmt("%s%s%s", q, *q ? " " : "", n);
     }
-    case T_TYPEOF:
-        return strfmt("%s%s%s.type", q, *q ? " " : "", t->name);
+    case T_TYPEOF: /* v.type, or typeof(v) as written (#398) */
+        return strfmt(strncmp(t->name, "typeof(", 7) ? "%s%s%s.type" : "%s%s%s", q, *q ? " " : "", t->name);
     case T_PTR: /* a function type under ^ in parentheses, as its result takes the ^ */
         if (t->cstr) /* immutable text (#52) */
             return strfmt("cstr%s%s", *q ? " " : "", q);
@@ -5913,6 +5917,56 @@ static Type *parse_typeof(int dot) {
     t->name = text.buf;
     t->of = v;
     t->elem = seen; /* for kelvinc's own checks */
+    t->size_local = names_local(v);
+    return t;
+}
+
+/* typeof(x) or typeof(T) (#398), C23's, as C has it: x's type with its own
+   qualifiers, a let's const too, which v.type leaves; T itself */
+static Type *parse_c_typeof(void) {
+    Token *kw = advance();
+    if (paren_type_ahead(true)) {
+        advance();
+        Type *t = parse_type();
+        expect_p(")");
+        return t;
+    }
+    if (!is_p(peek(), "("))
+        error_at(kw->pos, "typeof takes a value or a type in parentheses, as C23's: typeof(x)");
+    advance();
+    int start = cur;
+    Expr *v = parse_conditional();
+    int end = cur;
+    expect_p(")");
+    Type *seen = value_type(v);
+    Type *t = xcalloc(1, sizeof *t);
+    if (seen && !type_has_expr(seen)) {
+        *t = *seen; /* a copy, which qualifiers and suffixes may change */
+        t->pos = kw->pos;
+        /* a let is const in C, but an owner's, whose free takes it (#54) */
+        bool let = v->kind == E_IDENT && let_kind(v->text) != LET_NONE && !is_owner(seen);
+        Type *at = t;
+        while (let && at->kind == T_ARRAY) { /* as C has it, a const array is of const elements */
+            Type *e = xcalloc(1, sizeof *e);
+            *e = *at->elem;
+            at->elem = e;
+            at = e;
+        }
+        if (let)
+            at->is_const = true;
+        return t;
+    }
+    if (is_function_designator(v)) { /* a function is a value */
+        Expr *a = new_expr(E_PREFIX, v->pos);
+        a->op = "&";
+        a->a = v;
+        v = a;
+    }
+    t->kind = T_TYPEOF;
+    t->pos = kw->pos;
+    t->name = strfmt("typeof(%s)", raw_text(start, end));
+    t->of = v;
+    t->elem = seen;
     t->size_local = names_local(v);
     return t;
 }

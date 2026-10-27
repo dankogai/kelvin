@@ -7834,3 +7834,18 @@ says so, in kelvinc and kc, in place of "expected an expression".
 Details are provisional P409.
 
 There are 1124 tests, and all pass with clang and with gcc 15.
+
+### 443. typeof, C-compatible
+
+> next on the Not available yet list: typeof.  keep it. C-compatible
+
+**Claude** made `typeof` #398, as C23 has it: `typeof(x)` is `x`'s type
+with its own qualifiers, a `let`'s `const` too, which `x.type` leaves,
+of any expression, C's `__typeof__` where kelvinc does not see the type;
+`typeof(T)` is `T`. It goes where a type goes, in `sizeof`, `as` and
+compound literals. `typeof x`, `__typeof__` and `typeof_unqual` are
+errors that name the Kelvin spellings. kc reads `typeof(T)` and
+`typeof(x)` of a variable whose type is written. Details are provisional
+P410.
+
+There are 1129 tests, and all pass with clang and with gcc 15.

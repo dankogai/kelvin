@@ -88,6 +88,14 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   and **`n.uchr`** an integer's codepoint (#56); `n.utf32` of a number
   is an error that names `.uchr` (#297); see
   [ownership.md](ownership.md).
+- **`typeof(x)`** (#398), C23's, is `x`'s type as C has it, with its own
+  qualifiers, a `let`'s `const` too, where `x.type` leaves them:
+  `var a:typeof(n)`, `(typeof(p)){7, 8}`, `9 as typeof(n)`.
+  - `x` is any expression, `typeof(n + 1.5)`; of one kelvinc does not
+    see, it is C's `__typeof__`.
+  - `typeof(T)` is `T`.
+  - `__typeof__` and `typeof_unqual` are errors that name `typeof(x)`
+    and `x.type`.
 - **`v.type`** is `v`'s type, written where a type goes (#34): after `:`
   and `as`, in `sizeof(...)`, in compound literals and in function types.
   - `v` is a variable or `$k`, possibly followed by `.member`, `^` and

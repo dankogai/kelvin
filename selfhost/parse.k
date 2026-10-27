@@ -380,6 +380,18 @@ let local_enum_named(t:int64):int64 {
     return 0 - 1
 }
 
+// the type written for the variable that token t names (#398): its
+// latest declaration's, -1 where its type is inferred, -2 where none is
+let written_type(t:int64):int64 {
+    var i:int64 = nodes.count as int64 - 1
+    while i >= 0 {
+        let k = nodes[i].kind
+        if (k == S_VAR || k == D_GLOBAL) && same_text(nodes[i].t, t) { return nodes[i].ty }
+        i -= 1
+    }
+    return 0 - 2
+}
+
 // whether the function being read declares a name as token t's
 let local_named(t:int64):bool {
     for l in locals_seen {
@@ -792,6 +804,24 @@ let parse_bare_type():int64 {
         y = base_type(Y_UCHR)
     } else if tok_is(t, "Bits") {                // (#387)
         y = base_type(Y_BITS)
+    } else if tok_is(t, "typeof") {             // typeof(T), typeof(x) (#398), C23's
+        if !at_word("(") {
+            parse_error("typeof takes a value or a type in parentheses, as C23's: typeof(x)")
+            return base_type(Y_VOID)
+        }
+        advance()
+        let v:int64 = pos
+        if toks[v].kind == T_ID && tok_is(v + 1, ")") && (local_named(v) || written_type(v) != 0 - 2) {
+            y = written_type(v)
+            advance()
+            if y < 0 {
+                parse_error("kc reads typeof(x) of a variable whose type is written, and typeof(T); not yet of an expression")
+                y = base_type(Y_VOID)
+            }
+        } else {
+            y = parse_type()
+        }
+        expect(")")
     } else if tok_is(t, "Self") && self_name >= 0 {   // the type of the method (#213)
         y = type_of_kind(Y_STRUCT, -1, self_name)
     } else if tok_is(t, "Optional") {            // Optional<T>, T? (#217)

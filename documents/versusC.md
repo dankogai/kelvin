@@ -106,7 +106,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `snprintf` into a buffer sized by hand, or `asprintf` | `` var s = $`${name}: ${n}` ``, a String with no bound (#67) |
 | `realloc`, `strcat` | `b += "more"`, `b.append(x)`, `b.insert(i, x)`, `b.remove(i, n)` |
 | `sizeof x` | `x.size` |
-| `__typeof__(x) y;` | `var y:x.type` (#34) |
+| `__typeof__(x) y;`, C23's `typeof(x) y;` | `var y:typeof(x)`, as C's, a `let`'s `const` too (#398), or `var y:x.type`, without it (#34) |
 | `snprintf(buf, sizeof buf, "0x%x", n)`, `n` unsigned | `n.hex` (`u8^` text on the stack; a signed `n` gives `+0x2a` or `-0x2a`) |
 | `double area(struct shape s)` | `let shape.area():f64 { ... self ... }`, called as `s.area()` |
 | `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32` (#31) |
@@ -173,11 +173,11 @@ Each document says so under its title. In short:
   `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
   (#27), `fallthrough` (#386), `Bits` (#387), `static_assert`
-  (#394), `alignof` (#395) and `alignas` (#396).
+  (#394), `alignof` (#395), `alignas` (#396) and `typeof` (#398).
   - `in` is a keyword only in `for i in ...` and in an anonymous
     function's `{ (a:T) in ... }`, so C names called `in` still work.
 - It also rejects C compiler keywords beyond C11, such as
-  `__extension__`, `__real__`, `__alignof__`, `typeof`, `_BitInt`,
+  `__extension__`, `__real__`, `__alignof__`, `__typeof__`, `_BitInt`,
   `__signed__` and `__int128` (use `i128`), because in C they can act
   as casts or prefix operators *(provisional P20)*.
 - Names starting with `_kv_` belong to the C that kelvinc writes, and
@@ -204,8 +204,6 @@ These are C features without a Kelvin spelling so far:
   goes from one case into the next
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
-- `typeof` (a reserved C compiler keyword, P20; `v.type` is Kelvin's
-  `typeof`, #34)
 - `__asm__ __volatile__ (...)` (two names in a row; `__asm__(...)` works)
 - `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
   (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
