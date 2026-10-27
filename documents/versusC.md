@@ -204,9 +204,6 @@ These are C features without a Kelvin spelling so far:
   goes from one case into the next
 - statements of the form `name(x)` where `name` is a C typedef: C reads
   them as declarations, and Kelvin cannot tell (see [grammar.md](grammar.md))
-- `sizeof` of a typedef-based type with a suffix, such as `sizeof(FILE^)`
-  (Kelvin reads `FILE^` as a dereference; `sizeof(size_t)` and `sizeof p`
-  work)
 
 ## Left out on purpose
 
@@ -239,6 +236,13 @@ These C features stay out, as decided (#294):
     among a function's statements or at the top level.
   - Written in Kelvin, it is an error that says so, and `__volatile__`
     one that names `volatile`; `asm` stays a name of the program's.
+- **`sizeof(FILE^)`**, a C header's type with a suffix (#400): kelvinc
+  reads no header, so it cannot tell a header's type, `FILE`, from its
+  value, `stdout`, and takes `FILE^` for a dereference, as `stdout^`
+  is: C then refuses `sizeof(*FILE)`.
+  - Every object pointer has one size, so `sizeof(any^)` is the size of
+    any, and `f.size` that of a variable's.
+  - `sizeof(FILE)` and `sizeof(size_t)` are C's, as written.
 - **`_Generic`** (#397): a function of one name already takes several
   types, by its overloads, `let f(x:i64)` and `let f(x:f64)` (#41), and
   so do methods, operators and the built-in properties.

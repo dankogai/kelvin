@@ -7865,3 +7865,23 @@ name of the program's. A test's `__asm__("nop")` moved into `#inline C`.
 kc says the same. Details are provisional P411.
 
 There are 1132 tests, and all pass with clang and with gcc 15.
+
+### 445. sizeof(FILE^), left out
+
+> next on the Not available yet list: sizeof(FILE^).  Would you explain you raised this?  AFAIK sizeof(T^) is always 8 while sizeof(T) depends on how T is laid on memory
+
+**Claude** agreed on the size, and explained that the item was the
+parse: kelvinc reads no C header, so it cannot tell a header's type,
+`FILE`, from its value, `stdout`, and takes `FILE^` for a dereference, as
+`stdout^` is, which C refuses as `sizeof(*FILE)`. `typealias` cannot
+name `FILE` either. As every object pointer has one size, `sizeof(any^)`
+and `f.size` serve, and taking an unknown `NAME^` for a type would change
+`sizeof(stdout^)` silently.
+
+> go with left out on purpose
+
+**Claude** moved it to Left out on purpose as #400, with `sizeof(any^)`
+and `x.size` named there, and a test of them. Details are provisional
+P412.
+
+There are 1133 tests, and all pass with clang and with gcc 15.
