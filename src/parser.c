@@ -14987,10 +14987,11 @@ static void fold_nested_heads(void) {
             if (!listed(&names, name))
                 break;
             t->text = name;
-            int n = 0;
-            while (t[n].kind != TK_EOF)
-                n++;
-            memmove(&t[1], &t[3], (size_t)(n - 2) * sizeof *t); /* the EOF too */
+            for (int k = 1;; k++) { /* the tokens after it two back, the EOF too */
+                t[k] = t[k + 2];
+                if (t[k].kind == TK_EOF)
+                    break;
+            }
         }
     }
 }
