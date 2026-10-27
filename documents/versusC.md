@@ -27,7 +27,7 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `1UL << 40` | `1:u64 << 40` |
 | `uint16_t u = 0xdead;` | `var u = 0xdead:u16` (inferred as `u16`) |
 | `const char *s;`, `char *s;` | `var s:cstr` (immutable text, #52), or `var s:u8^` for bytes to write |
-| `int a[4];` | `var a:[i32](4)`, or `var a = [i32](4)`, zero-filled (#49) |
+| `int a[4];`, `int a[4] = {0};` | `var a:[i32](4)`, as C's, not filled; `var a = [i32](4)`, zero-filled (#49) |
 | `int *a[4];` | `var a:[i32^](4)` |
 | `int (*p)[4];` | `var p:[i32](4)^` |
 | `const char *const s = t;` | `let s:const u8^ := t` |
