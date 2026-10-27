@@ -2738,8 +2738,8 @@ static void stmt(Stmt *s) {
             ; /* an owner took a value, and freed what it held (#54) */
         else if (s->expr->kind == E_CAST && s->expr->op && !strcmp(s->expr->op, "try"))
             line("%s;", try_code(s->expr, false)); /* try f() alone: the value is dropped (#76) */
-        else
-            line("%s;", expr(s->expr));
+        else /* if (1) name(x) of a name kelvinc does not see, never C's declaration (#402) */
+            line("%s%s;", s->c_guard ? "if (1) " : "", expr(s->expr));
         /* a cstr assigned anew is measured again (#52) */
         if (s->expr->kind == E_BINARY && !strcmp(s->expr->op, ":=") && s->expr->a->kind == E_IDENT &&
             count_cache_of(s->expr->a->text))

@@ -1297,6 +1297,7 @@ let reject_cstr_math(n:int64) {
 
 let gen_expr(n:int64)
 let gen_assert(n:int64)    // a prototype: a block's static_assert asks it (#394)
+let declaration_shaped(e:int64):bool    // a prototype: a statement asks it (#402)
 
 let gen_value(n:int64, y:int64)
 
@@ -9683,7 +9684,9 @@ let gen_stmt(n:int64, depth:int64) {
     case S_VAR:
         gen_var(n)
         declare_as(nodes[n].t, nodes[n].ty, nodes[n].flag == 1 ? 1 : 0)   // a let or a var (#271)
-    case S_ASSIGN: gen_assign(n)
+    case S_ASSIGN:
+        if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
+        gen_assign(n)
     case S_EXPR:
         let v = nodes[n].a
         let vy = type_of(v)
@@ -9701,6 +9704,7 @@ let gen_stmt(n:int64, depth:int64) {
             gen_expr(v)
             put("; }\n")
         } else {
+            if declaration_shaped(v) { put("if (1) ") }   // never C's declaration (#402)
             gen_expr(v)
             put(";\n")
         }
@@ -10708,6 +10712,25 @@ let unconstant(n:int64):int64 {
         return v
     }
     return 0 - 1
+}
+
+// x, x^, x[i]: what C could read as a declarator (#402)
+let declarator_like(e:int64):bool {
+    let k = nodes[e].kind
+    if k == N_ID { return true }
+    return (k == N_DEREF || k == N_INDEX) && nodes[e].a >= 0 && declarator_like(nodes[e].a)
+}
+
+// a statement name(x) of a name kc does not see (#402), as kelvinc's:
+// were name a C typedef, C would read a declaration of x, so the C is
+// if (1) name(x), where a declaration is no statement
+let declaration_shaped(e:int64):bool {
+    if e < 0 || nodes[e].kind != N_CALL { return false }
+    let f:int64 = nodes[e].a
+    let arg:int64 = nodes[e].b
+    if f < 0 || nodes[f].kind != N_ID || arg < 0 || nodes[arg].next >= 0 || !declarator_like(arg) { return false }
+    let t:int64 = nodes[f].t
+    return var_type(t) < 0 && decl_named(t, D_FN) < 0 && !tok_is(t, "print") && !tok_is(t, "println")
 }
 
 // static_assert(cond, "message") (#394), as kelvinc's: C's _Static_assert,

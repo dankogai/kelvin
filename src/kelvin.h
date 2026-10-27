@@ -244,6 +244,7 @@ struct Stmt {
     Type *elem;        /* S_FOR_EACH: what s holds (NULL: unseen); for a
                           list, the node's pointer */
     bool closed;       /* S_FOR_IN: a...b, not a..<b */
+    bool c_guard;      /* S_EXPR: name(x) of a name kelvinc does not see, written if (1) name(x) in C (#402) */
     bool from_argv;    /* S_FOR_EACH: s is main's argv, which C types char ** */
     int each;          /* S_FOR_EACH: EACH_* above; S_FOR_IN: 1 where expr is a Range value (#373) */
     Decl *next;        /* S_FOR_EACH: an iterator's var next():T? (#318) */

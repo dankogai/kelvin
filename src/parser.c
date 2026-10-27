@@ -13099,6 +13099,25 @@ static void parse_static_assert(Expr **cond, char **message) {
     end_statement();
 }
 
+/* x, x^, x[i]: what C could read as a declarator (#402) */
+static bool declarator_like(Expr *e) {
+    if (e->kind == E_IDENT)
+        return true;
+    return (e->kind == E_DEREF || e->kind == E_INDEX) && e->a && declarator_like(e->a);
+}
+
+/* a statement name(x), or name(x) = v, of a name kelvinc does not see
+   (#402): were name a C typedef, C would read it as a declaration of x,
+   shadowing an x around it, so the C is if (1) name(x), where a
+   declaration is no statement and a typedef there C's error, and a call
+   or a macro is as before */
+static bool declaration_shaped(Expr *e) {
+    Expr *c = e->kind == E_BINARY && !strcmp(e->op, "=") ? e->a : e;
+    return c->kind == E_CALL && c->a && c->a->kind == E_IDENT && c->items.len == 1 &&
+           declarator_like(c->items.data[0]) && binding_index(c->a->text) < 0 && !function_named(c->a->text) &&
+           strcmp(c->a->text, "print") && strcmp(c->a->text, "println"); /* the prelude's */
+}
+
 static Stmt *parse_stmt(void) {
     int saved = stmt_start;
     end_alignas(); /* the declaration before took it, or nothing did (#396) */
@@ -13505,6 +13524,7 @@ static Stmt *parse_stmt_here(void) {
     s->expr = parse_assignments();
     ident_annotation_ok = saved;
     end_statement();
+    s->c_guard = declaration_shaped(s->expr);
     /* an owner an expression gives, unbound (O4): freed at once, or an
        error for a struct, unless it is the function's one expression,
        returned, which finish_drops decides when the body ends (#81) */

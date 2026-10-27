@@ -378,10 +378,18 @@ a hint:
 An expression that only looks similar, such as `n * f(x) == 4 || g()`, is
 left alone.
 
-One shape cannot be caught, because Kelvin cannot see typedefs: a
-statement `name(x)` or `name(x) = v` is a call or a function-like macro,
-but if `name` is a C typedef, C reads it as a declaration of `x`. To
-convert to a typedef type, write `x as size_t`, never `size_t(x)`.
+One shape kelvinc cannot tell by itself, because it reads no C header:
+a statement `name(x)` or `name(x) = v`, of a name it does not see, is a
+call or a function-like macro, but if `name` is a C typedef, C reads it
+as a declaration of `x`, which would shadow an `x` around it, silently.
+So kelvinc writes it `if (1) name(x);` in C (#402), where a declaration
+is no statement: a call and a macro, `do { ... } while (0)` too, are as
+before, and a typedef there is C's error, `expected expression`.
+
+- The shape is one argument C could read as a declarator, `x`, `x^` or
+  `x[i]`; Kelvin's own functions and variables, and `print`, are as
+  written.
+- To convert to a typedef type, write `x as size_t`, never `size_t(x)`.
 
 A converter takes one value, and for text, a base after it
 (`i32("755", 8)`); a base after a number is an error. A statement may

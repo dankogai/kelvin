@@ -433,6 +433,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 399 | Assembly left out on purpose: `__asm__ __volatile__ (...)`, `__asm__`, `__asm` and `asm(...)`, GNU C's, go in `#inline C { __asm__ __volatile__("..."); }`; written in Kelvin, errors that say so, and `__volatile__` one that names `volatile`; `asm` stays a name; kelvinc and kc | the foreign keywords' hints; `__asm__(...)` no longer a statement passed through | `#inline C { __asm__ __volatile__("nop"); }` | 2026-10-28 |
 | 400 | `sizeof(FILE^)` left out on purpose: kelvinc reads no C header, so a header's type and its value are one to it, and `FILE^` is a dereference, as `stdout^` is; every object pointer has one size, `sizeof(any^)`, and `f.size` is a variable's | versusC.md's Left out on purpose | `sizeof(any^)` | 2026-10-28 |
 | 401 | Duff's device left out on purpose: a case stays at the top of the switch's block (#63), as in Swift; what it does is written with `fallthrough` (#386), a cascade for the remainder, then whole blocks in a loop, and `cc -O2` unrolls a loop itself | versusC.md's Left out on purpose; flow-controls.md's example | a cascade, then a loop | 2026-10-28 |
+| 402 | A statement `name(x)` or `name(x) = v` of a name kelvinc does not see, its one argument shaped as a declarator, `x`, `x^`, `x[i]`, is `if (1) name(x);` in C, where a declaration is no statement: a call and a macro are as before, and a C typedef there, which C would read as a declaration shadowing `x`, is C's error; Kelvin's functions, variables and `print` as written; kelvinc and kc | Stmt c_guard, declaration_shaped | `if (1) free(buf);` | 2026-10-28 |
 
 Notes:
 
@@ -994,6 +995,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (402) Agreed details: "next on the Not available yet list: statements
+  of the form name(x). Suggestion?" Claude showed the silent case: in an
+  inner block, `size_t(n)` was C's declaration of a new `n`, garbage,
+  shadowing the outer one. It proposed `if (1) name(x);`, since a
+  declaration is no statement in C, over leaving it out or reading C's
+  typedefs from the headers; the user chose the guard.
+  - Only the shape C could read as a declaration is guarded: one
+    argument a declarator could be, `x`, `x^`, `x[i]`, of a name kelvinc
+    does not see, a statement or `name(x) = v`; `printf("...")` and
+    `f(a, b)` cannot be one.
+  - A statement macro, `do { ... } while (0)`, stays one under `if (1)`,
+    which a parenthesis or a comma would break.
+  - The prelude's `print` and `println` are Kelvin's, not guarded.
 
 - (401) Agreed details: "next on the Not available yet list: Duff's
   device. It must be possible now that Kelvin has `fallthrough`." Claude
@@ -5431,6 +5446,7 @@ says "as agreed".
 | P411 | Details of #399 | src/lexer.c: `__asm__`, `__asm`, `__volatile__` and `__volatile` among the foreign keywords; src/parser.c: `asm(...)`, the statement words without assembly; selfhost/parse.k: the same errors; documents/versusC.md, c-interfaces.md; tests/run/stmt_macros.k; tests/error/asm_left_out.k, asm_call.k, volatile_gnu.k | — |
 | P412 | Details of #400 | documents/versusC.md; tests/run/sizeof_c_pointer.k | — |
 | P413 | Details of #401 | documents/versusC.md, flow-controls.md; tests/run/duff_fallthrough.k | — |
+| P414 | Details of #402 | src/kelvin.h: Stmt c_guard; src/parser.c: declarator_like, declaration_shaped; src/codegen.c: S_EXPR's if (1); selfhost/gen.k: declarator_like, declaration_shaped, S_EXPR's and S_ASSIGN's if (1); documents/grammar.md, versusC.md; tests/run/c_call_guard.k; tests/error/typedef_call_statement.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

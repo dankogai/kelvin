@@ -478,6 +478,10 @@ kc reads what it is written in, and little more.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
+- **`if (1) name(x)`** (#402), as kelvinc's: declaration_shaped, a
+  statement or an assignment `name(x)` of a name kc does not see and one
+  argument a declarator could be, x, x^, x[i], is written after `if (1)`,
+  so that C never reads a typedef there as a declaration.
 - **Lazy map and filter** (#324), as kelvinc's #323: `s.lazy.map(f)` and
   `s.lazy.filter(f)` of a Sequence, f a function of the program or an
   anonymous one, give a lazy Sequence, whose structs and functions kc

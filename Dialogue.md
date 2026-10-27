@@ -7903,3 +7903,24 @@ cascade and the loop in flow-controls.md and a test of them. Details are
 provisional P413.
 
 There are 1134 tests, and all pass with clang and with gcc 15.
+
+### 447. if (1) name(x)
+
+> next on the Not available yet list: statements of the form name(x).  Suggestion?
+
+**Claude** showed the silent case: in an inner block, `size_t(n)` was
+C's declaration of a new, uninitialized `n` shadowing the outer one, and
+the block printed garbage. Since kelvinc reads no header, it cannot tell
+a typedef from a function or a macro there, so it proposed writing such a
+statement `if (1) name(x);` in C, where a declaration is no statement: a
+call and a macro are as before, and a typedef there is C's error.
+
+> go with the if (1) guard
+
+**Claude** made it #402: a statement `name(x)` or `name(x) = v` of a name
+kelvinc does not see, its one argument shaped as a declarator, is guarded
+so; Kelvin's own functions and variables and `print` are as written, and
+a statement macro stays one. kc does the same. Details are provisional
+P414.
+
+There are 1136 tests, and all pass with clang and with gcc 15.
