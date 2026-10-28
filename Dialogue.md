@@ -7993,3 +7993,16 @@ and kc.k binds it before `if let`. The tests that printed lines read
 P418.
 
 There are 1144 tests, and all pass with clang and with gcc 15.
+
+### 452. kc's ??, of a Result too
+
+> make kc's ?? take a Result too
+
+**Claude** made it #407: kc's `x ?? d` of a Result gives what it holds
+where it is ok, else d, writing the C kelvinc writes, an `err` taken
+freed. kc's error of another left side is kelvinc's wording now, and
+`r ?? r2` of two Results, kelvinc's alone, is kc's error rather than C's.
+kc.k reads its sources by `f.string ?? $""` again; sample.k prints
+`??` of Results through both compilers. Details are provisional P419.
+
+There are 1144 tests, and all pass with clang and with gcc 15.

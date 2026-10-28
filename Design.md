@@ -438,6 +438,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 404 | `_Complex` unsupported: C99's complex type is left out on purpose, `<math>`'s `c64` and `c32` Kelvin's own; the word is an error that names them, as GNU's `__complex__` and `__complex` are; kelvinc's `f32 _Complex` and `f64 _Complex`, and `cpow` for their `**` (#380), are gone; a value whose type only C sees, a header's typedef of one, still prints | the lexer's error | `let z = c64(1.0, 2.0)` | 2026-10-28 |
 | 405 | `b.string()` is a `Result<String, i64>`: the String, or `err(at)`, the offset of the first byte where the UTF-8 breaks, handled as any Result is, in one pass; `String(&b)` stays the checked form, which ends the program, for bytes known to be text | the parser's type of the method | `if let err(at) = b.string() { ... }` | 2026-10-28 |
 | 406 | `f.string` and each line of `f.lines` are a `Result<String, i64>`, as `b.string()` is: the String, or `err(at)`, the offset where the UTF-8 breaks, in what was read or in the line; a bad line leaves the loop going; `for line:String in f.lines` an error that names the Result; kc reads its sources by `f.string` bound first | the IO's type of `.string`, the loop's element | `for r in f.lines { if let line = r { ... } }` | 2026-10-28 |
+| 407 | kc's `x ?? d` takes a Result too, as kelvinc's #253 does: what x holds where it is ok, else d; a place copied, else taken, an `err` taken freed; d of another type kelvinc's error in its words, and `'??' takes an Optional or a Result on its left` too; `r ?? r2` of two Results kelvinc's alone, kc's error says so; kc reads its sources by `f.string ?? $""` | selfhost/gen.k's gen_coalesce of the value case, `.u.ok` and tag 0 | `f.string ?? $""` | 2026-10-29 |
 
 Notes:
 
@@ -999,6 +1000,20 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (407) Agreed details: "make kc's ?? take a Result too", after #406
+  left kc.k binding `f.string` to a var for `if let`.
+  - kc writes the C kelvinc writes: the value case is `ok`, tag 0, where
+    an Optional's is `some`, tag 1.
+  - A Result taken whose value does not own, `half(7) ?? -1`, is freed
+    by a cleanup, its `err` a String; one whose value owns frees x where
+    it is an `err`, as kelvinc's #250.
+  - kc's error where the left is neither is kelvinc's wording now:
+    `'??' takes an Optional or a Result on its left, and this is i64`.
+  - `r ?? r2` (#253) is kc's error, not C's, as `a ?? b` of two
+    Optionals (#252) is not kc's either; `r ?? ok(v)` (#254) is still
+    kc's "this function is not known".
+  - kc.k's load reads `var text:String = f.string ?? $""`.
 
 - (406) Agreed details: "make f.string and f.lines Results too". The
   user chose an `i64` err for both: for a line the offset in it, as
@@ -5523,6 +5538,7 @@ says "as agreed".
 | P416 | Details of #404 | src/lexer.c: `_Complex`'s error, `__complex__`'s and `__complex`'s hints, the keyword gone; src/parser.c: `_Complex` gone from the types, the converters, the receivers, the aliases, the declaration hints and `**`; src/codegen.c: its C names, text and sizes, and pow_complex; selfhost/lex.k: the same error; documents/versusC.md, c-interfaces.md, floatingpoint.md, properties.md, operators.md, math.md, README.md; tests/run/cstr.k, power_complex.k; tests/error/c_decl_complex.k, complex_left_out.k, complex_gnu.k | — |
 | P417 | Details of #405 | runtime/unicode.c: kv_utf8_scan, kv_string_try_bytes; modules/kelvin_prelude.h; src/kelvin.h: recv_type of b.string(); src/parser.c: its Result type, the messages that named it; src/codegen.c: its C; modules/JSON.k, SION.k, MsgPack.k: String(&b); documents/bytes.md, strings.md, ownership.md, io.md; tests/run/string.k, bytes_string_result.k, string_of_bytes_failure.k; tests/error/string_bytes_append.k | — |
 | P418 | Details of #406 | runtime/io.c: kv_io_try_string, kv_io_read_line's bad; runtime/unicode.c, modules/kelvin_prelude.h: kv_utf8_scan exported; modules/kIO.h; src/parser.c: `.string`'s and `.lines`' types; src/codegen.c: their C; selfhost/gen.k: `.string`'s type and C; selfhost/kc.k: load; selfhost/README.md; documents/io.md, versusC.md, README.md; tests/run/io_basics.k, io_exec.k, io_exec_env.k, io_exec_fresh.k, io_fd.k, io_print.k, io_process.k, io_pretty.k, io_read_number.k, io_seek.k, os_temp.k, os_kelvin_group7.k, return_owner_property.k, unicode_graphemes.k, unicode_normalization.k, io_lines_result.k; tests/error/io_string_try.k, io_lines_typed.k | — |
+| P419 | Details of #407 | selfhost/gen.k: gen_coalesce of a Result, type_of of `??`; selfhost/kc.k: load; selfhost/sample.k: word_of and `??` of Results; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

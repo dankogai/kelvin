@@ -103,6 +103,11 @@ let parse_digit(c:uint8):Result<int64, String> {
     return ok(c as int64 - 48)
 }
 
+let word_of(n:int64):Result<String, int64> {    // ?? of a Result (#407)
+    if n == 1 { return ok($"one") }
+    return err(n)
+}
+
 let named(n:int64):String? {
     if n == 1 { return $"one" }                   // some("one")
     return none
@@ -608,6 +613,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(pending == none, " ", tag == $"untagged", " ", marks["ann"]! == 90, " ", marks.firstKey(none), " ", rolls.firstIndex(6) == 1, " ", gaps.lastIndex(none), " ", gaps == gaps2)
     let digits:$[Result<int64, String>] = $[parse_digit('4'), parse_digit('?'), 7]   // == of a Result (#344)
     println(outcome == err("late"), " ", parse_digit('7') == 7, " ", good != bad, " ", digits.firstIndex(7), " ", digits.contains(ok(5)), " ", outcome != err($"early"))
+    var said:Result<String, int64> = ok($"said")      // ?? of a Result (#407)
+    println(outcome ?? 0, " ", good ?? 0, " ", parse_digit('?') ?? -1, " ", said ?? $"quiet", " ", word_of(1) ?? $"none", " ", word_of(2) ?? said.ok)
+    said = err(3)
+    println(said ?? $"quiet", " ", parse_digit('3') ?? 0 + 1, " ", word_of(5) ?? $"five")
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
     println(bush, " ", leaves(&bush), " ", bush == bush.copy())

@@ -1191,7 +1191,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
-        if tok_is(t, "??") { return some_type(type_of(nodes[n].a)) }   // (#217)
+        if tok_is(t, "??") { return wrap_type(type_of(nodes[n].a)) }   // (#217), a Result's ok (#407)
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return type_of(nodes[n].a)
@@ -3977,15 +3977,31 @@ let gen_value(n:int64, y:int64) {
     put(")")
 }
 
-// x ?? d: what the Optional x holds, else d, x read once (#217)
+// x ?? d: what the Optional x holds, else d, x read once (#217); what
+// the Result x holds where it is ok, else d (#407)
 let gen_coalesce(n:int64) {
     let y = type_of(nodes[n].a)
-    let inner = some_type(y)
+    let inner = wrap_type(y)
     if inner < 0 {
-        gen_error(n, "?? takes an Optional on its left")
+        var m = $"'??' takes an Optional or a Result on its left, and this is "
+        if y < 0 {
+            m += "not one"
+        } else {
+            let w:String = kelvin_type_text(y)
+            m += &w
+        }
+        gen_error(n, m.cstr)
         return
     }
     let b:int64 = nodes[n].b
+    if is_result(y) && type_of(b) == y {             // kelvinc's #253 (#407)
+        var m = $"'??' of a "
+        let w:String = kelvin_type_text(y)
+        m += &w
+        m += " on the right, r ?? r2, is not kc's yet"
+        gen_error(b, m.cstr)
+        return
+    }
     if type_of(b) != y {                             // y's type in Kelvin's words, as kelvinc's (#340)
         let bad:String = value_mismatch_text(b, inner)
         if bad.count > 0 {
@@ -4007,9 +4023,17 @@ let gen_coalesce(n:int64) {
             return
         }
     }
+    let tag:cstr := some_type(y) >= 0 ? ".tag == 1" : ".tag == 0"   // some's, ok's (#407)
+    let field:cstr := some_type(y) >= 0 ? ".u.some" : ".u.ok"
+    let taken = !is_place(nodes[n].a)
     serial += 1
     let s = serial                                   // its own: x may make names too (#221)
     put("({ ")
+    if taken && is_owner(y) && !is_owner(inner) {    // a Result's err that owns, freed as kelvinc's (#407)
+        put("__attribute__((cleanup(")
+        put_owner_prefix(y)
+        put("_free))) ")
+    }
     put_ctype(y)
     put(" _kv_o")
     put_int(s)
@@ -4022,20 +4046,30 @@ let gen_coalesce(n:int64) {
         put_int(s)
         put("; if (_kv_o")
         put_int(s)
-        put(".tag == 1) _kv_r")
+        put(tag)
+        put(") _kv_r")
         put_int(s)
         put(" = ")
-        if is_place(nodes[n].a) {
+        if !taken {
             put_owner_prefix(inner)
             put("_copy(&_kv_o")
             put_int(s)
-            put(".u.some)")
+            put(field)
+            put(")")
         } else {
             put("_kv_o")
             put_int(s)
-            put(".u.some")
+            put(field)
         }
-        put("; else _kv_r")
+        put("; else ")
+        if taken && is_result(y) {                   // x taken, its err freed (#407)
+            put("{ ")
+            put_owner_prefix(y)
+            put("_free(&_kv_o")
+            put_int(s)
+            put("); ")
+        }
+        put("_kv_r")
         put_int(s)
         put(" = ")
         if is_owner(type_of(b)) && is_place(b) {
@@ -4046,7 +4080,7 @@ let gen_coalesce(n:int64) {
         } else {
             gen_value(b, inner)
         }
-        put("; _kv_r")
+        put(taken && is_result(y) ? "; } _kv_r" : "; _kv_r")
         put_int(s)
         put("; })")
         return
@@ -4054,9 +4088,11 @@ let gen_coalesce(n:int64) {
     let flag = types[inner].kind == Y_BOOL               // b ?? false a bool, which prints true, as kelvinc's (#383)
     put(flag ? "; (bool)(_kv_o" : "; _kv_o")
     put_int(s)
-    put(".tag == 1 ? _kv_o")
+    put(tag)
+    put(" ? _kv_o")
     put_int(s)
-    put(".u.some : (")
+    put(field)
+    put(" : (")
     gen_value(b, inner)
     put(flag ? ")); })" : "); })")
 }

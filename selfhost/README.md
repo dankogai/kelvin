@@ -206,6 +206,14 @@ kc reads what it is written in, and little more.
       is a number`.
     - kc reads `??` left to right, and `x ?? d` of a `T?` d is not
       kc's yet, so `a ?? b ?? 0` is kelvinc's alone (#251, #252).
+  - `x ?? d` of a Result (#407), as kelvinc's #253: what x holds
+    where it is ok, else d: `half(7) ?? -1`, `f.string ?? $""`.
+    - x's value is a copy where x is a place, else taken from it; an
+      `err` taken is freed, as kelvinc frees it.
+    - d of another type is kelvinc's error in its words, as of an
+      Optional; a Result on the left of no Optional or Result is too:
+      `'??' takes an Optional or a Result on its left, and this is i64`.
+    - `r ?? r2` of two Results is kelvinc's alone, kc's error says so.
   - `==` and `!=` of an Optional (#343), as kelvinc's #79: two `none`,
     or two equal values, by `_kv_opt_T_eq`, the same case and then
     the values' `==`.
