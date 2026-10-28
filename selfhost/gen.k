@@ -3985,13 +3985,16 @@ let gen_value(n:int64, y:int64) {
 
 // whether x ?? y gives the whole of x: r ?? r2 of two Results of a type
 // (#408); a ?? b of two Optionals of a type, and a ?? none (#409), as
-// kelvinc's #252, where none is no value a T?? holds
+// kelvinc's #252, where none is no value a T?? holds; r ?? ok(v) and
+// r ?? err(e) (#410), as kelvinc's #254, where neither is what r holds
 let coalesces_whole(n:int64):bool {
     let y = type_of(nodes[n].a)
     let b:int64 = nodes[n].b
     if !is_result(y) && some_type(y) < 0 { return false }
-    if nodes[b].kind == N_ID && tok_is(nodes[b].t, "none") && var_type(nodes[b].t) < 0 {   // the word, which has no type
-        return some_type(y) >= 0 && !is_variant(some_type(y))
+    if is_case_word(b) {                             // a word, which has no type
+        let w:int64 = nodes[b].kind == N_ID ? nodes[b].t : nodes[nodes[b].a].t
+        let word = (nodes[b].kind == N_ID && tok_is(w, "none")) || (is_result(y) && nodes[b].kind == N_CALL && (tok_is(w, "ok") || tok_is(w, "err")))
+        return word && !is_variant(wrap_type(y))
     }
     return type_of(b) == y
 }
@@ -4086,6 +4089,22 @@ let gen_coalesce(n:int64) {
     if coalesces_whole(n) {                          // r ?? r2, as kelvinc's #253 (#408); a ?? b, #252's (#409)
         gen_coalesce_whole(n, y)
         return
+    }
+    if nodes[b].kind == N_CALL && is_case_word(b) && tagged_of(inner) < 0 {   // a case word that makes no T, in kelvinc's words (#410)
+        let w:int64 = nodes[nodes[b].a].t
+        if tok_is(w, "some") {
+            gen_error(b, "some(v) makes no Optional: give v itself where a T? goes, which becomes some(v), or write Optional<T>(v); some(v) is a pattern, as in 'if let some(v) = x' (#224)")
+            return
+        }
+        if tok_is(w, "ok") || tok_is(w, "err") {
+            let word:String = tok_text(w)
+            var m = word.copy()
+            m += "(...) is a Result's case only where a Result is expected, as by a return of a function that gives one: elsewhere write Result<T, E>."
+            m += &word
+            m += "(...) (#224)"
+            gen_error(b, m.cstr)
+            return
+        }
     }
     if !is_case_word(b) && type_of(b) != y {         // y's type in Kelvin's words, as kelvinc's (#340); none of a T?? is its T? (#409)
         let bad:String = value_mismatch_text(b, inner)

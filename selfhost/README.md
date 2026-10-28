@@ -220,7 +220,13 @@ kc reads what it is written in, and little more.
       only where r is an err.
     - `r ?? r2 ?? 0` is an `int64`, read left to right as kc reads
       `??`.
-    - `r ?? ok(v)` and `r ?? err(e)` (#254) are not kc's yet.
+    - `r ?? ok(v)` and `r ?? err(e)` (#410), as kelvinc's #254: the
+      words make a Result of r's type, `bad ?? ok(0)`, `w ?? err(4)`,
+      a place in them taken, as kelvinc takes it.
+      - Of a Result whose value is an Optional or a Result, the word
+        is what it holds, as kelvinc's.
+      - `some(v)` on the right of a Result, and `ok(v)` or `err(e)` on
+        the right of an Optional, are kelvinc's errors in its words.
   - `a ?? b` of two Optionals of a type (#409), as kelvinc's #252: a
     where it has a value, else b, an Optional; so is `a ?? none`.
     - Held, copied, taken and freed as `r ?? r2` is.

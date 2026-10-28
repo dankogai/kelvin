@@ -8032,3 +8032,16 @@ and Bits checks no longer ask the type of `none`. sample.k prints `a ??
 b` through both compilers. Details are provisional P421.
 
 There are 1144 tests, and all pass with clang and with gcc 15.
+
+### 455. kc's r ?? ok(v) and r ?? err(e)
+
+> make kc take r ?? ok(v) and r ?? err(e) too
+
+**Claude** made it #410: kc's `r ?? ok(v)` and `r ?? err(e)` make a
+Result of r's type of the word, r where it is ok, else the word's,
+writing the C kelvinc writes. A word that makes no value of what is on
+the left, `r ?? some(2)`, `o ?? ok(2)`, is kelvinc's error in its words
+where kc said "this function is not known". sample.k prints them through
+both compilers. Details are provisional P422.
+
+There are 1144 tests, and all pass with clang and with gcc 15.
