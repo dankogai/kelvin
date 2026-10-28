@@ -927,6 +927,8 @@ let value_align(n:int64):bool {
     return y >= 0 && !(types[y].kind == Y_STRUCT && (field_type(y, nodes[n].t) >= 0 || tagged_of(y) >= 0))
 }
 
+let coalesces_whole(n:int64):bool    // a prototype: x ?? y of the whole x's type (#408, #409)
+
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
@@ -1193,7 +1195,7 @@ let type_of(n:int64):int64 {
         if is_comparison(t) { return base_type(Y_BOOL) }
         if tok_is(t, "??") {                                            // (#217), a Result's ok (#407)
             let ly = type_of(nodes[n].a)
-            if is_result(ly) && type_of(nodes[n].b) == ly { return ly }  // r ?? r2, a Result (#408)
+            if coalesces_whole(n) { return ly }                         // r ?? r2, a Result (#408); a ?? b, an Optional (#409)
             return wrap_type(ly)
         }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
@@ -3981,13 +3983,28 @@ let gen_value(n:int64, y:int64) {
     put(")")
 }
 
-// r ?? r2 of two Results of y, as kelvinc's #253 (#408): r where it is
-// ok, else r2, r read once; where y owns, r a copy where it is a place,
-// else taken, and freed where it is an err; r2 a copy where it is a
-// place, else taken, made only where r is an err
+// whether x ?? y gives the whole of x: r ?? r2 of two Results of a type
+// (#408); a ?? b of two Optionals of a type, and a ?? none (#409), as
+// kelvinc's #252, where none is no value a T?? holds
+let coalesces_whole(n:int64):bool {
+    let y = type_of(nodes[n].a)
+    let b:int64 = nodes[n].b
+    if !is_result(y) && some_type(y) < 0 { return false }
+    if nodes[b].kind == N_ID && tok_is(nodes[b].t, "none") && var_type(nodes[b].t) < 0 {   // the word, which has no type
+        return some_type(y) >= 0 && !is_variant(some_type(y))
+    }
+    return type_of(b) == y
+}
+
+// r ?? r2 of two Results of y, as kelvinc's #253 (#408), and a ?? b of
+// two Optionals, #252's (#409): r where it is ok or some, else r2, r
+// read once; where y owns, r a copy where it is a place, else taken,
+// and freed where it has no value; r2 a copy where it is a place, else
+// taken, made only where r has no value
 let gen_coalesce_whole(n:int64, y:int64) {
     let a:int64 = nodes[n].a
     let b:int64 = nodes[n].b
+    let tag:cstr := some_type(y) >= 0 ? ".tag == 1" : ".tag == 0"
     serial += 1
     let s = serial                                   // its own: r may make names too (#221)
     put("({ ")
@@ -3999,10 +4016,11 @@ let gen_coalesce_whole(n:int64, y:int64) {
     if !is_owner(y) {
         put("; _kv_o")
         put_int(s)
-        put(".tag == 0 ? _kv_o")
+        put(tag)
+        put(" ? _kv_o")
         put_int(s)
         put(" : (")
-        gen_expr(b)
+        gen_value(b, y)
         put("); })")
         return
     }
@@ -4012,7 +4030,8 @@ let gen_coalesce_whole(n:int64, y:int64) {
     put_int(s)
     put("; if (_kv_o")
     put_int(s)
-    put(".tag == 0) _kv_r")
+    put(tag)
+    put(") _kv_r")
     put_int(s)
     put(" = ")
     if is_place(a) {
@@ -4034,13 +4053,13 @@ let gen_coalesce_whole(n:int64, y:int64) {
     put("_kv_r")
     put_int(s)
     put(" = ")
-    if is_place(b) {
+    if is_place(b) && !is_case_word(b) {             // none no place (#409)
         put_owner_prefix(y)
         put("_copy(&(")
         gen_expr(b)
         put("))")
     } else {
-        gen_expr(b)
+        gen_value(b, y)
     }
     put("; } _kv_r")
     put_int(s)
@@ -4064,11 +4083,11 @@ let gen_coalesce(n:int64) {
         return
     }
     let b:int64 = nodes[n].b
-    if is_result(y) && type_of(b) == y {             // r ?? r2, as kelvinc's #253 (#408)
+    if coalesces_whole(n) {                          // r ?? r2, as kelvinc's #253 (#408); a ?? b, #252's (#409)
         gen_coalesce_whole(n, y)
         return
     }
-    if type_of(b) != y {                             // y's type in Kelvin's words, as kelvinc's (#340)
+    if !is_case_word(b) && type_of(b) != y {         // y's type in Kelvin's words, as kelvinc's (#340); none of a T?? is its T? (#409)
         let bad:String = value_mismatch_text(b, inner)
         if bad.count > 0 {
             var m = $"'??' of "
@@ -4138,7 +4157,7 @@ let gen_coalesce(n:int64) {
         put("_kv_r")
         put_int(s)
         put(" = ")
-        if is_owner(type_of(b)) && is_place(b) {
+        if !is_case_word(b) && is_owner(type_of(b)) && is_place(b) {
             put_owner_prefix(inner)
             put("_copy(&(")
             gen_expr(b)
@@ -4723,7 +4742,7 @@ let gen_bits(n:int64):bool {
         put("))")
         return true
     }
-    if k != N_BIN { return false }
+    if k != N_BIN || tok_is(t, "??") { return false }   // x ?? none: none has no type to ask (#409)
     let b:int64 = nodes[n].b
     let left = is_bits(type_of(a))
     if !left && !is_bits(type_of(b)) { return false }
@@ -7413,7 +7432,7 @@ let gen_pow_method(n:int64) {
 
 // whether n is an operator of a Range, which has none: kelvinc's error
 let range_operand_error(n:int64):bool {
-    if nodes[n].kind != N_BIN { return false }
+    if nodes[n].kind != N_BIN || tok_is(nodes[n].t, "??") { return false }   // x ?? none: none has no type to ask (#409)
     let ay:int64 = type_of(nodes[n].a)
     let by:int64 = type_of(nodes[n].b)
     let ar = ay >= 0 && types[ay].kind == Y_RANGE

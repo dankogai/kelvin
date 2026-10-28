@@ -204,8 +204,8 @@ kc reads what it is written in, and little more.
     - d of another type is kelvinc's error in its words, of any `??`:
       `'??' of String? falls back to a String? or a String, and this
       is a number`.
-    - kc reads `??` left to right, and `x ?? d` of a `T?` d is not
-      kc's yet, so `a ?? b ?? 0` is kelvinc's alone (#251, #252).
+    - kc reads `??` left to right, where kelvinc reads it right to
+      left (#251); `a ?? b ?? 0` gives the same value of both.
   - `x ?? d` of a Result (#407), as kelvinc's #253: what x holds
     where it is ok, else d: `half(7) ?? -1`, `f.string ?? $""`.
     - x's value is a copy where x is a place, else taken from it; an
@@ -221,6 +221,11 @@ kc reads what it is written in, and little more.
     - `r ?? r2 ?? 0` is an `int64`, read left to right as kc reads
       `??`.
     - `r ?? ok(v)` and `r ?? err(e)` (#254) are not kc's yet.
+  - `a ?? b` of two Optionals of a type (#409), as kelvinc's #252: a
+    where it has a value, else b, an Optional; so is `a ?? none`.
+    - Held, copied, taken and freed as `r ?? r2` is.
+    - Of a `T??`, b a `T?` or `none` is what a holds, as kelvinc's:
+      `twice ?? none` is a `T?`.
   - `==` and `!=` of an Optional (#343), as kelvinc's #79: two `none`,
     or two equal values, by `_kv_opt_T_eq`, the same case and then
     the values' `==`.

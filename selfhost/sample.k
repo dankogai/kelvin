@@ -618,6 +618,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     said = err(3)
     println(said ?? $"quiet", " ", parse_digit('3') ?? 0 + 1, " ", word_of(5) ?? $"five")
     println(bad ?? good, " ", good ?? bad, " ", parse_digit('x') ?? parse_digit('2'), " ", bad ?? parse_digit('y'), " ", said ?? word_of(1), " ", word_of(4) ?? said, " ", bad ?? bad ?? 0)   // r ?? r2 (#408)
+    println(pending ?? gaps[0], " ", gaps[1] ?? pending, " ", tag ?? none, " ", shelf.lastKey(4) ?? tag, " ", tag ?? shelf.lastKey(4), " ", shelf.firstKey(9) ?? none, " ", pending ?? gaps[1] ?? -1)   // a ?? b of two Optionals (#409)
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
     println(bush, " ", leaves(&bush), " ", bush == bush.copy())

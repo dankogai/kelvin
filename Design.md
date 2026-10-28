@@ -440,6 +440,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 406 | `f.string` and each line of `f.lines` are a `Result<String, i64>`, as `b.string()` is: the String, or `err(at)`, the offset where the UTF-8 breaks, in what was read or in the line; a bad line leaves the loop going; `for line:String in f.lines` an error that names the Result; kc reads its sources by `f.string` bound first | the IO's type of `.string`, the loop's element | `for r in f.lines { if let line = r { ... } }` | 2026-10-28 |
 | 407 | kc's `x ?? d` takes a Result too, as kelvinc's #253 does: what x holds where it is ok, else d; a place copied, else taken, an `err` taken freed; d of another type kelvinc's error in its words, and `'??' takes an Optional or a Result on its left` too; `r ?? r2` of two Results kelvinc's alone, kc's error says so; kc reads its sources by `f.string ?? $""` | selfhost/gen.k's gen_coalesce of the value case, `.u.ok` and tag 0 | `f.string ?? $""` | 2026-10-29 |
 | 408 | kc's `r ?? r2` of two Results of a type, as kelvinc's #253: r where it is ok, else r2, a Result; r a copy where it is a place, else taken and freed where it is an err; r2 a copy where it is a place, else taken, made only where r is an err; `r ?? r2 ?? 0` read left to right; `'??' of T falls back to a T`, the article the Result's own, as kelvinc's | selfhost/gen.k's gen_coalesce_whole | `bad ?? parse_digit('2')` | 2026-10-29 |
+| 409 | kc's `a ?? b` of two Optionals of a type, and `a ?? none`, as kelvinc's #252: a where it has a value, else b, an Optional; held, copied, taken and freed as #408's `r ?? r2`; of a `T??`, a `T?` or `none` on the right is what it holds, as kelvinc's; kc's Range and Bits checks pass `??` by, `none` having no type to ask | selfhost/gen.k's coalesces_whole | `pending ?? gaps[0]` | 2026-10-29 |
 
 Notes:
 
@@ -1001,6 +1002,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (409) Agreed details: "make kc take a ?? b of two Optionals too",
+  after #408's `r ?? r2`.
+  - coalesces_whole says when `??` gives the whole of its left: two
+    Results or two Optionals of a type, or an Optional and the word
+    `none` where what it holds is no Optional or Result, as kelvinc's
+    `none_word`.
+  - gen_coalesce_whole writes tag 1 of an Optional, 0 of a Result, and
+    its right by gen_value, which makes `none`.
+  - The word `none` has no type: kc's Range check (#376) and Bits
+    check (#387), which asked each side's type before `??` was
+    written, pass `??` by; the copies of a place on the right skip it.
+  - `r ?? ok(v)` and `r ?? err(e)` (#254) are not kc's yet.
 
 - (408) Agreed details: "make kc take r ?? r2 too", after #407 left it
   kc's error.
@@ -5553,6 +5567,7 @@ says "as agreed".
 | P418 | Details of #406 | runtime/io.c: kv_io_try_string, kv_io_read_line's bad; runtime/unicode.c, modules/kelvin_prelude.h: kv_utf8_scan exported; modules/kIO.h; src/parser.c: `.string`'s and `.lines`' types; src/codegen.c: their C; selfhost/gen.k: `.string`'s type and C; selfhost/kc.k: load; selfhost/README.md; documents/io.md, versusC.md, README.md; tests/run/io_basics.k, io_exec.k, io_exec_env.k, io_exec_fresh.k, io_fd.k, io_print.k, io_process.k, io_pretty.k, io_read_number.k, io_seek.k, os_temp.k, os_kelvin_group7.k, return_owner_property.k, unicode_graphemes.k, unicode_normalization.k, io_lines_result.k; tests/error/io_string_try.k, io_lines_typed.k | — |
 | P419 | Details of #407 | selfhost/gen.k: gen_coalesce of a Result, type_of of `??`; selfhost/kc.k: load; selfhost/sample.k: word_of and `??` of Results; selfhost/README.md | — |
 | P420 | Details of #408 | selfhost/gen.k: gen_coalesce_whole, gen_coalesce's article, type_of of `r ?? r2`; selfhost/sample.k: `r ?? r2`; selfhost/README.md | — |
+| P421 | Details of #409 | selfhost/gen.k: coalesces_whole, gen_coalesce_whole's tag and none, gen_coalesce's none of a T??, range_operand_error and gen_bits of `??`, type_of of `a ?? b`; selfhost/sample.k: `a ?? b`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

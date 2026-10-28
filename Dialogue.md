@@ -8019,3 +8019,16 @@ sample.k prints `r ?? r2` through both compilers. Details are
 provisional P420.
 
 There are 1144 tests, and all pass with clang and with gcc 15.
+
+### 454. kc's a ?? b of two Optionals
+
+> make kc take a ?? b of two Optionals too
+
+**Claude** made it #409: kc's `a ?? b` of two Optionals of a type, and
+`a ?? none`, give a where it has a value, else b, an Optional, writing
+the C kelvinc writes, held and freed as #408's `r ?? r2`. Of a `T??`, a
+`T?` or `none` on the right is what it holds, as kelvinc's. kc's Range
+and Bits checks no longer ask the type of `none`. sample.k prints `a ??
+b` through both compilers. Details are provisional P421.
+
+There are 1144 tests, and all pass with clang and with gcc 15.
