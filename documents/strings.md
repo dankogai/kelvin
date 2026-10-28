@@ -217,6 +217,13 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Making one:** `$"text"` or `String("text")`, `String(s)` of a
   `cstr` or a byte array, `String(&b)` of a `Bytes`, all checked for
   UTF-8: text that is not ends the program.
+  - `String(x)` of an owner, a variable or what an expression gives
+    alike, is an error in Kelvin's words, not C's (#412).
+    - Of a String, `String(f())` is one already; a variable's copy is
+      `s.copy()`.
+    - Of a Bytes, write `String(&b)`, or `b.string()` for a Result.
+    - Of another owner, `String($[1, 2])`, the message names what
+      `String` takes.
   - `b.string()` of a `Bytes` (#405) is a `Result<String, i64>`
     instead: the String, or `err(at)`, the offset of the first byte
     where the UTF-8 breaks, to handle: [bytes.md](bytes.md).

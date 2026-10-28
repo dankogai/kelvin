@@ -8059,3 +8059,18 @@ going where a number does. kc still gives C's errors of these. Details
 are provisional P423.
 
 There are 1151 tests, and all pass with clang and with gcc 15.
+
+### 457. String(x) and Bytes(x) of an owner an expression gives
+
+> fix both kelvinc bugs
+
+**Claude** found the second, `String(f())` of a String given to C as
+text, wider too: `String($[1, 2])`, `String(h())` of a Bytes and
+`Bytes(f())` of a String were C's errors. **Claude** asked what a
+String of a String should be; the user chose an error for every owner,
+as of a variable. **Claude** made it #412: each is an error in Kelvin's
+words that names what to write, `String(&b)`, `Bytes(&s)`, or that it
+is one already. kc still gives C's errors of these. Details are
+provisional P424.
+
+There are 1156 tests, and all pass with clang and with gcc 15.

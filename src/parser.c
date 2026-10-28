@@ -4702,6 +4702,23 @@ static Expr *parse_primary(void) {
         if (e->items.len == 1 && owner_place(e->items.data[0]))
             error_at(t->pos, "%s(x) would copy an owner: write x.copy(), %s", t->text,
                      string ? "String(&b) of a Bytes, or b.string() for a Result" : "or Bytes(&b)");
+        Type *xt = e->items.len == 1 ? value_type(e->items.data[0]) : NULL;
+        if (xt && is_owner(unqualified(xt))) { /* an owner an expression gives, which C took for text (#412) */
+            xt = unqualified(xt);
+            if (string ? is_string(xt) : is_bytes(xt))
+                error_at(t->pos, "%s(x) of a %s is one already: leave out %s(...)", t->text, t->text, t->text);
+            if (string && is_bytes(xt))
+                error_at(t->pos, "String(b) of a Bytes is written String(&b), checked, or b.string() for a Result");
+            if (!string && is_string(xt))
+                error_at(t->pos, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)");
+            bare_tags = true;
+            char *w = kelvin_type(xt);
+            bare_tags = false;
+            error_at(t->pos, "%s, and this is %s", string ? "String takes nothing, text, or a borrow of a Bytes, '&b'"
+                                                          : "Bytes takes nothing, a count, text, a borrow of a Bytes or "
+                                                            "of a String, bytes in brackets, or bytes and their count",
+                     w);
+        }
         return e;
     }
     if (is_converter(t) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT) {

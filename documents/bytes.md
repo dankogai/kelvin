@@ -40,6 +40,9 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   **`b.copy()`** a copy.
   - **`Bytes(&s)`** of a String is a copy of its bytes (#291), the
     String left as it was; `Bytes(s)` is an error that says so.
+  - Of an owner, a variable or what an expression gives alike, `Bytes(x)`
+    is an error in Kelvin's words, not C's (#412): `Bytes(f())` of a
+    String names `Bytes(&s)`, and of a Bytes it is one already.
 - **`Bytes([...])`** (#172) is the bytes written out, each a character
   constant or a number 0 to 255, or any `u8` value: `Bytes([0x89,
   'P', 'N', 'G'])`; a number out of that range is an error, and
