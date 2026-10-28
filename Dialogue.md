@@ -8045,3 +8045,17 @@ where kc said "this function is not known". sample.k prints them through
 both compilers. Details are provisional P422.
 
 There are 1144 tests, and all pass with clang and with gcc 15.
+
+### 456. A case's value of another type, Kelvin's error
+
+> fix both kelvinc bugs
+
+**Claude** found the first, `r ?? ok($"s")` of a Result<i64, String>
+given to C unchecked, wider than `??`: any value of another type in a
+case of an Optional, a Result or an enum with values was. **Claude**
+made it #411: each is an error in Kelvin's words, `case 'ok' of
+Result<i64, String> holds an i64, and this is String`, any number still
+going where a number does. kc still gives C's errors of these. Details
+are provisional P423.
+
+There are 1151 tests, and all pass with clang and with gcc 15.

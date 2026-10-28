@@ -60,6 +60,10 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
     - Where no Result is expected, either is an error that names
       `Result<T, U>.ok(v)` (#224), not C's call of a function `ok`.
   - An owner moves in, as a case's value does.
+  - A value of another type than its case's is an error in Kelvin's
+    words (#411), of a word, a `T` alone, `Result<T, U>.ok(v)` and `r
+    ?? ok(v)` alike: `case 'ok' of Result<i64, String> holds an i64,
+    and this is String`.
   - `Result<T, U>.ok(v)`, `Result<T, U>.err(e)` and `Result<T, U>(v)`
     spell them out, where nothing says which Result is meant.
 - **Reading:** `r.ok` and `r.err` are the values, checked at run time.

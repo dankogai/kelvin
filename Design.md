@@ -442,6 +442,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 408 | kc's `r ?? r2` of two Results of a type, as kelvinc's #253: r where it is ok, else r2, a Result; r a copy where it is a place, else taken and freed where it is an err; r2 a copy where it is a place, else taken, made only where r is an err; `r ?? r2 ?? 0` read left to right; `'??' of T falls back to a T`, the article the Result's own, as kelvinc's | selfhost/gen.k's gen_coalesce_whole | `bad ?? parse_digit('2')` | 2026-10-29 |
 | 409 | kc's `a ?? b` of two Optionals of a type, and `a ?? none`, as kelvinc's #252: a where it has a value, else b, an Optional; held, copied, taken and freed as #408's `r ?? r2`; of a `T??`, a `T?` or `none` on the right is what it holds, as kelvinc's; kc's Range and Bits checks pass `??` by, `none` having no type to ask | selfhost/gen.k's coalesces_whole | `pending ?? gaps[0]` | 2026-10-29 |
 | 410 | kc's `r ?? ok(v)` and `r ?? err(e)`, as kelvinc's #254: the words make a Result of r's type, r where it is ok, else the word's; a place in them taken, as kelvinc's; of a Result whose value is an Optional or a Result the word is what it holds; `some(v)` of a Result, and `ok(v)` or `err(e)` of an Optional, kelvinc's errors in its words | selfhost/gen.k's coalesces_whole of the words | `bad ?? ok(0)` | 2026-10-29 |
+| 411 | The value of a case of an Optional, a Result or any enum with values is of the case's type, any number where a number goes, or an error in Kelvin's words where C's was: `case 'ok' of Result<i64, String> holds an i64, and this is String`; of `ok(v)` and `err(e)`, a `T` wrapped as `some(T)` or `ok(T)`, `Result<T, U>.ok(v)`, `r ?? ok(v)`, `T.c(v)` and `{.c = v}` alike | parser.c's check_case_value beside each reject_record_mismatch of a case | `let o:i64? = $"s"` an error | 2026-10-29 |
 
 Notes:
 
@@ -1003,6 +1004,19 @@ Notes:
   is expected, and a `T` wrapped by itself there (P84). The Set
   operators are the methods by another name, `~` being Kelvin's xor
   (P85).
+
+- (411) Agreed details: "fix both kelvinc bugs", the first: `r ??
+  ok($"s")` of a Result<i64, String> was C's error, not Kelvin's.
+  - It was wider than `??`: a value of another type in any case of an
+    enum with values went to C unchecked, `let o:i64? = $"s"`, `return
+    err(3)`, `shape.circle($"r")`, `{.circle = $"r"}`.
+  - check_case_value asks check_typed_value, the check of a
+    declaration's value, with the lead `case 'c' of T holds`, after
+    reject_record_mismatch, whose message of two structs stays.
+  - Any number goes where a number does, as in a declaration:
+    `shape.circle(2)` is `circle(2.0)`.
+  - kc still gives C's errors of these; kelvinc's words in kc would
+    be a number of their own.
 
 - (410) Agreed details: "make kc take r ?? ok(v) and r ?? err(e) too",
   after #409, which left kc's "this function is not known" of them.
@@ -5582,6 +5596,7 @@ says "as agreed".
 | P420 | Details of #408 | selfhost/gen.k: gen_coalesce_whole, gen_coalesce's article, type_of of `r ?? r2`; selfhost/sample.k: `r ?? r2`; selfhost/README.md | — |
 | P421 | Details of #409 | selfhost/gen.k: coalesces_whole, gen_coalesce_whole's tag and none, gen_coalesce's none of a T??, range_operand_error and gen_bits of `??`, type_of of `a ?? b`; selfhost/sample.k: `a ?? b`; selfhost/README.md | — |
 | P422 | Details of #410 | selfhost/gen.k: coalesces_whole of ok(v) and err(e), gen_coalesce's errors of a case word; selfhost/sample.k: `r ?? ok(v)`, `r ?? err(e)`; selfhost/README.md | — |
+| P423 | Details of #411 | src/parser.c: check_case_value, called in parse of T.c(v), variant_constructor, optional_of's words and wrap, parse_case_initializer; documents/optionals.md, results.md, enums.md; tests/error/case_ok_value_type.k, case_err_value_type.k, case_some_value_type.k, case_value_coalesce.k, case_value_constructor.k, case_value_enum.k, case_value_initializer.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

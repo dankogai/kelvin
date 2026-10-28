@@ -57,6 +57,9 @@ println(j.n)                             // ends the program: case 'n' of json i
   `return` (#77) or a compound literal, `(json){.n = 1.5}`.
   - `json.n(1.5)` and `json.none` as an expression, with the value
     given by value, so an owner moves in (O5).
+  - The value is of the case's type, any number where a number goes;
+    another is an error in Kelvin's words, not C's (#411): `case
+    'circle' of shape holds an f64, and this is String`.
   - A case of a struct or array type takes its list,
     `shape.rect({3.0, 4.0})`; an array's is `[a, b]`, or an array of
     its type, `shape.tri([3, 4, 5])` (#361), its elements copied in.

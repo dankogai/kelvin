@@ -774,6 +774,7 @@ static bool is_moved(const char *name);
 static void set_moved(const char *name, bool moved);
 static void reject_owner_copy(Expr *value, Type *target, Pos pos);
 static void reject_record_mismatch(Expr *value, Type *target, Pos pos);
+static void check_case_value(Expr *v, Var *c, Type *whole, Pos pos);
 static void move_argument(Expr *arg, Type *param, const char *what);
 static void check_appended(Expr *given, const char *kind, const char *what);
 static const char *array_append_kind(Expr *given, Type *array);
@@ -10210,6 +10211,18 @@ static void reject_record_mismatch(Expr *value, Type *target, Pos pos) {
                                           : "");
 }
 
+/* the value of case c of the enum with values whole, as its case holds
+   it, in Kelvin's words, not C's (#411): ok($"s") of a Result<i64, E>,
+   err(3) of a Result<T, String>, $"s" where an i64? goes */
+static void check_case_value(Expr *v, Var *c, Type *whole, Pos pos) {
+    if (!v || !c || !c->type || !whole)
+        return;
+    bare_tags = true;
+    char *lead = strfmt("case '%s' of %s holds", c->name, kelvin_type(unqualified(whole)));
+    bare_tags = false;
+    check_typed_value(v, c->type, lead, pos);
+}
+
 static bool is_moved(const char *name) {
     int i = binding_index(name);
     return i >= 0 && scope_moved.data[i];
@@ -14665,6 +14678,7 @@ static Expr *case_maker(Token *t, Token *cn, Decl *r, Var *c) {
         brace_in_for = saved_for;
         expect_p(")");
         reject_record_mismatch(v, c->type, v->pos);
+        check_case_value(v, c, e->type, v->pos);
         move_argument(v, c->type, strfmt("case '%s'", c->name)); /* given by value, an owner moves (O5) */
         list_push(&e->items, v);
     } else if (is_p(peek(), "(")) {
@@ -15178,6 +15192,7 @@ static Expr *variant_constructor(Token *t, Type *vt) {
             e->text = "none";
         } else if (v) {
             reject_record_mismatch(v, c->type, v->pos);
+            check_case_value(v, c, vt, v->pos);
             move_argument(v, c->type, strfmt("case '%s'", c->name));
             list_push(&e->items, v);
         }
@@ -15246,6 +15261,7 @@ static Expr *optional_of(Expr *v, Type *target, Pos pos) {
         pick_overload(x, c->type);
         x = optional_of(string_of_literal(drop_cstr(x, c->type), c->type), c->type, pos);
         reject_record_mismatch(x, c->type, pos);
+        check_case_value(x, c, target, x->pos);
         move_argument(x, c->type, strfmt("case '%s'", c->name));
         e->text = c->name;
         list_push(&e->items, x);
@@ -15256,6 +15272,7 @@ static Expr *optional_of(Expr *v, Type *target, Pos pos) {
     v = string_of_literal(drop_cstr(v, some->type), some->type);
     v = optional_of(v, some->type, pos); /* a T?? takes a T too */
     reject_record_mismatch(v, some->type, pos);
+    check_case_value(v, some, target, v->pos);
     move_argument(v, some->type, strfmt("'%s'", some->name));
     e->text = some->name;
     list_push(&e->items, v);
@@ -15337,6 +15354,7 @@ static Expr *parse_case_initializer(Type *t, Decl *r) {
         Expr *v = drop_cstr(parse_initializer_for(c->type), c->type);
         reject_owner_copy(v, c->type, v->pos);
         reject_record_mismatch(v, c->type, v->pos);
+        check_case_value(v, c, t, v->pos);
         Expr *u = new_expr(E_FIELD, cn->pos);
         u->text = "u";
         Expr *d = new_expr(E_FIELD, cn->pos);

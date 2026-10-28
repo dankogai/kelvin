@@ -56,6 +56,9 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
     `var x:i64? = c ? n : none`, and `c ? Optional<i64>(n) : none`,
     where the other arm gives the type.
   - An owner moves in, as a case's value does.
+  - A value that is no `T` is an error in Kelvin's words (#411):
+    `let o:i64? = $"s"` gives `case 'some' of i64? holds an i64, and
+    this is String`; any number goes where a number does.
   - `Optional<T>(v)`, `Optional<T>()`, `Optional<T>.some(v)` and
     `Optional<T>.none` spell both out.
 - **Reading:** `x.some` is the value, checked at run time: of `none`,
