@@ -126,6 +126,7 @@ uint32_t kv_utf8_next(const uint8_t **p);
 kv_string kv_string_new(void);
 kv_string kv_string_text(const void *s);
 kv_string kv_string_from_bytes(const kv_bytes *b);
+int64_t kv_string_try_bytes(const kv_bytes *b, kv_string *out);
 kv_bytes kv_bytes_of_string(const kv_string *s); /* Bytes(&s) (#291): a copy of a String's bytes */
 /* String(n) of a number or a bool (#158): its text, as print shows it */
 kv_string kv_string_bool(bool v);

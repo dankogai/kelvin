@@ -21,8 +21,11 @@ println(b[0], " ", b.count, " ", e)   // 114 6 raw\x00\xFF\xFE
 for x in b { print(x, " ") }          // each byte, a u8
 println()
 var t = Bytes("héllo")
-var s = t.string()                    // a String, checked for UTF-8; String(&t) too; b has 0xFF, no text
+var s = String(&t)                    // a String, checked: bytes that are not UTF-8 end the program
 println(s, " ", s.count, " ", t.count)   // héllo 5 6
+var r = b.string()                    // a Result<String, i64> (#405): b has 0xFF at 4, no text
+println(t.string(), " ", r)           // ok("héllo") err(4)
+if let err(at) = r { println("not UTF-8 at byte ", at) }   // not UTF-8 at byte 4
 ```
 
 **Where it lives:** the prelude's, `libkelvin`, linked without an
@@ -59,7 +62,8 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   assignable; `b.at` is the bytes as a `u8^`, a borrow, unchecked;
   `b.cstr` a borrow of the bytes NUL-ended, for C.
 - **`b.count`** is the bytes held, `b.capacity` the room, `b.isUTF8`
-  whether it would pass as a String.
+  whether it would pass as a String; `b.string()` says where it would
+  not.
 - **`b[lo..<hi]`**, `b[lo...hi]`, `b[lo...]`, `b[..<hi]` and
   `b[...hi]` (#68) are new Bytes of those bytes; a range past the count
   ends the program; `b[r]` slices by a Range value (#377).
@@ -79,8 +83,16 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
 
 ## Text out of bytes
 
-- **`b.string()`**, or `String(&b)`, is a new String of the bytes,
-  checked: bytes that are not UTF-8 end the program.
+- **`b.string()`** (#405) is a `Result<String, i64>`: `ok`, a new
+  String of the bytes, or `err(at)` of bytes that are not UTF-8, `at`
+  the offset of the first byte where it breaks.
+  - Handled as any Result is ([results.md](results.md)): `if let s =
+    b.string()`, `if let err(at) = b.string()`, `b.string() ?? $"?"`,
+    `try b.string()`, a `switch`.
+  - One pass: no need to ask `b.isUTF8` first.
+- **`String(&b)`** is a new String of the bytes, checked: bytes that
+  are not UTF-8 end the program. It is the form for bytes known to be
+  text.
 - **`b.toBase64()`** (#155) gives the base64 text as a String, standard
   and padded; the words `url` and `nopad`, in either order, pick the
   URL-safe alphabet, `-` and `_` for `+` and `/`, and no `=` at the
@@ -112,7 +124,9 @@ far as they are.
 | `.isUTF8` | whether it would pass as a String |
 | `.append(x)`, `+=` | text, a byte, `&other`, or a Bytes an expression gives |
 | `.insert(i, x)`, `.remove(i, n)`, `.clear()`, `.reserve(n)`, `.compact()` | changes, in place |
-| `.copy()`, `.string()` | a new Bytes; a new String, checked |
+| `.copy()` | a new Bytes |
+| `.string()` | a `Result<String, i64>`: a new String, or the offset where the UTF-8 breaks (#405) |
+| `String(&b)` | a new String, checked: not UTF-8 ends the program |
 | `b[lo..<hi]` | a slice, a new Bytes (#68) |
 | `b[r]` | a slice by a Range value, a new Bytes (#377) |
 | `.toBase64()`, `.toBase64(url)`, `.toBase64(nopad)`, `.toBase64(url, nopad)` | the base64 text, a String (#155) |

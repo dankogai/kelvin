@@ -152,7 +152,7 @@ extend MsgPack {
         var b = Bytes()
         if !Self.bytes(r, r^.i, n, &b) { return Self.fail("a string ends past the bytes", r^.i) }
         if !b.isUTF8 { return Self.fail("a string is not UTF-8", r^.i) }
-        return SION.string(b.string())
+        return SION.string(String(&b))
     }
 
     static let readData(var r:MsgPackReader^, n:i64):SION {

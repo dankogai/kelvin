@@ -143,8 +143,8 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
   - A stream that stops answering, as a directory does on Linux, gives
     what was read before; a closed IO gives none.
   - Text that is not UTF-8 ends `f.string` with a message, as a line of
-    `f.lines` does: read `f.bytes` and ask `b.isUTF8` where that may
-    happen.
+    `f.lines` does: read `f.bytes` and take `b.string()`, a Result
+    (#405), where that may happen.
   - Both are of an IO in a variable, since what they give is owned,
     and is bound as any owner is.
 - **Reading by parts:** `for chunk in f.read(n) { }` and

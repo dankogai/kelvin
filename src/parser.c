@@ -3288,6 +3288,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                              methods[which].arity == 1 ? "" : "s");
                 if (ok == 'i' && (!strcmp(member, "seek") || !strcmp(member, "kill"))) /* a bool: whether it could (#84, #91) */
                     x->is_bool = true;
+                if (ok == 'b' && !strcmp(member, "string")) /* b.string() (#405): the String, or where the UTF-8 breaks */
+                    x->recv_type = variant_type(name, "res", base_type("String", name->pos), base_type("i64", name->pos));
                 if (ok == 's' && x->items.len == 1 &&
                     (!strcmp(member, "find") || !strcmp(member, "has") || !strcmp(member, "starts") || !strcmp(member, "ends"))) {
                     /* s.find(text), s.has(&t) (#177): text, a cstr, or a String borrowed */
@@ -4698,7 +4700,7 @@ static Expr *parse_primary(void) {
             error_at(t->pos, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)");
         if (e->items.len == 1 && owner_place(e->items.data[0]))
             error_at(t->pos, "%s(x) would copy an owner: write x.copy(), %s", t->text,
-                     string ? "b.string() of a Bytes, or String(&b)" : "or Bytes(&b)");
+                     string ? "String(&b) of a Bytes, or b.string() for a Result" : "or Bytes(&b)");
         return e;
     }
     if (is_converter(t) && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT) {
@@ -6134,11 +6136,11 @@ static Type *value_type_of(Expr *e) {
         return b && c && b->kind == T_BASE && c->kind == T_BASE && !strcmp(kelvin_type(b), kelvin_type(c)) ? b : NULL;
     }
     case E_METHOD: {
-        if (e->op && !strcmp(e->op, "bytes")) /* a Bytes method (#54): copy gives a Bytes, string a String */
-            return !strcmp(e->text, "copy")                                         ? base_type("Bytes", e->pos)
-                   : !strcmp(e->text, "string") || !strcmp(e->text, "toBase64") || !strcmp(e->text, "escape")
-                       ? base_type("String", e->pos)
-                                                                                : NULL;
+        if (e->op && !strcmp(e->op, "bytes")) /* a Bytes method (#54): copy gives a Bytes, string a Result (#405) */
+            return !strcmp(e->text, "copy")                               ? base_type("Bytes", e->pos)
+                   : !strcmp(e->text, "string")                           ? e->recv_type
+                   : !strcmp(e->text, "toBase64") || !strcmp(e->text, "escape") ? base_type("String", e->pos)
+                                                                          : NULL;
         if (e->op && !strcmp(e->op, "string")) { /* a String method (#55): copy, escape, unescape and trim give a String */
             if (!strcmp(e->text, "copy") || !strcmp(e->text, "escape") || !strcmp(e->text, "unescape") || !strcmp(e->text, "trim"))
                 return base_type("String", e->pos);
@@ -10098,7 +10100,7 @@ static void check_appended(Expr *given, const char *kind, const char *what) {
     const char *b = given->kind == E_PREFIX && given->a->kind == E_IDENT ? given->a->text : "b";
     if (to && is_bytes(to) && kind[0] == 's')
         error_at(given->pos, "a String takes text, not a borrow of a Bytes, which may not be UTF-8: give "
-                             "'%s.string()', or '%s.cstr' up to a NUL",
+                             "'String(&%s)', checked, or '%s.cstr' up to a NUL",
                  b, b);
     if (to && is_string(to) && kind[0] == 'b')
         error_at(given->pos, "a Bytes takes bytes: give the String's bytes, 's.bytes'");

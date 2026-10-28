@@ -5,4 +5,4 @@ let main():int32 {
     s += &b
     return 0
 }
-// error: a String takes text, not a borrow of a Bytes, which may not be UTF-8: give 'b.string()', or 'b.cstr' up to a NUL
+// error: a String takes text, not a borrow of a Bytes, which may not be UTF-8: give 'String(&b)', checked, or 'b.cstr' up to a NUL

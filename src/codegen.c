@@ -1917,8 +1917,12 @@ static char *expr_bare(Expr *e) {
         }
         if (e->op && !strcmp(e->op, "bytes")) { /* a Bytes method (#54), on a place */
             char *recv = strfmt("&%s", expr(e->a));
-            if (!strcmp(e->text, "string"))
-                return strfmt("kv_string_from_bytes(%s)", recv);
+            if (!strcmp(e->text, "string")) { /* (#405): the String, or the offset where the UTF-8 breaks */
+                const char *r = kelvin_record(e->recv_type->name)->name;
+                return strfmt("({ kv_string _kv_s = {0}; int64_t _kv_e = kv_string_try_bytes(%s, &_kv_s); _kv_e >= 0 ? "
+                              "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_s); })",
+                              recv, r, r);
+            }
             if (!strcmp(e->text, "toBase64")) { /* (#155): the words url and nopad */
                 bool url = false, pad = true;
                 for (int i = 0; i < e->items.len; i++) {

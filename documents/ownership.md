@@ -81,14 +81,15 @@ println(s, " ", s.count, " ", s.bytes^.count)   // héllo, κόσμε 🌍😀 1
 for c in s { if c > 127 { ... } }                // each codepoint, a uchr
 let t = s.copy()
 println(s == t, " ", t.cstr)
-let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
+let u = String(&b)               // a Bytes, checked; b.string() is a Result (#405)
 ```
 
 - **Making one:** `String()` is empty.
   - `String("text")`, or `$"text"` for short (#62), `String(s)` of a
     `cstr` or a byte array, and `String(&b)` of a `Bytes` copy and
     check the text.
-  - `b.string()` is the same as `String(&b)`, and `b.isUTF8` says
+  - `b.string()` (#405) is a `Result<String, i64>` instead, the
+    String or the offset where the UTF-8 breaks; `b.isUTF8` says
     whether it would pass.
 - **Properties:** `s.count` the codepoints, kept with the text, so it
   costs nothing.
@@ -104,7 +105,8 @@ let u = b.string()               // a Bytes, checked; b.isUTF8 asks first
     a `String` is a walk, so write `for c in s`, or index the bytes.
 - **`==` and `!=`** compare two `String`s in variables, by their bytes.
 - A `Bytes` takes a `String` through `s.bytes`; a `String` takes a
-  `Bytes` through `b.string()` or, up to a NUL, `b.cstr`.
+  `Bytes` through `String(&b)`, `b.string()` (a Result) or, up to a
+  NUL, `b.cstr`.
   - A borrow of the other kind is an error that says so.
 - **`uchr`** is a codepoint on the stack (#56), a value type of four
   bytes.

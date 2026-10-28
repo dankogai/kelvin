@@ -13,9 +13,10 @@ static void kv_string_fail(const char *what) {
     kv_exit_failure();
 }
 
-/* Is p[0..n) well-formed UTF-8 (no overlong forms, no surrogates, nothing
-   past U+10FFFF)? Then *count is its codepoints. */
-bool kv_utf8_valid(const uint8_t *p, size_t n, size_t *count) {
+/* Where p[0..n) stops being well-formed UTF-8 (an overlong form, a
+   surrogate, past U+10FFFF), the offset of the codepoint that is not; n if
+   it never does, and then *count is its codepoints (#405). */
+static size_t kv_utf8_scan(const uint8_t *p, size_t n, size_t *count) {
     size_t i = 0, c = 0;
     while (i < n) {
         uint8_t b = p[i];
@@ -25,23 +26,26 @@ bool kv_utf8_valid(const uint8_t *p, size_t n, size_t *count) {
         else if ((b & 0xE0) == 0xC0) { len = 2; min = 0x80; cp = b & 0x1F; }
         else if ((b & 0xF0) == 0xE0) { len = 3; min = 0x800; cp = b & 0x0F; }
         else if ((b & 0xF8) == 0xF0) { len = 4; min = 0x10000; cp = b & 0x07; }
-        else return false;
+        else return i;
         if (i + len > n)
-            return false;
+            return i;
         for (size_t k = 1; k < len; k++) {
             if ((p[i + k] & 0xC0) != 0x80)
-                return false;
+                return i;
             cp = (cp << 6) | (p[i + k] & 0x3F);
         }
         if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
-            return false;
+            return i;
         i += len;
         c++;
     }
     if (count)
         *count = c;
-    return true;
+    return n;
 }
+
+/* Is p[0..n) well-formed UTF-8? Then *count is its codepoints. */
+bool kv_utf8_valid(const uint8_t *p, size_t n, size_t *count) { return kv_utf8_scan(p, n, count) == n; }
 
 /* the codepoint at *p, which is well-formed, and *p moved past it */
 uint32_t kv_utf8_next(const uint8_t **p) {
@@ -93,6 +97,16 @@ kv_string kv_string_from_bytes(const kv_bytes *b) {
     kv_string_check(b->at ? b->at : (const uint8_t *)"", b->count, &r.count);
     r.b = kv_bytes_copy(b);
     return r;
+}
+
+/* b.string() (#405): a String of the bytes in *out, and -1; or, of bytes
+   that are not UTF-8, the offset of the first that is not, *out left empty */
+int64_t kv_string_try_bytes(const kv_bytes *b, kv_string *out) {
+    size_t count = 0, at = kv_utf8_scan(b->at ? b->at : (const uint8_t *)"", b->count, &count);
+    if (at != b->count)
+        return (int64_t)at;
+    *out = (kv_string){kv_bytes_copy(b), count};
+    return -1;
 }
 
 kv_string kv_string_copy(const kv_string *s) { return (kv_string){kv_bytes_copy(&s->b), s->count}; }

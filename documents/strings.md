@@ -215,8 +215,11 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
   - A `cstr` stops at its first NUL, as C's does: `$"p" + "\u{0}q"` is
     `"p"`, and `.cstr` of a String with one is cut there.
 - **Making one:** `$"text"` or `String("text")`, `String(s)` of a
-  `cstr` or a byte array, `String(&b)` or `b.string()` of a `Bytes`,
-  all checked for UTF-8.
+  `cstr` or a byte array, `String(&b)` of a `Bytes`, all checked for
+  UTF-8: text that is not ends the program.
+  - `b.string()` of a `Bytes` (#405) is a `Result<String, i64>`
+    instead: the String, or `err(at)`, the offset of the first byte
+    where the UTF-8 breaks, to handle: [bytes.md](bytes.md).
   - Where a String is expected, a string literal becomes one by itself
     (#70): `var s:String = "x"`, `s = "y"`, a member, an element or an
     entry written as `"text"`.

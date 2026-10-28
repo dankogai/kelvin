@@ -168,7 +168,8 @@ struct Expr {
        length of its text, NULL where it cannot see one */
     Type *shown;
     Type *recv_type;  /* E_PROPERTY keys/values of a Dictionary (#66): its type;
-                         E_CAST try (#76): the function's result type */
+                         E_CAST try (#76): the function's result type;
+                         E_METHOD b.string() (#405): its Result<String, i64> */
     Type *from;       /* E_CAST try (#76): the operand's type, a Result or an Optional */
     Expr *d;          /* E_CALL IO.exec (#92): the environment, a list (E_INIT) or an Array in a variable */
     Expr *fresh;      /* E_CALL IO.exec (#93): a bool, true for an environment of the entries alone */

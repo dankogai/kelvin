@@ -7959,3 +7959,20 @@ Two tests moved off the word, and kc says the same. Details are
 provisional P416.
 
 There are 1140 tests, and all pass with clang and with gcc 15.
+
+### 450. Bytes to String, a Result
+
+> Though we have `b.isUTF8`,`Byte` to `String` conversion should return `Result` or at least `Optional` so you can handle malformed UTF-8 instead of instant death.
+
+**Claude** asked two things. The user chose `Result<String, i64>`, its
+`err` the offset of the first byte where the UTF-8 breaks, over `String?`
+or a message; and `String(&b)` kept as the checked form, which ends the
+program, for bytes known to be text.
+
+**Claude** made it #405: `b.string()` is that Result, found in one scan,
+and handled as any Result is: `if let`, `if let err(at)`, `??`, `try`,
+`switch`. The three modules that asked `b.isUTF8` first write
+`String(&b)`. `f.string` and `f.lines` still end on text that is not
+UTF-8. Details are provisional P417.
+
+There are 1142 tests, and all pass with clang and with gcc 15.

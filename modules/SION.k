@@ -222,7 +222,7 @@ extend SION {
         var why = Self.nil
         if !Self.text(r, &b, &why) { return why }
         if !b.isUTF8 { return Self.error($`a string is not UTF-8 at ${r^.i}`) }
-        return Self.string(b.string())
+        return Self.string(String(&b))
     }
 
     static let digits(var r:SIONReader^, var b:Bytes^):bool {
