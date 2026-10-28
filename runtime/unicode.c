@@ -16,7 +16,7 @@ static void kv_string_fail(const char *what) {
 /* Where p[0..n) stops being well-formed UTF-8 (an overlong form, a
    surrogate, past U+10FFFF), the offset of the codepoint that is not; n if
    it never does, and then *count is its codepoints (#405). */
-static size_t kv_utf8_scan(const uint8_t *p, size_t n, size_t *count) {
+size_t kv_utf8_scan(const uint8_t *p, size_t n, size_t *count) {
     size_t i = 0, c = 0;
     while (i < n) {
         uint8_t b = p[i];

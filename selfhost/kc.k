@@ -86,7 +86,7 @@ let utf8_len(b:const $[int64]^, i:int64):int64 {
 
 // the error of the file at path where it is no source kelvinc reads, or
 // "": UTF-8, valid and without a BOM (#295, #298), its bytes read by C's
-// stdio before IO's .string, which would end kc in words of its own
+// stdio before IO's .string, whose err says no more than where
 let source_error(path:String^):String {
     let fp:FILE^ := fopen(path^.cstr, "rb")
     if fp == nullptr { return $"" }
@@ -134,7 +134,9 @@ let load(path:String^):Result<int64, String> {
     }
     let wrong:String = source_error(path)                // UTF-8 without a BOM (#298)
     if wrong.count > 0 { return err(wrong) }
-    var text:String = f.string
+    var read:Result<String, int64> = f.string            // a Result (#406); source_error saw it is UTF-8
+    var text:String = $""
+    if let ok(s) = read { text = s.copy() }
     let file:int64 = fnames.count as int64
     fnames += path^.copy()
     let from:int64 = codes.count as int64

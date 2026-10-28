@@ -20,7 +20,7 @@ let main():int32 {
         var g = IO(fd, "r")                      // a second IO on the same descriptor
         if g.error == 0 {
             println(g.fd == fd, " ", g.typename)
-            for line in g.lines { println(line) }
+            for line in g.lines { println(line.ok) }
         }
     }
     var bad = IO(99, "r")

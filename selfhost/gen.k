@@ -1095,7 +1095,7 @@ let type_of(n:int64):int64 {
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336, #337)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
-        if yk == Y_IO && tok_is(t, "string") { return base_type(Y_STRING) }
+        if yk == Y_IO && tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }   // or where its UTF-8 breaks (#406)
         if yk == Y_IO { return base_type(Y_I32) }
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
@@ -2848,10 +2848,17 @@ let gen_member(n:int64) {
         put("\"")
     } else if yk == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values")) {   // d.keys, d.values (#285)
         gen_slots_array(a, y, tok_is(t, "keys") ? types[y].name : types[y].elem, tok_is(t, "values"))
+    } else if yk == Y_IO && tok_is(t, "string") {        // f.string, a Result: err where its UTF-8 breaks (#406)
+        let r:int64 = result_of(base_type(Y_STRING), base_type(Y_I64))
+        put("({ kv_string _kv_s = {0}; int64_t _kv_e = kv_io_try_string(")
+        gen_place(a)
+        put(", &_kv_s); _kv_e >= 0 ? _kv_")
+        put_tok(types[r].name)
+        put("_make_err(_kv_e) : _kv_")
+        put_tok(types[r].name)
+        put("_make_ok(_kv_s); })")
     } else if yk == Y_IO {
-        if tok_is(t, "string") {
-            put("kv_io_read_string(")
-        } else if tok_is(t, "error") {
+        if tok_is(t, "error") {
             put("kv_io_error(")
         } else {
             put("kv_io_status(")

@@ -9,7 +9,7 @@ let path := "io_exec.tmp"
 let main():int32 {
     var p = IO.exec(["printf", "one\\ntwo\\n"], "r")
     if p.error == 0 {
-        for line in p.lines { println("[", line, "]") }
+        for line in p.lines { println("[", line.ok, "]") }
         p.close()
         println(p.status, " ", p.signal)
     }
@@ -27,18 +27,18 @@ let main():int32 {
         println(w.status)
     }
     var back = IO(path, "r")
-    for line in back.lines { println(line) }
+    for line in back.lines { println(line.ok) }
     var args = $["printf", "%s-%s", "a", "b"]
     var a = IO.exec(args, "r")
-    var s = a.string                             // a String straight (#107)
+    var s = a.string ?? $"?"                     // a Result, err where the UTF-8 breaks (#406)
     println(s)
     var sargs:$[String] = $[$"printf", $"strings"]
     var b = IO.exec(sargs, "r")
-    var t = b.string
+    var t = b.string ?? $"?"
     println(t, " ", b.typename)
     var name = $"echo"
     var c = IO.exec([name, "a String argument"], "r")
-    for line in c.lines { println(line) }
+    for line in c.lines { println(line.ok) }
     var k = IO.exec(["sh", "-c", "kill -9 $$"], "r")
     if k.error == 0 {
         k.close()

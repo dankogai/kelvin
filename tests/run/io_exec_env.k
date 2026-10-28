@@ -6,22 +6,22 @@
 #import <IO>
 let main():int32 {
     var p = IO.exec(["pwd"], "r", "/")
-    for line in p.lines { println(line) }
+    for line in p.lines { println(line.ok) }
     var e = IO.exec(["sh", "-c", "echo $KELVIN_A-$KELVIN_B"], "r", "", ["KELVIN_A=hello", "KELVIN_B=world"])
-    for line in e.lines { println(line) }
+    for line in e.lines { println(line.ok) }
     var env = $["KELVIN_A=from an Array"]
     var a = IO.exec(["sh", "-c", "echo $KELVIN_A"], "r", "", env)
-    for line in a.lines { println(line) }
+    for line in a.lines { println(line.ok) }
     var senv:$[String] = $[$"KELVIN_A=from Strings"]
     var s = IO.exec(["sh", "-c", "echo $KELVIN_A"], "r", "", senv)
-    for line in s.lines { println(line) }
+    for line in s.lines { println(line.ok) }
     var dir = $"/"
     var both = IO.exec(["sh", "-c", "echo $KELVIN_A $(pwd)"], "r", dir, ["KELVIN_A=in"])
-    for line in both.lines { println(line) }
+    for line in both.lines { println(line.ok) }
     var bad = IO.exec(["pwd"], "r", "/no/such/dir")
     println(bad.error == ENOENT, " ", bad.fd)              // a directory not entered: f.error (#110)
     var home = IO.exec(["sh", "-c", "test -n \"$HOME\" && echo kept"], "r", "", ["KELVIN_A=x"])
-    for line in home.lines { println(line) }
+    for line in home.lines { println(line.ok) }
     return 0
 }
 // out: /

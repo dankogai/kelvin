@@ -430,14 +430,17 @@ kv_bytes kv_io_read_all(kv_io *f) {
     return b;
 }
 
-/* the rest of the file as a String straight (#107); text that is not
-   UTF-8 ends the program, as a line of .lines does */
-kv_string kv_io_read_string(kv_io *f) {
+/* f.string (#406): the rest of the file as a String in *out, and -1; or,
+   of text that is not UTF-8, the offset where it breaks, the bytes freed */
+int64_t kv_io_try_string(kv_io *f, kv_string *out) {
     kv_bytes b = kv_io_read_all(f);
-    size_t count;
-    if (!kv_utf8_valid(b.at, b.count, &count))
-        kv_io_fail("the rest of the file read by .string is not UTF-8: read .bytes, or walk .read(n)");
-    return (kv_string){.b = b, .count = count};
+    size_t count = 0, at = kv_utf8_scan(b.at ? b.at : (const uint8_t *)"", b.count, &count);
+    if (at != b.count) {
+        kv_bytes_free(&b);
+        return (int64_t)at;
+    }
+    *out = (kv_string){.b = b, .count = count};
+    return -1;
 }
 
 /* the next n bytes at most into buf, which the loop owns; false at the end */
@@ -455,9 +458,10 @@ bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf) {
     return buf->count > 0;
 }
 
-/* the next line, without its newline, into line, which the loop owns;
-   false at the end; a line that is not UTF-8 aborts, as a String does */
-bool kv_io_read_line(kv_io *f, kv_string *line) {
+/* the next line, without its newline, into line, which the loop owns,
+   and *bad -1; false at the end; a line that is not UTF-8 (#406) leaves
+   line empty, *bad the offset in it where it breaks */
+bool kv_io_read_line(kv_io *f, kv_string *line, int64_t *bad) {
     FILE *fp = open_fp(f, "reading");
     kv_bytes b = kv_bytes_new();
     int c;
@@ -472,12 +476,13 @@ bool kv_io_read_line(kv_io *f, kv_string *line) {
         kv_bytes_free(&b);
         return false;
     }
-    size_t count;
-    if (!kv_utf8_valid(b.at, b.count, &count))
-        kv_io_fail("a line read by .lines is not UTF-8: read .bytes, or walk .read(n)");
+    size_t count = 0, at = kv_utf8_scan(b.at ? b.at : (const uint8_t *)"", b.count, &count);
     kv_string_free(line);
-    line->b = b;
-    line->count = count;
+    *bad = at != b.count ? (int64_t)at : -1;
+    if (*bad >= 0)
+        kv_bytes_free(&b);
+    else
+        line->b = b, line->count = count;
     return true;
 }
 

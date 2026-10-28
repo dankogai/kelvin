@@ -13,9 +13,9 @@ let main():int32 {
         t.ok.io.println("written through the IO")
         t.ok.io.flush()
         var back = IO(t.ok.path, "r")
-        for line in back.lines { println(line) }
+        for line in back.lines { println(line.ok) }
         t.ok.io.rewind()
-        var same = t.ok.io.string                // a String straight (#107)
+        var same = t.ok.io.string ?? $"?"        // a Result (#406)
         print(same)
         println(OS.remove(t.ok.path), " ", OS.exists(t.ok.path))
     }

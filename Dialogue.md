@@ -7976,3 +7976,20 @@ and handled as any Result is: `if let`, `if let err(at)`, `??`, `try`,
 UTF-8. Details are provisional P417.
 
 There are 1142 tests, and all pass with clang and with gcc 15.
+
+### 451. f.string and f.lines, Results too
+
+> make f.string and f.lines Results too
+
+**Claude** asked what each err carries. The user chose an `i64` offset
+for both: for a line, where in it the UTF-8 breaks; for `f.string`,
+where in what was read, the bytes then gone.
+
+**Claude** made it #406: `f.string` and each line of `f.lines` are a
+`Result<String, i64>`, and a bad line leaves the loop going to the next.
+kc reads its sources by `f.string`, so kc types it and writes its C too,
+and kc.k binds it before `if let`. The tests that printed lines read
+`line.ok`; two long ones bind `if let line = r`. Details are provisional
+P418.
+
+There are 1144 tests, and all pass with clang and with gcc 15.

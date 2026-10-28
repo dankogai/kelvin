@@ -1155,8 +1155,14 @@ static char *expr_bare(Expr *e) {
                           "_kv_%s_make_none(); })",
                           recv, r->name, r->name);
         }
-        if (e->op && !strcmp(e->op, "io") && e->type) /* f.bytes, f.string (#82): the rest of the file, straight (#107) */
-            return strfmt("kv_io_read_%s((kv_io *)&%s)", !strcmp(e->text, "string") ? "string" : "all", recv);
+        if (e->op && !strcmp(e->op, "io") && e->type && !strcmp(e->text, "string")) { /* f.string (#406): a Result */
+            const char *r = kelvin_record(e->type->name)->name;
+            return strfmt("({ kv_string _kv_s = {0}; int64_t _kv_e = kv_io_try_string((kv_io *)&%s, &_kv_s); _kv_e >= 0 ? "
+                          "_kv_%s_make_err(_kv_e) : _kv_%s_make_ok(_kv_s); })",
+                          recv, r, r);
+        }
+        if (e->op && !strcmp(e->op, "io") && e->type) /* f.bytes (#82): the rest of the file, straight (#107) */
+            return strfmt("kv_io_read_all((kv_io *)&%s)", recv);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set")) && e->recv_type) /* d.keys, d.values, s.elements (#66, #71) */
             return strfmt("%s_%s(&%s)", e->recv_type->cname, e->text, recv);
         if (e->op && (!strcmp(e->op, "dict") || !strcmp(e->op, "set"))) /* a Dictionary's or a Set's count (#65, #71) */
@@ -2941,9 +2947,10 @@ static void stmt(Stmt *s) {
         bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
         if (s->each == EACH_IO_READ || s->each == EACH_IO_LINES) {
             /* f.read(n), f.lines (#82): the loop owns one Bytes or String,
-               filled again each time round, which x borrows */
+               filled again each time round, which x borrows; a line is a
+               Result of it, or of the offset where its UTF-8 breaks (#406) */
             bool lines = s->each == EACH_IO_LINES;
-            char *buf = hidden(v, "buf"), *io = hidden(v, "io");
+            char *buf = hidden(v, "buf"), *io = hidden(v, "io"), *bad = hidden(v, "bad");
             line("{");
             indent++;
             sync(s->pos);
@@ -2956,15 +2963,23 @@ static void stmt(Stmt *s) {
                 line("const size_t %s = %s;", end = hidden(v, "n"), expr(s->step));
             }
             sync(s->pos);
-            if (lines)
-                line("while (kv_io_read_line(%s, &%s))", io, buf);
-            else
+            if (lines) {
+                line("int64_t %s = -1;", bad);
+                sync(s->pos);
+                line("while (kv_io_read_line(%s, &%s, &%s))", io, buf, bad);
+            } else
                 line("while (kv_io_read_chunk(%s, %s, &%s))", io, end, buf);
             line("{");
             indent++;
             if (strcmp(s->name, "_")) {
                 sync(s->pos);
-                line("const %s %s = %s;", lines ? "kv_string" : "kv_bytes", s->name, buf);
+                if (lines) {
+                    const char *r = kelvin_record(s->elem->name)->name;
+                    line("const %s = %s >= 0 ? _kv_%s_make_err(%s) : _kv_%s_make_ok(%s);", decl(s->elem, s->name), bad, r,
+                         bad, r, buf);
+                } else {
+                    line("const kv_bytes %s = %s;", s->name, buf);
+                }
             }
             stmt(s->body);
             indent--;

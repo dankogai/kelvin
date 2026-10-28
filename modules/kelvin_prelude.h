@@ -122,6 +122,7 @@ char *kv_template_bytes_owner(char *p, size_t max, kv_bytes b);
    aborts where a String is made or appended */
 typedef struct kv_string { kv_bytes b; size_t count; } kv_string;
 bool kv_utf8_valid(const uint8_t *p, size_t n, size_t *count);
+size_t kv_utf8_scan(const uint8_t *p, size_t n, size_t *count);
 uint32_t kv_utf8_next(const uint8_t **p);
 kv_string kv_string_new(void);
 kv_string kv_string_text(const void *s);

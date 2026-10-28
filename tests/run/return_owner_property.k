@@ -12,7 +12,7 @@ let local():$[int64] {
 }
 let keys(d:const ${String: int64}^):$[String] { return d^.keys }
 let values(d:const ${String: int64}^):$[int64] { d^.values }
-let text(f:IO^):String { return f^.string }
+let text(f:IO^):Result<String, i64> { return f^.string }   // a Result (#406)
 let raw(f:IO^):Bytes { return f^.bytes }
 let full(f:IO^):String { return f^.abspath }
 let base(f:IO^):String { return f^.basename }
@@ -30,7 +30,7 @@ let main():int32 {
     out.write("hello\n")
     out.close()
     var f = IO("return_owner_property.tmpdir/f.txt", "r")
-    print(text(&f))
+    print(text(&f) ?? $"?")
     var g = IO("return_owner_property.tmpdir/f.txt", "r")
     println(raw(&g).count, " ", base(&g), " ", dir(&g), " ", full(&g).count > 0)
     var h = IO("return_owner_property.tmpdir", "r")

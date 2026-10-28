@@ -24,7 +24,7 @@ let main():int32 {
         println(f.eof)
         f.rewind()
         println(f.eof, " ", f.position, " ", f.seek(5))
-        for line in f.lines { println(line) }
+        for line in f.lines { println(line.ok) }
         println(f.eof, " ", f.seek(-1), " ", f.seek(100), " ", f.position)
     }
     remove(path)

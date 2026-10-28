@@ -5,19 +5,19 @@
 #import <IO>
 let main():int32 {
     var only = IO.exec(["env"], "r", "", ["KELVIN_ONLY=1"], true)
-    for line in only.lines { println("[", line, "]") }
+    for line in only.lines { println("[", line.ok, "]") }
     var none = IO.exec(["env"], "r", "", [], true)
     var n:int64 = 0
     for _ in none.lines { n += 1 }
     println(n)
     var env = $["KELVIN_A=a", "KELVIN_B=b"]
     var two = IO.exec(["env"], "r", "", env, true)
-    for line in two.lines { println(line) }
+    for line in two.lines { println(line.ok) }
     let keep = false
     var added = IO.exec(["sh", "-c", "test -n \"$HOME\" && echo kept $KELVIN_C"], "r", "", ["KELVIN_C=c"], keep)
-    for line in added.lines { println(line) }
+    for line in added.lines { println(line.ok) }
     var withPath = IO.exec(["/bin/sh", "-c", "echo $PATH"], "r", "", ["PATH=/kelvin/bin"], true)   // sh by its path: the PATH is the new one
-    for line in withPath.lines { println(line) }
+    for line in withPath.lines { println(line.ok) }
     return 0
 }
 // out: [KELVIN_ONLY=1]

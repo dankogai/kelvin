@@ -13,7 +13,7 @@ let main():int32 {
     f.println(d, " ", p)
     f.close()
     var r = IO("io_pretty.tmp")
-    var all = r.string
+    var all = r.string ?? $"?"
     print(all)
     var lines = 0
     var back = IO("io_pretty.tmp")

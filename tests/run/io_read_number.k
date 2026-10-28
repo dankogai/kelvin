@@ -21,8 +21,8 @@ let main():int32 {
         var sum:int64 = 0
         var total = 0.0
         for line in f.lines {
-            sum += int64(line)                 // 0 for a line with no number
-            total += float64(line)
+            sum += int64(line.ok)              // 0 for a line with no number
+            total += float64(line.ok)
         }
         println(sum, " ", total)
         var end = f.byte

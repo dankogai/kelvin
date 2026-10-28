@@ -8082,8 +8082,10 @@ static Expr *property(Expr *e, Token *name, char *member) {
         x->text = member;
         x->op = (char *)kind;
         x->is_bool = !strcmp(member, "isUTF8") || (kk == 'i' && !strcmp(member, "eof"));
-        if (kk == 'i' && (!strcmp(member, "bytes") || !strcmp(member, "string"))) /* the whole file, straight (#82, #107) */
-            x->type = base_type(!strcmp(member, "bytes") ? "Bytes" : "String", name->pos);
+        if (kk == 'i' && !strcmp(member, "bytes")) /* the whole file, straight (#82, #107) */
+            x->type = base_type("Bytes", name->pos);
+        else if (kk == 'i' && !strcmp(member, "string")) /* the whole file as text, or where its UTF-8 breaks (#406) */
+            x->type = variant_type(name, "res", base_type("String", name->pos), base_type("i64", name->pos));
         else if (kk == 'i' && !strcmp(member, "eof")) /* (#84) */
             x->type = base_type("bool", name->pos);
         else if (kk == 'i' && (!strcmp(member, "position") || !strcmp(member, "count")))
@@ -12782,16 +12784,20 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
     }
     if (io_read || io_lines) {
         /* f.read(n): the next n bytes at most, a Bytes; f.lines: each line,
-           a String (#82); the loop owns the one it holds, x borrows it */
+           a Result<String, i64> (#82, #406), err the offset in the line
+           where its UTF-8 breaks; the loop owns the one it holds, x
+           borrows it */
         if (s->name2)
             error_at(s->pos, "two loop variables walk a Dictionary's entries; an IO's chunks or lines take one");
         s->each = io_read ? EACH_IO_READ : EACH_IO_LINES;
         if (io_read)
             s->step = seq->items.data[0];
-        elem = base_type(io_read ? "Bytes" : "String", seq->pos);
+        elem = io_read ? base_type("Bytes", seq->pos)
+                       : variant_type(&(Token){.kind = TK_IDENT, .pos = seq->pos, .text = "lines"}, "res",
+                                      base_type("String", seq->pos), base_type("i64", seq->pos));
         if (written && strcmp(kelvin_type(written), kelvin_type(elem)))
             error_at(written->pos, "the loop variable of %s is a %s, not %s", io_read ? ".read(n)" : ".lines",
-                     elem->name, kelvin_type(written));
+                     kelvin_type(elem), kelvin_type(written));
     } else if (is_set_owner(t)) { /* its elements, in order (#71) */
         if (!owner_place(seq))
             error_at(seq->pos, "for over a Set that an expression gives: bind it to a variable first");

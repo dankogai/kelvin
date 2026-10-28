@@ -1,7 +1,7 @@
 // IO (#82): stdio as an owner. IO(path, mode) is the IO, straight, with
-// f.error the errno when it did not open (#109); f.bytes and f.string the rest of the file, straight (#107: a
-// Bytes, a String; text that is not UTF-8 ends the program, so ask
-// b.isUTF8 of the bytes first); for x in f.read(n) and for line in f.lines walk
+// f.error the errno when it did not open (#109); f.bytes and f.string the rest of the file (#107: a
+// Bytes straight; a Result<String, i64>, err where the UTF-8 breaks,
+// #406); for x in f.read(n) and for line in f.lines, each a Result, walk
 // it; f.write takes text, a borrow or an owner an expression gives;
 // IO.stdin, IO.stdout and IO.stderr are never closed; a file closes
 // when its block ends, or by .close() through the var that owns it
@@ -28,11 +28,11 @@ let read_all():Result<int64, int32> {
     let b = f.bytes                     // a Bytes straight (#107)
     return b.count as int64
 }
-let read_text():Result<String, int32> {
+let read_text():Result<String, int64> {
     var p = $"io_basics"
     p += ".tmp"
     let f = IO(p, "r")                  // a String path
-    return f.string                     // a String, wrapped as ok
+    return f.string                     // a Result<String, i64> (#406)
 }
 let bad_text():Result<bool, int32> {
     var w = IO("io_bad.tmp", "w")
@@ -41,7 +41,7 @@ let bad_text():Result<bool, int32> {
     w.write(&b)
     w.close()
     let f = IO("io_bad.tmp", "r")
-    let raw = f.bytes                   // .string of this would end the program
+    let raw = f.bytes                   // .string of this is err(1), where the UTF-8 breaks (#406)
     return raw.isUTF8
 }
 struct holder { name: String; f: IO }
@@ -57,7 +57,7 @@ let main():int32 {
     if f1.error == 0 {
         for line in f1.lines {
             k += 1
-            println(k, ": ", line, " ", line.count)
+            println(k, ": ", line.ok, " ", line.ok.count)
         }
     }
     var f2 = IO(path, "r")

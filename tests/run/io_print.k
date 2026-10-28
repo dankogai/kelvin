@@ -23,7 +23,7 @@ let main():int32 {
     println(w.cstr)
     var f = IO(path, "r")
     if f.error == 0 {
-        for line in f.lines { println("[", line, "]") }
+        for line in f.lines { println("[", line.ok, "]") }
     }
     IO.stderr.println("to stderr ", 1)
     IO.stdout.println("to stdout ", 2.5)

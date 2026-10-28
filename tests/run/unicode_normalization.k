@@ -28,34 +28,36 @@ let main():int32 {
     if f.error != 0 { println("cannot open the test file"); return 1 }
     var lines:i64 = 0
     var failed:i64 = 0
-    for line in f.lines {
-        if line.count == 0 || line.bytes^[0] == '#' || line.bytes^[0] == '@' { continue }
-        var cols:Array<String> = Array<String>()
-        var start:i64 = 0
-        var i:i64 = 0
-        let n = line.bytes^.count as i64
-        while i < n && cols.count < 5 {
-            if line.bytes^[i] == ';' {
-                cols += column(&line, start, i)
-                start = i + 1
+    for r in f.lines {
+        if let line = r {
+            if line.count == 0 || line.bytes^[0] == '#' || line.bytes^[0] == '@' { continue }
+            var cols:Array<String> = Array<String>()
+            var start:i64 = 0
+            var i:i64 = 0
+            let n = line.bytes^.count as i64
+            while i < n && cols.count < 5 {
+                if line.bytes^[i] == ';' {
+                    cols += column(&line, start, i)
+                    start = i + 1
+                }
+                i += 1
             }
-            i += 1
-        }
-        if cols.count != 5 { continue }
-        lines += 1
-        var ok = true
-        for k in 0..<5 {
-            var composed = cols[k].normalize(nfc)
-            var decomposed = cols[k].normalize(nfd)
-            var kcomposed = cols[k].normalize(nfkc)
-            var kdecomposed = cols[k].normalize(nfkd)
-            let c:i64 = k < 3 ? 1 : 3
-            let d:i64 = k < 3 ? 2 : 4
-            if composed != cols[c] || decomposed != cols[d] || kcomposed != cols[3] || kdecomposed != cols[4] { ok = false }
-        }
-        if !ok {
-            failed += 1
-            if failed <= 5 { println("failed: ", line) }
+            if cols.count != 5 { continue }
+            lines += 1
+            var ok = true
+            for k in 0..<5 {
+                var composed = cols[k].normalize(nfc)
+                var decomposed = cols[k].normalize(nfd)
+                var kcomposed = cols[k].normalize(nfkc)
+                var kdecomposed = cols[k].normalize(nfkd)
+                let c:i64 = k < 3 ? 1 : 3
+                let d:i64 = k < 3 ? 2 : 4
+                if composed != cols[c] || decomposed != cols[d] || kcomposed != cols[3] || kdecomposed != cols[4] { ok = false }
+            }
+            if !ok {
+                failed += 1
+                if failed <= 5 { println("failed: ", line) }
+            }
         }
     }
     println("normalization: ", lines, " lines, ", failed, " failed")

@@ -149,7 +149,8 @@ So far the changes from C are:
   `#import <IO>`
   - `let f = IO(path, "r")`, with `f.error` when it did not open
   - `for line in f.lines { }`, `for chunk in f.read(4096) { }`,
-    `let s = f.string`
+    `let s = f.string`, a line and the whole a `Result<String, i64>`
+    (#406)
   - `f.write("x")`, `IO.stderr.println("n = ", n)`
 - `#import <JSON>` is JSON as an enum with values: `var j = JSON.parse(text)`,
   `j.object["k"].array[0].number`, `JSON.stringify(&j, "  ")` (#113)

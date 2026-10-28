@@ -73,9 +73,9 @@ void kv_io_discard(kv_io v);
 void kv_io_close(kv_io *f);
 void kv_io_flush(kv_io *f);
 kv_bytes kv_io_read_all(kv_io *f);     /* the rest of the file, straight (#107) */
-kv_string kv_io_read_string(kv_io *f); /* the same as UTF-8, or the program ends */
+int64_t kv_io_try_string(kv_io *f, kv_string *out); /* the same as UTF-8, -1; or where it breaks (#406) */
 bool kv_io_read_chunk(kv_io *f, size_t n, kv_bytes *buf);
-bool kv_io_read_line(kv_io *f, kv_string *line);
+bool kv_io_read_line(kv_io *f, kv_string *line, int64_t *bad);
 void kv_io_write_text(kv_io *f, const void *s);
 void kv_io_write_bytes(kv_io *f, const kv_bytes *b);
 void kv_io_write_string(kv_io *f, const kv_string *s);

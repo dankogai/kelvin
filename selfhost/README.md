@@ -715,7 +715,8 @@ kc reads what it is written in, and little more.
   is no UTF-8, and C's prefixes, `L"..."`, `u8'x'`, are kelvinc's errors,
   in its words, at the line.
   - kc reads a file's bytes with C's stdio first, `fopen` and `fgetc`,
-    as IO's `.string` would end kc in words of its own.
+    as IO's `.string` says only where the UTF-8 breaks (#406), not
+    kelvinc's words at the line.
 - **A String literal is every byte of it** (#299), as kelvinc's:
   `KV_STRING_LIT`, C's sizeof, so `$"\u{0}mid"` holds its NUL.
 - **`\u` escapes in a literal** (#293), as kelvinc's #292: `\u{X}`,
@@ -791,7 +792,7 @@ kc reads what it is written in, and little more.
 - **Of the prelude and IO:** `.count`, `.copy()`, `.cstr`, `.pop()`,
   `.uchr`, `.utf32`, `String(text)`, `String(n)` of a number or a
   `bool` (#212), `println`, `IO(path, mode)`,
-  `.string`, `.write(&s)`, `.close()`, `.error`, `.status`,
+  `.string` (a Result, #406), `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
   - A String's `.escape()` and `.unescape()` (#300), new Strings, as
     kelvinc's, of runtime/string.k; with an argument, kelvinc's error,

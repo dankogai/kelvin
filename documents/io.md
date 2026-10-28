@@ -19,7 +19,7 @@ let count(path:cstr):Result<int64, int32> {
     let f = IO(path, "r")                // the IO, straight (#109)
     if f.error != 0 { return err(f.error) }   // the errno when it did not open, passed up
     var n:int64 = 0
-    for line in f.lines { n += 1 }       // each line, a String, without its newline
+    for line in f.lines { n += 1 }       // each line without its newline, a Result<String, i64> (#406)
     return n                              // f closes here
 }
 let copy(from:cstr, to:cstr):Result<int64, int32> {
@@ -41,15 +41,17 @@ f.write($`${n} items\n`)                  // a String an expression gives, writt
 f.println("n = ", n, ", half = ", n / 2.0)   // as println, to the file (#83)
 f.seek(0); println(f.count, " ", f.eof)       // the position: from the start, the length, past the end? (#84)
 if let b = f.byte { println(b) }              // the next byte, or none (#85)
-for line in f.lines { sum += int64(line) }      // a number is read from the text (#88)
+for r in f.lines { if let line = r { sum += int64(line) } }   // a number is read from the text (#88)
 var ls = IO.popen("ls -l", "r")               // a shell command's output, straight (#87, #110); IO.pipe() a pipe's two ends
 var wc = IO.exec(["wc", "-l", path], "r")     // a program's, no shell (#90); wc.error is ENOENT when there is no such program
 if wc.error == 0 { wc.kill(15) }              // a signal to it (#91); wc.pid its process id
 var ls = IO.exec(["ls"], "r", "/tmp", ["LC_ALL=C"])   // in a directory, with an environment entry (#92)
 var bare = IO.exec(["/usr/bin/env"], "r", "", ["ONLY=1"], true)   // an environment of that entry alone (#93)
-for line in ls.lines { println(line) }
+for r in ls.lines {                           // each line a Result: the String, or where its UTF-8 breaks (#406)
+    if let line = r { println(line) } else { println("not UTF-8 at byte ", r.err) }
+}
 f.flush()
-let text = f.string                       // the rest of the file as a String, straight (#107); not UTF-8 ends the program
+let text = f.string ?? $""                // the rest of the file, a Result<String, i64>: err where the UTF-8 breaks (#406)
 let raw = f.bytes                         // as a Bytes, whatever it holds
 IO.stderr.write("warning\n")              // never closed; also IO.stdin, IO.stdout
 var m = IO("missing", "r")
@@ -138,21 +140,28 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
       a let, as `if let` binds one, holds a copy, and closing through
       it would close twice.
 - **Reading whole:** `f.bytes` is the rest of the file as a `Bytes`,
-  and `f.string` as a `String`, each straight and no Result (#107),
-  since the file was there to open.
+  straight and no Result (#107), since the file was there to open.
+  - `f.string` (#406) is the same as a `Result<String, i64>`, as
+    `b.string()` is (#405): `ok`, the String, or `err(at)`, `at` the
+    offset in what was read where the UTF-8 breaks.
+    - The bytes are read either way: read `f.bytes` to keep them.
+    - `f.string ?? $""`, `try f.string` in a function whose `err` is an
+      `i64`, `if let s = f.string`; see [results.md](results.md).
   - A stream that stops answering, as a directory does on Linux, gives
     what was read before; a closed IO gives none.
-  - Text that is not UTF-8 ends `f.string` with a message, as a line of
-    `f.lines` does: read `f.bytes` and take `b.string()`, a Result
-    (#405), where that may happen.
   - Both are of an IO in a variable, since what they give is owned,
     and is bound as any owner is.
 - **Reading by parts:** `for chunk in f.read(n) { }` and
   `for line in f.lines { }`.
   - `f.read(n)` gives the next `n` bytes at most as a `Bytes`, up to the
     end.
-  - `f.lines` gives each line as a `String` without its `\n`, up to the
-    end; a line that is not UTF-8 ends the program with a message.
+  - `f.lines` gives each line without its `\n`, up to the end, as a
+    `Result<String, i64>` (#406): `ok`, the String, or `err(at)`, `at`
+    the offset in the line where its UTF-8 breaks; the next line is
+    read as any other.
+    - `if let line = r` takes the String, `r.err` the offset; `r.ok`
+      ends the program on a line that is not UTF-8.
+    - `for line:String in f.lines` is an error that names the Result.
   - The loop owns the one Bytes or String it holds, filled again each
     time round; `chunk` or `line` is a let that borrows it: copy it to
     keep it.
@@ -190,8 +199,8 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
 - **Numbers** are read from the text (#88), with the converters of
   [integers.md](integers.md), which take a String as they take a
   `cstr`.
-  - A line: `for line in f.lines { sum += i64(line) }`.
-  - The whole file: `var text = f.string; i64(text)`.
+  - A line: `for r in f.lines { if let line = r { sum += i64(line) } }`.
+  - The whole file: `var text = f.string ?? $""; i64(text)`.
   - `f.i64` is an error that says so. C's `scanf` reads no number for
     Kelvin: it skips what it cannot read and leaves the stream where it
     stopped, which no program should have to reason about.
@@ -306,9 +315,9 @@ IO.pipe(): {reader: IO, writer: IO}                // a pipe's two ends; both ca
 IO.strerror(code: int32): String                    // the message for an err
 
 f.bytes: Bytes                           // the rest of the file, straight (#107)
-f.string: String                         // the same as UTF-8; not UTF-8 ends the program
+f.string: Result<String, int64>          // the same as UTF-8, or err where it breaks (#406)
 for chunk in f.read(n: int64) { }          // each next n bytes at most, a Bytes the loop owns
-for line in f.lines { }                  // each line without its newline, a String the loop owns
+for line in f.lines { }                  // each line without its newline, a Result<String, int64> the loop owns (#406)
 f.byte: uint8?                              // the next byte, none at the end
 f.write(x: text | &String | &Bytes | String | Bytes)   // text, a borrow, or an owner given, freed after
 f.print(a, b, ...)                       // as print, up to 16 values
@@ -393,9 +402,9 @@ Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 | `IO.stdin`, `IO.stdout`, `IO.stderr` | | the stream, never closed |
 | `IO.strerror(code)` | | the message for an `err`, a `String` (#103) |
 | an `IO` | `.bytes` | a `Bytes`: the rest of the file, straight (#107) |
-| | `.string` | a `String`: the same as UTF-8; not UTF-8 ends the program |
+| | `.string` | a `Result<String, i64>`: the same as UTF-8, or `err(at)` where it breaks (#406) |
 | | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
-| | `for line in f.lines { }` | each line without its newline, a `String` the loop owns |
+| | `for line in f.lines { }` | each line without its newline, a `Result<String, i64>` the loop owns: `err(at)` where its UTF-8 breaks (#406) |
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
 | | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |

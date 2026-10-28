@@ -7,7 +7,7 @@ let path := "io_process.tmp"
 let main():int32 {
     var p = IO.popen("printf 'one\\ntwo\\n'", "r")
     if p.error == 0 {
-        for line in p.lines { println("[", line, "]") }
+        for line in p.lines { println("[", line.ok, "]") }
         println(p.status)                // -1 until closed
         p.close()
         println(p.status, " ", p.fd)  // the exit code, 0
@@ -24,16 +24,16 @@ let main():int32 {
         println(w.status)
     }
     var back = IO(path, "r")
-    for line in back.lines { println(line) }
+    for line in back.lines { println(line.ok) }
     println(back.status)                    // not a process
     var pipe = IO.pipe()                                           // the pair straight (#110)
     println(pipe.typename, " ", pipe.reader.fd >= 0, " ", pipe.writer.fd >= 0, " ", pipe.reader.error)
     pipe.writer.println("through a pipe")
     pipe.writer.close()
-    for line in pipe.reader.lines { println(line) }
+    for line in pipe.reader.lines { println(line.ok) }
     var cmd = $"printf 'from a String'"
     var s = IO.popen(cmd, "r")
-    var all = s.string                           // a String straight (#107)
+    var all = s.string ?? $"?"                   // a Result (#406)
     println(all)
     remove(path)
     return 0

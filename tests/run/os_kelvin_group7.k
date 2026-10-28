@@ -24,7 +24,7 @@ let main():int32 {
         println(String(t.ok.io.path) == t.ok.path, " ", t.ok.io.abspath == t.ok.path)
         t.ok.io.print("written")
         t.ok.io.rewind()
-        println(t.ok.io.string, " ", OS.remove(t.ok.path))
+        println(t.ok.io.string ?? $"?", " ", OS.remove(t.ok.path))
     }
     var d = OS.mkdtemp("kv_g7d_")
     if let ok(p) = d { println(OS.dirname(p) == td, " ", OS.basename(p).count, " ", OS.isdir(p), " ", OS.rmdir(p)) }
