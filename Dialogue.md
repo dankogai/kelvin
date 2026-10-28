@@ -8006,3 +8006,16 @@ kc.k reads its sources by `f.string ?? $""` again; sample.k prints
 `??` of Results through both compilers. Details are provisional P419.
 
 There are 1144 tests, and all pass with clang and with gcc 15.
+
+### 453. kc's r ?? r2
+
+> make kc take r ?? r2 too
+
+**Claude** made it #408: kc's `r ?? r2` of two Results of a type gives
+r where it is ok, else r2, writing the C kelvinc writes, a place copied,
+a Result taken freed where it is an err. kc's message of a wrong
+fallback now puts the Result's own article before it, as kelvinc's.
+sample.k prints `r ?? r2` through both compilers. Details are
+provisional P420.
+
+There are 1144 tests, and all pass with clang and with gcc 15.

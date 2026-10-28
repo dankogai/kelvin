@@ -1191,7 +1191,11 @@ let type_of(n:int64):int64 {
     }
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
-        if tok_is(t, "??") { return wrap_type(type_of(nodes[n].a)) }   // (#217), a Result's ok (#407)
+        if tok_is(t, "??") {                                            // (#217), a Result's ok (#407)
+            let ly = type_of(nodes[n].a)
+            if is_result(ly) && type_of(nodes[n].b) == ly { return ly }  // r ?? r2, a Result (#408)
+            return wrap_type(ly)
+        }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return type_of(nodes[n].a)
@@ -3977,6 +3981,72 @@ let gen_value(n:int64, y:int64) {
     put(")")
 }
 
+// r ?? r2 of two Results of y, as kelvinc's #253 (#408): r where it is
+// ok, else r2, r read once; where y owns, r a copy where it is a place,
+// else taken, and freed where it is an err; r2 a copy where it is a
+// place, else taken, made only where r is an err
+let gen_coalesce_whole(n:int64, y:int64) {
+    let a:int64 = nodes[n].a
+    let b:int64 = nodes[n].b
+    serial += 1
+    let s = serial                                   // its own: r may make names too (#221)
+    put("({ ")
+    put_ctype(y)
+    put(" _kv_o")
+    put_int(s)
+    put(" = ")
+    gen_expr(a)
+    if !is_owner(y) {
+        put("; _kv_o")
+        put_int(s)
+        put(".tag == 0 ? _kv_o")
+        put_int(s)
+        put(" : (")
+        gen_expr(b)
+        put("); })")
+        return
+    }
+    put("; ")
+    put_ctype(y)
+    put(" _kv_r")
+    put_int(s)
+    put("; if (_kv_o")
+    put_int(s)
+    put(".tag == 0) _kv_r")
+    put_int(s)
+    put(" = ")
+    if is_place(a) {
+        put_owner_prefix(y)
+        put("_copy(&_kv_o")
+        put_int(s)
+        put(")")
+    } else {
+        put("_kv_o")
+        put_int(s)
+    }
+    put("; else { ")
+    if !is_place(a) {
+        put_owner_prefix(y)
+        put("_free(&_kv_o")
+        put_int(s)
+        put("); ")
+    }
+    put("_kv_r")
+    put_int(s)
+    put(" = ")
+    if is_place(b) {
+        put_owner_prefix(y)
+        put("_copy(&(")
+        gen_expr(b)
+        put("))")
+    } else {
+        gen_expr(b)
+    }
+    put("; } _kv_r")
+    put_int(s)
+    put("; })")
+}
+
 // x ?? d: what the Optional x holds, else d, x read once (#217); what
 // the Result x holds where it is ok, else d (#407)
 let gen_coalesce(n:int64) {
@@ -3994,12 +4064,8 @@ let gen_coalesce(n:int64) {
         return
     }
     let b:int64 = nodes[n].b
-    if is_result(y) && type_of(b) == y {             // kelvinc's #253 (#407)
-        var m = $"'??' of a "
-        let w:String = kelvin_type_text(y)
-        m += &w
-        m += " on the right, r ?? r2, is not kc's yet"
-        gen_error(b, m.cstr)
+    if is_result(y) && type_of(b) == y {             // r ?? r2, as kelvinc's #253 (#408)
+        gen_coalesce_whole(n, y)
         return
     }
     if type_of(b) != y {                             // y's type in Kelvin's words, as kelvinc's (#340)
@@ -4010,7 +4076,7 @@ let gen_coalesce(n:int64) {
             m += &ow
             m += " falls back to "
             let iw:String = kelvin_type_text(inner)
-            m += article_of(&iw)
+            m += article_of(&ow)                     // the Result's own, as kelvinc's (#408)
             m += " "
             m += &ow
             m += " or "

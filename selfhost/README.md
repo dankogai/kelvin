@@ -213,7 +213,14 @@ kc reads what it is written in, and little more.
     - d of another type is kelvinc's error in its words, as of an
       Optional; a Result on the left of no Optional or Result is too:
       `'??' takes an Optional or a Result on its left, and this is i64`.
-    - `r ?? r2` of two Results is kelvinc's alone, kc's error says so.
+  - `r ?? r2` of two Results of a type (#408), as kelvinc's #253: r
+    where it is ok, else r2, a Result: `bad ?? parse_digit('2')`.
+    - r is a copy where it is a place, else taken, and freed where it
+      is an err; r2 is a copy where it is a place, else taken, made
+      only where r is an err.
+    - `r ?? r2 ?? 0` is an `int64`, read left to right as kc reads
+      `??`.
+    - `r ?? ok(v)` and `r ?? err(e)` (#254) are not kc's yet.
   - `==` and `!=` of an Optional (#343), as kelvinc's #79: two `none`,
     or two equal values, by `_kv_opt_T_eq`, the same case and then
     the values' `==`.
