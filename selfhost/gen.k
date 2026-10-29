@@ -3600,13 +3600,16 @@ let gen_init(n:int64, s:int64) {
 // owner moves in; else the expression as it is
 // whether n is a value that t takes, as some(n) where a t? goes: a t; a
 // number literal of any number; {a, b} of a struct; one a t of a t? takes
-// (#217, #229)
+// (#217, #229); a bool or any number where a number goes (#415)
 let fits_value(n:int64, t:int64):bool {
     if t < 0 { return false }
     let k:nkind = nodes[n].kind
     let tk:ykind = types[t].kind
-    let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
-    if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64 || tk == Y_F32) { return true }
+    let literal = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
+    let number = tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64 || tk == Y_F32
+    if literal && number { return true }
+    let y:int64 = number && !literal ? type_of(n) : 0 - 1
+    if y >= 0 && is_number_kind(types[y].kind) { return true }   // a bool or a number of another kind, as kelvinc converts it; none of a bool? (#415)
     if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
     if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if type_of(n) == t { return true }

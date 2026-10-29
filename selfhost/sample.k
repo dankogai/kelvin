@@ -629,6 +629,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     let nested:Result<int64?, String> = ok(none)
     let quiet:String? = "lit"
     println(good == ok(7), " ", bad != err("x"), " ", digit_shown(ok(3)), " ", digit_shown(err($"e")), " ", nested, " ", quiet)   // case words beside ==, as arguments, and none in ok (#413)
+    let flagged:int64? = true
+    let small:int32 = 6
+    let measured:float64? = small
+    let wide:Result<int64, String> = measured! > 5.0
+    println(flagged, " ", measured, " ", wide, " ", flagged == false)   // a bool or a number of another kind where a number's T? goes (#415)
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
     println(bush, " ", leaves(&bush), " ", bush == bush.copy())

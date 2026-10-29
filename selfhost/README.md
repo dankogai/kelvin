@@ -174,6 +174,11 @@ kc reads what it is written in, and little more.
     (#229).
   - A number literal is `some(n)` of any number's Optional, `{a, b}` is
     `some` of a struct, and a `T` of a `T??` is wrapped twice (#229).
+    - So is a bool, or a number of another kind, where a number's
+      Optional or Result goes (#415), as kelvinc converts it: `let
+      c:int64? = true` is `some(1)`, `let d:float64? = n` of an int32
+      `some(6.0)`.
+    - A number where a `bool?` goes is still C's error.
   - **Printed** (#229) as kelvinc prints it: `some(3)`, `none`,
     `some("kelvin")`, `ok(5)`, `err("bad")`, an enum's `num(5)`, a
     struct's `{x: 1, y: 2}`, and an Array's `[1, 2]`, `[]` where empty

@@ -8102,3 +8102,17 @@ String, as kelvinc's. kc has no Bytes to check. Details are provisional
 P426.
 
 There are 1156 tests, and all pass with clang and with gcc 15.
+
+### 460. kc's bool where a number's Optional goes
+
+> make kc take let c:int64? = true too
+
+**Claude** found kc refusing more: a bool variable, and a number of
+another kind, `let d:int64? = n` of an int32, where kelvinc converts
+each, and `let o:bool? = 3`. **Claude** asked how wide to go; the user
+chose bools and numbers where a number's Optional goes, and not a
+number where a `bool?` goes. **Claude** made it #415: kc wraps them as
+kelvinc does, `some(1)` of `true`. sample.k prints them through both
+compilers. Details are provisional P427.
+
+There are 1156 tests, and all pass with clang and with gcc 15.
