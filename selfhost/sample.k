@@ -356,6 +356,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     label += String(3 as uint8)
     label += String(true)
     println(label, " ", label.count)
+    let blank = String()                              // an empty String, as kelvinc's (#414)
+    println(blank.count, " [", blank, "]")
     var p:point = point.of(1, 2)
     let q:point^ := &p
     let big:point = p.scaled(3)

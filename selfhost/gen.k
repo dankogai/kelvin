@@ -2639,6 +2639,37 @@ let gen_print_args(first:int64) {
 
 let refuse_valueless_args(n:int64):bool    // a prototype: each call asks it (#317)
 
+// whether String(...) of the call n is refused, as kelvinc's converter
+// refuses it (#412, #414): more than one value; an owner a place holds,
+// which would be copied; an owner an expression gives, which C took for
+// text: a String one already, else what String takes and what this is
+let string_args_refused(n:int64):bool {
+    let x:int64 = nodes[n].b
+    let takes:cstr := "String takes nothing, text, or a borrow of a Bytes, '&b'"
+    if x >= 0 && nodes[x].next >= 0 {
+        gen_error(n, takes)
+        return true
+    }
+    if x < 0 || is_case_word(x) { return false }
+    let y:int64 = type_of(x)
+    if !is_owner(y) { return false }
+    if is_place(x) {
+        gen_error(n, "String(x) would copy an owner: write x.copy(), String(&b) of a Bytes, or b.string() for a Result")
+        return true
+    }
+    if types[y].kind == Y_STRING {
+        gen_error(n, "String(x) of a String is one already: leave out String(...)")
+        return true
+    }
+    var m = $""
+    m += takes
+    m += ", and this is "
+    let w:String = kelvin_type_text(y)
+    m += &w
+    gen_error(n, m.cstr)
+    return true
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -2651,6 +2682,11 @@ let gen_call(n:int64) {
             gen_expr(nodes[args].next)
             put(")")
         } else {
+            if string_args_refused(n) { return }
+            if args < 0 {                          // String(), an empty one, as kelvinc's (#414)
+                put("kv_string_new()")
+                return
+            }
             if nodes[args].kind == N_STR { put("KV_STRING_LIT(") } else { put("KV_STRING_OF(") }   // (#299)
             gen_expr(args)
             put(")")

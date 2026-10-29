@@ -831,6 +831,17 @@ kc reads what it is written in, and little more.
   `bool` (#212), `println`, `IO(path, mode)`,
   `.string` (a Result, #406), `.write(&s)`, `.close()`, `.error`, `.status`,
   `IO.exec(args, mode)`.
+  - `String()` is an empty String (#414), as kelvinc's; kc stopped on
+    it before.
+  - `String(x)` of an owner is kelvinc's error in its words (#414), as
+    kelvinc's #412, where C took it for text.
+    - Of a place, `String(s)`: `String(x) would copy an owner: write
+      x.copy(), ...`.
+    - Of a String an expression gives, `String(name())` or
+      `String($"lit")`: `String(x) of a String is one already: leave
+      out String(...)`.
+    - Of another owner, `String($[1, 2])`: what String takes, `and this
+      is Array<i64>`; of two values, what it takes.
   - A String's `.escape()` and `.unescape()` (#300), new Strings, as
     kelvinc's, of runtime/string.k; with an argument, kelvinc's error,
     as kc has no RegExp.

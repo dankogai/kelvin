@@ -445,6 +445,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 411 | The value of a case of an Optional, a Result or any enum with values is of the case's type, any number where a number goes, or an error in Kelvin's words where C's was: `case 'ok' of Result<i64, String> holds an i64, and this is String`; of `ok(v)` and `err(e)`, a `T` wrapped as `some(T)` or `ok(T)`, `Result<T, U>.ok(v)`, `r ?? ok(v)`, `T.c(v)` and `{.c = v}` alike | parser.c's check_case_value beside each reject_record_mismatch of a case | `let o:i64? = $"s"` an error | 2026-10-29 |
 | 412 | `String(x)` and `Bytes(x)` of an owner an expression gives are errors in Kelvin's words, as of a variable: of a String `String(f())` is one already, of a Bytes `String(&b)` or `b.string()`, `Bytes(f())` of a String `Bytes(&s)`, of a Bytes one already, of another owner what each takes and what this is; C took them for text before | parser.c's converter of String and Bytes, the owner's type asked | `String(name())` an error | 2026-10-29 |
 | 413 | kc's value of a case of another type is kelvinc's error in its words, as kelvinc's #411: of `ok(v)`, `err(e)`, a `T` wrapped, `T.c(v)`, a side of `==` and `r ?? ok(v)`, and before it kelvinc's errors of an Optional where a value goes and of a struct of another type; a case word kc asked the type of is passed by, so `r == ok(5)`, `f(ok(3))` and `ok(none)` of a `Result<T?, E>` are kc's, and text is `some` of a `String?` | selfhost/gen.k's case_value_fits | `let o:i64? = $"s"` kc's error | 2026-10-29 |
+| 414 | kc's `String(x)` of an owner is kelvinc's error in its words, as kelvinc's #412: of a place `would copy an owner`, of a String an expression gives `is one already`, of another owner what String takes and what this is, of two values what it takes; `String()` an empty String, where kc stopped | selfhost/gen.k's string_args_refused | `String(name())` kc's error | 2026-10-29 |
 
 Notes:
 
@@ -1029,6 +1030,18 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (414) Agreed details: "make kc give kelvinc's errors for both",
+  after #413; this is the second.
+  - string_args_refused writes kelvinc's converter checks, in its
+    order: two values, an owner a place holds, then an owner an
+    expression gives.
+  - kc refused none of them: each was C's error, `String(s)` of a
+    variable too, which kelvinc refused before #412.
+  - `String()` stopped kc, which read the argument it has not; it is
+    `kv_string_new()`, as kelvinc writes it.
+  - kc has no Bytes, so `Bytes(x)` is still "this function is not
+    known".
 
 - (413) Agreed details: "make kc give kelvinc's errors for both",
   after #411 and #412 left kc's C errors of them; this is the first.
@@ -5635,6 +5648,7 @@ says "as agreed".
 | P423 | Details of #411 | src/parser.c: check_case_value, called in parse of T.c(v), variant_constructor, optional_of's words and wrap, parse_case_initializer; documents/optionals.md, results.md, enums.md; tests/error/case_ok_value_type.k, case_err_value_type.k, case_some_value_type.k, case_value_coalesce.k, case_value_constructor.k, case_value_enum.k, case_value_initializer.k | — |
 | P424 | Details of #412 | src/parser.c: String(x) and Bytes(x) of an owner an expression gives; documents/strings.md, bytes.md; tests/error/string_of_string_value.k, string_of_array_value.k, string_of_bytes_value.k, bytes_of_bytes_value.k, bytes_of_string_value.k | — |
 | P425 | Details of #413 | selfhost/gen.k: case_value_fits, called in gen_value, gen_opt_operand, T.c(v) and gen_variant_eq's eq_side_fits; side_type in gen_bits, range_operand_error and is_range_eq; no_value and the moves of a case word; fits_value of text; selfhost/sample.k: digit_shown and case words beside `==`; selfhost/README.md | — |
+| P426 | Details of #414 | selfhost/gen.k: string_args_refused and `String()` in gen_call; selfhost/sample.k: `String()`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

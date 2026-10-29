@@ -8089,3 +8089,16 @@ them now, and sample.k prints them through both compilers. Details are
 provisional P425.
 
 There are 1156 tests, and all pass with clang and with gcc 15.
+
+### 459. kc's String(x) of an owner, kelvinc's error
+
+> make kc give kelvinc's errors for both
+
+**Claude** made the second #414: kc's `String(x)` of an owner is
+kelvinc's error in its words, `String(x) of a String is one already:
+leave out String(...)`, and of a place `would copy an owner`, which kc
+had not refused either. `String()`, which stopped kc, is an empty
+String, as kelvinc's. kc has no Bytes to check. Details are provisional
+P426.
+
+There are 1156 tests, and all pass with clang and with gcc 15.
