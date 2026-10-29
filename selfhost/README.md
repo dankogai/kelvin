@@ -196,6 +196,17 @@ kc reads what it is written in, and little more.
       has no case 'ok': its cases are none and some; a Result has ok
       and err`.
     - `var x = none` needs a type, as kelvinc says.
+  - A case's value of another type is kelvinc's error in its words
+    (#413), as kelvinc's #411: `case 'ok' of Result<i64, String> holds
+    an i64, and this is String`.
+    - Of `ok(v)` and `err(e)`, a `T` wrapped where a `T?` or a Result
+      goes, `T.c(v)`, a side of `==`, and `r ?? ok(v)` alike.
+    - An Optional where a value goes, and a struct of another type,
+      are kelvinc's earlier errors of them: `this is String?, an
+      Optional, where i64 goes`, `Q is not P`.
+    - A case word kc asked the type of, which has none, is passed by:
+      `r == ok(5)`, `f(ok(3))`, `ok(none)` of a `Result<T?, E>`; text
+      where a `String?` goes is `some` of a String.
   - `x ?? d` of an Optional that owns (#340), as kelvinc's #250:
     `d.lastKey(v) ?? $"none"`, `w[k] ?? "none"`.
     - x's value is a copy where x is a place, else taken from it.

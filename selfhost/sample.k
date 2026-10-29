@@ -108,6 +108,10 @@ let word_of(n:int64):Result<String, int64> {    // ?? of a Result (#407)
     return err(n)
 }
 
+let digit_shown(r:Result<int64, String>):int64 {    // ok(v) where a parameter takes it (#413)
+    return r ?? -1
+}
+
 let named(n:int64):String? {
     if n == 1 { return $"one" }                   // some("one")
     return none
@@ -620,6 +624,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(bad ?? good, " ", good ?? bad, " ", parse_digit('x') ?? parse_digit('2'), " ", bad ?? parse_digit('y'), " ", said ?? word_of(1), " ", word_of(4) ?? said, " ", bad ?? bad ?? 0)   // r ?? r2 (#408)
     println(pending ?? gaps[0], " ", gaps[1] ?? pending, " ", tag ?? none, " ", shelf.lastKey(4) ?? tag, " ", tag ?? shelf.lastKey(4), " ", shelf.firstKey(9) ?? none, " ", pending ?? gaps[1] ?? -1)   // a ?? b of two Optionals (#409)
     println(bad ?? ok(0), " ", good ?? err($"e"), " ", parse_digit('x') ?? ok(-1), " ", word_of(3) ?? err(4), " ", said ?? ok($"s"), " ", word_of(1) ?? err(0))   // r ?? ok(v), r ?? err(e) (#410)
+    let nested:Result<int64?, String> = ok(none)
+    let quiet:String? = "lit"
+    println(good == ok(7), " ", bad != err("x"), " ", digit_shown(ok(3)), " ", digit_shown(err($"e")), " ", nested, " ", quiet)   // case words beside ==, as arguments, and none in ok (#413)
     println(a == item.num(5), " ", b != item.text($"hi"), " ", c == a, " ", items.contains(item.text($"in an Array")), " ", item.none == item.none, " ", items.firstIndex(item.none))   // == of an enum with values (#345)
     let bush = shrub.twigs($[shrub.leaf(2), shrub.twigs($[shrub.leaf(3), shrub.leaf(4)])])
     println(bush, " ", leaves(&bush), " ", bush == bush.copy())

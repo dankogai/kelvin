@@ -8074,3 +8074,18 @@ is one already. kc still gives C's errors of these. Details are
 provisional P424.
 
 There are 1156 tests, and all pass with clang and with gcc 15.
+
+### 458. kc's case value of another type, kelvinc's error
+
+> make kc give kelvinc's errors for both
+
+**Claude** made the first #413: kc's value of a case of another type is
+kelvinc's error in its words, `case 'ok' of Result<i64, String> holds
+an i64, and this is String`, of `ok(v)`, `err(e)`, a `T` wrapped,
+`T.c(v)` and a side of `==`. On the way **Claude** found kc refusing
+`r == ok(5)`, `f(ok(3))` and `ok(none)` of a `Result<T?, E>`, which
+asked the type of a case word, and `let s:String? = "lit"`; kc builds
+them now, and sample.k prints them through both compilers. Details are
+provisional P425.
+
+There are 1156 tests, and all pass with clang and with gcc 15.

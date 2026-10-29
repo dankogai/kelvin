@@ -743,6 +743,13 @@ let owner_choice(n:int64):bool
 let call_target(n:int64):int64    // the overload a call calls (#234)
 let kelvin_type_text(y:int64):String    // and an await of no Task names its type (#313)
 
+// the type of x, a side of a binary operator, or -1 where it is a case
+// word, none, ok(v) or err(e), which has no type to ask until the other
+// side gives one (#413): r == err("x")
+let side_type(x:int64):int64 {
+    return is_case_word(x) ? 0 - 1 : type_of(x)
+}
+
 // whether node a names a struct, not a variable: T of T.f(...)
 let names_type(a:int64):bool {
     if nodes[a].kind != N_ID || var_type(nodes[a].t) >= 0 { return false }
@@ -1306,6 +1313,7 @@ let gen_assert(n:int64)    // a prototype: a block's static_assert asks it (#394
 let declaration_shaped(e:int64):bool    // a prototype: a statement asks it (#402)
 
 let gen_value(n:int64, y:int64)
+let case_value_fits(v:int64, m:int64, whole:int64):bool    // a prototype: T.c(v) and == ask it (#413)
 
 let gen_args(first:int64) {
     var a:int64 = first
@@ -2321,6 +2329,7 @@ let gen_opt_operand(x:int64, rt:int64) {
         }
         v = nodes[x].b
     }
+    if !case_value_fits(v, m, rt) { return }             // of what the case holds (#413)
     let cy:int64 = nodes[m].ty
     put_owner_prefix(rt)
     put("_make_")
@@ -2362,6 +2371,19 @@ let enum_mismatch_text(x:int64):String {
     return eq_type_text(type_of(x))
 }
 
+// whether x, a side of == of the Optional or the Result rt, is what its
+// case holds where it is wrapped, as kelvinc's: a T of the value case,
+// ok(v) and err(e) of theirs; one of an enum with values is not (#413)
+let eq_side_fits(x:int64, rt:int64):bool {
+    if is_case_word(x) {
+        let m:int64 = case_word_of(x, tagged_of(rt))
+        return m < 0 || nodes[x].kind != N_CALL || nodes[x].b < 0 || case_value_fits(nodes[x].b, m, rt)
+    }
+    let y:int64 = type_of(x)
+    if y >= 0 && tagged_of(y) >= 0 { return true }
+    return case_value_fits(x, value_case(rt), rt)
+}
+
 // a == b, x != none of an Optional, r == err(e) of a Result, as kelvinc's
 // #79: the same case, and equal values, by _kv_T_eq; the other side one of
 // rt, a T wrapped, none, ok(v) or err(e). Each side is read once, and one
@@ -2385,6 +2407,7 @@ let gen_variant_eq(n:int64, rt:int64) {
         gen_error(n, m.cstr)
         return
     }
+    if is_variant(rt) && (!eq_side_fits(a, rt) || !eq_side_fits(b, rt)) { return }   // wrapped first, as kelvinc's (#413)
     let c:int64 = eq_case(rt)
     var m = $"'"
     m += tok_text(t)
@@ -2984,14 +3007,15 @@ let gen_method_of(n:int64) {
     }
     let e = tagged_named(a)
     if e >= 0 {                                                       // T.c(v) (#215)
+        let v = nodes[n].b
+        let cm:int64 = case_named(e, t) ?? 0 - 1
+        if v >= 0 && cm >= 0 && !case_value_fits(v, cm, type_of(n)) { return }   // of what the case holds (#413)
         put("_kv_")
         put_tok(nodes[e].t)
         put("_make_")
         put_tok(t)
         put("(")
-        let v = nodes[n].b
-        let cm:int64 = case_named(e, t) ?? 0 - 1
-        if v >= 0 && nodes[v].kind == N_ID && is_owner(type_of(v)) {   // a local owner moves in
+        if v >= 0 && nodes[v].kind == N_ID && !is_case_word(v) && is_owner(type_of(v)) {   // a local owner moves in
             put_owner_prefix(type_of(v))
             put("_take(&")
             put_tok(nodes[v].t)
@@ -3547,6 +3571,7 @@ let fits_value(n:int64, t:int64):bool {
     let tk:ykind = types[t].kind
     let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
     if literal && (tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64 || tk == Y_F32) { return true }
+    if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
     if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if type_of(n) == t { return true }
     return some_type(t) >= 0 && fits_value(n, some_type(t))
@@ -3848,6 +3873,59 @@ let gen_set_op(n:int64, y:int64) {
     put(")")
 }
 
+// whether v is what case m of the type whole holds, as kelvinc's
+// check_case_value says it (#411, #413): "case 'ok' of Result<i64,
+// String> holds an i64, and this is String"; where m holds an Optional or
+// a Result, of the case v becomes there, as kelvinc wraps it
+let case_value_fits(v:int64, m:int64, whole:int64):bool {
+    var cm:int64 = m
+    var w:int64 = whole
+    while nodes[cm].ty >= 0 && !is_case_word(v) && type_of(v) != nodes[cm].ty && value_case(nodes[cm].ty) >= 0 {
+        w = nodes[cm].ty
+        cm = value_case(w)
+    }
+    let c:int64 = nodes[cm].ty
+    if c < 0 || is_case_word(v) || types[c].kind == Y_FIXED { return true }   // a fixed array's, fixed_list_fits's
+    let vy:int64 = type_of(v)
+    if vy >= 0 && vy != c && some_type(vy) >= 0 {        // as kelvinc's reject_record_mismatch says them, first
+        var e = $"this is "
+        let vw:String = kelvin_type_text(vy)
+        e += &vw
+        e += ", an Optional, where "
+        let cw:String = kelvin_type_text(c)
+        e += &cw
+        e += " goes: unwrap it with '!', or give a default with '??'"
+        gen_error(v, e.cstr)
+        return false
+    }
+    if vy >= 0 && vy != c && struct_of(vy) >= 0 && struct_of(c) >= 0 {
+        let vw:String = kelvin_type_text(vy)
+        var e = vw.copy()
+        e += " is not "
+        let cw:String = kelvin_type_text(c)
+        e += &cw
+        e += ": a struct takes a value of its own type"
+        gen_error(v, e.cstr)
+        return false
+    }
+    let bad:String = value_mismatch_text(v, c)
+    if bad.count == 0 { return true }
+    var msg = $"case '"
+    msg += tok_text(nodes[cm].t)
+    msg += "' of "
+    let ww:String = kelvin_type_text(w)
+    msg += &ww
+    msg += " holds "
+    let cw:String = kelvin_type_text(c)
+    msg += article_of(&cw)
+    msg += " "
+    msg += &cw
+    msg += ", and this is "
+    msg += &bad
+    gen_error(v, msg.cstr)
+    return false
+}
+
 let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_RANGE && y >= 0 {             // a range where a Range<T> or a Range<T>? goes is of T (#373)
         let ry:int64 = types[y].kind == Y_RANGE ? y : some_type(y)
@@ -3952,10 +4030,12 @@ let gen_value(n:int64, y:int64) {
     }
     var v = -1
     if m >= 0 && nodes[n].kind == N_CALL { v = nodes[n].b }
+    if v >= 0 && !case_value_fits(v, m, y) { return }     // ok(v), err(e) of what the case holds (#413)
     if m < 0 && value_case(y) >= 0 && fits_value(n, wrap_type(y)) {   // a T as some(T), and as ok(T) of a Result (#344)
         m = value_case(y)
         v = n
     }
+    if m < 0 && value_case(y) >= 0 && type_of(n) >= 0 && type_of(n) != y && !case_value_fits(n, value_case(y), y) { return }   // a T where a T? goes (#413)
     if m < 0 {
         gen_expr(n)
         return
@@ -3965,7 +4045,7 @@ let gen_value(n:int64, y:int64) {
     put("_make_")
     put_tok(nodes[m].t)
     put("(")
-    if v >= 0 && nodes[v].kind == N_ID && is_owner(type_of(v)) {
+    if v >= 0 && nodes[v].kind == N_ID && !is_case_word(v) && is_owner(type_of(v)) {   // ok(none) of a Result<T?, E> (#413)
         put_owner_prefix(type_of(v))
         put("_take(&")
         put_tok(nodes[v].t)
@@ -4763,8 +4843,8 @@ let gen_bits(n:int64):bool {
     }
     if k != N_BIN || tok_is(t, "??") { return false }   // x ?? none: none has no type to ask (#409)
     let b:int64 = nodes[n].b
-    let left = is_bits(type_of(a))
-    if !left && !is_bits(type_of(b)) { return false }
+    let left = is_bits(side_type(a))
+    if !left && !is_bits(side_type(b)) { return false }
     let shift = tok_is(t, "<<") || tok_is(t, ">>")
     let eq = tok_is(t, "==") || tok_is(t, "!=")
     if !shift && !eq && !tok_is(t, "|") && !tok_is(t, "&") && !tok_is(t, "~") {
@@ -7452,8 +7532,8 @@ let gen_pow_method(n:int64) {
 // whether n is an operator of a Range, which has none: kelvinc's error
 let range_operand_error(n:int64):bool {
     if nodes[n].kind != N_BIN || tok_is(nodes[n].t, "??") { return false }   // x ?? none: none has no type to ask (#409)
-    let ay:int64 = type_of(nodes[n].a)
-    let by:int64 = type_of(nodes[n].b)
+    let ay:int64 = side_type(nodes[n].a)
+    let by:int64 = side_type(nodes[n].b)
     let ar = ay >= 0 && types[ay].kind == Y_RANGE
     let br = by >= 0 && types[by].kind == Y_RANGE
     if !ar && !br { return false }
@@ -7478,8 +7558,8 @@ let range_operand_error(n:int64):bool {
 // whether n is r == s or r != s of two Ranges (#376)
 let is_range_eq(n:int64):bool {
     if nodes[n].kind != N_BIN || !(tok_is(nodes[n].t, "==") || tok_is(nodes[n].t, "!=")) { return false }
-    let ay:int64 = type_of(nodes[n].a)
-    let by:int64 = type_of(nodes[n].b)
+    let ay:int64 = side_type(nodes[n].a)
+    let by:int64 = side_type(nodes[n].b)
     return ay >= 0 && by >= 0 && types[ay].kind == Y_RANGE && types[by].kind == Y_RANGE
 }
 
@@ -10038,6 +10118,7 @@ let no_value(e:int64):bool {
         return builtin_no_value(yk, nodes[e].t)
     }
     if k != N_CALL && k != N_AWAIT { return false }       // await of a Task of none (#313)
+    if is_case_word(e) { return false }                   // ok(v), err(e): a value, of no type to ask here (#413)
     let y:int64 = type_of(e)
     return y >= 0 && types[y].kind == Y_VOID
 }
