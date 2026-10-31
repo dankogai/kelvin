@@ -8276,3 +8276,20 @@ type is inferred, kc's error says not yet; `x.type` as a value,
 are provisional P434.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 470. kc's x.type of an inferred variable
+
+> make kc read x.type of an inferred variable
+
+**Claude** made it #423, the other choice of #422: where x's type is
+inferred, kc's parser keeps x's path in a type of its own, and gen
+tells it, x's type as gen sees it, just before it writes each statement.
+So `var w:n.type` of `let n = 5` reads, as does `[odds[0].type](2)` or
+`$[narrow.type]`; `T?`, `Result<T, E>` and a Dictionary's value of one,
+which kc makes as it parses, and a global's inferred type say not yet.
+sample.k's `widened_n`, `odd_cells` and `odd_list` print the same through
+both compilers. Testing found that kelvinc's `(k as String).count` of a
+String traps at run time, which is a task of its own. Details are
+provisional P435.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

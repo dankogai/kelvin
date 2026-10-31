@@ -543,8 +543,10 @@ kc reads what it is written in, and little more.
   - x is a variable whose type is written, read as kc parses, as
     `typeof(x)`'s; a path too, `p.x.type`, `q^.type`, `a[0].type`; a
     parameter's type an earlier parameter's, `acc:xs[0].type`.
-  - Of a variable whose type is inferred, kc's error says not yet;
-    `sizeof(x.type)` reads any (#421).
+  - Of a local whose type is inferred (#423), a Y_TYPEOF of x's path,
+    which gen tells, told, just before it writes each statement; not yet
+    in `T?`, `Result<T, E>` or a Dictionary's value, which kc makes as it
+    parses, nor of a global whose type is inferred.
   - `x.type` as a value, `point.type` and `i64.type` are kelvinc's
     errors, in its words.
   - Not yet: `$0.type`, `const xs.type`.

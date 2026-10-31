@@ -454,6 +454,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 420 | kc reads `sizeof`, as kelvinc's: `sizeof(T)` of a type, its parentheses opening with a built-in type's word, `const`, `[`, `$[`, `Self`, or a struct's or an enum's name, which a variable of the name makes a value; `sizeof x` and `sizeof(x)` of a value, `sizeof (T){...}` and `sizeof ([T])[...]` a compound literal's; C's sizeof, an int64 as kc's `alignof` is, where kelvinc's is a size_t; a function's name a pointer's size, and a name kc does not know C's, `sizeof(size_t)`; `sizeof T` kelvinc's error, in its words; `sizeof(x.type)` not yet kc's, and says so | selfhost/parse.k's sizeof_type_at, N_SIZEOF; selfhost/gen.k's gen_sizeof | `sizeof(point)`, `sizeof odds[0]` of kc | 2026-11-01 |
 | 421 | kc reads `sizeof(x.type)`, as kelvinc's #34: x's size, a name then `.member`, `^` or `[...]` steps, `p.x.type`, `q^.type`, `a[0].type`; `x.type^` a pointer's, C's `sizeof(__typeof__(x) *)`; a member named type of a struct, a C struct's and a value's kc does not know are members, as kelvinc's type_is_field; `sizeof x.type`, without parentheses, kelvinc's error, in its words | selfhost/parse.k's value_type_ahead, N_SIZEOF's flag 2; selfhost/gen.k's type_member, gen_sizeof | `sizeof(anchor.type^)` of kc | 2026-11-01 |
 | 422 | kc reads `x.type` where a type goes, as kelvinc's #34: after `:` and `as`, of a parameter's an earlier parameter's, in `[x.type](3)`, `x.type^`, `x.type?` and `(x.type){...}`; a path too, `p.x.type`, `q^.type`, `a[0].type`; read while kc parses, x's written type, as `typeof(x)` is (#398), so of a variable whose type is inferred kc's error says not yet; `x.type` as a value, `point.type` and `i64.type` kelvinc's errors, in its words; a member that is none kc's error, where kelvinc's C says it | selfhost/parse.k's type_follows, member_ty, value_type, value_type_end; selfhost/gen.k's type_of of `.type` | `var mirror:anchor.type` of kc | 2026-11-01 |
+| 423 | kc reads `x.type` of a local whose type is inferred, as kelvinc's #34: a Y_TYPEOF of x's path, read as a value, which gen tells just before it writes each statement, its locals before it declared, as type_of says it; inside `[x.type](3)`, `x.type^`, `$[x.type]`, a Dictionary's key and `(x.type){...}` too; `T?`, `Result<T, E>` and a Dictionary's value of one, which kc makes as it parses, and a global's inferred type, kc's errors that say not yet | selfhost/parse.k's Y_TYPEOF, late_type, late, late_refused, late_seen; selfhost/gen.k's told, tell_expr, tell_stmt | `var widened_n:narrow.type` of kc | 2026-11-01 |
 
 Notes:
 
@@ -1038,6 +1039,29 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (423) Agreed details: "make kc read x.type of an inferred variable",
+  the other choice of #422, a type gen tells late.
+  - value_type, where x's type is not written and x is a local or a
+    parameter, calls late_type: it reads x's path as a value, an N_ID
+    and its N_FIELD, N_DEREF and N_INDEX steps, to the `.type`, and
+    makes a Y_TYPEOF whose name is that node, each its own type.
+  - gen_stmt, where the program has one (late_seen), calls tell_stmt
+    first: each node of the statement's own expressions whose type holds
+    a Y_TYPEOF gets it told, `told`, x's type as type_of says it, the
+    types around it made again; not a block's statements, nor an
+    anonymous function's or an Iterator's, which gen_stmt tells where it
+    writes them, their locals declared by then.
+  - write_type passes over a type that holds one, as the told type is
+    the one written; an Array of it gen makes in a function is written
+    after the functions, as a `$[a, b]`'s is (#266).
+  - `T?` and `Result<T, E>` of one, and a Dictionary's value, whose
+    `d[k]` is a `V?`, are kc's errors that say not yet, as kc makes those
+    enums as it parses (late_refused); so is a global's inferred type.
+  - Types kc reads only of its own programs never hold one, so its C of
+    itself is the same.
+  - Found: kelvinc's `(k as String).count` of a String traps at run
+    time, a task of its own.
 
 - (422) Agreed details: "make kc read .type anywhere else", after #421
   read it in sizeof alone.
@@ -5791,6 +5815,7 @@ says "as agreed".
 | P432 | Details of #420 | selfhost/parse.k: N_SIZEOF, sizeof_type_at, parse_unary's `sizeof`; selfhost/gen.k: gen_sizeof, type_of and has_call of N_SIZEOF; selfhost/sample.k: `sized`, `cells`; selfhost/README.md | — |
 | P433 | Details of #421 | selfhost/parse.k: value_type_ahead, N_SIZEOF's flag 2; selfhost/gen.k: type_member, gen_sizeof's `.type`; selfhost/sample.k: `anchor`; selfhost/README.md | — |
 | P434 | Details of #422 | selfhost/parse.k: type_follows, member_ty, value_type, parse_bare_type's `x.type` and `T.type` error, value_type_end, literal_ahead's `(x.type){`; selfhost/gen.k: type_member's prototype, type_of's `.type` error; selfhost/sample.k: `mirror`, `narrow`, `cast_x`; selfhost/README.md | — |
+| P435 | Details of #423 | selfhost/parse.k: Y_TYPEOF, type_of_kind's name of one, late_seen, late_type, late, late_refused in optional_of and result_of, value_type's late path; selfhost/gen.k: put_ctype's case, write_type's pass, told, tell_expr, tell_stmt, gen_stmt's call; selfhost/sample.k: `widened_n`, `odd_cells`, `odd_list`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

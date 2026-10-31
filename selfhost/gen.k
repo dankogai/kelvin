@@ -392,7 +392,7 @@ let put_fixed_counts(y:int64)
 
 let put_ctype(y:int64) {
     switch types[y].kind {                                       // every kind of type (#210)
-    case Y_VOID, Y_C: put("void")
+    case Y_VOID, Y_C, Y_TYPEOF: put("void")
     case Y_I64: put("int64_t")
     case Y_I32: put("int32_t")
     case Y_U8: put("uint8_t")
@@ -10133,9 +10133,53 @@ let gen_switch(n:int64, depth:int64) {
     put("}\n")
 }
 
+// y with each x.type in it told (#423): x's type, as type_of says it
+let told(y:int64):int64 {
+    if !late(y) { return y }
+    let k:ykind = types[y].kind
+    if k == Y_TYPEOF {
+        let v:int64 = type_of(types[y].name)
+        return v < 0 ? base_type(Y_VOID) : v
+    }
+    let name:int64 = k == Y_DICT ? told(types[y].name) : types[y].name
+    return type_of_kind(k, told(types[y].elem), name)
+}
+
+// each x.type in the expression n and those after it, told (#423); not
+// an anonymous function's or an Iterator's, whose statements gen_stmt
+// tells where it writes them
+let tell_expr(n:int64) {
+    var e:int64 = n
+    while e >= 0 {
+        if late(nodes[e].ty) { nodes[e].ty = told(nodes[e].ty) }
+        let k:nkind = nodes[e].kind
+        if k != N_ANON && k != N_ITER {
+            tell_expr(nodes[e].a)
+            tell_expr(nodes[e].b)
+            if k == N_COND { tell_expr(nodes[e].c) }
+        }
+        e = nodes[e].next
+    }
+}
+
+// each x.type in the statement n's own parts, told before gen writes it,
+// the locals before it declared (#423): a local's inferred type is
+// known only here, where kc writes its declaration
+let tell_stmt(n:int64) {
+    let k:nkind = nodes[n].kind
+    if late(nodes[n].ty) { nodes[n].ty = told(nodes[n].ty) }
+    if k == S_VAR || k == S_EXPR || k == S_RETURN || k == S_IF || k == S_WHILE || k == S_EACH || k == S_SWITCH || k == S_IFLET || k == S_ASSERT {
+        tell_expr(nodes[n].a)
+    } else if k == S_ASSIGN || k == S_FOR {
+        tell_expr(nodes[n].a)
+        tell_expr(nodes[n].b)
+    }
+}
+
 let gen_stmt(n:int64, depth:int64) {
     if failed { return }
     let k:nkind = nodes[n].kind
+    if late_seen { tell_stmt(n) }                        // (#423)
     if k == S_BLOCK {
         gen_block(n, depth)
         return
@@ -11037,7 +11081,7 @@ var written:Dictionary<int64, int64>     // the types whose C is written (#225),
 // type before the struct, its functions after (#346), and a Dictionary
 // of one (#347)
 let write_type(y:int64) {
-    if y < 0 || written.has(y) { return }
+    if y < 0 || written.has(y) || late(y) { return }   // an x.type's, told in its statement (#423)
     written[y] = 1
     let k:ykind = types[y].kind
     if k == Y_ARRAY {

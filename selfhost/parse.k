@@ -95,6 +95,7 @@ enum ykind {                    // the kinds of types (#210)
                 // -10 - n of a count C computes, node n (#366)
     Y_RANGE,    // a Range<T> (#373): its integers elem
     Y_BITS,     // a Bits (#387): 64 bits in a u64, kv_bits in C
+    Y_TYPEOF,   // x.type of a local whose type is inferred (#423): its name x's node, whose type gen tells
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -148,6 +149,7 @@ var own_of:Dictionary<String, int64>       // and its own name's token, kind
 var records_seen:Dictionary<String, int64> // every struct and enum read so far, by its C name (#389)
 var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
 var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
+var late_seen = false          // whether the program has an x.type gen tells (#423)
 var locals_seen:$[int64]       // the names declared in the function being read, which a nested type's bare name yields to (#389)
 var local_types:$[int64]       // the types defined in the blocks being read (#391): the tokens kc names them by, _kv_main_point
 var local_type_depths:$[int64] // and the depth of the block each is in
@@ -184,7 +186,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         if y.kind == kind && y.elem == elem {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
-            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED {
+            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF {
                 if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272); a fixed array's count (#354)
             } else {
                 return i
@@ -690,7 +692,10 @@ let made_enum(name:String^, first:cstr, ft:int64, second:cstr, st:int64, optiona
     return y
 }
 
+let late_refused(t:int64):bool    // a prototype: T? and Result<T, E> of x.type are not kc's yet (#423)
+
 let optional_of(t:int64):int64 {
+    if late_refused(t) { return t }
     var name = $"_kv_opt_"
     var w = type_word(t)
     name += &w
@@ -698,6 +703,8 @@ let optional_of(t:int64):int64 {
 }
 
 let result_of(t:int64, e:int64):int64 {
+    if late_refused(t) { return t }
+    if late_refused(e) { return e }
     var name = $"_kv_res_"
     var w = type_word(t)
     name += &w
@@ -814,13 +821,16 @@ let member_ty(y:int64, m:int64):int64 {
     return 0 - 1
 }
 
+let late_type(t:int64):int64    // a prototype: x.type of an inferred local (#423)
+
 // the type x.type names (#422), as kelvinc's #34, x at token t, the
 // cursor after it: x's written type, as typeof(x)'s (#398), then each
 // .member's, ^'s and [i]'s, up to the .type, which it reads
 let value_type(t:int64):int64 {
     var y:int64 = written_type(t)
+    if y < 0 && local_named(t) { return late_type(t) }
     if y < 0 {
-        parse_error("kc reads x.type of a variable whose type is written; not yet of one whose type is inferred")
+        parse_error("kc reads x.type of a local or a parameter; not yet of a global whose type is inferred")
         return base_type(Y_VOID)
     }
     while !failed {
@@ -871,6 +881,56 @@ let value_type(t:int64):int64 {
         }
     }
     return base_type(Y_VOID)
+}
+
+// x.type of a local whose type is inferred (#423), x at token t, the
+// cursor after it: a Y_TYPEOF of x's path read as a value, its .member,
+// ^ and [i] steps, whose type gen tells where it writes the statement
+let late_type(t:int64):int64 {
+    var e:int64 = make_node(N_ID, t)
+    while !failed {
+        if at_word(".") && tok_is(pos + 1, "type") {
+            advance()
+            advance()
+            late_seen = true                     // gen tells it, statement by statement
+            return type_of_kind(Y_TYPEOF, -1, e)
+        }
+        if at_word(".") {
+            advance()
+            let n:int64 = make_node(N_FIELD, advance())
+            nodes[n].a = e
+            e = n
+        } else if at_word("^") {
+            let n:int64 = make_node(N_DEREF, advance())
+            nodes[n].a = e
+            e = n
+        } else {
+            let n:int64 = make_node(N_INDEX, advance())
+            nodes[n].a = e
+            set_b(n, parse_expr())
+            expect("]")
+            nodes[n].flag = 1
+            e = n
+        }
+    }
+    return base_type(Y_VOID)
+}
+
+// whether y holds an x.type gen tells (#423)
+let late(y:int64):bool {
+    if y < 0 { return false }
+    let k:ykind = types[y].kind
+    if k == Y_TYPEOF { return true }
+    if k == Y_DICT && late(types[y].name) { return true }
+    return k != Y_STRUCT && late(types[y].elem)
+}
+
+// whether T? or Result<T, E> holds an x.type gen tells, kc's error (#423):
+// kc makes those types as it parses, a Dictionary's V? too
+let late_refused(t:int64):bool {
+    if !late(t) { return false }
+    parse_error("kc reads T?, Result<T, E> and a Dictionary's value, whose d[k] is a V?, of x.type where x's type is written; not yet where it is inferred")
+    return true
 }
 
 // const T^ and the rest (#272)

@@ -803,5 +803,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     let narrow = 300 as anchor.x.type
     let cast_x:[anchor.y.type](2) = [narrow, mirror.x]
     println(mirror, " ", narrow, " ", cast_x[1], " ", sizeof cast_x)
+    var widened_n:narrow.type = narrow * 2               // x.type of a local whose type is inferred (#423)
+    let odd_cells:[odds[0].type](2) = [odds[1], odds[2]]
+    var odd_list:$[narrow.type] = $[narrow]
+    odd_list += widened_n
+    println(widened_n, " ", sizeof widened_n, " ", odd_cells[1], " ", sizeof odd_cells, " ", odd_list)
     return 0
 }
