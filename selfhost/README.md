@@ -524,7 +524,10 @@ kc reads what it is written in, and little more.
     name kc does not know C's, `sizeof(size_t)`.
   - gen_sizeof writes C's sizeof, an i64 as `alignof`'s; `sizeof T` is
     kelvinc's error, in its words.
-  - Not yet: `sizeof(x.type)`, which says so.
+  - `sizeof(x.type)` (#421), as kelvinc's #34: x's size, of a path too,
+    `p.x.type`, `a[0].type`, and of `x.type^` a pointer's; a struct's
+    member named `type`, a C struct's and a value's kc does not know stay
+    members. Not yet: `.type` anywhere else.
 - **`alignas`** (#396), as kelvinc's: parse_alignas before a global, a
   local or a struct's member, a number, checked where a literal, or a
   type; take_alignas keeps the variable or member in aligned, and

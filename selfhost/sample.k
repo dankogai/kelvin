@@ -797,5 +797,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let sized:int64 = sizeof (point){1, 2}             // sizeof(T), sizeof x (#420): C's, an int64
     let cells:int64 = sizeof(odds) / sizeof(int64)
     println(sizeof(point), " ", sizeof(int32^), " ", sizeof odds[0], " ", cells, " ", sized, " ", sizeof(shade), " ", sizeof shade_name)
+    let anchor:point = {3, 4}
+    println(sizeof(anchor.type), " ", sizeof(anchor.x.type), " ", sizeof(odds[0].type), " ", sizeof(anchor.type^))   // sizeof(x.type) (#421)
     return 0
 }

@@ -42,7 +42,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     N_DESIG,    // .t = a in {...}, C's designator (#418)
-    N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error
+    N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error, 2 of sizeof(x.type) (#421)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -445,6 +445,35 @@ let array_literal_ahead():bool {
 // whether (T){ starts here, its { on the line of the (T) (#418)
 let literal_ahead():bool {
     return at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1)
+}
+
+// whether sizeof's ( opens a value's type, (x.type) or (p.x.type^)
+// (#421), as kelvinc's typeof_at: a name, then .member, ^ or [...] steps,
+// .type last, ^ after it, and the )
+let value_type_ahead():bool {
+    if !at_word("(") || toks[pos + 1].kind != T_ID { return false }
+    var j:int64 = pos + 2
+    var typed = false
+    while j < toks.count as int64 {
+        if tok_is(j, ".") && toks[j + 1].kind == T_ID {
+            typed = tok_is(j + 1, "type")
+            j += 2
+        } else if tok_is(j, "^") {
+            j += 1
+        } else if tok_is(j, "[") {
+            var depth = 0
+            while j < toks.count as int64 {
+                if tok_is(j, "[") || tok_is(j, "$[") { depth += 1 }
+                if tok_is(j, "]") { depth -= 1 }
+                j += 1
+                if depth == 0 { break }
+            }
+            typed = false
+        } else {
+            break
+        }
+    }
+    return typed && tok_is(j, ")")
 }
 
 // whether token t starts a type in sizeof(...) (#420), as kelvinc's: a
@@ -1687,6 +1716,7 @@ let parse_unary():int64 {
             expect(")")
             return n
         }
+        if value_type_ahead() { nodes[n].flag = 2 }   // sizeof(x.type), gen's to tell from a member named type
         if at_kind(T_ID) && sizeof_type_at(pos) && !local_named(pos) {
             nodes[n].flag = 1                    // sizeof T, gen's error in Kelvin's words
             set_ty(n, parse_type())

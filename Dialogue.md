@@ -8244,3 +8244,17 @@ the same through both compilers, and `static_assert(sizeof(point) ==
 16)` now works in kc too. Details are provisional P432.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 468. kc's sizeof(x.type)
+
+> make kc read sizeof(x.type)
+
+**Claude** made it #421: kc reads `sizeof(x.type)`, as kelvinc's #34,
+x's size, of a path too, `p.x.type`, `q^.type` or `a[0].type`, and of
+`x.type^` a pointer's. A struct's member named `type`, a C struct's, and
+a value's kc does not know stay members, as in kelvinc. `sizeof x.type`
+without parentheses is kelvinc's error, in its words. sample.k's
+`sizeof(anchor.type^)` prints 8 through both compilers. Details are
+provisional P433.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

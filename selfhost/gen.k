@@ -5062,6 +5062,21 @@ let gen_align(n:int64):bool {
     return false
 }
 
+// whether the .type of the N_FIELD f is x's type, kelvinc's #34, not a
+// member (#421): of a struct of the program's without a member type, an
+// enum, or a value of another type kc knows; a C struct's, and a value's
+// kc does not know, a member, as kelvinc's type_is_field
+let type_member(f:int64):bool {
+    if nodes[f].kind != N_FIELD || !tok_is(nodes[f].t, "type") { return false }
+    let b:int64 = type_of(nodes[f].a)
+    if b < 0 || types[b].kind == Y_C { return false }
+    if types[b].kind == Y_STRUCT {
+        if decl_named(types[b].name, D_STRUCT) >= 0 { return field_type(b, nodes[f].t) < 0 }
+        return decl_named(types[b].name, D_ENUM) >= 0 || tagged_of(b) >= 0
+    }
+    return true
+}
+
 // sizeof(T) and sizeof x (#420), as kelvinc's: C's sizeof, an int64 as
 // alignof's is; a struct's name a variable's where one hides it, a
 // function's a pointer's size, and a name kc does not know C's, size_t;
@@ -5078,12 +5093,30 @@ let gen_sizeof(n:int64):bool {
         gen_error(n, m.cstr)
         return true
     }
-    if y < 0 && nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "type") {   // x.type, a type, as kelvinc's #34
-        let b:int64 = type_of(nodes[a].a)
-        if b >= 0 && (types[b].kind != Y_STRUCT || field_type(b, nodes[a].t) < 0) {
-            gen_error(n, "kc reads sizeof(T) and sizeof x; not yet sizeof(x.type), which is sizeof x")
+    if y < 0 && nodes[n].flag == 2 {                     // sizeof(x.type) (#421): x's size, of x.type^ a pointer's
+        var f:int64 = a
+        var stars = 0
+        while nodes[f].kind == N_DEREF {
+            f = nodes[f].a
+            stars += 1
+        }
+        if type_member(f) {
+            put("((int64_t)sizeof(")
+            if stars == 0 {
+                gen_expr(nodes[f].a)
+            } else {
+                put("__typeof__(")
+                gen_expr(nodes[f].a)
+                put(")")
+                for _ in 0..<stars { put(" *") }
+            }
+            put("))")
             return true
         }
+    }
+    if y < 0 && type_member(a) {                         // sizeof x.type, as kelvinc says it
+        gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
+        return true
     }
     put("((int64_t)sizeof(")
     if y >= 0 && types[y].kind == Y_STRUCT && types[y].name >= 0 && var_type(types[y].name) >= 0 {
