@@ -8258,3 +8258,21 @@ without parentheses is kelvinc's error, in its words. sample.k's
 provisional P433.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 469. kc's x.type
+
+> make kc read .type anywhere else
+
+**Claude** asked whether kc should read `x.type` of any variable, as
+kelvinc does, with a type gen resolves late, or of a variable whose type
+is written, read as kc parses, as its `typeof(x)` is. The user chose
+written types. So #422: kc reads `x.type` wherever it reads a type,
+after `:` and `as`, in `[x.type](3)`, `x.type^` and `(x.type){...}`, of
+a path too, `p.x.type`, `q^.type`, `a[0].type`, and a parameter's type
+may be an earlier parameter's, `acc:xs[0].type`. Of a variable whose
+type is inferred, kc's error says not yet; `x.type` as a value,
+`point.type` and `i64.type` are kelvinc's errors, in its words. sample.k's
+`var mirror:anchor.type` prints the same through both compilers. Details
+are provisional P434.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

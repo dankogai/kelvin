@@ -442,16 +442,24 @@ let array_literal_ahead():bool {
     return false
 }
 
-// whether (T){ starts here, its { on the line of the (T) (#418)
+let value_type_end():int64    // a prototype: (x.type){...} is a compound literal (#422)
+
+// whether (T){ starts here, its { on the line of the (T) (#418), or
+// (x.type){ of a variable's type (#422)
 let literal_ahead():bool {
-    return at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1)
+    if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
+    let e:int64 = value_type_end()
+    return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || written_type(pos + 1) != 0 - 2)
 }
 
 // whether sizeof's ( opens a value's type, (x.type) or (p.x.type^)
 // (#421), as kelvinc's typeof_at: a name, then .member, ^ or [...] steps,
 // .type last, ^ after it, and the )
-let value_type_ahead():bool {
-    if !at_word("(") || toks[pos + 1].kind != T_ID { return false }
+let value_type_ahead():bool { return value_type_end() >= 0 }
+
+// the ) of value_type_ahead's (x.type), or -1 (#422)
+let value_type_end():int64 {
+    if !at_word("(") || toks[pos + 1].kind != T_ID { return 0 - 1 }
     var j:int64 = pos + 2
     var typed = false
     while j < toks.count as int64 {
@@ -473,7 +481,7 @@ let value_type_ahead():bool {
             break
         }
     }
-    return typed && tok_is(j, ")")
+    return typed && tok_is(j, ")") ? j : 0 - 1
 }
 
 // whether token t starts a type in sizeof(...) (#420), as kelvinc's: a
@@ -767,6 +775,104 @@ let tok_count(t:int64):int64 {
     return v
 }
 
+// whether a value's .type follows token t (#422), as kelvinc's #34:
+// .member, ^ and [i] steps, then .type
+let type_follows(t:int64):bool {
+    var j:int64 = t + 1
+    while j < toks.count as int64 {
+        if tok_is(j, ".") && tok_is(j + 1, "type") { return true }
+        if tok_is(j, ".") && toks[j + 1].kind == T_ID {
+            j += 2
+        } else if tok_is(j, "^") {
+            j += 1
+        } else if tok_is(j, "[") {
+            var depth = 0
+            while j < toks.count as int64 {
+                if tok_is(j, "[") || tok_is(j, "$[") { depth += 1 }
+                if tok_is(j, "]") { depth -= 1 }
+                j += 1
+                if depth == 0 { break }
+            }
+        } else {
+            return false
+        }
+    }
+    return false
+}
+
+// the type of the member at token m of the struct y, or -1 (#422)
+let member_ty(y:int64, m:int64):int64 {
+    for d in nodes {
+        if d.kind == D_STRUCT && same_text(d.t, types[y].name) {
+            var f:int64 = d.a
+            while f >= 0 {
+                if same_text(nodes[f].t, m) { return nodes[f].ty }
+                f = nodes[f].next
+            }
+        }
+    }
+    return 0 - 1
+}
+
+// the type x.type names (#422), as kelvinc's #34, x at token t, the
+// cursor after it: x's written type, as typeof(x)'s (#398), then each
+// .member's, ^'s and [i]'s, up to the .type, which it reads
+let value_type(t:int64):int64 {
+    var y:int64 = written_type(t)
+    if y < 0 {
+        parse_error("kc reads x.type of a variable whose type is written; not yet of one whose type is inferred")
+        return base_type(Y_VOID)
+    }
+    while !failed {
+        if at_word(".") && tok_is(pos + 1, "type") {
+            advance()
+            advance()
+            return y
+        }
+        if at_word(".") {
+            advance()
+            let m:int64 = advance()
+            if types[y].kind == Y_PTR { y = types[y].elem }
+            let f:int64 = types[y].kind == Y_STRUCT ? member_ty(y, m) : 0 - 1
+            if f < 0 {
+                var e = $"'"
+                e += tok_text(m)
+                e += "' is no member of "
+                let w:String = type_word(y)
+                e += &w
+                parse_error(e.cstr)
+                return base_type(Y_VOID)
+            }
+            y = f
+        } else if at_word("^") {
+            advance()
+            if types[y].kind != Y_PTR {
+                parse_error("'^' reads through a pointer, and this is none")
+                return base_type(Y_VOID)
+            }
+            y = types[y].elem
+        } else {
+            advance()                                    // [i], an element's
+            var depth = 1
+            while depth > 0 && !at_kind(T_EOF) {
+                if at_word("[") || at_word("$[") { depth += 1 }
+                if at_word("]") { depth -= 1 }
+                advance()
+            }
+            let k:ykind = types[y].kind
+            if k == Y_FIXED || k == Y_ARRAY || k == Y_PTR {
+                y = types[y].elem
+            } else if k == Y_ARGV {
+                y = base_type(Y_CSTR)
+            } else {
+                parse_error("'[i]' reads an array's element, and this is none")
+                return base_type(Y_VOID)
+            }
+        }
+    }
+    return base_type(Y_VOID)
+}
+
 // const T^ and the rest (#272)
 let parse_type():int64 {
     if at_word("const") {
@@ -879,7 +985,9 @@ let parse_bare_type():int64 {
     refuse_restrict()                            // restrict T^ (#393)
     let t:int64 = advance()
     var y = -1
-    if tok_is(t, "int64") {
+    if (local_named(t) || written_type(t) != 0 - 2) && type_follows(t) {   // x.type, a value's type (#422)
+        y = value_type(t)
+    } else if tok_is(t, "int64") {
         y = base_type(Y_I64)
     } else if tok_is(t, "int32") {
         y = base_type(Y_I32)
@@ -1014,6 +1122,18 @@ let parse_bare_type():int64 {
             }
         }
         y = type_of_kind(Y_STRUCT, -1, nt)
+    }
+    if at_word(".") && tok_is(pos + 1, "type") {         // as kelvinc says it (#422)
+        let w:String = types[y].kind == Y_STRUCT ? kelvin_name(types[y].name) : type_word(y)
+        var m = $"'"
+        m += &w
+        m += "' is a type already: write '"
+        m += &w
+        m += "', not '"
+        m += &w
+        m += ".type'"
+        parse_error(m.cstr)
+        return base_type(Y_VOID)
     }
     while at_word("^") || at_word("?") || at_word("??") {
         if at_word("??") {                       // T??, which lexes as ?? (#229)

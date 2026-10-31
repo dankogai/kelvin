@@ -527,7 +527,7 @@ kc reads what it is written in, and little more.
   - `sizeof(x.type)` (#421), as kelvinc's #34: x's size, of a path too,
     `p.x.type`, `a[0].type`, and of `x.type^` a pointer's; a struct's
     member named `type`, a C struct's and a value's kc does not know stay
-    members. Not yet: `.type` anywhere else.
+    members.
 - **`alignas`** (#396), as kelvinc's: parse_alignas before a global, a
   local or a struct's member, a number, checked where a literal, or a
   type; take_alignas keeps the variable or member in aligned, and
@@ -538,6 +538,16 @@ kc reads what it is written in, and little more.
 - **`typeof`** (#398), as kelvinc's: `typeof(T)` is `T`, and `typeof(x)`
   of a variable is the type its declaration writes, written_type's; of one
   inferred, or of an expression, it is not kc's yet, and says so.
+- **`x.type`** (#422), as kelvinc's #34, where a type goes: after `:`
+  and `as`, in `[x.type](3)`, `x.type^` and `(x.type){...}`.
+  - x is a variable whose type is written, read as kc parses, as
+    `typeof(x)`'s; a path too, `p.x.type`, `q^.type`, `a[0].type`; a
+    parameter's type an earlier parameter's, `acc:xs[0].type`.
+  - Of a variable whose type is inferred, kc's error says not yet;
+    `sizeof(x.type)` reads any (#421).
+  - `x.type` as a value, `point.type` and `i64.type` are kelvinc's
+    errors, in its words.
+  - Not yet: `$0.type`, `const xs.type`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.

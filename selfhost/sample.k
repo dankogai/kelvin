@@ -799,5 +799,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(sizeof(point), " ", sizeof(int32^), " ", sizeof odds[0], " ", cells, " ", sized, " ", sizeof(shade), " ", sizeof shade_name)
     let anchor:point = {3, 4}
     println(sizeof(anchor.type), " ", sizeof(anchor.x.type), " ", sizeof(odds[0].type), " ", sizeof(anchor.type^))   // sizeof(x.type) (#421)
+    var mirror:anchor.type = (anchor.type){anchor.y, anchor.x}   // x.type where a type goes (#422)
+    let narrow = 300 as anchor.x.type
+    let cast_x:[anchor.y.type](2) = [narrow, mirror.x]
+    println(mirror, " ", narrow, " ", cast_x[1], " ", sizeof cast_x)
     return 0
 }

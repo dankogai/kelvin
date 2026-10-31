@@ -938,6 +938,7 @@ let value_align(n:int64):bool {
 }
 
 let coalesces_whole(n:int64):bool    // a prototype: x ?? y of the whole x's type (#408, #409)
+let type_member(f:int64):bool    // and x.type, which is no value (#422)
 
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
@@ -1063,6 +1064,10 @@ let type_of(n:int64):int64 {
     }
     if k == N_ALIGN { return base_type(Y_I64) }         // alignof(T) (#395)
     if k == N_SIZEOF { return base_type(Y_I64) }        // sizeof(T), sizeof x (#420)
+    if k == N_FIELD && type_member(n) {                 // as kelvinc says it (#422)
+        gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
+        return -1
+    }
     if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
