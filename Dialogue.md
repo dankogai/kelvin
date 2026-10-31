@@ -8147,3 +8147,16 @@ no line was added, dropped or reworded, but versusC.md's pointer to
 "Where it lives".
 
 There are 1156 tests, and all pass.
+
+### 462. ownership.md's `d[k]`
+
+> fix ownership.md's d[k]
+
+**Claude** found ownership.md's Dictionary section still saying that
+`d[k]` is the value, checked, as before #218. It now says what
+dictionaries.md says: `d[k]` read whole is an Optional, `some` of a
+copy or `none`; `d[k]!` is the value, checked, and `d[k] ?? v` a
+default; going into it, `d[k] += 1`, is a place, checked. The example's
+`println(ages["bob"], ...)` shows its output, `some(42) 3 false`.
+
+There are 1156 tests, and all pass.

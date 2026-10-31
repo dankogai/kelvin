@@ -230,7 +230,7 @@ holds. Its entries keep the order they were added in.
 var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>; ${K: V} is the type
 ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: the key must be there
-println(ages["bob"], " ", ages.count, " ", ages.has("dan"))
+println(ages["bob"], " ", ages.count, " ", ages.has("dan"))   // some(42) 3 false
 for k, v in ages { print(k, "=", v, " ") }   // ann=32 bob=42 cy=7
 let p := ages.find("zed")                // a V^, or nullptr
 if !p.isNull { println(p^) }
@@ -253,9 +253,13 @@ words["a"] = $[$"apple"]
   - `Dictionary<K, V>()`, `Dictionary<K, V>({k: v, ...})`, and
     `Dictionary<K, V>(&other)`, a copy.
   - A variable declared without a value is empty.
-- **`d[k]`** reads the value, and ends the program with a message if
-  the key is not there, as `xs[i]` does out of range.
-  - It is a place, so `d[k] += 1` and `d[k] += "x"` change it.
+- **`d[k]` read whole is an Optional** (#218): `some` of a copy of the
+  value, or `none` where the key is missing.
+  - `d[k]!` is the value, and ends the program with a message if the
+    key is not there, as `xs[i]` does out of range; `d[k] ?? v` gives
+    a default. See [dictionaries.md](dictionaries.md).
+  - Going into it is a place, checked the same way, so `d[k] += 1` and
+    `d[k] += "x"` change it.
   - `d[k] = v` adds the entry or replaces its value, freeing what it
     held if it owns.
   - `=` does not copy an owner in, as it copies none (#54):
