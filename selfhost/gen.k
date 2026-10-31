@@ -1058,6 +1058,7 @@ let type_of(n:int64):int64 {
         if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
     }
     if k == N_ALIGN { return base_type(Y_I64) }         // alignof(T) (#395)
+    if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
         let ly = lazy_field_type(n)
@@ -3579,19 +3580,42 @@ let gen_init(n:int64, s:int64) {
     var f:int64 = nodes[s].a
     while a >= 0 {
         if a != nodes[n].b { put(", ") }
+        var v:int64 = a
+        if nodes[a].kind == N_DESIG {                    // .name = v, and on from that member, as C's (#418)
+            f = nodes[s].a
+            while f >= 0 && !same_text(nodes[f].t, nodes[a].t) { f = nodes[f].next }
+            if f < 0 {
+                var e = $"'"
+                e += tok_text(nodes[a].t)
+                e += "' is no member of "
+                e += tok_text(nodes[s].t)
+                gen_error(a, e.cstr)
+                return
+            }
+            put(".")
+            put_tok(nodes[a].t)
+            put(" = ")
+            v = nodes[a].a
+        }
         if f < 0 {
             gen_error(a, "this struct has fewer members")
             return
         }
-        if nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 && is_owner(type_of(a)) {
-            gen_error(a, "an owner is not copied by '=' (#54): copy it with .copy()")
+        if nodes[v].kind == N_ID && var_type(nodes[v].t) >= 0 && is_owner(type_of(v)) {
+            gen_error(v, "an owner is not copied by '=' (#54): copy it with .copy()")
             return
         }
-        gen_written(a, nodes[f].ty)                      // ${:} of a member (#348)
+        gen_written(v, nodes[f].ty)                      // ${:} of a member (#348)
         a = nodes[a].next
         f = nodes[f].next
     }
     put("}")
+}
+
+// whether n is {a, b} of no type of its own, which takes the type it
+// goes to; (T){a, b} has its own (#418)
+let bare_init(n:int64):bool {
+    return nodes[n].kind == N_INIT && nodes[n].ty < 0
 }
 
 // a case's value made where an enum with values is expected (#217): none,
@@ -3611,7 +3635,7 @@ let fits_value(n:int64, t:int64):bool {
     let y:int64 = number && !literal ? type_of(n) : 0 - 1
     if y >= 0 && is_number_kind(types[y].kind) { return true }   // a bool or a number of another kind, as kelvinc converts it; none of a bool? (#415)
     if k == N_STR && tk == Y_STRING { return true }     // text a String, some("lit") of a String? (#413)
-    if k == N_INIT { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
+    if bare_init(n) { return struct_of(t) >= 0 || (some_type(t) >= 0 && fits_value(n, some_type(t))) }
     if type_of(n) == t { return true }
     return some_type(t) >= 0 && fits_value(n, some_type(t))
 }
@@ -3684,7 +3708,7 @@ let gen_array(n:int64, given:int64) {
         put("_append(&_kv_l")
         put_int(s)
         put(", ")
-        if nodes[e].kind == N_INIT || nodes[e].kind == N_EMPTY {   // {a, b} of a struct, $[], ${:}: C's compound literal there
+        if bare_init(e) || nodes[e].kind == N_EMPTY {   // {a, b} of a struct, $[], ${:}: C's compound literal there
             put("(")
             put_ctype(elem)
             put(")")
@@ -3830,7 +3854,7 @@ let gen_dict(n:int64, given:int64) {
         put(", ")
         gen_key(y, k)
         put(", ")
-        if nodes[v].kind == N_INIT || nodes[v].kind == N_EMPTY {   // {a, b} of a struct, ${:}, $[]: C's compound literal there
+        if bare_init(v) || nodes[v].kind == N_EMPTY {   // {a, b} of a struct, ${:}, $[]: C's compound literal there
             put("(")
             put_ctype(elem)
             put(")")
@@ -4005,7 +4029,7 @@ let gen_value(n:int64, y:int64) {
         gen_dict(n, y)
         return
     }
-    if (nodes[n].kind == N_SET || nodes[n].kind == N_INIT) && y >= 0 && types[y].kind == Y_SET {   // ${a, b}, {a, b} (#274)
+    if (nodes[n].kind == N_SET || bare_init(n)) && y >= 0 && types[y].kind == Y_SET {   // ${a, b}, {a, b} (#274)
         gen_set(n, nodes[n].b, y)
         return
     }
@@ -4030,7 +4054,7 @@ let gen_value(n:int64, y:int64) {
         put(")")
         return
     }
-    if nodes[n].kind == N_INIT && y >= 0 && types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
+    if bare_init(n) && y >= 0 && types[y].kind == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 {
         gen_init(n, decl_named(types[y].name, D_STRUCT))       // {a, b} of a struct (#225)
         return
     }
@@ -4090,7 +4114,7 @@ let gen_value(n:int64, y:int64) {
         put_tok(nodes[v].t)
         put(")")
     } else if v >= 0 && nodes[m].ty >= 0 {             // what the case holds, by its type: a T?? of a T (#229)
-        if nodes[v].kind == N_INIT && struct_of(nodes[m].ty) >= 0 {
+        if bare_init(v) && struct_of(nodes[m].ty) >= 0 {
             put("(struct ")
             put_tok(types[nodes[m].ty].name)
             put(")")
@@ -5299,6 +5323,18 @@ let gen_expr(n:int64) {
         put("(*")
         gen_expr(nodes[n].a)
         put(")")
+    } else if k == N_INIT && struct_of(nodes[n].ty) >= 0 {   // (T){a, b} (#418)
+        put("(")
+        put_ctype(nodes[n].ty)
+        put(")")
+        gen_init(n, struct_of(nodes[n].ty))
+    } else if k == N_INIT && nodes[n].ty >= 0 {
+        gen_error(n, "kc reads (T){...} of a struct; not yet of another type")
+    } else if k == N_DESIG {                             // .name = v where kc sees no struct (#418)
+        put(".")
+        put_tok(nodes[n].t)
+        put(" = ")
+        gen_expr(nodes[n].a)
     } else if k == N_INIT {
         put("{")
         gen_args(nodes[n].b)
@@ -5363,7 +5399,7 @@ let inferred(n:int64):int64 {
         empty_error(v)
         return -1
     }
-    if k == N_INIT || k == N_NULL || word {
+    if bare_init(v) || k == N_NULL || word {
         gen_error(n, "this variable needs a type: write name:T, since this value has none of its own")
         return -1
     }
@@ -5936,6 +5972,7 @@ let has_call(n:int64):bool {
     if n < 0 { return false }
     let k:nkind = nodes[n].kind
     if k == N_CALL || k == N_METHOD { return true }
+    if k == N_DESIG { return has_call(nodes[n].a) }    // (#418)
     if k == N_INIT {
         var a:int64 = nodes[n].b
         while a >= 0 {
@@ -6461,7 +6498,7 @@ let gen_return(n:int64) {
         return
     }
     put("return ")
-    if nodes[a].kind == N_INIT {                         // return {a, b}: of the function's type (#213)
+    if bare_init(a) {                                    // return {a, b}: of the function's type (#213)
         put("(")
         put_ctype(nodes[current].ty)
         put(")")

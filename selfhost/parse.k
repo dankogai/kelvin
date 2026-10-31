@@ -25,7 +25,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
     N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
     N_TYPE,     // IO or String called: a type's name as a function
-    N_INIT,     // {b...}, a struct's members in order
+    N_INIT,     // {b...}, a struct's members in order; ty of (T){b...}, C's compound literal (#418)
     N_NULL,     // nullptr
     N_SELF,     // self, and the self of .x (#213)
     N_CHAIN,    // a?.rest (#221): b the rest, of the name c bound to what a holds; t the ?
@@ -41,6 +41,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_RANGE,    // a..<b, a...b (flag 1), a... (flag 2, b -1); ..<b and ...b, a -1 of 0 (#373); ty the Range<T> it is
     N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
+    N_DESIG,    // .t = a in {...}, C's designator (#418)
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -407,6 +408,24 @@ let program_named(t:int64):bool {
         if (d.kind == D_GLOBAL || d.kind == D_FN || d.kind == D_STRUCT || d.kind == D_ENUM) && same_text(d.t, t) { return true }
     }
     return false
+}
+
+// whether token t names the type of a compound literal, (T){...} (#418):
+// Self in a method, or a struct declared so far, a block's and a nested
+// one's too, which a variable or a function of the name leaves the type
+// before {, as kelvinc reads it
+let literal_type(t:int64):bool {
+    if tok_is(t, "Self") { return self_name >= 0 }
+    let u:int64 = scoped_type(t)
+    for d in nodes {
+        if d.kind == D_STRUCT && same_text(d.t, u) { return true }
+    }
+    return false
+}
+
+// whether (T){ starts here, its { on the line of the (T) (#418)
+let literal_ahead():bool {
+    return at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1)
 }
 
 // the path Kelvin writes of the type named by token t: point.kind of
@@ -1360,6 +1379,19 @@ let parse_primary():int64 {
         advance()
         return make_node(N_DSTR, t)
     }
+    if literal_ahead() {                                 // (T){...}, C's compound literal (#418)
+        advance()
+        let y:int64 = parse_type()
+        expect(")")
+        let n:int64 = parse_primary()
+        set_ty(n, y)
+        return n
+    }
+    if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && toks[pos + 3].kind == T_NL && tok_is(pos + 4, "{") && literal_type(pos + 1) {
+        pos += 4                                         // as kelvinc says it
+        parse_error("a compound literal's '{' starts on the line of its '(type)': on the next line, '{' starts a block")
+        return make_node(N_NULL, t)
+    }
     if at_word("(") {
         advance()
         let saved = name_annotation
@@ -1404,7 +1436,15 @@ let parse_primary():int64 {
         var last = -1
         skip_newlines()                                  // a { ... } of lines of its own, in parentheses too (#326)
         while !at_word("}") && !failed {
-            let e:int64 = parse_expr()
+            var e:int64 = 0 - 1
+            if at_word(".") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "=") {   // .name = v, C's designator (#418)
+                advance()
+                e = make_node(N_DESIG, advance())
+                advance()
+                set_a(e, parse_expr())
+            } else {
+                e = parse_expr()
+            }
             if last < 0 {
                 nodes[n].b = e
             } else {

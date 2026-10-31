@@ -183,6 +183,7 @@ extend point {                                        // methods (#213)
     let sum():int64 { return .x + .y }
     let scaled(k:int64):point { return {.x * k, self.y * k} }
     static let of(x:int64, y:int64):Self { return {x, y} }
+    static let flipped(x:int64, y:int64):Self { (Self){.y = x, .x = y} }   // (T){...}, C's compound literal, and .name = (#418)
 }
 let point.dot(o:point):int64 { return .x * o.x + .y * o.y }
 
@@ -785,5 +786,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     for c in "hi" { print(c) }                        // a cstr's bytes: a literal's C's chars, a cstr's u8s (#390)
     for c in hi_bytes { print(" ", c) }
     println()
+    let hop = (leg){.to = 8, .from = 3}
+    let reach:int64 = (leg){1, 4}.to
+    println(point.flipped(1, 2), " ", hop, " ", reach, " ", (point){5, 6}.sum())
     return 0
 }

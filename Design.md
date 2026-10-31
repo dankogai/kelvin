@@ -449,6 +449,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 415 | kc wraps a bool, or a number of another kind, literal or not, where a number's Optional or Result goes, as kelvinc converts it: `let c:int64? = true` is `some(1)`, `let d:int64? = n` of an int32 `some(4)`, a return's and an assignment's alike; a number where a `bool?` goes is still C's error | selfhost/gen.k's fits_value | `let c:int64? = true` | 2026-10-29 |
 | 416 | `C.name` is an error in Kelvin's words where the program declares no `C`: `#import <x.h> as C` names no namespace, a header's names come in bare, so `C.toupper(97)` is `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; a variable, function or type named `C` keeps `C.x`; C's `undeclared identifier 'C'` before | parser.c's primary expression, beside asm(...) | `C.toupper(97)` an error | 2026-10-31 |
 | 417 | kc's `C.name` is kelvinc's error in its words, as kelvinc's #416: where the program declares no `C` so far, a local or parameter, a global, a function, a struct or an enum, `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; kc said `this method is not known` before | selfhost/parse.k's parse_primary, program_named | `C.toupper(97)` an error of kc | 2026-10-31 |
+| 418 | kc reads `(T){...}`, C's compound literal, as kelvinc does: of a struct declared so far, a block's or a nested one's too, or of `Self` in a method, a value anywhere, its type its own; `.name = v`, C's designator, in it and in a bare `{...}`, the members after it following on; a designator of no member is kc's error, `'q' is no member of P`, and `{` on the next line kelvinc's; an array's `([T])[...]` still kc's error | selfhost/parse.k's literal_type, literal_ahead and N_DESIG; selfhost/gen.k's gen_init and bare_init | `(Self){.y = x, .x = y}` of kc | 2026-10-31 |
 
 Notes:
 
@@ -1033,6 +1034,24 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (418) Agreed details: "make kc parse static let inside extend".
+  - **Claude** found kc already read `static let` in `extend`: what
+    stopped tests/run/c_named_type.k was `(C){n}`, a compound literal,
+    which kc read nowhere. The user chose a struct's `(T){...}` with
+    `.name =` designators, and not yet an array's.
+  - parse_primary reads `(T){` where literal_type finds `Self` in a
+    method or a struct declared so far, through scoped_type, so a
+    block's and a nested one's too; a variable or a function of the
+    name leaves it the type, as kelvinc's C does.
+  - N_INIT keeps the type in ty; type_of gives it, so `let p = (P){1}`
+    infers P, and bare_init keeps the old `{a, b}`, which takes the
+    type it goes to, apart.
+  - gen_init writes `.name = v` of an N_DESIG and goes on from that
+    member, as C does; a name of no member is kc's error, since kc
+    needs the member's type, where kelvinc leaves it to C.
+  - Found: kelvinc's `println((P){1, 2}.m)` splits at the commas in
+    C's println macro, where kc's prints; left for a number of its own.
 
 - (417) Agreed details: "make kc give kelvinc's error for C.toupper",
   after #416.
@@ -5682,6 +5701,7 @@ says "as agreed".
 | P427 | Details of #415 | selfhost/gen.k: fits_value of a bool and of a number of another kind; selfhost/sample.k: `flagged`, `measured`, `wide`; selfhost/README.md | — |
 | P428 | Details of #416 | src/parser.c: parse_primary's `C.name` check; documents/c-interfaces.md; tests/error/c_namespace.k, c_namespace_value.k; tests/run/c_named_type.k | — |
 | P429 | Details of #417 | selfhost/parse.k: program_named, parse_primary's `C.name` check; selfhost/README.md | — |
+| P430 | Details of #418 | selfhost/parse.k: literal_type, literal_ahead, N_DESIG, the next-line `{` error; selfhost/gen.k: gen_init's designators, bare_init, type_of and gen_expr of a typed N_INIT; selfhost/sample.k: `point.flipped`, `hop`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

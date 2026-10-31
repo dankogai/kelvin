@@ -533,6 +533,17 @@ kc reads what it is written in, and little more.
   no `C`, a local, a global, a function, a struct or an enum, it is
   kelvinc's error, in its words: `as C` names no namespace, and a
   header's names come in bare.
+- **Compound literals** (#418), as kelvinc's: `(T){a, b}` of a struct,
+  `(Self){...}` in a method, a value anywhere.
+  - `T` is a struct declared so far, a block's or a nested one's too;
+    before `{` it is the type even where a variable or a function has
+    its name, as in kelvinc.
+  - `.name = v`, C's designator, in it and in a bare `{...}`; the members
+    after it follow on, as in C.
+  - A designator of no member, and one value too many, are kc's errors;
+    `{` on the next line is kelvinc's, in its words.
+  - Not yet: an array's, `([i32])[1, 2, 3]`, and a path's,
+    `(point.kind){...}`.
 - **`if (1) name(x)`** (#402), as kelvinc's: declaration_shaped, a
   statement or an assignment `name(x)` of a name kc does not see and one
   argument a declarator could be, x, x^, x[i], is written after `if (1)`,

@@ -8187,3 +8187,26 @@ parameter, a global, a function, a struct or an enum. A global named
 both compilers. Details are provisional P429.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 465. kc's compound literals
+
+> make kc parse static let inside extend
+
+**Claude** found that kc already read `static let` in `extend`, and
+said so: what stopped tests/run/c_named_type.k under kc was `(C){n}`, a
+compound literal, which kc read nowhere, not even in `let d:P = (P){4}`.
+Asked what to make of it, the user chose a struct's `(T){...}` with
+`.name =` designators, leaving an array's for later.
+
+**Claude** made it #418: kc reads `(T){a, b}` of a struct declared so
+far, a block's or a nested one's too, and `(Self){...}` in a method, a
+value anywhere, so `let p = (P){1}` infers `P`. `.name = v` works in it
+and in a bare `{...}`, and the members after it follow on, as in C. A
+designator of no member is kc's own error, and `{` on the next line is
+kelvinc's. sample.k's `point.flipped(1, 2)` is `(Self){.y = x, .x = y}`,
+and c_named_type.k now builds and prints `3 65` through kc too. On the
+way, kelvinc's `println((P){1, 2}.m)` turned out to split at the commas
+in C's println macro; that is left for a number of its own. Details are
+provisional P430.
+
+There are 1159 tests, and all pass with clang and with gcc 15.
