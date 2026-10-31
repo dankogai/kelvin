@@ -448,6 +448,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 414 | kc's `String(x)` of an owner is kelvinc's error in its words, as kelvinc's #412: of a place `would copy an owner`, of a String an expression gives `is one already`, of another owner what String takes and what this is, of two values what it takes; `String()` an empty String, where kc stopped | selfhost/gen.k's string_args_refused | `String(name())` kc's error | 2026-10-29 |
 | 415 | kc wraps a bool, or a number of another kind, literal or not, where a number's Optional or Result goes, as kelvinc converts it: `let c:int64? = true` is `some(1)`, `let d:int64? = n` of an int32 `some(4)`, a return's and an assignment's alike; a number where a `bool?` goes is still C's error | selfhost/gen.k's fits_value | `let c:int64? = true` | 2026-10-29 |
 | 416 | `C.name` is an error in Kelvin's words where the program declares no `C`: `#import <x.h> as C` names no namespace, a header's names come in bare, so `C.toupper(97)` is `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; a variable, function or type named `C` keeps `C.x`; C's `undeclared identifier 'C'` before | parser.c's primary expression, beside asm(...) | `C.toupper(97)` an error | 2026-10-31 |
+| 417 | kc's `C.name` is kelvinc's error in its words, as kelvinc's #416: where the program declares no `C` so far, a local or parameter, a global, a function, a struct or an enum, `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; kc said `this method is not known` before | selfhost/parse.k's parse_primary, program_named | `C.toupper(97)` an error of kc | 2026-10-31 |
 
 Notes:
 
@@ -1032,6 +1033,13 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (417) Agreed details: "make kc give kelvinc's error for C.toupper",
+  after #416.
+  - parse_primary refuses `C.` before a name, beside `asm(...)`, where
+    local_named and program_named find no `C`: a local or parameter,
+    or a global, function, struct or enum declared so far, as
+    kelvinc's check sees them.
 
 - (416) Agreed details: "make C.toupper give a Kelvin error".
   - kelvinc reads no header, so `C.` is the error only where no
@@ -5673,6 +5681,7 @@ says "as agreed".
 | P426 | Details of #414 | selfhost/gen.k: string_args_refused and `String()` in gen_call; selfhost/sample.k: `String()`; selfhost/README.md | — |
 | P427 | Details of #415 | selfhost/gen.k: fits_value of a bool and of a number of another kind; selfhost/sample.k: `flagged`, `measured`, `wide`; selfhost/README.md | — |
 | P428 | Details of #416 | src/parser.c: parse_primary's `C.name` check; documents/c-interfaces.md; tests/error/c_namespace.k, c_namespace_value.k; tests/run/c_named_type.k | — |
+| P429 | Details of #417 | selfhost/parse.k: program_named, parse_primary's `C.name` check; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

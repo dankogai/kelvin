@@ -400,6 +400,15 @@ let local_named(t:int64):bool {
     return false
 }
 
+// whether the program declares, so far, a global, a function, a struct or
+// an enum named as token t's (#416)
+let program_named(t:int64):bool {
+    for d in nodes {
+        if (d.kind == D_GLOBAL || d.kind == D_FN || d.kind == D_STRUCT || d.kind == D_ENUM) && same_text(d.t, t) { return true }
+    }
+    return false
+}
+
 // the path Kelvin writes of the type named by token t: point.kind of
 // point__kind (#389), else its name
 let kelvin_name(t:int64):String {
@@ -1272,6 +1281,15 @@ let parse_primary():int64 {
     }
     if k == T_ID && tok_is(t, "asm") && tok_is(t + 1, "(") && !local_named(t) {
         parse_error("assembly is C's, a GNU extension, left out on purpose: write it in #inline C { __asm__ __volatile__(\"...\"); }")
+        return make_node(N_NULL, advance())
+    }
+    if k == T_ID && tok_is(t, "C") && tok_is(t + 1, ".") && toks[t + 2].kind == T_ID && !local_named(t) && !program_named(t) {
+        var m = $"'C."                                   // as C names no namespace (#416), as kelvinc says it
+        m += tok_text(t + 2)
+        m += "' names nothing: '#import <x.h> as C' brings a header's names in bare, so write '"
+        m += tok_text(t + 2)
+        m += "'"
+        parse_error(m.cstr)
         return make_node(N_NULL, advance())
     }
     if k == T_ID && tok_is(t, "_Generic") {              // left out on purpose (#397), as kelvinc says it

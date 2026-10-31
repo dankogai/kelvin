@@ -8174,3 +8174,16 @@ program named `C` keeps `C.x`. kc gives its own `this method is not known`. Deta
 provisional P428.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 464. kc's `C.toupper`, kelvinc's error
+
+> make kc give kelvinc's error for C.toupper
+
+**Claude** made it #417: kc's `C.toupper(97)` and `C.EOF`, which were
+its own `this method is not known`, are kelvinc's error of #416 in its
+words, where the program declares no `C` so far: a local or a
+parameter, a global, a function, a struct or an enum. A global named
+`C`, and a struct `C` with a method, build and print the same through
+both compilers. Details are provisional P429.
+
+There are 1159 tests, and all pass with clang and with gcc 15.
