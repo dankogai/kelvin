@@ -1,16 +1,8 @@
 # SION: `#import <SION>`
 
-`SION` (#152) is a SION value, Swift Interchangeable Object Notation,
-as Dan Kogai's https://dankogai.github.io/SION/ has it: JSON with more.
-It is an enum with values (see [enums.md](enums.md)): `nil`, a
-`boolean`, an `integer` and a `number` (SION's Int and Double) apart, a
-`string`, `data` (a binary blob), a `date` (seconds since 1970), an `ext`
-(a MessagePack extension), an `array`, a `dictionary` keyed by any
-value, and one more case, `error`, for a text that was not SION.
-`SION.parse(text)` reads one from text and `SION.stringify(&s, space)`
-writes it back; [msgpack.md](msgpack.md) packs one into MessagePack.
+A SION value, JSON with more, as an enum with values, with `SION.parse` and `SION.stringify`.
 
-**Where it lives:** `modules/SION.k`, brought in by `#import <SION>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in `extend SION { }` blocks (#130) with `Self` for `SION` (#140), and subscripts (#136) for `s["key"]` and `s[i]`. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/SION.k` builds it into a library where a project wants that (#146).
+## Synopsis
 
 ```swift
 #import <SION>
@@ -30,6 +22,18 @@ var pretty = SION.stringify(&s, 2)            // one entry a line, two spaces a 
 var back = SION.parse(&flat)                  // a String, borrowed
 println(SION.same(&s, &back))                 // true
 ```
+
+## Description
+
+`SION` (#152) is a SION value, Swift Interchangeable Object Notation,
+as Dan Kogai's https://dankogai.github.io/SION/ has it: JSON with more.
+It is an enum with values (see [enums.md](enums.md)): `nil`, a
+`boolean`, an `integer` and a `number` (SION's Int and Double) apart, a
+`string`, `data` (a binary blob), a `date` (seconds since 1970), an `ext`
+(a MessagePack extension), an `array`, a `dictionary` keyed by any
+value, and one more case, `error`, for a text that was not SION.
+`SION.parse(text)` reads one from text and `SION.stringify(&s, space)`
+writes it back; [msgpack.md](msgpack.md) packs one into MessagePack.
 
 - **The type** is `enum SION { nil; boolean: bool; integer: i64; number:
   f64; string: String; data: Bytes; date: f64; ext: Bytes; array:
@@ -79,6 +83,10 @@ println(SION.same(&s, &back))                 // true
 - **`SION.same(&a, &b)`** compares two values member by member.
   - `a == b` does the same since an Array has `==` (#247): a
     dictionary's entries in order, as it holds them.
+
+## Where it lives
+
+`modules/SION.k`, brought in by `#import <SION>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in `extend SION { }` blocks (#130) with `Self` for `SION` (#140), and subscripts (#136) for `s["key"]` and `s[i]`. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/SION.k` builds it into a library where a project wants that (#146).
 
 ## Functions
 

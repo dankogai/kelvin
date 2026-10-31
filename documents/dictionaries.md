@@ -1,11 +1,8 @@
 # Dictionaries: `Dictionary<K, V>`
 
-`Dictionary<K, V>`, or `${K: V}` for short, is a hash map on the heap
-(#65): an owner, freed when its block ends, moved by `return` and by
-passing, copied only by `.copy()`, borrowed as a pointer. The rules are
-in [ownership.md](ownership.md); this is the summary.
+A map of keys to values, owned on the heap, kept in the order added.
 
-**Where it lives:** the prelude. A Dictionary's C comes from `kelvin_prelude.h`, instantiated for each `K` and `V`, with hashing and the rest in `libkelvin`, linked without an import.
+## Synopsis
 
 ```swift
 var ages = ${"ann": 31, "bob": 42}       // Dictionary<String, i64>
@@ -25,6 +22,13 @@ var words:${String: $[String]} = ${:}    // empty; a value may own
 words["a"] = $[$"apple"]
 println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chains (#218)
 ```
+
+## Description
+
+`Dictionary<K, V>`, or `${K: V}` for short, is a hash map on the heap
+(#65): an owner, freed when its block ends, moved by `return` and by
+passing, copied only by `.copy()`, borrowed as a pointer. The rules are
+in [ownership.md](ownership.md); this is the summary.
 
 - **Keys** are an integer type, hashed as a number, or `String`.
   - The Dictionary keeps a copy of the text, and is read with a
@@ -153,6 +157,10 @@ println(words["a"]?.count, " ", words["b"]?.count)   // some(1) none: x?.m chain
     `d.firstKeyWithKey { k, v in ... }`, the key given as
     mapWithKey's (#241).
 - **Not yet:** keys of other types, `d[k, default]`.
+
+## Where it lives
+
+The prelude. A Dictionary's C comes from `kelvin_prelude.h`, instantiated for each `K` and `V`, with hashing and the rest in `libkelvin`, linked without an import.
 
 ## kc
 

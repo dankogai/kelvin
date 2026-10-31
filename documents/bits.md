@@ -1,14 +1,8 @@
 # Bits: `Bits`
 
-`Bits` (#387) is Kelvin's answer to C's bit-fields, which it leaves out:
-64 bits in a `u64`, its `.value`, each bit a `bool` by its place, 0 the
-lowest. An enum names the flags, and `!!n` makes a bit's `bool` of an
-integer 0 or 1.
+64 flags in one `u64`, each bit a `bool` by its place.
 
-**Where it lives:** the core. `Bits` is the prelude's `kv_bits`, a struct
-of one `uint64_t`, with its bit functions inline in
-`kelvin_prelude.h`; its text is `libkelvin`'s, linked without an
-import.
+## Synopsis
 
 ```swift
 enum flag { ready, busy, done }               // the flags, by name
@@ -27,6 +21,13 @@ let main():int32 {
     return 0
 }
 ```
+
+## Description
+
+`Bits` (#387) is Kelvin's answer to C's bit-fields, which it leaves out:
+64 bits in a `u64`, its `.value`, each bit a `bool` by its place, 0 the
+lowest. An enum names the flags, and `!!n` makes a bit's `bool` of an
+integer 0 or 1.
 
 | Kelvin | C |
 |--------|---|
@@ -63,6 +64,13 @@ let main():int32 {
   that is set, which pastes back; `Bits(0b0)` of all zeros.
 - **No C bit-field:** `unsigned a : 1` is not Kelvin; a struct holds a
   `Bits` and names its flags with an enum; see [versusC.md](versusC.md).
+
+## Where it lives
+
+The core. `Bits` is the prelude's `kv_bits`, a struct
+of one `uint64_t`, with its bit functions inline in
+`kelvin_prelude.h`; its text is `libkelvin`'s, linked without an
+import.
 
 ## Properties and methods
 

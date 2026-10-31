@@ -1,10 +1,8 @@
 # SYS: the program
 
-`SYS` is the program itself (#94), after Python's `sys`: its arguments,
-its platform and its exit. It is the prelude's (#302), with no import;
-the system around the program is `OS`, a module: [os.md](os.md).
+The program itself: its arguments, its platform and its exit.
 
-**Where it lives:** the prelude. `SYS` is runtime/sys.c in `libkelvin`, declared by `kelvin_prelude.h`, linked without an import; `main` gives it the program's arguments where the program names `SYS` or imports `OS`. It came with `OS`, a module, from #145 until #302.
+## Synopsis
 
 ```swift
 let main():int32 {
@@ -14,6 +12,12 @@ let main():int32 {
     return 0
 }
 ```
+
+## Description
+
+`SYS` is the program itself (#94), after Python's `sys`: its arguments,
+its platform and its exit. It is the prelude's (#302), with no import;
+the system around the program is `OS`, a module: [os.md](os.md).
 
 - **The prelude's** (#302): `SYS` needs no import, where it came with
   `OS` (#145); `main` gives it the program's arguments.
@@ -33,7 +37,7 @@ let main():int32 {
   `"openbsd"`, `"netbsd"`, `"windows"` or `"unknown"`, decided when
   the runtime was built.
 
-## What each member takes and gives
+### What each member takes and gives
 
 Each line is a member as it would be declared, in Kelvin's spelling.
 
@@ -46,6 +50,10 @@ SYS.platform: cstr                       // "macos", "linux", "freebsd", "openbs
 
 `SYS.platform` is a borrow of text the runtime keeps for the whole
 program: a `cstr` that needs no copy.
+
+## Where it lives
+
+The prelude. `SYS` is runtime/sys.c in `libkelvin`, declared by `kelvin_prelude.h`, linked without an import; `main` gives it the program's arguments where the program names `SYS` or imports `OS`. It came with `OS`, a module, from #145 until #302.
 
 ## Properties and methods
 

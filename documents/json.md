@@ -1,13 +1,8 @@
 # JSON: `#import <JSON>`
 
-`JSON` (#113) is a JSON value as an enum with values (see
-[enums.md](enums.md)): a tagged union of a `null`, a `boolean`, a
-`number`, a `string`, an `array` of JSON or an `object` of String to
-JSON, and one more case, `error`, for a text that was not JSON.
-`JSON.parse(text)` reads one from text and `JSON.stringify(&j, replacer,
-space)` writes it back, as JS's do.
+A JSON value, as an enum with values, with `JSON.parse` and `JSON.stringify` as JS has them.
 
-**Where it lives:** `modules/JSON.k`, brought in by `#import <JSON>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in two `extend JSON { }` blocks (#130), the parsing and the writing, with `Self` for `JSON` (#140), and C's `snprintf` for the numbers. Nothing of it is in the prelude or the runtime. It is the example of a module written in Kelvin, and `kelvinc --lib modules/JSON.k` builds it into `JSON.kh` and `libkJSON.a` where a project wants that (#146).
+## Synopsis
 
 ```swift
 #import <JSON>
@@ -26,6 +21,15 @@ var v = JSON.array($[JSON.number(1.0), JSON.null, JSON.boolean(false)])   // mad
 var text = $"[1, 2, 3]"
 var a = JSON.parse(&text)                     // a String, borrowed
 ```
+
+## Description
+
+`JSON` (#113) is a JSON value as an enum with values (see
+[enums.md](enums.md)): a tagged union of a `null`, a `boolean`, a
+`number`, a `string`, an `array` of JSON or an `object` of String to
+JSON, and one more case, `error`, for a text that was not JSON.
+`JSON.parse(text)` reads one from text and `JSON.stringify(&j, replacer,
+space)` writes it back, as JS's do.
 
 - **The type** is `enum JSON { null; boolean: bool; number: f64; string:
   String; array: Array<JSON>; object: Dictionary<String, JSON>; error:
@@ -92,6 +96,10 @@ var a = JSON.parse(&text)                     // a String, borrowed
     that holds a Dictionary or an Array.
 - **Not yet:** numbers past an `f64`, and comments or trailing commas,
   which are not JSON.
+
+## Where it lives
+
+`modules/JSON.k`, brought in by `#import <JSON>` (#112), written in Kelvin: an enum with values, functions of the type (#111) in two `extend JSON { }` blocks (#130), the parsing and the writing, with `Self` for `JSON` (#140), and C's `snprintf` for the numbers. Nothing of it is in the prelude or the runtime. It is the example of a module written in Kelvin, and `kelvinc --lib modules/JSON.k` builds it into `JSON.kh` and `libkJSON.a` where a project wants that (#146).
 
 ## Functions
 

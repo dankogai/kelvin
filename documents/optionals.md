@@ -1,17 +1,8 @@
 # Optionals: `T?`
 
-`Optional<T>`, or `T?` for short, is a value that may be absent (#72).
-It is the special case of `Result<T, U>` (#75, see
-[results.md](results.md)) whose `err` carries nothing: an enum with
-values (see [enums.md](enums.md)) with the cases `none` and `some: T`,
-made for each `T` as it is written.
+A value that may be absent: `none`, or `some(v)` of a `T`.
 
-It holds a `T` of any value type, owners included, and then owns it.
-Everything a Result does, an Optional does with `some` for `ok` and
-`none` for `err`; this document has the Optional's own spelling and
-examples.
-
-**Where it lives:** the prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+## Synopsis
 
 <!-- fragment -->
 ```swift
@@ -41,6 +32,19 @@ var p:point? = {1, 2}                    // the T's initializer, wrapped; so is 
 var r = Optional<int64>(4)                 // explicit: some(4); Optional<i64>() is none
 var s = Optional<int64>.some(4)            // the cases by the type's name; Optional<i64>.none
 ```
+
+## Description
+
+`Optional<T>`, or `T?` for short, is a value that may be absent (#72).
+It is the special case of `Result<T, U>` (#75, see
+[results.md](results.md)) whose `err` carries nothing: an enum with
+values (see [enums.md](enums.md)) with the cases `none` and `some: T`,
+made for each `T` as it is written.
+
+It holds a `T` of any value type, owners included, and then owns it.
+Everything a Result does, an Optional does with `some` for `ok` and
+`none` for `err`; this document has the Optional's own spelling and
+examples.
 
 - **The type** is `T?`, or `Optional<T>`, for any value type: `i64?`,
   `String?`, `point?`, `$[i64]?`, `i64^?`, `i64??`.
@@ -138,9 +142,6 @@ var s = Optional<int64>.some(4)            // the cases by the type's name; Opti
 - **Text:** `x.cstr` is `some(3)` or `none`; `${x}` the same; text
   inside is quoted, `some("x")`, and `print(x)` and `x.pretty` show a
   value with brackets whole (#123, #124).
-- **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
-  value, with the functions of an enum with values, as a Result's
-  `_kv_res_<T>_<U>` is.
 - **An Optional where a value goes,** `let n:i64 = x` or `return x`
   of an `i64` function, is an error that names `!` and `??` (#218).
 - **`some(v)` is a pattern alone,** as in `if let some(v) = x` and
@@ -170,6 +171,14 @@ println(home ?? "unset")
 
 When the absence has a reason, return a `Result<T, U>` instead, with
 the reason in `err`: [results.md](results.md).
+
+## Where it lives
+
+The prelude's rules, kelvinc's C. Each `T?` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+
+- **In C**, each `T?` is a struct `_kv_opt_<T>` of a byte tag and the
+  value, with the functions of an enum with values, as a Result's
+  `_kv_res_<T>_<U>` is.
 
 ## Properties and methods
 

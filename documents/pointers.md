@@ -1,5 +1,25 @@
 # Pointers: `T^`, `:=`, `any^` and `nullptr`
 
+An address: `T^` points to a `T`, `p^` follows it, and `:=` assigns it.
+
+## Synopsis
+
+```swift
+var x:int32 = 1
+var y:int32 = 2
+var p:int32^ := &x                    // C: int32_t *p = &x;
+let q := &x                           // inferred: q is i32^
+p := &y                               // reassigning the reference
+p^ = 7                                // assigning the value it refers to
+var a:[int32](3) = [1, 2, 3]
+var s:int32^ := &a[0]
+s++                                   // a step of one element
+var v:any^                            // C's void *: nullptr until set
+println(y, " ", q^, " ", s^, " ", v.isNull)   // 7 1 2 true
+```
+
+## Description
+
 A pointer is written with a postfix `^`, in its type and when it is
 followed, and made with a prefix `&`, as in C. Assigning one is `:=`, so
 that a reference and a value never look alike.
@@ -11,9 +31,7 @@ pointers, are in [arrays.md](arrays.md); walking a pointer with
 `for x in p` is in [flow-controls.md](flow-controls.md); `.addr`, `.hex`
 and `.isNull` are in [properties.md](properties.md).
 
-**Where it lives:** the core. Pointers, `:=`, `any^` and `nullptr` are kelvinc's own, written as C's, with nothing linked; only an address's text, `p.hex`, is the prelude's.
-
-## Postfix `^`
+### Postfix `^`
 
 - `T^` is a pointer to `T`. `*` only means multiplication.
 - C's hardest declarators become readable. A function returning a pointer to
@@ -34,7 +52,7 @@ and `.isNull` are in [properties.md](properties.md).
     function type as C's does: `(u8^):u8` takes a function of
     `u8^ restrict`.
 
-## Prefix `&`
+### Prefix `&`
 
 `&x` is the address of `x`, as in C, and the one prefix operator a
 pointer needs:
@@ -75,7 +93,7 @@ let f := &twice           // a function's address is the function itself
   `&(p^.m)` and `&a[i]` is `&(a[i])`; `(&x).hex` needs its parentheses.
 - There is no `*`: `*p` is an error that says to write `p^`.
 
-## References: `:=` and `=`
+### References: `:=` and `=`
 
 Assigning a pointer (a reference) uses `:=`, and `=` is for values:
 
@@ -103,7 +121,7 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
 
-## No `void`: `any^` and `nullptr`
+### No `void`: `any^` and `nullptr`
 
 Kelvin has no `void` type:
 
@@ -122,7 +140,7 @@ Kelvin has no `void` type:
 `void` is rejected with a hint wherever it is written: `let f():void`,
 `var p:void^`, `(void)x`, `x as void`.
 
-## Stepping: `p++`, `p--`, `.next` and `.prev`
+### Stepping: `p++`, `p--`, `.next` and `.prev`
 
 - `p++` and `p--` step a pointer by one element, as statements (#51):
   on a line of their own, in a comma list, or in a `for` clause, never
@@ -139,11 +157,15 @@ Kelvin has no `void` type:
   - On anything else, `.next` is a field, so a list still walks with
     `n := n^.next`.
 
-## `.isNull`, `.addr` and `.hex`
+### `.isNull`, `.addr` and `.hex`
 
 `p.isNull` is `p == nullptr`, a `bool` (#50), `p.addr` the address as a
 `uintptr_t`, and `p.hex` its text (#37). See
 [properties.md](properties.md).
+
+## Where it lives
+
+The core. Pointers, `:=`, `any^` and `nullptr` are kelvinc's own, written as C's, with nothing linked; only an address's text, `p.hex`, is the prelude's.
 
 ## Properties and methods
 

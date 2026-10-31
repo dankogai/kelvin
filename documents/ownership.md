@@ -1,5 +1,23 @@
 # Ownership: `Bytes`, `String`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, `IO`, `Task<T>` and `Iterator<T>`
 
+Types that own memory on the heap: a variable owns one, its block
+frees it, and `=` never copies it.
+
+## Synopsis
+
+```swift
+var b = Bytes("hello, ")            // a variable owns its heap
+b += "Kelvin"                       // append: text, a byte, a borrow, a Bytes
+var s = $"héllo, κόσμε"             // a String: UTF-8, checked
+var xs = $[0, 1, 2, 3]              // an Array<i64>
+var ages = ${"ann": 31, "bob": 42}  // a Dictionary<String, i64>
+let c = b.copy()                    // = never copies an owner: copy it
+let r := &b                         // or borrow it: a pointer
+println(r^.count, " ", s.count, " ", xs[3], " ", ages.count, " ", c)   // 13 12 3 2 hello, Kelvin
+```
+
+## Description
+
 Kelvin used no heap of its own until #54. `Bytes` is the first type that
 does: a growable array of `u8` that a variable *owns*, and that the
 variable's block frees.
@@ -12,9 +30,7 @@ The rules below are what kelvinc enforces, from what it sees; a copy of
 the struct through C is C's business, and harmless, since an owner is
 never copied implicitly. `Dictionary` (#65) follows the same rules.
 
-**Where it lives:** the prelude. The owners are `kelvin_prelude.h`'s types and `libkelvin`'s functions, linked without an import; the rules are kelvinc's, which writes the frees.
-
-## `Bytes`
+### `Bytes`
 
 ```swift
 var b = Bytes("hello, ")     // a copy of the text, on the heap
@@ -64,7 +80,7 @@ for x in b { print(x, " ") } // each byte, count of them, NULs included
 - **Growth** doubles the capacity from 16; out of memory ends the
   program with a message, as an index out of range does.
 
-## `String`
+### `String`
 
 A `String` is a sequence of Unicode codepoints, kept as UTF-8 in a
 `Bytes` with its count of codepoints, and an owner under the same rules
@@ -120,7 +136,7 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
     (`c == 'a'`), and has no arithmetic: `c.utf32 + 1`.
   - `s += c` appends it.
 
-## `Array<T>`
+### `Array<T>`
 
 `Array<T>` is a growable array of `T` on the heap, an owner under the
 same rules (#57). `T` is any value type: a number, a `bool`, a `uchr`,
@@ -204,7 +220,7 @@ rows[0][1] = 5                   // xs[i] = v frees the element it replaces, if 
   - An element that is a struct that owns, or an enum with values, is
     copied and freed with the Array (#61).
 
-## `Dictionary<K, V>`
+### `Dictionary<K, V>`
 
 `Dictionary<K, V>` is a hash map on the heap, an owner under the same
 rules (#65): `K` an integer type or `String`, `V` any value an Array
@@ -263,7 +279,7 @@ words["a"] = $[$"apple"]
   entries), `==`, keys of other types, `keys` and `values` as Arrays,
   and `d[k, default]`.
 
-## `Set<T>`
+### `Set<T>`
 
 `Set<T>`, or `${T}`, is a hash set on the heap (#71): a Dictionary with
 no values, under the same rules, keyed as a Dictionary is (an integer
@@ -279,7 +295,7 @@ type or `String`).
 
 See [sets.md](sets.md).
 
-## `IO`
+### `IO`
 
 An `IO` (#82) is a file, or a standard stream, as an owner.
 
@@ -293,7 +309,7 @@ An `IO` (#82) is a file, or a standard stream, as an owner.
 
 The rest is in [io.md](io.md).
 
-## `Task<T>`
+### `Task<T>`
 
 A `Task<T>` (#312) is what `async f(x)` gives: a call on a thread of
 its own, and the value it will have.
@@ -307,7 +323,7 @@ its own, and the value it will have.
 
 The rest is in [tasks.md](tasks.md).
 
-## `Iterator<T>`
+### `Iterator<T>`
 
 An `Iterator<T>` (#325) is a state and a function of it, Swift's
 `sequence(state:next:)`: `Iterator($[0, 1]) { ... }`.
@@ -319,7 +335,7 @@ An `Iterator<T>` (#325) is a state and a function of it, Swift's
 
 The rest is in [iterators.md](iterators.md#iteratort-a-state-and-a-function).
 
-## When a check fails
+### When a check fails
 
 A check that fails at run time, an index past the count, text that is
 not UTF-8, a pattern that is not one, prints its reason on stderr,
@@ -328,6 +344,10 @@ exits with status 1 (#174); stdout is flushed first, so what was
 printed stays. With `KELVIN_ABORT=1` in the environment it aborts
 instead, for a debugger or a core. A test of such a failure writes its
 status as `// exit: 1` and the message as `// err:` lines.
+
+## Where it lives
+
+The prelude. The owners are `kelvin_prelude.h`'s types and `libkelvin`'s functions, linked without an import; the rules are kelvinc's, which writes the frees.
 
 ## The rules
 

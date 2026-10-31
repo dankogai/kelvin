@@ -1,11 +1,9 @@
 # Enums, and enums with values
 
-An `enum` with bare names is C's: a set of integer constants, a type by
-its bare name (#29). An `enum` whose cases carry values is a union that
-knows its case (#61): Swift's enum with associated values, a tagged
-union in C, with one byte for the tag.
+A set of named integer constants, C's enum; or, with values, a union
+that knows its case.
 
-**Where it lives:** the core. A plain enum is C's, with nothing linked. An enum with values is kelvinc's own C, a struct of a tag and a union with its functions, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+## Synopsis
 
 ```swift
 enum color { red, green, blue }          // C's enum: red is 0
@@ -24,7 +22,14 @@ default: println("another")
 println(j.n)                             // ends the program: case 'n' of json is not current: it is 's'
 ```
 
-## C's enum
+## Description
+
+An `enum` with bare names is C's: a set of integer constants, a type by
+its bare name (#29). An `enum` whose cases carry values is a union that
+knows its case (#61): Swift's enum with associated values, a tagged
+union in C, with one byte for the tag.
+
+### C's enum
 
 - **`enum color { red, green, blue }`**, with `= value` as C has it, is
   C's enum: `color` is a type, `red` an integer constant, and `c.cstr`
@@ -36,7 +41,7 @@ println(j.n)                             // ends the program: case 'n' of json i
   [structs.md](structs.md#defined-in-a-function). A `switch` on a Kelvin enum lists every
   enumerator, or has `default:` (#63).
 
-## An enum with values: `enum T { none; some: i32 }`
+### An enum with values: `enum T { none; some: i32 }`
 
 - **Declaring:** a case is a name, with a value's type after `:` or
   none.
@@ -108,11 +113,6 @@ println(j.n)                             // ends the program: case 'n' of json i
   - `j == json.n(1.5)` makes the case on the spot; one that would own,
     `json.s($"x")`, is not taken, since nothing would free it: bind it
     to a variable.
-- **In C**, `enum json` is `struct json { uint8_t tag; union { ... } u; }`
-  with its cases' names.
-  - Per case, `_kv_json_at_n` (checked, a pointer), `_kv_json_get_n`
-    (checked, a value), `_kv_json_set_n` and `_kv_json_make_n`; a case
-    with no value has `set` and `make` alone.
 - **`Result<T, U>`** is one of these with the cases `ok: T` and
   `err: U`, made for each pair of types, and **`T?`**, an Optional, its
   special case with `none` and `some: T`: see [results.md](results.md)
@@ -145,11 +145,21 @@ println(j.n)                             // ends the program: case 'n' of json i
 - **Not yet:** printing one with `print` or `println` by itself: show
   `v.cstr`, or use a template.
 
-## A struct that owns
+### A struct that owns
 
 A struct, or an enum with values, that holds an owner is copied with
 `.copy()` (#61), member by member, and may now be an element of an
 `Array<T>`, which copies and frees its elements with it.
+
+## Where it lives
+
+The core. A plain enum is C's, with nothing linked. An enum with values is kelvinc's own C, a struct of a tag and a union with its functions, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+
+- **In C**, `enum json` is `struct json { uint8_t tag; union { ... } u; }`
+  with its cases' names.
+  - Per case, `_kv_json_at_n` (checked, a pointer), `_kv_json_get_n`
+    (checked, a value), `_kv_json_set_n` and `_kv_json_make_n`; a case
+    with no value has `set` and `make` alone.
 
 ## Properties and methods
 

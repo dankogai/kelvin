@@ -1,10 +1,8 @@
 # UnicodeData: `#import <UnicodeData>`
 
-`#import <UnicodeData>` (#156) brings in the Unicode Character Database
-for Strings and codepoints, after Python's `unicodedata`: what the
-prelude's `String`, which walks codepoints, leaves out. It is a header
-and a library, `UnicodeData.kh` and `libkUnicodeData` in `modules/`,
-which the import links by itself.
+The Unicode Character Database for Strings and codepoints: normalization, graphemes, the case, names and categories.
+
+## Synopsis
 
 ```swift
 #import <UnicodeData>
@@ -21,13 +19,15 @@ let main():int32 {
 }
 ```
 
-**Where it lives:** `modules/UnicodeData.k`, written in Kelvin over
-`libkUnicodeData`: runtime/unicode_data.c on the tables that
-tools/gen_unicode.py makes from the database's files in tools/ucd/,
-Unicode 18.0.0; `make` builds the tables, and `kelvinc --lib` the
-header and the library.
+## Description
 
-## A String: `normalize`, `graphemes`, the case
+`#import <UnicodeData>` (#156) brings in the Unicode Character Database
+for Strings and codepoints, after Python's `unicodedata`: what the
+prelude's `String`, which walks codepoints, leaves out. It is a header
+and a library, `UnicodeData.kh` and `libkUnicodeData` in `modules/`,
+which the import links by itself.
+
+### A String: `normalize`, `graphemes`, the case
 
 - **`s.normalize(form)`** is the String normalized, a new String, by
   `nfc`, `nfd`, `nfkc` or `nfkd`, the four words of `enum NormalForm`,
@@ -54,7 +54,7 @@ header and the library.
   - `fold` is the case folding: `s.fold() == t.fold()` compares two
     texts whatever their case.
 
-## A codepoint: `name`, `category` and the rest
+### A codepoint: `name`, `category` and the rest
 
 | On a `uchr` | Gives |
 |---|---|
@@ -70,7 +70,7 @@ header and the library.
 
 - The prelude's `uchr` has `.utf32`, its number, which these look up.
 
-## Notes
+### Notes
 
 - A method on a String that an expression gives, as
   `$"Straße".fold()`, holds the String until the expression is done,
@@ -84,3 +84,11 @@ header and the library.
   [regexp.md](regexp.md).
 - Not here yet: the full case mappings that change the length, `ß` to
   `SS`.
+
+## Where it lives
+
+`modules/UnicodeData.k`, written in Kelvin over
+`libkUnicodeData`: runtime/unicode_data.c on the tables that
+tools/gen_unicode.py makes from the database's files in tools/ucd/,
+Unicode 18.0.0; `make` builds the tables, and `kelvinc --lib` the
+header and the library.

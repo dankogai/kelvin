@@ -8116,3 +8116,34 @@ kelvinc does, `some(1)` of `true`. sample.k prints them through both
 compilers. Details are provisional P427.
 
 There are 1156 tests, and all pass with clang and with gcc 15.
+
+### 461. Documents: the big picture first, a synopsis before the description
+
+> Let's make the whole documents more human-readable.
+>
+> * For example, `So far the changes from C are:` in `README.md` should
+>   be at the end of the document. Big picture first, details later.
+>
+> * Give xynopses firs then descriptions
+
+**Claude** asked which layout; the user chose a `## Synopsis` heading.
+Every document under documents/, and Style.md and selfhost/README.md,
+now reads in this order:
+
+- the title, and a line or two on what the thing is;
+- `## Synopsis`, one example;
+  - moved from the document where it had an overview example, else
+    built from its own lines, and compiled by `tests/docs.sh`;
+- `## Description`, the prose and the sections as they were, one level
+  down, so links to them still work;
+- `## Where it lives`, the old line under the title, with the bullets
+  that describe the C kelvinc writes;
+- `## Properties and methods`, last, as before.
+
+README.md has the synopsis and the documents first, then the examples,
+building, self-hosting and the editors; the changes from C come last,
+grouped by topic. Beyond the leads, the headings and the new examples,
+no line was added, dropped or reworded, but versusC.md's pointer to
+"Where it lives".
+
+There are 1156 tests, and all pass.

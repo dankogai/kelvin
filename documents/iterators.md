@@ -1,18 +1,8 @@
 # Iterators
 
-An iterator is a value whose `next()` gives each value in turn, then
-`none` (#318), as Swift's `IteratorProtocol` does. `Iterator<T>` makes
-one of a state and a function (#325), as Swift's
-`sequence(state:next:)` does. A Sequence is a
-value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
-`Sequence` does. `for x in s` walks either, and `map`, `filter`,
-`reduce` and `flatMap` take either as they take an Array (#319);
-`s.lazy.map` and `s.lazy.filter` call their function only as each value
-is asked for (#323), and so do an Iterator's (#327). A range,
-`Range<T>`, is one of integers, walked the same way:
-[ranges.md](ranges.md) (#373).
+A value that gives each value in turn, then `none`, and a Sequence, which makes one.
 
-**Where it lives:** the core. `Iterator<T>` is kv_iter, runtime/iter.k's, in `libkelvin`, linked without an import. An iterator of the program's own is a struct or a union with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
+## Synopsis
 
 ```swift
 struct countdown { n: int64 }
@@ -38,7 +28,21 @@ let main():int32 {
 }
 ```
 
-## `Iterator<T>`: a state and a function
+## Description
+
+An iterator is a value whose `next()` gives each value in turn, then
+`none` (#318), as Swift's `IteratorProtocol` does. `Iterator<T>` makes
+one of a state and a function (#325), as Swift's
+`sequence(state:next:)` does. A Sequence is a
+value whose `makeIterator()` gives a fresh iterator (#321), as Swift's
+`Sequence` does. `for x in s` walks either, and `map`, `filter`,
+`reduce` and `flatMap` take either as they take an Array (#319);
+`s.lazy.map` and `s.lazy.filter` call their function only as each value
+is asked for (#323), and so do an Iterator's (#327). A range,
+`Range<T>`, is one of integers, walked the same way:
+[ranges.md](ranges.md) (#373).
+
+### `Iterator<T>`: a state and a function
 
 ```swift
 let fibs():Iterator<int64> {
@@ -98,7 +102,7 @@ let main():int32 {
     lazily (#327): see [Lazy](#lazy-slazymap-and-slazyfilter).
   - It has no text: `print` of one is an error.
 
-## An iterator of the program's: `var T.next():E?`
+### An iterator of the program's: `var T.next():E?`
 
 - **An iterator** is a value of a struct or a union of the program
   with a method `next`.
@@ -117,7 +121,7 @@ let main():int32 {
   is called on a variable, a member, an element or `p^`, never on a
   let or a value a call gives.
 
-## Walking: `for x in it`
+### Walking: `for x in it`
 
 ```swift
 struct letters { text: String; at: int64 }
@@ -156,7 +160,7 @@ let main():int32 {
   - Two loop variables, `for k, v in it`, are a Dictionary's, and an
     error here.
 
-## A Sequence: `let T.makeIterator():I`
+### A Sequence: `let T.makeIterator():I`
 
 ```swift
 struct span { lo: int64; hi: int64 }           // a Sequence
@@ -199,7 +203,7 @@ let main():int32 {
 - **A value with both** `makeIterator` and `next` is a Sequence, as in
   Swift's `for`: `makeIterator` wins.
 
-## `map`, `filter`, `reduce` and `flatMap`
+### `map`, `filter`, `reduce` and `flatMap`
 
 ```swift
 struct countdown { n: int64 }
@@ -247,7 +251,7 @@ let main():int32 {
 - **A method of the value's own** of one of these names wins, as a
   struct's member wins over a property.
 
-## Lazy: `s.lazy.map` and `s.lazy.filter`
+### Lazy: `s.lazy.map` and `s.lazy.filter`
 
 ```swift
 struct span { lo: int64; hi: int64 }
@@ -310,7 +314,7 @@ let main():int32 {
 - In a `for` header, the function goes in parentheses,
   `.lazy.map({ ... })`, since a `{` there starts the body.
 
-### An Iterator's: `it.lazy.map` and `it.lazy.filter`
+#### An Iterator's: `it.lazy.map` and `it.lazy.filter`
 
 ```swift
 let naturals():Iterator<int64> {
@@ -347,7 +351,7 @@ let main():int32 {
 - **The values** are as a lazy Sequence's: lent to an anonymous `f`, a
   copy given to a named one, and freed unless `filter` keeps them.
 
-## The first few: `x.prefix(n)` and `x.prefix { ... }`
+### The first few: `x.prefix(n)` and `x.prefix { ... }`
 
 ```swift
 let naturals():Iterator<int64> {
@@ -387,6 +391,10 @@ let main():int32 {
   [sets.md](sets.md)).
 - `n` of 0 or less gives none; the function gives a `bool`, as
   filter's.
+
+## Where it lives
+
+The core. `Iterator<T>` is kv_iter, runtime/iter.k's, in `libkelvin`, linked without an import. An iterator of the program's own is a struct or a union with a var method `next`, a Sequence one with a let method `makeIterator`; `for` and the four methods are kelvinc's own, written as C's, with nothing linked.
 
 ## kc
 

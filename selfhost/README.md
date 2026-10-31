@@ -5,6 +5,15 @@ written in Kelvin alone. It reads the subset it is written in, writes C
 as kelvinc does, and hands that C to `cc`. Built in stages, as gcc
 bootstraps itself, it reaches a fixpoint (#204).
 
+## Synopsis
+
+```sh
+selfhost/bootstrap.sh                   # kc built in three stages, to a fixpoint
+build/selfhost/stage3 program.k -o app  # kc builds a program
+```
+
+## Description
+
 - **Experimental** (#230), no longer a proof of concept: CI builds it
   and checks its fixpoint on every push (#228), but its subset, its
   messages and its C may still change with each step.
@@ -19,7 +28,7 @@ bootstraps itself, it reaches a fixpoint (#204).
 - **In CI** (#228): the `selfhost` jobs run `bootstrap.sh` and
   `sanitize.sh` with gcc and clang on Ubuntu, and clang on macOS.
 
-## Goals
+### Goals
 
 Agreed in #279.
 
@@ -44,7 +53,7 @@ Agreed in #279.
     unescaping, and Base64 (#290); and runtime/os.k into `libkOS`, a
     group of OS's at a time (#301).
 
-## Files
+### Files
 
 | File | What it is |
 |---|---|
@@ -56,7 +65,7 @@ Agreed in #279.
 | [bootstrap.sh](bootstrap.sh) | the stages and their checks |
 | [sanitize.sh](sanitize.sh) | kc built with ASan and UBSan, which must write the same C (#228) |
 
-## The stages
+### The stages
 
 ```sh
 selfhost/bootstrap.sh
@@ -85,7 +94,7 @@ selfhost/sanitize.sh
   stages' own, with no memory error and no undefined behavior.
 - Everything goes into `build/selfhost/`; nothing is removed.
 
-## Using kc
+### Using kc
 
 ```sh
 build/selfhost/stage3 [-c | --emit-c] program.k [-o path] [-m modules] [-cc compiler]
@@ -103,7 +112,7 @@ build/selfhost/stage3 [-c | --emit-c] program.k [-o path] [-m modules] [-cc comp
     else `modules`, from the top of the repository.
 - `-cc` names the C compiler; without it, `$CC`, else `cc`.
 
-## The subset
+### The subset
 
 kc reads what it is written in, and little more.
 
@@ -938,12 +947,12 @@ kc reads what it is written in, and little more.
     where kelvinc refuses it, and kc has no function values to start.
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
-## Difficulties in the way of self-hosting kelvinc
+### Difficulties in the way of self-hosting kelvinc
 
 What kc met, and what a Kelvin kelvinc would meet, so that the next
 steps can take them on one at a time.
 
-### The size of the language
+#### The size of the language
 
 - **kelvinc is 17,700 lines of C** (parser.c alone 12,300), and kc's
   3,900 lines of Kelvin read a part of what kelvinc reads (#231).
@@ -980,7 +989,7 @@ steps can take them on one at a time.
   the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc
   would take passing them as its acceptance.
 
-### A bug found on the way
+#### A bug found on the way
 
 - **C's order of evaluation leaks into Kelvin.** kelvinc writes
   `nodes[n].a = parse_expr()` as `(*_kv_array_node_at(&nodes, n)).a =
@@ -994,7 +1003,7 @@ steps can take them on one at a time.
     own C computes such a value before the place.
   - kelvinc does too since #205.
 
-### libc, and C of our own
+#### libc, and C of our own
 
 libc is allowed, as it is to any C program; C of our own is not.
 
@@ -1022,7 +1031,7 @@ libc is allowed, as it is to any C program; C of our own is not.
     of ours. Writing objects would take a backend, an assembler and a
     linker of Kelvin's own.
 
-### Writing a compiler in Kelvin
+#### Writing a compiler in Kelvin
 
 - **Methods could not change `self`** until var methods (#318, #320):
   - the parser's state is in globals;
@@ -1075,7 +1084,7 @@ libc is allowed, as it is to any C program; C of our own is not.
     compile of kc by kc takes about 12 ms (#231), where 2,200 lines
     took 7 at #211.
 
-### The runtime is part of the language
+#### The runtime is part of the language
 
 - **The C must fit kelvin_prelude.h:**
   - kc writes `KV_ARRAY(...)`, `KV_STRING_APPEND`, `kv_io_*` and the
@@ -1089,7 +1098,7 @@ libc is allowed, as it is to any C program; C of our own is not.
   every function of an imported file; `<IO>` works because its
   functions are C's.
 
-## Next steps
+### Next steps
 
 Each of these is one change of its own:
 

@@ -1,11 +1,8 @@
 # `bool`
 
-`bool` is Kelvin's truth value, `true` or `false`, and every condition
-is one. This document has the type, where a `bool` comes from, how it
-converts and prints. Integers are in [integers.md](integers.md) and
-floats in [floatingpoint.md](floatingpoint.md).
+A truth value: `true` or `false`.
 
-**Where it lives:** the core. `bool` is C's `bool` from `<stdbool.h>`, which the generated C includes itself, with nothing linked. Printing it and its text (`.cstr`) are the prelude's, `libkelvin`, linked without an import.
+## Synopsis
 
 <!-- fragment -->
 ```swift
@@ -16,6 +13,13 @@ if done { println("finished") }     // a condition is a bool, with no parenthese
 println(a == b, " ", ok.cstr)       // true or false
 let set = bool(flags & 4)           // a number to a bool: zero is false
 ```
+
+## Description
+
+`bool` is Kelvin's truth value, `true` or `false`, and every condition
+is one. This document has the type, where a `bool` comes from, how it
+converts and prints. Integers are in [integers.md](integers.md) and
+floats in [floatingpoint.md](floatingpoint.md).
 
 | Kelvin | C |
 |--------|---|
@@ -51,6 +55,10 @@ let set = bool(flags & 4)           // a number to a bool: zero is false
     `nullptr`, is an error.
 - **Printing:** `print` shows `true` or `false`, and so does `.cstr`;
   see [printing.md](printing.md).
+
+## Where it lives
+
+The core. `bool` is C's `bool` from `<stdbool.h>`, which the generated C includes itself, with nothing linked. Printing it and its text (`.cstr`) are the prelude's, `libkelvin`, linked without an import.
 
 ## Properties and methods
 

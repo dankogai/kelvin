@@ -1,14 +1,8 @@
 # Bytes: any bytes, on the heap
 
-`Bytes` (#54) is any bytes, on the heap, growing: text, or what is not
-text, a file's content, a packet, a hash. It is an owner: freed when
-its block ends, moved by `return` and by passing, copied only by
-`.copy()`, borrowed as a pointer, `&b`. A `String` is a `Bytes` that
-holds well-formed UTF-8, counted by codepoint: text is in
-[strings.md](strings.md), and the ownership rules in
-[ownership.md](ownership.md). The two look alike and are kept apart:
-a Bytes is indexed by byte, unchecked for text, and a String walked
-by codepoint, text always.
+Any bytes, on the heap, growing: text or not, indexed by byte.
+
+## Synopsis
 
 ```swift
 var b = Bytes("raw")                  // the bytes of the text
@@ -28,11 +22,19 @@ println(t.string(), " ", r)           // ok("héllo") err(4)
 if let err(at) = r { println("not UTF-8 at byte ", at) }   // not UTF-8 at byte 4
 ```
 
-**Where it lives:** the prelude's, `libkelvin`, linked without an
-import; what a RegExp does with a Bytes is `#import <RegExp>`
-([regexp.md](regexp.md)).
+## Description
 
-## Making one
+`Bytes` (#54) is any bytes, on the heap, growing: text, or what is not
+text, a file's content, a packet, a hash. It is an owner: freed when
+its block ends, moved by `return` and by passing, copied only by
+`.copy()`, borrowed as a pointer, `&b`. A `String` is a `Bytes` that
+holds well-formed UTF-8, counted by codepoint: text is in
+[strings.md](strings.md), and the ownership rules in
+[ownership.md](ownership.md). The two look alike and are kept apart:
+a Bytes is indexed by byte, unchecked for text, and a String walked
+by codepoint, text always.
+
+### Making one
 
 - **`Bytes()`** is empty; **`Bytes(n)`** is n zero bytes; **`Bytes("text")`**
   or of any `cstr` is the bytes of the text, without its NUL;
@@ -59,7 +61,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
 - **`s.bytes`** of a String is its Bytes, a read-only borrow, not a
   new one.
 
-## Reading and changing
+### Reading and changing
 
 - **`b[i]`** is a byte, a `u8`, checked against the count, and
   assignable; `b.at` is the bytes as a `u8^`, a borrow, unchecked;
@@ -84,7 +86,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   joined: `Bytes(&s)` is the bytes of a String. `b += c` still appends
   in place.
 
-## Text out of bytes
+### Text out of bytes
 
 - **`b.string()`** (#405) is a `Result<String, i64>`: `ok`, a new
   String of the bytes, or `err(at)` of bytes that are not UTF-8, `at`
@@ -106,7 +108,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
   where the bytes were text.
 - **`println(b)`** prints the bytes as they are.
 
-## With a RegExp
+### With a RegExp
 
 With `#import <RegExp>` ([regexp.md](regexp.md)) a Bytes has
 `b.test(&re)`, `b.search(&re)`, `b.match(&re)`, `b.split(&re)`,
@@ -115,6 +117,12 @@ With `#import <RegExp>` ([regexp.md](regexp.md)) a Bytes has
 bytes with byte offsets. Write the `b` flag, `$/[\x80-\xff]/b`, to
 match byte by byte (#171): without it the bytes are read as UTF-8 as
 far as they are.
+
+## Where it lives
+
+The prelude's, `libkelvin`, linked without an
+import; what a RegExp does with a Bytes is `#import <RegExp>`
+([regexp.md](regexp.md)).
 
 ## Properties and methods
 

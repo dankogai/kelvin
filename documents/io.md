@@ -1,15 +1,8 @@
 # IO: stdio as an owner
 
-`IO` is a file, or one of the three standard streams, as an owner (#82):
-C's `FILE *`, closed when its block ends if the IO opened it, flushed if
-it is `stdin`, `stdout` or `stderr`. Opening and reading a whole file
-give a `Result`, with `errno` as the `err`, so `try` passes a failure
-up; reading in chunks and in lines are walked by `for`. The ownership
-rules are in [ownership.md](ownership.md), Results in
-[results.md](results.md). IO is a module: a program writes `#import
-<IO>` (#144).
+A file, or a standard stream, as an owner: opened, read, written, and closed when its block ends.
 
-**Where it lives:** a module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are `libkIO`, built from runtime/io.c and declared by `kIO.h`, which `modules/IO.kh` brings in and links; it is built on OS, so `#import <IO>` brings `OS` and `SYS` in too. A program needs no `#import <stdio.h>`. Without the import, `IO` is an error that says to write it.
+## Synopsis
 
 <!-- fragment -->
 ```swift
@@ -57,6 +50,17 @@ IO.stderr.write("warning\n")              // never closed; also IO.stdin, IO.std
 var m = IO("missing", "r")
 if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error's message (#103)
 ```
+
+## Description
+
+`IO` is a file, or one of the three standard streams, as an owner (#82):
+C's `FILE *`, closed when its block ends if the IO opened it, flushed if
+it is `stdin`, `stdout` or `stderr`. Opening and reading a whole file
+give a `Result`, with `errno` as the `err`, so `try` passes a failure
+up; reading in chunks and in lines are walked by `for`. The ownership
+rules are in [ownership.md](ownership.md), Results in
+[results.md](results.md). IO is a module: a program writes `#import
+<IO>` (#144).
 
 - **Making one:** `IO(path, mode)` opens as `fopen` does, and gives
   the IO straight (#109).
@@ -207,21 +211,10 @@ if m.error != 0 { var why = IO.strerror(m.error); println(why) }   // the error'
 - **Lets:** an IO bound by `let` still reads, writes and flushes: what
   changes is the file, not the IO. Only `close` and `rename` change the
   IO, so they need a var.
-- **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
-  libkelvin's runtime/io.c.
-  - `abspath` of a descriptor is macOS's `F_GETPATH`, Linux's
-    `/proc/self/fd` or FreeBSD's `F_KINFO` (#192), `""` elsewhere.
-    - FreeBSD names no removed file, so the IO keeps the last name
-      `abspath` found, from the open on (#195, #196).
-  - The standard streams are three statics that `IO.stdout` names in
-    place.
-  - `fdopen`, `fileno`, `pipe`, `fork`, `execvp`, `waitpid`, `kill` and
-    `putenv` are POSIX and X/Open, which the runtime asks for; a program
-    needs nothing.
 - **Not yet:** nothing of what was listed here; see [os.md](os.md) for
   the system around a program.
 
-## Its path, and the OS's work on it
+### Its path, and the OS's work on it
 
 An IO opened by path keeps that path (#101): `f.path` is it as given,
 a `cstr`, `""` for a stream or a process, and the work `OS` does on a
@@ -291,7 +284,7 @@ for name in names { println(name) }
 - An IO with no path, a stream or a process, answers `""`, `false` or
   none.
 
-## What each member takes and gives
+### What each member takes and gives
 
 Each line is a member as it would be declared, in Kelvin's spelling.
 `text` stands for a string literal, a `cstr`, a `u8^`, or a `String`
@@ -366,7 +359,7 @@ variable. Where a member gives an owner, a `String`, a `Bytes`, an
 `Array` or an `IO`, bind it, and its block frees it; a `Result` or an
 Optional holding one is an owner too.
 
-## The structs an IO gives
+### The structs an IO gives
 
 Two members give a struct with no name, spelled as itself:
 
@@ -387,6 +380,22 @@ Two members give a struct with no name, spelled as itself:
 Both are ordinary untagged structs, so `t.ok.io`, `t.ok.path`,
 `p.ok.reader` and `p.ok.writer` are places: methods work on them, and
 `.cstr` of the struct shows the IO as `<IO>` and the path as its text.
+
+## Where it lives
+
+A module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are `libkIO`, built from runtime/io.c and declared by `kIO.h`, which `modules/IO.kh` brings in and links; it is built on OS, so `#import <IO>` brings `OS` and `SYS` in too. A program needs no `#import <stdio.h>`. Without the import, `IO` is an error that says to write it.
+
+- **In C**, an IO is `kv_io`, a `FILE *` and whether it is owned, in
+  libkelvin's runtime/io.c.
+  - `abspath` of a descriptor is macOS's `F_GETPATH`, Linux's
+    `/proc/self/fd` or FreeBSD's `F_KINFO` (#192), `""` elsewhere.
+    - FreeBSD names no removed file, so the IO keeps the last name
+      `abspath` found, from the open on (#195, #196).
+  - The standard streams are three statics that `IO.stdout` names in
+    place.
+  - `fdopen`, `fileno`, `pipe`, `fork`, `execvp`, `waitpid`, `kill` and
+    `putenv` are POSIX and X/Open, which the runtime asks for; a program
+    needs nothing.
 
 ## Properties and methods
 

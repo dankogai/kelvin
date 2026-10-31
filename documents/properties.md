@@ -1,5 +1,21 @@
 # Properties
 
+What follows a value after a dot, with no parentheses: its size, its type, its text, and more.
+
+## Synopsis
+
+```swift
+struct point { x: int32; y: int32 }
+let point.sum:int32 { .x + .y }             // an attribute of your own
+let c:int32 = 42
+let p:point = {3, 4}
+println(c.size, " ", c.cstr, " ", p.cstr)   // 4 42 {x: 3, y: 4}
+println(c.dec, " ", c.hex, " ", c.bin)      // +42 +0x2a +0b101010
+println(p.sum, " ", p.typename)             // 7 point
+```
+
+## Description
+
 A property is written after a value with no parentheses, and gives its
 size, its type, its text, or, for a pointer, its address and whether it
 is null. This document has the ones every value shares, and their
@@ -32,9 +48,7 @@ type's own are listed, with its methods, at the end of its document:
 | `Iterator<T>` | [iterators.md](iterators.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
-**Where it lives:** `.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.
-
-## `.size`, `.align`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
+### `.size`, `.align`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 
 Properties are written without parentheses:
 
@@ -248,7 +262,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
 - **C bit-fields** from a header are converted first, as in
   `u32(b.flags).hex`: gcc's `_Generic` does not match a bit-field's type.
 
-## Attributes of your own, and `extend`
+### Attributes of your own, and `extend`
 
 A type of the program gets methods, attributes, type attributes and
 subscripts of its own (#130 to #133, #136). Each is written alone,
@@ -408,10 +422,14 @@ println(g[5], " ", g[1, 2], " ", g[0], " ", g["A"])      // 7 7 5 65
   - Its type is written, or inferred from the value as a declaration's
     is.
   - A type with no tag has no name to read one by, so it has none.
+
+## Where it lives
+
+`.size`, `.type`, `.typename`, `.addr` and `.isNull` are the core, written as C's `sizeof`, `__typeof__` and comparisons. `.cstr`, `.dec`, `.hex`, `.oct` and `.bin` write their text with the prelude's functions, in `libkelvin`, linked without an import.
+
 - **In C**, a method is `T__f`, a getter `T__x`, a setter `T__set_x`,
   which takes a pointer to the caller's variable, and a type attribute
   the global `T__x`.
   - A subscript is `T__subscript`, and its setter `T__subscript_set`;
     each takes a pointer to the receiver first, and overloads add the
     indices' types, `T__subscript__i64__i64`.
-

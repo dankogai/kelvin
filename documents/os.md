@@ -1,14 +1,8 @@
 # OS: the system around the program
 
-`OS` is the system around the program (#94), after Python's `os`, a
-module, `#import <OS>` (#145): `OS.cwd`, `OS.listdir(path)`. The
-program itself is `SYS`, the prelude's, with no import (#302):
-[sys.md](sys.md). Each is C's call
-underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
-that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
-so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
+The system around the program: its directories, files, environment and processes.
 
-**Where it lives:** a module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` is `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` is an error that says to write it. `SYS` is the prelude's: [sys.md](sys.md).
+## Synopsis
 
 ```swift
 #import <IO>                                // brings OS in too; #import <OS> alone for it; SYS needs none
@@ -26,7 +20,17 @@ let main():int32 {
 }
 ```
 
-## `OS`: the system around it
+## Description
+
+`OS` is the system around the program (#94), after Python's `os`, a
+module, `#import <OS>` (#145): `OS.cwd`, `OS.listdir(path)`. The
+program itself is `SYS`, the prelude's, with no import (#302):
+[sys.md](sys.md). Each is C's call
+underneath, and gives what C gives, Kelvinized: a `bool`, an `i32`
+that is 0 or `errno`, an Optional, or a Result with `errno` as the err,
+so `try` passes a failure up. Files themselves are [io.md](io.md)'s.
+
+### `OS`: the system around it
 
 - **`OS.cwd`** is the working directory, a `Result<String, i32>`;
   **`OS.chdir(path)`** moves to one, 0 or `errno`.
@@ -174,20 +178,11 @@ let main():int32 {
   `u8^`), or a `String` or a `Bytes` in a variable.
   - A mode, a size, a pid or a signal is an integer, and seconds a
     number.
-- **In C**, each is the call of the same name, in runtime/os.c, which
-  asks for POSIX; a program needs nothing.
-  - `getcwd`, `chdir`, `getenv`, `setenv`, `unsetenv`, `access`,
-    `stat` and `lstat`, `remove`, `rename`, `mkdir`, `rmdir`,
-    `opendir` and `readdir`, `symlink`, `readlink`, `link`, `unlink`,
-    `chmod`, `truncate`, `realpath`, `glob`, `mkstemp`, `mkdtemp`,
-    `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`,
-    `kill`, `umask`, `getpid` and its kin, `getpwuid`, `gethostname`,
-    `timespec_get` and `nanosleep`.
 - **Not yet:** what C gives only with root or a scheduler, such as
   `setuid`, `chroot` and `nice`, and file descriptors handled by
   number, which an `IO` covers.
 
-## What each member takes and gives
+### What each member takes and gives
 
 Each line is a member as it would be declared, in Kelvin's spelling.
 `text` stands for what every path, name, pattern or command takes: a
@@ -286,7 +281,7 @@ frees it. A `cstr` given back, `OS.tmpdir` and
 `OS.env`'s value, is a borrow of text C keeps, which a later call of
 the same kind may replace, so copy it with `String(...)` to keep it.
 
-## The `Stat` struct
+### The `Stat` struct
 
 `OS.stat`, `OS.lstat`, and an IO's `stat` and `lstat`, give C's
 `struct stat` as a Kelvin struct, Kelvinized. Its spelling is the
@@ -318,7 +313,7 @@ A `Stat` holds no owner, so it copies freely, prints as a struct does,
 `println(st.cstr)`, and may be kept. The times are whole seconds,
 what C's `st_mtime` holds everywhere; `OS.time` has a fraction.
 
-## The other structs
+### The other structs
 
 Each is spelled as itself, an untagged struct, and comes in a
 `Result<..., i32>`:
@@ -333,6 +328,20 @@ Each is spelled as itself, an untagged struct, and comes in a
 
 The structs of Strings own them, so bind the Result and read through
 it; the structs of numbers copy freely.
+
+## Where it lives
+
+A module, `#import <OS>` (#143, [modules.md](modules.md)). `OS` is `libkOS`, built from runtime/os.c and, a group at a time, runtime/os.k, written in Kelvin (#301), and declared by `kOS.h`, which `modules/OS.kh` brings in and links; the calls underneath are POSIX, which the runtime asks for. `#import <IO>` brings OS in too, since IO is built on it, and `OS.mkstemp`, which gives an IO, asks for `#import <IO>`. Without the import, `OS` is an error that says to write it. `SYS` is the prelude's: [sys.md](sys.md).
+
+- **In C**, each is the call of the same name, in runtime/os.c, which
+  asks for POSIX; a program needs nothing.
+  - `getcwd`, `chdir`, `getenv`, `setenv`, `unsetenv`, `access`,
+    `stat` and `lstat`, `remove`, `rename`, `mkdir`, `rmdir`,
+    `opendir` and `readdir`, `symlink`, `readlink`, `link`, `unlink`,
+    `chmod`, `truncate`, `realpath`, `glob`, `mkstemp`, `mkdtemp`,
+    `utimensat`, `chown`, `lchown`, `getpwuid`, `getgrgid`, `system`,
+    `kill`, `umask`, `getpid` and its kin, `getpwuid`, `gethostname`,
+    `timespec_get` and `nanosleep`.
 
 ## Properties and methods
 

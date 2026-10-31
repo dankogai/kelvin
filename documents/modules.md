@@ -1,5 +1,23 @@
 # Modules: `#import` and `modules/`
 
+How a program brings in Kelvin files, headers and libraries with `#import`, and what `modules/` holds.
+
+## Synopsis
+
+```swift
+#import <math>                  // modules/math.k, its source compiled with the program
+#import <IO>                    // modules/IO.kh, and libkIO.a beside it
+#import <ctype.h> as C          // a C header's names
+
+let main():int32 {
+    IO.stdout.println("io")
+    println(sin(0.5), " ", toupper(97))
+    return 0
+}
+```
+
+## Description
+
 A Kelvin file is brought into a program with `#import`, and Kelvin's own
 files, its prelude header and its libraries live in one directory,
 `modules/`. A module is a Kelvin source, `M.k`, or a header and a
@@ -9,9 +27,7 @@ and `MsgPack.k`, and `IO`, `OS`, `UnicodeData` and `RegExp`, each a
 header and a library. C headers are in
 [c-interfaces.md](c-interfaces.md).
 
-**Where it lives:** `#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `c64` and `c32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.
-
-## Kelvin files: `#import <math>`
+### Kelvin files: `#import <math>`
 
 `#import` of a `.k` file, without `as C`, brings in its source: its
 declarations are compiled with the program as if written where the
@@ -35,7 +51,7 @@ import is (#40), which is at the top level.
   they never clash with C's, except the C functions it declares by
   hand, which keep their names.
 
-## A header and a library: `M.kh` and `libkM`
+### A header and a library: `M.kh` and `libkM`
 
 A large module is a header and a library, as a C library is (#143):
 `M.kh`, a Kelvin file of declarations, and `libkM.a`, or a shared
@@ -88,7 +104,7 @@ let main():int32 {
     Kelvin. `kelvinc --lib` builds either into a `.kh` and a `libkM.a`
     where a project wants that.
 
-## Building a module: `kelvinc --lib M.k`
+### Building a module: `kelvinc --lib M.k`
 
 `kelvinc --lib M.k` (#146) builds a Kelvin file into a module: `M.kh`,
 its declarations with the bodies dropped, and `libkM.a`, its code,
@@ -139,7 +155,7 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   `let norm1:f64`, `var first:f64`, `let [](i:i64):f64`, each declaring
   the getter, and the setter where it is a `var`.
 
-## Separate compilation: `kelvinc -c`
+### Separate compilation: `kelvinc -c`
 
 `kelvinc -c F.k` (#281) compiles a file into an object, `F.o` in the
 current directory or the path `-o` names, as `cc -c` does, and links
@@ -167,7 +183,7 @@ kelvinc main.k util.o                # compiles main.k, linking util.o, into ./m
   `--lib` is how files share code for now.
 - **kc** (selfhost/) has `-c` too, and kelvinc links its objects.
 
-## `modules/`
+### `modules/`
 
 ```
 modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
@@ -204,7 +220,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
   of `modules/` in `$PREFIX/lib/kelvin/modules`, the `.kh` files, the C
   headers and the `libkM` libraries too.
 
-## Math: `modules/math.k`
+### Math: `modules/math.k`
 
 `#import <math>` brings in `math.h` and its complex counterpart (#148):
 the functions of `math.h` for `f64` and `f32`, each a method too,
@@ -212,7 +228,7 @@ the functions of `math.h` for `f64` and `f32`, each a method too,
 and `c32`, complex numbers, `complex64` and `complex32` by their
 aliases (#150), with `x.i` a quarter turn: see [math.md](math.md).
 
-## UnicodeData: `modules/UnicodeData.k`
+### UnicodeData: `modules/UnicodeData.k`
 
 `#import <UnicodeData>` (#156) brings in the Unicode Character Database:
 `s.normalize(nfc)`, `nfd`, `nfkc` and `nfkd`, `s.graphemes`, the
@@ -221,7 +237,7 @@ grapheme clusters as an `Array<String>`, bound before it is walked, the case map
 `.combining`, `.decomposition` and the rest: see
 [unicodedata.md](unicodedata.md).
 
-## RegExp: `modules/RegExp.k`
+### RegExp: `modules/RegExp.k`
 
 `#import <RegExp>` (#157) brings in regular expressions, JS's over
 Strings, and the `$/pattern/flags` literal: `re.test(&s)`,
@@ -229,7 +245,7 @@ Strings, and the `$/pattern/flags` literal: `re.test(&s)`,
 with `\p{...}` by category, script and property, and `\X` for a
 grapheme cluster: see [regexp.md](regexp.md).
 
-## SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
+### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 
 `#import <SION>` (#152) brings in `SION`, a SION value, JSON with more,
 as an enum with values keyed by any value, with `SION.parse(text)` and
@@ -237,8 +253,12 @@ as an enum with values keyed by any value, with `SION.parse(text)` and
 (#153) packs one into MessagePack and back, `MsgPack.pack(&s)` and
 `MsgPack.unpack(&b)`: see [msgpack.md](msgpack.md).
 
-## JSON: `modules/JSON.k`
+### JSON: `modules/JSON.k`
 
 `#import <JSON>` brings in `JSON`, a JSON value as an enum with values,
 with `JSON.parse(text)` and `JSON.stringify(&j, replacer, space)` as JS
 has them (#113): see [json.md](json.md).
+
+## Where it lives
+
+`#import` is the core. What it brings in is loaded explicitly: `modules/math.k`, with the functions of math.h and `c64` and `c32`, comes only with `#import <math>`, `IO` and `OS` only with `#import <IO>` and `#import <OS>` (#144, #145), and a C header's names only with `#import <x.h> as C`.

@@ -1,5 +1,22 @@
 # Grammar: declarations, expressions and statements
 
+C's grammar, with what Kelvin changed: names, declarations, quoting and line ends.
+
+## Synopsis
+
+```swift
+let k = 42                    // a let never changes: C's const
+var n:int32 = 0               // a var may change; the type follows the name
+n += 1                        // assignment is a statement, with no value
+let t := `n = ${n}`           // a template: text with values
+var u = $"héllo"              // a String, on the heap, owned
+let square(x:int64):int64 { x * x }   // one expression is the result
+let a = 1; let b = 2          // ; between statements on one line
+println(square(k), " ", t, " ", u, " ", a + b)   // 1764 n = 1 héllo 3
+```
+
+## Description
+
 Kelvin keeps C's grammar where it can. This document has what changed in
 the shape of a program: how things are declared, how a type is inferred,
 the operators that moved, and how lines end statements. The types
@@ -7,8 +24,6 @@ themselves are in [integers.md](integers.md),
 [floatingpoint.md](floatingpoint.md), [bool.md](bool.md), [pointers.md](pointers.md)
 and [arrays.md](arrays.md); the statements that control flow are in
 [flow-controls.md](flow-controls.md).
-
-**Where it lives:** the core. The grammar is kelvinc's own; nothing here needs the prelude.
 
 **A source is UTF-8** (#295): valid, and without a BOM.
 
@@ -55,7 +70,7 @@ let main():int32 {
   - The text a struct prints keeps the name, `{♾️: inf}`, so it pastes
     back.
 
-## Declarations
+### Declarations
 
 A variable is declared with `let` or `var`, and the type follows the name
 after a colon (#27):
@@ -110,14 +125,14 @@ static var calls:int32
   union or enum is a type by its bare name (#29). See
   [structs.md](structs.md) and [unions.md](unions.md).
 
-### Qualifiers
+#### Qualifiers
 
 `const` and `volatile` apply to whatever is on their left. A leading
 qualifier applies to the base type, which is C's own rule
 *(provisional P6)*. `u8 const^` and `const u8^` are both `const uint8_t *`,
 and `u8^ const` is `uint8_t *const`.
 
-### Type inference
+#### Type inference
 
 A declaration without a type, `let name = value` or `var name = value`,
 infers the type from the value:
@@ -167,7 +182,7 @@ A declaration cannot be the body of a `for` or follow a label (as in C),
 so `for (;;) var x = 1` is an error. Names from C headers, such as
 `optind`, are assigned with a plain `optind = 1`, as in C.
 
-## Quoting text
+### Quoting text
 
 Text is quoted five ways, and each spelling says what the text is, where
 it lives, and whether values go into it:
@@ -273,7 +288,7 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
   program; a template's text is on the stack of its block; a `String` or
   a `Bytes` is on the heap, and is an owner.
 
-## Expressions
+### Expressions
 
 | C | Kelvin | Note |
 |---|--------|------|
@@ -295,7 +310,7 @@ compound literals and designated initializers, except that:
 - assignment is a statement and so are `p++` and `p--`, for pointers
   only (below)
 
-### Lines end statements; one expression is the result
+#### Lines end statements; one expression is the result
 
 As in Swift, a `;` may be left out at the end of a line (#35):
 
@@ -342,7 +357,7 @@ let square(x:int64):int64 { x * x }
     holding one, which `goto` may reach.
   - `return;` is C's and is not checked.
 
-## Assignment is a statement
+### Assignment is a statement
 
 Assignment has no value in Kelvin, as in Swift, and `++` and `--` are
 statements too, for pointers only (#26, #51):
@@ -365,7 +380,7 @@ statements too, for pointers only (#26, #51):
 - So nothing can be changed inside `[...]`, a condition or an argument,
   except by a function call.
 
-## C habits kelvinc catches
+### C habits kelvinc catches
 
 C-style declarations at the start of a statement get the Kelvin spelling as
 a hint:
@@ -400,3 +415,7 @@ start with a converter.
 A converter groups its whole argument, so `i32(TOTAL)` is right even if a
 header defines `TOTAL` as `1.5 + 2.5` without parentheses. `TOTAL as i32`,
 like C's `(int)TOTAL`, converts only the `1.5`.
+
+## Where it lives
+
+The core. The grammar is kelvinc's own; nothing here needs the prelude.

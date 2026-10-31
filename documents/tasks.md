@@ -1,12 +1,8 @@
 # Task: `async` and `await`
 
-`async f(x)` makes a call on a thread of its own (#312) and gives a
-`Task<R>` of `f`'s result; `await t` waits for it and gives that value.
-The arguments are passed as any call passes them, a value copied and an
-owner moved in, so that the two threads share nothing. `f` is an
-ordinary function, which may as well be called as always.
+A call run on a thread of its own: `async f(x)` starts it, and `await t` gives its result.
 
-**Where it lives:** the prelude. `Task` is runtime/task.k, written in Kelvin, in `libkelvin`, declared by `kelvin_prelude.h`, linked without an import; the threads are POSIX's, which kelvinc links with `-lpthread`. kelvinc makes the call in a function of its own, the thread's, from an environment that holds the arguments and the result.
+## Synopsis
 
 ```swift
 let fib(n:int64):int64 { n < 2 ? n : fib(n - 1) + fib(n - 2) }
@@ -19,6 +15,14 @@ let main():int32 {
     return 0
 }
 ```
+
+## Description
+
+`async f(x)` makes a call on a thread of its own (#312) and gives a
+`Task<R>` of `f`'s result; `await t` waits for it and gives that value.
+The arguments are passed as any call passes them, a value copied and an
+owner moved in, so that the two threads share nothing. `f` is an
+ordinary function, which may as well be called as always.
 
 - **`async f(x)`** starts the call on a thread of its own, at once, and
   gives a `Task<R>`.
@@ -66,7 +70,7 @@ let main():int32 {
     a message, as running out of memory does.
   - `println` from two threads at once may mix their pieces.
 
-## What each takes and gives
+### What each takes and gives
 
 Each line is written as it would be declared, in Kelvin's spelling.
 
@@ -76,6 +80,10 @@ async f(x): Task<R>                    // R: f's result; Task where it has none
 await t: R                             // waits for t's thread; t holds nothing afterwards
 Task<R>, Task                          // an owner, kv_task in C
 ```
+
+## Where it lives
+
+The prelude. `Task` is runtime/task.k, written in Kelvin, in `libkelvin`, declared by `kelvin_prelude.h`, linked without an import; the threads are POSIX's, which kelvinc links with `-lpthread`. kelvinc makes the call in a function of its own, the thread's, from an environment that holds the arguments and the result.
 
 ## Properties and methods
 

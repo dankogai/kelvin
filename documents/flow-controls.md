@@ -1,13 +1,35 @@
 # Flow control
 
+The statements that choose and repeat: `if`, `while`, `do`, `for` and `switch`.
+
+## Synopsis
+
+```swift
+var n = 3
+if n > 0 {                          // no parentheses; the body a block
+    println("positive")
+} else {
+    println("not")
+}
+for i in 0..<n { print(i, ",") }    // 0,1,2,
+println()
+while n > 0 { n -= 1 }
+switch n {                          // a case ends at the next
+case 0:
+    println("zero")
+default:
+    println("big")
+}
+```
+
+## Description
+
 `if`, `while` and `do` take a `bool` without parentheses and a block
 body; `for` counts over a range or walks a sequence; and a condition is
 always a `bool`. This document has the statements; the rules for lines
 and `;` are in [grammar.md](grammar.md).
 
-**Where it lives:** the core. Every statement here is kelvinc's own, written as C's, with nothing linked; `for` over a String, an Array, a Dictionary, a Set or an IO walks it with the prelude's functions.
-
-## Statements
+### Statements
 
 Declarations start with `let` or `var` (see [grammar.md](grammar.md)),
 also in `for (var i = 0; ...)`, and references take `:=` (see
@@ -49,7 +71,7 @@ do {
   statement *(provisional P37)*. To count, prefer a range (below).
 - `goto` and labels are C's.
 
-## Switch: a case ends at the next
+### Switch: a case ends at the next
 
 `switch` is Swift's, not C's (#63): no parentheses are needed, a case
 ends where the next begins, with no `break` and no fallthrough unless
@@ -140,7 +162,7 @@ case rect(q): return q.w * q.h
     `default: __builtin_unreachable();`, so that C sees no path past it.
   - `switch (n) {` still works: the parentheses group.
 
-## Ranges: `for i in a..<b`
+### Ranges: `for i in a..<b`
 
 `for k, v in d { ... }` walks a Dictionary's entries, and `for k in d`
 its keys (#65, [ownership.md](ownership.md)).
@@ -172,7 +194,7 @@ for i in r { ... }         // r a Range value: its values
 - A range is also a value, `Range<T>`, which `for i in r` walks:
   [ranges.md](ranges.md). There are no reversed or stepped ranges yet.
 
-## Sequences: `for x in s`
+### Sequences: `for x in s`
 
 `for x in s { ... }` walks a sequence that ends at a terminator, as C's
 strings and lists do (#30). What `x` is depends on `s`'s type:
@@ -206,7 +228,7 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
     - an array in a value that a call returns (`make().xs`, which C
       discards before the loop runs).
 
-## Iterators: `for x in it`
+### Iterators: `for x in it`
 
 `for x in it { ... }` walks an iterator (#318), a value whose var
 method `next()` gives each value, then `none`; the loop changes it, so
@@ -215,7 +237,7 @@ let method `makeIterator()` gives a fresh iterator, is walked on that
 one and stays as it was. The details are in
 [iterators.md](iterators.md).
 
-## Conditions are `bool`
+### Conditions are `bool`
 
 The type itself is in [bool.md](bool.md).
 
@@ -242,7 +264,7 @@ no truthiness, so compare instead:
   - `while fgets(...)` fails that way, and so does `if isdigit(c)` (an
     `int`), which needs `!= 0`.
 
-## Checked as it compiles: `static_assert`
+### Checked as it compiles: `static_assert`
 
 `static_assert(cond, "message")` (#394), C23's name, is C's
 `_Static_assert`: the C compiler judges it as it compiles, and a
@@ -271,3 +293,6 @@ static_assert(p.size == 8)               // in a block too
 - **In a module**, `kelvinc --lib` checks it as it builds the library,
   and `M.kh` leaves it out.
 
+## Where it lives
+
+The core. Every statement here is kelvinc's own, written as C's, with nothing linked; `for` over a String, an Array, a Dictionary, a Set or an IO walks it with the prelude's functions.

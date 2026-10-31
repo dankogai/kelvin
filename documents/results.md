@@ -1,18 +1,8 @@
 # Results: `Result<T, U>`
 
-`Result<T, U>` is a value with an outcome (#75): an enum with values
-(see [enums.md](enums.md)) with the cases `ok: T` and `err: U`, made
-for each pair of types as it is written. It holds the value of either
-case, owners included, and then owns it.
+A value with an outcome: `ok(v)` of a `T`, or `err(e)` of a `U`.
 
-Where C returns an error code and hands the value back through a
-pointer, or sets `errno`, a Kelvin function returns a `Result`, and the
-caller cannot read the value without facing the case. `Optional<T>`, or
-`T?`, is its special case: a Result whose `err` carries nothing, with
-its cases named `none` and `some` (#72); it has its own document,
-[optionals.md](optionals.md).
-
-**Where it lives:** the prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+## Synopsis
 
 <!-- fragment -->
 ```swift
@@ -42,6 +32,20 @@ var bad:Result<point, int32> = err(404)
 var w = Result<int64, cstr>.ok(5)                // the cases by the type's name
 var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
 ```
+
+## Description
+
+`Result<T, U>` is a value with an outcome (#75): an enum with values
+(see [enums.md](enums.md)) with the cases `ok: T` and `err: U`, made
+for each pair of types as it is written. It holds the value of either
+case, owners included, and then owns it.
+
+Where C returns an error code and hands the value back through a
+pointer, or sets `errno`, a Kelvin function returns a `Result`, and the
+caller cannot read the value without facing the case. `Optional<T>`, or
+`T?`, is its special case: a Result whose `err` carries nothing, with
+its cases named `none` and `some` (#72); it has its own document,
+[optionals.md](optionals.md).
 
 - **The type** is `Result<T, U>`, `T` and `U` any value types but an
   array or a function: `Result<i64, String>`, `Result<point, i32>`,
@@ -146,14 +150,10 @@ var rs:$[Result<int64, String>] = $[1, err($"x"), ok(3)]   // elements, wrapped
   - Calls chain, `parse(s).map(f).flatMap(g)`.
 - **Text:** `r.cstr` is `ok(42)` or `err("empty")`, the value's text
   inside; `${r}` the same.
-- **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
-  tag and a union of the two values, with the functions of an enum with
-  values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
-  case.
 - **Not yet:** `==` of a struct value with its own `==`, and `try` of
   an `err` that must change type on the way up.
 
-## From C: the value through a pointer, the error beside it
+### From C: the value through a pointer, the error beside it
 
 C returns an `int` and hands the value back through a pointer, as
 `lstat(path, &buf)` does, though `buf = other` has copied a struct
@@ -210,7 +210,7 @@ if s.is(err) { println(strerror(s.err)) }    // No such file or directory
   - [examples/results.k](../examples/results.k) does the same with ISO
     C's `timespec_get`, `fopen` and `getenv`, and runs with the tests.
 
-## `T?`: the special case
+### `T?`: the special case
 
 `Optional<T>`, or `T?` for short, is a Result whose `err` carries
 nothing: the cases are `none`, with no value, and `some: T`.
@@ -236,6 +236,15 @@ let find(xs:$[int64]^, v:int64):int64? {       // a result that may be absent
 }
 if let k = find(&xs, 6) { println(k) } else { println("absent") }
 ```
+
+## Where it lives
+
+The prelude's rules, kelvinc's C. Each `Result<T, U>` is a struct kelvinc writes, as an enum with values is, and a wrong case ends the program through the prelude's `kv_case_fail`, in `libkelvin`, linked without an import.
+
+- **In C**, each `Result<T, U>` is a struct `_kv_res_<T>_<U>` of a byte
+  tag and a union of the two values, with the functions of an enum with
+  values: `_at` (checked, a pointer), `_get`, `_set` and `_make` per
+  case.
 
 ## Properties and methods
 

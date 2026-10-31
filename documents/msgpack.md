@@ -1,13 +1,8 @@
 # MessagePack: `#import <MsgPack>`
 
-`MsgPack` (#153) packs a `SION` value into MessagePack, https://msgpack.org,
-and unpacks bytes into one: the two share a model, nil, bool, an integer,
-a double, a string, data, a date, an ext, an array and a map keyed by
-any value, so there is no second value type. `MsgPack.pack(&s)` gives a
-`Bytes` and `MsgPack.unpack(&b)` a `SION`, as swift-sion's `msgPack` and
-`SION(msgPack:)` do.
+A `SION` value packed into MessagePack bytes, and bytes unpacked into one.
 
-**Where it lives:** `modules/MsgPack.k`, brought in by `#import <MsgPack>`, which imports `<SION>` ([sion.md](sion.md)); written in Kelvin as functions of the type `MsgPack`, a struct that is their name. Nothing of it is in the prelude or the runtime.
+## Synopsis
 
 ```swift
 #import <MsgPack>
@@ -17,6 +12,15 @@ var packed = MsgPack.pack(&s)                 // a Bytes: 83 a4 6e 61 6d 65 ...
 var back = MsgPack.unpack(&packed)            // the SION again, or error("...")
 println(SION.same(&s, &back))                 // true
 ```
+
+## Description
+
+`MsgPack` (#153) packs a `SION` value into MessagePack, https://msgpack.org,
+and unpacks bytes into one: the two share a model, nil, bool, an integer,
+a double, a string, data, a date, an ext, an array and a map keyed by
+any value, so there is no second value type. `MsgPack.pack(&s)` gives a
+`Bytes` and `MsgPack.unpack(&b)` a `SION`, as swift-sion's `msgPack` and
+`SION(msgPack:)` do.
 
 - **`MsgPack.pack(&s)`** writes each value in its smallest form:
   - `nil`, `true` and `false` as their bytes; an integer as a positive
@@ -44,6 +48,10 @@ println(SION.same(&s, &back))                 // true
     an `i64`, as swift-sion does.
 - **The two agree**: `unpack(&pack(&s))` is the same value as `s` for
   any `SION`, timestamps rounded to nanoseconds.
+
+## Where it lives
+
+`modules/MsgPack.k`, brought in by `#import <MsgPack>`, which imports `<SION>` ([sion.md](sion.md)); written in Kelvin as functions of the type `MsgPack`, a struct that is their name. Nothing of it is in the prelude or the runtime.
 
 ## Functions
 

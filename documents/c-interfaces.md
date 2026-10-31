@@ -1,14 +1,35 @@
 # C interfaces
 
+How Kelvin and C call each other: C headers, C of your own in `#inline C`, and the ABI they share.
+
+## Synopsis
+
+```swift
+#import <ctype.h> as C
+#import <stdio.h> as C
+let twice(x:int64):int64 { x * 2 }
+
+#inline C {
+int64_t quad(int64_t x) { return twice(x) * 2; }   /* C calls Kelvin */
+}
+
+let main():int32 {
+    let f:FILE^ := stdout                   // a typedef of a header, as a type
+    fputs("C's own\n", f)
+    println(quad(3), " ", toupper(97))     // 12 65
+    return 0
+}
+```
+
+## Description
+
 Kelvin is C: every function, struct and pointer is C's, with C's ABI, so
 a Kelvin program calls C and C calls it with nothing in between. This
 document has the ways in and out: C headers, C of your own in
 `#inline C`, typedef names, C's own functions beside Kelvin's, the
 prelude from C, and what the C compiler checks.
 
-**Where it lives:** explicitly loaded. A C header's names come only with `#import <x.h> as C`; `libkelvin` and `kelvin_prelude.h` are the prelude, which Kelvin links without an import and which C may use too.
-
-## Headers and the preprocessor
+### Headers and the preprocessor
 
 - `#import <header.h> as C` includes a C header, and everything it declares
   can be used: functions, typedef names, macros like `stdout`, `NULL` or
@@ -35,7 +56,7 @@ every macro as an ordinary name.
 
 `_Pragma("...")` is allowed only as a statement of its own.
 
-## Inline C
+### Inline C
 
 `#inline C { ... }` is C of the program's own (#197), written into the
 generated C where it stands: at the top level, or in a function as its
@@ -114,7 +135,7 @@ let main():int32 {
     `static struct c { int n; } now;` is `struct c { int n; };`.
   - An `#inline C` in a function stays in the library.
 
-### In a function
+#### In a function
 
 ```swift
 let sum(n:int32):int64 {
@@ -146,7 +167,7 @@ let main():int32 {
     [ownership.md](ownership.md)).
   - A function whose value C returns needs no Kelvin `return`.
 
-## The ABI
+### The ABI
 
 - Kelvin writes C: `i64` is `int64_t`, `u8^` is `uint8_t *`, a struct is
   `struct point`, a function is a C function of its name.
@@ -166,7 +187,7 @@ let main():int32 {
   - A value whose type only C sees, a header's typedef of one, still
     prints, `1.0+2.0i`, as C hands it over.
 
-### C typedef names
+#### C typedef names
 
 After a colon, any identifier is accepted as a type, so typedefs from
 imported headers work: `let f:FILE^ := stdout` and
@@ -183,7 +204,7 @@ which overload a call takes, whether a condition is a `bool`, which
 property a value has. Its errors then name `kv_no_such_overload`,
 `kv_condition_is_not_bool` or `kv_no_such_property` at your line.
 
-## `libkelvin` from C
+### `libkelvin` from C
 
 The prelude lives in `libkelvin`, which kelvinc links statically
 *(provisional P22)*. The same library works from C:
@@ -195,7 +216,7 @@ The prelude lives in `libkelvin`, which kelvinc links statically
 int main(void) { println("n = ", 42); return 0; }   /* cc -I... -L... -lkelvin */
 ```
 
-## The C compiler
+### The C compiler
 
 The C compiler checks Kelvin programs, and `#line` directives make its
 errors and warnings point at your `.k` file and line. Kelvin's own syntax
@@ -216,3 +237,7 @@ errors also carry hints for C habits, such as `*p`, `p->m`, `int x;`,
 
 For the C features Kelvin cannot spell yet, see
 [versusC.md](versusC.md).
+
+## Where it lives
+
+Explicitly loaded. A C header's names come only with `#import <x.h> as C`; `libkelvin` and `kelvin_prelude.h` are the prelude, which Kelvin links without an import and which C may use too.

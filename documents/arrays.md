@@ -1,5 +1,22 @@
 # Arrays: `[T]`, `[T](N)` and `.count`
 
+A row of values of one type: fixed, `[T](N)`, or growing, `$[T]`.
+
+## Synopsis
+
+```swift
+var a:[int32](4)                      // C: int32_t a[4]
+let b = [1, 2, 3]                     // [i64](3), inferred
+let m = [[1, 2], [3, 4]]              // [[i64](2)](2)
+var z = [uint8](256)                  // uint8_t z[256] = {0}
+for i in 0..<a.count { a[i] = a[i] * 2 }
+var xs = $[1, 2, 3]                   // Array<i64>, on the heap
+xs += 4                               // append; also xs.append(4)
+println(b.count, " ", m[1][0], " ", z.size, " ", xs.count, " ", xs[3])   // 3 3 256 4 4
+```
+
+## Description
+
 An array type is written in brackets, as Swift writes it, and its count
 is a property. A fixed array lives where it is declared; one that grows
 is `Array<T>`, on the heap, in [ownership.md](ownership.md).
@@ -9,9 +26,7 @@ zero-filled array, `.count` and `.size`, and what stays C's: an array
 passed to a function is a pointer. Byte arrays that hold text are in
 [strings.md](strings.md).
 
-**Where it lives:** a fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelude's: its C comes from `kelvin_prelude.h`, instantiated for each `T`, and `libkelvin` is linked without an import.
-
-## The types
+### The types
 
 - `[T]` is an array of `T`, as Swift writes it, and `[T](N)` one of N
   elements (#49).
@@ -47,7 +62,7 @@ struct bag { n: int64; xs: [int64](3) }
   pointer to the array, `[T^](N)` an array of pointers.
 - `T[N]` and `T[]` are errors whose hint spells the type the new way.
 
-## Initializers: `[...]`
+### Initializers: `[...]`
 
 An array is initialized with `[...]`, and a struct or union keeps
 `{...}` (#48), nested too:
@@ -77,7 +92,7 @@ let s:[uint8] = "hi"                       // a string fills a byte array
   - so is `[T](n)`, and an array's compound literal declares the array
     itself (#49)
 
-## `[T](n)`: a zero-filled array
+### `[T](n)`: a zero-filled array
 
 `[T](n)` is a value: n elements, all zero. The count may be a constant
 or, for a local `var`, a value C computes at run time (C's variable
@@ -93,7 +108,7 @@ let t = [float64](3)               // a let of a constant count is fine
 A `let` of a count computed at run time is an error, since C cannot fill
 a `const` array after declaring it.
 
-## `.count` and `.size`
+### `.count` and `.size`
 
 `a.count` is the number of elements, set when the array is made and
 never changed; `a.size` is the bytes, `a.count * sizeof(T)`. Both hold
@@ -105,7 +120,7 @@ there. A `var` array's elements may change; a `let` array's may not.
 for i in 0..<a.count { a[i] = a[i] * 2 }
 ```
 
-## Arrays and pointers
+### Arrays and pointers
 
 Kelvin prefers arrays to pointers where it can, but an array is C's:
 
@@ -142,7 +157,7 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
   - `$[1, 2, 3]` is the value and `$[i64]` the type, for short
     (#62, #64).
 
-## `Array<T>`: a growable array on the heap
+### `Array<T>`: a growable array on the heap
 
 A fixed array lives where it is declared and never grows. `Array<T>`,
 or `$[T]` for short, is a growable array on the heap (#57), an owner:
@@ -302,6 +317,9 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   - `xs.firstIndex(x) ?? -1` gives -1 where it is not there, and
     `if let some(i) = xs.lastIndex(x)` binds the index.
 
+## Where it lives
+
+A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelude's: its C comes from `kelvin_prelude.h`, instantiated for each `T`, and `libkelvin` is linked without an import.
 
 ## Properties and methods
 

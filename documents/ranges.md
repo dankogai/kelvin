@@ -1,16 +1,8 @@
 # Ranges: `Range<T>`
 
-A range is a value of its own, `Range<T>` (#373): the integers from a
-lower bound up to an upper one. It is a Sequence, walked by `for` and
-by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
-[iterators.md](iterators.md) has them; it has a `count` and a
-`contains(x)` (#374), its `lowerBound` and `upperBound` (#375), `==`
-and `!=` (#376), `reversed()` (#378) and `stride(n)` (#379).
+A run of integers, from a lower bound up to an upper one, as a value.
 
-**Where it lives:** the core. A Range is kelvinc's own, a struct of its
-bounds written into the program's C, with nothing linked; the Iterator
-its `lazy` and `prefix { ... }` give is the prelude's `kv_iter`, in
-`libkelvin`, linked without an import.
+## Synopsis
 
 ```swift
 let squares(r:Range):$[int64] { return r.map { $0 * $0 } }
@@ -38,7 +30,16 @@ let main():int32 {
 }
 ```
 
-## Writing one
+## Description
+
+A range is a value of its own, `Range<T>` (#373): the integers from a
+lower bound up to an upper one. It is a Sequence, walked by `for` and
+by `map`, `filter`, `reduce`, `flatMap`, `lazy` and `prefix`, as
+[iterators.md](iterators.md) has them; it has a `count` and a
+`contains(x)` (#374), its `lowerBound` and `upperBound` (#375), `==`
+and `!=` (#376), `reversed()` (#378) and `stride(n)` (#379).
+
+### Writing one
 
 - **`lo..<hi`** is from `lo` up to `hi`, without it; **`lo...hi`** with
   it.
@@ -64,7 +65,7 @@ let main():int32 {
     floating-point or `bool` bound is an error.
 - **A lower bound past the upper** is empty: `5..<1` walks nothing.
 
-## A value
+### A value
 
 - **A Range is copied** as a number is: it owns nothing.
   - It goes where a value goes: a let, a var, a parameter, a result, a
@@ -92,7 +93,7 @@ let main():int32 {
 - **A member it has not**, `r.first`, is an error that names what a
   Range has.
 
-## Its bounds: `lowerBound` and `upperBound`
+### Its bounds: `lowerBound` and `upperBound`
 
 - **`r.lowerBound`** and **`r.upperBound`** are its bounds as written,
   of `T`, as Swift's (#375).
@@ -103,7 +104,7 @@ let main():int32 {
   `(0...).upperBound` is an error, and one whose end is known only at
   run time ends the program, as its `.count` does.
 
-## Counting and asking: `count` and `contains`
+### Counting and asking: `count` and `contains`
 
 - **`r.count`** is how many values it has, a `u64`, as an Array's count
   (#374).
@@ -120,7 +121,7 @@ let main():int32 {
     largest, so `(0...).contains(9)` is true.
   - A floating-point number or a `bool` is an error.
 
-## Walking: `for i in r`
+### Walking: `for i in r`
 
 - **`for i in a..<b`** counts as before (#28); now also
   `for i in ..<n`, `for i in ...n`, and `for i in 0... { }`, which a
@@ -130,7 +131,7 @@ let main():int32 {
   - `r` is read once, and stays as it was: a Range is walked afresh
     each time, as a Sequence is.
 
-## `map`, `filter`, `reduce` and `flatMap`
+### `map`, `filter`, `reduce` and `flatMap`
 
 - **They are a Sequence's** ([iterators.md](iterators.md)): the values
   walked to the end, into an Array, which the Array's method then walks.
@@ -144,7 +145,7 @@ let main():int32 {
 - **`r.lazy.map(f)` and `r.lazy.filter(f)`** give an `Iterator<U>`, which
   calls `f` only as each value is asked for, and is walked once.
 
-## The first few: `prefix`
+### The first few: `prefix`
 
 - **`r.prefix(n)`** is the Range of its first `n` values, Haskell's
   `take`.
@@ -154,7 +155,7 @@ let main():int32 {
 - **`r.prefix { ... }`** is an `Iterator<T>` of the values up to the
   first its function says false for, lazily, Haskell's `takeWhile`.
 
-## Backwards: `reversed()`
+### Backwards: `reversed()`
 
 - **`r.reversed()`** is an `Iterator<T>` of its values from the last
   down to `lo`, lazily, as Swift's `ReversedCollection` (#378).
@@ -170,7 +171,7 @@ let main():int32 {
 - A descending Range is not a value: it would have no text to paste
   back.
 
-## Every n-th: `stride(n)`
+### Every n-th: `stride(n)`
 
 - **`r.stride(n)`** is an `Iterator<T>` of every `n`-th value, from
   `lo` up, lazily, as Swift's `stride(from:to:by:)` (#379).
@@ -193,7 +194,7 @@ let main():int32 {
 - **The step is written alone**, `r.stride(2)`: Kelvin has no argument
   labels, so Swift's `stride(by: 2)` is an error that says so.
 
-## Slices
+### Slices
 
 - **`xs[lo..<hi]`** slices an Array, a String or a Bytes as before
   (#68), its bounds written: [arrays.md](arrays.md).
@@ -203,6 +204,13 @@ let main():int32 {
   - One out of range ends the program, as a written one does:
     `kelvin: range 4..<10 is out of range: the Array has 5`.
   - A Dictionary or a Set is not sliced: `d[r]` is an error.
+
+## Where it lives
+
+The core. A Range is kelvinc's own, a struct of its
+bounds written into the program's C, with nothing linked; the Iterator
+its `lazy` and `prefix { ... }` give is the prelude's `kv_iter`, in
+`libkelvin`, linked without an import.
 
 ## Properties and methods
 

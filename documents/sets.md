@@ -1,12 +1,8 @@
 # Sets: `Set<T>`
 
-`Set<T>`, or `${T}` for short, is a hash set on the heap (#71): an
-owner, freed when its block ends, moved by `return` and by passing,
-copied only by `.copy()`, borrowed as a pointer. The rules are in
-[ownership.md](ownership.md); this is the summary. A Set is a
-Dictionary with no values, and keeps its elements in the order added.
+A set of integers or Strings, owned on the heap, kept in the order added.
 
-**Where it lives:** the prelude. A Set's C comes from `kelvin_prelude.h`, instantiated for each `T`, with hashing in `libkelvin`, linked without an import.
+## Synopsis
 
 ```swift
 var t = ${2, 6}
@@ -21,6 +17,14 @@ var words = ${"to", "be", "or"}          // Set<String>: the text copied in
 println(words.has("be"), " ", words.elements.typename)   // true Array<String>
 var e:${String} = ${}                    // empty; Set<String>() too
 ```
+
+## Description
+
+`Set<T>`, or `${T}` for short, is a hash set on the heap (#71): an
+owner, freed when its block ends, moved by `return` and by passing,
+copied only by `.copy()`, borrowed as a pointer. The rules are in
+[ownership.md](ownership.md); this is the summary. A Set is a
+Dictionary with no values, and keeps its elements in the order added.
 
 - **Elements** are an integer type, hashed as a number, or `String`.
   - The Set keeps a copy of the text, and is asked with a `cstr`, a
@@ -69,6 +73,10 @@ var e:${String} = ${}                    // empty; Set<String>() too
   the same text (#125).
 - **Not yet:** `==`, `isSubset`, `-` for the difference, elements of
   other types.
+
+## Where it lives
+
+The prelude. A Set's C comes from `kelvin_prelude.h`, instantiated for each `T`, with hashing in `libkelvin`, linked without an import.
 
 ## kc
 

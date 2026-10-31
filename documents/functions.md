@@ -1,14 +1,34 @@
 # Functions
 
+Code with parameters and a result, declared with `let`, and a value of
+its function type.
+
+## Synopsis
+
+```swift
+let add(a:int64, b:int64):int64 { a + b }        // one expression is the result
+let greet(name:cstr) { println("hi ", name) }   // no result: C's void
+let twice(n:int64):int64 { n * 2 }               // overloads: one name, other types
+let twice(x:float64):float64 { x * 2.0 }
+let fib(n:int64):int64 { n < 2 ? n : $(n - 2) + $(n - 1) }   // $(...) calls itself
+let main():int32 {
+    var f:(int64, int64):int64       // a function type
+    f := add                         // a reference: assigned with :=
+    let inc:(int64):int64 := { $0 + 1 }   // an anonymous function
+    println(twice(4), " ", twice(1.5), " ", f(1, 2), " ", inc(fib(10)))   // 8 3.0 3 56
+    return 0
+}
+```
+
+## Description
+
 A function is declared with `let`, its result after the parameter list,
 and is a value of its function type. This document has the declaration,
 function types, anonymous functions and overloading. Methods and
 operators, which are functions of a struct, are in
 [structs.md](structs.md).
 
-**Where it lives:** the core. Functions, methods, operators, function types and anonymous functions are kelvinc's own, written as C's, with nothing linked.
-
-## Declaring
+### Declaring
 
 ```swift
 struct node { next: node^ }
@@ -102,7 +122,7 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
 - **`main`** is C's, with one form, and its end returns 0; see
   [grammar.md](grammar.md) for the one-expression rule.
 
-## A function inside a function
+### A function inside a function
 
 A function may be defined inside another (#180), where it is used:
 
@@ -124,7 +144,7 @@ let main():int32 {
   arguments, or make them globals.
 - It has a body; a prototype is written at the top level.
 
-## `$(...)`: the function itself
+### `$(...)`: the function itself
 
 `$(...)` (#181) calls the function it is written in, as JS's
 `arguments.callee` does: a function at the top level, one inside a
@@ -145,7 +165,7 @@ let main():int32 {
 - In a method or an attribute, `self.name(...)` says it, and `$(...)`
   is an error that says so.
 
-## Functions of a type: `static let T.name(...)`
+### Functions of a type: `static let T.name(...)`
 
 A function of a type is declared on a struct, union or enum of the
 program, and on `Bytes` or `String` in an `extend` (#168):
@@ -187,7 +207,7 @@ println(p.dist2())                        // 25; p.origin() is an error: it is c
 - In C it is `T__name`, with its parameter types appended when it
   overloads or comes from an imported file, as `point__of__i64__i64`.
 
-## Function types: `(T, U):R`
+### Function types: `(T, U):R`
 
 A function type is written as a function's head without names (#31), as
 Swift writes `(T, U) -> R`. In C it is a pointer to a function:
@@ -235,7 +255,7 @@ let u:():() := tick        // the same, the result written out (#141)
   - Wrap it instead: `let cmp:(cstr, cstr):i32 := { strcmp($0, $1) }`
     *(provisional P43)*.
 
-## Anonymous functions: `{ ... }`
+### Anonymous functions: `{ ... }`
 
 An anonymous function is `{ ... }` (#32). It encloses nothing, since C has
 no closures: kelvinc makes it a `static inline` function of its own
@@ -339,7 +359,7 @@ qsort(names, 4, sizeof(cstr)) { (a:const any^, b:const any^):int32 in
 - Written parameters let a declaration infer its type:
   `let mul := { (a:i64, b:i64):i64 in a * b }` *(provisional P44)*.
 
-## Overloading: functions of one name
+### Overloading: functions of one name
 
 Functions of one name may take different parameter types, and each call
 gets the one its arguments' types fit (#41). C's function of a name is
@@ -452,6 +472,9 @@ let main():int32 {
   function (O5 in [ownership.md](ownership.md)); the callee, an
   anonymous function too, frees it when it ends.
 
+## Where it lives
+
+The core. Functions, methods, operators, function types and anonymous functions are kelvinc's own, written as C's, with nothing linked.
 
 ## Properties and methods
 

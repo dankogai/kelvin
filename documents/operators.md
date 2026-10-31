@@ -1,5 +1,20 @@
 # Operators
 
+C's operators and C's precedence, with a few spellings moved.
+
+## Synopsis
+
+```swift
+var x:int64 = 6
+let p := &x                       // &x: C's address-of
+p^ += 1                           // p^ dereferences, postfix: C's *p
+println(x ~ 3, " ", 2 ** 3 ** 2)  // ~ is XOR, ** a power: 4 512
+let b = x as uint8                // as converts: C's (uint8_t)x
+println(b < 8 && x != 0)          // a bool: true
+```
+
+## Description
+
 Kelvin keeps C's operators and C's precedence, with a few spellings
 moved: `^` dereferences, `~` is XOR, `:=` assigns a reference, `as`
 converts, and assignment, `++` and `--` are statements; `**` raises to
@@ -7,9 +22,7 @@ a power, Python's (#380). This document
 is the table, highest precedence first; the other documents say what
 each operator means for its types.
 
-**Where it lives:** the core. The operators are C's, placed and typed by kelvinc, with nothing linked; `==` on Strings and the Set algebra call the prelude's functions, in `libkelvin`.
-
-## Precedence, highest first
+### Precedence, highest first
 
 | Level | Operators | Kelvin | C |
 |------:|-----------|--------|---|
@@ -42,7 +55,7 @@ The binary operators group left to right, as C's, but for `??` and
 is `a ?? (b ?? 0)`, the first value of the chain or 0. `**` groups right
 to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
 
-## What moved, and why
+### What moved, and why
 
 - **`p^`** dereferences, postfix (#3), so a chain reads left to right:
   `p^.m`, `p^[i]`, `pp^^`. `*` is only multiplication, and `*p` on a
@@ -91,7 +104,7 @@ to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
   after a call is its last argument (#32). See
   [functions.md](functions.md).
 
-## Operators on structs
+### Operators on structs
 
 A struct or union may define `+ - * / % == != < <= > >=`, `**` (#380)
 and unary `-` (#42), as functions named by the operator and chosen by
@@ -109,7 +122,7 @@ Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
 `!` and `+=` cannot be defined, and `x op= y` is `x = x op y`. See
 [structs.md](structs.md).
 
-## Not operators
+### Not operators
 
 - `sizeof x` and `sizeof(T)` are C's; `x.size` is the same (#21).
 - `alignof(T)` is C23's, C's `_Alignof`; `x.align` is a value's (#395).
@@ -117,3 +130,7 @@ Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
   statement, and a `for` clause takes one.
 - There is no `?:` on templates' room: `c ? `a` : `b`` is text, and the
   longer arm sizes it (#44).
+
+## Where it lives
+
+The core. The operators are C's, placed and typed by kelvinc, with nothing linked; `==` on Strings and the Set algebra call the prelude's functions, in `libkelvin`.

@@ -1,5 +1,25 @@
 # Kelvin versus C
 
+How Kelvin spells what C does, and what it leaves out: a reference for C programmers.
+
+## Synopsis
+
+```swift
+struct point { x: i32; y: i32 }            // struct point { int x, y; };
+let square(x:i64):i64 { x * x }            // long square(long x) { return x * x; }
+
+var n = 4                                  // long n = 4;
+let k:i32 = 42                             // const int k = 42;
+var p:point = {1, 2}                       // struct point p = {1, 2};
+var pp := &p                               // struct point *pp = &p;
+pp^.x = 3                                  // pp->x = 3;
+var xs = $[1, 2, 3]                        // malloc and realloc by hand, then free
+for i in 0..<n { xs += square(i) }         // for (long i = 0; i < n; i++)
+println(xs, " ", p, " ", k ~ 1)            // printf in a loop; k ^ 1
+```
+
+## Description
+
 This is a reference for C programmers. It lists every way Kelvin differs
 from C, as of the current compiler. Anything not listed here works exactly
 as in C, including the semantics, the ABI, operator precedence, implicit
@@ -11,7 +31,7 @@ this one have the details, one topic each.
 Items marked *(provisional)* were chosen during implementation and have
 not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 
-## At a glance
+### At a glance
 
 | C | Kelvin |
 |---|--------|
@@ -114,9 +134,9 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `int (*cmp)(const void *, const void *);` | `var cmp:(const any^, const any^):i32` (#31) |
 | a `static` function written only to be passed | `sort(xs, n) { $0 < $1 }` (an anonymous function, #32) |
 
-## Where each thing lives
+### Where each thing lives
 
-Each document says so under its title. In short:
+Each document says so in its "Where it lives" section. In short:
 
 | Home | What | Needs |
 |---|---|---|
@@ -124,7 +144,7 @@ Each document says so under its title. In short:
 | the prelude | `print`, `println`, templates, the text of properties, `Bytes`, `String`, `uchr`, `Array<T>`, `Dictionary<K, V>`, `Set<T>`, the checks of `T?`, `Result<T, U>` and enums with values | `kelvin_prelude.h` and `libkelvin`, which every program gets without an import |
 | loaded explicitly | `IO`; `OS` and `SYS`; `c64` and `c32`; `JSON`; a C header's names | `#import <IO>`, `#import <OS>` (#144, #145), a header and a library each; `#import <math>`, `#import <JSON>`, sources; `#import <x.h> as C` |
 
-## The documents
+### The documents
 
 | Document | Covers |
 |----------|--------|
@@ -165,7 +185,7 @@ Each document says so under its title. In short:
 | [c-interfaces.md](c-interfaces.md) | C headers, typedefs, C's functions, `libkelvin` from C, the C compiler |
 | [c-contract.md](c-contract.md) | the C a program becomes: the file, the build, types, owners, names, main (#208) |
 
-## Reserved words
+### Reserved words
 
 - `print` and `println` belong to the prelude and cannot be redefined.
 - `String` is a type since #55; the method names `toString` and `fmt`
@@ -195,12 +215,12 @@ Each document says so under its title. In short:
 - `__attribute__((...))` remains usable, and `_Pragma("...")` works as
   a statement. `fn` is not reserved.
 
-## Not available yet
+### Not available yet
 
 These are C features without a Kelvin spelling so far: none, as of
 #403. Each C feature Kelvin lacks is left out on purpose, below.
 
-## Left out on purpose
+### Left out on purpose
 
 These C features stay out, as decided (#294):
 
@@ -270,7 +290,7 @@ These C features stay out, as decided (#294):
     Kelvin directive nests in it.
   - Either is an error that says so (#296).
 
-## Diagnostics
+### Diagnostics
 
 The C compiler checks Kelvin programs, and `#line` directives make its
 errors and warnings point at your `.k` file and line. Kelvin's own syntax

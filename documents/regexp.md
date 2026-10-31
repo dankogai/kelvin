@@ -1,11 +1,8 @@
 # RegExp: `#import <RegExp>` and `$/.../`
 
-`#import <RegExp>` (#157) brings in regular expressions, JS's with the
-`u` flag, over Kelvin's Strings, codepoint by codepoint, with `\X` for
-a grapheme cluster. `$/pattern/flags` is a literal, read where the
-module is imported, and `RegExp.compile(pattern, flags)` the same from
-text. It is a header and a library, `RegExp.kh` and `libkRegExp` in
-`modules/`, on `UnicodeData`, which the import links by itself.
+Regular expressions, JS's with the `u` flag, over Strings and Bytes, written `$/pattern/flags`.
+
+## Synopsis
 
 ```swift
 #import <RegExp>
@@ -27,14 +24,16 @@ let main():int32 {
 }
 ```
 
-**Where it lives:** `modules/RegExp.k`, written in Kelvin over
-`libkRegExp`, runtime/regexp.c, the engine, with `libkUnicodeData`
-under it for `\p{...}`, the case folding of the `i` flag and `\X`;
-`make` builds the header and the library with `kelvinc --lib`. The
-`$/.../` literal is kelvinc's: it becomes `RegExp.compile("...", "...")`,
-so a file that has not imported `<RegExp>` cannot write one.
+## Description
 
-## The literal and the flags
+`#import <RegExp>` (#157) brings in regular expressions, JS's with the
+`u` flag, over Kelvin's Strings, codepoint by codepoint, with `\X` for
+a grapheme cluster. `$/pattern/flags` is a literal, read where the
+module is imported, and `RegExp.compile(pattern, flags)` the same from
+text. It is a header and a library, `RegExp.kh` and `libkRegExp` in
+`modules/`, on `UnicodeData`, which the import links by itself.
+
+### The literal and the flags
 
 - **`$/pattern/flags`** is a `RegExp`, an owner: bind it, `let re =
   $/a+/g`, and borrow it to the methods, `&re`. In a function: a
@@ -70,7 +69,7 @@ so a file that has not imported `<RegExp>` cannot write one.
     `re.multiline`, `re.dotAll`, `re.sticky`, `re.binary` and
     `re.unicode` the flags one by one.
 
-## The syntax
+### The syntax
 
 JS's, as its `u` flag reads it, over codepoints: a `.` is one codepoint,
 `é` as two codepoints is two, and an escape that JS rejects is an error.
@@ -104,7 +103,7 @@ JS's, as its `u` flag reads it, over codepoints: a `.` is one codepoint,
 - A group is numbered up to 127, and a quantifier up to 100000 of a
   pattern that stays under a million words once unrolled.
 
-## The methods
+### The methods
 
 A `RegExp` has the methods, and a `String` has the same by the other
 name: `s.match(&re)` is `re.match(&s)`.
@@ -185,7 +184,7 @@ println(c)                                                   // water boils at 1
   into its codepoints.
 - With the `y` flag a match is sought at the start alone, or at `from`.
 
-## A match
+### A match
 
 A `Match` holds the text of the whole match and of each group, their
 codepoint offsets and the groups' names, and stands on its own: the
@@ -204,3 +203,12 @@ String it came from may change or go.
 - `m.text[i]` is a place, so `println(m.text[1])` prints it and
   `m.text[1] == other` compares it; `m[i]` gives a copy, which is
   printed, compared or read and then freed (#187).
+
+## Where it lives
+
+`modules/RegExp.k`, written in Kelvin over
+`libkRegExp`, runtime/regexp.c, the engine, with `libkUnicodeData`
+under it for `\p{...}`, the case folding of the `i` flag and `\X`;
+`make` builds the header and the library with `kelvinc --lib`. The
+`$/.../` literal is kelvinc's: it becomes `RegExp.compile("...", "...")`,
+so a file that has not imported `<RegExp>` cannot write one.

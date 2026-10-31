@@ -1,14 +1,8 @@
 # Math: `#import <math>`
 
-`modules/math.k` (#43, #148) is `math.h` and its complex counterpart,
-as C's math and cmath are: the functions of `math.h` for `f64` and
-`f32`, each a method too, `x.sin()`; the constants of each type as
-attributes of it, `f64.pi`; `c64` and `c32`, complex numbers with `f64`
-and `f32` parts, named by the size of each part, `complex64` and
-`complex32` by their aliases (#150); and `x.i`, `x` rotated a quarter
-turn on the Gaussian plane.
+The functions of C's `math.h` for `f64` and `f32`, their constants, and complex numbers `c64` and `c32`.
 
-**Where it lives:** `modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
+## Synopsis
 
 ```swift
 #import <math>
@@ -24,7 +18,17 @@ let main():int32 {
 }
 ```
 
-## The functions of `math.h`
+## Description
+
+`modules/math.k` (#43, #148) is `math.h` and its complex counterpart,
+as C's math and cmath are: the functions of `math.h` for `f64` and
+`f32`, each a method too, `x.sin()`; the constants of each type as
+attributes of it, `f64.pi`; `c64` and `c32`, complex numbers with `f64`
+and `f32` parts, named by the size of each part, `complex64` and
+`complex32` by their aliases (#150); and `x.i`, `x` rotated a quarter
+turn on the Gaussian plane.
+
+### The functions of `math.h`
 
 - **Each function** for an `f64` and an `f32`: `sin`, `cos`, `tan`,
   `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`,
@@ -55,7 +59,7 @@ let main():int32 {
   `(0.5:f32).i` a `c32`, and `z.i` of a complex number is `z` times
   `i`, so `1.0.i.i` is `-1`.
 
-## Complex numbers: `c64` and `c32`
+### Complex numbers: `c64` and `c32`
 
 - **The types**: `c64`, with `real` and `imag` of `f64`, and `c32`,
   with `f32` parts, structs: C99's `_Complex` is left out on purpose
@@ -94,6 +98,10 @@ let main():int32 {
 - kelvinc compiles with `-ffp-contract=off`, so clang computes `a * b +
   c` with two roundings, as gcc does, and the results are the same with
   both *(provisional P55)*.
+
+## Where it lives
+
+`modules/math.k`, brought in by `#import <math>`, written in Kelvin: C's own functions of `math.h` declared, overloads for `f32` and the complex types, `extend` blocks of methods and type attributes, and `typealias` (#149) for the two aliases. Nothing of it is in the prelude or the runtime; `kelvinc --lib modules/math.k` builds it into `math.kh` and `libkmath.a` where a project wants that (#146).
 
 ## Functions
 

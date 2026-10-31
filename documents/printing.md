@@ -1,14 +1,31 @@
 # Printing: `print`, `println` and template literals
 
+How a value is shown as text: `print` and `println`, `.pretty`, and template literals.
+
+## Synopsis
+
+```swift
+let n:int64 = -42
+println("n = ", n, ", half = ", n / 2.0)   // n = -42, half = -21.0
+var ages = ${"ann": 31, "bob": 42}
+println(ages)                              // {"ann": 31, "bob": 42}
+println(ages.pretty)                       // {
+                                           //   "ann": 31,
+                                           //   "bob": 42
+                                           // }
+let name:cstr := "Kelvin"
+println(`Hello, ${name}! ${n} / 4.0 = ${n / 4.0}`)   // Hello, Kelvin! -42 / 4.0 = -10.5
+```
+
+## Description
+
 `print` and `println` come from the prelude, with no import, and show a
 value by its type; a template literal joins text and values the same
 way. This document has both. The text of a single value, `n.cstr`, is in
 [properties.md](properties.md), and C strings in
 [strings.md](strings.md).
 
-**Where it lives:** the prelude. `print`, `println` and the text a template makes are `libkelvin`'s, declared by `kelvin_prelude.h` and linked without an import.
-
-## The prelude: `print` and `println`
+### The prelude: `print` and `println`
 
 Every Kelvin program can use `print` and `println` without an import:
 
@@ -55,7 +72,7 @@ let main():int32 {
   `#include <kelvin_prelude.h>` and link `-lkelvin`, both in Kelvin's
   `modules/` (#46).
 
-## Values whole: `print` and `.pretty`
+### Values whole: `print` and `.pretty`
 
 `print` and `println` show a value with brackets whole, on one line, and
 `v.pretty` shows it indented, a line for each item (#123, #124):
@@ -123,7 +140,7 @@ var text = ages.pretty                   // a String, where print does not show 
   - One that an expression gives is shown and then freed, as for
     `print` (#187).
 
-## Template literals: `` `a${x}b` ``
+### Template literals: `` `a${x}b` ``
 
 A template literal, between backquotes, may span lines, and each
 `${expression}` in it becomes the expression's text, as `print` shows it
@@ -189,3 +206,7 @@ let card:cstr := `name: ${name}
   works where C needs a constant.
   - With one, it is made at run time, so a global or a `static` cannot
     be initialized with it *(provisional P50)*.
+
+## Where it lives
+
+The prelude. `print`, `println` and the text a template makes are `libkelvin`'s, declared by `kelvin_prelude.h` and linked without an import.

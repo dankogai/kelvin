@@ -1,11 +1,8 @@
 # Floating point: `f32` and `f64`
 
-Kelvin's floats are C's `float` and `double`, named by their size. This
-document has the types, their literals, how they convert, read from
-text, print and show as text. Integers are in
-[integers.md](integers.md) and `bool` in [bool.md](bool.md).
+A number with a fraction: C's `float` and `double`, named by their size.
 
-**Where it lives:** the core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`f64("1.5")`) are the prelude's, `libkelvin`, linked without an import. Complex numbers of Kelvin's own come with `#import <math>`.
+## Synopsis
 
 <!-- fragment -->
 ```swift
@@ -16,6 +13,13 @@ let x = float64("0x1.8p1")              // read from text: 3.0
 println(0.1, " ", $[1.0, 0.5])      // 0.10000000000000001 [1.0, 0.5]
 println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
 ```
+
+## Description
+
+Kelvin's floats are C's `float` and `double`, named by their size. This
+document has the types, their literals, how they convert, read from
+text, print and show as text. Integers are in
+[integers.md](integers.md) and `bool` in [bool.md](bool.md).
 
 | Kelvin | C |
 |--------|---|
@@ -132,6 +136,10 @@ println(1.5.hex, " ", 3.9.int32)      // +0x1.8p+0 3
     global's value may be one, `let root2:f64 = 2.0 ** 0.5`.
   - `x **= y` is `x = x ** y`.
   - Of `c64` and `c32` it is `<math>`'s `**` ([math.md](math.md)).
+
+## Where it lives
+
+The core. `f32` and `f64` are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`f64("1.5")`) are the prelude's, `libkelvin`, linked without an import. Complex numbers of Kelvin's own come with `#import <math>`.
 
 ## Properties and methods
 

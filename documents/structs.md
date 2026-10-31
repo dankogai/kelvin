@@ -1,13 +1,29 @@
 # Structs
 
+Members of their own types under one name: C's struct, which takes
+methods and operators.
+
+## Synopsis
+
+```swift
+struct point { x: int32; y: int32 }
+extend point {                                  // Self is point
+    let dist2():int64 { .x * .x + .y * .y }     // a method: .x is self.x
+    static let +(a:Self, b:Self):Self { (Self){a.x + b.x, a.y + b.y} }   // an operator
+}
+var p:point = {3, 4}        // C: struct point p = {3, 4};
+let q = (point){.y = 7}     // a compound literal; q is a point
+println(p, " ", p.dist2(), " ", p + q)   // {x: 3, y: 4} 25 {x: 3, y: 11}
+```
+
+## Description
+
 A struct is declared as in C, with members written `name: type`, and is
 a type by its bare name. This document has the declaration, the
 initializers, the derived text, methods and operators. Unions follow
 the same rules; see [unions.md](unions.md).
 
-**Where it lives:** the core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a struct that owns are written with the prelude's functions, which `libkelvin` holds, linked without an import.
-
-## Declaring
+### Declaring
 
 ```swift
 struct point { x: int32; y: int32 }
@@ -39,7 +55,7 @@ let q = (point){.y = 7}     // a compound literal; q is a point
     functions and variables too (`stat`, `timezone`)
     *(provisional P41)*.
 
-## Defined inside: `shape.size`
+### Defined inside: `shape.size`
 
 A struct, a union or an enum may be defined inside a struct or a union
 (#389), as in Swift:
@@ -78,7 +94,7 @@ println(a, " ", b.area(), " ", b.typename)   // {k: sides(4), s: {w: 2.0, h: 3.0
   path.
 - **Inside a function**, see the next section (#391).
 
-## Defined in a function
+### Defined in a function
 
 A struct, a union or an enum may be defined in a block (#391), as in C
 and Swift:
@@ -115,7 +131,7 @@ println(area(2.0, 3.0))                 // 6.0
   function, is an error: define the type at the top level, or write a
   function that takes it.
 
-## Without a tag: `{x:f64, y:f64}`
+### Without a tag: `{x:f64, y:f64}`
 
 A struct may be written where a type goes, by its members alone (#59):
 
@@ -153,7 +169,7 @@ println(v.typename)                     // {x: f64, y: f64}
   `let {x: f64, y: f64}.norm2():f64 { ... }`, and
   `let +(a:{x: f64, y: f64}, b:{x: f64, y: f64}):{x: f64, y: f64}`.
 
-## Initializers
+### Initializers
 
 A struct is initialized with `{...}`, as in C, with C's designators:
 `{3, 4}`, `{.y = 7}`, `(point){1, 2}`.
@@ -167,7 +183,7 @@ A struct is initialized with `{...}`, as in C, with C's designators:
 - `return {3, 4}` in a function that returns the struct takes its type
   too (#77), as does a `return {.y = 7}`.
 
-## Text
+### Text
 
 `p.cstr` is derived text, `{x: 3, y: 4}`, with nested structs and arrays
 (`[a, b]`); a string field shows at most 60 bytes. A template shows a
@@ -189,7 +205,7 @@ let vector2d.cstr():cstr { `(${.x}, ${.y})` }            // .x is self.x
   `v.cstr`, and a built-in type's text stays fixed *(provisional P65)*.
   See [properties.md](properties.md).
 
-## Methods
+### Methods
 
 Every type can have methods. You define them Swift-style on a struct or
 union, or on a built-in type, with an implicit `self` (passed by value);
@@ -282,7 +298,7 @@ let main():int32 {
   - `x.name(...)` is a method call only if some type in the file has a
     method `name`. Otherwise it calls through a field, as in C.
 
-## Operators: `let +(a:T, b:T):T`
+### Operators: `let +(a:T, b:T):T`
 
 A struct, a union or an enum with values (#121) may define
 `+ - * / % == != < <= > >=`, `**` (#380) and unary `-`, as functions
@@ -330,6 +346,9 @@ let main():int32 {
   a number of another type converts to the one operator that takes a
   number there (C reports `kv_no_such_operator` otherwise).
 
+## Where it lives
+
+The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a struct that owns are written with the prelude's functions, which `libkelvin` holds, linked without an import.
 
 ## Properties and methods
 

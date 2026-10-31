@@ -6,7 +6,29 @@ kelvinc accepts any layout that keeps each statement's lines together,
 as the line rules of #35 ask (see "Semicolons and `return`" below);
 the rest are conventions, agreed in [Dialogue.md](Dialogue.md) entry 43.
 
-## Braces
+## Synopsis
+
+```swift
+struct node {
+    value: i64
+    next:  node^
+}
+
+let sum(var n:node^):i64 {
+    var total:i64 = 0
+    while n != nullptr {
+        total += n^.value
+        n := n^.next
+    }
+    return total
+}
+
+let square(x:i64):i64 { x * x }
+```
+
+## Description
+
+### Braces
 
 A block opens on the line that introduces it, a function's or a method's
 included, and closes on a line of its own:
@@ -26,7 +48,7 @@ let sum(var n:node^):i64 {
 does, `else` follows the closing brace (`} else {`), and a short body may
 stay on one line: `let positive(n:i32):bool { n > 0 }`.
 
-## Semicolons and `return` *(Dialogue.md entry 53)*
+### Semicolons and `return` *(Dialogue.md entry 53)*
 
 A statement ends at the end of its line, with no `;` (#35). A `;` is
 written only between statements on one line, as in `a += 1; b += 1`, and
@@ -42,7 +64,7 @@ let total:i64 = price
     * count
 ```
 
-## Anonymous functions *(provisional, Dialogue.md entry 47)*
+### Anonymous functions *(provisional, Dialogue.md entry 47)*
 
 A short one stays on one line, with a space inside each brace:
 `sort(xs, n) { $0 < $1 }`. A longer one opens on the call's line, with
@@ -57,11 +79,11 @@ qsort(names, n, sizeof(cstr)) { (a:const any^, b:const any^):i32 in
 A trailing function starts on the line of its call's `)`; on the next
 line, `{` starts a block.
 
-## Indentation
+### Indentation
 
 Four spaces.
 
-## Types
+### Types
 
 No space after a type's colon: `x:i32`, `let s:cstr := "hi"`,
 `let f(a:i64, b:i64):i64 {`, `for b:u8 in 250...255 {`. It is the same colon
@@ -83,7 +105,7 @@ Other colons keep their spaces: `c ? a : b`, labels (`again: n = 0`) and
 `case 1:`. The text that `.cstr` derives for a struct, `{x: 3, y: 4}`,
 is output, not code. The tests keep the layout they were written in.
 
-## Examples in Markdown *(#189)*
+### Examples in Markdown *(#189)*
 
 - An example in a document is fenced ```` ```swift ````: GitHub has no
   Kelvin, and colors it as Swift, the language it reads most like.

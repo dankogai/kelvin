@@ -1,10 +1,8 @@
 # Unions
 
-A union is declared, named, initialized and used as a struct is, with
-C's meaning: its members share one storage, and reading a member other
-than the one last written is C's type punning, with C's rules.
+Members that share one storage: C's union, written as a struct is.
 
-**Where it lives:** the core. A union is C's, with nothing linked.
+## Synopsis
 
 ```swift
 union bits { u: uint64; f: float64 }
@@ -21,6 +19,12 @@ let main():int32 {
     return 0
 }
 ```
+
+## Description
+
+A union is declared, named, initialized and used as a struct is, with
+C's meaning: its members share one storage, and reading a member other
+than the one last written is C's type punning, with C's rules.
 
 - **Members** are written `name: type`, ended by `;` or a new line
   *(provisional P8)*.
@@ -50,6 +54,10 @@ let main():int32 {
 - **Defined inside a struct** or a union (#389), `union bits { ... }`
   is named `bits` there and `shape.bits` outside, as a struct is (see
   [structs.md](structs.md#defined-inside-shapesize)).
+
+## Where it lives
+
+The core. A union is C's, with nothing linked.
 
 ## Properties and methods
 

@@ -1,5 +1,20 @@
 # Strings: `cstr` and `String`
 
+Text: C's `cstr`, bytes up to a NUL, or Kelvin's `String`, UTF-8 on the heap.
+
+## Synopsis
+
+```swift
+let c:cstr := "hello"                 // a pointer to static text: const char * in C
+let n:int64 = 42
+let d:cstr := n.cstr                  // "42", in a buffer on this block's stack
+var s = $"héllo"                      // String("héllo"); String() is empty
+s += ", world"                        // append text; also s.append(...)
+println(c, " ", c.count, " ", d, " ", s, " ", s.count)   // hello 5 42 héllo, world 12
+```
+
+## Description
+
 Text in Kelvin is C's, or Kelvin's own. C's is a pointer to bytes that
 end at a NUL, and it is more than a zero-terminated `[u8]`: a string
 literal, a byte array, a `cstr` and the text a property or a template
@@ -22,9 +37,7 @@ codepoint's name and category, is a module, `#import <UnicodeData>`
 with the `$/.../` literal, are `#import <RegExp>` (#157):
 [regexp.md](regexp.md).
 
-**Where it lives:** `cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
-
-## Four kinds of text
+### Four kinds of text
 
 ```swift
 let s:cstr := "hello"        // a pointer to static text: const char * in C
@@ -100,7 +113,7 @@ let card:cstr := `${n} items` // a template's text, on the stack too
     `strdup`.
   - See [properties.md](properties.md) and [printing.md](printing.md).
 
-### `u8` and C's `char` mix freely *(provisional P13)*
+#### `u8` and C's `char` mix freely *(provisional P13)*
 
 C string literals are `char` arrays, and libc takes `char *`. Kelvin's `u8`
 is `unsigned char`, which has the same size, representation and ABI.
@@ -115,7 +128,7 @@ Kelvin function type with `u8^` ones, since C's `char` and `unsigned
 char` make incompatible function types: wrap it, as
 [functions.md](functions.md) shows.
 
-## Making text
+### Making text
 
 - **`x.cstr`** is any value's text: `42`, `-7`, `true`,
   `0.10000000000000001` (as `print` shows it, #259), a struct's
@@ -138,7 +151,7 @@ char` make incompatible function types: wrap it, as
 - **To keep text** past its block, copy it: `let kept:cstr := strdup(d)`,
   and `free` it as in C. Kelvin adds no heap use of its own.
 
-## Reading numbers from text
+### Reading numbers from text
 
 A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 `i32("755", 8)` with a base from 2 to 36, and the same as a property,
@@ -153,7 +166,7 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
   set.
 - See [integers.md](integers.md) for the table.
 
-## Walking and indexing
+### Walking and indexing
 
 <!-- fragment -->
 ```swift
@@ -170,13 +183,13 @@ var p := s; p := p.next       // a pointer stepped by one byte (#26)
 - A string is evaluated once and does not move. See
   [flow-controls.md](flow-controls.md).
 
-## Comparing
+### Comparing
 
 `==` between two `cstr` compares the pointers, as in C. Compare text
 with `strcmp(a, b) == 0`, and a string with `nullptr` by `s.isNull` or
 `s == nullptr`; a literal is never null.
 
-## Printing
+### Printing
 
 - `print` and `println` show a `u8^`, a `cstr` and a string literal as
   their text, and `nullptr` for a null pointer (#260).
@@ -186,7 +199,7 @@ with `strcmp(a, b) == 0`, and a string with `nullptr` by `s.isNull` or
 - In a template, `${s}` is the text and `${s.addr}` the address. See
   [printing.md](printing.md).
 
-## `String`: text on the heap
+### `String`: text on the heap
 
 A `cstr` is C's text, where it is. `String` (#55) is text on the heap,
 that grows: a `Bytes` ([bytes.md](bytes.md)) that holds well-formed
@@ -272,7 +285,7 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
 - **Not yet:** `insert` and `remove` on a String, encodings other than
   UTF-8.
 
-## What is not here yet
+### What is not here yet
 
 `insert` and `remove` on a String, and encodings other than UTF-8, are
 to come.
@@ -281,6 +294,10 @@ to come.
   a bound, and one that points at freed or ended storage is as wrong as
   in C.
 - A `String` is checked, and freed when its block ends.
+
+## Where it lives
+
+`cstr` is the core: C's text, with kelvinc's rules and nothing linked, but for the text of a property, which the prelude writes. `String` and `uchr` are the prelude's, `libkelvin`, linked without an import.
 
 ## Properties and methods
 

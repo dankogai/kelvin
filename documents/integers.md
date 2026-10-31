@@ -1,5 +1,21 @@
 # Integers
 
+A whole number that says its size: `i8` to `i128`, `u8` to `u128`.
+
+## Synopsis
+
+```swift
+var v:u64 = 10                        // no 10UL: the type is on the declaration
+let n:i64 = 3
+let b = u8(300)                       // a converter, as C's cast: 44
+let k = i64("42")                     // a converter of text reads it
+let big:u64 = 1:u64 << 40             // C: 1UL << 40
+println(v, " ", b, " ", k, " ", big)  // 10 44 42 1099511627776
+println(n ** 4, " ", (-5).abs, " ", (-3).sign, " ", 255.hex)   // 81 5 -1 +0xff
+```
+
+## Description
+
 Every number in Kelvin says its size. This document has the integer
 types, their literals, the two ways to convert any number, how a
 number is read from text, powers, `**` and `pow` (#380), `.abs`
@@ -9,9 +25,7 @@ The text of a number (`n.cstr`, `n.hex`) is in
 [properties.md](properties.md), and `print`'s view of it in
 [printing.md](printing.md).
 
-**Where it lives:** the core. Integers are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
-
-## Integer types always say their size
+### Integer types always say their size
 
 Each has a short name, `i64`, and a full one, `int64` (#151); the two
 are one type, and either goes wherever a type does.
@@ -37,7 +51,7 @@ that suggest the Kelvin name, as `float`, `double` and `_Bool` are (see
 Kelvin's built-in types need no header, and neither does `<stdint.h>`,
 because the generated C includes it itself.
 
-## Literals
+### Literals
 
 Literals carry no size or type hints. C's suffixes `u`, `l` and `ll`
 (`10UL`, `10u`, `10LL`) are errors, as `f` and `L` on a float are (see
@@ -57,7 +71,7 @@ Everything else about literals is C's:
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.
 
-## Conversions (no C casts)
+### Conversions (no C casts)
 
 These serve every number, floats and `bool` included.
 
@@ -77,7 +91,7 @@ except that a converter of text reads the number in it (#36), while
 - **`v as T`**, for any type, including pointers and C typedef names:
   `malloc(n) as i32^`, `p as any^`, `n as size_t`.
 
-### Numbers from text
+#### Numbers from text
 
 A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 and with a base from 2 to 36 for an integer type, `i32("755", 8)`.
@@ -145,8 +159,7 @@ looser than prefix operators, and it chains left to right
     rejects them with "expected expression" at your line. They never
     compile as a cast.
 
-
-## Powers: `**` and `pow`
+### Powers: `**` and `pow`
 
 ```swift
 let kib:i64 = 2 ** 10                    // 1024, worked out by kelvinc
@@ -199,7 +212,7 @@ let main():int32 {
   - Its type is what C gives `b % m`; `b`, `e` and `m` are integers of
     64 bits or fewer.
 
-## Magnitude: `.abs`
+### Magnitude: `.abs`
 
 ```swift
 let main():int32 {
@@ -224,7 +237,7 @@ let main():int32 {
 - **An unsigned integer** has no `.abs`: it is never negative.
 - A struct's field named `abs`, and an attribute of your own, win.
 
-## Sign: `.sign`
+### Sign: `.sign`
 
 - **`x.sign`** of a signed integer is -1, 0 or 1, of its own type, as
   Rust's `signum` (#382): `(-3).sign` is -1, and an `i8`'s is an `i8`.
@@ -238,6 +251,10 @@ let main():int32 {
 - **An unsigned integer** has no `.sign`, nor a complex number, which
   has no order.
 - A struct's field named `sign`, and an attribute of your own, win.
+
+## Where it lives
+
+The core. Integers are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
 
 ## Properties and methods
 
