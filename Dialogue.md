@@ -8210,3 +8210,21 @@ in C's println macro; that is left for a number of its own. Details are
 provisional P430.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 466. kc's array compound literals
+
+> make kc read ([i32])[1, 2, 3]
+
+**Claude** made it #419: kc reads `([T](N))[a, b]` and `([T])[a, b]`,
+as kelvinc's #48. A let's or a var's value declares the array, so `let
+q = ([int64])[1, 2, 3]` is C's `int64_t q[3]`; anywhere else it is C's
+`(int64_t [3]){1, 2, 3}`, an argument, `a[i]`, `.count` or `for x in`.
+`[T]` counts its elements, and `[[T]]` its rows by the first. An element
+of the wrong type, too many elements, none, and a count C computes are
+kc's errors, where kelvinc leaves them to C; an array of owners is
+kelvinc's, in its words. sample.k's `total_of(([int64])[4, 5, 6], 3)`
+prints 15 through both compilers. selfhost/README.md's Fixed arrays had
+lost the `Not yet:` lead of its last line in #370, which this puts
+back. Details are provisional P431.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

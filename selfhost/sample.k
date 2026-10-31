@@ -789,5 +789,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     let hop = (leg){.to = 8, .from = 3}
     let reach:int64 = (leg){1, 4}.to
     println(point.flipped(1, 2), " ", hop, " ", reach, " ", (point){5, 6}.sum())
+    let odds = ([int64])[1, 3, 5]                      // ([T])[a, b], an array's compound literal (#419)
+    let squares = ([[int64]])[[1, 2], [3, 4]]
+    let third:int64 = ([int64](4))[7, 8, 9][2]
+    let summed:int64 = total_of(([int64])[4, 5, 6], 3)
+    println(odds.count, " ", odds[2], " ", squares[1][0], " ", squares.count, " ", third, " ", summed)
     return 0
 }

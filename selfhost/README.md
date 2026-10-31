@@ -542,8 +542,8 @@ kc reads what it is written in, and little more.
     after it follow on, as in C.
   - A designator of no member, and one value too many, are kc's errors;
     `{` on the next line is kelvinc's, in its words.
-  - Not yet: an array's, `([i32])[1, 2, 3]`, and a path's,
-    `(point.kind){...}`.
+  - An array's, `([i32])[1, 2, 3]`, is under Fixed arrays (#419).
+  - Not yet: a path's, `(point.kind){...}`.
 - **`if (1) name(x)`** (#402), as kelvinc's: declaration_shaped, a
   statement or an assignment `name(x)` of a name kc does not see and one
   argument a declarator could be, x, x^, x[i], is written after `if (1)`,
@@ -725,7 +725,16 @@ kc reads what it is written in, and little more.
     - `[[T]]`, rows of no count, is kc's error, which C cannot index;
       `[const [T](N)]` kelvinc's `a qualifier of an array is its elements'`;
       rows of another count kc's error, where kelvinc's C warns.
-    `([T])[a, b]`, `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
+  - A compound literal (#419), `([T](N))[a, b]` and `([T])[a, b]`, as
+    kelvinc's #48: a let's or a var's value declares the array, `let q =
+    ([int64])[1, 2, 3]`; elsewhere it is C's `(int64_t [3]){1, 2, 3}`,
+    a value anywhere: an argument, `a[i]`, `.count`, `for x in`.
+    - `[T]` counts its elements, and `[[T]]` its rows by the first, as
+      kelvinc counts them.
+    - Its elements are checked as a declaration's; one of another type
+      where a type is written is kc's error, as are too many elements, no
+      elements, and a count C computes, where kelvinc leaves them to C.
+  - Not yet: `[[2] = 9]`, `let s:[uint8] = "hi"`, `p := a`.
 - **Searching an Array** (#342), as kelvinc's #248: `xs.contains(x)`,
   a `bool`; `xs.firstIndex(x)` and `xs.lastIndex(x)`, the index of the
   first or the last equal to `x`, an `i64?`, or `none`.

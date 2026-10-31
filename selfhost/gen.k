@@ -494,6 +494,9 @@ let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is writ
 let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
 let fixed_refused(n:int64)
+let counted(y:int64, v:int64):int64    // prototypes: type_of and gen_expr ask them of ([T])[a, b] (#419)
+let gen_array_literal(n:int64)
+let fixed_computed(y:int64):bool
 let fixed_case(m:int64):bool    // and if let and switch bind a case's elements (#360)
 let put_fixed_free(y:int64, path:cstr)    // and an enum's free and copy loop over a case's owners (#364)
 let put_fixed_copy(y:int64, to:cstr, from:cstr)
@@ -1020,6 +1023,7 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
+    if k == N_LIST && nodes[n].flag == 0 && nodes[n].ty >= 0 { return counted(nodes[n].ty, n) }   // ([T])[a, b] (#419)
     if k == N_LIST {                                     // [a, b], a fixed array of a's type; [T](n) (#354)
         if nodes[n].flag == 1 {                         // [T](n) of a count C computes, -10 - its node (#366)
             let c:int64 = nodes[nodes[n].a].kind == N_NUM ? tok_count(nodes[nodes[n].a].t) : 0 - 1
@@ -5084,8 +5088,12 @@ let gen_expr(n:int64) {
         gen_make(n)
         return
     }
+    if k == N_LIST && nodes[n].flag == 0 && nodes[n].ty >= 0 {   // ([T](N))[a, b], C's compound literal (#419)
+        gen_array_literal(n)
+        return
+    }
     if k == N_LIST {                                     // as kelvinc says it, kc's for its compound literal (#354)
-        gen_error(n, "an array is not a value here: kc reads [a, b] as a declaration's value; not yet a compound literal, ([i32])[1, 2, 3] (#48)")
+        gen_error(n, "an array is not a value here: kc reads [a, b] as a declaration's value; elsewhere write its compound literal, ([i32])[1, 2, 3] (#48)")
         return
     }
     if k == N_ITER {                                     // (#326)
@@ -5715,10 +5723,79 @@ let gen_fixed_list(v:int64, y:int64) {
     put("}")
 }
 
+// the type of ([T])[a, b] written y (#419): a count its elements give,
+// and a row's its first row's, [[T]] of [[1, 2], [3, 4]] [[T](2)](2), as
+// kelvinc counts them
+let counted(y:int64, v:int64):int64 {
+    if types[y].kind != Y_FIXED { return y }
+    var e:int64 = types[y].elem
+    let first:int64 = nodes[v].b
+    if types[e].kind == Y_FIXED && types[e].name == 0 - 1 && first >= 0 && nodes[first].kind == N_LIST && nodes[first].flag == 0 {
+        e = counted(e, first)
+    }
+    var c:int64 = types[y].name
+    if c == 0 - 1 {
+        c = 0
+        var x:int64 = first
+        while x >= 0 {
+            c += 1
+            x = nodes[x].next
+        }
+    }
+    return type_of_kind(Y_FIXED, e, c)
+}
+
+// ([T](N))[a, b] where no type is written (#419): C's (T [N]){a, b}, its
+// elements checked as a declaration's, as kelvinc writes it
+let gen_array_literal(n:int64) {
+    let y:int64 = type_of(n)
+    if types[y].kind != Y_FIXED || types[y].name == 0 - 3 {
+        gen_error(n, "kc reads an array's compound literal of [T](N) and of [T]; not yet of another type")
+        return
+    }
+    if !fixed_elem_ok(types[y].elem) {
+        if is_owner(types[y].elem) {                     // as kelvinc says it
+            gen_error(n, "an array of owners is not here yet: a struct may hold them")
+        } else {
+            fixed_refused(n)
+        }
+        return
+    }
+    if fixed_computed(y) {
+        gen_error(n, "an array of a count computed at run time takes no elements in C: give them one by one, a[i] = ...")
+        return
+    }
+    if nodes[n].b < 0 {
+        gen_error(n, "[] has no elements: write [T](N), N zero elements")
+        return
+    }
+    if !fixed_list_fits(n, y) { return }
+    put("(")
+    put_fixed_base(y)
+    put_fixed_counts(y)
+    put(")")
+    gen_fixed_list(n, y)
+}
+
 // whether the elements of [a, b] fit y, a fixed array: each of its element
-// type, as gen_array asks of $[a, b], no more than its count (#354)
+// type, as gen_array asks of $[a, b], no more than its count (#354); of
+// ([T](N))[a, b], its type y, or one of its elements where y has no count (#419)
 let fixed_list_fits(v:int64, y:int64):bool {
     let e:int64 = types[y].elem
+    if nodes[v].ty >= 0 && nodes[v].flag == 0 {
+        let vy:int64 = type_of(v)
+        if vy != y && !(types[y].name == 0 - 1 && types[vy].kind == Y_FIXED && types[vy].elem == e) {
+            var m = $"this is "
+            let vw:String = type_text(vy)
+            m += &vw
+            m += ", where "
+            let yw:String = type_text(y)
+            m += &yw
+            m += " goes"
+            gen_error(v, m.cstr)
+            return false
+        }
+    }
     var count = 0
     var x = nodes[v].b
     while x >= 0 {

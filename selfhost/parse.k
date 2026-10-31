@@ -34,7 +34,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_AWAIT,    // await a, a Task's value (#313)
     N_ANON,     // { (a...):ty in b } or { b } of $0, an anonymous function (#324); flag 1 of $0, 2 of { v in b } (#330)
     N_ITER,     // Iterator<ty>(a) b or Iterator(a, b), a state and a function of it (#326)
-    N_LIST,     // [b...], a fixed array's elements (#354); flag 1 of [ty](a), a zero elements
+    N_LIST,     // [b...], a fixed array's elements (#354); flag 1 of [ty](a), a zero elements; ty of ([T](N))[b...], C's compound literal (#419)
     N_MAKE,     // Array<T>(), Dictionary<K, V>(): an empty one of ty (#349); flag 1 of no (), 2 of what kc does not make;
                 // of an Array (#350), flag 3 of [b...], the elements, 4 of &a, a copy, 5 of a, a count, 6 of more after [...], 7 of more than one;
                 // of a Dictionary (#351), flag 3 of {k: v}, a the literal, 4 of &a, 5 of a, 6 of more, c the token
@@ -419,6 +419,24 @@ let literal_type(t:int64):bool {
     let u:int64 = scoped_type(t)
     for d in nodes {
         if d.kind == D_STRUCT && same_text(d.t, u) { return true }
+    }
+    return false
+}
+
+// whether ([T](N))[ or ([T])[ starts here, an array's compound literal
+// (#419), as kelvinc tells it from (p)[i]: parentheses that open with [,
+// and a [ right after them
+let array_literal_ahead():bool {
+    if !at_word("(") || !tok_is(pos + 1, "[") { return false }
+    var depth = 0
+    var k:int64 = pos
+    while k < toks.count as int64 {
+        if tok_is(k, "(") || tok_is(k, "[") || tok_is(k, "$[") || tok_is(k, "{") || tok_is(k, "${") { depth += 1 }
+        if tok_is(k, ")") || tok_is(k, "]") || tok_is(k, "}") {
+            depth -= 1
+            if depth == 0 { return tok_is(k, ")") && tok_is(k + 1, "[") }
+        }
+        k += 1
     }
     return false
 }
@@ -1378,6 +1396,19 @@ let parse_primary():int64 {
     if k == T_DSTR {
         advance()
         return make_node(N_DSTR, t)
+    }
+    if array_literal_ahead() {                           // ([T](N))[a, b], ([T])[a, b], an array's (#419)
+        advance()
+        var y:int64 = parse_type()
+        if types[y].kind == Y_ARGV { y = type_of_kind(Y_FIXED, base_type(Y_CSTR), -1) }   // ([cstr])["a"]
+        expect(")")
+        let n:int64 = parse_primary()                    // [a, b]
+        if nodes[n].kind != N_LIST || nodes[n].flag != 0 {
+            parse_error("an array's compound literal takes its elements in brackets: ([T])[a, b]")
+            return n
+        }
+        set_ty(n, y)
+        return n
     }
     if literal_ahead() {                                 // (T){...}, C's compound literal (#418)
         advance()

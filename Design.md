@@ -450,6 +450,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 416 | `C.name` is an error in Kelvin's words where the program declares no `C`: `#import <x.h> as C` names no namespace, a header's names come in bare, so `C.toupper(97)` is `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; a variable, function or type named `C` keeps `C.x`; C's `undeclared identifier 'C'` before | parser.c's primary expression, beside asm(...) | `C.toupper(97)` an error | 2026-10-31 |
 | 417 | kc's `C.name` is kelvinc's error in its words, as kelvinc's #416: where the program declares no `C` so far, a local or parameter, a global, a function, a struct or an enum, `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; kc said `this method is not known` before | selfhost/parse.k's parse_primary, program_named | `C.toupper(97)` an error of kc | 2026-10-31 |
 | 418 | kc reads `(T){...}`, C's compound literal, as kelvinc does: of a struct declared so far, a block's or a nested one's too, or of `Self` in a method, a value anywhere, its type its own; `.name = v`, C's designator, in it and in a bare `{...}`, the members after it following on; a designator of no member is kc's error, `'q' is no member of P`, and `{` on the next line kelvinc's; an array's `([T])[...]` still kc's error | selfhost/parse.k's literal_type, literal_ahead and N_DESIG; selfhost/gen.k's gen_init and bare_init | `(Self){.y = x, .x = y}` of kc | 2026-10-31 |
+| 419 | kc reads `([T](N))[a, b]` and `([T])[a, b]`, an array's compound literal, as kelvinc's #48: a let's or a var's value declares the array, `let q = ([int64])[1, 2, 3]`; elsewhere C's `(int64_t [3]){1, 2, 3}`, a value anywhere, an argument, `a[i]`, `.count`, `for x in`; `[T]` counted by its elements and `[[T]]`'s rows by the first; of another type where one is written, too many elements, none, or a count C computes, kc's errors, where kelvinc leaves them to C; designators still not kc's | selfhost/parse.k's array_literal_ahead; selfhost/gen.k's counted, gen_array_literal, fixed_list_fits | `([int64])[4, 5, 6]` of kc | 2026-10-31 |
 
 Notes:
 
@@ -1034,6 +1035,25 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (419) Agreed details: "make kc read ([i32])[1, 2, 3]", after #418
+  left it kc's error.
+  - array_literal_ahead reads `([` ... `)[`, parentheses that open with
+    `[` and a `[` right after them, as kelvinc tells it from `(p)[i]`;
+    the list keeps the written type in ty, `[cstr]` a fixed array of
+    cstr there, not main's argv.
+  - type_of counts it, through counted: `[T]` by its elements, `[[T]]`'s
+    rows by the first row, as kelvinc's #48; so a let or a var of one
+    declares the array, as gen_fixed_var already writes a list.
+  - gen_array_literal writes C's `(T [N]){...}` anywhere else, after
+    fixed_list_fits, which now refuses a list of another type than the
+    one written, `this is [i32](3), where [i64](3) goes`.
+  - kelvinc's `an array of owners is not here yet` in its words; kc's
+    errors of too many elements, of none, and of a count C computes,
+    where kelvinc's C warns or fails.
+  - The old error of `[a, b]` as a value now points at the compound
+    literal; selfhost/README.md's Fixed arrays had lost its `Not yet:`
+    lead in #370, which this puts back.
 
 - (418) Agreed details: "make kc parse static let inside extend".
   - **Claude** found kc already read `static let` in `extend`: what
@@ -5702,6 +5722,7 @@ says "as agreed".
 | P428 | Details of #416 | src/parser.c: parse_primary's `C.name` check; documents/c-interfaces.md; tests/error/c_namespace.k, c_namespace_value.k; tests/run/c_named_type.k | — |
 | P429 | Details of #417 | selfhost/parse.k: program_named, parse_primary's `C.name` check; selfhost/README.md | — |
 | P430 | Details of #418 | selfhost/parse.k: literal_type, literal_ahead, N_DESIG, the next-line `{` error; selfhost/gen.k: gen_init's designators, bare_init, type_of and gen_expr of a typed N_INIT; selfhost/sample.k: `point.flipped`, `hop`; selfhost/README.md | — |
+| P431 | Details of #419 | selfhost/parse.k: array_literal_ahead, parse_primary's `([T])[...]`; selfhost/gen.k: counted, gen_array_literal, fixed_list_fits's type check, type_of and gen_expr of a typed N_LIST; selfhost/sample.k: `odds`, `squares`, `third`, `summed`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
