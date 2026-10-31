@@ -42,6 +42,9 @@ prelude from C, and what the C compiler checks.
   - `KELVIN_CFLAGS` go after the program, as a library must on Linux.
 - `as C` is required for a C header. A Kelvin file is imported without
   it (see [modules.md](modules.md)).
+  - It names no namespace: a header's names come in bare, `toupper(97)`.
+  - `C.toupper(97)` is an error that says so (#416), unless the program
+    declares a `C` of its own, a variable, a function or a type.
 - Every other directive (`#include`, `#define`, `#if`, ...) is an error.
   - Kelvin leaves C's preprocessor out on purpose, inside
     `#inline C { ... }` too (#296): see [Inline C](#inline-c).

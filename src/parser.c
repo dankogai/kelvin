@@ -3769,6 +3769,11 @@ static Expr *parse_primary(void) {
         !function_named("asm")) /* GNU C's asm(...), left out on purpose (#399) */
         error_at(t->pos, "assembly is C's, a GNU extension, left out on purpose: write it in #inline C { __asm__ "
                          "__volatile__(\"...\"); }");
+    if (t->kind == TK_IDENT && !strcmp(t->text, "C") && is_p(peek2(), ".") && peek_at(2)->kind == TK_IDENT &&
+        binding_index("C") < 0 && !function_named("C") && !record_named("C"))
+        /* C.f(...) (#416): `as C` names no namespace; a header's names are bare */
+        error_at(t->pos, "'C.%s' names nothing: '#import <x.h> as C' brings a header's names in bare, so write '%s'",
+                 peek_at(2)->text, peek_at(2)->text);
     if (is_kw(t, "_Generic")) /* left out on purpose (#397) */
         error_at(t->pos, "'_Generic' is C11's, left out on purpose: a function of one name takes several types by "
                          "overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)");

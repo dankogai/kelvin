@@ -8160,3 +8160,17 @@ default; going into it, `d[k] += 1`, is a place, checked. The example's
 `println(ages["bob"], ...)` shows its output, `some(42) 3 false`.
 
 There are 1156 tests, and all pass.
+
+### 463. `C.toupper`, a Kelvin error
+
+> make C.toupper give a Kelvin error
+
+**Claude** made it #416: `#import <x.h> as C` names no namespace, and a
+header's names come in bare, so `C.toupper(97)`, which was C's
+`undeclared identifier 'C'`, is now `'C.toupper' names nothing:
+'#import <x.h> as C' brings a header's names in bare, so write
+'toupper'`; `C.EOF` too. A variable, a function or a type of the
+program named `C` keeps `C.x`. kc gives its own `this method is not known`. Details are
+provisional P428.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

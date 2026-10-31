@@ -447,6 +447,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 413 | kc's value of a case of another type is kelvinc's error in its words, as kelvinc's #411: of `ok(v)`, `err(e)`, a `T` wrapped, `T.c(v)`, a side of `==` and `r ?? ok(v)`, and before it kelvinc's errors of an Optional where a value goes and of a struct of another type; a case word kc asked the type of is passed by, so `r == ok(5)`, `f(ok(3))` and `ok(none)` of a `Result<T?, E>` are kc's, and text is `some` of a `String?` | selfhost/gen.k's case_value_fits | `let o:i64? = $"s"` kc's error | 2026-10-29 |
 | 414 | kc's `String(x)` of an owner is kelvinc's error in its words, as kelvinc's #412: of a place `would copy an owner`, of a String an expression gives `is one already`, of another owner what String takes and what this is, of two values what it takes; `String()` an empty String, where kc stopped | selfhost/gen.k's string_args_refused | `String(name())` kc's error | 2026-10-29 |
 | 415 | kc wraps a bool, or a number of another kind, literal or not, where a number's Optional or Result goes, as kelvinc converts it: `let c:int64? = true` is `some(1)`, `let d:int64? = n` of an int32 `some(4)`, a return's and an assignment's alike; a number where a `bool?` goes is still C's error | selfhost/gen.k's fits_value | `let c:int64? = true` | 2026-10-29 |
+| 416 | `C.name` is an error in Kelvin's words where the program declares no `C`: `#import <x.h> as C` names no namespace, a header's names come in bare, so `C.toupper(97)` is `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; a variable, function or type named `C` keeps `C.x`; C's `undeclared identifier 'C'` before | parser.c's primary expression, beside asm(...) | `C.toupper(97)` an error | 2026-10-31 |
 
 Notes:
 
@@ -1031,6 +1032,14 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (416) Agreed details: "make C.toupper give a Kelvin error".
+  - kelvinc reads no header, so `C.` is the error only where no
+    binding, function, struct, union or enum of the program is named
+    `C`; a header's own `C` would be read as this mistake.
+  - Of a call and of a value alike, `C.toupper(97)` and `C.EOF`.
+  - kc gives its own `this method is not known`; kelvinc's words in
+    kc would be a number of their own.
 
 - (415) Agreed details: "make kc take let c:int64? = true too",
   after #413 left it C's error of kc.
@@ -5663,6 +5672,7 @@ says "as agreed".
 | P425 | Details of #413 | selfhost/gen.k: case_value_fits, called in gen_value, gen_opt_operand, T.c(v) and gen_variant_eq's eq_side_fits; side_type in gen_bits, range_operand_error and is_range_eq; no_value and the moves of a case word; fits_value of text; selfhost/sample.k: digit_shown and case words beside `==`; selfhost/README.md | — |
 | P426 | Details of #414 | selfhost/gen.k: string_args_refused and `String()` in gen_call; selfhost/sample.k: `String()`; selfhost/README.md | — |
 | P427 | Details of #415 | selfhost/gen.k: fits_value of a bool and of a number of another kind; selfhost/sample.k: `flagged`, `measured`, `wide`; selfhost/README.md | — |
+| P428 | Details of #416 | src/parser.c: parse_primary's `C.name` check; documents/c-interfaces.md; tests/error/c_namespace.k, c_namespace_value.k; tests/run/c_named_type.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
