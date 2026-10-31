@@ -510,12 +510,21 @@ kc reads what it is written in, and little more.
 - **`static_assert`** (#394), as kelvinc's: S_ASSERT in a block and
   D_ASSERT at the top level, `_Static_assert` in C, the message as
   written or the condition's own text, a variable in the condition and
-  C11's spelling kelvinc's errors, in its words. kc has no `sizeof`, so
-  its conditions are of numbers and enumerators.
+  C11's spelling kelvinc's errors, in its words.
 - **`alignof(T)` and `x.align`** (#395), as kelvinc's: N_ALIGN, and a
   field `align` that is no struct's own, value_align; gen_align writes C's
   `_Alignof`, of a value its `__typeof__`'s, an i64 as kc has no size_t;
   `_Alignof` and `alignof` of a value kelvinc's errors, in its words.
+- **`sizeof`** (#420), as kelvinc's: N_SIZEOF, of a type or a value.
+  - `sizeof(T)` where its parentheses open with a type: a built-in
+    type's word, `const`, `[`, `$[`, `Self`, or a struct's or an enum's
+    name, which is a variable's where a variable in scope has it.
+  - `sizeof x` and `sizeof(x)` of a value, a compound literal's too,
+    `sizeof (point){1, 2}`; a function's name a pointer's size, and a
+    name kc does not know C's, `sizeof(size_t)`.
+  - gen_sizeof writes C's sizeof, an i64 as `alignof`'s; `sizeof T` is
+    kelvinc's error, in its words.
+  - Not yet: `sizeof(x.type)`, which says so.
 - **`alignas`** (#396), as kelvinc's: parse_alignas before a global, a
   local or a struct's member, a number, checked where a literal, or a
   type; take_alignas keeps the variable or member in aligned, and

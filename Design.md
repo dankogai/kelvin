@@ -451,6 +451,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 417 | kc's `C.name` is kelvinc's error in its words, as kelvinc's #416: where the program declares no `C` so far, a local or parameter, a global, a function, a struct or an enum, `'C.toupper' names nothing: '#import <x.h> as C' brings a header's names in bare, so write 'toupper'`; kc said `this method is not known` before | selfhost/parse.k's parse_primary, program_named | `C.toupper(97)` an error of kc | 2026-10-31 |
 | 418 | kc reads `(T){...}`, C's compound literal, as kelvinc does: of a struct declared so far, a block's or a nested one's too, or of `Self` in a method, a value anywhere, its type its own; `.name = v`, C's designator, in it and in a bare `{...}`, the members after it following on; a designator of no member is kc's error, `'q' is no member of P`, and `{` on the next line kelvinc's; an array's `([T])[...]` still kc's error | selfhost/parse.k's literal_type, literal_ahead and N_DESIG; selfhost/gen.k's gen_init and bare_init | `(Self){.y = x, .x = y}` of kc | 2026-10-31 |
 | 419 | kc reads `([T](N))[a, b]` and `([T])[a, b]`, an array's compound literal, as kelvinc's #48: a let's or a var's value declares the array, `let q = ([int64])[1, 2, 3]`; elsewhere C's `(int64_t [3]){1, 2, 3}`, a value anywhere, an argument, `a[i]`, `.count`, `for x in`; `[T]` counted by its elements and `[[T]]`'s rows by the first; of another type where one is written, too many elements, none, or a count C computes, kc's errors, where kelvinc leaves them to C; designators still not kc's | selfhost/parse.k's array_literal_ahead; selfhost/gen.k's counted, gen_array_literal, fixed_list_fits | `([int64])[4, 5, 6]` of kc | 2026-10-31 |
+| 420 | kc reads `sizeof`, as kelvinc's: `sizeof(T)` of a type, its parentheses opening with a built-in type's word, `const`, `[`, `$[`, `Self`, or a struct's or an enum's name, which a variable of the name makes a value; `sizeof x` and `sizeof(x)` of a value, `sizeof (T){...}` and `sizeof ([T])[...]` a compound literal's; C's sizeof, an int64 as kc's `alignof` is, where kelvinc's is a size_t; a function's name a pointer's size, and a name kc does not know C's, `sizeof(size_t)`; `sizeof T` kelvinc's error, in its words; `sizeof(x.type)` not yet kc's, and says so | selfhost/parse.k's sizeof_type_at, N_SIZEOF; selfhost/gen.k's gen_sizeof | `sizeof(point)`, `sizeof odds[0]` of kc | 2026-11-01 |
 
 Notes:
 
@@ -1035,6 +1036,28 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (420) Agreed details: "make kc read sizeof", after #419 found kc had
+  none.
+  - parse_unary reads `sizeof`: sizeof_type_at decides a type in its
+    parentheses, as kelvinc's paren_type_ahead does: a built-in type's
+    word, `const`, `[`, `$[`, `Self`, or a struct's or an enum's name
+    before `)`, `^` or `.`; `(T){` and `([T])[` are compound literals,
+    whose size is a value's.
+  - Anything else is a value, read by parse_unary, so `sizeof p + 1` is
+    `(sizeof p) + 1`, as in C.
+  - gen_sizeof writes `((int64_t)sizeof(...))`, an int64 as kc's
+    `alignof` is, kc having no size_t; a struct's name that a variable
+    in scope has is that variable, as kelvinc's tag_name_ahead lets a
+    variable win; a function's name is `&f`, a pointer's size, as
+    kelvinc's #31; a name kc does not know is C's, `sizeof(size_t)`.
+  - `sizeof T` is kelvinc's error, in its words, the type in Kelvin's
+    spelling, `sizeof(i32^)`; has_call says sizeof calls nothing, as C
+    evaluates no operand of it.
+  - `sizeof(x.type)`, kelvinc's #34, is not kc's yet, and says so, where
+    no member `type` of a struct makes it a field.
+  - selfhost/README.md's `static_assert` no longer says kc has no
+    `sizeof`.
 
 - (419) Agreed details: "make kc read ([i32])[1, 2, 3]", after #418
   left it kc's error.
@@ -5723,6 +5746,7 @@ says "as agreed".
 | P429 | Details of #417 | selfhost/parse.k: program_named, parse_primary's `C.name` check; selfhost/README.md | — |
 | P430 | Details of #418 | selfhost/parse.k: literal_type, literal_ahead, N_DESIG, the next-line `{` error; selfhost/gen.k: gen_init's designators, bare_init, type_of and gen_expr of a typed N_INIT; selfhost/sample.k: `point.flipped`, `hop`; selfhost/README.md | — |
 | P431 | Details of #419 | selfhost/parse.k: array_literal_ahead, parse_primary's `([T])[...]`; selfhost/gen.k: counted, gen_array_literal, fixed_list_fits's type check, type_of and gen_expr of a typed N_LIST; selfhost/sample.k: `odds`, `squares`, `third`, `summed`; selfhost/README.md | — |
+| P432 | Details of #420 | selfhost/parse.k: N_SIZEOF, sizeof_type_at, parse_unary's `sizeof`; selfhost/gen.k: gen_sizeof, type_of and has_call of N_SIZEOF; selfhost/sample.k: `sized`, `cells`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

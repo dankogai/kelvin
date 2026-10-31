@@ -8228,3 +8228,19 @@ lost the `Not yet:` lead of its last line in #370, which this puts
 back. Details are provisional P431.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 467. kc's sizeof
+
+> make kc read sizeof
+
+**Claude** made it #420: kc reads `sizeof`, as kelvinc does. `sizeof(T)`
+is a type's size where the parentheses open with a type, and a struct's
+name is a variable's where a variable has it; `sizeof x`, `sizeof(x)`
+and a compound literal's, `sizeof (point){1, 2}`, are a value's. It is
+C's sizeof, an int64 as kc's `alignof` is; a function's name gives a
+pointer's size, and a name kc does not know, `sizeof(size_t)`, is C's.
+`sizeof int32^` is kelvinc's error, in its words. sample.k's sizes print
+the same through both compilers, and `static_assert(sizeof(point) ==
+16)` now works in kc too. Details are provisional P432.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

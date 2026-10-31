@@ -1062,6 +1062,7 @@ let type_of(n:int64):int64 {
         if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
     }
     if k == N_ALIGN { return base_type(Y_I64) }         // alignof(T) (#395)
+    if k == N_SIZEOF { return base_type(Y_I64) }        // sizeof(T), sizeof x (#420)
     if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
@@ -5061,6 +5062,46 @@ let gen_align(n:int64):bool {
     return false
 }
 
+// sizeof(T) and sizeof x (#420), as kelvinc's: C's sizeof, an int64 as
+// alignof's is; a struct's name a variable's where one hides it, a
+// function's a pointer's size, and a name kc does not know C's, size_t;
+// whether n is one
+let gen_sizeof(n:int64):bool {
+    if nodes[n].kind != N_SIZEOF { return false }
+    let y:int64 = nodes[n].ty
+    let a:int64 = nodes[n].a
+    if nodes[n].flag == 1 {                              // as kelvinc says it
+        var m = $"sizeof a type needs parentheses: sizeof("
+        let w:String = kelvin_type_text(y)
+        m += &w
+        m += ")"
+        gen_error(n, m.cstr)
+        return true
+    }
+    if y < 0 && nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "type") {   // x.type, a type, as kelvinc's #34
+        let b:int64 = type_of(nodes[a].a)
+        if b >= 0 && (types[b].kind != Y_STRUCT || field_type(b, nodes[a].t) < 0) {
+            gen_error(n, "kc reads sizeof(T) and sizeof x; not yet sizeof(x.type), which is sizeof x")
+            return true
+        }
+    }
+    put("((int64_t)sizeof(")
+    if y >= 0 && types[y].kind == Y_STRUCT && types[y].name >= 0 && var_type(types[y].name) >= 0 {
+        put_tok(types[y].name)
+    } else if y >= 0 {
+        put_ctype(y)
+    } else if nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_FN) >= 0 {
+        put("&")
+        put_tok(nodes[a].t)
+    } else if nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 {
+        put_tok(nodes[a].t)
+    } else {
+        gen_expr(a)
+    }
+    put("))")
+    return true
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
@@ -5070,6 +5111,7 @@ let gen_expr(n:int64) {
     }
     if gen_bits(n) { return }                            // a Bits's (#387)
     if gen_align(n) { return }                           // (#395)
+    if gen_sizeof(n) { return }                          // (#420)
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     if k == N_ANON {
@@ -6050,6 +6092,7 @@ let has_call(n:int64):bool {
     let k:nkind = nodes[n].kind
     if k == N_CALL || k == N_METHOD { return true }
     if k == N_DESIG { return has_call(nodes[n].a) }    // (#418)
+    if k == N_SIZEOF { return false }                  // sizeof calls nothing it reads (#420)
     if k == N_INIT {
         var a:int64 = nodes[n].b
         while a >= 0 {

@@ -42,6 +42,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_RITER,    // the Iterator<T> of the Range a, which kc makes for its lazy and prefix { ... } (#373)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     N_DESIG,    // .t = a in {...}, C's designator (#418)
+    N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -444,6 +445,29 @@ let array_literal_ahead():bool {
 // whether (T){ starts here, its { on the line of the (T) (#418)
 let literal_ahead():bool {
     return at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1)
+}
+
+// whether token t starts a type in sizeof(...) (#420), as kelvinc's: a
+// built-in type's word, const, [ or $[, Self in a method, or a struct's
+// or an enum's name, which gen reads as a variable's where one hides it
+let sizeof_type_at(t:int64):bool {
+    if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") { return true }
+    if toks[t].kind != T_ID { return false }
+    if tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
+        return !tok_is(t + 1, "(")                       // String(x), a converter's value
+    }
+    if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
+    if tok_is(t, "Optional") || tok_is(t, "Result") || tok_is(t, "Iterator") || tok_is(t, "Range") || tok_is(t, "Task") || tok_is(t, "Set") || tok_is(t, "Dictionary") {
+        return tok_is(t + 1, "<")
+    }
+    if tok_is(t, "Self") { return self_name >= 0 }
+    let u:int64 = scoped_type(t)
+    for d in nodes {
+        if (d.kind == D_STRUCT || d.kind == D_ENUM) && same_text(d.t, u) {
+            return tok_is(t + 1, ")") || tok_is(t + 1, "^") || tok_is(t + 1, ".")
+        }
+    }
+    return false
 }
 
 // the path Kelvin writes of the type named by token t: point.kind of
@@ -1651,6 +1675,23 @@ let parse_unary():int64 {
     if at_word("await") {                        // await t, its value (#313)
         let t:int64 = advance()
         let n:int64 = make_node(N_AWAIT, t)
+        set_a(n, parse_unary())
+        return n
+    }
+    if at_word("sizeof") {                       // sizeof(T), sizeof x (#420), as kelvinc's
+        let t:int64 = advance()
+        let n:int64 = make_node(N_SIZEOF, t)
+        if at_word("(") && !literal_ahead() && !array_literal_ahead() && sizeof_type_at(pos + 1) {
+            advance()                            // a compound literal's size is a value's, sizeof (T){...}
+            set_ty(n, parse_type())
+            expect(")")
+            return n
+        }
+        if at_kind(T_ID) && sizeof_type_at(pos) && !local_named(pos) {
+            nodes[n].flag = 1                    // sizeof T, gen's error in Kelvin's words
+            set_ty(n, parse_type())
+            return n
+        }
         set_a(n, parse_unary())
         return n
     }

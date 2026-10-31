@@ -794,5 +794,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     let third:int64 = ([int64](4))[7, 8, 9][2]
     let summed:int64 = total_of(([int64])[4, 5, 6], 3)
     println(odds.count, " ", odds[2], " ", squares[1][0], " ", squares.count, " ", third, " ", summed)
+    let sized:int64 = sizeof (point){1, 2}             // sizeof(T), sizeof x (#420): C's, an int64
+    let cells:int64 = sizeof(odds) / sizeof(int64)
+    println(sizeof(point), " ", sizeof(int32^), " ", sizeof odds[0], " ", cells, " ", sized, " ", sizeof(shade), " ", sizeof shade_name)
     return 0
 }
