@@ -1396,7 +1396,7 @@ let fixed_arg_ok(a:int64, py:int64, who:const String^):bool {
     }
     if types[py].name == 0 - 4 || types[ay].name == 0 - 2 { return true }
     let r:int64 = changed_root(a)
-    let let_s = types[ay].name == 0 - 4 || (r >= 0 && how_declared(nodes[r].t) != 0)
+    let let_s = types[ay].name == 0 - 4 || types[ay].konst == 1 || (r >= 0 && how_declared(nodes[r].t) != 0)
     if !let_s { return true }
     var m = who^.copy()
     m += " is "
@@ -1406,7 +1406,7 @@ let fixed_arg_ok(a:int64, py:int64, who:const String^):bool {
     m += ", which may change its elements, and this is "
     let aw:String = type_text(ay)
     m += &aw
-    m += types[ay].name == 0 - 4 ? ", which reads them alone: write [const T] in the type taken" : ", a let's: write [const T] in the type taken, or pass a var's"
+    m += types[ay].name == 0 - 4 ? ", which reads them alone: write [const T] in the type taken" : types[ay].konst == 1 ? ", whose elements are const: write [const T] in the type taken" : ", a let's: write [const T] in the type taken, or pass a var's"
     gen_error(a, m.cstr)
     return false
 }
@@ -5528,7 +5528,7 @@ let type_text(y:int64):String {
             s += "^"
             return s
         }
-        var s = types[y].name == 0 - 3 ? $"[const " : $"["
+        var s = types[y].name == 0 - 3 || types[y].konst == 1 ? $"[const " : $"["   // [const T](N) (#425)
         s += type_text(types[y].elem)
         s += "]"
         if types[y].name <= 0 - 10 {                     // [u8](n), of a count C computes (#366)
@@ -5767,7 +5767,12 @@ let put_fixed_decl(y:int64, name:int64) {
 // a fixed array's element type, the innermost (#354)
 let put_fixed_base(y:int64) {
     var base:int64 = y
-    while types[base].kind == Y_FIXED { base = types[base].elem }
+    var konst = false
+    while types[base].kind == Y_FIXED {
+        if types[base].konst == 1 { konst = true }
+        base = types[base].elem
+    }
+    if konst { put("const ") }                           // [const T](N): const int32_t a[3] (#425)
     put_ctype(base)
 }
 
@@ -5864,8 +5869,8 @@ let gen_array_literal(n:int64) {
 let fixed_list_fits(v:int64, y:int64):bool {
     let e:int64 = types[y].elem
     if nodes[v].ty >= 0 && nodes[v].flag == 0 {
-        let vy:int64 = type_of(v)
-        if vy != y && !(types[y].name == 0 - 1 && types[vy].kind == Y_FIXED && types[vy].elem == e) {
+        let vy:int64 = plain_fixed(type_of(v))
+        if vy != plain_fixed(y) && !(types[y].name == 0 - 1 && types[vy].kind == Y_FIXED && types[vy].elem == e) {   // [const T](N) of ([T](N))[a, b] (#425)
             var m = $"this is "
             let vw:String = type_text(vy)
             m += &vw
@@ -6014,8 +6019,8 @@ let gen_fixed_var(n:int64) {
     }
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 {   // [T](n)
         let zy:int64 = type_of(v)
-        if types[y].name == 0 - 1 { y = zy }
-        if y != zy {
+        if types[y].name == 0 - 1 { y = types[y].konst == 1 ? const_fixed(zy) : zy }
+        if plain_fixed(y) != zy {                        // [const T](N) of [T](n) (#425)
             var m = $"'"
             m += tok_text(nodes[n].t)
             m += "' is "
@@ -6033,7 +6038,11 @@ let gen_fixed_var(n:int64) {
             return
         }
         if !fixed_list_fits(v, y) { return }
-        if types[y].name < 0 { y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0) }
+        if types[y].name < 0 {
+            let konst = types[y].konst == 1
+            y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0)
+            if konst { y = const_fixed(y) }              // (#425)
+        }
     } else if v >= 0 {                                   // a copy, as C has none
         gen_error(v, "an array is not copied by '=': read its elements, a[i]; ':=' of one is not kc's yet")
         return
@@ -6172,6 +6181,14 @@ let may_change(n:int64):bool {
         if nodes[e].kind == N_INDEX {
             let ay:int64 = type_of(nodes[e].a)
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 2 { return true }
+            if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].konst == 1 {   // (#425)
+                var m = $"this changes an element of a "
+                let w:String = type_text(ay)
+                m += &w
+                m += ", whose elements are const: declare it without const to change them"
+                gen_error(n, m.cstr)
+                return false
+            }
             if ay >= 0 && types[ay].kind == Y_FIXED && types[ay].name == 0 - 4 {
                 var m = $"this changes an element of a "
                 let w:String = type_text(ay)
@@ -10140,10 +10157,12 @@ let told(y:int64):int64 {
     let k:ykind = types[y].kind
     if k == Y_TYPEOF {
         let v:int64 = type_of(types[y].name)
+        if v >= 0 && types[y].elem == 1 && types[v].kind == Y_FIXED { return const_fixed(v) }   // const xs.type (#425)
         return v < 0 ? base_type(Y_VOID) : v
     }
     let name:int64 = k == Y_DICT ? told(types[y].name) : types[y].name
-    return type_of_kind(k, told(types[y].elem), name)
+    let u:int64 = type_of_kind(k, told(types[y].elem), name)
+    return types[y].konst == 1 ? const_fixed(u) : u
 }
 
 // each x.type in the expression n and those after it, told (#423); not
@@ -11194,7 +11213,7 @@ let fixed_params() {
             while p >= 0 {
                 let y:int64 = nodes[p].ty
                 if y >= 0 && types[y].kind == Y_FIXED {
-                    set_ty(p, type_of_kind(Y_FIXED, types[y].elem, types[y].name == 0 - 3 ? 0 - 4 : 0 - 2))
+                    set_ty(p, type_of_kind(Y_FIXED, types[y].elem, types[y].name == 0 - 3 || types[y].konst == 1 ? 0 - 4 : 0 - 2))   // [const T](N) too (#425)
                 }
                 p = nodes[p].next
             }

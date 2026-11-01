@@ -552,7 +552,7 @@ kc reads what it is written in, and little more.
   - `$0.type` in an anonymous function (#424), and `v.type` of a
     parameter of `{ v in ... }`, by #423's way, gen telling it where it
     writes the function; outside one, kelvinc's error, in its words.
-  - Not yet: `const xs.type`.
+  - `const xs.type` of a fixed array (#425), `[const T](N)`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
@@ -685,6 +685,11 @@ kc reads what it is written in, and little more.
       and this is Array<i64>`; kc's where kelvinc leaves it to C or
       warns, as of a let's array to `[T]`.
     - `for x in xs` of one is kc's error: kelvinc's walks past its end.
+  - Of const elements (#425), `[const T](N)`, and `const xs.type` of a
+    fixed array, as kelvinc's #34 puts the const on its elements: C's
+    `const int32_t a[3]`, a let's or a var's, as kelvinc has them.
+    - Changing an element, or passing it to `[T]`, is kc's error, where
+      kelvinc leaves it to C or warns.
   - Never a result (#358): `a function cannot return an array, as C
     cannot: return a struct that holds one, or take one as a parameter
     and fill it`, where kelvinc leaves it to C.

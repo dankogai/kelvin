@@ -114,6 +114,7 @@ struct ty {
     kind: ykind
     elem: int64        // of an Array or a pointer
     name: int64        // the token of a struct's name; a Dictionary's key type (#211)
+    konst: int64       // 1 of [const T](N), a fixed array of const elements (#425)
 }
 
 extend node {                                      // (#213)
@@ -186,7 +187,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
     var i = 0
     while i < types.count as int64 {
         let y:ty = types[i]
-        if y.kind == kind && y.elem == elem {
+        if y.kind == kind && y.elem == elem && y.konst == 0 {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
             } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF {
@@ -197,12 +198,30 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         }
         i += 1
     }
-    let y:ty = {kind, elem, name}
+    let y:ty = {kind, elem, name, 0}
     types += y
     if kind == Y_ARRAY { arrays += types.count as int64 - 1 }
     if kind == Y_DICT { dicts += types.count as int64 - 1 }
     if kind == Y_SET { sets += types.count as int64 - 1 }
     return types.count as int64 - 1
+}
+
+// [const T](N) of the fixed array y, its elements const (#425): a type
+// of its own, as type_of_kind makes none
+let const_fixed(y:int64):int64 {
+    if types[y].konst == 1 { return y }
+    for i in 0..<types.count as int64 {
+        if types[i].konst == 1 && types[i].elem == types[y].elem && types[i].name == types[y].name { return i }
+    }
+    let c:ty = {Y_FIXED, types[y].elem, types[y].name, 1}
+    types += c
+    return types.count as int64 - 1
+}
+
+// the fixed array y without const elements, [T](N) of [const T](N) (#425)
+let plain_fixed(y:int64):int64 {
+    if y < 0 || types[y].konst == 0 { return y }
+    return type_of_kind(Y_FIXED, types[y].elem, types[y].name)
 }
 
 let base_type(kind:ykind):int64 {
@@ -825,6 +844,11 @@ let type_follows(t:int64):bool {
     return false
 }
 
+// whether x.type starts at token t, x a variable (#422), $0 (#424)
+let value_type_at(t:int64):bool {
+    return (local_named(t) || dollar_named(t) || written_type(t) != 0 - 2) && type_follows(t)
+}
+
 // the type of the member at token m of the struct y, or -1 (#422)
 let member_ty(y:int64, m:int64):int64 {
     for d in nodes {
@@ -962,7 +986,10 @@ let late_refused(t:int64):bool {
 let parse_type():int64 {
     if at_word("const") {
         advance()
+        let typed = value_type_at(pos)
         let y = parse_bare_type()
+        if typed && types[y].kind == Y_FIXED { return const_fixed(y) }   // const xs.type, const on its elements, as kelvinc's #34 (#425)
+        if typed && types[y].kind == Y_TYPEOF { return type_of_kind(Y_TYPEOF, 1, types[y].name) }   // told so (#425)
         if types[y].kind == Y_ARRAY {               // as kelvinc has it of each spelling, $[T] (#273, #274)
             parse_error("a qualifier of an Array or a Dictionary is the variable's: a let does not change")
         } else if types[y].kind == Y_DICT {
@@ -1042,11 +1069,8 @@ let parse_bare_type():int64 {
         }
         expect("]")
         var count:int64 = constant ? 0 - 3 : 0 - 1
-        if constant && at_word("(") {
-            parse_error("kc reads [const T] without a count, a parameter's; not yet [const T](N)")
-            return base_type(Y_VOID)
-        }
-        if at_word("(") {
+        let counted = at_word("(")
+        if counted {
             advance()
             count = tok_is(pos + 1, ")") ? tok_count(pos) : 0 - 1
             if count < 0 {                           // a count C computes, a local's (#366): -10 - its node
@@ -1057,6 +1081,7 @@ let parse_bare_type():int64 {
             expect(")")
         }
         var y:int64 = type_of_kind(Y_FIXED, elem, count)
+        if constant && counted { y = const_fixed(y) }   // [const T](N), its elements const (#425)
         while at_word("^") || at_word("?") {         // [T](N)^, which gen says is not kc's yet
             y = at_word("?") ? optional_of(y) : type_of_kind(Y_PTR, y, -1)
             advance()
@@ -1070,7 +1095,7 @@ let parse_bare_type():int64 {
     refuse_restrict()                            // restrict T^ (#393)
     let t:int64 = advance()
     var y = -1
-    if (local_named(t) || dollar_named(t) || written_type(t) != 0 - 2) && type_follows(t) {   // x.type, a value's type (#422), $0.type (#424)
+    if value_type_at(t) {                                // x.type, a value's type (#422), $0.type (#424)
         y = value_type(t)
     } else if tok_is(t, "int64") {
         y = base_type(Y_I64)

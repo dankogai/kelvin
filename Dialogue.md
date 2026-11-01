@@ -8312,3 +8312,20 @@ block, and crashes after some errors in an anonymous function. Details
 are provisional P436.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 472. kc's const xs.type
+
+> make kc read const xs.type
+
+**Claude** made it #425. kc read `const x.type` of a number, a struct
+and a pointer already; of a fixed array, kelvinc puts the const on its
+elements, `[const T](N)`, which kc did not read even when written.
+**Claude** asked whether to read a written `[const T](N)` too, and
+whether a var of one is allowed, as kelvinc's own test has it, where
+kc let only a let have `[const T]`. The user chose both, and var as
+kelvinc. kc's types gain a mark of const elements: C's
+`const int32_t a[3]`, an element's change and passing one to `[T]` kc's
+errors. sample.k's `fixed_x` and `kept` print the same through both
+compilers. Details are provisional P437.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

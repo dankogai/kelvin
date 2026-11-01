@@ -813,5 +813,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     let swapped = anchors.map { ($0.type){$0.y, $0.x} }
     let tripled = odd_list.map { v in (v as v.type) * 3 }
     println(halved_list, " ", swapped, " ", tripled)
+    let fixed_x:const cast_x.type = [narrow, 7]          // const xs.type of an array, [const T](N) (#425)
+    var kept:[const int64](2) = [odds[0], odds[2]]
+    println(fixed_x[1], " ", sizeof fixed_x, " ", kept[1], " ", kept.count)
     return 0
 }
