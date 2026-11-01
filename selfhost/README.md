@@ -594,6 +594,8 @@ kc reads what it is written in, and little more.
 - **Short type names** (#430), as kelvinc's #151: `i64`, `i32`, `u8`,
   `u32`, `f64` and `f32` are `int64` and the rest, wherever a type goes,
   after `:` and `as`, in `sizeof(...)`, and as converters, `i64(s)`.
+  - With #428 and #429, kc builds the README's Synopsis, a fizzbuzz
+    (#431), as it is written, and it prints what kelvinc's build prints.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.

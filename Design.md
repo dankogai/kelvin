@@ -462,6 +462,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 428 | kc reads function values, as kelvinc's #31 and #32: a function type `(T, U):R`, `(T)` of no result, for a parameter, a result, a variable, a global and a struct's member, a reference assigned with `:=`; a function's name and an anonymous function as values, `{ $0 + 1 }` typed by where it goes, `{ (k:i64):i64 in ... }` anywhere and called in place; a call through one, by a member too, `s.op(x)`; in C a typedef of the pointer, `_kv_fnN`; owners and `...` in one kc's error, not yet | selfhost/parse.k's Y_FN, Y_PARAM, fn_type_of; selfhost/gen.k's gen_fn_value, gen_fn_call, callee_type, anon_type, named_fn_type, member_fn_type | `{ (k:int64):int64 in ... }(odds[0] - 10)` of kc | 2026-11-02 |
 | 429 | kc reads the converters `T(v)`, as kelvinc's #36: of kc's number types and `bool`, a number's C's cast; of text, a cstr, a String, a `u8^`, an array of `u8` or a `?:` of them, the number in it, by kv_text_int and friends, clamped, with a base for an integer type, `int64(s, 16)`; of what only C sees, C's `_Generic`, KV_TEXT; a base after a number or of a float and a third value kelvinc's errors | selfhost/gen.k's converter_of, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter | `int32("ff", 16)` of kc | 2026-11-02 |
 | 430 | kc reads kelvinc's short type names, as its #151: `i64`, `i32`, `u8`, `u32`, `f64` and `f32` are `int64` and the rest wherever a type goes, after `:` and `as`, in `sizeof(...)`, and as a converter, `i64(s)` | selfhost/parse.k's number_word | `let short_u8:u8 = u8("300")` of kc | 2026-11-02 |
+| 431 | The README's Synopsis is a fizzbuzz, in place of the linked list's `sum`: a function that builds a String, an anonymous function called in place, `i64(argv[1])` and a closed range, `1...n`; tests/docs.sh compiles it, and kc builds it too | README.md's Synopsis | `{ (k:i64):i64 in ... }(...)` | 2026-11-02 |
 
 Notes:
 
@@ -1046,6 +1047,19 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (431) Agreed details: "change README.md example a little more
+  kelvinish", with the user's fizzbuzz (#428's note).
+  - The user chose it in place of the Synopsis's linked list `sum`, and
+    its range from 1, `1...n`, not 0.
+  - Tidied to Style.md: `):i32` without a space, no `;` after
+    `return 0`, and the anonymous function's written parameters on the
+    line that opens it, `{ (k:i64):i64 in`, its body below.
+  - Short comments say what is Kelvin's: a String empty to start, moved
+    out by `return`, an anonymous function called in place, `i64(text)`
+    reading the number in it, a closed range.
+  - tests/docs.sh compiles it with kelvinc, as every README block;
+    #428 to #430 let kc build it too, which prints the same.
 
 - (430) Agreed details: kc reads kelvinc's short type names, which the
   README's fizzbuzz writes, as a number of its own (#429's note).
@@ -5985,6 +5999,7 @@ says "as agreed".
 | P440 | Details of #428 | selfhost/parse.k: Y_FN, Y_PARAM, fn_types, fn_type_of, type_of_kind's chain, parse_bare_type's `(T, U):R`, anon_ahead's `()` and list comma; selfhost/gen.k: put_ctype's `_kv_fnN`, type_text's, write_type's typedef, forward_struct, fn_named, decl_fn_type, named_fn_type, anon_type, callee_type, member_fn_type, fn_owner_refused, anon_made, gen_fn_value, gen_fn_call and their prototypes, type_of's N_ID, N_CALL, N_ANON and N_METHOD, gen_expr's, gen_value's and gen_call's, inferred's, assigns_as's reference, print's error, a global's functions declared first, gen_program's typedefs; selfhost/sample.k: `apply_twice`, `dispatch`, the `clamped` lines; selfhost/README.md | — |
 | P441 | Details of #429 | selfhost/gen.k: converter_of and its prototype, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter, type_of's and gen_call's converter; selfhost/sample.k: `hex_text` and the converters' line; selfhost/README.md | — |
 | P442 | Details of #430 | selfhost/parse.k: number_word, parse_bare_type's, annotation_ahead's and sizeof_type_at's use of it; selfhost/gen.k: converter_of's; selfhost/sample.k: `short_u8`, `short_half`; selfhost/README.md | — |
+| P443 | Details of #431 | README.md: the Synopsis's fizzbuzz; selfhost/README.md: the Synopsis under short type names | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

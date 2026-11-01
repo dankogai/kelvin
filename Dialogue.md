@@ -8424,3 +8424,17 @@ written. sample.k's new line prints the same through both compilers.
 Details are provisional P442.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 478. The README's fizzbuzz
+
+> go on with #431
+
+**Claude** made it #431, the second half of #475's request. The README's
+Synopsis is now the user's fizzbuzz, in place of the linked list's
+`sum`: a function that builds a String, an anonymous function called in
+place, `i64(argv[1])` and a closed range from 1, as the user chose,
+tidied to Style.md, with short comments on what is Kelvin's. tests/docs.sh
+compiles it, and kc, with #428 to #430, builds it as written and prints
+what kelvinc's build prints. Details are provisional P443.
+
+There are 1163 tests, and all pass with clang and with gcc 15.

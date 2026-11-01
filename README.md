@@ -12,20 +12,22 @@ one.
 ## Synopsis
 
 ```swift
-#import <stdio.h> as C
-
-struct node {
-    value: int32
-    next:  node^
+let fizzbuzz(n:i64):String {
+    var r:String                    // a String, empty to start
+    if n % 3 == 0 { r += $"fizz" }
+    if n % 5 == 0 { r += $"buzz" }
+    if r == $"" { r = String(n) }
+    return r                        // moved out to the caller
 }
 
-let sum(var n:node^):int32 {      // n may move; parameters are lets otherwise
-    var total:int32 = 0
-    while n != nullptr {
-        total += n^.value       // C: n->value
-        n := n^.next
+let main(argc:i32, argv:[cstr]):i32 {
+    let n = { (k:i64):i64 in        // an anonymous function, called in place
+        k <= 0 ? 30 : k
+    }(argc < 2 ? 0 : i64(argv[1]))  // i64(text) reads the number in it
+    for i in 1...n {                // a closed range, 1 to n
+        println(fizzbuzz(i))
     }
-    return total
+    return 0
 }
 ```
 
