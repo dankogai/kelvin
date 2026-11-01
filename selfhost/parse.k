@@ -150,6 +150,9 @@ var records_seen:Dictionary<String, int64> // every struct and enum read so far,
 var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
 var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
 var late_seen = false          // whether the program has an x.type gen tells (#423)
+var anon_depth:int64 = 0       // how many anonymous functions the cursor is in, whose $0.type gen tells (#424)
+var anon_named:$[int64]        // the names of { v in ... }'s parameters the cursor is among (#424)
+var literal_brace = false      // whether the { at the cursor is a compound literal's, (T){$0.y, $0.x} (#424)
 var locals_seen:$[int64]       // the names declared in the function being read, which a nested type's bare name yields to (#389)
 var local_types:$[int64]       // the types defined in the blocks being read (#391): the tokens kc names them by, _kv_main_point
 var local_type_depths:$[int64] // and the depth of the block each is in
@@ -404,6 +407,21 @@ let local_named(t:int64):bool {
     return false
 }
 
+// whether token t is an anonymous function's $0, $1, ..., whose type gen
+// knows alone (#424)
+let dollar_named(t:int64):bool {
+    return toks[t].kind == T_ID && toks[t].len > 1 && codes[toks[t].at] == '$'
+}
+
+// whether token t names a parameter of { v in ... } the cursor is in
+// (#424), typed where the function goes
+let anon_param(t:int64):bool {
+    for v in anon_named {
+        if same_text(v, t) { return true }
+    }
+    return false
+}
+
 // whether the program declares, so far, a global, a function, a struct or
 // an enum named as token t's (#416)
 let program_named(t:int64):bool {
@@ -451,7 +469,7 @@ let value_type_end():int64    // a prototype: (x.type){...} is a compound litera
 let literal_ahead():bool {
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
     let e:int64 = value_type_end()
-    return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || written_type(pos + 1) != 0 - 2)
+    return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2)
 }
 
 // whether sizeof's ( opens a value's type, (x.type) or (p.x.type^)
@@ -828,7 +846,14 @@ let late_type(t:int64):int64    // a prototype: x.type of an inferred local (#42
 // .member's, ^'s and [i]'s, up to the .type, which it reads
 let value_type(t:int64):int64 {
     var y:int64 = written_type(t)
-    if y < 0 && local_named(t) { return late_type(t) }
+    if dollar_named(t) && anon_depth == 0 {             // as kelvinc says it (#424)
+        var e = $"'"
+        e += tok_text(t)
+        e += "' is a parameter of an anonymous function, and this is not in one"
+        parse_error(e.cstr)
+        return base_type(Y_VOID)
+    }
+    if dollar_named(t) || (y < 0 && (local_named(t) || anon_param(t))) { return late_type(t) }   // $0.type, v.type of { v in ... } (#424)
     if y < 0 {
         parse_error("kc reads x.type of a local or a parameter; not yet of a global whose type is inferred")
         return base_type(Y_VOID)
@@ -1045,7 +1070,7 @@ let parse_bare_type():int64 {
     refuse_restrict()                            // restrict T^ (#393)
     let t:int64 = advance()
     var y = -1
-    if (local_named(t) || written_type(t) != 0 - 2) && type_follows(t) {   // x.type, a value's type (#422)
+    if (local_named(t) || dollar_named(t) || written_type(t) != 0 - 2) && type_follows(t) {   // x.type, a value's type (#422), $0.type (#424)
         y = value_type(t)
     } else if tok_is(t, "int64") {
         y = base_type(Y_I64)
@@ -1303,7 +1328,7 @@ let anon_ahead():bool {
 let parse_anon():int64 {
     let n:int64 = make_node(N_ANON, advance())
     skip_newlines()
-    if at_word("(") {
+    if at_word("(") && (tok_is(pos + 1, ")") || tok_is(pos + 1, "var") || (toks[pos + 1].kind == T_ID && tok_is(pos + 2, ":"))) {   // not { ($0 as T) ... } (#424)
         advance()
         var last = -1
         var k:int64 = 0
@@ -1332,6 +1357,7 @@ let parse_anon():int64 {
         while !at_word("in") && !failed {
             let p:int64 = make_node(S_VAR, advance())
             nodes[p].flag = 1
+            anon_named += nodes[p].t                     // v.type, which gen tells (#424)
             unnamed_param(p, k, true)                    // { _, b in ... } (#388)
             k += 1
             if last < 0 {
@@ -1348,6 +1374,7 @@ let parse_anon():int64 {
     }
     let b:int64 = make_node(S_BLOCK, nodes[n].t)
     var last = -1
+    anon_depth += 1
     skip_newlines()
     while !at_word("}") && !failed {
         let st:int64 = parse_statement()
@@ -1360,6 +1387,14 @@ let parse_anon():int64 {
         skip_newlines()
     }
     expect("}")
+    anon_depth -= 1
+    if nodes[n].flag == 2 {                              // its names, out of sight (#424)
+        var p:int64 = nodes[n].a
+        while p >= 0 {
+            anon_named.pop()
+            p = nodes[p].next
+        }
+    }
     nodes[n].b = b
     return n
 }
@@ -1540,6 +1575,8 @@ let parse_iterator():int64 {
 let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
+    let braced = literal_brace
+    literal_brace = false
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
     if k == T_ID && (tok_is(t, "__asm__") || tok_is(t, "__asm")) {   // assembly, left out on purpose (#399), as kelvinc says it
@@ -1647,6 +1684,7 @@ let parse_primary():int64 {
         advance()
         let y:int64 = parse_type()
         expect(")")
+        literal_brace = true                             // its { ... } names $0, and is no function (#424)
         let n:int64 = parse_primary()
         set_ty(n, y)
         return n
@@ -1693,7 +1731,7 @@ let parse_primary():int64 {
         advance()
         return parse_brace_body(t)
     }
-    if anon_ahead() { return parse_anon() }          // (#324)
+    if !braced && anon_ahead() { return parse_anon() }          // (#324)
     if at_word("{") {
         advance()
         let n:int64 = make_node(N_INIT, t)

@@ -549,7 +549,10 @@ kc reads what it is written in, and little more.
     parses, nor of a global whose type is inferred.
   - `x.type` as a value, `point.type` and `i64.type` are kelvinc's
     errors, in its words.
-  - Not yet: `$0.type`, `const xs.type`.
+  - `$0.type` in an anonymous function (#424), and `v.type` of a
+    parameter of `{ v in ... }`, by #423's way, gen telling it where it
+    writes the function; outside one, kelvinc's error, in its words.
+  - Not yet: `const xs.type`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.

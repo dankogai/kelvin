@@ -455,6 +455,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 421 | kc reads `sizeof(x.type)`, as kelvinc's #34: x's size, a name then `.member`, `^` or `[...]` steps, `p.x.type`, `q^.type`, `a[0].type`; `x.type^` a pointer's, C's `sizeof(__typeof__(x) *)`; a member named type of a struct, a C struct's and a value's kc does not know are members, as kelvinc's type_is_field; `sizeof x.type`, without parentheses, kelvinc's error, in its words | selfhost/parse.k's value_type_ahead, N_SIZEOF's flag 2; selfhost/gen.k's type_member, gen_sizeof | `sizeof(anchor.type^)` of kc | 2026-11-01 |
 | 422 | kc reads `x.type` where a type goes, as kelvinc's #34: after `:` and `as`, of a parameter's an earlier parameter's, in `[x.type](3)`, `x.type^`, `x.type?` and `(x.type){...}`; a path too, `p.x.type`, `q^.type`, `a[0].type`; read while kc parses, x's written type, as `typeof(x)` is (#398), so of a variable whose type is inferred kc's error says not yet; `x.type` as a value, `point.type` and `i64.type` kelvinc's errors, in its words; a member that is none kc's error, where kelvinc's C says it | selfhost/parse.k's type_follows, member_ty, value_type, value_type_end; selfhost/gen.k's type_of of `.type` | `var mirror:anchor.type` of kc | 2026-11-01 |
 | 423 | kc reads `x.type` of a local whose type is inferred, as kelvinc's #34: a Y_TYPEOF of x's path, read as a value, which gen tells just before it writes each statement, its locals before it declared, as type_of says it; inside `[x.type](3)`, `x.type^`, `$[x.type]`, a Dictionary's key and `(x.type){...}` too; `T?`, `Result<T, E>` and a Dictionary's value of one, which kc makes as it parses, and a global's inferred type, kc's errors that say not yet | selfhost/parse.k's Y_TYPEOF, late_type, late, late_refused, late_seen; selfhost/gen.k's told, tell_expr, tell_stmt | `var widened_n:narrow.type` of kc | 2026-11-01 |
+| 424 | kc reads `$0.type` in an anonymous function, as kelvinc's #34, and `v.type` of a parameter of `{ v in ... }`: a Y_TYPEOF of the path, as #423's, which gen tells where it writes the function, its parameters declared; told too in a result kc infers of one expression; outside a function, kelvinc's error in its words. A compound literal's `{ ... }` that names `$0`, `(T){$0.y, $0.x}`, is no anonymous function, and a body that opens with `(`, `{ ($0 as T) * 2 }`, takes no parameters unless written so | selfhost/parse.k's dollar_named, anon_param, anon_depth, anon_named, literal_brace; selfhost/gen.k's told in anon_function_of | `odd_list.map { ($0 as $0.type) / 2 }` of kc | 2026-11-01 |
 
 Notes:
 
@@ -1039,6 +1040,28 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (424) Agreed details: "make kc read $0.type", which #422 and #423
+  left not yet.
+  - value_type reads `$0.type`, a name dollar_named sees, by #423's
+    late_type always, as `$0`'s type is gen's alone; so `v.type` of a
+    parameter of `{ v in ... }`, which parse_anon keeps in anon_named
+    while it reads the body.
+  - gen tells it as #423's, statement by statement, where it writes the
+    function, its parameters declared; anon_function_of tells the result
+    it infers of a body of one expression, `{ ($0 as $0.type) / 2 }`.
+  - Outside an anonymous function (anon_depth 0), `$0.type` is
+    kelvinc's error, in its words: "'$0' is a parameter of an anonymous
+    function, and this is not in one".
+  - Found and fixed on the way:
+    - A compound literal's braces that name `$0`, `(T){$0.y, $0.x}`,
+      read as an anonymous function; literal_brace keeps them a list.
+    - A body that opens with `(`, `{ ($0 as T) * 2 }`, read as a
+      parameter list; parse_anon takes one only of `()`, `(var` or
+      `(name:`, the shapes kelvinc's signature_ahead sees.
+  - Found, tasks of their own: kc refuses `if c { ... }; return t`, a `;`
+    after a block, and crashes after some errors in an anonymous
+    function's body, as `ys.map { $0.type }`, both before this change.
 
 - (423) Agreed details: "make kc read x.type of an inferred variable",
   the other choice of #422, a type gen tells late.
@@ -5816,6 +5839,7 @@ says "as agreed".
 | P433 | Details of #421 | selfhost/parse.k: value_type_ahead, N_SIZEOF's flag 2; selfhost/gen.k: type_member, gen_sizeof's `.type`; selfhost/sample.k: `anchor`; selfhost/README.md | — |
 | P434 | Details of #422 | selfhost/parse.k: type_follows, member_ty, value_type, parse_bare_type's `x.type` and `T.type` error, value_type_end, literal_ahead's `(x.type){`; selfhost/gen.k: type_member's prototype, type_of's `.type` error; selfhost/sample.k: `mirror`, `narrow`, `cast_x`; selfhost/README.md | — |
 | P435 | Details of #423 | selfhost/parse.k: Y_TYPEOF, type_of_kind's name of one, late_seen, late_type, late, late_refused in optional_of and result_of, value_type's late path; selfhost/gen.k: put_ctype's case, write_type's pass, told, tell_expr, tell_stmt, gen_stmt's call; selfhost/sample.k: `widened_n`, `odd_cells`, `odd_list`; selfhost/README.md | — |
+| P436 | Details of #424 | selfhost/parse.k: dollar_named, anon_param, anon_depth, anon_named, literal_brace, value_type's `$0` path and error, parse_bare_type's and literal_ahead's gates, parse_anon's parameter shapes, depth and names, parse_primary's braced; selfhost/gen.k: told's prototype, anon_function_of's told result; selfhost/sample.k: `halved_list`, `anchors`, `swapped`, `tripled`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -808,5 +808,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     var odd_list:$[narrow.type] = $[narrow]
     odd_list += widened_n
     println(widened_n, " ", sizeof widened_n, " ", odd_cells[1], " ", sizeof odd_cells, " ", odd_list)
+    let halved_list = odd_list.map { ($0 as $0.type) / 2 }      // $0.type of an anonymous function (#424)
+    let anchors:$[point] = $[anchor, mirror]
+    let swapped = anchors.map { ($0.type){$0.y, $0.x} }
+    let tripled = odd_list.map { v in (v as v.type) * 3 }
+    println(halved_list, " ", swapped, " ", tripled)
     return 0
 }

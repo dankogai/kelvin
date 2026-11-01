@@ -939,6 +939,7 @@ let value_align(n:int64):bool {
 
 let coalesces_whole(n:int64):bool    // a prototype: x ?? y of the whole x's type (#408, #409)
 let type_member(f:int64):bool    // and x.type, which is no value (#422)
+let told(y:int64):int64    // and an x.type told, $0.type of a function's one expression (#424)
 
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
@@ -6822,7 +6823,7 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
             declare_as(nodes[p].t, nodes[p].ty, 2)
             p = nodes[p].next
         }
-        nodes[d].ty = type_of(nodes[st].a)
+        nodes[d].ty = told(type_of(nodes[st].a))     // $0.type told (#424)
         close_scope()
     }
     decls += d

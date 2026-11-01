@@ -8293,3 +8293,22 @@ String traps at run time, which is a task of its own. Details are
 provisional P435.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 471. kc's $0.type
+
+> make kc read $0.type
+
+**Claude** made it #424: `$0.type` in an anonymous function is read as
+#423's inferred `x.type`, kept as a path that gen tells where it writes
+the function, as only gen knows `$0`'s type; `v.type` of `{ v in ... }`
+too, and outside a function it is kelvinc's error, in its words. Testing
+found two older faults in kc's reading of anonymous functions, both
+fixed: a compound literal `(T){$0.y, $0.x}` inside one read its braces
+as another function, and a body that opens with `(`, as
+`{ ($0 as T) * 2 }`, read as a parameter list. sample.k's `halved_list`,
+`swapped` and `tripled` print the same through both compilers. Two
+older faults remain, tasks of their own: kc refuses a `;` after a
+block, and crashes after some errors in an anonymous function. Details
+are provisional P436.
+
+There are 1159 tests, and all pass with clang and with gcc 15.
