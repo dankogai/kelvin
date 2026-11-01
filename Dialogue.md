@@ -8329,3 +8329,23 @@ errors. sample.k's `fixed_x` and `kept` print the same through both
 compilers. Details are provisional P437.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 473. kc's .typename
+
+> make kc read .typename
+
+**Claude** made it #426. kc read `.typename` of a Set and a Dictionary
+alone; now it reads it of any value, as kelvinc's #34: the Kelvin name
+of its type, written as text, the value never run. A function's name,
+which has no type in kc, is spelled from its parameters and result,
+`(shade):cstr`; a literal's type, and what only C sees, are C's, by the
+prelude's `_Generic`, `42.typename` `i32` and `"a".typename` `u8^`, as
+kelvinc gives them. A struct's member named `typename` stays the member,
+and a Range's or an overloaded function's are kelvinc's errors. Where
+kc's types differ, a count's i64 and a number's dropped const, so do the
+names. sample.k's `.typename` line prints the same through both
+compilers. Testing found that kelvinc lets a function of no result
+`return false`, which C refuses, a task of its own. Details are
+provisional P438.
+
+There are 1159 tests, and all pass with clang and with gcc 15.

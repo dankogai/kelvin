@@ -457,6 +457,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 423 | kc reads `x.type` of a local whose type is inferred, as kelvinc's #34: a Y_TYPEOF of x's path, read as a value, which gen tells just before it writes each statement, its locals before it declared, as type_of says it; inside `[x.type](3)`, `x.type^`, `$[x.type]`, a Dictionary's key and `(x.type){...}` too; `T?`, `Result<T, E>` and a Dictionary's value of one, which kc makes as it parses, and a global's inferred type, kc's errors that say not yet | selfhost/parse.k's Y_TYPEOF, late_type, late, late_refused, late_seen; selfhost/gen.k's told, tell_expr, tell_stmt | `var widened_n:narrow.type` of kc | 2026-11-01 |
 | 424 | kc reads `$0.type` in an anonymous function, as kelvinc's #34, and `v.type` of a parameter of `{ v in ... }`: a Y_TYPEOF of the path, as #423's, which gen tells where it writes the function, its parameters declared; told too in a result kc infers of one expression; outside a function, kelvinc's error in its words. A compound literal's `{ ... }` that names `$0`, `(T){$0.y, $0.x}`, is no anonymous function, and a body that opens with `(`, `{ ($0 as T) * 2 }`, takes no parameters unless written so | selfhost/parse.k's dollar_named, anon_param, anon_depth, anon_named, literal_brace; selfhost/gen.k's told in anon_function_of | `odd_list.map { ($0 as $0.type) / 2 }` of kc | 2026-11-01 |
 | 425 | kc reads `[const T](N)`, a fixed array of const elements with its count, and `const xs.type` of a fixed array, as kelvinc's #34 puts the const on its elements: C's `const int32_t a[3]`, a var's too, as kelvinc has it; a parameter's a `const T*`; changing an element, or passing it to `[T]`, kc's error, where kelvinc leaves it to C or warns; `const n.type` of an inferred array told so | selfhost/parse.k's ty.konst, const_fixed, plain_fixed, value_type_at; selfhost/gen.k's put_fixed_base, told | `var kept:[const int64](2)` of kc | 2026-11-01 |
+| 426 | kc reads `x.typename` of any value, as kelvinc's #34: the Kelvin name of its type, a cstr literal, x never run; a function's, `(i64, cstr):bool`, `()` of no result; a literal's and what only C sees, C's `_Generic`; a struct's member of the name stays the member; a Range's and an overloaded function's, kelvinc's errors in its words | selfhost/gen.k's typename_member, gen_typename, function_named, function_typename | `shade_name.typename` of kc | 2026-11-01 |
 
 Notes:
 
@@ -1041,6 +1042,28 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (426) Agreed details: "make kc read .typename", which kc read of a
+  Set and a Dictionary alone (#336, #337).
+  - typename_member tells `x.typename`, as kelvinc's: not of a Kelvin
+    struct with a member of the name, nor of a Range, whose error is
+    kelvinc's; type_of gives it a cstr, before an enum's case is looked
+    for, so `o.typename` of a `T?` is `i64?`.
+  - gen_typename writes kelvin_type_text of x's type as a C string, a
+    `?` after a `?` escaped (#220), x never run; of a number, a character
+    or a text literal, whose type is C's, and of what only C sees,
+    `kv_typename((x))`, the prelude's `_Generic`, as kelvinc writes it.
+  - A function's name, which kc gives no type, is told first
+    (function_named): its parameters' and result's names,
+    `(i64, cstr):bool`, `()` where it gives none; overloaded, kelvinc's
+    error, "'ov' names 2 functions: ...".
+  - is_place and owner_part pass over it, as the text is no place and
+    owns nothing; the Set's and Dictionary's own code goes.
+  - Where kc's types differ, so do the names: a count is an i64, where
+    kelvinc's is a u64, and a number's own const, which kc drops, is not
+    in it.
+  - Found: kelvinc lets a function of no result `return false`, which
+    C refuses, a task of its own.
 
 - (425) Agreed details: "make kc read const xs.type", which #422 left
   not yet.
@@ -5866,6 +5889,7 @@ says "as agreed".
 | P435 | Details of #423 | selfhost/parse.k: Y_TYPEOF, type_of_kind's name of one, late_seen, late_type, late, late_refused in optional_of and result_of, value_type's late path; selfhost/gen.k: put_ctype's case, write_type's pass, told, tell_expr, tell_stmt, gen_stmt's call; selfhost/sample.k: `widened_n`, `odd_cells`, `odd_list`; selfhost/README.md | — |
 | P436 | Details of #424 | selfhost/parse.k: dollar_named, anon_param, anon_depth, anon_named, literal_brace, value_type's `$0` path and error, parse_bare_type's and literal_ahead's gates, parse_anon's parameter shapes, depth and names, parse_primary's braced; selfhost/gen.k: told's prototype, anon_function_of's told result; selfhost/sample.k: `halved_list`, `anchors`, `swapped`, `tripled`; selfhost/README.md | — |
 | P437 | Details of #425 | selfhost/parse.k: ty's konst, type_of_kind's konst 0, const_fixed, plain_fixed, value_type_at, parse_type's const x.type, parse_bare_type's `[const T](N)`; selfhost/gen.k: type_text's `[const`, put_fixed_base's const, an element's change refused, passing to `[T]` refused, fixed_params' `const T*`, gen_fixed_var's and fixed_list_fits' plain_fixed, told's const; selfhost/sample.k: `fixed_x`, `kept`; selfhost/README.md | — |
+| P438 | Details of #426 | selfhost/gen.k: typename_member, gen_typename, function_named, function_typename and their prototypes, type_of's cstr, gen_field's call, is_place's and owner_part's pass, the Set's and Dictionary's typename code removed; selfhost/sample.k: the `anchor.typename` line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

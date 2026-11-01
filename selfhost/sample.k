@@ -816,5 +816,6 @@ let main(argc:int32, argv:[cstr]):int32 {
     let fixed_x:const cast_x.type = [narrow, 7]          // const xs.type of an array, [const T](N) (#425)
     var kept:[const int64](2) = [odds[0], odds[2]]
     println(fixed_x[1], " ", sizeof fixed_x, " ", kept[1], " ", kept.count)
+    println(anchor.typename, " ", kept.typename, " ", halved_list.typename, " ", shade_name.typename, " ", 42.typename, " ", "a".typename)   // x.typename (#426)
     return 0
 }

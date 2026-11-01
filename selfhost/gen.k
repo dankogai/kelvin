@@ -939,6 +939,9 @@ let value_align(n:int64):bool {
 
 let coalesces_whole(n:int64):bool    // a prototype: x ?? y of the whole x's type (#408, #409)
 let type_member(f:int64):bool    // and x.type, which is no value (#422)
+let typename_member(f:int64):bool    // and x.typename, its type's name (#426)
+let gen_typename(n:int64)    // which gen_field writes (#426)
+let function_named(a:int64):bool    // a function's name, whose typename it has (#426)
 let told(y:int64):int64    // and an x.type told, $0.type of a function's one expression (#424)
 
 let type_of(n:int64):int64 {
@@ -1069,6 +1072,7 @@ let type_of(n:int64):int64 {
         gen_error(n, "'.type' is a type, not a value: use it where a type goes, as in 'var w:v.type' or 'x as v.type'")
         return -1
     }
+    if k == N_FIELD && typename_member(n) { return base_type(Y_CSTR) }   // x.typename, its type's name (#426)
     if k == N_INIT && nodes[n].ty >= 0 { return nodes[n].ty }   // (T){a, b} (#418)
     if k == N_FIELD && value_align(n) { return base_type(Y_I64) }      // x.align (#395)
     if k == N_FIELD && tok_is(t, "lazy") {             // s.lazy, before its map or filter (#324)
@@ -1113,7 +1117,6 @@ let type_of(n:int64):int64 {
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
         if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336, #337)
-        if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") { return base_type(Y_CSTR) }      // Set<i64> (#336, #337)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }   // or where its UTF-8 breaks (#406)
@@ -2754,6 +2757,10 @@ let gen_method_of(n:int64)
 let is_made_array(n:int64):bool    // a prototype: gen_field asks it (#285)
 
 let gen_field(n:int64) {
+    if typename_member(n) {                              // (#426)
+        gen_typename(n)
+        return
+    }
     let a:int64 = nodes[n].a
     if !needs_hold(a) {
         gen_member(n)
@@ -2918,11 +2925,6 @@ let gen_member(n:int64) {
         put("); ")
         put_show_name(y)
         put("(&(kv_out){.s = &_kv_ps, .width = 2}, &_kv_sv, 0); _kv_ps; })")
-    } else if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "typename") {   // s.typename, d.typename (#336, #337): its type's name, text
-        put("\"")
-        let w:String = kelvin_type_text(y)
-        out += &w
-        put("\"")
     } else if yk == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values")) {   // d.keys, d.values (#285)
         gen_slots_array(a, y, tok_is(t, "keys") ? types[y].name : types[y].elem, tok_is(t, "values"))
     } else if yk == Y_IO && tok_is(t, "string") {        // f.string, a Result: err where its UTF-8 breaks (#406)
@@ -3228,6 +3230,7 @@ let is_place(n:int64):bool {
         if y >= 0 && types[y].kind == Y_DICT { return false }
     }
     if k == N_FIELD && tagged_named(nodes[n].a) >= 0 { return false }   // T.none, a case made here (#345)
+    if k == N_FIELD && typename_member(n) { return false }   // x.typename, text (#426)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if is_slice(n) { return false }                          // xs[r], a new one (#377)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
@@ -5083,6 +5086,89 @@ let type_member(f:int64):bool {
     return true
 }
 
+// whether f is x.typename (#426), as kelvinc's #34: its type's Kelvin
+// name, text, but a member of a Kelvin struct named so
+let typename_member(f:int64):bool {
+    if nodes[f].kind != N_FIELD || !tok_is(nodes[f].t, "typename") { return false }
+    if function_named(nodes[f].a) { return true }
+    let b:int64 = type_of(nodes[f].a)
+    if b >= 0 && types[b].kind == Y_STRUCT && decl_named(types[b].name, D_STRUCT) >= 0 { return field_type(b, nodes[f].t) < 0 }
+    return b < 0 || types[b].kind != Y_RANGE             // a Range has none, kelvinc's error
+}
+
+// whether a is a function's name, no variable's (#426)
+let function_named(a:int64):bool {
+    return nodes[a].kind == N_ID && var_type(nodes[a].t) < 0 && decl_named(nodes[a].t, D_FN) >= 0
+}
+
+// f.typename of the function the N_ID a names (#426), as kelvinc's:
+// (i64, cstr):bool, () of no result
+let function_typename(a:int64) {
+    var d:int64 = 0 - 1
+    var fns:int64 = 0
+    for x in decls {                                     // its overloads (#41)
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, nodes[a].t) {
+            d = x
+            fns += 1
+        }
+    }
+    if fns > 1 {                                         // as kelvinc says it
+        var m = $"'"
+        m += tok_text(nodes[a].t)
+        m += "' names "
+        m += String(fns)
+        m += " functions: say which by its type, as in 'let f:(T):R := "
+        m += tok_text(nodes[a].t)
+        m += "'"
+        gen_error(a, m.cstr)
+        return
+    }
+    put("\"(")
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        let w:String = kelvin_type_text(nodes[p].ty)
+        out += &w
+        p = nodes[p].next
+        if p >= 0 { put(", ") }
+    }
+    put(")")
+    let r:int64 = nodes[d].ty
+    if r >= 0 && types[r].kind != Y_VOID {
+        put(":")
+        let w:String = kelvin_type_text(r)
+        out += &w
+    }
+    put("\"")
+}
+
+// x.typename (#426), as kelvinc's: the name of x's type as C text, x
+// never run, a '?' after a '?' escaped (#220); of a literal, whose type
+// is C's, "a" a u8^, or of what only C sees, C's _Generic, kv_typename
+let gen_typename(n:int64) {
+    let a:int64 = nodes[n].a
+    if function_named(a) {
+        function_typename(a)
+        return
+    }
+    let y:int64 = type_of(a)
+    if failed { return }
+    if y < 0 || types[y].kind == Y_C || nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR || nodes[a].kind == N_STR {
+        put("kv_typename((")
+        gen_expr(a)
+        put("))")
+        return
+    }
+    let w:String = kelvin_type_text(y)
+    put("\"")
+    var after_q = false
+    for c in w {
+        if c.utf32 == '?' && after_q { put("\\") }
+        after_q = c.utf32 == '?'
+        out += c
+    }
+    put("\"")
+}
+
 // sizeof(T) and sizeof x (#420), as kelvinc's: C's sizeof, an int64 as
 // alignof's is; a struct's name a variable's where one hides it, a
 // function's a pointer's size, and a name kc does not know C's, size_t;
@@ -6639,6 +6725,7 @@ let owner_part(v:int64):bool {
     let k:nkind = nodes[v].kind
     if k != N_FIELD && k != N_INDEX && k != N_DEREF { return false }
     if k == N_FIELD && (tagged_named(nodes[v].a) >= 0 || names_type(nodes[v].a)) { return false }   // T.none, a value made
+    if typename_member(v) { return false }               // x.typename, text of its own (#426)
     if k == N_FIELD {                                    // a struct's member or a case's value, not a property that makes one, as f.string
         let y:int64 = type_of(nodes[v].a)
         if y < 0 || (struct_of(y) < 0 && tagged_of(y) < 0) { return false }

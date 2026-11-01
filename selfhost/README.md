@@ -553,6 +553,14 @@ kc reads what it is written in, and little more.
     parameter of `{ v in ... }`, by #423's way, gen telling it where it
     writes the function; outside one, kelvinc's error, in its words.
   - `const xs.type` of a fixed array (#425), `[const T](N)`.
+- **`x.typename`** (#426), as kelvinc's #34: the Kelvin name of x's type,
+  a cstr, of any value, a function's too, `(shade):cstr`; x is never run.
+  - A literal's type is C's, `42.typename` `i32`, `"a".typename` `u8^`,
+    as is what only C sees: C's `_Generic`, kv_typename.
+  - A struct's member named `typename` stays the member; a Range's and an
+    overloaded function's are kelvinc's errors, in its words.
+  - Where kc's types differ: a count is an i64, where kelvinc's is a u64,
+    and a number's own const is dropped.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
