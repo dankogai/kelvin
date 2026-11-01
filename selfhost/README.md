@@ -344,8 +344,8 @@ kc reads what it is written in, and little more.
   parameter `$0` typed by where it goes, its result its one expression's,
   and `{ (n:int64):int64 in ... }`, written; trailing, `s.lazy.map { ... }`,
   or in parentheses.
-  - kc reads one as the function of `.lazy.map` and `.lazy.filter` alone:
-    elsewhere it is kc's error, as kc has no function values.
+  - kc reads one as the function of `.lazy.map`, `.lazy.filter` and their
+    kin, and, since #428, as a value anywhere one goes.
   - kc writes each as a function of its own, `_kv_<fn>_fnN`, after the
     others, enclosing nothing, as Kelvin's anonymous functions enclose
     nothing.
@@ -564,6 +564,23 @@ kc reads what it is written in, and little more.
 - **A value returned without a result** (#427), as kelvinc's: `return v`
   in a function of no result is kelvinc's error, in its words.
   - A call that gives no value passes, as C's return of a void call does.
+- **Function values** (#428), as kelvinc's #31 and #32: a function
+  type, `(i64, cstr):bool`, `(i64)` of no result, for a parameter, a
+  result, a variable, a global and a struct's member.
+  - In C each is a typedef of its pointer, `_kv_fnN`, written before what
+    uses it, and `struct T;` before one that names a struct not yet
+    written.
+  - A value of one is a reference, assigned with `:=`, `nullptr` until
+    assigned: a function's name, `let g := twice`, or an anonymous
+    function, `{ $0 + 1 }` where the type gives its parameters, and
+    `{ (k:i64):i64 in ... }` anywhere, called in place too, `{ ... }(3)`.
+  - A call through one, `g(3)`, `s.op(3)` of a member, `pick(true)(3, 4)`,
+    passes each argument as its parameter's type, and says when their
+    count is not the type's.
+  - A type that is not the one wanted, an overloaded name, and printing
+    one are kelvinc's errors, in its words.
+  - Not yet: a function type that takes or gives an owner, kc's error; a
+    variadic one, `(i32, ...)`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
@@ -1011,7 +1028,7 @@ kc reads what it is written in, and little more.
     function come before the functions and after them, named as
     kelvinc names them; kc links `-lpthread`.
   - Not yet: kc tracks no moves, so a second `await t` ends the program
-    where kelvinc refuses it, and kc has no function values to start.
+    where kelvinc refuses it, and `async` takes no function value.
 - **Each statement is one line,** but inside `( )` and `[ ]`.
 
 ### Difficulties in the way of self-hosting kelvinc
@@ -1044,7 +1061,8 @@ steps can take them on one at a time.
   - comparing an Optional, `x == none` or `x == 3` (#79);
   - `try`, `Optional`'s `map` and the rest of its methods;
   - attributes, subscripts and operators of `extend`;
-  - anonymous and nested functions, and function types;
+  - nested functions, and of function types (#428) arrays and
+    collections of them, `((T):R)^` and `typealias`;
   - templates, `"""` and `$/.../` with its check;
   - `union` and `typealias`;
   - integers but `int64`, `int32`, `uint8` and `uint32`;

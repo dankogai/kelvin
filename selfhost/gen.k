@@ -392,7 +392,10 @@ let put_fixed_counts(y:int64)
 
 let put_ctype(y:int64) {
     switch types[y].kind {                                       // every kind of type (#210)
-    case Y_VOID, Y_C, Y_TYPEOF: put("void")
+    case Y_VOID, Y_C, Y_TYPEOF, Y_PARAM: put("void")
+    case Y_FN:                                                   // _kv_fnN, a typedef of the pointer write_type writes (#428)
+        put("_kv_fn")
+        put_int(y)
     case Y_I64: put("int64_t")
     case Y_I32: put("int32_t")
     case Y_U8: put("uint8_t")
@@ -944,6 +947,13 @@ let gen_typename(n:int64)    // which gen_field writes (#426)
 let function_named(a:int64):bool    // a function's name, whose typename it has (#426)
 let told(y:int64):int64    // and an x.type told, $0.type of a function's one expression (#424)
 let void_return(a:int64):bool    // and a value returned without a result (#427)
+let callee_type(f:int64):int64    // and the function type a call calls through (#428)
+let named_fn_type(n:int64):int64    // and a function's name, a value of its type
+let anon_type(n:int64):int64    // and an anonymous function's, as a value
+let fn_named(t:int64):int64    // and the function a name names
+let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
+let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
+let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
 
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
@@ -1000,6 +1010,7 @@ let type_of(n:int64):int64 {
             gen_error(n, "'_' names nothing to read: it leaves out a name, as of an unnamed parameter or of 'for _ in'")
             return -1
         }
+        if y < 0 && fn_named(t) >= 0 { return named_fn_type(n) }   // a function's name, a value of its type (#428)
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
         if y < 0 { gen_error(n, "this name is not known") }
         return y
@@ -1011,6 +1022,9 @@ let type_of(n:int64):int64 {
             if tok_is(nodes[f].t, "Bits") { return base_type(Y_BITS) }      // Bits(n) (#387)
             return base_type(Y_STRING)
         }
+        let fy:int64 = callee_type(f)                    // through a function value (#428)
+        if fy >= 0 { return types[fy].elem >= 0 ? types[fy].elem : base_type(Y_VOID) }
+        if failed { return 0 - 1 }
         if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") { return base_type(Y_VOID) }
         let d:int64 = call_target(n)                       // the overload its arguments fit (#234)
         if nodes[f].kind == N_ID && wide_tok(nodes[f].t) && (d < 0 || (toks[nodes[d].t].file == toks[nodes[f].t].file && nodes[d].t > nodes[f].t)) {
@@ -1024,10 +1038,7 @@ let type_of(n:int64):int64 {
         }
         return nodes[d].ty
     }
-    if k == N_ANON {
-        gen_error(n, "kc reads an anonymous function only where one of these takes it: an Iterator, '.lazy.map' and '.lazy.filter', and map, filter, reduce, flatMap and their WithKey kin; kc has no function values, so call a function of the program here instead (#334)")
-        return -1
-    }
+    if k == N_ANON { return nodes[n].flag != 0 ? 0 - 1 : anon_type(n) }   // a value of its function type (#428); of $0, as where it goes
     if k == N_ITER { return iter_type_of(n) }           // Iterator(state) { ... } (#326)
     if k == N_LIST && nodes[n].flag == 0 && nodes[n].ty >= 0 { return counted(nodes[n].ty, n) }   // ([T])[a, b] (#419)
     if k == N_LIST {                                     // [a, b], a fixed array of a's type; [T](n) (#354)
@@ -1063,6 +1074,10 @@ let type_of(n:int64):int64 {
         return type_of_kind(Y_ARRAY, e, -1)
     }
     if k == N_MAKE { return nodes[n].ty }               // Array<T>(), Dictionary<K, V>() (#349)
+    if k == N_METHOD {                                  // s.f(x) through a member of a function type (#428)
+        let my:int64 = member_fn_type(n)
+        if my >= 0 { return types[my].elem >= 0 ? types[my].elem : base_type(Y_VOID) }
+    }
     if k == N_METHOD && tok_is(t, "next") {             // it.next() of an Iterator: a T? (#326)
         let iy:int64 = type_of(nodes[n].a)
         if iy >= 0 && types[iy].kind == Y_ITER { return optional_of(types[iy].elem) }
@@ -2713,6 +2728,12 @@ let gen_call(n:int64) {
         var each:int64 = args
         while each >= 0 {                          // a lazy Sequence has no text, as kelvinc's (#324)
             let ey:int64 = type_of(each)
+            if ey >= 0 && types[ey].kind == Y_FN {        // as kelvinc's (#428)
+                var m = tok_text(nodes[f].t)
+                m += " cannot show a function: a function has no text"
+                gen_error(each, m.cstr)
+                return
+            }
             if ey >= 0 && types[ey].kind == Y_ITER {      // as kelvinc's (#326)
                 gen_error(each, "an Iterator has no text: walk it with for, or gather it, as in '.map { $0 }'")
                 return
@@ -2733,7 +2754,13 @@ let gen_call(n:int64) {
         }
         if count > 16 { gen_error(n, "println and print take up to 16 values: write two calls") }
     }
-    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // kc has no function values
+    let fy:int64 = callee_type(f)                   // through a function value (#428)
+    if fy >= 0 {
+        gen_fn_call(n, fy)
+        return
+    }
+    if failed { return }
+    if nodes[f].kind == N_ID && var_type(nodes[f].t) >= 0 {   // a variable of no function type
         gen_error(n, "this calls a variable, which hides the function of its name here: rename one of them")
         return
     }
@@ -2969,6 +2996,11 @@ let gen_member(n:int64) {
 let gen_lazy_make(n:int64)    // a prototype: a lazy Sequence (#324)
 
 let gen_method(n:int64) {
+    let my:int64 = member_fn_type(n)
+    if my >= 0 {                                        // s.f(x) through a member of a function type (#428)
+        gen_fn_call(n, my)
+        return
+    }
     let il:int64 = iter_lazy_of(n)
     if il >= 0 {                                        // it.lazy.map(f) of an Iterator (#328)
         gen_iter_value(il)
@@ -4005,6 +4037,10 @@ let case_value_fits(v:int64, m:int64, whole:int64):bool {
 }
 
 let gen_value(n:int64, y:int64) {
+    if y >= 0 && types[y].kind == Y_FN && nodes[n].kind != N_COND {   // a function where a function type goes (#428)
+        gen_fn_value(n, y)
+        return
+    }
     if nodes[n].kind == N_RANGE && y >= 0 {             // a range where a Range<T> or a Range<T>? goes is of T (#373)
         let ry:int64 = types[y].kind == Y_RANGE ? y : some_type(y)
         if ry >= 0 && types[ry].kind == Y_RANGE { nodes[n].ty = ry }
@@ -5240,8 +5276,9 @@ let gen_expr(n:int64) {
     if gen_sizeof(n) { return }                          // (#420)
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
-    if k == N_ANON {
-        type_of(n)                                       // its error (#324)
+    if k == N_ANON {                                     // a value (#428), of its own written type
+        let y:int64 = anon_type(n)
+        if y >= 0 { gen_fn_value(n, y) }
         return
     }
     if k == N_BIN && nodes[nodes[n].a].kind == N_EMPTY { // xs == $[]: no type is written there (#348)
@@ -5406,6 +5443,9 @@ let gen_expr(n:int64) {
         gen_error(n, "'_' names nothing to read: it leaves out a name, as of an unnamed parameter or of 'for _ in'")   // (#388)
     } else if k == N_ID && var_type(t) < 0 && wide_tok(t) && decl_named(t, D_FN) < 0 {
         unknown_wide(n, t)                               // (#385)
+    } else if k == N_ID && var_type(t) < 0 && fn_named(t) >= 0 {
+        let y:int64 = named_fn_type(n)                   // a function's name, a value (#428)
+        if y >= 0 { gen_fn_value(n, y) }
     } else if k == N_ID && var_type(t) < 0 && !c_headers {
         gen_error(n, "this name is not known")
     } else if k == N_NULL {
@@ -5554,6 +5594,7 @@ let inferred(n:int64):int64 {
         return base_type(Y_CSTR)
     }
     if k == N_CHAR { return base_type(Y_U8) }
+    if k == N_ANON { return anon_type(v) }               // its written type, or kelvinc's error of $0 (#428)
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
@@ -5673,6 +5714,22 @@ let type_text(y:int64):String {
         s += &e
         s += ">"
         return s
+    case Y_FN:                                       // (i64, cstr):bool, (i64) of no result, as kelvinc names it (#428)
+        var s = $"("
+        var p:int64 = types[y].name
+        while p >= 0 {
+            let w:String = kelvin_type_text(types[p].elem)
+            s += &w
+            p = types[p].name
+            if p >= 0 { s += ", " }
+        }
+        s += ")"
+        if types[y].elem >= 0 {
+            s += ":"
+            let w:String = kelvin_type_text(types[y].elem)
+            s += &w
+        }
+        return s
     case Y_STRUCT:
         let d = tagged_of(y)
         if d >= 0 && nodes[d].c == 1 {
@@ -5700,7 +5757,7 @@ let type_text(y:int64):String {
 let assigns_as(n:int64, t:int64, y:int64, colon:bool):bool {
     let k:ykind = y >= 0 ? types[y].kind : Y_C
     if k == Y_C || k == Y_ARRAY || k == Y_DICT { return true }   // what only C sees; an Array and a Dictionary, as kelvinc
-    let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR
+    let reference = types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_FN   // a function's, a pointer in C (#428)
     if reference == colon { return true }
     var what = $"'"
     what += tok_text(t)
@@ -6977,6 +7034,243 @@ let anon_function(an:int64, ey:int64, me:const String^):int64 {
     ps += ey
     return anon_function_of(an, &ps, 0 - 1, me)
 }
+
+// the function of the program the name t names, no method's, or -1 (#428)
+let fn_named(t:int64):int64 {
+    for x in decls {
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, t) { return x }
+    }
+    return 0 - 1
+}
+
+// the function type of the function d: its parameters' and its result's (#428)
+let decl_fn_type(d:int64):int64 {
+    var ps:$[int64] = $[]
+    var p:int64 = nodes[d].a
+    while p >= 0 {
+        ps += nodes[p].ty
+        p = nodes[p].next
+    }
+    let r:int64 = nodes[d].ty
+    return fn_type_of(&ps, r >= 0 && types[r].kind == Y_VOID ? 0 - 1 : r)
+}
+
+// the function type of the name n of a function (#428); of an overloaded
+// name, kelvinc's error, as the type wanted does not say which here
+let named_fn_type(n:int64):int64 {
+    var d:int64 = 0 - 1
+    var fns:int64 = 0
+    for x in decls {
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, nodes[n].t) {
+            if fns == 0 { d = x }
+            fns += 1
+        }
+    }
+    if fns > 1 {                                         // as kelvinc says it (#426)
+        var m = $"'"
+        m += tok_text(nodes[n].t)
+        m += "' names "
+        m += String(fns)
+        m += " functions: say which by its type, as in 'let f:(T):R := "
+        m += tok_text(nodes[n].t)
+        m += "'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    return decl_fn_type(d)
+}
+
+// the function type of the anonymous function n as a value (#428): its
+// written parameters' and result's; one of $0 or of names without types
+// takes them from where it goes, so here it is kelvinc's error
+let anon_type(n:int64):int64 {
+    if nodes[n].flag != 0 {
+        gen_error(n, "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+        return 0 - 1
+    }
+    var ps:$[int64] = $[]
+    var p:int64 = nodes[n].a
+    while p >= 0 {
+        ps += nodes[p].ty
+        p = nodes[p].next
+    }
+    return fn_type_of(&ps, nodes[n].ty)
+}
+
+// the function type the callee f of a call calls through (#428): a
+// variable's, a parameter's, an anonymous function's or any value's of
+// one, or -1 of a function's name, called by it
+let callee_type(f:int64):int64 {
+    let k = nodes[f].kind
+    if k == N_ANON { return anon_type(f) }
+    if k == N_TYPE { return 0 - 1 }
+    if k == N_ID {
+        let vy:int64 = var_type(nodes[f].t)
+        return vy >= 0 && types[vy].kind == Y_FN ? vy : 0 - 1
+    }
+    let y:int64 = type_of(f)
+    return y >= 0 && types[y].kind == Y_FN ? y : 0 - 1
+}
+
+// the function type of the member of s.f(x), a struct of the program's
+// without a method f, or -1 (#428)
+let member_fn_type(n:int64):int64 {
+    if nodes[n].kind != N_METHOD || method_of(n) >= 0 || names_type(nodes[n].a) { return 0 - 1 }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 || types[y].kind != Y_STRUCT || decl_named(types[y].name, D_STRUCT) < 0 { return 0 - 1 }
+    let fy:int64 = field_type(y, nodes[n].t)
+    return fy >= 0 && types[fy].kind == Y_FN ? fy : 0 - 1
+}
+
+// whether the function type y takes or gives an owner, which kc's
+// function values do not yet: n its error (#428)
+let fn_owner_refused(y:int64, n:int64):bool {
+    var owns = types[y].elem >= 0 && is_owner(types[y].elem)
+    var p:int64 = types[y].name
+    while p >= 0 {
+        if is_owner(types[p].elem) { owns = true }
+        p = types[p].name
+    }
+    if !owns { return false }
+    var m = $"kc's function values take and give no owner yet, and this is "
+    let w:String = type_text(y)
+    m += &w
+    m += ": take a borrow, T^, or call a function by its name"
+    gen_error(n, m.cstr)
+    return true
+}
+
+var anon_made:Dictionary<int64, int64>    // the function kc made of each anonymous function as a value (#428)
+
+// the function n, where one of the function type y goes (#428): an
+// anonymous function, made a function of the program, of y's types where
+// it writes none; a function's name, of y's type; any other value of it
+let gen_fn_value(n:int64, y:int64) {
+    if fn_owner_refused(y, n) { return }
+    let k = nodes[n].kind
+    var given:int64 = 0 - 1
+    if k == N_ANON && nodes[n].flag != 0 {
+        given = y                                        // $0 and names, of y's parameters
+    } else if k == N_ANON {
+        given = anon_type(n)
+    } else {
+        given = type_of(n)
+    }
+    if failed { return }
+    if given >= 0 && types[given].kind == Y_C {          // nullptr, and what only C sees
+        gen_expr(n)
+        return
+    }
+    if given != y {
+        var m = $""
+        if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 {   // as kelvinc says it
+            m += "no function '"
+            m += tok_text(nodes[n].t)
+            m += "' is "
+        } else {
+            m += "this is "
+            let g:String = given >= 0 ? kelvin_type_text(given) : $"no function"
+            m += &g
+            m += ", where "
+        }
+        let w:String = kelvin_type_text(y)
+        m += &w
+        if k == N_ID && var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) >= 0 && given >= 0 {
+            m += ": '"
+            m += tok_text(nodes[n].t)
+            m += "' is "
+            let g:String = kelvin_type_text(given)
+            m += &g
+        } else if !(k == N_ID && var_type(nodes[n].t) < 0) {
+            m += " goes"
+        }
+        gen_error(n, m.cstr)
+        return
+    }
+    if k == N_ID && var_type(nodes[n].t) < 0 {
+        let d:int64 = fn_named(nodes[n].t)
+        if d >= 0 {
+            put_fn_name(d)
+            return
+        }
+    }
+    if k != N_ANON {
+        gen_expr(n)
+        return
+    }
+    var d:int64 = anon_made.get(n, 0 - 1)
+    if d < 0 {
+        var ps:$[int64] = $[]
+        var p:int64 = types[y].name
+        while p >= 0 {
+            ps += types[p].elem
+            p = types[p].name
+        }
+        let me = $"this function"
+        d = anon_function_of(n, &ps, types[y].elem >= 0 ? types[y].elem : base_type(Y_VOID), &me)
+        if d < 0 { return }
+        anon_made[n] = d
+    }
+    put_tok(nodes[d].t)
+}
+
+// f(a, b) through the function value f of type fy (#428): each argument
+// of its parameter's type, as a call by name passes it
+let gen_fn_call(n:int64, fy:int64) {
+    let f:int64 = nodes[n].a
+    if fn_owner_refused(fy, n) { return }
+    var count:int64 = 0
+    var want:int64 = 0
+    var a:int64 = nodes[n].b
+    while a >= 0 {
+        count += 1
+        a = nodes[a].next
+    }
+    var p:int64 = types[fy].name
+    while p >= 0 {
+        want += 1
+        p = types[p].name
+    }
+    if count != want {                                   // as kelvinc says it
+        var m = $"this function, of type "
+        let w:String = kelvin_type_text(fy)
+        m += &w
+        m += ", takes "
+        m += String(want)
+        m += want == 1 ? " argument" : " arguments"
+        m += ", and it is given "
+        m += String(count)
+        gen_error(n, m.cstr)
+        return
+    }
+    var opened = hold_args(nodes[n].b, 0 - 1)
+    if nodes[n].kind == N_METHOD {                      // s.f(x), the member f of s
+        put("(")
+        gen_expr(f)
+        put(".")
+        put_tok(nodes[n].t)
+        put(")")
+    } else if nodes[f].kind == N_ID {
+        put_tok(nodes[f].t)
+    } else {
+        put("(")
+        if nodes[f].kind == N_ANON { gen_fn_value(f, fy) } else { gen_expr(f) }
+        put(")")
+    }
+    put("(")
+    a = nodes[n].b
+    p = types[fy].name
+    while a >= 0 {
+        if a != nodes[n].b { put(", ") }
+        gen_value(a, types[p].elem)
+        a = nodes[a].next
+        p = types[p].name
+    }
+    put(")")
+    close_holds(&opened)
+}
+
+
 
 // the function of .lazy.map or .lazy.filter, n's, of each value of type
 // ey: one of the program's or one kc makes of { ... }, checked as kelvinc
@@ -11223,6 +11517,18 @@ var written:Dictionary<int64, int64>     // the types whose C is written (#225),
 // name of what it points to. An Array of a struct that holds it is a
 // type before the struct, its functions after (#346), and a Dictionary
 // of one (#347)
+// struct T; before a function type that names T, whose own C is not
+// written yet, or is being written, as of a member's (#428)
+let forward_struct(y:int64) {
+    var b:int64 = y
+    while b >= 0 && types[b].kind == Y_PTR { b = types[b].elem }
+    if b < 0 || types[b].kind != Y_STRUCT || written.get(b, 0) == 1 { return }
+    if decl_named(types[b].name, D_STRUCT) < 0 && tagged_of(b) < 0 { return }
+    put("struct ")
+    put_tok(types[b].name)
+    put(";\n")
+}
+
 let write_type(y:int64) {
     if y < 0 || written.has(y) || late(y) { return }   // an x.type's, told in its statement (#423)
     written[y] = 1
@@ -11279,6 +11585,31 @@ let write_type(y:int64) {
         }
     } else if k == Y_FIXED {                            // a member's, after its element's type (#356)
         write_type(types[y].elem)
+    } else if k == Y_FN {                               // typedef R (*_kv_fnN)(P, Q) (#428), after its types
+        var p:int64 = types[y].name
+        while p >= 0 {
+            forward_struct(types[p].elem)
+            write_type(types[p].elem)
+            p = types[p].name
+        }
+        let r:int64 = types[y].elem
+        if r >= 0 {
+            forward_struct(r)
+            write_type(r)
+        }
+        put("typedef ")
+        if r >= 0 { put_ctype(r) } else { put("void") }
+        put(" (*")
+        put_ctype(y)
+        put(")(")
+        p = types[y].name
+        if p < 0 { put("void") }
+        while p >= 0 {
+            put_ctype(types[p].elem)
+            p = types[p].name
+            if p >= 0 { put(", ") }
+        }
+        put(");\n")
     } else if k == Y_STRUCT {
         written[y] = 2                                   // while what it holds is written (#346)
         let d = decl_named(types[y].name, D_STRUCT)
@@ -11501,6 +11832,7 @@ let gen_program() {
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }
     for i in 0..<dicts.count as int64 { write_type(dicts[i]) }
     for i in 0..<sets.count as int64 { write_type(sets[i]) }     // (#274)
+    for i in 0..<fn_types.count as int64 { write_type(fn_types[i]) }   // (#428)
     put("\n")
     for i in 0..<decls.count as int64 {                  // the globals
         let d:int64 = decls[i]
@@ -11512,6 +11844,7 @@ let gen_program() {
             }
             if nodes[d].ty < 0 { set_ty(d, inferred(d)) }       // (#214)
             if failed { return }
+            write_type(nodes[d].ty)                      // a function type inferred, let f := g (#428)
             if types[nodes[d].ty].kind == Y_ARGV && nodes[d].a >= 0 && nodes[nodes[d].a].kind == N_LIST {   // let names:[cstr] = ["a"] (#359)
                 set_ty(d, type_of_kind(Y_FIXED, base_type(Y_CSTR), 0 - 1))
             }
@@ -11523,6 +11856,11 @@ let gen_program() {
                 continue
             }
             if nodes[d].a >= 0 && !assigns_as(d, nodes[d].t, nodes[d].ty, nodes[d].c == 1) { return }   // (#233)
+            let fns:int64 = anon_fns.count as int64     // a function an anonymous function makes, declared first (#428)
+            let around:int64 = current
+            current = d
+            var before:String = out.copy()
+            out = $""
             put_alignas(d)                               // (#396)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
@@ -11537,6 +11875,14 @@ let gen_program() {
                 put("0")
             }
             put(";\n")
+            current = around
+            var line:String = out.copy()
+            out = before.copy()
+            for f in fns..<anon_fns.count as int64 {
+                gen_signature(anon_fns[f])
+                put(";\n")
+            }
+            out += &line
         }
     }
     put("\n")
@@ -11571,7 +11917,7 @@ let gen_program() {
     out = $""
     for i in 0..<made {                                  // the functions
         let d:int64 = decls[i]
-        if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed { gen_function(d) }
+        if nodes[d].kind == D_FN && nodes[d].b >= 0 && !failed && !anon_fns.contains(d) { gen_function(d) }   // a global's { ... } with those kc makes (#428)
     }
     var k:int64 = 0
     while k < anon_fns.count as int64 && !failed {       // those kc makes of { ... }, which may make more (#324)
@@ -11585,6 +11931,7 @@ let gen_program() {
     for i in 0..<arrays.count as int64 { write_type(arrays[i]) }   // the Arrays a $[a, b] in a function makes (#266)
     for i in 0..<dicts.count as int64 { write_type(dicts[i]) }     // and the Dictionaries of ${k: v} (#267)
     for i in 0..<sets.count as int64 { write_type(sets[i]) }       // and the Sets of ${a, b} (#274)
+    for i in 0..<fn_types.count as int64 { write_type(fn_types[i]) }   // and the function types of a value (#428)
     for i in made..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag == 1 { write_type(type_of_kind(Y_STRUCT, -1, nodes[d].t)) }

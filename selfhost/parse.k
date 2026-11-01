@@ -96,6 +96,8 @@ enum ykind {                    // the kinds of types (#210)
     Y_RANGE,    // a Range<T> (#373): its integers elem
     Y_BITS,     // a Bits (#387): 64 bits in a u64, kv_bits in C
     Y_TYPEOF,   // x.type of a local whose type is inferred (#423): its name x's node, whose type gen tells
+    Y_FN,       // a function type (#428), (T, U):R: its result elem, -1 of none; its parameters name, a Y_PARAM or -1
+    Y_PARAM,    // a parameter of a function type (#428): its type elem; the next name, a Y_PARAM or -1
     Y_C         // what only C sees: a name of a C header (#207)
 }
 
@@ -141,6 +143,7 @@ var decls:$[int64]         // the top-level declarations, in order
 var arrays:$[int64]        // every Array type, in the order they are met
 var dicts:$[int64]         // every Dictionary type, so (#211)
 var sets:$[int64]          // every Set type, so (#274)
+var fn_types:$[int64]      // every function type, so (#428)
 var pos:int64              // the next token
 var c_headers:bool         // whether a C header is imported: then a name kc does not know is C's (#207)
 var self_name:int64 = 0 - 1    // the token of the type whose method is being read, for Self (#213)
@@ -190,7 +193,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
         if y.kind == kind && y.elem == elem && y.konst == 0 {
             if kind == Y_STRUCT {
                 if same_text(y.name, name) { return i }
-            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF {
+            } else if kind == Y_DICT || kind == Y_PTR || kind == Y_FIXED || kind == Y_TYPEOF || kind == Y_FN || kind == Y_PARAM {
                 if y.name == name { return i }   // a pointer's name 1 where what it points to is const (#272); a fixed array's count (#354)
             } else {
                 return i
@@ -203,6 +206,7 @@ let type_of_kind(kind:ykind, elem:int64, name:int64):int64 {
     if kind == Y_ARRAY { arrays += types.count as int64 - 1 }
     if kind == Y_DICT { dicts += types.count as int64 - 1 }
     if kind == Y_SET { sets += types.count as int64 - 1 }
+    if kind == Y_FN { fn_types += types.count as int64 - 1 }
     return types.count as int64 - 1
 }
 
@@ -226,6 +230,19 @@ let plain_fixed(y:int64):int64 {
 
 let base_type(kind:ykind):int64 {
     return type_of_kind(kind, -1, -1)
+}
+
+// the function type of the parameters ps and the result r, -1 of none
+// (#428): its parameters a chain of Y_PARAMs, made from the last, so that
+// one type is one index
+let fn_type_of(ps:const $[int64]^, r:int64):int64 {
+    var chain:int64 = 0 - 1
+    var k:int64 = ps^.count as int64 - 1
+    while k >= 0 {
+        chain = type_of_kind(Y_PARAM, ps^[k], chain)
+        k -= 1
+    }
+    return type_of_kind(Y_FN, r, chain)
 }
 
 // ---------- the cursor ----------
@@ -1088,6 +1105,31 @@ let parse_bare_type():int64 {
         }
         return y
     }
+    if at_word("(") {                            // (T, U):R, a function type (#428)
+        advance()
+        var ps:$[int64] = $[]
+        while !at_word(")") && !failed {
+            if at_word("...") {
+                parse_error("kc's function types take no '...' yet: C's variadic functions are called by name")
+                return base_type(Y_VOID)
+            }
+            ps += parse_type()
+            if !at_word(",") { break }
+            advance()
+        }
+        expect(")")
+        var r:int64 = 0 - 1
+        if at_word(":") {
+            advance()
+            if at_word("(") && tok_is(pos + 1, ")") && !tok_is(pos + 2, ":") {   // :(), no result (#141)
+                advance()
+                advance()
+            } else {
+                r = parse_type()
+            }
+        }
+        return fn_type_of(&ps, r)
+    }
     if !at_kind(T_ID) {
         parse_error("a type is expected")
         return base_type(Y_VOID)
@@ -1333,14 +1375,19 @@ let anon_ahead():bool {
     var i:int64 = pos + 1
     while toks[i].kind == T_NL { i += 1 }
     if tok_is(i, "(") && toks[i + 1].kind == T_ID && tok_is(i + 2, ":") { return true }
+    if tok_is(i, "(") && tok_is(i + 1, ")") && (tok_is(i + 2, "in") || tok_is(i + 2, ":")) { return true }   // { () in ... } (#428)
     if names_in_ahead(i) { return true }                // { v in ... }, { acc, v in ... } (#330)
     var depth:int64 = 0
+    var inner:int64 = 0                                  // in ( ) and [ ]
     while toks[i].kind != T_EOF {
         if tok_is(i, "{") || tok_is(i, "${") { depth += 1 }
         if tok_is(i, "}") {
             if depth == 0 { return false }
             depth -= 1
         }
+        if tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "$[") { inner += 1 }
+        if tok_is(i, ")") || tok_is(i, "]") { inner -= 1 }
+        if depth == 0 && inner == 0 && tok_is(i, ",") { return false }   // {a, { $0 }}, a list that holds one (#428)
         if toks[i].kind == T_ID && codes[toks[i].at] == '$' { return true }
         i += 1
     }

@@ -459,6 +459,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 425 | kc reads `[const T](N)`, a fixed array of const elements with its count, and `const xs.type` of a fixed array, as kelvinc's #34 puts the const on its elements: C's `const int32_t a[3]`, a var's too, as kelvinc has it; a parameter's a `const T*`; changing an element, or passing it to `[T]`, kc's error, where kelvinc leaves it to C or warns; `const n.type` of an inferred array told so | selfhost/parse.k's ty.konst, const_fixed, plain_fixed, value_type_at; selfhost/gen.k's put_fixed_base, told | `var kept:[const int64](2)` of kc | 2026-11-01 |
 | 426 | kc reads `x.typename` of any value, as kelvinc's #34: the Kelvin name of its type, a cstr literal, x never run; a function's, `(i64, cstr):bool`, `()` of no result; a literal's and what only C sees, C's `_Generic`; a struct's member of the name stays the member; a Range's and an overloaded function's, kelvinc's errors in its words | selfhost/gen.k's typename_member, gen_typename, function_named, function_typename | `shade_name.typename` of kc | 2026-11-01 |
 | 427 | A function of no result returns no value: `return v` in one, a method's and an anonymous function's too, is kelvinc's error at v, and kc's in its words, where C refused it before; a call that gives none, the program's or C's, still passes, as C's return of a void call does | src/parser.c's reject_void_return; selfhost/gen.k's void_return | `return note(n)` of a function of no result | 2026-11-01 |
+| 428 | kc reads function values, as kelvinc's #31 and #32: a function type `(T, U):R`, `(T)` of no result, for a parameter, a result, a variable, a global and a struct's member, a reference assigned with `:=`; a function's name and an anonymous function as values, `{ $0 + 1 }` typed by where it goes, `{ (k:i64):i64 in ... }` anywhere and called in place; a call through one, by a member too, `s.op(x)`; in C a typedef of the pointer, `_kv_fnN`; owners and `...` in one kc's error, not yet | selfhost/parse.k's Y_FN, Y_PARAM, fn_type_of; selfhost/gen.k's gen_fn_value, gen_fn_call, callee_type, anon_type, named_fn_type, member_fn_type | `{ (k:int64):int64 in ... }(odds[0] - 10)` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1043,6 +1044,43 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (428) Agreed details: "make kc read anonymous functions as values",
+  then "change README.md example a little more kelvinish", with a
+  fizzbuzz of `{ (k:i64):i64 in ... }(...)`.
+  - **Claude** asked how far kc should go: anonymous functions as
+    values, function types and a function's name as a value, or only an
+    anonymous function called and bound, or all of kelvinc's. The user
+    chose the first.
+  - The example also needs `i64(argv[1])`, kelvinc's converter of text,
+    which kc does not read: the user chose a number of its own for it,
+    before the README's. The fizzbuzz replaces the Synopsis, and its
+    range starts at 1.
+  - A function type is a Y_FN, its result elem, -1 of none, and its
+    parameters a chain of Y_PARAMs, made from the last, so that one type
+    is one index; parse_bare_type reads `(T, U):R`, `:()` none.
+  - In C each is a typedef, `typedef int64_t (*_kv_fnN)(int64_t);`,
+    written as the Arrays are, and in turn for those gen makes; a global
+    inferred of one writes its own; `struct T;` goes before one naming
+    a struct whose C is not written yet.
+  - A value of one: a function's name, of its type, an overloaded one
+    kelvinc's error; an anonymous function made a function of the
+    program, of the type's parameters where it writes none, its result
+    the type's; a global's declared before the global.
+  - A call through one, a variable's, a parameter's, any value's, an
+    anonymous function's, and a struct member's, `s.op(x)`, where the
+    struct has no method of the name: each argument as its parameter's
+    type, and kc's error where their count is not the type's, which
+    kelvinc leaves to C.
+  - `:=` assigns one, as a pointer; `=` and a type that is not the one
+    wanted, "no function 'twice' is (i64):bool", and printing one are
+    kelvinc's errors, in its words; `let g := { $0 + 1 }` too.
+  - Found: kc took `{7, { $0 + 1 }}` for an anonymous function, since a
+    `$0` in it was in a nested one; a comma outside `( )`, `[ ]` and
+    `{ }` now makes it a list.
+  - Not yet: an owner in a function type, kc's error, as moving one
+    through a pointer would need its own rules; `...`; arrays and
+    collections of functions, `((T):R)^` and `typealias`.
 
 - (427) Agreed details: "Refuse a value returned from a void function",
   which #426 found: kelvinc let `return false` in a function of no
@@ -5909,6 +5947,7 @@ says "as agreed".
 | P437 | Details of #425 | selfhost/parse.k: ty's konst, type_of_kind's konst 0, const_fixed, plain_fixed, value_type_at, parse_type's const x.type, parse_bare_type's `[const T](N)`; selfhost/gen.k: type_text's `[const`, put_fixed_base's const, an element's change refused, passing to `[T]` refused, fixed_params' `const T*`, gen_fixed_var's and fixed_list_fits' plain_fixed, told's const; selfhost/sample.k: `fixed_x`, `kept`; selfhost/README.md | — |
 | P438 | Details of #426 | selfhost/gen.k: typename_member, gen_typename, function_named, function_typename and their prototypes, type_of's cstr, gen_field's call, is_place's and owner_part's pass, the Set's and Dictionary's typename code removed; selfhost/sample.k: the `anchor.typename` line; selfhost/README.md | — |
 | P439 | Details of #427 | src/parser.c: reject_void_return and its call in the parse of `return`; selfhost/gen.k: void_return and its prototype, gen_return's call; tests: error/no_result_return.k, error/no_result_method_return.k, error/no_result_anon_return.k, run/void_call_return.k; selfhost/README.md | — |
+| P440 | Details of #428 | selfhost/parse.k: Y_FN, Y_PARAM, fn_types, fn_type_of, type_of_kind's chain, parse_bare_type's `(T, U):R`, anon_ahead's `()` and list comma; selfhost/gen.k: put_ctype's `_kv_fnN`, type_text's, write_type's typedef, forward_struct, fn_named, decl_fn_type, named_fn_type, anon_type, callee_type, member_fn_type, fn_owner_refused, anon_made, gen_fn_value, gen_fn_call and their prototypes, type_of's N_ID, N_CALL, N_ANON and N_METHOD, gen_expr's, gen_value's and gen_call's, inferred's, assigns_as's reference, print's error, a global's functions declared first, gen_program's typedefs; selfhost/sample.k: `apply_twice`, `dispatch`, the `clamped` lines; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

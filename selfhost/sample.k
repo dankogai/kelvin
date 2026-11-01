@@ -252,6 +252,8 @@ var span_walk.next():int64? {
 let span.makeIterator():span_walk { return {.lo, .hi} }
 let is_odd(n:int64):bool { n % 2 == 1 }                // a named function a lazy filter takes (#324)
 let but_first(_:int64, _:String, n:int64):int64 { n }  // unnamed parameters, `_` (#388)
+let apply_twice(f:(int64):int64, x:int64):int64 { f(f(x)) }   // a parameter of a function type (#428)
+struct dispatch { name: cstr; op: (int64):int64 }    // a member of one, called as s.op(x)
 inline let cube(n:int64):int64 { n * n * n }            // inline (#392): C's static inline
 let bump_by(a:int64^ restrict, b:const int64^ restrict) { a^ += b^ }   // restrict (#393): C's T *restrict
 static_assert(dark == 6, "dark follows middle = 5")    // static_assert (#394): C's _Static_assert
@@ -817,5 +819,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     var kept:[const int64](2) = [odds[0], odds[2]]
     println(fixed_x[1], " ", sizeof fixed_x, " ", kept[1], " ", kept.count)
     println(anchor.typename, " ", kept.typename, " ", halved_list.typename, " ", shade_name.typename, " ", 42.typename, " ", "a".typename)   // x.typename (#426)
+    let clamped = { (k:int64):int64 in k <= 0 ? 30 : k }(odds[0] - 10)   // an anonymous function as a value, called (#428)
+    let bump:(int64):int64 := { $0 + 1 }
+    let twice_of := doubled                              // a function's name, a value of its type
+    let step:dispatch = {"half", { $0 / 2 }}
+    println(clamped, " ", apply_twice(bump, 5), " ", apply_twice(twice_of, 3), " ", step.op(40), " ", bump.typename)
     return 0
 }

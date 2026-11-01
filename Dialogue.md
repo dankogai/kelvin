@@ -8364,3 +8364,28 @@ of a void call does. The example says `T`, as kelvinc does not see the
 type of every value. Details are provisional P439.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 475. kc's function values
+
+> make kc read anonymous functions as values.  Then change README.md
+> example a little more kelvinish.
+
+**Claude** asked how far to go, and about the example, which also needs
+`i64(argv[1])`, a converter kc does not read. The user chose function
+values, function types and a function's name as a value; the converter
+as a number of its own; the fizzbuzz in place of the Synopsis; and its
+range from 1.
+
+**Claude** made it #428. kc reads a function type, `(i64, cstr):bool`,
+for a parameter, a result, a variable, a global and a struct's member,
+a reference assigned with `:=`, written in C as a typedef of its
+pointer. A function's name is a value of its type, and an anonymous
+function is one anywhere: `{ $0 + 1 }` where the type gives its
+parameters, `{ (k:i64):i64 in ... }` anywhere, called in place too. A
+call through one passes each argument as its parameter's type, a
+member's too, `s.op(x)`. kc took `{7, { $0 + 1 }}` for an anonymous
+function, and now reads a comma at its top as a list. An owner in a
+function type is kc's error, not yet. sample.k's new lines print the
+same through both compilers. Details are provisional P440.
+
+There are 1163 tests, and all pass with clang and with gcc 15.
