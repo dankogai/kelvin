@@ -826,5 +826,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(clamped, " ", apply_twice(bump, 5), " ", apply_twice(twice_of, 3), " ", step.op(40), " ", bump.typename)
     let hex_text = $"0x1f"
     println(int64("42"), " ", int32("ff", 16), " ", float64("1.5"), " ", uint8("300"), " ", int64(hex_text, 16), " ", int64(2.7), " ", float32(odds[2]))   // converters (#429)
+    let short_u8:u8 = u8("300")                           // kelvinc's short type names (#430)
+    let short_half:f64 = f64(odds[2]) / 2.0
+    println(short_u8, " ", short_half, " ", sizeof(i32), " ", (7 as u32).typename, " ", i64(short_u8) * 2)
     return 0
 }

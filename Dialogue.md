@@ -8411,3 +8411,16 @@ them found that both compilers let a block declare a name twice, which
 only C refused, a task of its own. Details are provisional P441.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 477. kc's short type names
+
+> go on with #430 after the push
+
+**Claude** made it #430. kc reads kelvinc's short type names, `i64`,
+`i32`, `u8`, `u32`, `f64` and `f32`, as `int64` and the rest, wherever
+a type goes and as converters, so the README's fizzbuzz, `i64(argv[1])`
+of a `main(argc:i32, argv:[cstr]):i32`, builds through kc as it is
+written. sample.k's new line prints the same through both compilers.
+Details are provisional P442.
+
+There are 1163 tests, and all pass with clang and with gcc 15.

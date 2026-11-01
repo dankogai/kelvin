@@ -260,6 +260,18 @@ let at_word(w:cstr):bool {
 // a : and a name are ?:'s or the case's, as kelvinc's ident_annotation_ok (#265)
 var name_annotation = true
 
+// the number type the word t names, kelvinc's full name or its short one,
+// int64 or i64 (#151, #430), or -1
+let number_word(t:int64):int64 {
+    if tok_is(t, "int64") || tok_is(t, "i64") { return base_type(Y_I64) }
+    if tok_is(t, "int32") || tok_is(t, "i32") { return base_type(Y_I32) }
+    if tok_is(t, "uint8") || tok_is(t, "u8") { return base_type(Y_U8) }
+    if tok_is(t, "uint32") || tok_is(t, "u32") { return base_type(Y_U32) }
+    if tok_is(t, "float64") || tok_is(t, "f64") { return base_type(Y_F64) }
+    if tok_is(t, "float32") || tok_is(t, "f32") { return base_type(Y_F32) }
+    return 0 - 1
+}
+
 // whether the : at the cursor annotates a value with a type, 0.1:float32,
 // as kelvinc's x:T (#264): a type's word follows, and no ( or <, which
 // would make the value of the other arm of c ? a : b, or a case's body;
@@ -269,7 +281,7 @@ let annotation_ahead():bool {
     if !at_word(":") || pos + 2 >= toks.count as int64 || toks[pos + 1].kind != T_ID { return false }
     if tok_is(pos + 2, "(") || tok_is(pos + 2, "<") { return false }
     let t:int64 = pos + 1
-    if tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") {
+    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") {
         return true
     }
     return name_annotation
@@ -546,7 +558,7 @@ let value_type_end():int64 {
 let sizeof_type_at(t:int64):bool {
     if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") { return true }
     if toks[t].kind != T_ID { return false }
-    if tok_is(t, "int64") || tok_is(t, "int32") || tok_is(t, "uint8") || tok_is(t, "uint32") || tok_is(t, "float64") || tok_is(t, "float32") || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
+    if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
     }
     if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
@@ -1139,18 +1151,8 @@ let parse_bare_type():int64 {
     var y = -1
     if value_type_at(t) {                                // x.type, a value's type (#422), $0.type (#424)
         y = value_type(t)
-    } else if tok_is(t, "int64") {
-        y = base_type(Y_I64)
-    } else if tok_is(t, "int32") {
-        y = base_type(Y_I32)
-    } else if tok_is(t, "uint8") {
-        y = base_type(Y_U8)
-    } else if tok_is(t, "uint32") {
-        y = base_type(Y_U32)
-    } else if tok_is(t, "float64") {                 // (#262)
-        y = base_type(Y_F64)
-    } else if tok_is(t, "float32") {                 // (#263)
-        y = base_type(Y_F32)
+    } else if number_word(t) >= 0 {                  // int64 or i64 (#430), float64 (#262), float32 (#263)
+        y = number_word(t)
     } else if tok_is(t, "bool") {
         y = base_type(Y_BOOL)
     } else if tok_is(t, "cstr") {

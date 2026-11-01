@@ -591,6 +591,9 @@ kc reads what it is written in, and little more.
   - A base after a number or of a float, and a third value, are
     kelvinc's errors, in its words; a struct is kc's.
   - Not yet: the property form, `"42".i64`.
+- **Short type names** (#430), as kelvinc's #151: `i64`, `i32`, `u8`,
+  `u32`, `f64` and `f32` are `int64` and the rest, wherever a type goes,
+  after `:` and `as`, in `sizeof(...)`, and as converters, `i64(s)`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
@@ -1075,7 +1078,8 @@ steps can take them on one at a time.
     collections of them, `((T):R)^` and `typealias`;
   - templates, `"""` and `$/.../` with its check;
   - `union` and `typealias`;
-  - integers but `int64`, `int32`, `uint8` and `uint32`;
+  - integers but `int64`, `int32`, `uint8` and `uint32`, and their short
+    names (#430);
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;

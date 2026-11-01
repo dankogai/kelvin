@@ -2711,12 +2711,7 @@ let converter_of(n:int64):int64 {
     if nodes[f].kind != N_ID { return 0 - 1 }
     let t:int64 = nodes[f].t
     if var_type(t) >= 0 || fn_named(t) >= 0 { return 0 - 1 }
-    if tok_is(t, "int64") { return base_type(Y_I64) }
-    if tok_is(t, "int32") { return base_type(Y_I32) }
-    if tok_is(t, "uint8") { return base_type(Y_U8) }
-    if tok_is(t, "uint32") { return base_type(Y_U32) }
-    if tok_is(t, "float64") { return base_type(Y_F64) }
-    if tok_is(t, "float32") { return base_type(Y_F32) }
+    if number_word(t) >= 0 { return number_word(t) }    // int64 or i64 (#430)
     if tok_is(t, "bool") { return base_type(Y_BOOL) }
     return 0 - 1
 }
