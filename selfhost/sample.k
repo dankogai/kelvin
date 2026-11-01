@@ -824,5 +824,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let twice_of := doubled                              // a function's name, a value of its type
     let step:dispatch = {"half", { $0 / 2 }}
     println(clamped, " ", apply_twice(bump, 5), " ", apply_twice(twice_of, 3), " ", step.op(40), " ", bump.typename)
+    let hex_text = $"0x1f"
+    println(int64("42"), " ", int32("ff", 16), " ", float64("1.5"), " ", uint8("300"), " ", int64(hex_text, 16), " ", int64(2.7), " ", float32(odds[2]))   // converters (#429)
     return 0
 }

@@ -8389,3 +8389,25 @@ function type is kc's error, not yet. sample.k's new lines print the
 same through both compilers. Details are provisional P440.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 476. kc's converters
+
+> go on with #429 after the push
+
+**Claude** asked how much of kelvinc's converter kc should read, and
+about kelvinc's short type names, `i64`, which kc does not read and the
+README's fizzbuzz writes. The user chose `T(v)` of numbers and text,
+with a base, and the short names as #430 of their own.
+
+**Claude** made it #429. kc reads `int64(v)` and the rest of its number
+types, and `bool(v)`: a number's C's cast, and of text, a cstr, a
+String, a `u8^`, an array of `u8` or a `?:` of them, the number in it,
+by the prelude's readers, as strtol and strtod read it, clamped to the
+type, with a base for an integer type, `int32("ff", 16)`. What only C
+sees, C's `_Generic` chooses, as kelvinc's. A base after a number, of a
+float or of bool, and a third value, are kelvinc's errors in its words.
+sample.k's converters print the same through both compilers. Adding
+them found that both compilers let a block declare a name twice, which
+only C refused, a task of its own. Details are provisional P441.
+
+There are 1163 tests, and all pass with clang and with gcc 15.

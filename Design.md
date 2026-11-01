@@ -460,6 +460,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 426 | kc reads `x.typename` of any value, as kelvinc's #34: the Kelvin name of its type, a cstr literal, x never run; a function's, `(i64, cstr):bool`, `()` of no result; a literal's and what only C sees, C's `_Generic`; a struct's member of the name stays the member; a Range's and an overloaded function's, kelvinc's errors in its words | selfhost/gen.k's typename_member, gen_typename, function_named, function_typename | `shade_name.typename` of kc | 2026-11-01 |
 | 427 | A function of no result returns no value: `return v` in one, a method's and an anonymous function's too, is kelvinc's error at v, and kc's in its words, where C refused it before; a call that gives none, the program's or C's, still passes, as C's return of a void call does | src/parser.c's reject_void_return; selfhost/gen.k's void_return | `return note(n)` of a function of no result | 2026-11-01 |
 | 428 | kc reads function values, as kelvinc's #31 and #32: a function type `(T, U):R`, `(T)` of no result, for a parameter, a result, a variable, a global and a struct's member, a reference assigned with `:=`; a function's name and an anonymous function as values, `{ $0 + 1 }` typed by where it goes, `{ (k:i64):i64 in ... }` anywhere and called in place; a call through one, by a member too, `s.op(x)`; in C a typedef of the pointer, `_kv_fnN`; owners and `...` in one kc's error, not yet | selfhost/parse.k's Y_FN, Y_PARAM, fn_type_of; selfhost/gen.k's gen_fn_value, gen_fn_call, callee_type, anon_type, named_fn_type, member_fn_type | `{ (k:int64):int64 in ... }(odds[0] - 10)` of kc | 2026-11-02 |
+| 429 | kc reads the converters `T(v)`, as kelvinc's #36: of kc's number types and `bool`, a number's C's cast; of text, a cstr, a String, a `u8^`, an array of `u8` or a `?:` of them, the number in it, by kv_text_int and friends, clamped, with a base for an integer type, `int64(s, 16)`; of what only C sees, C's `_Generic`, KV_TEXT; a base after a number or of a float and a third value kelvinc's errors | selfhost/gen.k's converter_of, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter | `int32("ff", 16)` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1044,6 +1045,29 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (429) Agreed details: kc reads the converter `i64(argv[1])` the
+  README's fizzbuzz needs (#428's note).
+  - **Claude** asked how much: a number's and text's `T(v)` with a base,
+    text alone, or the property form too; and whether kelvinc's short
+    type names, `i64`, which kc does not read, come in here or as a
+    number of their own. The user chose `T(v)` of numbers and text, and
+    the short names as #430, the README #431.
+  - converter_of tells `T(v)` where T is a number type's or bool's name
+    and no function's or variable's; type_of gives it T.
+  - Of a number, C's cast, `((int64_t)(v))`; of text, the prelude's
+    kv_text_int, kv_text_uint, kv_text_f64 or kv_text_f32 with an
+    integer type's base, 10 unless given, and its limits, as kelvinc's
+    text_number; a String's bytes, `kv_bytes_cstr(&(s).b)`, held where
+    an expression gives it, and a `?:`'s arms `(const void *)`, as
+    kelvinc's text_arg.
+  - Of what only C sees, `({ __auto_type _kv_conv = ...; KV_TEXT(...); })`,
+    C's `_Generic`, as kelvinc's, a base only of text.
+  - A base after a number, a base of a float or of bool, and a third
+    value are kelvinc's errors, in its words; a struct, which kelvinc
+    leaves to C, kc's.
+  - Found: kelvinc and kc let one block declare a name twice, `digits` in
+    sample.k, which only C refused; a task of its own.
 
 - (428) Agreed details: "make kc read anonymous functions as values",
   then "change README.md example a little more kelvinish", with a
@@ -5948,6 +5972,7 @@ says "as agreed".
 | P438 | Details of #426 | selfhost/gen.k: typename_member, gen_typename, function_named, function_typename and their prototypes, type_of's cstr, gen_field's call, is_place's and owner_part's pass, the Set's and Dictionary's typename code removed; selfhost/sample.k: the `anchor.typename` line; selfhost/README.md | — |
 | P439 | Details of #427 | src/parser.c: reject_void_return and its call in the parse of `return`; selfhost/gen.k: void_return and its prototype, gen_return's call; tests: error/no_result_return.k, error/no_result_method_return.k, error/no_result_anon_return.k, run/void_call_return.k; selfhost/README.md | — |
 | P440 | Details of #428 | selfhost/parse.k: Y_FN, Y_PARAM, fn_types, fn_type_of, type_of_kind's chain, parse_bare_type's `(T, U):R`, anon_ahead's `()` and list comma; selfhost/gen.k: put_ctype's `_kv_fnN`, type_text's, write_type's typedef, forward_struct, fn_named, decl_fn_type, named_fn_type, anon_type, callee_type, member_fn_type, fn_owner_refused, anon_made, gen_fn_value, gen_fn_call and their prototypes, type_of's N_ID, N_CALL, N_ANON and N_METHOD, gen_expr's, gen_value's and gen_call's, inferred's, assigns_as's reference, print's error, a global's functions declared first, gen_program's typedefs; selfhost/sample.k: `apply_twice`, `dispatch`, the `clamped` lines; selfhost/README.md | — |
+| P441 | Details of #429 | selfhost/gen.k: converter_of and its prototype, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter, type_of's and gen_call's converter; selfhost/sample.k: `hex_text` and the converters' line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

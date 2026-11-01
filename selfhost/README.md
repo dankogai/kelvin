@@ -581,6 +581,16 @@ kc reads what it is written in, and little more.
     one are kelvinc's errors, in its words.
   - Not yet: a function type that takes or gives an owner, kc's error; a
     variadic one, `(i32, ...)`.
+- **Converters** (#429), as kelvinc's #36: `int64(v)` and the rest of
+  kc's number types, and `bool(v)`, a number's C's cast.
+  - Of text, a cstr, a String, a `u8^`, an array of `u8`, or a `?:` of
+    them, the number in it, by the prelude's kv_text_int and friends, as
+    strtol and strtod read it, clamped to the type: `int64("42")`, and of
+    an integer type a base, `int64(s, 16)`.
+  - What only C sees, C's `_Generic` chooses, KV_TEXT, as kelvinc's.
+  - A base after a number or of a float, and a third value, are
+    kelvinc's errors, in its words; a struct is kc's.
+  - Not yet: the property form, `"42".i64`.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.

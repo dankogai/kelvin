@@ -954,6 +954,7 @@ let fn_named(t:int64):int64    // and the function a name names
 let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
 let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
+let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
 
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
@@ -1022,6 +1023,8 @@ let type_of(n:int64):int64 {
             if tok_is(nodes[f].t, "Bits") { return base_type(Y_BITS) }      // Bits(n) (#387)
             return base_type(Y_STRING)
         }
+        let cy:int64 = converter_of(n)                   // int64(v), int64(text, base) (#429)
+        if cy >= 0 { return cy }
         let fy:int64 = callee_type(f)                    // through a function value (#428)
         if fy >= 0 { return types[fy].elem >= 0 ? types[fy].elem : base_type(Y_VOID) }
         if failed { return 0 - 1 }
@@ -2701,6 +2704,182 @@ let string_args_refused(n:int64):bool {
     return true
 }
 
+// the type of the converter T(v) the call n is, as kelvinc's #36: a
+// number type's or bool's name called, no function's or variable's; or -1
+let converter_of(n:int64):int64 {
+    let f:int64 = nodes[n].a
+    if nodes[f].kind != N_ID { return 0 - 1 }
+    let t:int64 = nodes[f].t
+    if var_type(t) >= 0 || fn_named(t) >= 0 { return 0 - 1 }
+    if tok_is(t, "int64") { return base_type(Y_I64) }
+    if tok_is(t, "int32") { return base_type(Y_I32) }
+    if tok_is(t, "uint8") { return base_type(Y_U8) }
+    if tok_is(t, "uint32") { return base_type(Y_U32) }
+    if tok_is(t, "float64") { return base_type(Y_F64) }
+    if tok_is(t, "float32") { return base_type(Y_F32) }
+    if tok_is(t, "bool") { return base_type(Y_BOOL) }
+    return 0 - 1
+}
+
+// whether a converter reads v as text (#429): a cstr, a String, a u8^,
+// an array of u8, or a ?: of them
+let converter_text(v:int64):bool {
+    if nodes[v].kind == N_COND { return converter_text(nodes[v].b) && converter_text(nodes[v].c) }
+    let y:int64 = type_of(v)
+    if y < 0 { return false }
+    let k = types[y].kind
+    if k == Y_CSTR || k == Y_STRING { return true }
+    return (k == Y_PTR || k == Y_FIXED) && types[y].elem >= 0 && types[types[y].elem].kind == Y_U8
+}
+
+// v as the runtime's readers take text (#429), as kelvinc's text_arg: a
+// String's bytes, and a ?: of texts of arms of C types that differ
+let put_text_arg(v:int64) {
+    if nodes[v].kind == N_COND {
+        put("(")
+        gen_expr(nodes[v].a)
+        put(" ? (const void *)")
+        put_text_arg(nodes[v].b)
+        put(" : (const void *)")
+        put_text_arg(nodes[v].c)
+        put(")")
+        return
+    }
+    let y:int64 = type_of(v)
+    if y >= 0 && types[y].kind == Y_STRING {
+        put("kv_bytes_cstr(&(")
+        gen_expr(v)
+        put(").b)")
+        return
+    }
+    put("(")
+    gen_expr(v)
+    put(")")
+}
+
+// the reader of the converter of type y, and what follows its text, as
+// kelvinc's text_number: an integer's base and limits, clamped to them
+let put_text_read(y:int64) {
+    let k = types[y].kind
+    if k == Y_F64 || k == Y_F32 {
+        put(k == Y_F64 ? "kv_text_f64" : "kv_text_f32")
+        return
+    }
+    put(k == Y_U8 || k == Y_U32 ? "kv_text_uint" : "kv_text_int")
+}
+
+let put_text_rest(y:int64, base:int64) {
+    let k = types[y].kind
+    if k == Y_F64 || k == Y_F32 {
+        put(")")
+        return
+    }
+    put(", ")
+    if base >= 0 {
+        put("(")
+        gen_expr(base)
+        put(")")
+    } else {
+        put("10")
+    }
+    if k == Y_I64 { put(", INT64_MIN, INT64_MAX)") }
+    if k == Y_I32 { put(", INT32_MIN, INT32_MAX)") }
+    if k == Y_U8 { put(", UINT8_MAX)") }
+    if k == Y_U32 { put(", UINT32_MAX)") }
+}
+
+// T(v) and T(text, base), the converter n (#429), as kelvinc's #36: a
+// number C's cast, text the number in it, read as strtol and strtod
+// read it; what only C sees, C's _Generic chooses, as kelvinc's KV_TEXT
+let gen_converter(n:int64) {
+    let y:int64 = converter_of(n)
+    let name:String = type_text(y)
+    let v:int64 = nodes[n].b
+    let base:int64 = v >= 0 ? nodes[v].next : 0 - 1
+    let k = types[y].kind
+    if base >= 0 && nodes[base].next < 0 && k == Y_BOOL {   // as kelvinc says it
+        gen_error(base, "a base is for reading an integer from text; bool(...) takes one value")
+        return
+    }
+    if v < 0 || (base >= 0 && nodes[base].next >= 0) {
+        var m = $"a converter takes one value, and an integer type a base for text after it: "
+        m += &name
+        m += "(v) or "
+        m += &name
+        m += "(text, base)"
+        gen_error(n, m.cstr)
+        return
+    }
+    let vy:int64 = type_of(v)
+    if failed { return }
+    let text = converter_text(v)
+    if base >= 0 && (k == Y_F64 || k == Y_F32) {
+        var m = $"a base is for reading an integer from text; "
+        m += &name
+        m += "(text) reads decimal, or C's hex floats as in \"0x1.8p1\""
+        gen_error(base, m.cstr)
+        return
+    }
+    let unseen = vy < 0 || types[vy].kind == Y_C
+    if base >= 0 && !text && !unseen {
+        var m = $"a base is for reading text, as in "
+        m += &name
+        m += "(\"755\", 8); "
+        m += &name
+        m += " converts a number"
+        gen_error(base, m.cstr)
+        return
+    }
+    let number = !unseen && (is_number_kind(types[vy].kind) || types[vy].kind == Y_UCHR)
+    if !text && !unseen && !number && !(k == Y_BOOL && (types[vy].kind == Y_PTR || types[vy].kind == Y_CSTR)) {
+        var m = name.copy()
+        m += " converts a number, or reads one from text, and this is "
+        let w:String = kelvin_type_text(vy)
+        m += &w
+        gen_error(v, m.cstr)
+        return
+    }
+    var opened = hold_args(v, 0 - 1)
+    put("((")
+    put_ctype(y)
+    put(")")
+    if text && k != Y_BOOL {
+        put_text_read(y)
+        put("(")
+        put_text_arg(v)
+        put_text_rest(y, base)
+    } else if unseen && k != Y_BOOL {                    // text or a number, as C's _Generic sees it
+        put("({ __auto_type _kv_conv = ((void)0, (")
+        gen_expr(v)
+        put(")); ")
+        if base >= 0 {                                   // only text compiles, as kelvinc's
+            put("(")
+            put_ctype(y)
+            put(")_Generic(KV_TEXT_TAG(_kv_conv), kv_text_tag *: ")
+            put_text_read(y)
+            put(", default: kv_base_needs_text)(KV_TEXT_PTR(_kv_conv)")
+        } else {
+            put("KV_TEXT(")
+            put_ctype(y)
+            put(", _kv_conv, ")
+            put_text_read(y)
+            put("(KV_TEXT_PTR(_kv_conv)")
+        }
+        put_text_rest(y, base)
+        if base >= 0 {
+            put("; })")
+        } else {
+            put("); })")
+        }
+    } else {
+        put("(")
+        gen_expr(v)
+        put(")")
+    }
+    put(")")
+    close_holds(&opened)
+}
+
 let gen_call(n:int64) {
     let f:int64 = nodes[n].a
     let args:int64 = nodes[n].b
@@ -2722,6 +2901,10 @@ let gen_call(n:int64) {
             gen_expr(args)
             put(")")
         }
+        return
+    }
+    if converter_of(n) >= 0 {                       // int64(v), int64(text, base) (#429)
+        gen_converter(n)
         return
     }
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
