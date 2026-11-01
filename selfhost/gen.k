@@ -943,6 +943,7 @@ let typename_member(f:int64):bool    // and x.typename, its type's name (#426)
 let gen_typename(n:int64)    // which gen_field writes (#426)
 let function_named(a:int64):bool    // a function's name, whose typename it has (#426)
 let told(y:int64):int64    // and an x.type told, $0.type of a function's one expression (#424)
+let void_return(a:int64):bool    // and a value returned without a result (#427)
 
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
@@ -6739,6 +6740,7 @@ let gen_return(n:int64) {
         put("return;\n")
         return
     }
+    if void_return(a) { return }
     if nodes[a].kind == N_COND && is_owner(type_of(a)) {     // return c ? a : b moves either out (#232)
         put("return ")
         gen_moved(a, nodes[current].ty)
@@ -6815,6 +6817,40 @@ struct lazy_rec {
 var lazies:$[lazy_rec]
 var lazy_at:Dictionary<int64, int64>      // a node's lazy Sequence, by its place in lazies
 var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
+
+// a value returned where the function has no result, as kelvinc says it
+// (#427): a call of no value, a function's without a result or C's, passes
+let void_return(a:int64):bool {
+    let ry:int64 = nodes[current].ty
+    if ry >= 0 && types[ry].kind != Y_VOID { return false }
+    let k = nodes[a].kind
+    if k == N_CALL || k == N_METHOD {
+        let y:int64 = type_of(a)
+        if y < 0 || types[y].kind == Y_VOID { return false }
+    }
+    var anon = false
+    for i in 0..<anon_fns.count as int64 {
+        if anon_fns[i] == current { anon = true }
+    }
+    var m = $""
+    if anon {
+        m += "this function has no result, so it returns no value: write its result's type, as in '{ (...):T in ... }', or 'return' alone"
+    } else {
+        var name = $""
+        if nodes[current].c >= 0 {
+            name += tok_text(nodes[current].c)
+            name += "."
+        }
+        name += tok_text(nodes[current].t)
+        m += "'"
+        m += &name
+        m += "' has no result, so it returns no value: write its result's type, as in 'let "
+        m += &name
+        m += "(...):T', or 'return' alone"
+    }
+    gen_error(a, m.cstr)
+    return true
+}
 
 // whether y is a lazy Sequence's type
 let is_lazy_type(y:int64):bool {

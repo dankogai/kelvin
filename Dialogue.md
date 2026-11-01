@@ -8349,3 +8349,18 @@ compilers. Testing found that kelvinc lets a function of no result
 provisional P438.
 
 There are 1159 tests, and all pass with clang and with gcc 15.
+
+### 474. A value returned from a void function
+
+> Do this task here: "Refuse a value returned from a void function"
+
+**Claude** made it #427, the task #426 found. kelvinc let a function of
+no result `return false`, and only C refused it, naming the C it wrote.
+Now kelvinc refuses it at the value, "'f' has no result, so it returns
+no value: write its result's type, as in 'let f(...):T', or 'return'
+alone", a method's and an anonymous function's too, and kc says it in
+kelvinc's words. A call that gives no value still passes, as C's return
+of a void call does. The example says `T`, as kelvinc does not see the
+type of every value. Details are provisional P439.
+
+There are 1163 tests, and all pass with clang and with gcc 15.

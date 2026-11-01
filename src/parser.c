@@ -6387,6 +6387,21 @@ static void require_bool_return(Expr *e, Decl *d) {
     error_at(e->pos, "%s, and this gives %s: compare it, as in 'x != 0'", lead, t ? kelvin_type(t) : "a number");
 }
 
+/* a value d returns where it has no result (#427): a call kelvinc sees no
+   value of (a function without a result, or C's) passes, as C's return of
+   a void call does; any other value is refused here, not left to C */
+static void reject_void_return(Expr *e, Decl *d) {
+    if (!value_type(e) && (e->kind == E_CALL || e->kind == E_METHOD))
+        return;
+    const char *lead = d->anon || !d->name ? "this function has no result"
+                       : d->recv_name      ? strfmt("'%s.%s' has no result", d->recv_name, d->name)
+                                           : strfmt("'%s' has no result", d->name);
+    const char *like = d->anon || !d->name ? "{ (...):T in ... }"
+                       : d->recv_name      ? strfmt("let %s.%s(...):T", d->recv_name, d->name)
+                                           : strfmt("let %s(...):T", d->name);
+    error_at(e->pos, "%s, so it returns no value: write its result's type, as in '%s', or 'return' alone", lead, like);
+}
+
 static void require_bool(Expr *e) {
     if (e->is_bool || bool_shape(e)) {
         e->is_bool = true;
@@ -13535,6 +13550,8 @@ static Stmt *parse_stmt_here(void) {
                 iter_nones.len = 0;
             }
             pick_overload(s->expr, result ? parsing_fn->ret : NULL);
+            if (!result && parsing_fn)
+                reject_void_return(s->expr, parsing_fn); /* (#427) */
             if (result)
                 s->expr = optional_of(string_of_ranged(s->expr, parsing_fn->ret), parsing_fn->ret, s->expr->pos); /* return v of a T? (#72) */
             reject_record_mismatch(s->expr, parsing_fn->ret, s->expr->pos);  /* a T? where a T goes (#218) */

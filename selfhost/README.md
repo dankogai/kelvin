@@ -561,6 +561,9 @@ kc reads what it is written in, and little more.
     overloaded function's are kelvinc's errors, in its words.
   - Where kc's types differ: a count is an i64, where kelvinc's is a u64,
     and a number's own const is dropped.
+- **A value returned without a result** (#427), as kelvinc's: `return v`
+  in a function of no result is kelvinc's error, in its words.
+  - A call that gives no value passes, as C's return of a void call does.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.
