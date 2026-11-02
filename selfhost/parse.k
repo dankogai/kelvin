@@ -59,7 +59,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_BLOCK,    // a, the first statement
     S_SWITCH,   // switch a { b, the first case }
     S_CASE,     // case a...: b...; flag 1 of default
-    S_IFLET,    // if let t(flag) = a { b } else c (#217)
+    S_IFLET,    // if let t(flag) = a { b } else c (#217); if let flag = a, t flag too (#442)
     // declarations
     D_FN,       // t(a...):ty { b }, b -1 for a prototype; of a type c, flag 1 static, 2 a var method (#320)
     D_STRUCT,   // t { a... }
@@ -2201,10 +2201,21 @@ let parse_if():int64 {
         advance()
         nodes[n].kind = S_IFLET
         nodes[n].t = advance()
-        expect("(")
-        nodes[n].flag = advance()
-        expect(")")
-        expect("=")
+        if at_word("(") {
+            advance()
+            nodes[n].flag = advance()
+            expect(")")
+        } else {
+            nodes[n].flag = nodes[n].t                // if let x = e, of the value case: t and flag x (#442)
+        }
+        if !at_word("=") {                           // as kelvinc says it
+            var m = $"expected '=' after the name of 'if let "
+            m += tok_text(nodes[n].flag)
+            m += "'"
+            parse_error(m.cstr)
+            return n
+        }
+        advance()
     }
     set_a(n, parse_expr())
     set_b(n, parse_block())

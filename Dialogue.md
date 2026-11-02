@@ -8606,3 +8606,18 @@ of `.map`, returning what the closure borrows, is kelvinc's error
 alone. Details are provisional P453.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 489. The short if let
+
+> go on with #442
+
+**Claude** asked which gap to take next; the user chose `if let x = e`.
+kc had read only `if let c(x) = e`. It now reads kelvinc's #74 form: an
+Optional's `some` or a Result's `ok`, bound to `x`, of a place or of a
+value a call gives, with `else` and `else if let`, and kelvinc's errors
+of any other type and of a missing `=`. Found: the six programs that use
+it stop in kc before it, on `try`, `Result<T, E>.err(...)`,
+`Array<String>()`, a RegExp literal and `struct timespec;`. Details are
+provisional P454.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

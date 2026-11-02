@@ -879,5 +879,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     let back = handed_back(handed)
     handed = $"again"
     println(held ?? $"?", " ", back, " ", handed)
+    if let h = held { println(h, " ", h.count) }        // the value of an Optional, of a Result (#442)
+    let nothing:String? = none
+    if let h = nothing { println(h) } else if let t = octet_text.string() { println("text ", t) }
     return 0
 }

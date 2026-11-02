@@ -598,6 +598,13 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`if let x = e`** (#442), as kelvinc's #74: an Optional's `some` or
+  a Result's `ok`, bound to `x`, of a place or of a value a call gives,
+  with `else` and `else if let`, beside `if let c(x) = e`.
+  - Another type, and a missing `=`, are kelvinc's errors, in its words.
+  - Found: tests/run/result_if_let.k and five more stop in kc before
+    it, on `try`, `Result<T, E>.err(...)`, `Array<String>()`, a RegExp
+    literal and `struct timespec;`.
 - **An owner moved out** (#441), as kelvinc's: a variable given by
   value, to a function, a method, a case, a `T?`, a Result,
   `Iterator(...)`, `.reduce` or `.merge`, returned or awaited, is dead

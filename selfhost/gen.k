@@ -11205,11 +11205,18 @@ let gen_iflet(n:int64, depth:int64) {
     let e = nodes[n].a
     let y = type_of(e)
     let d = tagged_of(y)
+    let bare = nodes[n].t == nodes[n].flag             // if let x = e, an Optional's some, a Result's ok (#442)
+    if bare && (y < 0 || d < 0 || value_case(y) < 0) {
+        var w = $"'if let' takes an Optional or a Result, and this is "
+        if y < 0 { w += "not one" } else { w += eq_type_text(y) }   // struct T, as kelvinc names it
+        gen_error(e, w.cstr)
+        return
+    }
     if d < 0 {
         gen_error(n, "if let takes an enum with values, an Optional or a Result")
         return
     }
-    let m = case_named(d, nodes[n].t) ?? 0 - 1
+    let m = bare ? value_case(y) : case_named(d, nodes[n].t) ?? 0 - 1
     if m < 0 || nodes[m].ty < 0 {
         gen_error(n, "this is no case of a value of this enum")
         return

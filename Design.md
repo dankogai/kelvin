@@ -473,6 +473,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 439 | kc reads a Bytes as kelvinc's: the type, an owner freed where its block ends; `Bytes()`, `Bytes(n)`, `Bytes(text)`, `Bytes(&b)`, `Bytes(&s)`, `Bytes([...])` and `Bytes(p, n)`; `.count`, `.capacity`, `.isEmpty` and `.cstr`; `b[i]`, checked and assignable; `append`, `+=`, `insert`, `remove`, `clear`, `reserve` and `compact` in place; `.copy()`, `.string()` a Result, `String(&b)`; `==`, `!=`, `<`, `<=`, `>`, `>=`; `for x in b`; printing, in an Array quoted; kelvinc's errors in its words, and kc's of its slices, `b + c`, `.at`, `.isUTF8`, `.escape()` and `.toBase64()`, not yet kc's | selfhost/parse.k's Y_BYTES; selfhost/gen.k's Bytes section, bytes_field_type, bytes_method_type, gen_bytes_make, gen_bytes_add, gen_bytes_method, gen_bytes_bin, takes_args, owner_copy_error | `octets.insert(0, Bytes([0x3e, 32]))` of kc | 2026-11-02 |
 | 440 | kc refuses an owner a variable holds where kelvinc does, `var s = t`, `let s = t` and `s = t` of a String, a Bytes, an Array, a Dictionary, an Optional or a struct that owns, which it had copied and freed twice, and String's `s += t` and `s += p.s`, which had taken its bytes; kelvinc's words, which kc's errors of an owner in `{...}`, `[...]`, a Dictionary's entries and `c ? a : b` now say too | selfhost/gen.k's owner_name, owner_assign_error, gen_var's, gen_assign's and String `+=`'s checks | `var s = t` of kc | 2026-11-02 |
 | 441 | kc tracks an owner moved out as kelvinc does, in the order it is written: a variable given by value to a function, a method, a case, an Optional or a Result, `Iterator(...)`, `.reduce`, `.merge`, returned or awaited is dead until assigned anew, `t = v`, and a later use is kelvinc's error; the moves of a call's arguments are made where it ends, so `f(t, t)` stays as kelvinc builds it; a global moved, and each element or an `if let`'s value moved or returned, are kelvinc's errors too | selfhost/gen.k's sym.moved, moving, anew, local_at, moved_error, move_out, move_back, moves_done, into_words; gen_expr, gen_value and gen_stmt wrapping gen_expr_of, gen_value_of and gen_stmt_of | `take(t)` and then `println(t)` of kc | 2026-11-02 |
+| 442 | kc reads kelvinc's `if let x = e { ... } else { ... }` (#74): an Optional's `some` or a Result's `ok`, bound to `x`, a let it still owns, of a place or of a value a call gives, and `else if let`; what is neither, and a missing `=`, are kelvinc's errors in its words | selfhost/parse.k's parse_if; selfhost/gen.k's gen_iflet | `if let h = held { ... }` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1058,6 +1059,20 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (442) Agreed details: "go on with #442"; the user chose `if let x =
+  e` over two error gaps and a closure's lent element.
+  - kc read only `if let c(x) = e`, and `if let x = e` was its parse
+    error.
+  - parse_if reads a name with no parentheses as the short form, an
+    S_IFLET whose t is its flag, the name; a missing `=` is kelvinc's
+    "expected '=' after the name of 'if let x'".
+  - gen_iflet binds value_case of the type, `some` of an Optional and
+    `ok` of a Result, as the case form does; of any other type it is
+    kelvinc's "'if let' takes an Optional or a Result, and this is T",
+    a struct and an enum with values named `struct T`, eq_type_text.
+  - Found: tests/run/result_if_let.k and five more use the short form,
+    and stop in kc before it: `try`, `Result<T, E>.err(...)`,
+    `Array<String>()`, a RegExp literal, `struct timespec;`.
 - (441) Agreed details: "go on with #441"; the user chose moves over
   `:= &mk()` and text into a `u8`.
   - kc had taken an owner where it moves, `_take(&t)`, and left the
@@ -1077,7 +1092,8 @@ Notes:
     value moved or returned, are kelvinc's errors, in its words: into
     'f', '.m', 'some', case 'ok', 'Iterator', '.reduce'.
   - Found: `{ $0 }` of `.map`, which returns an element a closure only
-    borrows, is kelvinc's error alone; `if let x = s` is not kc's yet.
+    borrows, is kelvinc's error alone; `if let x = s` is not kc's yet,
+    which #442 reads.
 - (440) Agreed details: "go on with #440"; the user chose String's `+=`
   in this number too.
   - kc had built `var s = t`, `let s = t` and `s = t` of an owner `t`:
@@ -6189,6 +6205,7 @@ says "as agreed".
 | P451 | Details of #439 | selfhost/parse.k: Y_BYTES, parse_type's and N_TYPE's `Bytes`; selfhost/gen.k: the Bytes section, the type's names, type_of's, gen_member's, gen_element's, gen_method_of's, gen_expr's, the assignment's, the for loop's, show_value's and put_eq_code's use of them, takes_args, owner_copy_error; selfhost/sample.k: `framed`, `octets`; selfhost/README.md | — |
 | P452 | Details of #440 | selfhost/gen.k: owner_name and owner_assign_error and their prototypes; gen_var's and gen_assign's `=` checks; String `+=`'s; the struct member's, list element's, Dictionary entry's, `?:`'s and fixed element's words; selfhost/README.md | — |
 | P453 | Details of #441 | selfhost/gen.k: sym.moved; moving, anew, local_at, moved_error, move_out, move_back, moves_done and into_words; gen_expr, gen_value and gen_stmt as wrappers of gen_expr_of, gen_value_of and gen_stmt_of; the moves of gen_arg_to, gen_method_of's case, gen_value's case, gen_moved, gen_return, gen_iter_value, gen_eager, gen_eager_keyed, gen_merge and gen_await; `t = v` in gen_stmt; selfhost/sample.k: `handed_back`, `handed`; selfhost/README.md | — |
+| P454 | Details of #442 | selfhost/parse.k: parse_if's short form and its error, S_IFLET's comment; selfhost/gen.k: gen_iflet's value case and its error; selfhost/sample.k: `if let h = held`, `else if let t = ...`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
