@@ -60,9 +60,9 @@ let describe(s:sign):cstr { "sign" }
 let describe(n:int32):cstr { "i32" }
 
 let main():int32 {
-    println(kind(strtol("1", nullptr, 10)), " ", kind(strtoll("1", nullptr, 10)), " ", kind(atan2(1.0, 1.0)), " ",
+    println(kind(strtol("1", nowhere, 10)), " ", kind(strtoll("1", nowhere, 10)), " ", kind(atan2(1.0, 1.0)), " ",
             kind(floorf(1.5:float32)), " ", kind(strchr("abc", 'b')[0]), " ", kind(strchr("abc", 'b')))
-    println(len(strchr("hello", 'l')), " ", len(strtol("7", nullptr, 10)), " ", len(strtoll("8", nullptr, 10)), " ",
+    println(len(strchr("hello", 'l')), " ", len(strtol("7", nowhere, 10)), " ", len(strtoll("8", nowhere, 10)), " ",
             release(malloc(8)), " ", release(labs(-3)), " ", measure(strlen("abc")), " ", measure(4))
     out(stdout, 5)
     out(stdout, strchr("six", 's'))

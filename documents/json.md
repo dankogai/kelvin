@@ -45,7 +45,7 @@ space)` writes it back, as JS's do.
     its block, moved by `return` and by passing; see
     [enums.md](enums.md).
 - **`null`** is the case `null`, carrying nothing: `JSON.null`,
-  `j.is(null)`. It is not `nullptr`, which is a pointer.
+  `j.is(null)`. It is not `nowhere`, which is a pointer.
 - **`JSON.parse(text)`** takes a `cstr`, or a `String` borrowed, `&s`,
   and gives a `JSON` straight.
   - A text that is not JSON gives the case `error`, with a `String`

@@ -130,10 +130,10 @@ void kv_print_u64(unsigned long long v) { kv_fprint_u64(stdout, v); }
 void kv_fprint_bool(void *fp, bool v) { fputs(v ? "true" : "false", (FILE *)fp); }
 void kv_print_bool(bool v) { kv_fprint_bool(stdout, v); }
 
-void kv_fprint_str(void *fp, const char *v) { fputs(v ? v : "nullptr", (FILE *)fp); } /* (#260) */
+void kv_fprint_str(void *fp, const char *v) { fputs(v ? v : "nowhere", (FILE *)fp); } /* (#260) */
 void kv_print_str(const char *v) { kv_fprint_str(stdout, v); }
 
-/* as .cstr writes it (#260): 0x and the digits, nullptr for a null one,
+/* as .cstr writes it (#260): 0x and the digits, nowhere for a null one,
    where %p is the platform's, "(nil)" of glibc */
 void kv_fprint_ptr(void *fp, const void *v) {
     uint8_t buf[KV_CSTR_SCALAR];
@@ -228,13 +228,13 @@ static char *cut(char *p, size_t max, const char *v, size_t n) {
 }
 
 char *kv_template_str(char *p, size_t max, const char *v) {
-    return v ? cut(p, max, v, (size_t)-1) : put(p, max, "nullptr", 7); /* (#260) */
+    return v ? cut(p, max, v, (size_t)-1) : put(p, max, "nowhere", 7); /* (#260) */
 }
 
 char *kv_template_bytes(char *p, size_t max, size_t n, const void *v) { return cut(p, max, v, n); }
 
 char *kv_template_ptr(char *p, size_t max, const void *v) {
-    uint8_t buf[KV_CSTR_SCALAR]; /* as .cstr writes it, nullptr for a null one (#260) */
+    uint8_t buf[KV_CSTR_SCALAR]; /* as .cstr writes it, nowhere for a null one (#260) */
     const char *t = (const char *)kv_cstr_ptr(v, buf);
     return put(p, max, t, strlen(t));
 }
@@ -319,7 +319,7 @@ void kv_out_quoted(kv_out *o, const uint8_t *at, size_t n, bool bytes) {
 
 void kv_out_quoted_text(kv_out *o, const void *s) {
     if (!s)
-        kv_out_put(o, "nullptr"); /* as Kelvin writes it (#259) */
+        kv_out_put(o, "nowhere"); /* as Kelvin writes it (#259) */
     else
         kv_out_quoted(o, (const uint8_t *)s, strlen((const char *)s), false);
 }

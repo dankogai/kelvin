@@ -16,7 +16,7 @@ let main():int32 {
     let q:struct point = p.moved(3);          // the long form still works
     let n := malloc(sizeof(node)) as node^;
     n^.value = 7;
-    n^.next := nullptr;
+    n^.next := nowhere;
     let u:number = {.i = 65};
     let c:color = GREEN;
     var t:timespec = {1, 0};

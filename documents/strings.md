@@ -51,7 +51,7 @@ let card:cstr := `${n} items` // a template's text, on the stack too
 - **`cstr`** is immutable text (#52): in C a `const uint8_t *`, a
   pointer to bytes that never change through it, which Kelvin treats as
   text rather than as a pointer.
-  - It is a reference: assign it with `:=`, compare it with `nullptr`
+  - It is a reference: assign it with `:=`, compare it with `nowhere`
     or `.isNull`, and its `.size` is a pointer's size, 8 on a 64-bit
     target.
   - `s.count` is its length, the bytes before the NUL: `strlen(s)`.
@@ -171,13 +171,13 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
 <!-- fragment -->
 ```swift
 for c in s { ... }            // each byte of s, up to the NUL (#30)
-for arg in argv { ... }       // each string, up to nullptr
+for arg in argv { ... }       // each string, up to nowhere
 s[0], s^                      // the first byte, a u8
 var p := s; p := p.next       // a pointer stepped by one byte (#26)
 ```
 
 - `for c in s` gives each `u8` up to the first 0, and `for arg in argv`
-  each pointer up to `nullptr`.
+  each pointer up to `nowhere`.
 - `c` is a `u8`, so `c == 'a'` compares bytes and `c.cstr` is its
   number's text, not the character.
 - A string is evaluated once and does not move. See
@@ -186,13 +186,13 @@ var p := s; p := p.next       // a pointer stepped by one byte (#26)
 ### Comparing
 
 `==` between two `cstr` compares the pointers, as in C. Compare text
-with `strcmp(a, b) == 0`, and a string with `nullptr` by `s.isNull` or
-`s == nullptr`; a literal is never null.
+with `strcmp(a, b) == 0`, and a string with `nowhere` by `s.isNull` or
+`s == nowhere`; a literal is never null.
 
 ### Printing
 
 - `print` and `println` show a `u8^`, a `cstr` and a string literal as
-  their text, and `nullptr` for a null pointer (#260).
+  their text, and `nowhere` for a null pointer (#260).
 - A single `u8` prints as a number, as every integer does:
   `println(s[0])` prints `104` for `h`, and `println(s.hex)` its
   address.

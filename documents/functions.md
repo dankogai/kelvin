@@ -227,8 +227,8 @@ let u:():() := tick        // the same, the result written out (#141)
   ends a variadic one: `(i32, ...):i64`. The parameters are types
   without names.
 - A function type is a reference (P32): it is assigned with `:=`, is
-  `nullptr` until assigned, and is compared with `nullptr`
-  (`if f != nullptr`). A `let` one is a `const` pointer.
+  `nowhere` until assigned, and is compared with `nowhere`
+  (`if f != nowhere`). A `let` one is a `const` pointer.
 - The result takes every suffix after it, so `(i64):i64^` returns a
   pointer.
   - **A pointer to a function type** groups it in parentheses,
@@ -421,7 +421,7 @@ let main():int32 {
   - Structs, pointers and C typedefs by their type, numbers by their
     Kelvin type, and enums after the numbers.
     - `twice(atan2(y, x))` calls `twice(x:f64)`, and
-      `twice(strtol(s, nullptr, 10))` `twice(n:i64)` wherever `long`
+      `twice(strtol(s, nowhere, 10))` `twice(n:i64)` wherever `long`
       has 64 bits, as C's `long` and `long long` are both `i64` there.
   - A number of a type no overload takes goes to the one that takes a
     number there, and a pointer to the one that takes a pointer

@@ -7,7 +7,7 @@ struct node {
 
 let sum(var n:struct node^):int32 {
     var total:int32 = 0;
-    while n != nullptr {
+    while n != nowhere {
         total += n^.value;      // C: n->value
         n := n^.next;
     }
@@ -47,7 +47,7 @@ let main(argc:int32, argv:uint8^^):int32 {
     printf("%d %d\n", row^[2], int32(sizeof rows / sizeof rows[0]));
 
     var names:[const uint8^](2) = ["alpha", "beta"];   // array of 2 pointers
-    printf("%s %s\n", names[0], argv[0] != nullptr ? "argv ok" : "no argv");
+    printf("%s %s\n", names[0], argv[0] != nowhere ? "argv ok" : "no argv");
     return 0;
 }
 // out: 6

@@ -40,7 +40,7 @@ make vscode
   with the code in `${...}` colored as code, `$"..."` and `` $`...` ``,
   characters `'c'`, and regular expressions `$/pattern/flags` with their
   classes, groups, quantifiers and escapes.
-- Numbers, decimal, hex, binary and octal; `true`, `false`, `nullptr`,
+- Numbers, decimal, hex, binary and octal; `true`, `false`, `nowhere`,
   `none`; `self` and `Self`; `$0` and `$[k]`; `$(...)`.
 - Operators, among them Kelvin's own: `^` of a pointer, `:=`, `??`, `..<`
   and `...`.

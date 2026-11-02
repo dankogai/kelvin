@@ -217,9 +217,9 @@ typedef enum {
 
 /* what `for x in s` walks (#30) */
 enum {
-    EACH_POINTER,  /* s^, s.next^, ... up to 0 or nullptr; a nullptr s is empty */
-    EACH_LIST,     /* node pointers along next, up to nullptr */
-    EACH_ARRAY,    /* the elements, stopping early at 0 or nullptr */
+    EACH_POINTER,  /* s^, s.next^, ... up to 0 or nowhere; a nowhere s is empty */
+    EACH_LIST,     /* node pointers along next, up to nowhere */
+    EACH_ARRAY,    /* the elements, stopping early at 0 or nowhere */
     EACH_RECORDS,  /* the elements of an array of structs, all of them */
     EACH_UNSEEN,   /* a pointer whose type kelvinc cannot see, as EACH_POINTER */
     EACH_BYTES,    /* the count bytes of a Bytes (#54), NULs included */

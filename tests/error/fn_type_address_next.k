@@ -1,6 +1,6 @@
 // error: '.next' is a property of pointers to data, and (i64):i64 is a function
 let add(n:int64):int64 { return n + 1; }
 let main():int32 {
-    println((&add).next == nullptr);
+    println((&add).next == nowhere);
     return 0;
 }

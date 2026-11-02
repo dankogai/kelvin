@@ -47,7 +47,7 @@ if n > 0 {
 } else {
     println("negative")
 }
-while fgets(line, line.size, stdin) != nullptr {
+while fgets(line, line.size, stdin) != nowhere {
     print(line)
 }
 do {
@@ -202,18 +202,18 @@ strings and lists do (#30). What `x` is depends on `s`'s type:
 <!-- fragment -->
 ```swift
 for c in s { ... }          // s:cstr: each byte, up to the NUL
-for arg in argv { ... }     // argv:u8^^: each string, up to nullptr
-for n in list.head { ... }  // n:node^: each node along next, up to nullptr
+for arg in argv { ... }     // argv:u8^^: each string, up to nowhere
+for n in list.head { ... }  // n:node^: each node along next, up to nowhere
 for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 ```
 
 - **A pointer to numbers or pointers** gives `s^`, `s.next^`, ... up to
-  the first 0 or `nullptr`. A `nullptr` `s` is empty.
+  the first 0 or `nowhere`. A `nowhere` `s` is empty.
 - **A pointer to a struct with a `next` field** is a list: `x` is each
   node's pointer, so `x^.value` reads it and may change it. The next
   pointer is read before the body runs, so the body may `free(x)`.
 - **An array of known length** gives its elements, stopping early at a 0
-  or `nullptr`; an array of structs gives all of them.
+  or `nowhere`; an array of structs gives all of them.
 - **An array parameter** is a pointer in C. A let one, `xs:[i32](4)`, is
   walked up to its declared length; a `var` one may have moved, so it is
   walked like a pointer.
@@ -248,9 +248,9 @@ no truthiness, so compare instead:
 | C | Kelvin |
 |---|--------|
 | `if (n)` | `if n != 0` |
-| `while (p)` | `while p != nullptr` |
-| `if (!p)` | `if p == nullptr` |
-| `while (fgets(buf, n, f))` | `while fgets(buf, n, f) != nullptr` |
+| `while (p)` | `while p != nowhere` |
+| `if (!p)` | `if p == nowhere` |
+| `while (fgets(buf, n, f))` | `while fgets(buf, n, f) != nowhere` |
 | `while (1)` | `while true` |
 
 - Comparisons, `&&`, `||` and `!` give a `bool`, not C's `int`, so
@@ -258,7 +258,7 @@ no truthiness, so compare instead:
 - A `bool` variable, field or function result is a condition as it is, as
   is `bool(x)` or `x as bool`.
 - kelvinc reports a non-`bool` condition it can see, with a hint
-  (`'x != 0'`, `'p != nullptr'`).
+  (`'x != 0'`, `'p != nowhere'`).
   - Where it cannot see the type, as for C functions and macros, the C
     compiler reports it, naming `kv_condition_is_not_bool`.
   - `while fgets(...)` fails that way, and so does `if isdigit(c)` (an

@@ -39,7 +39,7 @@ the design decisions, numbered `#N` throughout, are in
 - [bytes.md](bytes.md): `Bytes`, any bytes on the heap: `Bytes("text")`,
   `Bytes([...])`, `b[i]`, `b += x`, `b.string()`, `b.escape()`, base64.
 - [pointers.md](pointers.md): `T^`, `:=` for references, `any^`,
-  `nullptr`, `.next`, `.prev`, `.isNull`.
+  `nowhere`, `.next`, `.prev`, `.isNull`.
 - [arrays.md](arrays.md): `[T]` and `[T](N)`, `[...]` initializers,
   `.count`; `Array<T>`, `$[T]`, the growable one on the heap, with
   `map`, `filter`, `reduce`, `sort`, `sorted`, `reverse` and `reversed`.

@@ -90,7 +90,7 @@ static var calls:int32
     `let p:i32^ := &x; p^ = 7` is fine.
   - A let array or struct cannot change its elements or fields.
   - A `let` needs a value, except in an `extern` declaration.
-- **`var` may change.** `var p:any^` without a value is `nullptr` (#20).
+- **`var` may change.** `var p:any^` without a value is `nowhere` (#20).
 - **A list** shares the keyword: `let a:i32 = 1, b:u8^ := p` declares
   both, each with its own complete type, so C's `int a, *b` split cannot
   happen *(provisional P7)*.

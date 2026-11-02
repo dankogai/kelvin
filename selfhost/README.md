@@ -570,7 +570,7 @@ kc reads what it is written in, and little more.
   - In C each is a typedef of its pointer, `_kv_fnN`, written before what
     uses it, and `struct T;` before one that names a struct not yet
     written.
-  - A value of one is a reference, assigned with `:=`, `nullptr` until
+  - A value of one is a reference, assigned with `:=`, `nowhere` until
     assigned: a function's name, `let g := twice`, or an anonymous
     function, `{ $0 + 1 }` where the type gives its parameters, and
     `{ (k:i64):i64 in ... }` anywhere, called in place too, `{ ... }(3)`.
@@ -598,6 +598,8 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`nowhere`** (#446), kelvinc's renamed `nullptr`: `nullptr` is
+  kelvinc's error, in its words, with its hint.
 - **Template literals** (#445), as kelvinc's #39, #44 and #67:
   `` `a${x}b` ``, a cstr in storage that lives until the block ends, and
   `` $`a${x}b` ``, a String; a value shows as print shows it, `${xs}` and
@@ -728,7 +730,7 @@ kc reads what it is written in, and little more.
     printing one are kelvinc's errors, in its words.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
-  `nullptr`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
+  `nowhere`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
 - **Types:** `int64`, `int32`, `uint8`, `uint32`, `float64`, `float32`, `bool`,
   `cstr`, `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's
   `[cstr]`, and `Dictionary<K, V>` of `String` or integer keys (#211).
@@ -1062,7 +1064,7 @@ kc reads what it is written in, and little more.
   the entry; `d.has(k)`, `d.get(k, default)`, `d.count`; `d.remove(k)`,
   which frees what the entry held and is `true` where it was there
   (#270).
-  - `d.find(k)`, a `V^` to the value or `nullptr`, a `const V^` of a let;
+  - `d.find(k)`, a `V^` to the value or `nowhere`, a `const V^` of a let;
     `d.pretty` and `d.typename`, as a Set's; `d.reserve(n)` and
     `d.clear()`, in place, of a var (#337).
   - `d.merge(&e)`, in place, and `d.merging(&e)`, a new Dictionary, as

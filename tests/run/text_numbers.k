@@ -18,7 +18,7 @@ let main():int32 {
     println(int64("-0x1f", 16), " ", int64("0o17", 8), " ", int64("0b11", 2), " ", int64("  +12"), " ", int64("0755"))
 
     // the longest number is taken; no number is 0
-    println(int64("42abc"), " ", int64("abc"), " ", int64(""), " ", int64("- 5"), " ", int64("--5"), " ", int64(nullptr as cstr))
+    println(int64("42abc"), " ", int64("abc"), " ", int64(""), " ", int64("- 5"), " ", int64("--5"), " ", int64(nowhere as cstr))
 
     // out of range clamps to the type's limits, with errno set
     errno = 0
@@ -39,7 +39,7 @@ let main():int32 {
 
     // what kelvinc cannot see: C's _Generic reads text and converts numbers
     let env:cstr := getenv("KELVIN_TEXT_NUMBERS_UNSET")
-    println(int64(strchr("x42", '4')), " ", int32(strlen("hello")), " ", float64(atoi("7")), " ", int64(env == nullptr))
+    println(int64(strchr("x42", '4')), " ", int32(strlen("hello")), " ", float64(atoi("7")), " ", int64(env == nowhere))
     let base:int32 = 16
     println(int32(strchr("=7f", '7'), base), " ", twice(int64("21")), " ", from_hex(-77))
 

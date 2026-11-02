@@ -232,7 +232,7 @@ ages["cy"] = 7                           // adds, or replaces the value
 ages["ann"] += 1                         // a place, checked: the key must be there
 println(ages["bob"], " ", ages.count, " ", ages.has("dan"))   // some(42) 3 false
 for k, v in ages { print(k, "=", v, " ") }   // ann=32 bob=42 cy=7
-let p := ages.find("zed")                // a V^, or nullptr
+let p := ages.find("zed")                // a V^, or nowhere
 if !p.isNull { println(p^) }
 println(ages.get("zed", -1))             // a value, or the default
 ages.remove("bob")                       // true if it was there
@@ -264,7 +264,7 @@ words["a"] = $[$"apple"]
     held if it owns.
   - `=` does not copy an owner in, as it copies none (#54):
     `d[k] = s.copy()`.
-- **Methods:** `has(k)`; `find(k)`, a `V^` to the value or `nullptr`
+- **Methods:** `has(k)`; `find(k)`, a `V^` to the value or `nowhere`
   (`const V^` for a let).
   - `get(k, default)`, the value or the default, for a `V` that does
     not own.

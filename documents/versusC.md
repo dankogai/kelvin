@@ -63,8 +63,8 @@ not been agreed yet. See the P-numbers in [Design.md](../Design.md).
 | `int (*ops[4])(int)`, `int (**out)(int)`, `typedef int (*op)(int);` | `var ops:[(i32):i32](4)`, `out:((i32):i32)^`, `typealias op = (i32):i32`; `Array<op>` and `Dictionary<String, op>` too (#403) |
 | `void on_signal(int) { ... }`, a parameter unnamed | `let on_signal(_:i32) { ... }`: `_` may stand for several, and is never read (#388) |
 | `void f(void);` | `let f()`, or `let f():()` with the result written out (#141); the two mean the same |
-| `void *p = NULL;` | `var p:any^` (a reference is `nullptr` until assigned) |
-| `(void *)0`, `NULL` | `nullptr` |
+| `void *p = NULL;` | `var p:any^` (a reference is `nowhere` until assigned) |
+| `(void *)0`, `NULL` | `nowhere` |
 | `static int g(void);` | `static let g():i32`; `static let T.name(...)` is a function of the type, `T.name(...)` (#111) |
 | functions taking `struct T *` and a global per type | `extend T { let f() { } let x:R { } var y:R { get { } set(v) { } } static var n:i64 = 0 }`, used as `v.f()`, `v.x`, `v.y = 1`, `T.n` (#130 to #133) |
 | `"what??!"`, which C11 reads as `"what|"` (a trigraph) | `"what??!"`, as written: Kelvin has no trigraphs (#220) |
@@ -154,7 +154,7 @@ Each document says so in its "Where it lives" section. In short:
 | [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text |
 | [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
 | [bits.md](bits.md) | `Bits`, 64 bits in a `u64`, `bv[n]` a `bool`, `.flip(n)`, the bitwise operators, `!!n` (#387) |
-| [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nullptr`, `.next`, `.prev`, `.isNull` |
+| [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nowhere`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
 | [json.md](json.md) | `#import <JSON>`: `JSON` as an enum with values, `JSON.parse(text)`, `JSON.stringify(&j, replacer, space)` as JS's (#113) |
@@ -192,7 +192,7 @@ Each document says so in its "Where it lives" section. In short:
   stay reserved (#22), as a value's text is `x.cstr`.
 - Kelvin reserves all of C's keywords, plus `i8` … `u128`, `f32`,
   `f64`, `bool`, `true`, `false`, `String`, `Bytes`, `Array`,
-  `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nullptr`
+  `Dictionary`, `Set`, `Optional`, `Result`, `uchr`, `any`, `nowhere`
   and `cstr` *(provisional P11)*, `as` (#14), `let` and `var`
   (#27), `fallthrough` (#386), `Bits` (#387), `static_assert`
   (#394), `alignof` (#395), `alignas` (#396) and `typeof` (#398).

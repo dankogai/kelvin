@@ -4,7 +4,7 @@ let twice(v:vec):vec { (vec){v.x * 2, v.y * 2} }
 let twice(s:String):int64 { s.count as int64 * 2 }
 
 let main():int32 {
-    let p:int64^ := nullptr
+    let p:int64^ := nowhere
     println(twice(p))
     return 0
 }

@@ -73,13 +73,13 @@ let main():int32 {
     }
     println(" ", ev, " ", ev2, " ", { (k:int64):k.type in k + 1 }(4), " ", CHAR_BIT + INT_MAX);
 
-    // .typename: a literal is C's, nullptr is any^, a choice of one type is
+    // .typename: a literal is C's, nowhere is any^, a choice of one type is
     // that type, a C struct is spelled so, and anything else is "?"
     var f:inc.type := inc;
     let w = true;
     var q:point = {3, 4};
     var cs:struct cpt;
-    println(nullptr.typename, " ", 42.typename, " ", (w ? p : q).typename, " ", cs.typename, " ",
+    println(nowhere.typename, " ", 42.typename, " ", (w ? p : q).typename, " ", cs.typename, " ",
             (&f).typename, " ", b.typename, " ", (w ? p : q).cstr);
     return 0;
 }

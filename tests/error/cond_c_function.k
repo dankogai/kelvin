@@ -1,5 +1,5 @@
 // error: kv_condition_is_not_bool
-// fgets returns a pointer: write `while fgets(...) != nullptr { ... }`
+// fgets returns a pointer: write `while fgets(...) != nowhere { ... }`
 #import <stdio.h> as C
 let main():int32 {
     var line:[uint8](80);

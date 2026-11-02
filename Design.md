@@ -477,6 +477,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 443 | examples/ follows the language as it is now: fizzbuzz.k builds a `String`, sort.k sorts a `$[T]` with `sort` and `sorted`, linkedlist.k changes its list by `var` methods, and the rest name their types `i64`, `u8`, `f64` (#151); new ones show what had none: sequences.k iterators and lazy Ranges, wordfreq.k a Dictionary, a Set and RegExp, calc.k an enum with values, `switch` and `try`, tasks.k `async` and `await` | examples/*.k; README.md's Examples | `squares.push(i * i)` of linkedlist.k | 2026-11-02 |
 | 444 | kc reads `.m(a)` in a method as `self.m(a)`, which it had read as a call of a function `m`; walks a pointer to a struct whose `next` points to its own kind as a list, `for n in head`, each node a let, next read before the body, as kelvinc's #30; and names each anonymous function by its own number, so that one inside another has a name of its own | selfhost/parse.k's parse_method_call; selfhost/gen.k's list_walked, gen_each's list, anon_serial | `.pop()` in examples/linkedlist.k | 2026-11-02 |
 | 445 | kc reads template literals, as kelvinc's #39, #44, #67, #125 and #126: `` `a${x}b` ``, a cstr made in storage that lives until the block ends, of numbers, bools, text, Strings, `uchr`, Bits, byte arrays, nested templates, and the text print shows of a struct, an enum with values, an Optional, a Result, an Array, a Dictionary, a Set and a Range, `${v.pretty}` and `${v.pretty(n)}` too; `` $`a${x}b` ``, a String; an owner a call gives held and freed; and kelvinc's errors of a template returned, kept by an outer variable, in a global or empty | selfhost/lex.k's lex_template; selfhost/parse.k's parse_template; selfhost/gen.k's gen_template, place_templates | `` println(`${i}: ${fizzbuzz(i)}`) `` in examples/fizzbuzz.k | 2026-11-02 |
+| 446 | `nullptr` is renamed `nowhere`: a pointer points nowhere as an Optional holds `none`; print, `.cstr` and templates show a null pointer as `nowhere`; `nullptr` stays reserved, refused with a hint, by kelvinc and kc | `p == NULL` | `while p != nowhere { ... }` | 2026-11-02 |
 
 Notes:
 
@@ -1062,6 +1063,21 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (446) Agreed details: "rename `nullptr` to `nowhere`. We should've
+  done so when we renamed `NULL` to `nullptr`. `nowhere` is more
+  natural in the world where `Optional<T>` returns `some` or `none`."
+  - The user chose `nullptr` as an error with a hint: "'nullptr' is
+    'nowhere' in Kelvin (#446), a pointer to nothing, as 'none' is an
+    Optional with nothing: write 'nowhere'", in kelvinc and in kc. It
+    stays a keyword, so it is no name.
+  - Every `nullptr` of the language became `nowhere`: kelvinc's keyword
+    and messages, kc, the runtime's text of a null pointer (#259,
+    #260), so that what print shows still pastes back, the modules, the
+    documents, the examples, the editors' grammar and the tests;
+    tests/run/nullptr.k and two tests/error files are renamed to
+    nowhere. The C both compilers write is unchanged, `((void *)0)`.
+  - The records before #446, in this file and Dialogue.md, keep
+    `nullptr` as it was then.
 - (445) Agreed details: "go on with #445"; the user chose all the
   forms of template literals in kc.
   - The lexer reads `` `...` ``, as kelvinc's: a new line is `\n`,
@@ -6292,6 +6308,7 @@ says "as agreed".
 | P455 | Details of #443 | examples/fizzbuzz.k, sort.k and linkedlist.k rewritten; hello.k, primes.k, strings.k, shapes.k, results.k, complex.k, bfi.k, bfc.k, ski.k and lambda.k in short type names; examples/sequences.k, wordfreq.k, calc.k and tasks.k new; README.md: the Examples table | — |
 | P456 | Details of #444 | selfhost/parse.k: parse_method_call, from the postfix loop, and parse_primary's `.m(a)`; selfhost/gen.k: list_walked and gen_each's list walk and its "not yet" of another pointer, anon_serial in anon_function_of and iter_function; selfhost/sample.k: `bump_twice`, `doubled_sum`, `link`, `triangles`; selfhost/README.md | — |
 | P457 | Details of #445 | selfhost/lex.k: T_TPL, T_TPL_HEAD, T_TPL_MID and T_TPL_TAIL, lex_template and lex_range's backquote, `` $` `` and `}` of a `${`; selfhost/parse.k: N_TPL and parse_template; selfhost/gen.k: hold_decl, tpl_pretty, tpl_room, tpl_bound, tpl_value_ok, tpl_show, gen_template, gen_text_template, gen_string_template, text_template, template_outlived, place_templates and gen_stmt's storage; selfhost/sample.k: `shown` and `phrase`; selfhost/README.md | — |
+| P458 | Details of #446 | src/lexer.c: `nowhere` and `nullptr` reserved; src/parser.c: the hint; selfhost/parse.k: the hint; `nullptr` to `nowhere` in src, runtime, modules, selfhost, tests, documents, examples, editors, README.md and Style.md; tests/run/nowhere.k, tests/error/nowhere_value.k and nowhere_with_eq.k renamed, tests/error/nullptr_renamed.k new; documents/pointers.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -342,7 +342,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(fibs.pop(), " ", fibs.count, " ", points[1].y, " ", 'A' as uint8)
     let len:size_t = strlen("kelvin")               // a C typedef, a C function
     let home:cstr := getenv("NO_SUCH_VARIABLE_OF_KC")
-    println(len as int64, " ", abs(0 - 7) as int64, " ", home == nullptr)
+    println(len as int64, " ", abs(0 - 7) as int64, " ", home == nowhere)
     var words:String = $""
     for k in 0..<4 {
         switch k {                                    // a switch on a number has default:
@@ -609,9 +609,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(spare, " ", spare.count)
     var shelf = stock.copy()                          // a Dictionary's find, pretty, typename, reserve and clear (#337)
     let pear:int64^ := shelf.find("pear")
-    if pear != nullptr { pear^ += 100 }
+    if pear != nowhere { pear^ += 100 }
     let shelf_text:String = shelf.pretty
-    println(shelf.pretty, " ", shelf_text.count, " ", shelf.typename, " ", shelf.find("plum") == nullptr)
+    println(shelf.pretty, " ", shelf_text.count, " ", shelf.typename, " ", shelf.find("plum") == nowhere)
     shelf.reserve(8)
     shelf.clear()
     println(shelf, " ", shelf.count)
@@ -892,7 +892,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let nothing:String? = none
     if let h = nothing { println(h) } else if let t = octet_text.string() { println("text ", t) }
     var twice_box:tally_box = {5}
-    var link_c:link = {3, nullptr}
+    var link_c:link = {3, nowhere}
     var link_b:link = {2, &link_c}
     var link_a:link = {1, &link_b}
     var linked:int64 = 0

@@ -26,7 +26,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
     N_TYPE,     // IO, String, Bits or Bytes called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order; ty of (T){b...}, C's compound literal (#418)
-    N_NULL,     // nullptr
+    N_NULL,     // nowhere (#446)
     N_SELF,     // self, and the self of .x (#213)
     N_CHAIN,    // a?.rest (#221): b the rest, of the name c bound to what a holds; t the ?
     N_COND,     // a ? b : c (#232); t the ?
@@ -1901,7 +1901,12 @@ let parse_primary():int64 {
     if k == T_ID {
         advance()
         if tok_is(t, "true") || tok_is(t, "false") { return make_node(N_BOOL, t) }
-        if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
+        if tok_is(t, "nowhere") { return make_node(N_NULL, t) }
+        if tok_is(t, "nullptr") {                        // renamed (#446), as kelvinc says it
+            pos = t
+            parse_error("'nullptr' is 'nowhere' in Kelvin (#446), a pointer to nothing, as 'none' is an Optional with nothing: write 'nowhere'")
+            return make_node(N_NULL, t)
+        }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bits(n) (#387), Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)

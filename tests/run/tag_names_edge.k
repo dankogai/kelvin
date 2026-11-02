@@ -9,7 +9,7 @@ struct gauge;                                // a C struct; the header also has 
 let node(v:int64):node^ {                      // a constructor named like its struct
     let n := malloc(sizeof(node)) as node^;  // sizeof the struct, never of the function
     n^.value = v;
-    n^.next := nullptr;
+    n^.next := nowhere;
     return n;
 }
 

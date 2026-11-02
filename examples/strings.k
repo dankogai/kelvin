@@ -8,7 +8,7 @@
 let vowels(s:cstr):i64 {
     var n = 0
     for c in s {
-        if strchr("aeiouAEIOU", c) != nullptr {
+        if strchr("aeiouAEIOU", c) != nowhere {
             n += 1
         }
     }

@@ -17,7 +17,7 @@ let main():i32 {
     }
     union bits { i:i32, f:f32 }
     enum color { red, green = 5, blue }
-    var p:pair = {3, pair.kind.sides(4), nullptr}
+    var p:pair = {3, pair.kind.sides(4), nowhere}
     var ps = Array<pair>()
     ps.append(p)
     let b:bits = {.i = 1}
@@ -44,7 +44,7 @@ let main():i32 {
     println(top, " ", red, " ", sizeof(pair), " ", twice(21))
     return 0
 }
-// out: {a: 3, k: sides(4), next: nullptr} pair pair.kind Array<pair> <union bits> 5 6 4
+// out: {a: 3, k: sides(4), next: nowhere} pair pair.kind Array<pair> <union bits> 5 6 4
 // out: green
 // out: {s: "inner"} pair 1
 // out: {x: 7} 0 32 42

@@ -18,7 +18,7 @@ extend list {
     // add a value at the front: a var method, whose self is the caller's
     var push(value:i64) {
         let n := malloc(sizeof(node)) as node^
-        if n == nullptr {
+        if n == nowhere {
             exit(1)
         }
         n^.value = value
@@ -39,9 +39,9 @@ extend list {
 
     // reverse the list in place by turning each link around
     var reverse() {
-        var done:node^     // a reference starts as nullptr
+        var done:node^     // a reference starts as nowhere
         var rest:node^ := .head
-        while rest != nullptr {
+        while rest != nowhere {
             let next:node^ := rest^.next
             rest^.next := done
             done := rest
@@ -52,12 +52,12 @@ extend list {
 
     // free every node
     var clear() {
-        while .head != nullptr {
+        while .head != nowhere {
             .pop()
         }
     }
 
-    // for n in head walks the nodes along next, up to nullptr
+    // for n in head walks the nodes along next, up to nowhere
     let sum():i64 {
         var total = 0
         for n in .head {                                  // .head is self.head
@@ -80,7 +80,7 @@ extend list {
         print("[")
         for n in .head {
             print(n^.value)
-            if n^.next != nullptr {
+            if n^.next != nowhere {
                 print(" -> ")
             }
         }
@@ -89,7 +89,7 @@ extend list {
 }
 
 let main():i32 {
-    var squares:list = {nullptr, 0}
+    var squares:list = {nowhere, 0}
     for i in 1...5 {
         squares.push(i * i)
     }

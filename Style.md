@@ -16,7 +16,7 @@ struct node {
 
 let sum(var n:node^):i64 {
     var total:i64 = 0
-    while n != nullptr {
+    while n != nowhere {
         total += n^.value
         n := n^.next
     }
@@ -36,7 +36,7 @@ included, and closes on a line of its own:
 ```swift
 let sum(var n:node^):i64 {
     var total:i64 = 0
-    while n != nullptr {
+    while n != nowhere {
         total += n^.value
         n := n^.next
     }

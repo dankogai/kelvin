@@ -7,7 +7,7 @@ struct point { x:int32; y:int32; };
 let vowels(s:cstr):int64 {
     var n = 0;
     for c in s {
-        if strchr("aeiouAEIOU", c) != nullptr {
+        if strchr("aeiouAEIOU", c) != nowhere {
             n += 1;
         }
     }
@@ -15,9 +15,9 @@ let vowels(s:cstr):int64 {
 }
 
 let main():int32 {
-    println(vowels("Hello, Kelvin"), " ", vowels(nullptr));
+    println(vowels("Hello, Kelvin"), " ", vowels(nowhere));
     // a list: each node's pointer along next
-    var c3:node = {3, nullptr};
+    var c3:node = {3, nowhere};
     var c2:node = {2, &c3};
     var c1:node = {1, &c2};
     var total = 0;
@@ -59,7 +59,7 @@ let main():int32 {
     for _ in getenv("NO_SUCH_VARIABLE_KELVIN") {
         lens += 1;
     }
-    let words:[uint8^](3) = ["one", "two", nullptr];
+    let words:[uint8^](3) = ["one", "two", nowhere];
     for w in words {
         print(w, " ");
     }

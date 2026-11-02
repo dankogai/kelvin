@@ -70,7 +70,7 @@ let kv_bytes_from_base64(p:const any^, n:size_t):Bytes {
 }
 
 let kv_bytes_from_base64_text(s:const any^):Bytes {
-    if s == nullptr { return Bytes() }
+    if s == nowhere { return Bytes() }
     return kv_bytes_from_base64(s, strlen(s))
 }
 

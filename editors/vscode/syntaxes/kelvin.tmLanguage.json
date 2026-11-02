@@ -536,7 +536,7 @@
       "patterns": [
         {
           "name": "constant.language.kelvin",
-          "match": "\\b(?:true|false|nullptr|none)\\b"
+          "match": "\\b(?:true|false|nowhere|none)\\b"
         },
         {
           "name": "support.function.case.kelvin",

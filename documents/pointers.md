@@ -1,4 +1,4 @@
-# Pointers: `T^`, `:=`, `any^` and `nullptr`
+# Pointers: `T^`, `:=`, `any^` and `nowhere`
 
 An address: `T^` points to a `T`, `p^` follows it, and `:=` assigns it.
 
@@ -14,7 +14,7 @@ p^ = 7                                // assigning the value it refers to
 var a:[int32](3) = [1, 2, 3]
 var s:int32^ := &a[0]
 s++                                   // a step of one element
-var v:any^                            // C's void *: nullptr until set
+var v:any^                            // C's void *: nowhere until set
 println(y, " ", q^, " ", s^, " ", v.isNull)   // 7 1 2 true
 ```
 
@@ -25,7 +25,7 @@ followed, and made with a prefix `&`, as in C. Assigning one is `:=`, so
 that a reference and a value never look alike.
 
 This document has the pointer types, `&`, references, `any^` and
-`nullptr`, and stepping with `p++`, `.next` and `.prev`; every operator
+`nowhere`, and stepping with `p++`, `.next` and `.prev`; every operator
 is in [operators.md](operators.md). Arrays, which C turns into
 pointers, are in [arrays.md](arrays.md); walking a pointer with
 `for x in p` is in [flow-controls.md](flow-controls.md); `.addr`, `.hex`
@@ -104,7 +104,7 @@ buffer[0] = 42                        // a value, through the reference
 var p:int32^ := &x                      // typed declarations too
 p := &y                               // reassigning the reference
 p^ = 7                                // assigning the value it refers to
-for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
+for (var n:node^ := list; n != nowhere; n := n^.next) { ... }
 ```
 
 - `=` on a reference and `:=` on a value are errors, wherever kelvinc can
@@ -121,16 +121,18 @@ for (var n:node^ := list; n != nullptr; n := n^.next) { ... }
 - `:=` is printed as C's `=`. Like `=`, it is a statement (#26), usable
   in a `for` clause and after `let` or `var`.
 
-### No `void`: `any^` and `nullptr`
+### No `void`: `any^` and `nowhere`
 
 Kelvin has no `void` type:
 
 - **`any^` is C's `void *`.** `any` exists only behind `^`, so `any^`,
   `any^^` and `const any^` are fine, but `var p:any` is an error.
-- **`nullptr` is C's `(void *)0`**, typed `any^`: `p := nullptr`, and
-  `var r := nullptr` infers `any^`.
-- **A reference declared without a value is `nullptr`**, so `var p:any^`
-  means `var p:any^ := nullptr`.
+- **`nowhere` is C's `(void *)0`**, typed `any^`: `p := nowhere`, and
+  `var r := nowhere` infers `any^`.
+  - A pointer points `nowhere` as an Optional holds `none` (#446):
+    `nullptr` is refused, with a hint to write `nowhere`.
+- **A reference declared without a value is `nowhere`**, so `var p:any^`
+  means `var p:any^ := nowhere`.
   - This applies to every pointer declaration (`var q:i32^`), local or
     global, but not to `extern` ones *(provisional P33)*.
 - **A function without a result** omits `: type`, as before.
@@ -159,19 +161,19 @@ Kelvin has no `void` type:
 
 ### `.isNull`, `.addr` and `.hex`
 
-`p.isNull` is `p == nullptr`, a `bool` (#50), `p.addr` the address as a
+`p.isNull` is `p == nowhere`, a `bool` (#50), `p.addr` the address as a
 `uintptr_t`, and `p.hex` its text (#37). See
 [properties.md](properties.md).
 
 ## Where it lives
 
-The core. Pointers, `:=`, `any^` and `nullptr` are kelvinc's own, written as C's, with nothing linked; only an address's text, `p.hex`, is the prelude's.
+The core. Pointers, `:=`, `any^` and `nowhere` are kelvinc's own, written as C's, with nothing linked; only an address's text, `p.hex`, is the prelude's.
 
 ## Properties and methods
 
 | On | Property | Gives |
 |---|---|---|
-| any pointer, a function | `.isNull` | `p == nullptr`, a `bool` (#50) |
+| any pointer, a function | `.isNull` | `p == nowhere`, a `bool` (#50) |
 | | `.addr` | the address as a number, a `uintptr_t` (#37) |
 | | `.hex` | the address as text, `0x` and all its digits |
 | | `.size`, `.type`, `.typename` | a pointer's size; the type; its name |

@@ -32,7 +32,7 @@ let main(argc:int32, argv:uint8^^):int32 {
     let b37 = int32("10", base)
     base = atol("4294967304")
     let wide = int32("777", base)
-    println(b0, " ", b37, " ", wide, " ", float64(nullptr as cstr), " ", float32(nullptr as cstr), " ", int32("777", 010))
+    println(b0, " ", b37, " ", wide, " ", float64(nowhere as cstr), " ", float32(nowhere as cstr), " ", int32("777", 010))
 
     // i8 text, and the text of properties
     var t:[int8](3) = ['4', '2', 0]
@@ -56,7 +56,7 @@ let main(argc:int32, argv:uint8^^):int32 {
     println(max > 0 && i128("999999999999999999999999999999999999999") == max, " ", i128("-0x10", 16), " ",
             u128("ff", 16), " ", "12".i128, " ", u128("-1"), " ", i128(getenv("KELVIN_UNSET")))
 
-    // bool reads no text: of a pointer, it tells nullptr apart; a
+    // bool reads no text: of a pointer, it tells nowhere apart; a
     // volatile u8^ is no text either, as C's volatile char * is not
     let missing:cstr := getenv("KELVIN_UNSET")
     var digits:[uint8](3) = ['4', '2', 0]

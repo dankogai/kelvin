@@ -1306,7 +1306,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
         if tok_is(t, "remove") && types[y].kind == Y_DICT { return base_type(Y_BOOL) }   // true if it was there (#270)
-        if tok_is(t, "find") && types[y].kind == Y_DICT {   // a V^ to the value, or nullptr; a const V^ of a let (#337)
+        if tok_is(t, "find") && types[y].kind == Y_DICT {   // a V^ to the value, or nowhere; a const V^ of a let (#337)
             let r:int64 = changed_root(nodes[n].a)
             let fixed = r >= 0 && how_declared(nodes[r].t) != 0
             return type_of_kind(Y_PTR, types[y].elem, fixed ? 1 : 0 - 1)
@@ -1547,7 +1547,7 @@ let fixed_arg_ok(a:int64, py:int64, who:const String^):bool {
 }
 
 // whether a goes where py, a [T](N)^, goes: a pointer to an array of its
-// elements and count, nullptr, where kelvinc's C warns; not a let's where
+// elements and count, nowhere, where kelvinc's C warns; not a let's where
 // what it points to may change, as #272 has it (#362)
 let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
     if py < 0 || types[py].kind != Y_PTR || types[types[py].elem].kind != Y_FIXED || nodes[a].kind == N_NULL { return true }
@@ -8400,7 +8400,7 @@ let gen_fn_value(n:int64, y:int64) {
         given = type_of(n)
     }
     if failed { return }
-    if given >= 0 && types[given].kind == Y_C {          // nullptr, and what only C sees
+    if given >= 0 && types[given].kind == Y_C {          // nowhere, and what only C sees
         gen_expr(n)
         return
     }
@@ -9298,7 +9298,7 @@ let power_double(v:int64):float64 {
     var x:float64 = 0.0
     if power_float_literal(w) {
         let s:String = tok_text(nodes[w].t)
-        x = strtod(s.cstr, nullptr)
+        x = strtod(s.cstr, nowhere)
     } else {
         x = power_magnitude(w) as float64
     }
@@ -9323,7 +9323,7 @@ let gen_power_floats(a:int64, b:int64) {
         snprintf(&buf[0], 40, "%.17g", m)
         let text:cstr := &buf[0]
         put(text)
-        if strpbrk(text, ".e") == nullptr { put(".0") }
+        if strpbrk(text, ".e") == nowhere { put(".0") }
     }
     if neg { put(")") }
 }
@@ -11547,7 +11547,7 @@ let gen_each(n:int64, depth:int64) {
         put(";\n")
         open_scope()
         declare_each(nodes[n].t, base_type(literal ? Y_C : Y_U8), 3)
-    } else if list_walked(y) {                         // each node along next, up to nullptr, as kelvinc's #30 (#444)
+    } else if list_walked(y) {                         // each node along next, up to nowhere, as kelvinc's #30 (#444)
         put_ctype(y)
         put(" _kv_p")
         put_int(serial)
@@ -11574,7 +11574,7 @@ let gen_each(n:int64, depth:int64) {
         open_scope()
         declare_each(nodes[n].t, y, 3)
     } else if types[y].kind == Y_PTR {
-        gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nullptr")
+        gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nowhere")
         return
     } else {
         let ey:int64 = types[y].kind == Y_BYTES ? base_type(Y_U8) : types[y].elem    // a Bytes's bytes (#439)

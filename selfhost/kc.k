@@ -89,7 +89,7 @@ let utf8_len(b:const $[int64]^, i:int64):int64 {
 // stdio before IO's .string, whose err says no more than where
 let source_error(path:String^):String {
     let fp:FILE^ := fopen(path^.cstr, "rb")
-    if fp == nullptr { return $"" }
+    if fp == nowhere { return $"" }
     var b:$[int64] = $[]
     var c:int64 = fgetc(fp) as int64
     while c >= 0 {
@@ -180,7 +180,7 @@ let load_imports():bool {
 // the environment's value of name, else otherwise
 let env_or(name:cstr, otherwise:cstr):String {
     let v:cstr := getenv(name)
-    if v != nullptr { return String(v) }
+    if v != nowhere { return String(v) }
     return String(otherwise)
 }
 
@@ -227,7 +227,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     if mods.count == 0 {
         let home:cstr := getenv("KELVIN_HOME")
-        if home != nullptr {
+        if home != nowhere {
             mods = String(home)
             mods += "/modules"
         } else {

@@ -4,7 +4,7 @@ struct node { value:int64; next:node^ }
 let node(v:int64):node^ {
     let n := malloc(sizeof(node)) as node^
     n^.value = v
-    n^.next := nullptr
+    n^.next := nowhere
     return n
 }
 let main():int32 {

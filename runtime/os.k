@@ -44,7 +44,7 @@ let kv_os_cwd(out:String^):int32 {
     var e:int32 = ERANGE
     while e == ERANGE {
         var buf = Bytes(cap)
-        if getcwd(buf.at, cap) != nullptr {
+        if getcwd(buf.at, cap) != nowhere {
             out^ = String(buf.at as cstr)
             return 0
         }
@@ -192,8 +192,8 @@ let kv_os_join(a:const any^, b:const any^):String {
 
 // OS.realpath(path): the absolute path, links resolved, into out
 let kv_os_realpath(path:const any^, out:String^):int32 {
-    let r:cstr := realpath(path, nullptr)
-    if r == nullptr { return err_or(EIO) }
+    let r:cstr := realpath(path, nowhere)
+    if r == nowhere { return err_or(EIO) }
     out^ = String(r)
     free(r as any^)
     return 0
@@ -309,21 +309,21 @@ let kv_os_expanduser(path:const any^):String {
     }
     var namelen:int64 = n as int64 - 1
     if slash >= 0 { namelen = slash - 1 }
-    var home:cstr := nullptr
+    var home:cstr := nowhere
     if namelen == 0 {
         home := getenv("HOME")
-        if home == nullptr || home[0] == 0 {
+        if home == nowhere || home[0] == 0 {
             let pw:struct passwd^ := getpwuid(getuid())
-            home := nullptr
-            if pw != nullptr { home := pw^.pw_dir as cstr }
+            home := nowhere
+            if pw != nowhere { home := pw^.pw_dir as cstr }
         }
     } else {
         if namelen >= 256 { return String(p) }
         let name = text_of(p, 1, namelen as size_t)
         let pw:struct passwd^ := getpwnam(name.cstr)
-        if pw != nullptr { home := pw^.pw_dir as cstr }
+        if pw != nowhere { home := pw^.pw_dir as cstr }
     }
-    if home == nullptr { return String(p) }
+    if home == nowhere { return String(p) }
     var s = String(home)
     if slash >= 0 { s += text_of(p, slash as size_t, n - slash as size_t) }
     return s
@@ -350,10 +350,10 @@ static let hand_over(names:$[String]^, out:String^^, count:size_t^) {
 // String made of it does
 static let names_in(path:const any^, names:$[String]^):int32 {
     let d:DIR^ := opendir(path)
-    if d == nullptr { return err_or(EIO) }
+    if d == nowhere { return err_or(EIO) }
     errno = 0
     var e:struct dirent^ := readdir(d)
-    while e != nullptr {
+    while e != nowhere {
         let name:cstr := e^.d_name as cstr
         if strcmp(name, ".") != 0 && strcmp(name, "..") != 0 { names^ += String(name) }
         errno = 0
@@ -405,9 +405,9 @@ let kv_os_walk(path:const any^, out:String^^, count:size_t^):int32 {
 // sorts them, none where none match
 let kv_os_glob(pattern:const any^, out:String^^, count:size_t^):int32 {
     var g:glob_t
-    let r:int32 = glob(pattern, 0, nullptr, &g)
+    let r:int32 = glob(pattern, 0, nowhere, &g)
     if r == GLOB_NOMATCH {
-        out^ := nullptr
+        out^ := nowhere
         count^ = 0
         return 0
     }
@@ -429,7 +429,7 @@ let kv_os_glob(pattern:const any^, out:String^^, count:size_t^):int32 {
 // name copied out of getpwuid's storage, which the next lookup overwrites
 let kv_os_user(out:String^):bool {
     let pw:struct passwd^ := getpwuid(getuid())
-    if pw == nullptr { return false }
+    if pw == nowhere { return false }
     out^ = String(pw^.pw_name as cstr)
     return true
 }
@@ -437,14 +437,14 @@ let kv_os_user(out:String^):bool {
 // OS.username(uid), OS.groupname(gid): the names of ids, as OS.user's
 let kv_os_username(uid:int32, out:String^):bool {
     let pw:struct passwd^ := getpwuid(uid)
-    if pw == nullptr { return false }
+    if pw == nowhere { return false }
     out^ = String(pw^.pw_name as cstr)
     return true
 }
 
 let kv_os_groupname(gid:int32, out:String^):bool {
     let gr:struct group^ := getgrgid(gid)
-    if gr == nullptr { return false }
+    if gr == nowhere { return false }
     out^ = String(gr^.gr_name as cstr)
     return true
 }
@@ -452,12 +452,12 @@ let kv_os_groupname(gid:int32, out:String^):bool {
 // OS.groups: the groups the user is in, as getgroups gives them, in a
 // buffer of int32s, malloc's, which the caller takes over and frees
 let kv_os_groups(out:int32^^, count:size_t^):int32 {
-    let n:int32 = getgroups(0, nullptr)
+    let n:int32 = getgroups(0, nowhere)
     if n < 0 { return err_or(EIO) }
     var room:size_t = 1
     if n > 0 { room = n as size_t }
     let gs:gid_t^ := malloc(room * sizeof(gid_t)) as gid_t^
-    if gs == nullptr { return ENOMEM }
+    if gs == nowhere { return ENOMEM }
     let got:int32 = getgroups(n, gs)
     if got < 0 {
         let e = err_or(EIO)
@@ -465,7 +465,7 @@ let kv_os_groups(out:int32^^, count:size_t^):int32 {
         return e
     }
     let at:int32^ := malloc(room * sizeof(int32_t)) as int32^
-    if at == nullptr {
+    if at == nowhere {
         free(gs)
         return ENOMEM
     }
@@ -487,7 +487,7 @@ let kv_os_lchown(path:const any^, uid:int32, gid:int32):int32 { done(lchown(path
 // OS.system(command): a shell command's exit code, or -1 where it did
 // not exit; every stream flushed first
 let kv_os_system(command:const any^):int32 {
-    fflush(nullptr)
+    fflush(nowhere)
     let st:int32 = system(command)
     if st != -1 && WIFEXITED(st) != 0 { return WEXITSTATUS(st) as int32 }
     return -1
@@ -496,7 +496,7 @@ let kv_os_system(command:const any^):int32 {
 // OS.time: seconds since the epoch, to the nanosecond where C says
 let kv_os_time():float64 {
     var ts:struct timespec
-    if timespec_get(&ts, TIME_UTC) == 0 { return time(nullptr) as float64 }
+    if timespec_get(&ts, TIME_UTC) == 0 { return time(nowhere) as float64 }
     return (ts.tv_sec as float64) + (ts.tv_nsec as float64) / 1e9
 }
 
@@ -567,7 +567,7 @@ static var tmpdir_text:[u8](4096)
 // has, in a buffer of this file's
 let kv_os_tmpdir():cstr {
     var t:cstr := getenv("TMPDIR")
-    if t == nullptr || t[0] == 0 { t := "/tmp" }
+    if t == nowhere || t[0] == 0 { t := "/tmp" }
     var n:size_t = strlen(t)
     while n > 1 && t[n - 1] == '/' { n -= 1 }
     if n >= 4096 { n = 4095 }
@@ -581,12 +581,12 @@ let kv_os_tmpdir():cstr {
 static let temp_template(prefix:const any^):u8^ {
     let p:cstr := prefix as cstr
     var dir:cstr := ""
-    if strchr(p, '/') == nullptr { dir := kv_os_tmpdir() }
+    if strchr(p, '/') == nowhere { dir := kv_os_tmpdir() }
     var sep:cstr := ""
     if dir[0] != 0 { sep := "/" }
     let n:size_t = strlen(dir) + 1 + strlen(p) + 7
     let t:u8^ := malloc(n) as u8^
-    if t == nullptr { return nullptr }
+    if t == nowhere { return nowhere }
     snprintf(t, n, "%s%s%sXXXXXX", dir, sep, p)
     return t
 }
@@ -595,7 +595,7 @@ static let temp_template(prefix:const any^):u8^ {
 // writing, into io, which an IO is (#97), and its path
 let kv_os_mkstemp(prefix:const any^, io:kv_io^, path:String^):int32 {
     let t:u8^ := temp_template(prefix)
-    if t == nullptr { return ENOMEM }
+    if t == nowhere { return ENOMEM }
     let fd:int32 = mkstemp(t)
     if fd < 0 {
         let e = err_or(EIO)
@@ -603,7 +603,7 @@ let kv_os_mkstemp(prefix:const any^, io:kv_io^, path:String^):int32 {
         return e
     }
     let fp:any^ := fdopen(fd, "w+")
-    if fp == nullptr {
+    if fp == nowhere {
         let e = err_or(EIO)
         close(fd)
         unlink(t)
@@ -615,11 +615,11 @@ let kv_os_mkstemp(prefix:const any^, io:kv_io^, path:String^):int32 {
     io^.status = -1
     io^.signal = -1
     io^.pid = 0
-    io^.named = realpath(t, nullptr)           // the first name abspath keeps (#196)
+    io^.named = realpath(t, nowhere)           // the first name abspath keeps (#196)
     path^ = String(t as cstr)
     let n:size_t = strlen(t) + 1
     let copy:u8^ := malloc(n) as u8^
-    if copy != nullptr { memcpy(copy, t, n) }
+    if copy != nowhere { memcpy(copy, t, n) }
     io^.path = copy
     free(t)
     return 0
@@ -628,8 +628,8 @@ let kv_os_mkstemp(prefix:const any^, io:kv_io^, path:String^):int32 {
 // OS.mkdtemp(prefix): a temporary directory, made, its path into out
 let kv_os_mkdtemp(prefix:const any^, out:String^):int32 {
     let t:u8^ := temp_template(prefix)
-    if t == nullptr { return ENOMEM }
-    if mkdtemp(t) == nullptr {
+    if t == nowhere { return ENOMEM }
+    if mkdtemp(t) == nowhere {
         let e = err_or(EIO)
         free(t)
         return e

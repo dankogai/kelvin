@@ -44,9 +44,9 @@ let main():int32 {
     let ops:[op](2) = [{{ $0 + 1 }, { $0 - 1 }}, {{ $0 * 2 }, { $0 / 2 }}];
     println(xs[0], " ", ys[0], " ", ops[1].f(5), " ", ops[0].g(5));
 
-    // ?: picks functions, also nullptr; a compound literal ends a line
+    // ?: picks functions, also nowhere; a compound literal ends a line
     let on = true;
-    let t:(int64) := on ? tick as (int64) : nullptr;
+    let t:(int64) := on ? tick as (int64) : nowhere;
     let pick:(int64):int64 := on ? { (x:int64):int64 in x + 1 } : { (x:int64):int64 in x - 1 };
     let mk:(int64):point := {
         $0 > 0 ? (point){1, 2}

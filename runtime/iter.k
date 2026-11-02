@@ -17,21 +17,21 @@ let kv_iter_make(state:any^, drop:(any^):(), next:(any^, any^):()):kv_iter {
 
 // it.next(): the next value, or none, written into out
 let kv_iter_next(it:kv_iter^, out:any^) {
-    if it^.state == nullptr { kv_array_fail("this Iterator was moved out") }
+    if it^.state == nowhere { kv_array_fail("this Iterator was moved out") }
     it^.next(it^.state, out)
 }
 
 // an Iterator's end: its state freed, and what it owns
 let kv_iter_free(it:kv_iter^) {
-    if it^.state == nullptr { return }
-    if it^.drop != nullptr { it^.drop(it^.state) }
+    if it^.state == nowhere { return }
+    if it^.drop != nowhere { it^.drop(it^.state) }
     free(it^.state)
-    it^.state := nullptr
+    it^.state := nowhere
 }
 
 let kv_iter_take(it:kv_iter^):kv_iter {
     let v:kv_iter = it^
-    it^.state := nullptr
+    it^.state := nowhere
     return v
 }
 

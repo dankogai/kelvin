@@ -120,8 +120,8 @@ P47)*:
 | `f64("0x1.8p1")` | 3.0 | `strtod`'s hex floats, so `f64(x.hex)` is `x` |
 
 - Every integer type reads text, `i128` and `u128` too.
-- `bool` reads none: `bool(p)` of a pointer tells it from `nullptr`, as
-  in C, and of a string, which is never `nullptr`, it is an error.
+- `bool` reads none: `bool(p)` of a pointer tells it from `nowhere`, as
+  in C, and of a string, which is never `nowhere`, it is an error.
 - A base is for text only: after a number it is an error, from kelvinc
   where it sees the number and from C (naming `kv_base_needs_text`)
   where only `_Generic` does.

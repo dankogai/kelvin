@@ -37,12 +37,12 @@ let main():int32 {
     var xs:[int64](4) = [1, 2, 3, 4];
     println(fold(xs, 4, 0, add), " ", fold(xs, 4, 1, mul), " ", fold(xs, 4, 1, pick(true)));
 
-    // a function value is a reference: assigned with :=, nullptr by default
+    // a function value is a reference: assigned with :=, nowhere by default
     var f:(int64, int64):int64;
-    println(f == nullptr);
+    println(f == nowhere);
     f := add;
     let g:(int64, int64):int64 := f;
-    println(f(2, 3), " ", g(4, 5), " ", pick(false)(6, 7), " ", f != nullptr);
+    println(f(2, 3), " ", g(4, 5), " ", pick(false)(6, 7), " ", f != nowhere);
 
     // no parameters, no result, and ... at the end
     let t:() := tick;

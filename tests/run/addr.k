@@ -17,16 +17,16 @@ let main():int32 {
     var x:int32 = 7
     let p:int32^ := &x
     let s:cstr := "abc"
-    let q:any^ := nullptr
+    let q:any^ := nowhere
     let width:uint64 = 2 + 2 * sizeof(any^)    // 0x and two digits a byte
 
     // .addr is the address as a number
-    println(p.addr == p as uintptr_t, " ", s.addr == s as uintptr_t, " ", q.addr, " ", nullptr.addr, " ",
+    println(p.addr == p as uintptr_t, " ", s.addr == s as uintptr_t, " ", q.addr, " ", nowhere.addr, " ",
             p.next.addr - p.addr == sizeof(int32))
 
     // .hex is 0x and all the digits, which #36 reads back
     println(strlen(p.hex) == width, " ", strlen(q.hex) == width, " ", uint64(p.hex, 16) == p.addr, " ",
-            uint64(s.hex, 16) == s.addr, " ", strncmp(p.hex, "0x", 2) == 0, " ", uint64(nullptr.hex, 16))
+            uint64(s.hex, 16) == s.addr, " ", strncmp(p.hex, "0x", 2) == 0, " ", uint64(nowhere.hex, 16))
 
     // functions and function values
     let f:(int64):int64 := square
@@ -39,7 +39,7 @@ let main():int32 {
 
     // .addr is unsigned and as wide as a pointer; .hex has lowercase digits
     let digits:cstr := p.addr.hex
-    println(nullptr.addr - 1 > 0, " ", p.addr.size == sizeof(any^), " ", strspn(&p.hex[2], "0123456789abcdef") ==
+    println(nowhere.addr - 1 > 0, " ", p.addr.size == sizeof(any^), " ", strspn(&p.hex[2], "0123456789abcdef") ==
             width - 2, " ", strncmp(digits, "0x", 2) == 0, " ", where(p) == p.addr)
 
     // pointers kelvinc sees by their shape: a string, &x of a C name, a
@@ -47,7 +47,7 @@ let main():int32 {
     let n:int64 = 255
     let t:cstr := n.hex
     println("abc".addr != 0, " ", strlen("abc".hex) == width, " ", (&errno).addr == &errno as uintptr_t, " ",
-            (p + 1).addr - p.addr == sizeof(int32), " ", (n > 0 ? p : nullptr as int32^).addr == p.addr, " ",
+            (p + 1).addr - p.addr == sizeof(int32), " ", (n > 0 ? p : nowhere as int32^).addr == p.addr, " ",
             n.hex.addr != 0, " ", strlen(t.hex) == width)
 
     // a compound literal's member keeps its own .hex and .typename, also

@@ -31,10 +31,10 @@ let main():int32 {
     println(p.next^, " ", p.next.next^, " ", p.next.next.prev^, " ", (p.next - p) as int64);
 
     // a field named next is a field: n^.next
-    var n3:struct node = {3, nullptr};
+    var n3:struct node = {3, nowhere};
     var n2:struct node = {2, &n3};
     var total = 0;
-    for (var n:struct node^ := &n2; n != nullptr; n := n^.next) total += n^.value;
+    for (var n:struct node^ := &n2; n != nowhere; n := n^.next) total += n^.value;
 
     // for clauses and statements take comma lists of assignments
     for (var i = 0, j = 3; i < j; i += 1, j -= 1) total += i * j;

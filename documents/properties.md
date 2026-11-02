@@ -149,7 +149,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     `_Generic` gives the Kelvin name of a built-in type
     (`getenv("X").typename` is `"u8^"`), and anything else is `"?"`.
   - A literal is C's: `42.typename` is `"i32"`, as `42.size` is 4, and
-    `nullptr.typename` is `"any^"`.
+    `nowhere.typename` is `"any^"`.
   - Through `_Generic`, an array is a pointer, an enum its integer type,
     and a bit-field may differ between compilers.
   - `v` is not evaluated, as for `sizeof`.
@@ -163,7 +163,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
     sees, as a header's typedef of one, is `1.0+2.0i` (#404).
   - **A string** (`cstr`, `u8^`, `i8^`, a literal) is its own text:
     `s.cstr` is `s` itself, still `const` if `s` was. Other pointers are
-    addresses (`nullptr` for null, #260), but a function has no text (#31).
+    addresses (`nowhere` for null, #260), but a function has no text (#31).
   - **Structs** get derived text, `{x: 3, y: 4}`, with nested structs
     and arrays (`[a, b]`).
     - A string field is quoted, `{name: "ann"}` (#123), and shows at
@@ -214,7 +214,7 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - `p.hex` is its text: `0x` and all the digits, 16 on a 64-bit target
     (`0x000000016ee86888`), with no sign, so every address has the same
     width and `u64(p.hex, 16)` is `p.addr`.
-  - This covers every `T^`, `any^`, `cstr`, string literal, `nullptr`
+  - This covers every `T^`, `any^`, `cstr`, string literal, `nowhere`
     and function value, `&x`, the text of a property (`n.hex.addr`), a
     pointer stepped with `+` or `-`, and a `?:` of pointers.
   - Where only C's `_Generic` sees that a value is a pointer
@@ -226,15 +226,15 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
       first element's address.
   - Pointers have no `.dec`, `.oct` or `.bin`, and `.cstr` is as
     before: a string's own text, another pointer's `%p`-like text
-    (`0x16ee86888`, `nullptr` for a null one, #260), and none for a
+    (`0x16ee86888`, `nowhere` for a null one, #260), and none for a
     function *(provisional P48)*.
 - **Pointers and functions** also have `.isNull` (#50): `p.isNull` is
-  `p == nullptr`, a `bool`, so `if p.isNull { }` and
+  `p == nowhere`, a `bool`, so `if p.isNull { }` and
   `while !f.isNull { }` read as they sound.
-  - It covers every pointer and function value kelvinc sees, `nullptr`
+  - It covers every pointer and function value kelvinc sees, `nowhere`
     included.
   - A struct's field named `isNull` wins, and a value only C sees keeps
-    its field, as with `.addr`, so there write `== nullptr`.
+    its field, as with `.addr`, so there write `== nowhere`.
   - An array is never null, so `a.isNull` is an error
     *(provisional P62)*.
 - **The text lives on the caller's stack**, in a buffer sized in

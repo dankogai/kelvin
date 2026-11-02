@@ -14,7 +14,7 @@ let main():int32 {
     var fixed:[int64](2) = [5, 6]
     var d = ${"k": 1}
     var s = $"héllo"
-    var p:int64^ := nullptr
+    var p:int64^ := nowhere
     println(t.count, " ", t.has(2), " ", t.find(2), " ", t.isNull)
     println(text.count, " ", fixed.count, " ", d.has("k"), " ", s.count, " ", s.find("l"), " ", p.isNull)
     return 0

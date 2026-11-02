@@ -1,4 +1,4 @@
-// .isNull is for pointers and functions, which may be nullptr (#50)
+// .isNull is for pointers and functions, which may be nowhere (#50)
 let main():int32 {
     let k = 3
     println(k.isNull)

@@ -638,7 +638,7 @@ static bool starts_operand(Token *n) {
            (n->kind == TK_PUNCT && n->text[0] == '$') ||
            is_p(n, "(") || is_p(n, "-") || is_p(n, "+") || is_p(n, "!") || is_p(n, "~") || is_p(n, "&") ||
            is_p(n, "++") || is_p(n, "--") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") ||
-           is_kw(n, "nullptr") || is_maker(n);
+           is_kw(n, "nowhere") || is_maker(n);
 }
 
 /* the index just past the balanced (...) or [...] group starting at i */
@@ -1281,7 +1281,7 @@ static Type *parse_fn_type(TypeContext ctx) {
             break;
     }
     expect_p(")");
-    /* in `c ? f as (i64) : g` or `: nullptr`, the `:` is the ?:'s: there a
+    /* in `c ? f as (i64) : g` or `: nowhere`, the `:` is the ?:'s: there a
        result must start with a type word, as an annotation must */
     Token *n = peek2();
     bool result = is_p(peek(), ":") &&
@@ -3438,7 +3438,7 @@ static Expr *parse_postfix_steps(Expr *e) {
                     x->is_bool = !strcmp(member, "has") || !strcmp(member, "remove") || !strcmp(member, "insert");
                     if (!strcmp(member, "get") && is_owner(x->type->elem))
                         error_at(name->pos, "'.get' copies the value, and %s owns: borrow it with '.find(k)', a %s^ "
-                                            "or nullptr",
+                                            "or nowhere",
                                  kelvin_type(x->type->elem), kelvin_type(x->type->elem));
                     if (!strcmp(member, "get")) {
                         Expr *dv = x->items.data[1];
@@ -4799,10 +4799,13 @@ static Expr *parse_primary(void) {
         expect_p(")");
         return convert(t, t->text, v, base);
     }
-    if (accept_kw("nullptr")) {
+    if (is_kw(t, "nullptr")) /* renamed (#446) */
+        error_at(t->pos, "'nullptr' is 'nowhere' in Kelvin (#446), a pointer to nothing, as 'none' is an Optional "
+                         "with nothing: write 'nowhere'");
+    if (accept_kw("nowhere")) {
         /* C's (void *)0, typed any^ */
         Expr *e = new_expr(E_LITERAL, t->pos);
-        e->text = "nullptr";
+        e->text = "nowhere";
         return e;
     }
     if (is_p(t, "(")) {
@@ -4906,7 +4909,7 @@ static Expr *parse_primary(void) {
         Token *n = peek();
         if (!line_starts_statement() && (n->kind == TK_IDENT || n->kind == TK_NUMBER || n->kind == TK_CHAR || n->kind == TK_STRING ||
             n->kind == TK_TPL_HEAD ||
-            (n->kind == TK_PUNCT && n->text[0] == '$') || is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_kw(n, "nullptr") ||
+            (n->kind == TK_PUNCT && n->text[0] == '$') || is_p(n, "!") || is_kw(n, "sizeof") || is_kw(n, "true") || is_kw(n, "false") || is_kw(n, "nowhere") ||
             is_converter(n) ||
             ((is_p(n, "++") || is_p(n, "--")) &&
              (peek2()->kind == TK_IDENT || peek2()->kind == TK_NUMBER || peek2()->kind == TK_CHAR))))
@@ -6440,18 +6443,18 @@ static void require_bool(Expr *e) {
         return;
     }
     const char *hint = NULL, *what = NULL;
-    if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
-        what = "any^", hint = "p != nullptr";
+    if (e->kind == E_LITERAL && !strcmp(e->text, "nowhere")) {
+        what = "any^", hint = "p != nowhere";
     } else if (e->kind == E_LITERAL) {
         if (e->text[0] != '\'' && !strcmp(literal_type(e), "i64"))
             error_at(e->pos, "a condition must be a bool, not a number: write 'true' or 'false'");
         what = "a number", hint = e->text[0] == '\'' ? "c != 0" : "x != 0.0";
     } else if (e->kind == E_STRING) {
-        what = "a string", hint = "s != nullptr";
+        what = "a string", hint = "s != nowhere";
     } else if (e->kind == E_PROPERTY) {
         bool number = !strcmp(e->text, "size") || !strcmp(e->text, "align") || !strcmp(e->text, "addr");
         what = !strcmp(e->text, "size") || !strcmp(e->text, "align") ? "size_t" : number ? "uintptr_t" : "u8^";
-        hint = number ? strfmt("x.%s != 0", e->text) : "x != nullptr";
+        hint = number ? strfmt("x.%s != 0", e->text) : "x != nowhere";
     } else {
         Type *t = value_type(e);
         if (!t)
@@ -6464,9 +6467,9 @@ static void require_bool(Expr *e) {
             return;
         }
         if (t->kind == T_PTR || t->kind == T_ARRAY)
-            hint = "p != nullptr";
+            hint = "p != nowhere";
         else if (t->kind == T_FUNC)
-            hint = "f != nullptr";
+            hint = "f != nowhere";
         else if (c == 'i')
             hint = "x != 0";
         else if (c == 'f')
@@ -6483,7 +6486,7 @@ static char expr_class(Expr *e, Decl **record) {
     *record = NULL;
     switch (e->kind) {
     case E_LITERAL:
-        if (!strcmp(e->text, "true") || !strcmp(e->text, "false") || !strcmp(e->text, "nullptr"))
+        if (!strcmp(e->text, "true") || !strcmp(e->text, "false") || !strcmp(e->text, "nowhere"))
             return 'n';
         if (e->text[0] == '\'')
             return 'i';
@@ -6533,8 +6536,8 @@ static bool is_text_expr(Expr *e) {
         if (!strcmp(e->text, texts[i]))
             return true;
     if (e->kind == E_TERNARY)
-        return (is_text_expr(e->b) || (e->b->kind == E_LITERAL && !strcmp(e->b->text, "nullptr"))) &&
-               (is_text_expr(e->c) || (e->c->kind == E_LITERAL && !strcmp(e->c->text, "nullptr")));
+        return (is_text_expr(e->b) || (e->b->kind == E_LITERAL && !strcmp(e->b->text, "nowhere"))) &&
+               (is_text_expr(e->c) || (e->c->kind == E_LITERAL && !strcmp(e->c->text, "nowhere")));
     return false;
 }
 
@@ -6614,7 +6617,7 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     bool is_bool = !strcmp(name, "bool");
     bool floating = !strcmp(name, "f32") || !strcmp(name, "f64");
     if (is_bool && text && !is_text_type(value_type(v)))
-        error_at(t->pos, "bool(...) reads no text, and this text is never nullptr, so it would always be true");
+        error_at(t->pos, "bool(...) reads no text, and this text is never nowhere, so it would always be true");
     if (base && (floating || is_bool))
         error_at(base->pos, "a base is for reading an integer from text; %s",
                  floating ? strfmt("%s(text) reads decimal, or C's hex floats as in \"0x1.8p1\"", name)
@@ -6638,13 +6641,13 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
 }
 
 /* Does kelvinc see that e is a pointer or a function (#37): one of
-   their types, a function's name, a string, nullptr, &x, a text property
+   their types, a function's name, a string, nowhere, &x, a text property
    (u8^), a pointer stepped with + or -, or a ?: or comma of pointers? */
 static bool pointer_expr(Expr *e) {
     static const char *texts[] = {"dec", "hex", "oct", "bin", "cstr", "typename", NULL};
     Type *t = value_type(e);
     if ((t && (t->kind == T_PTR || t->kind == T_FUNC)) || e->kind == E_STRING || e->kind == E_FUNC ||
-        is_function_designator(e) || (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")))
+        is_function_designator(e) || (e->kind == E_LITERAL && !strcmp(e->text, "nowhere")))
         return true;
     for (int i = 0; e->kind == E_PROPERTY && texts[i]; i++)
         if (!strcmp(e->text, texts[i]))
@@ -6883,7 +6886,7 @@ static Type *arg_type(Expr *e) {
         p->elem->is_const = true;
         return p;
     }
-    if (t || (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")))
+    if (t || (e->kind == E_LITERAL && !strcmp(e->text, "nowhere")))
         return t;
     if (seen_bool(e))
         return base_type("bool", e->pos);
@@ -6937,7 +6940,7 @@ static Type *arg_type(Expr *e) {
 
 /* How an argument meets a parameter: 2 exactly, 1 by C's conversions (a
    number to a number, a pointer to one whose target gains qualifiers, or
-   to or from any^, nullptr to a pointer), 0 not at all, -1 only C can
+   to or from any^, nowhere to a pointer), 0 not at all, -1 only C can
    tell, as kelvinc cannot see the argument's type or the parameter's (a C
    typedef) */
 /* while set, a T fits a T? as optional_of wraps it: the second look of
@@ -6966,7 +6969,7 @@ static int fit(Expr *arg, Type *param) {
         if (!same)
             return fit(arg, some->type) != 0 ? 1 : 0;
     }
-    if (arg->kind == E_LITERAL && !strcmp(arg->text, "nullptr"))
+    if (arg->kind == E_LITERAL && !strcmp(arg->text, "nowhere"))
         return p->kind == T_PTR || p->kind == T_FUNC ? 1 : pc == 'u' ? -1 : 0;
     if (arg->kind == E_IDENT && arg->cands.len) { /* an overloaded function: the one of that type */
         if (p->kind != T_FUNC)
@@ -7467,8 +7470,8 @@ static void drop_cstr_args(Expr *call, Decl *d) {
 
 /* How an operand shows in a message about operators */
 static char *operand_text(Expr *x, Type *t) {
-    if (x->kind == E_LITERAL && !strcmp(x->text, "nullptr"))
-        return "nullptr";
+    if (x->kind == E_LITERAL && !strcmp(x->text, "nowhere"))
+        return "nowhere";
     if (x->kind == E_STRING || is_text_expr(x))
         return "text";
     if (!t)
@@ -7508,8 +7511,8 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
     if (!d && (!record || !maybe.len)) {
         if (record) {
             char *sa = operand_text(a, ta), *sb = b ? operand_text(b, tb) : NULL;
-            char *pa = sa && strcmp(sa, "text") && strcmp(sa, "nullptr") ? sa : sa ? "u8^" : "T";
-            char *pb = sb && strcmp(sb, "text") && strcmp(sb, "nullptr") ? sb : sb ? "u8^" : "T";
+            char *pa = sa && strcmp(sa, "text") && strcmp(sa, "nowhere") ? sa : sa ? "u8^" : "T";
+            char *pb = sb && strcmp(sb, "text") && strcmp(sb, "nowhere") ? sb : sb ? "u8^" : "T";
             sa = sa ? sa : "a value kelvinc cannot see";
             sb = b && !sb ? "a value kelvinc cannot see" : sb;
             if (b)
@@ -8358,7 +8361,7 @@ static Expr *property(Expr *e, Token *name, char *member) {
         return x;
     }
     if (!strcmp(member, "isNull")) {
-        /* p.isNull is p == nullptr, a bool, of a pointer or a function
+        /* p.isNull is p == nowhere, a bool, of a pointer or a function
            (#50); a field wins where kelvinc is unsure */
         Decl *record;
         char c = expr_class(e, &record);
@@ -8569,7 +8572,7 @@ static const char *let_target(Expr *e) {
 /* Assignment is a statement (#26): `=`, `:=` and `+=` and friends appear
    only at the top of an expression statement or of a for clause, where a
    comma list such as `i += 1, j -= 1` runs left to right. Anywhere else,
-   as in `a = b = c` or `if (x = f()) != nullptr`, it is an error. */
+   as in `a = b = c` or `if (x = f()) != nowhere`, it is an error. */
 static bool assign_ok;
 
 /* a change of e, p^ of a read-only borrow, a const T^, or a member or an
@@ -9306,7 +9309,7 @@ static const char *literal_type(Expr *e) {
     if (e->kind == E_PREFIX && (!strcmp(e->op, "-") || !strcmp(e->op, "+")))
         return literal_type(e->a);
     if (e->kind != E_LITERAL || e->text[0] == '\'' || !strcmp(e->text, "true") || !strcmp(e->text, "false") ||
-        !strcmp(e->text, "nullptr"))
+        !strcmp(e->text, "nowhere"))
         return NULL;
     const char *t = e->text;
     if (!strcmp(t, "nan") || !strcmp(t, "inf")) /* (#261) */
@@ -10385,7 +10388,7 @@ static Expr *drop_cstr(Expr *v, Type *target) {
 }
 
 /* The type of an initializer when none is written: an integer literal is
-   an i64, a floating literal an f64, nullptr is an any^, and `v:T`,
+   an i64, a floating literal an f64, nowhere is an any^, and `v:T`,
    `v as T` or `T(v)` is a T. A bool is a bool (#24, #25): `true`, a
    comparison, &&, || and !, and any value kelvinc sees is a bool, such as
    a bool variable or a Kelvin function's bool result. Any other value
@@ -10536,7 +10539,7 @@ static Type *inferred_type(Expr *e, Pos pos) {
         return e->type;
     if (seen_bool(e))
         return base_type("bool", pos);
-    if (e->kind == E_LITERAL && !strcmp(e->text, "nullptr")) {
+    if (e->kind == E_LITERAL && !strcmp(e->text, "nowhere")) {
         Type *t = xcalloc(1, sizeof *t);
         t->kind = T_PTR;
         t->pos = pos;
@@ -12429,10 +12432,10 @@ static bool from_main_argv(Expr *e) {
 
 /* for x in s { } (#30): each element of a sequence that ends at a
    terminator, chosen by s's type. A pointer to numbers or pointers gives
-   s^, s.next^, ... up to the first 0 or nullptr, and a nullptr s is
+   s^, s.next^, ... up to the first 0 or nowhere, and a nowhere s is
    empty; a pointer to a struct with a `next` field gives each node's
-   pointer along next, up to nullptr; an array of known length gives its
-   elements, stopping early at a 0 or nullptr (an array of structs gives
+   pointer along next, up to nowhere; an array of known length gives its
+   elements, stopping early at a 0 or nowhere (an array of structs gives
    all of them). A let array parameter has the length it was declared
    with; a var one may have moved, so it is a pointer. A pointer kelvinc
    cannot see, such as getenv()'s, is walked like a pointer. x is a let,

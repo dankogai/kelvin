@@ -509,7 +509,7 @@ static char *expr_bare(Expr *e) {
            it as unsigned anyway but warns. Kelvin has no suffixes, so say
            it in the C. */
         const char *t = e->text;
-        if (!strcmp(t, "nullptr"))
+        if (!strcmp(t, "nowhere"))
             return "((void *)0)";
         if (!strcmp(t, "nan")) /* f64 literals (#261), gcc's and clang's, constant */
             return "__builtin_nan(\"\")";
@@ -2486,7 +2486,7 @@ static char *var_decl(const char *storage, Var *v) {
         d = strfmt("__attribute__((cleanup(%s))) %s", frees, d);
     if ((owner_free(v->type) || tagged_type(v->type)) && !v->init) /* an enum with values starts at its first case (#61) */
         return strfmt("%s%s%s = {0}", storage ? storage : "", storage ? " " : "", d);
-    /* a reference declared without a value is nullptr (#20) */
+    /* a reference declared without a value is nowhere (#20) */
     /* a v.type that C writes as __typeof__ is the type kelvinc saw (#34) */
     Type *seen = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
     /* [T](n) declares a zero-filled array (#49): = {0}, or, for a VLA,

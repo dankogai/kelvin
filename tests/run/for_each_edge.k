@@ -103,7 +103,7 @@ let main(argc:int32, argv:uint8^^):int32 {
     println(walked);
 
     // a list's loop variable may be written, as the node's pointer
-    var n2:node = {2, nullptr};
+    var n2:node = {2, nowhere};
     var n1:node = {1, &n2};
     walked = 0;
     for p:node^ in &n1 {

@@ -5,4 +5,4 @@ let main():int32 {
     var y = d.get(1, s)
     return 0
 }
-// error: '.get' copies the value, and String owns: borrow it with '.find(k)', a String^ or nullptr
+// error: '.get' copies the value, and String owns: borrow it with '.find(k)', a String^ or nowhere

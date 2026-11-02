@@ -8,7 +8,7 @@ struct node {
 
 let sum(var n:node^):int32 {      // n may move; parameters are lets otherwise
     var total:int32 = 0;
-    while n != nullptr {
+    while n != nowhere {
         total += n^.value;      // C: n->value
         n := n^.next;
     }
@@ -16,7 +16,7 @@ let sum(var n:node^):int32 {      // n may move; parameters are lets otherwise
 }
 
 let main():int32 {
-    var c:node = {3, nullptr};
+    var c:node = {3, nowhere};
     var b:node = {2, &c};
     var a:node = {1, &b};
     println(sum(&a));

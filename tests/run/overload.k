@@ -29,7 +29,7 @@ let fact(x:float64):float64 { x <= 1.0 ? 1.0 : x * fact(x - 1.0) }
 
 let pick(b:bool):int64 { 1 }
 let pick(n:int64):int64 { 2 }
-let count(p:node^):int64 { p == nullptr ? 0 : 1 + count(p^.next) }
+let count(p:node^):int64 { p == nowhere ? 0 : 1 + count(p^.next) }
 let count(n:int64):int64 { n }
 let show(c:color):int64 { 100 + int64(c) }
 let show(n:int64):int64 { n }
@@ -92,9 +92,9 @@ let main():int32 {
     println(twice(4), " ", twice(1.5), " ", twice("abc"), " ", twice(name), " ", twice(v).y)
     println(twice(-3), " ", twice(-x), " ", twice(n * n), " ", twice(x * 2.0 - 1.0), " ", twice(n > 2 ? n : -n))
     println(fact(5), " ", fact(4.0), " ", pick(true), " ", pick(n < 2), " ", pick(!(n > 3)), " ", pick(-4))
-    var tail:node = {2, nullptr}
+    var tail:node = {2, nowhere}
     var head:node = {1, &tail}
-    println(count(&head), " ", count(nullptr), " ", count(7), " ", show(GREEN), " ", show(BLUE as int64))
+    println(count(&head), " ", count(nowhere), " ", count(7), " ", show(GREEN), " ", show(BLUE as int64))
     // a number of another type converts, as C converts it, to the one
     // overload that takes it
     println(scale(v, small).x, " ", scale(quarter, v).y, " ", twice(small as int64), " ", mix(n, 2.0), " ", mix(x, 2.0))

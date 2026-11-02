@@ -45,14 +45,14 @@ floats in [floatingpoint.md](floatingpoint.md).
     `let ok:bool = isdigit(c) != 0`.
 - **Conditions are `bool`:** those of `if`, `while`, `do` and `for`, and
   the first operand of `?:`; a number or a pointer is compared first,
-  `x != 0`, `p != nullptr`; see [flow-controls.md](flow-controls.md).
+  `x != 0`, `p != nowhere`; see [flow-controls.md](flow-controls.md).
 - **Converting:** `bool(x)`, `x as bool` and `x.bool` convert as C's cast
   does: zero is `false` and anything else `true`; see
   [integers.md](integers.md#conversions-no-c-casts).
-  - `bool(p)` of a pointer tells it from `nullptr`, as in C.
+  - `bool(p)` of a pointer tells it from `nowhere`, as in C.
   - The way back, `i64(b)` or `b.i64`, is 0 or 1.
   - `bool` reads no text: `bool(s)` of a string, which is never
-    `nullptr`, is an error.
+    `nowhere`, is an error.
 - **Printing:** `print` shows `true` or `false`, and so does `.cstr`;
   see [printing.md](printing.md).
 

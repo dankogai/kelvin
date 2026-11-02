@@ -12,7 +12,7 @@ println(ages["bob"], " ", ages["dan"])   // some(42) none: d[k] read whole is an
 println(ages["bob"]!, " ", ages["dan"] ?? 0, " ", ages.count, " ", ages.has("dan"))   // 42 0 3 false
 for k, v in ages { print(k, "=", v, " ") }   // in the order added: ann=32 bob=42 cy=7
 for k in ages { }                        // the keys
-let p := ages.find("zed")                // a V^, or nullptr
+let p := ages.find("zed")                // a V^, or nowhere
 if !p.isNull { println(p^) }
 println(ages.get("zed", -1))             // the value, or a default
 ages.remove("bob")                       // true if it was there
@@ -62,7 +62,7 @@ in [ownership.md](ownership.md); this is the summary.
     String or text, which becomes one; a `cstr` text; an Optional its
     `T` or `none`; anything else its own type. Else it is an error,
     `an entry of Dictionary<String, i64> is an i64, and this is text`.
-- **Methods:** `has(k)`; `find(k)`, a `V^` or `nullptr` (`const V^` for
+- **Methods:** `has(k)`; `find(k)`, a `V^` or `nowhere` (`const V^` for
   a let).
   - `get(k, default)`, for a `V` that does not own.
   - `remove(k)`; `clear()`; `reserve(n)`; `copy()`.
@@ -175,7 +175,7 @@ kelvinc writes it ([selfhost/README.md](../selfhost/README.md)):
   (#270), `.count`; a String key an expression gives held (#314).
 - **Walking and copying**: `for k, v in d` and `for k in d` (#269),
   `.keys` and `.values` (#285), `.copy()`, `==` and `!=` (#288).
-- **Finding and changing**: `.find(k)`, a `V^` or `nullptr`, a `const
+- **Finding and changing**: `.find(k)`, a `V^` or `nowhere`, a `const
   V^` of a let; `.reserve(n)` and `.clear()`; and its text, `.pretty`
   and `.typename` (#337).
 - **Merging**: `.merge` and `.merging`, with a function where keys meet
@@ -209,7 +209,7 @@ same.
 | | `d[k] += x`, `d[k].m`, `d[k][i]`, `&d[k]` | the entry, a place, checked: a missing key ends the program |
 | | `d[k] = v` | adds the entry, or replaces the value, freeing what it held |
 | | `.has(k)` | whether the key is there, a `bool` |
-| | `.find(k)` | a `V^` to the value, or `nullptr`; `const V^` for a let |
+| | `.find(k)` | a `V^` to the value, or `nowhere`; `const V^` for a let |
 | | `.get(k, default)` | the value, or the default; for a `V` that does not own |
 | | `.remove(k)` | removes the entry; `true` if it was there |
 | | `.clear()`, `.reserve(n)` | changes, in place |

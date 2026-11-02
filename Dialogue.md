@@ -8676,3 +8676,17 @@ parameter from an inner block, a separate fix. Details are provisional
 P457.
 
 There are 1174 tests, and all pass with clang and with gcc 15.
+
+### 493. `nullptr` is `nowhere`
+
+> push. then rename `nullptr` to `nowhere`. We should've done so when we
+> renamed `NULL` to `nullptr`. `nowhere` is more natural in the world
+> where `Optional<T>` returns `some` or `none`
+
+**Claude** asked what `nullptr` should be afterwards; the user chose an
+error with a hint. A null pointer is now `nowhere`, in kelvinc and kc, in
+what print and templates show, and in every document, example and test;
+`nullptr` is refused, "write 'nowhere'". The records before this one keep
+the old word. Details are provisional P458.
+
+There are 1175 tests, and all pass with clang and with gcc 15.

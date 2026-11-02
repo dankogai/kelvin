@@ -483,10 +483,10 @@ extend JSON {
         return &spaces[n < 0 ? 10 : n > 10 ? 0 : 10 - n]
     }
 
-    static let stringify(j:const Self^):String { Self.stringify(j, nullptr, "") }
-    static let stringify(j:const Self^, space:cstr):String { Self.stringify(j, nullptr, space) }
-    static let stringify(j:const Self^, space:const String^):String { Self.stringify(j, nullptr, space^.cstr) }
-    static let stringify(j:const Self^, space:i64):String { Self.stringify(j, nullptr, Self.spaces(space)) }
+    static let stringify(j:const Self^):String { Self.stringify(j, nowhere, "") }
+    static let stringify(j:const Self^, space:cstr):String { Self.stringify(j, nowhere, space) }
+    static let stringify(j:const Self^, space:const String^):String { Self.stringify(j, nowhere, space^.cstr) }
+    static let stringify(j:const Self^, space:i64):String { Self.stringify(j, nowhere, Self.spaces(space)) }
     static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?):String { Self.stringify(j, replacer, "") }
     static let stringify(j:const Self^, replacer:(cstr, const Self^):Self?, space:const String^):String {
         Self.stringify(j, replacer, space^.cstr)

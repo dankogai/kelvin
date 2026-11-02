@@ -23,7 +23,7 @@ union u {
     n:int32;
 };
 enum e { WIDE = sizeof(apply(1) { $0 + 1 }) };
-struct s { a:[uint8](sizeof({ (p:s^):int64 in 1 }(nullptr))); };
+struct s { a:[uint8](sizeof({ (p:s^):int64 in 1 }(nowhere))); };
 
 let table:[entry](2) = [{"inc", { $0 + 1 }}, {"dbl", { $0 * 2 }}];
 
@@ -69,7 +69,7 @@ let main():int32 {
     var fp:(int64):int64 := inc;
     let mul:(int32, int32):int64 := { $0 as int64 * $1 };
     println(inc.size == sizeof(any^), " ", sizeof(inc) == sizeof(any^), " ",
-            ({ (x:int64):int64 in x }).size == sizeof(any^), " ", (&fp as any^) != nullptr, " ", mul(100000, 100000));
+            ({ (x:int64):int64 in x }).size == sizeof(any^), " ", (&fp as any^) != nowhere, " ", mul(100000, 100000));
 
     var xs:[int64](3) = [1, 2, 3];
     var v:u;

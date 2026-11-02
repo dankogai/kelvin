@@ -5,7 +5,7 @@ struct node { value:int32; next:struct node^; };
 
 let sum(list:struct node^):int64 {
     var total = 0;
-    for (var n:struct node^ := list; n != nullptr; n := n^.next)   // := also works inside expressions
+    for (var n:struct node^ := list; n != nowhere; n := n^.next)   // := also works inside expressions
         total += n^.value;
     return total;
 }

@@ -20,17 +20,17 @@ struct job {
 // a call's environment: n bytes, zeroed, or the program ends
 let kv_task_env(n:size_t):any^ {
     let p:any^ := calloc(1, n)
-    if p == nullptr { kv_array_fail("out of memory") }
+    if p == nowhere { kv_array_fail("out of memory") }
     return p
 }
 
 // async f(x): run(env) starts on a thread of its own, or the program ends
 let kv_task_start(run:(any^):any^, env:any^, drop:(any^):()):kv_task {
     let j:job^ := calloc(1, sizeof(job)) as job^
-    if j == nullptr { kv_array_fail("out of memory") }
+    if j == nowhere { kv_array_fail("out of memory") }
     j^.env := env
     j^.drop := drop
-    if pthread_create(&j^.th, nullptr, run, env) != 0 { kv_array_fail("a Task cannot start: no thread") }
+    if pthread_create(&j^.th, nowhere, run, env) != 0 { kv_array_fail("a Task cannot start: no thread") }
     var t:kv_task
     t.job := j
     return t
@@ -39,11 +39,11 @@ let kv_task_start(run:(any^):any^, env:any^, drop:(any^):()):kv_task {
 // the thread joined, and its environment given back, the Task emptied
 static let joined(t:kv_task^):any^ {
     let j:job^ := t^.job as job^
-    if j == nullptr { kv_array_fail("this Task was awaited already, or moved out") }
-    pthread_join(j^.th, nullptr)
+    if j == nowhere { kv_array_fail("this Task was awaited already, or moved out") }
+    pthread_join(j^.th, nowhere)
     let env:any^ := j^.env
     free(j)
-    t^.job := nullptr
+    t^.job := nowhere
     return env
 }
 
@@ -56,16 +56,16 @@ let kv_task_result(t:kv_task^, out:any^, n:size_t) {
 
 // a Task's end: one never awaited is awaited here, and its value freed
 let kv_task_free(t:kv_task^) {
-    if t^.job == nullptr { return }
+    if t^.job == nowhere { return }
     let drop:(any^):() := (t^.job as job^)^.drop
     let env:any^ := joined(t)
-    if drop != nullptr { drop(env) }
+    if drop != nowhere { drop(env) }
     free(env)
 }
 
 let kv_task_take(t:kv_task^):kv_task {
     let v:kv_task = t^
-    t^.job := nullptr
+    t^.job := nowhere
     return v
 }
 

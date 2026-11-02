@@ -167,7 +167,7 @@ So far the changes from C are these, by topic.
   body, `fallthrough` goes on into the next, and every value is handled,
   by every case or by `default:`
 - conditions are `bool`, with no parentheses and block bodies:
-  `if n > 0 { ... }`, `while p != nullptr { ... }`; comparisons give a
+  `if n > 0 { ... }`, `while p != nowhere { ... }`; comparisons give a
   `bool`, so `println(a == b)` prints `true`, and `let ok = a < b`
   declares one
 - assignment is a statement, and `++` and `--` step only a pointer, as
@@ -189,8 +189,8 @@ So far the changes from C are these, by topic.
   with a byte for the tag: `enum json { null; n: f64; s: String; a:
   Array<json> }`, made as `json.n(1.5)`, read as `j.n` (checked), tested
   with `j.is(n)` and `switch j { case n: ... }`
-- there is no `void`: `any^` is C's `void *` and `nullptr` its null, and a
-  reference declared without a value is `nullptr`
+- there is no `void`: `any^` is C's `void *` and `nowhere` its null, and a
+  reference declared without a value is `nowhere`
 - numeric types always say their size (`u8`…`u64`, `i8`…`i64`,
   `i128`/`u128`, `f32`, `f64`, or by their full names `uint8`, `int64`,
   `float64`), so `char`, `int`, `long`, `float` and `double` are gone,
