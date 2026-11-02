@@ -598,6 +598,16 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An Array's methods** (#438), as kelvinc's: `xs.append(v)`,
+  `xs.insert(i, v)`, `xs.remove(i, n)`, `xs.clear()`, `xs.reserve(n)`
+  and `xs.compact()`, in place, beside `pop` and `copy`.
+  - An owner goes in as kelvinc's: a borrow, `&w`, copied; what an
+    expression gives, moved; a place, `w`, kelvinc's error, which says
+    `&w` or `w.copy()`. `xs += v` reads it the same way, where it had
+    passed `&w` to C and `w` itself, freed twice.
+  - Their argument counts, an element of another type and a `let`
+    receiver are kelvinc's errors, in its words; kc names an Array
+    `$[i64]`.
 - **`x.isEmpty`** (#435), as kelvinc's #434: a String's, an Array's, a
   Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by
   its first byte, a Range's by its bounds, one without an end never;

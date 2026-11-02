@@ -8541,3 +8541,18 @@ temporaries went outside the function; its body now has its own. Details
 are provisional P449.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 485. kc's Array methods
+
+> go on with #438
+
+**Claude** asked which of #435's two kc gaps to take; the user chose an
+Array's `.append(x)`, and Bytes follows as #439. kc now reads all of
+kelvinc's Array methods that change it in place, `append`, `insert`,
+`remove(i, n)`, `clear`, `reserve` and `compact`, with kelvinc's errors.
+An owner goes in as kelvinc's: a borrow copied, what an expression gives
+moved, a place refused. Found: kc's `ws += w` appended `w` itself, freed
+twice, and `ws += &w` was C's error; `+=` now goes the same way. Details
+are provisional P450.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

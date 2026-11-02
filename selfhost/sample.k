@@ -834,5 +834,19 @@ let main(argc:int32, argv:[cstr]):int32 {
     let empty_text:cstr := ""                             // x.isEmpty (#434, #435): the count's 0; an iterator's false
     let empty_span:span = {3, 3}
     println(none_yet.isEmpty, " ", hex_text.isEmpty, " ", empty_text.isEmpty, " ", (3..<3).isEmpty, " ", (0...).isEmpty, " ", count_from(0).isEmpty, " ", empty_span.isEmpty, " ", fib_upto(10).isEmpty)
+    var grown:$[int64] = $[1, 2, 3]                       // an Array's methods (#438), in place
+    grown.append(4)
+    grown.insert(0, 9)
+    grown.remove(1, 2)
+    grown.reserve(16)
+    grown.compact()
+    var words_in:$[String] = $[]
+    words_in.append($"a")
+    words_in.append(&hex_text)                            // a borrow, copied in
+    words_in += &hex_text
+    words_in.insert(1, String(5))
+    println(grown, " ", words_in, " ", hex_text)
+    words_in.clear()
+    println(words_in.isEmpty)
     return 0
 }

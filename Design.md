@@ -469,6 +469,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 435 | kc reads kelvinc's #434, `x.isEmpty`: a String's, an Array's, a Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by its first byte, a Range's by its bounds, an Iterator's, an iterator's, a Sequence's and a lazy one's `false`; a struct's field wins; kelvinc's errors of a number, a bool, a pointer and `xs.isEmpty()` | selfhost/gen.k's empty_kind, gen_is_empty | `count_from(0).isEmpty` of kc | 2026-11-02 |
 | 436 | The README's `fizzbuzz` is the user's own: `var r = $""`, `r += "fizz"` of a cstr, and `if r.isEmpty` (#434), with the user's comments, `String()` and `or $"fizz"`, and two of Claude's; tests/docs.sh compiles it, and kc builds it too (#435) | README.md's Synopsis | `if r.isEmpty { r = String(n) }` | 2026-11-02 |
 | 437 | Two fixes of #245: a call whose result only C sees, which may be a pointer, `strchr(...)`, passes its temporaries to the chain around it, so `strlen(strchr($"xyz".cstr, 'y'))` reads no freed memory; an arm of `?:` and the right of `&&`, `||` and `??` keep theirs, so `c ? side().cstr : "no"` as an argument is the error that says to bind it first, and `side()` is no longer called where `c` is false; an anonymous function's body keeps its own too | src/parser.c's wrap_temps, parse_binary, parse_conditional, parse_coalescing, parse_anon_fn | `strlen(strchr($"xyz".cstr, 'y'))` | 2026-11-02 |
+| 438 | kc reads an Array's methods as kelvinc's: `append(v)`, `insert(i, v)`, `remove(i, n)`, `clear()`, `reserve(n)` and `compact()`, in place; an owner goes in as kelvinc's, a borrow `&w` copied, what an expression gives moved, a place an error that says `&w` or `w.copy()`, and `xs += v` the same, where kc passed `&w` to C and `w` itself; argument counts, an element of another type and a `let` receiver are kelvinc's errors | selfhost/gen.k's gen_array_add, arg_count, gen_array_method | `grown.insert(0, 9)` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1053,6 +1054,21 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (438) Agreed details: "go on with #438"; the user chose an Array's
+  `.append(x)` over Bytes, which follows as #439.
+  - All of kelvinc's Array methods that change it in place came along:
+    `append`, `insert`, `remove(i, n)`, `clear`, `reserve`, `compact`,
+    each kelvinc's `_kv_array_T_m(&xs, ...)`.
+  - gen_array_add puts in an element as kelvinc does: a borrow of an
+    owner copied, `T_copy(&w)`; what an expression gives moved; a
+    place that owns refused, in kelvinc's words.
+  - Found: kc's `ws += w` of an Array of Strings appended `w` itself,
+    which was then freed twice, and printed nothing; `ws += &w` was
+    C's error. `+=` now takes gen_array_add too.
+  - kelvinc's errors: `'.append' takes 1 argument` and the rest, an
+    element of another type, a `let` receiver (#271).
+  - tests/run/is_empty.k now fails in kc only on its `Bytes` (#439).
 
 - (437) Agreed details: "go on with #437", the two kelvinc bugs #433
   found.
@@ -6104,6 +6120,7 @@ says "as agreed".
 | P447 | Details of #435 | selfhost/gen.k: empty_kind, gen_is_empty, type_of's and gen_expr's use of them, the method error; selfhost/sample.k: `empty_text`, `empty_span`; selfhost/README.md | — |
 | P448 | Details of #436 | README.md: the Synopsis's `fizzbuzz`, the user's, with comments; selfhost/README.md: kc builds it with #435 | — |
 | P449 | Details of #437 | src/parser.c: wrap_temps, parse_binary's, parse_conditional's, parse_coalescing's and parse_anon_fn's chain_temps; tests/run/temp_c_result.k, tests/error/temp_pointer_choice.k, temp_pointer_coalesce.k; documents/strings.md, ownership.md | — |
+| P450 | Details of #438 | selfhost/gen.k: gen_array_add, arg_count, gen_array_method, gen_method_of's and the assignment's use of them; selfhost/sample.k: `grown`, `words_in`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

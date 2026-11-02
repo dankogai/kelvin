@@ -3241,6 +3241,104 @@ let gen_method(n:int64) {
     hold_close(a)
 }
 
+// ---------- an Array's methods (#438) ----------
+
+// v added to the Array of type y, by xs += v, append, or insert after
+// its index, what: an element's value, a borrow's copy, or what an
+// expression gives, moved in; a place that owns would be copied, which
+// is kelvinc's error, and so is a value of another type
+let gen_array_add(y:int64, v:int64, what:cstr) {
+    let ey:int64 = types[y].elem
+    let vy:int64 = type_of(v)
+    if failed { return }
+    if is_owner(ey) && nodes[v].kind == N_ADDR && type_of(nodes[v].a) == ey {   // a borrow, copied in
+        put_owner_prefix(ey)
+        put("_copy(")
+        gen_expr(v)
+        put(")")
+        return
+    }
+    if vy >= 0 && vy != ey && (is_owner(vy) || is_owner(ey)) {
+        var m = $"an element of "
+        let w:String = type_text(y)
+        m += &w
+        m += " is "
+        let ew:String = type_text(ey)
+        m += article_of(&ew)
+        m += " "
+        m += &ew
+        m += ", and this is "
+        let vw:String = type_text(vy)
+        m += &vw
+        gen_error(v, m.cstr)
+        return
+    }
+    if is_owner(ey) && is_place(v) {
+        var m = $"'"
+        m += what
+        if nodes[v].kind == N_ID {
+            m += "' of an owner would copy it: give a borrow, '&"
+            m += tok_text(nodes[v].t)
+            m += "', or a copy, '"
+            m += tok_text(nodes[v].t)
+            m += ".copy()'"
+        } else {
+            m += "' of an owner would copy it: give a borrow, '&...', or a copy, '....copy()'"
+        }
+        gen_error(v, m.cstr)
+        return
+    }
+    gen_value(v, ey)
+}
+
+// how many arguments the list from a has
+let arg_count(a:int64):int64 {
+    var k:int64 = 0
+    var e:int64 = a
+    while e >= 0 {
+        k += 1
+        e = nodes[e].next
+    }
+    return k
+}
+
+// xs.append(v), xs.insert(i, v), xs.remove(i, n), xs.clear(),
+// xs.reserve(n) and xs.compact() of the Array a of type y, in place, as
+// kelvinc's: its own C functions, the arguments counted in its words
+let gen_array_method(n:int64, a:int64, y:int64) {
+    let t:int64 = nodes[n].t
+    let b:int64 = nodes[n].b
+    let want:int64 = tok_is(t, "append") || tok_is(t, "reserve") ? 1 : tok_is(t, "insert") || tok_is(t, "remove") ? 2 : 0
+    if arg_count(b) != want {
+        var m = $"'."
+        m += tok_text(t)
+        m += "' takes "
+        m += String(want)
+        m += want == 1 ? " argument" : " arguments"
+        gen_error(n, m.cstr)
+        return
+    }
+    if !may_change(a) { return }                        // (#271)
+    put_array_name(y)
+    put("_")
+    put_tok(t)
+    put("(")
+    gen_place(a)
+    if tok_is(t, "append") {
+        put(", ")
+        gen_array_add(y, b, "append")
+    } else if tok_is(t, "insert") {
+        put(", ")
+        gen_expr(b)
+        put(", ")
+        gen_array_add(y, nodes[b].next, "insert")
+    } else if b >= 0 {
+        put(", ")
+        gen_args(b)
+    }
+    put(")")
+}
+
 let gen_method_of(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
@@ -3342,6 +3440,8 @@ let gen_method_of(n:int64) {
         put("(")
         gen_place(a)
         put(")")
+    } else if yk == Y_ARRAY && (tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact")) {
+        gen_array_method(n, a, y)                       // (#438)
     } else if yk == Y_ARRAY && tok_is(t, "pop") {
         if !may_change(a) { return }                    // (#271)
         put_array_name(y)
@@ -6996,7 +7096,7 @@ let gen_assign(n:int64) {
         put("_append(")
         gen_place(lhs)
         put(", ")
-        gen_expr(nodes[n].b)
+        gen_array_add(y, nodes[n].b, "+=")              // a borrow copied, a place that owns kelvinc's error (#438)
         put(");\n")
     } else if yk == Y_TASK && tok_is(t, "=") {           // the old one awaited and freed, as kelvinc's (#313)
         if is_place(nodes[n].b) {
