@@ -597,6 +597,16 @@ kc reads what it is written in, and little more.
   - With #428 and #429, kc builds the README's Synopsis, a fizzbuzz
     (#431), and with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`; it prints what kelvinc's build prints.
+- **`x.isEmpty`** (#435), as kelvinc's #434: a String's, an Array's, a
+  Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by
+  its first byte, a Range's by its bounds, one without an end never;
+  an Iterator's, an iterator's, a Sequence's and a lazy one's `false`,
+  its receiver still evaluated.
+  - A struct's field of the name wins.
+  - Of a number, a bool or a pointer it is kelvinc's error, in its
+    words, and so is `xs.isEmpty()`; kc names an Array `$[i64]`.
+  - Found: kc reads no `Bytes`, and writes it to C as it is, where C
+    fails; nor an Array's `.append(x)`, which it says is not known.
 - **A pointer into a temporary** (#433), as kelvinc's #245: the owner an
   expression gives, which a pointer points into, is held until the call
   or subscript around the pointer is done, `strlen($"abc".cstr)`,
@@ -1097,7 +1107,6 @@ steps can take them on one at a time.
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;
-  - `x.isEmpty` (#434), which #435 is to read;
   - and kelvinc's hundreds of messages.
 - **There is no specification but kelvinc:** grammar.md is partial, and
   the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc

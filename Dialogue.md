@@ -8495,3 +8495,17 @@ kelvinc's error, and `xs.isEmpty()` one that says it is a property.
 Details are provisional P446.
 
 There are 1167 tests, and all pass with clang and with gcc 15.
+
+### 482. kc's isEmpty
+
+> push. then go on with #435
+
+**Claude** pushed #434 and made this #435: kc reads `.isEmpty` as
+kelvinc's #434 does, by the count of a String, an Array, a Dictionary and
+a Set, a fixed array's size, a cstr's first byte and a Range's bounds,
+and `false` of an Iterator, an iterator, a Sequence and a lazy one; a
+struct's field of the name wins, and the errors are kelvinc's. Found in
+kc, for later: a `Bytes` goes to C as it is, and an Array's `.append(x)`
+is not known. Details are provisional P447.
+
+There are 1167 tests, and all pass with clang and with gcc 15.

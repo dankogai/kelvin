@@ -699,6 +699,8 @@ let type_of(n:int64):int64
 let lazy_of(n:int64):int64    // prototypes: a lazy Sequence's (#324)
 let lazy_type_of(n:int64):int64
 let is_lazy_type(y:int64):bool
+let empty_kind(n:int64):int64    // prototypes: x.isEmpty (#435)
+let gen_is_empty(n:int64)
 let lazy_field_type(n:int64):int64
 let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
@@ -1125,6 +1127,11 @@ let type_of(n:int64):int64 {
         if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
         if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, x.sign, of its type (#381, #382)
         if (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382), x.isInfinite, x.isFinite (#384)
+        if tok_is(t, "isEmpty") && empty_kind(n) != 0 {  // x.isEmpty (#435), a bool, or kelvinc's error
+            if empty_kind(n) > 0 { return base_type(Y_BOOL) }
+            gen_is_empty(n)
+            return -1
+        }
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
@@ -3428,6 +3435,8 @@ let gen_method_of(n:int64) {
         put("kv_io_close(")
         gen_place(a)
         put(")")
+    } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
+        gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
     } else {
         gen_error(n, "this method is not known")
     }
@@ -5689,6 +5698,10 @@ let gen_expr(n:int64) {
             return
         }
     }
+    if k == N_FIELD && tok_is(t, "isEmpty") && empty_kind(n) != 0 {
+        gen_is_empty(n)                                  // x.isEmpty (#435)
+        return
+    }
     if (k == N_FIELD && (tok_is(t, "count") || tok_is(t, "lowerBound") || tok_is(t, "upperBound")) || k == N_METHOD && tok_is(t, "contains")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_member(n)                              // r.count, r.contains(x) (#374), its bounds (#375)
         return
@@ -7111,6 +7124,74 @@ let sequence_maker(y:int64):int64 {
     var key:String = tok_text(types[y].name)
     key += ".makeIterator"
     return method_names.get(key, -1)
+}
+
+// ---------- x.isEmpty (#435) ----------
+
+// how the N_FIELD n, x.isEmpty, reads, as kelvinc's #434: 1 by the count
+// of a String, an Array, a Dictionary or a Set, 2 by a fixed array's
+// size, 3 by a cstr's first byte, 4 by a Range's bounds, 5 false, of an
+// Iterator, an iterator, a Sequence or a lazy one; -1 of a number or a
+// bool, -2 of a pointer, which are errors; 0 of any other, a struct's
+// field of the name too
+let empty_kind(n:int64):int64 {
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return 0 }
+    let k:ykind = types[y].kind
+    if k == Y_STRING || k == Y_ARRAY || k == Y_DICT || k == Y_SET { return 1 }
+    if k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) { return 0 - 2 }   // a parameter's, a pointer (#357)
+    if k == Y_FIXED && types[y].name != 0 - 1 { return 2 }
+    if k == Y_CSTR { return 3 }
+    if k == Y_RANGE { return 4 }
+    if k == Y_ITER { return 5 }
+    if k == Y_STRUCT && field_type(y, nodes[n].t) >= 0 { return 0 }
+    if k == Y_STRUCT && (iterator_next(y) >= 0 || sequence_maker(y) >= 0 || is_lazy_type(y)) { return 5 }
+    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_UCHR { return 0 - 1 }
+    if k == Y_PTR { return 0 - 2 }
+    return 0
+}
+
+// x.isEmpty (#435): the count's 0, a bool, as kelvinc's; an iterator's
+// false, its receiver still evaluated; an owner an expression gives held
+// while it is read (#227)
+let gen_is_empty(n:int64) {
+    let a:int64 = nodes[n].a
+    let e = empty_kind(n)
+    let y:int64 = type_of(a)
+    if e < 0 {
+        var m = $"'.isEmpty' is a property of collections and iterators, and this is "
+        let w:String = type_text(y)
+        m += &w
+        if e == 0 - 2 { m += ", a pointer: write 'p^.isEmpty' of what it points to" }
+        gen_error(n, m.cstr)
+        return
+    }
+    let hold = needs_hold(a)
+    if hold { hold_open(a) }
+    if e == 1 {
+        put("((bool)((")
+        gen_expr(a)
+        put(").count == 0))")
+    } else if e == 2 {
+        put("((bool)(sizeof(")
+        gen_expr(a)
+        put(") == 0))")
+    } else if e == 3 {
+        put("((bool)(((const char *)(")
+        gen_expr(a)
+        put("))[0] == 0))")
+    } else if e == 4 {                                   // one without an end never is
+        put("({ ")
+        put_ctype(y)
+        put(" _kv_re = (")
+        gen_expr(a)
+        put("); (bool)(_kv_re.kind == 2 ? 0 : _kv_re.kind ? _kv_re.lo > _kv_re.hi : _kv_re.lo >= _kv_re.hi); })")
+    } else {
+        put("((void)(")
+        gen_expr(a)
+        put("), (bool)0)")
+    }
+    if hold { hold_close(a) }
 }
 
 // ---------- lazy Sequences (#324) ----------

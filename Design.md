@@ -466,6 +466,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 432 | The README's Synopsis's `main` is the user's own: `#import <stdio.h> as C` for C's `printf`, the anonymous function's parameters on the line below its `{`, a closed range from 0, `0...n`, `printf("...%s\n", i, fizzbuzz(i).cstr)`, whose String is freed after the call (#245), and `return 0;`; the commented-out `println` of a template prints the same; tests/docs.sh compiles it with kelvinc; kc does not build it yet | README.md's Synopsis | `printf(..., fizzbuzz(i).cstr)` | 2026-11-02 |
 | 433 | kc reads kelvinc's #245: an owner an expression gives, which a pointer points into, is held until the call or subscript around the pointer is done, `strlen($"abc".cstr)`, `$"zz".cstr[0]`; a call that gives a pointer, or what only C sees, passes it to the one around it; with none around, `let p := $"x".cstr` is still the error; one in an arm of `?:` or right of `&&`, `||`, `??` stays an error; kc builds #432's Synopsis | selfhost/gen.k's points_into_temp, passes_holds, chain_holds, pointer_holds, gen_holding_chain | `strlen(String(4096).cstr)` of kc | 2026-11-02 |
 | 434 | `x.isEmpty` is whether a collection has no element, a `bool`, its `.count == 0`: a Bytes's, a String's, an Array's, a Dictionary's, a Set's, a fixed array's, a cstr's, its first byte NUL, and a Range's, one without an end never; an iterator's and a Sequence's, lazy ones too, which have no count, are `false`, even where they would give nothing; a field or attribute of the name wins; of a number or a pointer an error, `p^.isEmpty` of a pointer; `xs.isEmpty()` an error that says it is a property | src/parser.c's empty_property, the Range branch; src/codegen.c's range_empty and empty_ ops | `if xs.isEmpty { ... }` | 2026-11-02 |
+| 435 | kc reads kelvinc's #434, `x.isEmpty`: a String's, an Array's, a Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by its first byte, a Range's by its bounds, an Iterator's, an iterator's, a Sequence's and a lazy one's `false`; a struct's field wins; kelvinc's errors of a number, a bool, a pointer and `xs.isEmpty()` | selfhost/gen.k's empty_kind, gen_is_empty | `count_from(0).isEmpty` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1050,6 +1051,17 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (435) Agreed details: kc reads `.isEmpty`, as the user chose for
+  #434, a number of its own.
+  - empty_kind tells how: by the count, by a fixed array's size, by a
+    cstr's first byte, by a Range's bounds, or `false`; type_of gives a
+    `bool`, and gen_is_empty writes kelvinc's C.
+  - An owner an expression gives is held while it is read (#227).
+  - kc builds tests/run/is_empty.k but for its `Bytes` and its
+    `zs.append(1)`, and then prints what kelvinc's build prints.
+  - Found in kc: a `Bytes` goes to C as it is, which fails there, where
+    kc should refuse it; `.append(x)` of an Array is not known.
 
 - (434) Agreed details: "Add `.isEmpty` attribute to all collection
   types such as `Bytes`, `String`, `Array`, `Dictionary`, `Set`... It is
@@ -6061,6 +6073,7 @@ says "as agreed".
 | P444 | Details of #432 | README.md: the Synopsis's `main`, the user's, with comments; selfhost/README.md: the Synopsis waits for #245 in kc | — |
 | P445 | Details of #433 | selfhost/gen.k: points_into_temp, passes_holds, chain_holds, pointer_holds, holding_chain, gen_holding_chain, gen_expr's and gen_field's use of them; selfhost/sample.k: `held_len`; selfhost/README.md | — |
 | P446 | Details of #434 | src/parser.c: empty_property, property()'s and the Range branch's use, the method lists; src/codegen.c: range_empty, empty_count, empty_cstr, empty_array, empty_never; tests/run/is_empty.k, tests/error/is_empty_number.k, is_empty_pointer.k, is_empty_call.k; documents: bytes, strings, arrays, dictionaries, sets, ranges, iterators, properties, versusC; README.md | — |
+| P447 | Details of #435 | selfhost/gen.k: empty_kind, gen_is_empty, type_of's and gen_expr's use of them, the method error; selfhost/sample.k: `empty_text`, `empty_span`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

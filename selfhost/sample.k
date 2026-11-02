@@ -831,5 +831,8 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(short_u8, " ", short_half, " ", sizeof(i32), " ", (7 as u32).typename, " ", i64(short_u8) * 2)
     let held_len:size_t = strlen(String(4096).cstr)       // a pointer into a temporary, held for the call (#245, #433)
     println(held_len, " ", strlen($"kelvin".cstr), " ", String(12).cstr, " ", String(345).cstr[1], " ", atoi(String(7 * 6).cstr))
+    let empty_text:cstr := ""                             // x.isEmpty (#434, #435): the count's 0; an iterator's false
+    let empty_span:span = {3, 3}
+    println(none_yet.isEmpty, " ", hex_text.isEmpty, " ", empty_text.isEmpty, " ", (3..<3).isEmpty, " ", (0...).isEmpty, " ", count_from(0).isEmpty, " ", empty_span.isEmpty, " ", fib_upto(10).isEmpty)
     return 0
 }
