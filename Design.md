@@ -482,6 +482,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 448 | kelvinc refuses a template's text assigned to a function's parameter in a block inside the body, `if c { t := `${n}` }`, as it refuses one of an outer block: its text, in that inner block, would be gone after it, and t would dangle; only the body's own top block may give a parameter such a text, as kc's template_outlived (#445) does | src/parser.c's body_scopes, set by parse_fn_body; reject_template_escape | tests/error/template_param_inner.k | 2026-11-02 |
 | 449 | kc reads `try r`, as kelvinc's #76: r's `ok` (`some`) value, or a return of its `err` (`none`) passed up as it is, of a call or of a place, alone as a statement too; `Result<T, E>.ok(v)`, `.err(e)`, `Optional<T>.some(v)` and `.none`, as kelvinc's #75, each of its own type; kelvinc's errors of each, in its words; and `IO(path)` opens to read, where kc had crashed | selfhost/parse.k's N_TRY and the typed case; selfhost/gen.k's gen_try, try_refused, try_place | `let ts = try tokens(s)` in examples/calc.k | 2026-11-02 |
 | 450 | kc reads `for r in f.lines`, each line a `Result<String, i64>` that borrows one buffer, as kelvinc's #406, where kc had crashed; `f.rewind()`; `f.write(x)` by what x is, text, `&s`, `&b`, a `String^` or an owner an expression gives, where kc had passed text as a String; `Bytes(&$"text")` and `Bytes(&mk())`, held; and `v.cstr` of a Result, an Optional, an enum with values or a struct, its text as print shows it | selfhost/gen.k's gen_lines_each, shown_cstr, gen_shown_cstr, the IO write and rewind, gen_bytes_make's hold | `for r in f.lines { ... }` | 2026-11-03 |
+| 451 | kc reads `Array<T>` wherever a type is written, as `$[T]`, `Array<Array<T>>` and `Array<T>?` too; an empty `[]` in `Array<Array<T>>([...])`, where kc had crashed; C's `;` after a struct's or an enum's `}` and after a global, and between statements, `for ... { ... }; return s`; and an enum with no name, `enum { LIMIT = 100 }`, its enumerators C's int, `i32`, as kelvinc's P10, counting a fixed array as a constant, `[bool](LIMIT + 1)` | selfhost/parse.k's array_type, parse_enum's, parse_block's and parse_program's `;`; selfhost/gen.k's constant_count | `var xs:Array<int64>`, `enum { LIMIT = 100 }` | 2026-11-03 |
 
 Notes:
 
@@ -1067,6 +1068,30 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (451) Agreed details: "go on with #451"; the user chose both: `Array<T>`
+  as a type, and C's `};` and enums with no name.
+  - `Array<T>` is read wherever a type is, as `$[T]` is: array_type,
+    shared by the two, keeps kelvinc's error of an element of a count.
+  - `Array(['a', 'b'])` is an `Array<u8>`, as kelvinc's, where kc had
+    typed a character an i64.
+  - An empty `[]` among `Array<Array<T>>([...])`'s elements had crashed
+    kc, made an Array of no first element; it is an empty one, as `$[]`
+    is.
+  - `;` ends a statement where a new line would, so `{ ... };` before
+    another statement is an empty one; at the top level it may follow a
+    struct's or an enum's `}` and a global, and after a function's body
+    it is kelvinc's error, in its words.
+  - `enum { LIMIT = 100 }`, C's anonymous enum at the top level, is
+    named by its word; C writes it so, and its enumerators are C's int,
+    `i32`, as kelvinc's. One with cases of values (#120), and one in a
+    block, are kc's "not yet".
+  - A fixed array's count of numbers and enumerators, `[bool](LIMIT +
+    1)`, is C's constant, which takes elements; kc had taken any
+    expression for a count computed at run time.
+  - tests/run/array_eq.k, array_from_list.k, array_map_chain.k,
+    array_nested_list.k, array_search.k, coalesce_optional.k, readme.k
+    and struct_owner_array.k, and examples/primes.k, build with kc now,
+    85 in all, each printing what kelvinc's prints.
 - (450) Agreed details: "go on with #449", numbered #450; the user
   chose the kc crashes and gaps that #449 found.
   - `for r in f.lines` is written as kelvinc's: each line read into one
@@ -6401,6 +6426,7 @@ says "as agreed".
 | P460 | Details of #448 | src/parser.c: body_scopes, set and restored by parse_fn_body, and reject_template_escape's test of a parameter; tests/error/template_param_inner.k | — |
 | P461 | Details of #449 | selfhost/parse.k: N_TRY, parse_unary's `try`, parse_primary's `Result<T, E>.c(...)` and `Optional<T>.c`; selfhost/gen.k: other_case, try_place, try_refused, gen_try, type_of's and gen_expr_of's N_TRY and typed case words, the S_EXPR of `try`, inferred's and some(v)'s typed case, gen_call's `IO(path)`; selfhost/sample.k: `digit_of`, `digits_sum`, `label_of`, `labelled`, `halved`, `quartered`; selfhost/README.md | — |
 | P462 | Details of #450 | selfhost/gen.k: gen_lines_each and gen_each's `f.lines`, type_of's `f.lines` and `.cstr`, shown_cstr, gen_shown_cstr, gen_member's `.cstr`, text_in_buffer's `.cstr`, gen_bytes_make's hold, the IO write by kind and `rewind`, gen_iflet's `__auto_type`; selfhost/sample.k: `#import <IO>` and `<stdio.h>`, `scratch`, `lines_in`, `parsed` and their line; selfhost/README.md | — |
+| P463 | Details of #451 | selfhost/parse.k: array_type and parse_bare_type's `Array<T>`, sizeof_type_at's `Array`, lists_grow's `[]`, parse_enum with no name, parse_block's `;`, parse_program's `;` after a struct, an enum and a global and its error after a function; selfhost/gen.k: var_type's `i32`, the enum written without a name, the u8 of `Array(['a'])`, empty_fits and empty_error of `[]`, gen_array's `[]`, constant_count, fixed_computed and gen_fixed_var's constant count; selfhost/sample.k: `SAMPLE_LIMIT`, `bounds`, `evens`, `nest`, `flags`, `sp`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

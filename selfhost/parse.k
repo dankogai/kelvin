@@ -565,7 +565,7 @@ let sizeof_type_at(t:int64):bool {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
     }
     if tok_is(t, "typeof") { return tok_is(t + 1, "(") }
-    if tok_is(t, "Optional") || tok_is(t, "Result") || tok_is(t, "Iterator") || tok_is(t, "Range") || tok_is(t, "Task") || tok_is(t, "Set") || tok_is(t, "Dictionary") {
+    if tok_is(t, "Optional") || tok_is(t, "Result") || tok_is(t, "Iterator") || tok_is(t, "Range") || tok_is(t, "Task") || tok_is(t, "Set") || tok_is(t, "Dictionary") || tok_is(t, "Array") {
         return tok_is(t + 1, "<")
     }
     if tok_is(t, "Self") { return self_name >= 0 }
@@ -1048,6 +1048,10 @@ let grown(y:int64):int64 {
 // a list among $[...]'s elements, an Array in turn, its lists too (#369)
 let lists_grow(e:int64) {
     if nodes[e].kind != N_LIST || nodes[e].flag != 0 { return }
+    if nodes[e].b < 0 {                                  // [], an empty one, as $[] is, where kc had crashed (#451)
+        nodes[e].kind = N_EMPTY
+        return
+    }
     nodes[e].kind = N_ARRAY
     var x:int64 = nodes[e].b
     while x >= 0 {
@@ -1056,23 +1060,29 @@ let lists_grow(e:int64) {
     }
 }
 
+// the Array of elem, $[T] or Array<T> (#451); an element of a count
+// is kelvinc's error
+let array_type(elem:int64):int64 {
+    if types[elem].kind == Y_FIXED && types[elem].name != 0 - 1 && types[elem].name != 0 - 3 {   // as kelvinc says it (#369)
+        var b:int64 = elem
+        while types[b].kind == Y_FIXED { b = types[b].elem }
+        var m = $"an Array grows, and has no count in its type: write $[["
+        let w:String = type_word(b)
+        m += &w
+        m += "]], and give the elements or a count where it is made"
+        parse_error(m.cstr)
+        return base_type(Y_VOID)
+    }
+    return type_of_kind(Y_ARRAY, grown(elem), -1)
+}
+
 let parse_bare_type():int64 {
     if at_word("$[") {
         advance()
-        var elem:int64 = parse_type()
+        let elem:int64 = parse_type()
         expect("]")
-        if types[elem].kind == Y_FIXED && types[elem].name != 0 - 1 && types[elem].name != 0 - 3 {   // as kelvinc says it (#369)
-            var b:int64 = elem
-            while types[b].kind == Y_FIXED { b = types[b].elem }
-            var m = $"an Array grows, and has no count in its type: write $[["
-            let w:String = type_word(b)
-            m += &w
-            m += "]], and give the elements or a count where it is made"
-            parse_error(m.cstr)
-            return base_type(Y_VOID)
-        }
-        elem = grown(elem)
-        var y:int64 = type_of_kind(Y_ARRAY, elem, -1)
+        var y:int64 = array_type(elem)
+        if failed { return y }
         while at_word("^") || at_word("?") {
             if at_word("?") {
                 y = optional_of(y)               // $[T]?, an Optional (#221)
@@ -1232,6 +1242,11 @@ let parse_bare_type():int64 {
             close_angle()
         }
         y = type_of_kind(Y_TASK, value, -1)
+    } else if tok_is(t, "Array") && at_word("<") {     // Array<T>, $[T] as it is spelled out (#451)
+        advance()
+        let elem:int64 = parse_type()
+        close_angle()
+        y = array_type(elem)
     } else if tok_is(t, "Set") {                 // Set<T> (#274)
         expect("<")
         let elem:int64 = parse_type()
@@ -2553,6 +2568,11 @@ let parse_block():int64 {
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
+        if at_word(";") {                                // an empty statement, as `for ... { ... };` ends one (#451)
+            advance()
+            skip_newlines()
+            continue
+        }
         let s:int64 = parse_statement()
         if last < 0 {
             nodes[n].a = s
@@ -2667,7 +2687,11 @@ let parse_struct():int64 {
 // then the enum's flag is 1, and each case's ty its value's, or -1
 let parse_enum():int64 {
     let local:bool = local_next || block_depth > 0       // its enumerators the block's (#391)
-    let n:int64 = make_node(D_ENUM, record_name())
+    if at_word("{") && local {
+        parse_error("kc reads an enum with no name at the top level, C's constants; not yet in a block")
+        return make_node(D_ENUM, pos)
+    }
+    let n:int64 = at_word("{") ? make_node(D_ENUM, pos - 1) : make_node(D_ENUM, record_name())   // enum { LIMIT = 100 }: named by its word, C's anonymous enum (#451)
     expect("{")
     skip_newlines()
     var last = -1
@@ -2700,6 +2724,10 @@ let parse_enum():int64 {
         skip_newlines()
     }
     expect("}")
+    if nodes[n].flag == 1 && tok_is(nodes[n].t, "enum") {   // as kelvinc's #120, its cases words of the program
+        parse_error("kc reads an enum with no name of plain enumerators, C's constants; not yet with cases of values (#120)")
+        return n
+    }
     if nodes[n].flag == 1 && hidden > 0 {                // an enum with values: its cases keep their names
         var m:int64 = nodes[n].a
         while m >= 0 {
@@ -2803,9 +2831,13 @@ let parse_program() {
         } else if at_word("struct") {
             advance()
             decls += parse_struct()
+            if at_word(";") { advance() }                // struct point { ... };, as C writes it (#451)
         } else if at_word("enum") {
             advance()
             decls += parse_enum()
+            if at_word(";") { advance() }                // enum { LIMIT = 100 }; (#451)
+        } else if at_word(";") {                         // as kelvinc says it, after a function's body
+            parse_error("expected a declaration (let name(...):type, let or var name, struct, union, enum), found ';'")
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             decls += parse_function()
@@ -2831,6 +2863,7 @@ let parse_program() {
             nodes[n].kind = D_GLOBAL
             if is_let { nodes[n].flag = 1 }
             decls += n
+            if at_word(";") { advance() }                // var calls = 0; (#451)
         } else {
             parse_error("a declaration is expected")
         }

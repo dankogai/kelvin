@@ -705,6 +705,7 @@ let var_type(t:int64):int64 {
     let g:int64 = decl_named(t, D_GLOBAL)
     if g >= 0 { return nodes[g].ty }
     let e:int64 = enum_of(t)
+    if e >= 0 && tok_is(nodes[e].t, "enum") { return base_type(Y_I32) }   // of an enum with no name, C's int, as kelvinc's i32 (#451)
     if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }
     return -1
 }
@@ -1182,7 +1183,7 @@ let type_of(n:int64):int64 {
             return type_of_kind(Y_ARRAY, types[fy].elem, -1)
         }
         if nodes[n].flag != 3 || nodes[n].b < 0 || is_case_word(nodes[n].b) { return -1 }
-        let e:int64 = type_of(nodes[n].b)
+        let e:int64 = nodes[nodes[n].b].kind == N_CHAR ? base_type(Y_U8) : type_of(nodes[n].b)   // Array(['a', 'b']) of u8, as kelvinc's (#451)
         if e < 0 { return -1 }
         return type_of_kind(Y_ARRAY, e, -1)
     }
@@ -4919,7 +4920,7 @@ let gen_make(n:int64) {
 let empty_fits(v:int64, y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
-    if tok_is(nodes[v].t, "$[") { return k == Y_ARRAY }
+    if tok_is(nodes[v].t, "$[") || tok_is(nodes[v].t, "[") { return k == Y_ARRAY }   // [] inside Array([...]) too (#451)
     if nodes[v].flag == 1 { return k == Y_SET }
     return k == Y_DICT
 }
@@ -4927,7 +4928,7 @@ let empty_fits(v:int64, y:int64):bool {
 // $[], ${:} or ${} where no type of its kind is written, as kelvinc says
 // it (#348)
 let empty_error(v:int64) {
-    if tok_is(nodes[v].t, "$[") {
+    if tok_is(nodes[v].t, "$[") || tok_is(nodes[v].t, "[") {
         gen_error(v, "Array([]) has no element type: write Array<T>()")
     } else if nodes[v].flag == 1 {
         gen_error(v, "${} has no element type here: write Set<T>(), or give the variable a type, as in 'var s:${String} = ${}'")
@@ -5108,7 +5109,7 @@ let gen_array(n:int64, given:int64) {
             owner_assign_error(e)
             return
         }
-        if given >= 0 {                                  // of the type written, as kelvinc says it (#350)
+        if given >= 0 && nodes[e].kind != N_EMPTY {      // of the type written, as kelvinc says it (#350); [] fits any (#451)
             let bad:String = value_mismatch_text(e, elem)
             if bad.count > 0 {
                 var m = $"an element of "
@@ -7594,10 +7595,25 @@ let fixed_list_fits(v:int64, y:int64):bool {
 }
 
 // whether a fixed array holds one of a count C computes, deeper in (#366)
+// whether e is C's constant of an integer: numbers and enumerators, by
+// + - * / % and a minus, as [bool](LIMIT + 1) counts (#451)
+let constant_count(e:int64):bool {
+    let k = nodes[e].kind
+    if k == N_NUM { return !float_tok(nodes[e].t) }
+    if k == N_ID { return local_at(nodes[e].t) < 0 && decl_named(nodes[e].t, D_GLOBAL) < 0 && enum_of(nodes[e].t) >= 0 }
+    if k == N_UNARY && tok_is(nodes[e].t, "-") { return constant_count(nodes[e].a) }
+    if k == N_BIN {
+        let t:int64 = nodes[e].t
+        let arith = tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%")
+        return arith && constant_count(nodes[e].a) && constant_count(nodes[e].b)
+    }
+    return false
+}
+
 let fixed_computed(y:int64):bool {
     var f:int64 = y
     while types[f].kind == Y_FIXED {
-        if types[f].name <= 0 - 10 { return true }
+        if types[f].name <= 0 - 10 && !constant_count(0 - 10 - types[f].name) { return true }
         f = types[f].elem
     }
     return false
@@ -7672,8 +7688,8 @@ let gen_fixed_var(n:int64) {
         }
         return
     }
-    let zeros_computed = v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 && type_of(v) >= 0 && types[type_of(v)].name <= 0 - 10
-    if types[y].name <= 0 - 10 || zeros_computed || fixed_computed(types[y].elem) {   // a count C computes, a local var's (#366)
+    let zeros_computed = v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 1 && type_of(v) >= 0 && fixed_computed(type_of(v))
+    if fixed_computed(y) || zeros_computed {             // a count C computes, a local var's (#366); not of constants (#451)
         if types[y].name == 0 - 1 { y = type_of(v) }
         if !computed_ok(n, y, v) { return }
         set_ty(n, y)
@@ -7707,7 +7723,7 @@ let gen_fixed_var(n:int64) {
             return
         }
         if !fixed_list_fits(v, y) { return }
-        if types[y].name < 0 {
+        if types[y].name < 0 && types[y].name > 0 - 10 {   // [T] of its elements; [T](LIMIT + 1) keeps its count (#451)
             let konst = types[y].konst == 1
             y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0)
             if konst { y = const_fixed(y) }              // (#425)
@@ -13592,8 +13608,11 @@ let gen_program() {
     for i in 0..<decls.count as int64 {                  // the enums, C's (#210)
         let d:int64 = decls[i]
         if nodes[d].kind == D_ENUM && nodes[d].flag != 1 {
-            put("enum ")
-            put_tok(nodes[d].t)
+            put("enum")
+            if !tok_is(nodes[d].t, "enum") {             // enum { ... }, C's anonymous one (#451)
+                put(" ")
+                put_tok(nodes[d].t)
+            }
             put("\n{\n")
             var m:int64 = nodes[d].a
             while m >= 0 {

@@ -311,6 +311,12 @@ extend numbered {
     }
 }
 
+enum { SAMPLE_LIMIT = 4 };                            // C's constants, with C's ; (#451)
+struct bounds { lo: int64; hi: int64; };
+let evens(n:int64):Array<int64> {                      // Array<T> as a type, as $[T] (#451)
+    var xs:Array<int64> = Array<int64>()
+    for i in 0..<n { xs += i * 2 }; return xs
+}
 let handed_back(s:String):String { return s }           // s moves in and out again (#441)
 let digit_of(c:uint8):Result<int64, String> {         // try passes the err up (#449)
     if c < '0' || c > '9' { return Result<int64, String>.err($`not a digit: ${c}`) }
@@ -945,5 +951,10 @@ on a new line`
     remove("sample_lines.tmp")
     let parsed = digits_sum("42")
     println(" ", line_count, " ", parsed.cstr, " ", quartered(8).cstr, " ", point.of(1, 2).cstr, " ", Bytes(&$"h\u{e9}llo").count)
+    var nest = Array<Array<int64>>([[1, 2], [], [3]])
+    var flags:[bool](SAMPLE_LIMIT + 1) = [false]
+    flags[SAMPLE_LIMIT] = true
+    let sp:bounds = {SAMPLE_LIMIT, SAMPLE_LIMIT * 2};
+    println(evens(SAMPLE_LIMIT), " ", nest, " ", nest[1].count, " ", Array(['k', 'c']).typename, " ", flags[SAMPLE_LIMIT], " ", flags.count, " ", sp.hi, " ", SAMPLE_LIMIT.typename)
     return 0
 }

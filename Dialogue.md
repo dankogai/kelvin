@@ -8755,3 +8755,19 @@ tests build with kc, 76 in all, and print what kelvinc's builds print.
 Details are provisional P462.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 498. `Array<T>`, `};` and enums with no name in kc
+
+> push. then go on with #451
+
+**Claude** listed what stopped kc most and asked; the user chose both
+`Array<T>` as a type and C's `};` with enums of no name. kc now reads
+`Array<T>` wherever a type is written, a `;` after a struct, an enum, a
+global or a statement, and `enum { LIMIT = 100 }`, whose enumerators are
+`i32` constants that may count a fixed array. On the way, an empty `[]`
+inside `Array<Array<T>>([...])` was found to crash kc, and a character
+in `Array([...])` to be typed an i64; both are fixed. Nine more programs
+build with kc, 85 in all, and print what kelvinc's builds print. Details
+are provisional P463.
+
+There are 1176 tests, and all pass with clang and with gcc 15.
