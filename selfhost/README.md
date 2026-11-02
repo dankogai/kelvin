@@ -1097,6 +1097,7 @@ steps can take them on one at a time.
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;
+  - `x.isEmpty` (#434), which #435 is to read;
   - and kelvinc's hundreds of messages.
 - **There is no specification but kelvinc:** grammar.md is partial, and
   the 834 tests of tests/run.sh are the nearest thing. A Kelvin kelvinc

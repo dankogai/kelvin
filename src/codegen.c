@@ -1524,6 +1524,20 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s _kv_ru = (%s); if (_kv_ru.kind == 2) kv_array_fail(\"this Range has no end, and "
                           "'.upperBound' is its end: its values go up to its type's largest\"); _kv_ru.hi; })",
                           e->from->cname, expr(e->a));
+        if (e->op && !strcmp(e->op, "range_empty")) /* r.isEmpty (#434): one without an end never is */
+            return strfmt("({ %s _kv_re = (%s); (bool)(_kv_re.kind == 2 ? 0 : _kv_re.kind ? _kv_re.lo > _kv_re.hi : "
+                          "_kv_re.lo >= _kv_re.hi); })",
+                          e->from->cname, expr(e->a));
+        if (e->op && !strncmp(e->op, "empty_", 6)) { /* x.isEmpty (#434): its count 0; an iterator's false */
+            char *recv = expr(e->a);
+            if (!strcmp(e->op, "empty_count"))
+                return strfmt("((bool)((%s).count == 0))", recv);
+            if (!strcmp(e->op, "empty_cstr"))
+                return strfmt("((bool)(((const char *)(%s))[0] == 0))", recv);
+            if (!strcmp(e->op, "empty_array"))
+                return strfmt("((bool)(sizeof(%s) == 0))", recv);
+            return strfmt("((void)(%s), (bool)0)", recv);
+        }
         if (e->op && !strcmp(e->op, "range_count")) {
             /* r.count (#374): its values, a u64; one without an end, or with
                2^64 values, which no u64 holds, ends the program */

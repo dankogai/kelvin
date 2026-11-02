@@ -8475,3 +8475,23 @@ memory, since strchr's result is what only C sees, and `c ? side().cstr
 : "no"` calls `side()` when `c` is false. Details are provisional P445.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 481. isEmpty
+
+> push. Then Add `.isEmpty` attribute to all collection types such as
+> `Bytes`, `String`, `Array`, `Dictionary`, `Set`... It is technically
+> `.count == 0` but those without `.count` should have one like lazy
+> collections and iterators`.` In which case it always `false` even when
+> it yields no element consequently.
+
+**Claude** pushed #433 and made this #434, asking first how far it
+goes. The user chose every value with a count or a walk: a Bytes, a
+String, an Array, a Dictionary, a Set, a fixed array, a cstr and a Range
+by their count, `.count == 0`, and an `Iterator<T>`, a struct iterator, a
+Sequence and a lazy one `false`, even where it would give nothing; and
+kc as its own number, #435. A Range without an end is never empty. A
+field or attribute of the name wins; of a number or a pointer it is
+kelvinc's error, and `xs.isEmpty()` one that says it is a property.
+Details are provisional P446.
+
+There are 1167 tests, and all pass with clang and with gcc 15.

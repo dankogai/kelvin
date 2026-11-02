@@ -180,7 +180,7 @@ Each document says so in its "Where it lives" section. In short:
 | [functions.md](functions.md) | `let f(...)`, function types, anonymous functions, overloading |
 | [flow-controls.md](flow-controls.md) | `if`, `while`, `do`, `for`, ranges, `for x in s`, conditions are `bool` |
 | [printing.md](printing.md) | `print`, `println`, template literals, `` $`...` `` a String from one |
-| [properties.md](properties.md) | `.size`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull` |
+| [properties.md](properties.md) | `.size`, `.count`, `.isEmpty`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull` |
 | [modules.md](modules.md) | `#import` of Kelvin files, `modules/`, `modules/math.k`, a module as `M.kh` and `libkM`, `kelvinc --lib` |
 | [c-interfaces.md](c-interfaces.md) | C headers, typedefs, C's functions, `libkelvin` from C, the C compiler |
 | [c-contract.md](c-contract.md) | the C a program becomes: the file, the build, types, owners, names, main (#208) |

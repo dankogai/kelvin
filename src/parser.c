@@ -2299,6 +2299,17 @@ static Expr *parse_postfix_steps(Expr *e) {
                     e = parse_iter_lazy(range_iter(e, NULL, name->pos), op, op->text);
                     continue;
                 }
+                if (!call && !strcmp(member, "isEmpty")) { /* r.isEmpty (#434): no values; one without an end has some */
+                    Expr *x = new_expr(E_METHOD, name->pos);
+                    x->a = e;
+                    x->text = "isEmpty";
+                    x->op = "range_empty";
+                    x->from = unqualified(value_type(e));
+                    x->type = base_type("bool", name->pos);
+                    x->is_bool = true;
+                    e = x;
+                    continue;
+                }
                 if (!call && !strcmp(member, "count")) { /* r.count (#374): its values, a u64, as an Array's */
                     if (is_range_literal(e) && !e->b)
                         error_at(name->pos, "'.count' counts a Range to its end, and %s has none: take the first few, "
@@ -3231,26 +3242,31 @@ static Expr *parse_postfix_steps(Expr *e) {
                 for (size_t k = 0; k < sizeof methods / sizeof methods[0]; k++)
                     if (!strcmp(member, methods[k].name) && strchr(methods[k].of, ok))
                         which = (int)k;
+                if (which < 0 && ok != 'i' && !strcmp(member, "isEmpty")) /* (#434) */
+                    error_at(name->pos, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'");
                 if (which < 0)
                     error_at(name->pos, ok == 'b'
                                             ? "a Bytes has no method '%s': append, insert, remove, clear, reserve, escape, "
-                                              "compact, copy, string and toBase64, and the properties count, capacity, "
-                                              "at, cstr and isUTF8"
+                                              "compact, copy, string and toBase64, and the properties count, isEmpty, "
+                                              "capacity, at, cstr and isUTF8"
                                         : ok == 's'
                                             ? "a String has no method '%s': append, clear, reserve, compact, copy, escape, unescape, "
-                                              "find, has, starts, ends and trim, and the properties count, bytes and cstr"
+                                              "find, has, starts, ends and trim, and the properties count, isEmpty, bytes "
+                                              "and cstr"
                                         : ok == 'd'
                                             ? "a Dictionary has no method '%s': has, find, get, remove, clear, reserve "
-                                              "and copy, and the property count"
+                                              "and copy, and the properties count and isEmpty"
                                         : ok == 't'
                                             ? "a Set has no method '%s': insert, has, remove, clear, reserve, copy, "
-                                              "union, intersection and difference, and the properties count and elements"
+                                              "union, intersection and difference, and the properties count, isEmpty and "
+                                              "elements"
                                         : ok == 'i'
                                             ? "an IO has no method '%s': see documents/io.md for write, print, println, "
                                               "flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, "
                                               "remove, rename, utime, touch and join, and its properties; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
-                                              "reserve, compact and copy, and the properties count, capacity and at",
+                                              "reserve, compact and copy, and the properties count, isEmpty, capacity "
+                                              "and at",
                              member);
                 if (!owner_place(e) && !is_io_std(e)) {
                     if (methods[which].changes) /* a change to what is freed at once would be lost */
@@ -6184,7 +6200,7 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "array_prefix", 12) || !strncmp(e->op, "dict_prefix", 11) ||
                       !strncmp(e->op, "set_prefix", 10) || !strncmp(e->op, "string_prefix", 13) ||
                       !strncmp(e->op, "range", 5) || !strncmp(e->op, "pow_", 4) || !strncmp(e->op, "num_", 4) ||
-                      !strncmp(e->op, "bits_", 5) || !strcmp(e->op, "bit_of"))) /* (#319, #323, #325, #372, #373, #380, #381, #382, #387) */
+                      !strncmp(e->op, "bits_", 5) || !strcmp(e->op, "bit_of") || !strncmp(e->op, "empty_", 6))) /* (#319, #323, #325, #372, #373, #380, #381, #382, #387, #434) */
             return e->type;
         if (e->op && (!strcmp(e->op, "map") || !strcmp(e->op, "map_err") || !strcmp(e->op, "flat_map") ||
                       !strncmp(e->op, "array_map", 9) || !strncmp(e->op, "array_filter", 12) ||
@@ -8005,7 +8021,52 @@ static Type *seen_number_type(Expr *e) {
     return a->name[0] == 'u' ? a : b;
 }
 
+/* x.isEmpty (#434): whether a collection has no element, a bool, its
+   count 0: a Bytes's, a String's, an Array's, a Dictionary's, a Set's, an
+   array's, a cstr's, whose first byte is its NUL; an iterator and a
+   Sequence, lazy ones too, have no count, and theirs is false, even where
+   they would give nothing. A field of the name wins; NULL of any other */
+static Expr *empty_property(Expr *e, Token *name) {
+    Decl *record;
+    char c = expr_class(e, &record);
+    if ((c == 's' && record_has_field(record, "isEmpty")) || c == 'c' || c == 'u')
+        return NULL;
+    Type *t = value_type(e);
+    const char *kind = builtin_owner(t), *op = NULL;
+    if (kind && strcmp(kind, "io"))
+        op = "empty_count";
+    else if (is_cstr(t))
+        op = "empty_cstr";
+    else if (t && t->kind == T_ARRAY)
+        op = "empty_array";
+    else if (t && !kind && (iterator_next(t) || sequence_maker(t)))
+        op = "empty_never";
+    if (!op && t && t->kind == T_PTR)
+        error_at(name->pos, "'.isEmpty' is a property of collections and iterators, and this is %s, a pointer: write "
+                            "'p^.isEmpty' of what it points to",
+                 kelvin_type(t));
+    if (!op && (e->is_bool || seen_number_type(e) || (t && t->kind == T_BASE && !strcmp(t->name, "bool"))))
+        error_at(name->pos, "'.isEmpty' is a property of collections and iterators, and this is %s",
+                 t ? kelvin_type(t) : "a number");
+    if (!op)
+        return NULL;
+    if (is_owner(t) && !owner_place(e)) /* held (#187) */
+        e = make_temp(e, "'.isEmpty' of an owner that an expression gives: bind it to a variable first");
+    Expr *x = new_expr(E_METHOD, name->pos);
+    x->a = e;
+    x->text = "isEmpty";
+    x->op = (char *)op;
+    x->type = base_type("bool", name->pos);
+    x->is_bool = true;
+    return x;
+}
+
 static Expr *property(Expr *e, Token *name, char *member) {
+    if (!strcmp(member, "isEmpty")) {
+        Expr *x = empty_property(e, name);
+        if (x)
+            return x;
+    }
     if (!strcmp(member, "abs") || !strcmp(member, "sign") || !strcmp(member, "isNaN") || !strcmp(member, "exponent") ||
         !strcmp(member, "significand") || !strcmp(member, "isInfinite") || !strcmp(member, "isFinite")) {
         /* x.abs (#381): the magnitude of a signed integer or a floating-point

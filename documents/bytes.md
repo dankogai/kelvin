@@ -129,6 +129,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
 | On a `Bytes` | Gives |
 |---|---|
 | `.count`, `.capacity` | the bytes held, and the room |
+| `.isEmpty` | whether it holds no byte, `.count == 0`, a `bool` (#434) |
 | `b[i]` | a byte, checked; assignable |
 | `.at` | the bytes, a `u8^` borrow, unchecked |
 | `.cstr` | a borrow of the bytes, NUL-ended |

@@ -460,6 +460,7 @@ it.prefix(f:(E):bool): Iterator<E>    // those before the first f says false for
 | | `for x in it`, `.map`, `.filter`, `.reduce`, `.flatMap` | as any iterator's (#325) |
 | | `.lazy.map(f)`, `.lazy.filter(f)` | an `Iterator<U>` of it, moved in, `f` called as each is asked for (#327) |
 | | `.prefix(n)`, `.prefix { ... }` | an `Iterator<T>` of it, moved in, of the first `n` values, or of those before the first `f` says false for (#372) |
+| | `.isEmpty` | `false`: it has no count, even where it would give nothing (#434) |
 | an iterator, `var T.next():E?` | `.next()` on a var | the next value as `some`, then `none`; it changes the iterator (#318) |
 | | `for x in it` | each value, up to `none`; a var goes on where `break` left it (#318) |
 | | `.map(f)`, `.map { ... }` | a new `Array<U>` of `f` of each value (#319) |
@@ -467,12 +468,14 @@ it.prefix(f:(E):bool): Iterator<E>    // those before the first f says false for
 | | `.reduce(init, f)`, `.reduce(init) { ... }` | `f` of the value so far and each value, from `init`, of `init`'s type (#319) |
 | | `.flatMap(f)`, `.flatMap { ... }` | the Arrays `f` gives each value, concatenated, a new `Array<U>` (#319) |
 | | `.prefix(n)`, `.prefix { ... }` | an `Iterator<E>` of it, moved in, as an `Iterator<T>`'s (#372) |
+| | `.isEmpty` | `false`, as an `Iterator<T>`'s; a field or attribute of the name wins (#434) |
 | a Sequence, `let T.makeIterator():I` | `.makeIterator()` | a fresh iterator, which the Sequence gives each time (#321) |
 | | `for x in s` | each value of a fresh iterator; `s` stays as it was, a let too (#321) |
 | | `.map`, `.filter`, `.reduce`, `.flatMap` | as an iterator's, of a fresh iterator; `s` stays as it was (#321) |
 | | `.lazy.map(f)`, `.lazy.map { ... }` | a lazy Sequence of what `f` gives, `f` called as each is asked for (#323) |
 | | `.lazy.filter(f)`, `.lazy.filter { ... }` | a lazy Sequence of the values `f` keeps (#323) |
 | | `.prefix(n)`, `.prefix { ... }` | an `Iterator<E>` of a fresh iterator, as an `Iterator<T>`'s; `s` stays, a lazy Sequence too (#372) |
+| | `.isEmpty` | `false`, as an iterator's; a lazy Sequence's too (#434) |
 | a lazy Sequence | `.map`, `.filter` | lazy too, chained (#323) |
 | | `for x in l`, `.reduce`, `.flatMap` | as any Sequence's: a fresh walk each time (#323) |
 | `Range<T>` | `for i in r`, `.map`, `.filter`, `.reduce`, `.flatMap` | as a Sequence's, of its integers; one without an end is an error, or ends the program (#373) |

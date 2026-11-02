@@ -222,6 +222,7 @@ its `lazy` and `prefix { ... }` give is the prelude's `kv_iter`, in
 | | `.lowerBound`, `.upperBound` | its bounds as written, of `T` (#375) |
 | | `r == s`, `r != s` | whether of the same kind and bounds, a `bool` (#376) |
 | | `.count` | how many values, a `u64` (#374) |
+| | `.isEmpty` | whether it has no value, a `bool`; one without an end is `false` (#434) |
 | | `.contains(x)` | whether `x`, an integer, is one of them, a `bool` (#374) |
 | | `.map { ... }`, `.map(f)` | an Array of what `f` gives each value |
 | | `.filter { ... }`, `.filter(f)` | an Array of the values `f` says true for |

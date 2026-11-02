@@ -107,6 +107,7 @@ same.
 | On | Property or method | Gives |
 |---|---|---|
 | `Set<T>`, `${T}` | `.count` | the elements held |
+| | `.isEmpty` | whether it holds no element, `.count == 0`, a `bool` (#434) |
 | | `.insert(x)`, `+=` | adds; `true` if it was new; `+= &other` adds another's |
 | | `.has(x)` | whether it is there, a `bool` |
 | | `.remove(x)` | removes; `true` if it was there |

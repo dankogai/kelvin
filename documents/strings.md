@@ -304,12 +304,14 @@ to come.
 | On | Property or method | Gives |
 |---|---|---|
 | `cstr`, a literal | `.count` | `strlen`, measured once per scope (#52) |
+| | `.isEmpty` | whether its first byte is its NUL, `.count == 0` without measuring, a `bool` (#434) |
 | `"""text"""` | | a literal over lines, as written, no escapes (#115); the spellings of text are in [grammar.md](grammar.md#quoting-text) |
 | | `.cstr` | the text itself |
 | | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
 | | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
 | | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
 | `String` | `.count` | the codepoints, kept with the text |
+| | `.isEmpty` | whether it holds no text, `.count == 0`, a `bool` (#434) |
 | | `.bytes` | its Bytes, a read-only borrow ([bytes.md](bytes.md)) |
 | | `.cstr` | a borrow of the text |
 | | `.append(x)`, `+=` | text, a `uchr`, `&other`, or a String an expression gives |

@@ -202,6 +202,7 @@ same.
 | On | Property or method | Gives |
 |---|---|---|
 | `Dictionary<K, V>`, `${K: V}` | `.count` | the entries held |
+| | `.isEmpty` | whether it holds no entry, `.count == 0`, a `bool` (#434) |
 | | `d[k]` | read whole, an Optional: `some` of a copy of the value, `none` where the key is missing (#218) |
 | | `d[k]!` | the value, checked: a missing key ends the program; a place (#218) |
 | | `d[k]?.m`, `d[k]?.f(...)`, `d[k]?[i]` | what follows, of the value, an Optional; `none` where the key is missing (#218) |

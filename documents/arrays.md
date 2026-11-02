@@ -326,6 +326,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | On | Property or method | Gives |
 |---|---|---|
 | a fixed array `[T](N)` | `.count` | the elements, `sizeof(a) / sizeof(a[0])`, a VLA's too (#49) |
+| | `.isEmpty` | whether it has no element, `.count == 0`, a `bool` (#434) |
 | | `.size` | the bytes |
 | | `.align` | its elements' alignment, `alignof` (#395) |
 | | `.typename` | `[i32](4)` |
@@ -333,6 +334,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `for x in a` | each element |
 | | `var p := a` | the pointer C makes of it |
 | `Array<T>`, `$[T]` | `.count`, `.capacity` | the elements held, and the room |
+| | `.isEmpty` | whether it holds no element, `.count == 0`, a `bool` (#434) |
 | | `.at` | the elements, a `T^` borrow, unchecked |
 | | `xs[i]` | an element, checked: out of range ends the program |
 | | `xs[lo..<hi]`, `[lo...hi]`, `[lo...]`, `[..<hi]`, `[...hi]` | a slice, a new Array (#68) |

@@ -48,7 +48,7 @@ type's own are listed, with its methods, at the end of its document:
 | `Iterator<T>` | [iterators.md](iterators.md#properties-and-methods) |
 | functions | [functions.md](functions.md#properties-and-methods) |
 
-### `.size`, `.align`, `.count`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
+### `.size`, `.align`, `.count`, `.isEmpty`, `.type`, `.typename`, `.cstr`, `.dec`, `.hex`, `.oct`, `.bin`, `.addr`, `.isNull`
 
 Properties are written without parentheses:
 
@@ -88,6 +88,14 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   bytes; see [arrays.md](arrays.md).
   - A `cstr`'s `.count` is its `strlen` (#52); a `String`'s its
     codepoints (#55).
+- **`x.isEmpty`** (#434) is whether a collection has no element, a
+  `bool`, its `.count == 0`: a `Bytes`'s, a `String`'s, an Array's, a
+  Dictionary's, a Set's, a fixed array's, a `cstr`'s and a Range's.
+  - An iterator and a Sequence, lazy ones too, have no count: theirs is
+    `false`, even where they would give nothing.
+  - A Range without an end is never empty.
+  - A field or an attribute of the name wins; of a number or a pointer
+    it is an error, which says `p^.isEmpty` of a pointer.
 - **`x.abs`** is the magnitude of a signed integer or a floating-point
   number, of its type (#381), and **`x.sign`** its sign, -1, 0 or 1 of
   an integer, a `bool?` of a floating-point number (#382, #383); an

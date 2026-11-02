@@ -281,6 +281,8 @@ So far the changes from C are these, by topic.
     and `d.values`
   - `Set<T>` is a hash set, `${3, 1, 4}`: `s += x`, `s.has(x)`, `s | t`,
     `s & t` and `s ~ t`
+  - every collection has `x.isEmpty`, its `.count == 0`; an iterator's,
+    which has no count, is `false` (#434)
 
 ### Modules and the library
 
