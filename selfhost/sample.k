@@ -300,6 +300,8 @@ extend numbered {
     }
 }
 
+let handed_back(s:String):String { return s }           // s moves in and out again (#441)
+
 let framed(b:const Bytes^):Bytes {                    // a Bytes (#439): a borrow in, a new one out
     var r = Bytes("[")
     r += b
@@ -871,5 +873,11 @@ let main(argc:int32, argv:[cstr]):int32 {
     octets.clear()
     octets.compact()
     println(octets.count, " ", octets.isEmpty)
+    var handed = $"handed"                               // moved out, dead until given anew (#441)
+    let held:String? = handed
+    handed = $"anew"
+    let back = handed_back(handed)
+    handed = $"again"
+    println(held ?? $"?", " ", back, " ", handed)
     return 0
 }

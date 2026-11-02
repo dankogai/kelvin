@@ -8590,3 +8590,19 @@ and `c ? a : b` are kelvinc's too. Found: kc tracks no move, so a use of
 provisional P452.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 488. An owner moved out
+
+> go on with #441
+
+**Claude** asked which of three gaps to take; the user chose moves. kc
+had taken an owner where it moves, by a call, a case, an Optional,
+`return` or `await`, and let its name be read after, empty, where
+kelvinc refuses it. kc now marks a local moved where the call or the
+statement ends, refuses its use until `t = v` gives it anew, in
+kelvinc's words and order, and refuses a global moved in, and each
+element or an `if let`'s value moved, as kelvinc does. Found: `{ $0 }`
+of `.map`, returning what the closure borrows, is kelvinc's error
+alone. Details are provisional P453.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

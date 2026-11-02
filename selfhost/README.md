@@ -598,6 +598,17 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An owner moved out** (#441), as kelvinc's: a variable given by
+  value, to a function, a method, a case, a `T?`, a Result,
+  `Iterator(...)`, `.reduce` or `.merge`, returned or awaited, is dead
+  until `t = v` gives it anew; a use is kelvinc's error.
+  - The moves of a call are made where it ends: `f(t, t)` builds, as
+    kelvinc's; a move in a branch counts after it, in the order
+    written.
+  - A global moved in, and each element of a for or an `if let`'s
+    value moved or returned, are kelvinc's errors, in its words.
+  - Found: `{ $0 }` of `.map`, returning what the closure borrows, is
+    kelvinc's error alone.
 - **An owner copied by its name** (#440), as kelvinc's: `var s = t`,
   `let s = t` and `s = t` of an owner `t` are kelvinc's error, which
   says `t.copy()` or `:= &t`, where kc had copied it, freed twice.
@@ -606,7 +617,7 @@ kc reads what it is written in, and little more.
   - An owner in `{...}`, `[...]`, a Dictionary's entries and `c ? a :
     b` is said in kelvinc's words too.
   - Found: kc tracks no move, so a use of `t` after `var s:String? = t`
-    is kelvinc's error alone.
+    is kelvinc's error alone, which #441 refuses.
 - **Bytes** (#439), as kelvinc's: an owner, `kv_bytes` in C, in a
   variable, a parameter, a result, an Array, a Dictionary, a struct and
   an Optional.

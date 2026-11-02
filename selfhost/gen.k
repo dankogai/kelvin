@@ -6,6 +6,7 @@ struct sym {
     t: int64           // the token of its name
     ty: int64
     how: int64         // 0 a var; 1 a let; 2 a parameter; 3 each element in turn; 4 a range's count (#271)
+    moved: bool        // an owner moved out, dead until assigned anew (#441)
 }
 
 var out:String             // the C
@@ -481,7 +482,7 @@ let declare_as(t:int64, y:int64, how:int64) {
             i -= 1
         }
     }
-    let s:sym = {t, y, how}
+    let s:sym = {t, y, how, false}
     locals += s
 }
 
@@ -490,6 +491,96 @@ let declare(t:int64, y:int64) { declare_as(t, y, 0) }
 // a loop's variable: `for _ in` names none, as kelvinc's (#388)
 let declare_each(t:int64, y:int64, how:int64) {
     if !tok_is(t, "_") { declare_as(t, y, how) }
+}
+
+// the locals an owner moves out of in what is being written, dead when
+// its call or its statement ends, as kelvinc marks them after a call's
+// arguments: f(t, t) gives t twice, as kelvinc's does (#441)
+var moving:$[int64]
+var anew:int64 = -1            // the name t of t = v, which may be moved out (#441)
+
+// the innermost local named t, its index in locals, or -1
+let local_at(t:int64):int64 {
+    var i:int64 = locals.count as int64 - 1
+    while i >= 0 {
+        if same_text(locals[i].t, t) { return i }
+        i -= 1
+    }
+    return -1
+}
+
+// kelvinc's error of a name n read after its owner moved out; whether
+// it is one (#441)
+let moved_error(n:int64):bool {
+    let i:int64 = local_at(nodes[n].t)
+    if i < 0 || !locals[i].moved { return false }
+    var m = $"'"
+    m += tok_text(nodes[n].t)
+    m += "' was moved out and holds nothing now: assign it anew before using it"
+    gen_error(n, m.cstr)
+    return true
+}
+
+// an owner named v given by value moves into what, as kelvinc's
+// move_argument: a local is dead after it; a global, and each element
+// of a for or an if let's value, which another owns, are its errors.
+// False where it is an error (#441)
+let move_out(v:int64, what:const String^):bool {
+    if moved_error(v) { return false }
+    let i:int64 = local_at(nodes[v].t)
+    var m = $"'"
+    m += tok_text(nodes[v].t)
+    if i >= 0 && locals[i].how == 3 {
+        m += "' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&"
+    } else if i < 0 {
+        m += "' is a global owner, which cannot move into "
+        m += what
+        m += ": pass a borrow, '&"
+    } else {
+        moving += i
+        return true
+    }
+    m += tok_text(nodes[v].t)
+    m += "', or a copy"
+    gen_error(v, m.cstr)
+    return false
+}
+
+// an owner named v that return or await moves out, as kelvinc's: a
+// local is dead after it; a global stays as kelvinc leaves it; a return
+// of each element is its error. False where it is an error (#441)
+let move_back(v:int64, returned:bool):bool {
+    if moved_error(v) { return false }
+    let i:int64 = local_at(nodes[v].t)
+    if i >= 0 && locals[i].how == 3 && returned {
+        var m = $"'"
+        m += tok_text(nodes[v].t)
+        m += "' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '"
+        m += tok_text(nodes[v].t)
+        m += ".copy()'"
+        gen_error(v, m.cstr)
+        return false
+    }
+    if i >= 0 { moving += i }
+    return true
+}
+
+// the moves of what was just written, made (#441)
+let moves_done() {
+    for k in 0..<moving.count as int64 {
+        if moving[k] < locals.count as int64 { locals[moving[k]].moved = true }
+    }
+    moving.clear()
+}
+
+// what an owner moves into, in kelvinc's words: 'f', '.m', case 'c' (#441)
+let into_words(lead:cstr, dot:cstr, t:int64):String {
+    var s = String(lead)
+    s += "'"
+    s += dot
+    s += tok_text(t)
+    s += "'"
+    return s
 }
 
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
@@ -1492,6 +1583,8 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
 // the argument a of the parameter p of d; false where it is an error
 let gen_arg_to(a:int64, p:int64, d:int64):bool {
     if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
+        let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
+        if !move_out(a, &what) { return false }          // dead after the call, as kelvinc's (#441)
         put_owner_prefix(nodes[p].ty)
         put("_take(&")
         put_tok(nodes[a].t)
@@ -3641,6 +3734,8 @@ let gen_method_of(n:int64) {
         put_tok(t)
         put("(")
         if v >= 0 && nodes[v].kind == N_ID && !is_case_word(v) && is_owner(type_of(v)) {   // a local owner moves in
+            let what = into_words("case ", "", t)
+            if !move_out(v, &what) { return }            // dead after it (#441)
             put_owner_prefix(type_of(v))
             put("_take(&")
             put_tok(nodes[v].t)
@@ -4584,7 +4679,16 @@ let case_value_fits(v:int64, m:int64, whole:int64):bool {
     return false
 }
 
+let gen_value_of(n:int64, y:int64)    // a prototype: gen_value writes n by it
+
+// n as a value of type y, and the owners its call moved out dead after
+// it, ok(t) as f(t) (#441)
 let gen_value(n:int64, y:int64) {
+    gen_value_of(n, y)
+    if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }
+}
+
+let gen_value_of(n:int64, y:int64) {
     if y >= 0 && types[y].kind == Y_FN && nodes[n].kind != N_COND {   // a function where a function type goes (#428)
         gen_fn_value(n, y)
         return
@@ -4708,6 +4812,8 @@ let gen_value(n:int64, y:int64) {
     put_tok(nodes[m].t)
     put("(")
     if v >= 0 && nodes[v].kind == N_ID && !is_case_word(v) && is_owner(type_of(v)) {   // ok(none) of a Result<T?, E> (#413)
+        let what = into_words(v == n ? "" : "case ", "", nodes[m].t)   // t where a T? goes, into 'some' (#441)
+        if !move_out(v, &what) { return }
         put_owner_prefix(type_of(v))
         put("_take(&")
         put_tok(nodes[v].t)
@@ -5113,6 +5219,7 @@ let gen_moved(n:int64, y:int64) {
         gen_moved(nodes[n].c, y)
         put(")")
     } else if nodes[n].kind == N_ID && !is_case_word(n) && is_owner(type_of(n)) {
+        if !move_back(n, true) { return }                // (#441)
         put_owner_prefix(type_of(n))
         put("_take(&")
         put_tok(nodes[n].t)
@@ -5294,6 +5401,7 @@ let gen_await(n:int64) {
     }
     put("kv_task_result(")
     if place { gen_place(x) } else { put("&_kv_t") }
+    if nodes[x].kind == N_ID && !move_back(x, false) { return }   // dead after it, as kelvinc's (#441)
     put(valued ? ", &_kv_v, sizeof _kv_v); _kv_v; })" : ", NULL, 0); })")
 }
 
@@ -5904,7 +6012,16 @@ let gen_holding_chain(n:int64):bool {
     return true
 }
 
+let gen_expr_of(n:int64)    // a prototype: gen_expr writes n by it
+
+// n, and the owners its call moved out dead after it, as kelvinc marks
+// them where the call's arguments end (#441)
 let gen_expr(n:int64) {
+    gen_expr_of(n)
+    if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }
+}
+
+let gen_expr_of(n:int64) {
     if failed { return }
     if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
         put("_kv_tmp")
@@ -6101,6 +6218,8 @@ let gen_expr(n:int64) {
         put("((int64_t)")                                // an i64, as kelvinc casts it (#385)
         put_tok(t)
         put(")")
+    } else if k == N_ID && n != anew && moved_error(n) {
+        return                                           // read after it moved out, kelvinc's error (#441)
     } else if k == N_NUM || k == N_CHAR || k == N_ID {
         put_tok(t)
     } else if k == N_STR {
@@ -7497,6 +7616,7 @@ let gen_return(n:int64) {
     if nodes[a].kind == N_ID && !is_case_word(a) {          // not none, which gen_value reads (#221)
         let y:int64 = type_of(a)
         if is_owner(y) && y == nodes[current].ty {           // a local owner moves out
+            if !move_back(a, true) { return }            // dead after it, as kelvinc's (#441)
             put("return ")
             put_owner_prefix(y)
             put("_take(&")
@@ -9171,6 +9291,8 @@ let gen_iter_value(i:int64) {
         put(" *_kv_is = kv_alloc(sizeof *_kv_is); *_kv_is = ")
     }
     if is_owner(sy) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {   // a var's moves in
+        let what = $"'Iterator'"
+        if !move_out(a, &what) { return }                // dead after it (#441)
         put_owner_prefix(sy)
         put("_take(&")
         put_tok(nodes[a].t)
@@ -9724,6 +9846,8 @@ let gen_eager(n:int64) {
         put_ctype(r.out_y)
         put(" _kv_acc = ")
         if is_owner(r.out_y) && nodes[init].kind == N_ID && var_type(nodes[init].t) >= 0 {   // a var's moves in
+            let what = into_words("", ".", nodes[n].t)
+            if !move_out(init, &what) { return }         // dead after it (#441)
             put_owner_prefix(r.out_y)
             put("_take(&")
             put_tok(nodes[init].t)
@@ -9814,6 +9938,8 @@ let gen_eager_keyed(n:int64) {
         put_ctype(r.out_y)
         put(" _kv_acc = ")
         if is_owner(r.out_y) && nodes[init].kind == N_ID && var_type(nodes[init].t) >= 0 {
+            let what = into_words("", ".", nodes[n].t)
+            if !move_out(init, &what) { return }         // (#441)
             put_owner_prefix(r.out_y)
             put("_take(&")
             put_tok(nodes[init].t)
@@ -10204,6 +10330,8 @@ let gen_merge(n:int64) {
         put_ctype(dy)
         put(" _kv_mo = ")
         if nodes[other].kind == N_ID && var_type(nodes[other].t) >= 0 {
+            let what = into_words("", ".", nodes[n].t)
+            if !move_out(other, &what) { return }        // (#441)
             put_owner_prefix(dy)
             put("_take(&")
             put_tok(nodes[other].t)
@@ -11372,7 +11500,15 @@ let tell_stmt(n:int64) {
     }
 }
 
+let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
+
+// the statement n, and the owners it moved out dead after it (#441)
 let gen_stmt(n:int64, depth:int64) {
+    gen_stmt_of(n, depth)
+    moves_done()
+}
+
+let gen_stmt_of(n:int64, depth:int64) {
     if failed { return }
     let k:nkind = nodes[n].kind
     if late_seen { tell_stmt(n) }                        // (#423)
@@ -11387,7 +11523,15 @@ let gen_stmt(n:int64, depth:int64) {
         declare_as(nodes[n].t, nodes[n].ty, nodes[n].flag == 1 ? 1 : 0)   // a let or a var (#271)
     case S_ASSIGN:
         if tok_is(nodes[n].t, "=") && declaration_shaped(nodes[n].a) { put("if (1) ") }   // (#402)
+        let fresh = tok_is(nodes[n].t, "=") && nodes[nodes[n].a].kind == N_ID   // t = v gives t anew (#441)
+        if fresh { anew = nodes[n].a }
         gen_assign(n)
+        anew = -1
+        if fresh {
+            moves_done()
+            let i:int64 = local_at(nodes[nodes[n].a].t)
+            if i >= 0 { locals[i].moved = false }
+        }
     case S_EXPR:
         let v = nodes[n].a
         let vy = type_of(v)
