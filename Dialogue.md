@@ -8556,3 +8556,21 @@ twice, and `ws += &w` was C's error; `+=` now goes the same way. Details
 are provisional P450.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 486. kc's Bytes
+
+> go on with #439
+
+**Claude** asked how much of Bytes to take; the user chose its core now,
+and its slices, `b + c`, Base64, `.escape()` and RegExp later. kc had
+read `var b:Bytes` as a struct C did not know. It now reads a Bytes as
+kelvinc's: every form of `Bytes(...)`, `.count`, `.capacity`, `.isEmpty`,
+`.cstr`, `b[i]`, `append`, `+=`, `insert`, `remove`, `clear`, `reserve`,
+`compact`, `.copy()`, `.string()`, `String(&b)`, the comparisons, `for x
+in b` and printing, with kelvinc's errors. tests/run/is_empty.k,
+runtime_failure.k and string_of_bytes_failure.k now build with kc too.
+Found, kc's, not only of Bytes: `s = t` of an owner copies it, freed
+twice; `&` of an owner an expression gives goes to C; and `a[0] = "a"` of
+a `u8` is C's error. Details are provisional P451.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

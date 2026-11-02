@@ -300,6 +300,13 @@ extend numbered {
     }
 }
 
+let framed(b:const Bytes^):Bytes {                    // a Bytes (#439): a borrow in, a new one out
+    var r = Bytes("[")
+    r += b
+    r += ']'
+    return r
+}
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -848,5 +855,21 @@ let main(argc:int32, argv:[cstr]):int32 {
     println(grown, " ", words_in, " ", hex_text)
     words_in.clear()
     println(words_in.isEmpty)
+    var octets = Bytes()                                  // a Bytes (#439): its bytes in place, compared, made a String
+    octets.append(72)
+    octets += "ey"
+    octets += octets.copy()                               // what an expression gives, moved in
+    octets.insert(0, Bytes([0x3e, 32]))
+    octets.remove(4, 2)
+    octets[2] = 'h'
+    let octet_text = Bytes(&hex_text)
+    let octet_list:$[Bytes] = $[Bytes(2), framed(&octet_text)]
+    var octet_sum:int64 = 0
+    for x in octets { octet_sum += x as int64 }
+    println(octets, " ", octets.count, " ", octets.capacity >= octets.count, " ", octets[0], " ", octets.cstr, " ", framed(&octets), " ", octet_list, " ", octet_sum)
+    println(octets == octets.copy(), " ", octets != octet_text, " ", octets < octet_text, " ", framed(&octets) >= octets, " ", String(&octet_text), " ", octet_text.string() ?? $"?", " ", Bytes(3).isEmpty, " ", Bytes().isEmpty)
+    octets.clear()
+    octets.compact()
+    println(octets.count, " ", octets.isEmpty)
     return 0
 }

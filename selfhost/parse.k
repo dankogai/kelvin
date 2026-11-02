@@ -24,7 +24,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ARRAY,    // $[b...], an Array of its elements (#266)
     N_DICT,     // ${k: v...}, b the first key, each key's next its value (#267)
     N_SET,      // ${a, b}, a Set of its elements, b the first (#274)
-    N_TYPE,     // IO or String called: a type's name as a function
+    N_TYPE,     // IO, String, Bits or Bytes called: a type's name as a function
     N_INIT,     // {b...}, a struct's members in order; ty of (T){b...}, C's compound literal (#418)
     N_NULL,     // nullptr
     N_SELF,     // self, and the self of .x (#213)
@@ -80,6 +80,7 @@ enum ykind {                    // the kinds of types (#210)
     Y_BOOL,
     Y_CSTR,
     Y_STRING,
+    Y_BYTES,    // a Bytes (#439): kv_bytes in C
     Y_IO,
     Y_UCHR,
     Y_ARRAY,
@@ -133,7 +134,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER
+        return .kind == Y_STRING || .kind == Y_BYTES || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER
     }
 }
 
@@ -688,6 +689,7 @@ let type_word(y:int64):String {
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
+    case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
     case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
@@ -1159,6 +1161,8 @@ let parse_bare_type():int64 {
         y = base_type(Y_CSTR)
     } else if tok_is(t, "String") {
         y = base_type(Y_STRING)
+    } else if tok_is(t, "Bytes") {               // (#439)
+        y = base_type(Y_BYTES)
     } else if tok_is(t, "IO") {
         y = base_type(Y_IO)
     } else if tok_is(t, "uchr") {
@@ -1839,7 +1843,7 @@ let parse_primary():int64 {
         if tok_is(t, "true") || tok_is(t, "false") { return make_node(N_BOOL, t) }
         if tok_is(t, "nullptr") { return make_node(N_NULL, t) }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
-        if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") { return make_node(N_TYPE, t) }   // Bits(n) (#387)
+        if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bits(n) (#387), Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
         if at_word(".") && toks[pos + 1].kind == T_ID && !local_named(t) {

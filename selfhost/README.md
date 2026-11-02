@@ -598,6 +598,25 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Bytes** (#439), as kelvinc's: an owner, `kv_bytes` in C, in a
+  variable, a parameter, a result, an Array, a Dictionary, a struct and
+  an Optional.
+  - `Bytes()`, `Bytes(n)` of zeros, `Bytes(text)`, `Bytes(&b)`,
+    `Bytes(&s)` of a String, `Bytes([0x3e, 32])` and `Bytes(p, n)`.
+  - `.count`, `.capacity`, `.isEmpty`, `.cstr`; `b[i]`, checked and
+    assignable; `for x in b`, each a `u8`.
+  - `append`, `+=`, `insert`, `remove`, `clear`, `reserve` and
+    `compact` in place; `.copy()`; `.string()`, a Result;
+    `String(&b)`.
+  - `==` and `!=`, and `<`, `<=`, `>`, `>=` by the bytes; printed as
+    they are, and quoted in an Array.
+  - kelvinc's errors, in its words: an owner a place would copy, a
+    String where bytes go, argument counts, an unknown method.
+  - Not yet: slices, `b + c`, `.at`, `.isUTF8`, `.escape()`,
+    `.toBase64()` and RegExp, each kc's error.
+  - Found: `var s = t` and `s = t` of an owner copy it, freed twice,
+    where kelvinc's error says `t.copy()`; `&` of an owner an expression
+    gives, `f(&mk())`, goes to C, which fails.
 - **An Array's methods** (#438), as kelvinc's: `xs.append(v)`,
   `xs.insert(i, v)`, `xs.remove(i, n)`, `xs.clear()`, `xs.reserve(n)`
   and `xs.compact()`, in place, beside `pop` and `copy`.
@@ -617,7 +636,8 @@ kc reads what it is written in, and little more.
   - Of a number, a bool or a pointer it is kelvinc's error, in its
     words, and so is `xs.isEmpty()`; kc names an Array `$[i64]`.
   - Found: kc reads no `Bytes`, and writes it to C as it is, where C
-    fails; nor an Array's `.append(x)`, which it says is not known.
+    fails, which #439 reads; nor an Array's `.append(x)`, which it says
+    is not known, which #438 reads.
 - **A pointer into a temporary** (#433), as kelvinc's #245: the owner an
   expression gives, which a pointer points into, is held until the call
   or subscript around the pointer is done, `strlen($"abc".cstr)`,

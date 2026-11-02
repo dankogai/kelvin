@@ -362,6 +362,7 @@ let put_dict_name(y:int64) {
 let put_owner_prefix(y:int64) {
     switch types[y].kind {
     case Y_STRING: put("kv_string")
+    case Y_BYTES: put("kv_bytes")
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                    // (#313)
     case Y_ITER: put("kv_iter")                    // (#326)
@@ -405,6 +406,7 @@ let put_ctype(y:int64) {
     case Y_BOOL: put("bool")
     case Y_CSTR: put("const uint8_t *")
     case Y_STRING: put("kv_string")
+    case Y_BYTES: put("kv_bytes")                                // (#439)
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                                  // (#313)
     case Y_ITER: put("kv_iter")                                  // (#326)
@@ -701,6 +703,9 @@ let lazy_type_of(n:int64):int64
 let is_lazy_type(y:int64):bool
 let empty_kind(n:int64):int64    // prototypes: x.isEmpty (#435)
 let gen_is_empty(n:int64)
+let bytes_field_type(n:int64):int64    // prototypes: a Bytes's (#439)
+let bytes_method_type(n:int64, y:int64):int64
+let gen_bytes_make(n:int64)
 let lazy_field_type(n:int64):int64
 let iter_type_of(n:int64):int64    // prototypes: an Iterator's (#326)
 let gen_iter_make(n:int64)
@@ -1023,6 +1028,7 @@ let type_of(n:int64):int64 {
         if nodes[f].kind == N_TYPE {
             if tok_is(nodes[f].t, "IO") { return base_type(Y_IO) }
             if tok_is(nodes[f].t, "Bits") { return base_type(Y_BITS) }      // Bits(n) (#387)
+            if tok_is(nodes[f].t, "Bytes") { return base_type(Y_BYTES) }    // Bytes(x) (#439)
             return base_type(Y_STRING)
         }
         let cy:int64 = converter_of(n)                   // int64(v), int64(text, base) (#429)
@@ -1132,6 +1138,7 @@ let type_of(n:int64):int64 {
             gen_is_empty(n)
             return -1
         }
+        if yk == Y_BYTES { return bytes_field_type(n) }                 // b.count and the rest (#439)
         if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
@@ -1200,6 +1207,7 @@ let type_of(n:int64):int64 {
             range_member_error(n)
             return -1
         }
+        if types[y].kind == Y_BYTES { return bytes_method_type(n, y) }   // b.append(x) and the rest (#439)
         if tok_is(t, "copy") { return y }
         if tok_is(t, "pop") || tok_is(t, "get") { return types[y].elem }
         if tok_is(t, "has") { return base_type(Y_BOOL) }
@@ -1220,6 +1228,10 @@ let type_of(n:int64):int64 {
         let yk:ykind = types[y].kind
         let iy:int64 = nodes[n].b >= 0 ? type_of(nodes[n].b) : 0 - 1
         if iy >= 0 && types[iy].kind == Y_RANGE {                    // xs[r], a slice, a new one (#377)
+            if yk == Y_BYTES {                                       // not yet kc's (#439)
+                gen_error(n, "kc reads no slice of a Bytes yet: index its bytes, b[i]")
+                return -1
+            }
             if yk != Y_ARRAY && yk != Y_STRING {
                 var m = $"a slice [lo..<hi] is of an Array, a String or a Bytes, and this is "
                 let w:String = kelvin_type_text(y)
@@ -1301,12 +1313,12 @@ let is_string_value(n:int64):bool {
     return y >= 0 && types[y].kind == Y_STRING
 }
 
-// the kind of a built-in owner y is, a String, an Array, a Dictionary,
-// a Set or an IO, else Y_VOID
+// the kind of a built-in owner y is, a String, a Bytes (#439), an Array,
+// a Dictionary, a Set or an IO, else Y_VOID
 let builtin_kind(y:int64):ykind {
     if y < 0 { return Y_VOID }
     let k = types[y].kind
-    if k == Y_STRING || k == Y_ARRAY || k == Y_DICT || k == Y_SET || k == Y_IO { return k }
+    if k == Y_STRING || k == Y_BYTES || k == Y_ARRAY || k == Y_DICT || k == Y_SET || k == Y_IO { return k }
     return Y_VOID
 }
 
@@ -1723,6 +1735,7 @@ let mangled(y:int64):String {
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
+    case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
     case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
@@ -1962,7 +1975,7 @@ let struct_of(y:int64):int64 {
 // whether print shows v as it is: a number, a bool, text
 let plain_shown(v:int64):bool {
     let k:ykind = types[v].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_CSTR || k == Y_BITS
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR || k == Y_BITS
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -2074,6 +2087,12 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put(").b.at, (")
         put_self(path, t)
         put(").b.count, false);\n")
+    } else if k == Y_BYTES {                            // quoted, as kelvinc's: its bytes, escaped where not text (#439)
+        put("kv_out_quoted(o, (")
+        put_self(path, t)
+        put(").at, (")
+        put_self(path, t)
+        put(").count, true);\n")
     } else if k == Y_CSTR {
         put("kv_out_quoted_text(o, (const void *)(")
         put_self(path, t)
@@ -2186,8 +2205,8 @@ let put_eq_name(y:int64) {
 // whether x and y, two values of type y, are equal, in C
 let put_eq_code(y:int64, x:cstr, z:cstr) {
     let k = types[y].kind
-    if k == Y_STRING {
-        put("kv_string_eq(&")
+    if k == Y_STRING || k == Y_BYTES {
+        put(k == Y_STRING ? "kv_string_eq(&" : "kv_bytes_eq(&")
         put(x)
         put(", &")
         put(z)
@@ -2893,6 +2912,8 @@ let gen_call(n:int64) {
             put(", ")
             gen_expr(nodes[args].next)
             put(")")
+        } else if tok_is(nodes[f].t, "Bytes") {
+            gen_bytes_make(n)                      // (#439)
         } else {
             if string_args_refused(n) { return }
             if args < 0 {                          // String(), an empty one, as kelvinc's (#414)
@@ -3125,10 +3146,10 @@ let gen_member(n:int64) {
         put("((int64_t)sizeof(")
         gen_expr(a)
         put("))")
-    } else if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
+    } else if (tok_is(t, "count") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET)) || (yk == Y_BYTES && tok_is(t, "capacity")) {
         put("((int64_t)(")
         gen_expr(a)
-        put(").count)")
+        put(tok_is(t, "count") ? ").count)" : ").cap)")     // a Bytes's room (#439)
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
     } else if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") {   // s.pretty, d.pretty (#336, #337), as kelvinc's: its text indented, a new String
@@ -3157,10 +3178,10 @@ let gen_member(n:int64) {
         }
         gen_place(a)
         put(")")
-    } else if yk == Y_STRING && tok_is(t, "cstr") {
+    } else if (yk == Y_STRING || yk == Y_BYTES) && tok_is(t, "cstr") {
         put("kv_bytes_cstr(&(")
         gen_expr(a)
-        put(").b)")
+        put(yk == Y_STRING ? ").b)" : "))")                 // a Bytes's own, NUL-ended (#439)
     } else if tok_is(t, "uchr") {
         put("kv_uchr_of(")
         gen_expr(a)
@@ -3243,6 +3264,22 @@ let gen_method(n:int64) {
 
 // ---------- an Array's methods (#438) ----------
 
+// kelvinc's error of v, an owner's place given to what, which would copy it
+let owner_copy_error(v:int64, what:cstr) {
+    var m = $"'"
+    m += what
+    if nodes[v].kind == N_ID {
+        m += "' of an owner would copy it: give a borrow, '&"
+        m += tok_text(nodes[v].t)
+        m += "', or a copy, '"
+        m += tok_text(nodes[v].t)
+        m += ".copy()'"
+    } else {
+        m += "' of an owner would copy it: give a borrow, '&...', or a copy, '....copy()'"
+    }
+    gen_error(v, m.cstr)
+}
+
 // v added to the Array of type y, by xs += v, append, or insert after
 // its index, what: an element's value, a borrow's copy, or what an
 // expression gives, moved in; a place that owns would be copied, which
@@ -3274,18 +3311,7 @@ let gen_array_add(y:int64, v:int64, what:cstr) {
         return
     }
     if is_owner(ey) && is_place(v) {
-        var m = $"'"
-        m += what
-        if nodes[v].kind == N_ID {
-            m += "' of an owner would copy it: give a borrow, '&"
-            m += tok_text(nodes[v].t)
-            m += "', or a copy, '"
-            m += tok_text(nodes[v].t)
-            m += ".copy()'"
-        } else {
-            m += "' of an owner would copy it: give a borrow, '&...', or a copy, '....copy()'"
-        }
-        gen_error(v, m.cstr)
+        owner_copy_error(v, what)
         return
     }
     gen_value(v, ey)
@@ -3302,22 +3328,29 @@ let arg_count(a:int64):int64 {
     return k
 }
 
+// whether the method n of an Array or a Bytes has as many arguments as
+// it takes, append and reserve 1, insert and remove 2, the rest 0; else
+// kelvinc's error
+let takes_args(n:int64):bool {
+    let t:int64 = nodes[n].t
+    let want:int64 = tok_is(t, "append") || tok_is(t, "reserve") ? 1 : tok_is(t, "insert") || tok_is(t, "remove") ? 2 : 0
+    if arg_count(nodes[n].b) == want { return true }
+    var m = $"'."
+    m += tok_text(t)
+    m += "' takes "
+    m += String(want)
+    m += want == 1 ? " argument" : " arguments"
+    gen_error(n, m.cstr)
+    return false
+}
+
 // xs.append(v), xs.insert(i, v), xs.remove(i, n), xs.clear(),
 // xs.reserve(n) and xs.compact() of the Array a of type y, in place, as
 // kelvinc's: its own C functions, the arguments counted in its words
 let gen_array_method(n:int64, a:int64, y:int64) {
     let t:int64 = nodes[n].t
     let b:int64 = nodes[n].b
-    let want:int64 = tok_is(t, "append") || tok_is(t, "reserve") ? 1 : tok_is(t, "insert") || tok_is(t, "remove") ? 2 : 0
-    if arg_count(b) != want {
-        var m = $"'."
-        m += tok_text(t)
-        m += "' takes "
-        m += String(want)
-        m += want == 1 ? " argument" : " arguments"
-        gen_error(n, m.cstr)
-        return
-    }
+    if !takes_args(n) { return }
     if !may_change(a) { return }                        // (#271)
     put_array_name(y)
     put("_")
@@ -3337,6 +3370,230 @@ let gen_array_method(n:int64, a:int64, y:int64) {
         gen_args(b)
     }
     put(")")
+}
+
+// ---------- Bytes (#439) ----------
+
+// whether y is a Bytes
+let is_bytes(y:int64):bool {
+    return y >= 0 && types[y].kind == Y_BYTES
+}
+
+// the type of b.x, the N_FIELD n of a Bytes: its count and capacity,
+// i64s as kc's counts are, its cstr; kc's error of what it has not yet,
+// and of what is not a Bytes's
+let bytes_field_type(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    if tok_is(t, "count") || tok_is(t, "capacity") { return base_type(Y_I64) }
+    if tok_is(t, "cstr") { return base_type(Y_CSTR) }
+    if tok_is(t, "at") || tok_is(t, "isUTF8") {
+        var m = $"kc reads a Bytes's count, capacity, isEmpty and cstr; not yet '."
+        m += tok_text(t)
+        m += "'"
+        gen_error(n, m.cstr)
+        return -1
+    }
+    gen_error(n, "this member is not known")
+    return -1
+}
+
+// the type of b.m(...), the N_METHOD n of the Bytes y: a copy, a String
+// or where its UTF-8 breaks, or nothing of those that change it in
+// place; kc's error of what it has not yet, and kelvinc's of the rest
+let bytes_method_type(n:int64, y:int64):int64 {
+    let t:int64 = nodes[n].t
+    if tok_is(t, "copy") { return y }
+    if tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }
+    if tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact") || tok_is(t, "isEmpty") { return base_type(Y_VOID) }
+    if tok_is(t, "escape") || tok_is(t, "toBase64") {
+        var m = $"kc reads no '."
+        m += tok_text(t)
+        m += "()' of a Bytes yet"
+        gen_error(n, m.cstr)
+        return -1
+    }
+    var m = $"a Bytes has no method '"
+    m += tok_text(t)
+    m += "': append, insert, remove, clear, reserve, escape, compact, copy, string and toBase64, and the properties count, isEmpty, capacity, at, cstr and isUTF8"
+    gen_error(n, m.cstr)
+    return -1
+}
+
+// Bytes(...), the call n, as kelvinc's #54 and #172: none, a count of
+// zeros, text, a borrow of a Bytes or of a String, bytes in brackets, or
+// bytes and their count; an owner refused, which would be copied or was
+// one already
+let gen_bytes_make(n:int64) {
+    let x:int64 = nodes[n].b
+    let takes:cstr := "Bytes takes nothing, a count, text, a borrow of a Bytes or of a String, bytes in brackets, or bytes and their count"
+    if x < 0 {
+        put("kv_bytes_new()")
+        return
+    }
+    let more:int64 = nodes[x].next
+    if more >= 0 && nodes[more].next >= 0 {
+        gen_error(n, takes)
+        return
+    }
+    if more >= 0 {                                       // bytes and their count
+        put("kv_bytes_from(")
+        gen_expr(x)
+        put(", ")
+        gen_expr(more)
+        put(")")
+        return
+    }
+    if nodes[x].kind == N_LIST && nodes[x].flag == 0 && nodes[x].ty < 0 {   // Bytes([0, 1, 255]), each a byte's value
+        var e:int64 = nodes[x].b
+        while e >= 0 {
+            let neg = nodes[e].kind == N_UNARY && tok_is(nodes[e].t, "-")
+            let lit:int64 = neg ? nodes[e].a : e
+            if nodes[lit].kind == N_NUM && (neg || tok_count(nodes[lit].t) > 255) {
+                var m = $"a byte of Bytes([...]) is 0 to 255, and this is "
+                if neg { m += "-" }
+                m += tok_text(nodes[lit].t)
+                gen_error(e, m.cstr)
+                return
+            }
+            e = nodes[e].next
+        }
+        put("kv_bytes_from((const uint8_t[]){")
+        e = nodes[x].b
+        while e >= 0 {
+            gen_expr(e)
+            if nodes[e].next >= 0 { put(", ") }
+            e = nodes[e].next
+        }
+        put("}, ")
+        put_int(arg_count(nodes[x].b))
+        put(")")
+        return
+    }
+    let y:int64 = type_of(x)
+    if failed { return }
+    if is_owner(y) {
+        if types[y].kind == Y_STRING {
+            gen_error(n, "Bytes(s) of a String is written Bytes(&s), a copy of its bytes (#291)")
+        } else if is_place(x) {
+            gen_error(n, "Bytes(x) would copy an owner: write x.copy(), or Bytes(&b)")
+        } else if types[y].kind == Y_BYTES {
+            gen_error(n, "Bytes(x) of a Bytes is one already: leave out Bytes(...)")
+        } else {
+            var m = String(takes)
+            m += ", and this is "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            gen_error(n, m.cstr)
+        }
+        return
+    }
+    put("KV_BYTES_OF(")
+    gen_expr(x)
+    put(")")
+}
+
+// v appended to a Bytes, or inserted, by what, as kelvinc's #54: a byte,
+// text, a borrow of a Bytes, or a Bytes an expression gives, moved in; a
+// place that owns would be copied, and a String's bytes are its .bytes
+let gen_bytes_add(v:int64, what:cstr) {
+    let vy:int64 = type_of(v)
+    if failed { return }
+    if is_owner(vy) && is_place(v) {
+        owner_copy_error(v, what)
+        return
+    }
+    if vy >= 0 && types[vy].kind == Y_PTR && types[types[vy].elem].kind == Y_STRING {
+        gen_error(v, "a Bytes takes bytes: give the String's bytes, 's.bytes'")
+        return
+    }
+    gen_expr(v)
+}
+
+// b.append(x), b.insert(i, x), b.remove(i, n), b.clear(), b.reserve(n),
+// b.compact() of the Bytes a, in place, and b.string(), a Result: a new
+// String, or the offset where its UTF-8 breaks (#405)
+let gen_bytes_method(n:int64, a:int64, y:int64) {
+    let t:int64 = nodes[n].t
+    let b:int64 = nodes[n].b
+    if type_of(n) < 0 || !takes_args(n) { return }     // kelvinc's errors, or kc's
+    if tok_is(t, "string") {
+        let r:int64 = result_of(base_type(Y_STRING), base_type(Y_I64))
+        put("({ kv_string _kv_s = {0}; int64_t _kv_e = kv_string_try_bytes(")
+        gen_place(a)
+        put(", &_kv_s); _kv_e >= 0 ? _kv_")
+        put_tok(types[r].name)
+        put("_make_err(_kv_e) : _kv_")
+        put_tok(types[r].name)
+        put("_make_ok(_kv_s); })")
+        return
+    }
+    if !may_change(a) { return }
+    if tok_is(t, "append") {
+        put("KV_BYTES_APPEND(")
+        gen_place(a)
+        put(", ")
+        gen_bytes_add(b, "append")
+    } else if tok_is(t, "insert") {
+        put("KV_BYTES_INSERT(")
+        gen_place(a)
+        put(", ")
+        gen_expr(b)
+        put(", ")
+        gen_bytes_add(nodes[b].next, "insert")
+    } else {
+        put("kv_bytes_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        if b >= 0 {
+            put(", ")
+            gen_args(b)
+        }
+    }
+    put(")")
+}
+
+// the operator n where a side is a Bytes, as kelvinc's #185: == and !=,
+// and < <= > >= by the bytes, of two Bytes, each an expression gives
+// held; b + c not yet kc's, and the rest kelvinc's error
+let gen_bytes_bin(n:int64) {
+    let t:int64 = nodes[n].t
+    let a:int64 = nodes[n].a
+    let b:int64 = nodes[n].b
+    if tok_is(t, "+") {
+        gen_error(n, "kc reads no '+' of a Bytes yet: append with .append or +=")
+        return
+    }
+    if !is_comparison(t) {
+        var m = $"a Bytes has no operator '"
+        m += tok_text(t)
+        m += "': compare with == and !=, append with .append or +="
+        gen_error(n, m.cstr)
+        return
+    }
+    if !is_bytes(type_of(a)) || !is_bytes(type_of(b)) {
+        gen_error(n, "a Bytes compares with another Bytes")
+        return
+    }
+    let ha = needs_hold(a)
+    let hb = needs_hold(b)
+    if ha { hold_open(a) }
+    if hb { hold_open(b) }
+    let eq = tok_is(t, "==") || tok_is(t, "!=")
+    if tok_is(t, "!=") { put("((bool)!") } else if !eq { put("((bool)(") }
+    put(eq ? "kv_bytes_eq(" : "kv_bytes_cmp(")
+    gen_place(a)
+    put(", ")
+    gen_place(b)
+    put(")")
+    if !eq {
+        put(" ")
+        put_tok(t)
+        put(" 0)")
+    }
+    if !eq || tok_is(t, "!=") { put(")") }
+    if hb { hold_close(b) }
+    if ha { hold_close(a) }
 }
 
 let gen_method_of(n:int64) {
@@ -3442,6 +3699,8 @@ let gen_method_of(n:int64) {
         put(")")
     } else if yk == Y_ARRAY && (tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact")) {
         gen_array_method(n, a, y)                       // (#438)
+    } else if yk == Y_BYTES && !tok_is(t, "isEmpty") {
+        gen_bytes_method(n, a, y)                       // (#439)
     } else if yk == Y_ARRAY && tok_is(t, "pop") {
         if !may_change(a) { return }                    // (#271)
         put_array_name(y)
@@ -3535,7 +3794,7 @@ let gen_method_of(n:int64) {
         put("kv_io_close(")
         gen_place(a)
         put(")")
-    } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
+    } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
     } else {
         gen_error(n, "this method is not known")
@@ -4790,6 +5049,12 @@ let gen_element(n:int64) {
         put(", ")
         gen_expr(nodes[n].b)
         put("))")
+    } else if y >= 0 && types[y].kind == Y_BYTES {   // b[i], checked, assignable (#439)
+        put("(*kv_bytes_at(")
+        gen_place(nodes[n].a)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put("))")
     } else if y >= 0 && types[y].kind == Y_DICT && nodes[n].flag == 1 {
         gen_lookup(n, y)
     } else if y >= 0 && types[y].kind == Y_DICT {   // d[k], checked (#211)
@@ -5876,6 +6141,8 @@ let gen_expr(n:int64) {
         gen_coalesce(n)
     } else if k == N_BIN && tagged_side(n) >= 0 {
         gen_variant_eq(n, tagged_side(n))                // a == b, x != none of an Optional (#343), of a Result (#344), of any enum with values (#345)
+    } else if k == N_BIN && (is_bytes(type_of(nodes[n].a)) || is_bytes(type_of(nodes[n].b))) {
+        gen_bytes_bin(n)                                 // b == c, b < c, and kelvinc's errors (#439)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
     } else if k == N_BIN && !widen_ints && widened.get(n, false) {
@@ -6023,6 +6290,7 @@ let type_text(y:int64):String {
     case Y_BOOL: return $"bool"
     case Y_CSTR: return $"cstr"
     case Y_STRING: return $"String"
+    case Y_BYTES: return $"Bytes"
     case Y_IO: return $"IO"
     case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
@@ -7051,6 +7319,19 @@ let gen_assign(n:int64) {
         put(", ")
         gen_expr(nodes[n].b)
         put(");\n")
+    } else if yk == Y_BYTES && tok_is(t, "=") {          // the old bytes freed (#439)
+        put("kv_bytes_assign(")
+        gen_place(lhs)
+        put(", ")
+        gen_expr(nodes[n].b)
+        put(");\n")
+    } else if yk == Y_BYTES && tok_is(t, "+=") {         // b += x, as b.append(x) (#439)
+        if !may_change(lhs) { return }
+        put("KV_BYTES_APPEND(")
+        gen_place(lhs)
+        put(", ")
+        gen_bytes_add(nodes[n].b, "+=")
+        put(");\n")
     } else if yk == Y_SET && (tok_is(t, "|=") || tok_is(t, "&=") || tok_is(t, "~=")) {   // s |= t and the rest, in place (#276)
         let v:int64 = nodes[n].b
         if type_of(v) != y || !is_place(v) {
@@ -7229,7 +7510,7 @@ let sequence_maker(y:int64):int64 {
 // ---------- x.isEmpty (#435) ----------
 
 // how the N_FIELD n, x.isEmpty, reads, as kelvinc's #434: 1 by the count
-// of a String, an Array, a Dictionary or a Set, 2 by a fixed array's
+// of a String, a Bytes (#439), an Array, a Dictionary or a Set, 2 by a fixed array's
 // size, 3 by a cstr's first byte, 4 by a Range's bounds, 5 false, of an
 // Iterator, an iterator, a Sequence or a lazy one; -1 of a number or a
 // bool, -2 of a pointer, which are errors; 0 of any other, a struct's
@@ -7238,7 +7519,7 @@ let empty_kind(n:int64):int64 {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return 0 }
     let k:ykind = types[y].kind
-    if k == Y_STRING || k == Y_ARRAY || k == Y_DICT || k == Y_SET { return 1 }
+    if k == Y_STRING || k == Y_BYTES || k == Y_ARRAY || k == Y_DICT || k == Y_SET { return 1 }
     if k == Y_FIXED && (types[y].name == 0 - 2 || types[y].name == 0 - 4) { return 0 - 2 }   // a parameter's, a pointer (#357)
     if k == Y_FIXED && types[y].name != 0 - 1 { return 2 }
     if k == Y_CSTR { return 3 }
@@ -10724,6 +11005,7 @@ let gen_each(n:int64, depth:int64) {
         open_scope()
         declare_each(nodes[n].t, base_type(literal ? Y_C : Y_U8), 3)
     } else {
+        let ey:int64 = types[y].kind == Y_BYTES ? base_type(Y_U8) : types[y].elem    // a Bytes's bytes (#439)
         put("for (size_t _kv_i")
         put_int(serial)
         put(" = 0; _kv_i")
@@ -10736,7 +11018,7 @@ let gen_each(n:int64, depth:int64) {
         indent(depth + 1)
         put("{\n")
         indent(depth + 2)
-        put_ctype(types[y].elem)
+        put_ctype(ey)
         put(" ")
         put_tok(nodes[n].t)
         put(" = (")
@@ -10745,7 +11027,7 @@ let gen_each(n:int64, depth:int64) {
         put_int(serial)
         put("];\n")
         open_scope()
-        declare_each(nodes[n].t, types[y].elem, 3)          // (#271)
+        declare_each(nodes[n].t, ey, 3)          // (#271)
     }
     indent(depth + 2)
     gen_block(nodes[n].c, depth + 2)
@@ -11255,7 +11537,7 @@ let takes_owner(d:int64):bool {
 // flush, close, print, println and rewind
 let builtin_no_value(k:ykind, m:int64):bool {
     if tok_is(m, "append") || tok_is(m, "clear") || tok_is(m, "reserve") || tok_is(m, "compact") { return true }
-    if tok_is(m, "insert") || tok_is(m, "remove") { return k == Y_ARRAY }
+    if tok_is(m, "insert") || tok_is(m, "remove") { return k == Y_ARRAY || k == Y_BYTES }
     if k != Y_IO { return false }
     return tok_is(m, "write") || tok_is(m, "flush") || tok_is(m, "close") || tok_is(m, "print") || tok_is(m, "println") || tok_is(m, "rewind")
 }
@@ -11275,7 +11557,7 @@ let no_value(e:int64):bool {
         let y:int64 = type_of(a)
         if y < 0 { return false }
         let yk:ykind = types[y].kind
-        if yk != Y_ARRAY && yk != Y_STRING && yk != Y_DICT && yk != Y_SET && yk != Y_IO { return false }
+        if yk != Y_ARRAY && yk != Y_STRING && yk != Y_BYTES && yk != Y_DICT && yk != Y_SET && yk != Y_IO { return false }
         return builtin_no_value(yk, nodes[e].t)
     }
     if k != N_CALL && k != N_AWAIT { return false }       // await of a Task of none (#313)
