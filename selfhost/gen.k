@@ -2968,7 +2968,7 @@ let gen_field(n:int64) {
         return
     }
     let a:int64 = nodes[n].a
-    if !needs_hold(a) {
+    if !needs_hold(a) || held.get(a, 0 - 1) >= 0 {     // held for the call around it (#245)
         gen_member(n)
         return
     }
@@ -5442,6 +5442,92 @@ let gen_sizeof(n:int64):bool {
     return true
 }
 
+// ---------- a pointer into a temporary (#245) ----------
+
+// whether n, a.t, is a pointer into an owner that a gives, which no
+// variable holds (#227)
+let points_into_temp(n:int64):bool {
+    if nodes[n].kind != N_FIELD || typename_member(n) || tok_is(nodes[n].t, "typename") { return false }
+    if !needs_hold(nodes[n].a) || held.get(nodes[n].a, 0 - 1) >= 0 { return false }
+    let y = type_of(n)
+    return y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR)
+}
+
+// whether the call or subscript n gives a pointer, or what only C sees,
+// which may be one: its pointers into temporaries go to the one around it
+let passes_holds(n:int64):bool {
+    let y = type_of(n)
+    return y < 0 || types[y].kind == Y_CSTR || types[y].kind == Y_PTR || types[y].kind == Y_C
+}
+
+let pointer_holds(n:int64, out:$[int64]^)    // a prototype: the two call each other
+
+// the owners that the pointers in the call n's receiver and arguments,
+// or the subscript n's array and index, point into
+let chain_holds(n:int64, out:$[int64]^) {
+    pointer_holds(nodes[n].a, out)
+    if nodes[n].kind == N_INDEX {
+        pointer_holds(nodes[n].b, out)
+        return
+    }
+    var a:int64 = nodes[n].b
+    while a >= 0 {
+        pointer_holds(a, out)
+        a = nodes[a].next
+    }
+}
+
+// the owners that the pointers in n point into, as kelvinc's #245 holds
+// them for the call or subscript around n: a call of its own holds its
+// own, unless it passes them on; an arm of ?: and the right of &&, || and ?? are not
+// always evaluated, so theirs stay errors
+let pointer_holds(n:int64, out:$[int64]^) {
+    if n < 0 { return }
+    let k:nkind = nodes[n].kind
+    if points_into_temp(n) {
+        out^ += nodes[n].a
+    } else if k == N_CALL || k == N_METHOD {
+        if passes_holds(n) { chain_holds(n, out) }
+    } else if k == N_FIELD || k == N_UNARY || k == N_CAST || k == N_ADDR || k == N_DEREF || k == N_COND || k == N_DESIG {
+        pointer_holds(nodes[n].a, out)
+    } else if k == N_INDEX {
+        chain_holds(n, out)
+    } else if k == N_BIN {
+        pointer_holds(nodes[n].a, out)
+        let t = nodes[n].t
+        if !tok_is(t, "&&") && !tok_is(t, "||") && !tok_is(t, "??") { pointer_holds(nodes[n].b, out) }
+    } else if k == N_ARRAY || k == N_SET || k == N_DICT || k == N_INIT {
+        var e:int64 = nodes[n].b
+        while e >= 0 {
+            pointer_holds(e, out)
+            e = nodes[e].next
+        }
+    }
+}
+
+var holding_chain:int64 = 0 - 1        // the call or subscript whose pointers into temporaries are held
+
+// the call or subscript n with the owners its pointers point into held
+// until it is done (#245), as strlen($"abc".cstr) and $"zz".cstr[0]:
+// false where it has none, or where it gives a pointer, which passes
+// them to the one around it
+let gen_holding_chain(n:int64):bool {
+    let k:nkind = nodes[n].kind
+    if (k != N_CALL && k != N_METHOD && k != N_INDEX) || holding_chain == n { return false }
+    let y = type_of(n)
+    if y >= 0 && (types[y].kind == Y_CSTR || types[y].kind == Y_PTR) { return false }
+    var opened:$[int64] = $[]
+    chain_holds(n, &opened)
+    if opened.count == 0 { return false }
+    for i in 0..<opened.count as int64 { hold_open(opened[i]) }
+    let saved = holding_chain
+    holding_chain = n
+    gen_expr(n)
+    holding_chain = saved
+    close_holds(&opened)
+    return true
+}
+
 let gen_expr(n:int64) {
     if failed { return }
     if held.get(n, 0 - 1) >= 0 {                         // held in a temporary (#227)
@@ -5449,6 +5535,7 @@ let gen_expr(n:int64) {
         put_int(held.get(n, 0 - 1))
         return
     }
+    if gen_holding_chain(n) { return }                   // (#245)
     if gen_bits(n) { return }                            // a Bits's (#387)
     if gen_align(n) { return }                           // (#395)
     if gen_sizeof(n) { return }                          // (#420)

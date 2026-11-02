@@ -594,11 +594,20 @@ kc reads what it is written in, and little more.
 - **Short type names** (#430), as kelvinc's #151: `i64`, `i32`, `u8`,
   `u32`, `f64` and `f32` are `int64` and the rest, wherever a type goes,
   after `:` and `as`, in `sizeof(...)`, and as converters, `i64(s)`.
-  - With #428 and #429, kc built the README's Synopsis, a fizzbuzz
-    (#431), and printed what kelvinc's build prints.
-  - Its `main` of #432 waits: `printf(..., fizzbuzz(i).cstr)` is kc's
-    error, a pointer into a temporary, where kelvinc keeps the String
-    until the call is done (#245).
+  - With #428 and #429, kc builds the README's Synopsis, a fizzbuzz
+    (#431), and with #433 its `main` of #432 too, `printf(...,
+    fizzbuzz(i).cstr)`; it prints what kelvinc's build prints.
+- **A pointer into a temporary** (#433), as kelvinc's #245: the owner an
+  expression gives, which a pointer points into, is held until the call
+  or subscript around the pointer is done, `strlen($"abc".cstr)`,
+  `println(String(42).cstr)`, `$"zz".cstr[0]`.
+  - A call that gives a pointer passes it on to the one around it,
+    as kelvinc's; so does one that gives what only C sees, which may be
+    a pointer: `strlen(strchr($"xyz".cstr, 'y'))` is 2.
+  - Where nothing is around it, `let p := $"x".cstr`, it is still the
+    error that says to bind it first.
+  - Kept an error: one in an arm of `?:`, or right of `&&`, `||` or
+    `??`, which is not always evaluated.
 - **Assembly** (#399), left out on purpose, as kelvinc's: `__asm__`,
   `__asm` and `asm(...)` are kelvinc's errors, in its words, naming
   `#inline C`, which kc skips.

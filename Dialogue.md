@@ -8456,3 +8456,22 @@ kelvinc keeps the String until the call is done (#245). Details are
 provisional P444.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 480. kc's pointers into temporaries
+
+> go on with #433 after the push
+
+**Claude** made it #433, the kc half of #432: kc reads kelvinc's #245.
+Before a call or a subscript is written, the pointers into temporaries
+in it are found and their owners held until it is done, so
+`strlen($"abc".cstr)`, `println(String(42).cstr)` and `$"zz".cstr[0]`
+build, and kc builds the README's `main` and prints what kelvinc's build
+prints. A call that gives a pointer, or what only C sees, passes them to
+the one around it; with none around, `let p := $"x".cstr` is still the
+error. An arm of `?:` and the right of `&&`, `||` and `??` keep kc's
+error, since holding there would evaluate them always. Found in kelvinc,
+for a number of its own: `strlen(strchr($"xyz".cstr, 'y'))` reads freed
+memory, since strchr's result is what only C sees, and `c ? side().cstr
+: "no"` calls `side()` when `c` is false. Details are provisional P445.
+
+There are 1163 tests, and all pass with clang and with gcc 15.

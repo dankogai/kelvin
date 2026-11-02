@@ -829,5 +829,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let short_u8:u8 = u8("300")                           // kelvinc's short type names (#430)
     let short_half:f64 = f64(odds[2]) / 2.0
     println(short_u8, " ", short_half, " ", sizeof(i32), " ", (7 as u32).typename, " ", i64(short_u8) * 2)
+    let held_len:size_t = strlen(String(4096).cstr)       // a pointer into a temporary, held for the call (#245, #433)
+    println(held_len, " ", strlen($"kelvin".cstr), " ", String(12).cstr, " ", String(345).cstr[1], " ", atoi(String(7 * 6).cstr))
     return 0
 }

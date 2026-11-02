@@ -464,6 +464,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 430 | kc reads kelvinc's short type names, as its #151: `i64`, `i32`, `u8`, `u32`, `f64` and `f32` are `int64` and the rest wherever a type goes, after `:` and `as`, in `sizeof(...)`, and as a converter, `i64(s)` | selfhost/parse.k's number_word | `let short_u8:u8 = u8("300")` of kc | 2026-11-02 |
 | 431 | The README's Synopsis is a fizzbuzz, in place of the linked list's `sum`: a function that builds a String, an anonymous function called in place, `i64(argv[1])` and a closed range, `1...n`; tests/docs.sh compiles it, and kc builds it too | README.md's Synopsis | `{ (k:i64):i64 in ... }(...)` | 2026-11-02 |
 | 432 | The README's Synopsis's `main` is the user's own: `#import <stdio.h> as C` for C's `printf`, the anonymous function's parameters on the line below its `{`, a closed range from 0, `0...n`, `printf("...%s\n", i, fizzbuzz(i).cstr)`, whose String is freed after the call (#245), and `return 0;`; the commented-out `println` of a template prints the same; tests/docs.sh compiles it with kelvinc; kc does not build it yet | README.md's Synopsis | `printf(..., fizzbuzz(i).cstr)` | 2026-11-02 |
+| 433 | kc reads kelvinc's #245: an owner an expression gives, which a pointer points into, is held until the call or subscript around the pointer is done, `strlen($"abc".cstr)`, `$"zz".cstr[0]`; a call that gives a pointer, or what only C sees, passes it to the one around it; with none around, `let p := $"x".cstr` is still the error; one in an arm of `?:` or right of `&&`, `||`, `??` stays an error; kc builds #432's Synopsis | selfhost/gen.k's points_into_temp, passes_holds, chain_holds, pointer_holds, gen_holding_chain | `strlen(String(4096).cstr)` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1048,6 +1049,24 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (433) Agreed details: "go on with #433", the kc half of #432: kc
+  reads #245, so it builds the README's `main`.
+  - Before a call or a subscript is written, the pointers into
+    temporaries in its arguments, or its array and index, are found and
+    their owners held, `({ T _kv_tmpN = ...; call; })`, as #227's.
+    - A call inside that gives a pointer, or what only C sees, passes
+      its own on; any other call holds its own.
+    - A call that gives a pointer holds nothing, so with none around
+      it the pointer is the error it was.
+  - An arm of `?:` and the right of `&&`, `||` and `??` are not walked,
+    since holding would evaluate them always: there kc's error stays.
+  - Found in kelvinc, left for a number of its own:
+    - `strlen(strchr($"xyz".cstr, 'y'))` frees the String at strchr's
+      call, whose result only C sees, so strlen reads freed memory:
+      ASan reports a heap-use-after-free, and it prints 0 for 2.
+    - `printf("%s", c ? side().cstr : "no")` calls `side()` when `c` is
+      false, held before the `?:`.
 
 - (432) Agreed details: "Use the following `main()` instead of the
   current one in `README.md`", with comments like #431's.
@@ -6019,6 +6038,7 @@ says "as agreed".
 | P442 | Details of #430 | selfhost/parse.k: number_word, parse_bare_type's, annotation_ahead's and sizeof_type_at's use of it; selfhost/gen.k: converter_of's; selfhost/sample.k: `short_u8`, `short_half`; selfhost/README.md | — |
 | P443 | Details of #431 | README.md: the Synopsis's fizzbuzz; selfhost/README.md: the Synopsis under short type names | — |
 | P444 | Details of #432 | README.md: the Synopsis's `main`, the user's, with comments; selfhost/README.md: the Synopsis waits for #245 in kc | — |
+| P445 | Details of #433 | selfhost/gen.k: points_into_temp, passes_holds, chain_holds, pointer_holds, holding_chain, gen_holding_chain, gen_expr's and gen_field's use of them; selfhost/sample.k: `held_len`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
