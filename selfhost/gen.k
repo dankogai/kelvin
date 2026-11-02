@@ -1050,6 +1050,8 @@ let void_return(a:int64):bool    // and a value returned without a result (#427)
 let callee_type(f:int64):int64    // and the function type a call calls through (#428)
 let named_fn_type(n:int64):int64    // and a function's name, a value of its type
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
+let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
+let number_text_refused(n:int64, k:ykind):bool
 let fn_named(t:int64):int64    // and the function a name names
 let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
@@ -1249,6 +1251,11 @@ let type_of(n:int64):int64 {
         if yk == Y_IO && tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }   // or where its UTF-8 breaks (#406)
         if yk == Y_IO { return base_type(Y_I32) }
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
+        if yk == Y_CSTR && tok_is(t, "count") { return base_type(Y_I64) }   // its strlen, an i64 as kc's counts are (#447)
+        if number_text_size(n) > 0 && yk != Y_STRUCT && yk != Y_C {    // x.hex and the rest, text (#447)
+            if number_text_refused(n, yk) { return -1 }
+            return base_type(Y_CSTR)
+        }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
         if tok_is(t, "utf32") { return base_type(Y_U32) }
         if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
@@ -2801,9 +2808,88 @@ let gen_print_args(first:int64) {
     }
 }
 
+// ---------- a number's text (#447) ----------
+
+var block_store:$[String]   // the storage the statement being written makes, a template's or a number's text, declared before it (#445, #447)
+var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
+
+// the size of the buffer x.dec, x.hex, x.oct or x.bin writes into, its
+// NUL included, as kelvinc's number_text_size (#21); 0 of another member
+let number_text_size(n:int64):int64 {
+    if nodes[n].kind != N_FIELD { return 0 }
+    let t:int64 = nodes[n].t
+    if tok_is(t, "dec") { return 41 }                   // an i128's, the longest
+    if tok_is(t, "hex") { return 36 }
+    if tok_is(t, "oct") { return 47 }
+    if tok_is(t, "bin") { return 132 }
+    return 0
+}
+
+// whether n is x.dec, x.hex, x.oct or x.bin of a number, or x.hex of a
+// pointer, text in its block's storage
+let number_text(n:int64):bool {
+    if number_text_size(n) == 0 { return false }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return false }
+    let k = types[y].kind
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR) && tok_is(nodes[n].t, "hex"))
+}
+
+// whether x.dec and the rest of a receiver of kind k are refused, as
+// kelvinc refuses them: .oct and .bin of a float, any of what is no
+// number, .hex of a pointer aside; where they are, the error
+let number_text_refused(n:int64, k:ykind):bool {
+    let t:int64 = nodes[n].t
+    let w:String = tok_text(t)
+    let floating = k == Y_F64 || k == Y_F32
+    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR) && tok_is(t, "hex")) { return false }
+    var m = $"'."
+    m += &w
+    if floating {
+        m += "' is a property of integers; f32 and f64 have .dec and .hex"
+    } else {
+        m += "' is a property of integers"
+        m += tok_is(t, "hex") ? ", of f32/f64, and of pointers and functions" : tok_is(t, "dec") ? " and of f32/f64" : ""
+    }
+    gen_error(n, m.cstr)
+    return true
+}
+
+// x.dec, x.hex, x.oct or x.bin, as kelvinc writes it: by the prelude's
+// writer of x's type, into a buffer the statement declares before it,
+// which lives until the block ends; x.hex of a pointer its address
+let gen_number_text(n:int64, y:int64) {
+    if current >= 0 && nodes[current].kind == D_GLOBAL {
+        gen_error(n, "kc makes a number's text in a function: not yet in a global's initializer")
+        return
+    }
+    serial += 1
+    let s = serial
+    var d = $"uint8_t _kv_text"
+    d += String(s)
+    d += "["
+    d += String(number_text_size(n))
+    d += "]"
+    block_store += &d
+    let a:int64 = nodes[n].a
+    if types[y].kind == Y_PTR || types[y].kind == Y_CSTR {
+        put("kv_hex_addr((uintptr_t)(")
+        gen_expr(a)
+        put(")")
+    } else {
+        put("({ __auto_type _kv_nt = ((void)0, (")
+        gen_expr(a)
+        put(")); _Generic((_kv_nt), KV_PROPERTY_")
+        put_tok(nodes[n].t)
+        put(" default: kv_no_such_property)(_kv_nt")
+    }
+    put(", _kv_text")
+    put_int(s)
+    put(types[y].kind == Y_PTR || types[y].kind == Y_CSTR ? ")" : "); })")
+}
+
 // ---------- template literals (#445) ----------
 
-var tpl_decls:$[String]      // the storage of the templates the statement being written makes, declared before it
 
 // whether v, a value of a template, is v.pretty or v.pretty(n) of what
 // print shows by a _kv_show_T, as kelvinc's ${v.pretty} (#126, #127)
@@ -3025,13 +3111,13 @@ let gen_text_template(n:int64) {
     put(", ")
     put(b.cstr)
     put(");")
-    var d = $"_kv_template"
+    var d = $"char _kv_template"
     d += String(s)
     d += "["
     d += String(room)
     d += &bounds
     d += "]"
-    tpl_decls += &d
+    block_store += &d
 }
 
 let gen_string_template(n:int64) {
@@ -3087,30 +3173,45 @@ let gen_string_template(n:int64) {
     put("_kv_s;")
 }
 
-// the template whose text, in its block's storage, e is, through ?: and
-// a cast, as kelvinc's text_in_buffer: `a${x}b`, not $`...`; or -1
-let text_template(e:int64):int64 {
+// the text in its block's storage that e is, through ?: and a cast, as
+// kelvinc's text_in_buffer: a template, `a${x}b`, not $`...` (#445), or
+// a number's .dec, .hex, .oct or .bin (#447); or -1
+let text_in_buffer(e:int64):int64 {
     let k = nodes[e].kind
     if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
-    if k == N_CAST { return text_template(nodes[e].a) }
+    if number_text(e) { return e }
+    if k == N_CAST { return text_in_buffer(nodes[e].a) }
     if k == N_COND {
-        let b = text_template(nodes[e].b)
-        return b >= 0 ? b : text_template(nodes[e].c)
+        let b = text_in_buffer(nodes[e].b)
+        return b >= 0 ? b : text_in_buffer(nodes[e].c)
     }
     return 0 - 1
 }
 
-// whether the assignment n gives a template's text to a variable of an
-// outer block, or a global, which would keep it after its block ends, as
-// kelvinc's reject_template_escape; the function's own parameters end
-// with its body. Where it does, the error (#445)
-let template_outlived(n:int64):bool {
+// the words for the text in a buffer, x: "a template's text", or
+// "'.hex' text"
+let buffer_text_words(x:int64):String {
+    if nodes[x].kind == N_TPL { return $"a template's text" }
+    var w = $"'."
+    w += tok_text(nodes[x].t)
+    w += "' text"
+    return w
+}
+
+// whether the assignment n gives text in its block's storage to a
+// variable of an outer block, or a global, which would keep it after
+// its block ends, as kelvinc's reject_template_escape of a template; the
+// function's own parameters end with its body. Where it does, the error
+// (#445); of a number's text too, which kelvinc lets go (#447)
+let text_outlived(n:int64):bool {
     let lhs:int64 = nodes[n].a
-    if nodes[lhs].kind != N_ID || text_template(nodes[n].b) < 0 { return false }
+    let x:int64 = nodes[lhs].kind == N_ID ? text_in_buffer(nodes[n].b) : 0 - 1
+    if x < 0 { return false }
     let i = local_at(nodes[lhs].t)
     let here:int64 = marks.count > 0 ? marks[marks.count - 1] : 0
     if i >= here || (i >= 0 && marks.count == 2 && i >= marks[0]) { return false }
-    var m = $"a template's text lives until this block ends, and '"
+    var m = buffer_text_words(x)
+    m += " lives until this block ends, and '"
     let name:String = tok_text(nodes[lhs].t)
     m += &name
     m += "' outlives it: make the text in the block of '"
@@ -3122,20 +3223,18 @@ let template_outlived(n:int64):bool {
     return true
 }
 
-// the storage of the templates the statement at `at` made, declared just
-// before it, in its block, where kelvinc declares it at the top of the
-// block: the text lives until the block ends (#445)
-let place_templates(at:int64, made:int64, depth:int64) {
+// the storage the statement at `at` made, declared just before it, in
+// its block, where kelvinc declares it at the top of the block: the text
+// lives until the block ends (#445, #447)
+let place_storage(at:int64, made:int64, depth:int64) {
     var line = $""
-    for _ in 0..<depth { line += "    " }
-    line += "char "
-    for i in made..<tpl_decls.count as int64 {
-        if i > made { line += ", " }
-        let d:String = tpl_decls[i].copy()
+    for i in made..<block_store.count as int64 {
+        for _ in 0..<depth { line += "    " }
+        let d:String = block_store[i].copy()
         line += &d
+        line += ";\n"
     }
-    line += ";\n"
-    while tpl_decls.count as int64 > made { tpl_decls.pop() }
+    while block_store.count as int64 > made { block_store.pop() }
     var placed:String = out[0..<at]
     placed += &line
     let rest:String = out[at..<out.count as int64]
@@ -3570,6 +3669,16 @@ let gen_member(n:int64) {
     }
     let yk:ykind = types[y].kind
     let fixed_ptr = yk == Y_PTR && types[types[y].elem].kind == Y_FIXED   // q.count of a [T](N)^, as kelvinc says it (#362)
+    if yk == Y_CSTR && tok_is(t, "count") {              // its strlen, measured each time, where kelvinc keeps it (#52, #447)
+        put("((int64_t)strlen((const char *)(")
+        gen_expr(a)
+        put(")))")
+        return
+    }
+    if number_text(n) {                                  // x.hex and the rest (#447)
+        gen_number_text(n, y)
+        return
+    }
     if yk == Y_FIXED && types[y].name == 0 - 1 && (tok_is(t, "count") || tok_is(t, "size")) {   // q^.count of a [T]^, where kelvinc's C fails (#363)
         var m = type_text(y)
         m += " has no count, which C does not keep: pass it beside it"
@@ -7713,7 +7822,7 @@ let gen_assign(n:int64) {
         return
     }
     if !may_change(lhs) { return }                      // (#271)
-    if template_outlived(n) { return }                  // (#445)
+    if text_outlived(n) { return }                      // (#445, #447)
     if gen_bits_assign(n) { return }                    // a bit, '.value' or a whole Bits (#387)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
@@ -7965,9 +8074,20 @@ let gen_return(n:int64) {
         return
     }
     if void_return(a) { return }
-    let text:int64 = text_template(a)
-    if text >= 0 {                                       // as kelvinc's reject_returned_text (#445)
+    let text:int64 = text_in_buffer(a)
+    if text >= 0 && nodes[text].kind == N_TPL {         // as kelvinc's reject_returned_text (#445)
         gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
+        return
+    }
+    if text >= 0 {                                       // a number's text (#447)
+        let w:String = tok_text(nodes[text].t)
+        var m = $"'."
+        m += &w
+        m += "' text lives in a buffer of this function, which is gone once it returns: the caller takes the text itself, as in '"
+        m += anon_fns.contains(current) ? "{ println($0." : "println(x."
+        m += &w
+        m += anon_fns.contains(current) ? ") }'" : ")'"
+        gen_error(text, m.cstr)
         return
     }
     if nodes[a].kind == N_COND && is_owner(type_of(a)) {     // return c ? a : b moves either out (#232)
@@ -8114,7 +8234,6 @@ struct lazy_rec {
 
 var lazies:$[lazy_rec]
 var lazy_at:Dictionary<int64, int64>      // a node's lazy Sequence, by its place in lazies
-var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
 var anon_serial:int64                     // the anonymous functions named, each its number (#444)
 
 // a value returned where the function has no result, as kelvinc says it
@@ -11925,10 +12044,10 @@ let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
 // the statement n, and the owners it moved out dead after it (#441)
 let gen_stmt(n:int64, depth:int64) {
     let at:int64 = out.count as int64
-    let made:int64 = tpl_decls.count as int64
+    let made:int64 = block_store.count as int64
     gen_stmt_of(n, depth)
     moves_done()
-    if tpl_decls.count as int64 > made && !failed { place_templates(at, made, depth) }   // (#445)
+    if block_store.count as int64 > made && !failed { place_storage(at, made, depth) }   // (#445, #447)
 }
 
 let gen_stmt_of(n:int64, depth:int64) {

@@ -903,5 +903,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     let phrase = $`${shown}: ${handed} ${triangles.count} ${point.of(5, 6).pretty} \` \${x}
 on a new line`
     println(shown, " ", phrase, " ", `plain`, " ", $`plain`)
+    let numeral:cstr := "digits"                        // a cstr's count, a number's text (#447)
+    println(numeral.count, " ", linked.dec, " ", linked.hex, " ", linked.oct, " ", linked.bin, " ", 2.5.hex, " ", `${linked.hex}`.count, " ", $`${(0 - 7).dec}`)
     return 0
 }

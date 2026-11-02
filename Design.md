@@ -478,6 +478,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 444 | kc reads `.m(a)` in a method as `self.m(a)`, which it had read as a call of a function `m`; walks a pointer to a struct whose `next` points to its own kind as a list, `for n in head`, each node a let, next read before the body, as kelvinc's #30; and names each anonymous function by its own number, so that one inside another has a name of its own | selfhost/parse.k's parse_method_call; selfhost/gen.k's list_walked, gen_each's list, anon_serial | `.pop()` in examples/linkedlist.k | 2026-11-02 |
 | 445 | kc reads template literals, as kelvinc's #39, #44, #67, #125 and #126: `` `a${x}b` ``, a cstr made in storage that lives until the block ends, of numbers, bools, text, Strings, `uchr`, Bits, byte arrays, nested templates, and the text print shows of a struct, an enum with values, an Optional, a Result, an Array, a Dictionary, a Set and a Range, `${v.pretty}` and `${v.pretty(n)}` too; `` $`a${x}b` ``, a String; an owner a call gives held and freed; and kelvinc's errors of a template returned, kept by an outer variable, in a global or empty | selfhost/lex.k's lex_template; selfhost/parse.k's parse_template; selfhost/gen.k's gen_template, place_templates | `` println(`${i}: ${fizzbuzz(i)}`) `` in examples/fizzbuzz.k | 2026-11-02 |
 | 446 | `nullptr` is renamed `nowhere`: a pointer points nowhere as an Optional holds `none`; print, `.cstr` and templates show a null pointer as `nowhere`; `nullptr` stays reserved, refused with a hint, by kelvinc and kc | `p == NULL` | `while p != nowhere { ... }` | 2026-11-02 |
+| 447 | kc reads a cstr's `.count`, its `strlen`, an `i64` as kc's counts are, and a number's `.dec`, `.hex`, `.oct` and `.bin`, f32 and f64 `.dec` and `.hex` alone, and a pointer's `.hex`, as kelvinc's #21 and #52: text in a buffer that lives until the block ends; kelvinc's errors of another type and of the text returned, and kc's of the text kept by an outer variable | selfhost/gen.k's number_text, gen_number_text, block_store, text_in_buffer | `${n.hex}`, `s.count` | 2026-11-02 |
 
 Notes:
 
@@ -1063,6 +1064,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (447) Agreed details: "go on with #447"; the user chose a cstr's
+  `.count` and a number's text, which stopped template tests in kc.
+  - `s.count` of a cstr is `strlen`, measured each time, an `i64` as
+    kc's counts are; kelvinc keeps it once measured, the same number.
+  - `x.dec`, `x.hex`, `x.oct` and `x.bin` are written as kelvinc writes
+    them, by the prelude's KV_PROPERTY_ writer of x's type, into a
+    buffer of 41, 36, 47 or 132 bytes; `p.hex` of a pointer is its
+    address, kv_hex_addr.
+  - The buffer is declared before the statement, as a template's
+    storage (#445): block_store holds both, each a declaration of its
+    own, `char` or `uint8_t`.
+  - Errors in kelvinc's words: `.oct` and `.bin` of a float, any of
+    them of what is no number, `.hex` of a pointer aside, and the text
+    returned, by a function or `{ $0.hex }`.
+  - The text given to a variable of an outer block is kc's error, as a
+    template's is; kelvinc lets it go, though its buffer ends with the
+    block, a separate fix.
+  - A global's `n.hex` is kc's "not yet".
+  - tests/run/dict_with_key.k, if_let_case.k, template_containers.k and
+    unicode_escapes.k build with kc now, 70 in all, each printing what
+    kelvinc's prints.
 - (446) Agreed details: "rename `nullptr` to `nowhere`. We should've
   done so when we renamed `NULL` to `nullptr`. `nowhere` is more
   natural in the world where `Optional<T>` returns `some` or `none`."
@@ -6309,6 +6331,7 @@ says "as agreed".
 | P456 | Details of #444 | selfhost/parse.k: parse_method_call, from the postfix loop, and parse_primary's `.m(a)`; selfhost/gen.k: list_walked and gen_each's list walk and its "not yet" of another pointer, anon_serial in anon_function_of and iter_function; selfhost/sample.k: `bump_twice`, `doubled_sum`, `link`, `triangles`; selfhost/README.md | — |
 | P457 | Details of #445 | selfhost/lex.k: T_TPL, T_TPL_HEAD, T_TPL_MID and T_TPL_TAIL, lex_template and lex_range's backquote, `` $` `` and `}` of a `${`; selfhost/parse.k: N_TPL and parse_template; selfhost/gen.k: hold_decl, tpl_pretty, tpl_room, tpl_bound, tpl_value_ok, tpl_show, gen_template, gen_text_template, gen_string_template, text_template, template_outlived, place_templates and gen_stmt's storage; selfhost/sample.k: `shown` and `phrase`; selfhost/README.md | — |
 | P458 | Details of #446 | src/lexer.c: `nowhere` and `nullptr` reserved; src/parser.c: the hint; selfhost/parse.k: the hint; `nullptr` to `nowhere` in src, runtime, modules, selfhost, tests, documents, examples, editors, README.md and Style.md; tests/run/nowhere.k, tests/error/nowhere_value.k and nowhere_with_eq.k renamed, tests/error/nullptr_renamed.k new; documents/pointers.md | — |
+| P459 | Details of #447 | selfhost/gen.k: number_text_size, number_text, number_text_refused, gen_number_text, block_store (tpl_decls of #445) and place_storage, text_in_buffer, buffer_text_words and text_outlived, gen_return's words of a number's text, type_of's and gen_field's `.count` of a cstr; selfhost/sample.k: `numeral` and its line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

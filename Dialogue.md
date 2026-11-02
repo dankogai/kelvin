@@ -8690,3 +8690,18 @@ what print and templates show, and in every document, example and test;
 the old word. Details are provisional P458.
 
 There are 1175 tests, and all pass with clang and with gcc 15.
+
+### 494. A cstr's count and a number's text in kc
+
+> push. then go on with #447
+
+**Claude** asked which to take; the user chose a cstr's `.count` and a
+number's `.dec`, `.hex`, `.oct` and `.bin`, which had stopped template
+tests in kc. kc writes them as kelvinc does, the text in a buffer
+declared before the statement, as a template's storage is, and refuses
+what kelvinc refuses in its words. Text kept by a variable of an outer
+block is kc's error too; kelvinc lets it go, which a separate fix takes
+up. Four more tests build with kc, 70 in all, and print what kelvinc's
+builds print. Details are provisional P459.
+
+There are 1175 tests, and all pass with clang and with gcc 15.

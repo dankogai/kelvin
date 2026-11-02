@@ -598,6 +598,14 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A cstr's `.count` and a number's text** (#447), as kelvinc's #21
+  and #52: `s.count` is `strlen`; `x.dec`, `x.hex`, `x.oct`, `x.bin`,
+  and a pointer's `p.hex`, are text in a buffer that lives until the
+  block ends, declared before the statement as a template's storage.
+  - Another type, and the text returned, are kelvinc's errors, in its
+    words; the text kept by an outer variable is kc's, which kelvinc
+    lets go.
+  - Four more tests build with kc and print what kelvinc's builds print.
 - **`nowhere`** (#446), kelvinc's renamed `nullptr`: `nullptr` is
   kelvinc's error, in its words, with its hint.
 - **Template literals** (#445), as kelvinc's #39, #44 and #67:
