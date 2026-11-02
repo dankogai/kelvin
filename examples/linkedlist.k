@@ -1,65 +1,64 @@
 // Linked lists: structs named without `struct`, references (^ and :=),
-// malloc and free from C, functions of the type that change a list through
-// a pointer, list.push(&l, v), and methods that read it with for n in head,
-// all in one extend list { } block with Self for list.
+// malloc and free from C, var methods that change the list they are
+// called on (#318), and let methods that read it with for n in head, all
+// in one extend list { } block.
 #import <stdlib.h> as C
 
 struct node {
-    value: int64
+    value: i64
     next:  node^       // a field, read as n^.next (n.next would be n + 1)
 }
 
 struct list {
     head:   node^
-    length: int64
+    length: i64
 }
 
 extend list {
-    // add a value at the front: a function of the type (#111), since it changes
-    // the list through a pointer, while a method's self is a let (#138)
-    static let push(l:Self^, value:int64):() {
+    // add a value at the front: a var method, whose self is the caller's
+    var push(value:i64) {
         let n := malloc(sizeof(node)) as node^
         if n == nullptr {
             exit(1)
         }
         n^.value = value
-        n^.next := l^.head
-        l^.head := n
-        l^.length += 1
+        n^.next := .head
+        .head := n
+        .length += 1
     }
 
     // remove the front value; the list must not be empty
-    static let pop(l:Self^):int64 {
-        let first:node^ := l^.head
-        let value:int64 = first^.value
-        l^.head := first^.next
-        l^.length -= 1
+    var pop():i64 {
+        let first:node^ := .head
+        let value:i64 = first^.value
+        .head := first^.next
+        .length -= 1
         free(first)
         return value
     }
 
     // reverse the list in place by turning each link around
-    static let reverse(l:Self^):() {
+    var reverse() {
         var done:node^     // a reference starts as nullptr
-        var rest:node^ := l^.head
+        var rest:node^ := .head
         while rest != nullptr {
             let next:node^ := rest^.next
             rest^.next := done
             done := rest
             rest := next
         }
-        l^.head := done
+        .head := done
     }
 
     // free every node
-    static let clear(l:Self^):() {
-        while l^.head != nullptr {
-            Self.pop(l)
+    var clear() {
+        while .head != nullptr {
+            .pop()
         }
     }
 
     // for n in head walks the nodes along next, up to nullptr
-    let sum():int64 {
+    let sum():i64 {
         var total = 0
         for n in .head {                                  // .head is self.head
             total += n^.value
@@ -67,7 +66,7 @@ extend list {
         return total
     }
 
-    let contains(value:int64):bool {
+    let contains(value:i64):bool {
         for n in .head {
             if n^.value == value {
                 return true
@@ -77,7 +76,7 @@ extend list {
     }
 
     // print the values as [1 -> 4 -> 9]
-    let show():() {
+    let show() {
         print("[")
         for n in .head {
             print(n^.value)
@@ -89,18 +88,18 @@ extend list {
     }
 }
 
-let main():int32 {
+let main():i32 {
     var squares:list = {nullptr, 0}
     for i in 1...5 {
-        list.push(&squares, i * i)
+        squares.push(i * i)
     }
     squares.show()
-    list.reverse(&squares)
+    squares.reverse()
     squares.show()
     println("sum ", squares.sum(), ", has 16: ", squares.contains(16), ", has 15: ", squares.contains(15))
-    println("popped ", list.pop(&squares))
+    println("popped ", squares.pop())
     squares.show()
-    list.clear(&squares)
+    squares.clear()
     squares.show()
     return 0
 }

@@ -29,16 +29,16 @@ let literal(input:Bytes^):() {
     putchar('"')
 }
 
-let indent(depth:int64):() {
+let indent(depth:i64):() {
     for _ in 0..<depth { fputs("    ", stdout) }
 }
 
 // compiles src to Kelvin on stdout; 1 and a message on stderr for brackets
 // that do not match
-let compile(src:Bytes^):int32 {
-    let n = src^.count as int64
+let compile(src:Bytes^):i32 {
+    let n = src^.count as i64
     var end = n                          // where the program ends: the first !
-    var i:int64 = 0
+    var i:i64 = 0
     while i < n {
         if src^[i] == '!' {
             end = i
@@ -65,8 +65,8 @@ let compile(src:Bytes^):int32 {
         println(")")
         println("    var at:i64 = 0")
     }
-    var depth:int64 = 1
-    var opens:$[int64] = $[]               // the offsets of the [ still open
+    var depth:i64 = 1
+    var opens:$[i64] = $[]               // the offsets of the [ still open
     i = 0
     while i < end {
         let c = src^[i]
@@ -115,7 +115,7 @@ let compile(src:Bytes^):int32 {
 
 let echo := "+[,<>.]-!Hello, Kelvin!\n"   // the eight commands, and their input after the !
 
-let main(argc:int32, argv:[cstr]):int32 {
+let main(argc:i32, argv:[cstr]):i32 {
     if argc > 1 {
         let f:FILE^ := fopen(argv[1], "r")
         if f.isNull {
@@ -123,9 +123,9 @@ let main(argc:int32, argv:[cstr]):int32 {
             return 1
         }
         var src = Bytes()
-        var c:int32 = fgetc(f)
+        var c:i32 = fgetc(f)
         while c >= 0 {
-            src += c as uint8
+            src += c as u8
             c = fgetc(f)
         }
         fclose(f)

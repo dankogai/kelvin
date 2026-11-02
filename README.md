@@ -58,17 +58,21 @@ Each one ends with the output it prints, as `// out:` lines, which
 | File | Shows |
 |------|-------|
 | [examples/hello.k](examples/hello.k) | the smallest program |
-| [examples/fizzbuzz.k](examples/fizzbuzz.k) | ranges, `bool` conditions, `else if` |
+| [examples/fizzbuzz.k](examples/fizzbuzz.k) | a `String` built with `+=`, `.isEmpty`, `String(n)`, moved out by `return`; a closed range, a template literal, a Range mapped to an Array |
 | [examples/primes.k](examples/primes.k) | a `bool` array, nested ranges, `continue` |
 | [examples/strings.k](examples/strings.k) | `cstr`, `for c in s`, a `u8^` cursor with `p++`, C's string functions, `.hex` and friends |
 | [examples/shapes.k](examples/shapes.k) | structs, `extend` blocks of methods and attributes, derived `.cstr` text, `<math.h>` |
-| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, an `extend list` block whose functions of the type change a list through a pointer, `list.push(&l, v)`, and whose methods read it, `for n in head` |
-| [examples/sort.k](examples/sort.k) | function types, anonymous functions with `$0` and `$[k]`, C's `qsort` with a written comparator |
+| [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, an `extend list` block whose var methods change the list they are called on, `l.push(v)`, and whose methods read it, `for n in head` |
+| [examples/sort.k](examples/sort.k) | `$[T]`'s `sort` and `sorted`, by `<`, by an anonymous function with `$0` and `$1` or by a named one; `map`, `filter`, `reduce`, `prefix` and `reversed` chained; an Array of structs; C's `qsort` with a written comparator |
+| [examples/sequences.k](examples/sequences.k) | iterators, structs with a `var` method `next()`: `for`, `map` and `reduce` of one that ends, `prefix` of one that never does; `(2...).lazy.filter(prime)`, a Range with no end, filtered lazily |
+| [examples/wordfreq.k](examples/wordfreq.k) | word frequencies: `#import <RegExp>` and `.split`, a `Set<String>` of words to leave out, a `Dictionary<String, i64>` counting the rest, an Array of structs that own their words, sorted by count |
+| [examples/calc.k](examples/calc.k) | a calculator: an enum with values for tokens, `switch` binding a case's value, the shunting-yard algorithm with Arrays as stacks, each step a `Result` and `try` passing an `err` up, `if let` |
 | [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
+| [examples/tasks.k](examples/tasks.k) | `async f(x)` and `await`: four `Task<i64>`s in an Array count primes at once, and a `Task<String>` moves its owner out to the caller |
 | [examples/bfi.k](examples/bfi.k) | a brainfuck interpreter: a struct that owns a `Bytes` and an `Array`, `Result` and `if let err(why)`, a `switch` on bytes, `argv`, `fopen` and `getchar`; `!` ends the program and starts its input |
 | [examples/bfc.k](examples/bfc.k) | a brainfuck compiler to Kelvin source, which kelvinc then compiles: slices, `for c in bytes`, `printf` for escapes, `argv` |
 | [examples/complex.k](examples/complex.k) | `#import <math>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
-| [examples/ski.k](examples/ski.k) | SKI combinator logic, and Iota and Jot compiled to it: terms as nodes of an `Array` of structs by index, a global owner, recursive descent through an `int64^` cursor, reduction to a normal form, `String` built with `+=` (#201) |
+| [examples/ski.k](examples/ski.k) | SKI combinator logic, and Iota and Jot compiled to it: terms as nodes of an `Array` of structs by index, a global owner, recursive descent through an `i64^` cursor, reduction to a normal form, `String` built with `+=` (#201) |
 | [examples/lambda.k](examples/lambda.k) | the untyped lambda calculus, written with `λ`: Church numerals and Wikipedia's definitions, `FACT 3` by `Y`, de Bruijn indices that never capture, names primed with `′` where they would; a `String` read by codepoint, functions over a `reader^` that call each other through a prototype (#202) |
 
 ## Build and use

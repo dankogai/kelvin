@@ -17,31 +17,31 @@
 #import <string.h> as C
 
 struct node {
-    kind: uint8         // 'S', 'K', 'I', a variable, or '@', an application
-    fun: int64          // of an application: the function and its argument
-    arg: int64
+    kind: u8         // 'S', 'K', 'I', a variable, or '@', an application
+    fun: i64          // of an application: the function and its argument
+    arg: i64
 }
 
 var pool:$[node]        // every node, by index; a global owner, filled by main
 
-let make(kind:uint8, fun:int64, arg:int64):int64 {
+let make(kind:u8, fun:i64, arg:i64):i64 {
     let n:node = {kind, fun, arg}
     pool += n
-    return pool.count as int64 - 1
+    return pool.count as i64 - 1
 }
-let atom(kind:uint8):int64 { make(kind, -1, -1) }
-let ap(f:int64, x:int64):int64 { make('@', f, x) }
+let atom(kind:u8):i64 { make(kind, -1, -1) }
+let ap(f:i64, x:i64):i64 { make('@', f, x) }
 
 // ---------- SKI ----------
 
 // a term of SKI from s, from at^ to its end or a ')' of an enclosing one;
 // -1 where there is none
-let sequence(s:cstr, at:int64^):int64 {
-    var t:int64 = -1
+let sequence(s:cstr, at:i64^):i64 {
+    var t:i64 = -1
     while s[at^] != 0 && s[at^] != ')' {
         let c = s[at^]
         at^ += 1
-        var x:int64 = -1
+        var x:i64 = -1
         if c == '(' {
             x = sequence(s, at)
             if s[at^] == ')' { at^ += 1 }
@@ -53,14 +53,14 @@ let sequence(s:cstr, at:int64^):int64 {
     return t
 }
 
-let ski(s:cstr):int64 {
-    var at:int64 = 0
+let ski(s:cstr):i64 {
+    var at:i64 = 0
     return sequence(s, &at)
 }
 
 // the text of t: an application left to right, an argument that is one in
 // parentheses
-let show(t:int64):String {
+let show(t:i64):String {
     let n = pool[t]
     if n.kind != '@' { return $"" + n.kind.uchr }
     var s = show(n.fun)
@@ -75,17 +75,17 @@ let show(t:int64):String {
 }
 
 // one step of leftmost-outermost reduction of t, or -1 where t is normal
-let step(t:int64):int64 {
-    var args:$[int64] = $[]             // the arguments of the head, the last first
+let step(t:i64):i64 {
+    var args:$[i64] = $[]             // the arguments of the head, the last first
     var h = t
     while pool[h].kind == '@' {
         args += pool[h].arg
         h = pool[h].fun
     }
-    let n = args.count as int64
+    let n = args.count as i64
     let k = pool[h].kind
-    var r:int64 = -1
-    var used:int64 = 0
+    var r:i64 = -1
+    var used:i64 = 0
     if k == 'I' && n >= 1 {
         r = args[n - 1]
         used = 1
@@ -100,7 +100,7 @@ let step(t:int64):int64 {
         used = 3
     }
     if r >= 0 {                          // the rest of the arguments, in order
-        var j:int64 = n - used - 1
+        var j:i64 = n - used - 1
         while j >= 0 {
             r = ap(r, args[j])
             j -= 1
@@ -120,7 +120,7 @@ let step(t:int64):int64 {
 
 // t reduced to its normal form, as its text, or what is left after limit
 // steps, marked with "..."
-let normal(t:int64, limit:int64):String {
+let normal(t:i64, limit:i64):String {
     var u = t
     for i in 0..<limit {
         let next = step(u)
@@ -133,10 +133,10 @@ let normal(t:int64, limit:int64):String {
 // ---------- Iota ----------
 
 // ι, λx.xSK, as S(SI(KS))(KK)
-let iota_combinator():int64 { ski("S(SI(KS))(KK)") }
+let iota_combinator():i64 { ski("S(SI(KS))(KK)") }
 
 // a term of Iota from s at at^: `*` and two terms, or `i`
-let iota_term(s:cstr, at:int64^):int64 {
+let iota_term(s:cstr, at:i64^):i64 {
     let c = s[at^]
     if c == 0 { return -1 }
     at^ += 1
@@ -148,14 +148,14 @@ let iota_term(s:cstr, at:int64^):int64 {
     return c == 'i' ? iota_combinator() : iota_term(s, at)   // anything else is skipped
 }
 
-let iota(s:cstr):int64 {
-    var at:int64 = 0
+let iota(s:cstr):i64 {
+    var at:i64 = 0
     return iota_term(s, &at)
 }
 
 // ---------- Jot ----------
 
-let jot(s:cstr):int64 {
+let jot(s:cstr):i64 {
     var w = atom('I')
     for c in s {
         if c == '0' {
@@ -169,16 +169,16 @@ let jot(s:cstr):int64 {
 
 // ---------- the examples ----------
 
-let limit:int64 = 1000
+let limit:i64 = 1000
 
 // t applied to the variables of vars, reduced: what the combinator does
-let apply(name:cstr, t:int64, vars:cstr):() {
+let apply(name:cstr, t:i64, vars:cstr):() {
     var u = t
     for v in vars { u = ap(u, atom(v)) }
     println(name, " ", vars, " = ", normal(u, limit))
 }
 
-let main(argc:int32, argv:[cstr]):int32 {
+let main(argc:i32, argv:[cstr]):i32 {
     if argc > 2 && strcmp(argv[1], "-iota") == 0 {
         println(normal(iota(argv[2]), limit))
         return 0

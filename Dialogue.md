@@ -8621,3 +8621,24 @@ it stop in kc before it, on `try`, `Result<T, E>.err(...)`,
 provisional P454.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 490. The examples, as Kelvin is now
+
+> push. then update `examples/` with recent language specs.
+>
+> * some are obviously obsolete, like `fizzbuzz.k` and `sort.k`
+> * some more examples would be nice.  If you have ideas, you are
+>   welcome to put them in.
+
+**Claude** made it #443. fizzbuzz.k now builds a `String` and maps a
+Range; sort.k sorts a `$[T]` with `sort` and `sorted` and chains `map`,
+`filter` and `reduce`; linkedlist.k changes its list by `var` methods;
+the rest name their types `i64`, `u8` and `f64`. Four are new:
+sequences.k, iterators and lazy Ranges; wordfreq.k, RegExp, a Set and a
+Dictionary; calc.k, an enum with values in a calculator, with `switch`,
+Results and `try`; tasks.k, `async` and `await`. The README's table
+lists them. Found, kc's: the template literal of the new fizzbuzz.k,
+`.pop()` in a var method, and an anonymous function inside another.
+Details are provisional P455.
+
+There are 1174 tests, and all pass with clang and with gcc 15.

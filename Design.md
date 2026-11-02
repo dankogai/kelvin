@@ -474,6 +474,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 440 | kc refuses an owner a variable holds where kelvinc does, `var s = t`, `let s = t` and `s = t` of a String, a Bytes, an Array, a Dictionary, an Optional or a struct that owns, which it had copied and freed twice, and String's `s += t` and `s += p.s`, which had taken its bytes; kelvinc's words, which kc's errors of an owner in `{...}`, `[...]`, a Dictionary's entries and `c ? a : b` now say too | selfhost/gen.k's owner_name, owner_assign_error, gen_var's, gen_assign's and String `+=`'s checks | `var s = t` of kc | 2026-11-02 |
 | 441 | kc tracks an owner moved out as kelvinc does, in the order it is written: a variable given by value to a function, a method, a case, an Optional or a Result, `Iterator(...)`, `.reduce`, `.merge`, returned or awaited is dead until assigned anew, `t = v`, and a later use is kelvinc's error; the moves of a call's arguments are made where it ends, so `f(t, t)` stays as kelvinc builds it; a global moved, and each element or an `if let`'s value moved or returned, are kelvinc's errors too | selfhost/gen.k's sym.moved, moving, anew, local_at, moved_error, move_out, move_back, moves_done, into_words; gen_expr, gen_value and gen_stmt wrapping gen_expr_of, gen_value_of and gen_stmt_of | `take(t)` and then `println(t)` of kc | 2026-11-02 |
 | 442 | kc reads kelvinc's `if let x = e { ... } else { ... }` (#74): an Optional's `some` or a Result's `ok`, bound to `x`, a let it still owns, of a place or of a value a call gives, and `else if let`; what is neither, and a missing `=`, are kelvinc's errors in its words | selfhost/parse.k's parse_if; selfhost/gen.k's gen_iflet | `if let h = held { ... }` of kc | 2026-11-02 |
+| 443 | examples/ follows the language as it is now: fizzbuzz.k builds a `String`, sort.k sorts a `$[T]` with `sort` and `sorted`, linkedlist.k changes its list by `var` methods, and the rest name their types `i64`, `u8`, `f64` (#151); new ones show what had none: sequences.k iterators and lazy Ranges, wordfreq.k a Dictionary, a Set and RegExp, calc.k an enum with values, `switch` and `try`, tasks.k `async` and `await` | examples/*.k; README.md's Examples | `squares.push(i * i)` of linkedlist.k | 2026-11-02 |
 
 Notes:
 
@@ -1059,6 +1060,29 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (443) Agreed details: "update `examples/` with recent language
+  specs", fizzbuzz.k and sort.k obviously obsolete, and more examples
+  welcome.
+  - fizzbuzz.k builds each answer as a `String`, `+=`, `.isEmpty`,
+    `String(n)`, moved out by `return`, prints it by a template
+    literal, and maps `1...100` to an Array of them.
+  - sort.k sorts a `$[T]` in place and into a copy, by `<`, by `$0` and
+    `$1`, by a named function, chains `map`, `filter`, `reduce`,
+    `prefix` and `reversed`, sorts an Array of structs, and keeps C's
+    `qsort` with a written comparator.
+  - linkedlist.k's `push`, `pop`, `reverse` and `clear` are `var`
+    methods (#318), `squares.push(i * i)`, where they were functions
+    of the type through a `list^`.
+  - The others name their types as Style.md does, `i64`, `u8`, `f64`;
+    what they print is the same.
+  - New: sequences.k, iterators of `var next()` and `(2...).lazy`;
+    wordfreq.k, `split`, a Set, a Dictionary and an Array of owning
+    structs sorted; calc.k, an enum with values in a shunting-yard
+    calculator, `switch`, Results and `try`; tasks.k, four Tasks in an
+    Array and one that gives a String.
+  - Found, kc's: the old fizzbuzz.k it built stops now at a template
+    literal; `.pop()` in a var method calls `pop` in C; sequences.k's
+    anonymous function inside another has the C name of the outer.
 - (442) Agreed details: "go on with #442"; the user chose `if let x =
   e` over two error gaps and a closure's lent element.
   - kc read only `if let c(x) = e`, and `if let x = e` was its parse
@@ -6206,6 +6230,7 @@ says "as agreed".
 | P452 | Details of #440 | selfhost/gen.k: owner_name and owner_assign_error and their prototypes; gen_var's and gen_assign's `=` checks; String `+=`'s; the struct member's, list element's, Dictionary entry's, `?:`'s and fixed element's words; selfhost/README.md | — |
 | P453 | Details of #441 | selfhost/gen.k: sym.moved; moving, anew, local_at, moved_error, move_out, move_back, moves_done and into_words; gen_expr, gen_value and gen_stmt as wrappers of gen_expr_of, gen_value_of and gen_stmt_of; the moves of gen_arg_to, gen_method_of's case, gen_value's case, gen_moved, gen_return, gen_iter_value, gen_eager, gen_eager_keyed, gen_merge and gen_await; `t = v` in gen_stmt; selfhost/sample.k: `handed_back`, `handed`; selfhost/README.md | — |
 | P454 | Details of #442 | selfhost/parse.k: parse_if's short form and its error, S_IFLET's comment; selfhost/gen.k: gen_iflet's value case and its error; selfhost/sample.k: `if let h = held`, `else if let t = ...`; selfhost/README.md | — |
+| P455 | Details of #443 | examples/fizzbuzz.k, sort.k and linkedlist.k rewritten; hello.k, primes.k, strings.k, shapes.k, results.k, complex.k, bfi.k, bfc.k, ski.k and lambda.k in short type names; examples/sequences.k, wordfreq.k, calc.k and tasks.k new; README.md: the Examples table | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
