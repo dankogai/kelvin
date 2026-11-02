@@ -595,8 +595,9 @@ kc reads what it is written in, and little more.
   `u32`, `f64` and `f32` are `int64` and the rest, wherever a type goes,
   after `:` and `as`, in `sizeof(...)`, and as converters, `i64(s)`.
   - With #428 and #429, kc builds the README's Synopsis, a fizzbuzz
-    (#431), and with #433 its `main` of #432 too, `printf(...,
-    fizzbuzz(i).cstr)`; it prints what kelvinc's build prints.
+    (#431), with #433 its `main` of #432 too, `printf(...,
+    fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
+    what kelvinc's build prints.
 - **`x.isEmpty`** (#435), as kelvinc's #434: a String's, an Array's, a
   Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by
   its first byte, a Range's by its bounds, one without an end never;

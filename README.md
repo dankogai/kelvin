@@ -15,10 +15,10 @@ one.
 #import <stdio.h> as C              // for printf()
 
 let fizzbuzz(n:i64):String {
-    var r:String                    // a String, empty to start
-    if n % 3 == 0 { r += $"fizz" }
-    if n % 5 == 0 { r += $"buzz" }
-    if r == $"" { r = String(n) }
+    var r = $""                     // String()
+    if n % 3 == 0 { r += "fizz" }   // or $"fizz"
+    if n % 5 == 0 { r += "buzz" }   // or $"buzz"
+    if r.isEmpty  { r = String(n) } // .count == 0, as of any collection
     return r                        // moved out to the caller
 }
 

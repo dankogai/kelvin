@@ -8509,3 +8509,17 @@ kc, for later: a `Bytes` goes to C as it is, and an Array's `.append(x)`
 is not known. Details are provisional P447.
 
 There are 1167 tests, and all pass with clang and with gcc 15.
+
+### 483. The README's own fizzbuzz
+
+> push. Then edit the Synopsis of `README.md`'s `fizzbuzz()` as: ...
+> a little more descriptive, I feel.
+
+**Claude** made it #436, after #435, so that kc reads its `r.isEmpty`.
+The Synopsis's `fizzbuzz` is now the user's: `var r = $""`,
+`r += "fizz"` of a cstr, and `if r.isEmpty`, with the user's comments,
+aligned with `main`'s, and two of Claude's, on `.isEmpty` and on the
+`return` that moves `r` out. tests/docs.sh compiles it, and kc builds it
+and prints what kelvinc's build prints. Details are provisional P448.
+
+There are 1167 tests, and all pass with clang and with gcc 15.
