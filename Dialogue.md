@@ -8705,3 +8705,22 @@ up. Four more tests build with kc, 70 in all, and print what kelvinc's
 builds print. Details are provisional P459.
 
 There are 1175 tests, and all pass with clang and with gcc 15.
+
+### 495. A template's text in a parameter, from an inner block
+
+> Fix: allow a parameter only when the assignment is in the function's
+> own top block (the scope right after the parameters), not in any
+> inner block.
+
+The user found that kelvinc built `if true { t := `${1}` }` of a
+parameter `t`, with the text's storage inside the `if`'s C block, so `t`
+dangled after it: reject_template_escape let a parameter take a
+template's text where the innermost scope's mark was the end of the
+parameters, and an inner block that declares nothing shares that mark
+with the body's top block. With a local declared before the `if`, it
+had refused it. Now a parameter may take such a text only in the body's
+own top block, counted by the scopes open there, as kc's
+template_outlived (#445) does; tests/error/template_param_inner.k is the
+user's case. Details are provisional P460.
+
+There are 1176 tests, and all pass with clang and with gcc 15.

@@ -253,6 +253,9 @@ static int params_start, params_end;
 /* the first token of that function's body and its closing `}`, where
    one expression is what the body returns (#35) */
 static int body_first = -1, body_end = -1;
+/* how many scopes are open in that body's own top block, not one inside
+   it, which an inner block that declares nothing shares a mark with */
+static int body_scopes = -1;
 
 /* main keeps C's rule that its end returns 0 (#35) */
 static bool is_main(Decl *d) { return !d->anon && !d->recv && !strcmp(d->name, "main"); }
@@ -8468,7 +8471,8 @@ static Expr *text_in_buffer(Expr *e);
 
 /* A template's text is stored in its block (#39), so a variable of an
    outer block, or a global, would keep it after it is gone; the
-   function's own parameters end with its body */
+   function's own parameters end with its body, so take it in its top
+   block, not in a block inside it */
 static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
     /* a borrow of a local owner too (#54) */
     if (target->kind == E_IDENT && value->kind == E_PREFIX && !strcmp(value->op, "&") && value->a->kind == E_IDENT &&
@@ -8487,7 +8491,7 @@ static void reject_template_escape(Expr *target, Expr *value, Pos pos) {
         return;
     int i = binding_index(target->text);
     int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
-    if (i >= here || (i >= params_start && i < params_end && here == params_end))
+    if (i >= here || (i >= params_start && i < params_end && scope_marks.len == body_scopes))
         return;
     error_at(pos, "a template's text lives until this block ends, and '%s' outlives it: make the text in the "
                   "block of '%s', or copy it, as in '%s := strdup(...)'",
@@ -11662,12 +11666,14 @@ static Expr *text_in_buffer(Expr *e) {
 
 /* a function's body, whose `{` (open) has been read */
 static Stmt *parse_fn_body(Token *open) {
-    int saved_first = body_first, saved_end = body_end;
+    int saved_first = body_first, saved_end = body_end, saved_scopes = body_scopes;
     body_first = cur;
     body_end = skip_nested((int)(open - toks)) - 1;
+    body_scopes = scope_marks.len + 1; /* the block parse_block_rest opens */
     Stmt *s = parse_block_rest(open);
     body_first = saved_first;
     body_end = saved_end;
+    body_scopes = saved_scopes;
     return s;
 }
 
