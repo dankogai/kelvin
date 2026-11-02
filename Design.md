@@ -471,6 +471,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 437 | Two fixes of #245: a call whose result only C sees, which may be a pointer, `strchr(...)`, passes its temporaries to the chain around it, so `strlen(strchr($"xyz".cstr, 'y'))` reads no freed memory; an arm of `?:` and the right of `&&`, `||` and `??` keep theirs, so `c ? side().cstr : "no"` as an argument is the error that says to bind it first, and `side()` is no longer called where `c` is false; an anonymous function's body keeps its own too | src/parser.c's wrap_temps, parse_binary, parse_conditional, parse_coalescing, parse_anon_fn | `strlen(strchr($"xyz".cstr, 'y'))` | 2026-11-02 |
 | 438 | kc reads an Array's methods as kelvinc's: `append(v)`, `insert(i, v)`, `remove(i, n)`, `clear()`, `reserve(n)` and `compact()`, in place; an owner goes in as kelvinc's, a borrow `&w` copied, what an expression gives moved, a place an error that says `&w` or `w.copy()`, and `xs += v` the same, where kc passed `&w` to C and `w` itself; argument counts, an element of another type and a `let` receiver are kelvinc's errors | selfhost/gen.k's gen_array_add, arg_count, gen_array_method | `grown.insert(0, 9)` of kc | 2026-11-02 |
 | 439 | kc reads a Bytes as kelvinc's: the type, an owner freed where its block ends; `Bytes()`, `Bytes(n)`, `Bytes(text)`, `Bytes(&b)`, `Bytes(&s)`, `Bytes([...])` and `Bytes(p, n)`; `.count`, `.capacity`, `.isEmpty` and `.cstr`; `b[i]`, checked and assignable; `append`, `+=`, `insert`, `remove`, `clear`, `reserve` and `compact` in place; `.copy()`, `.string()` a Result, `String(&b)`; `==`, `!=`, `<`, `<=`, `>`, `>=`; `for x in b`; printing, in an Array quoted; kelvinc's errors in its words, and kc's of its slices, `b + c`, `.at`, `.isUTF8`, `.escape()` and `.toBase64()`, not yet kc's | selfhost/parse.k's Y_BYTES; selfhost/gen.k's Bytes section, bytes_field_type, bytes_method_type, gen_bytes_make, gen_bytes_add, gen_bytes_method, gen_bytes_bin, takes_args, owner_copy_error | `octets.insert(0, Bytes([0x3e, 32]))` of kc | 2026-11-02 |
+| 440 | kc refuses an owner a variable holds where kelvinc does, `var s = t`, `let s = t` and `s = t` of a String, a Bytes, an Array, a Dictionary, an Optional or a struct that owns, which it had copied and freed twice, and String's `s += t` and `s += p.s`, which had taken its bytes; kelvinc's words, which kc's errors of an owner in `{...}`, `[...]`, a Dictionary's entries and `c ? a : b` now say too | selfhost/gen.k's owner_name, owner_assign_error, gen_var's, gen_assign's and String `+=`'s checks | `var s = t` of kc | 2026-11-02 |
 
 Notes:
 
@@ -1056,6 +1057,24 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (440) Agreed details: "go on with #440"; the user chose String's `+=`
+  in this number too.
+  - kc had built `var s = t`, `let s = t` and `s = t` of an owner `t`:
+    C copied the struct, and both were freed, a double free; owner_part
+    had left a name out, as `return t` moves it.
+  - owner_name is a variable that owns, not a Task or an Iterator,
+    whose words are said where they are; let and `=` refuse it where
+    its type is the target's, as kelvinc's owner_place, so that
+    `var s:String? = t` stays as kelvinc builds it.
+  - String's `s += t` had taken t's bytes, `kv_string_append_owned`;
+    a name or a part that owns is kelvinc's error, owner_copy_error's
+    words, as an Array's and a Bytes's.
+  - owner_assign_error says kelvinc's words, `'t'.copy()` and
+    `':= &t'` of a name, `it` and `...` else, where kc's had said
+    "copy it with .copy()" in `{...}`, `[...]`, a Dictionary's entries
+    and `c ? a : b`.
+  - Found: kc tracks no move, so `var s:String? = t` and then `t` is
+    kelvinc's error alone.
 - (439) Agreed details: "go on with #439"; the user chose the core of
   Bytes now, and its slices, `b + c`, Base64, `.escape()` and RegExp
   later.
@@ -6147,6 +6166,7 @@ says "as agreed".
 | P449 | Details of #437 | src/parser.c: wrap_temps, parse_binary's, parse_conditional's, parse_coalescing's and parse_anon_fn's chain_temps; tests/run/temp_c_result.k, tests/error/temp_pointer_choice.k, temp_pointer_coalesce.k; documents/strings.md, ownership.md | — |
 | P450 | Details of #438 | selfhost/gen.k: gen_array_add, arg_count, gen_array_method, gen_method_of's and the assignment's use of them; selfhost/sample.k: `grown`, `words_in`; selfhost/README.md | — |
 | P451 | Details of #439 | selfhost/parse.k: Y_BYTES, parse_type's and N_TYPE's `Bytes`; selfhost/gen.k: the Bytes section, the type's names, type_of's, gen_member's, gen_element's, gen_method_of's, gen_expr's, the assignment's, the for loop's, show_value's and put_eq_code's use of them, takes_args, owner_copy_error; selfhost/sample.k: `framed`, `octets`; selfhost/README.md | — |
+| P452 | Details of #440 | selfhost/gen.k: owner_name and owner_assign_error and their prototypes; gen_var's and gen_assign's `=` checks; String `+=`'s; the struct member's, list element's, Dictionary entry's, `?:`'s and fixed element's words; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

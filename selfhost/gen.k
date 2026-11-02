@@ -495,6 +495,8 @@ let declare_each(t:int64, y:int64, how:int64) {
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
 let owner_part(v:int64):bool    // a prototype: let, = and return refuse what it says (#365)
+let owner_name(v:int64):bool    // and their names and the words said of them (#440)
+let owner_assign_error(v:int64)
 let fixed_elem_ok(y:int64):bool    // prototypes: a member's fixed array is written by gen_written (#356)
 let fixed_list_fits(v:int64, y:int64):bool
 let gen_fixed_list(v:int64, y:int64)
@@ -4195,7 +4197,7 @@ let gen_init(n:int64, s:int64) {
             return
         }
         if nodes[v].kind == N_ID && var_type(nodes[v].t) >= 0 && is_owner(type_of(v)) {
-            gen_error(v, "an owner is not copied by '=' (#54): copy it with .copy()")
+            owner_assign_error(v)
             return
         }
         gen_written(v, nodes[f].ty)                      // ${:} of a member (#348)
@@ -4277,7 +4279,7 @@ let gen_array(n:int64, given:int64) {
     var e = nodes[n].b
     while e >= 0 && !failed {
         if is_owner(elem) && is_place(e) && !is_case_word(e) {   // none is no place (#343)
-            gen_error(e, "an owner is not copied by '=' (#54): copy it with .copy()")
+            owner_assign_error(e)
             return
         }
         if given >= 0 {                                  // of the type written, as kelvinc says it (#350)
@@ -4436,7 +4438,7 @@ let gen_dict(n:int64, given:int64) {
     while k >= 0 && !failed {
         let v:int64 = nodes[k].next
         if is_owner(elem) && is_place(v) && !is_case_word(v) {   // none is no place (#343)
-            gen_error(v, "an owner is not copied by '=' (#54): copy it with .copy()")
+            owner_assign_error(v)
             return
         }
         let hold = needs_hold(k)
@@ -4639,7 +4641,7 @@ let gen_value(n:int64, y:int64) {
     if nodes[n].kind == N_COND {                         // each arm by the type that takes it (#232)
         if !owner_choice(n) { return }
         if is_owner(type_of(n)) && is_place(n) {
-            gen_error(n, "an owner is not copied by '=' (#54): copy it with .copy()")
+            owner_assign_error(n)
             return
         }
         put("(")
@@ -6679,7 +6681,7 @@ let fixed_list_fits(v:int64, y:int64):bool {
         if nodes[x].kind == N_LIST && nodes[x].flag == 0 && types[e].kind == Y_FIXED {
             if !fixed_list_fits(x, e) { return false }
         } else if is_owner(e) && is_place(x) && !is_case_word(x) {   // as an Array's elements (#364)
-            gen_error(x, "an owner is not copied by '=' (#54): copy it with .copy()")
+            owner_assign_error(x)
             return false
         } else {
             let bad:String = value_mismatch_text(x, e)
@@ -6876,8 +6878,9 @@ let gen_var(n:int64) {
     var who = $"'"                                       // a let's borrow, as an argument's (#273)
     who += tok_text(nodes[n].t)
     who += "'"
-    if nodes[n].a >= 0 && owner_part(nodes[n].a) && nodes[n].c != 1 {   // as kelvinc says it, an alias else (#365)
-        gen_error(nodes[n].a, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+    let copied = nodes[n].a >= 0 && owner_name(nodes[n].a) && type_of(nodes[n].a) == y   // var s = t, freed twice else (#440)
+    if nodes[n].a >= 0 && (owner_part(nodes[n].a) || copied) && nodes[n].c != 1 {   // as kelvinc says it, an alias else (#365)
+        owner_assign_error(nodes[n].a)
         return
     }
     if nodes[n].a >= 0 && !fixed_ptr_ok(nodes[n].a, y, &who) { return }   // q := &a of a [T](N)^ (#362)
@@ -7254,8 +7257,9 @@ let gen_assign(n:int64) {
         gen_error(n, "an array is not assigned: assign its elements, a[i]")
         return
     }
-    if is_owner(y) && owner_part(nodes[n].b) && tok_is(t, "=") {   // x = p.s, an alias else (#365)
-        gen_error(nodes[n].b, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+    let copied = owner_name(nodes[n].b) && type_of(nodes[n].b) == y   // s = t, freed twice else (#440)
+    if is_owner(y) && (owner_part(nodes[n].b) || copied) && tok_is(t, "=") {   // x = p.s, an alias else (#365)
+        owner_assign_error(nodes[n].b)
         return
     }
     if nodes[nodes[n].b].kind == N_EMPTY {               // d = ${:}: no type is written there, as kelvinc has it (#348)
@@ -7314,6 +7318,10 @@ let gen_assign(n:int64) {
         gen_expr(nodes[n].b)
         put(");\n")
     } else if yk == Y_STRING && tok_is(t, "+=") {
+        if owner_name(nodes[n].b) || owner_part(nodes[n].b) {   // s += t would take t's bytes, freed twice (#440)
+            owner_copy_error(nodes[n].b, "+=")
+            return
+        }
         put("KV_STRING_APPEND(")
         gen_place(lhs)
         put(", ")
@@ -7448,6 +7456,29 @@ let owner_part(v:int64):bool {
         if y < 0 || (struct_of(y) < 0 && tagged_of(y) < 0) { return false }
     }
     return is_place(v) && is_owner(type_of(v))
+}
+
+// whether v names a variable that owns, which let, = and += would copy
+// and free twice, as kelvinc's owner_place refuses it; return moves one
+// out. A Task's and an Iterator's own words are said where they are (#440)
+let owner_name(v:int64):bool {
+    if nodes[v].kind != N_ID || is_case_word(v) || var_type(nodes[v].t) < 0 { return false }
+    let y:int64 = type_of(v)
+    return is_owner(y) && types[y].kind != Y_TASK && types[y].kind != Y_ITER
+}
+
+// kelvinc's words of an owner copied by '=', of v, its name or a part (#365, #440)
+let owner_assign_error(v:int64) {
+    if nodes[v].kind != N_ID {
+        gen_error(v, "an owner is not copied by '=' (#54): copy its bytes with it.copy(), or borrow it with ':= &...'")
+        return
+    }
+    var m = $"an owner is not copied by '=' (#54): copy its bytes with '"
+    m += tok_text(nodes[v].t)
+    m += "'.copy(), or borrow it with ':= &"
+    m += tok_text(nodes[v].t)
+    m += "'"
+    gen_error(v, m.cstr)
 }
 
 let gen_return(n:int64) {

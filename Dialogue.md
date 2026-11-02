@@ -8574,3 +8574,19 @@ twice; `&` of an owner an expression gives goes to C; and `a[0] = "a"` of
 a `u8` is C's error. Details are provisional P451.
 
 There are 1170 tests, and all pass with clang and with gcc 15.
+
+### 487. An owner copied by its name
+
+> go on with #440
+
+**Claude** found that kc built `var s = t` and `s = t` of any owner, a
+String, a Bytes, an Array, a Dictionary, an Optional or a struct that
+owns, and freed it twice, where kelvinc refuses it; String's `s += t`
+had the same double free. Asked, the user chose both in this number.
+kc now refuses them in kelvinc's words, `'t'.copy()` or `':= &t'`, and
+its older words of an owner in `{...}`, `[...]`, a Dictionary's entries
+and `c ? a : b` are kelvinc's too. Found: kc tracks no move, so a use of
+`t` after `var s:String? = t` is kelvinc's error alone. Details are
+provisional P452.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

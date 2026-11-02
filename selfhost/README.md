@@ -598,6 +598,15 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An owner copied by its name** (#440), as kelvinc's: `var s = t`,
+  `let s = t` and `s = t` of an owner `t` are kelvinc's error, which
+  says `t.copy()` or `:= &t`, where kc had copied it, freed twice.
+  - String's `s += t` and `s += p.s` too, where kc had taken their
+    bytes; `s += &t` and `s += t.copy()` are as they were.
+  - An owner in `{...}`, `[...]`, a Dictionary's entries and `c ? a :
+    b` is said in kelvinc's words too.
+  - Found: kc tracks no move, so a use of `t` after `var s:String? = t`
+    is kelvinc's error alone.
 - **Bytes** (#439), as kelvinc's: an owner, `kv_bytes` in C, in a
   variable, a parameter, a result, an Array, a Dictionary, a struct and
   an Optional.
@@ -615,8 +624,8 @@ kc reads what it is written in, and little more.
   - Not yet: slices, `b + c`, `.at`, `.isUTF8`, `.escape()`,
     `.toBase64()` and RegExp, each kc's error.
   - Found: `var s = t` and `s = t` of an owner copy it, freed twice,
-    where kelvinc's error says `t.copy()`; `&` of an owner an expression
-    gives, `f(&mk())`, goes to C, which fails.
+    where kelvinc's error says `t.copy()`, which #440 refuses; `&` of an
+    owner an expression gives, `f(&mk())`, goes to C, which fails.
 - **An Array's methods** (#438), as kelvinc's: `xs.append(v)`,
   `xs.insert(i, v)`, `xs.remove(i, n)`, `xs.clear()`, `xs.reserve(n)`
   and `xs.compact()`, in place, beside `pop` and `copy`.
