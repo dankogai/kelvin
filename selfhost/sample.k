@@ -899,5 +899,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     for l in &link_a { linked = linked * 10 + l^.value }
     let triangles = $[1, 2, 3].map { k in (1...k).map { j in (1...j).reduce(0) { $0 + $1 } } }   // one inside another (#444)
     println(point.of(1, 2).doubled_sum(), " ", twice_box.bump_twice(), " ", twice_box.n, " ", linked, " ", triangles)
+    let shown := `${linked} ${1.5} ${linked > 100} ${handed} ${handed_back($"held")} ${point.of(3, 4)} ${triangles} ${`<${linked}>`}`   // templates (#445)
+    let phrase = $`${shown}: ${handed} ${triangles.count} ${point.of(5, 6).pretty} \` \${x}
+on a new line`
+    println(shown, " ", phrase, " ", `plain`, " ", $`plain`)
     return 0
 }

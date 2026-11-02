@@ -12,7 +12,11 @@ enum tkind {                    // the kinds of tokens (#210)
     T_CHAR,     // '.', as written
     T_PUNCT,
     T_DSTR,     // $"...", the text from its "
-    T_IMPORT    // #import <x>, "x.k" or <x.h> as C, the name with its brackets
+    T_IMPORT,   // #import <x>, "x.k" or <x.h> as C, the name with its brackets
+    T_TPL,      // `...` with no ${...}: a string, its text as C's literal after the files' (#445)
+    T_TPL_HEAD, // `...${ of a template, its text so
+    T_TPL_MID,  // }...${
+    T_TPL_TAIL  // }...`
 }
 
 struct tok {
@@ -130,6 +134,73 @@ let punct_len(i:int64):int64 {
     return 1
 }
 
+// a template's text from i (after its backquote, or after the } that ends
+// a ${...}) up to its closing backquote or the next ${, as kelvinc's
+// lex_template (#445): a token of its text as C's string literal, put
+// after the files' codes; a new line is \n, \` a backquote, \$ a dollar
+// sign, \{ and \} a brace, a backslash before a new line joins the lines,
+// and other escapes are C's. head is whether it begins the template, and
+// dollar whether that is $`...`, a String, whose $ is the token before;
+// where it ends, after the ` or the ${, or -1 where it is unterminated
+let lex_template(i:int64, to:int64, file:int64, line:int64, head:bool, dollar:bool):int64 {
+    var at:int64 = codes.count as int64
+    if dollar { codes += '$' }                   // $`text` is $"text" (#67), a T_DSTR
+    codes += '"'
+    var k:int64 = i
+    var ends = 0                                 // 1 at its backquote, 2 at a ${
+    while k < to && ends == 0 {
+        let c:uint32 = codes[k]
+        let d:uint32 = code_at(k + 1)
+        if c == '`' {
+            ends = 1
+            k += 1
+        } else if c == '$' && d == '{' {
+            ends = 2
+            k += 2
+        } else if c == '\\' && (d == '`' || d == '$' || d == '{' || d == '}') {
+            codes += d
+            k += 2
+        } else if c == '\\' && d == '\n' {
+            k += 2
+        } else if c == '\\' && d == '\r' && code_at(k + 2) == '\n' {
+            k += 3
+        } else if c == '\\' && k + 1 < to {
+            codes += c
+            codes += d
+            k += 2
+        } else if c == '"' {
+            codes += '\\'
+            codes += '"'
+            k += 1
+        } else if c == '\n' || (c == '\r' && d == '\n') {   // a CRLF line end is a new line
+            codes += '\\'
+            codes += 'n'
+            k += c == '\r' ? 2 : 1
+        } else if c == '\r' {
+            codes += '\\'
+            codes += 'r'
+            k += 1
+        } else {
+            codes += c
+            k += 1
+        }
+    }
+    if ends == 0 {
+        lex_error(file, line, "unterminated template literal: it ends with a backquote")
+        return to
+    }
+    codes += '"'
+    var kind:tkind = ends == 1 ? (head ? T_TPL : T_TPL_TAIL) : (head ? T_TPL_HEAD : T_TPL_MID)
+    if dollar && kind == T_TPL {
+        toks.pop()                               // the $ before it
+        kind = T_DSTR
+    } else if dollar {
+        at += 1                                  // its $ is a token of its own
+    }
+    add_tok(kind, at, codes.count as int64 - at, line, file)
+    return k
+}
+
 // the tokens of codes[from..<to], the text of file; returns where an
 // #import of a Kelvin file begins its own, or -1
 let lex_range(from:int64, to:int64, file:int64) {
@@ -137,6 +208,7 @@ let lex_range(from:int64, to:int64, file:int64) {
     var line = 1
     var depth:int64 = 0              // ( and [ open
     var outer:$[int64] = $[]         // the depth each open { was written at: a body inside parentheses has its lines (#326)
+    var tpls:$[int64] = $[]          // the count of outer at each open ${ of a template (#445)
     while i < to && !failed {
         let c:uint32 = codes[i]
         if c == '\n' {
@@ -197,6 +269,27 @@ let lex_range(from:int64, to:int64, file:int64) {
                 }
             }
             add_tok(T_NUM, s, i - s, line, file)
+        } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
+            let head = c != '}'                  // a template, `a${x}b`, or the } that ends its ${...} (#445)
+            if c == '}' {
+                depth = outer.pop()
+                tpls.pop()
+            }
+            if c == '$' {
+                add_tok(T_PUNCT, i, 1, line, file)
+                i += 1
+            }
+            let s:int64 = i + 1
+            i = lex_template(s, to, file, line, head, c == '$')
+            for k in s..<i {
+                if codes[k] == '\n' { line += 1 }
+            }
+            let last:tkind = toks[toks.count as int64 - 1].kind
+            if !failed && (last == T_TPL_HEAD || last == T_TPL_MID) {   // a ${, as a ( : no new line ends a statement in it
+                tpls += outer.count as int64
+                outer += depth
+                depth = 1
+            }
         } else if c == '"' || (c == '$' && code_at(i + 1) == '"') {
             let s:int64 = i
             var kind:tkind = T_STR
@@ -248,5 +341,8 @@ let lex_range(from:int64, to:int64, file:int64) {
             add_tok(T_PUNCT, i, n, line, file)
             i += n
         }
+    }
+    if tpls.count > 0 && !failed {
+        lex_error(file, line, "unterminated ${...} in a template literal: it ends with '}'")
     }
 }

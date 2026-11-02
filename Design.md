@@ -476,6 +476,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 442 | kc reads kelvinc's `if let x = e { ... } else { ... }` (#74): an Optional's `some` or a Result's `ok`, bound to `x`, a let it still owns, of a place or of a value a call gives, and `else if let`; what is neither, and a missing `=`, are kelvinc's errors in its words | selfhost/parse.k's parse_if; selfhost/gen.k's gen_iflet | `if let h = held { ... }` of kc | 2026-11-02 |
 | 443 | examples/ follows the language as it is now: fizzbuzz.k builds a `String`, sort.k sorts a `$[T]` with `sort` and `sorted`, linkedlist.k changes its list by `var` methods, and the rest name their types `i64`, `u8`, `f64` (#151); new ones show what had none: sequences.k iterators and lazy Ranges, wordfreq.k a Dictionary, a Set and RegExp, calc.k an enum with values, `switch` and `try`, tasks.k `async` and `await` | examples/*.k; README.md's Examples | `squares.push(i * i)` of linkedlist.k | 2026-11-02 |
 | 444 | kc reads `.m(a)` in a method as `self.m(a)`, which it had read as a call of a function `m`; walks a pointer to a struct whose `next` points to its own kind as a list, `for n in head`, each node a let, next read before the body, as kelvinc's #30; and names each anonymous function by its own number, so that one inside another has a name of its own | selfhost/parse.k's parse_method_call; selfhost/gen.k's list_walked, gen_each's list, anon_serial | `.pop()` in examples/linkedlist.k | 2026-11-02 |
+| 445 | kc reads template literals, as kelvinc's #39, #44, #67, #125 and #126: `` `a${x}b` ``, a cstr made in storage that lives until the block ends, of numbers, bools, text, Strings, `uchr`, Bits, byte arrays, nested templates, and the text print shows of a struct, an enum with values, an Optional, a Result, an Array, a Dictionary, a Set and a Range, `${v.pretty}` and `${v.pretty(n)}` too; `` $`a${x}b` ``, a String; an owner a call gives held and freed; and kelvinc's errors of a template returned, kept by an outer variable, in a global or empty | selfhost/lex.k's lex_template; selfhost/parse.k's parse_template; selfhost/gen.k's gen_template, place_templates | `` println(`${i}: ${fizzbuzz(i)}`) `` in examples/fizzbuzz.k | 2026-11-02 |
 
 Notes:
 
@@ -1061,6 +1062,46 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (445) Agreed details: "go on with #445"; the user chose all the
+  forms of template literals in kc.
+  - The lexer reads `` `...` ``, as kelvinc's: a new line is `\n`,
+    `` \` `` a backquote, `\$`, `\{` and `\}` themselves, a backslash
+    before a new line joins the lines, other escapes are C's. Each part
+    becomes a token of its text as C's string literal, put after the
+    files' text; one with no `${...}` is a string, and `` $`...` `` of
+    none is `$"..."`.
+  - A `${` is read as a `(`: no new line ends a statement in it, and
+    its `}` goes on with the template's text; `{ ... }` inside it is a
+    block or a function, as anywhere.
+  - `` `a${x}b` `` is built as kelvinc builds it, KV_TEMPLATE_BUILD, a
+    part and a value at a time, then KV_TEMPLATE_TAKE into its storage.
+    kc declares the storage just before the statement that makes it,
+    where kelvinc declares it at the top of the block: either way it
+    lives until the block ends.
+  - The room is kc's count of the parts' bytes, each escape as long as
+    it is written, and each value's longest text: a number 24, a bool 5,
+    a `uchr` 4, a Bits 72, a nested template its storage, the rest
+    KV_TEMPLATE_STR. A struct's text is cut past KV_TEMPLATE_STR, where
+    kelvinc gives it the struct's own size, as is a long string literal.
+  - What print shows by a printer, a struct, an enum with values, an
+    Optional, a Result, an Array, a Dictionary, a Set or a Range, is
+    shown by it, as `${v.pretty}` and `${v.pretty(n)}` are; a bool is
+    cast, so it shows as `true`.
+  - `` $`a${x}b` `` appends each part and value to a String: a String by
+    reference, a `uchr` as its character, text as it is, a number by
+    its `.cstr`.
+  - An owner a call gives, `${fizzbuzz(i)}`, is held in the template
+    and freed once the text is made, as kelvinc holds it.
+  - Errors, in kelvinc's words: a template returned, given to a
+    variable of an outer block, in a global's initializer, `${}`,
+    unterminated, or showing a function; a Task and a fixed array of
+    numbers are kc's.
+  - tests/run/bytes_growth.k, float_text.k, range_value.k and
+    template_pretty.k, and examples/fizzbuzz.k and tasks.k, build with
+    kc now, 66 in all, each printing what kelvinc's prints.
+  - Found: kelvinc lets a template's text go to a parameter from an
+    inner block where no local was declared before it, though the
+    storage ends with that block; kc refuses it.
 - (444) Agreed details: "go on with #444"; the user chose the two kc
   bugs examples/ found in #443.
   - `.m(a)`: the primary read `.m` as self's member and the `(` after
@@ -6250,6 +6291,7 @@ says "as agreed".
 | P454 | Details of #442 | selfhost/parse.k: parse_if's short form and its error, S_IFLET's comment; selfhost/gen.k: gen_iflet's value case and its error; selfhost/sample.k: `if let h = held`, `else if let t = ...`; selfhost/README.md | — |
 | P455 | Details of #443 | examples/fizzbuzz.k, sort.k and linkedlist.k rewritten; hello.k, primes.k, strings.k, shapes.k, results.k, complex.k, bfi.k, bfc.k, ski.k and lambda.k in short type names; examples/sequences.k, wordfreq.k, calc.k and tasks.k new; README.md: the Examples table | — |
 | P456 | Details of #444 | selfhost/parse.k: parse_method_call, from the postfix loop, and parse_primary's `.m(a)`; selfhost/gen.k: list_walked and gen_each's list walk and its "not yet" of another pointer, anon_serial in anon_function_of and iter_function; selfhost/sample.k: `bump_twice`, `doubled_sum`, `link`, `triangles`; selfhost/README.md | — |
+| P457 | Details of #445 | selfhost/lex.k: T_TPL, T_TPL_HEAD, T_TPL_MID and T_TPL_TAIL, lex_template and lex_range's backquote, `` $` `` and `}` of a `${`; selfhost/parse.k: N_TPL and parse_template; selfhost/gen.k: hold_decl, tpl_pretty, tpl_room, tpl_bound, tpl_value_ok, tpl_show, gen_template, gen_text_template, gen_string_template, text_template, template_outlived, place_templates and gen_stmt's storage; selfhost/sample.k: `shown` and `phrase`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

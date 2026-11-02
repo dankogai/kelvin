@@ -43,6 +43,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     N_DESIG,    // .t = a in {...}, C's designator (#418)
     N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error, 2 of sizeof(x.type) (#421)
+    N_TPL,      // `a${x}b` (#445): b the first of its parts, N_STR, and values in turn; flag 1 of $`...`, a String
     // statements
     S_VAR,      // t:ty = a
     S_ASSIGN,   // a t b, t an assignment's operator
@@ -1674,6 +1675,36 @@ let parse_method_call(e:int64, t:int64):int64 {
     return n
 }
 
+// `a${x}b` from its head (#445), as kelvinc's parse_template: its parts,
+// each an N_STR of its text, and its values in turn; dollar of $`...`
+let parse_template(dollar:bool):int64 {
+    let n:int64 = make_node(N_TPL, pos)
+    if dollar { nodes[n].flag = 1 }
+    var last:int64 = -1
+    while !failed {
+        let k:tkind = toks[pos].kind
+        let part:int64 = make_node(N_STR, advance())
+        if last < 0 { nodes[n].b = part } else { nodes[last].next = part }
+        last = part
+        if k == T_TPL_TAIL { break }
+        if at_kind(T_TPL_MID) || at_kind(T_TPL_TAIL) {
+            parse_error("${} is empty: write an expression in it, as in ${x}")
+            break
+        }
+        let saved = name_annotation
+        name_annotation = true
+        let v:int64 = parse_expr()
+        name_annotation = saved
+        nodes[last].next = v
+        last = v
+        if !at_kind(T_TPL_MID) && !at_kind(T_TPL_TAIL) {
+            parse_error("expected '}' to end ${...} in the template literal")
+            break
+        }
+    }
+    return n
+}
+
 let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
@@ -1761,9 +1792,14 @@ let parse_primary():int64 {
         advance()
         return make_node(N_CHAR, t)
     }
-    if k == T_STR {
+    if k == T_STR || k == T_TPL {                       // `text`, a template with no ${...}, is a string (#445)
         advance()
         return make_node(N_STR, t)
+    }
+    if k == T_TPL_HEAD { return parse_template(false) }  // (#445)
+    if k == T_PUNCT && tok_is(t, "$") && toks[t + 1].kind == T_TPL_HEAD {   // $`a${x}b`, a String (#445)
+        advance()
+        return parse_template(true)
     }
     if k == T_DSTR {
         advance()

@@ -1090,6 +1090,7 @@ let type_of(n:int64):int64 {
     if k == N_NUM || k == N_CHAR { return base_type(Y_I64) }
     if k == N_STR { return base_type(Y_CSTR) }
     if k == N_DSTR { return base_type(Y_STRING) }
+    if k == N_TPL { return base_type(nodes[n].flag == 1 ? Y_STRING : Y_CSTR) }   // `a${x}b`, $`a${x}b` a String (#445)
     if k == N_BOOL { return base_type(Y_BOOL) }
     if k == N_NULL { return base_type(Y_C) }
     if k == N_SELF { return type_of_kind(Y_STRUCT, -1, nodes[current].c) }      // (#213)
@@ -1764,11 +1765,19 @@ let needs_hold(n:int64):bool {
 
 // ({ T _kv_tmpN = n; ... : n held where it is read, freed once the
 // expression is done, as kelvinc holds it; gen_expr of n names it
+let hold_decl(n:int64)    // a prototype: hold_open writes n held by it (#445)
+
 let hold_open(n:int64) {
+    put("({ ")
+    hold_decl(n)
+}
+
+// T _kv_tmpN = n; with its cleanup, which gen_expr of n names (#445)
+let hold_decl(n:int64) {
     serial += 1
     let s = serial                                   // its own: n may hold temporaries too
     let y = type_of(n)
-    put("({ __attribute__((cleanup(")
+    put("__attribute__((cleanup(")
     put_free(y)
     put("))) ")
     put_ctype(y)
@@ -2790,6 +2799,348 @@ let gen_print_args(first:int64) {
         }
         a = nodes[a].next
     }
+}
+
+// ---------- template literals (#445) ----------
+
+var tpl_decls:$[String]      // the storage of the templates the statement being written makes, declared before it
+
+// whether v, a value of a template, is v.pretty or v.pretty(n) of what
+// print shows by a _kv_show_T, as kelvinc's ${v.pretty} (#126, #127)
+let tpl_pretty(v:int64):bool {
+    let k = nodes[v].kind
+    if (k != N_FIELD && k != N_METHOD) || !tok_is(nodes[v].t, "pretty") { return false }
+    if k == N_METHOD && (nodes[v].b < 0 || nodes[nodes[v].b].next >= 0) { return false }
+    return shown_by_type(type_of(nodes[v].a))
+}
+
+// what of v a template shows: its receiver where it is v.pretty
+let tpl_shown(v:int64):int64 {
+    return tpl_pretty(v) ? nodes[v].a : v
+}
+
+// the room of a part's text, its bytes: each escape as long as it is
+// written, which is no shorter than what it gives
+let tpl_room(t:int64):int64 {
+    var r:int64 = 0
+    for i in 1..<toks[t].len - 1 {
+        let c = codes[toks[t].at + i]
+        r += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+    }
+    return r
+}
+
+// the longest text of the value v, as kelvinc's template_bound: a number
+// 24 at most, as C may promote it, a bool 5, a uchr 4, a Bits 72, a
+// nested template its storage, and KV_TEMPLATE_STR, at least 64, for the
+// rest, a string's cut at that
+let tpl_bound(v:int64):String {
+    if nodes[v].kind == N_TPL && nodes[v].flag == 0 {
+        var b = $"(sizeof _kv_template"
+        b += String(nodes[v].c)
+        b += " - 1)"
+        return b
+    }
+    if nodes[v].kind == N_NUM || nodes[v].kind == N_CHAR { return $"24" }
+    let y = type_of(v)
+    if y < 0 { return $"KV_TEMPLATE_STR" }
+    let k = types[y].kind
+    if is_number_kind(k) { return $"24" }
+    if k == Y_BOOL { return $"5" }
+    if k == Y_UCHR { return $"4" }
+    if k == Y_BITS { return $"72" }
+    return $"KV_TEMPLATE_STR"
+}
+
+// whether a template can show v, as kelvinc's parse_template: not a
+// function, a Task or a fixed array but of bytes; where it cannot, an error
+let tpl_value_ok(v:int64):bool {
+    if nodes[v].kind == N_ID && fn_named(nodes[v].t) >= 0 && local_at(nodes[v].t) < 0 {
+        gen_error(v, "a template cannot show a function: a function has no text")
+        return false
+    }
+    let w = tpl_shown(v)
+    let y = type_of(w)
+    if failed { return false }
+    if y < 0 { return true }
+    let k = types[y].kind
+    if k == Y_FN {
+        gen_error(v, "a template cannot show a function: a function has no text")
+        return false
+    }
+    if k == Y_TASK {
+        gen_error(v, "a Task has no text: show its value, as in ${await t}")
+        return false
+    }
+    if k == Y_FIXED && types[types[y].elem].kind != Y_U8 {
+        gen_error(v, "a fixed array is shown by its elements, a[i]: kc does not show the array, whose address kelvinc shows")
+        return false
+    }
+    if shown_by_type(y) && !need_show(y, v) { return false }
+    return true
+}
+
+// _kv_show_T(&(kv_out){.s = &s, .width = w}, &_kv_sv, level) of the
+// value v, which print shows by its printer, into the String named s
+let tpl_show(v:int64, s:cstr) {
+    let w = tpl_shown(v)
+    let y = type_of(w)
+    put("{ __auto_type _kv_sv = (")
+    gen_expr(w)
+    put("); ")
+    put_show_name(y)
+    put("(&(kv_out){.s = &")
+    put(s)
+    put(", .width = ")
+    if tpl_pretty(v) && nodes[v].kind == N_METHOD {      // v.pretty(n): n spaces a level (#127)
+        let n:int64 = nodes[v].b
+        if nodes[n].kind == N_NUM {
+            gen_expr(n)
+        } else {
+            put("kv_out_width(")
+            gen_expr(n)
+            put(")")
+        }
+    } else {
+        put("2")
+    }
+    put("}, &_kv_sv, ")
+    put(tpl_pretty(v) ? "0" : "-1")
+    put("); } ")
+}
+
+let gen_text_template(n:int64)    // prototypes: gen_template writes the two by them
+let gen_string_template(n:int64)
+
+// `a${x}b`, as kelvinc writes it (#39, #44): built in a buffer of a
+// statement expression from the parts and each value in turn, then
+// copied into its storage, `char _kv_templateN[...]`, which the statement
+// declares before it, so the text lives until the block ends; an owner
+// an expression gives held in it, freed once the text is made; $`a${x}b`
+// (#67) appended to a String
+let gen_template(n:int64) {
+    if current >= 0 && nodes[current].kind == D_GLOBAL {
+        gen_error(n, "a template literal with ${...} is made at run time, and a global's initializer must be constant: make it in a function")
+        return
+    }
+    var x:int64 = nodes[n].b
+    var value = false
+    var holds:$[int64] = $[]
+    while x >= 0 {                                       // each value, checked, and held where it gives an owner
+        if value {
+            if !tpl_value_ok(x) { return }
+            if needs_hold(tpl_shown(x)) { holds += tpl_shown(x) }
+        }
+        value = !value
+        x = nodes[x].next
+    }
+    put("({ ")
+    for i in 0..<holds.count as int64 { hold_decl(holds[i]) }
+    if nodes[n].flag == 1 {
+        gen_string_template(n)
+    } else {
+        gen_text_template(n)
+    }
+    for i in 0..<holds.count as int64 { held[holds[i]] = 0 - 1 }
+    put(" })")
+}
+
+let gen_text_template(n:int64) {
+    serial += 1
+    let s = serial
+    nodes[n].c = s
+    var b = $"_kv_build"
+    b += String(s)
+    var room:int64 = 1                                   // its NUL
+    var bounds = $""
+    put("KV_TEMPLATE_BUILD(")
+    put(b.cstr)
+    put(", _kv_template")
+    put_int(s)
+    put("); ")
+    var x:int64 = nodes[n].b
+    var value = false
+    while x >= 0 && !failed {
+        if !value {
+            if toks[nodes[x].t].len > 2 {
+                put("KV_TEMPLATE_PART(")
+                put(b.cstr)
+                put(", ")
+                put_text(nodes[x].t, 0)
+                put("); ")
+                room += tpl_room(nodes[x].t)
+            }
+        } else {
+            let y = type_of(tpl_shown(x))
+            if y >= 0 && (tpl_pretty(x) || shown_by_type(y)) {   // ${xs} (#125): by its printer, cut as a string is
+                serial += 1
+                var v = $"_kv_value"
+                v += String(serial)
+                put("kv_string ")
+                put(v.cstr)
+                put(" = kv_string_new(); ")
+                tpl_show(x, v.cstr)
+                put("KV_TEMPLATE_VALUE(")
+                put(b.cstr)
+                put(", KV_TEMPLATE_STR, ")
+                put(v.cstr)
+                put("); kv_string_free(&")
+                put(v.cstr)
+                put("); ")
+                bounds += " + KV_TEMPLATE_STR"
+            } else if y >= 0 && types[y].kind == Y_FIXED {   // a byte array, up to a NUL or its end
+                put("KV_TEMPLATE_BYTES(")
+                put(b.cstr)
+                put(", KV_TEMPLATE_STR, sizeof (")
+                gen_expr(x)
+                put("), (")
+                gen_expr(x)
+                put(")); ")
+                bounds += " + KV_TEMPLATE_STR"
+            } else {
+                serial += 1
+                let v = serial
+                put("__auto_type _kv_value")
+                put_int(v)
+                put(" = ((void)0, (")
+                if y >= 0 && types[y].kind == Y_BOOL { put("(bool)") }   // true, not 1, as kelvinc casts it
+                gen_expr(x)
+                let bound:String = tpl_bound(x)          // a nested template's storage, named once it is written
+                put(")); KV_TEMPLATE_VALUE(")
+                put(b.cstr)
+                put(", ")
+                put(bound.cstr)
+                put(", _kv_value")
+                put_int(v)
+                put("); ")
+                bounds += " + "
+                bounds += &bound
+            }
+        }
+        value = !value
+        x = nodes[x].next
+    }
+    put("KV_TEMPLATE_TAKE(_kv_template")
+    put_int(s)
+    put(", ")
+    put(b.cstr)
+    put(");")
+    var d = $"_kv_template"
+    d += String(s)
+    d += "["
+    d += String(room)
+    d += &bounds
+    d += "]"
+    tpl_decls += &d
+}
+
+let gen_string_template(n:int64) {
+    put("kv_string _kv_s = kv_string_new(); ")
+    var x:int64 = nodes[n].b
+    var value = false
+    while x >= 0 && !failed {
+        if !value {
+            if toks[nodes[x].t].len > 2 {
+                put("kv_string_append_text(&_kv_s, ")
+                put_text(nodes[x].t, 0)
+                put("); ")
+            }
+        } else {
+            let y = type_of(tpl_shown(x))
+            let k:ykind = y >= 0 ? types[y].kind : Y_C
+            if y >= 0 && (tpl_pretty(x) || shown_by_type(y)) {   // ${xs} (#125): its text, whole
+                tpl_show(x, "_kv_s")
+            } else if k == Y_STRING {                    // a String's by reference
+                put("kv_string_append_ref(&_kv_s, &(")
+                gen_expr(x)
+                put(")); ")
+            } else if k == Y_BYTES {
+                put("kv_string_append_text(&_kv_s, kv_bytes_cstr(&(")
+                gen_expr(x)
+                put("))); ")
+            } else if k == Y_UCHR {                      // a uchr as its character
+                put("kv_string_append_uchr(&_kv_s, ")
+                gen_expr(x)
+                put("); ")
+            } else if nodes[x].kind == N_STR || nodes[x].kind == N_TPL || k == Y_CSTR {
+                put("kv_string_append_text(&_kv_s, ")
+                gen_expr(x)
+                put("); ")
+            } else if k == Y_FIXED {                     // a byte array, up to a NUL or its end
+                put("{ uint8_t _kv_t[sizeof (")
+                gen_expr(x)
+                put(") + 1] = {0}; memcpy(_kv_t, ")
+                gen_expr(x)
+                put(", sizeof (")
+                gen_expr(x)
+                put(")); kv_string_append_text(&_kv_s, _kv_t); } ")
+            } else {                                     // a number's text, as .cstr writes it
+                put("{ uint8_t _kv_t[256]; __auto_type _kv_v = ((void)0, (")
+                if k == Y_BOOL { put("(bool)") }
+                gen_expr(x)
+                put(")); kv_string_append_text(&_kv_s, _Generic((_kv_v), KV_PROPERTY_cstr default: kv_cstr_ptr)(_kv_v, _kv_t)); } ")
+            }
+        }
+        value = !value
+        x = nodes[x].next
+    }
+    put("_kv_s;")
+}
+
+// the template whose text, in its block's storage, e is, through ?: and
+// a cast, as kelvinc's text_in_buffer: `a${x}b`, not $`...`; or -1
+let text_template(e:int64):int64 {
+    let k = nodes[e].kind
+    if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
+    if k == N_CAST { return text_template(nodes[e].a) }
+    if k == N_COND {
+        let b = text_template(nodes[e].b)
+        return b >= 0 ? b : text_template(nodes[e].c)
+    }
+    return 0 - 1
+}
+
+// whether the assignment n gives a template's text to a variable of an
+// outer block, or a global, which would keep it after its block ends, as
+// kelvinc's reject_template_escape; the function's own parameters end
+// with its body. Where it does, the error (#445)
+let template_outlived(n:int64):bool {
+    let lhs:int64 = nodes[n].a
+    if nodes[lhs].kind != N_ID || text_template(nodes[n].b) < 0 { return false }
+    let i = local_at(nodes[lhs].t)
+    let here:int64 = marks.count > 0 ? marks[marks.count - 1] : 0
+    if i >= here || (i >= 0 && marks.count == 2 && i >= marks[0]) { return false }
+    var m = $"a template's text lives until this block ends, and '"
+    let name:String = tok_text(nodes[lhs].t)
+    m += &name
+    m += "' outlives it: make the text in the block of '"
+    m += &name
+    m += "', or copy it, as in '"
+    m += &name
+    m += " := strdup(...)'"
+    gen_error(n, m.cstr)
+    return true
+}
+
+// the storage of the templates the statement at `at` made, declared just
+// before it, in its block, where kelvinc declares it at the top of the
+// block: the text lives until the block ends (#445)
+let place_templates(at:int64, made:int64, depth:int64) {
+    var line = $""
+    for _ in 0..<depth { line += "    " }
+    line += "char "
+    for i in made..<tpl_decls.count as int64 {
+        if i > made { line += ", " }
+        let d:String = tpl_decls[i].copy()
+        line += &d
+    }
+    line += ";\n"
+    while tpl_decls.count as int64 > made { tpl_decls.pop() }
+    var placed:String = out[0..<at]
+    placed += &line
+    let rest:String = out[at..<out.count as int64]
+    placed += &rest
+    out = placed.copy()
 }
 
 let refuse_valueless_args(n:int64):bool    // a prototype: each call asks it (#317)
@@ -6228,6 +6579,8 @@ let gen_expr_of(n:int64) {
         put("KV_STRING_LIT(")                            // $"...", its every byte, a NUL too (#299)
         put_text(t, 1)
         put(")")
+    } else if k == N_TPL {
+        gen_template(n)                                  // (#445)
     } else if k == N_BOOL {
         put("((bool)")                           // C's true is an int, which String(...) would write as 1 (#212)
         put_tok(t)
@@ -6356,6 +6709,10 @@ let inferred(n:int64):int64 {
     }
     let k:nkind = nodes[v].kind
     if k == N_STR {
+        if nodes[n].c != 1 { gen_error(n, "text is a reference, a cstr: assign it with :=, not =") }
+        return base_type(Y_CSTR)
+    }
+    if k == N_TPL && nodes[v].flag == 0 {               // `a${x}b`, a cstr too (#445)
         if nodes[n].c != 1 { gen_error(n, "text is a reference, a cstr: assign it with :=, not =") }
         return base_type(Y_CSTR)
     }
@@ -7356,6 +7713,7 @@ let gen_assign(n:int64) {
         return
     }
     if !may_change(lhs) { return }                      // (#271)
+    if template_outlived(n) { return }                  // (#445)
     if gen_bits_assign(n) { return }                    // a bit, '.value' or a whole Bits (#387)
     let y:int64 = type_of(lhs)
     if y < 0 { return }
@@ -7607,6 +7965,11 @@ let gen_return(n:int64) {
         return
     }
     if void_return(a) { return }
+    let text:int64 = text_template(a)
+    if text >= 0 {                                       // as kelvinc's reject_returned_text (#445)
+        gen_error(text, "a template's text lives in this function's block, which is gone once it returns: the caller makes the text itself, as in 'println(`...`)'")
+        return
+    }
     if nodes[a].kind == N_COND && is_owner(type_of(a)) {     // return c ? a : b moves either out (#232)
         put("return ")
         gen_moved(a, nodes[current].ty)
@@ -11561,8 +11924,11 @@ let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
 
 // the statement n, and the owners it moved out dead after it (#441)
 let gen_stmt(n:int64, depth:int64) {
+    let at:int64 = out.count as int64
+    let made:int64 = tpl_decls.count as int64
     gen_stmt_of(n, depth)
     moves_done()
+    if tpl_decls.count as int64 > made && !failed { place_templates(at, made, depth) }   // (#445)
 }
 
 let gen_stmt_of(n:int64, depth:int64) {

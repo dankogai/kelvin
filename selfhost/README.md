@@ -598,6 +598,19 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Template literals** (#445), as kelvinc's #39, #44 and #67:
+  `` `a${x}b` ``, a cstr in storage that lives until the block ends, and
+  `` $`a${x}b` ``, a String; a value shows as print shows it, `${xs}` and
+  `${v.pretty}` too, and a String a call gives is held and freed.
+  - kc declares the storage just before the statement that makes it,
+    kelvinc at the top of the block.
+  - A struct's text, and a long string literal, are cut past
+    KV_TEMPLATE_STR, as a string value is; kelvinc gives them their own
+    size.
+  - A template returned, kept by an outer variable, in a global, or
+    empty is kelvinc's error, in its words.
+  - examples/fizzbuzz.k and tasks.k, and four more tests, build with kc
+    and print what kelvinc's builds print.
 - **`.m(a)`, lists and nested functions** (#444), as kelvinc's: `.m(a)`
   in a method is `self.m(a)`, a let's or a var's; `for n in head` walks
   a struct's list along `next`, each node a let, `next` read first; an
@@ -1165,7 +1178,7 @@ steps can take them on one at a time.
   - attributes, subscripts and operators of `extend`;
   - nested functions, and of function types (#428) arrays and
     collections of them, `((T):R)^` and `typealias`;
-  - templates, `"""` and `$/.../` with its check;
+  - `"""` and `$/.../` with its check;
   - `union` and `typealias`;
   - integers but `int64`, `int32`, `uint8` and `uint32`, and their short
     names (#430);

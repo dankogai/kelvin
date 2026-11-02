@@ -8657,3 +8657,22 @@ sequences.k and tests/run/var_method.k build with kc now, and print what
 kelvinc's builds print. Details are provisional P456.
 
 There are 1174 tests, and all pass with clang and with gcc 15.
+
+### 492. Templates in kc
+
+> push. then go on with #445
+
+**Claude** asked how much to take; the user chose all the forms of
+template literals. kc now reads `` `a${x}b` ``, built as kelvinc builds
+it in storage that lives until the block ends, `` $`a${x}b` ``, a String,
+and `${xs}` and `${v.pretty}`, shown by print's printers. kc declares
+the storage just before the statement that makes it, where kelvinc
+declares it at the top of the block. A String a call gives is held and
+freed, and kelvinc's errors of a template's text that would outlive its
+block are kc's too. Four more tests and examples/fizzbuzz.k and
+tasks.k build with kc, 66 in all, and print what kelvinc's builds
+print. On the way, kelvinc was found to let a template's text go to a
+parameter from an inner block, a separate fix. Details are provisional
+P457.
+
+There are 1174 tests, and all pass with clang and with gcc 15.
