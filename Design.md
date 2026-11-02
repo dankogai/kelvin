@@ -480,6 +480,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 446 | `nullptr` is renamed `nowhere`: a pointer points nowhere as an Optional holds `none`; print, `.cstr` and templates show a null pointer as `nowhere`; `nullptr` stays reserved, refused with a hint, by kelvinc and kc | `p == NULL` | `while p != nowhere { ... }` | 2026-11-02 |
 | 447 | kc reads a cstr's `.count`, its `strlen`, an `i64` as kc's counts are, and a number's `.dec`, `.hex`, `.oct` and `.bin`, f32 and f64 `.dec` and `.hex` alone, and a pointer's `.hex`, as kelvinc's #21 and #52: text in a buffer that lives until the block ends; kelvinc's errors of another type and of the text returned, and kc's of the text kept by an outer variable | selfhost/gen.k's number_text, gen_number_text, block_store, text_in_buffer | `${n.hex}`, `s.count` | 2026-11-02 |
 | 448 | kelvinc refuses a template's text assigned to a function's parameter in a block inside the body, `if c { t := `${n}` }`, as it refuses one of an outer block: its text, in that inner block, would be gone after it, and t would dangle; only the body's own top block may give a parameter such a text, as kc's template_outlived (#445) does | src/parser.c's body_scopes, set by parse_fn_body; reject_template_escape | tests/error/template_param_inner.k | 2026-11-02 |
+| 449 | kc reads `try r`, as kelvinc's #76: r's `ok` (`some`) value, or a return of its `err` (`none`) passed up as it is, of a call or of a place, alone as a statement too; `Result<T, E>.ok(v)`, `.err(e)`, `Optional<T>.some(v)` and `.none`, as kelvinc's #75, each of its own type; kelvinc's errors of each, in its words; and `IO(path)` opens to read, where kc had crashed | selfhost/parse.k's N_TRY and the typed case; selfhost/gen.k's gen_try, try_refused, try_place | `let ts = try tokens(s)` in examples/calc.k | 2026-11-02 |
 
 Notes:
 
@@ -1065,6 +1066,31 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (449) Agreed details: "go on with #448", numbered #449, as #448 went
+  to kelvinc's fix of a template's text in a parameter; the user chose
+  `try` and the Result forms. `Array<T>()` turned out to build in kc already.
+  - `try r` is a prefix, as `-x` is, read where `await` is. It is
+    written as kelvinc's try_code: a value of a call held in a
+    temporary with its cleanup, a place by its address; where the case
+    is not `ok` (`some`), the function returns its `err` (`none`),
+    taken out, so the cleanup or the place frees nothing of it; the
+    value, an owner too, is taken out of a temporary.
+  - `try f()` alone is a statement whose value is dropped, freed by the
+    temporary's cleanup.
+  - A member of a built-in type, `f^.string` of an IO, is no place for
+    `try`: it is made when it is read, as kelvinc's c_lvalue has it.
+  - Errors in kelvinc's words: what is no Result or Optional, a
+    function of no result, of the other kind, of another err's type,
+    and an owner value of a place, which `try` would move out.
+  - `Result<T, E>.err(e)` and the rest are the case word with the
+    type written: its value, inferred by `let`, `some(v)` of it allowed;
+    a case the type lacks is kelvinc's error, in its words.
+  - Found on the way: `IO(path)` with no mode crashed kc, which read a
+    second argument that was not there; it opens to read, as kelvinc's.
+    tests/run/io_lines_result.k then stops on `for r in f.lines`, which
+    crashes kc too, and bytes_string_result.k on `Bytes(&$"...")`.
+  - tests/run/try_basics.k and examples/calc.k build with kc now, 72 in
+    all, each printing what kelvinc's prints.
 - (448) Agreed details: the user found kelvinc's gap and asked for
   the fix, with kc's template_outlived (#445) already refusing it.
   - reject_template_escape let a parameter take a template's text
@@ -6346,6 +6372,7 @@ says "as agreed".
 | P458 | Details of #446 | src/lexer.c: `nowhere` and `nullptr` reserved; src/parser.c: the hint; selfhost/parse.k: the hint; `nullptr` to `nowhere` in src, runtime, modules, selfhost, tests, documents, examples, editors, README.md and Style.md; tests/run/nowhere.k, tests/error/nowhere_value.k and nowhere_with_eq.k renamed, tests/error/nullptr_renamed.k new; documents/pointers.md | — |
 | P459 | Details of #447 | selfhost/gen.k: number_text_size, number_text, number_text_refused, gen_number_text, block_store (tpl_decls of #445) and place_storage, text_in_buffer, buffer_text_words and text_outlived, gen_return's words of a number's text, type_of's and gen_field's `.count` of a cstr; selfhost/sample.k: `numeral` and its line; selfhost/README.md | — |
 | P460 | Details of #448 | src/parser.c: body_scopes, set and restored by parse_fn_body, and reject_template_escape's test of a parameter; tests/error/template_param_inner.k | — |
+| P461 | Details of #449 | selfhost/parse.k: N_TRY, parse_unary's `try`, parse_primary's `Result<T, E>.c(...)` and `Optional<T>.c`; selfhost/gen.k: other_case, try_place, try_refused, gen_try, type_of's and gen_expr_of's N_TRY and typed case words, the S_EXPR of `try`, inferred's and some(v)'s typed case, gen_call's `IO(path)`; selfhost/sample.k: `digit_of`, `digits_sum`, `label_of`, `labelled`, `halved`, `quartered`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

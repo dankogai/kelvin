@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`try`** (#449), as kelvinc's #76: `try r` is r's `ok` (`some`), or
+  a return of its `err` (`none`), passed up as it is; `Result<T,
+  E>.err(e)`, `Optional<T>.some(v)` and the rest are of the type written.
+  - kelvinc's errors of `try`, in its words.
+  - `IO(path)` opens to read; it had crashed kc.
+  - Found: `for r in f.lines` crashes kc.
 - **A cstr's `.count` and a number's text** (#447), as kelvinc's #21
   and #52: `s.count` is `strlen`; `x.dec`, `x.hex`, `x.oct`, `x.bin`,
   and a pointer's `p.hex`, are text in a buffer that lives until the
@@ -1184,7 +1190,7 @@ steps can take them on one at a time.
     an imported Kelvin file, `f__i64` overloaded or not, so kc cannot
     link a module kelvinc builds of Kelvin;
   - comparing an Optional, `x == none` or `x == 3` (#79);
-  - `try`, `Optional`'s `map` and the rest of its methods;
+  - `Optional`'s `map` and the rest of its methods;
   - attributes, subscripts and operators of `extend`;
   - nested functions, and of function types (#428) arrays and
     collections of them, `((T):R)^` and `typealias`;

@@ -43,6 +43,7 @@ enum nkind {                    // the kinds of nodes (#210)
     N_ALIGN,    // alignof(ty) (#395), C's _Alignof
     N_DESIG,    // .t = a in {...}, C's designator (#418)
     N_SIZEOF,   // sizeof(ty), or sizeof a of a value (#420), C's sizeof; flag 1 of sizeof ty, an error, 2 of sizeof(x.type) (#421)
+    N_TRY,      // try a (#449): a's ok (some), or a return of its err (none)
     N_TPL,      // `a${x}b` (#445): b the first of its parts, N_STR, and values in turn; flag 1 of $`...`, a String
     // statements
     S_VAR,      // t:ty = a
@@ -1711,6 +1712,20 @@ let parse_primary():int64 {
     let braced = literal_brace
     literal_brace = false
     if k == T_ID && tok_is(t, "Iterator") && (tok_is(t + 1, "(") || tok_is(t + 1, "<")) { return parse_iterator() }   // (#326)
+    if k == T_ID && (tok_is(t, "Result") || tok_is(t, "Optional")) && tok_is(t + 1, "<") {   // Result<T, E>.err(e), Optional<T>.none, as kelvinc's #75 (#449)
+        let y:int64 = parse_type()
+        expect(".")
+        let w:int64 = advance()
+        var n:int64 = make_node(N_ID, w)                 // the case's word, of its own type
+        if at_word("(") {
+            let c:int64 = make_node(N_CALL, advance())
+            nodes[c].a = n
+            set_b(c, parse_args())
+            n = c
+        }
+        set_ty(n, y)
+        return n
+    }
     if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
     if k == T_ID && (tok_is(t, "__asm__") || tok_is(t, "__asm")) {   // assembly, left out on purpose (#399), as kelvinc says it
         var m = $"'"
@@ -2044,6 +2059,12 @@ let parse_unary():int64 {
         }
         let n:int64 = make_node(N_ASYNC, t)
         set_a(n, parse_postfix())
+        return n
+    }
+    if at_word("try") {                          // try r, a prefix as -x is (#449), as kelvinc's #76
+        let t:int64 = advance()
+        let n:int64 = make_node(N_TRY, t)
+        set_a(n, parse_unary())
         return n
     }
     if at_word("await") {                        // await t, its value (#313)

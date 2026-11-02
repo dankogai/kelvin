@@ -310,6 +310,30 @@ extend numbered {
 }
 
 let handed_back(s:String):String { return s }           // s moves in and out again (#441)
+let digit_of(c:uint8):Result<int64, String> {         // try passes the err up (#449)
+    if c < '0' || c > '9' { return Result<int64, String>.err($`not a digit: ${c}`) }
+    return (c - '0') as int64
+}
+let digits_sum(s:cstr):Result<int64, String> {
+    var sum:int64 = 0
+    for c in s { sum += try digit_of(c) }
+    return sum
+}
+let label_of(n:int64):Result<String, int64> {
+    if n < 0 { return err(n) }
+    return $`#${n}`
+}
+let labelled(n:int64):Result<String, int64> {
+    var s = try label_of(n)
+    s += "!"
+    try label_of(n + 1)
+    return s
+}
+let halved(n:int64):int64? {
+    if n % 2 != 0 { return Optional<int64>.none }
+    return Optional<int64>.some(n / 2)
+}
+let quartered(n:int64):int64? { return try halved(try halved(n)) }
 
 let framed(b:const Bytes^):Bytes {                    // a Bytes (#439): a borrow in, a new one out
     var r = Bytes("[")
@@ -905,5 +929,6 @@ on a new line`
     println(shown, " ", phrase, " ", `plain`, " ", $`plain`)
     let numeral:cstr := "digits"                        // a cstr's count, a number's text (#447)
     println(numeral.count, " ", linked.dec, " ", linked.hex, " ", linked.oct, " ", linked.bin, " ", 2.5.hex, " ", `${linked.hex}`.count, " ", $`${(0 - 7).dec}`)
+    println(digits_sum("123"), " ", digits_sum("1x3"), " ", labelled(4), " ", labelled(-1), " ", quartered(12), " ", quartered(6))
     return 0
 }

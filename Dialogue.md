@@ -8724,3 +8724,18 @@ template_outlived (#445) does; tests/error/template_param_inner.k is the
 user's case. Details are provisional P460.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 496. `try` in kc
+
+> push. then go on with #448
+
+**Claude** asked which to take; the user chose `try` and the Result
+forms. kc now reads `try r`, the value or the err passed up, written as
+kelvinc writes it, and `Result<T, E>.err(e)` and the rest, of the type
+written; its errors are kelvinc's, in its words. `Array<T>()` already
+built in kc. On the way, `IO(path)` with no mode was found to crash kc;
+it now opens to read. tests/run/try_basics.k and examples/calc.k build
+with kc, 72 in all, and print what kelvinc's builds print. Details are
+provisional P461.
+
+There are 1176 tests, and all pass with clang and with gcc 15.

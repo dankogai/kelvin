@@ -1061,6 +1061,11 @@ let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
+    if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) { return nodes[n].ty }   // Result<T, E>.err(e) (#449)
+    if k == N_TRY {                                      // try r, r's ok, some's (#449)
+        let ry:int64 = type_of(nodes[n].a)
+        return ry >= 0 ? wrap_type(ry) : 0 - 1
+    }
     if k == N_COND {                                  // c ? a : b: a's type, or b's where a is a word, as none (#232)
         if is_case_word(nodes[n].b) { return type_of(nodes[n].c) }
         return type_of(nodes[n].b)
@@ -2808,6 +2813,167 @@ let gen_print_args(first:int64) {
     }
 }
 
+// ---------- try (#449) ----------
+
+// the case of the variant d that is not m: an Optional's none, a
+// Result's err
+let other_case(d:int64, m:int64):int64 {
+    let first:int64 = nodes[d].a
+    return m == first ? nodes[first].next : first
+}
+
+// whether try takes a, a variable or a member of one, by its address,
+// as kelvinc's c_lvalue: not what a built-in type's member gives, as an
+// IO's f^.string, which is made when it is read
+let try_place(a:int64):bool {
+    if !is_place(a) { return false }
+    if nodes[a].kind != N_FIELD { return true }
+    let ry:int64 = type_of(nodes[a].a)
+    return ry >= 0 && struct_of(ry) >= 0 && try_place(nodes[a].a)
+}
+
+// whether try n is kelvinc's error, as its #76 says them: of what is no
+// Result or Optional, in a function of no result, of another kind, or of
+// another err's type; of a place whose value owns, which it would move
+// out. Where it is, the error
+let try_refused(n:int64):bool {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    if failed { return true }
+    let m:int64 = y >= 0 ? value_case(y) : 0 - 1
+    if m < 0 {
+        var e = $"'try' takes a Result or an Optional, and this is "
+        if y >= 0 {
+            let w:String = kelvin_type_text(y)
+            e += &w
+        } else {
+            e += "not one"
+        }
+        gen_error(a, e.cstr)
+        return true
+    }
+    let o:int64 = other_case(tagged_of(y), m)
+    let fy:int64 = nodes[current].ty
+    if fy < 0 || types[fy].kind == Y_VOID {
+        var e = $"'try' passes the '"
+        e += tok_text(nodes[o].t)
+        e += "' up, and this function has no result: give it "
+        let w:String = kelvin_type_text(y)
+        e += &w
+        gen_error(n, e.cstr)
+        return true
+    }
+    let fm:int64 = value_case(fy)
+    let fo:int64 = fm >= 0 ? other_case(tagged_of(fy), fm) : 0 - 1
+    if fo < 0 || !same_text(nodes[fo].t, nodes[o].t) {
+        var e = $"'try' passes the '"
+        e += tok_text(nodes[o].t)
+        e += "' up, and this function returns "
+        let w:String = kelvin_type_text(fy)
+        e += &w
+        e += tok_is(nodes[o].t, "err") ? ", not a Result" : ", not an Optional"
+        e += ": switch on it, or 'if let'"
+        gen_error(n, e.cstr)
+        return true
+    }
+    if nodes[o].ty >= 0 && nodes[o].ty != nodes[fo].ty {
+        var e = $"'try' passes the 'err' up as it is, and it is "
+        let w:String = kelvin_type_text(nodes[o].ty)
+        e += &w
+        e += " where this function's is "
+        let fw:String = kelvin_type_text(nodes[fo].ty)
+        e += &fw
+        gen_error(n, e.cstr)
+        return true
+    }
+    if is_owner(nodes[m].ty) && try_place(a) {
+        let name:String = nodes[a].kind == N_ID ? tok_text(nodes[a].t) : $""
+        var e = $"'try' would move the "
+        let w:String = kelvin_type_text(nodes[m].ty)
+        e += &w
+        e += " out of "
+        if nodes[a].kind == N_ID {
+            e += "'"
+            e += &name
+            e += "'"
+        } else {
+            e += "it"
+        }
+        e += ", which keeps it: try the call itself, 'try "
+        if nodes[a].kind == N_ID { e += &name } else { e += "..." }
+        e += ".copy()', or 'if let'"
+        gen_error(a, e.cstr)
+        return true
+    }
+    return false
+}
+
+// try r, as kelvinc's try_code (#76): r's value where its case is ok
+// (some), else a return of its err (none) from the function, passed up
+// as it is. The err moves out, so that the place, or the temporary's
+// cleanup, frees nothing of it; so does an owner value, when it is
+// wanted, and where it is not the cleanup frees it
+let gen_try(n:int64, value:bool) {
+    if try_refused(n) { return }
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let d:int64 = tagged_of(y)
+    let m:int64 = value_case(y)
+    let o:int64 = other_case(d, m)
+    let fy:int64 = nodes[current].ty
+    let fd:int64 = tagged_of(fy)
+    let fo:int64 = other_case(fd, value_case(fy))
+    let place = try_place(a)
+    let owns = is_owner(y)
+    put("({ ")
+    if place {
+        put_ctype(y)
+        put(" *_kv_p = ")
+        gen_place(a)
+        put("; if (_kv_p->tag != ")
+    } else {
+        if owns {
+            put("__attribute__((cleanup(")
+            put_free(y)
+            put("))) ")
+        }
+        put_ctype(y)
+        put(" _kv_t = ")
+        gen_expr(a)
+        put("; if (_kv_t.tag != ")
+    }
+    put_int(case_tag(d, m))
+    put(") return _kv_")
+    put_tok(nodes[fd].t)
+    put("_make_")
+    put_tok(nodes[fo].t)
+    put("(")
+    if nodes[fo].ty >= 0 {                               // the err, taken
+        if owns {
+            put_owner_prefix(y)
+            put(place ? "_take(_kv_p).u." : "_take(&_kv_t).u.")
+        } else {
+            put(place ? "_kv_p->u." : "_kv_t.u.")
+        }
+        put_tok(nodes[o].t)
+    }
+    put(");")
+    if value {
+        if place {
+            put(" _kv_p->u.")
+        } else if owns {
+            put(" ")
+            put_owner_prefix(y)
+            put("_take(&_kv_t).u.")
+        } else {
+            put(" _kv_t.u.")
+        }
+        put_tok(nodes[m].t)
+        put(";")
+    }
+    put(" })")
+}
+
 // ---------- a number's text (#447) ----------
 
 var block_store:$[String]   // the storage the statement being written makes, a template's or a number's text, declared before it (#445, #447)
@@ -3455,7 +3621,11 @@ let gen_call(n:int64) {
             put("kv_io_open(")
             gen_expr(args)
             put(", ")
-            gen_expr(nodes[args].next)
+            if nodes[args].next >= 0 {
+                gen_expr(nodes[args].next)
+            } else {
+                put("\"r\"")                         // IO(path), to read, as kelvinc's (#449)
+            }
             put(")")
         } else if tok_is(nodes[f].t, "Bytes") {
             gen_bytes_make(n)                      // (#439)
@@ -5231,7 +5401,7 @@ let gen_value_of(n:int64, y:int64) {
         return
     }
     var m = case_word_of(n, d)
-    if m >= 0 && nodes[d].c == 1 && nodes[n].kind == N_CALL {
+    if m >= 0 && nodes[d].c == 1 && nodes[n].kind == N_CALL && nodes[n].ty < 0 {   // Optional<T>.some(v) makes one (#449)
         gen_error(n, "some(v) makes no Optional: give v where the T? is expected")
         return
     }
@@ -6494,6 +6664,25 @@ let gen_expr_of(n:int64) {
     if gen_sizeof(n) { return }                          // (#420)
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
+    if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) {   // Result<T, E>.err(e), Optional<T>.none (#449)
+        let d:int64 = tagged_of(nodes[n].ty)
+        let w:int64 = k == N_CALL ? nodes[nodes[n].a].t : t
+        if d < 0 || case_named(d, w) == none {           // as kelvinc says it
+            var m = kelvin_type_text(nodes[n].ty)
+            m += " has no case '"
+            m += tok_text(w)
+            m += "': the cases are "
+            if d >= 0 {
+                m += tok_text(nodes[nodes[d].a].t)
+                m += ", "
+                m += tok_text(nodes[nodes[nodes[d].a].next].t)
+            }
+            gen_error(n, m.cstr)
+            return
+        }
+        gen_value(n, nodes[n].ty)
+        return
+    }
     if k == N_ANON {                                     // a value (#428), of its own written type
         let y:int64 = anon_type(n)
         if y >= 0 { gen_fn_value(n, y) }
@@ -6690,6 +6879,8 @@ let gen_expr_of(n:int64) {
         put(")")
     } else if k == N_TPL {
         gen_template(n)                                  // (#445)
+    } else if k == N_TRY {
+        gen_try(n, true)                                 // (#449)
     } else if k == N_BOOL {
         put("((bool)")                           // C's true is an int, which String(...) would write as 1 (#212)
         put_tok(t)
@@ -6843,7 +7034,7 @@ let inferred(n:int64):int64 {
         return -1
     }
     let w:int64 = k == N_ID ? nodes[v].t : k == N_CALL && nodes[nodes[v].a].kind == N_ID ? nodes[nodes[v].a].t : 0 - 1
-    let word = w >= 0 && is_case_word(v) && (tok_is(w, "none") || tok_is(w, "ok") || tok_is(w, "err") || tok_is(w, "some"))   // none, ok(v), err(e) (#341)
+    let word = w >= 0 && is_case_word(v) && nodes[v].ty < 0 && (tok_is(w, "none") || tok_is(w, "ok") || tok_is(w, "err") || tok_is(w, "some"))   // none, ok(v), err(e) (#341)
     if k == N_EMPTY {                                    // as kelvinc says it (#348)
         empty_error(v)
         return -1
@@ -12081,7 +12272,10 @@ let gen_stmt_of(n:int64, depth:int64) {
             gen_error(v, "a Task dropped here would be awaited at once: bind it, 'let t = async f(x)', and await it when its value is wanted")
             return
         }
-        if needs_hold(v) {                            // an owner no one takes, freed (#227)
+        if nodes[v].kind == N_TRY {                   // try f() alone: its value dropped, the err passed up (#449)
+            gen_try(v, false)
+            put(";\n")
+        } else if needs_hold(v) {                     // an owner no one takes, freed (#227)
             let y = type_of(v)
             put("{ __attribute__((cleanup(")
             put_free(y)
