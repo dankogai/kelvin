@@ -1051,6 +1051,7 @@ let callee_type(f:int64):int64    // and the function type a call calls through 
 let named_fn_type(n:int64):int64    // and a function's name, a value of its type
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
+let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
 let number_text_refused(n:int64, k:ykind):bool
 let fn_named(t:int64):int64    // and the function a name names
 let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
@@ -1212,6 +1213,11 @@ let type_of(n:int64):int64 {
         if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.none (#215)
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
+        if shown_cstr(n) { return base_type(Y_CSTR) }                   // its text, as print shows it (#450)
+        if types[y].kind == Y_IO && tok_is(t, "lines") {               // as kelvinc's #406, read by for alone
+            gen_error(n, "kc reads an IO's lines by for, 'for r in f.lines', each a Result<String, i64>; not yet as a value")
+            return -1
+        }
         let d = tagged_of(y)
         if d >= 0 {                                                      // v.c, the case's value
             if let some(m) = case_named(d, t) {
@@ -2979,6 +2985,65 @@ let gen_try(n:int64, value:bool) {
 var block_store:$[String]   // the storage the statement being written makes, a template's or a number's text, declared before it (#445, #447)
 var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
 
+// whether n is v.cstr of what print shows by its printer, an enum with
+// values, an Optional, a Result or a struct with no member of that name:
+// its text, as kelvinc's .cstr (#53, #122), in its block's storage (#450)
+let shown_cstr(n:int64):bool {
+    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "cstr") || tagged_named(nodes[n].a) >= 0 { return false }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return false }
+    let d = tagged_of(y)
+    if d >= 0 { return case_named(d, nodes[n].t) == none }
+    let sd = struct_of(y)
+    if sd < 0 { return false }
+    var m:int64 = nodes[sd].a
+    while m >= 0 {
+        if same_text(nodes[m].t, nodes[n].t) { return false }
+        m = nodes[m].next
+    }
+    return true
+}
+
+// v.cstr, as `${v}` writes it: by its printer into a String, then into
+// storage the statement declares before it; cut past KV_TEMPLATE_STR,
+// where kelvinc sizes it by the type (#450)
+let gen_shown_cstr(n:int64, a:int64, y:int64) {
+    if current >= 0 && nodes[current].kind == D_GLOBAL {
+        gen_error(n, "kc makes a value's text in a function: not yet in a global's initializer")
+        return
+    }
+    if !need_show(y, n) { return }
+    serial += 1
+    let s = serial
+    put("({ KV_TEMPLATE_BUILD(_kv_build")
+    put_int(s)
+    put(", _kv_template")
+    put_int(s)
+    put("); kv_string _kv_value")
+    put_int(s)
+    put(" = kv_string_new(); { __auto_type _kv_sv = (")
+    gen_expr(a)
+    put("); ")
+    put_show_name(y)
+    put("(&(kv_out){.s = &_kv_value")
+    put_int(s)
+    put(", .width = 2}, &_kv_sv, -1); } KV_TEMPLATE_VALUE(_kv_build")
+    put_int(s)
+    put(", KV_TEMPLATE_STR, _kv_value")
+    put_int(s)
+    put("); kv_string_free(&_kv_value")
+    put_int(s)
+    put("); KV_TEMPLATE_TAKE(_kv_template")
+    put_int(s)
+    put(", _kv_build")
+    put_int(s)
+    put("); })")
+    var d = $"char _kv_template"
+    d += String(s)
+    d += "[1 + KV_TEMPLATE_STR]"
+    block_store += &d
+}
+
 // the size of the buffer x.dec, x.hex, x.oct or x.bin writes into, its
 // NUL included, as kelvinc's number_text_size (#21); 0 of another member
 let number_text_size(n:int64):int64 {
@@ -3345,7 +3410,7 @@ let gen_string_template(n:int64) {
 let text_in_buffer(e:int64):int64 {
     let k = nodes[e].kind
     if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
-    if number_text(e) { return e }
+    if number_text(e) || shown_cstr(e) { return e }     // .cstr of what print shows too (#450)
     if k == N_CAST { return text_in_buffer(nodes[e].a) }
     if k == N_COND {
         let b = text_in_buffer(nodes[e].b)
@@ -3814,6 +3879,10 @@ let gen_member(n:int64) {
     }
     let y:int64 = type_of(a)
     if y < 0 { return }
+    if shown_cstr(n) {                                   // v.cstr, its text (#450)
+        gen_shown_cstr(n, a, y)
+        return
+    }
     let lent = is_place(a) || held.get(a, 0 - 1) >= 0    // a place, or one held in a temporary (#227)
     if tagged_of(y) >= 0 && !lent && is_owner(y) {      // of a call's enum that owns, which would go unfreed (#360)
         gen_error(n, "kc reads a case's value of an enum that owns where a variable holds it: bind it first, 'let v = f()'")
@@ -4212,9 +4281,12 @@ let gen_bytes_make(n:int64) {
         }
         return
     }
+    let held_one = nodes[x].kind == N_ADDR && needs_hold(nodes[x].a)   // Bytes(&$"text"), Bytes(&mk()): held, as kelvinc holds it (#450)
+    if held_one { hold_open(nodes[x].a) }
     put("KV_BYTES_OF(")
     gen_expr(x)
     put(")")
+    if held_one { hold_close(nodes[x].a) }
 }
 
 // v appended to a Bytes, or inserted, by what, as kelvinc's #54: a byte,
@@ -4511,14 +4583,43 @@ let gen_method_of(n:int64) {
         }
         put(")")
         if hold { hold_close(key) }
-    } else if yk == Y_IO && tok_is(t, "write") {
-        put("kv_io_write_string(")
+    } else if yk == Y_IO && tok_is(t, "write") {       // by what it writes, as kelvinc's: text, &s, &b, a String^ (#450)
+        let v:int64 = nodes[n].b
+        let vy:int64 = type_of(v)
+        if failed { return }
+        let vk:ykind = vy >= 0 ? types[vy].kind : Y_C
+        let by:int64 = nodes[v].kind == N_ADDR ? type_of(nodes[v].a) : vk == Y_PTR ? types[vy].elem : 0 - 1
+        let bk:ykind = by >= 0 ? types[by].kind : Y_C
+        if bk == Y_STRING || bk == Y_BYTES {
+            put(bk == Y_STRING ? "kv_io_write_string(" : "kv_io_write_bytes(")
+        } else if (vk == Y_STRING || vk == Y_BYTES) && !is_place(v) {   // an owner an expression gives, written and freed
+            put(vk == Y_STRING ? "kv_io_write_owned_string(" : "kv_io_write_owned_bytes(")
+        } else if vk == Y_STRING || vk == Y_BYTES {
+            var m = $"'.write' takes a borrow of a "
+            m += vk == Y_STRING ? "String, '&" : "Bytes, '&"
+            if nodes[v].kind == N_ID { m += tok_text(nodes[v].t) } else { m += "..." }
+            m += "'"
+            gen_error(v, m.cstr)
+            return
+        } else if vk == Y_C || vk == Y_CSTR || nodes[v].kind == N_STR || nodes[v].kind == N_TPL {
+            put("kv_io_write_text(")
+        } else {
+            var m = $"'.write' takes text, a borrow of a String or a Bytes ('&s'), or one an expression gives, and this is "
+            let w:String = kelvin_type_text(vy)
+            m += &w
+            gen_error(v, m.cstr)
+            return
+        }
         gen_place(a)
         put(", ")
-        gen_expr(nodes[n].b)
+        gen_expr(v)
         put(")")
     } else if yk == Y_IO && tok_is(t, "close") {
         put("kv_io_close(")
+        gen_place(a)
+        put(")")
+    } else if yk == Y_IO && tok_is(t, "rewind") {      // to read it again (#450)
+        put("kv_io_rewind(")
         gen_place(a)
         put(")")
     } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
@@ -11586,7 +11687,76 @@ let list_walked(y:int64):bool {
     return false
 }
 
+// for r in f.lines (#450), as kelvinc's #406: each line read into one
+// String, r a Result<String, i64> that borrows it, err the offset where
+// its UTF-8 breaks
+let gen_lines_each(n:int64, depth:int64) {
+    let io:int64 = nodes[nodes[n].a].a
+    let ry:int64 = result_of(base_type(Y_STRING), base_type(Y_I64))
+    let d:int64 = tagged_of(ry)
+    serial += 1
+    let s = serial
+    put("{\n")
+    indent(depth + 1)
+    put("__attribute__((cleanup(kv_string_free))) kv_string _kv_line")
+    put_int(s)
+    put(" = {0};\n")
+    indent(depth + 1)
+    put("kv_io *const _kv_lines")
+    put_int(s)
+    put(" = (kv_io *)")
+    gen_place(io)
+    put(";\n")
+    indent(depth + 1)
+    put("int64_t _kv_bad")
+    put_int(s)
+    put(" = -1;\n")
+    indent(depth + 1)
+    put("while (kv_io_read_line(_kv_lines")
+    put_int(s)
+    put(", &_kv_line")
+    put_int(s)
+    put(", &_kv_bad")
+    put_int(s)
+    put("))\n")
+    indent(depth + 1)
+    put("{\n")
+    indent(depth + 2)
+    put("const ")
+    put_ctype(ry)
+    put(" ")
+    put_tok(nodes[n].t)
+    put(" = _kv_bad")
+    put_int(s)
+    put(" >= 0 ? _kv_")
+    put_tok(nodes[d].t)
+    put("_make_err(_kv_bad")
+    put_int(s)
+    put(") : _kv_")
+    put_tok(nodes[d].t)
+    put("_make_ok(_kv_line")
+    put_int(s)
+    put(");\n")
+    open_scope()
+    declare_each(nodes[n].t, ry, 3)                     // lent, as an element is
+    indent(depth + 2)
+    gen_block(nodes[n].c, depth + 2)
+    close_scope()
+    indent(depth + 1)
+    put("}\n")
+    indent(depth)
+    put("}\n")
+}
+
 let gen_each(n:int64, depth:int64) {
+    let src0:int64 = nodes[n].a
+    if nodes[src0].kind == N_FIELD && tok_is(nodes[src0].t, "lines") && nodes[n].b < 0 {
+        let iy:int64 = type_of(nodes[src0].a)
+        if iy >= 0 && types[iy].kind == Y_IO {           // for r in f.lines (#450)
+            gen_lines_each(n, depth)
+            return
+        }
+    }
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
     if types[y].kind == Y_RANGE {                      // a Range's values (#373), its kind read at run time, as kelvinc's
@@ -11962,8 +12132,7 @@ let gen_iflet(n:int64, depth:int64) {
         put(";\n")
         indent(depth + 1)
     }
-    put_ctype(y)
-    put(" *_kv_l")
+    put("__auto_type _kv_l")                            // const where e is, a let's or an element's, as kelvinc's (#450)
     put_int(s)
     put(" = ")
     if is_place(e) {

@@ -481,6 +481,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 447 | kc reads a cstr's `.count`, its `strlen`, an `i64` as kc's counts are, and a number's `.dec`, `.hex`, `.oct` and `.bin`, f32 and f64 `.dec` and `.hex` alone, and a pointer's `.hex`, as kelvinc's #21 and #52: text in a buffer that lives until the block ends; kelvinc's errors of another type and of the text returned, and kc's of the text kept by an outer variable | selfhost/gen.k's number_text, gen_number_text, block_store, text_in_buffer | `${n.hex}`, `s.count` | 2026-11-02 |
 | 448 | kelvinc refuses a template's text assigned to a function's parameter in a block inside the body, `if c { t := `${n}` }`, as it refuses one of an outer block: its text, in that inner block, would be gone after it, and t would dangle; only the body's own top block may give a parameter such a text, as kc's template_outlived (#445) does | src/parser.c's body_scopes, set by parse_fn_body; reject_template_escape | tests/error/template_param_inner.k | 2026-11-02 |
 | 449 | kc reads `try r`, as kelvinc's #76: r's `ok` (`some`) value, or a return of its `err` (`none`) passed up as it is, of a call or of a place, alone as a statement too; `Result<T, E>.ok(v)`, `.err(e)`, `Optional<T>.some(v)` and `.none`, as kelvinc's #75, each of its own type; kelvinc's errors of each, in its words; and `IO(path)` opens to read, where kc had crashed | selfhost/parse.k's N_TRY and the typed case; selfhost/gen.k's gen_try, try_refused, try_place | `let ts = try tokens(s)` in examples/calc.k | 2026-11-02 |
+| 450 | kc reads `for r in f.lines`, each line a `Result<String, i64>` that borrows one buffer, as kelvinc's #406, where kc had crashed; `f.rewind()`; `f.write(x)` by what x is, text, `&s`, `&b`, a `String^` or an owner an expression gives, where kc had passed text as a String; `Bytes(&$"text")` and `Bytes(&mk())`, held; and `v.cstr` of a Result, an Optional, an enum with values or a struct, its text as print shows it | selfhost/gen.k's gen_lines_each, shown_cstr, gen_shown_cstr, the IO write and rewind, gen_bytes_make's hold | `for r in f.lines { ... }` | 2026-11-03 |
 
 Notes:
 
@@ -1066,6 +1067,32 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (450) Agreed details: "go on with #449", numbered #450; the user
+  chose the kc crashes and gaps that #449 found.
+  - `for r in f.lines` is written as kelvinc's: each line read into one
+    String, `r` a let `Result<String, i64>` that borrows it, err where
+    its UTF-8 breaks. kc had typed every member of an IO an i32 and
+    crashed in the loop; `f.lines` elsewhere is kc's "not yet".
+  - `f.rewind()` is kv_io_rewind; kc had listed it, unwritten.
+  - `f.write(x)` had passed any x as a String, so text wrote nothing:
+    now text is kv_io_write_text, `&s` and a `String^`
+    kv_io_write_string, `&b` kv_io_write_bytes, and an owner an
+    expression gives is written and freed, as kelvinc's; a place that
+    owns, and another type, are kelvinc's errors, in its words.
+  - `Bytes(&$"text")` took the address of a value; the String is held
+    in a temporary and freed, as kelvinc holds it.
+  - `v.cstr` of what print shows by a printer, a Result, an Optional,
+    an enum with values or a struct with no member of that name, is
+    written as `${v}` is, into storage declared before the statement;
+    cut past KV_TEMPLATE_STR, where kelvinc sizes it by the type.
+    Returned, it is kelvinc's error, in its words.
+  - `if let` of a let's or an element's value took a pointer without
+    const, which C warned of in sample.k's `if let line = r`; it is
+    `__auto_type`, as kelvinc's.
+  - tests/run/bytes_of_string.k, bytes_string_result.k,
+    io_lines_result.k and result_if_let.k build with kc now, 76 in all,
+    each printing what kelvinc's prints. io_basics.k stops on more of
+    an IO's methods.
 - (449) Agreed details: "go on with #448", numbered #449, as #448 went
   to kelvinc's fix of a template's text in a parameter; the user chose
   `try` and the Result forms. `Array<T>()` turned out to build in kc already.
@@ -6373,6 +6400,7 @@ says "as agreed".
 | P459 | Details of #447 | selfhost/gen.k: number_text_size, number_text, number_text_refused, gen_number_text, block_store (tpl_decls of #445) and place_storage, text_in_buffer, buffer_text_words and text_outlived, gen_return's words of a number's text, type_of's and gen_field's `.count` of a cstr; selfhost/sample.k: `numeral` and its line; selfhost/README.md | — |
 | P460 | Details of #448 | src/parser.c: body_scopes, set and restored by parse_fn_body, and reject_template_escape's test of a parameter; tests/error/template_param_inner.k | — |
 | P461 | Details of #449 | selfhost/parse.k: N_TRY, parse_unary's `try`, parse_primary's `Result<T, E>.c(...)` and `Optional<T>.c`; selfhost/gen.k: other_case, try_place, try_refused, gen_try, type_of's and gen_expr_of's N_TRY and typed case words, the S_EXPR of `try`, inferred's and some(v)'s typed case, gen_call's `IO(path)`; selfhost/sample.k: `digit_of`, `digits_sum`, `label_of`, `labelled`, `halved`, `quartered`; selfhost/README.md | — |
+| P462 | Details of #450 | selfhost/gen.k: gen_lines_each and gen_each's `f.lines`, type_of's `f.lines` and `.cstr`, shown_cstr, gen_shown_cstr, gen_member's `.cstr`, text_in_buffer's `.cstr`, gen_bytes_make's hold, the IO write by kind and `rewind`, gen_iflet's `__auto_type`; selfhost/sample.k: `#import <IO>` and `<stdio.h>`, `scratch`, `lines_in`, `parsed` and their line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

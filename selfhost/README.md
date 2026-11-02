@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An IO's lines, `.write` and `.cstr` of a value** (#450), as
+  kelvinc's: `for r in f.lines`, each a `Result<String, i64>`;
+  `f.rewind()`; `f.write(x)` by what x is; `Bytes(&$"text")`, held; and
+  `v.cstr` of a Result, an Optional, an enum with values or a struct.
+  - `f.lines` had crashed kc, and `f.write("text")` had written nothing.
+  - A value's `.cstr` is cut past KV_TEMPLATE_STR, as in a template.
 - **`try`** (#449), as kelvinc's #76: `try r` is r's `ok` (`some`), or
   a return of its `err` (`none`), passed up as it is; `Result<T,
   E>.err(e)`, `Optional<T>.some(v)` and the rest are of the type written.

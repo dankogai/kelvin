@@ -3,6 +3,8 @@
 // output must be the same. It uses libc as C does (#207).
 #import <stdlib.h> as C
 #import <string.h> as C
+#import <stdio.h> as C
+#import <IO>                                          // f.lines, f.write (#450)
 
 struct point {
     x: int64
@@ -930,5 +932,18 @@ on a new line`
     let numeral:cstr := "digits"                        // a cstr's count, a number's text (#447)
     println(numeral.count, " ", linked.dec, " ", linked.hex, " ", linked.oct, " ", linked.bin, " ", 2.5.hex, " ", `${linked.hex}`.count, " ", $`${(0 - 7).dec}`)
     println(digits_sum("123"), " ", digits_sum("1x3"), " ", labelled(4), " ", labelled(-1), " ", quartered(12), " ", quartered(6))
+    var scratch = IO("sample_lines.tmp", "w")             // each line a Result, the text written by its kind (#450)
+    scratch.write("one\n")
+    scratch.write(&handed)
+    scratch.write($"\nthree")
+    scratch.close()
+    var lines_in = IO("sample_lines.tmp")
+    var line_count = 0
+    for r in lines_in.lines { if let line = r { line_count += line.count as int64 } }
+    lines_in.rewind()
+    for r in lines_in.lines { print(r.is(ok) ? "o" : "e") }
+    remove("sample_lines.tmp")
+    let parsed = digits_sum("42")
+    println(" ", line_count, " ", parsed.cstr, " ", quartered(8).cstr, " ", point.of(1, 2).cstr, " ", Bytes(&$"h\u{e9}llo").count)
     return 0
 }

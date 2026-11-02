@@ -8739,3 +8739,19 @@ with kc, 72 in all, and print what kelvinc's builds print. Details are
 provisional P461.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 497. kc's crashes and gaps of #449
+
+> push. then go on with #449
+
+**Claude** said #448 had gone to the separate session's kelvinc fix, so
+`try` was #449 and this #450, and asked which to take; the user chose
+the kc crashes and gaps #449 found. kc now walks `for r in f.lines`,
+where it had crashed, writes `f.rewind()`, writes each kind of value
+with `f.write` as kelvinc does, where text had written nothing, holds
+the String of `Bytes(&$"text")`, and gives `v.cstr` of a Result, an
+Optional, an enum with values or a struct its printed text. Four more
+tests build with kc, 76 in all, and print what kelvinc's builds print.
+Details are provisional P462.
+
+There are 1176 tests, and all pass with clang and with gcc 15.
