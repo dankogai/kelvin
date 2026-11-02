@@ -8523,3 +8523,21 @@ aligned with `main`'s, and two of Claude's, on `.isEmpty` and on the
 and prints what kelvinc's build prints. Details are provisional P448.
 
 There are 1167 tests, and all pass with clang and with gcc 15.
+
+### 484. A pointer's temporary, fixed
+
+> go on with #437
+
+**Claude** made it #437, the two kelvinc bugs of #245 that #433 found.
+A call whose result only C sees may give a pointer, so its temporaries
+go to the call around it, and `strlen(strchr($"xyz".cstr, 'y'))` is 2,
+where it read freed memory. For an arm of `?:` and the right of `&&`,
+`||` and `??`, which are not always evaluated, the user chose the error,
+as kc's #433, over filling a temporary in the arm taken: `c ?
+side().cstr : "no"` as an argument says to bind it first, and `side()`
+is no longer called where `c` is false. Passing more out showed that an
+anonymous function's body took the call's chain around it, so its
+temporaries went outside the function; its body now has its own. Details
+are provisional P449.
+
+There are 1170 tests, and all pass with clang and with gcc 15.

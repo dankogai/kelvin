@@ -1825,12 +1825,14 @@ static Expr *make_temp(Expr *src, const char *what) {
    pointer into one keeps it alive until the call or chain around it is
    done, up to the whole statement (#245), as strlen($"abc".cstr): the
    temporaries go to that chain's; with none around, the pointer would
-   outlive them, so it is an error */
+   outlive them, so it is an error. What only C sees may be a pointer,
+   strchr(...)'s, so its go to the chain around too, where there is one
+   (#437) */
 static Expr *wrap_temps(Expr *body, List *temps) {
     if (!temps->len)
         return body;
     Type *rt = value_type(body);
-    if (rt && (rt->kind == T_PTR || rt->kind == T_ARRAY) && body->kind != E_TEMPLATE && chain_temps &&
+    if ((!rt || rt->kind == T_PTR || rt->kind == T_ARRAY) && body->kind != E_TEMPLATE && chain_temps &&
         chain_temps != temps) {
         for (int i = 0; i < temps->len; i++)
             list_push(chain_temps, temps->data[i]);
@@ -5194,7 +5196,14 @@ static Expr *parse_binary(int min_prec) {
         Expr *e = new_expr(E_BINARY, t->pos);
         e->op = t->text;
         e->a = lhs;
+        /* the right of && and ||, not always evaluated, keeps its
+           temporaries (#437): a pointer into one is an error, not a value
+           made before the left is tested */
+        List *saved_chain = chain_temps;
+        if (!strcmp(e->op, "&&") || !strcmp(e->op, "||"))
+            chain_temps = NULL;
         e->b = parse_binary(prec + 1);
+        chain_temps = saved_chain;
         if (!strcmp(e->op, "&&") || !strcmp(e->op, "||")) {
             require_bool(e->a);
             require_bool(e->b);
@@ -5581,7 +5590,11 @@ static Expr *parse_coalescing(void) {
     Expr *c = parse_binary(1);
     if (is_p(peek(), "??") || is_p(peek(), "!!")) {
         Token *q = advance();
+        List *saved_chain = chain_temps; /* y, made only where x has none, keeps its temporaries (#437) */
+        if (is_p(q, "??"))
+            chain_temps = NULL;
         Expr *y = parse_coalescing();
+        chain_temps = saved_chain;
         Type *ct = value_type(c);
         if (is_p(q, "!!") || (ct && is_dict_owner(unqualified(ct)))) /* of Dictionaries (#237) */
             return dict_fill(q, c, y, false, is_p(q, "??"));
@@ -5706,10 +5719,13 @@ static Expr *parse_conditional(void) {
     e->a = c;
     bool saved = ident_annotation_ok;
     ident_annotation_ok = false;
+    List *saved_chain = chain_temps; /* an arm keeps its temporaries, as the right of && (#437) */
+    chain_temps = NULL;
     e->b = parse_expr();
     ident_annotation_ok = saved;
     expect_p(":");
     e->c = parse_conditional();
+    chain_temps = saved_chain;
     e->is_bool = seen_bool(e); /* C would promote two bools to int */
     if (is_owner(value_type(e->b)) && owner_place(e->b) != owner_place(e->c)) { /* an error unless it is returned (#203) */
         Expr *place = owner_place(e->b) ? e->b : e->c;
@@ -11787,6 +11803,8 @@ static Expr *parse_anon_fn(Type *ctx) {
     open_scope();
     params_start = params_end = anon_start = scope_names.len;
     parsing_fn = d; /* from here, the names in its types are checked as in its body */
+    List *saved_chain = chain_temps; /* its body's temporaries are its own, not the call's around it (#437) */
+    chain_temps = NULL;
     if (written) {
         anon_kind = ANON_WRITTEN;
         in_signature = true;
@@ -11927,6 +11945,7 @@ static Expr *parse_anon_fn(Type *ctx) {
     finish_drops(drops_from);
     close_scope();
     parsing_fn = saved_fn;
+    chain_temps = saved_chain;
     params_start = saved_start;
     params_end = saved_end;
     anon_start = saved_anon;

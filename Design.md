@@ -468,6 +468,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 434 | `x.isEmpty` is whether a collection has no element, a `bool`, its `.count == 0`: a Bytes's, a String's, an Array's, a Dictionary's, a Set's, a fixed array's, a cstr's, its first byte NUL, and a Range's, one without an end never; an iterator's and a Sequence's, lazy ones too, which have no count, are `false`, even where they would give nothing; a field or attribute of the name wins; of a number or a pointer an error, `p^.isEmpty` of a pointer; `xs.isEmpty()` an error that says it is a property | src/parser.c's empty_property, the Range branch; src/codegen.c's range_empty and empty_ ops | `if xs.isEmpty { ... }` | 2026-11-02 |
 | 435 | kc reads kelvinc's #434, `x.isEmpty`: a String's, an Array's, a Dictionary's and a Set's `.count == 0`, a fixed array's, a cstr's by its first byte, a Range's by its bounds, an Iterator's, an iterator's, a Sequence's and a lazy one's `false`; a struct's field wins; kelvinc's errors of a number, a bool, a pointer and `xs.isEmpty()` | selfhost/gen.k's empty_kind, gen_is_empty | `count_from(0).isEmpty` of kc | 2026-11-02 |
 | 436 | The README's `fizzbuzz` is the user's own: `var r = $""`, `r += "fizz"` of a cstr, and `if r.isEmpty` (#434), with the user's comments, `String()` and `or $"fizz"`, and two of Claude's; tests/docs.sh compiles it, and kc builds it too (#435) | README.md's Synopsis | `if r.isEmpty { r = String(n) }` | 2026-11-02 |
+| 437 | Two fixes of #245: a call whose result only C sees, which may be a pointer, `strchr(...)`, passes its temporaries to the chain around it, so `strlen(strchr($"xyz".cstr, 'y'))` reads no freed memory; an arm of `?:` and the right of `&&`, `||` and `??` keep theirs, so `c ? side().cstr : "no"` as an argument is the error that says to bind it first, and `side()` is no longer called where `c` is false; an anonymous function's body keeps its own too | src/parser.c's wrap_temps, parse_binary, parse_conditional, parse_coalescing, parse_anon_fn | `strlen(strchr($"xyz".cstr, 'y'))` | 2026-11-02 |
 
 Notes:
 
@@ -1052,6 +1053,23 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (437) Agreed details: "go on with #437", the two kelvinc bugs #433
+  found.
+  - wrap_temps passes the temporaries of a chain kelvinc sees no type
+    of, what only C sees, to the chain around it, as a pointer's: held
+    longer, up to the statement, never shorter.
+  - The user chose the error for an arm of `?:` and the right of `&&`,
+    `||` and `??`, as kc's #433, over filling a temporary in the arm
+    taken: chain_temps is none while they are read, so their own chain
+    holds what it can, and a pointer that would leave it is the error.
+  - Passing more out showed that an anonymous function's body took the
+    chain of the call around it: its temporaries went outside the
+    function, undeclared in C (tests/run/array_search.k and five more).
+    Its body now starts with none, so a pointer into a temporary that
+    it returns, `xs.map { (x:i64):cstr in String(x).cstr }`, is the
+    error too.
+  - kc builds tests/run/temp_c_result.k as it is, and prints the same.
 
 - (436) Agreed details: "edit the Synopsis of `README.md`'s
   `fizzbuzz()`" with the user's version, "a little more descriptive".
@@ -6085,6 +6103,7 @@ says "as agreed".
 | P446 | Details of #434 | src/parser.c: empty_property, property()'s and the Range branch's use, the method lists; src/codegen.c: range_empty, empty_count, empty_cstr, empty_array, empty_never; tests/run/is_empty.k, tests/error/is_empty_number.k, is_empty_pointer.k, is_empty_call.k; documents: bytes, strings, arrays, dictionaries, sets, ranges, iterators, properties, versusC; README.md | — |
 | P447 | Details of #435 | selfhost/gen.k: empty_kind, gen_is_empty, type_of's and gen_expr's use of them, the method error; selfhost/sample.k: `empty_text`, `empty_span`; selfhost/README.md | — |
 | P448 | Details of #436 | README.md: the Synopsis's `fizzbuzz`, the user's, with comments; selfhost/README.md: kc builds it with #435 | — |
+| P449 | Details of #437 | src/parser.c: wrap_temps, parse_binary's, parse_conditional's, parse_coalescing's and parse_anon_fn's chain_temps; tests/run/temp_c_result.k, tests/error/temp_pointer_choice.k, temp_pointer_coalesce.k; documents/strings.md, ownership.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

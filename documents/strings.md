@@ -272,6 +272,12 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
     `strlen($"abc".cstr)`, `fopen(path().cstr, "r")`. Kept past the
     statement, `let p := $"x".cstr`, it would dangle, so that is an
     error that says to bind the String first.
+  - A call whose result only C sees may give a pointer into it, so it
+    lives for the call around that too (#437):
+    `strlen(strchr($"xyz".cstr, 'y'))` is 2.
+  - In an arm of `?:`, or right of `&&`, `||` or `??`, which is not
+    always evaluated, it is held there alone: `c ? f().cstr : "no"` as
+    an argument is the same error (#437).
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
   prints as its character; `for x in s.bytes^` each byte.
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
