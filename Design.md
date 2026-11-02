@@ -463,6 +463,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 429 | kc reads the converters `T(v)`, as kelvinc's #36: of kc's number types and `bool`, a number's C's cast; of text, a cstr, a String, a `u8^`, an array of `u8` or a `?:` of them, the number in it, by kv_text_int and friends, clamped, with a base for an integer type, `int64(s, 16)`; of what only C sees, C's `_Generic`, KV_TEXT; a base after a number or of a float and a third value kelvinc's errors | selfhost/gen.k's converter_of, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter | `int32("ff", 16)` of kc | 2026-11-02 |
 | 430 | kc reads kelvinc's short type names, as its #151: `i64`, `i32`, `u8`, `u32`, `f64` and `f32` are `int64` and the rest wherever a type goes, after `:` and `as`, in `sizeof(...)`, and as a converter, `i64(s)` | selfhost/parse.k's number_word | `let short_u8:u8 = u8("300")` of kc | 2026-11-02 |
 | 431 | The README's Synopsis is a fizzbuzz, in place of the linked list's `sum`: a function that builds a String, an anonymous function called in place, `i64(argv[1])` and a closed range, `1...n`; tests/docs.sh compiles it, and kc builds it too | README.md's Synopsis | `{ (k:i64):i64 in ... }(...)` | 2026-11-02 |
+| 432 | The README's Synopsis's `main` is the user's own: `#import <stdio.h> as C` for C's `printf`, the anonymous function's parameters on the line below its `{`, a closed range from 0, `0...n`, `printf("...%s\n", i, fizzbuzz(i).cstr)`, whose String is freed after the call (#245), and `return 0;`; the commented-out `println` of a template prints the same; tests/docs.sh compiles it with kelvinc; kc does not build it yet | README.md's Synopsis | `printf(..., fizzbuzz(i).cstr)` | 2026-11-02 |
 
 Notes:
 
@@ -1047,6 +1048,23 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (432) Agreed details: "Use the following `main()` instead of the
+  current one in `README.md`", with comments like #431's.
+  - The user's code stays as written: `): i32`, the parameters below
+    the `{`, `0...n` and `return 0;`, which #431 had tidied away.
+  - Comments say what is Kelvin's: `printf` from the import, the
+    anonymous function, `i64(text)`, a closed range from 0, the String
+    freed after its `printf`, and a C-style `;`.
+    - The commented-out `println` of a template is the user's; it
+      prints the same, so its comment says so.
+  - tests/docs.sh compiles it with kelvinc, as every README block.
+  - kc does not build it yet:
+    - `fizzbuzz(i).cstr` as an argument is kc's error, a pointer into
+      a temporary; kelvinc keeps that temporary until the call is done
+      (#245).
+    - kc does not read a template literal either; here it is in a
+      comment.
 
 - (431) Agreed details: "change README.md example a little more
   kelvinish", with the user's fizzbuzz (#428's note).
@@ -6000,6 +6018,7 @@ says "as agreed".
 | P441 | Details of #429 | selfhost/gen.k: converter_of and its prototype, converter_text, put_text_arg, put_text_read, put_text_rest, gen_converter, type_of's and gen_call's converter; selfhost/sample.k: `hex_text` and the converters' line; selfhost/README.md | — |
 | P442 | Details of #430 | selfhost/parse.k: number_word, parse_bare_type's, annotation_ahead's and sizeof_type_at's use of it; selfhost/gen.k: converter_of's; selfhost/sample.k: `short_u8`, `short_half`; selfhost/README.md | — |
 | P443 | Details of #431 | README.md: the Synopsis's fizzbuzz; selfhost/README.md: the Synopsis under short type names | — |
+| P444 | Details of #432 | README.md: the Synopsis's `main`, the user's, with comments; selfhost/README.md: the Synopsis waits for #245 in kc | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -12,6 +12,8 @@ one.
 ## Synopsis
 
 ```swift
+#import <stdio.h> as C              // for printf()
+
 let fizzbuzz(n:i64):String {
     var r:String                    // a String, empty to start
     if n % 3 == 0 { r += $"fizz" }
@@ -20,14 +22,15 @@ let fizzbuzz(n:i64):String {
     return r                        // moved out to the caller
 }
 
-let main(argc:i32, argv:[cstr]):i32 {
-    let n = { (k:i64):i64 in        // an anonymous function, called in place
-        k <= 0 ? 30 : k
-    }(argc < 2 ? 0 : i64(argv[1]))  // i64(text) reads the number in it
-    for i in 1...n {                // a closed range, 1 to n
-        println(fizzbuzz(i))
-    }
-    return 0
+let main(argc:i32, argv:[cstr]): i32 {
+    let n = {                       // an anonymous function, called in place
+        (k:i64):i64 in k <= 0 ? 30 : k
+    }( argc < 2 ? 0 : i64(argv[1]) ) // i64(text) reads the number in it
+    for i in 0...n {                // a closed range, 0 to n
+        // println(`fizzbuzz(${i}) = ${fizzbuzz(i)}`) prints the same
+        printf("fizzbuzz(%lld) = %s\n", i, fizzbuzz(i).cstr)
+    }                               // each String freed after its printf
+    return 0;                       // a C-style `;` is fine too
 }
 ```
 

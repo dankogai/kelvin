@@ -8438,3 +8438,21 @@ compiles it, and kc, with #428 to #430, builds it as written and prints
 what kelvinc's build prints. Details are provisional P443.
 
 There are 1163 tests, and all pass with clang and with gcc 15.
+
+### 479. The README's own main
+
+> Use the following `main()` instead of the current one in `README.md`.
+> I'll let you comment like the previous version (I liked it)
+
+**Claude** made it #432. The Synopsis's `main` is now the user's, as
+written: `#import <stdio.h> as C`, the anonymous function's parameters
+on the line below its `{`, `0...n`, `printf` of `fizzbuzz(i).cstr` and
+`return 0;`. Comments in #431's way say what is Kelvin's; the user's
+commented-out `println` of a template prints the same. tests/docs.sh
+compiles it, and it prints `fizzbuzz(0) = fizzbuzz` to
+`fizzbuzz(30) = fizzbuzz`. kc does not build it yet: a pointer into a
+call argument's temporary, `fizzbuzz(i).cstr`, is kc's error, where
+kelvinc keeps the String until the call is done (#245). Details are
+provisional P444.
+
+There are 1163 tests, and all pass with clang and with gcc 15.
