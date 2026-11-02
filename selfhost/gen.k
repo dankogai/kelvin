@@ -1053,6 +1053,9 @@ let named_fn_type(n:int64):int64    // and a function's name, a value of its typ
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
+let std_io(n:int64):int64             // and IO.stdout's (#452)
+let pretty_value(n:int64):bool        // and v.pretty's (#452)
+let io_int_member(t:int64):bool       // and an IO's int members (#452)
 let number_text_refused(n:int64, k:ykind):bool
 let fn_named(t:int64):int64    // and the function a name names
 let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
@@ -1210,11 +1213,13 @@ let type_of(n:int64):int64 {
         if ly != 0 - 2 { return ly }
     }
     if k == N_FIELD {
+        if std_io(n) >= 0 { return base_type(Y_IO) }                     // IO.stdout and the rest (#452)
         let e = tagged_named(nodes[n].a)
         if e >= 0 { return type_of_kind(Y_STRUCT, -1, nodes[e].t) }      // T.none (#215)
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if shown_cstr(n) { return base_type(Y_CSTR) }                   // its text, as print shows it (#450)
+        if pretty_value(n) { return base_type(Y_STRING) }               // its text indented, a new String (#336, #337, #452)
         if types[y].kind == Y_IO && tok_is(t, "lines") {               // as kelvinc's #406, read by for alone
             gen_error(n, "kc reads an IO's lines by for, 'for r in f.lines', each a Result<String, i64>; not yet as a value")
             return -1
@@ -1257,11 +1262,10 @@ let type_of(n:int64):int64 {
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
-        if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") { return base_type(Y_STRING) }      // its text indented, a new String (#336, #337)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }   // or where its UTF-8 breaks (#406)
-        if yk == Y_IO { return base_type(Y_I32) }
+        if yk == Y_IO && io_int_member(t) { return base_type(Y_I32) }   // where kc had read any member as the status (#452)
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
         if yk == Y_CSTR && tok_is(t, "count") { return base_type(Y_I64) }   // its strlen, an i64 as kc's counts are (#447)
         if number_text_size(n) > 0 && yk != Y_STRUCT && yk != Y_C {    // x.hex and the rest, text (#447)
@@ -1778,7 +1782,7 @@ var held:Dictionary<int64, int64>    // an expression held in a temporary, by it
 // whether n gives an owner that no variable holds: a call's, a String
 // literal's, a member of one, which reading it holds in a temporary
 let needs_hold(n:int64):bool {
-    if n < 0 || is_case_word(n) || is_place(n) { return false }
+    if n < 0 || is_case_word(n) || is_place(n) || std_io(n) >= 0 { return false }   // IO.stdout is never freed, as kelvinc's (#452)
     return is_owner(type_of(n))
 }
 
@@ -2784,7 +2788,15 @@ let gen_show(y:int64) {
 // print's and println's values: an enum with values, a struct (#229) or an
 // Array (#230) by its _kv_show_T, which writes it where the value stands,
 // as kelvinc does
+let gen_print_args_to(first:int64, sink:cstr)    // a prototype: print's values go to stdout by it (#452)
+
 let gen_print_args(first:int64) {
+    gen_print_args_to(first, "NULL")
+}
+
+// print's values, those of a printer written into the sink, a FILE * in
+// C: NULL for stdout, kv_io_fp(f) of an IO's print (#452)
+let gen_print_args_to(first:int64, sink:cstr) {
     var a:int64 = first
     while a >= 0 {
         if a != first { put(", ") }
@@ -2801,18 +2813,22 @@ let gen_print_args(first:int64) {
             return
         }
         let pr:int64 = nodes[a].kind == N_FIELD && tok_is(nodes[a].t, "pretty") ? type_of(nodes[a].a) : 0 - 1
-        if pr >= 0 && (types[pr].kind == Y_SET || types[pr].kind == Y_DICT) && need_show(pr, a) {   // s.pretty where print shows it, written in place (#336, #337)
+        if pr >= 0 && pretty_value(a) && need_show(pr, a) {   // v.pretty where print shows it, written in place (#336, #337); of any printed value (#452)
             put("({ __auto_type _kv_sv = (")
             gen_expr(nodes[a].a)
             put("); ")
             put_show_name(pr)
-            put("(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, 0); (const uint8_t *)\"\"; })")
+            put("(&(kv_out){.fp = ")
+            put(sink)
+            put(", .width = 2}, &_kv_sv, 0); (const uint8_t *)\"\"; })")
         } else if !is_case_word(a) && shown_by_type(y) && need_show(y, a) {
             put("({ __auto_type _kv_sv = (")
             gen_expr(a)
             put("); ")
             put_show_name(y)
-            put("(&(kv_out){.fp = NULL, .width = 2}, &_kv_sv, -1); (const uint8_t *)\"\"; })")
+            put("(&(kv_out){.fp = ")
+            put(sink)
+            put(", .width = 2}, &_kv_sv, -1); (const uint8_t *)\"\"; })")
         } else {
             gen_expr(a)
         }
@@ -2979,6 +2995,41 @@ let gen_try(n:int64, value:bool) {
         put(";")
     }
     put(" })")
+}
+
+// ---------- an IO's print (#452) ----------
+
+// whether n is v.pretty of what print shows by a printer, its text
+// indented, as kelvinc's #124: a Set, a Dictionary, an Array, a Range,
+// a struct with no member of that name, an enum with values with no case
+let pretty_value(n:int64):bool {
+    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "pretty") || tagged_named(nodes[n].a) >= 0 { return false }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 || !shown_by_type(y) { return false }
+    let d = tagged_of(y)
+    if d >= 0 { return case_named(d, nodes[n].t) == none }
+    let sd = struct_of(y)
+    if sd < 0 { return true }
+    var m:int64 = nodes[sd].a
+    while m >= 0 {
+        if same_text(nodes[m].t, nodes[n].t) { return false }
+        m = nodes[m].next
+    }
+    return true
+}
+
+// whether t names an IO's int member: error, status, signal, pid, fd
+let io_int_member(t:int64):bool {
+    return tok_is(t, "error") || tok_is(t, "status") || tok_is(t, "signal") || tok_is(t, "pid") || tok_is(t, "fd")
+}
+
+// which of IO.stdin, IO.stdout and IO.stderr n is, 0 to 2, or -1
+let std_io(n:int64):int64 {
+    if nodes[n].kind != N_FIELD { return 0 - 1 }
+    let a:int64 = nodes[n].a
+    if nodes[a].kind != N_TYPE || !tok_is(nodes[a].t, "IO") { return 0 - 1 }
+    let t:int64 = nodes[n].t
+    return tok_is(t, "stdin") ? 0 : tok_is(t, "stdout") ? 1 : tok_is(t, "stderr") ? 2 : 0 - 1
 }
 
 // ---------- a number's text (#447) ----------
@@ -3684,7 +3735,9 @@ let gen_call(n:int64) {
     if refuse_valueless_args(n) { return }
     if nodes[f].kind == N_TYPE {
         if tok_is(nodes[f].t, "IO") {
-            put("kv_io_open(")
+            let fy:int64 = type_of(args)
+            let by_fd = fy >= 0 && is_number_kind(types[fy].kind) && types[fy].kind != Y_F64 && types[fy].kind != Y_F32
+            put(by_fd ? "kv_io_fdopen(" : "kv_io_open(")     // IO(fd, mode), a descriptor's, as kelvinc's #86 (#452)
             gen_expr(args)
             put(", ")
             if nodes[args].next >= 0 {
@@ -3806,7 +3859,8 @@ let is_made_array(n:int64):bool {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return false }
     let t = nodes[n].t
-    if types[y].kind == Y_SET { return tok_is(t, "elements") || tok_is(t, "pretty") }   // a new String too (#336)
+    if pretty_value(n) { return true }                  // a new String too (#336, #452)
+    if types[y].kind == Y_SET { return tok_is(t, "elements") }
     return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values") || tok_is(t, "pretty"))   // (#337)
 }
 
@@ -3869,6 +3923,12 @@ let gen_slots_array(a:int64, y:int64, ey:int64, value:bool) {
 let gen_member(n:int64) {
     let a:int64 = nodes[n].a
     let t:int64 = nodes[n].t
+    if std_io(n) >= 0 {                                  // IO.stdout, never closed, as kelvinc's (#452)
+        put("(*kv_io_std(")
+        put_int(std_io(n))
+        put("))")
+        return
+    }
     let e = tagged_named(a)
     if e >= 0 {                                        // T.none: a case of no value (#215)
         put("_kv_")
@@ -3947,7 +4007,7 @@ let gen_member(n:int64) {
         put(tok_is(t, "count") ? ").count)" : ").cap)")     // a Bytes's room (#439)
     } else if yk == Y_SET && tok_is(t, "elements") {     // s.elements (#278): an Array of copies, in the order added
         gen_slots_array(a, y, types[y].elem, false)
-    } else if (yk == Y_SET || yk == Y_DICT) && tok_is(t, "pretty") {   // s.pretty, d.pretty (#336, #337), as kelvinc's: its text indented, a new String
+    } else if pretty_value(n) {                         // v.pretty (#336, #337), as kelvinc's #124: its text indented, a new String; of any printed value (#452)
         if !need_show(y, n) { return }
         put("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (")
         gen_expr(a)
@@ -3965,12 +4025,10 @@ let gen_member(n:int64) {
         put("_make_err(_kv_e) : _kv_")
         put_tok(types[r].name)
         put("_make_ok(_kv_s); })")
-    } else if yk == Y_IO {
-        if tok_is(t, "error") {
-            put("kv_io_error(")
-        } else {
-            put("kv_io_status(")
-        }
+    } else if yk == Y_IO && io_int_member(t) {          // f.error, f.status, f.signal, f.pid, f.fd, each its own (#452)
+        put("kv_io_")
+        put_tok(t)
+        put("(")
         gen_place(a)
         put(")")
     } else if (yk == Y_STRING || yk == Y_BYTES) && tok_is(t, "cstr") {
@@ -4477,7 +4535,10 @@ let gen_method_of(n:int64) {
         return
     }
     let y:int64 = type_of(a)
-    if y < 0 { return }
+    if y < 0 {
+        if !failed { gen_error(a, "kc does not see the type of this value, whose method this calls") }   // never dropped unwritten (#452)
+        return
+    }
     let yk:ykind = types[y].kind
     if is_owner(y) && yk != Y_IO && tok_is(t, "copy") {         // a String's, an Array's, a struct's... (#226)
         put_owner_prefix(y)
@@ -4617,6 +4678,30 @@ let gen_method_of(n:int64) {
         put(")")
     } else if yk == Y_IO && tok_is(t, "close") {
         put("kv_io_close(")
+        gen_place(a)
+        put(")")
+    } else if yk == Y_IO && (tok_is(t, "print") || tok_is(t, "println")) {   // f.print(...), f.println(...), as print's into f (#452)
+        let args:int64 = nodes[n].b
+        var opened = hold_args(args, 0 - 1)
+        serial += 1
+        let s = serial
+        var sink = $"kv_io_fp(_kv_f"
+        sink += String(s)
+        sink += ")"
+        put("({ kv_io *const _kv_f")
+        put_int(s)
+        put(" = ")
+        gen_place(a)
+        put(tok_is(t, "println") ? "; KV_FPRINTLN(_kv_f" : "; KV_FPRINT(_kv_f")
+        put_int(s)
+        if args >= 0 {
+            put(", ")
+            gen_print_args_to(args, sink.cstr)
+        }
+        put("); })")
+        close_holds(&opened)
+    } else if yk == Y_IO && tok_is(t, "flush") {       // (#452)
+        put("kv_io_flush(")
         gen_place(a)
         put(")")
     } else if yk == Y_IO && tok_is(t, "rewind") {      // to read it again (#450)

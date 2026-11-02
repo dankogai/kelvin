@@ -483,6 +483,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 449 | kc reads `try r`, as kelvinc's #76: r's `ok` (`some`) value, or a return of its `err` (`none`) passed up as it is, of a call or of a place, alone as a statement too; `Result<T, E>.ok(v)`, `.err(e)`, `Optional<T>.some(v)` and `.none`, as kelvinc's #75, each of its own type; kelvinc's errors of each, in its words; and `IO(path)` opens to read, where kc had crashed | selfhost/parse.k's N_TRY and the typed case; selfhost/gen.k's gen_try, try_refused, try_place | `let ts = try tokens(s)` in examples/calc.k | 2026-11-02 |
 | 450 | kc reads `for r in f.lines`, each line a `Result<String, i64>` that borrows one buffer, as kelvinc's #406, where kc had crashed; `f.rewind()`; `f.write(x)` by what x is, text, `&s`, `&b`, a `String^` or an owner an expression gives, where kc had passed text as a String; `Bytes(&$"text")` and `Bytes(&mk())`, held; and `v.cstr` of a Result, an Optional, an enum with values or a struct, its text as print shows it | selfhost/gen.k's gen_lines_each, shown_cstr, gen_shown_cstr, the IO write and rewind, gen_bytes_make's hold | `for r in f.lines { ... }` | 2026-11-03 |
 | 451 | kc reads `Array<T>` wherever a type is written, as `$[T]`, `Array<Array<T>>` and `Array<T>?` too; an empty `[]` in `Array<Array<T>>([...])`, where kc had crashed; C's `;` after a struct's or an enum's `}` and after a global, and between statements, `for ... { ... }; return s`; and an enum with no name, `enum { LIMIT = 100 }`, its enumerators C's int, `i32`, as kelvinc's P10, counting a fixed array as a constant, `[bool](LIMIT + 1)` | selfhost/parse.k's array_type, parse_enum's, parse_block's and parse_program's `;`; selfhost/gen.k's constant_count | `var xs:Array<int64>`, `enum { LIMIT = 100 }` | 2026-11-03 |
+| 452 | kc writes an IO's `f.print(...)`, `f.println(...)` and `f.flush()`, as kelvinc's, each value as print shows it into the IO; `IO.stdin`, `IO.stdout` and `IO.stderr`, never freed; `v.pretty` of any value print shows by a printer; `IO(fd, mode)` of a descriptor; and `f.fd`, `f.pid` and `f.signal` each its own, where kc had read every member as the status; a method of a value whose type kc does not see is kc's error, where it had dropped the statement unwritten | selfhost/gen.k's gen_print_args_to, std_io, pretty_value, io_int_member | `f.println("n = ", n)`, `IO.stdout.flush()` | 2026-11-03 |
 
 Notes:
 
@@ -1068,6 +1069,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (452) Agreed details: "go on with #452"; the user chose an IO's print,
+  println and flush.
+  - `f.print(a, b)` and `f.println(a, b)` are KV_FPRINT and KV_FPRINTLN
+    of the IO, as kelvinc's; a value print shows by a printer is written
+    into the IO's FILE, gen_print_args_to's sink, where print's is
+    stdout's; an owner an expression gives is held for the call.
+  - `f.flush()` is kv_io_flush.
+  - `IO.stdin`, `IO.stdout` and `IO.stderr` are `(*kv_io_std(n))`,
+    never held, so never freed, which would flush stdout early. kc had
+    typed none of them and, a method of what it could not type, dropped
+    `IO.stdout.println(...)` unwritten: such a method is kc's error now.
+  - `v.pretty` is of any value print shows by a printer, an Array, a
+    struct, an enum with values, an Optional and a Result too, as
+    kelvinc's #124, where kc had read it of a Set and a Dictionary.
+  - Found on the way: `IO(fd, mode)` of a number opened a path, and
+    every member of an IO but `.error` was read as `.status`; a number
+    is a descriptor, kv_io_fdopen, and `.fd`, `.pid` and `.signal` are
+    their own. Another member of an IO is kc's "not known".
+  - tests/run/io_print.k and io_fd.k build with kc now, 87 in all, each
+    printing what kelvinc's prints; the other io_ tests stop on more of
+    IO and OS.
 - (451) Agreed details: "go on with #451"; the user chose both: `Array<T>`
   as a type, and C's `};` and enums with no name.
   - `Array<T>` is read wherever a type is, as `$[T]` is: array_type,
@@ -6427,6 +6449,7 @@ says "as agreed".
 | P461 | Details of #449 | selfhost/parse.k: N_TRY, parse_unary's `try`, parse_primary's `Result<T, E>.c(...)` and `Optional<T>.c`; selfhost/gen.k: other_case, try_place, try_refused, gen_try, type_of's and gen_expr_of's N_TRY and typed case words, the S_EXPR of `try`, inferred's and some(v)'s typed case, gen_call's `IO(path)`; selfhost/sample.k: `digit_of`, `digits_sum`, `label_of`, `labelled`, `halved`, `quartered`; selfhost/README.md | — |
 | P462 | Details of #450 | selfhost/gen.k: gen_lines_each and gen_each's `f.lines`, type_of's `f.lines` and `.cstr`, shown_cstr, gen_shown_cstr, gen_member's `.cstr`, text_in_buffer's `.cstr`, gen_bytes_make's hold, the IO write by kind and `rewind`, gen_iflet's `__auto_type`; selfhost/sample.k: `#import <IO>` and `<stdio.h>`, `scratch`, `lines_in`, `parsed` and their line; selfhost/README.md | — |
 | P463 | Details of #451 | selfhost/parse.k: array_type and parse_bare_type's `Array<T>`, sizeof_type_at's `Array`, lists_grow's `[]`, parse_enum with no name, parse_block's `;`, parse_program's `;` after a struct, an enum and a global and its error after a function; selfhost/gen.k: var_type's `i32`, the enum written without a name, the u8 of `Array(['a'])`, empty_fits and empty_error of `[]`, gen_array's `[]`, constant_count, fixed_computed and gen_fixed_var's constant count; selfhost/sample.k: `SAMPLE_LIMIT`, `bounds`, `evens`, `nest`, `flags`, `sp`; selfhost/README.md | — |
+| P464 | Details of #452 | selfhost/gen.k: gen_print_args_to and its sink, the IO's `print`, `println` and `flush`, std_io in type_of, gen_member and needs_hold, the error of a method of no type, pretty_value in type_of, gen_member, is_made_array and print, `IO(fd, mode)`, io_int_member; selfhost/sample.k: `scratch.print`, `scratch.println`, `scratch.flush`, `IO.stdout.print`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

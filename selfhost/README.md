@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An IO's print** (#452), as kelvinc's: `f.print(...)`,
+  `f.println(...)`, `f.flush()`, `IO.stdout` and its kin, never freed,
+  and `.pretty` of any value print shows; `IO(fd, mode)`, and `.fd`,
+  `.pid` and `.signal` each its own.
+  - A method of a value kc cannot type is its error; it had been dropped
+    unwritten.
 - **`Array<T>`, `};` and enums with no name** (#451), as kelvinc's:
   `Array<T>` wherever a type goes; C's `;` after a struct, an enum, a
   global or a statement; `enum { LIMIT = 100 }`, its enumerators `i32`,

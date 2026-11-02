@@ -942,6 +942,9 @@ on a new line`
     scratch.write("one\n")
     scratch.write(&handed)
     scratch.write($"\nthree")
+    scratch.print("\n", 4, " ", true)                    // an IO's print and println, as print's (#452)
+    scratch.println(" ", point.of(5, 6), " ", $[7].pretty)
+    scratch.flush()
     scratch.close()
     var lines_in = IO("sample_lines.tmp")
     var line_count = 0
@@ -949,6 +952,7 @@ on a new line`
     lines_in.rewind()
     for r in lines_in.lines { print(r.is(ok) ? "o" : "e") }
     remove("sample_lines.tmp")
+    IO.stdout.print("[", lines_in.fd > 2, " ", $[1, 2].pretty.count, "]")
     let parsed = digits_sum("42")
     println(" ", line_count, " ", parsed.cstr, " ", quartered(8).cstr, " ", point.of(1, 2).cstr, " ", Bytes(&$"h\u{e9}llo").count)
     var nest = Array<Array<int64>>([[1, 2], [], [3]])

@@ -8771,3 +8771,18 @@ build with kc, 85 in all, and print what kelvinc's builds print. Details
 are provisional P463.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 499. An IO's print in kc
+
+> push. then go on with #452
+
+**Claude** listed what stopped kc most and asked; the user chose an IO's
+print, println and flush. kc now writes them as kelvinc does, each value
+into the IO as print shows it, reads `IO.stdout` and its kin, and `.pretty`
+of any printed value. On the way, kc was found to drop
+`IO.stdout.println(...)` without a word, a method of a value it could not
+type, which is now its error; to open `IO(fd, mode)` as a path; and to read
+every member of an IO as its status. Two more tests build with kc, 87 in
+all, and print what kelvinc's builds print. Details are provisional P464.
+
+There are 1176 tests, and all pass with clang and with gcc 15.
