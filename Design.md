@@ -475,6 +475,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 441 | kc tracks an owner moved out as kelvinc does, in the order it is written: a variable given by value to a function, a method, a case, an Optional or a Result, `Iterator(...)`, `.reduce`, `.merge`, returned or awaited is dead until assigned anew, `t = v`, and a later use is kelvinc's error; the moves of a call's arguments are made where it ends, so `f(t, t)` stays as kelvinc builds it; a global moved, and each element or an `if let`'s value moved or returned, are kelvinc's errors too | selfhost/gen.k's sym.moved, moving, anew, local_at, moved_error, move_out, move_back, moves_done, into_words; gen_expr, gen_value and gen_stmt wrapping gen_expr_of, gen_value_of and gen_stmt_of | `take(t)` and then `println(t)` of kc | 2026-11-02 |
 | 442 | kc reads kelvinc's `if let x = e { ... } else { ... }` (#74): an Optional's `some` or a Result's `ok`, bound to `x`, a let it still owns, of a place or of a value a call gives, and `else if let`; what is neither, and a missing `=`, are kelvinc's errors in its words | selfhost/parse.k's parse_if; selfhost/gen.k's gen_iflet | `if let h = held { ... }` of kc | 2026-11-02 |
 | 443 | examples/ follows the language as it is now: fizzbuzz.k builds a `String`, sort.k sorts a `$[T]` with `sort` and `sorted`, linkedlist.k changes its list by `var` methods, and the rest name their types `i64`, `u8`, `f64` (#151); new ones show what had none: sequences.k iterators and lazy Ranges, wordfreq.k a Dictionary, a Set and RegExp, calc.k an enum with values, `switch` and `try`, tasks.k `async` and `await` | examples/*.k; README.md's Examples | `squares.push(i * i)` of linkedlist.k | 2026-11-02 |
+| 444 | kc reads `.m(a)` in a method as `self.m(a)`, which it had read as a call of a function `m`; walks a pointer to a struct whose `next` points to its own kind as a list, `for n in head`, each node a let, next read before the body, as kelvinc's #30; and names each anonymous function by its own number, so that one inside another has a name of its own | selfhost/parse.k's parse_method_call; selfhost/gen.k's list_walked, gen_each's list, anon_serial | `.pop()` in examples/linkedlist.k | 2026-11-02 |
 
 Notes:
 
@@ -1060,6 +1061,22 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (444) Agreed details: "go on with #444"; the user chose the two kc
+  bugs examples/ found in #443.
+  - `.m(a)`: the primary read `.m` as self's member and the `(` after
+    it as a call of the member; parse_method_call, the method call's
+    code moved out of the postfix loop, now reads `.m(a)` as
+    `self.m(a)`, a trailing function too, in a let or a var method.
+  - examples/linkedlist.k needed one more: `for n in .head`, a list,
+    which kc had walked as an Array. list_walked is a pointer to a
+    struct whose `next` points to that struct; each node is a `T^`
+    let, and `next` is read before the body, which may free it. Any
+    other pointer is kc's "not yet", where C had failed.
+  - An anonymous function's C name took the count of those made, and
+    one inside another is named before the outer is counted, so both
+    had one name; anon_serial counts the names instead.
+  - examples/linkedlist.k and sequences.k build with kc now, and so
+    does tests/run/var_method.k, each printing what kelvinc's prints.
 - (443) Agreed details: "update `examples/` with recent language
   specs", fizzbuzz.k and sort.k obviously obsolete, and more examples
   welcome.
@@ -1082,7 +1099,8 @@ Notes:
     Array and one that gives a String.
   - Found, kc's: the old fizzbuzz.k it built stops now at a template
     literal; `.pop()` in a var method calls `pop` in C; sequences.k's
-    anonymous function inside another has the C name of the outer.
+    anonymous function inside another has the C name of the outer;
+    #444 fixes the last two.
 - (442) Agreed details: "go on with #442"; the user chose `if let x =
   e` over two error gaps and a closure's lent element.
   - kc read only `if let c(x) = e`, and `if let x = e` was its parse
@@ -6231,6 +6249,7 @@ says "as agreed".
 | P453 | Details of #441 | selfhost/gen.k: sym.moved; moving, anew, local_at, moved_error, move_out, move_back, moves_done and into_words; gen_expr, gen_value and gen_stmt as wrappers of gen_expr_of, gen_value_of and gen_stmt_of; the moves of gen_arg_to, gen_method_of's case, gen_value's case, gen_moved, gen_return, gen_iter_value, gen_eager, gen_eager_keyed, gen_merge and gen_await; `t = v` in gen_stmt; selfhost/sample.k: `handed_back`, `handed`; selfhost/README.md | — |
 | P454 | Details of #442 | selfhost/parse.k: parse_if's short form and its error, S_IFLET's comment; selfhost/gen.k: gen_iflet's value case and its error; selfhost/sample.k: `if let h = held`, `else if let t = ...`; selfhost/README.md | — |
 | P455 | Details of #443 | examples/fizzbuzz.k, sort.k and linkedlist.k rewritten; hello.k, primes.k, strings.k, shapes.k, results.k, complex.k, bfi.k, bfc.k, ski.k and lambda.k in short type names; examples/sequences.k, wordfreq.k, calc.k and tasks.k new; README.md: the Examples table | — |
+| P456 | Details of #444 | selfhost/parse.k: parse_method_call, from the postfix loop, and parse_primary's `.m(a)`; selfhost/gen.k: list_walked and gen_each's list walk and its "not yet" of another pointer, anon_serial in anon_function_of and iter_function; selfhost/sample.k: `bump_twice`, `doubled_sum`, `link`, `triangles`; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

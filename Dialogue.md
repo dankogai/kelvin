@@ -8642,3 +8642,18 @@ lists them. Found, kc's: the template literal of the new fizzbuzz.k,
 Details are provisional P455.
 
 There are 1174 tests, and all pass with clang and with gcc 15.
+
+### 491. Two kc bugs the examples found
+
+> push. then go on with #444
+
+**Claude** asked which to take; the user chose the two kc bugs that
+examples/ found. kc now reads `.m(a)` in a method as `self.m(a)`, where
+it had read a call of a function `m`, and names each anonymous function
+by its own number, so that one inside another no longer shares the
+outer's C name. examples/linkedlist.k needed one more, `for n in head`
+along `next`, which kc now walks as kelvinc's #30 does. linkedlist.k,
+sequences.k and tests/run/var_method.k build with kc now, and print what
+kelvinc's builds print. Details are provisional P456.
+
+There are 1174 tests, and all pass with clang and with gcc 15.

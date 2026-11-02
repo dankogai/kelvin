@@ -1650,6 +1650,30 @@ let parse_iterator():int64 {
     return n
 }
 
+// e.t(a...) from its '(': a method call, a function trailing it the last
+// argument; of e, or of self where .t(a) is written (#444)
+let parse_method_call(e:int64, t:int64):int64 {
+    advance()
+    let n:int64 = make_node(N_METHOD, t)
+    nodes[n].a = e
+    if tok_is(t, "stride") && toks[pos].kind == T_ID && tok_is(pos + 1, ":") {   // r.stride(by: 2), as kelvinc says it (#379)
+        advance()
+        parse_error("'.stride' takes its step alone, as in 'r.stride(2)': Kelvin has no argument labels")
+    }
+    set_b(n, parse_args())
+    if anon_ahead() {                                    // x.m(a) { ... }: a function trailing, the last argument (#328)
+        let an:int64 = parse_anon()
+        if nodes[n].b < 0 {
+            nodes[n].b = an
+        } else {
+            var last:int64 = nodes[n].b
+            while nodes[last].next >= 0 { last = nodes[last].next }
+            nodes[last].next = an
+        }
+    }
+    return n
+}
+
 let parse_primary():int64 {
     let t:int64 = pos
     let k:tkind = toks[t].kind
@@ -1855,7 +1879,9 @@ let parse_primary():int64 {
     }
     if at_word(".") && toks[pos + 1].kind == T_ID {        // .x, self's member x (#213)
         advance()
-        let n:int64 = make_node(N_FIELD, advance())
+        let m:int64 = advance()
+        if at_word("(") { return parse_method_call(make_node(N_SELF, t), m) }   // .m(a), self.m(a) (#444)
+        let n:int64 = make_node(N_FIELD, m)
         nodes[n].a = make_node(N_SELF, t)
         return n
     }
@@ -1921,25 +1947,7 @@ let parse_steps(first:int64):int64 {
             advance()
             let t:int64 = advance()
             if at_word("(") {
-                advance()
-                let n:int64 = make_node(N_METHOD, t)
-                nodes[n].a = e
-                if tok_is(t, "stride") && toks[pos].kind == T_ID && tok_is(pos + 1, ":") {   // r.stride(by: 2), as kelvinc says it (#379)
-                    advance()
-                    parse_error("'.stride' takes its step alone, as in 'r.stride(2)': Kelvin has no argument labels")
-                }
-                set_b(n, parse_args())
-                if anon_ahead() {                        // x.m(a) { ... }: a function trailing, the last argument (#328)
-                    let an:int64 = parse_anon()
-                    if nodes[n].b < 0 {
-                        nodes[n].b = an
-                    } else {
-                        var last:int64 = nodes[n].b
-                        while nodes[last].next >= 0 { last = nodes[last].next }
-                        nodes[last].next = an
-                    }
-                }
-                e = n
+                e = parse_method_call(e, t)
             } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap") || tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "flatMapWithKey") || tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "firstIndex") || tok_is(t, "lastIndex") || tok_is(t, "prefix")) && anon_ahead() {   // x.map { ... }, its function trailing (#324), d.contains { ... } and the rest (#339), xs.firstIndex { ... } (#342), x.prefix { ... } (#372)
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e

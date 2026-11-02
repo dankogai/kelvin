@@ -184,6 +184,7 @@ extend point {                                        // methods (#213)
     let scaled(k:int64):point { return {.x * k, self.y * k} }
     static let of(x:int64, y:int64):Self { return {x, y} }
     static let flipped(x:int64, y:int64):Self { (Self){.y = x, .x = y} }   // (T){...}, C's compound literal, and .name = (#418)
+    let doubled_sum():int64 { .scaled(2).sum() }      // .m(a) of self (#444)
 }
 let point.dot(o:point):int64 { return .x * o.x + .y * o.y }
 
@@ -234,6 +235,14 @@ var tally_box.bump(by:int64):int64 {
 }
 extend tally_box {
     var reset() { self.n = 0 }
+    var bump_twice():int64 {                            // .m(a), self's method (#444)
+        .bump(1)
+        return .bump(1)
+    }
+}
+struct link {                                         // a list, which for walks along next (#444)
+    value: int64
+    next:  link^
 }
 struct countdown { n: int64 }                        // an iterator, its var next():T? (#320)
 var countdown.next():int64? {
@@ -882,5 +891,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     if let h = held { println(h, " ", h.count) }        // the value of an Optional, of a Result (#442)
     let nothing:String? = none
     if let h = nothing { println(h) } else if let t = octet_text.string() { println("text ", t) }
+    var twice_box:tally_box = {5}
+    var link_c:link = {3, nullptr}
+    var link_b:link = {2, &link_c}
+    var link_a:link = {1, &link_b}
+    var linked:int64 = 0
+    for l in &link_a { linked = linked * 10 + l^.value }
+    let triangles = $[1, 2, 3].map { k in (1...k).map { j in (1...j).reduce(0) { $0 + $1 } } }   // one inside another (#444)
+    println(point.of(1, 2).doubled_sum(), " ", twice_box.bump_twice(), " ", twice_box.n, " ", linked, " ", triangles)
     return 0
 }

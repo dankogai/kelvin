@@ -7752,6 +7752,7 @@ struct lazy_rec {
 var lazies:$[lazy_rec]
 var lazy_at:Dictionary<int64, int64>      // a node's lazy Sequence, by its place in lazies
 var anon_fns:$[int64]                     // the functions kc makes of { ... }, written after the others
+var anon_serial:int64                     // the anonymous functions named, each its number (#444)
 
 // a value returned where the function has no result, as kelvinc says it
 // (#427): a call of no value, a function's without a result or C's, passes
@@ -7843,7 +7844,8 @@ let anon_function_of(an:int64, ps:const $[int64]^, ry:int64, me:const String^):i
     var name = $"_kv_"
     name += tok_text(nodes[current].t)
     name += "_fn"
-    name += String(anon_fns.count as int64 + 1)
+    anon_serial += 1                                 // its own number, where one inside another is made first (#444)
+    name += String(anon_serial)
     let d:int64 = make_node(D_FN, made_token(&name))
     if nodes[an].flag == 1 {
         var last:int64 = 0 - 1
@@ -8428,7 +8430,8 @@ let iter_function(an:int64, sy:int64, ty:int64):int64 {
     var name = $"_kv_"
     name += tok_text(nodes[current].t)
     name += "_fn"
-    name += String(anon_fns.count as int64 + 1)
+    anon_serial += 1                                 // its own number, where one inside another is made first (#444)
+    name += String(anon_serial)
     let d:int64 = make_node(D_FN, made_token(&name))
     if nodes[an].flag == 1 {
         var zero = $"$0"
@@ -10892,6 +10895,24 @@ let gen_iter_each(n:int64, depth:int64, y:int64, f:int64, src:int64) {
     put("}\n")
 }
 
+// whether y points to a struct whose next points to one of its own, a
+// list, which for x in p walks node by node, as kelvinc's #30 (#444)
+let list_walked(y:int64):bool {
+    if y < 0 || types[y].kind != Y_PTR { return false }
+    let sy:int64 = types[y].elem
+    let d:int64 = struct_of(sy)
+    if d < 0 { return false }
+    var f:int64 = nodes[d].a
+    while f >= 0 {
+        let ft:int64 = nodes[f].ty
+        if tok_is(nodes[f].t, "next") {
+            return ft >= 0 && types[ft].kind == Y_PTR && struct_of(types[ft].elem) == d
+        }
+        f = nodes[f].next
+    }
+    return false
+}
+
 let gen_each(n:int64, depth:int64) {
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }
@@ -11163,6 +11184,35 @@ let gen_each(n:int64, depth:int64) {
         put(";\n")
         open_scope()
         declare_each(nodes[n].t, base_type(literal ? Y_C : Y_U8), 3)
+    } else if list_walked(y) {                         // each node along next, up to nullptr, as kelvinc's #30 (#444)
+        put_ctype(y)
+        put(" _kv_p")
+        put_int(serial)
+        put(" = ")
+        gen_expr(src)
+        put(";\n")
+        indent(depth + 1)
+        put("while (_kv_p")
+        put_int(serial)
+        put(" != NULL)\n")
+        indent(depth + 1)
+        put("{\n")
+        indent(depth + 2)
+        put_ctype(y)
+        put(" const ")
+        put_tok(nodes[n].t)
+        put(" = _kv_p")
+        put_int(serial)
+        put("; _kv_p")                                   // next read first: the body may free the node
+        put_int(serial)
+        put(" = ")
+        put_tok(nodes[n].t)
+        put("->next;\n")
+        open_scope()
+        declare_each(nodes[n].t, y, 3)
+    } else if types[y].kind == Y_PTR {
+        gen_error(nodes[n].a, "kc walks a pointer only as a list, a struct's along its next: not yet up to a 0 or nullptr")
+        return
     } else {
         let ey:int64 = types[y].kind == Y_BYTES ? base_type(Y_U8) : types[y].elem    // a Bytes's bytes (#439)
         put("for (size_t _kv_i")

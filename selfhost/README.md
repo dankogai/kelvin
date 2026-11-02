@@ -598,6 +598,13 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`.m(a)`, lists and nested functions** (#444), as kelvinc's: `.m(a)`
+  in a method is `self.m(a)`, a let's or a var's; `for n in head` walks
+  a struct's list along `next`, each node a let, `next` read first; an
+  anonymous function inside another has a C name of its own.
+  - Another pointer in a `for` is kc's "not yet".
+  - examples/linkedlist.k and sequences.k, and tests/run/var_method.k,
+    build with kc and print what kelvinc's builds print.
 - **`if let x = e`** (#442), as kelvinc's #74: an Optional's `some` or
   a Result's `ok`, bound to `x`, of a place or of a value a call gives,
   with `else` and `else if let`, beside `if let c(x) = e`.
