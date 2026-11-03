@@ -260,6 +260,17 @@ static inline unsigned kv_bit_shift(uint64_t n) {
     if (n > 63) kv_array_fail("a Bits shifts by 0 to 63, and this is past it");
     return (unsigned)n;
 }
+/* x.bit(n) and x.flip(n) of an integer of w bits (#454): n is 0 to w - 1,
+   else the program ends */
+static inline unsigned kv_int_place(uint64_t n, unsigned w) {
+    if (n >= w)
+        kv_array_fail(w == 8    ? "an integer of 8 bits has bits 0 to 7, and this place is past them"
+                      : w == 16 ? "an integer of 16 bits has bits 0 to 15, and this place is past them"
+                      : w == 32 ? "an integer of 32 bits has bits 0 to 31, and this place is past them"
+                      : w == 64 ? "an integer of 64 bits has bits 0 to 63, and this place is past them"
+                                : "an integer of 128 bits has bits 0 to 127, and this place is past them");
+    return (unsigned)n;
+}
 static inline bool kv_bits_at(kv_bits b, uint64_t n) { return b.value >> kv_bit_place(n) & 1; }
 static inline void kv_bits_put(kv_bits *b, uint64_t n, bool v) {
     unsigned i = kv_bit_place(n);

@@ -42,7 +42,8 @@ integer 0 or 1.
 - **A bit:** `bv[n]` is bit `n`, a `bool`, 0 the lowest.
   - It is set with `=`, `|=`, `&=` and `~=` (xor), and a `bool`:
     `bv[n] = !!x` of an integer, `bv[n] = x != 0`; an integer is no bit.
-  - `bv.flip(n)` flips it.
+  - `bv.flip(n)` flips it, and so does `bv[n].flip()` (#454), as a
+    `bool`'s `b.flip()`.
   - `n` is 0 to 63: a literal past it is an error, and a value past it
     ends the program, as an index past an Array's count does.
   - `n` may be an enum's value, so that the flags have names:
@@ -79,7 +80,7 @@ import.
 | `Bits` | `Bits()`, `Bits(n)` | all zeros; `n`'s bits, as `u64(n)` |
 | | `.value` | its `u64`, read and set |
 | | `bv[n]` | bit `n`, a `bool`, set with `=`, `\|=`, `&=` and `~=` |
-| | `.flip(n)` | bit `n` flipped, in the var that holds it |
+| | `.flip(n)`, `bv[n].flip()` | bit `n` flipped, in the var that holds it; the second #454's |
 | | `\|`, `&`, `~`, `==`, `!=` of two | as of their `u64`s: a Bits, or a `bool` |
 | | `~bv`, `bv << n`, `bv >> n` | each bit flipped; shifted by 0 to 63 |
 | | `print(bv)`, `.cstr`, `${bv}` | `Bits(0b101)`, which pastes back |

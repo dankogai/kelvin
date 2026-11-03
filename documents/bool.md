@@ -55,6 +55,12 @@ floats in [floatingpoint.md](floatingpoint.md).
     `nowhere`, is an error.
 - **Printing:** `print` shows `true` or `false`, and so does `.cstr`;
   see [printing.md](printing.md).
+- **Flipping:** `b.flip()` is `b = !b` (#454), in the var that holds
+  `b`: a `let` is an error, and `.flip()` takes nothing.
+  - `bv[n].flip()` of a `Bits` is `bv.flip(n)`, its bit flipped in the
+    `Bits`; see [bits.md](bits.md).
+  - An integer's bits are `x.bit(n)` and `x.flip(n)`; see
+    [integers.md](integers.md).
 
 ## Where it lives
 
@@ -62,13 +68,14 @@ The core. `bool` is C's `bool` from `<stdbool.h>`, which the generated C include
 
 ## Properties and methods
 
-| On | Property | Gives |
+| On | Property or method | Gives |
 |---|---|---|
 | `bool` | `.size` | `sizeof`, a `size_t` |
 | | `.align` | `alignof(bool)`, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name, `bool` |
 | | `.cstr` | `true` or `false`, in the block's buffer |
 | | `.i8` ... `.u64`, `.f32`, `.f64` | a conversion, `i64(v)` written after the value: 1 or 0 |
+| | `.flip()` | `b = !b`, in the var that holds it (#454) |
 | integer | `!!n` | the `bool` of 0 or 1, `false` or `true`; any other ends the program (#387) |
 
 The details are in [properties.md](properties.md).

@@ -1401,6 +1401,31 @@ static char *expr_bare(Expr *e) {
                           "(__int128)_kv_ea.lo == (__int128)_kv_eb.lo && (_kv_ea.kind == 2 || (__int128)_kv_ea.hi == "
                           "(__int128)_kv_eb.hi))); })",
                           expr(e->a), expr(e->b), !strcmp(e->text, "!=") ? "!" : "");
+        if (e->op && (!strcmp(e->op, "bit_flip") || !strncmp(e->op, "bit_int_", 8))) {
+            /* b.flip(), x.flip(n), x.bit(n) and its setting (#454): an
+               integer's bits through its unsigned type of its width, the
+               place checked by the prelude's kv_int_place */
+            if (!strcmp(e->op, "bit_flip"))
+                return strfmt("({ bool *_kv_fp = &(%s); *_kv_fp = !*_kv_fp; (void)0; })", expr(e->a));
+            const char *w = e->from->name + 1;
+            const char *u = !strcmp(w, "8") ? "uint8_t" : !strcmp(w, "16") ? "uint16_t" : !strcmp(w, "32") ? "uint32_t"
+                            : !strcmp(w, "64") ? "uint64_t" : "unsigned __int128";
+            const char *n = expr(e->items.data[0]);
+            if (!strcmp(e->op, "bit_int_at"))
+                return strfmt("((bool)((%s)(%s) >> kv_int_place((uint64_t)(%s), %s) & 1))", u, expr(e->a), n, w);
+            if (!strcmp(e->op, "bit_int_flip"))
+                return strfmt("({ __auto_type _kv_ip = &(%s); unsigned _kv_p = kv_int_place((uint64_t)(%s), %s); "
+                              "*_kv_ip = (__typeof__(*_kv_ip))((%s)*_kv_ip ^ (%s)((%s)1 << _kv_p)); (void)0; })",
+                              expr(e->a), n, w, u, u, u);
+            const char *op = !strcmp(e->text, "=")    ? "(_kv_u & (%s)~_kv_m) | (_kv_bv ? _kv_m : 0)"
+                             : !strcmp(e->text, "|=") ? "_kv_bv ? _kv_u | _kv_m : _kv_u"
+                             : !strcmp(e->text, "&=") ? "_kv_bv ? _kv_u : _kv_u & (%s)~_kv_m"
+                                                      : "_kv_bv ? _kv_u ^ _kv_m : _kv_u";
+            return strfmt("({ __auto_type _kv_ip = &(%s); unsigned _kv_p = kv_int_place((uint64_t)(%s), %s); bool _kv_bv "
+                          "= (%s); %s _kv_u = (%s)*_kv_ip; %s _kv_m = (%s)((%s)1 << _kv_p); *_kv_ip = "
+                          "(__typeof__(*_kv_ip))(%s)(%s); (void)0; })",
+                          expr(e->a), n, w, expr(e->items.data[1]), u, u, u, u, u, u, strfmt(op, u));
+        }
         if (e->op && (!strncmp(e->op, "bits_", 5) || !strcmp(e->op, "bit_of"))) {
             /* Bits (#387), kv_bits in C: its u64 as .value, each bit by its
                place, checked, through the prelude's kv_bits_ functions */

@@ -485,6 +485,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 451 | kc reads `Array<T>` wherever a type is written, as `$[T]`, `Array<Array<T>>` and `Array<T>?` too; an empty `[]` in `Array<Array<T>>([...])`, where kc had crashed; C's `;` after a struct's or an enum's `}` and after a global, and between statements, `for ... { ... }; return s`; and an enum with no name, `enum { LIMIT = 100 }`, its enumerators C's int, `i32`, as kelvinc's P10, counting a fixed array as a constant, `[bool](LIMIT + 1)` | selfhost/parse.k's array_type, parse_enum's, parse_block's and parse_program's `;`; selfhost/gen.k's constant_count | `var xs:Array<int64>`, `enum { LIMIT = 100 }` | 2026-11-03 |
 | 452 | kc writes an IO's `f.print(...)`, `f.println(...)` and `f.flush()`, as kelvinc's, each value as print shows it into the IO; `IO.stdin`, `IO.stdout` and `IO.stderr`, never freed; `v.pretty` of any value print shows by a printer; `IO(fd, mode)` of a descriptor; and `f.fd`, `f.pid` and `f.signal` each its own, where kc had read every member as the status; a method of a value whose type kc does not see is kc's error, where it had dropped the statement unwritten | selfhost/gen.k's gen_print_args_to, std_io, pretty_value, io_int_member | `f.println("n = ", n)`, `IO.stdout.flush()` | 2026-11-03 |
 | 453 | kc reads C's types, as kelvinc's #29: `struct T`, `union T` and `enum T` wherever a type is written, the program's T, or a C header's, which keeps its word, `struct tm`; `union T { ... }` at the top level, in a block and in a struct, shown `<union T>`, holding no owner; `struct T;`, a C struct whose members C sees; a function declared with no body, written as kelvinc declares it, and its `;`; `...` after a function's parameters, C's variadic; and `as` looser than a prefix, as kelvinc's P17, `&b as T^` being `(&b) as T^`, where kc had read `&(b as T^)` | selfhost/parse.k's tagged_word, record_tagged, c_tags, variadic_fns, parse_cast; selfhost/gen.k's put_record_word, the union's printer | `let printf(fmt:const uint8^, ...):int32;`, `next:struct node^` | 2026-11-03 |
+| 454 | `b.flip()` of a `bool` is `b = !b`; an integer's `x.bit(n)` is its bit `n`, a `bool`, 0 the lowest, set with `=`, `\|=`, `&=` and `~=` of a bool, and `x.flip(n)` flips it, as a `Bits`'s `bv[n]` and `bv.flip(n)`; `bv[n].flip()` is `bv.flip(n)`; each flip and setting in the var that holds the value; `n` 0 to the width less 1, a literal checked, a value past it ending the program | src/parser.c's bit_method and int_width, the `x.bit(n) = b` assignment; src/codegen.c's bit_flip, bit_int_at, bit_int_flip, bit_int_set; the prelude's kv_int_place | `flags.bit(3) = true`, `done.flip()` | 2026-11-03 |
 
 Notes:
 
@@ -1070,6 +1071,32 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (454) Agreed details: "Let's streamline bitwise operations a little
+  further": `.flip()` of a `bool`, `b = !b`; `.flip(n)` and `.bit(n)` of
+  every integer type, `.bit(n)` "both getter and setter which returns
+  and accepts Bool"; `bs[n].flip()` as `bs.flip(n)`; and `Bits` past 64
+  bits on a `[u64]`, made of strings, `[bool]`s and integers, with
+  `.append`, `.capacity(n)`, `.u64s` and `.bin`.
+  - The user chose two numbers: this one, the methods of a `bool`, of
+    the integers and `bv[n].flip()`; and #455, `Bits` past 64 bits.
+  - The user chose `x.bit(n) = b` to set a bit, over `x.bit(n, b)`;
+    `|=`, `&=` and `~=` of a bool set it too, as `bv[n]`'s do (#387),
+    and an integer is no bit, `!!k` making one.
+  - `.flip()` and `.flip(n)` change the var that holds the value, as
+    `bv.flip(n)` does: a `let`, or a value an expression gives, is an
+    error. `.bit(n)` reads any integer, a literal's or arithmetic's too.
+  - The integers are `i8` to `u128`; `n` is an integer of 64 bits or
+    fewer, or an enum's value, 0 to the width less 1, as a `Bits`'s
+    place is 0 to 63: a literal past it is an error, a value past it
+    ends the program, by the prelude's kv_int_place.
+  - In C a bit is read and set through the unsigned type of the
+    integer's width, so a signed integer's sign bit is a bit as any
+    other: `n.bit(63) = false` of an `i64` -1 is its most.
+  - A floating-point number has neither, an error; `.flip()` of a bool
+    takes nothing, and `.bit(n)` of one is an error that names
+    `.flip()`.
+  - kc reads none of these yet: as the user chose for #455, kc keeps
+    what it reads.
 - (453) Agreed details: "go on with #453"; the user chose C's types.
   - `struct T`, `union T` and `enum T` are T where T is the program's
     struct, union or enum of that word: record_tagged. Else the type
@@ -6481,6 +6508,7 @@ says "as agreed".
 | P463 | Details of #451 | selfhost/parse.k: array_type and parse_bare_type's `Array<T>`, sizeof_type_at's `Array`, lists_grow's `[]`, parse_enum with no name, parse_block's `;`, parse_program's `;` after a struct, an enum and a global and its error after a function; selfhost/gen.k: var_type's `i32`, the enum written without a name, the u8 of `Array(['a'])`, empty_fits and empty_error of `[]`, gen_array's `[]`, constant_count, fixed_computed and gen_fixed_var's constant count; selfhost/sample.k: `SAMPLE_LIMIT`, `bounds`, `evens`, `nest`, `flags`, `sp`; selfhost/README.md | — |
 | P464 | Details of #452 | selfhost/gen.k: gen_print_args_to and its sink, the IO's `print`, `println` and `flush`, std_io in type_of, gen_member and needs_hold, the error of a method of no type, pretty_value in type_of, gen_member, is_made_array and print, `IO(fd, mode)`, io_int_member; selfhost/sample.k: `scratch.print`, `scratch.println`, `scratch.flush`, `IO.stdout.print`; selfhost/README.md | — |
 | P465 | Details of #453 | selfhost/parse.k: annotation_ahead's, sizeof_type_at's and literal_ahead's tagged_word, record_tagged, parse_bare_type's `struct T` and c_tags, parse_function's `...` and variadic_fns, the union in parse_statement, parse_struct and parse_program, `struct T;`, the `;` after a function with no body, parse_cast; selfhost/gen.k: put_record_word in put_ctype, forward_struct, write_type and gen_show, the union's `<union T>` and need_show, the union's owner error, c_tag_types declared, gen_signature's `...`, the prototypes of functions with no body, count_overloads' and named_fn_type's variadic errors; selfhost/sample.k: `open`, `thrice_va`, `pun`, `chain_node`, `timespec`, `punned`, `chain_head`, `moment` and their lines; selfhost/README.md | — |
+| P466 | Details of #454 | src/parser.c: int_width, bit_method and its call in the member loop, the `x.bit(n) = b` assignment, bit_ in the typed and no-value op lists; src/codegen.c: bit_flip, bit_int_at, bit_int_flip, bit_int_set; modules/kelvin_prelude.h: kv_int_place; documents/integers.md, bool.md, bits.md, README.md; README.md; tests/run/int_bits.k, int_bits_failure.k; tests/error/int_bit_place.k, int_bit_set_int.k, int_bit_let.k, bool_flip_args.k, float_flip.k | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

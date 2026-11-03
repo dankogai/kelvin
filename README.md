@@ -198,6 +198,8 @@ So far the changes from C are these, by topic.
 - `bool`, `true` and `false` are built in; `!!n` is the `bool` of an
   integer 0 or 1, and `Bits`, 64 bits each a `bool` by its place, takes
   the place of C's bit-fields (#387)
+  - an integer's bit is `x.bit(n)`, set with `x.bit(n) = b`, and
+    `x.flip(n)` flips it; `b.flip()` is `b = !b` (#454)
 - `Result<T, U>` is a value with an outcome, `ok(v)` or `err(e)`
   - `r.ok` checked, `r ?? 0`, `r.is(err)`, `if let v = r { } else { r.err }`
   - `switch r { case ok: ... case err: ... }`, `if let err(e) = r { }`,

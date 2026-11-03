@@ -8801,3 +8801,31 @@ more tests build with kc, 90 in all, and print what kelvinc's builds print.
 Details are provisional P465.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 501. A bool's flip, an integer's bits
+
+> * Let's streamline bitwise operations a little further.
+> * add `.flip()` to `Bool` instances, maning `b = !b`
+> * add `.flip(n)` and `.bit(n)` to all integer types.  the latter is
+>   both getter and setter which returns and accepts `Bool`.
+> * make `bs[n].flip()`work as `bs.flip(n)` where `bs`is an instance of
+>   `Bits`.
+> * make `Bits()` accept more than 64bits and make it compatible with
+>   `[Bool]`.  Its internal value is now `[u64]` instead of `u64`.  bits.
+>   Storing bits in LSB order.
+> * `Bits("0b01...")` and `Bits([true, false ...])` init. It also accepts
+>   `Bits(args...)` where args are strings, `[bool]`s, and integers.
+> * accept `.append(bool)`, `.append([bool])`, `append(i)` where i is
+>   uints and ints, and `.capacity(n)`where n is in **bits**.  The
+>   resulting capacity in the multiple of 64.
+> * `.u64s` returns the internal `[u64]`. `.bin` stringifies to
+>   [`"0b01...","0b10..."]`
+
+**Claude** asked four things; the user chose two numbers, this one the
+methods and #455 `Bits` past 64 bits; `x.bit(n) = b` to set a bit; `Bits()`
+empty and indexed as an Array, for #455; and kc keeping what it reads. So
+`b.flip()` is `b = !b`, an integer's `x.bit(n)` is its bit `n`, set with
+`=`, `|=`, `&=` and `~=` of a bool, and `x.flip(n)` flips it, as a `Bits`'s
+bits are; `bv[n].flip()` is `bv.flip(n)`. Details are provisional P466.
+
+There are 1183 tests, and all pass with clang and with gcc 15.

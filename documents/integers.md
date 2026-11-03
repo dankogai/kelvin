@@ -252,19 +252,51 @@ let main():int32 {
   has no order.
 - A struct's field named `sign`, and an attribute of your own, win.
 
+### Bits: `.bit(n)` and `.flip(n)`
+
+```swift
+let main():int32 {
+    var x:u8 = 0b101
+    x.flip(1)                                 // 0b111
+    x.bit(7) = true                           // 0b10000111
+    x.bit(0) &= false                         // 0b10000110
+    let k:i32 = 6
+    println(x, " ", x.bit(7), " ", k.bit(0), " ", 5.bit(2))   // 134 true false true
+    return 0
+}
+```
+
+- **`x.bit(n)`** of an integer, `i8` to `u128`, is its bit `n`, a
+  `bool`, 0 the lowest (#454), as a `Bits`'s `bv[n]`; see
+  [bits.md](bits.md).
+  - It is set with `=`, `|=`, `&=` and `~=` (xor), and a `bool`:
+    `x.bit(n) = !!k` of an integer 0 or 1; an integer is no bit.
+  - A signed integer's highest bit is its sign: `n.bit(63) = false` of
+    an `i64` -1 is the `i64`'s most.
+- **`x.flip(n)`** flips bit `n`, in the var that holds `x`: a `let` is
+  an error, and so is a value an expression gives.
+- **`n`** is 0 to the width less 1, 0 to 31 of an `i32`: a literal past
+  it is an error, and a value past it ends the program, as a `Bits`'s
+  place does. It is an integer of 64 bits or fewer, or an enum's value,
+  so the bits may have names.
+- A floating-point number has neither; a `bool` flips with `b.flip()`,
+  see [bool.md](bool.md).
+
 ## Where it lives
 
 The core. Integers are kelvinc's own, written as C's types, with nothing linked. Their text (`.cstr`, `.dec`, `.hex`), printing them, and reading them from text (`i64("42")`) are the prelude's, `libkelvin`, linked without an import.
 
 ## Properties and methods
 
-| On | Property | Gives |
+| On | Property or method | Gives |
 |---|---|---|
 | signed integers | `.abs` | the magnitude, of its type; the least stays as it is (#381) |
 | | `.sign` | -1, 0 or 1, of its type (#382) |
 | integers | `b ** e` | `b` to the power `e`, of `b`'s promoted type, wrapping; `e` never negative (#380) |
 | | `.pow(e)` | `b ** e` (#380) |
 | | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's `pow(b, e, m)`, without overflow (#380) |
+| | `.bit(n)` | bit `n`, a `bool`, set with `=`, `\|=`, `&=` and `~=` (#454) |
+| | `.flip(n)` | bit `n` flipped, in the var that holds it (#454) |
 | | `.size` | `sizeof`, a `size_t` |
 | | `.align` | `alignof` of its type, a `size_t` (#395) |
 | | `.type`, `.typename` | the type, where a type goes; its name as text |
