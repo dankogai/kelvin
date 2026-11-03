@@ -1,6 +1,7 @@
-// a Bits shifts by 0 to 63 (#387), as a bit's place is: past it the program ends
+// a Bits shifts by 0 or more places (#387, #455): a negative shift ends
+// the program
 let main():int32 {
-    var k = 64
+    var k = -1
     println("before")
     let b = Bits(1) << k
     println("never ", b)
@@ -8,4 +9,4 @@ let main():int32 {
 }
 // out: before
 // exit: 1
-// err: kelvin: a Bits shifts by 0 to 63, and this is past it
+// err: kelvin: a Bits shifts by 0 or more places, and this is less

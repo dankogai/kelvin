@@ -153,7 +153,7 @@ Each document says so in its "Where it lives" section. In short:
 | [integers.md](integers.md) | `i8`…`u128`, their literals, conversions of any number, numbers from text |
 | [floatingpoint.md](floatingpoint.md) | `f32`, `f64`, their literals, reading, printing and text |
 | [bool.md](bool.md) | `bool`, `true` and `false`, where a `bool` comes from, conditions, converting |
-| [bits.md](bits.md) | `Bits`, 64 bits in a `u64`, `bv[n]` a `bool`, `.flip(n)`, the bitwise operators, `!!n` (#387) |
+| [bits.md](bits.md) | `Bits`, bits in `u64`s, `bv[n]` a `bool`, `.flip(n)`, `.append(x)`, the bitwise operators, `!!n` (#387, #455) |
 | [pointers.md](pointers.md) | `T^`, `:=` for references, `any^`, `nowhere`, `.next`, `.prev`, `.isNull` |
 | [results.md](results.md) | `Result<T, U>`: `ok` and `err`, `??`, `if let`, `try`, switching on it; `T?` as its special case |
 | [optionals.md](optionals.md) | `T?`, the Result whose `err` carries nothing: `none`, `some`, `??`, `if let` |
@@ -281,8 +281,8 @@ These C features stay out, as decided (#294):
     program never needs to.
   - Written, it is an error that says so.
 - **Bit-fields**: `unsigned a : 1` packs as the platform's ABI decides.
-  - A struct holds a `Bits` (#387) instead, 64 bits in a `u64`, each a
-    `bool` by its place, and an enum names the flags: `s.flags[busy]`.
+  - A struct holds a `Bits` (#387) instead, bits in `u64`s (#455), each
+    a `bool` by its place, and an enum names the flags: `s.flags[busy]`.
   - See [bits.md](bits.md).
 - **The preprocessor**: Kelvin's directives, `#import` and
   `#inline C { ... }`, are its only ones.

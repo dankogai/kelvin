@@ -8829,3 +8829,18 @@ empty and indexed as an Array, for #455; and kc keeping what it reads. So
 bits are; `bv[n].flip()` is `bv.flip(n)`. Details are provisional P466.
 
 There are 1183 tests, and all pass with clang and with gcc 15.
+
+### 502. Bits past 64 bits
+
+> push. then go on with #455
+
+**Claude** pushed #453 and #454, CI green on all nine jobs, and asked four
+more things of #455; the user chose its text `Bits("0b...")`, which pastes
+back; `|`, `&` and `~` of the longer count; `<<` and `>>` that grow and
+shrink it; and `.value` gone for `.u64s`. A `Bits` now holds its bits in
+`u64`s on the heap, an owner as an `Array` is, made of bools, `[bool]`s,
+integers and text `"0b..."`, with `.append`, `.capacity(n)`, `.count`,
+`.u64s`, `.bin` and `for b in bv`. kc keeps building what it built, on
+the new runtime. Details are provisional P467.
+
+There are 1188 tests, and all pass with clang and with gcc 15.

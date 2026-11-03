@@ -470,8 +470,8 @@ kc reads what it is written in, and little more.
   `>>` and their assignments, through the prelude's kv_bits_ functions;
   `!!n`, two adjacent `!`, the bool of an integer 0 or 1; the shifts of
   integers too, `>>` lexed as one and split where it closes a type's
-  `<...>`. kc has no u64, so `bv.value` is what only C sees: `as int64`
-  reads it. kelvinc's errors, in its words.
+  `<...>`. kc had no u64, so `bv.value` was what only C sees; #455 took
+  it away. kelvinc's errors, in its words.
 - **Unnamed parameters** (#388), as kelvinc's: a parameter written `_`
   is a token kc makes, `_kv_argk` of the k-th, or `$k` of an anonymous
   function's, which its body may read; `_` may stand for several; `for _
@@ -598,6 +598,14 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`Bits` past 64 bits** (#455), as kelvinc's: a Bits is an owner,
+  runtime/bits.c's `kv_bits`, freed where its block ends; `Bits()` is
+  empty, and `Bits(n)` is an integer's width of bits.
+  - `bv[n]`, its setting, `bv.flip(n)` and the operators call the new
+    kv_bits_ functions; a Bits an expression gives is held in a C
+    temporary that frees it.
+  - Bits of bools, `[bool]`s or text, `.append`, `.count`, `.u64s`,
+    `.bin` and the rest are kc's "not yet"; `.value` is kelvinc's error.
 - **C's types** (#453), as kelvinc's: `struct T`, `union T` and `enum T`
   wherever a type goes; `union T { ... }`, shown `<union T>`; `struct T;`
   of a C struct; a function declared with no body; and `...` after a

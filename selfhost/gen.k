@@ -367,6 +367,7 @@ let put_owner_prefix(y:int64) {
     case Y_IO: put("kv_io")
     case Y_TASK: put("kv_task")                    // (#313)
     case Y_ITER: put("kv_iter")                    // (#326)
+    case Y_BITS: put("kv_bits")                    // (#455)
     case Y_DICT: put_dict_name(y)
     case Y_SET: put_set_name(y)
     case Y_STRUCT:                                 // an enum with values: _kv_T (#215)
@@ -1236,12 +1237,11 @@ let type_of(n:int64):int64 {
             return -1
         }
         let yk:ykind = types[y].kind
-        if yk == Y_BITS && tok_is(t, "value") { return base_type(Y_C) }     // a Bits's u64, which kc has not: C's (#387)
         if yk == Y_BITS {
-            var m = $"a Bits has value, flip, cstr, size, type and typename, and '."
+            var m = $"kc reads a Bits's bits, bv[n], its operators and bv.flip(n); not yet '."
             m += tok_text(t)
-            m += "' is none of them"
-            if !tok_is(t, "cstr") && !tok_is(t, "size") && !tok_is(t, "type") && !tok_is(t, "typename") { m += ": a bit is 'bv[n]'" } else { m = $"kc reads only '.value' of a Bits" }
+            m += "' (#455)"
+            if tok_is(t, "value") { m = $"a Bits holds u64s, '.u64s', and grows past 64 bits (#455): '.value' is gone" }
             gen_error(n, m.cstr)
             return -1
         }
@@ -1317,9 +1317,9 @@ let type_of(n:int64):int64 {
         if tok_is(t, "pow") && power_int(y) { return pow_method_type(n) }   // b.pow(e), b.pow(e, m) (#380)
         if types[y].kind == Y_BITS && tok_is(t, "flip") { return base_type(Y_VOID) }   // bv.flip(n) (#387)
         if types[y].kind == Y_BITS {
-            var m = $"a Bits has value, flip, cstr, size, type and typename, and '."
+            var m = $"kc reads a Bits's bits, bv[n], its operators and bv.flip(n); not yet '."
             m += tok_text(t)
-            m += "' is none of them: a bit is 'bv[n]'"
+            m += "()' (#455)"
             gen_error(n, m.cstr)
             return -1
         }
@@ -2362,11 +2362,12 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(".cp == ")
         put(z)
         put(".cp")
-    } else if k == Y_BITS {                          // by its u64 (#387)
+    } else if k == Y_BITS {                          // by its count and bits (#455)
+        put("kv_bits_eq(&")
         put(x)
-        put(".value == ")
+        put(", &")
         put(z)
-        put(".value")
+        put(")")
     } else if k == Y_ARRAY || k == Y_DICT {
         put_eq_name(y)
         put("(&")
@@ -3243,8 +3244,7 @@ let tpl_bound(v:int64):String {
     if is_number_kind(k) { return $"24" }
     if k == Y_BOOL { return $"5" }
     if k == Y_UCHR { return $"4" }
-    if k == Y_BITS { return $"72" }
-    return $"KV_TEMPLATE_STR"
+    return $"KV_TEMPLATE_STR"                            // a Bits too, cut as a string is (#455)
 }
 
 // whether a template can show v, as kelvinc's parse_template: not a
@@ -6332,8 +6332,8 @@ let is_bits(y:int64):bool {
 }
 
 // whether x is a number a Bits takes, as kelvinc's check_bit_number: an
-// integer, or an enum's value, by which flags are named; 0 to 63 where it
-// is a literal and a place, a bit's or a shift's; what names it
+// integer, or an enum's value, by which flags are named; 0 or more where
+// it is a literal and a place, a bit's or a shift's (#455); what names it
 let bit_number(x:int64, what:cstr, place:bool):bool {
     let y:int64 = type_of(x)
     if failed { return false }
@@ -6353,10 +6353,9 @@ let bit_number(x:int64, what:cstr, place:bool):bool {
     let neg = nodes[x].kind == N_UNARY && tok_is(nodes[x].t, "-")
     let lit:int64 = neg ? nodes[x].a : x
     let v:int64 = nodes[lit].kind == N_NUM ? tok_count(nodes[lit].t) : 0 - 1
-    if place && ((neg && v > 0) || v > 63) {
+    if place && neg && v > 0 {                           // past the count the program ends (#455)
         var m = String(what)
-        m += " is 0 to 63, and this is "
-        if neg { m += "-" }
+        m += " is 0 or more, and this is -"
         m += tok_text(nodes[lit].t)
         gen_error(x, m.cstr)
         return false
@@ -6364,23 +6363,62 @@ let bit_number(x:int64, what:cstr, place:bool):bool {
     return true
 }
 
-// Bits(n), !!n, ~b, b[n], b.value, b.flip(n) and the operators of a Bits,
-// as kelvinc writes them, through the prelude's kv_bits_ functions; false
-// where n is none of them
+var bits_held_n:int64 = 0               // the temporaries that hold a Bits an expression gives (#455)
+
+// a temporary that holds the Bits x, where it is no place, declared and
+// freed where its statement expression ends (#455), as kelvinc's bits_ref:
+// its number, or -1 of a place
+let bits_hold(x:int64):int64 {
+    if is_place(x) { return 0 - 1 }
+    bits_held_n += 1
+    let h:int64 = bits_held_n
+    put("__attribute__((cleanup(kv_bits_free))) kv_bits _kv_bt")
+    put_int(h)
+    put(" = ")
+    gen_expr(x)
+    put("; ")
+    return h
+}
+
+// a pointer to the Bits x, the temporary bits_hold made, or &(x)
+let put_bits_ref(x:int64, held:int64) {
+    if held >= 0 {
+        put("&_kv_bt")
+        put_int(held)
+        return
+    }
+    put("&(")
+    gen_expr(x)
+    put(")")
+}
+
+// Bits() and Bits(n), !!n, ~b, b[n], b.flip(n) and the operators of a
+// Bits, as kelvinc writes them, through runtime/bits.c's kv_bits_
+// functions (#387, #455); false where n is none of them
 let gen_bits(n:int64):bool {
     let k:nkind = nodes[n].kind
     let t:int64 = nodes[n].t
     let a:int64 = nodes[n].a
-    if k == N_CALL && nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "Bits") {      // all zeros, or n's bits
+    if k == N_CALL && nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "Bits") {      // empty, or n's bits, its type's width
         let v:int64 = nodes[n].b
-        if v >= 0 && nodes[v].next >= 0 {
-            gen_error(n, "Bits takes nothing, all zeros, or an integer, its bits")
+        if v < 0 {
+            put("kv_bits_new()")
             return true
         }
-        if v >= 0 && !bit_number(v, "Bits(n)'s n", false) { return true }
-        put("((kv_bits){(uint64_t)(")
-        if v >= 0 { gen_expr(v) } else { put("0") }
-        put(")})")
+        let vy:int64 = type_of(v)
+        if failed { return true }
+        let int_kind = vy >= 0 && (types[vy].kind == Y_I64 || types[vy].kind == Y_I32 || types[vy].kind == Y_U8 || types[vy].kind == Y_U32)
+        let enum_value = vy >= 0 && types[vy].kind == Y_STRUCT && decl_named(types[vy].name, D_ENUM) >= 0
+        if nodes[v].next >= 0 || !(int_kind || enum_value || (vy >= 0 && types[vy].kind == Y_C)) {
+            gen_error(n, "kc reads Bits() and Bits(n) of an integer; not yet of bools, [bool]s, text or more than one (#455)")
+            return true
+        }
+        let w:cstr := vy >= 0 && types[vy].kind == Y_I32 ? "32" : vy >= 0 && types[vy].kind == Y_U8 ? "8" : vy >= 0 && types[vy].kind == Y_U32 ? "32" : vy >= 0 && types[vy].kind == Y_C ? "sizeof _kv_bv * 8" : "64"
+        put("({ kv_bits _kv_bm = kv_bits_new(); __auto_type _kv_bv = ")
+        gen_expr(v)
+        put("; kv_bits_push_int(&_kv_bm, (unsigned __int128)_kv_bv, ")
+        put(w)
+        put("); _kv_bm; })")
         return true
     }
     if k == N_UNARY && nodes[n].flag == 1 {              // !!n: the bool of an integer 0 or 1
@@ -6412,7 +6450,7 @@ let gen_bits(n:int64):bool {
         return true
     }
     if a < 0 { return false }
-    if k == N_UNARY && is_bits(type_of(a)) {             // ~b, each bit flipped
+    if k == N_UNARY && is_bits(type_of(a)) {             // ~b, each bit flipped, a new Bits
         if !tok_is(t, "~") {
             var m = $"a Bits has the prefix '~', which flips each bit, and no prefix '"
             m += tok_text(t)
@@ -6420,30 +6458,28 @@ let gen_bits(n:int64):bool {
             gen_error(n, m.cstr)
             return true
         }
-        put("((kv_bits){~(")
-        gen_expr(a)
-        put(").value})")
+        put("({ ")
+        let ha:int64 = bits_hold(a)
+        put("kv_bits_not(")
+        put_bits_ref(a, ha)
+        put("); })")
         return true
     }
     if k == N_INDEX && is_bits(type_of(a)) {             // b[n], a bit
         if !bit_number(nodes[n].b, "a bit's place in a Bits", true) { return true }
+        put("({ ")
+        let ha:int64 = bits_hold(a)
         put("kv_bits_at(")
-        gen_expr(a)
-        put(", (uint64_t)(")
+        put_bits_ref(a, ha)
+        put(", (int64_t)(")
         gen_expr(nodes[n].b)
-        put("))")
-        return true
-    }
-    if k == N_FIELD && tok_is(t, "value") && is_bits(type_of(a)) {
-        put("(")
-        gen_expr(a)
-        put(").value")
+        put(")); })")
         return true
     }
     if k == N_METHOD && tok_is(t, "flip") && is_bits(type_of(a)) {     // b.flip(n), in the var that holds b
         let v:int64 = nodes[n].b
         if v < 0 || nodes[v].next >= 0 {
-            gen_error(n, "'.flip(n)' takes one bit's place, 0 to 63")
+            gen_error(n, "'.flip(n)' takes one bit's place")
             return true
         }
         if !bit_number(v, "a bit's place in a Bits", true) { return true }
@@ -6455,7 +6491,7 @@ let gen_bits(n:int64):bool {
         }
         put("kv_bits_flip(&(")
         gen_expr(a)
-        put("), (uint64_t)(")
+        put("), (int64_t)(")
         gen_expr(v)
         put("))")
         return true
@@ -6469,7 +6505,7 @@ let gen_bits(n:int64):bool {
     if !shift && !eq && !tok_is(t, "|") && !tok_is(t, "&") && !tok_is(t, "~") {
         var m = $"a Bits has '|', '&', '~', '<<', '>>', '==' and '!=', and no '"
         m += tok_text(t)
-        m += "': its u64 is '.value'"
+        m += "': its u64s are '.u64s'"
         gen_error(n, m.cstr)
         return true
     }
@@ -6482,11 +6518,13 @@ let gen_bits(n:int64):bool {
             return true
         }
         if !bit_number(b, "a shift of a Bits", true) { return true }
+        put("({ ")
+        let ha:int64 = bits_hold(a)
         put(tok_is(t, "<<") ? "kv_bits_shl(" : "kv_bits_shr(")
-        gen_expr(a)
-        put(", (uint64_t)(")
+        put_bits_ref(a, ha)
+        put(", (int64_t)(")
         gen_expr(b)
-        put("))")
+        put(")); })")
         return true
     }
     if !left || !is_bits(type_of(b)) {
@@ -6496,19 +6534,27 @@ let gen_bits(n:int64):bool {
         gen_error(n, m.cstr)
         return true
     }
-    put(eq ? "((bool)((" : "((kv_bits){(")
-    gen_expr(a)
-    put(").value ")
-    if tok_is(t, "~") { put("^") } else { put_tok(t) }
-    put(" (")
-    gen_expr(b)
-    put(eq ? ").value))" : ").value})")
+    put("({ ")
+    let ha:int64 = bits_hold(a)
+    let hb:int64 = bits_hold(b)
+    if eq {
+        put(tok_is(t, "!=") ? "(bool)!kv_bits_eq(" : "(bool)kv_bits_eq(")
+    } else {
+        put("kv_bits_op(")
+    }
+    put_bits_ref(a, ha)
+    put(", ")
+    put_bits_ref(b, hb)
+    if !eq {
+        put(tok_is(t, "|") ? ", '|'" : tok_is(t, "&") ? ", '&'" : ", '^'")
+    }
+    put("); })")
     return true
 }
 
-// b[n] = x, b[n] |= x, &= and ~= of a bool, b.value = n and its kin, and
-// b |= c, &=, ~=, <<= and >>= of a whole Bits (#387), in the var that holds
-// b, as kelvinc writes them; false where n assigns none of them
+// b[n] = x, b[n] |= x, &= and ~= of a bool, and b |= c, &=, ~=, <<= and
+// >>= of a whole Bits (#387, #455), in the var that holds b, as kelvinc
+// writes them; false where n assigns none of them
 let gen_bits_assign(n:int64):bool {
     let lhs:int64 = nodes[n].a
     let t:int64 = nodes[n].t
@@ -6535,20 +6581,9 @@ let gen_bits_assign(n:int64):bool {
         }
         put(tok_is(t, "=") ? "kv_bits_put(&(" : tok_is(t, "|=") ? "kv_bits_or(&(" : tok_is(t, "&=") ? "kv_bits_and(&(" : "kv_bits_xor(&(")
         gen_expr(base)
-        put("), (uint64_t)(")
+        put("), (int64_t)(")
         gen_expr(nodes[lhs].b)
         put("), ")
-        gen_expr(v)
-        put(");\n")
-        return true
-    }
-    if lk == N_FIELD && tok_is(nodes[lhs].t, "value") && is_bits(type_of(base)) {
-        if !bit_number(v, "what '.value' of a Bits takes", false) { return true }
-        put("(")
-        gen_expr(base)
-        put(").value ")
-        if tok_is(t, "~=") { put("^=") } else { put_tok(t) }
-        put(" (")
         gen_expr(v)
         put(");\n")
         return true
@@ -6558,17 +6593,17 @@ let gen_bits_assign(n:int64):bool {
     if !shift && !tok_is(t, "|=") && !tok_is(t, "&=") && !tok_is(t, "~=") {
         var m = $"a Bits has '|=', '&=', '~=', '<<=' and '>>=', and no '"
         m += tok_text(t)
-        m += "': its u64 is '.value'"
+        m += "': its u64s are '.u64s'"
         gen_error(n, m.cstr)
         return true
     }
     if shift {
         if !bit_number(v, "a shift of a Bits", true) { return true }
-        put("({ kv_bits *_kv_bp = &(")
+        put(tok_is(t, "<<=") ? "kv_bits_shl_assign(&(" : "kv_bits_shr_assign(&(")
         gen_expr(lhs)
-        put(tok_is(t, "<<=") ? "); *_kv_bp = kv_bits_shl(*_kv_bp, (uint64_t)(" : "); *_kv_bp = kv_bits_shr(*_kv_bp, (uint64_t)(")
+        put("), (int64_t)(")
         gen_expr(v)
-        put(")); (void)0; });\n")
+        put("));\n")
         return true
     }
     if !is_bits(type_of(v)) {
@@ -6578,13 +6613,14 @@ let gen_bits_assign(n:int64):bool {
         gen_error(v, m.cstr)
         return true
     }
-    put("({ kv_bits *_kv_bp = &(")
+    put("({ ")
+    let hv:int64 = bits_hold(v)
+    put("kv_bits_with(&(")
     gen_expr(lhs)
-    put("); _kv_bp->value ")
-    if tok_is(t, "~=") { put("^=") } else { put_tok(t) }
-    put(" (")
-    gen_expr(v)
-    put(").value; (void)0; });\n")
+    put("), ")
+    put_bits_ref(v, hv)
+    put(tok_is(t, "|=") ? ", '|'" : tok_is(t, "&=") ? ", '&'" : ", '^'")
+    put("); });\n")
     return true
 }
 

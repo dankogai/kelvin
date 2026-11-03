@@ -228,6 +228,7 @@ enum {
     EACH_IO_READ,  /* f.read(n) (#82): the next n bytes at most, a Bytes the loop owns */
     EACH_IO_LINES, /* f.lines (#82): each line without its newline, a String the loop owns */
     EACH_ITER,     /* an iterator (#318): its var next():T?, each some, up to none */
+    EACH_BITS,     /* the count bits of a Bits (#455), each a bool, place 0 first */
 };
 
 typedef struct Stmt Stmt;

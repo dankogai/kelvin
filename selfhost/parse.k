@@ -136,7 +136,7 @@ extend node {                                      // (#213)
 extend ty {
     // whether it is an owner, freed where its block ends
     let owns():bool {
-        return .kind == Y_STRING || .kind == Y_BYTES || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER
+        return .kind == Y_STRING || .kind == Y_BYTES || .kind == Y_ARRAY || .kind == Y_IO || .kind == Y_DICT || .kind == Y_SET || .kind == Y_TASK || .kind == Y_ITER || .kind == Y_BITS   // a Bits too (#455)
     }
 }
 

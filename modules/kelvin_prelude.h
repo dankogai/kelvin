@@ -198,9 +198,39 @@ void kv_print_uchr(kv_uchr c);
 void kv_fprint_uchr(void *fp, kv_uchr c);
 char *kv_template_uchr(char *p, size_t max, kv_uchr c);
 void kv_string_append_uchr(kv_string *s, kv_uchr c);
-/* Bits (#387): 64 bits in a u64, each a bool by its place, shown as
-   Bits(0b...), which pastes back */
-typedef struct kv_bits { uint64_t value; } kv_bits;
+/* Bits (#387, #455): bits in u64s on the heap, each a bool by its place,
+   0 the lowest bit of at[0]; count is in bits, cap in u64s. An owner, as
+   a Bytes is: runtime/bits.c. Shown as Bits("0b..."), which pastes back */
+typedef struct kv_bits { uint64_t *at; size_t count, cap; } kv_bits;
+kv_bits kv_bits_new(void);
+kv_bits kv_bits_copy(const kv_bits *b);
+kv_bits kv_bits_take(kv_bits *b);
+void kv_bits_free(kv_bits *b);
+void kv_bits_assign(kv_bits *b, kv_bits v);
+void kv_bits_discard(kv_bits v);
+void kv_bits_reserve(kv_bits *b, int64_t n);
+void kv_bits_push(kv_bits *b, bool v);
+#ifdef __SIZEOF_INT128__
+void kv_bits_push_int(kv_bits *b, unsigned __int128 v, unsigned w);
+#endif
+void kv_bits_push_bools(kv_bits *b, const bool *p, size_t n);
+void kv_bits_push_text(kv_bits *b, const void *s, size_t n);
+void kv_bits_push_cstr(kv_bits *b, const void *s);
+bool kv_bits_at(const kv_bits *b, int64_t n);
+void kv_bits_put(kv_bits *b, int64_t n, bool v);
+void kv_bits_or(kv_bits *b, int64_t n, bool v);
+void kv_bits_and(kv_bits *b, int64_t n, bool v);
+void kv_bits_xor(kv_bits *b, int64_t n, bool v);
+void kv_bits_flip(kv_bits *b, int64_t n);
+void kv_bits_with(kv_bits *a, const kv_bits *b, char op);
+kv_bits kv_bits_op(const kv_bits *a, const kv_bits *b, char op);
+kv_bits kv_bits_not(const kv_bits *a);
+void kv_bits_shl_assign(kv_bits *b, int64_t n);
+void kv_bits_shr_assign(kv_bits *b, int64_t n);
+kv_bits kv_bits_shl(const kv_bits *b, int64_t n);
+kv_bits kv_bits_shr(const kv_bits *b, int64_t n);
+bool kv_bits_eq(const kv_bits *a, const kv_bits *b);
+kv_string kv_bits_word_bin(const kv_bits *b, size_t i);
 uint8_t *kv_cstr_bits(kv_bits b, uint8_t *buf);
 void kv_print_bits(kv_bits b);
 void kv_fprint_bits(void *fp, kv_bits b);
@@ -249,17 +279,6 @@ kv_string kv_string_lit(const void *p, size_t n);
    copy(), and its block frees it, elements included. */
 void kv_array_fail(const char *what);
 void kv_array_range(size_t i, size_t count);
-/* Bits (#387): a bit's place, and a shift, is 0 to 63, else the program
-   ends; a place below 0 is past 63 as a u64. bv[n] reads a bit, and sets
-   it with =, |=, &= and ~= (xor); !!n is the bool of an integer 0 or 1 */
-static inline unsigned kv_bit_place(uint64_t n) {
-    if (n > 63) kv_array_fail("a Bits has bits 0 to 63, and this place is past them");
-    return (unsigned)n;
-}
-static inline unsigned kv_bit_shift(uint64_t n) {
-    if (n > 63) kv_array_fail("a Bits shifts by 0 to 63, and this is past it");
-    return (unsigned)n;
-}
 /* x.bit(n) and x.flip(n) of an integer of w bits (#454): n is 0 to w - 1,
    else the program ends */
 static inline unsigned kv_int_place(uint64_t n, unsigned w) {
@@ -271,17 +290,8 @@ static inline unsigned kv_int_place(uint64_t n, unsigned w) {
                                 : "an integer of 128 bits has bits 0 to 127, and this place is past them");
     return (unsigned)n;
 }
-static inline bool kv_bits_at(kv_bits b, uint64_t n) { return b.value >> kv_bit_place(n) & 1; }
-static inline void kv_bits_put(kv_bits *b, uint64_t n, bool v) {
-    unsigned i = kv_bit_place(n);
-    b->value = (b->value & ~((uint64_t)1 << i)) | ((uint64_t)v << i);
-}
-static inline void kv_bits_or(kv_bits *b, uint64_t n, bool v) { b->value |= (uint64_t)v << kv_bit_place(n); }
-static inline void kv_bits_and(kv_bits *b, uint64_t n, bool v) { b->value &= ~((uint64_t)!v << kv_bit_place(n)); }
-static inline void kv_bits_xor(kv_bits *b, uint64_t n, bool v) { b->value ^= (uint64_t)v << kv_bit_place(n); }
-static inline void kv_bits_flip(kv_bits *b, uint64_t n) { b->value ^= (uint64_t)1 << kv_bit_place(n); }
-static inline kv_bits kv_bits_shl(kv_bits b, uint64_t n) { return (kv_bits){b.value << kv_bit_shift(n)}; }
-static inline kv_bits kv_bits_shr(kv_bits b, uint64_t n) { return (kv_bits){b.value >> kv_bit_shift(n)}; }
+/* !!n (#387) is the bool of an integer 0 or 1, any other ending the
+   program */
 #define KV_BIT_OF(x) ({ __auto_type _kv_bt = (x); \
     if (_kv_bt != 0 && _kv_bt != 1) kv_array_fail("'!!' takes an integer 0 or 1, and this is neither"); \
     (bool)_kv_bt; })
@@ -960,7 +970,7 @@ char *kv_template_i128(char *p, size_t max, __int128 v);
    (36 digits and a 4-digit exponent, IEEE quad); a pointer is 0x and
    its digits ("(nil)" on glibc is shorter). */
 #define KV_TEMPLATE_BOUND(v) _Generic((v), \
-    kv_uchr: 4, kv_bits: 72, kv_bytes: 0, kv_string: 0, \
+    kv_uchr: 4, kv_bits: 0, kv_bytes: 0, kv_string: 0, \
     bool: 5, char: 1, \
     signed char: 4, short: 6, int: 11, long: 20, long long: 20, \
     unsigned char: 3, unsigned short: 5, unsigned: 10, unsigned long: 20, unsigned long long: 20, \

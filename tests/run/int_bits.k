@@ -17,7 +17,7 @@ let main():int32 {
     var h:holder = {0, false}
     h.x.bit(31) = true
     h.on.flip()
-    var bs = Bits()
+    var bs = Bits(u8(0))
     bs[busy].flip()                           // bs.flip(busy)
     bs[3].flip()
     var flags = $[true, false]
@@ -29,5 +29,5 @@ let main():int32 {
     println(big.bit(127), " ", big.bit(0), " ", k.bit(1), " ", k.bit(0), " ", 5.bit(2), " ", x.bit(busy), " ", (k + 1).bit(0))
     return 0
 }
-// out: false 7 9 9223372036854775807 -2147483648 true Bits(0b1010) [true, true]
+// out: false 7 9 9223372036854775807 -2147483648 true Bits("0b00001010") [true, true]
 // out: true true true false true true true
