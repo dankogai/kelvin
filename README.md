@@ -53,7 +53,8 @@ let main(argc:i32, argv:[cstr]): i32 {
 ## Examples
 
 Each one ends with the output it prints, as `// out:` lines, which
-`make test` checks.
+`make test` checks; a quine, marked `// quine:`, prints its own file, and
+`make test` checks that (#465).
 
 | File | Shows |
 |------|-------|
@@ -74,6 +75,8 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/complex.k](examples/complex.k) | `#import <math>`, overloaded functions beside C's, operators: roots of a quadratic and of unity, a Fourier transform |
 | [examples/ski.k](examples/ski.k) | SKI combinator logic, and Iota and Jot compiled to it: terms as nodes of an `Array` of structs by index, a global owner, recursive descent through an `i64^` cursor, reduction to a normal form, `String` built with `+=` (#201) |
 | [examples/lambda.k](examples/lambda.k) | the untyped lambda calculus, written with `λ`: Church numerals and Wikipedia's definitions, `FACT 3` by `Y`, de Bruijn indices that never capture, names primed with `′` where they would; a `String` read by codepoint, functions over a `reader^` that call each other through a prototype (#202) |
+| [examples/quine.k](examples/quine.k) | a quine: a String holding the program with a mark where the String goes, printed with itself written as a literal at the mark, its quotes, backslashes and newlines escaped; `for c in s`, `.utf32` (#465) |
+| [examples/quine_cheat.k](examples/quine_cheat.k) | a cheating quine, Perl's `open 0; print while <0>`: `IO(__FILE__)`, C's `__FILE__` being the source's path through kelvinc's `#line`, read by `for line in f.lines` (#465) |
 
 ## Build and use
 

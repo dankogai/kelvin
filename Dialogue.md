@@ -8970,3 +8970,19 @@ tests build with kc, 146 in all, and print what kelvinc's builds print.
 Details are provisional P476.
 
 There are 1193 tests, and all pass with clang and with gcc 15.
+
+### 512. Quines
+
+> push. then give me a couple of quines in the example. that may include
+> a "cheating quine" like `open 0; print while <0>` in Perl.
+
+**Claude** pushed #464 and asked how to check them and which to write;
+the user chose a true quine and a cheating one, checked by a mark.
+examples/quine.k prints its own source, a String with a mark where the
+String goes; examples/quine_cheat.k reads its own source by C's
+`__FILE__`, which kelvinc's `#line` makes the source's path. tests/run.sh
+checks that an example marked `// quine:` prints its own file. On the
+way, `for line in IO(path).lines` was found to be a C error in kelvinc.
+Details are provisional P477.
+
+There are 1195 tests, and all pass with clang and with gcc 15.

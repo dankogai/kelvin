@@ -4,7 +4,8 @@
 #   tests/run/*.k    must compile, exit 0, and print exactly the lines
 #   examples/*.k     given by `// out: ...` comments (in order); the C
 #                    that kelvinc writes (--emit-c --no-line) must hold
-#                    the text of each `// c: ...` comment.
+#                    the text of each `// c: ...` comment. A quine says
+#                    `// quine: ...` and prints its own file (#465).
 #   tests/project/*.k  must compile, with the flags of a `// cflags: ...`
 #                    comment, exit 0 and print the `// out: ...` lines,
 #                    built from inside a copy of tests/project, whose
@@ -42,6 +43,8 @@ bad() {
 for f in tests/run/*.k examples/*.k; do
     [ -e "$f" ] || continue
     sed -n 's|^[[:space:]]*// out: \{0,1\}||p' "$f" > "$tmp/expected"
+    # a quine (#465) prints its own source, byte for byte: the file is what it prints
+    if grep -q '^[[:space:]]*// quine:' "$f"; then cp "$f" "$tmp/expected"; fi
     if ! "$KELVINC" -o "$tmp/prog" "$f" > "$tmp/log" 2>&1; then
         bad "$f" "does not compile"
         continue
