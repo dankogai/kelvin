@@ -9017,3 +9017,15 @@ Design.md says what 0.1.0 is; CHANGELOG.md has the release notes.
 Details are provisional P479.
 
 There are 1197 tests, and all pass with clang and with gcc 15.
+
+### 515. No cast makes a uchr
+
+> go on with #468
+
+**Claude** asked what `x as uchr` should be; the user chose an error.
+`'k' as uchr` and `n:uchr` now say that a cast makes no codepoint, and
+name `uchr("k")` and `n.uchr`, in kelvinc and in kc, where C had refused
+the cast. CHANGELOG.md's known issues lose it. Details are provisional
+P480.
+
+There are 1199 tests, and all pass with clang and with gcc 15.

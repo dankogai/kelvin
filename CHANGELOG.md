@@ -74,7 +74,5 @@ in [Design.md](Design.md) and [Dialogue.md](Dialogue.md).
 
 ### Known issues
 
-- `'k' as uchr` reaches the C compiler, which refuses it, where kelvinc
-  should say `uchr("k")`.
 - `.bit(n)` of an enum's constant, as `LIMIT.bit(2)`, reaches the C
   compiler, which refuses it.

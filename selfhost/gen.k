@@ -8681,6 +8681,11 @@ let gen_expr_of(n:int64) {
             gen_expr(nodes[n].b)
             put(")")
         }
+    } else if k == N_CAST && types[nodes[n].ty].kind == Y_UCHR && (type_of(nodes[n].a) < 0 || types[type_of(nodes[n].a)].kind != Y_UCHR) {
+        var m = $"'"                                     // a uchr is a struct to C, which no cast makes, as kelvinc says it (#468)
+        m += tok_is(t, "as") ? "as " : ":"
+        m += "uchr' makes no codepoint: write uchr(\"k\") of text, or n.uchr of an integer"
+        gen_error(n, m.cstr)
     } else if k == N_CAST {
         put("((")
         put_ctype(nodes[n].ty)

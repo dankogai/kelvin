@@ -131,6 +131,8 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
   - `for c in s` gives one; `uchr("é")` is the first codepoint of text.
   - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
     replacement character, where it is none.
+  - `x as uchr` and `x:uchr` make none, as a uchr is a struct to C:
+    they are errors that name `uchr("k")` and `n.uchr` (#468).
   - `print(c)`, `${c}` and `c.cstr` show it as its UTF-8.
   - `c.utf32`, or `c.codepoint`, is the number, a `u32`, as `u32(c)`
     and `i64(c)` are.

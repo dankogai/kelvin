@@ -5217,7 +5217,11 @@ static Expr *parse_cast(void) {
         Token *t = advance();
         Expr *c = new_expr(E_CAST, t->pos);
         c->a = e;
+        Token *at = peek();
         c->type = parse_type_in(TYPE_AS);
+        if (is_uchr(c->type) && !is_uchr(value_type(e))) /* a uchr is a struct to C, which no cast makes (#468) */
+            error_at(at->pos, "'%suchr' makes no codepoint: write uchr(\"k\") of text, or n.uchr of an integer",
+                     is_kw(t, "as") ? "as " : ":");
         e = c;
         if (is_p(peek(), "**")) /* (#380) */
             error_at(peek()->pos, "'**' binds tighter than '%s': write '(x%sT) ** y'", t->text, is_kw(t, "as") ? " as " : ":");
