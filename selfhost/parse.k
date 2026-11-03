@@ -172,6 +172,9 @@ var block_depth:int64 = 0
 var fn_tok:int64 = 0 - 1       // the token of the function being read, which names them
 var local_next = false         // the struct or enum parse_struct or parse_enum reads is defined in a block (#391)
 var inline_fns:$[int64]        // the functions written inline (#392), C's static inline
+var variadic_fns:$[int64]      // the functions whose parameters end in ..., C's variadic ones (#453)
+var c_tags:Dictionary<String, int64>   // struct T; and union T;, C's, -2 or -3 by T (#453)
+var c_tag_types:$[int64]       // and their types, which gen declares so
 var align_expr:int64 = 0 - 1   // alignas(N) before the declaration being read (#396): N
 var align_type:int64 = 0 - 1   // or alignas(T): T
 var align_tok:int64 = 0 - 1
@@ -287,6 +290,7 @@ let annotation_ahead():bool {
     if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") {
         return true
     }
+    if tok_is(t, "struct") || tok_is(t, "union") || tok_is(t, "enum") { return true }   // p:struct node^, as kelvinc's (#453)
     return name_annotation
 }
 
@@ -482,6 +486,23 @@ let program_named(t:int64):bool {
     return false
 }
 
+// whether struct T, union T or enum T starts at token t, C's spelling of
+// a type (#453)
+let tagged_word(t:int64):bool {
+    return (tok_is(t, "struct") || tok_is(t, "union") || tok_is(t, "enum")) && toks[t + 1].kind == T_ID
+}
+
+// whether the program's struct, union or enum named by token t is one of
+// C's word tag, -2 struct, -3 union, -4 enum (#453)
+let record_tagged(t:int64, tag:int64):bool {
+    if records_seen.get(tok_text(t), -1) < 0 { return false }
+    for d in nodes {
+        if d.kind == D_STRUCT && same_text(d.t, t) { return tag == (d.flag == 1 || d.flag == 3 ? 0 - 3 : 0 - 2) }
+        if d.kind == D_ENUM && same_text(d.t, t) { return tag == (d.flag == 1 ? 0 - 2 : 0 - 4) }
+    }
+    return false
+}
+
 // whether token t names the type of a compound literal, (T){...} (#418):
 // Self in a method, or a struct declared so far, a block's and a nested
 // one's too, which a variable or a function of the name leaves the type
@@ -519,6 +540,7 @@ let value_type_end():int64    // a prototype: (x.type){...} is a compound litera
 // (x.type){ of a variable's type (#422)
 let literal_ahead():bool {
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
+    if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
     let e:int64 = value_type_end()
     return e >= 0 && tok_is(e + 1, "{") && (local_named(pos + 1) || dollar_named(pos + 1) || written_type(pos + 1) != 0 - 2)
 }
@@ -559,7 +581,7 @@ let value_type_end():int64 {
 // built-in type's word, const, [ or $[, Self in a method, or a struct's
 // or an enum's name, which gen reads as a variable's where one hides it
 let sizeof_type_at(t:int64):bool {
-    if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") { return true }
+    if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") || tagged_word(t) { return true }
     if toks[t].kind != T_ID { return false }
     if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
@@ -1156,6 +1178,11 @@ let parse_bare_type():int64 {
         }
         return fn_type_of(&ps, r)
     }
+    var tag:int64 = 0 - 1                        // struct T, union T, enum T, as C spells them (#453)
+    if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID {
+        tag = at_word("union") ? 0 - 3 : at_word("enum") ? 0 - 4 : 0 - 2
+        advance()
+    }
     if !at_kind(T_ID) {
         parse_error("a type is expected")
         return base_type(Y_VOID)
@@ -1163,7 +1190,9 @@ let parse_bare_type():int64 {
     refuse_restrict()                            // restrict T^ (#393)
     let t:int64 = advance()
     var y = -1
-    if value_type_at(t) {                                // x.type, a value's type (#422), $0.type (#424)
+    if tag != 0 - 1 && !record_tagged(scoped_type(t), tag) {
+        y = type_of_kind(Y_STRUCT, tag, t)               // a C header's, which keeps its word, as one of another word: C's error
+    } else if value_type_at(t) {                         // x.type, a value's type (#422), $0.type (#424)
         y = value_type(t)
     } else if number_word(t) >= 0 {                  // int64 or i64 (#430), float64 (#262), float32 (#263)
         y = number_word(t)
@@ -1264,6 +1293,7 @@ let parse_bare_type():int64 {
         let nt:int64 = type_path(t)                  // point.kind, or kind in point (#389)
         while pos < path_end { advance() }
         let name:String = tok_text(nt)
+        let c_tag:int64 = nt == t && records_seen.get(name, -1) < 0 ? c_tags.get(name, -1) : 0 - 1   // timespec of struct timespec; (#453)
         if tok_is(pos, ".") && toks[pos + 1].kind == T_ID && !tok_is(pos + 1, "type") && records_seen.get(name, -1) >= 0 {
             var m:String = kelvin_name(nt)
             m += " has no type '"
@@ -1296,7 +1326,7 @@ let parse_bare_type():int64 {
                 }
             }
         }
-        y = type_of_kind(Y_STRUCT, -1, nt)
+        y = type_of_kind(Y_STRUCT, c_tag, nt)
     }
     if at_word(".") && tok_is(pos + 1, "type") {         // as kelvinc says it (#422)
         let w:String = types[y].kind == Y_STRUCT ? kelvin_name(types[y].name) : type_word(y)
@@ -2114,6 +2144,13 @@ let parse_unary():int64 {
         set_b(n, parse_unary())
         e = n
     }
+    return e
+}
+
+// x as T and x:T (#264), looser than a prefix, as kelvinc's cast: -x as u8
+// is (-x) as u8, &b as T^ (&b) as T^ (#453), where kc had read &(b as T^)
+let parse_cast():int64 {
+    var e:int64 = parse_unary()
     while at_word("as") || annotation_ahead() {          // x as T, x:T (#264)
         let t:int64 = advance()
         let n:int64 = make_node(N_CAST, t)
@@ -2174,7 +2211,7 @@ let parse_binary(min:int64):int64 {
         if tok_is(t, "...") { nodes[e].flag = 1 }
         set_b(e, parse_binary(8))
     } else {
-        e = parse_unary()
+        e = parse_cast()
     }
     while !failed {
         if min <= 7 && (at_word("..<") || at_word("...")) {  // lo..<hi, lo...hi, lo... (#373)
@@ -2465,11 +2502,13 @@ let parse_statement():int64 {
         parse_alignas()
         if !at_word("var") && !at_word("let") { refuse_alignas() }
     }
-    if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
-        let is_struct = at_word("struct")                // a type defined in a block (#391): the block's from here
-        advance()                                        // on, written before the function in C
+    if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
+        let is_struct = !at_word("enum")                 // a type defined in a block (#391): the block's from here
+        let is_union = at_word("union")                  // on, written before the function in C; a union too (#453)
+        advance()
         local_next = true
         decls += is_struct ? parse_struct() : parse_enum()
+        if is_union { nodes[decls[decls.count - 1]].flag = 1 }
         local_next = false
         return make_node(S_BLOCK, t)
     }
@@ -2612,6 +2651,12 @@ let parse_function():int64 {
     var last = -1
     var k:int64 = 0
     while !at_word(")") && !failed {
+        if at_word("...") {                     // C's variadic function, printf(fmt:cstr, ...) (#453)
+            if k == 0 { parse_error("a variadic function needs at least one named parameter") }
+            advance()
+            variadic_fns += n
+            break
+        }
         var is_let = 1
         if at_word("var") {                     // a var parameter may change (#271)
             advance()
@@ -2649,11 +2694,13 @@ let parse_struct():int64 {
     var last = -1
     skip_newlines()
     while !at_word("}") && !failed {
-        if (at_word("struct") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
-            let is_struct = at_word("struct")            // a type of its own, defined inside (#389): point.kind,
-            advance()                                    // written before this one in C
+        if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, "{") {
+            let is_struct = !at_word("enum")             // a type of its own, defined inside (#389): point.kind,
+            let is_union = at_word("union")              // written before this one in C; a union too (#453)
+            advance()
             nest_outer = nodes[n].t
             decls += is_struct ? parse_struct() : parse_enum()
+            if is_union { nodes[decls[decls.count - 1]].flag = 1 }
             nest_outer = 0 - 1
             if at_word(",") || at_word(";") { advance() }
             skip_newlines()
@@ -2828,9 +2875,19 @@ let parse_program() {
                 c_headers = true
             }
             decls += n
-        } else if at_word("struct") {
+        } else if (at_word("struct") || at_word("union")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ";") {
+            let tag:int64 = at_word("union") ? 0 - 3 : 0 - 2     // struct timespec;, a C struct declared in Kelvin (#453):
+            advance()                                            // T names it, C's, whose members C sees
+            let name:String = tok_text(pos)
+            c_tags[name] = tag
+            c_tag_types += type_of_kind(Y_STRUCT, tag, advance())
             advance()
-            decls += parse_struct()
+        } else if at_word("struct") || at_word("union") {
+            let is_union = at_word("union")
+            advance()
+            let d:int64 = parse_struct()
+            if is_union { nodes[d].flag = 1 }            // union bits { u:u64; f:f64 }, C's (#453)
+            decls += d
             if at_word(";") { advance() }                // struct point { ... };, as C writes it (#451)
         } else if at_word("enum") {
             advance()
@@ -2840,7 +2897,9 @@ let parse_program() {
             parse_error("expected a declaration (let name(...):type, let or var name, struct, union, enum), found ';'")
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
-            decls += parse_function()
+            let f:int64 = parse_function()
+            decls += f
+            if nodes[f].b < 0 && at_word(";") { advance() }   // let printf(fmt:cstr, ...):i32;, a declaration (#453)
         } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_method(pos + 1) {   // let T.m(...) (#213)
             let is_var = at_word("var")                     // var T.m(...), self the caller's var (#320)
             advance()

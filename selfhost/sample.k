@@ -4,6 +4,7 @@
 #import <stdlib.h> as C
 #import <string.h> as C
 #import <stdio.h> as C
+#import <time.h> as C
 #import <IO>                                          // f.lines, f.write (#450)
 
 struct point {
@@ -318,6 +319,14 @@ let evens(n:int64):Array<int64> {                      // Array<T> as a type, as
     for i in 0..<n { xs += i * 2 }; return xs
 }
 let handed_back(s:String):String { return s }           // s moves in and out again (#441)
+let open(path:const uint8^, flags:int32, ...):int32;   // C's, declared in Kelvin, variadic (#453)
+let thrice_va(n:int64, ...):int64                      // a prototype, its body after main
+union pun { u: uint32; f: float32; b: [uint8](4) }    // C's types: a union, struct T, struct T; (#453)
+struct chain_node { value: int32; next: struct chain_node^ }
+struct timespec;
+struct punned { p: union pun; n: int32 }
+let chain_head(l:const struct chain_node^):int32 { l^.value }
+let moment():timespec { return {1, 2} }
 let digit_of(c:uint8):Result<int64, String> {         // try passes the err up (#449)
     if c < '0' || c > '9' { return Result<int64, String>.err($`not a digit: ${c}`) }
     return (c - '0') as int64
@@ -960,5 +969,17 @@ on a new line`
     flags[SAMPLE_LIMIT] = true
     let sp:bounds = {SAMPLE_LIMIT, SAMPLE_LIMIT * 2};
     println(evens(SAMPLE_LIMIT), " ", nest, " ", nest[1].count, " ", Array(['k', 'c']).typename, " ", flags[SAMPLE_LIMIT], " ", flags.count, " ", sp.hi, " ", SAMPLE_LIMIT.typename)
+    var pn:union pun = {.f = 1.0}
+    let pv:pun = {.u = 0x40000000}
+    let cb:struct chain_node = {2, nowhere}
+    var ca:struct chain_node = {1, &cb as struct chain_node^}   // as looser than &, as kelvinc's
+    let cp := &ca:struct chain_node^
+    let null_fd = open("/dev/null", 0)
+    let pw:punned = {pn, 5}
+    let when:struct timespec = moment()
+    let cl = (struct chain_node){9, nowhere}
+    println(pn, " ", pn.u.hex, " ", pv.f, " ", chain_head(&ca), " ", cp^.next^.value, " ", null_fd > 2, " ", -null_fd as int64 < 0, " ", thrice_va(2, "x", 4.5))
+    println(pw, " ", sizeof(struct chain_node) == sizeof(chain_node), " ", sizeof(union pun), " ", cl.value, " ", when.tv_nsec, " ", $[pn, pv], " ", `${pv}`, " ", pw.p.typename)
     return 0
 }
+let thrice_va(n:int64, ...):int64 { n * 3 }

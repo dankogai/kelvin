@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **C's types** (#453), as kelvinc's: `struct T`, `union T` and `enum T`
+  wherever a type goes; `union T { ... }`, shown `<union T>`; `struct T;`
+  of a C struct; a function declared with no body; and `...` after a
+  function's parameters, C's variadic.
+  - `as` binds looser than a prefix, as kelvinc's P17: `&b as T^` is
+    `(&b) as T^`, which kc had read as `&(b as T^)`.
 - **An IO's print** (#452), as kelvinc's: `f.print(...)`,
   `f.println(...)`, `f.flush()`, `IO.stdout` and its kin, never freed,
   and `.pretty` of any value print shows; `IO(fd, mode)`, and `.fd`,

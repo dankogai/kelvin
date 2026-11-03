@@ -391,6 +391,7 @@ let put_free_copy(y:int64) {
 
 let put_fixed_base(y:int64)    // prototypes: put_ctype, a case's [a, b] and a [T](N)^ ask these (#360, #362)
 let put_fixed_counts(y:int64)
+let put_record_word(y:int64)    // and C's word of a struct, union of a union (#453)
 
 let put_ctype(y:int64) {
     switch types[y].kind {                                       // every kind of type (#210)
@@ -421,8 +422,10 @@ let put_ctype(y:int64) {
     case Y_DICT: put_dict_name(y)
     case Y_SET: put_set_name(y)
     case Y_STRUCT:
-        if decl_named(types[y].name, D_STRUCT) >= 0 || tagged_of(y) >= 0 {
-            put("struct ")                                       // an enum with values too (#215)
+        if types[y].elem == 0 - 2 || types[y].elem == 0 - 3 || types[y].elem == 0 - 4 {   // a C header's struct tm (#453)
+            put(types[y].elem == 0 - 2 ? "struct " : types[y].elem == 0 - 3 ? "union " : "enum ")
+        } else if decl_named(types[y].name, D_STRUCT) >= 0 || tagged_of(y) >= 0 {
+            put_record_word(y)                                   // an enum with values too (#215), a union (#453)
         } else if decl_named(types[y].name, D_ENUM) >= 0 {
             put("enum ")                                         // (#210)
         }                                                        // else a C header's typedef (#207)
@@ -1952,6 +1955,12 @@ let count_overloads() {
         }
         if nodes[d].b >= 0 { fn_bodies[key] = 1 }
     }
+    for d in variadic_fns {                              // kc's error: kelvinc tells them apart by _Generic (#453)
+        if nodes[d].c < 0 && fn_overloads.get(tok_text(nodes[d].t), 0) > 1 {
+            gen_error(d, "kc reads a variadic function of a name of its own; not yet one of several overloads")
+            return
+        }
+    }
 }
 
 // a function's C name, as kelvinc's: a defined overload by its
@@ -2099,6 +2108,12 @@ let struct_of(y:int64):int64 {
     return decl_named(types[y].name, D_STRUCT)
 }
 
+// C's word of y, a struct or an enum with values: union of a union (#453)
+let put_record_word(y:int64) {
+    let s:int64 = struct_of(y)
+    put(s >= 0 && nodes[s].flag == 1 ? "union " : "struct ")
+}
+
 // whether print shows v as it is: a number, a bool, text
 let plain_shown(v:int64):bool {
     let k:ykind = types[v].kind
@@ -2132,6 +2147,10 @@ let need_show(y:int64, n:int64):bool {
         return true
     }
     let d = tagged_of(y)
+    if d < 0 && nodes[struct_of(y)].flag == 1 {          // <union bits>, by its name (#453)
+        shown += y
+        return true
+    }
     var m:int64 = d >= 0 ? nodes[d].a : nodes[struct_of(y)].a
     while m >= 0 {
         var v = nodes[m].ty
@@ -2746,10 +2765,17 @@ let gen_show(y:int64) {
         put("    }\n    kv_out_end(o, level);\n    kv_out_put(o, \"}\");\n}\n\n")
         return
     }
-    put("struct ")
+    put_record_word(y)
     put_tok(types[y].name)
     put(" *self = _kv_v;\n")
     let d = tagged_of(y)
+    if d < 0 && nodes[struct_of(y)].flag == 1 {         // <union bits>, as kelvinc shows one (#453)
+        put("    (void)self;\n    (void)level;\n    kv_out_put(o, \"<union ")
+        let w:String = kelvin_name(types[y].name)
+        put(w.cstr)
+        put(">\");\n}\n\n")
+        return
+    }
     if d < 0 {
         let s = struct_of(y)
         put("    int _kv_nl = level < 0 ? -1 : level + 1;\n    kv_out_put(o, \"{\");\n")
@@ -8832,6 +8858,10 @@ let named_fn_type(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
+    if variadic_fns.contains(d) {                        // as parse says it of (T, ...):R (#453)
+        gen_error(n, "kc's function types take no '...' yet: C's variadic functions are called by name")
+        return 0 - 1
+    }
     return decl_fn_type(d)
 }
 
@@ -12697,6 +12727,7 @@ let gen_signature(d:int64) {
         }
         p = nodes[p].next
     }
+    if variadic_fns.contains(d) { put(", ...") }          // C's variadic function (#453)
     put(")")
 }
 
@@ -13433,7 +13464,7 @@ let forward_struct(y:int64) {
     while b >= 0 && types[b].kind == Y_PTR { b = types[b].elem }
     if b < 0 || types[b].kind != Y_STRUCT || written.get(b, 0) == 1 { return }
     if decl_named(types[b].name, D_STRUCT) < 0 && tagged_of(b) < 0 { return }
-    put("struct ")
+    put_record_word(b)
     put_tok(types[b].name)
     put(";\n")
 }
@@ -13528,7 +13559,7 @@ let write_type(y:int64) {
                 write_type(nodes[f].ty)
                 f = nodes[f].next
             }
-            put("struct ")
+            put_record_word(y)
             put_tok(nodes[d].t)
             put("\n{\n")
             f = nodes[d].a
@@ -13720,6 +13751,10 @@ let gen_program() {
             var f:int64 = nodes[d].a
             while f >= 0 {
                 let fy:int64 = nodes[f].ty
+                if nodes[d].kind == D_STRUCT && nodes[d].flag == 1 && fy >= 0 && is_owner(fy) {   // as kelvinc says it (#453)
+                    gen_error(f, "a union cannot hold an owner (#54): which member to free is unknown")
+                    return
+                }
                 let user_enum = nodes[d].kind == D_ENUM && !kc_made(nodes[d].t)   // not an Optional's, a Result's (#360)
                 if (nodes[d].kind == D_STRUCT || user_enum) && fy >= 0 && types[fy].kind == Y_FIXED {   // a struct's member (#356), a case's value (#360)
                     if !member_fixed_ok(f, fy, user_enum ? "a case" : "a member") { return }
@@ -13734,6 +13769,10 @@ let gen_program() {
             refuse_fixed(d, nodes[d].ty)
             return
         }
+    }
+    for y in c_tag_types {                               // struct timespec;, C's, as kelvinc declares it (#453)
+        put_ctype(y)
+        put(";\n")
     }
     for i in 0..<decls.count as int64 {                  // the structs and the enums with values (#215), each
         let d:int64 = decls[i]                           // after what it holds, as the Arrays and Dictionaries (#225)
@@ -13818,7 +13857,7 @@ let gen_program() {
     }
     for i in 0..<decls.count as int64 {                  // the prototypes
         let d:int64 = decls[i]
-        if nodes[d].kind == D_FN && nodes[d].b >= 0 && !is_main(d) {
+        if nodes[d].kind == D_FN && !is_main(d) && (nodes[d].b >= 0 || nodes[d].c < 0) {   // one with no body too, as kelvinc declares it (#453)
             gen_signature(d)
             put(";\n")
         }

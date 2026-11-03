@@ -8786,3 +8786,18 @@ every member of an IO as its status. Two more tests build with kc, 87 in
 all, and print what kelvinc's builds print. Details are provisional P464.
 
 There are 1176 tests, and all pass with clang and with gcc 15.
+
+### 500. C's types in kc
+
+> push. then go on with #453
+
+**Claude** listed what stopped kc most and asked; the user chose C's types.
+kc now reads `struct T`, `union T` and `enum T` wherever a type goes,
+unions themselves, `struct T;` of a C struct, a function declared with no
+body, and `...` after a function's parameters, as kelvinc does. On the way,
+kc was found to read `as` tighter than a prefix, `&b as T^` as
+`&(b as T^)`, against kelvinc's P17; it reads it as kelvinc does now. Three
+more tests build with kc, 90 in all, and print what kelvinc's builds print.
+Details are provisional P465.
+
+There are 1176 tests, and all pass with clang and with gcc 15.
