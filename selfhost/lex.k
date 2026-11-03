@@ -128,6 +128,7 @@ let punct_len(i:int64):int64 {
     if (c == '<' || c == '>') && d == c { return 2 }       // << and >>, a type's >> closed by close_angle
     if (c == '=' || c == '!' || c == '<' || c == '>' || c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == '|' || c == '&' || c == '~') && d == '=' { return 2 }   // |= &= ~= (#276)
     if c == '&' && d == '&' { return 2 }
+    if (c == '+' || c == '-') && d == c { return 2 }       // p++ and p-- (#459)
     if c == '?' && d == '?' { return 2 }                   // ?? (#217)
     if c == ':' && d == '=' { return 2 }
     if c == '|' && d == '|' { return 2 }
@@ -308,8 +309,11 @@ let lex_range(from:int64, to:int64, file:int64) {
         } else if c == '\'' {
             let s:int64 = i
             i += 1
-            if codes[i] == '\\' { i += 1 }
-            i += 2
+            while i < to && codes[i] != '\'' && codes[i] != '\n' {   // up to its ', '\x6b' too (#459)
+                if codes[i] == '\\' { i += 1 }
+                i += 1
+            }
+            i += 1
             add_tok(T_CHAR, s, i - s, line, file)
         } else if c == '#' {
             let s:int64 = i

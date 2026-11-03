@@ -598,6 +598,11 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **More of C** (#459), as kelvinc's: `do { } while c`; `p++` and
+  `p--` of a pointer; a char's `'\x6b'`; `static` and `extern` before a
+  function or a variable, and a local's `static`.
+  - kc had dropped all but the first of adjacent string literals,
+    `"a" "b"`; it writes them all, which C joins.
 - **C's for and several declarators** (#458), as kelvinc's:
   `var a:T = 1, b:T = 2`; `for (init; cond; step) body`, its init the
   loop's own, its steps a list, its body a block or one statement; and

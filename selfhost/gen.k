@@ -7562,6 +7562,10 @@ let gen_expr_of(n:int64) {
         put_tok(t)
     } else if k == N_STR {
         put_text(t, 0)
+        for more in 1...nodes[n].flag { // "a" "b", C's adjacent literals (#459)
+            put(" ")
+            put_text(t + more, 0)
+        }
     } else if k == N_DSTR {
         put("KV_STRING_LIT(")                            // $"...", its every byte, a NUL too (#299)
         put_text(t, 1)
@@ -8378,6 +8382,13 @@ let gen_var(n:int64) {
         put_free(y)
         put("))) ")
     }
+    if static_decls.contains(n) {                        // a local that lives on, C's (#459)
+        if is_owner(y) {
+            gen_error(n, "a static local lives on past its block, which frees an owner: make it a global")
+            return
+        }
+        put("static ")
+    }
     put_alignas(n)                                       // (#396)
     put_ctype(y)
     put(" ")
@@ -8721,6 +8732,30 @@ let gen_assign(n:int64) {
         return
     }
     if !may_change(lhs) { return }                      // (#271)
+    if tok_is(t, "++") || tok_is(t, "--") {             // p++ and p-- of a pointer, as kelvinc's #51 (#459)
+        let y:int64 = type_of(lhs)
+        if failed { return }
+        if y >= 0 && types[y].kind == Y_CSTR {
+            gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
+            return
+        }
+        if y >= 0 && types[y].kind != Y_PTR && types[y].kind != Y_C {
+            var m = $"'"
+            m += tok_text(t)
+            m += "' is for pointers, and this is "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            m += ": write 'x "
+            m += tok_is(t, "++") ? "+" : "-"
+            m += "= 1'"
+            gen_error(n, m.cstr)
+            return
+        }
+        gen_expr(lhs)
+        put_tok(t)
+        put(";\n")
+        return
+    }
     if text_outlived(n) { return }                      // (#445, #447)
     if gen_bits_assign(n) { return }                    // a bit, '.value' or a whole Bits (#387)
     let y:int64 = type_of(lhs)
@@ -13110,6 +13145,14 @@ let gen_stmt_of(n:int64, depth:int64) {
         put(")\n")
         indent(depth)
         gen_block(nodes[n].b, depth)
+    case S_DO:                                           // do { } while c, C's (#459)
+        put("do\n")
+        indent(depth)
+        gen_block(nodes[n].b, depth)
+        indent(depth)
+        put("while (")
+        gen_cond(nodes[n].a)
+        put(");\n")
     case S_CFOR:                                         // C's for (#458): its init the loop's own, each step a statement of its own
         put("{\n")
         open_scope()
@@ -13224,6 +13267,8 @@ let is_main(d:int64):bool {
 
 let gen_signature(d:int64) {
     if is_inline(d) { put("static inline ") }          // (#392)
+    if static_decls.contains(d) && !is_inline(d) { put("static ") }   // C's (#459)
+    if extern_decls.contains(d) { put("extern ") }
     put_ctype(nodes[d].ty)
     put(" ")
     let recv:int64 = nodes[d].c
@@ -14344,13 +14389,18 @@ let gen_program() {
             current = d
             var before:String = out.copy()
             out = $""
+            if static_decls.contains(d) { put("static ") }   // C's (#459)
+            if extern_decls.contains(d) { put("extern ") }
             put_alignas(d)                               // (#396)
             if nodes[d].flag == 1 { put("const ") }
             put_ctype(nodes[d].ty)
             put(" ")
             put_tok(nodes[d].t)
-            put(" = ")
-            if nodes[d].a >= 0 {
+            let declared = extern_decls.contains(d) && nodes[d].a < 0   // an extern's value is C's, elsewhere
+            if !declared { put(" = ") }
+            if declared {
+                put("")
+            } else if nodes[d].a >= 0 {
                 gen_written(nodes[d].a, nodes[d].ty)    // ${:} (#348)
             } else if is_owner(nodes[d].ty) || types[nodes[d].ty].kind == Y_STRUCT {
                 put("{0}")

@@ -63,6 +63,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_CASE,     // case a...: b...; flag 1 of default
     S_IFLET,    // if let t(flag) = a { b } else c (#217); if let flag = a, t flag too (#442)
     S_CFOR,     // for (a...; b; flag...) c, C's (#458): a its first init statement, flag its first step, each -1 where none
+    S_DO,       // do { b } while a, C's (#459)
     // declarations
     D_FN,       // t(a...):ty { b }, b -1 for a prototype; of a type c, flag 1 static, 2 a var method (#320)
     D_STRUCT,   // t { a... }
@@ -173,6 +174,8 @@ var block_depth:int64 = 0
 var fn_tok:int64 = 0 - 1       // the token of the function being read, which names them
 var local_next = false         // the struct or enum parse_struct or parse_enum reads is defined in a block (#391)
 var inline_fns:$[int64]        // the functions written inline (#392), C's static inline
+var static_decls:$[int64]      // the functions, globals and locals written static, C's (#459)
+var extern_decls:$[int64]      // and those written extern, declared for C's
 var variadic_fns:$[int64]      // the functions whose parameters end in ..., C's variadic ones (#453)
 var c_tags:Dictionary<String, int64>   // struct T; and union T;, C's, -2 or -3 by T (#453)
 var c_tag_types:$[int64]       // and their types, which gen declares so
@@ -1855,7 +1858,12 @@ let parse_primary():int64 {
     }
     if k == T_STR || k == T_TPL {                       // `text`, a template with no ${...}, is a string (#445)
         advance()
-        return make_node(N_STR, t)
+        let n:int64 = make_node(N_STR, t)
+        while at_kind(T_STR) || at_kind(T_TPL) {         // "a" "b", C's adjacent literals, one: flag the others (#459)
+            advance()
+            nodes[n].flag += 1
+        }
+        return n
     }
     if k == T_TPL_HEAD { return parse_template(false) }  // (#445)
     if k == T_PUNCT && tok_is(t, "$") && toks[t + 1].kind == T_TPL_HEAD {   // $`a${x}b`, a String (#445)
@@ -2077,6 +2085,17 @@ let parse_postfix():int64 {
 }
 
 let parse_unary():int64 {
+    if at_word("++") || at_word("--") {                  // as kelvinc says it (#459)
+        var m = $"Kelvin has no prefix '"
+        m += tok_text(pos)
+        m += "': a pointer steps with 'p"
+        m += tok_text(pos)
+        m += "' as a statement (#51), and a number with 'x "
+        m += tok_is(pos, "++") ? "+" : "-"
+        m += "= 1'"
+        parse_error(m.cstr)
+        return 0 - 1
+    }
     if at_word("!") && tok_is(pos + 1, "!") && adjacent(pos, pos + 1) {   // !!n, a bit's bool, flag 1 (#387)
         let t:int64 = advance()
         advance()
@@ -2500,6 +2519,29 @@ let parse_enum():int64
 
 let parse_statement():int64 {
     let t:int64 = pos
+    if at_word("do") {                                   // do { } while c, C's (#459)
+        let n:int64 = make_node(S_DO, advance())
+        set_b(n, parse_block())
+        if !at_word("while") {
+            parse_error("expected 'while' after the body of 'do'")
+            return n
+        }
+        advance()
+        set_a(n, parse_expr())
+        end_statement()
+        return n
+    }
+    if at_word("static") && (tok_is(pos + 1, "var") || tok_is(pos + 1, "let")) {   // a local that lives on, C's (#459)
+        advance()
+        let n:int64 = parse_vars()
+        var v:int64 = n
+        while v >= 0 {
+            static_decls += v
+            v = nodes[v].next
+        }
+        end_statement()
+        return n
+    }
     if at_word("switch") {
         return parse_switch()
     }
@@ -2598,6 +2640,12 @@ let parse_statement():int64 {
 let parse_simple():int64 {
     let t:int64 = pos
     let e:int64 = parse_expr()
+    if at_word("++") || at_word("--") {                  // p++ and p-- step a pointer, as statements (#51, #459)
+        let n:int64 = make_node(S_ASSIGN, advance())
+        nodes[n].a = e
+        nodes[n].b = 0 - 1
+        return n
+    }
     if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
@@ -2928,9 +2976,22 @@ let parse_extend() {
 let parse_program() {
     skip_newlines()
     while !at_kind(T_EOF) && !failed {
+        var storage:int64 = 0                            // static 1, extern 2, as C's (#459)
+        if (at_word("static") || at_word("extern")) && !at_word("static_assert") {
+            storage = at_word("static") ? 1 : 2
+            advance()
+        }
         parse_alignas()                                  // alignas(64) var line:[u8](64) (#396)
         parse_alignas()                                  // a second, kelvinc's error
-        let inl:bool = parse_inline(false)              // inline let f(...) (#392)
+        var inl:bool = parse_inline(false)              // inline let f(...) (#392)
+        if storage == 0 && at_word("static") {          // inline static let f(...)
+            storage = 1
+            advance()
+            inl = parse_inline(inl)
+        }
+        if storage == 1 && (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ".") && !head_method(pos + 1) {
+            parse_error("kc reads no type attribute yet, 'static let T.x:R = v' (#133): a function of the type, 'static let T.f()', it reads")
+        }
         if inl && toks[pos + 1].kind == T_ID && tok_is(pos + 1, "main") {
             parse_error("main is C's main, called once: it is not inline")
         }
@@ -3005,6 +3066,16 @@ let parse_program() {
                 end_alignas()
             } else {
                 refuse_alignas()
+            }
+        }
+        if storage > 0 && decls.count as int64 > first {    // (#459)
+            let d:int64 = decls[decls.count - 1]
+            if nodes[d].kind == D_FN && nodes[d].c >= 0 && storage == 1 {
+                nodes[d].flag = 1                        // static let T.f(), a function of the type, as in extend (#213)
+            } else if nodes[d].kind == D_FN || nodes[d].kind == D_GLOBAL {
+                if storage == 1 { static_decls += d } else { extern_decls += d }   // C's, a body or a value too
+            } else {
+                parse_error("static and extern are for a function or a variable")
             }
         }
         if inl {

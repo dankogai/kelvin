@@ -320,6 +320,14 @@ let evens(n:int64):Array<int64> {                      // Array<T> as a type, as
 }
 let handed_back(s:String):String { return s }           // s moves in and out again (#441)
 let open(path:const uint8^, flags:int32, ...):int32;   // C's, declared in Kelvin, variadic (#453)
+extern var optind:int32;                               // C's getopt index, declared for Kelvin (#459)
+static var sample_calls:int32 = 0                      // static, C's: this file's alone (#459)
+static let sample_bump():int32 {
+    static var times:int32                             // a local that lives on
+    times += 1
+    sample_calls += 1
+    return times
+}
 let thrice_va(n:int64, ...):int64                      // a prototype, its body after main
 union pun { u: uint32; f: float32; b: [uint8](4) }    // C's types: a union, struct T, struct T; (#453)
 struct chain_node { value: int32; next: struct chain_node^ }
@@ -842,6 +850,15 @@ let main(argc:int32, argv:[cstr]):int32 {
     cf_lo = 0, cf_hi -= 1
     for (;;) { break }
     println(cf_sum, " ", cf_lo, " ", cf_hi)
+    var do_n = 0                                      // do-while, p++, '\x6b' and "a" "b", more of C (#459)
+    do {
+        do_n += 1
+    } while do_n < 3
+    var do_p:uint8^ := "kelvin" as uint8^
+    do_p++
+    do_p++; do_p--
+    sample_bump()
+    println(do_n, " ", do_p^, " ", '\x6b', " ", "adjacent " "strings", " ", sample_bump(), " ", sample_calls, " ", optind >= 1)
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

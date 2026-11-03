@@ -490,6 +490,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 456 | kc reads #455's `Bits` as kelvinc does: `Bits(a, b, ...)` of bools, `[bool]`s, written `[true, false]`, fixed arrays and `Array<bool>`s, integers of their widths, and text `"0b..."`, of a literal, a `cstr`, a `String` and `&s`, a literal's checked; `bv.append(x)` of the same, `bv.capacity(n)`, `bv.copy()`, `.count`, `.capacity`, `.isEmpty`, `.bin`, `for b in bv` and `bv[n].flip()`, with kelvinc's errors in its words; `.u64s` kc's error, as kc has no u64 | selfhost/gen.k's bits_part_ok, put_bits_push, bit_of_bits, gen_bits' members and methods, gen_each's Bits | `bv.append([true, false])`, `for b in bv` | 2026-11-03 |
 | 457 | kc reads #454's bits as kelvinc does: `b.flip()` of a bool, `x.flip(n)` and `x.bit(n)` of an integer, `x.bit(n) = b` and its `\|=`, `&=` and `~=`, through the unsigned type of its width and the prelude's kv_int_place, with kelvinc's errors in its words | selfhost/gen.k's int_width, int_place_ok, gen_bit_method, gen_int_bit_set | `flag.flip()`, `w.bit(7) = true` | 2026-11-03 |
 | 458 | kc reads several declarators in one statement, `var a:i32 = 1, b:i32 = 2`, each an S_VAR of the first's let or var; C's `for (init; cond; step) body`, as kelvinc's: its init declarations or assignments the loop's own, each part optional, the steps a list, the body a block or one statement; and `x = 1, y = 2`, C's comma, each a statement | selfhost/parse.k's S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples; selfhost/gen.k's S_CFOR | `for (var i = 0, j = 3; i < j; i += 1, j -= 1) t += i` | 2026-11-03 |
+| 459 | kc reads more of C, as kelvinc does: `do { } while c`; `p++` and `p--` of a pointer, as statements, kelvinc's #51, `++x` and a number's its errors; a char literal up to its closing `'`, `'\x6b'` too; `"a" "b"`, C's adjacent literals, one, where kc had dropped all but the first; and `static` and `extern` before a function or a variable, a local's `static` too, `static let T.f()` a function of the type | selfhost/lex.k's `++`, `--` and char; selfhost/parse.k's S_DO, static_decls, extern_decls, parse_program's storage, the adjacent N_STR; selfhost/gen.k's S_DO, the p++ of gen_assign, the static and extern of gen_signature, the globals and gen_var | `do { n += 1 } while n < 3`, `static var calls:int32` | 2026-11-03 |
 
 Notes:
 
@@ -1075,6 +1076,31 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (459) Agreed details: "go on with #459"; the user chose more of C
+  in kc, what stopped the programs #458 reached.
+  - `do { } while c` is S_DO, written `do { } while (c);`, with
+    kelvinc's error where no `while` follows the body.
+  - `++` and `--` lex as one token; after a place they step it, an
+    S_ASSIGN of no value, `p++;` in C, of a pointer or what only C sees,
+    and a number's and a cstr's are kelvinc's errors, as is a prefix
+    `++x`.
+  - A char literal is lexed to its closing `'`, so `'\x6b'` and other
+    escapes of more than one character are one; kc had taken three
+    characters, or four, and broken on them.
+  - Found on the way: kc read `"adjacent " "strings"` as its first
+    literal and dropped the rest, printing "adjacent " alone. The N_STR
+    now counts the literals after it in its flag, and kc writes them all,
+    which C joins.
+  - `static` and `extern` before `let` or `var` at the top level are
+    C's, kept in static_decls and extern_decls; an extern function may
+    have a body, and an extern variable a value, as kelvinc lets C have
+    them. `static inline let` and `inline static let` are both read.
+    `static let T.f()` is a function of the type, as in extend (#213);
+    a type attribute, `static let T.x:R = v`, is kc's "not yet".
+  - `static var` in a block is C's local static, which an owner may not
+    be, kc's error, where kelvinc's is C's.
+  - tests/run/extern_fn.k, operators.k and references_lists.k build
+    with kc now, 92 in all, each printing what kelvinc's prints.
 - (458) Agreed details: "go on with #458"; the user chose several
   declarators and C's for.
   - `var a:T = x, b:T = y` and `let` so are each an S_VAR of the first's
@@ -6614,6 +6640,7 @@ says "as agreed".
 | P468 | Details of #456 | selfhost/gen.k: bit_of_bits, bits_part_ok, put_bits_push, gen_bits' Bits(x, ...), bv[n].flip(), the members count, capacity, isEmpty and bin, copy(), append(x) and capacity(n), type_of's Bits members and methods, is_made_array's bin, builtin_no_value's Bits, gen_each's Bits; selfhost/sample.k: `bits_text`, `bgrow`, `bones`, `bcopy` and their line; selfhost/README.md | — |
 | P469 | Details of #457 | selfhost/gen.k: int_width, put_uint_of, int_place_ok, gen_bit_method and its call in gen_bits, gen_int_bit_set and its call in gen_assign, type_of's flip and bit, builtin_no_value's flip; selfhost/sample.k: `bit_flag`, `bit_word` and their line; selfhost/README.md | — |
 | P470 | Details of #458 | selfhost/parse.k: S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples and their prototypes, parse_statement's var, for and tail, parse_block's and parse_switch's chains; selfhost/gen.k: gen_stmt_of's S_CFOR; selfhost/sample.k: `cf_lo`, `cf_hi`, `cf_sum`, `cf_n1`, `cf_n2` and their lines; selfhost/README.md | — |
+| P471 | Details of #459 | selfhost/lex.k: punct_len's `++` and `--`, the char literal to its `'`; selfhost/parse.k: S_DO, static_decls, extern_decls, parse_program's storage and its marks, parse_statement's `do` and `static var`, parse_simple's `++` and `--`, parse_unary's error of a prefix, the adjacent N_STR; selfhost/gen.k: gen_stmt_of's S_DO, gen_assign's `++` and `--`, gen_signature's static and extern, the globals' and gen_var's, the adjacent literals; selfhost/sample.k: `optind`, `sample_calls`, `sample_bump`, `do_n`, `do_p` and their line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

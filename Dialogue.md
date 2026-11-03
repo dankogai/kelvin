@@ -8880,3 +8880,17 @@ does. The programs of tests/run that use them stop on more of C, as
 `do { } while` and `p++`. Details are provisional P470.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 506. More of C in kc
+
+> push. then go on with #459
+
+**Claude** pushed #458 and asked; the user chose more of C in kc. kc now
+reads `do { } while c`, `p++` and `p--` of a pointer, a char's `'\x6b'`,
+and `static` and `extern` before a function or a variable, as kelvinc
+does. On the way, kc was found to drop all but the first of adjacent
+string literals, `"adjacent " "strings"`; it writes them all now. Three
+more tests build with kc, 92 in all, and print what kelvinc's builds
+print. Details are provisional P471.
+
+There are 1188 tests, and all pass with clang and with gcc 15.
