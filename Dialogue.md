@@ -8868,3 +8868,15 @@ integer, and `x.bit(n) = b` and its kin, as kelvinc does, in its words
 where they are wrong. Details are provisional P469.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 505. C's for and several declarators in kc
+
+> push. then go on with #458
+
+**Claude** pushed #457 and asked; the user chose several declarators and
+C's for. kc now reads `var a:T = 1, b:T = 2`, `for (init; cond; step)`
+with a block or one statement for its body, and `x = 1, y = 2`, as kelvinc
+does. The programs of tests/run that use them stop on more of C, as
+`do { } while` and `p++`. Details are provisional P470.
+
+There are 1188 tests, and all pass with clang and with gcc 15.

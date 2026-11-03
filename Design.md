@@ -489,6 +489,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 455 | `Bits` grows past 64 bits, its bits in `u64`s on the heap, place 0 the lowest bit of the first, an owner as a `Bytes` is; `Bits()` empty, `Bits(a, b, ...)` of bools, `[bool]`s, integers, each its type's width, and text `"0b..."`, in turn from place 0; `bv.append(x)` of the same; `bv.capacity(n)` in bits, a multiple of 64; `.count`, `.capacity`, `.isEmpty`, `.u64s`, an `Array<u64>`, `.bin`, an `Array<String>` of each `u64`'s `"0b..."`, `.copy()` and `for b in bv`; `bv[n]` past the count ending the program; `\|`, `&` and `~` of the longer count; `<<` and `>>` growing and shrinking it; printed `Bits("0b...")`, which pastes back; `.value` gone | runtime/bits.c; the prelude's kv_bits; src/parser.c's bits_part, bits_args, check_bits_place, EACH_BITS; src/codegen.c's bits_code, bits_ref, bits_push; selfhost/gen.k's gen_bits, bits_hold | `Bits(-1, true)`, `bv.append([false, true])`, `bv.u64s` | 2026-11-03 |
 | 456 | kc reads #455's `Bits` as kelvinc does: `Bits(a, b, ...)` of bools, `[bool]`s, written `[true, false]`, fixed arrays and `Array<bool>`s, integers of their widths, and text `"0b..."`, of a literal, a `cstr`, a `String` and `&s`, a literal's checked; `bv.append(x)` of the same, `bv.capacity(n)`, `bv.copy()`, `.count`, `.capacity`, `.isEmpty`, `.bin`, `for b in bv` and `bv[n].flip()`, with kelvinc's errors in its words; `.u64s` kc's error, as kc has no u64 | selfhost/gen.k's bits_part_ok, put_bits_push, bit_of_bits, gen_bits' members and methods, gen_each's Bits | `bv.append([true, false])`, `for b in bv` | 2026-11-03 |
 | 457 | kc reads #454's bits as kelvinc does: `b.flip()` of a bool, `x.flip(n)` and `x.bit(n)` of an integer, `x.bit(n) = b` and its `\|=`, `&=` and `~=`, through the unsigned type of its width and the prelude's kv_int_place, with kelvinc's errors in its words | selfhost/gen.k's int_width, int_place_ok, gen_bit_method, gen_int_bit_set | `flag.flip()`, `w.bit(7) = true` | 2026-11-03 |
+| 458 | kc reads several declarators in one statement, `var a:i32 = 1, b:i32 = 2`, each an S_VAR of the first's let or var; C's `for (init; cond; step) body`, as kelvinc's: its init declarations or assignments the loop's own, each part optional, the steps a list, the body a block or one statement; and `x = 1, y = 2`, C's comma, each a statement | selfhost/parse.k's S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples; selfhost/gen.k's S_CFOR | `for (var i = 0, j = 3; i < j; i += 1, j -= 1) t += i` | 2026-11-03 |
 
 Notes:
 
@@ -1074,6 +1075,25 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (458) Agreed details: "go on with #458"; the user chose several
+  declarators and C's for.
+  - `var a:T = x, b:T = y` and `let` so are each an S_VAR of the first's
+    let or var, chained along next, which parse_block and a case's body
+    follow to its last.
+  - `for (init; cond; step) body` is S_CFOR: a its init, declarations
+    by parse_vars or assignments by parse_simples; b its condition; flag
+    its steps; c its body, a block, or one statement in a block, on the
+    line or the next. Each part may be empty, `for (;;)`.
+  - kc writes `{ init; for (; cond; ({ step; }), ({ step; })) body }`,
+    so the init's names are the loop's alone, as kelvinc's #10 has them,
+    and `continue` reaches the steps.
+  - `x = 1, y = 2` as a statement, C's comma, is a list of statements,
+    as a C for's steps are: parse_simples.
+  - kc still checks no condition's type, a `for`'s as a `while`'s; C
+    reads it.
+  - tests/run's programs with these forms stop now on more of C: `do
+    { } while`, `p++`, a char's `\x`, `static` and `extern`
+    declarations; none builds with kc yet.
 - (457) Agreed details: "go on with #457"; the user chose that kc read
   #454's bits, of which it had none.
   - `b.flip()` of a bool, `x.flip(n)` of an integer, each in the var
@@ -6593,6 +6613,7 @@ says "as agreed".
 | P467 | Details of #455 | runtime/bits.c; modules/kelvin_prelude.h: kv_bits and its functions, KV_TEMPLATE_BOUND's 0; src/kelvin.h: EACH_BITS; src/parser.c: bits_held, check_bits_place, bits_args, bits_part, Bits(...), the Bits members, `~`, the operators and assignments, bv[n] and its setting, is_owner, the for-each of a Bits, bits_part in no_value; src/codegen.c: bits_ref, bits_code, bits_push, owner_free's kv_bits_free, eq_code's kv_bits_eq, the text bounds, EACH_BITS; selfhost/parse.k: owns()'s Y_BITS; selfhost/gen.k: put_owner_prefix's, put_eq_code's and the template bound's Bits, the member errors, bit_number, bits_hold, put_bits_ref, gen_bits, gen_bits_assign; selfhost/sample.k: `Bits(0)`, `Bits(u8(5))`; documents/bits.md, ownership.md, versusC.md, README.md; README.md; selfhost/README.md; tests/run/bits.k, bits_grow.k, bit_bool.k, int_bits.k, bits_place_failure.k, bits_shift_failure.k, bits_text_failure.k; tests/error/bits_member.k, bits_operator.k, bits_place_range.k, bits_text.k, bits_part.k, bits_append_let.k | — |
 | P468 | Details of #456 | selfhost/gen.k: bit_of_bits, bits_part_ok, put_bits_push, gen_bits' Bits(x, ...), bv[n].flip(), the members count, capacity, isEmpty and bin, copy(), append(x) and capacity(n), type_of's Bits members and methods, is_made_array's bin, builtin_no_value's Bits, gen_each's Bits; selfhost/sample.k: `bits_text`, `bgrow`, `bones`, `bcopy` and their line; selfhost/README.md | — |
 | P469 | Details of #457 | selfhost/gen.k: int_width, put_uint_of, int_place_ok, gen_bit_method and its call in gen_bits, gen_int_bit_set and its call in gen_assign, type_of's flip and bit, builtin_no_value's flip; selfhost/sample.k: `bit_flag`, `bit_word` and their line; selfhost/README.md | — |
+| P470 | Details of #458 | selfhost/parse.k: S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples and their prototypes, parse_statement's var, for and tail, parse_block's and parse_switch's chains; selfhost/gen.k: gen_stmt_of's S_CFOR; selfhost/sample.k: `cf_lo`, `cf_hi`, `cf_sum`, `cf_n1`, `cf_n2` and their lines; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -62,6 +62,7 @@ enum nkind {                    // the kinds of nodes (#210)
     S_SWITCH,   // switch a { b, the first case }
     S_CASE,     // case a...: b...; flag 1 of default
     S_IFLET,    // if let t(flag) = a { b } else c (#217); if let flag = a, t flag too (#442)
+    S_CFOR,     // for (a...; b; flag...) c, C's (#458): a its first init statement, flag its first step, each -1 where none
     // declarations
     D_FN,       // t(a...):ty { b }, b -1 for a prototype; of a type c, flag 1 static, 2 a var method (#320)
     D_STRUCT,   // t { a... }
@@ -2353,6 +2354,10 @@ let parse_if():int64 {
 }
 
 let parse_statement():int64
+let parse_vars():int64    // prototypes: C's for and several declarators (#458)
+let parse_cfor():int64
+let parse_simple():int64
+let parse_simples():int64
 
 // switch e { case a, b: ... default: ... } (#210): its cases a list of
 // S_CASE, each with its values and its statements, up to the next case
@@ -2396,6 +2401,7 @@ let parse_switch():int64 {
                 nodes[lasts].next = s
             }
             lasts = s
+            while nodes[lasts].next >= 0 { lasts = nodes[lasts].next }   // (#458)
             skip_newlines()
         }
         if lasts < 0 { parse_error("a case has a statement before the next: write case a, b: for one body") }
@@ -2525,12 +2531,9 @@ let parse_statement():int64 {
         }
     }
     if at_word("var") || at_word("let") {
-        let is_let = 0
-        advance()
-        let n:int64 = parse_var(is_let)
+        let n:int64 = parse_vars()
         take_alignas(n)                                  // (#396)
         end_alignas()
-        if tok_is(t, "let") { nodes[n].flag = 1 }
         end_statement()
         return n
     }
@@ -2543,6 +2546,7 @@ let parse_statement():int64 {
         set_b(n, parse_block())
         return n
     }
+    if at_word("for") && tok_is(pos + 1, "(") { return parse_cfor() }   // C's for (init; cond; step) (#458)
     if at_word("for") {
         advance()
         let v:int64 = advance()
@@ -2585,18 +2589,83 @@ let parse_statement():int64 {
     if at_word("{") {
         return parse_block()
     }
+    let n:int64 = parse_simples()                        // x = 1, y = 2, C's comma, each a statement (#458)
+    end_statement()
+    return n
+}
+
+// an expression or an assignment, a statement's or a C for's step (#458)
+let parse_simple():int64 {
+    let t:int64 = pos
     let e:int64 = parse_expr()
     if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())
-        end_statement()
         return n
     }
     let n:int64 = make_node(S_EXPR, t)
     nodes[n].a = e
-    end_statement()
     return n
+}
+
+// var a:T = x, b:T = y, as kelvinc reads several declarators (#458): each
+// an S_VAR, of the first's let or var, the rest along its next
+let parse_vars():int64 {
+    let is_let = at_word("let")
+    advance()
+    let first:int64 = parse_var(0)
+    if is_let { nodes[first].flag = 1 }
+    var last:int64 = first
+    while at_word(",") && !failed {
+        advance()
+        let m:int64 = parse_var(0)
+        if is_let { nodes[m].flag = 1 }
+        nodes[last].next = m
+        last = m
+    }
+    return first
+}
+
+// for (init; cond; step) body, C's (#458), as kelvinc's #10: the init
+// declarations or assignments, each part optional, the steps a list,
+// the body a block or one statement; the init's names the loop's alone
+let parse_cfor():int64 {
+    let n:int64 = make_node(S_CFOR, advance())
+    nodes[n].flag = 0 - 1
+    expect("(")
+    if at_word("var") || at_word("let") {
+        nodes[n].a = parse_vars()
+    } else if !at_word(";") {
+        nodes[n].a = parse_simples()
+    }
+    expect(";")
+    if !at_word(";") { set_b(n, parse_expr()) }
+    expect(";")
+    if !at_word(")") { nodes[n].flag = parse_simples() }
+    expect(")")
+    skip_newlines()
+    if at_word("{") {
+        set_c(n, parse_block())
+    } else {
+        let b:int64 = make_node(S_BLOCK, pos)
+        nodes[b].a = parse_statement()
+        set_c(n, b)
+    }
+    return n
+}
+
+// a, b, ...: expressions or assignments, a C for's init or steps (#458)
+let parse_simples():int64 {
+    let first:int64 = parse_simple()
+    var last:int64 = first
+    while at_word(",") && !failed {
+        advance()
+        let m:int64 = parse_simple()
+        nodes[last].next = m
+        last = m
+    }
+    return first
 }
 
 // { statements }, as a list in an S_BLOCK
@@ -2619,6 +2688,7 @@ let parse_block():int64 {
             nodes[last].next = s
         }
         last = s
+        while nodes[last].next >= 0 { last = nodes[last].next }   // var a = 1, b = 2, two (#458)
         skip_newlines()
     }
     expect("}")

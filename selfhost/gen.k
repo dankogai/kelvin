@@ -13110,6 +13110,32 @@ let gen_stmt_of(n:int64, depth:int64) {
         put(")\n")
         indent(depth)
         gen_block(nodes[n].b, depth)
+    case S_CFOR:                                         // C's for (#458): its init the loop's own, each step a statement of its own
+        put("{\n")
+        open_scope()
+        var init:int64 = nodes[n].a
+        while init >= 0 && !failed {
+            gen_stmt(init, depth + 1)
+            init = nodes[init].next
+        }
+        indent(depth + 1)
+        put("for (; ")
+        if nodes[n].b >= 0 { gen_cond(nodes[n].b) }
+        put(";")
+        var step:int64 = nodes[n].flag
+        while step >= 0 && !failed {
+            put(step == nodes[n].flag ? " ({\n" : ", ({\n")
+            gen_stmt(step, depth + 2)
+            indent(depth + 1)
+            put("})")
+            step = nodes[step].next
+        }
+        put(")\n")
+        indent(depth + 1)
+        gen_block(nodes[n].c, depth + 1)
+        close_scope()
+        indent(depth)
+        put("}\n")
     case S_FOR:
         serial += 1
         put("for (int64_t ")

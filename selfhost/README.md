@@ -598,6 +598,10 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **C's for and several declarators** (#458), as kelvinc's:
+  `var a:T = 1, b:T = 2`; `for (init; cond; step) body`, its init the
+  loop's own, its steps a list, its body a block or one statement; and
+  `x = 1, y = 2`, C's comma.
 - **An integer's bits** (#457), as kelvinc's #454: `b.flip()` of a
   bool, `x.flip(n)` and `x.bit(n)` of an integer, and `x.bit(n) = b`
   with `|=`, `&=` and `~=`, through the unsigned type of its width.

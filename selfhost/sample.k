@@ -831,6 +831,17 @@ let main(argc:int32, argv:[cstr]):int32 {
     bit_word.bit(7) = true
     bit_word.bit(0) &= false
     println(bit_flag, " ", bit_word, " ", bit_word.bit(7), " ", bones.bit(1), " ", (bones + 1).bit(0))
+    var cf_lo:int32 = 1, cf_hi:int32 = 9               // several declarators, C's for and comma (#458)
+    var cf_sum:int64 = 0
+    for (var i = 0, j = 4; i < j; i += 1, j -= 1) cf_sum += (i * j) as int64
+    for (var k:int32 = cf_lo; k < cf_hi; k += 3)
+        cf_sum += k as int64
+    var cf_n2:link = {7, nowhere}
+    var cf_n1:link = {5, &cf_n2}
+    for (var at:link^ := &cf_n1; at != nowhere; at := at^.next) { cf_sum += at^.value as int64 }
+    cf_lo = 0, cf_hi -= 1
+    for (;;) { break }
+    println(cf_sum, " ", cf_lo, " ", cf_hi)
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]
