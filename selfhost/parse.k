@@ -585,7 +585,7 @@ let value_type_end():int64 {
 // built-in type's word, const, [ or $[, Self in a method, or a struct's
 // or an enum's name, which gen reads as a variable's where one hides it
 let sizeof_type_at(t:int64):bool {
-    if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") || tagged_word(t) { return true }
+    if tok_is(t, "const") || tok_is(t, "[") || tok_is(t, "$[") || tok_is(t, "${") || tagged_word(t) { return true }
     if toks[t].kind != T_ID { return false }
     if number_word(t) >= 0 || tok_is(t, "bool") || tok_is(t, "cstr") || tok_is(t, "uchr") || tok_is(t, "String") || tok_is(t, "IO") || tok_is(t, "Bits") {
         return !tok_is(t + 1, "(")                       // String(x), a converter's value
@@ -1103,11 +1103,24 @@ let array_type(elem:int64):int64 {
 }
 
 let parse_bare_type():int64 {
-    if at_word("$[") {
+    if at_word("$[") || at_word("${") {
+        let brace:bool = at_word("${")
         advance()
         let elem:int64 = parse_type()
-        expect("]")
-        var y:int64 = array_type(elem)
+        var y:int64 = 0
+        if !brace {
+            expect("]")
+            y = array_type(elem)
+        } else if at_word(":") {                 // ${K: V}, a Dictionary<K, V> (#460)
+            advance()
+            let value:int64 = parse_type()
+            expect("}")
+            y = type_of_kind(Y_DICT, value, elem)
+            optional_of(value)
+        } else {                                 // ${T}, a Set<T> (#460)
+            expect("}")
+            y = type_of_kind(Y_SET, elem, -1)
+        }
         if failed { return y }
         while at_word("^") || at_word("?") {
             if at_word("?") {
@@ -1444,6 +1457,17 @@ let anon_ahead():bool {
         }
         if tok_is(i, "(") || tok_is(i, "[") || tok_is(i, "$[") { inner += 1 }
         if tok_is(i, ")") || tok_is(i, "]") { inner -= 1 }
+        if (tok_is(i, "Dictionary") || tok_is(i, "Result")) && tok_is(i + 1, "<") {   // { Dictionary<K, V>(...) }, its , no list's (#460)
+            var angle:int64 = 0
+            i += 1
+            while toks[i].kind != T_EOF {
+                if tok_is(i, "<") { angle += 1 }
+                if tok_is(i, ">") { angle -= 1 }
+                if tok_is(i, ">>") { angle -= 2 }
+                if angle <= 0 { break }
+                i += 1
+            }
+        }
         if depth == 0 && inner == 0 && tok_is(i, ",") { return false }   // {a, { $0 }}, a list that holds one (#428)
         if toks[i].kind == T_ID && codes[toks[i].at] == '$' { return true }
         i += 1
@@ -1528,6 +1552,8 @@ let parse_anon():int64 {
     return n
 }
 
+let parse_entries(n:int64, k0:int64):int64   // a prototype: {k: v} (#460)
+
 // what follows ${, or { where a Dictionary is written (#351), t the
 // opening: ${:}, an empty Dictionary (#211); ${}, an empty Set; ${a, b},
 // a Set (#274); ${k: v}, a Dictionary (#267)
@@ -1564,15 +1590,23 @@ let parse_brace_body(t:int64):int64 {
         expect("}")
         return n
     }
-    let n:int64 = make_node(N_DICT, t)          // ${k: v} (#267)
+    return parse_entries(make_node(N_DICT, t), 0 - 1)   // ${k: v} (#267)
+}
+
+// the entries of the Dictionary literal n, the first key k0 where it is
+// read already, -1 where not: {k: v} where a Dictionary is written (#460)
+let parse_entries(n:int64, k0:int64):int64 {
     let saved = name_annotation
     var last = -1
+    var first = k0
     while !failed {
         name_annotation = false                 // ${k: v}'s :, not k:T
-        let k:int64 = parse_expr()
+        let k:int64 = first >= 0 ? first : parse_expr()
+        first = 0 - 1
         name_annotation = saved
         expect(":")
         let v:int64 = parse_expr()
+        lists_grow(v)                           // ${k: [1, 2]}, an Array, as kelvinc's (#460)
         nodes[k].next = v
         if last < 0 {
             nodes[n].b = k
@@ -1609,6 +1643,11 @@ let parse_make():int64 {
         let elem:int64 = parse_type()
         close_angle()
         set_ty(n, type_of_kind(Y_ARRAY, elem, -1))
+    } else if tok_is(nodes[n].t, "Set") {        // Set<T>() (#460)
+        advance()                                // <
+        let elem:int64 = parse_type()
+        close_angle()
+        set_ty(n, type_of_kind(Y_SET, elem, -1))
     } else {
         advance()                                // <
         let key:int64 = parse_type()
@@ -1643,10 +1682,10 @@ let parse_make():int64 {
         if !at_word(")") {
             nodes[n].flag = 6
         }
-    } else if tok_is(nodes[n].t, "Dictionary") && (at_word("{") || at_word("${")) {   // the entries (#351)
+    } else if !tok_is(nodes[n].t, "Array") && (at_word("{") || at_word("${")) {   // the entries (#351), a Set's elements (#460)
         nodes[n].a = parse_brace_body(advance())
         nodes[n].flag = 3
-    } else if tok_is(nodes[n].t, "Dictionary") && !at_word(")") {   // &d, a copy (#351)
+    } else if !tok_is(nodes[n].t, "Array") && !at_word(")") {   // &d, a copy (#351), &s (#460)
         nodes[n].a = parse_expr()
         nodes[n].flag = nodes[nodes[n].a].kind == N_ADDR ? 4 : 5
     } else if tok_is(nodes[n].t, "Array") && !at_word(")") {   // &a, a copy; n, a count (#350)
@@ -1656,7 +1695,7 @@ let parse_make():int64 {
             nodes[n].flag = 7
         }
     }
-    if tok_is(nodes[n].t, "Dictionary") && nodes[n].flag >= 3 && !at_word(")") {
+    if !tok_is(nodes[n].t, "Array") && nodes[n].flag >= 3 && !at_word(")") {
         nodes[n].flag = 6                        // more, as kelvinc's: expected ')'
         nodes[n].c = pos
     }
@@ -1775,7 +1814,7 @@ let parse_primary():int64 {
         set_ty(n, y)
         return n
     }
-    if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary")) && tok_is(t + 1, "<") { return parse_make() }   // (#349)
+    if k == T_ID && (tok_is(t, "Array") || tok_is(t, "Dictionary") || tok_is(t, "Set")) && tok_is(t + 1, "<") { return parse_make() }   // (#349), Set<T>() (#460)
     if k == T_ID && (tok_is(t, "__asm__") || tok_is(t, "__asm")) {   // assembly, left out on purpose (#399), as kelvinc says it
         var m = $"'"
         m += tok_text(t)
@@ -1951,6 +1990,15 @@ let parse_primary():int64 {
                 e = make_node(N_DESIG, advance())
                 advance()
                 set_a(e, parse_expr())
+            } else if last < 0 {
+                let saved = name_annotation
+                name_annotation = false                  // {k: v}'s :, not k:T
+                e = parse_expr()
+                name_annotation = saved
+                if at_word(":") && !failed {             // {k: v}, a Dictionary where one is written (#460)
+                    nodes[n].kind = N_DICT
+                    return parse_entries(n, e)
+                }
             } else {
                 e = parse_expr()
             }
@@ -2010,6 +2058,7 @@ let place_follows():bool {
     if at_word(".") || at_word("[") || at_word("^") || at_word("=") || at_word(":=") { return true }
     if at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") { return true }
     if at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") { return true }   // (#276, #380, #387)
+    if at_word("??=") || at_word("!!=") { return true }   // (#460)
     return at_word("!") && adjacent(pos - 1, pos)
 }
 
@@ -2096,9 +2145,8 @@ let parse_unary():int64 {
         parse_error(m.cstr)
         return 0 - 1
     }
-    if at_word("!") && tok_is(pos + 1, "!") && adjacent(pos, pos + 1) {   // !!n, a bit's bool, flag 1 (#387)
+    if at_word("!!") {                           // !!n, a bit's bool, flag 1 (#387), a token of its own (#460)
         let t:int64 = advance()
-        advance()
         let n:int64 = make_node(N_UNARY, t)
         nodes[n].flag = 1
         set_a(n, parse_unary())
@@ -2198,7 +2246,7 @@ let binding_power():int64 {
     if at_word("~") { return 4 }
     if at_word("&") { return 5 }
     if at_word("==") || at_word("!=") || at_word("<") || at_word("<=") || at_word(">") || at_word(">=") { return 6 }
-    if at_word("??") { return 8 }                // a value, or what an Optional holds (#217)
+    if at_word("??") || at_word("!!") { return 8 }    // a value, or what an Optional holds (#217); d0 !! d1 (#460)
     if at_word("<<") || at_word(">>") { return 9 }    // between ranges and +, as C's (#387)
     if at_word("+") || at_word("-") { return 10 }
     if at_word("*") || at_word("/") || at_word("%") { return 11 }
@@ -2261,7 +2309,7 @@ let parse_binary(min:int64):int64 {
         let t:int64 = advance()
         let n:int64 = make_node(N_BIN, t)
         nodes[n].a = e
-        set_b(n, parse_binary(p + 1))
+        set_b(n, parse_binary(p == 8 ? p : p + 1))     // ?? and !! bind right to left, as kelvinc's #251 (#460)
         e = n
     }
     return e
@@ -2646,7 +2694,7 @@ let parse_simple():int64 {
         nodes[n].b = 0 - 1
         return n
     }
-    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") {
+    if at_word("=") || at_word(":=") || at_word("+=") || at_word("-=") || at_word("*=") || at_word("/=") || at_word("%=") || at_word("|=") || at_word("&=") || at_word("~=") || at_word("**=") || at_word("<<=") || at_word(">>=") || at_word("??=") || at_word("!!=") {
         let n:int64 = make_node(S_ASSIGN, advance())        // := of a reference (#233)
         nodes[n].a = e
         set_b(n, parse_expr())

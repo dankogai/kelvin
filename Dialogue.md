@@ -8894,3 +8894,19 @@ more tests build with kc, 92 in all, and print what kelvinc's builds
 print. Details are provisional P471.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 507. Dictionaries and Sets in kc
+
+> push. then go on with #460
+
+**Claude** pushed #459 and asked; the user chose Dictionaries and Sets
+in kc. kc now reads `${K: V}` and `${T}` as types, `{k: v}` where a
+Dictionary is written, `Set<T>(...)`, `??=` and `!!=` of an entry, and
+`??`, `!!`, `??=` and `!!=` of two Dictionaries, as kelvinc does. On the
+way, kc was found unable to assign an Array, a Dictionary or a Set with
+`=`, and to pass text, a number or `{...}` to `d[k] = v` as C saw them;
+both are fixed. `p.isNull` came too. Eleven more tests build with kc, 103
+in all, and print what kelvinc's builds print. Details are provisional
+P472.
+
+There are 1188 tests, and all pass with clang and with gcc 15.

@@ -820,6 +820,9 @@ let gen_prefix(n:int64)
 let merge_of(n:int64):int64    // prototypes: a Dictionary's merge and merging (#338)
 let gen_merge(n:int64)
 let put_merge_value(vy:int64)
+let gen_fill(t:int64, a:int64, b:int64, in_place:bool)    // prototypes: d0 ?? d1, d[k] ??= v (#460)
+let gen_fill_assign(n:int64)
+let entry_fits(v:int64, dy:int64):bool
 let search_of(n:int64):int64    // prototypes: a Dictionary's contains, firstKey and lastKey (#339)
 let search_type_of(n:int64):int64
 let gen_search(n:int64)
@@ -1284,6 +1287,18 @@ let type_of(n:int64):int64 {
         }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
         if tok_is(t, "utf32") { return base_type(Y_U32) }
+        if tok_is(t, "isNull") && (yk == Y_PTR || yk == Y_FN || yk == Y_CSTR) { return base_type(Y_BOOL) }   // p == nowhere (#460), as kelvinc's #50
+        if tok_is(t, "isNull") && yk == Y_FIXED {
+            gen_error(n, "'.isNull' of an array: an array is never null; '&a[0]' is a pointer")
+            return -1
+        }
+        if tok_is(t, "isNull") && yk != Y_STRUCT && yk != Y_C {
+            var m = $"'.isNull' is a property of pointers and functions, and this is "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            gen_error(n, m.cstr)
+            return -1
+        }
         if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
         if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
         gen_error(n, "this member is not known")
@@ -1379,13 +1394,14 @@ let type_of(n:int64):int64 {
         return base_type(Y_U8)
     }
     if k == N_UNARY {
-        if tok_is(t, "!") { return base_type(Y_BOOL) }                  // !!n too, a bit's bool (#387)
+        if tok_is(t, "!") || tok_is(t, "!!") { return base_type(Y_BOOL) }   // !!n too, a bit's bool (#387)
         return type_of(nodes[n].a)
     }
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
         if tok_is(t, "??") {                                            // (#217), a Result's ok (#407)
             let ly = type_of(nodes[n].a)
+            if ly >= 0 && types[ly].kind == Y_DICT { return ly }       // d0 ?? d1, a new Dictionary (#460)
             if coalesces_whole(n) { return ly }                         // r ?? r2, a Result (#408); a ?? b, an Optional (#409)
             return wrap_type(ly)
         }
@@ -4812,6 +4828,7 @@ let gen_cond(n:int64) {
 // owner is copied, x.copy(), as kelvinc has it
 let gen_array(n:int64, given:int64)    // a prototype: Array<T>([a, b]) is $[a, b] of T (#350)
 let gen_dict(n:int64, given:int64)     // and Dictionary<K, V>({k: v}) ${k: v} of K and V (#351)
+let gen_set(n:int64, first:int64, given:int64)   // and Set<T>({a, b}) ${a, b} of T (#460)
 
 // Array<T>() and Dictionary<K, V>(), an empty one, as kelvinc's #57 and
 // #65: C's compound literal of its type. Without (), and with the
@@ -4866,6 +4883,52 @@ let gen_make_dict(n:int64, y:int64, w:const String^) {
     let h = needs_hold(p)                                // one an expression gives, held and freed after
     if h { hold_open(p) }
     put_dict_name(y)
+    put("_copy(")
+    gen_place(p)
+    put(")")
+    if h { hold_close(p) }
+}
+
+// Set<T>(), Set<T>({a, b}) and Set<T>(&s), as kelvinc's #71 (#460): the
+// elements as ${a, b} of y, its errors as kelvinc says them; a copy of
+// the Set &s lends, by _copy
+let gen_make_set(n:int64, y:int64, w:const String^) {
+    let x:int64 = nodes[n].a
+    if nodes[n].flag == 6 {
+        var m = $"expected ')', found '"
+        m += tok_text(nodes[n].c)
+        m += "'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if nodes[n].flag == 3 && nodes[x].kind == N_EMPTY && nodes[x].flag != 1 {
+        gen_error(x, "an empty Set is written ${}; ${:} is an empty Dictionary")
+        return
+    }
+    if nodes[n].flag == 0 || (nodes[n].flag == 3 && nodes[x].kind == N_EMPTY) {
+        put("(")
+        put_ctype(y)
+        put("){0}")
+        return
+    }
+    if nodes[n].flag == 3 && nodes[x].kind == N_DICT {
+        gen_error(x, "a Set holds elements, not entries: ${a, b, c}; a Dictionary's are ${k: v}")
+        return
+    }
+    if nodes[n].flag == 3 {
+        gen_set(x, nodes[x].b, y)
+        return
+    }
+    let p:int64 = nodes[n].flag == 4 ? nodes[x].a : 0 - 1
+    if p < 0 || type_of(p) != y {
+        var m = w^.copy()
+        m += " takes nothing, the elements in {a, b, c}, or a borrow of another, '&s'"
+        gen_error(x, m.cstr)
+        return
+    }
+    let h = needs_hold(p)                                // one an expression gives, held and freed after
+    if h { hold_open(p) }
+    put_set_name(y)
     put("_copy(")
     gen_place(p)
     put(")")
@@ -4972,6 +5035,10 @@ let gen_make(n:int64) {
     }
     if types[y].kind == Y_DICT {                         // (#351)
         gen_make_dict(n, y, &w)
+        return
+    }
+    if types[y].kind == Y_SET {                          // (#460)
+        gen_make_set(n, y, &w)
         return
     }
     if nodes[n].flag == 6 {                              // as kelvinc says it (#350)
@@ -5585,6 +5652,14 @@ let gen_value_of(n:int64, y:int64) {
     }
     if nodes[n].kind == N_DICT && y >= 0 && types[y].kind == Y_DICT {     // ${k: v} of the type written (#267)
         gen_dict(n, y)
+        return
+    }
+    if nodes[n].kind == N_DICT && tok_is(nodes[n].t, "{") && y >= 0 && types[y].kind == Y_SET {   // as kelvinc says it (#460)
+        gen_error(n, "a Set holds elements, not entries: ${a, b, c}; a Dictionary's are ${k: v}")
+        return
+    }
+    if bare_init(n) && y >= 0 && types[y].kind == Y_DICT && nodes[n].b >= 0 {
+        gen_error(n, "an entry of a Dictionary is written key: value")
         return
     }
     if (nodes[n].kind == N_SET || bare_init(n)) && y >= 0 && types[y].kind == Y_SET {   // ${a, b}, {a, b} (#274)
@@ -7389,6 +7464,10 @@ let gen_expr_of(n:int64) {
         gen_make(n)
         return
     }
+    if k == N_BIN && (tok_is(t, "!!") || (tok_is(t, "??") && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_DICT)) {
+        gen_fill(t, nodes[n].a, nodes[n].b, false)       // d0 ?? d1, d0 !! d1 (#460)
+        return
+    }
     if k == N_LIST && nodes[n].flag == 0 && nodes[n].ty >= 0 {   // ([T](N))[a, b], C's compound literal (#419)
         gen_array_literal(n)
         return
@@ -7449,6 +7528,12 @@ let gen_expr_of(n:int64) {
     }
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
+        return
+    }
+    if k == N_FIELD && tok_is(t, "isNull") && type_of(n) >= 0 && types[type_of(n)].kind == Y_BOOL && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind != Y_STRUCT && types[type_of(nodes[n].a)].kind != Y_C {
+        put("((bool)((")                                 // p.isNull (#460), as kelvinc's #50: C's == gives an int
+        gen_expr(nodes[n].a)
+        put(") == 0))")
         return
     }
     if k == N_FIELD && (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && type_of(nodes[n].a) >= 0 && power_float(type_of(nodes[n].a)) {
@@ -7671,6 +7756,8 @@ let gen_expr_of(n:int64) {
         empty_error(n)                                   // where no type is written (#348)
     } else if k == N_ARRAY {
         gen_array(n, -1)
+    } else if k == N_DICT && tok_is(t, "{") {           // {k: v} where no Dictionary is written (#460), as kelvinc says it
+        gen_error(n, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
     } else if k == N_DICT {
         gen_dict(n, -1)
     } else if k == N_SET {
@@ -7713,6 +7800,10 @@ let inferred(n:int64):int64 {
     if k == N_ANON { return anon_type(v) }               // its written type, or kelvinc's error of $0 (#428)
     if k == N_UNARY && tok_is(nodes[v].t, "-") && nodes[nodes[v].a].kind == N_NUM { return type_of(nodes[v].a) }   // -1, -1.5 (#262)
     if k == N_ARRAY && !one_type(v) { return -1 }                     // $[a, b] (#266)
+    if k == N_DICT && tok_is(nodes[v].t, "{") {         // var x = {k: v}, as kelvinc says it (#460)
+        gen_error(v, "expected '}', found ':'")
+        return -1
+    }
     if k == N_DICT && !one_entry_type(v) { return -1 }                // ${k: v} (#267)
     let set_op = k == N_BIN && type_of(nodes[v].a) >= 0 && (types[type_of(nodes[v].a)].kind == Y_SET || types[type_of(nodes[v].a)].kind == Y_BITS)   // s | t, a Set, as kelvinc infers it (#276); b | c, a Bits (#387)
     if k == N_BIN && literal_arith(v) == 2 { return base_type(Y_F64) }   // 1.0 / 0.0, of literals alone (#385)
@@ -7722,7 +7813,7 @@ let inferred(n:int64):int64 {
     }
     if k == N_BIN && tok_is(nodes[v].t, "**") && (!power_operand(nodes[v].a) || !power_operand(nodes[v].b)) { return -1 }   // as kelvinc says it (#380)
     if k == N_METHOD && tok_is(nodes[v].t, "pow") && power_int(type_of(nodes[v].a)) && !pow_arity(v) { return -1 }
-    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380)
+    if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1
     }
@@ -8732,6 +8823,10 @@ let gen_assign(n:int64) {
         return
     }
     if !may_change(lhs) { return }                      // (#271)
+    if tok_is(t, "??=") || tok_is(t, "!!=") {           // (#460)
+        gen_fill_assign(n)
+        return
+    }
     if tok_is(t, "++") || tok_is(t, "--") {             // p++ and p-- of a pointer, as kelvinc's #51 (#459)
         let y:int64 = type_of(lhs)
         if failed { return }
@@ -8814,6 +8909,7 @@ let gen_assign(n:int64) {
     var into:int64 = -1                                  // what lhs indexes
     if nodes[lhs].kind == N_INDEX { into = type_of(nodes[lhs].a) }
     if into >= 0 && types[into].kind == Y_DICT && tok_is(t, "=") {
+        if !entry_fits(nodes[n].b, into) { return }      // (#460), as kelvinc's #246
         let key:int64 = nodes[lhs].b
         let hold = needs_hold(key)                       // a String key an expression gives, held for the set (#314)
         if hold { hold_open(key) }
@@ -8823,11 +8919,13 @@ let gen_assign(n:int64) {
         put(", ")
         gen_key(into, key)
         put(", ")
-        if is_case_word(nodes[n].b) {                    // d[k] = none of a V? (#341)
-            gen_value(nodes[n].b, types[into].elem)
-        } else {
-            gen_expr(nodes[n].b)
+        let v:int64 = nodes[n].b                         // d[k] = none of a V? (#341), text of a String, 5 of an i64?,
+        if bare_init(v) {                                // {2} of a struct (#460), as an entry of ${k: v} is
+            put("(")
+            put_ctype(types[into].elem)
+            put(")")
         }
+        gen_written(v, types[into].elem)
         put(")")
         if hold { hold_close(key) }
         put(";\n")
@@ -8835,7 +8933,11 @@ let gen_assign(n:int64) {
         put("kv_string_assign(")
         gen_place(lhs)
         put(", ")
-        gen_expr(nodes[n].b)
+        if nodes[nodes[n].b].kind == N_STR {             // s = "y", a String of the text (#460), as kelvinc's #70
+            gen_value(nodes[n].b, y)
+        } else {
+            gen_expr(nodes[n].b)
+        }
         put(");\n")
     } else if yk == Y_STRING && tok_is(t, "+=") {
         if owner_name(nodes[n].b) || owner_part(nodes[n].b) {   // s += t would take t's bytes, freed twice (#440)
@@ -8917,8 +9019,10 @@ let gen_assign(n:int64) {
         put(", ")
         gen_value(nodes[n].b, y)
         put(");\n")
-    } else if is_owner(y) && yk == Y_STRUCT && tok_is(t, "=") {
-        serial += 1                                      // the new value first, then the old one freed (#217, #225)
+    } else if (yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) && tok_is(t, "=") && (bare_init(nodes[n].b) || (nodes[nodes[n].b].kind == N_DICT && tok_is(nodes[nodes[n].b].t, "{"))) {
+        gen_error(nodes[n].b, "a list is not a value here: write a compound literal, as in '(point){1, 2}' or '([i32])[1, 2, 3]'; an anonymous function here writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
+    } else if is_owner(y) && (yk == Y_STRUCT || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) && tok_is(t, "=") {
+        serial += 1                                      // the new value first, then the old one freed (#217, #225); an Array's, a Dictionary's, a Set's (#460)
         let sv = serial                                  // its own: the value may make names too (#341)
         put("{ ")
         put_ctype(y)
@@ -11802,6 +11906,178 @@ let gen_merge(n:int64) {
 }
 
 // an entry's value of e, a copy where it owns
+// d0 ?? d1 and d0 !! d1 a new Dictionary, d0 ??= d1 and d0 !!= d1 in
+// place (#460), as kelvinc's #237: d1's entries added, each value copied;
+// where d0 has the key, d0's value kept of ?? and ??=, else d1's copy.
+// d1 in a variable is lent, else held and freed; d0 that an expression
+// gives is taken
+let gen_fill(t:int64, a:int64, b:int64, in_place:bool) {
+    let keep = tok_is(t, "??") || tok_is(t, "??=")
+    let dy:int64 = type_of(a)
+    let by:int64 = type_of(b)
+    if failed { return }
+    if dy < 0 || types[dy].kind != Y_DICT {
+        var m = $"'"
+        m += tok_text(t)
+        m += in_place || !keep ? "' takes Dictionaries, and this is " : "' takes an Optional, a Result or Dictionaries, and this is "
+        let w:String = dy >= 0 ? kelvin_type_text(dy) : $"not one"
+        m += &w
+        gen_error(a, m.cstr)
+        return
+    }
+    if by != dy {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' takes two Dictionaries of the same key and value types, and these are "
+        let w:String = kelvin_type_text(dy)
+        m += &w
+        m += " and "
+        let bw:String = by >= 0 ? kelvin_type_text(by) : $"not one"
+        m += &bw
+        gen_error(b, m.cstr)
+        return
+    }
+    if in_place && !is_place(a) {
+        var m = $"'"
+        m += tok_text(t)
+        m += "' changes a Dictionary in place, so its left is a variable"
+        gen_error(a, m.cstr)
+        return
+    }
+    let vy:int64 = types[dy].elem
+    let lk:cstr := types[types[dy].name].kind == Y_STRING ? "KV_LK_TEXT" : "KV_LK_INT"
+    put("({ ")
+    put_ctype(dy)
+    if in_place {
+        put(" *_kv_md = &(")
+        gen_expr(a)
+        put("); ")
+    } else if is_place(a) {
+        put(" _kv_mm = ")
+        put_owner_prefix(dy)
+        put("_copy(&(")
+        gen_expr(a)
+        put(")); ")
+        put_ctype(dy)
+        put(" *_kv_md = &_kv_mm; ")
+    } else {
+        put(" _kv_mm = (")
+        gen_expr(a)
+        put("); ")
+        put_ctype(dy)
+        put(" *_kv_md = &_kv_mm; ")
+    }
+    if is_place(b) {
+        put("const ")
+        put_ctype(dy)
+        put(" *_kv_me = &(")
+        gen_expr(b)
+        put("); ")
+    } else {
+        put("__attribute__((cleanup(")
+        put_free(dy)
+        put("))) ")
+        put_ctype(dy)
+        put(" _kv_mo = ")
+        gen_expr(b)
+        put("; const ")
+        put_ctype(dy)
+        put(" *_kv_me = &_kv_mo; ")
+    }
+    put("for (size_t _kv_mi = 0; _kv_mi < _kv_me->len; _kv_mi++) { if (!_kv_me->at[_kv_mi].live) continue; ")
+    put_owner_prefix(dy)
+    put("_entry *_kv_mx = ")
+    put_owner_prefix(dy)
+    put("_lookup(_kv_md, ")
+    put(lk)
+    put("(&_kv_me->at[_kv_mi].key), _kv_me->at[_kv_mi].hash); if (!_kv_mx) { ")
+    put_owner_prefix(dy)
+    put("_set(_kv_md, ")
+    put(lk)
+    put("(&_kv_me->at[_kv_mi].key), ")
+    put_merge_value(vy)
+    put("); continue; } ")
+    if keep {
+    } else if is_owner(vy) {                             // d1's copy, the old one freed
+        put("{ ")
+        put_ctype(vy)
+        put(" _kv_mv = ")
+        put_merge_value(vy)
+        put("; ")
+        put_free(vy)
+        put("(&_kv_mx->value); _kv_mx->value = _kv_mv; }")
+    } else {
+        put("_kv_mx->value = ")
+        put_merge_value(vy)
+        put(";")
+    }
+    put(in_place ? " } (void)0; })" : " } _kv_mm; })")
+}
+
+// whether v may be the value of an entry of the Dictionary dy, as
+// kelvinc's #246 has it of d[k] = v, ??= and !!= (#460), else its error
+let entry_fits(v:int64, dy:int64):bool {
+    let bad:String = value_mismatch_text(v, types[dy].elem)
+    if bad.count == 0 { return true }
+    var m = $"an entry of "
+    let dw:String = kelvin_type_text(dy)
+    m += &dw
+    m += " is "
+    let ew:String = kelvin_type_text(types[dy].elem)
+    m += article_of(&ew)
+    m += " "
+    m += &ew
+    m += ", and this is "
+    m += &bad
+    gen_error(v, m.cstr)
+    return false
+}
+
+// d[k] ??= v sets the entry only where k is absent, d[k] !!= v only where
+// it is present, as kelvinc's #243 (#460): the key read once, v made only
+// where it is set; d0 ??= d1 and d0 !!= d1 of Dictionaries, in place
+let gen_fill_assign(n:int64) {
+    let lhs:int64 = nodes[n].a
+    let t:int64 = nodes[n].t
+    let v:int64 = nodes[n].b
+    let into:int64 = nodes[lhs].kind == N_INDEX ? type_of(nodes[lhs].a) : 0 - 1
+    if failed { return }
+    if into < 0 || types[into].kind != Y_DICT {
+        gen_fill(t, lhs, v, true)
+        put(";\n")
+        return
+    }
+    let vy:int64 = types[into].elem
+    if is_owner(vy) && is_place(v) && !is_case_word(v) {   // as d[k] = v's
+        owner_assign_error(v)
+        return
+    }
+    if !entry_fits(v, into) { return }
+    let key:int64 = nodes[lhs].b
+    let hold = needs_hold(key)                           // a String key an expression gives, held for the set
+    if hold { hold_open(key) }
+    put("({ ")
+    put_dict_name(into)
+    put(" *_kv_dp = ")
+    gen_place(nodes[lhs].a)
+    put("; __auto_type _kv_dk = ")
+    gen_key(into, key)
+    put(tok_is(t, "??=") ? "; if (!" : "; if (")
+    put_dict_name(into)
+    put("_find(_kv_dp, _kv_dk)) ")
+    put_dict_name(into)
+    put("_set(_kv_dp, _kv_dk, ")
+    if bare_init(v) {
+        put("(")
+        put_ctype(vy)
+        put(")")
+    }
+    gen_written(v, vy)
+    put("); (void)0; })")
+    if hold { hold_close(key) }
+    put(";\n")
+}
+
 let put_merge_value(vy:int64) {
     if is_owner(vy) {
         put_owner_prefix(vy)

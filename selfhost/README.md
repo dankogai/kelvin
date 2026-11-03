@@ -598,6 +598,13 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **More of Dictionaries and Sets** (#460), as kelvinc's:
+  - `${K: V}` and `${T}` as types; `{k: v}` where a Dictionary is
+    written; `Set<T>()`, `Set<T>({a, b})`, `Set<T>(&s)`.
+  - `d[k] ??= v` and `d[k] !!= v`; `d0 ?? d1`, `d0 !! d1`, and `??=`
+    and `!!=` of two Dictionaries.
+  - `x = v` of an Array, a Dictionary or a Set; `d[k] = v` of text, a
+    number or `{...}` made the entry's type; `p.isNull`.
 - **More of C** (#459), as kelvinc's: `do { } while c`; `p++` and
   `p--` of a pointer; a char's `'\x6b'`; `static` and `extern` before a
   function or a variable, and a local's `static`.

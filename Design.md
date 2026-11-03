@@ -491,6 +491,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 457 | kc reads #454's bits as kelvinc does: `b.flip()` of a bool, `x.flip(n)` and `x.bit(n)` of an integer, `x.bit(n) = b` and its `\|=`, `&=` and `~=`, through the unsigned type of its width and the prelude's kv_int_place, with kelvinc's errors in its words | selfhost/gen.k's int_width, int_place_ok, gen_bit_method, gen_int_bit_set | `flag.flip()`, `w.bit(7) = true` | 2026-11-03 |
 | 458 | kc reads several declarators in one statement, `var a:i32 = 1, b:i32 = 2`, each an S_VAR of the first's let or var; C's `for (init; cond; step) body`, as kelvinc's: its init declarations or assignments the loop's own, each part optional, the steps a list, the body a block or one statement; and `x = 1, y = 2`, C's comma, each a statement | selfhost/parse.k's S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples; selfhost/gen.k's S_CFOR | `for (var i = 0, j = 3; i < j; i += 1, j -= 1) t += i` | 2026-11-03 |
 | 459 | kc reads more of C, as kelvinc does: `do { } while c`; `p++` and `p--` of a pointer, as statements, kelvinc's #51, `++x` and a number's its errors; a char literal up to its closing `'`, `'\x6b'` too; `"a" "b"`, C's adjacent literals, one, where kc had dropped all but the first; and `static` and `extern` before a function or a variable, a local's `static` too, `static let T.f()` a function of the type | selfhost/lex.k's `++`, `--` and char; selfhost/parse.k's S_DO, static_decls, extern_decls, parse_program's storage, the adjacent N_STR; selfhost/gen.k's S_DO, the p++ of gen_assign, the static and extern of gen_signature, the globals and gen_var | `do { n += 1 } while n < 3`, `static var calls:int32` | 2026-11-03 |
+| 460 | kc reads more of Dictionaries and Sets, as kelvinc does: `${K: V}` and `${T}` as types; `{k: v}` where a Dictionary is written; `Set<T>()`, `Set<T>({a, b})` and `Set<T>(&s)`; `d[k] ??= v` and `d[k] !!= v`; `d0 ?? d1`, `d0 !! d1`, `d0 ??= d1` and `d0 !!= d1`; `x = v` of an Array, a Dictionary or a Set; `d[k] = v` of a value of another type made the entry's, text a String, `5` an `i64?`, with kelvinc's #246 error; `s = "y"` of a String; `[a, b]` in a Dictionary literal an Array; and `p.isNull` | selfhost/lex.k's `??=`, `!!=` and `!!`; selfhost/parse.k's `${` types, parse_entries, the `{k: v}` of N_INIT, Set in parse_make, `!!` and `??` right to left, anon_ahead's `<...>`; selfhost/gen.k's gen_make_set, gen_fill, gen_fill_assign, entry_fits, the owners' `=`, `.isNull` | `var d:${String: int64} = {"a": 1}`, `d["b"] ??= 2`, `d ?? e` | 2026-11-03 |
 
 Notes:
 
@@ -1076,6 +1077,43 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (460) Agreed details: "go on with #460"; the user chose Dictionaries
+  and Sets in kc, which 42 of the programs kc did not build use.
+  - `${K: V}` is `Dictionary<K, V>` and `${T}` is `Set<T>` wherever a
+    type is written, `^` and `?` after them too.
+  - `{k: v}` is a Dictionary's literal where its type is written: a
+    declaration, a member, an entry, `Dictionary<K, V>({...})`. kc reads
+    the first element of `{...}` and makes it a Dictionary at a `:`.
+    - Elsewhere it is kelvinc's error: `expected '}', found ':'` of a
+      declaration with no type, and `a list is not a value here` of an
+      assignment.
+  - `Set<T>()`, `Set<T>({a, b})` and `Set<T>(&s)`, as Dictionary<K,
+    V>'s, with kelvinc's errors of `${:}`, of entries and of the rest.
+  - `??=`, `!!=` and `!!` lex as one token each, as kelvinc's do; `!!n`
+    still makes a bool of a bit.
+    - `d[k] ??= v` sets the entry only where `k` is absent, and `!!=`
+      only where it is present: the key read once, `v` made only where
+      it is set.
+    - `d0 ?? d1` and `d0 !! d1` are new Dictionaries of both, keeping
+      d0's value of a shared key, or taking d1's; `??=` and `!!=` the
+      same in place. d1 in a variable is lent, else held and freed.
+    - `??` and `!!` bind right to left, as kelvinc's #251.
+  - Found on the way:
+    - kc could not assign an Array, a Dictionary or a Set with `=` at
+      all. It now makes the new value, frees the old one and stores it,
+      as for a struct that owns.
+    - `d[k] = v` passed `v` to C as it was: text where a String goes,
+      `5` where an `i64?` goes, `{2}` where a struct goes. They are made
+      the entry's type now, with kelvinc's #246 error where they do not
+      fit. `s = "y"` of a String the same.
+    - In `{ Dictionary<K, V>(...) }`, the comma inside `<...>` made kc
+      read the braces as a list, not as a function.
+  - `p.isNull` of a pointer, a function or a cstr, `((bool)((p) == 0))`,
+    with kelvinc's errors of an array and of a number.
+  - Left: `.size` of a Dictionary, and of other types, which
+    tests/run/dict_basics.k reaches next.
+  - 11 more tests build with kc, 103 in all, each printing what
+    kelvinc's prints.
 - (459) Agreed details: "go on with #459"; the user chose more of C
   in kc, what stopped the programs #458 reached.
   - `do { } while c` is S_DO, written `do { } while (c);`, with
@@ -6641,6 +6679,7 @@ says "as agreed".
 | P469 | Details of #457 | selfhost/gen.k: int_width, put_uint_of, int_place_ok, gen_bit_method and its call in gen_bits, gen_int_bit_set and its call in gen_assign, type_of's flip and bit, builtin_no_value's flip; selfhost/sample.k: `bit_flag`, `bit_word` and their line; selfhost/README.md | — |
 | P470 | Details of #458 | selfhost/parse.k: S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples and their prototypes, parse_statement's var, for and tail, parse_block's and parse_switch's chains; selfhost/gen.k: gen_stmt_of's S_CFOR; selfhost/sample.k: `cf_lo`, `cf_hi`, `cf_sum`, `cf_n1`, `cf_n2` and their lines; selfhost/README.md | — |
 | P471 | Details of #459 | selfhost/lex.k: punct_len's `++` and `--`, the char literal to its `'`; selfhost/parse.k: S_DO, static_decls, extern_decls, parse_program's storage and its marks, parse_statement's `do` and `static var`, parse_simple's `++` and `--`, parse_unary's error of a prefix, the adjacent N_STR; selfhost/gen.k: gen_stmt_of's S_DO, gen_assign's `++` and `--`, gen_signature's static and extern, the globals' and gen_var's, the adjacent literals; selfhost/sample.k: `optind`, `sample_calls`, `sample_bump`, `do_n`, `do_p` and their line; selfhost/README.md | — |
+| P472 | Details of #460 | selfhost/lex.k: punct_len's `??=`, `!!=` and `!!`; selfhost/parse.k: parse_bare_type's `${K: V}` and `${T}`, sizeof_type_at's `${`, parse_entries, the `{k: v}` of N_INIT, parse_make's Set, parse_unary's `!!`, binding_power's `!!`, parse_binary's right-to-left `??` and `!!`, the `??=` and `!!=` of assignments, anon_ahead's `<...>`; selfhost/gen.k: gen_make_set, gen_fill, gen_fill_assign, entry_fits, `d[k] = v`'s gen_written, `s = "y"`, the owners' `=`, the brace literals' errors, `.isNull`; selfhost/sample.k: `tally_sum`, `tallies`, `picks` and their line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

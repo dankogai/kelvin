@@ -329,6 +329,11 @@ static let sample_bump():int32 {
     return times
 }
 let thrice_va(n:int64, ...):int64                      // a prototype, its body after main
+let tally_sum(d:const ${String: int64}^):int64 {       // ${K: V}, Dictionary<K, V> for short (#460)
+    var n = 0
+    for k, v in d^ { n += v * k.count as int64 }
+    return n
+}
 union pun { u: uint32; f: float32; b: [uint8](4) }    // C's types: a union, struct T, struct T; (#453)
 struct chain_node { value: int32; next: struct chain_node^ }
 struct timespec;
@@ -859,6 +864,15 @@ let main(argc:int32, argv:[cstr]):int32 {
     do_p++; do_p--
     sample_bump()
     println(do_n, " ", do_p^, " ", '\x6b', " ", "adjacent " "strings", " ", sample_bump(), " ", sample_calls, " ", optind >= 1)
+    var tallies:${String: int64} = {"ann": 1}         // {k: v} where the type is written, ??=, !!=, ?? and !! (#460)
+    tallies["bob"] ??= 2
+    tallies["ann"] ??= 9
+    tallies["ann"] !!= 3
+    tallies ??= ${"cy": 4, "ann": 0}
+    var picks:${int64} = {5, 6}                       // ${T}, Set<T> for short
+    picks = Set<int64>({7, 5})
+    let found := tallies.find("dan")
+    println(tallies, " ", tallies !! ${"bob": 20}, " ", tally_sum(&tallies), " ", picks, " ", Set<int64>(&picks).count, " ", found.isNull, " ", ${"x": [1, 2]})
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]
