@@ -880,6 +880,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     let at_step := &steps[1]
     alignas(8) let left:int32 = 1, right:int32 = 2
     println(joins.size, " ", (left + right).size, " ", at_step.next^, " ", at_step.prev^, " ", (at_step.next.addr - at_step.addr) as int64, " ", (3 < 4).cstr, " ", 2.5.cstr, " ", (&right).addr % 8 == 0)
+    let parts = OS.splitext("kc.tar.gz")               // OS and SYS (#463), IO's OS
+    let joined_path = OS.join("selfhost", "kc.k")
+    println(OS.basename("a/b.k"), " ", parts.ok.ext, " ", OS.isabs("/tmp"), " ", joined_path, " ", OS.env("KC_SAMPLE_NO_SUCH") ?? "unset", " ", SYS.argv.count > 0, " ", OS.stat(".").ok.isdir, " ", parts.typename)
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

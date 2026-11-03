@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **OS and SYS** (#463), as kelvinc's: each member of its table, by the
+  same runtime.
+  - Results and Optionals of Strings, Arrays and Bytes; SYS.argv.
+  - OS.stat's and the other structs, made as kelvinc's anonymous ones.
+  - main takes `_kv_argc` and `_kv_argv`, and calls kv_sys_init where
+    SYS is read or OS imported.
 - **The general properties** (#462), as kelvinc's:
   - `x.size` of any value, a struct's where it has no field of the name.
   - `x.cstr` of a number, a bool, a uchr or a pointer.

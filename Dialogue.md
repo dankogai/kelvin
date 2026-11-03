@@ -8941,3 +8941,17 @@ build with kc, 112 in all, and print what kelvinc's builds print.
 Details are provisional P474.
 
 There are 1193 tests, and all pass with clang and with gcc 15.
+
+### 510. OS and SYS in kc
+
+> push. then go on with #463
+
+**Claude** pushed #462 and asked; the user chose OS and SYS in kc. kc
+now reads every member of kelvinc's table, by the same runtime, with
+what each gives: numbers, text, Strings, Results and Optionals, SYS.argv,
+and the structs of OS.stat and the rest, spelled as kelvinc spells them.
+On the way, kc's typename of an Array in a Result, and `IO(s)` of a
+String, were found and fixed. Twelve more tests build with kc, 124 in
+all, and print what kelvinc's builds print. Details are provisional P475.
+
+There are 1193 tests, and all pass with clang and with gcc 15.

@@ -15,6 +15,8 @@ var marks:$[int64]         // where each block's variables begin
 var serial:int64           // for the names kc makes
 var current:int64          // the function being written
 var uses_io:bool           // #import <IO>, whose kOS.h has kv_sys_init
+var uses_sys:bool          // SYS.name read, or #import <OS>: main gives kv_sys_init its arguments, as kelvinc's (#302, #463)
+var os_imported:bool       // #import <OS> (#463)
 var global_owners:bool     // whether a global owns, freed at exit by _kv_free_globals, as kelvinc does (#215)
 
 // ---------- writing ----------
@@ -1065,6 +1067,10 @@ let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
 let scalar_cstr(n:int64):bool         // and x.cstr's of a number, a bool, a uchr or a pointer (#462)
 let pointer_property(n:int64):int64   // x.size, x.addr, p.next and p.prev (#462)
+let os_call(n:int64):bool     // prototypes: OS.name(args) and SYS.name (#463)
+let os_type(n:int64):int64
+let gen_os(n:int64)
+let os_struct(g:const String^):int64
 let std_io(n:int64):int64             // and IO.stdout's (#452)
 let pretty_value(n:int64):bool        // and v.pretty's (#452)
 let io_int_member(t:int64):bool       // and an IO's int members (#452)
@@ -1078,6 +1084,7 @@ let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
 let type_of(n:int64):int64 {
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
+    if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
     if (k == N_ID || k == N_CALL) && nodes[n].ty >= 0 && is_case_word(n) { return nodes[n].ty }   // Result<T, E>.err(e) (#449)
     if k == N_TRY {                                      // try r, r's ok, some's (#449)
         let ry:int64 = type_of(nodes[n].a)
@@ -1137,6 +1144,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         if y < 0 && fn_named(t) >= 0 { return named_fn_type(n) }   // a function's name, a value of its type (#428)
+        if y < 0 && (tok_is(t, "OS") || tok_is(t, "SYS")) { return -1 }   // of OS.name, whose type os_type tells (#463)
         if y < 0 && c_headers { return base_type(Y_C) }      // a C header's (#207)
         if y < 0 { gen_error(n, "this name is not known") }
         return y
@@ -3110,6 +3118,388 @@ let std_io(n:int64):int64 {
     return tok_is(t, "stdin") ? 0 : tok_is(t, "stdout") ? 1 : tok_is(t, "stderr") ? 2 : 0 - 1
 }
 
+// ---------- OS and SYS (#463) ----------
+
+// OS.name(args) and SYS.name, as kelvinc's #94: the system around the
+// program, and the program itself, by the runtime's kv_os_name and
+// kv_sys_name. Each member: its arguments, - of a property, a letter of
+// each, t text, i an integer, f a number; and what it gives, as
+// kelvinc's members table says it
+var os_table:Dictionary<String, String>
+
+let os_spec():cstr {
+    return "SYS.argv - argv;SYS.exit i void;SYS.platform - cstr;OS.cwd - res_string;OS.chdir t i32;OS.env t opt_cstr;OS.setenv tt i32;OS.unsetenv t i32;OS.exists t bool;OS.isdir t bool;OS.isfile t bool;OS.islink t bool;OS.remove t i32;OS.unlink t i32;OS.rename tt i32;OS.mkdir t i32;OS.makedirs t i32;OS.rmdir t i32;OS.listdir t listdir;OS.stat t stat;OS.lstat t stat;OS.symlink tt i32;OS.readlink t res_string;OS.link tt i32;OS.chmod ti i32;OS.truncate ti i32;OS.realpath t res_string;OS.basename t string;OS.dirname t string;OS.join tt string;OS.system t i32;OS.kill ii i32;OS.umask i i32;OS.pid - i32;OS.ppid - i32;OS.uid - i32;OS.gid - i32;OS.user - opt_string;OS.host - res_string;OS.time - f64;OS.sleep f void;OS.tmpdir - cstr;OS.walk t listdir;OS.glob t listdir;OS.mkstemp t temp;OS.mkdtemp t res_string;OS.utime tff i32;OS.touch t i32;OS.chown tii i32;OS.lchown tii i32;OS.username i opt_string;OS.groupname i opt_string;OS.strerror i string;OS.environ - listdir;OS.euid - i32;OS.egid - i32;OS.groups - ints;OS.uname - uname;OS.readable t bool;OS.writable t bool;OS.executable t bool;OS.isabs t bool;OS.splitext t splitext;OS.normpath t string;OS.relpath tt string;OS.expanduser t string;OS.samefile tt bool;OS.mkfifo t i32;OS.sync . void;OS.cpus - i32;OS.loadavg - loadavg;OS.urandom i res_bytes;OS.isatty i bool;OS.sep - cstr;OS.linesep - cstr;OS.devnull - cstr;OS.name - cstr;OS.terminalsize - terminalsize;OS.diskusage t diskusage;"
+}
+
+// "args gives" of OS.name or SYS.name n, "" where there is none
+let os_member(n:int64):String {
+    if os_table.count == 0 {
+        let all:String = String(os_spec())
+        var entry = $""
+        for c in all {
+            if c.utf32 == ';' {
+                var name = $""
+                var rest = $""
+                var at_rest = false
+                for e in entry {
+                    if !at_rest && e.utf32 == ' ' {
+                        at_rest = true
+                    } else if at_rest {
+                        rest += e
+                    } else {
+                        name += e
+                    }
+                }
+                os_table[name.copy()] = rest.copy()
+                entry = $""
+            } else {
+                entry += c
+            }
+        }
+    }
+    var key = tok_text(nodes[nodes[n].a].t)
+    key += "."
+    key += tok_text(nodes[n].t)
+    return os_table[key] ?? $""
+}
+
+// whether n is OS.name or SYS.name, of no variable of the name
+let os_call(n:int64):bool {
+    let k = nodes[n].kind
+    if k != N_FIELD && k != N_METHOD { return false }
+    let a:int64 = nodes[n].a
+    if nodes[a].kind != N_ID || var_type(nodes[a].t) >= 0 { return false }
+    return tok_is(nodes[a].t, "OS") || tok_is(nodes[a].t, "SYS")
+}
+
+// the part of spec m after its arguments, what it gives
+let os_gives(m:const String^):String {
+    var g = $""
+    var seen = false
+    for c in m^ {
+        if seen { g += c }
+        if c.utf32 == ' ' { seen = true }
+    }
+    return g
+}
+
+// the arguments' letters of spec m, "-" of a property, "." of none
+let os_args(m:const String^):String {
+    var a = $""
+    for c in m^ {
+        if c.utf32 == ' ' { break }
+        a += c
+    }
+    return a
+}
+
+// the type of OS.name or SYS.name n, as kelvinc's; its errors in
+// kelvinc's words, where it is no member, wants an import, is called
+// wrongly, or gives what kc does not make yet
+let os_type(n:int64):int64 {
+    let sys = tok_is(nodes[nodes[n].a].t, "SYS")
+    let ns:cstr := sys ? "SYS" : "OS"
+    if !sys && !os_imported {
+        gen_error(n, "OS is a module: write '#import <OS>' at the top of the file")
+        return 0 - 1
+    }
+    let m:String = os_member(n)
+    let name:String = tok_text(nodes[n].t)
+    if m.count == 0 {
+        var e = $""
+        if sys {
+            e = $"SYS has argv, exit(code) and platform, not '"
+            e += &name
+            e += "'"
+        } else {
+            e = $"OS has no '"
+            e += &name
+            e += "': see documents/os.md for cwd, chdir, env, setenv, unsetenv, exists, isdir, isfile, islink, remove, unlink, rename, mkdir, makedirs, rmdir, listdir, stat, lstat, symlink, readlink, link, chmod, truncate, realpath, basename, dirname, join, system, kill, umask, pid, ppid, uid, gid, user, host, time, sleep, tmpdir, walk, glob, mkstemp, mkdtemp, utime, touch, chown, lchown, username, groupname, strerror, environ, euid, egid, groups, uname, readable, writable, executable, isabs, splitext, normpath, relpath, expanduser, samefile, mkfifo, sync, cpus, loadavg, urandom, isatty, sep, linesep, devnull, name, terminalsize and diskusage"
+        }
+        gen_error(n, e.cstr)
+        return 0 - 1
+    }
+    let args:String = os_args(&m)
+    let arity:int64 = args == $"-" ? 0 - 1 : args == $"." ? 0 : args.count
+    if arity >= 0 && nodes[n].kind == N_FIELD {
+        var e = String(ns)
+        e += "."
+        e += &name
+        e += " takes "
+        e += String(arity)
+        e += arity == 1 ? " argument: write " : " arguments: write "
+        e += ns
+        e += "."
+        e += &name
+        e += "(...)"
+        gen_error(n, e.cstr)
+        return 0 - 1
+    }
+    if nodes[n].kind == N_METHOD {
+        var count:int64 = 0
+        var x:int64 = nodes[n].b
+        while x >= 0 {
+            count += 1
+            x = nodes[x].next
+        }
+        if count != (arity < 0 ? 0 : arity) {
+            var e = String(ns)
+            e += "."
+            e += &name
+            e += " takes "
+            e += String(arity < 0 ? 0 : arity)
+            e += arity == 1 ? " argument" : " arguments"
+            gen_error(n, e.cstr)
+            return 0 - 1
+        }
+    }
+    let g:String = os_gives(&m)
+    if g == $"i32" { return base_type(Y_I32) }
+    if g == $"f64" { return base_type(Y_F64) }
+    if g == $"bool" { return base_type(Y_BOOL) }
+    if g == $"cstr" { return base_type(Y_CSTR) }
+    if g == $"string" { return base_type(Y_STRING) }
+    if g == $"void" { return base_type(Y_VOID) }
+    if g == $"argv" { return array_type(base_type(Y_CSTR)) }
+    if g == $"res_string" { return result_of(base_type(Y_STRING), base_type(Y_I32)) }
+    if g == $"opt_cstr" { return optional_of(base_type(Y_CSTR)) }
+    if g == $"opt_string" { return optional_of(base_type(Y_STRING)) }
+    if g == $"listdir" { return result_of(array_type(base_type(Y_STRING)), base_type(Y_I32)) }
+    if g == $"ints" { return result_of(array_type(base_type(Y_I32)), base_type(Y_I32)) }
+    if g == $"res_bytes" { return result_of(base_type(Y_BYTES), base_type(Y_I32)) }
+    if g == $"temp" && !uses_io {                        // as kelvinc says it
+        gen_error(n, "OS.mkstemp gives an IO, a module: write '#import <IO>' at the top of the file")
+        return 0 - 1
+    }
+    return result_of(os_struct(&g), base_type(Y_I32))  // OS.stat and the rest, a struct of their own (#95, #102)
+}
+
+// the spelling of each struct an OS member gives, by its C name, which
+// its typename is, as kelvinc spells it: {root: String, ext: String}
+var os_spellings:Dictionary<String, String>
+var os_structs:Dictionary<String, int64>
+
+// the members of the struct OS's member that gives g gives, as kelvinc's
+// struct_spec (#95, #102), and OS.mkstemp's IO and path (#97)
+let os_struct_spec(g:const String^):cstr {
+    if g^ == $"stat" { return "dev: i64, ino: i64, mode: i32, nlink: i64, uid: i32, gid: i32, size: i64, atime: f64, mtime: f64, ctime: f64, isdir: bool, isfile: bool, islink: bool" }
+    if g^ == $"uname" { return "sysname: String, nodename: String, release: String, version: String, machine: String" }
+    if g^ == $"splitext" { return "root: String, ext: String" }
+    if g^ == $"loadavg" { return "one: f64, five: f64, fifteen: f64" }
+    if g^ == $"terminalsize" { return "columns: i64, lines: i64" }
+    if g^ == $"diskusage" { return "total: i64, used: i64, free: i64" }
+    return "io: IO, path: String"                       // temp, OS.mkstemp's
+}
+
+// the struct of spec g, made once, as kelvinc's anon_struct: a struct of
+// kc's own, its members of the spec's types
+let os_struct(g:const String^):int64 {
+    let seen:int64 = os_structs.get(g^, -1)
+    if seen >= 0 { return seen }
+    var cname = $"_kv_anon_"
+    cname += g
+    let d = make_node(D_STRUCT, made_token(&cname))
+    let spec:String = String(os_struct_spec(g))
+    var spelled = $"{"
+    spelled += &spec
+    spelled += "}"
+    var last:int64 = 0 - 1
+    var word = $""
+    var name = $""
+    var spaced = $""
+    spaced += &spec
+    spaced += ","
+    for c in spaced {
+        if c.utf32 == ':' {
+            name = word.copy()
+            word = $""
+        } else if c.utf32 == ',' {
+            let m = make_node(S_VAR, made_token(&name))
+            let y:int64 = word == $"i64" ? base_type(Y_I64) : word == $"i32" ? base_type(Y_I32) : word == $"f64" ? base_type(Y_F64) : word == $"bool" ? base_type(Y_BOOL) : word == $"IO" ? base_type(Y_IO) : base_type(Y_STRING)
+            set_ty(m, y)
+            if last < 0 { nodes[d].a = m } else { nodes[last].next = m }
+            last = m
+            word = $""
+        } else if c.utf32 != ' ' {
+            word += c
+        }
+    }
+    decls += d
+    let sy:int64 = type_of_kind(Y_STRUCT, -1, nodes[d].t)
+    os_structs[g^.copy()] = sy
+    os_spellings[cname.copy()] = spelled.copy()
+    return sy
+}
+
+// the arguments of OS.name(args) n, each checked as kelvinc checks it:
+// text as a cstr, a String's or a Bytes's its own, an integer or a number
+let put_os_args(n:int64, args:const String^):bool {
+    let ns:cstr := tok_is(nodes[nodes[n].a].t, "SYS") ? "SYS" : "OS"
+    let name:String = tok_text(nodes[n].t)
+    var x:int64 = nodes[n].kind == N_METHOD ? nodes[n].b : 0 - 1
+    var i:int64 = 0
+    while x >= 0 && !failed {
+        let letter:uint8 = args^.cstr[i]
+        let y:int64 = type_of(x)
+        let k:ykind = y >= 0 ? types[y].kind : Y_C
+        let text = nodes[x].kind == N_STR || nodes[x].kind == N_TPL || k == Y_CSTR
+        if i > 0 { put(", ") }
+        if letter == 'i' || letter == 'f' {
+            let ok = k == Y_C || (letter == 'f' ? is_number_kind(k) : (is_number_kind(k) && k != Y_F64 && k != Y_F32))
+            if !ok || text {
+                var e = $"argument "
+                e += String(i + 1)
+                e += " of "
+                e += ns
+                e += "."
+                e += &name
+                e += letter == 'f' ? " is a number, and this is " : " is an integer, and this is "
+                let w:String = y >= 0 && nodes[x].kind != N_STR && nodes[x].kind != N_TPL ? kelvin_type_text(y) : $"not one"   // a literal has no type to kelvinc
+                e += &w
+                gen_error(x, e.cstr)
+                return false
+            }
+            gen_expr(x)
+        } else if k == Y_STRING || k == Y_BYTES {
+            if !is_place(x) {
+                var e = $"an argument of "
+                e += ns
+                e += "."
+                e += &name
+                e += k == Y_STRING ? " is a String that an expression gives: bind it to a variable first" : " is a Bytes that an expression gives: bind it to a variable first"
+                gen_error(x, e.cstr)
+                return false
+            }
+            put(k == Y_STRING ? "kv_bytes_cstr(&(" : "kv_bytes_cstr(&")
+            gen_expr(x)
+            put(k == Y_STRING ? ").b)" : ")")
+        } else if !text && k != Y_C {
+            var e = $"an argument of "
+            e += ns
+            e += "."
+            e += &name
+            e += " is text, a String or a Bytes, and this is "
+            let w:String = y >= 0 && nodes[x].kind != N_NUM && nodes[x].kind != N_CHAR ? kelvin_type_text(y) : $"a number"
+            e += &w
+            gen_error(x, e.cstr)
+            return false
+        } else {
+            gen_expr(x)
+        }
+        i += 1
+        x = nodes[x].next
+    }
+    return true
+}
+
+// OS.name(args) and SYS.name, as kelvinc writes them: kv_os_name(args)
+// of most; of a Result or an Optional, what the runtime fills, made into
+// it; of SYS.argv an Array of the arguments
+let gen_os(n:int64) {
+    let y:int64 = os_type(n)
+    if y < 0 { return }
+    let m:String = os_member(n)
+    let args:String = os_args(&m)
+    let g:String = os_gives(&m)
+    let fname = tok_is(nodes[nodes[n].a].t, "SYS") ? $"kv_sys_" : $"kv_os_"
+    let has_args = args != $"-" && args != $"."
+    if g == $"argv" {
+        put_array_name(y)
+        put("_from((const uint8_t *const *)kv_sys_argv_p(), (size_t)kv_sys_argc_n())")
+        return
+    }
+    let made:bool = g == $"res_string" || g == $"opt_string" || g == $"opt_cstr" || g == $"listdir" || g == $"ints" || g == $"res_bytes"
+    let sy:int64 = wrap_type(y)
+    if g == $"temp" {                                    // OS.mkstemp (#97): {io, path}, or errno
+        put("({ ")
+        put_ctype(sy)
+        put(" _kv_t = {0}; int _kv_e = kv_os_mkstemp(")
+        if !put_os_args(n, &args) { return }
+        put(", &_kv_t.io, &_kv_t.path); _kv_e ? _kv_")
+        put_tok(types[y].name)
+        put("_make_err(_kv_e) : _kv_")
+        put_tok(types[y].name)
+        put("_make_ok(_kv_t); })")
+        return
+    }
+    if !made && os_structs.get(g, -1) >= 0 {    // the runtime's kv_<g> copied into kc's struct, member by member (#95, #102)
+        put("({ kv_")
+        put(g.cstr)
+        put(" _kv_st = {0}; int _kv_e = kv_os_")
+        put_tok(nodes[n].t)
+        put("(")
+        if !put_os_args(n, &args) { return }
+        if has_args { put(", ") }
+        put("&_kv_st); _kv_e ? _kv_")
+        put_tok(types[y].name)
+        put("_make_err(_kv_e) : _kv_")
+        put_tok(types[y].name)
+        put("_make_ok((")
+        put_ctype(sy)
+        put("){")
+        var f:int64 = nodes[struct_of(sy)].a
+        while f >= 0 {
+            put(".")
+            put_tok(nodes[f].t)
+            put(" = _kv_st.")
+            put_tok(nodes[f].t)
+            f = nodes[f].next
+            if f >= 0 { put(", ") }
+        }
+        put("}); })")
+        return
+    }
+    if !made {
+        put(fname.cstr)
+        put_tok(nodes[n].t)
+        put("(")
+        if !put_os_args(n, &args) { return }
+        put(")")
+        return
+    }
+    put("({ ")
+    if g == $"res_string" || g == $"opt_string" { put("kv_string _kv_s = {0}; ") }
+    if g == $"res_bytes" { put("kv_bytes _kv_b = {0}; ") }
+    if g == $"listdir" { put("kv_string *_kv_at = NULL; size_t _kv_n = 0; ") }
+    if g == $"ints" { put("int32_t *_kv_at = NULL; size_t _kv_n = 0; ") }
+    if g == $"opt_cstr" {
+        put("const uint8_t *_kv_v = ")
+    } else if g == $"opt_string" {
+        put("bool _kv_some = ")
+    } else {
+        put("int _kv_e = ")
+    }
+    put(fname.cstr)
+    put_tok(nodes[n].t)
+    put("(")
+    if !put_os_args(n, &args) { return }
+    if g != $"opt_cstr" {
+        if has_args { put(", ") }
+        put(g == $"res_bytes" ? "&_kv_b" : g == $"listdir" || g == $"ints" ? "&_kv_at, &_kv_n" : "&_kv_s")
+    }
+    put("); ")
+    if g == $"listdir" || g == $"ints" {
+        let ay:int64 = wrap_type(y)                      // the Array of the ok
+        put_array_name(ay)
+        put(" _kv_a = ")
+        put_array_name(ay)
+        put("_from(_kv_at, _kv_n); free(_kv_at); ")
+    }
+    if g == $"opt_cstr" || g == $"opt_string" {
+        put(g == $"opt_cstr" ? "_kv_v ? _kv_" : "_kv_some ? _kv_")
+        put_tok(types[y].name)
+        put(g == $"opt_cstr" ? "_make_some(_kv_v) : _kv_" : "_make_some(_kv_s) : _kv_")
+        put_tok(types[y].name)
+        put("_make_none(); })")
+        return
+    }
+    put("_kv_e ? _kv_")
+    put_tok(types[y].name)
+    put("_make_err(_kv_e) : _kv_")
+    put_tok(types[y].name)
+    put(g == $"res_bytes" ? "_make_ok(_kv_b); })" : g == $"res_string" ? "_make_ok(_kv_s); })" : "_make_ok(_kv_a); })")
+}
+
 // ---------- a number's text (#447) ----------
 
 var block_store:$[String]   // the storage the statement being written makes, a template's or a number's text, declared before it (#445, #447)
@@ -4031,7 +4421,13 @@ let gen_call(n:int64) {
             let fy:int64 = type_of(args)
             let by_fd = fy >= 0 && is_number_kind(types[fy].kind) && types[fy].kind != Y_F64 && types[fy].kind != Y_F32
             put(by_fd ? "kv_io_fdopen(" : "kv_io_open(")     // IO(fd, mode), a descriptor's, as kelvinc's #86 (#452)
-            gen_expr(args)
+            if fy >= 0 && types[fy].kind == Y_STRING && is_place(args) {   // a String's text, as kelvinc's .cstr of it (#463)
+                put("kv_bytes_cstr(&(")
+                gen_expr(args)
+                put(").b)")
+            } else {
+                gen_expr(args)
+            }
             put(", ")
             if nodes[args].next >= 0 {
                 gen_expr(nodes[args].next)
@@ -5018,6 +5414,7 @@ let is_place(n:int64):bool {
     }
     if k == N_FIELD && tagged_named(nodes[n].a) >= 0 { return false }   // T.none, a case made here (#345)
     if k == N_FIELD && typename_member(n) { return false }   // x.typename, text (#426)
+    if k == N_FIELD && os_call(n) { return false }          // OS.cwd, a value (#463)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if is_slice(n) { return false }                          // xs[r], a new one (#377)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
@@ -7664,6 +8061,10 @@ let gen_expr_of(n:int64) {
         return
     }
     if gen_holding_chain(n) { return }                   // (#245)
+    if os_call(n) {                                      // OS.name(args), SYS.name (#463)
+        gen_os(n)
+        return
+    }
     if gen_bits(n) { return }                            // a Bits's (#387)
     if gen_align(n) { return }                           // (#395)
     if gen_sizeof(n) { return }                          // (#420)
@@ -8193,20 +8594,22 @@ let type_text(y:int64):String {
         return s
     case Y_STRUCT:
         let d = tagged_of(y)
-        if d >= 0 && nodes[d].c == 1 {
-            var s = type_text(some_type(y))
+        if d >= 0 && nodes[d].c == 1 {                  // an Array inside as Array<T>, as kelvinc names it (#463)
+            var s = kelvin_type_text(some_type(y))
             s += "?"
             return s
         }
         if d >= 0 && kc_made(types[y].name) {           // made by kc, as no Optional: Result<T, E>
             let m = nodes[d].a
             var s = $"Result<"
-            s += type_text(nodes[m].ty)
+            s += kelvin_type_text(nodes[m].ty)
             s += ", "
-            s += type_text(nodes[nodes[m].next].ty)
+            s += kelvin_type_text(nodes[nodes[m].next].ty)
             s += ">"
             return s
         }
+        let spelled:String = os_spellings[tok_text(types[y].name)] ?? $""
+        if spelled.count > 0 { return spelled }          // OS.stat's {dev: i64, ...}, as kelvinc spells it (#463)
         return kelvin_name(types[y].name)                 // point.kind, of one nested (#389)
     default: return $"a type only C sees"
     }
@@ -13815,7 +14218,7 @@ let gen_signature(d:int64) {
         put_ctype(type_of_kind(Y_STRUCT, -1, recv))
         put(nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
     }
-    if p < 0 && !takes_self { put("void") }
+    if p < 0 && !takes_self { put(is_main(d) && nodes[d].b >= 0 ? "int _kv_argc, char **_kv_argv" : "void") }   // main's, as kelvinc writes it (#463)
     while p >= 0 {
         if p != nodes[d].a || takes_self { put(", ") }
         put_ctype(nodes[p].ty)
@@ -14075,12 +14478,14 @@ let gen_function(d:int64) {
     }
     if is_main(d) {
         put("{\n")
-        if uses_io && nodes[d].a >= 0 {
+        if (uses_io || uses_sys) && nodes[d].a >= 0 {
             put("    kv_sys_init(")
             put_tok(nodes[nodes[d].a].t)
             put(", ")
             put_tok(nodes[nodes[nodes[d].a].next].t)
             put(");\n")
+        } else if uses_sys {                             // main's own, as kelvinc names them (#463)
+            put("    kv_sys_init(_kv_argc, _kv_argv);\n")
         }
         if global_owners { put("    atexit(_kv_free_globals);\n") }
         put("    {\n")
@@ -14814,12 +15219,20 @@ let gen_program() {
     put("#ifndef _DARWIN_C_SOURCE\n#define _DARWIN_C_SOURCE\n#endif\n")
     put("#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <kelvin_prelude.h>\n")
     put_range_types()                                    // (#373)
+    for i in 0..<decls.count as int64 {                  // #import <OS> (#463)
+        if nodes[decls[i]].kind == D_IMPORT && (tok_is(nodes[decls[i]].t, "<OS>") || tok_is(nodes[decls[i]].t, "<IO>")) { os_imported = true }   // IO imports OS
+    }
+    uses_sys = os_imported
+    for i in 0..<toks.count as int64 {                   // SYS.name anywhere, before main is written (#463)
+        if toks[i].kind == T_ID && tok_is(i, "SYS") && tok_is(i + 1, ".") && var_type(i) < 0 { uses_sys = true }
+    }
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind == D_IMPORT && nodes[d].flag == 1 {
             put("#include <kOS.h>\n#include <kIO.h>\n")
             uses_io = true
         }
+        if nodes[d].kind == D_IMPORT && tok_is(nodes[d].t, "<OS>") { put("#include <kOS.h>\n") }   // (#463)
         if nodes[d].kind == D_IMPORT && nodes[d].flag == 2 {     // #import <x.h> as C (#207)
             put("#include ")
             put_tok(nodes[d].t)

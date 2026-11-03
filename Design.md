@@ -494,6 +494,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 460 | kc reads more of Dictionaries and Sets, as kelvinc does: `${K: V}` and `${T}` as types; `{k: v}` where a Dictionary is written; `Set<T>()`, `Set<T>({a, b})` and `Set<T>(&s)`; `d[k] ??= v` and `d[k] !!= v`; `d0 ?? d1`, `d0 !! d1`, `d0 ??= d1` and `d0 !!= d1`; `x = v` of an Array, a Dictionary or a Set; `d[k] = v` of a value of another type made the entry's, text a String, `5` an `i64?`, with kelvinc's #246 error; `s = "y"` of a String; `[a, b]` in a Dictionary literal an Array; and `p.isNull` | selfhost/lex.k's `??=`, `!!=` and `!!`; selfhost/parse.k's `${` types, parse_entries, the `{k: v}` of N_INIT, Set in parse_make, `!!` and `??` right to left, anon_ahead's `<...>`; selfhost/gen.k's gen_make_set, gen_fill, gen_fill_assign, entry_fits, the owners' `=`, `.isNull` | `var d:${String: int64} = {"a": 1}`, `d["b"] ??= 2`, `d ?? e` | 2026-11-03 |
 | 461 | `xs.join(sep)` and `xs.joined(sep)`, one method of two names: a new String of an Array's elements, each as a template shows it, `${x}`, with `sep` between them; `sep` a cstr, a String in a variable or a uchr, read once, and none of `xs.joined()`; kelvinc and kc both | src/parser.c's template_value and string_piece, drawn out of parse_template and `$`...``, and the `join` of an Array; src/codegen.c's string_part and array_join; selfhost/gen.k's gen_join and put_string_part | `$[1, 2, 3].join(", ")` is `"1, 2, 3"` | 2026-11-03 |
 | 462 | kc reads the general properties, as kelvinc does: `x.size` of any value, `sizeof x`, a struct's where it has no field of the name; `x.cstr` of a number, a bool, a uchr, a cstr or another pointer, its text in its block's storage; `p.addr`, `(uintptr_t)(p)`, of a pointer or a function; `p.next` and `p.prev`, a pointer stepped; with kelvinc's errors of an array, a cstr, a number and a function; and `alignas` given to each name of a declaration | selfhost/gen.k's scalar_cstr, gen_scalar_cstr, pointer_property, gen_pointer_property, type_of's, text_in_buffer's; selfhost/parse.k's take_alignas of each declarator | `xs.size`, `(a < b).cstr`, `p.next^` | 2026-11-03 |
+| 463 | kc reads OS and SYS, as kelvinc does: every member of kelvinc's table, `OS.name(args)` and `SYS.name`, by the runtime's kv_os_ and kv_sys_ functions; what they give, a number, a bool, text, a String, an Array of the arguments, a Result or an Optional of a String, an Array or a Bytes; the structs of OS.stat, OS.uname, OS.splitext and the rest, and OS.mkstemp's IO and path, made as kelvinc's anonymous structs, spelled as it spells them; its errors; main's `_kv_argc` and `_kv_argv`, and kv_sys_init where SYS is read or OS imported | selfhost/gen.k's os_spec, os_member, os_call, os_type, os_struct, put_os_args, gen_os; type_of's and gen_expr_of's hooks; gen_program's include and scan; gen_signature's main | `OS.cwd`, `OS.stat(p).ok.size`, `SYS.argv` | 2026-11-03 |
 
 Notes:
 
@@ -1079,6 +1080,46 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (463) Agreed details: "go on with #463"; the user chose OS and SYS in
+  kc, the first stop of 22 programs.
+  - kc reads each member kelvinc's table has, the same table: its
+    arguments, t text, i an integer, f a number, none of a property;
+    and what it gives. kc's table is kelvinc's, written as one string.
+  - Each is the runtime's `kv_os_name(args)` or `kv_sys_name(args)`, as
+    kelvinc writes it.
+    - Of a Result or an Optional, what the runtime fills is made into
+      it: a String, an Array of Strings or of i32s, a Bytes.
+    - SYS.argv is an Array of the program's arguments.
+  - The structs OS.stat, OS.lstat, OS.uname, OS.splitext, OS.loadavg,
+    OS.terminalsize and OS.diskusage give, and OS.mkstemp's IO and path,
+    are kelvinc's anonymous structs.
+    - kc makes each one once, a struct of its own, and copies the
+      runtime's into it member by member.
+    - Its typename is kelvinc's spelling, `{root: String, ext: String}`.
+  - Text arguments take a String's or a Bytes's own text; kelvinc's
+    errors otherwise: a number, text, a String an expression gives, an
+    argument count, a member written without its arguments, an unknown
+    member, OS without `#import <OS>` (or `<IO>`, which imports it), and
+    OS.mkstemp without `#import <IO>`.
+  - main has `_kv_argc` and `_kv_argv` where it names none, as kelvinc
+    writes it, and calls kv_sys_init with them where SYS is read or OS
+    imported, so SYS.argv works in any function.
+  - Found on the way:
+    - kc spelled an Array inside a Result or an Optional `$[String]` in
+      its typename; it is `Array<String>`, as kelvinc spells it.
+    - `IO(s, "r")` of a String `s` passed the String to C; it is its
+      text now, as kelvinc's.
+  - Left: OS tests that stop on an IO member, `f.stat`, `f.listdir`, or
+    a String method, `.ends`, which are their own.
+  - Found while kc built itself, where kelvinc had built the draft, and
+    written around in gen.k, not fixed:
+    - kc reads `return` alone where its value, adjacent literals, starts
+      on the next line;
+    - kc does not compare a uchr with a char literal, `c == ';'`, which
+      kelvinc does: kc's own code writes `c.utf32 == ';'`;
+    - kc has no String `.bytes` yet.
+  - 12 more tests build with kc, 124 in all, each printing what
+    kelvinc's prints.
 - (462) Agreed details: "go on with #462"; the user chose the general
   properties in kc, the first stop of about 19 programs.
   - kc had `.align`, `.typename`, `.hex` and `.cstr` of what print
@@ -6747,6 +6788,7 @@ says "as agreed".
 | P472 | Details of #460 | selfhost/lex.k: punct_len's `??=`, `!!=` and `!!`; selfhost/parse.k: parse_bare_type's `${K: V}` and `${T}`, sizeof_type_at's `${`, parse_entries, the `{k: v}` of N_INIT, parse_make's Set, parse_unary's `!!`, binding_power's `!!`, parse_binary's right-to-left `??` and `!!`, the `??=` and `!!=` of assignments, anon_ahead's `<...>`; selfhost/gen.k: gen_make_set, gen_fill, gen_fill_assign, entry_fits, `d[k] = v`'s gen_written, `s = "y"`, the owners' `=`, the brace literals' errors, `.isNull`; selfhost/sample.k: `tally_sum`, `tallies`, `picks` and their line; selfhost/README.md | — |
 | P473 | Details of #461 | src/parser.c: template_value, string_piece, the `join` and `joined` of an Array and their errors, value_type's array_join; src/codegen.c: string_part, array_join; selfhost/gen.k: gen_join, put_string_part, type_of's join, the uncalled `.join`'s error, the cast in gen_coalesce; selfhost/sample.k: `joins`, `join_sep` and their line; tests/run/array_join.k; tests/error/array_join_sep.k, array_join_call.k, array_join_args.k, array_join_held.k; documents/arrays.md, documents/README.md, README.md, selfhost/README.md | — |
 | P474 | Details of #462 | selfhost/gen.k: scalar_cstr, gen_scalar_cstr, pointer_property, gen_pointer_property, their prototypes, type_of's `.size`, `.addr`, `.next`, `.prev` and `.cstr`, the `.cstr` errors of a function and an array, text_in_buffer; selfhost/parse.k: each declarator's take_alignas; selfhost/sample.k: `steps`, `at_step`, `left`, `right` and their line; selfhost/README.md | — |
+| P475 | Details of #463 | selfhost/gen.k: os_spec, os_member, os_call, os_gives, os_args, os_type, os_struct_spec, os_struct, put_os_args, gen_os, os_spellings, uses_sys, os_imported, type_of's and gen_expr_of's hooks, type_of's quiet OS and SYS, is_place's, gen_program's kOS.h and its scan of SYS, gen_signature's main, main's kv_sys_init, type_text's Array<T> in a made type and an OS struct's spelling, IO(s)'s text; selfhost/sample.k: `parts`, `joined_path` and their line; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
