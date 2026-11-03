@@ -278,7 +278,9 @@ So far the changes from C are these, by topic.
     `` $`a${x}b` `` builds one from a template, with no bound;
     `s.find(text)`, `s.has(text)`, `s.starts(text)`, `s.ends(text)`
     and `s.trim()` (#177)
-  - `Array<T>` is a growable array of any value type, owners included
+  - `Array<T>` is a growable array of any value type, owners included;
+    `xs.join(", ")`, or `.joined(", ")`, is a String of its elements
+    as a template shows them (#461)
   - `$"text"` and `$[1, 2, 3]` are a `String` and an `Array` for short,
     and `$[i64]` the type `Array<i64>`
   - `Dictionary<K, V>` is a hash map, `${"ann": 31}`, keyed by integers

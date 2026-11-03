@@ -873,6 +873,9 @@ let main(argc:int32, argv:[cstr]):int32 {
     picks = Set<int64>({7, 5})
     let found := tallies.find("dan")
     println(tallies, " ", tallies !! ${"bob": 20}, " ", tally_sum(&tallies), " ", picks, " ", Set<int64>(&picks).count, " ", found.isNull, " ", ${"x": [1, 2]})
+    let joins = $[$"a", $"b"]                         // xs.join(sep), xs.joined() (#461)
+    var join_sep = $"+"
+    println($[1, 2, 3].join(", "), " ", joins.joined(), " ", joins.join(join_sep), " ", $[$[1], $[2, 3]].join("|"), " ", $[true, false].joined("/"))
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

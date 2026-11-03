@@ -492,6 +492,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 458 | kc reads several declarators in one statement, `var a:i32 = 1, b:i32 = 2`, each an S_VAR of the first's let or var; C's `for (init; cond; step) body`, as kelvinc's: its init declarations or assignments the loop's own, each part optional, the steps a list, the body a block or one statement; and `x = 1, y = 2`, C's comma, each a statement | selfhost/parse.k's S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples; selfhost/gen.k's S_CFOR | `for (var i = 0, j = 3; i < j; i += 1, j -= 1) t += i` | 2026-11-03 |
 | 459 | kc reads more of C, as kelvinc does: `do { } while c`; `p++` and `p--` of a pointer, as statements, kelvinc's #51, `++x` and a number's its errors; a char literal up to its closing `'`, `'\x6b'` too; `"a" "b"`, C's adjacent literals, one, where kc had dropped all but the first; and `static` and `extern` before a function or a variable, a local's `static` too, `static let T.f()` a function of the type | selfhost/lex.k's `++`, `--` and char; selfhost/parse.k's S_DO, static_decls, extern_decls, parse_program's storage, the adjacent N_STR; selfhost/gen.k's S_DO, the p++ of gen_assign, the static and extern of gen_signature, the globals and gen_var | `do { n += 1 } while n < 3`, `static var calls:int32` | 2026-11-03 |
 | 460 | kc reads more of Dictionaries and Sets, as kelvinc does: `${K: V}` and `${T}` as types; `{k: v}` where a Dictionary is written; `Set<T>()`, `Set<T>({a, b})` and `Set<T>(&s)`; `d[k] ??= v` and `d[k] !!= v`; `d0 ?? d1`, `d0 !! d1`, `d0 ??= d1` and `d0 !!= d1`; `x = v` of an Array, a Dictionary or a Set; `d[k] = v` of a value of another type made the entry's, text a String, `5` an `i64?`, with kelvinc's #246 error; `s = "y"` of a String; `[a, b]` in a Dictionary literal an Array; and `p.isNull` | selfhost/lex.k's `??=`, `!!=` and `!!`; selfhost/parse.k's `${` types, parse_entries, the `{k: v}` of N_INIT, Set in parse_make, `!!` and `??` right to left, anon_ahead's `<...>`; selfhost/gen.k's gen_make_set, gen_fill, gen_fill_assign, entry_fits, the owners' `=`, `.isNull` | `var d:${String: int64} = {"a": 1}`, `d["b"] ??= 2`, `d ?? e` | 2026-11-03 |
+| 461 | `xs.join(sep)` and `xs.joined(sep)`, one method of two names: a new String of an Array's elements, each as a template shows it, `${x}`, with `sep` between them; `sep` a cstr, a String in a variable or a uchr, read once, and none of `xs.joined()`; kelvinc and kc both | src/parser.c's template_value and string_piece, drawn out of parse_template and `$`...``, and the `join` of an Array; src/codegen.c's string_part and array_join; selfhost/gen.k's gen_join and put_string_part | `$[1, 2, 3].join(", ")` is `"1, 2, 3"` | 2026-11-03 |
 
 Notes:
 
@@ -1077,6 +1078,42 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (461) Agreed details: "go on with #461: add join and joined"; the
+  user asked whether an Array has `a.join(sep)` and `.joined(sep)`. It
+  had neither, and chose:
+  - Any Array print shows may be joined: each element is its text as a
+    template shows it, `${x}`.
+    - Numbers, bools and text as they are; a String unquoted; a struct by
+      its `.cstr`; an Optional as `some(5)`; an Array, a Dictionary or a
+      Set by the printer, `[1, 2]`.
+  - `join` and `joined` are one method of two names, each a new String;
+    the Array is not changed.
+  - The separator may be left out: `xs.joined()` puts nothing between.
+  - kc reads them in this number too.
+- How it is made:
+  - In kelvinc, the elements and the separator are hidden lets,
+    `_kv_je` and `_kv_jsep`, each made a template's value by
+    template_value and string_piece, drawn out of parse_template and
+    `$`...``, so they are appended as `$`${x}`` appends them.
+  - The separator is text, a String in a variable or a uchr; a number,
+    or a String an expression gives, is an error that says so. It is
+    read once, before the elements.
+  - An Array an expression gives is held and freed after, so
+    `words().join(" ")` is no leak.
+  - `xs.join` without a call, and `.join(a, b)`, are errors in kelvinc's
+    words, the same in kc.
+- Found on the way:
+  - kc's `x ?? "text"` of a `cstr?` left the text a `char *`, so C's
+    `?:` made a pointer of the two and println showed an address.
+    examples/results.k, which builds with kc since #460's `.isNull`,
+    printed `0x10063140b` for `unset`. kc casts the text now, as
+    kelvinc does.
+  - `'k' as uchr` reaches C, which refuses it, where kelvinc should say
+    `uchr("k")`; left as it is.
+- tests/run/array_join.k, and tests/error/array_join_sep.k,
+  array_join_call.k, array_join_args.k and array_join_held.k.
+  - kc builds 104 programs, each printing what kelvinc's prints;
+    array_join.k is not among them, as kc does not read `uchr("k")`.
 - (460) Agreed details: "go on with #460"; the user chose Dictionaries
   and Sets in kc, which 42 of the programs kc did not build use.
   - `${K: V}` is `Dictionary<K, V>` and `${T}` is `Set<T>` wherever a
@@ -6680,6 +6717,7 @@ says "as agreed".
 | P470 | Details of #458 | selfhost/parse.k: S_CFOR, parse_vars, parse_cfor, parse_simple, parse_simples and their prototypes, parse_statement's var, for and tail, parse_block's and parse_switch's chains; selfhost/gen.k: gen_stmt_of's S_CFOR; selfhost/sample.k: `cf_lo`, `cf_hi`, `cf_sum`, `cf_n1`, `cf_n2` and their lines; selfhost/README.md | — |
 | P471 | Details of #459 | selfhost/lex.k: punct_len's `++` and `--`, the char literal to its `'`; selfhost/parse.k: S_DO, static_decls, extern_decls, parse_program's storage and its marks, parse_statement's `do` and `static var`, parse_simple's `++` and `--`, parse_unary's error of a prefix, the adjacent N_STR; selfhost/gen.k: gen_stmt_of's S_DO, gen_assign's `++` and `--`, gen_signature's static and extern, the globals' and gen_var's, the adjacent literals; selfhost/sample.k: `optind`, `sample_calls`, `sample_bump`, `do_n`, `do_p` and their line; selfhost/README.md | — |
 | P472 | Details of #460 | selfhost/lex.k: punct_len's `??=`, `!!=` and `!!`; selfhost/parse.k: parse_bare_type's `${K: V}` and `${T}`, sizeof_type_at's `${`, parse_entries, the `{k: v}` of N_INIT, parse_make's Set, parse_unary's `!!`, binding_power's `!!`, parse_binary's right-to-left `??` and `!!`, the `??=` and `!!=` of assignments, anon_ahead's `<...>`; selfhost/gen.k: gen_make_set, gen_fill, gen_fill_assign, entry_fits, `d[k] = v`'s gen_written, `s = "y"`, the owners' `=`, the brace literals' errors, `.isNull`; selfhost/sample.k: `tally_sum`, `tallies`, `picks` and their line; selfhost/README.md | — |
+| P473 | Details of #461 | src/parser.c: template_value, string_piece, the `join` and `joined` of an Array and their errors, value_type's array_join; src/codegen.c: string_part, array_join; selfhost/gen.k: gen_join, put_string_part, type_of's join, the uncalled `.join`'s error, the cast in gen_coalesce; selfhost/sample.k: `joins`, `join_sep` and their line; tests/run/array_join.k; tests/error/array_join_sep.k, array_join_call.k, array_join_args.k, array_join_held.k; documents/arrays.md, documents/README.md, README.md, selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

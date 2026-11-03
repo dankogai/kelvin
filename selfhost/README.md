@@ -598,6 +598,10 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **`xs.join(sep)` and `xs.joined(sep)`** (#461), as kelvinc's: a new
+  String of the elements as `${x}` shows them, `sep` between.
+  - kc's `x ?? "text"` of a `cstr?` had printed an address; the text is
+    cast, as kelvinc casts it.
 - **More of Dictionaries and Sets** (#460), as kelvinc's:
   - `${K: V}` and `${T}` as types; `{k: v}` where a Dictionary is
     written; `Set<T>()`, `Set<T>({a, b})`, `Set<T>(&s)`.

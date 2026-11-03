@@ -1274,6 +1274,17 @@ let type_of(n:int64):int64 {
         if tok_is(t, "count") && (yk == Y_STRING || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) { return base_type(Y_I64) }
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_FIXED { return base_type(Y_I64) }   // (#354)
         if (tok_is(t, "count") || tok_is(t, "size")) && yk == Y_PTR && types[types[y].elem].kind == Y_FIXED { return base_type(Y_I64) }   // gen_field's error (#362)
+        if yk == Y_ARRAY && (tok_is(t, "join") || tok_is(t, "joined")) {   // as kelvinc says it (#461)
+            var m = $"'."
+            m += tok_text(t)
+            m += "' is a method, which makes a String: call it, as in '."
+            m += tok_text(t)
+            m += "(\", \")', or '."
+            m += tok_text(t)
+            m += "()' with nothing between"
+            gen_error(n, m.cstr)
+            return -1
+        }
         if yk == Y_SET && tok_is(t, "elements") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }   // an Array of copies (#278)
         if yk == Y_DICT && tok_is(t, "keys") { return type_of_kind(Y_ARRAY, types[y].name, -1) }      // (#285)
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
@@ -1333,6 +1344,7 @@ let type_of(n:int64):int64 {
         if tok_is(t, "is") { return base_type(Y_BOOL) }
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
+        if types[y].kind == Y_ARRAY && (tok_is(t, "join") || tok_is(t, "joined")) { return base_type(Y_STRING) }   // xs.join(sep) (#461)
         if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE && tok_is(t, "reversed") { return type_of_kind(Y_ITER, types[y].elem, -1) }   // r.reversed(), down (#378)
         if types[y].kind == Y_RANGE && tok_is(t, "stride") { return type_of_kind(Y_ITER, types[y].elem, -1) }     // r.stride(n) (#379)
@@ -3331,6 +3343,8 @@ let tpl_show(v:int64, s:cstr) {
     put("); } ")
 }
 
+let gen_join(n:int64)    // prototypes: xs.join(sep) (#461)
+let put_string_part(y:int64, v:cstr)
 let gen_text_template(n:int64)    // prototypes: gen_template writes the two by them
 let gen_string_template(n:int64)
 
@@ -3507,6 +3521,111 @@ let gen_string_template(n:int64) {
         x = nodes[x].next
     }
     put("_kv_s;")
+}
+
+// xs.join(sep) and xs.joined(sep), one method, as kelvinc's #461: a new
+// String of the elements, each appended as $`${x}` appends it, sep
+// before all but the first, read once; sep a cstr, a String in a
+// variable or a uchr, none of none; an Array an expression gives held
+let gen_join(n:int64) {
+    let t:int64 = nodes[n].t
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let ey:int64 = types[y].elem
+    let sep:int64 = nodes[n].b
+    if sep >= 0 && nodes[sep].next >= 0 {
+        var m = $"'."
+        m += tok_text(t)
+        m += "' takes the text between the elements, or none: '."
+        m += tok_text(t)
+        m += "(\", \")'"
+        gen_error(nodes[sep].next, m.cstr)
+        return
+    }
+    var sy:int64 = 0 - 1
+    if sep >= 0 {
+        sy = type_of(sep)
+        if failed { return }
+        let sk:ykind = sy >= 0 ? types[sy].kind : Y_C
+        if !(nodes[sep].kind == N_STR || nodes[sep].kind == N_TPL || sk == Y_CSTR || sk == Y_STRING || sk == Y_UCHR) {
+            var m = $"'."
+            m += tok_text(t)
+            m += "' puts text between the elements: a cstr, a String or a uchr, and this is "
+            let w:String = nodes[sep].kind == N_NUM || nodes[sep].kind == N_CHAR || sy < 0 ? $"a number" : kelvin_type_text(sy)
+            m += &w
+            gen_error(sep, m.cstr)
+            return
+        }
+        if sk == Y_STRING && !is_place(sep) {
+            var m = $"'."
+            m += tok_text(t)
+            m += "' takes a String that an expression gives, which nothing would free: bind it to a variable first"
+            gen_error(sep, m.cstr)
+            return
+        }
+    }
+    let ek:ykind = types[ey].kind
+    if ek == Y_FN || ek == Y_TASK || ek == Y_FIXED {     // as a template has them
+        gen_error(n, ek == Y_TASK ? "a Task has no text: show its value, as in ${await t}" : ek == Y_FN ? "a template cannot show a function: a function has no text" : "a fixed array is shown by its elements, a[i]: kc does not show the array, whose address kelvinc shows")
+        return
+    }
+    if shown_by_type(ey) && !need_show(ey, n) { return }
+    let h = needs_hold(a)                                // one an expression gives, held and freed after
+    if h { hold_open(a) }
+    put("({ const ")
+    put_ctype(y)
+    put(" *_kv_ja = ")
+    gen_place(a)
+    put("; ")
+    if sep >= 0 {
+        put("__auto_type _kv_jsep = ((void)0, (")
+        gen_expr(sep)
+        put(")); ")
+    }
+    put("kv_string _kv_js = kv_string_new(); for (size_t _kv_ji = 0; _kv_ji < _kv_ja->count; _kv_ji++) { __auto_type _kv_je = _kv_ja->at[_kv_ji]; ")
+    if sep >= 0 {
+        put("if (_kv_ji) { ")
+        put_string_part(sy, "_kv_jsep")
+        put("} ")
+    }
+    put_string_part(ey, "_kv_je")
+    put("} _kv_js; })")
+    if h { hold_close(a) }
+}
+
+// the value v, a C name of type y, appended to the String _kv_js as
+// $`${x}` appends it (#461): by its printer, a String by reference, a
+// uchr as its character, text as it is, a number's or a bool's text
+let put_string_part(y:int64, v:cstr) {
+    let k:ykind = types[y].kind
+    if shown_by_type(y) {
+        put("{ __auto_type _kv_sv = (")
+        put(v)
+        put("); ")
+        put_show_name(y)
+        put("(&(kv_out){.s = &_kv_js, .width = 2}, &_kv_sv, -1); } ")
+    } else if k == Y_STRING {
+        put("kv_string_append_ref(&_kv_js, &(")
+        put(v)
+        put(")); ")
+    } else if k == Y_BYTES {
+        put("kv_string_append_text(&_kv_js, kv_bytes_cstr(&(")
+        put(v)
+        put("))); ")
+    } else if k == Y_UCHR {
+        put("kv_string_append_uchr(&_kv_js, ")
+        put(v)
+        put("); ")
+    } else if k == Y_CSTR {
+        put("kv_string_append_text(&_kv_js, ")
+        put(v)
+        put("); ")
+    } else {
+        put("{ uint8_t _kv_t[256]; __auto_type _kv_v = ((void)0, (")
+        if k == Y_BOOL { put("(bool)") }
+        put(v)
+        put(")); kv_string_append_text(&_kv_js, _Generic((_kv_v), KV_PROPERTY_cstr default: kv_cstr_ptr)(_kv_v, _kv_t)); } ")
+    }
 }
 
 // the text in its block's storage that e is, through ?: and a cast, as
@@ -5975,6 +6094,7 @@ let gen_coalesce(n:int64) {
     put_int(s)
     put(field)
     put(" : (")
+    if types[inner].kind == Y_CSTR { put("(const uint8_t *)") }   // x ?? "text" of a cstr?, which C's ?: would make a void * of (#461), as kelvinc casts it
     gen_value(b, inner)
     put(flag ? ")); })" : "); })")
 }
@@ -7524,6 +7644,10 @@ let gen_expr_of(n:int64) {
     }
     if k == N_METHOD && tok_is(t, "stride") && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_RANGE {
         gen_range_stride(n)                              // r.stride(n) (#379)
+        return
+    }
+    if k == N_METHOD && (tok_is(t, "join") || tok_is(t, "joined")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_ARRAY && method_of(n) < 0 {
+        gen_join(n)                                      // xs.join(sep), xs.joined(sep) (#461)
         return
     }
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {

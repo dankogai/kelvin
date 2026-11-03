@@ -13,6 +13,7 @@ for i in 0..<a.count { a[i] = a[i] * 2 }
 var xs = $[1, 2, 3]                   // Array<i64>, on the heap
 xs += 4                               // append; also xs.append(4)
 println(b.count, " ", m[1][0], " ", z.size, " ", xs.count, " ", xs[3])   // 3 3 256 4 4
+println(xs.join(", "), " ", $[$"a", $"b"].joined())                   // 1, 2, 3, 4 ab
 ```
 
 ## Description
@@ -288,6 +289,17 @@ let ys = Array(fixed)            // a copy of a fixed array; Array(&xs) a copy o
   **`xs.reversed()`** gives a new one (#186), `$[1, 2, 3].reversed()` is
   `[3, 2, 1]`; `.reversed()` of an Array an expression gives reverses
   that one, so it chains: `xs.sorted().reversed()`.
+- **`xs.join(sep)`** and **`xs.joined(sep)`**, one method (#461), give a
+  new String of the elements with `sep` between them.
+  - Each element is its text as a template shows it, `${x}`: numbers,
+    bools and text as they are, a String unquoted, a struct by its
+    `.cstr`, an Optional as `some(5)`, an Array as `[1, 2]`.
+  - `sep` is a `cstr`, a String in a variable, or a `uchr`, evaluated
+    once; with none, `xs.joined()`, the elements are joined with
+    nothing between.
+  - Of an Array an expression gives, that one is held and freed after.
+  - `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and `$[$"a", $"b"].joined()`
+    is `"ab"`.
 - **`a0 == a1`** (#247): as many elements, each equal to the one in
   its place by its own `==`; `!=` the opposite.
   - The two are of one element type; others are an error.
@@ -352,6 +364,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `.sorted()`, `.sorted(f)`, `.sorted { ... }` | a new sorted Array, the same way; of an Array an expression gives, that one sorted (#185) |
 | | `.reverse()` | reverses a `var` Array in place (#186) |
 | | `.reversed()` | a new Array in the other order; of an Array an expression gives, that one reversed (#186) |
+| | `.join(sep)`, `.joined(sep)`, `.joined()` | a new String of the elements as `${x}` shows them, `sep` between, a cstr, a String or a uchr; one method of two names (#461) |
 | | `a0 == a1`, `a0 != a1` | as many elements, each by its `==` in order, a `bool` (#247) |
 | | `.contains(x)`, `.contains { ... }` | whether `x`, or an element the function says true for, is there, a `bool` (#248) |
 | | `.firstIndex(x)`, `.lastIndex(x)`, `.firstIndex { ... }`, `.lastIndex { ... }` | where the first or last of them is, an `i64?`: `some(i)` or `none` (#248) |

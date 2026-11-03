@@ -8910,3 +8910,20 @@ in all, and print what kelvinc's builds print. Details are provisional
 P472.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 508. join and joined
+
+> push. BTW do we have `a.join(sep)` and `.joined(sep)`where `a` is an
+> `Array` instance?
+
+> go on with #461: add join and joined
+
+**Claude** pushed #460 and answered that an Array had neither; asked,
+the user chose to join any Array print shows, each element as `${x}`
+shows it, `join` and `joined` one method, the separator optional, and kc
+too. `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and
+`$[$"a", $"b"].joined()` is `"ab"`. On the way, kc's `x ?? "text"` of a
+`cstr?` was found to print an address; it is fixed. Details are
+provisional P473.
+
+There are 1193 tests, and all pass with clang and with gcc 15.

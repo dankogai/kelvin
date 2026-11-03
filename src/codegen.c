@@ -78,6 +78,7 @@ static List owner_locals; /* name, type, in pairs: the owners of the function's 
 static bool local_owner(Expr *e);
 static Type *local_owner_type(const char *name);
 static bool owner_assign(Expr *e);
+static void string_part(Buf *b, Expr *x, const char *s);
 static bool element_first(Stmt *s);
 
 /* the template literals' storage in the innermost block (#39),
@@ -564,17 +565,8 @@ static char *expr_bare(Expr *e) {
                 if (i % 2 == 0) {
                     if (x->items.len && *(char *)x->items.data[0])
                         buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x));
-                } else if (!strcmp(x->op, "tplstr_ref")) {
-                    buf_printf(&b, "kv_string_append_ref(&_kv_s, &(%s)); ", expr(x->a));
-                } else if (!strcmp(x->op, "tplstr_uchr")) {
-                    buf_printf(&b, "kv_string_append_uchr(&_kv_s, %s); ", expr(x->a));
-                } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
-                    need_show(x->recv_type);
-                    buf_printf(&b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &_kv_s, .width = %s}, &_kv_sv, %s); } ",
-                               expr(x->a), show_key(x->recv_type), pretty_width(x),
-                               x->text && !strcmp(x->text, "pretty") ? "0" : "-1"); /* ${v.pretty} (#126) */
                 } else {
-                    buf_printf(&b, "kv_string_append_text(&_kv_s, %s); ", expr(x->a));
+                    string_part(&b, x, "_kv_s");
                 }
             }
             buf_puts(&b, "_kv_s; })");
@@ -1298,6 +1290,26 @@ static char *expr_bare(Expr *e) {
             return strfmt("({ %s%s _kv_t = %s; _kv_t.tag == %d ? %s : %s; })",
                           f ? strfmt("__attribute__((cleanup(%s))) ", f) : "", decl(e->from, ""), expr(e->a), mc, value,
                           other);
+        }
+        if (e->op && !strcmp(e->op, "array_join")) {
+            /* xs.join(sep), xs.joined(sep) (#461): a new String, each element
+               appended as $`${x}` appends it, sep before all but the first,
+               evaluated once */
+            Buf b = {0};
+            Expr *sep = e->items.len > 2 ? e->items.data[2] : NULL;
+            buf_printf(&b, "({ const %s *_kv_ja = &(%s); ", e->from->cname, expr(e->a));
+            if (sep)
+                buf_printf(&b, "__auto_type _kv_jsep = ((void)0, (%s)); ", expr(sep));
+            buf_puts(&b, "kv_string _kv_js = kv_string_new(); for (size_t _kv_ji = 0; _kv_ji < _kv_ja->count; _kv_ji++) "
+                         "{ __auto_type _kv_je = _kv_ja->at[_kv_ji]; ");
+            if (sep) {
+                buf_puts(&b, "if (_kv_ji) { ");
+                string_part(&b, e->items.data[1], "_kv_js");
+                buf_puts(&b, "} ");
+            }
+            string_part(&b, e->items.data[0], "_kv_js");
+            buf_puts(&b, "} _kv_js; })");
+            return b.buf;
         }
         if (e->op && !strncmp(e->op, "array_revers", 12)) {
             /* xs.reverse(), xs.reversed() (#186): the elements swapped from
@@ -2467,6 +2479,24 @@ static Type *local_owner_type(const char *name) {
 
 /* b = v where b owns (#54): what b held is freed, then b takes v, which an
    expression gave (a place would be a copy, which the parser rejects) */
+/* x, a value of $`...` (#67), appended to the String s by its kind: a
+   String by reference, a uchr as its codepoint, an Array's text by the
+   printer, else its text; a.join(sep)'s pieces too (#461) */
+static void string_part(Buf *b, Expr *x, const char *s) {
+    if (!strcmp(x->op, "tplstr_ref")) {
+        buf_printf(b, "kv_string_append_ref(&%s, &(%s)); ", s, expr(x->a));
+    } else if (!strcmp(x->op, "tplstr_uchr")) {
+        buf_printf(b, "kv_string_append_uchr(&%s, %s); ", s, expr(x->a));
+    } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
+        need_show(x->recv_type);
+        buf_printf(b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s, .width = %s}, &_kv_sv, %s); } ",
+                   expr(x->a), show_key(x->recv_type), s, pretty_width(x),
+                   x->text && !strcmp(x->text, "pretty") ? "0" : "-1"); /* ${v.pretty} (#126) */
+    } else {
+        buf_printf(b, "kv_string_append_text(&%s, %s); ", s, expr(x->a));
+    }
+}
+
 static bool owner_assign(Expr *e) {
     if (e->a->kind == E_INDEX && e->a->op && !strcmp(e->a->op, "array") && e->a->type) {
         /* xs[i] = v where the element owns (#57) */

@@ -1658,6 +1658,9 @@ static List overloads_of(const char *name, const char *op);
 static List method_candidates(Expr *recv, const char *name);
 static Decl *parse_nested_fn(Pos pos);
 static Expr *make_temp(Expr *src, const char *what);
+static Expr *template_value(Expr *v);
+static Expr *string_piece(Expr *v);
+static Type *shown_type(Expr *e);
 static Expr *wrap_temps(Expr *body, List *temps);
 static Type *arithmetic_type(Expr *e);
 static const char *number_kind(Type *t);
@@ -3079,6 +3082,65 @@ static Expr *parse_postfix_steps(Expr *e) {
                 e = x;
                 continue;
             }
+            if ((!strcmp(member, "join") || !strcmp(member, "joined")) && !call && value_type(e) &&
+                is_array_owner(unqualified(value_type(e))) && !method_named(e, member))
+                error_at(name->pos, "'.%s' is a method, which makes a String: call it, as in '.%s(\", \")', or '.%s()' "
+                                    "with nothing between",
+                         member, member, member);
+            if ((!strcmp(member, "join") || !strcmp(member, "joined")) && call && value_type(e) &&
+                is_array_owner(unqualified(value_type(e))) && !method_named(e, member)) {
+                /* xs.join(sep) and xs.joined(sep), one (#461): a new String
+                   of the elements, each as a template shows it, ${x}, with
+                   sep between them, "" where none is given; sep is text, a
+                   String or a uchr, or what else a template shows */
+                Type *at = unqualified(value_type(e));
+                if (!owner_place(e)) /* held (#187) */
+                    e = make_temp(e, "'.join' of an Array that an expression gives: bind it to a variable first");
+                advance();
+                Expr *x = new_expr(E_METHOD, name->pos);
+                x->a = e;
+                x->from = at;
+                x->text = member;
+                x->op = "array_join";
+                x->type = base_type("String", name->pos);
+                Expr *sep = NULL;
+                if (!is_p(peek(), ")")) {
+                    bool saved = brace_ends_condition;
+                    brace_ends_condition = false;
+                    sep = parse_assign();
+                    brace_ends_condition = saved;
+                    if (is_p(peek(), ","))
+                        error_at(peek()->pos, "'.%s' takes the text between the elements, or none: '.%s(\", \")'", member,
+                                 member);
+                    Type *st = value_type(sep);
+                    if (!(sep->kind == E_STRING || sep->kind == E_TEMPLATE || is_text_expr(sep) || is_string(st) ||
+                          is_uchr(st) || (st && is_cstr(st))))
+                        error_at(sep->pos, "'.%s' puts text between the elements: a cstr, a String or a uchr, and this is %s",
+                                 member, st ? kelvin_type(st) : shown_type(sep) ? "a number" : "not one");
+                    if (is_string(st) && !owner_place(sep))
+                        error_at(sep->pos, "'.%s' takes a String that an expression gives, which nothing would free: bind "
+                                           "it to a variable first",
+                                 member);
+                }
+                expect_p(")");
+                /* each element, and the separator, a hidden let of its own
+                   that the loop sets, appended as $`${x}` appends it */
+                open_scope();
+                Expr *el = new_expr(E_IDENT, name->pos);
+                el->text = "_kv_je";
+                declare_binding(el->text, unqualified(at->elem), LET_EACH);
+                list_push(&x->items, string_piece(template_value(el)));
+                if (sep) {
+                    Expr *sp = new_expr(E_IDENT, sep->pos);
+                    sp->text = "_kv_jsep";
+                    declare_binding(sp->text, value_type(sep) ? unqualified(value_type(sep)) : NULL, LET_VALUE);
+                    list_push(&x->items, string_piece(template_value(sp)));
+                    list_push(&x->items, sep);
+                }
+                close_scope();
+                e = x;
+                continue;
+            }
             if ((!strcmp(member, "reverse") || !strcmp(member, "reversed")) && call && value_type(e) &&
                 is_array_owner(unqualified(value_type(e)))) {
                 /* xs.reverse() in place, xs.reversed() a new Array (#186): the
@@ -3300,8 +3362,8 @@ static Expr *parse_postfix_steps(Expr *e) {
                                               "flush, close, read(n), seek(n), rewind, kill, glob, chmod, chown, truncate, "
                                               "remove, rename, utime, touch and join, and its properties; it is not copied"
                                             : "an Array has no method '%s': append, insert, remove, pop, clear, "
-                                              "reserve, compact and copy, and the properties count, isEmpty, capacity "
-                                              "and at",
+                                              "reserve, compact, copy, join and joined, and the properties count, "
+                                              "isEmpty, capacity and at",
                              member);
                 if (!owner_place(e) && !is_io_std(e)) {
                     if (methods[which].changes) /* a change to what is freed at once would be lost */
@@ -3723,6 +3785,48 @@ static Type *shown_type(Expr *e) {
 /* set while parsing a static local's initializer, which C needs constant */
 static bool static_init;
 
+/* v as a template shows it (#39): a struct by its .cstr text, an Array,
+   a Dictionary or a Set by kelvinc's printer, an owner an expression
+   gives held; and a.join(sep)'s each element and separator (#461) */
+static Expr *template_value(Expr *v) {
+    Type *vt = value_type(v);
+    if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
+        error_at(v->pos, "a template cannot show a function: a function has no text");
+    if (is_owner(vt) && !owner_place(v) && !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")))
+        v = make_temp(v, "a value that an expression gives in a template: bind it to a variable first"); /* held (#187) */
+    Decl *record;
+    if (type_class(value_type(v), &record) == 's')
+        v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+    Type *ct = value_type(v);
+    if ((is_string(ct) || is_bytes(ct)) && !owner_place(v) &&
+        !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty"))) /* ${$"x"} (#175): nothing would free it */
+        error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it to a "
+                         "variable first",
+                 is_string(ct) ? "String" : "Bytes");
+    if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")) {
+        /* ${v.pretty} (#126): the text indented, by the printer, not a
+           String the template would have to free */
+        v->op = "tpl_show";
+    } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct) || is_range(ct)) {
+        /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
+           kelvinc's printer of it (#123), cut as a string value is in a
+           template's room, and whole in $`...` */
+        if (!owner_place(v) && !is_range(ct)) /* a Range owns nothing (#373) */
+            error_at(v->pos, "%s that an expression gives in a template, which nothing would free: bind it to a "
+                             "variable first",
+                     is_dict_owner(ct) ? "a Dictionary" : is_set_owner(ct) ? "a Set" : "an Array");
+        Expr *s = new_expr(E_PROPERTY, v->pos);
+        s->a = v;
+        s->text = "text";
+        s->op = "tpl_show";
+        s->recv_type = unqualified(ct);
+        s->type = base_type("String", v->pos);
+        v = s;
+    }
+    v->shown = shown_type(v);
+    return v;
+}
+
 /* `a${x}b` (#39): the template's literal parts and its values in turn.
    A value is any expression, shown as print shows it; a struct kelvinc
    sees shows its .cstr text. The text is made at run time, in storage of
@@ -3750,41 +3854,7 @@ static Expr *parse_template(void) {
         brace_ends_condition = saved_brace;
         brace_in_for = saved_for;
         ident_annotation_ok = saved_annotation;
-        Type *vt = value_type(v);
-        if ((vt && vt->kind == T_FUNC) || is_function_designator(v))
-            error_at(v->pos, "a template cannot show a function: a function has no text");
-        if (is_owner(vt) && !owner_place(v) && !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")))
-            v = make_temp(v, "a value that an expression gives in a template: bind it to a variable first"); /* held (#187) */
-        Decl *record;
-        if (type_class(value_type(v), &record) == 's')
-            v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
-        Type *ct = value_type(v);
-        if ((is_string(ct) || is_bytes(ct)) && !owner_place(v) &&
-            !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty"))) /* ${$"x"} (#175): nothing would free it */
-            error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it to a "
-                             "variable first",
-                     is_string(ct) ? "String" : "Bytes");
-        if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty")) {
-            /* ${v.pretty} (#126): the text indented, by the printer, not a
-               String the template would have to free */
-            v->op = "tpl_show";
-        } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct) || is_range(ct)) {
-            /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
-               kelvinc's printer of it (#123), cut as a string value is in a
-               template's room, and whole in $`...` */
-            if (!owner_place(v) && !is_range(ct)) /* a Range owns nothing (#373) */
-                error_at(v->pos, "%s that an expression gives in a template, which nothing would free: bind it to a "
-                                 "variable first",
-                         is_dict_owner(ct) ? "a Dictionary" : is_set_owner(ct) ? "a Set" : "an Array");
-            Expr *s = new_expr(E_PROPERTY, v->pos);
-            s->a = v;
-            s->text = "text";
-            s->op = "tpl_show";
-            s->recv_type = unqualified(ct);
-            s->type = base_type("String", v->pos);
-            v = s;
-        }
-        v->shown = shown_type(v);
+        v = template_value(v);
         list_push(&e->items, v);
         part = peek();
         if (part->kind != TK_TPL_MIDDLE && part->kind != TK_TPL_TAIL)
@@ -3812,6 +3882,38 @@ static bool float_word(const char *s) {
             return true;
     }
     return false;
+}
+
+/* v, a template's value (#39), as $`...` appends it to its String (#67):
+   a String by reference, a uchr as its codepoint, an Array's text by the
+   printer, else as text; a.join(sep)'s pieces too (#461) */
+static Expr *string_piece(Expr *v) {
+    Type *vt = value_type(v);
+    Expr *w = new_expr(E_CAST, v->pos);
+    w->a = v;
+    if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "tpl_show")) {
+        w->a = v->a; /* ${xs} (#125): the printer appends to the String */
+        w->op = "tplstr_show";
+        w->text = v->text; /* "pretty" for ${v.pretty} (#126) */
+        w->b = v->b;       /* the width of ${v.pretty(n)} (#127) */
+        w->recv_type = v->recv_type;
+    } else if (is_string(vt) || is_bytes(vt)) {
+        if (!owner_place(v))
+            error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it "
+                             "to a variable first",
+                     is_string(vt) ? "String" : "Bytes");
+        if (is_bytes(vt))
+            w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        w->op = is_string(vt) ? "tplstr_ref" : "tplstr_text";
+    } else if (is_uchr(vt)) {
+        w->op = "tplstr_uchr";
+    } else if (v->kind == E_STRING || v->kind == E_TEMPLATE || is_text_expr(v)) {
+        w->op = "tplstr_text";
+    } else {
+        w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        w->op = "tplstr_text";
+    }
+    return w;
 }
 
 static Expr *parse_primary(void) {
@@ -3865,35 +3967,8 @@ static Expr *parse_primary(void) {
         advance();
         Expr *e = parse_template();
         e->op = "string";
-        for (int i = 1; i < e->items.len; i += 2) {
-            Expr *v = e->items.data[i];
-            Type *vt = value_type(v);
-            Expr *w = new_expr(E_CAST, v->pos);
-            w->a = v;
-            if (v->kind == E_PROPERTY && v->op && !strcmp(v->op, "tpl_show")) {
-                w->a = v->a; /* ${xs} (#125): the printer appends to the String */
-                w->op = "tplstr_show";
-                w->text = v->text; /* "pretty" for ${v.pretty} (#126) */
-                w->b = v->b;       /* the width of ${v.pretty(n)} (#127) */
-                w->recv_type = v->recv_type;
-            } else if (is_string(vt) || is_bytes(vt)) {
-                if (!owner_place(v))
-                    error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it "
-                                     "to a variable first",
-                             is_string(vt) ? "String" : "Bytes");
-                if (is_bytes(vt))
-                    w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
-                w->op = is_string(vt) ? "tplstr_ref" : "tplstr_text";
-            } else if (is_uchr(vt)) {
-                w->op = "tplstr_uchr";
-            } else if (v->kind == E_STRING || v->kind == E_TEMPLATE || is_text_expr(v)) {
-                w->op = "tplstr_text";
-            } else {
-                w->a = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
-                w->op = "tplstr_text";
-            }
-            e->items.data[i] = w;
-        }
+        for (int i = 1; i < e->items.len; i += 2)
+            e->items.data[i] = string_piece(e->items.data[i]);
         return e;
     }
     if (t->kind == TK_PUNCT && !strcmp(t->text, "$") && is_p(peek2(), "{")) {
@@ -6251,8 +6326,9 @@ static Type *value_type_of(Expr *e) {
                       !strncmp(e->op, "set_flatMap", 11) ||
                       !strncmp(e->op, "array_contains", 14) || !strncmp(e->op, "array_firstIndex", 16) ||
                       !strncmp(e->op, "array_lastIndex", 15) || !strncmp(e->op, "dict_contains", 13) ||
-                      !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12)))
-            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248) */
+                      !strncmp(e->op, "dict_firstKey", 13) || !strncmp(e->op, "dict_lastKey", 12) ||
+                      !strcmp(e->op, "array_join")))
+            return e->type; /* x.map(f) (#80), x.flatMap(f) (#81), xs.map(f) (#182), d.merging(&e) (#236), xs.contains(x) (#248), xs.join(sep) (#461) */
         if (e->op && !strcmp(e->op, "io")) { /* an IO method (#82): seek and kill give a bool (#84, #91); the path's as typed (#101) */
             static const char *typed[] = {"glob", "chmod", "chown", "truncate", "remove", "rename", "utime", "touch", "join", NULL};
             for (int i = 0; typed[i]; i++)
