@@ -598,6 +598,11 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **The general properties** (#462), as kelvinc's:
+  - `x.size` of any value, a struct's where it has no field of the name.
+  - `x.cstr` of a number, a bool, a uchr or a pointer.
+  - `p.addr`, and `p.next` and `p.prev` of a pointer.
+  - `alignas` before several declarators aligns each of them.
 - **`xs.join(sep)` and `xs.joined(sep)`** (#461), as kelvinc's: a new
   String of the elements as `${x}` shows them, `sep` between.
   - kc's `x ?? "text"` of a `cstr?` had printed an address; the text is

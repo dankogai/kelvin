@@ -1063,6 +1063,8 @@ let named_fn_type(n:int64):int64    // and a function's name, a value of its typ
 let anon_type(n:int64):int64    // and an anonymous function's, as a value
 let number_text_size(n:int64):int64    // and x.hex's and the rest's text (#447)
 let shown_cstr(n:int64):bool          // and v.cstr's of what print shows (#450)
+let scalar_cstr(n:int64):bool         // and x.cstr's of a number, a bool, a uchr or a pointer (#462)
+let pointer_property(n:int64):int64   // x.size, x.addr, p.next and p.prev (#462)
 let std_io(n:int64):int64             // and IO.stdout's (#452)
 let pretty_value(n:int64):bool        // and v.pretty's (#452)
 let io_int_member(t:int64):bool       // and an IO's int members (#452)
@@ -1229,6 +1231,16 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if shown_cstr(n) { return base_type(Y_CSTR) }                   // its text, as print shows it (#450)
+        if scalar_cstr(n) { return base_type(Y_CSTR) }                  // a number's text and the rest (#462)
+        if tok_is(t, "cstr") && (types[y].kind == Y_FN || types[y].kind == Y_FIXED) {   // as kelvinc says it (#462)
+            gen_error(n, types[y].kind == Y_FN ? "'.cstr' of a function: a function has no text" : "'.cstr' of an array: C arrays are not values; index it, or put it in a struct")
+            return -1
+        }
+        let pp:int64 = pointer_property(n)
+        if pp == 1 { return base_type(Y_I64) }                          // x.size, sizeof x as kc's sizeof (#462)
+        if pp == 2 { return base_type(Y_C) }                            // p.addr, a uintptr_t
+        if pp == 3 { return y }                                         // p.next, p.prev, of its type
+        if pp < 0 { return -1 }
         if pretty_value(n) { return base_type(Y_STRING) }               // its text indented, a new String (#336, #337, #452)
         if types[y].kind == Y_IO && tok_is(t, "lines") {               // as kelvinc's #406, read by for alone
             gen_error(n, "kc reads an IO's lines by for, 'for r in f.lines', each a Result<String, i64>; not yet as a value")
@@ -3162,6 +3174,115 @@ let gen_shown_cstr(n:int64, a:int64, y:int64) {
     block_store += &d
 }
 
+// whether n is x.cstr of a number, a bool, a uchr, a cstr or another
+// pointer, as kelvinc's (#22, #462): its text in its block's storage, a
+// cstr's itself, another pointer's address, nowhere of a null one
+let scalar_cstr(n:int64):bool {
+    if nodes[n].kind != N_FIELD || !tok_is(nodes[n].t, "cstr") { return false }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return false }
+    let k = types[y].kind
+    return is_number_kind(k) || k == Y_BOOL || k == Y_UCHR || k == Y_CSTR || k == Y_PTR
+}
+
+// x.cstr, as kelvinc writes it: by the prelude's KV_PROPERTY_cstr of x's
+// type into a buffer the statement declares before it, KV_CSTR_SCALAR
+// long; a bool as one, where C's < gives an int (#462)
+let gen_scalar_cstr(n:int64) {
+    if current >= 0 && nodes[current].kind == D_GLOBAL {
+        gen_error(n, "kc makes a value's text in a function: not yet in a global's initializer")
+        return
+    }
+    serial += 1
+    let s = serial
+    var d = $"uint8_t _kv_text"
+    d += String(s)
+    d += "[KV_CSTR_SCALAR]"
+    block_store += &d
+    let a:int64 = nodes[n].a
+    let flag = types[type_of(a)].kind == Y_BOOL
+    put("({ __auto_type _kv_nt = ((void)0, (")
+    if flag { put("(bool)(") }
+    gen_expr(a)
+    if flag { put(")") }
+    put(")); _Generic((_kv_nt), KV_PROPERTY_cstr default: kv_cstr_ptr)(_kv_nt, _kv_text")
+    put_int(s)
+    put("); })")
+}
+
+// what n is of x.size, p.addr, p.next and p.prev, as kelvinc's (#26,
+// #37, #462): 1 of x.size, sizeof x, of what has no member of the name;
+// 2 of the address of a pointer or a function; 3 of a pointer stepped;
+// 0 of none of them, -1 where it is kelvinc's error
+let pointer_property(n:int64):int64 {
+    if nodes[n].kind != N_FIELD { return 0 }
+    let t:int64 = nodes[n].t
+    let size = tok_is(t, "size")
+    let addr = tok_is(t, "addr")
+    let step = tok_is(t, "next") || tok_is(t, "prev")
+    if !size && !addr && !step { return 0 }
+    if tagged_named(nodes[n].a) >= 0 { return 0 }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return 0 }
+    let k = types[y].kind
+    if k == Y_C { return 0 }                            // what only C sees has its own
+    let sd = struct_of(y)
+    if sd >= 0 {                                         // a field of the name wins; a struct's size is sizeof
+        var m:int64 = nodes[sd].a
+        while m >= 0 {
+            if same_text(nodes[m].t, t) { return 0 }
+            m = nodes[m].next
+        }
+        if !size { return 0 }
+    }
+    let d = tagged_of(y)
+    if d >= 0 && case_named(d, t) != none { return 0 }  // v.c of an enum with values, its case's
+    if size {
+        if k == Y_FIXED || (k == Y_PTR && types[types[y].elem].kind == Y_FIXED) { return 0 }   // as before (#354, #362)
+        return 1
+    }
+    if addr {
+        if k == Y_PTR || k == Y_CSTR || k == Y_FN { return 2 }
+        gen_error(n, k == Y_FIXED ? "'.addr' of an array: an array is no pointer; write '(&a[0]).addr'" : "'.addr' is a property of pointers and functions")
+        return 0 - 1
+    }
+    if k == Y_PTR { return 3 }
+    if k == Y_CSTR {
+        gen_error(n, "a cstr is text, not a cursor (#52): walk it with 'for c in s', index it, or step a 'var p:u8^ := s'")
+        return 0 - 1
+    }
+    if k == Y_FIXED {
+        var m = $"'."
+        m += tok_text(t)
+        m += tok_is(t, "next") ? "' is a property of pointers: for an array, write '&a[1]'" : "' is a property of pointers: for an array, write '&a[-1]'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    return 0
+}
+
+// x.size, p.addr, p.next and p.prev, as kelvinc writes them (#462):
+// sizeof x, a function's a pointer's; (uintptr_t)(p); (p + 1), (p - 1)
+let gen_pointer_property(n:int64) {
+    let a:int64 = nodes[n].a
+    let p = pointer_property(n)
+    if p == 1 && types[type_of(a)].kind == Y_FN {
+        put("((int64_t)sizeof(void *))")
+    } else if p == 1 {
+        put("((int64_t)sizeof(")
+        gen_expr(a)
+        put("))")
+    } else if p == 2 {
+        put("((uintptr_t)(")
+        gen_expr(a)
+        put("))")
+    } else {
+        put("((")
+        gen_expr(a)
+        put(tok_is(nodes[n].t, "next") ? ") + 1)" : ") - 1)")
+    }
+}
+
 // the size of the buffer x.dec, x.hex, x.oct or x.bin writes into, its
 // NUL included, as kelvinc's number_text_size (#21); 0 of another member
 let number_text_size(n:int64):int64 {
@@ -3634,7 +3755,7 @@ let put_string_part(y:int64, v:cstr) {
 let text_in_buffer(e:int64):int64 {
     let k = nodes[e].kind
     if k == N_TPL { return nodes[e].flag == 0 ? e : 0 - 1 }
-    if number_text(e) || shown_cstr(e) { return e }     // .cstr of what print shows too (#450)
+    if number_text(e) || shown_cstr(e) || scalar_cstr(e) { return e }   // .cstr of what print shows too (#450), of a number (#462)
     if k == N_CAST { return text_in_buffer(nodes[e].a) }
     if k == N_COND {
         let b = text_in_buffer(nodes[e].b)
@@ -7652,6 +7773,14 @@ let gen_expr_of(n:int64) {
     }
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
+        return
+    }
+    if k == N_FIELD && scalar_cstr(n) {
+        gen_scalar_cstr(n)                               // x.cstr of a number, a bool, a uchr or a pointer (#462)
+        return
+    }
+    if k == N_FIELD && pointer_property(n) > 0 {
+        gen_pointer_property(n)                          // x.size, p.addr, p.next, p.prev (#462)
         return
     }
     if k == N_FIELD && tok_is(t, "isNull") && type_of(n) >= 0 && types[type_of(n)].kind == Y_BOOL && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind != Y_STRUCT && types[type_of(nodes[n].a)].kind != Y_C {

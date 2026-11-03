@@ -2622,7 +2622,11 @@ let parse_statement():int64 {
     }
     if at_word("var") || at_word("let") {
         let n:int64 = parse_vars()
-        take_alignas(n)                                  // (#396)
+        var d:int64 = n
+        while d >= 0 {                                   // (#396), each name of the declaration (#462)
+            take_alignas(d)
+            d = nodes[d].next
+        }
         end_alignas()
         end_statement()
         return n

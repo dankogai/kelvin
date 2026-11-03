@@ -8927,3 +8927,17 @@ too. `$[1, 2, 3].join(", ")` is `"1, 2, 3"`, and
 provisional P473.
 
 There are 1193 tests, and all pass with clang and with gcc 15.
+
+### 509. General properties in kc
+
+> push. then go on with #462
+
+**Claude** pushed #461 and asked; the user chose the general properties
+in kc. kc now reads `x.size` of any value, `x.cstr` of a number, a bool,
+a uchr or a pointer, `p.addr`, and `p.next` and `p.prev`, as kelvinc
+does, with its errors. On the way, `alignas` before several declarators
+was found to align the first alone; each takes it now. Eight more tests
+build with kc, 112 in all, and print what kelvinc's builds print.
+Details are provisional P474.
+
+There are 1193 tests, and all pass with clang and with gcc 15.

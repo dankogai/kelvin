@@ -876,6 +876,10 @@ let main(argc:int32, argv:[cstr]):int32 {
     let joins = $[$"a", $"b"]                         // xs.join(sep), xs.joined() (#461)
     var join_sep = $"+"
     println($[1, 2, 3].join(", "), " ", joins.joined(), " ", joins.join(join_sep), " ", $[$[1], $[2, 3]].join("|"), " ", $[true, false].joined("/"))
+    var steps:[int32](3) = [10, 20, 30]                // x.size, x.cstr, p.addr, p.next and p.prev (#462)
+    let at_step := &steps[1]
+    alignas(8) let left:int32 = 1, right:int32 = 2
+    println(joins.size, " ", (left + right).size, " ", at_step.next^, " ", at_step.prev^, " ", (at_step.next.addr - at_step.addr) as int64, " ", (3 < 4).cstr, " ", 2.5.cstr, " ", (&right).addr % 8 == 0)
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]
