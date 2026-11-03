@@ -897,6 +897,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     for piece in reread.read(4) { chunks += 1 }
     println(haystack.find(&needle), " ", haystack.starts("kel"), " ", haystack.ends("host"), " ", grows, " ", ends.reader.fd > 2)
     println(chunks, " ", reread.stat.size, " ", reread.basename, " ", reread.remove(), " ", needle.bytes^.count)
+    let held_path := "sample_held.tmp"                // an IO an expression gives, held for the loop (#466)
+    var held_out = IO(held_path, "w")
+    held_out.print("a\nbc\n")
+    held_out.close()
+    var held_lines = 0
+    for line in IO(held_path).lines { held_lines += line.ok.count as int64 }
+    println(held_lines, " ", OS.remove(held_path))
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

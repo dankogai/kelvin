@@ -13568,6 +13568,29 @@ let list_walked(y:int64):bool {
     return false
 }
 
+// the IO a loop walks, where an expression gives it, held in the block
+// around the loop as _kv_ioheldN, which closes it when the loop is done,
+// a break too, as kelvinc's #466
+let put_io_held(io:int64, s:int64, depth:int64) {
+    if is_place(io) || std_io(io) >= 0 { return }
+    indent(depth)
+    put("__attribute__((cleanup(kv_io_free))) kv_io _kv_ioheld")
+    put_int(s)
+    put(" = ")
+    gen_expr(io)
+    put(";\n")
+}
+
+// the address of the IO a loop walks: a place's, or the one held
+let put_io_walked(io:int64, s:int64) {
+    if is_place(io) || std_io(io) >= 0 {
+        gen_place(io)
+    } else {
+        put("&_kv_ioheld")
+        put_int(s)
+    }
+}
+
 // for b in f.read(n) (#464), as kelvinc's #82: each next n bytes at most
 // read into one Bytes, b a Bytes the loop lends
 let gen_read_each(n:int64, depth:int64) {
@@ -13585,11 +13608,12 @@ let gen_read_each(n:int64, depth:int64) {
     put("__attribute__((cleanup(kv_bytes_free))) kv_bytes _kv_chunk_buf")
     put_int(s)
     put(" = {0};\n")
+    put_io_held(nodes[src].a, s, depth + 1)             // IO(path).read(n), held and closed after (#466)
     indent(depth + 1)
     put("kv_io *const _kv_chunk_io")
     put_int(s)
     put(" = (kv_io *)")
-    gen_place(nodes[src].a)
+    put_io_walked(nodes[src].a, s)
     put(";\n")
     indent(depth + 1)
     put("const size_t _kv_chunk_n")
@@ -13638,11 +13662,12 @@ let gen_lines_each(n:int64, depth:int64) {
     put("__attribute__((cleanup(kv_string_free))) kv_string _kv_line")
     put_int(s)
     put(" = {0};\n")
+    put_io_held(io, s, depth + 1)                       // IO(path).lines, held and closed after (#466)
     indent(depth + 1)
     put("kv_io *const _kv_lines")
     put_int(s)
     put(" = (kv_io *)")
-    gen_place(io)
+    put_io_walked(io, s)
     put(";\n")
     indent(depth + 1)
     put("int64_t _kv_bad")

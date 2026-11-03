@@ -169,6 +169,9 @@ rules are in [ownership.md](ownership.md), Results in
   - The loop owns the one Bytes or String it holds, filled again each
     time round; `chunk` or `line` is a let that borrows it: copy it to
     keep it.
+  - Of an IO an expression gives, `for line in IO(path).lines { }`, the
+    IO is held for the loop and closed when it is done, a `break` too
+    (#466).
   - Both are only for `for`; `break`, `continue` and `return` work in
     the body.
 - **Writing:** `f.write(x)` writes `x`.
@@ -412,8 +415,8 @@ A module, `#import <IO>` (#143, [modules.md](modules.md)). An IO's functions are
 | `IO.strerror(code)` | | the message for an `err`, a `String` (#103) |
 | an `IO` | `.bytes` | a `Bytes`: the rest of the file, straight (#107) |
 | | `.string` | a `Result<String, i64>`: the same as UTF-8, or `err(at)` where it breaks (#406) |
-| | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns |
-| | `for line in f.lines { }` | each line without its newline, a `Result<String, i64>` the loop owns: `err(at)` where its UTF-8 breaks (#406) |
+| | `for x in f.read(n) { }` | each next `n` bytes at most, a `Bytes` the loop owns; of `IO(path)` too, held and closed after (#466) |
+| | `for line in f.lines { }` | each line without its newline, a `Result<String, i64>` the loop owns: `err(at)` where its UTF-8 breaks (#406); of `IO(path)` too, held and closed after (#466) |
 | | `.write(x)` | writes text, `&s` of a String or a Bytes, or one an expression gives |
 | | `.print(a, ...)`, `.println(a, ...)` | as `print` and `println`, to the IO (#83) |
 | | `.flush()`, `.close()` | flushes; closes now, through the var that owns it |

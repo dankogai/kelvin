@@ -8986,3 +8986,16 @@ way, `for line in IO(path).lines` was found to be a C error in kelvinc.
 Details are provisional P477.
 
 There are 1195 tests, and all pass with clang and with gcc 15.
+
+### 513. An IO an expression gives, walked
+
+> push. then go on with #466
+
+**Claude** pushed #465 and asked; the user chose the kelvinc bug #465
+found. `for line in IO(path).lines` and `for b in IO(path).read(n)` were
+C errors: the loop did not see the IO's walk behind the temporary that
+held the IO. Now the IO is held in a block around the loop and closed
+when it is done; kc does the same. The cheating quine is one line, as
+Perl's. Details are provisional P478.
+
+There are 1196 tests, and all pass with clang and with gcc 15.

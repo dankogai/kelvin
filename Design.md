@@ -497,6 +497,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 463 | kc reads OS and SYS, as kelvinc does: every member of kelvinc's table, `OS.name(args)` and `SYS.name`, by the runtime's kv_os_ and kv_sys_ functions; what they give, a number, a bool, text, a String, an Array of the arguments, a Result or an Optional of a String, an Array or a Bytes; the structs of OS.stat, OS.uname, OS.splitext and the rest, and OS.mkstemp's IO and path, made as kelvinc's anonymous structs, spelled as it spells them; its errors; main's `_kv_argc` and `_kv_argv`, and kv_sys_init where SYS is read or OS imported | selfhost/gen.k's os_spec, os_member, os_call, os_type, os_struct, put_os_args, gen_os; type_of's and gen_expr_of's hooks; gen_program's include and scan; gen_signature's main | `OS.cwd`, `OS.stat(p).ok.size`, `SYS.argv` | 2026-11-03 |
 | 464 | kc reads an IO's members and a String's methods, as kelvinc does: `f.bytes`, `.byte`, `.eof`, `.isatty`, `.position`, `.count`, `.path`, `.abspath`, `.basename`, `.dirname`, `.stat`, `.lstat`, `.isdir`, `.isfile`, `.islink`, `.exists`, `.listdir`, `.walk`, and `.glob(p)`, `.join(name)`, `.chmod`, `.chown`, `.truncate`, `.utime`, `.touch()`, `.remove()`, `.rename(to)`, `.seek(n)`, `.kill(s)`; `for b in f.read(n)`; `IO.pipe()`; a String's `find`, `has`, `starts`, `ends`, `trim`, `append`, `clear`, `compact`, `reserve` and `.bytes`; a Bytes's `.isUTF8`; with kelvinc's errors | selfhost/gen.k's io_field_type, gen_io_field, io_method_args, io_method_type, gen_io_method, put_io_recv, gen_string_method, gen_read_each, IO.pipe's, is_place's IO members, gen_each's error | `f.stat.size`, `for b in f.read(4)`, `s.find(&t)` | 2026-11-03 |
 | 465 | Two quines in examples/: quine.k, a true one, a String holding the program with a mark where the String goes, printed with itself written as a literal at the mark; and quine_cheat.k, Perl's `open 0; print while <0>`, reading its own source by C's `__FILE__`; tests/run.sh checks an example marked `// quine:` prints its own file, byte for byte | examples/quine.k, examples/quine_cheat.k, tests/run.sh, README.md | `// quine: prints its own source` | 2026-11-03 |
+| 466 | `for line in IO(path).lines` and `for b in IO(path).read(n)` of an IO an expression gives: the IO held in a hidden let of a block around the loop, closed when the loop is done, where kelvinc had written C that did not compile; kc the same; examples/quine_cheat.k one line, as Perl's | src/parser.c's parse_for_io_held; selfhost/gen.k's put_io_held, put_io_walked; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k | `for line in IO(__FILE__).lines { println(line.ok) }` | 2026-11-03 |
 
 Notes:
 
@@ -1082,6 +1083,22 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (466) Agreed details: "go on with #466"; the user chose the kelvinc
+  bug #465 found, `for line in IO(path).lines`.
+  - An IO an expression gives is held as a temporary around what the
+    expression reads of it, an E_TEMP; `for` looked for an IO's `.lines`
+    or `.read(n)` and saw the temporary, so it walked the property as a
+    cstr, up to a NUL, and C refused `KV_PROPERTY_lines`. `.read(n)` was
+    a C error too, `kv_io_read`.
+  - parse_for_io_held takes each temporary off, as a hidden let of a
+    block around the loop, and the loop walks the IO as it walks a
+    variable's; the block's end closes the IO, after a `break` too.
+  - kc wrote `&` of the IO the expression gives, a C error; it holds it
+    as `_kv_ioheldN` in the block around the loop, the same.
+  - examples/quine_cheat.k is one line now, as Perl's:
+    `for line in IO(__FILE__).lines { println(line.ok) }`.
+  - tests/run/io_walk_held.k: both, a `break`, and a function's; no
+    leak, and kc's build prints what kelvinc's does.
 - (465) Agreed details: "give me a couple of quines in the example. that
   may include a "cheating quine" like `open 0; print while <0>` in Perl";
   asked, the user chose a true quine and a cheating one, checked by a
@@ -6849,6 +6866,7 @@ says "as agreed".
 | P475 | Details of #463 | selfhost/gen.k: os_spec, os_member, os_call, os_gives, os_args, os_type, os_struct_spec, os_struct, put_os_args, gen_os, os_spellings, uses_sys, os_imported, type_of's and gen_expr_of's hooks, type_of's quiet OS and SYS, is_place's, gen_program's kOS.h and its scan of SYS, gen_signature's main, main's kv_sys_init, type_text's Array<T> in a made type and an OS struct's spelling, IO(s)'s text; selfhost/sample.k: `parts`, `joined_path` and their line; selfhost/README.md | — |
 | P476 | Details of #464 | selfhost/gen.k: io_field_type, put_io_recv, gen_io_field, io_method_args, io_method_type, gen_io_method, gen_string_method, gen_read_each and their prototypes, type_of's IO and String members and methods, IO.pipe()'s type and C, os_struct_spec's pipe, is_place's IO members, bytes_field_type's isUTF8, gen_each's error where it sees no type; selfhost/sample.k: `haystack`, `needle`, `grows`, `ends`, `probe`, `reread`, `chunks` and their lines; selfhost/README.md | — |
 | P477 | Details of #465 | examples/quine.k, examples/quine_cheat.k; tests/run.sh: the `// quine:` mark; README.md: the examples' rows and the mark | — |
+| P478 | Details of #466 | src/parser.c: parse_for_io_held, parse_for_in's call; selfhost/gen.k: put_io_held, put_io_walked, gen_lines_each's and gen_read_each's; selfhost/sample.k: `held_path`, `held_out`, `held_lines` and their line; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k; README.md; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

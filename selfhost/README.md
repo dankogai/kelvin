@@ -598,6 +598,9 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An IO an expression gives, walked** (#466), as kelvinc's: `for
+  line in IO(path).lines` and `.read(n)`, the IO held in the block
+  around the loop and closed after it.
 - **An IO's members and a String's methods** (#464), as kelvinc's:
   - `f.stat`, `f.abspath`, `f.listdir`, `f.glob(p)`, `f.chmod(m)` and
     the rest; `for b in f.read(n)`; `IO.pipe()`.

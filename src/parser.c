@@ -13439,6 +13439,40 @@ static Stmt *parse_for_range(Stmt *s, Type *written) {
     return s;
 }
 
+/* for line in IO(path).lines, for b in IO(path).read(n) (#466): the IO
+   the expression gives is held as a temporary around the property, which
+   the loop would not see as an IO's walk; each temporary becomes a hidden
+   let of a block around the loop, which closes it when the loop is done,
+   and the loop walks the IO as it would a variable's. NULL where the
+   sequence is no IO's walk held so */
+static Stmt *parse_for_io_held(Stmt *s, Type *written) {
+    List vars = {0};
+    Expr *e = s->expr;
+    while (e->kind == E_TEMP && !e->op && e->b) {
+        Var *v = xcalloc(1, sizeof *v);
+        v->name = e->text;
+        v->pos = e->pos;
+        v->type = e->type;
+        v->init = e->a;
+        v->is_let = true;
+        list_push(&vars, v);
+        e = e->b;
+    }
+    bool io_walk = (e->kind == E_METHOD && e->op && !strcmp(e->op, "io") && !strcmp(e->text, "read")) ||
+                   (e->kind == E_PROPERTY && e->op && !strcmp(e->op, "io") && !strcmp(e->text, "lines"));
+    if (!vars.len || !io_walk)
+        return NULL;
+    s->expr = e;
+    Stmt *block = new_stmt(S_BLOCK, s->pos);
+    for (int i = 0; i < vars.len; i++) {
+        Stmt *d = new_stmt(S_VAR, s->pos);
+        list_push(&d->vars, vars.data[i]);
+        list_push(&block->stmts, d);
+    }
+    list_push(&block->stmts, parse_for_each(s, written));
+    return block;
+}
+
 static Stmt *parse_for_in(Pos pos) {
     Stmt *s = new_stmt(S_FOR_IN, pos);
     Token *name = peek();
@@ -13468,6 +13502,9 @@ static Stmt *parse_for_in(Pos pos) {
     if (!is_p(peek(), "...") && !is_p(peek(), "..<")) {
         if (is_range(value_type(s->expr)))
             return parse_for_range(s, written);
+        Stmt *io = parse_for_io_held(s, written);
+        if (io)
+            return io;
         return parse_for_each_held(s, written);
     }
     if (s->name2)
