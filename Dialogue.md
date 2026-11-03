@@ -8844,3 +8844,16 @@ integers and text `"0b..."`, with `.append`, `.capacity(n)`, `.count`,
 the new runtime. Details are provisional P467.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 503. The new Bits in kc
+
+> push. then go on with #456
+
+**Claude** pushed #455 and asked; the user chose that kc read the new
+`Bits`. kc now makes one of bools, `[bool]`s, integers and text, appends
+the same, and reads `.count`, `.capacity`, `.isEmpty`, `.bin`, `.copy()`,
+`for b in bv` and `bv[n].flip()`, as kelvinc does, in its words where it is
+wrong. kc has no `u64`, so `.u64s` is its error. Details are provisional
+P468.
+
+There are 1188 tests, and all pass with clang and with gcc 15.

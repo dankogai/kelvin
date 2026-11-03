@@ -814,6 +814,16 @@ let main(argc:int32, argv:[cstr]):int32 {
     bset <<= 1
     println(bset, " ", bset[7], " ", Bits(u8(5)), " ", bset & bmask, " ", bset | bmask)
     println(bset ~ bmask, " ", ~bmask == bmask, " ", bset >> 2, " ", 1 << 3)
+    let bits_text = $"0b101"
+    var bgrow = Bits(-1, u8(1), true, "0b10", [true, false], &bits_text)   // past 64 bits, of each kind (#455, #456)
+    bgrow.append(i32(-1))
+    bgrow.append([false, true])
+    bgrow.capacity(300)
+    bgrow[dark].flip()
+    var bones = 0
+    for bit in bgrow { if bit { bones += 1 } }
+    let bcopy = bgrow.copy()
+    println(bgrow.count, " ", bgrow.capacity, " ", bones, " ", bgrow.bin, " ", bcopy == bgrow, " ", Bits().isEmpty, " ", Bits(bits_text))
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

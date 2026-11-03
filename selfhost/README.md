@@ -598,6 +598,11 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **The new `Bits`** (#456), as kelvinc's: `Bits(a, b, ...)` and
+  `bv.append(x)` of bools, `[bool]`s, integers and text `"0b..."`;
+  `bv.capacity(n)`, `bv.copy()`, `.count`, `.capacity`, `.isEmpty`,
+  `.bin`, `for b in bv` and `bv[n].flip()`.
+  - kc has no `u64`, so `.u64s` is its error.
 - **`Bits` past 64 bits** (#455), as kelvinc's: a Bits is an owner,
   runtime/bits.c's `kv_bits`, freed where its block ends; `Bits()` is
   empty, and `Bits(n)` is an integer's width of bits.
@@ -605,7 +610,8 @@ kc reads what it is written in, and little more.
     kv_bits_ functions; a Bits an expression gives is held in a C
     temporary that frees it.
   - Bits of bools, `[bool]`s or text, `.append`, `.count`, `.u64s`,
-    `.bin` and the rest are kc's "not yet"; `.value` is kelvinc's error.
+    `.bin` and the rest were kc's "not yet", read since #456 but
+    `.u64s`; `.value` is kelvinc's error.
 - **C's types** (#453), as kelvinc's: `struct T`, `union T` and `enum T`
   wherever a type goes; `union T { ... }`, shown `<union T>`; `struct T;`
   of a C struct; a function declared with no body; and `...` after a
