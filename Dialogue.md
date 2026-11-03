@@ -8857,3 +8857,14 @@ wrong. kc has no `u64`, so `.u64s` is its error. Details are provisional
 P468.
 
 There are 1188 tests, and all pass with clang and with gcc 15.
+
+### 504. An integer's bits in kc
+
+> push. then go on with #457
+
+**Claude** pushed #456 and asked; the user chose that kc read #454's
+bits. kc now writes `b.flip()` of a bool, `x.flip(n)` and `x.bit(n)` of an
+integer, and `x.bit(n) = b` and its kin, as kelvinc does, in its words
+where they are wrong. Details are provisional P469.
+
+There are 1188 tests, and all pass with clang and with gcc 15.

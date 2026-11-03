@@ -824,6 +824,13 @@ let main(argc:int32, argv:[cstr]):int32 {
     for bit in bgrow { if bit { bones += 1 } }
     let bcopy = bgrow.copy()
     println(bgrow.count, " ", bgrow.capacity, " ", bones, " ", bgrow.bin, " ", bcopy == bgrow, " ", Bits().isEmpty, " ", Bits(bits_text))
+    var bit_flag = true                               // a bool's flip, an integer's bits (#454, #457)
+    bit_flag.flip()
+    var bit_word:u8 = 0b101
+    bit_word.flip(1)
+    bit_word.bit(7) = true
+    bit_word.bit(0) &= false
+    println(bit_flag, " ", bit_word, " ", bit_word.bit(7), " ", bones.bit(1), " ", (bones + 1).bit(0))
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]
