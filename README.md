@@ -44,6 +44,8 @@ let main(argc:i32, argv:[cstr]): i32 {
   from C at a glance.
   - Each document says whether what it covers is the core, the
     prelude, or loaded with an `#import`; versusC.md sums that up.
+- [CHANGELOG.md](CHANGELOG.md) has the release notes, 0.1.0 the first
+  (#467).
 - [Design.md](Design.md) has the design decisions, and
   [Dialogue.md](Dialogue.md) how they were made.
 - [Style.md](Style.md) is how Kelvin code is written.

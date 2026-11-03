@@ -21,12 +21,23 @@ C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is the same, so everything you know about C carries over one to
 one, but it sits on an absolute scale. The source extension is `.k`.
 
-## Status: v0.0.1 (bare C baseline)
+## Status: v0.1.0 (#467)
 
-`kelvinc` translates Kelvin into C and hands the result to the C compiler
-(`$CC`, which defaults to `cc`). It has no type checker of its own. The C
-compiler checks everything, so semantics and ABI are C's by construction.
-`#line` directives make C compiler diagnostics point at the `.k` source.
+- `kelvinc` translates Kelvin into C and hands the result to the C
+  compiler (`$CC`, which defaults to `cc`).
+  - Semantics and ABI are C's by construction; `#line` directives make
+    the C compiler's diagnostics point at the `.k` source.
+  - kelvinc checks what Kelvin adds, owners, Optionals, Results and the
+    rest, and says what is wrong in Kelvin's words; what is C's, the C
+    compiler checks.
+- 0.x is initial development: a later 0.x may change what a 0.x had.
+  - The provisional decisions (the P rows below, and the documents'
+    *(provisional Pn)* marks) and the open questions are deferred past
+    0.1.0, and may change before 1.0.
+- The release notes are [CHANGELOG.md](CHANGELOG.md).
+- kc, Kelvin's compiler in Kelvin (selfhost/), is a preview: it builds
+  itself to a fixpoint, and builds part of the tests; see
+  [selfhost/README.md](selfhost/README.md).
 
 ## Agreed changes from C
 
@@ -498,6 +509,7 @@ compiler checks everything, so semantics and ABI are C's by construction.
 | 464 | kc reads an IO's members and a String's methods, as kelvinc does: `f.bytes`, `.byte`, `.eof`, `.isatty`, `.position`, `.count`, `.path`, `.abspath`, `.basename`, `.dirname`, `.stat`, `.lstat`, `.isdir`, `.isfile`, `.islink`, `.exists`, `.listdir`, `.walk`, and `.glob(p)`, `.join(name)`, `.chmod`, `.chown`, `.truncate`, `.utime`, `.touch()`, `.remove()`, `.rename(to)`, `.seek(n)`, `.kill(s)`; `for b in f.read(n)`; `IO.pipe()`; a String's `find`, `has`, `starts`, `ends`, `trim`, `append`, `clear`, `compact`, `reserve` and `.bytes`; a Bytes's `.isUTF8`; with kelvinc's errors | selfhost/gen.k's io_field_type, gen_io_field, io_method_args, io_method_type, gen_io_method, put_io_recv, gen_string_method, gen_read_each, IO.pipe's, is_place's IO members, gen_each's error | `f.stat.size`, `for b in f.read(4)`, `s.find(&t)` | 2026-11-03 |
 | 465 | Two quines in examples/: quine.k, a true one, a String holding the program with a mark where the String goes, printed with itself written as a literal at the mark; and quine_cheat.k, Perl's `open 0; print while <0>`, reading its own source by C's `__FILE__`; tests/run.sh checks an example marked `// quine:` prints its own file, byte for byte | examples/quine.k, examples/quine_cheat.k, tests/run.sh, README.md | `// quine: prints its own source` | 2026-11-03 |
 | 466 | `for line in IO(path).lines` and `for b in IO(path).read(n)` of an IO an expression gives: the IO held in a hidden let of a block around the loop, closed when the loop is done, where kelvinc had written C that did not compile; kc the same; examples/quine_cheat.k one line, as Perl's | src/parser.c's parse_for_io_held; selfhost/gen.k's put_io_held, put_io_walked; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k | `for line in IO(__FILE__).lines { println(line.ok) }` | 2026-11-03 |
+| 467 | The 0.1.0 release prepared: kelvinc's version and the VS Code package's 0.1.0, one checked against the other by tests/run.sh; Design.md's status, TODO and the first cut's name brought up to date, the provisional decisions and the open questions deferred past 0.1.0; CHANGELOG.md, the release notes | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; tests/run.sh; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.1.0` | 2026-11-03 |
 
 Notes:
 
@@ -1083,6 +1095,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (467) Agreed details: "go on with #467: prepare the 0.1.0 release",
+  after the user asked what was missing; asked, the user chose the
+  paperwork alone here, the two bugs that reach C as #468 and #469, the
+  provisional decisions and open questions deferred, and no tag yet.
+  - 0.1.0, not 0.0.1: the first public release of initial development,
+    as semantic versioning has it.
+    - Design.md's "Ideas tried in v0.1" is now "the first cut", which
+      was called v0.1 before the reset and is no release.
+  - The version is kelvinc's KELVIN_VERSION and the VS Code package's,
+    which names the .vsix; tests/run.sh checks that the two agree.
+  - Design.md's status was "v0.0.1 (bare C baseline)", that kelvinc had
+    no type checker of its own; it says what 0.1.0 is now.
+    - Its TODO of C features listed what has since been done, `inline`,
+      `restrict`, `alignas`, `static_assert`, local types, unnamed
+      parameters and the rest; those are listed as done, with their
+      numbers, and what is still to do kept.
+  - The provisional decisions and the open questions are deferred past
+    0.1.0, and may change before 1.0: Design.md and CHANGELOG.md say so.
+  - CHANGELOG.md has the release notes: the language, the library, the
+    tools, the platforms, the stability, and the known issues, the two
+    bugs #468 and #469 are to fix before the tag.
 - (466) Agreed details: "go on with #466"; the user chose the kelvinc
   bug #465 found, `for line in IO(path).lines`.
   - An IO an expression gives is held as a temporary around what the
@@ -6390,7 +6423,8 @@ Notes:
 
 These follow from the agreed changes, or were needed to write any code at
 all. None of them has been explicitly agreed yet, except where a row
-says "as agreed".
+says "as agreed". They are deferred past 0.1.0, and may change before 1.0
+(#467).
 
 | # | Decision | Example | Why |
 |---|----------|---------|-----|
@@ -6867,6 +6901,7 @@ says "as agreed".
 | P476 | Details of #464 | selfhost/gen.k: io_field_type, put_io_recv, gen_io_field, io_method_args, io_method_type, gen_io_method, gen_string_method, gen_read_each and their prototypes, type_of's IO and String members and methods, IO.pipe()'s type and C, os_struct_spec's pipe, is_place's IO members, bytes_field_type's isUTF8, gen_each's error where it sees no type; selfhost/sample.k: `haystack`, `needle`, `grows`, `ends`, `probe`, `reread`, `chunks` and their lines; selfhost/README.md | — |
 | P477 | Details of #465 | examples/quine.k, examples/quine_cheat.k; tests/run.sh: the `// quine:` mark; README.md: the examples' rows and the mark | — |
 | P478 | Details of #466 | src/parser.c: parse_for_io_held, parse_for_in's call; selfhost/gen.k: put_io_held, put_io_walked, gen_lines_each's and gen_read_each's; selfhost/sample.k: `held_path`, `held_out`, `held_lines` and their line; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k; README.md; selfhost/README.md | — |
+| P479 | Details of #467 | src/main.c: KELVIN_VERSION 0.1.0; editors/vscode/package.json and README.md; tests/run.sh: kelvinc's version and the package's; Design.md: Status, TODO, the first cut, the provisional decisions' and open questions' deferral; CHANGELOG.md; README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
@@ -6874,6 +6909,8 @@ says "as agreed".
 | P20 | C compiler keywords beyond C11 are rejected | `__extension__`, `__real__`, `__imag__`, `__alignof__`, `alignof`, `__typeof__`, `typeof`, `_BitInt`, `__int128` (use `i128`), `__signed__`, `__complex__`, `__auto_type`, `_Float16`, ... | In C they act as prefix operators or type specifiers, which would let a C cast or a prefix `*` dereference through (#14). `__asm__(...)` and `__attribute__((...))` stay usable, and `_Pragma("...")` is allowed as a statement of its own |
 
 ## Open questions
+
+Those still open are deferred past 0.1.0 (#467).
 
 - ~~**Q1: Drop `var` as well?**~~ Answered: yes (#15).
 - ~~**Q2: `i64`-style type names?**~~ Answered: yes, see changes #6–#8.
@@ -6929,25 +6966,28 @@ undefined behavior.
 
 ## TODO (C features not yet expressible in Kelvin)
 
+As of 0.1.0 (#467); those since done are listed after.
+
 - The rest of the preprocessor (`#define`, `#if`, ...). Headers are
   covered by `#import ... as C`.
-- `sizeof` of a type spelled from a C typedef plus a suffix, e.g.
-  `sizeof(FILE^)`. Kelvin reads it as dereferencing a variable named
-  `FILE`. `sizeof(size_t)` works, and so does `sizeof p` for a variable
-  `p:FILE^`.
-- `typedef`
-- An array of functions, or a pointer to a function type (#31)
-- Bit-fields
-- Nested or anonymous struct/union definitions inside other declarations
-- `inline`, `restrict`, `register`, `_Alignas`, `_Static_assert`,
-  `_Generic`, `_Atomic`, `_Thread_local`, `_Noreturn`
+- `register`, `_Atomic`, `_Thread_local`, `_Noreturn`
 - String prefixes (`L"..."`, `u8"..."`)
-- Unnamed parameters in prototypes
-- Local struct/union/enum definitions (only top-level definitions work)
 
-## Ideas tried in v0.1 and set aside
+Done since this list was first written:
 
-The first cut (PR #1, before this reset) went much further than bare C.
+- `sizeof(FILE^)` and `sizeof` of any type (#420)
+- `typedef` is `typealias` (#149), of a function type too (#403);
+  function types and their values (#31, #428)
+- Bit-fields: `Bits` (#387, #455), C's are read from headers
+- Nested, anonymous and local struct/union/enum definitions (#389, #391)
+- `inline` (#392), `restrict` (#393), `alignas` for `_Alignas` (#396),
+  `static_assert` (#394); `_Generic` is left out on purpose (#397)
+- Unnamed parameters (#388)
+
+## Ideas tried in the first cut and set aside
+
+The first cut (PR #1, before this reset, called v0.1 then; not the
+release 0.1.0) went much further than bare C.
 These features were removed, and any of them could come back only as an
 individual proposal:
 

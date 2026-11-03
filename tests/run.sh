@@ -278,6 +278,16 @@ for f in tests/c/*.c; do
     done
 done
 
+# one version (#467): kelvinc's, and the editor package's, which names the .vsix
+want=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' editors/vscode/package.json)
+have=$("$KELVINC" --version)
+if [ "$have" = "kelvinc $want" ]; then
+    ok
+else
+    printf '%s\n' "kelvinc --version: $have; editors/vscode/package.json: $want" > "$tmp/log"
+    bad "kelvinc --version" "differs from the editor package's version"
+fi
+
 rm -f "$tmp/log"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

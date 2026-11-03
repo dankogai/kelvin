@@ -8999,3 +8999,21 @@ when it is done; kc does the same. The cheating quine is one line, as
 Perl's. Details are provisional P478.
 
 There are 1196 tests, and all pass with clang and with gcc 15.
+
+### 514. Preparing 0.1.0
+
+> push. BTW I am considering releasing version 0.0.1 (or 0.1.0 whichever
+> is appropriate). List what's missing before that.
+
+> go on with #467: prepare the 0.1.0 release
+
+**Claude** pushed #466 and listed what was missing: the version strings,
+Design.md's stale status and TODO, release notes, a tag, the provisional
+decisions and open questions, and two bugs that reach C. Asked, the user
+chose this number for the paperwork, the two bugs as #468 and #469, the
+provisional decisions and open questions deferred past 0.1.0, and no tag
+yet. kelvinc is 0.1.0, and so is the VS Code package, checked to agree;
+Design.md says what 0.1.0 is; CHANGELOG.md has the release notes.
+Details are provisional P479.
+
+There are 1197 tests, and all pass with clang and with gcc 15.
