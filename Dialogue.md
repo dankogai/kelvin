@@ -8955,3 +8955,18 @@ String, were found and fixed. Twelve more tests build with kc, 124 in
 all, and print what kelvinc's builds print. Details are provisional P475.
 
 There are 1193 tests, and all pass with clang and with gcc 15.
+
+### 511. IO and String in kc
+
+> push. then go on with #464
+
+**Claude** pushed #463 and asked; the user chose an IO's members and a
+String's methods in kc. kc now reads them as kelvinc does: an IO's stat,
+paths, directory listing and file operations, `for b in f.read(n)`,
+`IO.pipe()`, and a String's searches, `trim`, `append` and `.bytes`. On
+the way, kc was found to drop a `for b in f.read(n)` loop from its C
+without a word; it reads it now, and says so where it cannot. 22 more
+tests build with kc, 146 in all, and print what kelvinc's builds print.
+Details are provisional P476.
+
+There are 1193 tests, and all pass with clang and with gcc 15.

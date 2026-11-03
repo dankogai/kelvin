@@ -883,6 +883,20 @@ let main(argc:int32, argv:[cstr]):int32 {
     let parts = OS.splitext("kc.tar.gz")               // OS and SYS (#463), IO's OS
     let joined_path = OS.join("selfhost", "kc.k")
     println(OS.basename("a/b.k"), " ", parts.ok.ext, " ", OS.isabs("/tmp"), " ", joined_path, " ", OS.env("KC_SAMPLE_NO_SUCH") ?? "unset", " ", SYS.argv.count > 0, " ", OS.stat(".").ok.isdir, " ", parts.typename)
+    let haystack = $"kelvin selfhost"                  // a String's methods, an IO's members (#464)
+    var needle = $"self"
+    var grows = $"k"
+    grows.append("c!")
+    grows.append(&needle)
+    let ends = IO.pipe()
+    var probe = IO("sample_probe.tmp", "w")
+    probe.write("abcdef")
+    probe.close()
+    var reread = IO("sample_probe.tmp", "r")
+    var chunks = 0
+    for piece in reread.read(4) { chunks += 1 }
+    println(haystack.find(&needle), " ", haystack.starts("kel"), " ", haystack.ends("host"), " ", grows, " ", ends.reader.fd > 2)
+    println(chunks, " ", reread.stat.size, " ", reread.basename, " ", reread.remove(), " ", needle.bytes^.count)
     var rounds = 0
     for _ in 0..<3 { rounds += 1 }
     let threes = $[4, 5, 6]

@@ -598,6 +598,13 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An IO's members and a String's methods** (#464), as kelvinc's:
+  - `f.stat`, `f.abspath`, `f.listdir`, `f.glob(p)`, `f.chmod(m)` and
+    the rest; `for b in f.read(n)`; `IO.pipe()`.
+  - `s.find(x)`, `has`, `starts`, `ends`, `trim()`, `append(x)`, and
+    `s.bytes`; a Bytes's `.isUTF8`.
+  - kc had dropped a loop over `f.read(n)` from its C; it reads it, and
+    says so where it sees no type of what a loop walks.
 - **OS and SYS** (#463), as kelvinc's: each member of its table, by the
   same runtime.
   - Results and Optionals of Strings, Arrays and Bytes; SYS.argv.

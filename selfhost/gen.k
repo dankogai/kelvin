@@ -1071,6 +1071,12 @@ let os_call(n:int64):bool     // prototypes: OS.name(args) and SYS.name (#463)
 let os_type(n:int64):int64
 let gen_os(n:int64)
 let os_struct(g:const String^):int64
+let io_field_type(n:int64):int64      // prototypes: an IO's members (#464)
+let io_method_type(n:int64):int64
+let gen_io_field(n:int64, a:int64)
+let gen_io_method(n:int64, a:int64)
+let gen_string_method(n:int64, a:int64, y:int64)
+let owner_copy_error(v:int64, what:cstr)
 let std_io(n:int64):int64             // and IO.stdout's (#452)
 let pretty_value(n:int64):bool        // and v.pretty's (#452)
 let io_int_member(t:int64):bool       // and an IO's int members (#452)
@@ -1310,6 +1316,8 @@ let type_of(n:int64):int64 {
         if yk == Y_DICT && tok_is(t, "values") { return type_of_kind(Y_ARRAY, types[y].elem, -1) }
         if yk == Y_IO && tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }   // or where its UTF-8 breaks (#406)
         if yk == Y_IO && io_int_member(t) { return base_type(Y_I32) }   // where kc had read any member as the status (#452)
+        if yk == Y_IO { return io_field_type(n) }                       // f.bytes, f.stat and the rest (#464)
+        if yk == Y_STRING && tok_is(t, "bytes") { return type_of_kind(Y_PTR, base_type(Y_BYTES), 1) }   // its own bytes, a const Bytes^ (#464)
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
         if yk == Y_CSTR && tok_is(t, "count") { return base_type(Y_I64) }   // its strlen, an i64 as kc's counts are (#447)
         if number_text_size(n) > 0 && yk != Y_STRUCT && yk != Y_C {    // x.hex and the rest, text (#447)
@@ -1356,6 +1364,10 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_METHOD {
+        if nodes[nodes[n].a].kind == N_TYPE && tok_is(t, "pipe") {           // IO.pipe(), {reader: IO, writer: IO} straight (#464)
+            let g = $"pipe"
+            return os_struct(&g)
+        }
         if nodes[nodes[n].a].kind == N_TYPE { return base_type(Y_IO) }       // IO.exec(args, mode)
         let f:int64 = method_of(n)
         if f >= 0 { return nodes[f].ty }                                     // (#213)
@@ -1398,6 +1410,10 @@ let type_of(n:int64):int64 {
         if (tok_is(t, "remove") || tok_is(t, "insert")) && types[y].kind == Y_SET { return base_type(Y_BOOL) }   // (#274)
         if (tok_is(t, "union") || tok_is(t, "intersection") || tok_is(t, "difference")) && types[y].kind == Y_SET { return y }   // a new Set (#275)
         if (tok_is(t, "escape") || tok_is(t, "unescape")) && types[y].kind == Y_STRING { return y }   // a new String (#300)
+        if types[y].kind == Y_STRING && tok_is(t, "find") { return base_type(Y_I64) }   // where, or -1 (#464)
+        if types[y].kind == Y_STRING && (tok_is(t, "has") || tok_is(t, "starts") || tok_is(t, "ends")) { return base_type(Y_BOOL) }
+        if types[y].kind == Y_STRING && tok_is(t, "trim") { return y }                 // a new String
+        if types[y].kind == Y_IO { return io_method_type(n) }                          // f.glob(p), f.chmod(m)... (#464)
         return base_type(Y_VOID)
     }
     if k == N_INDEX {
@@ -3118,6 +3134,266 @@ let std_io(n:int64):int64 {
     return tok_is(t, "stdin") ? 0 : tok_is(t, "stdout") ? 1 : tok_is(t, "stderr") ? 2 : 0 - 1
 }
 
+// ---------- an IO's members and a String's methods (#464) ----------
+
+// the type of f.name, a property of an IO, as kelvinc's #82 and on; -1
+// where it has none, kc's error
+let io_field_type(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    if tok_is(t, "bytes") { return base_type(Y_BYTES) }                 // the rest of the file, straight (#107)
+    if tok_is(t, "byte") { return optional_of(base_type(Y_U8)) }        // the next byte, or none at the end (#85)
+    if tok_is(t, "eof") || tok_is(t, "isatty") || tok_is(t, "isdir") || tok_is(t, "isfile") || tok_is(t, "islink") || tok_is(t, "exists") { return base_type(Y_BOOL) }
+    if tok_is(t, "position") || tok_is(t, "count") { return base_type(Y_I64) }
+    if tok_is(t, "abspath") || tok_is(t, "basename") || tok_is(t, "dirname") { return base_type(Y_STRING) }
+    if tok_is(t, "path") { return base_type(Y_CSTR) }
+    if tok_is(t, "listdir") || tok_is(t, "walk") { return array_type(base_type(Y_STRING)) }   // an Array straight (#106)
+    if tok_is(t, "stat") || tok_is(t, "lstat") {                        // a Stat straight, no Result (#104)
+        let g = $"stat"
+        return os_struct(&g)
+    }
+    gen_error(n, "this member is not known")
+    return 0 - 1
+}
+
+// the receiver of an IO's member, as kelvinc writes it: (kv_io *)&f
+let put_io_recv(a:int64) {
+    put("(kv_io *)")
+    gen_place(a)
+}
+
+// f.name of an IO, as kelvinc writes it: kv_io_name((kv_io *)&f), an
+// Array, a u8? or a Stat made of what it fills
+let gen_io_field(n:int64, a:int64) {
+    let t:int64 = nodes[n].t
+    let y:int64 = io_field_type(n)
+    if y < 0 { return }
+    if tok_is(t, "bytes") {
+        put("kv_io_read_all(")
+        put_io_recv(a)
+        put(")")
+    } else if tok_is(t, "byte") {
+        put("({ uint8_t _kv_v = 0; kv_io_read_byte(")
+        put_io_recv(a)
+        put(", &_kv_v) ? _kv_")
+        put_tok(types[y].name)
+        put("_make_some(_kv_v) : _kv_")
+        put_tok(types[y].name)
+        put("_make_none(); })")
+    } else if tok_is(t, "listdir") || tok_is(t, "walk") {
+        put("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; kv_io_")
+        put_tok(t)
+        put("(")
+        put_io_recv(a)
+        put(", &_kv_at, &_kv_n); ")
+        put_array_name(y)
+        put(" _kv_a = ")
+        put_array_name(y)
+        put("_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })")
+    } else if tok_is(t, "stat") || tok_is(t, "lstat") {
+        put("({ kv_stat _kv_st = kv_io_")
+        put_tok(t)
+        put("(")
+        put_io_recv(a)
+        put("); (")
+        put_ctype(y)
+        put("){")
+        var f:int64 = nodes[struct_of(y)].a
+        while f >= 0 {
+            put(".")
+            put_tok(nodes[f].t)
+            put(" = _kv_st.")
+            put_tok(nodes[f].t)
+            f = nodes[f].next
+            if f >= 0 { put(", ") }
+        }
+        put("}; })")
+    } else {
+        put("kv_io_")
+        put_tok(t)
+        put("(")
+        put_io_recv(a)
+        put(")")
+    }
+}
+
+// what f.name(args) of an IO gives, as kelvinc's ops (#101, #106, #108):
+// its arguments' letters, t text, i an integer, f a number; -1 of none
+let io_method_args(t:int64):cstr {
+    if tok_is(t, "glob") || tok_is(t, "join") || tok_is(t, "rename") { return "t" }
+    if tok_is(t, "chmod") || tok_is(t, "truncate") || tok_is(t, "seek") || tok_is(t, "kill") { return "i" }
+    if tok_is(t, "chown") { return "ii" }
+    if tok_is(t, "utime") { return "ff" }
+    if tok_is(t, "remove") || tok_is(t, "touch") { return "" }
+    return "-"
+}
+
+let io_method_type(n:int64):int64 {
+    let t:int64 = nodes[n].t
+    let args:String = String(io_method_args(t))
+    if args == $"-" { return 0 - 1 }
+    if tok_is(t, "glob") { return array_type(base_type(Y_STRING)) }
+    if tok_is(t, "join") { return base_type(Y_STRING) }
+    return base_type(Y_BOOL)
+}
+
+// f.glob(p), f.join(name), f.chmod(m) and the rest, as kelvinc writes
+// them: kv_io_name((kv_io *)&f, args), the arguments checked as OS's
+let gen_io_method(n:int64, a:int64) {
+    let t:int64 = nodes[n].t
+    let args:String = String(io_method_args(t))
+    let name:String = tok_text(t)
+    var count:int64 = 0
+    var x:int64 = nodes[n].b
+    while x >= 0 {
+        count += 1
+        x = nodes[x].next
+    }
+    if count != args.count {                             // as kelvinc says it
+        var e = $"'."
+        e += &name
+        e += "' takes "
+        e += String(args.count)
+        e += args.count == 1 ? " argument" : " arguments"
+        gen_error(n, e.cstr)
+        return
+    }
+    let glob = tok_is(t, "glob")
+    let y:int64 = io_method_type(n)
+    if glob { put("({ kv_string *_kv_at = NULL; size_t _kv_n = 0; ") }
+    put("kv_io_")
+    put_tok(t)
+    put("(")
+    put_io_recv(a)
+    x = nodes[n].b
+    var i:int64 = 0
+    while x >= 0 && !failed {
+        put(", ")
+        let letter:uint8 = args.cstr[i]
+        let xy:int64 = type_of(x)
+        let k:ykind = xy >= 0 ? types[xy].kind : Y_C
+        let text = nodes[x].kind == N_STR || nodes[x].kind == N_TPL || k == Y_CSTR
+        if letter == 'i' || letter == 'f' {
+            let ok = k == Y_C || (letter == 'f' ? is_number_kind(k) : (is_number_kind(k) && k != Y_F64 && k != Y_F32))
+            if !ok || text {
+                var e = $"argument "
+                e += String(i + 1)
+                e += " of '."
+                e += &name
+                e += letter == 'f' ? "' is a number, and this is " : "' is an integer, and this is "
+                let w:String = xy >= 0 && nodes[x].kind != N_STR && nodes[x].kind != N_TPL ? kelvin_type_text(xy) : $"not one"
+                e += &w
+                gen_error(x, e.cstr)
+                return
+            }
+            gen_expr(x)
+        } else if (k == Y_STRING || k == Y_BYTES) && is_place(x) {
+            put("kv_bytes_cstr(&(")
+            gen_expr(x)
+            put(k == Y_STRING ? ").b)" : "))")
+        } else if !text && k != Y_C {
+            var e = $"an argument of '."
+            e += &name
+            e += "' is text, a String or a Bytes, and this is "
+            let w:String = xy >= 0 && nodes[x].kind != N_NUM && nodes[x].kind != N_CHAR ? kelvin_type_text(xy) : $"a number"
+            e += &w
+            gen_error(x, e.cstr)
+            return
+        } else {
+            gen_expr(x)
+        }
+        i += 1
+        x = nodes[x].next
+    }
+    if glob {
+        put(", &_kv_at, &_kv_n); ")
+        put_array_name(y)
+        put(" _kv_a = ")
+        put_array_name(y)
+        put("_from(_kv_at, _kv_n); free(_kv_at); _kv_a; })")
+    } else {
+        put(")")
+    }
+}
+
+// s.find(x), s.has(x), s.starts(x), s.ends(x), s.trim(), s.append(x),
+// s.clear(), s.compact() and s.reserve(n) of a String, as kelvinc's #55
+// and #177: KV_STRING_TEXT_OR_REF of the searches, text, a cstr or a
+// String borrowed; KV_STRING_APPEND of text, &t, a uchr or a codepoint;
+// a String an expression gives held around the statement, as escape's
+let gen_string_method(n:int64, a:int64, y:int64) {
+    let t:int64 = nodes[n].t
+    let x:int64 = nodes[n].b
+    let name:String = tok_text(t)
+    let search = tok_is(t, "find") || tok_is(t, "has") || tok_is(t, "starts") || tok_is(t, "ends")
+    let one = search || tok_is(t, "append") || tok_is(t, "reserve")
+    var count:int64 = 0
+    var c:int64 = x
+    while c >= 0 {
+        count += 1
+        c = nodes[c].next
+    }
+    if count != (one ? 1 : 0) {                         // as kelvinc says it
+        var e = $"'."
+        e += &name
+        e += one ? "' takes 1 argument" : "' takes 0 arguments"
+        gen_error(n, e.cstr)
+        return
+    }
+    let changes = tok_is(t, "append") || tok_is(t, "clear") || tok_is(t, "compact") || tok_is(t, "reserve")
+    if changes && !may_change(a) { return }
+    if changes && !is_place(a) {
+        var e = $"'."
+        e += &name
+        e += "' changes a String, and this one an expression gives would be lost: bind it to a variable first"
+        gen_error(n, e.cstr)
+        return
+    }
+    if search {
+        let xy:int64 = type_of(x)
+        let borrow = nodes[x].kind == N_ADDR && type_of(nodes[x].a) >= 0 && types[type_of(nodes[x].a)].kind == Y_STRING
+        let text = nodes[x].kind == N_STR || nodes[x].kind == N_TPL || (xy >= 0 && types[xy].kind == Y_CSTR)
+        if !borrow && !text {
+            var e = $"'."
+            e += &name
+            e += "' takes text, a cstr, or a String borrowed, '&t', and this is "
+            let literal = nodes[x].kind == N_NUM || nodes[x].kind == N_CHAR || nodes[x].kind == N_BOOL   // no type to kelvinc
+            let w:String = xy >= 0 && types[xy].kind == Y_STRING ? $"a String: write '&'" : xy >= 0 && !literal ? kelvin_type_text(xy) : $"not text"
+            e += &w
+            gen_error(x, e.cstr)
+            return
+        }
+    }
+    if tok_is(t, "append") && (owner_name(x) || owner_part(x)) {   // s.append(t) would take t's bytes, freed twice, as s += t (#440)
+        owner_copy_error(x, "append")
+        return
+    }
+    if search {
+        put("KV_STRING_TEXT_OR_REF(")
+        put_tok(t)
+        put(", ")
+        gen_place(a)
+        put(", ")
+        gen_expr(x)
+        put(")")
+    } else if tok_is(t, "append") {
+        put("KV_STRING_APPEND(")
+        gen_place(a)
+        put(", ")
+        gen_expr(x)
+        put(")")
+    } else {
+        put("kv_string_")
+        put_tok(t)
+        put("(")
+        gen_place(a)
+        if x >= 0 {
+            put(", ")
+            gen_expr(x)
+        }
+        put(")")
+    }
+}
+
 // ---------- OS and SYS (#463) ----------
 
 // OS.name(args) and SYS.name, as kelvinc's #94: the system around the
@@ -3288,6 +3564,7 @@ let os_struct_spec(g:const String^):cstr {
     if g^ == $"loadavg" { return "one: f64, five: f64, fifteen: f64" }
     if g^ == $"terminalsize" { return "columns: i64, lines: i64" }
     if g^ == $"diskusage" { return "total: i64, used: i64, free: i64" }
+    if g^ == $"pipe" { return "reader: IO, writer: IO" }  // IO.pipe()'s (#464)
     return "io: IO, path: String"                       // temp, OS.mkstemp's
 }
 
@@ -4721,6 +4998,16 @@ let gen_member(n:int64) {
         put("(")
         gen_place(a)
         put(")")
+    } else if yk == Y_IO {
+        gen_io_field(n, a)                              // f.bytes, f.stat and the rest (#464)
+    } else if yk == Y_STRING && tok_is(t, "bytes") {    // its own bytes, borrowed (#464), as kelvinc's
+        put("((const kv_bytes *)&(")
+        gen_expr(a)
+        put(").b)")
+    } else if yk == Y_BYTES && tok_is(t, "isUTF8") {   // as kelvinc writes it (#464)
+        put("kv_bytes_is_utf8(")
+        gen_place(a)
+        put(")")
     } else if (yk == Y_STRING || yk == Y_BYTES) && tok_is(t, "cstr") {
         put("kv_bytes_cstr(&(")
         gen_expr(a)
@@ -4929,8 +5216,9 @@ let bytes_field_type(n:int64):int64 {
     let t:int64 = nodes[n].t
     if tok_is(t, "count") || tok_is(t, "capacity") { return base_type(Y_I64) }
     if tok_is(t, "cstr") { return base_type(Y_CSTR) }
-    if tok_is(t, "at") || tok_is(t, "isUTF8") {
-        var m = $"kc reads a Bytes's count, capacity, isEmpty and cstr; not yet '."
+    if tok_is(t, "isUTF8") { return base_type(Y_BOOL) }  // whether it is UTF-8 (#464)
+    if tok_is(t, "at") {
+        var m = $"kc reads a Bytes's count, capacity, isEmpty, isUTF8 and cstr; not yet '."
         m += tok_text(t)
         m += "'"
         gen_error(n, m.cstr)
@@ -5213,6 +5501,16 @@ let gen_method_of(n:int64) {
         put("))")
         return
     }
+    if nodes[a].kind == N_TYPE && tok_is(t, "pipe") {                 // IO.pipe() (#464), as kelvinc writes it: its two ends filled
+        if nodes[n].b >= 0 {
+            gen_error(n, "IO.pipe takes nothing")
+            return
+        }
+        put("({ ")
+        put_ctype(type_of(n))
+        put(" _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })")
+        return
+    }
     if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
         let args:int64 = nodes[n].b
         put("kv_io_exec_strings((")
@@ -5398,6 +5696,10 @@ let gen_method_of(n:int64) {
         put("kv_io_rewind(")
         gen_place(a)
         put(")")
+    } else if yk == Y_IO && io_method_type(n) >= 0 {
+        gen_io_method(n, a)                             // f.glob(p), f.chmod(m)... (#464)
+    } else if yk == Y_STRING && (tok_is(t, "find") || tok_is(t, "has") || tok_is(t, "starts") || tok_is(t, "ends") || tok_is(t, "trim") || tok_is(t, "append") || tok_is(t, "clear") || tok_is(t, "compact") || tok_is(t, "reserve")) {
+        gen_string_method(n, a, y)                      // (#464)
     } else if tok_is(t, "isEmpty") && (yk == Y_STRING || yk == Y_BYTES || yk == Y_ARRAY || yk == Y_DICT || yk == Y_SET) {
         gen_error(n, "'.isEmpty' is a property: read it with no parentheses, as 'x.isEmpty'")   // as kelvinc's (#434)
     } else {
@@ -5415,6 +5717,7 @@ let is_place(n:int64):bool {
     if k == N_FIELD && tagged_named(nodes[n].a) >= 0 { return false }   // T.none, a case made here (#345)
     if k == N_FIELD && typename_member(n) { return false }   // x.typename, text (#426)
     if k == N_FIELD && os_call(n) { return false }          // OS.cwd, a value (#463)
+    if k == N_FIELD && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_IO { return false }   // f.abspath and the rest, values (#464)
     if is_made_array(n) { return false }                     // s.elements, d.keys, a new Array (#278, #285)
     if is_slice(n) { return false }                          // xs[r], a new one (#377)
     if k == N_FIELD || k == N_INDEX { return is_place(nodes[n].a) }   // of what an expression gives, no place (#227)
@@ -13265,6 +13568,62 @@ let list_walked(y:int64):bool {
     return false
 }
 
+// for b in f.read(n) (#464), as kelvinc's #82: each next n bytes at most
+// read into one Bytes, b a Bytes the loop lends
+let gen_read_each(n:int64, depth:int64) {
+    let src:int64 = nodes[n].a
+    let count:int64 = nodes[src].b
+    if count < 0 || nodes[count].next >= 0 {             // as kelvinc says it
+        gen_error(src, "'.read' takes 1 argument")
+        return
+    }
+    let by:int64 = base_type(Y_BYTES)
+    serial += 1
+    let s = serial
+    put("{\n")
+    indent(depth + 1)
+    put("__attribute__((cleanup(kv_bytes_free))) kv_bytes _kv_chunk_buf")
+    put_int(s)
+    put(" = {0};\n")
+    indent(depth + 1)
+    put("kv_io *const _kv_chunk_io")
+    put_int(s)
+    put(" = (kv_io *)")
+    gen_place(nodes[src].a)
+    put(";\n")
+    indent(depth + 1)
+    put("const size_t _kv_chunk_n")
+    put_int(s)
+    put(" = ")
+    gen_expr(count)
+    put(";\n")
+    indent(depth + 1)
+    put("while (kv_io_read_chunk(_kv_chunk_io")
+    put_int(s)
+    put(", _kv_chunk_n")
+    put_int(s)
+    put(", &_kv_chunk_buf")
+    put_int(s)
+    put("))\n")
+    indent(depth + 1)
+    put("{\n")
+    indent(depth + 2)
+    put("const kv_bytes ")
+    put_tok(nodes[n].t)
+    put(" = _kv_chunk_buf")
+    put_int(s)
+    put(";\n")
+    open_scope()
+    declare_each(nodes[n].t, by, 3)                     // lent, as an element is
+    indent(depth + 2)
+    gen_block(nodes[n].c, depth + 2)
+    close_scope()
+    indent(depth + 1)
+    put("}\n")
+    indent(depth)
+    put("}\n")
+}
+
 // for r in f.lines (#450), as kelvinc's #406: each line read into one
 // String, r a Result<String, i64> that borrows it, err the offset where
 // its UTF-8 breaks
@@ -13335,8 +13694,18 @@ let gen_each(n:int64, depth:int64) {
             return
         }
     }
+    if nodes[src0].kind == N_METHOD && tok_is(nodes[src0].t, "read") && nodes[n].b < 0 {
+        let iy:int64 = type_of(nodes[src0].a)
+        if iy >= 0 && types[iy].kind == Y_IO {           // for b in f.read(n) (#464)
+            gen_read_each(n, depth)
+            return
+        }
+    }
     let y:int64 = type_of(nodes[n].a)
-    if y < 0 { return }
+    if y < 0 {                                          // never dropped unwritten (#464)
+        if !failed { gen_error(nodes[n].a, "kc does not see the type of what this walks") }
+        return
+    }
     if types[y].kind == Y_RANGE {                      // a Range's values (#373), its kind read at run time, as kelvinc's
         if nodes[n].b >= 0 {
             gen_error(n, "two loop variables walk a Dictionary's entries, 'for k, v in d': a Range counts with one")
