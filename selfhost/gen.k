@@ -592,6 +592,7 @@ let into_words(lead:cstr, dot:cstr, t:int64):String {
     return s
 }
 
+let enum_constant_changed(n:int64):bool
 let may_change(n:int64):bool    // a prototype: assignments and pop and remove ask it (#271)
 let fixed_inside(y:int64):bool    // a prototype: type_of and gen_array ask it of an Array of a fixed array (#355)
 let owner_part(v:int64):bool    // a prototype: let, = and return refuse what it says (#365)
@@ -847,6 +848,8 @@ let range_unsigned(y:int64):bool
 let gen_range_stride(n:int64)
 let power_type(a:int64, b:int64):int64    // prototypes: b ** e and b.pow(e, m) (#380)
 let power_int(y:int64):bool
+let enum_int(y:int64):bool
+let int_view(y:int64):int64
 let power_float(y:int64):bool
 let power_int_literal(v:int64):bool
 let power_magnitude(v:int64):int64
@@ -1283,7 +1286,7 @@ let type_of(n:int64):int64 {
         }
         if tok_is(t, "sign") && (yk == Y_F64 || yk == Y_F32) { return optional_of(base_type(Y_BOOL)) }   // a floating-point x.sign, a bool? (#383)
         if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
-        if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32) { return y }   // x.abs, x.sign, of its type (#381, #382)
+        if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32 || enum_int(y)) { return int_view(y) }   // x.abs, x.sign, of its type (#381, #382), an enum's an i32 (#469)
         if (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382), x.isInfinite, x.isFinite (#384)
         if tok_is(t, "isEmpty") && empty_kind(n) != 0 {  // x.isEmpty (#435), a bool, or kelvinc's error
             if empty_kind(n) > 0 { return base_type(Y_BOOL) }
@@ -1320,8 +1323,8 @@ let type_of(n:int64):int64 {
         if yk == Y_STRING && tok_is(t, "bytes") { return type_of_kind(Y_PTR, base_type(Y_BYTES), 1) }   // its own bytes, a const Bytes^ (#464)
         if yk == Y_STRING && tok_is(t, "cstr") { return base_type(Y_CSTR) }
         if yk == Y_CSTR && tok_is(t, "count") { return base_type(Y_I64) }   // its strlen, an i64 as kc's counts are (#447)
-        if number_text_size(n) > 0 && yk != Y_STRUCT && yk != Y_C {    // x.hex and the rest, text (#447)
-            if number_text_refused(n, yk) { return -1 }
+        if number_text_size(n) > 0 && (yk != Y_STRUCT || enum_int(y)) && yk != Y_C {    // x.hex and the rest, text (#447), an enum's value's too (#469)
+            if number_text_refused(n, types[int_view(y)].kind) { return -1 }
             return base_type(Y_CSTR)
         }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
@@ -3966,7 +3969,7 @@ let number_text_size(n:int64):int64 {
 // pointer, text in its block's storage
 let number_text(n:int64):bool {
     if number_text_size(n) == 0 { return false }
-    let y:int64 = type_of(nodes[n].a)
+    let y:int64 = int_view(type_of(nodes[n].a))
     if y < 0 { return false }
     let k = types[y].kind
     return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR) && tok_is(nodes[n].t, "hex"))
@@ -7424,7 +7427,7 @@ let put_bits_ref(x:int64, held:int64) {
 // type of as many bits unsigned (#457)
 let int_width(y:int64):int64 {
     let k:ykind = types[y].kind
-    return k == Y_U8 ? 8 : k == Y_I32 || k == Y_U32 ? 32 : 64
+    return k == Y_U8 ? 8 : k == Y_I32 || k == Y_U32 || enum_int(y) ? 32 : 64
 }
 
 let put_uint_of(w:int64) {
@@ -7441,7 +7444,7 @@ let int_place_ok(x:int64, y:int64):bool {
     let v:int64 = nodes[lit].kind == N_NUM ? tok_count(nodes[lit].t) : 0 - 1
     if (neg && v > 0) || v >= int_width(y) {
         var m = $"a bit's place in "
-        let w:String = kelvin_type_text(y)
+        let w:String = kelvin_type_text(int_view(y))
         m += &w
         m += " is 0 to "
         m += String(int_width(y) - 1)
@@ -8500,7 +8503,7 @@ let gen_expr_of(n:int64) {
         return
     }
     if k == N_FIELD && tok_is(t, "sign") && type_of(nodes[n].a) >= 0 {
-        let sy:int64 = type_of(nodes[n].a)               // x.sign (#382), as kelvinc's: -1, 0 or 1 of its type;
+        let sy:int64 = int_view(type_of(nodes[n].a))     // x.sign (#382), as kelvinc's: -1, 0 or 1 of its type;
         let sk:ykind = types[sy].kind                    // a floating-point one's by its sign bit, NaN of NaN
         if sk == Y_F64 || sk == Y_F32 {                  // a bool? (#383): true by its sign bit's 0, none of NaN
             let oy:int64 = optional_of(base_type(Y_BOOL))
@@ -8538,7 +8541,7 @@ let gen_expr_of(n:int64) {
         return
     }
     if k == N_FIELD && tok_is(t, "abs") && type_of(nodes[n].a) >= 0 {
-        let ay:int64 = type_of(nodes[n].a)
+        let ay:int64 = int_view(type_of(nodes[n].a))     // an enum's value an i32 (#469)
         let ak:ykind = types[ay].kind
         if ak == Y_F64 || ak == Y_F32 {                  // x.abs (#381), as kelvinc's: fabs
             put(ak == Y_F32 ? "__builtin_fabsf(" : "__builtin_fabs(")
@@ -9512,9 +9515,23 @@ let changed_root(n:int64):int64 {
     return 0 - 1
 }
 
+// whether n names an enum's constant, which never changes: then an
+// error, in kelvinc's words (#469)
+let enum_constant_changed(n:int64):bool {
+    if nodes[n].kind != N_ID || local_at(nodes[n].t) >= 0 || decl_named(nodes[n].t, D_GLOBAL) >= 0 || enum_of(nodes[n].t) < 0 { return false }
+    var m = $"'"
+    m += tok_text(nodes[n].t)
+    m += "' is an enum's constant and cannot change; copy it into a var, as in 'var k:i32 = "
+    m += tok_text(nodes[n].t)
+    m += "'"
+    gen_error(n, m.cstr)
+    return true
+}
+
 // a change of place n where its variable is a let is an error, in
 // kelvinc's words (#271); whether n may change
 let may_change(n:int64):bool {
+    if enum_constant_changed(n) { return false }
     var e = n                                           // a[i] of a parameter's array, its caller's element (#357)
     while nodes[e].kind == N_FIELD || nodes[e].kind == N_INDEX {
         if nodes[e].kind == N_INDEX {
@@ -9596,6 +9613,7 @@ let changeable_place(n:int64):bool {
 // let method, or behind a read-only borrow, an error that goes on from
 // lead, in kelvinc's words (#320)
 let changes_var(n:int64, lead:const String^):bool {
+    if enum_constant_changed(n) { return false }
     var d = n
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
     var who = $""
@@ -11278,7 +11296,20 @@ let gen_range_stride(n:int64) {
 let power_int(y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32
+    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || enum_int(y)
+}
+
+// whether y is a plain enum's value, which C's int is, as kelvinc's an
+// i32 (#469); not an enum with values
+let enum_int(y:int64):bool {
+    if y < 0 || types[y].kind != Y_STRUCT { return false }
+    let d = decl_named(types[y].name, D_ENUM)
+    return d >= 0 && nodes[d].flag != 1
+}
+
+// y, or an i32 where it is a plain enum's value (#469)
+let int_view(y:int64):int64 {
+    return enum_int(y) ? base_type(Y_I32) : y
 }
 
 let power_float(y:int64):bool {
@@ -11302,7 +11333,7 @@ let power_float_literal(v:int64):bool {
 let power_promoted(v:int64):int64 {
     if power_int_literal(v) { return base_type(Y_I64) }
     let y:int64 = type_of(v)
-    if y >= 0 && types[y].kind == Y_U8 { return base_type(Y_I32) }
+    if y >= 0 && (types[y].kind == Y_U8 || enum_int(y)) { return base_type(Y_I32) }   // an enum's value too (#469)
     return y
 }
 

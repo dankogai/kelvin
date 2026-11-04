@@ -598,6 +598,10 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An enum's value is C's int** (#469), as kelvinc's: `LIMIT.bit(2)`,
+  `.flip(n)`, `.abs`, `.sign`, `.pow`, `**` and `.hex` of an
+  enumerator or a var of its enum, as an `i32`'s; an enumerator never
+  changes.
 - **No cast makes a uchr** (#468), as kelvinc's: `x as uchr` and
   `x:uchr` of what is no uchr are an error that names `uchr("k")`.
 - **An IO an expression gives, walked** (#466), as kelvinc's: `for

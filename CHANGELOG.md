@@ -4,7 +4,7 @@
 
 The first release of Kelvin: C, changed bit by bit, still 100% ABI
 compatible. `kelvinc` translates Kelvin into C and hands it to the C
-compiler. The changes from C, 466 of them so far, are in
+compiler. The changes from C, 469 of them so far, are in
 [README.md](README.md#changes-from-c) by topic, and the reasons for each
 in [Design.md](Design.md) and [Dialogue.md](Dialogue.md).
 
@@ -69,10 +69,5 @@ in [Design.md](Design.md) and [Dialogue.md](Dialogue.md).
   *(provisional Pn)* marks, and Design.md's open questions are deferred
   past 0.1.0, and may change before 1.0.
 - kc, Kelvin's compiler written in Kelvin (`selfhost/`), is a preview:
-  it builds itself to a fixpoint, in CI, and builds 147 of the 352
+  it builds itself to a fixpoint, in CI, and builds 148 of the 353
   test programs and examples; see [selfhost/README.md](selfhost/README.md).
-
-### Known issues
-
-- `.bit(n)` of an enum's constant, as `LIMIT.bit(2)`, reaches the C
-  compiler, which refuses it.

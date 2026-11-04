@@ -34,6 +34,11 @@ union in C, with one byte for the tag.
 - **`enum color { red, green, blue }`**, with `= value` as C has it, is
   C's enum: `color` is a type, `red` an integer constant, and `c.cstr`
   its number.
+  - An enumerator, and a var of the enum, is C's int, an `i32`, to an
+    integer's methods (#469): `red.bit(0)`, `c.flip(1)`, `.abs`,
+    `.sign`, `.pow(e)` and `**`.
+  - An enumerator never changes: `red.flip(0)`, `red.bit(0) = b` and
+    `red = blue` are errors.
 - **An anonymous `enum { a, b }`** at the top level is a group of int
   constants, as in C.
 - **Defined in a function** (#391), its enumerators are the block's,
@@ -166,6 +171,7 @@ The core. A plain enum is C's, with nothing linked. An enum with values is kelvi
 | On | Property or method | Gives |
 |---|---|---|
 | C's enum, an enumerator | `.cstr`, `.dec`, `.hex`, ... | as an integer's |
+| | `.bit(n)`, `.flip(n)`, `.abs`, `.sign`, `.pow(e)` | as an `i32`'s (#469) |
 | | `.size`, `.typename` | as C's |
 | an enum with values | `.case` | the tag, a `u8`, the case's index from 0 |
 | | `.is(n)` | whether `n` is the current case, a `bool` |

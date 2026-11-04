@@ -511,6 +511,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 466 | `for line in IO(path).lines` and `for b in IO(path).read(n)` of an IO an expression gives: the IO held in a hidden let of a block around the loop, closed when the loop is done, where kelvinc had written C that did not compile; kc the same; examples/quine_cheat.k one line, as Perl's | src/parser.c's parse_for_io_held; selfhost/gen.k's put_io_held, put_io_walked; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k | `for line in IO(__FILE__).lines { println(line.ok) }` | 2026-11-03 |
 | 467 | The 0.1.0 release prepared: kelvinc's version and the VS Code package's 0.1.0, one checked against the other by tests/run.sh; Design.md's status, TODO and the first cut's name brought up to date, the provisional decisions and the open questions deferred past 0.1.0; CHANGELOG.md, the release notes | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; tests/run.sh; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.1.0` | 2026-11-03 |
 | 468 | `x as uchr` and `x:uchr` of what is no uchr are kelvinc's error, which names `uchr("k")` and `n.uchr`, where C had refused a cast to the struct a uchr is; kc the same | src/parser.c's parse_cast; selfhost/gen.k's N_CAST; tests/error/uchr_cast.k, uchr_annotation.k; documents/ownership.md; CHANGELOG.md | `'k' as uchr` | 2026-11-04 |
+| 469 | An enum's value, an enumerator or a var of a plain enum, is C's int, an `i32`, to an integer's methods: `.bit(n)`, `.flip(n)`, `.abs`, `.sign`, `.pow`, `**` and `.size`; an enumerator never changes, which is kelvinc's error; kc the same | src/parser.c's seen_number_type, expr_class, reject_const_change; selfhost/gen.k's enum_int, int_view, enum_constant_changed; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md | `LIMIT.bit(2)` | 2026-11-04 |
 
 Notes:
 
@@ -1096,6 +1097,24 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (469) Agreed details: "go on with #469"; the second of the two bugs
+  #467 left for before the tag. Asked, the user chose C's int, and kc
+  in the same number.
+  - `LIMIT.bit(2)` reached C, as did `.flip(n)`, `.abs`, `.sign` and
+    `.pow(e)` of an enumerator or of a var of its enum, and `LIMIT.size`
+    and `LIMIT ** 2`. `.hex`, `.cstr` and `(LIMIT as i32).bit(2)` worked.
+  - An enumerator, and a var of a plain enum, is an `i32` to these, C's
+    int: `LIMIT.bit(32)` is the error an `i32`'s is. `.hex` of a var
+    stays what C's `_Generic` picks of its enum type, as it was.
+  - `v.flip(n)` and `v.bit(n) = b` of a var of the enum store back, as
+    C's `v ^= 1` does.
+  - An enumerator never changes: `LIMIT.flip(0)`, `LIMIT.bit(1) = b`,
+    `LIMIT = OTHER`, `LIMIT += 1` and `LIMIT++` say `'LIMIT' is an
+    enum's constant and cannot change`, where C had refused them.
+  - An enum with values is no integer, and has none of these.
+  - kc says and writes the same; it had refused `.hex` of an
+    enumerator too.
+  - CHANGELOG.md's known issues are gone.
 - (468) Agreed details: "go on with #468"; the first of the two bugs
   #467 left for before the tag. Asked, the user chose an error.
   - `'k' as uchr` reached C, which refuses a cast to `kv_uchr`, a
@@ -6914,6 +6933,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P478 | Details of #466 | src/parser.c: parse_for_io_held, parse_for_in's call; selfhost/gen.k: put_io_held, put_io_walked, gen_lines_each's and gen_read_each's; selfhost/sample.k: `held_path`, `held_out`, `held_lines` and their line; tests/run/io_walk_held.k; documents/io.md; examples/quine_cheat.k; README.md; selfhost/README.md | — |
 | P479 | Details of #467 | src/main.c: KELVIN_VERSION 0.1.0; editors/vscode/package.json and README.md; tests/run.sh: kelvinc's version and the package's; Design.md: Status, TODO, the first cut, the provisional decisions' and open questions' deferral; CHANGELOG.md; README.md | — |
 | P480 | Details of #468 | src/parser.c: parse_cast's uchr; selfhost/gen.k: N_CAST's uchr; tests/error/uchr_cast.k, uchr_annotation.k; documents/ownership.md; CHANGELOG.md; selfhost/README.md | — |
+| P481 | Details of #469 | src/parser.c: seen_number_type's and expr_class's enumerator, reject_const_change's; selfhost/gen.k: enum_int, int_view, enum_constant_changed, power_int, int_width, power_promoted, abs, sign and number_text's; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

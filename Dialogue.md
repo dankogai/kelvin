@@ -9029,3 +9029,17 @@ the cast. CHANGELOG.md's known issues lose it. Details are provisional
 P480.
 
 There are 1199 tests, and all pass with clang and with gcc 15.
+
+### 516. An enum's value is C's int
+
+> push. then go on with #469
+
+**Claude** pushed #468 and found that `LIMIT.bit(2)` was one of several:
+`.flip(n)`, `.abs`, `.sign`, `.pow` and `**` of an enumerator or of a
+var of its enum reached C too. Asked, the user chose C's way, and kc in
+the same number. An enum's value is an `i32` to an integer's methods,
+and a var of the enum flips and sets its bits; an enumerator never
+changes, which is now kelvinc's error. CHANGELOG.md has no known issues
+left. Details are provisional P481.
+
+There are 1202 tests, and all pass with clang and with gcc 15.

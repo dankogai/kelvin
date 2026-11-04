@@ -279,6 +279,8 @@ let main():int32 {
   it is an error, and a value past it ends the program, as a `Bits`'s
   place does. It is an integer of 64 bits or fewer, or an enum's value,
   so the bits may have names.
+- An enum's value has both, as an `i32`'s, C's int (#469):
+  `LIMIT.bit(2)`; see [enums.md](enums.md).
 - A floating-point number has neither; a `bool` flips with `b.flip()`,
   see [bool.md](bool.md).
 

@@ -1685,6 +1685,8 @@ static Expr *bits_part(Expr *v, const char *what);
 static List bits_args(Token *name);
 static int int_width(Type *t);
 static Type *seen_number_type(Expr *e);
+static Decl *plain_enum_of(Type *t);
+static Decl *enum_of(const char *name);
 static Expr *parse_initializer_for(Type *t);
 static void count_items(Type *t, Expr *init);
 static void check_print_args(Expr *call);
@@ -6605,6 +6607,10 @@ static char expr_class(Expr *e, Decl **record) {
             return 's';
         *record = NULL;
         return 'n';
+    case E_IDENT: /* an enum's constant is C's int (#469) */
+        if (!value_type(e) && enum_of(e->text))
+            return 'i';
+        return type_class(value_type(e), record);
     default:
         return type_class(value_type(e), record);
     }
@@ -8300,6 +8306,8 @@ static Type *seen_number_type(Expr *e) {
     Type *t = value_type(e);
     while (t && t->kind == T_TYPEOF)
         t = t->elem;
+    if (plain_enum_of(t) || (!t && e->kind == E_IDENT && enum_of(e->text)))
+        return base_type("i32", e->pos); /* an enum's value is C's int (#469) */
     if (t)
         return t->kind == T_BASE ? unqualified(t) : NULL;
     const char *lit = literal_type(e);
@@ -8868,6 +8876,9 @@ static bool assign_ok;
    element of it, is an error (#273): &x of a let is one, as is a
    parameter of a const T^; what it borrows does not change */
 static void reject_const_change(Expr *e, Pos pos) {
+    if (e && e->kind == E_IDENT && !value_type(e) && enum_of(e->text)) /* LIMIT.flip(0) (#469) */
+        error_at(pos, "'%s' is an enum's constant and cannot change; copy it into a var, as in 'var k:i32 = %s'",
+                 e->text, e->text);
     while (e && (e->kind == E_FIELD || e->kind == E_INDEX))
         e = e->a;
     if (!e || e->kind != E_DEREF)
