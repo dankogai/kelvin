@@ -9043,3 +9043,17 @@ changes, which is now kelvinc's error. CHANGELOG.md has no known issues
 left. Details are provisional P481.
 
 There are 1202 tests, and all pass with clang and with gcc 15.
+
+### 517. Functions trailing a call, and sorting
+
+> go on with #470: more kc coverage
+
+**Claude** grouped the 205 programs kc cannot build by what stops them
+and asked; the user chose trailing functions. kc had most of them, so
+what it lacked was `f(a) { ... }` of a plain call, `var` in an anonymous
+function's parameters, and, under them, an Array's `.sort`, `.sorted`,
+`.reverse` and `.reversed`, ordering of Strings and `any^`. kc builds
+153 of the 353 programs, 5 more. A struct's own `<` stays out, as kc
+writes no operators yet. Details are provisional P482.
+
+There are 1202 tests, and all pass with clang and with gcc 15.

@@ -598,6 +598,17 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Functions trailing a call, and sorting** (#470), as kelvinc's:
+  - `f(a) { ... }` of a plain call, any `{` on a call's line outside a
+    condition; `atexit() { ... }` of no parameters.
+  - `{ (var s:T):R in ... }`.
+  - `xs.sort()`, `.sort { ... }`, `.sorted()`, `.sorted { ... }`,
+    `.reverse()` and `.reversed()` of an Array, a stable merge sort.
+    - A comparator is given copies of what owns, as `.map`'s function
+      is, where kelvinc lends them to an anonymous one (#242).
+    - A struct's own `<` is an error, as kc writes no operators yet.
+  - `<`, `<=`, `>` and `>=` of Strings, `any^`, and `Array<T>(n)` of a
+    C count.
 - **An enum's value is C's int** (#469), as kelvinc's: `LIMIT.bit(2)`,
   `.flip(n)`, `.abs`, `.sign`, `.pow`, `**` and `.hex` of an
   enumerator or a var of its enum, as an `i32`'s; an enumerator never

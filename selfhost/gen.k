@@ -437,9 +437,9 @@ let put_ctype(y:int64) {
         }                                                        // else a C header's typedef (#207)
         put_tok(types[y].name)
     case Y_PTR:
-        if ptr_const(y) { put("const ") }               // const T^ (#272)
+        if ptr_const(y) && types[types[y].elem].kind != Y_CSTR { put("const ") }   // const T^ (#272)
         put_ctype(types[y].elem)
-        put(" *")
+        put(ptr_const(y) && types[types[y].elem].kind == Y_CSTR ? " const *" : " *")   // const cstr^, whose text is const already (#470)
         if ptr_restrict(y) { put("restrict") }          // T^ restrict (#393)
     case Y_ARGV: put("char **")
     case Y_FIXED:                                                // a fixed array is declared by put_fixed_decl (#354)
@@ -1380,6 +1380,8 @@ let type_of(n:int64):int64 {
         let y:int64 = type_of(nodes[n].a)
         if y < 0 { return -1 }
         if types[y].kind == Y_ARRAY && (tok_is(t, "join") || tok_is(t, "joined")) { return base_type(Y_STRING) }   // xs.join(sep) (#461)
+        if types[y].kind == Y_ARRAY && (tok_is(t, "sort") || tok_is(t, "reverse")) { return base_type(Y_VOID) }   // in place (#470)
+        if types[y].kind == Y_ARRAY && (tok_is(t, "sorted") || tok_is(t, "reversed")) { return y }   // a new Array (#470)
         if types[y].kind == Y_RANGE && tok_is(t, "contains") { return base_type(Y_BOOL) }   // r.contains(x) (#374)
         if types[y].kind == Y_RANGE && tok_is(t, "reversed") { return type_of_kind(Y_ITER, types[y].elem, -1) }   // r.reversed(), down (#378)
         if types[y].kind == Y_RANGE && tok_is(t, "stride") { return type_of_kind(Y_ITER, types[y].elem, -1) }     // r.stride(n) (#379)
@@ -4134,6 +4136,8 @@ let tpl_show(v:int64, s:cstr) {
     put("); } ")
 }
 
+let gen_array_sort(n:int64)    // prototypes: xs.sort(), xs.sorted(), xs.reverse(), xs.reversed() (#470)
+let gen_array_reverse(n:int64)
 let gen_join(n:int64)    // prototypes: xs.join(sep) (#461)
 let put_string_part(y:int64, v:cstr)
 let gen_text_template(n:int64)    // prototypes: gen_template writes the two by them
@@ -5744,6 +5748,30 @@ let gen_string_eq(a:int64, b:int64) {
     if ha { hold_close(a) }
 }
 
+// a < b, a <= b, a > b, a >= b of Strings, in codepoint order, as
+// kelvinc's #185; one an expression gives held, as gen_string_eq's (#470)
+let gen_string_order(n:int64) {
+    let a:int64 = nodes[n].a
+    let b:int64 = nodes[n].b
+    if builtin_kind(type_of(b)) != Y_STRING {
+        gen_error(n, "a String compares with another String")
+        return
+    }
+    let ha = needs_hold(a)
+    let hb = needs_hold(b)
+    if ha { hold_open(a) }
+    if hb { hold_open(b) }
+    put("((bool)(kv_string_cmp(")
+    gen_place(a)
+    put(", ")
+    gen_place(b)
+    put(") ")
+    put_tok(nodes[n].t)
+    put(" 0))")
+    if hb { hold_close(b) }
+    if ha { hold_close(a) }
+}
+
 // a condition: a comparison without the parentheses C would warn of
 let gen_cond(n:int64) {
     if is_range_eq(n) {                                  // (#376)
@@ -6029,7 +6057,8 @@ let gen_make(n:int64) {
             return
         }
         let k:nkind = nodes[x].kind
-        if k == N_STR || (xy >= 0 && !is_number_kind(types[xy].kind) && types[xy].kind != Y_BOOL && types[xy].kind != Y_C) {
+        let c_named = xy >= 0 && types[xy].kind == Y_STRUCT && decl_named(types[xy].name, D_STRUCT) < 0 && decl_named(types[xy].name, D_ENUM) < 0   // a C header's size_t (#470)
+        if k == N_STR || (xy >= 0 && !is_number_kind(types[xy].kind) && types[xy].kind != Y_BOOL && types[xy].kind != Y_C && !c_named) {
             var m = w.copy()
             m += "(n) takes a count, and this is "
             let xw:String = k == N_STR ? $"text" : kelvin_type_text(xy)
@@ -8478,6 +8507,14 @@ let gen_expr_of(n:int64) {
         gen_join(n)                                      // xs.join(sep), xs.joined(sep) (#461)
         return
     }
+    if k == N_METHOD && (tok_is(t, "sort") || tok_is(t, "sorted")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_ARRAY && method_of(n) < 0 {
+        gen_array_sort(n)                                // xs.sort(), xs.sorted() (#470)
+        return
+    }
+    if k == N_METHOD && (tok_is(t, "reverse") || tok_is(t, "reversed")) && type_of(nodes[n].a) >= 0 && types[type_of(nodes[n].a)].kind == Y_ARRAY && method_of(n) < 0 {
+        gen_array_reverse(n)                             // xs.reverse(), xs.reversed() (#470)
+        return
+    }
     if k == N_METHOD && tok_is(t, "pow") && power_int(type_of(nodes[n].a)) {
         gen_pow_method(n)                                // b.pow(e), b.pow(e, m) of an integer (#380)
         return
@@ -8674,6 +8711,10 @@ let gen_expr_of(n:int64) {
         } else if y >= 0 && types[y].kind == Y_STRING && (tok_is(t, "==") || tok_is(t, "!=")) {
             if tok_is(t, "!=") { put("(bool)!") }
             gen_string_eq(nodes[n].a, nodes[n].b)
+        } else if y >= 0 && types[y].kind == Y_STRING && is_comparison(t) {
+            gen_string_order(n)                          // a < b, by codepoints (#470)
+        } else if builtin_kind(type_of(nodes[n].b)) == Y_STRING && is_comparison(t) && !tok_is(t, "==") && !tok_is(t, "!=") {
+            gen_error(n, "a String compares with another String")
         } else {
             if is_comparison(t) { put("(bool)") }    // C's comparisons give an int
             put("(")
@@ -8808,6 +8849,7 @@ let inferred(n:int64):int64 {
 // $[String], i64?, Result<i64, String>
 let type_text(y:int64):String {
     switch types[y].kind {
+    case Y_VOID: return $"any"                               // any^ (#470)
     case Y_I64: return $"i64"
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
@@ -10470,6 +10512,10 @@ let named_fn_type(n:int64):int64 {
 // written parameters' and result's; one of $0 or of names without types
 // takes them from where it goes, so here it is kelvinc's error
 let anon_type(n:int64):int64 {
+    if nodes[n].flag == 1 && nodes[n].c == 1 {           // atexit() { ... }, trailing, naming no $0: of nothing (#470)
+        var none:$[int64] = $[]
+        return fn_type_of(&none, nodes[n].ty)
+    }
     if nodes[n].flag != 0 {
         gen_error(n, "'$0' is a parameter of an anonymous function, and this is not in one; there, '{' starts an initializer list, so an anonymous function writes its parameters, as in '{ (a:i64):i64 in a + 1 }'")
         return 0 - 1
@@ -12323,6 +12369,272 @@ let put_eager_arg(ey:int64) {
     } else {
         put("_kv_ms->at[_kv_mi]")
     }
+}
+
+// ---------- xs.sort() and xs.sorted() (#470) ----------
+
+// what '.sort' or '.sorted' n says of a comparator of the wrong type
+let sort_fn_error(n:int64, at:int64, ey:int64, given:int64) {
+    var m = $"'."
+    m += tok_text(nodes[n].t)
+    m += "' takes a comparator of two elements, ("
+    let w:String = kelvin_type_text(ey)
+    m += &w
+    m += ", "
+    m += &w
+    m += "):bool, true where the first goes before the second, and this is "
+    let g:String = given >= 0 ? kelvin_type_text(given) : $"not one"
+    m += &g
+    gen_error(at, m.cstr)
+}
+
+// the function of the program comparator f makes or names, of two
+// elements of ey; -1 where it is a value of its own type, called as it is;
+// -2 after an error
+let sort_fn_of(n:int64, f:int64, ey:int64):int64 {
+    var ps:$[int64] = $[]
+    ps += ey
+    ps += ey
+    let want:int64 = fn_type_of(&ps, base_type(Y_BOOL))
+    if nodes[f].kind == N_ANON {
+        var d:int64 = anon_made.get(f, 0 - 1)
+        if d < 0 {
+            let st:int64 = nodes[nodes[f].b].a
+            let one = st >= 0 && nodes[st].next < 0 && nodes[st].kind == S_EXPR
+            var me = $"'."
+            me += tok_text(nodes[n].t)
+            me += "'"
+            d = anon_function_of(f, &ps, one ? 0 - 1 : base_type(Y_BOOL), &me)   // one expression tells its own type
+            if d < 0 { return 0 - 2 }
+            anon_made[f] = d
+        }
+        if decl_fn_type(d) != want {
+            let ry:int64 = nodes[d].ty
+            if nodes[f].flag != 0 && ry >= 0 && (is_number_kind(types[ry].kind) || types[ry].kind == Y_C) {   // as kelvinc says it
+                gen_error(f, "this function returns a bool, and this gives a number: compare it, as in 'x != 0'")
+                return 0 - 2
+            }
+            sort_fn_error(n, f, ey, decl_fn_type(d))
+            return 0 - 2
+        }
+        return d
+    }
+    if nodes[f].kind == N_ID && var_type(nodes[f].t) < 0 {
+        var first:int64 = 0 - 1
+        for x in decls {
+            if nodes[x].kind == D_FN && nodes[x].c < 0 && same_text(nodes[x].t, nodes[f].t) {
+                if decl_fn_type(x) == want { return x }          // of the overloads, this one
+                if first < 0 { first = x }
+            }
+        }
+        if first >= 0 {
+            sort_fn_error(n, f, ey, decl_fn_type(first))
+            return 0 - 2
+        }
+    }
+    let given:int64 = type_of(f)
+    if failed { return 0 - 2 }
+    if given != want {
+        sort_fn_error(n, f, ey, given)
+        return 0 - 2
+    }
+    if fn_owner_refused(want, f) { return 0 - 2 }
+    return 0 - 1
+}
+
+// whether the elements of ey have a < of their kind, else the error
+let sort_by_kind(n:int64, ey:int64):bool {
+    let k:ykind = types[ey].kind
+    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_C || k == Y_STRING || k == Y_BYTES || k == Y_UCHR || k == Y_CSTR { return true }
+    let w:String = kelvin_type_text(ey)
+    for x in decls {
+        if nodes[x].kind == D_FN && nodes[x].c < 0 && tok_is(nodes[x].t, "<") {   // no operator of a struct's in kc yet
+            var m = $"kc writes no struct's own operator yet, and '."
+            m += tok_text(nodes[n].t)
+            m += "' would compare the elements, "
+            m += &w
+            m += ", with it: give a comparator, '."
+            m += tok_text(nodes[n].t)
+            m += " { $0.x < $1.x }'"
+            gen_error(n, m.cstr)
+            return false
+        }
+    }
+    var m = $"'."
+    m += tok_text(nodes[n].t)
+    m += "' compares the elements with <, and "
+    if k == Y_STRUCT && decl_named(types[ey].name, D_STRUCT) >= 0 { m += "struct " }   // as kelvinc names it
+    m += &w
+    m += " has none: give a comparator, '."
+    m += tok_text(nodes[n].t)
+    m += " { $0.x < $1.x }', or define one, as in 'let <(a:"
+    m += &w
+    m += ", b:"
+    m += &w
+    m += "):bool { ... }'"
+    gen_error(n, m.cstr)
+    return false
+}
+
+// an element at side for the comparator: a copy of one that owns, which
+// it owns, as put_eager_arg's
+let put_sort_side(ey:int64, side:cstr) {
+    if is_owner(ey) {
+        put_owner_prefix(ey)
+        put("_copy(&")
+        put(side)
+        put(")")
+    } else {
+        put(side)
+    }
+}
+
+// whether the right element goes before the left: by comparator f, the
+// function fn or the value itself, or by < of their kind
+let put_sort_less(f:int64, fn:int64, ey:int64) {
+    if f >= 0 {
+        if fn >= 0 {
+            put_fn_name(fn)
+        } else {
+            gen_expr(f)
+        }
+        put("(")
+        put_sort_side(ey, "_kv_sa[_kv_sj]")
+        put(", ")
+        put_sort_side(ey, "_kv_sa[_kv_si]")
+        put(")")
+        return
+    }
+    let k:ykind = types[ey].kind
+    if k == Y_STRING {
+        put("(kv_string_cmp(&_kv_sa[_kv_sj], &_kv_sa[_kv_si]) < 0)")
+    } else if k == Y_BYTES {
+        put("(kv_bytes_cmp(&_kv_sa[_kv_sj], &_kv_sa[_kv_si]) < 0)")
+    } else if k == Y_UCHR {
+        put("(_kv_sa[_kv_sj].cp < _kv_sa[_kv_si].cp)")
+    } else if k == Y_CSTR {
+        put("(strcmp((const char *)_kv_sa[_kv_sj], (const char *)_kv_sa[_kv_si]) < 0)")
+    } else {
+        put("(_kv_sa[_kv_sj] < _kv_sa[_kv_si])")
+    }
+}
+
+// the stable merge sort of *_kv_sp, bottom up, through a buffer as large,
+// the elements moved as they are, as kelvinc's #185; after _kv_sp's own
+let put_merge_sort(f:int64, fn:int64, ey:int64) {
+    put("size_t _kv_sn = _kv_sp->count; if (_kv_sn > 1) { __typeof__(_kv_sp->at) _kv_sa = _kv_sp->at, _kv_sb = kv_alloc(_kv_sn * sizeof *_kv_sp->at), _kv_sbuf = _kv_sb; for (size_t _kv_sw = 1; _kv_sw < _kv_sn; _kv_sw *= 2) { for (size_t _kv_slo = 0; _kv_slo < _kv_sn; _kv_slo += 2 * _kv_sw) { size_t _kv_smid = _kv_slo + _kv_sw < _kv_sn ? _kv_slo + _kv_sw : _kv_sn; size_t _kv_shi = _kv_slo + 2 * _kv_sw < _kv_sn ? _kv_slo + 2 * _kv_sw : _kv_sn; size_t _kv_si = _kv_slo, _kv_sj = _kv_smid, _kv_sk = _kv_slo; while (_kv_si < _kv_smid && _kv_sj < _kv_shi) { if (")
+    put_sort_less(f, fn, ey)
+    put(") _kv_sb[_kv_sk++] = _kv_sa[_kv_sj++]; else _kv_sb[_kv_sk++] = _kv_sa[_kv_si++]; } while (_kv_si < _kv_smid) _kv_sb[_kv_sk++] = _kv_sa[_kv_si++]; while (_kv_sj < _kv_shi) _kv_sb[_kv_sk++] = _kv_sa[_kv_sj++]; } __typeof__(_kv_sa) _kv_st = _kv_sa; _kv_sa = _kv_sb; _kv_sb = _kv_st; } if (_kv_sa != _kv_sp->at) memcpy(_kv_sp->at, _kv_sa, _kv_sn * sizeof *_kv_sa); free(_kv_sbuf); } } while (0)")
+}
+
+// xs.sort(), xs.sort { ... } in place; xs.sorted(), xs.sorted { ... } a
+// new Array, a copy of one a place holds, or the one an expression gives
+let gen_array_sort(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let ey:int64 = types[y].elem
+    let in_place = tok_is(nodes[n].t, "sort")
+    let lent = is_place(a) || held.get(a, 0 - 1) >= 0
+    if in_place && !lent {
+        gen_error(n, "'.sort' sorts an Array in place, and this one an expression gives would be lost: bind it, or write '.sorted()'")
+        return
+    }
+    if in_place && changed_root(a) >= 0 && how_declared(nodes[changed_root(a)].t) != 0 {
+        var m = $"'"
+        m += tok_text(nodes[changed_root(a)].t)
+        m += "' is a let and cannot change; declare it with var, or write '.sorted()'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if in_place && !may_change(a) { return }             // through a read-only borrow
+    let f:int64 = nodes[n].b
+    if f >= 0 && nodes[f].next >= 0 {
+        var m = $"'."
+        m += tok_text(nodes[n].t)
+        m += "' takes one function, the comparator, or none"
+        gen_error(nodes[f].next, m.cstr)
+        return
+    }
+    var fn:int64 = 0 - 1
+    if f >= 0 {
+        fn = sort_fn_of(n, f, ey)
+        if fn == 0 - 2 { return }
+    } else if !sort_by_kind(n, ey) {
+        return
+    }
+    if in_place {
+        put("do { __auto_type _kv_sp = &(")
+        gen_expr(a)
+        put("); ")
+        put_merge_sort(f, fn, ey)
+        return
+    }
+    put("({ ")
+    put_array_name(y)
+    put(" _kv_so = ")
+    if lent {
+        put_array_name(y)
+        put("_copy(&(")
+        gen_expr(a)
+        put("))")
+    } else {
+        gen_expr(a)
+    }
+    put("; do { __auto_type _kv_sp = &_kv_so; ")
+    put_merge_sort(f, fn, ey)
+    put("; _kv_so; })")
+}
+
+// xs.reverse() in place; xs.reversed() a new Array, a copy of one a
+// place holds, or the one an expression gives: the elements swapped from
+// both ends, moved as they are, as kelvinc's #186
+let gen_array_reverse(n:int64) {
+    let a:int64 = nodes[n].a
+    let y:int64 = type_of(a)
+    let t:int64 = nodes[n].t
+    let in_place = tok_is(t, "reverse")
+    let lent = is_place(a) || held.get(a, 0 - 1) >= 0
+    if in_place && !lent {
+        gen_error(n, "'.reverse' reverses an Array in place, and this one an expression gives would be lost: bind it, or write '.reversed()'")
+        return
+    }
+    if in_place && changed_root(a) >= 0 && how_declared(nodes[changed_root(a)].t) != 0 {
+        var m = $"'"
+        m += tok_text(nodes[changed_root(a)].t)
+        m += "' is a let and cannot change; declare it with var, or write '.reversed()'"
+        gen_error(n, m.cstr)
+        return
+    }
+    if in_place && !may_change(a) { return }             // through a read-only borrow
+    if nodes[n].b >= 0 {
+        var m = $"'."
+        m += tok_text(t)
+        m += "' takes nothing: '."
+        m += tok_text(t)
+        m += "()'"
+        gen_error(nodes[n].b, m.cstr)
+        return
+    }
+    if in_place {
+        put("do { __auto_type _kv_rp = &(")
+        gen_expr(a)
+        put("); ")
+    } else {
+        put("({ ")
+        put_array_name(y)
+        put(" _kv_ro = ")
+        if lent {
+            put_array_name(y)
+            put("_copy(&(")
+            gen_expr(a)
+            put("))")
+        } else {
+            gen_expr(a)
+        }
+        put("; do { __auto_type _kv_rp = &_kv_ro; ")
+    }
+    put("for (size_t _kv_ri = 0, _kv_rj = _kv_rp->count; _kv_ri + 1 < _kv_rj; _kv_ri++, _kv_rj--) { __typeof__(*_kv_rp->at) _kv_rt = _kv_rp->at[_kv_ri]; _kv_rp->at[_kv_ri] = _kv_rp->at[_kv_rj - 1]; _kv_rp->at[_kv_rj - 1] = _kv_rt; } } while (0)")
+    if !in_place { put("; _kv_ro; })") }
 }
 
 // xs.map(f) and the rest (#329): a loop over the elements in a statement

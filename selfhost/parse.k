@@ -159,6 +159,7 @@ var records_seen:Dictionary<String, int64> // every struct and enum read so far,
 var body_struct:int64 = 0 - 1  // the token of the struct whose body is being read, which names its nested types bare (#389)
 var nest_outer:int64 = 0 - 1   // the token of the struct a nested definition is read in (#389)
 var late_seen = false          // whether the program has an x.type gen tells (#423)
+var brace_ends = false         // whether a { at the cursor ends a condition, its body's: as kelvinc's brace_ends_condition (#470)
 var anon_depth:int64 = 0       // how many anonymous functions the cursor is in, whose $0.type gen tells (#424)
 var anon_named:$[int64]        // the names of { v in ... }'s parameters the cursor is among (#424)
 var literal_brace = false      // whether the { at the cursor is a compound literal's, (T){$0.y, $0.x} (#424)
@@ -1217,6 +1218,8 @@ let parse_bare_type():int64 {
         y = base_type(Y_BOOL)
     } else if tok_is(t, "cstr") {
         y = base_type(Y_CSTR)
+    } else if tok_is(t, "any") {                 // any^, C's void * (#470)
+        y = base_type(Y_VOID)
     } else if tok_is(t, "String") {
         y = base_type(Y_STRING)
     } else if tok_is(t, "Bytes") {               // (#439)
@@ -1382,7 +1385,9 @@ let parse_args():int64 {
     var first = -1
     var last = -1
     let saved = name_annotation
+    let saved_ends = brace_ends
     name_annotation = true                       // c ? f(p:point) : q (#265)
+    brace_ends = false
     while !at_word(")") && !failed {
         let e:int64 = parse_expr()
         if first < 0 {
@@ -1394,6 +1399,7 @@ let parse_args():int64 {
         if at_word(",") { advance() }
     }
     name_annotation = saved
+    brace_ends = saved_ends
     expect(")")
     return first
 }
@@ -1445,6 +1451,7 @@ let anon_ahead():bool {
     var i:int64 = pos + 1
     while toks[i].kind == T_NL { i += 1 }
     if tok_is(i, "(") && toks[i + 1].kind == T_ID && tok_is(i + 2, ":") { return true }
+    if tok_is(i, "(") && tok_is(i + 1, "var") && toks[i + 2].kind == T_ID && tok_is(i + 3, ":") { return true }   // { (var s:T):R in ... } (#470)
     if tok_is(i, "(") && tok_is(i + 1, ")") && (tok_is(i + 2, "in") || tok_is(i + 2, ":")) { return true }   // { () in ... } (#428)
     if names_in_ahead(i) { return true }                // { v in ... }, { acc, v in ... } (#330)
     var depth:int64 = 0
@@ -1475,18 +1482,37 @@ let anon_ahead():bool {
     return false
 }
 
+// whether the { at the cursor is a function trailing a call: not a
+// condition's body, as kelvinc's (#32, #470)
+let trailing_ahead():bool {
+    return !brace_ends && anon_ahead()
+}
+
+// the expression of a condition, whose { ends it (#470)
+let parse_cond():int64 {
+    let saved = brace_ends
+    brace_ends = true
+    let e:int64 = parse_expr()
+    brace_ends = saved
+    return e
+}
+
 // an anonymous function (#324): its parameters and result where written,
 // { (x:T):R in ... }, else $0, $1 as the context types them; its body the
 // statements to the }
 let parse_anon():int64 {
     let n:int64 = make_node(N_ANON, advance())
+    let saved_ends = brace_ends
+    brace_ends = false
     skip_newlines()
     if at_word("(") && (tok_is(pos + 1, ")") || tok_is(pos + 1, "var") || (toks[pos + 1].kind == T_ID && tok_is(pos + 2, ":"))) {   // not { ($0 as T) ... } (#424)
         advance()
         var last = -1
         var k:int64 = 0
         while !at_word(")") && !failed {
-            let p:int64 = parse_typed(1)
+            let is_var = at_word("var")                  // { (var s:T):R in ... } may change s, its own (#470)
+            if is_var { advance() }
+            let p:int64 = parse_typed(is_var ? 0 : 1)
             unnamed_param(p, k, true)
             k += 1
             if last < 0 {
@@ -1549,6 +1575,7 @@ let parse_anon():int64 {
         }
     }
     nodes[n].b = b
+    brace_ends = saved_ends
     return n
 }
 
@@ -1740,6 +1767,22 @@ let parse_iterator():int64 {
     return n
 }
 
+// the function trailing the call n, x.m(a) { ... } (#328) or f(a) { ... }
+// (#470), its last argument
+let take_trailing(n:int64) {
+    if brace_ends || !at_word("{") { return }            // any { after a call, on its line, as kelvinc's (#32)
+    let told = anon_ahead()
+    let an:int64 = parse_anon()
+    if !told { nodes[an].c = 1 }                         // its body names no $0: atexit() { ... }, of no parameters where nothing types it
+    if nodes[n].b < 0 {
+        nodes[n].b = an
+    } else {
+        var last:int64 = nodes[n].b
+        while nodes[last].next >= 0 { last = nodes[last].next }
+        nodes[last].next = an
+    }
+}
+
 // e.t(a...) from its '(': a method call, a function trailing it the last
 // argument; of e, or of self where .t(a) is written (#444)
 let parse_method_call(e:int64, t:int64):int64 {
@@ -1751,16 +1794,7 @@ let parse_method_call(e:int64, t:int64):int64 {
         parse_error("'.stride' takes its step alone, as in 'r.stride(2)': Kelvin has no argument labels")
     }
     set_b(n, parse_args())
-    if anon_ahead() {                                    // x.m(a) { ... }: a function trailing, the last argument (#328)
-        let an:int64 = parse_anon()
-        if nodes[n].b < 0 {
-            nodes[n].b = an
-        } else {
-            var last:int64 = nodes[n].b
-            while nodes[last].next >= 0 { last = nodes[last].next }
-            nodes[last].next = an
-        }
-    }
+    take_trailing(n)
     return n
 }
 
@@ -1943,9 +1977,12 @@ let parse_primary():int64 {
     if at_word("(") {
         advance()
         let saved = name_annotation
+        let saved_ends = brace_ends
         name_annotation = true                   // (c ? (p:point) : q) (#265)
+        brace_ends = false                       // if (f(1) { $0 }) > 0 { ... } (#470)
         let e:int64 = parse_expr()
         name_annotation = saved
+        brace_ends = saved_ends
         expect(")")
         return e
     }
@@ -2093,12 +2130,16 @@ let parse_steps(first:int64):int64 {
             let n:int64 = make_node(N_CALL, t)
             nodes[n].a = e
             set_b(n, parse_args())
+            take_trailing(n)                             // f(a) { ... } (#470)
             e = n
         } else if at_word("[") {
             let t:int64 = advance()
             let n:int64 = make_node(N_INDEX, t)
             nodes[n].a = e
+            let saved_ends = brace_ends
+            brace_ends = false
             set_b(n, parse_expr())
+            brace_ends = saved_ends
             expect("]")
             if !place_follows() { nodes[n].flag = 1 }    // read whole: a Dictionary's is an Optional (#218)
             e = n
@@ -2107,6 +2148,11 @@ let parse_steps(first:int64):int64 {
             let t:int64 = advance()
             if at_word("(") {
                 e = parse_method_call(e, t)
+            } else if (tok_is(t, "sort") || tok_is(t, "sorted")) && trailing_ahead() {   // xs.sort { ... }, its comparator trailing (#470)
+                let n:int64 = make_node(N_METHOD, t)
+                nodes[n].a = e
+                set_b(n, parse_anon())
+                e = n
             } else if (tok_is(t, "map") || tok_is(t, "filter") || tok_is(t, "flatMap") || tok_is(t, "mapWithKey") || tok_is(t, "filterWithKey") || tok_is(t, "flatMapWithKey") || tok_is(t, "contains") || tok_is(t, "firstKey") || tok_is(t, "lastKey") || tok_is(t, "containsWithKey") || tok_is(t, "firstKeyWithKey") || tok_is(t, "lastKeyWithKey") || tok_is(t, "firstIndex") || tok_is(t, "lastIndex") || tok_is(t, "prefix")) && anon_ahead() {   // x.map { ... }, its function trailing (#324), d.contains { ... } and the rest (#339), xs.firstIndex { ... } (#342), x.prefix { ... } (#372)
                 let n:int64 = make_node(N_METHOD, t)
                 nodes[n].a = e
@@ -2407,7 +2453,7 @@ let parse_if():int64 {
         }
         advance()
     }
-    set_a(n, parse_expr())
+    set_a(n, parse_cond())
     set_b(n, parse_block())
     if at_word("else") {
         advance()
@@ -2430,7 +2476,7 @@ let parse_simples():int64
 // S_CASE, each with its values and its statements, up to the next case
 let parse_switch():int64 {
     let n:int64 = make_node(S_SWITCH, advance())
-    set_a(n, parse_expr())
+    set_a(n, parse_cond())
     expect("{")
     skip_newlines()
     var last = -1
@@ -2636,7 +2682,7 @@ let parse_statement():int64 {
     }
     if at_word("while") {
         let n:int64 = make_node(S_WHILE, advance())
-        set_a(n, parse_expr())
+        set_a(n, parse_cond())
         set_b(n, parse_block())
         return n
     }
@@ -2650,7 +2696,7 @@ let parse_statement():int64 {
             second = advance()
         }
         expect("in")
-        let from:int64 = parse_expr()
+        let from:int64 = parse_cond()
         if !failed && nodes[from].kind == N_RANGE {      // for i in a..<b; a...b, a..., ..<b, ...b, flag as the range's (#373)
             let n:int64 = make_node(S_FOR, v)
             nodes[n].a = nodes[from].a

@@ -372,6 +372,11 @@ let framed(b:const Bytes^):Bytes {                    // a Bytes (#439): a borro
     return r
 }
 
+let trail_apply(n:int64, f:(int64):int64):int64 { return f(n) }      // a function trailing a plain call, sort and reverse (#470)
+let trail_above(n:int64):bool { return n > 0 }
+let trail_shorter(a:String, b:String):bool { return a.count < b.count }
+let trail_says():int64 { return trail_apply(2) { $0 * 3 } }
+
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1070,6 +1075,20 @@ on a new line`
     let cl = (struct chain_node){9, nowhere}
     println(pn, " ", pn.u.hex, " ", pv.f, " ", chain_head(&ca), " ", cp^.next^.value, " ", null_fd > 2, " ", -null_fd as int64 < 0, " ", thrice_va(2, "x", 4.5))
     println(pw, " ", sizeof(struct chain_node) == sizeof(chain_node), " ", sizeof(union pun), " ", cl.value, " ", when.tv_nsec, " ", $[pn, pv], " ", `${pv}`, " ", pw.p.typename)
+    var tv = $[3, 1, 2]
+    tv.sort { $0 > $1 }
+    var tn = $[$"bob", $"al", $"christine"]
+    let tb = tn.sorted(trail_shorter)
+    let tm = tn.map { (var s:String):String in
+        s += "!"
+        return s
+    }
+    tn.sort()
+    tn.reverse()
+    if trail_above(trail_apply(1) { $0 }) { print("<") }
+    let told:any^ := nowhere
+    println(trail_says(), " ", trail_apply(1) { (x:int64):int64 in x + 10 }, " ", tv, " ", tv.sorted(), " ", tv.reversed(), " ", $[2, 1].sorted { $0 < $1 }.map { $0 * 10 })
+    println(tb, " ", tm, " ", tn, " ", tn[0] > tn[1], " ", told == nowhere)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
