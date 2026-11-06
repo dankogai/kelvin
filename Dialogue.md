@@ -9080,3 +9080,17 @@ the error of a later read, and leave lending to a number of its own if
 which kc lacks. Details are provisional P483.
 
 There are 1205 tests, and all pass with clang and with gcc 15.
+
+### 519. The rest of the integers
+
+> push. then go on with #472
+
+**Claude** gave kc `i8`, `i16`, `u16`, `u64`, `i128` and `u128`, which
+kelvinc has had all along. Comparing the two showed mistakes that
+`uint8` alone had hidden: `k * 100` of an `i8` was taken for an `i8`, so
+its `.abs` came out wrong, and `x.size` was an `i64`, so its `.dec` said
+`+4`. Arithmetic of numbers now has C's type, as kelvinc sees it. kc
+builds 176 of the 354 programs, 14 more, `struct_operators.k` among
+them. kelvinc is unchanged. Details are provisional P484.
+
+There are 1205 tests, and all pass with clang and with gcc 15.

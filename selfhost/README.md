@@ -598,6 +598,17 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **The rest of the integers** (#472), as kelvinc's: `i8`, `i16`, `u16`,
+  `u64`, `i128` and `u128`, and their full names.
+  - A number's text, reading one from text, overloads, `.abs`, `.sign`,
+    `.bit(n)`, `**`, Arrays, Ranges to 64 bits, and `bv.u64s`.
+  - Arithmetic of numbers has C's type, as kelvinc sees it: `k * 100` of
+    an `i8` is an `i32`, and `f * 2.0` of an `f32` an `f64`.
+  - `x.size` and `r.count` are a `u64`; other counts stay an i64, and
+    `sizeof(T)` too.
+  - `int32(n)` of a C typedef, `n:size_t`, is C's to convert.
+  - `0x1p4` is a hex float, and a decimal literal above an `i64` says
+    `U` in C, as kelvinc's.
 - **A struct's operators** (#471), as kelvinc's #42, #128, #135 and
   #380:
   - `let +(a:T, b:U):R` and the rest, `static let +(...)` in `extend`,
@@ -677,7 +688,7 @@ kc reads what it is written in, and little more.
   `bv.append(x)` of bools, `[bool]`s, integers and text `"0b..."`;
   `bv.capacity(n)`, `bv.copy()`, `.count`, `.capacity`, `.isEmpty`,
   `.bin`, `for b in bv` and `bv[n].flip()`.
-  - kc has no `u64`, so `.u64s` is its error.
+  - kc had no `u64`, so `.u64s` was its error until #472.
 - **`Bits` past 64 bits** (#455), as kelvinc's: a Bits is an owner,
   runtime/bits.c's `kv_bits`, freed where its block ends; `Bits()` is
   empty, and `Bits(n)` is an integer's width of bits.
@@ -859,7 +870,7 @@ kc reads what it is written in, and little more.
 - **C's names:** with a C header imported, a name kc does not know is
   C's, unchecked, as kelvinc has it: `strlen(s)`, `getenv(name)`,
   `nowhere`, a typedef as a type, `n:size_t`, and `:=` of a `cstr`.
-- **Types:** `int64`, `int32`, `uint8`, `uint32`, `float64`, `float32`, `bool`,
+- **Types:** every integer from `int8` to `uint128` (#472), `float64`, `float32`, `bool`,
   `cstr`, `String`, `IO`, `uchr`, a struct, `$[T]`, `T^`, main's
   `[cstr]`, and `Dictionary<K, V>` of `String` or integer keys (#211).
   - **`float64`** (#262): literals `1.5`, `2.5e-8`, and `nan`, `inf`
@@ -1310,8 +1321,6 @@ steps can take them on one at a time.
     collections of them, `((T):R)^` and `typealias`;
   - `"""` and `$/.../` with its check;
   - `union` and `typealias`;
-  - integers but `int64`, `int32`, `uint8` and `uint32`, and their short
-    names (#430);
   - the bitwise operators but `|`, `&` and `~` (#276), `++` and `--`;
   - `#inline C`, `--lib` and `.kh`;
   - `#line`;

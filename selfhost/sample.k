@@ -400,6 +400,10 @@ let +(a:op_owner, b:op_owner):op_owner {
     c += &b.name
     return {c.copy(), a.n + b.n}
 }
+let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest of the integers (#472)
+let num_wide(x:u64):i64 { return (x / 2) as i64 }
+let num_wide(x:i128):i64 { return (x >> 100) as i64 }
+struct num_pack { a: i8; b: u16; c: uint64; d: int128 }
 let trail_apply(n:int64, f:(int64):int64):int64 { return f(n) }      // a function trailing a plain call, sort and reverse (#470)
 let trail_above(n:int64):bool { return n > 0 }
 let trail_shorter(a:String, b:String):bool { return a.count < b.count }
@@ -1133,6 +1137,22 @@ on a new line`
     println(oa, " ", oc.cents, " ", (-ob).cents, " ", (3 * ob).cents, " ", (ob ** 2).cents)
     println(ob * labs(-2), " ", ob * atof("1.5"), " ", oa < ob, " ", oa == ob, " ", oa != ob)
     println(og, " ", oe, " ", on, " ", ot, " ", og.sorted { $0 > $1 }[0].cents, " ", op_made().val)
+    let n8:i8 = -5                                       // the rest of the integers (#472)
+    let n16:int16 = -300
+    let u16v:u16 = 65535
+    let u64v:uint64 = 18446744073709551615
+    let n128:i128 = i128("-170141183460469231731687303715884105727")
+    let u128v:u128 = u128("340282366920938463463374607431768211455")
+    println(n8, " ", n16, " ", u16v, " ", u64v, " ", n128, " ", u128v)
+    println(n8.typename, " ", u128v.typename, " ", n8.size, " ", u128v.size)
+    println(n8.abs, " ", n16.sign, " ", (n8 * 100).abs, " ", (-n8).size)
+    println(n8.hex, " ", u16v.bin, " ", n128.hex, " ", u128v.bit(127), " ", u8("ff", 16), " ", u64("7"))
+    println(`${n8} ${u64v} ${n128} ${u128v}`)
+    println(num_wide(n8), " ", num_wide(u64v), " ", num_wide(n128), " ", (0x1p4).typename, " ", 0x1p4)
+    let r64:Range<u64> = 1...3
+    let wide_bits = Bits(n8, u16v)
+    println(r64, " ", r64.count, " ", r64.count.typename)
+    println($[n8, n8], " ", $[u64v], " ", wide_bits.u64s, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

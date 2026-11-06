@@ -514,6 +514,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 469 | An enum's value, an enumerator or a var of a plain enum, is C's int, an `i32`, to an integer's methods: `.bit(n)`, `.flip(n)`, `.abs`, `.sign`, `.pow`, `**` and `.size`; an enumerator never changes, which is kelvinc's error; kc the same | src/parser.c's seen_number_type, expr_class, reject_const_change; selfhost/gen.k's enum_int, int_view, enum_constant_changed; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md | `LIMIT.bit(2)` | 2026-11-04 |
 | 470 | kc reads a function trailing a plain call, `f(a) { ... }`, any `{` on a call's line outside a condition, as kelvinc's #32; `{ (var s:T):R in ... }`; an Array's `.sort`, `.sorted`, `.reverse` and `.reversed`; `<`, `<=`, `>` and `>=` of Strings; `any^`; `Array<T>(n)` of a C count | selfhost/parse.k's take_trailing, parse_cond, brace_ends; selfhost/gen.k's gen_array_sort, gen_array_reverse, gen_string_order; selfhost/sample.k | `apply(n) { $0 * 2 }`, `xs.sort { $0 > $1 }` | 2026-11-05 |
 | 471 | kc writes a struct's operators, as kelvinc's #42, #128, #135 and #380: `let +(a:T, b:U):R`, `static let +` in `extend`, `x += y`, `.sort()` by `<`, and `_Generic` where only C sees an argument's type; an owner moves into an operator in kelvinc too, with the error of a later read, and a member that owns is refused | src/parser.c's resolve_operator, the compound assignment's set_moved; selfhost/parse.k's overloadable_tok, parse_extend, parse_binary, body_ahead; selfhost/gen.k's resolve_op, compound_by_operator, tied_call, gen_generic_call, init_as_case; selfhost/sample.k; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | `a + b`, `a.copy() == b.copy()` | 2026-11-07 |
+| 472 | kc reads the rest of kelvinc's integers, `i8`, `i16`, `u16`, `u64`, `i128` and `u128` and their full names, in text, overloads, `.abs`, `.bit(n)`, `**`, Arrays and Ranges to 64 bits; arithmetic of numbers has C's type; `x.size` and `r.count` are a `u64`; `bv.u64s` | selfhost/parse.k's ykind, is_int_kind, number_word; selfhost/gen.k's promoted_int, usual_int, arith_type, above_i64, put_ctype, int_width, tpl_bound; selfhost/sample.k; selfhost/README.md | `let n:u64 = 18446744073709551615`, `(k * 100).abs` | 2026-11-07 |
 
 Notes:
 
@@ -1099,6 +1100,37 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (472) Agreed details: "push. then go on with #472", the rest of the
+  integers in kc, as the report of #471 proposed. kc alone: kelvinc has
+  them since its start, so no test of kelvinc's changes.
+  - Six kinds of type, Y_I8, Y_I16, Y_U16, Y_U64, Y_I128 and Y_U128, and
+    is_int_kind, is_signed_kind and is_unsigned_kind for the lists of
+    four that kc had written out.
+  - Each where it differs: C's type, its name, KV_NUMBER's code, its
+    width, its largest, how text reads it, and a template's room, 40 of
+    an `i128` and 39 of a `u128`.
+  - A Range is of `i8` to `i64` and `u8` to `u64`, as kelvinc's: 128 bits
+    are refused, in its words.
+  - Comparing with kelvinc showed what was wrong before and hidden by
+    `uint8` alone:
+    - `a op b` had the type of `a`. arith_type gives C's, as kelvinc
+      sees it: `k * 100` of an `i8` is an `i32`, `i + w` of an `i32` and
+      an `i64` an `i64`, an integer literal takes the other's type, and
+      `f * 2.0` of an `f32` is an `f64`; `-k` and `~k` promote too.
+    - `x.size` and `r.count` were an `i64`, so `c.size.dec` said `+4`,
+      and a Range of 2^64 values counted 0: both are a `u64` now, and
+      that Range ends the program, as kelvinc's.
+    - `0x1p4` read as an integer; a literal above an `i64` warned in C,
+      and says `U` as kelvinc's.
+    - `int32(n)` of a C typedef, `n:size_t`, was refused.
+    - `bv.u64s` was refused for want of a `u64`.
+  - kc builds 176 of the 354 programs, 14 more: tests/run/abs_small.k,
+    alignof.k, bits_grow.k, casts.k, declarations.k, int_bits.k,
+    integers.k, literals.k, prelude.k, properties.k, range_count.k,
+    range_count_wide.k, sign_small.k and struct_operators.k, each
+    printing what kelvinc's prints.
+  - Left: an Array's `.count`, `sizeof(T)` and a fixed array's `.size`
+    stay an `i64` in kc, where kelvinc's are a `u64` or a `size_t`.
 - (471) Agreed details: "go on with #471", struct operators in kc, as
   the report of #470 proposed; while writing it, kelvinc's silent
   emptying of an operand came up, and the user took the suggestion to
@@ -7005,6 +7037,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P481 | Details of #469 | src/parser.c: seen_number_type's and expr_class's enumerator, reject_const_change's; selfhost/gen.k: enum_int, int_view, enum_constant_changed, power_int, int_width, power_promoted, abs, sign and number_text's; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md; selfhost/README.md | — |
 | P482 | Details of #470 | selfhost/parse.k: brace_ends, trailing_ahead, parse_cond, take_trailing, parse_anon's var, parse_bare_type's any; selfhost/gen.k: sort_fn_error, sort_fn_of, sort_by_kind, put_sort_side, put_sort_less, put_merge_sort, gen_array_sort, gen_array_reverse, gen_string_order, anon_type's no parameters, put_ctype's const cstr^, type_text's any, gen_make's C count; selfhost/sample.k: `trail_apply` and its lines; selfhost/README.md | — |
 | P483 | Details of #471 | src/parser.c: resolve_operator's moves, the compound assignment's set_moved; selfhost/parse.k: overloadable_tok, parse_extend's operator, parse_program's refusals and `struct T;`, body_ahead, operator_on_next_line, hidden_token's op; selfhost/gen.k: is_operator, operator_word, maker_name, put_fn_name, op_record, operator_fits, is_word_value, operand_text, operand_param, user_operator_on, resolve_op, compound_by_operator, tied_cands, sees_c_arg, tied_call, param_at, number_code, put_generic_tree, gen_generic_call, init_as_case, sort_operator, gen_arg_to's words, gen_variant_eq's words, put_lazy_heads; selfhost/sample.k: `op_money` and its lines; selfhost/README.md; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | — |
+| P484 | Details of #472 | selfhost/parse.k: ykind's six, is_signed_kind, is_unsigned_kind, is_int_kind, number_word, type_word, Range's check; selfhost/gen.k: float_tok's hex float, above_i64, promoted_int, usual_int, arith_type, type_of's N_BIN and N_UNARY, x.size's and r.count's u64, Bits' u64s, put_ctype, mangled, kelvin_type_text, number_code, put_text_read, put_text_rest, int_width, put_uint_of, tpl_bound, range_max, range_unsigned, the Range typedefs, gen_power's width, pow_method_type, the converter's C typedef; selfhost/sample.k: `num_wide`, `num_pack` and their lines; selfhost/README.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

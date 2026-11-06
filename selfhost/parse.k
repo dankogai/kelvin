@@ -79,6 +79,12 @@ enum ykind {                    // the kinds of types (#210)
     Y_I32,
     Y_U8,
     Y_U32,
+    Y_I8,       // the rest of kelvinc's integers (#472)
+    Y_I16,
+    Y_U16,
+    Y_U64,
+    Y_I128,     // C's __int128, where the C compiler has it
+    Y_U128,
     Y_F64,      // float64 (#262)
     Y_F32,      // float32 (#263)
     Y_BOOL,
@@ -104,6 +110,19 @@ enum ykind {                    // the kinds of types (#210)
     Y_FN,       // a function type (#428), (T, U):R: its result elem, -1 of none; its parameters name, a Y_PARAM or -1
     Y_PARAM,    // a parameter of a function type (#428): its type elem; the next name, a Y_PARAM or -1
     Y_C         // what only C sees: a name of a C header (#207)
+}
+
+// whether k is an integer's kind; signed; unsigned (#472)
+let is_signed_kind(k:ykind):bool {
+    return k == Y_I8 || k == Y_I16 || k == Y_I32 || k == Y_I64 || k == Y_I128
+}
+
+let is_unsigned_kind(k:ykind):bool {
+    return k == Y_U8 || k == Y_U16 || k == Y_U32 || k == Y_U64 || k == Y_U128
+}
+
+let is_int_kind(k:ykind):bool {
+    return is_signed_kind(k) || is_unsigned_kind(k)
 }
 
 struct node {
@@ -278,6 +297,12 @@ let number_word(t:int64):int64 {
     if tok_is(t, "int32") || tok_is(t, "i32") { return base_type(Y_I32) }
     if tok_is(t, "uint8") || tok_is(t, "u8") { return base_type(Y_U8) }
     if tok_is(t, "uint32") || tok_is(t, "u32") { return base_type(Y_U32) }
+    if tok_is(t, "int8") || tok_is(t, "i8") { return base_type(Y_I8) }   // (#472)
+    if tok_is(t, "int16") || tok_is(t, "i16") { return base_type(Y_I16) }
+    if tok_is(t, "uint16") || tok_is(t, "u16") { return base_type(Y_U16) }
+    if tok_is(t, "uint64") || tok_is(t, "u64") { return base_type(Y_U64) }
+    if tok_is(t, "int128") || tok_is(t, "i128") { return base_type(Y_I128) }
+    if tok_is(t, "uint128") || tok_is(t, "u128") { return base_type(Y_U128) }
     if tok_is(t, "float64") || tok_is(t, "f64") { return base_type(Y_F64) }
     if tok_is(t, "float32") || tok_is(t, "f32") { return base_type(Y_F32) }
     return 0 - 1
@@ -713,6 +738,12 @@ let type_word(y:int64):String {
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_I8: return $"i8"
+    case Y_I16: return $"i16"
+    case Y_U16: return $"u16"
+    case Y_U64: return $"u64"
+    case Y_I128: return $"i128"
+    case Y_U128: return $"u128"
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
@@ -1275,7 +1306,7 @@ let parse_bare_type():int64 {
             close_angle()
         }
         let k:ykind = types[value].kind
-        if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 {
+        if !is_int_kind(k) || k == Y_I128 || k == Y_U128 {
             var m = $"a Range is of integers, i8 to i64 or u8 to u64, and this is "
             let w:String = type_word(value)
             m += &w

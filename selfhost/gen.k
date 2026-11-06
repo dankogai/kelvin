@@ -409,6 +409,12 @@ let put_ctype(y:int64) {
     case Y_I32: put("int32_t")
     case Y_U8: put("uint8_t")
     case Y_U32: put("uint32_t")
+    case Y_I8: put("int8_t")
+    case Y_I16: put("int16_t")
+    case Y_U16: put("uint16_t")
+    case Y_U64: put("uint64_t")
+    case Y_I128: put("__int128")
+    case Y_U128: put("unsigned __int128")
     case Y_F64: put("double")
     case Y_F32: put("float")
     case Y_BOOL: put("bool")
@@ -1031,7 +1037,13 @@ let float_word(n:int64):bool {
 let float_tok(t:int64):bool {
     let at:int64 = toks[t].at
     let n:int64 = toks[t].len
-    if n > 1 && codes[at] == '0' && (codes[at + 1] == 'x' || codes[at + 1] == 'X') { return false }
+    if n > 1 && codes[at] == '0' && (codes[at + 1] == 'x' || codes[at + 1] == 'X') {   // 0x1p4, a hex float (#472)
+        for i in 0..<n {
+            let c:uint32 = codes[at + i]
+            if c == 'p' || c == 'P' || c == '.' { return true }
+        }
+        return false
+    }
     for i in 0..<n {
         let c:uint32 = codes[at + i]
         if c == '.' || c == 'e' || c == 'E' { return true }
@@ -1092,6 +1104,69 @@ let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
 let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
 let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
+
+// whether the literal t, of decimal digits, is above an i64's largest (#472)
+let above_i64(t:int64):bool {
+    let at:int64 = toks[t].at
+    let n:int64 = toks[t].len
+    if n < 19 || codes[at] == '0' { return false }
+    let most:cstr := "9223372036854775807"
+    var over = n > 19
+    var told = false
+    for i in 0..<n {
+        let c:uint32 = codes[at + i]
+        if c < '0' || c > '9' { return false }
+        if n == 19 && !told && c != most[i] as uint32 {
+            told = true
+            over = c > most[i] as uint32
+        }
+    }
+    return over
+}
+
+// y as C promotes it: an integer narrower than an int is an int (#472)
+let promoted_int(y:int64):int64 {
+    if y < 0 { return y }
+    let k:ykind = types[y].kind
+    return k == Y_I8 || k == Y_U8 || k == Y_I16 || k == Y_U16 ? base_type(Y_I32) : y
+}
+
+// of two integers promoted, C's usual conversion: the wider, of two as
+// wide the unsigned
+let usual_int(a:int64, b:int64):int64 {
+    let ak:ykind = types[a].kind
+    let bk:ykind = types[b].kind
+    if ak == Y_U128 || bk == Y_U128 { return base_type(Y_U128) }
+    if ak == Y_I128 || bk == Y_I128 { return base_type(Y_I128) }
+    if ak == Y_U64 || bk == Y_U64 { return base_type(Y_U64) }
+    if ak == Y_I64 || bk == Y_I64 { return base_type(Y_I64) }
+    if ak == Y_U32 || bk == Y_U32 { return base_type(Y_U32) }
+    return base_type(Y_I32)
+}
+
+// a op b's type, of numbers as kelvinc has it (#472): C's, an integer
+// literal taking the other's type and a floating one being an f64; else a's
+let arith_type(n:int64):int64 {
+    let a:int64 = nodes[n].a
+    let b:int64 = nodes[n].b
+    let ya:int64 = type_of(a)
+    let yb:int64 = type_of(b)
+    if ya < 0 || yb < 0 { return ya }
+    let ak:ykind = types[ya].kind
+    let bk:ykind = types[yb].kind
+    let af = ak == Y_F64 || ak == Y_F32
+    let bf = bk == Y_F64 || bk == Y_F32
+    if !(is_int_kind(ak) || af) || !(is_int_kind(bk) || bf) { return ya }
+    if af || bf { return ak == Y_F64 || bk == Y_F64 ? base_type(Y_F64) : base_type(Y_F32) }
+    let t:int64 = nodes[n].t
+    if tok_is(t, "<<") || tok_is(t, ">>") { return promoted_int(ya) }
+    let la = nodes[a].kind == N_NUM || nodes[a].kind == N_CHAR
+    let lb = nodes[b].kind == N_NUM || nodes[b].kind == N_CHAR
+    if la && lb { return ya }
+    if la { return promoted_int(yb) }
+    if lb { return promoted_int(ya) }
+    return usual_int(promoted_int(ya), promoted_int(yb))
+}
 
 let type_of(n:int64):int64 {
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
@@ -1258,7 +1333,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         let pp:int64 = pointer_property(n)
-        if pp == 1 { return base_type(Y_I64) }                          // x.size, sizeof x as kc's sizeof (#462)
+        if pp == 1 { return base_type(Y_U64) }                          // x.size, sizeof x, C's size (#462, #472)
         if pp == 2 { return base_type(Y_C) }                            // p.addr, a uintptr_t
         if pp == 3 { return y }                                         // p.next, p.prev, of its type
         if pp < 0 { return -1 }
@@ -1279,18 +1354,18 @@ let type_of(n:int64):int64 {
         if yk == Y_BITS && (tok_is(t, "count") || tok_is(t, "capacity")) { return base_type(Y_I64) }   // in bits, an i64 as kc's counts are (#456)
         if yk == Y_BITS && tok_is(t, "isEmpty") { return base_type(Y_BOOL) }
         if yk == Y_BITS && tok_is(t, "bin") { return type_of_kind(Y_ARRAY, base_type(Y_STRING), -1) }   // each u64's "0b..." (#456)
+        if yk == Y_BITS && tok_is(t, "u64s") { return type_of_kind(Y_ARRAY, base_type(Y_U64), -1) }     // its u64s, a new Array (#472)
         if yk == Y_BITS {
             var m = $"a Bits has count, capacity, isEmpty, u64s, bin, append, flip, copy, cstr, size, type and typename, and '."
             m += tok_text(t)
             m += "' is none of them: a bit is 'bv[n]'"
-            if tok_is(t, "u64s") { m = $"kc has no u64, so it reads no '.u64s' of a Bits yet: '.bin' is their text" }
             if tok_is(t, "value") { m = $"a Bits holds u64s, '.u64s', and grows past 64 bits (#455): '.value' is gone" }
             gen_error(n, m.cstr)
             return -1
         }
         if tok_is(t, "sign") && (yk == Y_F64 || yk == Y_F32) { return optional_of(base_type(Y_BOOL)) }   // a floating-point x.sign, a bool? (#383)
         if (tok_is(t, "exponent") || tok_is(t, "significand")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_I64) }   // its fields (#383)
-        if (tok_is(t, "abs") || tok_is(t, "sign")) && (yk == Y_I64 || yk == Y_I32 || yk == Y_F64 || yk == Y_F32 || enum_int(y)) { return int_view(y) }   // x.abs, x.sign, of its type (#381, #382), an enum's an i32 (#469)
+        if (tok_is(t, "abs") || tok_is(t, "sign")) && (is_signed_kind(yk) || yk == Y_F64 || yk == Y_F32 || enum_int(y)) { return int_view(y) }   // x.abs, x.sign, of its type (#381, #382), an enum's an i32 (#469)
         if (tok_is(t, "isNaN") || tok_is(t, "isInfinite") || tok_is(t, "isFinite")) && (yk == Y_F64 || yk == Y_F32) { return base_type(Y_BOOL) }   // x.isNaN (#382), x.isInfinite, x.isFinite (#384)
         if tok_is(t, "isEmpty") && empty_kind(n) != 0 {  // x.isEmpty (#435), a bool, or kelvinc's error
             if empty_kind(n) > 0 { return base_type(Y_BOOL) }
@@ -1298,7 +1373,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         if yk == Y_BYTES { return bytes_field_type(n) }                 // b.count and the rest (#439)
-        if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_I64) }   // r.count, an i64 as kc's counts are (#374)
+        if yk == Y_RANGE && tok_is(t, "count") { return base_type(Y_U64) }   // r.count, a u64, as kelvinc's (#374, #472)
         if yk == Y_RANGE && (tok_is(t, "lowerBound") || tok_is(t, "upperBound")) { return types[y].elem }   // its bounds, of T (#375)
         if yk == Y_RANGE {                                               // as kelvinc's (#373)
             range_member_error(n)
@@ -1452,7 +1527,7 @@ let type_of(n:int64):int64 {
     }
     if k == N_UNARY {
         if tok_is(t, "!") || tok_is(t, "!!") { return base_type(Y_BOOL) }   // !!n too, a bit's bool (#387)
-        return type_of(nodes[n].a)
+        return promoted_int(type_of(nodes[n].a))         // -x, ~x of a small one, C's int (#472)
     }
     if k == N_BIN {
         if is_comparison(t) { return base_type(Y_BOOL) }
@@ -1464,7 +1539,7 @@ let type_of(n:int64):int64 {
         }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
-        return type_of(nodes[n].a)
+        return arith_type(n)
     }
     if k == N_CAST { return nodes[n].ty }
     if k == N_ADDR {                                   // &x, a const T^ of a let (#272)
@@ -1948,6 +2023,12 @@ let mangled(y:int64):String {
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_I8: return $"i8"
+    case Y_I16: return $"i16"
+    case Y_U16: return $"u16"
+    case Y_U64: return $"u64"
+    case Y_I128: return $"i128"
+    case Y_U128: return $"u128"
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
@@ -2148,7 +2229,7 @@ let put_fn_name(d:int64) {
 
 // a number to choose overloads by, as kelvinc's numeric_type: bool too, as C's _Bool
 let is_number_kind(k:ykind):bool {
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL
+    return is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL
 }
 
 // whether x is a word with no type of its own, none, ok(v) or err(e): not
@@ -2487,7 +2568,7 @@ let put_record_word(y:int64) {
 // whether print shows v as it is: a number, a bool, text
 let plain_shown(v:int64):bool {
     let k:ykind = types[v].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR || k == Y_BITS
+    return is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR || k == Y_BITS
 }
 
 // whether print shows y by a _kv_show_T of its own: an enum with values
@@ -2622,7 +2703,7 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put(");\n")
     } else {
         put("{ uint8_t _kv_b[256]; ")
-        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_BITS ? "kv_cstr_bits" : k == Y_U8 || k == Y_U32 ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : k == Y_F32 ? "kv_cstr_f32" : "kv_cstr_i64")
+        put(k == Y_BOOL ? "kv_cstr_bool" : k == Y_BITS ? "kv_cstr_bits" : k == Y_I128 ? "kv_cstr_i128" : k == Y_U128 ? "kv_cstr_u128" : is_unsigned_kind(k) ? "kv_cstr_u64" : k == Y_F64 ? "kv_cstr_f64" : k == Y_F32 ? "kv_cstr_f32" : "kv_cstr_i64")
         put("(")
         put_self(path, t)
         put(", _kv_b); kv_out_put(o, _kv_b); }\n")
@@ -4229,9 +4310,9 @@ let gen_pointer_property(n:int64) {
     let a:int64 = nodes[n].a
     let p = pointer_property(n)
     if p == 1 && types[type_of(a)].kind == Y_FN {
-        put("((int64_t)sizeof(void *))")
+        put("((uint64_t)sizeof(void *))")                // C's size, a u64 (#472)
     } else if p == 1 {
-        put("((int64_t)sizeof(")
+        put("((uint64_t)sizeof(")
         gen_expr(a)
         put("))")
     } else if p == 2 {
@@ -4264,7 +4345,7 @@ let number_text(n:int64):bool {
     let y:int64 = int_view(type_of(nodes[n].a))
     if y < 0 { return false }
     let k = types[y].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR) && tok_is(nodes[n].t, "hex"))
+    return is_int_kind(k) || k == Y_F64 || k == Y_F32 || ((k == Y_PTR || k == Y_CSTR) && tok_is(nodes[n].t, "hex"))
 }
 
 // whether x.dec and the rest of a receiver of kind k are refused, as
@@ -4274,7 +4355,7 @@ let number_text_refused(n:int64, k:ykind):bool {
     let t:int64 = nodes[n].t
     let w:String = tok_text(t)
     let floating = k == Y_F64 || k == Y_F32
-    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR) && tok_is(t, "hex")) { return false }
+    if is_int_kind(k) || (floating && (tok_is(t, "dec") || tok_is(t, "hex"))) || ((k == Y_PTR || k == Y_CSTR) && tok_is(t, "hex")) { return false }
     var m = $"'."
     m += &w
     if floating {
@@ -4363,6 +4444,8 @@ let tpl_bound(v:int64):String {
     let y = type_of(v)
     if y < 0 { return $"KV_TEMPLATE_STR" }
     let k = types[y].kind
+    if k == Y_I128 { return $"40" }                      // the longest, as kelvinc's (#472)
+    if k == Y_U128 { return $"39" }
     if is_number_kind(k) { return $"24" }
     if k == Y_BOOL { return $"5" }
     if k == Y_UCHR { return $"4" }
@@ -4871,7 +4954,7 @@ let put_text_read(y:int64) {
         put(k == Y_F64 ? "kv_text_f64" : "kv_text_f32")
         return
     }
-    put(k == Y_U8 || k == Y_U32 ? "kv_text_uint" : "kv_text_int")
+    put(k == Y_I128 ? "kv_text_i128" : k == Y_U128 ? "kv_text_u128" : is_unsigned_kind(k) ? "kv_text_uint" : "kv_text_int")
 }
 
 let put_text_rest(y:int64, base:int64) {
@@ -4890,8 +4973,13 @@ let put_text_rest(y:int64, base:int64) {
     }
     if k == Y_I64 { put(", INT64_MIN, INT64_MAX)") }
     if k == Y_I32 { put(", INT32_MIN, INT32_MAX)") }
+    if k == Y_I16 { put(", INT16_MIN, INT16_MAX)") }
+    if k == Y_I8 { put(", INT8_MIN, INT8_MAX)") }
     if k == Y_U8 { put(", UINT8_MAX)") }
+    if k == Y_U16 { put(", UINT16_MAX)") }
     if k == Y_U32 { put(", UINT32_MAX)") }
+    if k == Y_U64 { put(", UINT64_MAX)") }
+    if k == Y_I128 || k == Y_U128 { put(")") }
 }
 
 // T(v) and T(text, base), the converter n (#429), as kelvinc's #36: a
@@ -4926,7 +5014,7 @@ let gen_converter(n:int64) {
         gen_error(base, m.cstr)
         return
     }
-    let unseen = vy < 0 || types[vy].kind == Y_C
+    let unseen = vy < 0 || types[vy].kind == Y_C || (types[vy].kind == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0)   // a C typedef too, size_t, whose kind C knows (#472)
     if base >= 0 && !text && !unseen {
         var m = $"a base is for reading text, as in "
         m += &name
@@ -5102,6 +5190,12 @@ let number_code(y:int64):cstr {
     case Y_U8: return "KV_N_U8"
     case Y_I32: return "KV_N_I32"
     case Y_U32: return "KV_N_U32"
+    case Y_I8: return "KV_N_I8"
+    case Y_I16: return "KV_N_I16"
+    case Y_U16: return "KV_N_U16"
+    case Y_U64: return "KV_N_U64"
+    case Y_I128: return "KV_N_I128"
+    case Y_U128: return "KV_N_U128"
     case Y_I64: return "KV_N_I64"
     case Y_F32: return "KV_N_F32"
     case Y_F64: return "KV_N_F64"
@@ -5304,7 +5398,7 @@ let is_made_array(n:int64):bool {
     let t = nodes[n].t
     if pretty_value(n) { return true }                  // a new String too (#336, #452)
     if types[y].kind == Y_SET { return tok_is(t, "elements") }
-    if types[y].kind == Y_BITS { return tok_is(t, "bin") }   // a new Array<String> (#456)
+    if types[y].kind == Y_BITS { return tok_is(t, "bin") || tok_is(t, "u64s") }   // a new Array<String> (#456), Array<u64> (#472)
     return types[y].kind == Y_DICT && (tok_is(t, "keys") || tok_is(t, "values") || tok_is(t, "pretty"))   // (#337)
 }
 
@@ -6685,7 +6779,7 @@ let fits_value(n:int64, t:int64):bool {
     let k:nkind = nodes[n].kind
     let tk:ykind = types[t].kind
     let literal = k == N_NUM || k == N_CHAR || k == N_BOOL || (k == N_UNARY && tok_is(nodes[n].t, "-") && nodes[nodes[n].a].kind == N_NUM)
-    let number = tk == Y_I64 || tk == Y_I32 || tk == Y_U8 || tk == Y_U32 || tk == Y_F64 || tk == Y_F32
+    let number = is_int_kind(tk) || tk == Y_F64 || tk == Y_F32
     if literal && number { return true }
     let y:int64 = number && !literal ? type_of(n) : 0 - 1
     if y >= 0 && is_number_kind(types[y].kind) { return true }   // a bool or a number of another kind, as kelvinc converts it; none of a bool? (#415)
@@ -6842,7 +6936,7 @@ let dict_entries_fit(n:int64, y:int64):bool {
                 return false
             }
         } else {
-            let integer = (kk == N_NUM && !float_tok(nodes[k].t)) || kind == Y_I64 || kind == Y_I32 || kind == Y_U8 || kind == Y_U32
+            let integer = (kk == N_NUM && !float_tok(nodes[k].t)) || is_int_kind(kind)
             if !integer {
                 var m = $"a key of "
                 m += &yw
@@ -7954,11 +8048,11 @@ let put_bits_ref(x:int64, held:int64) {
 // type of as many bits unsigned (#457)
 let int_width(y:int64):int64 {
     let k:ykind = types[y].kind
-    return k == Y_U8 ? 8 : k == Y_I32 || k == Y_U32 || enum_int(y) ? 32 : 64
+    return k == Y_U8 || k == Y_I8 ? 8 : k == Y_I16 || k == Y_U16 ? 16 : k == Y_I32 || k == Y_U32 || enum_int(y) ? 32 : k == Y_I128 || k == Y_U128 ? 128 : 64
 }
 
 let put_uint_of(w:int64) {
-    put(w == 8 ? "uint8_t" : w == 32 ? "uint32_t" : "uint64_t")
+    put(w == 8 ? "uint8_t" : w == 16 ? "uint16_t" : w == 32 ? "uint32_t" : w == 128 ? "unsigned __int128" : "uint64_t")
 }
 
 // whether x, a bit's place in an integer of type y, is one, as kelvinc's
@@ -8192,7 +8286,7 @@ let bits_part_ok(x:int64, what:cstr):bool {
         }
         return true
     }
-    if k == Y_BOOL || k == Y_CSTR || k == Y_STRING || k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_C { return true }
+    if k == Y_BOOL || k == Y_CSTR || k == Y_STRING || is_int_kind(k) || k == Y_C { return true }
     if k == Y_PTR && types[types[y].elem].kind == Y_STRING { return true }   // &s
     if (k == Y_FIXED || k == Y_ARRAY) && types[types[y].elem].kind == Y_BOOL { return true }
     if k == Y_STRUCT && decl_named(types[y].name, D_ENUM) >= 0 { return true }   // an enum's value
@@ -8281,7 +8375,7 @@ let put_bits_push(b:cstr, x:int64) {
         gen_expr(x)
         put(")[0]))")
     } else {
-        let w:cstr := k == Y_I32 || k == Y_U32 ? "32" : k == Y_U8 ? "8" : k == Y_C ? "sizeof _kv_bv * 8" : "64"
+        let w:cstr := k == Y_I32 || k == Y_U32 ? "32" : k == Y_U8 || k == Y_I8 ? "8" : k == Y_I16 || k == Y_U16 ? "16" : k == Y_I128 || k == Y_U128 ? "128" : k == Y_C ? "sizeof _kv_bv * 8" : "64"
         put("({ __auto_type _kv_bv = ")
         gen_expr(x)
         put("; kv_bits_push_int(")
@@ -8396,10 +8490,10 @@ let gen_bits(n:int64):bool {
         put(")); })")
         return true
     }
-    if k == N_FIELD && is_bits(type_of(a)) && (tok_is(t, "count") || tok_is(t, "capacity") || tok_is(t, "isEmpty") || tok_is(t, "bin")) {
+    if k == N_FIELD && is_bits(type_of(a)) && (tok_is(t, "count") || tok_is(t, "capacity") || tok_is(t, "isEmpty") || tok_is(t, "bin") || tok_is(t, "u64s")) {
         put("({ ")                                       // its count and room in bits, whether it has none,
         let ha:int64 = bits_hold(a)                      // each u64's "0b..." (#456)
-        if tok_is(t, "bin") {
+        if tok_is(t, "bin") || tok_is(t, "u64s") {
             let ay:int64 = type_of(n)
             put("const kv_bits *_kv_bq = ")
             put_bits_ref(a, ha)
@@ -8407,7 +8501,7 @@ let gen_bits(n:int64):bool {
             put_array_name(ay)
             put(" _kv_bs = {0}; for (size_t _kv_bi = 0; _kv_bi < (_kv_bq->count + 63) / 64; _kv_bi++) ")
             put_array_name(ay)
-            put("_append(&_kv_bs, kv_bits_word_bin(_kv_bq, _kv_bi)); _kv_bs; })")
+            put(tok_is(t, "bin") ? "_append(&_kv_bs, kv_bits_word_bin(_kv_bq, _kv_bi)); _kv_bs; })" : "_append(&_kv_bs, _kv_bq->at[_kv_bi]); _kv_bs; })")
             return true
         }
         put(tok_is(t, "isEmpty") ? "(bool)((" : "(int64_t)((")
@@ -9055,7 +9149,7 @@ let gen_expr_of(n:int64) {
             put("_make_some((bool)!__builtin_signbit(_kv_fv)); })")
             return
         }
-        if sk == Y_I64 || sk == Y_I32 {
+        if is_signed_kind(sk) {
             put("({ ")
             put_ctype(sy)
             put(" _kv_sg = (")
@@ -9086,8 +9180,8 @@ let gen_expr_of(n:int64) {
             put(")")
             return
         }
-        if ak == Y_I64 || ak == Y_I32 {                  // negated in its unsigned type, where i64's least wraps
-            let u:cstr := ak == Y_I64 ? "uint64_t" : "uint32_t"
+        if is_signed_kind(ak) {                          // negated in its unsigned type, where i64's least wraps
+            let u:cstr := ak == Y_I128 ? "unsigned __int128" : ak == Y_I64 ? "uint64_t" : ak == Y_I32 ? "uint32_t" : ak == Y_I16 ? "uint16_t" : "uint8_t"
             put("({ ")
             put_ctype(ay)
             put(" _kv_ab = (")
@@ -9140,6 +9234,9 @@ let gen_expr_of(n:int64) {
         put(")")
     } else if k == N_ID && n != anew && moved_error(n) {
         return                                           // read after it moved out, kelvinc's error (#441)
+    } else if k == N_NUM && above_i64(t) {
+        put_tok(t)                                       // no signed C type holds it, and C warns, as kelvinc says (#472)
+        put("U")
     } else if k == N_NUM || k == N_CHAR || k == N_ID {
         put_tok(t)
     } else if k == N_STR {
@@ -9359,6 +9456,12 @@ let type_text(y:int64):String {
     case Y_I32: return $"i32"
     case Y_U8: return $"u8"
     case Y_U32: return $"u32"
+    case Y_I8: return $"i8"
+    case Y_I16: return $"i16"
+    case Y_U16: return $"u16"
+    case Y_U64: return $"u64"
+    case Y_I128: return $"i128"
+    case Y_U128: return $"u128"
     case Y_F64: return $"f64"
     case Y_F32: return $"f32"
     case Y_BOOL: return $"bool"
@@ -10731,7 +10834,7 @@ let empty_kind(n:int64):int64 {
     if k == Y_ITER { return 5 }
     if k == Y_STRUCT && field_type(y, nodes[n].t) >= 0 { return 0 }
     if k == Y_STRUCT && (iterator_next(y) >= 0 || sequence_maker(y) >= 0 || is_lazy_type(y)) { return 5 }
-    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_UCHR { return 0 - 1 }
+    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_UCHR { return 0 - 1 }
     if k == Y_PTR { return 0 - 2 }
     return 0
 }
@@ -11635,7 +11738,7 @@ let prefix_arg(n:int64, ey:int64):int64 {
     let cy:int64 = type_of(b)
     if cy < 0 { return 0 - 1 }
     let k:ykind = types[cy].kind
-    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+    if !is_int_kind(k) && k != Y_C {
         var m = $"'.prefix' takes a count, an integer, or a function that says whether to keep each value, and this is "
         let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : kelvin_type_text(cy)
         m += &w
@@ -11704,7 +11807,7 @@ let range_type_of(n:int64):int64 {
         let by:int64 = type_of(b)
         if by < 0 { return 0 - 1 }
         let k:ykind = types[by].kind
-        if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+        if !is_int_kind(k) && k != Y_C {
             var m = $"a range is of integers, not "
             let w:String = type_text(by)
             m += &w
@@ -11730,7 +11833,7 @@ let range_member_error(n:int64) {
 // T's largest, where a Range<T> without an end stops
 let range_max(y:int64):cstr {
     let k:ykind = y >= 0 ? types[y].kind : Y_I64
-    return k == Y_I32 ? "INT32_MAX" : k == Y_U8 ? "UINT8_MAX" : k == Y_U32 ? "UINT32_MAX" : "INT64_MAX"
+    return k == Y_I8 ? "INT8_MAX" : k == Y_I16 ? "INT16_MAX" : k == Y_I32 ? "INT32_MAX" : k == Y_U8 ? "UINT8_MAX" : k == Y_U16 ? "UINT16_MAX" : k == Y_U32 ? "UINT32_MAX" : k == Y_U64 ? "UINT64_MAX" : "INT64_MAX"
 }
 
 // a Range's walk, as kelvinc's: of the Range r, the hidden p_lo, p_go and
@@ -11784,7 +11887,7 @@ let range_iter_of(n:int64):int64 {
 
 // whether a Range<T>'s T, y, is unsigned, which steps never down (#379)
 let range_unsigned(y:int64):bool {
-    return y >= 0 && (types[y].kind == Y_U8 || types[y].kind == Y_U32)
+    return y >= 0 && is_unsigned_kind(types[y].kind)
 }
 
 // r.stride(n) (#379), as kelvinc's: n one integer, a T, never 0; a
@@ -11805,7 +11908,7 @@ let gen_range_stride(n:int64) {
     let vy:int64 = type_of(v)
     if vy < 0 { return }
     let k:ykind = types[vy].kind
-    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+    if !is_int_kind(k) && k != Y_C {
         var m = $"'.stride' takes an integer, and this is "
         let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : type_text(vy)
         m += &w
@@ -11851,7 +11954,7 @@ let gen_range_stride(n:int64) {
 let power_int(y:int64):bool {
     if y < 0 { return false }
     let k:ykind = types[y].kind
-    return k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || enum_int(y)
+    return is_int_kind(k) || enum_int(y)
 }
 
 // whether y is a plain enum's value, which C's int is, as kelvinc's an
@@ -11888,8 +11991,8 @@ let power_float_literal(v:int64):bool {
 let power_promoted(v:int64):int64 {
     if power_int_literal(v) { return base_type(Y_I64) }
     let y:int64 = type_of(v)
-    if y >= 0 && (types[y].kind == Y_U8 || enum_int(y)) { return base_type(Y_I32) }   // an enum's value too (#469)
-    return y
+    if enum_int(y) { return base_type(Y_I32) }           // an enum's value too (#469)
+    return promoted_int(y)
 }
 
 // b ** e's type, as kelvinc's: of integers the base's promoted; else an
@@ -12082,10 +12185,18 @@ let gen_power(a:int64, b:int64) {
     put(" _kv_pe = (")
     gen_expr(b)
     put("); ")
-    if !power_int_literal(b) && types[ey].kind != Y_U32 {
+    if !power_int_literal(b) && !is_unsigned_kind(types[ey].kind) {
         put("if (_kv_pe < 0) kv_array_fail(\"'**' of integers takes an exponent of 0 or more: a power of an integer less than 0 is no integer\"); ")
     }
-    put("uint64_t _kv_pr = 1, _kv_px = (uint64_t)_kv_pb; for (uint64_t _kv_pn = (uint64_t)_kv_pe; _kv_pn; _kv_pn >>= 1) { if (_kv_pn & 1) _kv_pr *= _kv_px; _kv_px *= _kv_px; } (")
+    let wide:cstr := int_width(rt) == 128 ? "unsigned __int128" : "uint64_t"   // in a u64, or a u128 of 128 bits, as kelvinc's
+    put(wide)
+    put(" _kv_pr = 1, _kv_px = (")
+    put(wide)
+    put(")_kv_pb; for (")
+    put(int_width(ey) == 128 ? "unsigned __int128" : "uint64_t")
+    put(" _kv_pn = (")
+    put(int_width(ey) == 128 ? "unsigned __int128" : "uint64_t")
+    put(")_kv_pe; _kv_pn; _kv_pn >>= 1) { if (_kv_pn & 1) _kv_pr *= _kv_px; _kv_px *= _kv_px; } (")
     put_ctype(rt)
     put(")_kv_pr; })")
 }
@@ -12099,9 +12210,7 @@ let pow_method_type(n:int64):int64 {
     let by:int64 = power_promoted(nodes[n].a)
     let my:int64 = power_promoted(m)
     if by < 0 || my < 0 { return 0 - 1 }
-    if types[by].kind == Y_I64 || types[my].kind == Y_I64 { return base_type(Y_I64) }
-    if types[by].kind == Y_U32 || types[my].kind == Y_U32 { return base_type(Y_U32) }
-    return base_type(Y_I32)
+    return usual_int(by, my)
 }
 
 // whether b.pow(...) has one argument or two, else kelvinc's error
@@ -12243,7 +12352,7 @@ let gen_range_member(n:int64) {
         gen_expr(a)
         put("); if (_kv_rc.kind == 2) kv_array_fail(\"this Range has no end, and '.count' counts one to its end: take its first few, '.prefix(n)'\"); ")
         put_range_walk(ey, "_kv_rc", "_kv_c")
-        put("; _kv_c_go ? (int64_t)((uint64_t)_kv_c_end - (uint64_t)_kv_c_lo + 1) : (int64_t)0; })")
+        put("; if (_kv_c_go && (uint64_t)_kv_c_end - (uint64_t)_kv_c_lo == UINT64_MAX) kv_array_fail(\"this Range has 2^64 values, more than a count holds\"); _kv_c_go ? (uint64_t)_kv_c_end - (uint64_t)_kv_c_lo + 1 : (uint64_t)0; })")
         return
     }
     let v:int64 = nodes[n].b
@@ -12258,7 +12367,7 @@ let gen_range_member(n:int64) {
     let vy:int64 = type_of(v)
     if vy < 0 { return }
     let k:ykind = types[vy].kind
-    if k != Y_I64 && k != Y_I32 && k != Y_U8 && k != Y_U32 && k != Y_C {
+    if !is_int_kind(k) && k != Y_C {
         var m = $"'.contains' takes an integer, and this is "
         let w:String = k == Y_BOOL ? $"a bool" : k == Y_F64 || k == Y_F32 ? $"a floating-point number" : type_text(vy)
         m += &w
@@ -12282,9 +12391,9 @@ let put_range_types() {
         if types[i].kind == Y_RANGE { used = true }
     }
     if !used { return }
-    let words:[cstr] = ["i64", "i32", "u8", "u32"]
-    let ctypes:[cstr] = ["int64_t", "int32_t", "uint8_t", "uint32_t"]
-    for i in 0..<4 {
+    let words:[cstr] = ["i64", "i32", "u8", "u32", "i8", "i16", "u16", "u64"]
+    let ctypes:[cstr] = ["int64_t", "int32_t", "uint8_t", "uint32_t", "int8_t", "int16_t", "uint16_t", "uint64_t"]
+    for i in 0..<8 {
         put("#ifndef _KV_RANGE_")
         put(words[i])
         put("\n#define _KV_RANGE_")
@@ -12777,7 +12886,7 @@ let eager_of(n:int64):int64 {
         gen_error(n, m.cstr)
         return 0 - 1
     }
-    if kind == 1 && yk == Y_SET && types[ry].kind != Y_STRING && types[ry].kind != Y_I64 && types[ry].kind != Y_I32 && types[ry].kind != Y_U8 && types[ry].kind != Y_U32 {
+    if kind == 1 && yk == Y_SET && types[ry].kind != Y_STRING && !is_int_kind(types[ry].kind) {
         var m = $"'.map' of a Set makes a Set, whose elements are integers or Strings, and this gives "   // as kelvinc's (#307)
         let rw:String = kelvin_type_text(ry)
         m += &rw
@@ -12964,7 +13073,7 @@ let sort_operator(ey:int64):int64 {
 // whether the elements of ey have a < of their kind, else the error
 let sort_by_kind(n:int64, ey:int64):bool {
     let k:ykind = types[ey].kind
-    if k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_C || k == Y_STRING || k == Y_BYTES || k == Y_UCHR || k == Y_CSTR { return true }
+    if is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_C || k == Y_STRING || k == Y_BYTES || k == Y_UCHR || k == Y_CSTR { return true }
     let w:String = kelvin_type_text(ey)
     var m = $"'."
     m += tok_text(nodes[n].t)
@@ -15508,7 +15617,7 @@ let builtin_no_value(k:ykind, m:int64):bool {
     if tok_is(m, "append") || tok_is(m, "clear") || tok_is(m, "reserve") || tok_is(m, "compact") { return true }
     if tok_is(m, "insert") || tok_is(m, "remove") { return k == Y_ARRAY || k == Y_BYTES }
     if k == Y_BITS { return tok_is(m, "flip") || tok_is(m, "capacity") }   // (#456)
-    if tok_is(m, "flip") { return k == Y_BOOL || k == Y_I64 || k == Y_I32 || k == Y_U8 || k == Y_U32 }   // (#457)
+    if tok_is(m, "flip") { return k == Y_BOOL || is_int_kind(k) }   // (#457)
     if k != Y_IO { return false }
     return tok_is(m, "write") || tok_is(m, "flush") || tok_is(m, "close") || tok_is(m, "print") || tok_is(m, "println") || tok_is(m, "rewind")
 }
