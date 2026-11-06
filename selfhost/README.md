@@ -152,8 +152,8 @@ kc reads what it is written in, and little more.
       `items.contains(item.none)`.
     - kelvinc's errors, in its words: `'==' compares two struct J, and
       this is not one`; `case 'p' holds P, which has no '=='`.
-    - `j < j`: kelvinc's error, and an operator of its own (#121) is
-      not kc's yet.
+    - `j < j`: kelvinc's error, and an operator of its own (#121) came
+      with #471.
   - An enum or a struct that holds an Array of itself (#346), as
     kelvinc writes one: `enum node { leaf: int64; kids: $[node] }`.
     - The Array's type, `KV_ARRAY_TYPE`, comes before the struct, and
@@ -598,6 +598,20 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A struct's operators** (#471), as kelvinc's #42, #128, #135 and
+  #380:
+  - `let +(a:T, b:U):R` and the rest, `static let +(...)` in `extend`,
+    `_kv_add_op__T__U` in C, with kelvinc's errors in its words.
+  - `a + b`, `-a` and `a < b` where a struct, a union or an enum with
+    values is an operand: from there on the call of the operator chosen.
+  - `x += y` is `x = x + y`; `xs.sort()` by the elements' own `<`.
+  - An owner moves into an operator, as into a function; kelvinc now
+    says the same of one read after.
+  - Where only C sees an argument's type and overloads tie, `_Generic`
+    chooses, of functions too, as kelvinc's #41.
+  - Under them: `struct T;` before its body, an operator starting the
+    next line, `{.some = v}`, `{.none}` and `{1}` where an enum with
+    values goes, and `T.none`, which kc had come to refuse.
 - **Functions trailing a call, and sorting** (#470), as kelvinc's:
   - `f(a) { ... }` of a plain call, any `{` on a call's line outside a
     condition; `atexit() { ... }` of no parameters.
@@ -606,7 +620,7 @@ kc reads what it is written in, and little more.
     `.reverse()` and `.reversed()` of an Array, a stable merge sort.
     - A comparator is given copies of what owns, as `.map`'s function
       is, where kelvinc lends them to an anonymous one (#242).
-    - A struct's own `<` is an error, as kc writes no operators yet.
+    - A struct's own `<` came with #471.
   - `<`, `<=`, `>` and `>=` of Strings, `any^`, and `Array<T>(n)` of a
     C count.
 - **An enum's value is C's int** (#469), as kelvinc's: `LIMIT.bit(2)`,
@@ -1291,7 +1305,7 @@ steps can take them on one at a time.
     link a module kelvinc builds of Kelvin;
   - comparing an Optional, `x == none` or `x == 3` (#79);
   - `Optional`'s `map` and the rest of its methods;
-  - attributes, subscripts and operators of `extend`;
+  - attributes and subscripts of `extend`;
   - nested functions, and of function types (#428) arrays and
     collections of them, `((T):R)^` and `typealias`;
   - `"""` and `$/.../` with its check;

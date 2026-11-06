@@ -416,7 +416,7 @@ let hidden_token(t:int64):int64 {
     var k:int64 = 0
     while true {
         var name = $"_kv_"
-        let f:String = fn_tok >= 0 ? tok_text(fn_tok) : $"local"
+        let f:String = fn_tok >= 0 && toks[fn_tok].kind != T_PUNCT ? tok_text(fn_tok) : fn_tok >= 0 ? $"op" : $"local"   // of an operator, no name C reads (#471)
         name += &f
         name += "_"
         let own:String = tok_text(t)
@@ -2307,6 +2307,17 @@ let range_ends():bool {
     return !(at_word("(") || at_word("-") || at_word("!") || at_word("&") || at_word("$[") || at_word("${") || at_word("[") || at_word("."))
 }
 
+// whether a binary operator starts the next line, which goes on with the
+// expression before it, as kelvinc's continues_expression
+let operator_on_next_line():bool {
+    if !at_kind(T_NL) { return false }
+    let back:int64 = pos
+    skip_newlines()
+    let found = binding_power() > 0
+    pos = back
+    return found
+}
+
 let parse_binary(min:int64):int64 {
     var e:int64 = 0 - 1
     if min <= 7 && (at_word("..<") || at_word("...")) {      // ..<hi, ...hi, from 0 (#373)
@@ -2328,6 +2339,7 @@ let parse_binary(min:int64):int64 {
         e = parse_cast()
     }
     while !failed {
+        if operator_on_next_line() { skip_newlines() }
         if min <= 7 && (at_word("..<") || at_word("...")) {  // lo..<hi, lo...hi, lo... (#373)
             if nodes[e].kind == N_RANGE {
                 parse_error("a range's bounds are integers, and this would be a range of a range")
@@ -2852,6 +2864,11 @@ let parse_block():int64 {
 
 // ---------- declarations ----------
 
+// whether token t is an operator a struct may define (#42), ** too (#380)
+let overloadable_tok(t:int64):bool {
+    return tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "**")
+}
+
 // whether a method's head is at token i, T.m( or point.kind.m( (#389)
 let head_method(i:int64):bool {
     type_path(i)
@@ -3059,6 +3076,55 @@ let parse_extend() {
         } else {
             expect("let")
         }
+        if at_kind(T_PUNCT) {                            // static let +(a:T, b:T):T { } (#135): the top level's let +
+            if !overloadable_tok(pos) || !tok_is(pos + 1, "(") {
+                var m = $"'"
+                m += tok_text(pos)
+                m += "' cannot be defined: an operator is one of + - * / % == != < <= > >=, or unary -"
+                parse_error(m.cstr)
+                return
+            }
+            if is_static != 1 {
+                var m = $"an operator in extend is a function of the type, as Swift's static func: write 'static let "
+                let w:String = tok_text(recv)
+                m += tok_text(pos)
+                m += "(a:"
+                m += &w
+                m += ", b:"
+                m += &w
+                m += "):"
+                m += &w
+                m += " { ... }'"
+                parse_error(m.cstr)
+                return
+            }
+            let at:int64 = pos
+            let f:int64 = parse_function()
+            var takes = false
+            var p:int64 = nodes[f].a
+            while p >= 0 {
+                let py:int64 = nodes[p].ty
+                if py >= 0 && types[py].kind == Y_STRUCT && same_text(types[py].name, recv) { takes = true }
+                p = nodes[p].next
+            }
+            if !takes {
+                var m = $"an operator in extend "
+                let w:String = tok_text(recv)
+                m += &w
+                m += " takes a "
+                m += &w
+                m += ", as one of its values"
+                let back:int64 = pos
+                pos = at
+                parse_error(m.cstr)
+                pos = back
+                return
+            }
+            if inl { inline_fns += f }
+            decls += f
+            skip_newlines()
+            continue
+        }
         let n:int64 = parse_function()
         nodes[n].c = recv
         nodes[n].flag = is_static
@@ -3068,6 +3134,16 @@ let parse_extend() {
     }
     expect("}")
     self_name = 0 - 1
+}
+
+// whether the struct or union named by token t has its body after it
+let body_ahead(t:int64):bool {
+    var i:int64 = t + 1
+    while toks[i].kind != T_EOF {
+        if (tok_is(i, "struct") || tok_is(i, "union")) && same_text(i + 1, t) && tok_is(i + 2, "{") { return true }
+        i += 1
+    }
+    return false
 }
 
 // the declarations from the token at pos to the end
@@ -3104,6 +3180,10 @@ let parse_program() {
                 c_headers = true
             }
             decls += n
+        } else if (at_word("struct") || at_word("union")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ";") && body_ahead(pos + 1) {
+            advance()                                            // struct money; before its body, as a function's prototype (#42)
+            advance()
+            advance()
         } else if (at_word("struct") || at_word("union")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ";") {
             let tag:int64 = at_word("union") ? 0 - 3 : 0 - 2     // struct timespec;, a C struct declared in Kelvin (#453):
             advance()                                            // T names it, C's, whose members C sees
@@ -3124,6 +3204,23 @@ let parse_program() {
             if at_word(";") { advance() }                // enum { LIMIT = 100 }; (#451)
         } else if at_word(";") {                         // as kelvinc says it, after a function's body
             parse_error("expected a declaration (let name(...):type, let or var name, struct, union, enum), found ';'")
+        } else if at_kind(T_PUNCT) && overloadable_tok(pos) && tok_is(pos + 1, "(") {   // as kelvinc says it (#45)
+            var m = $"a function is declared with let: write 'let "
+            m += tok_text(pos)
+            m += "(...)'"
+            parse_error(m.cstr)
+        } else if at_word("var") && toks[pos + 1].kind == T_PUNCT && overloadable_tok(pos + 1) && tok_is(pos + 2, "(") {
+            advance()
+            var m = $"a function is a let: write 'let "
+            m += tok_text(pos)
+            m += "(...)', or, for a variable holding a function, 'var f:(T):R := g'"
+            parse_error(m.cstr)
+        } else if at_word("let") && toks[pos + 1].kind == T_PUNCT && !tok_is(pos + 1, "(") && !overloadable_tok(pos + 1) && tok_is(pos + 2, "(") {
+            advance()
+            var m = $"'"
+            m += tok_text(pos)
+            m += "' cannot be defined: an operator a struct defines is one of + - * / % == != < <= > >=, or unary -"
+            parse_error(m.cstr)
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()
             let f:int64 = parse_function()

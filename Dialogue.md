@@ -9057,3 +9057,26 @@ function's parameters, and, under them, an Array's `.sort`, `.sorted`,
 writes no operators yet. Details are provisional P482.
 
 There are 1202 tests, and all pass with clang and with gcc 15.
+
+### 518. A struct's operators, and what they take
+
+> push. then go on with #471
+
+**Claude** wrote `let +(a:T, b:U):R` and the rest into kc, where a node
+becomes the call of its operator once the types are known. Comparing
+with kelvinc showed a bug there: `a == b` of a struct that owns emptied
+both with no word, and `h.b + c` ended the program in a double free.
+
+> Your suggestion?
+
+**Claude** suggested that an operator move as any function does, with
+the error of a later read, and leave lending to a number of its own if
+`a.copy() == b.copy()` proves awkward.
+
+> Proceed.
+
+**Claude** made kelvinc say so, as kc already did. kc builds 162 of the
+354 programs, 9 more. `struct_operators.k` itself waits for `uint64`,
+which kc lacks. Details are provisional P483.
+
+There are 1205 tests, and all pass with clang and with gcc 15.

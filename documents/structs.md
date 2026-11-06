@@ -337,6 +337,14 @@ let main():int32 {
   - Numbers keep C's operators.
   - C warns where a statement drops an operator's value, as in
     `m == a` (gcc not where C chooses the operator).
+- An operator is a function, so an owner given by value moves into it
+  (#471).
+  - For a struct that owns, `a == b` leaves `a` and `b` dead until they
+    are assigned anew, and reading one is an error.
+    - To keep them, write `a.copy() == b.copy()`.
+  - A member that owns does not move: `h.b + c` is an error, as `f(h.b)`
+    is.
+  - A struct that owns nothing is only read.
 - `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
   a call *(provisional P53)*.
   - The same for an enum with values (#128), and for one that owns,
@@ -365,7 +373,7 @@ The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | | `a ** b` | an operator declared `let **(a:T, b:U):T` (#380) |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
-| | passing, `return` | a move; `=` is an error |
+| | passing, `return`, an operator's operand | a move; `=` is an error |
 | with a `[u8]` member | its `.cstr` | up to 60 bytes of it |
 
 A `.hex`, `.dec`, `.addr` or `.isNull` on a struct is an error. A field

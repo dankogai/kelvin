@@ -7641,6 +7641,9 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
         call->unseen = unseen_args(&maybe, args, b ? 2 : 1);
         typed_literals(call);
     }
+    /* an operator is a function: an owner given by value moves into it (O5, #471) */
+    for (int k = 0; d && k < call->items.len && k < d->params.len; k++)
+        move_argument(call->items.data[k], param_type(((Var *)d->params.data[k])->type), strfmt("'%s'", op));
     return call;
 }
 
@@ -9459,6 +9462,8 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                                  e->op, bin->op);
                     e->op = "=";
                     e->b = call;
+                    if (lhs->kind == E_IDENT && is_owner(value_type(lhs)))
+                        set_moved(lhs->text, false); /* z is given anew (#471) */
                 }
             }
             return e;

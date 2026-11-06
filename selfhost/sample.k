@@ -372,6 +372,34 @@ let framed(b:const Bytes^):Bytes {                    // a Bytes (#439): a borro
     return r
 }
 
+struct op_money;                                        // a struct's operators (#42, #135, #380), kc's (#471)
+let +(a:op_money, b:op_money):op_money
+struct op_money { cents: int64 }
+let +(a:op_money, b:op_money):op_money { (op_money){a.cents + b.cents} }
+let -(a:op_money, b:op_money):op_money { (op_money){a.cents - b.cents} }
+let -(a:op_money):op_money { (op_money){-a.cents} }
+let *(a:op_money, k:int64):op_money { (op_money){a.cents * k} }
+let *(a:op_money, x:float64):op_money { (op_money){(a.cents as float64 * x) as int64} }
+let *(k:int64, a:op_money):op_money { a * k }
+let ==(a:op_money, b:op_money):bool { a.cents == b.cents }
+let !=(a:op_money, b:op_money):bool { !(a == b) }
+extend op_money {
+    static let <(a:Self, b:Self):bool { a.cents < b.cents }
+    static let **(a:Self, k:int64):Self { (Self){a.cents * a.cents * k / k} }
+}
+let >(a:op_money, b:op_money):bool { b < a }
+enum op_case { nil; val: int64 }
+let +(a:op_case, b:op_case):op_case {
+    if a.is(val) && b.is(val) { return {.val = a.val + b.val} }
+    return op_case.nil
+}
+let op_made():op_case { return {.val = 7} }
+struct op_owner { name: String; n: int64 }
+let +(a:op_owner, b:op_owner):op_owner {
+    var c = a.name.copy()
+    c += &b.name
+    return {c.copy(), a.n + b.n}
+}
 let trail_apply(n:int64, f:(int64):int64):int64 { return f(n) }      // a function trailing a plain call, sort and reverse (#470)
 let trail_above(n:int64):bool { return n > 0 }
 let trail_shorter(a:String, b:String):bool { return a.count < b.count }
@@ -1089,6 +1117,22 @@ on a new line`
     let told:any^ := nowhere
     println(trail_says(), " ", trail_apply(1) { (x:int64):int64 in x + 10 }, " ", tv, " ", tv.sorted(), " ", tv.reversed(), " ", $[2, 1].sorted { $0 < $1 }.map { $0 * 10 })
     println(tb, " ", tm, " ", tn, " ", tn[0] > tn[1], " ", told == nowhere)
+    var oa:op_money = {150}
+    let ob:op_money = {275}
+    oa += ob
+    oa *= 2
+    let oc = oa + ob
+        - ob
+    var og = $[ob, oa, oc]
+    og.sort()
+    var oe = op_case.val(1)
+    oe += op_case.val(2)
+    var ot:op_owner = {$"x", 1}
+    ot += (op_owner){$"y", 2}
+    let on:op_case = {.nil}
+    println(oa, " ", oc.cents, " ", (-ob).cents, " ", (3 * ob).cents, " ", (ob ** 2).cents)
+    println(ob * labs(-2), " ", ob * atof("1.5"), " ", oa < ob, " ", oa == ob, " ", oa != ob)
+    println(og, " ", oe, " ", on, " ", ot, " ", og.sorted { $0 > $1 }[0].cents, " ", op_made().val)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

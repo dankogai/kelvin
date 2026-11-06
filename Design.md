@@ -513,6 +513,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 468 | `x as uchr` and `x:uchr` of what is no uchr are kelvinc's error, which names `uchr("k")` and `n.uchr`, where C had refused a cast to the struct a uchr is; kc the same | src/parser.c's parse_cast; selfhost/gen.k's N_CAST; tests/error/uchr_cast.k, uchr_annotation.k; documents/ownership.md; CHANGELOG.md | `'k' as uchr` | 2026-11-04 |
 | 469 | An enum's value, an enumerator or a var of a plain enum, is C's int, an `i32`, to an integer's methods: `.bit(n)`, `.flip(n)`, `.abs`, `.sign`, `.pow`, `**` and `.size`; an enumerator never changes, which is kelvinc's error; kc the same | src/parser.c's seen_number_type, expr_class, reject_const_change; selfhost/gen.k's enum_int, int_view, enum_constant_changed; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md | `LIMIT.bit(2)` | 2026-11-04 |
 | 470 | kc reads a function trailing a plain call, `f(a) { ... }`, any `{` on a call's line outside a condition, as kelvinc's #32; `{ (var s:T):R in ... }`; an Array's `.sort`, `.sorted`, `.reverse` and `.reversed`; `<`, `<=`, `>` and `>=` of Strings; `any^`; `Array<T>(n)` of a C count | selfhost/parse.k's take_trailing, parse_cond, brace_ends; selfhost/gen.k's gen_array_sort, gen_array_reverse, gen_string_order; selfhost/sample.k | `apply(n) { $0 * 2 }`, `xs.sort { $0 > $1 }` | 2026-11-05 |
+| 471 | kc writes a struct's operators, as kelvinc's #42, #128, #135 and #380: `let +(a:T, b:U):R`, `static let +` in `extend`, `x += y`, `.sort()` by `<`, and `_Generic` where only C sees an argument's type; an owner moves into an operator in kelvinc too, with the error of a later read, and a member that owns is refused | src/parser.c's resolve_operator, the compound assignment's set_moved; selfhost/parse.k's overloadable_tok, parse_extend, parse_binary, body_ahead; selfhost/gen.k's resolve_op, compound_by_operator, tied_call, gen_generic_call, init_as_case; selfhost/sample.k; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | `a + b`, `a.copy() == b.copy()` | 2026-11-07 |
 
 Notes:
 
@@ -1098,6 +1099,50 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (471) Agreed details: "go on with #471", struct operators in kc, as
+  the report of #470 proposed; while writing it, kelvinc's silent
+  emptying of an operand came up, and the user took the suggestion to
+  move with the error ("Proceed").
+  - kelvinc: `a == b` of a struct that owns gave both to the operator,
+    with no record of it, so `println(a)` after printed
+    `{name: "", n: 0}`.
+    - `h.b + c`, a member that owns, gave the member and left it held,
+      which ended the program in a double free.
+    - resolve_operator now moves each operand by move_argument, as a
+      call does: a later read is `'a' was moved out`, and a member is
+      `an owner moves into '+' only as a whole variable`.
+    - `x op= y` gives `x` anew, as `x = x op y` does.
+  - kc: `let +(...)` was read, and written with a name C could not
+    read.
+    - put_fn_name writes `_kv_add_op__T__U`, `_kv_neg_op__T` for unary
+      `-`, as kelvinc's name_functions.
+    - What a function makes is named by maker_name, `_kv_op_fn1`.
+    - resolve_op turns a binary or a unary node into the call of the
+      operator in place, when type_of, gen_expr, gen_cond or inferred
+      first asks of it, since only then are the locals' types known.
+      Everything after it is a call's, moves and holds too.
+    - compound_by_operator makes `x += y` into `x = x + y` before
+      gen_stmt reads what the assignment gives anew.
+    - Ties where only C sees an argument go to `_Generic`, as kelvinc's
+      generic_tree, of functions too; is_word_value tells a C call from
+      `ok(v)`, which arg_fit had taken for a word, so no overload took
+      one.
+  - Found under the tests, and fixed as they are small and on the way:
+    - `struct money;` before its body was taken for C's struct.
+    - A binary operator starting the next line ended the expression.
+    - `{.some = v}` and `{.none}` crashed kc, and `{1}` of a Result
+      would have made the wrong case.
+    - `T.none` said "this name is not known", by gen_bits' asking the
+      type of a type's name.
+    - kc crashed on the anonymous functions' heads after an error.
+  - kc builds 162 of the 354 programs, 9 more: examples/calc.k,
+    tests/run/dict_json.k, enum_array_case.k, enum_compound.k,
+    nested_case_failure.k, nested_type_methods.k, operator_owners.k,
+    return_list.k and sort_lent.k, each printing what kelvinc's prints.
+  - Left: tests/run/struct_operators.k needs `uint64`, which kc has
+    not, nor any of `i8`, `i16`, `u16`, `u64`, `i128` and `u128`;
+    array_sort.k `uchr("x")` and `Bytes.escape()`; extend_operators.k
+    and self_type.k attributes.
 - (470) Agreed details: "go on with #470: more kc coverage"; asked,
   the user chose trailing functions, of four groups of what kc lacks.
   - kc had `x.map { ... }` and `x.m(a) { ... }`, so what lacked was
@@ -6959,6 +7004,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P480 | Details of #468 | src/parser.c: parse_cast's uchr; selfhost/gen.k: N_CAST's uchr; tests/error/uchr_cast.k, uchr_annotation.k; documents/ownership.md; CHANGELOG.md; selfhost/README.md | — |
 | P481 | Details of #469 | src/parser.c: seen_number_type's and expr_class's enumerator, reject_const_change's; selfhost/gen.k: enum_int, int_view, enum_constant_changed, power_int, int_width, power_promoted, abs, sign and number_text's; tests/run/enum_int_methods.k; tests/error/enum_constant_change.k, enum_constant_bit_set.k; documents/enums.md, integers.md; CHANGELOG.md; selfhost/README.md | — |
 | P482 | Details of #470 | selfhost/parse.k: brace_ends, trailing_ahead, parse_cond, take_trailing, parse_anon's var, parse_bare_type's any; selfhost/gen.k: sort_fn_error, sort_fn_of, sort_by_kind, put_sort_side, put_sort_less, put_merge_sort, gen_array_sort, gen_array_reverse, gen_string_order, anon_type's no parameters, put_ctype's const cstr^, type_text's any, gen_make's C count; selfhost/sample.k: `trail_apply` and its lines; selfhost/README.md | — |
+| P483 | Details of #471 | src/parser.c: resolve_operator's moves, the compound assignment's set_moved; selfhost/parse.k: overloadable_tok, parse_extend's operator, parse_program's refusals and `struct T;`, body_ahead, operator_on_next_line, hidden_token's op; selfhost/gen.k: is_operator, operator_word, maker_name, put_fn_name, op_record, operator_fits, is_word_value, operand_text, operand_param, user_operator_on, resolve_op, compound_by_operator, tied_cands, sees_c_arg, tied_call, param_at, number_code, put_generic_tree, gen_generic_call, init_as_case, sort_operator, gen_arg_to's words, gen_variant_eq's words, put_lazy_heads; selfhost/sample.k: `op_money` and its lines; selfhost/README.md; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | — |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
