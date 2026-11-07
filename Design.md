@@ -516,6 +516,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 471 | kc writes a struct's operators, as kelvinc's #42, #128, #135 and #380: `let +(a:T, b:U):R`, `static let +` in `extend`, `x += y`, `.sort()` by `<`, and `_Generic` where only C sees an argument's type; an owner moves into an operator in kelvinc too, with the error of a later read, and a member that owns is refused | src/parser.c's resolve_operator, the compound assignment's set_moved; selfhost/parse.k's overloadable_tok, parse_extend, parse_binary, body_ahead; selfhost/gen.k's resolve_op, compound_by_operator, tied_call, gen_generic_call, init_as_case; selfhost/sample.k; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | `a + b`, `a.copy() == b.copy()` | 2026-11-07 |
 | 472 | kc reads the rest of kelvinc's integers, `i8`, `i16`, `u16`, `u64`, `i128` and `u128` and their full names, in text, overloads, `.abs`, `.bit(n)`, `**`, Arrays and Ranges to 64 bits; arithmetic of numbers has C's type; `x.size` and `r.count` are a `u64`; `bv.u64s` | selfhost/parse.k's ykind, is_int_kind, number_word; selfhost/gen.k's promoted_int, usual_int, arith_type, above_i64, put_ctype, int_width, tpl_bound; selfhost/sample.k; selfhost/README.md | `let n:u64 = 18446744073709551615`, `(k * 100).abs` | 2026-11-07 |
 | 473 | kc reads attributes, as kelvinc's #131, #132, #133 and #137: `let T.x:R { }`, `var T.x:R { get { } set(v) { } }` and `static let T.x:R = v`, alone or in `extend`, read as `v.x` and `T.x`, set as `v.x = y`, `v.x += y` and `T.x = y`; `Self.f()` and `Self.x` in an expression | selfhost/parse.k's parse_attribute, attribute_fn, parse_type_attribute, head_attribute, begin_function; selfhost/gen.k's resolve_attr, resolve_chain, attr_assign; selfhost/sample.k; selfhost/README.md | `r.area`, `t.celsius = 100.0`, `rect.made += 1` | 2026-11-07 |
+| 474 | A variable that owns moves into a setter or a subscript's index as into any function: `p.title = a` and `n[1] = b` take it, where they wrote it as it was and both the setter and its block freed it | src/codegen.c's subscript_get, subscript_set and attr_set; tests/run/setter_moves.k, tests/error/setter_moved.k | `let a = $"x"; p.title = a` | 2026-11-07 |
 
 Notes:
 
@@ -1101,6 +1102,19 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (474) Agreed details: "push. then go on with #474". The push showed all
+  three selfhost jobs red: kelvinc's own build of selfhost/sample.k ended in
+  a double free, which #473's new lines reached. So #474 fixes that first,
+  and subscripts in kc take the next number.
+  - `p.title = a` and `n[1] = b` checked the move, so a later read was an
+    error, but wrote `a` itself: the setter freed it, and so did its block.
+    Now each writes the variable's `_take`, as a call does since #54.
+  - A subscript's index that owns moves in the same way, past the receiver.
+  - kc wrote `_take` all along, through gen_arg_to.
+  - documents/properties.md already says an owner moves in, so it stands.
+  - The battery summary missed it: bootstrap.sh stops at the abort, and the
+    summary showed only that fixpoint line. It now reports each script's
+    exit status too.
 - (473) Agreed details: "go on with #473", attributes in kc, the largest
   kind of what kc still refused that fits one change. kc alone: kelvinc has
   had them since #131, so no test of kelvinc's changes.
@@ -7057,6 +7071,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P483 | Details of #471 | src/parser.c: resolve_operator's moves, the compound assignment's set_moved; selfhost/parse.k: overloadable_tok, parse_extend's operator, parse_program's refusals and `struct T;`, body_ahead, operator_on_next_line, hidden_token's op; selfhost/gen.k: is_operator, operator_word, maker_name, put_fn_name, op_record, operator_fits, is_word_value, operand_text, operand_param, user_operator_on, resolve_op, compound_by_operator, tied_cands, sees_c_arg, tied_call, param_at, number_code, put_generic_tree, gen_generic_call, init_as_case, sort_operator, gen_arg_to's words, gen_variant_eq's words, put_lazy_heads; selfhost/sample.k: `op_money` and its lines; selfhost/README.md; tests/run/operator_owners.k; tests/error/operator_moved.k, operator_moved_member.k; documents/structs.md, operators.md | — |
 | P484 | Details of #472 | selfhost/parse.k: ykind's six, is_signed_kind, is_unsigned_kind, is_int_kind, number_word, type_word, Range's check; selfhost/gen.k: float_tok's hex float, above_i64, promoted_int, usual_int, arith_type, type_of's N_BIN and N_UNARY, x.size's and r.count's u64, Bits' u64s, put_ctype, mangled, kelvin_type_text, number_code, put_text_read, put_text_rest, int_width, put_uint_of, tpl_bound, range_max, range_unsigned, the Range typedefs, gen_power's width, pow_method_type, the converter's C typedef; selfhost/sample.k: `num_wide`, `num_pack` and their lines; selfhost/README.md | — |
 | P485 | Details of #473 | selfhost/parse.k: attributes (what each function is), attribute_names, type_attrs, begin_function out of parse_function, parse_attribute, parse_type_attribute, head_attribute, parse_extend's and parse_program's branches, `Self.` in parse_primary; selfhost/gen.k: method_of hides a setter, resolve_attr in type_of, gen_expr, gen_cond, is_place and compound_by_operator, resolve_chain in may_change and changes_var, attr_assign at gen_assign's head, gen_method_of's and gen_function's errors, may_change's getter error | provisional |
+| P486 | Details of #474 | src/codegen.c: subscript_get's and subscript_set's items and attr_set's value by owner_take where local_owner, a subscript's parameters past the receiver | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

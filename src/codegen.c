@@ -732,15 +732,26 @@ static char *expr_bare(Expr *e) {
                address, a temporary's where it is no place */
             Buf args = {0};
             buf_puts(&args, "");
-            for (int i = 0; i < e->items.len; i++)
-                buf_printf(&args, ", %s", expr(e->items.data[i]));
+            for (int i = 0; i < e->items.len; i++) {
+                Expr *x = e->items.data[i];
+                /* a local owner given by value moves in (#474), the receiver the first parameter */
+                const char *take = i + 1 < e->target->params.len && local_owner(x)
+                                       ? owner_take(((Var *)e->target->params.data[i + 1])->type)
+                                       : NULL;
+                buf_printf(&args, ", %s", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+            }
             const char *fn = e->target->cname ? e->target->cname : e->target->name;
             if (c_lvalue(e->a) || !strcmp(e->op, "subscript_set"))
                 return strfmt("%s(&(%s)%s)", fn, expr(e->a), args.buf);
             return strfmt("({ __auto_type _kv_sr = (%s); %s(&_kv_sr%s); })", expr(e->a), fn, args.buf);
         }
-        if (e->op && !strcmp(e->op, "attr_set") && e->target) /* v.x = y through x's setter (#132) */
-            return strfmt("%s(&(%s), %s)", method_cname(e->target), expr(e->a), expr(e->items.data[0]));
+        if (e->op && !strcmp(e->op, "attr_set") && e->target) { /* v.x = y through x's setter (#132) */
+            Expr *x = e->items.data[0];
+            /* a local owner given by value moves in (#474) */
+            const char *take = local_owner(x) ? owner_take(((Var *)e->target->params.data[0])->type) : NULL;
+            return strfmt("%s(&(%s), %s)", method_cname(e->target), expr(e->a),
+                          take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));
+        }
         if (e->op && (!strcmp(e->op, "bytes_from_base64") || !strcmp(e->op, "bytes_unescape"))) {
             /* Bytes.fromBase64(text) (#155), Bytes.unescape(text) (#167) */
             Expr *arg = e->items.data[0];

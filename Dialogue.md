@@ -9108,3 +9108,18 @@ more; most of the others that use attributes wait for subscripts, which
 come next. Details are provisional P485.
 
 There are 1205 tests, and all pass with clang and with gcc 15.
+
+### 521. A double free in kelvinc, from a setter
+
+> push. then go on with #474
+
+**Claude** pushed #473, and all three selfhost jobs failed: kelvinc's own
+build of `sample.k` ended in a double free. Claude had reported #473's
+battery as clean, but its summary lacked the `sample.k:` line, and Claude
+missed that. `p.title = a` checked the move and then wrote `a` itself, so
+the setter and `a`'s block both freed it; `n[1] = b` did the same. Each now
+takes the variable, as a call does, and a subscript's index too. kc always
+had. The battery's summary now reports each script's exit status. Subscripts
+in kc, begun for #474, take the next number. Details are provisional P486.
+
+There are 1207 tests, and all pass with clang and with gcc 15.
