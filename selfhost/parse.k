@@ -2171,6 +2171,13 @@ let parse_steps(first:int64):int64 {
             let saved_ends = brace_ends
             brace_ends = false
             set_b(n, parse_expr())
+            var last_i:int64 = nodes[n].b                // v[r, c], a subscript's indices (#136)
+            while at_word(",") && !failed {
+                advance()
+                let more:int64 = parse_expr()
+                nodes[last_i].next = more
+                last_i = more
+            }
             brace_ends = saved_ends
             expect("]")
             if !place_follows() { nodes[n].flag = 1 }    // read whole: a Dictionary's is an Optional (#218)
@@ -2914,9 +2921,8 @@ let begin_function(n:int64) {
     fn_tok = nodes[n].t
 }
 
-let parse_function():int64 {
-    let n:int64 = make_node(D_FN, advance())
-    begin_function(n)
+// (a:T, b:U), the parameters of the function n
+let parse_params(n:int64) {
     expect("(")
     var last = -1
     var k:int64 = 0
@@ -2944,6 +2950,12 @@ let parse_function():int64 {
         if at_word(",") { advance() }
     }
     expect(")")
+}
+
+let parse_function():int64 {
+    let n:int64 = make_node(D_FN, advance())
+    begin_function(n)
+    parse_params(n)
     nodes[n].ty = base_type(Y_VOID)
     if at_word(":") {
         advance()
@@ -3022,6 +3034,102 @@ let parse_attribute(recv:int64, is_var:bool, inl:bool) {
     decls += s
     skip_newlines()
     expect("}")
+}
+
+// what a subscript's function is (#136): 1 a getter, 2 a setter
+var subscripts:Dictionary<int64, int64>
+var sub_getters:$[int64]
+var sub_setters:$[int64]
+
+// let T[](i:I, ...):R { }, var T[](i:I, ...):R { get { } set(v) { } }, at
+// the [, as kelvinc's #136: a getter whose self is a const pointer to the
+// receiver, so nothing is copied or moved, flag 3, and a setter whose self
+// is the caller's var, a var method to C
+let parse_subscript(recv:int64, is_var:bool, inl:bool) {
+    let at:int64 = advance()
+    expect("]")
+    var gw = $"subscript"
+    let gt:int64 = made_token(&gw)
+    toks[gt].line = toks[at].line
+    toks[gt].file = toks[at].file
+    let g:int64 = make_node(D_FN, gt)
+    begin_function(g)
+    nodes[g].c = recv
+    nodes[g].flag = 3
+    subscripts[g] = 1
+    sub_getters += g
+    if inl { inline_fns += g }
+    parse_params(g)
+    if nodes[g].a < 0 {
+        parse_error("a subscript takes at least one index, as in 'let [](i:i64):R { ... }'")
+        return
+    }
+    if !at_word(":") {
+        parse_error("a subscript gives a value: write its type, as in 'let [](i:i64):R { ... }'")
+        return
+    }
+    advance()
+    set_ty(g, parse_type())
+    if !is_var {
+        set_b(g, parse_block())
+        decls += g
+        return
+    }
+    expect("{")
+    skip_newlines()
+    if !at_word("get") {
+        parse_error("a var subscript starts with its getter, 'get { ... }', then its setter, 'set(v) { ... }'")
+        return
+    }
+    advance()
+    set_b(g, parse_block())
+    decls += g
+    skip_newlines()
+    if !at_word("set") {
+        parse_error("after the getter comes the setter, 'set(v) { ... }', with v the new value")
+        return
+    }
+    advance()
+    expect("(")
+    var sw = $"subscript_set"
+    let st:int64 = made_token(&sw)
+    toks[st].line = toks[at].line
+    toks[st].file = toks[at].file
+    let s:int64 = make_node(D_FN, st)
+    begin_function(s)
+    nodes[s].c = recv
+    nodes[s].flag = 2
+    set_ty(s, base_type(Y_VOID))
+    subscripts[s] = 2
+    sub_setters += s
+    if inl { inline_fns += s }
+    var last:int64 = 0 - 1
+    var q:int64 = nodes[g].a
+    while q >= 0 {                                      // its indices, and the new value last
+        let c:int64 = make_node(S_VAR, nodes[q].t)
+        nodes[c].flag = 1
+        set_ty(c, nodes[q].ty)
+        locals_seen += nodes[c].t
+        if last < 0 { nodes[s].a = c } else { nodes[last].next = c }
+        last = c
+        q = nodes[q].next
+    }
+    let v:int64 = make_node(S_VAR, advance())
+    nodes[v].flag = 1
+    set_ty(v, nodes[g].ty)
+    locals_seen += nodes[v].t
+    nodes[last].next = v
+    expect(")")
+    set_b(s, parse_block())
+    decls += s
+    skip_newlines()
+    expect("}")
+}
+
+// whether a subscript's head is at token i, T[]( or point.kind[](
+let head_subscript(i:int64):bool {
+    type_path(i)
+    return tok_is(path_end, "[") && tok_is(path_end + 1, "]") && tok_is(path_end + 2, "(")
 }
 
 var type_attrs:Dictionary<String, int64>   // T.x by its text: the token of T__x, a type attribute's global (#133)
@@ -3229,6 +3337,15 @@ let parse_extend() {
         } else {
             expect("let")
         }
+        if at_word("[") && tok_is(pos + 1, "]") {        // let [](i:I):R { } (#136)
+            if is_static == 1 {
+                parse_error("a subscript has self, so it is not static: write 'let [](i:I):R { ... }'")
+                return
+            }
+            parse_subscript(recv, is_static == 2, inl)
+            skip_newlines()
+            continue
+        }
         if at_kind(T_PUNCT) {                            // static let +(a:T, b:T):T { } (#135): the top level's let +
             if !overloadable_tok(pos) || !tok_is(pos + 1, "(") {
                 var m = $"'"
@@ -3411,6 +3528,16 @@ let parse_program() {
             let f:int64 = parse_function()
             decls += f
             if nodes[f].b < 0 && at_word(";") { advance() }   // let printf(fmt:cstr, ...):i32;, a declaration (#453)
+        } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_subscript(pos + 1) {   // let T[](i:I):R { } (#136)
+            let is_var = at_word("var")
+            advance()
+            let recv:int64 = type_path(pos)
+            while pos < path_end { advance() }
+            if storage != 0 { parse_error("a subscript has self, so it is not static: write 'let [](i:I):R { ... }'") }
+            self_name = recv
+            parse_subscript(recv, is_var, inl)
+            self_name = 0 - 1
+            inl = false                                  // each of its functions told already
         } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_attribute(pos + 1) {   // let T.x:R { } (#131, #132)
             let is_var = at_word("var")
             advance()

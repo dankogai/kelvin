@@ -441,6 +441,34 @@ extend at_person {
 extend at_shape {
     let size:f64 { .is(side) ? .side : 0.0 }
 }
+struct sb_grid { w: i64; cells: [i64](6) }              // subscripts (#475)
+extend sb_grid {
+    let [](i:i64):i64 { .cells[i] }
+    var [](r:i64, c:i64):i64 {
+        get { .cells[r * .w + c] }
+        set(v) { .cells[r * .w + c] = v }
+    }
+    let total():i64 {
+        var t = 0
+        for i in 0..<6 { t += self[i] }
+        return t
+    }
+}
+let sb_grid[](name:cstr):i64 { name[0] as i64 }
+let sb_grid[](i:i32):i64 { -1 }
+let sb_bump(p:sb_grid^) { p^[0, 1] += 10 }
+let sb_corner():sb_grid { var g:sb_grid = {2}; g[1, 1] = 4; return g }
+enum sb_box { many: Array<i64>; one: i64 }
+let sb_box[](i:i64):i64 { .is(many) ? .many[i] : .one }
+struct sb_names { xs: Array<String> }
+extend sb_names {
+    var [](i:i64):String {
+        get { .xs[i].copy() }
+        set(v) { .xs[i] = v.copy() }
+    }
+    let [](k:String):i64 { k.count as i64 }
+}
+let sb_made():sb_names { return {$[$"m"]} }
 let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest of the integers (#472)
 let num_wide(x:u64):i64 { return (x / 2) as i64 }
 let num_wide(x:i128):i64 { return (x >> 100) as i64 }
@@ -1212,6 +1240,23 @@ on a new line`
     at_rect.scale += 1
     at_rect.scale = at_rect.scale * 2
     println(at_s, " ", at_rect.unit, " ", at_rect.unit.area, " ", at_rect.made, " ", at_rect.scale)
+    var sb_g:sb_grid = {3}                               // subscripts (#475)
+    sb_g[1, 2] = 7
+    sb_g[0, 0] += 5
+    sb_g[0, 0] *= 2
+    println(sb_g[5], " ", sb_g[1, 2], " ", sb_g[0], " ", sb_g["A"], " ", sb_g[0 as i32], " ", sb_g.total())
+    sb_bump(&sb_g)
+    var sb_gs:[sb_grid](2) = []
+    sb_gs[1][0, 0] = 3
+    println(sb_g[1], " ", sb_gs[1][0], " ", sb_corner()[3], " ", `${sb_g[0, 0]}`)
+    let sb_b = sb_box.many($[10, 20, 30])
+    println(sb_b[1], " ", sb_box.one(4)[9])
+    var sb_n:sb_names = {$[$"a", $"b"]}
+    let sb_w = $"bee"
+    sb_n[1] = sb_w
+    sb_n[0] = "ay"
+    let sb_k = $"four"
+    println(sb_n[1], " ", sb_n[0], " ", sb_n[sb_k], " ", sb_n.xs, " ", sb_made()[0], " ", sb_n[1].count)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

@@ -598,6 +598,19 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Subscripts** (#475), as kelvinc's #136.
+  - `let T[](i:I):R { }`, and `let [](i:I):R { }` in `extend`: `v[i]` is
+    the call of its getter, found once the type is known, as an attribute
+    is (#473). It wins over indexing an enum with values through a case.
+  - `var [](i:I):R { get { } set(v) { } }`: `v[i] = y` is the setter on
+    the var that holds `v`, and `v[i] += y` reads it first.
+  - `v[r, c]` takes several indices, and subscripts overload by their
+    count and types, with kelvinc's choice and words:
+    `T__subscript__i64__i64` where a type has several.
+  - The getter's `self` is a const pointer, so a receiver is neither
+    copied nor moved; what no variable holds goes in a literal of its own,
+    `(const struct T[]){f()}`.
+  - `var a:[T](2) = []` is its count's zeros, as kelvinc's.
 - **Attributes** (#473), as kelvinc's #131, #132, #133 and #137.
   - `let T.x:R { }` and `let x:R { }` in `extend`: `v.x` is the call of
     `T__x(v)`, found once the type is known, as `a + b` of an operator
@@ -1329,8 +1342,7 @@ steps can take them on one at a time.
     link a module kelvinc builds of Kelvin;
   - comparing an Optional, `x == none` or `x == 3` (#79);
   - `Optional`'s `map` and the rest of its methods;
-  - subscripts of `extend`, and methods and attributes of a built-in
-    type;
+  - methods and attributes of a built-in type;
   - nested functions, and of function types (#428) arrays and
     collections of them, `((T):R)^` and `typealias`;
   - `"""` and `$/.../` with its check;

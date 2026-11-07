@@ -937,23 +937,150 @@ let tagged_owns(d:int64):bool {
     return false
 }
 
+var sub_targets:Dictionary<int64, int64>   // the v[i] that read a subscript: nodes now, calls of its getter
+
 // the method or the function of a type that x.m(...) or T.f(...) calls, or -1 (#213)
 let method_of(n:int64):int64 {
+    let chosen:int64 = sub_targets.get(n, 0 - 1)        // v[i], its subscript (#136)
+    if chosen >= 0 { return chosen }
     let a:int64 = nodes[n].a
     if names_type(a) { return method_named(nodes[a].t, nodes[n].t) }
     let y:int64 = type_of(a)
     if y < 0 || types[y].kind != Y_STRUCT { return -1 }
     let f:int64 = method_named(types[y].name, nodes[n].t)
-    if f >= 0 && attributes.get(f, 0) == 3 { return -1 }   // a setter is called by assigning (#132)
+    if f >= 0 && (attributes.get(f, 0) == 3 || subscripts.get(f, 0) != 0) { return -1 }   // called by assigning, or by v[i] (#132, #136)
     return f
 }
 
-var attr_settled:Dictionary<int64, bool>   // the x.y asked once whether they read an attribute
+var attr_settled:Dictionary<int64, bool>   // the x.y and v[i] asked once whether they read an attribute or a subscript
+
+let type_text(y:int64):String    // a prototype: index_fits names the types
+
+// the count of the arguments from a on
+let count_args(first:int64):int64 {
+    var n:int64 = 0
+    var a:int64 = first
+    while a >= 0 {
+        n += 1
+        a = nodes[a].next
+    }
+    return n
+}
+
+// the count of the parameters of d
+let count_params(d:int64):int64 {
+    return count_args(nodes[d].a)
+}
+
+// whether index a fits index type t, as kelvinc's choose_subscript: first
+// (strict) a literal as the type it infers to, then as any of its kind
+let index_fits(a:int64, t:int64, strict:bool):bool {
+    let k:nkind = nodes[a].kind
+    let tk:ykind = types[t].kind
+    if k == N_STR { return strict ? tk == Y_CSTR : tk == Y_CSTR || tk == Y_STRING }
+    if k == N_NUM || (k == N_UNARY && tok_is(nodes[a].t, "-") && nodes[nodes[a].a].kind == N_NUM) {
+        let ay:int64 = type_of(a)
+        if strict { return ay == t }
+        let float_lit = ay >= 0 && (types[ay].kind == Y_F64 || types[ay].kind == Y_F32)
+        return float_lit ? tk == Y_F64 || tk == Y_F32 : is_int_kind(tk)
+    }
+    if k == N_CHAR { return false }
+    let ay:int64 = type_of(a)
+    if ay < 0 { return false }
+    if ay == t { return true }
+    let x:String = type_text(ay)
+    let y:String = type_text(t)
+    return x == y
+}
+
+// the subscript of the type named as token recv that v[i] reads, by the
+// count of its indices and their types, else kelvinc's error and -1
+let choose_subscript(n:int64, recv:int64):int64 {
+    let nargs:int64 = count_args(nodes[n].b)
+    var fit:$[int64] = $[]
+    for d in sub_getters {
+        if same_text(nodes[d].c, recv) && count_params(d) == nargs { fit += d }
+    }
+    if fit.count == 0 {
+        var m = $"no subscript of "
+        m += tok_text(recv)
+        m += " takes "
+        m += `${nargs}`
+        m += nargs == 1 ? " index" : " indices"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    if fit.count == 1 { return fit[0] }
+    var found:int64 = 0 - 1
+    var many:int64 = 0
+    var strict = true
+    while many == 0 {
+        for d in fit {
+            var same = true
+            var a:int64 = nodes[n].b
+            var p:int64 = nodes[d].a
+            while same && a >= 0 {
+                same = index_fits(a, nodes[p].ty, strict)
+                a = nodes[a].next
+                p = nodes[p].next
+            }
+            if same {
+                found = d
+                many += 1
+            }
+        }
+        if !strict { break }
+        strict = false
+    }
+    if many != 1 {
+        var m = $"the indices fit "
+        m += many > 0 ? "more than one" : "no"
+        m += " subscript of "
+        m += tok_text(recv)
+        m += ": write their types, as in 'v[i as i64]'"
+        gen_error(n, m.cstr)
+        return 0 - 1
+    }
+    return found
+}
+
+// v[i] of a type with a subscript (#136) is the call of its getter, which
+// wins over #117's indexing of an enum with values; else as it was
+let resolve_subscript(n:int64) {
+    if sub_getters.count == 0 || attr_settled.has(n) { return }
+    let y:int64 = type_of(nodes[n].a)
+    if y < 0 { return }                                 // asked again where more is known
+    attr_settled[n] = true
+    if types[y].kind != Y_STRUCT { return }
+    var has = false
+    for d in sub_getters {
+        if same_text(nodes[d].c, types[y].name) { has = true }
+    }
+    if !has { return }
+    let first:int64 = nodes[n].b
+    if first >= 0 && (nodes[first].kind == N_RANGE || (type_of(first) >= 0 && types[type_of(first)].kind == Y_RANGE)) {
+        var m = $"a slice is no subscript of "
+        m += tok_text(types[y].name)
+        m += ": index it with v[i]"
+        gen_error(n, m.cstr)
+        return
+    }
+    let f:int64 = choose_subscript(n, types[y].name)
+    if f < 0 { return }
+    nodes[n].kind = N_METHOD
+    nodes[n].flag = 0
+    sub_targets[n] = f
+}
+
 var attr_reads:Dictionary<int64, bool>     // the x.y that do: nodes now, calls of its getter
 
 // x.y of a computed attribute (#131) is the call of its getter, as a + b
 // of an operator is the call of it (#471); else as it was
 let resolve_attr(n:int64) {
+    if nodes[n].kind == N_INDEX {
+        resolve_subscript(n)
+        return
+    }
     if nodes[n].kind != N_FIELD || attr_settled.has(n) { return }
     let nm:String = tok_text(nodes[n].t)
     if !attribute_names.has(nm) { return }
@@ -2199,7 +2326,30 @@ let operator_fits(d:int64):bool {
 }
 
 // the signatures of each name: a prototype and its definition are one
+// a C name of its own for each subscript of a type that has several, as
+// kelvinc's: T__subscript__i64__i64
+let name_subscripts(list:const $[int64]^) {
+    for i in 0..<list^.count as int64 {
+        let d:int64 = list^[i]
+        var many = false
+        for j in 0..<list^.count as int64 {
+            if j != i && same_text(nodes[list^[j]].c, nodes[d].c) { many = true }
+        }
+        if many {
+            var word:String = tok_text(nodes[d].t)
+            var key:String = params_key(d)
+            word += &key
+            let t:int64 = made_token(&word)
+            toks[t].line = toks[nodes[d].t].line
+            toks[t].file = toks[nodes[d].t].file
+            nodes[d].t = t
+        }
+    }
+}
+
 let count_overloads() {
+    name_subscripts(&sub_getters)
+    name_subscripts(&sub_setters)
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind != D_FN || nodes[d].c >= 0 { continue }
@@ -2550,7 +2700,7 @@ let resolve_op(n:int64) {
 // where it is C's own, or kelvinc's error of an x that holds a call
 let compound_by_operator(n:int64):bool {
     resolve_attr(nodes[n].a)
-    if attr_reads.has(nodes[n].a) { return false }      // its setter's, gen_assign's (#132)
+    if attr_reads.has(nodes[n].a) || sub_targets.has(nodes[n].a) { return false }   // its setter's, gen_assign's (#132, #136)
     let t:int64 = nodes[n].t
     if !(tok_is(t, "+=") || tok_is(t, "-=") || tok_is(t, "*=") || tok_is(t, "/=") || tok_is(t, "%=") || tok_is(t, "**=")) { return false }
     let lhs:int64 = nodes[n].a
@@ -6078,6 +6228,17 @@ let gen_method_of(n:int64) {
         put("(")
         if nodes[f].flag == 2 {                                       // by its address, T__m(&(x), ...)
             gen_place(a)
+            if nodes[n].b >= 0 { put(", ") }
+        } else if nodes[f].flag == 3 {                                // a subscript's getter, by a const pointer (#136):
+            if is_place(a) {                                          // what no variable holds, in a literal of its own
+                gen_place(a)
+            } else {
+                put("(const ")
+                put_ctype(type_of(a))
+                put("[]){")
+                gen_expr(a)
+                put("}")
+            }
             if nodes[n].b >= 0 { put(", ") }
         } else if nodes[f].flag != 1 {
             gen_expr(a)
@@ -10074,11 +10235,11 @@ let gen_fixed_var(n:int64) {
             return
         }
     } else if v >= 0 && nodes[v].kind == N_LIST {      // [a, b]
-        if nodes[v].b < 0 {
+        if nodes[v].b < 0 && types[y].name < 0 && types[y].name > 0 - 10 {   // [T](2) = [], its count's zeros, as kelvinc's
             gen_error(v, "[] has no elements: write [T](N), N zero elements")
             return
         }
-        if !fixed_list_fits(v, y) { return }
+        if nodes[v].b >= 0 && !fixed_list_fits(v, y) { return }
         if types[y].name < 0 && types[y].name > 0 - 10 {   // [T] of its elements; [T](LIMIT + 1) keeps its count (#451)
             let konst = types[y].konst == 1
             y = type_of_kind(Y_FIXED, types[y].elem, type_of(v) >= 0 ? types[type_of(v)].name : 0)
@@ -10100,7 +10261,7 @@ let gen_fixed_var(n:int64) {
     put_alignas(n)                                       // (#396)
     put_fixed_decl(y, nodes[n].t)
     put(" = ")
-    if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 {
+    if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 && nodes[v].b >= 0 {
         gen_fixed_list(v, y)
     } else {
         put("{0}")
@@ -10276,6 +10437,10 @@ let may_change(n:int64):bool {
     }
     var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
+    if nodes[d].kind == N_SELF && current >= 0 && subscripts.get(current, 0) == 1 {   // (#136)
+        gen_error(n, "a let subscript and a var subscript's getter read self and never change it: a var subscript's setter, 'set(v) { ... }', does")
+        return false
+    }
     if nodes[d].kind == N_SELF && current >= 0 && (attributes.get(current, 0) == 1 || attributes.get(current, 0) == 2) {   // (#137)
         gen_error(n, "a let attribute and a var attribute's getter read self and never change it: a var attribute's setter, 'set(v) { ... }', does")
         return false
@@ -10589,8 +10754,93 @@ let attr_assign(n:int64):bool {
     return true
 }
 
+// v[i] = y and v[i] += y of a subscript (#136): the setter of the one the
+// read chose, on the var that holds v, in kelvinc's words; whether n is one
+let sub_assign(n:int64):bool {
+    let lhs:int64 = nodes[n].a
+    resolve_attr(lhs)
+    let g:int64 = sub_targets.get(lhs, 0 - 1)
+    if g < 0 { return false }
+    let a:int64 = nodes[lhs].a
+    let t:int64 = nodes[n].t
+    var setter:int64 = 0 - 1
+    for s in sub_setters {
+        if setter >= 0 || !same_text(nodes[s].c, nodes[g].c) || count_params(s) != count_params(g) + 1 { continue }
+        var same = true
+        var p:int64 = nodes[g].a
+        var q:int64 = nodes[s].a
+        while same && p >= 0 {
+            same = nodes[p].ty == nodes[q].ty
+            p = nodes[p].next
+            q = nodes[q].next
+        }
+        if same { setter = s }
+    }
+    if setter < 0 {
+        var m = $"this subscript of "
+        m += tok_text(nodes[g].c)
+        m += " is a let, read and never set: a var subscript has a setter, 'var [](i:I):R { get { ... } set(v) { ... } }'"
+        gen_error(n, m.cstr)
+        return true
+    }
+    if tok_is(t, ":=") {
+        gen_error(n, "':=' sets a reference: a subscript is set with '='")
+        return true
+    }
+    if !may_change(a) { return true }
+    if !changeable_place(a) {
+        gen_error(n, "a subscript's setter changes the value it is called on, so that value is a variable")
+        return true
+    }
+    var v:int64 = nodes[n].b
+    if !tok_is(t, "=") {                                // v[i] op= y, v[i] = v[i] op y
+        var op = String(compound_op(t))
+        var twice = !has_call(a)
+        var i:int64 = nodes[lhs].b
+        while twice && i >= 0 {
+            twice = !has_call(i)
+            i = nodes[i].next
+        }
+        if !twice {
+            var m = $"'v[i] "
+            m += tok_text(t)
+            m += " y' is 'v[i] = v[i] "
+            m += &op
+            m += " y', which reads v and i twice, so neither may hold a call"
+            gen_error(n, m.cstr)
+            return true
+        }
+        let op_tok:int64 = made_token(&op)
+        toks[op_tok].kind = T_PUNCT
+        toks[op_tok].line = toks[t].line
+        toks[op_tok].file = toks[t].file
+        let bin:int64 = make_node(N_BIN, op_tok)
+        nodes[bin].a = lhs
+        nodes[bin].b = v
+        v = bin
+    }
+    put_tok(nodes[setter].c)
+    put("__")
+    put_tok(nodes[setter].t)
+    put("(")
+    gen_place(a)
+    var i:int64 = nodes[lhs].b
+    var p:int64 = nodes[setter].a
+    while i >= 0 {                                      // the indices, then the new value
+        put(", ")
+        if !gen_arg_to(i, p, setter) { return true }
+        i = nodes[i].next
+        p = nodes[p].next
+    }
+    put(", ")
+    if !gen_arg_to(v, p, setter) { return true }
+    put(");\n")
+    moves_done()
+    return true
+}
+
 let gen_assign(n:int64) {
-    if attr_assign(n) { return }
+    if attr_assign(n) || sub_assign(n) { return }
     let lhs:int64 = nodes[n].a
     var t:int64 = nodes[n].t
     if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN") || tok_is(nodes[lhs].t, "isInfinite") || tok_is(nodes[lhs].t, "isFinite")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
@@ -15722,8 +15972,9 @@ let gen_signature(d:int64) {
     var p:int64 = nodes[d].a
     let takes_self:bool = recv >= 0 && nodes[d].flag != 1
     if takes_self {                                    // a method's self, a T, first
+        if nodes[d].flag == 3 { put("const ") }        // a subscript's getter, by a const pointer (#136)
         put_ctype(type_of_kind(Y_STRUCT, -1, recv))
-        put(nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
+        put(nodes[d].flag == 3 ? " *const _kv_selfp" : nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
     }
     if p < 0 && !takes_self { put(is_main(d) && nodes[d].b >= 0 ? "int _kv_argc, char **_kv_argv" : "void") }   // main's, as kelvinc writes it (#463)
     while p >= 0 {
@@ -15942,7 +16193,14 @@ let gen_function(d:int64) {
             m = nodes[m].next
         }
     }
-    if nodes[d].c >= 0 && nodes[d].flag == 2 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
+    if subscripts.get(d, 0) != 0 && decl_named(nodes[d].c, D_STRUCT) < 0 && tagged_of(type_of_kind(Y_STRUCT, -1, nodes[d].c)) < 0 {   // as kelvinc says it (#136)
+        var m = $"a subscript is of a struct, a union or an enum with values of the program: '"
+        m += tok_text(nodes[d].c)
+        m += "' has its own indexing"
+        gen_error(d, m.cstr)
+        return
+    }
+    if nodes[d].c >= 0 && nodes[d].flag == 2 && subscripts.get(d, 0) == 0 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
         gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
         return
     }
@@ -15986,7 +16244,7 @@ let gen_function(d:int64) {
     if failed { return }
     gen_signature(d)
     put("\n")
-    let var_method = nodes[d].c >= 0 && nodes[d].flag == 2
+    let var_method = nodes[d].c >= 0 && (nodes[d].flag == 2 || nodes[d].flag == 3)
     if var_method { put("#define self (*_kv_selfp)\n") }   // self is the caller's var (#320)
     var rp:int64 = nodes[d].a
     while rp >= 0 {                                      // an Iterator's state itself (#326)

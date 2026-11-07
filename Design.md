@@ -517,6 +517,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 472 | kc reads the rest of kelvinc's integers, `i8`, `i16`, `u16`, `u64`, `i128` and `u128` and their full names, in text, overloads, `.abs`, `.bit(n)`, `**`, Arrays and Ranges to 64 bits; arithmetic of numbers has C's type; `x.size` and `r.count` are a `u64`; `bv.u64s` | selfhost/parse.k's ykind, is_int_kind, number_word; selfhost/gen.k's promoted_int, usual_int, arith_type, above_i64, put_ctype, int_width, tpl_bound; selfhost/sample.k; selfhost/README.md | `let n:u64 = 18446744073709551615`, `(k * 100).abs` | 2026-11-07 |
 | 473 | kc reads attributes, as kelvinc's #131, #132, #133 and #137: `let T.x:R { }`, `var T.x:R { get { } set(v) { } }` and `static let T.x:R = v`, alone or in `extend`, read as `v.x` and `T.x`, set as `v.x = y`, `v.x += y` and `T.x = y`; `Self.f()` and `Self.x` in an expression | selfhost/parse.k's parse_attribute, attribute_fn, parse_type_attribute, head_attribute, begin_function; selfhost/gen.k's resolve_attr, resolve_chain, attr_assign; selfhost/sample.k; selfhost/README.md | `r.area`, `t.celsius = 100.0`, `rect.made += 1` | 2026-11-07 |
 | 474 | A variable that owns moves into a setter or a subscript's index as into any function: `p.title = a` and `n[1] = b` take it, where they wrote it as it was and both the setter and its block freed it | src/codegen.c's subscript_get, subscript_set and attr_set; tests/run/setter_moves.k, tests/error/setter_moved.k | `let a = $"x"; p.title = a` | 2026-11-07 |
+| 475 | kc reads subscripts, as kelvinc's #136: `let T[](i:I):R { }` and `var [](i:I):R { get { } set(v) { } }`, alone or in `extend`, read as `v[i]` and `v[r, c]`, set as `v[i] = y` and `v[i] += y`, overloaded by the indices' count and types; `var a:[T](2) = []` is its count's zeros | selfhost/parse.k's parse_subscript, parse_params, head_subscript, parse_postfix's indices; selfhost/gen.k's resolve_subscript, choose_subscript, index_fits, name_subscripts, sub_assign, gen_method_of's flag 3, gen_signature; selfhost/sample.k; selfhost/README.md | `g[1, 2] = 7`, `n[k]` | 2026-11-07 |
 
 Notes:
 
@@ -1102,6 +1103,23 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (475) Agreed details: "push. then go on with #475", subscripts in kc, the
+  report of #473 having proposed them and #474 having taken its number. kc
+  alone, so no test of kelvinc's changes.
+  - v[i] is rewritten to the call of its getter when its type is first asked,
+    through resolve_attr, as #473 does x.y; choose_subscript follows kelvinc's,
+    with its words: the count of the indices, then a literal as the type it
+    infers to, then as any of its kind.
+  - N_INDEX's b is now a list, for v[r, c]. An Array's or a fixed array's own
+    index with two is left to C's error, as kelvinc leaves it.
+  - A getter is method flag 3, `const T *const _kv_selfp` with self defined
+    through it, as kelvinc writes it: a pointer it gives points into the
+    receiver, not a copy. What no variable holds goes in a C literal.
+  - A setter is found by the index types of the getter the read chose.
+  - name_subscripts gives each its own C name where a type has several, and
+    only then, as kelvinc's.
+  - `var a:[T](2) = []` is `{0}`: kc refused it, and extend_subscripts.k has
+    one. `[T] = []`, with no count, stays kc's error.
 - (474) Agreed details: "push. then go on with #474". The push showed all
   three selfhost jobs red: kelvinc's own build of selfhost/sample.k ended in
   a double free, which #473's new lines reached. So #474 fixes that first,
@@ -7072,6 +7090,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P484 | Details of #472 | selfhost/parse.k: ykind's six, is_signed_kind, is_unsigned_kind, is_int_kind, number_word, type_word, Range's check; selfhost/gen.k: float_tok's hex float, above_i64, promoted_int, usual_int, arith_type, type_of's N_BIN and N_UNARY, x.size's and r.count's u64, Bits' u64s, put_ctype, mangled, kelvin_type_text, number_code, put_text_read, put_text_rest, int_width, put_uint_of, tpl_bound, range_max, range_unsigned, the Range typedefs, gen_power's width, pow_method_type, the converter's C typedef; selfhost/sample.k: `num_wide`, `num_pack` and their lines; selfhost/README.md | — |
 | P485 | Details of #473 | selfhost/parse.k: attributes (what each function is), attribute_names, type_attrs, begin_function out of parse_function, parse_attribute, parse_type_attribute, head_attribute, parse_extend's and parse_program's branches, `Self.` in parse_primary; selfhost/gen.k: method_of hides a setter, resolve_attr in type_of, gen_expr, gen_cond, is_place and compound_by_operator, resolve_chain in may_change and changes_var, attr_assign at gen_assign's head, gen_method_of's and gen_function's errors, may_change's getter error | provisional |
 | P486 | Details of #474 | src/codegen.c: subscript_get's and subscript_set's items and attr_set's value by owner_take where local_owner, a subscript's parameters past the receiver | provisional |
+| P487 | Details of #475 | selfhost/parse.k: subscripts, sub_getters, sub_setters, parse_params out of parse_function, parse_subscript, head_subscript, parse_extend's and parse_program's branches, N_INDEX's list; selfhost/gen.k: sub_targets in method_of, count_args, count_params, index_fits, choose_subscript, resolve_subscript through resolve_attr, name_subscripts in count_overloads, sub_assign at gen_assign's head, flag 3 in gen_method_of, gen_signature and gen_function, may_change's getter error, gen_fixed_var's `[]` | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

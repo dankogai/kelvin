@@ -9123,3 +9123,16 @@ had. The battery's summary now reports each script's exit status. Subscripts
 in kc, begun for #474, take the next number. Details are provisional P486.
 
 There are 1207 tests, and all pass with clang and with gcc 15.
+
+### 522. Subscripts
+
+> push. then go on with #475
+
+**Claude** pushed #474, and all nine jobs passed. It then gave kc
+subscripts: `let [](i:i64):i64`, a `var` one with `get` and `set(v)`,
+`v[r, c]`, and overloads by the indices' count and types, chosen as kelvinc
+chooses, in its words. A getter takes a const pointer to its receiver, as
+kelvinc's does. kelvinc is unchanged. kc builds 185 of the 355 programs, 3
+more, `setter_moves.k` of #474 among them. Details are provisional P487.
+
+There are 1207 tests, and all pass with clang and with gcc 15.
