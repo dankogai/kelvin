@@ -9094,3 +9094,17 @@ builds 176 of the 354 programs, 14 more, `struct_operators.k` among
 them. kelvinc is unchanged. Details are provisional P484.
 
 There are 1205 tests, and all pass with clang and with gcc 15.
+
+### 520. Attributes
+
+> go on with #473
+
+**Claude** gave kc attributes, the largest kind of what it still refused
+that fits one change: `let area:f64 { .w * .h }`, a `var` one with `get`
+and `set(v)`, and `static let T.x = v`, with `Self.x` to read one. A read
+of `x.y` becomes the call of its getter once the type is known, as `a + b`
+did in #471. kelvinc is unchanged. kc builds 182 of the 354 programs, 6
+more; most of the others that use attributes wait for subscripts, which
+come next. Details are provisional P485.
+
+There are 1205 tests, and all pass with clang and with gcc 15.

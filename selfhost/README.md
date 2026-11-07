@@ -598,6 +598,19 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Attributes** (#473), as kelvinc's #131, #132, #133 and #137.
+  - `let T.x:R { }` and `let x:R { }` in `extend`: `v.x` is the call of
+    `T__x(v)`, found once the type is known, as `a + b` of an operator
+    is (#471).
+  - `var x:R { get { } set(v) { } }`: `v.x = y` is `T__set_x(&(v), y)`,
+    and `v.x += y` reads it first.
+  - `static let T.x:R = v` and `static var T.x = v`, or in `extend`: a
+    global, `T__x`, read and written as `T.x`.
+  - `Self.f()` and `Self.x` in an expression.
+  - A getter reads `self` and never changes it, and `v.x()`, `v.x = y`
+    of a let attribute and a member of the name are errors, in
+    kelvinc's words.
+  - An attribute of a built-in type waits for its methods.
 - **The rest of the integers** (#472), as kelvinc's: `i8`, `i16`, `u16`,
   `u64`, `i128` and `u128`, and their full names.
   - A number's text, reading one from text, overloads, `.abs`, `.sign`,
@@ -1316,7 +1329,8 @@ steps can take them on one at a time.
     link a module kelvinc builds of Kelvin;
   - comparing an Optional, `x == none` or `x == 3` (#79);
   - `Optional`'s `map` and the rest of its methods;
-  - attributes and subscripts of `extend`;
+  - subscripts of `extend`, and methods and attributes of a built-in
+    type;
   - nested functions, and of function types (#428) arrays and
     collections of them, `((T):R)^` and `typealias`;
   - `"""` and `$/.../` with its check;

@@ -400,6 +400,47 @@ let +(a:op_owner, b:op_owner):op_owner {
     c += &b.name
     return {c.copy(), a.n + b.n}
 }
+struct at_rect { w: f64; h: f64 }                       // attributes (#473)
+struct at_temp { kelvin: f64 }
+struct at_person { name: String; age: i64 }
+enum at_shape { none; side: f64 }
+let at_rect.area:f64 { .w * .h }
+static var at_rect.made:i64 = 0
+extend at_rect {
+    let big:bool { self.area > 5.0 }
+    let twice:Self { (Self){.w * 2.0, .h * 2.0} }
+    let doubled:f64 { .twice.area }
+    static let unit:Self = {1.0, 1.0}
+    static var scale:i64 = 2
+    static let square(s:f64):Self {
+        Self.made += 1
+        return {s, s}
+    }
+}
+extend at_temp {
+    var celsius:f64 {
+        get { .kelvin - 273.15 }
+        set(v) { .kelvin = v + 273.15 }
+    }
+    var warm(by:f64) {
+        .celsius = .celsius + by
+        .celsius += 1.0
+    }
+}
+extend at_person {
+    var title:String {
+        get {
+            var t = $"Dr. "
+            t += &.name
+            return t
+        }
+        set(v) { .name = v.copy() }
+    }
+    let older:Self { (Self){.name.copy(), .age + 1} }
+}
+extend at_shape {
+    let size:f64 { .is(side) ? .side : 0.0 }
+}
 let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest of the integers (#472)
 let num_wide(x:u64):i64 { return (x / 2) as i64 }
 let num_wide(x:i128):i64 { return (x >> 100) as i64 }
@@ -1153,6 +1194,24 @@ on a new line`
     let wide_bits = Bits(n8, u16v)
     println(r64, " ", r64.count, " ", r64.count.typename)
     println($[n8, n8], " ", $[u64v], " ", wide_bits.u64s, " ", n8.size.typename, " ", (num_pack){1, 2, 3, 4})
+    let at_r:at_rect = {2.0, 3.0}                        // attributes (#473)
+    if at_r.big { println(at_r.area, " ", at_r.doubled, " ", at_r.twice, " ", at_r.twice.area) }
+    var at_t:at_temp = {300.0}
+    at_t.celsius = 100.0
+    at_t.celsius += 10.0
+    let at_q := &at_t
+    at_q^.warm(1.0)
+    println(at_t.celsius, " ", at_q^.celsius)
+    var at_p:at_person = {$"Ada", 36}
+    let at_who = at_p.title
+    let at_new = $"Grace"
+    at_p.title = at_new
+    println(at_who, " ", at_p.title, " ", at_p.older, " ", at_p.older.age, " ", at_p.title.count)
+    println(at_shape.side(2.5).size, " ", at_shape.none.size)
+    let at_s = at_rect.square(4.0)
+    at_rect.scale += 1
+    at_rect.scale = at_rect.scale * 2
+    println(at_s, " ", at_rect.unit, " ", at_rect.unit.area, " ", at_rect.made, " ", at_rect.scale)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

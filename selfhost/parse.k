@@ -2093,6 +2093,7 @@ let parse_primary():int64 {
             return make_node(N_NULL, t)
         }
         if tok_is(t, "self") { return make_node(N_SELF, t) }
+        if tok_is(t, "Self") && self_name >= 0 && at_word(".") { return make_node(N_ID, self_name) }   // Self.f(), Self.x (#140)
         if tok_is(t, "IO") || tok_is(t, "String") || tok_is(t, "Bits") || tok_is(t, "Bytes") { return make_node(N_TYPE, t) }   // Bits(n) (#387), Bytes(x) (#439)
         let le:int64 = local_named(t) ? 0 - 1 : local_enum_named(t)
         if le >= 0 { return make_node(N_ID, le) }        // an enumerator of the block's enum (#391)
@@ -2906,11 +2907,16 @@ let head_method(i:int64):bool {
     return tok_is(path_end, ".") && tok_is(path_end + 2, "(")
 }
 
-let parse_function():int64 {
-    let n:int64 = make_node(D_FN, advance())
+// a function's names begin anew at its head
+let begin_function(n:int64) {
     while locals_seen.count > 0 { locals_seen.pop() }    // (#389)
     while ended_types.count > 0 { ended_types.pop() }    // (#391)
     fn_tok = nodes[n].t
+}
+
+let parse_function():int64 {
+    let n:int64 = make_node(D_FN, advance())
+    begin_function(n)
     expect("(")
     var last = -1
     var k:int64 = 0
@@ -2945,6 +2951,117 @@ let parse_function():int64 {
     }
     if at_word("{") { set_b(n, parse_block()) }
     return n
+}
+
+// what a computed attribute's function is (#131, #132): 1 a let
+// attribute's getter, 2 a var attribute's, 3 its setter
+var attributes:Dictionary<int64, int64>
+var attribute_names:Dictionary<String, bool>   // the names any attribute has
+
+// the function of an attribute of the type at token recv, its body next
+let attribute_fn(t:int64, recv:int64, ty:int64, what:int64, inl:bool):int64 {
+    let n:int64 = make_node(D_FN, t)
+    begin_function(n)
+    nodes[n].c = recv
+    nodes[n].flag = what == 3 ? 2 : 0                  // a setter changes the caller's var, as a var method (#320)
+    set_ty(n, what == 3 ? base_type(Y_VOID) : ty)
+    attributes[n] = what
+    if inl { inline_fns += n }
+    return n
+}
+
+// let T.x:R { }, var T.x:R { get { } set(v) { } }, at the name, as
+// kelvinc's #131 and #132: T__x(self), and T__set_x(&var, v)
+let parse_attribute(recv:int64, is_var:bool, inl:bool) {
+    let t:int64 = advance()
+    let nm:String = tok_text(t)
+    attribute_names[nm] = true
+    expect(":")
+    let ty:int64 = parse_type()
+    if !is_var {
+        let g:int64 = attribute_fn(t, recv, ty, 1, inl)
+        set_b(g, parse_block())
+        decls += g
+        return
+    }
+    expect("{")
+    skip_newlines()
+    if !at_word("get") {
+        parse_error("a var attribute starts with its getter, 'get { ... }', then its setter, 'set(v) { ... }'")
+        return
+    }
+    advance()
+    let g:int64 = attribute_fn(t, recv, ty, 2, inl)
+    set_b(g, parse_block())
+    decls += g
+    skip_newlines()
+    if !at_word("set") {
+        var m = $"after the getter comes the setter, 'set(v) { ... }', with v the new value; a let attribute, 'let "
+        m += tok_text(recv)
+        m += "."
+        m += &nm
+        m += ":R { ... }', has none"
+        parse_error(m.cstr)
+        return
+    }
+    advance()
+    expect("(")
+    var word = $"set_"
+    word += &nm
+    let st:int64 = made_token(&word)
+    toks[st].line = toks[t].line
+    toks[st].file = toks[t].file
+    let s:int64 = attribute_fn(st, recv, ty, 3, inl)
+    let p:int64 = make_node(S_VAR, advance())
+    locals_seen += nodes[p].t
+    nodes[p].flag = 1
+    set_ty(p, ty)
+    nodes[s].a = p
+    expect(")")
+    set_b(s, parse_block())
+    decls += s
+    skip_newlines()
+    expect("}")
+}
+
+var type_attrs:Dictionary<String, int64>   // T.x by its text: the token of T__x, a type attribute's global (#133)
+
+// static let T.x:R = v, static var T.x = v, at the name, as kelvinc's #133:
+// a global of the type, named T__x in C
+let parse_type_attribute(recv:int64, is_let:bool) {
+    let nm:String = tok_text(pos)
+    attribute_names[nm] = true
+    let t:int64 = pos
+    let n:int64 = parse_var(0)
+    if is_let && nodes[n].a < 0 {
+        var m = $"a static let needs a value: write 'static let "
+        m += tok_text(recv)
+        m += "."
+        m += &nm
+        m += " = ...', or 'static var' if it changes"
+        parse_error(m.cstr)
+        return
+    }
+    var word:String = tok_text(recv)
+    var key:String = word.copy()
+    word += "__"
+    word += &nm
+    key += "."
+    key += &nm
+    let g:int64 = made_token(&word)
+    toks[g].line = toks[t].line
+    toks[g].file = toks[t].file
+    type_attrs[key] = g
+    nodes[n].t = g
+    nodes[n].kind = D_GLOBAL
+    if is_let { nodes[n].flag = 1 }
+    decls += n
+}
+
+// whether an attribute's head is at token i, T.x: or point.kind.x:
+let head_attribute(i:int64):bool {
+    type_path(i)
+    return tok_is(path_end, ".") && toks[path_end + 1].kind == T_ID && (tok_is(path_end + 2, ":") || tok_is(path_end + 2, "="))
 }
 
 let parse_struct():int64 {
@@ -3101,6 +3218,11 @@ let parse_extend() {
         if is_static == 0 && at_word("var") {
             advance()
             is_static = 2
+        } else if is_static == 1 && at_word("var") && toks[pos + 1].kind == T_ID && (tok_is(pos + 2, ":") || tok_is(pos + 2, "=")) {
+            advance()                                    // static var x = v (#133)
+            parse_type_attribute(recv, false)
+            skip_newlines()
+            continue
         } else if is_static == 1 && at_word("var") {
             parse_error("a function of the type has no self to change: write 'static let'")
             return
@@ -3156,6 +3278,27 @@ let parse_extend() {
             skip_newlines()
             continue
         }
+        if toks[pos].kind == T_ID && (tok_is(pos + 1, ":") || tok_is(pos + 1, "=")) {
+            let nm:String = tok_text(pos)
+            if is_static == 1 {
+                parse_type_attribute(recv, true)
+                skip_newlines()
+                continue
+            }
+            if tok_is(pos + 1, "=") {
+                var m = $"an instance attribute is computed, 'let "
+                m += &nm
+                m += ":R { ... }': a stored one is a member of the struct; a value of the type is 'static let "
+                m += &nm
+                m += " = ...'"
+                advance()
+                parse_error(m.cstr)
+                return
+            }
+            parse_attribute(recv, is_static == 2, inl)
+            skip_newlines()
+            continue
+        }
         let n:int64 = parse_function()
         nodes[n].c = recv
         nodes[n].flag = is_static
@@ -3194,8 +3337,19 @@ let parse_program() {
             advance()
             inl = parse_inline(inl)
         }
-        if storage == 1 && (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ".") && !head_method(pos + 1) {
-            parse_error("kc reads no type attribute yet, 'static let T.x:R = v' (#133): a function of the type, 'static let T.f()', it reads")
+        if storage == 1 && (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && !head_method(pos + 1) && head_attribute(pos + 1) {
+            let is_let = at_word("let")                  // static let T.x:R = v (#133)
+            advance()
+            let recv:int64 = type_path(pos)
+            while pos < path_end { advance() }
+            advance()
+            self_name = recv
+            parse_type_attribute(recv, is_let)
+            self_name = 0 - 1
+            storage = 0
+            if at_word(";") { advance() }
+            skip_newlines()
+            continue
         }
         if inl && toks[pos + 1].kind == T_ID && tok_is(pos + 1, "main") {
             parse_error("main is C's main, called once: it is not inline")
@@ -3257,6 +3411,31 @@ let parse_program() {
             let f:int64 = parse_function()
             decls += f
             if nodes[f].b < 0 && at_word(";") { advance() }   // let printf(fmt:cstr, ...):i32;, a declaration (#453)
+        } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_attribute(pos + 1) {   // let T.x:R { } (#131, #132)
+            let is_var = at_word("var")
+            advance()
+            let recv:int64 = type_path(pos)
+            while pos < path_end { advance() }
+            advance()
+            if tok_is(pos + 1, "=") {
+                var m = $"an instance attribute is computed, 'let "
+                m += tok_text(recv)
+                m += "."
+                m += tok_text(pos)
+                m += ":R { ... }': a stored one is a member of the struct; a value of the type is 'static let "
+                m += tok_text(recv)
+                m += "."
+                m += tok_text(pos)
+                m += " = ...'"
+                advance()
+                parse_error(m.cstr)
+            } else {
+                if storage == 2 { parse_error("extern is not for an attribute") }
+                self_name = recv
+                parse_attribute(recv, is_var, inl)
+                self_name = 0 - 1
+                inl = false                              // each of its functions told already
+            }
         } else if (at_word("let") || at_word("var")) && toks[pos + 1].kind == T_ID && head_method(pos + 1) {   // let T.m(...) (#213)
             let is_var = at_word("var")                     // var T.m(...), self the caller's var (#320)
             advance()

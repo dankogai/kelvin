@@ -943,7 +943,47 @@ let method_of(n:int64):int64 {
     if names_type(a) { return method_named(nodes[a].t, nodes[n].t) }
     let y:int64 = type_of(a)
     if y < 0 || types[y].kind != Y_STRUCT { return -1 }
-    return method_named(types[y].name, nodes[n].t)
+    let f:int64 = method_named(types[y].name, nodes[n].t)
+    if f >= 0 && attributes.get(f, 0) == 3 { return -1 }   // a setter is called by assigning (#132)
+    return f
+}
+
+var attr_settled:Dictionary<int64, bool>   // the x.y asked once whether they read an attribute
+var attr_reads:Dictionary<int64, bool>     // the x.y that do: nodes now, calls of its getter
+
+// x.y of a computed attribute (#131) is the call of its getter, as a + b
+// of an operator is the call of it (#471); else as it was
+let resolve_attr(n:int64) {
+    if nodes[n].kind != N_FIELD || attr_settled.has(n) { return }
+    let nm:String = tok_text(nodes[n].t)
+    if !attribute_names.has(nm) { return }
+    let a:int64 = nodes[n].a
+    if names_type(a) {                                  // T.x, a type attribute (#133): the global T__x
+        attr_settled[n] = true
+        var key:String = tok_text(nodes[a].t)
+        key += "."
+        key += &nm
+        let g:int64 = type_attrs.get(key, 0 - 1)
+        if g >= 0 {
+            var word:String = tok_text(g)
+            let u:int64 = made_token(&word)              // T__x, where it is read, for an error's line
+            toks[u].line = toks[nodes[n].t].line
+            toks[u].file = toks[nodes[n].t].file
+            nodes[n].kind = N_ID
+            nodes[n].t = u
+            nodes[n].a = 0 - 1
+        }
+        return
+    }
+    let y:int64 = type_of(a)
+    if y < 0 { return }                                 // asked again where more is known
+    attr_settled[n] = true
+    if types[y].kind != Y_STRUCT { return }
+    let f:int64 = method_named(types[y].name, nodes[n].t)
+    if f < 0 || attributes.get(f, 0) == 0 { return }
+    nodes[n].kind = N_METHOD
+    nodes[n].b = 0 - 1
+    attr_reads[n] = true
 }
 
 // ---------- Optional and Result (#217) ----------
@@ -1170,6 +1210,7 @@ let arith_type(n:int64):int64 {
 
 let type_of(n:int64):int64 {
     resolve_op(n)                                        // a + b, a struct's operator, is the call of it (#471)
+    resolve_attr(n)                                      // x.y, an attribute, of its getter (#131)
     let k:nkind = nodes[n].kind
     if k == N_CHAIN { return chain_type(n) }
     if os_call(n) { return os_type(n) }                  // OS.cwd, OS.name(args), SYS.argv (#463)
@@ -2508,6 +2549,8 @@ let resolve_op(n:int64) {
 // x op= y where a struct's operator takes them is x = x op y (#42): false
 // where it is C's own, or kelvinc's error of an x that holds a call
 let compound_by_operator(n:int64):bool {
+    resolve_attr(nodes[n].a)
+    if attr_reads.has(nodes[n].a) { return false }      // its setter's, gen_assign's (#132)
     let t:int64 = nodes[n].t
     if !(tok_is(t, "+=") || tok_is(t, "-=") || tok_is(t, "*=") || tok_is(t, "/=") || tok_is(t, "%=") || tok_is(t, "**=")) { return false }
     let lhs:int64 = nodes[n].a
@@ -6006,6 +6049,17 @@ let gen_method_of(n:int64) {
     let t:int64 = nodes[n].t
     if refuse_valueless_args(n) { return }
     let f:int64 = method_of(n)
+    if f >= 0 && attributes.get(f, 0) != 0 && !attr_reads.has(n) {   // as kelvinc says it (#131)
+        var m = $"'"
+        m += tok_text(t)
+        m += "' is an attribute of "
+        m += tok_text(nodes[f].c)
+        m += ": read it as '."
+        m += tok_text(t)
+        m += "', with no parentheses"
+        gen_error(n, m.cstr)
+        return
+    }
     if f >= 0 {                                                       // T__m(x, ...), T__f(...) (#213)
         if nodes[f].flag == 2 {                                       // a var method's receiver, a var (#320)
             var lead = $"'."
@@ -6280,6 +6334,7 @@ let gen_method_of(n:int64) {
 
 // whether n names a place, whose address is taken as it is
 let is_place(n:int64):bool {
+    resolve_attr(n)
     let k:nkind = nodes[n].kind
     if k == N_INDEX && nodes[n].flag == 1 {                  // d[k] read whole is a value (#219)
         let y = type_of(nodes[n].a)
@@ -6339,6 +6394,7 @@ let gen_string_order(n:int64) {
 // a condition: a comparison without the parentheses C would warn of
 let gen_cond(n:int64) {
     resolve_op(n)
+    resolve_attr(n)
     if is_range_eq(n) {                                  // (#376)
         gen_range_eq(n)
         return
@@ -8978,6 +9034,7 @@ let gen_expr_of(n:int64)    // a prototype: gen_expr writes n by it
 // them where the call's arguments end (#441)
 let gen_expr(n:int64) {
     resolve_op(n)
+    resolve_attr(n)
     gen_expr_of(n)
     if nodes[n].kind == N_CALL || nodes[n].kind == N_METHOD { moves_done() }
 }
@@ -10178,9 +10235,20 @@ let enum_constant_changed(n:int64):bool {
     return true
 }
 
+// the attributes a place's members read, down to what holds them (#131, #133)
+let resolve_chain(n:int64) {
+    var e = n
+    resolve_attr(e)
+    while nodes[e].kind == N_FIELD || nodes[e].kind == N_INDEX {
+        e = nodes[e].a
+        resolve_attr(e)
+    }
+}
+
 // a change of place n where its variable is a let is an error, in
 // kelvinc's words (#271); whether n may change
 let may_change(n:int64):bool {
+    resolve_chain(n)
     if enum_constant_changed(n) { return false }
     var e = n                                           // a[i] of a parameter's array, its caller's element (#357)
     while nodes[e].kind == N_FIELD || nodes[e].kind == N_INDEX {
@@ -10208,6 +10276,10 @@ let may_change(n:int64):bool {
     }
     var d = n                                           // p^ of a const T^, which a let's borrow is (#272)
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
+    if nodes[d].kind == N_SELF && current >= 0 && (attributes.get(current, 0) == 1 || attributes.get(current, 0) == 2) {   // (#137)
+        gen_error(n, "a let attribute and a var attribute's getter read self and never change it: a var attribute's setter, 'set(v) { ... }', does")
+        return false
+    }
     if nodes[d].kind == N_SELF && current >= 0 && nodes[current].c >= 0 && nodes[current].flag != 2 {   // (#320)
         var m = $"a method reads self and never changes it, as a let method: a var method, 'var "
         m += tok_text(nodes[current].c)
@@ -10263,6 +10335,7 @@ let changeable_place(n:int64):bool {
 // let method, or behind a read-only borrow, an error that goes on from
 // lead, in kelvinc's words (#320)
 let changes_var(n:int64, lead:const String^):bool {
+    resolve_chain(n)
     if enum_constant_changed(n) { return false }
     var d = n
     while nodes[d].kind == N_FIELD || nodes[d].kind == N_INDEX { d = nodes[d].a }
@@ -10442,7 +10515,82 @@ let gen_float_set(n:int64) {
     put(wide ? "); __builtin_memcpy(_kv_fp, &_kv_fb, 8); (void)0; });\n" : "); __builtin_memcpy(_kv_fp, &_kv_fb, 4); (void)0; });\n")
 }
 
+// v.x = y and v.x += y of a computed attribute (#132): its setter, on the
+// var that holds v, in kelvinc's words; whether n is one
+let attr_assign(n:int64):bool {
+    let lhs:int64 = nodes[n].a
+    resolve_attr(lhs)
+    if !attr_reads.has(lhs) { return false }
+    let a:int64 = nodes[lhs].a
+    let x:int64 = nodes[lhs].t
+    let t:int64 = nodes[n].t
+    let nm:String = tok_text(x)
+    let getter:int64 = method_of(lhs)
+    var word = $"set_"
+    word += &nm
+    let setter:int64 = getter >= 0 ? method_named(nodes[getter].c, made_token(&word)) : 0 - 1
+    if setter < 0 {
+        var m = $"'"
+        m += &nm
+        m += "' is a let attribute, computed and never set: a var attribute has a setter, 'var T."
+        m += &nm
+        m += ":R { get { ... } set(v) { ... } }'"
+        gen_error(n, m.cstr)
+        return true
+    }
+    if tok_is(t, ":=") {
+        gen_error(n, "':=' sets a reference: an attribute is set with '='")
+        return true
+    }
+    if !may_change(a) { return true }
+    if !changeable_place(a) {
+        var m = $"the setter of '"
+        m += &nm
+        m += "' changes the value it is called on, so that value is a variable"
+        gen_error(n, m.cstr)
+        return true
+    }
+    var v:int64 = nodes[n].b
+    if !tok_is(t, "=") {                                // x.y op= v, x.y = x.y op v
+        var op = String(compound_op(t))
+        if has_call(a) {
+            var m = $"'x."
+            m += &nm
+            m += " "
+            m += tok_text(t)
+            m += " y' is 'x."
+            m += &nm
+            m += " = x."
+            m += &nm
+            m += " "
+            m += &op
+            m += " y', which reads x twice, so x may not hold a call"
+            gen_error(n, m.cstr)
+            return true
+        }
+        let op_tok:int64 = made_token(&op)
+        toks[op_tok].kind = T_PUNCT
+        toks[op_tok].line = toks[t].line
+        toks[op_tok].file = toks[t].file
+        let bin:int64 = make_node(N_BIN, op_tok)
+        nodes[bin].a = lhs
+        nodes[bin].b = v
+        v = bin
+    }
+    put_tok(nodes[setter].c)
+    put("__")
+    put_tok(nodes[setter].t)
+    put("(")
+    gen_place(a)
+    put(", ")
+    gen_args_to(v, setter)
+    put(");\n")
+    moves_done()
+    return true
+}
+
 let gen_assign(n:int64) {
+    if attr_assign(n) { return }
     let lhs:int64 = nodes[n].a
     var t:int64 = nodes[n].t
     if nodes[lhs].kind == N_FIELD && (tok_is(nodes[lhs].t, "sign") || tok_is(nodes[lhs].t, "exponent") || tok_is(nodes[lhs].t, "significand") || tok_is(nodes[lhs].t, "abs") || tok_is(nodes[lhs].t, "isNaN") || tok_is(nodes[lhs].t, "isInfinite") || tok_is(nodes[lhs].t, "isFinite")) && type_of(nodes[lhs].a) >= 0 && (power_float(type_of(nodes[lhs].a)) || power_int(type_of(nodes[lhs].a))) {
@@ -15778,6 +15926,22 @@ let implicit_return(d:int64) {
 
 let gen_function(d:int64) {
     current = d
+    if attributes.get(d, 0) == 1 || attributes.get(d, 0) == 2 {   // as kelvinc says it (#131)
+        let sd:int64 = decl_named(nodes[d].c, D_STRUCT)
+        var m:int64 = sd >= 0 ? nodes[sd].a : 0 - 1
+        while m >= 0 {
+            if same_text(nodes[m].t, nodes[d].t) {
+                var e = $"'"
+                e += tok_text(nodes[d].t)
+                e += "' is a member of "
+                e += tok_text(nodes[d].c)
+                e += " already: an attribute is computed, a member stored, so name the attribute otherwise"
+                gen_error(d, e.cstr)
+                return
+            }
+            m = nodes[m].next
+        }
+    }
     if nodes[d].c >= 0 && nodes[d].flag == 2 && decl_named(nodes[d].c, D_STRUCT) < 0 {   // as kelvinc's (#320)
         gen_error(d, "a var method changes the caller's var, which a built-in type's method cannot: declare it on a struct or a union of the program")
         return
