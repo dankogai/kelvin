@@ -598,6 +598,11 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A codepoint of text** (#478), as kelvinc's #56.
+  - `uchr(x)` is the codepoint of an integer, or the first of text.
+  - A uchr compares by its codepoint with a uchr or a number,
+    `c == ' '`, `c < d`; it has no arithmetic, in kelvinc's words.
+  - `c.codepoint` is `c.utf32`, and `i64(c)` converts the codepoint.
 - **A case's tag** (#477), as kelvinc's #61.
   - `v.case` is the tag, a u8, of an enum with values, an Optional or a
     Result; of a call's value that owns, the value is freed after.

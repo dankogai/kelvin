@@ -1302,6 +1302,10 @@ let gen_fn_value(n:int64, y:int64)    // and a function where one of type y goes
 let gen_fn_call(n:int64, fy:int64)    // and a call through a function value
 let member_fn_type(n:int64):int64    // and s.f(x) of a member f of a function type
 let converter_of(n:int64):int64    // and T(v), a converter's type (#429)
+let uchr_call(n:int64):bool    // and uchr(x), a codepoint (#478)
+let uchr_typed(n:int64):bool    // and c == d of a uchr (#478)
+let gen_uchr_compare(n:int64)
+let is_number_kind(k:ykind):bool    // and .utf32 of a number (#478)
 
 // whether the literal t, of decimal digits, is above an i64's largest (#472)
 let above_i64(t:int64):bool {
@@ -1446,6 +1450,7 @@ let type_of(n:int64):int64 {
         }
         let cy:int64 = converter_of(n)                   // int64(v), int64(text, base) (#429)
         if cy >= 0 { return cy }
+        if uchr_call(n) { return base_type(Y_UCHR) }     // uchr(x) (#478)
         let fy:int64 = callee_type(f)                    // through a function value (#428)
         if fy >= 0 { return types[fy].elem >= 0 ? types[fy].elem : base_type(Y_VOID) }
         if failed { return 0 - 1 }
@@ -1606,8 +1611,22 @@ let type_of(n:int64):int64 {
             if number_text_refused(n, types[int_view(y)].kind) { return -1 }
             return base_type(Y_CSTR)
         }
+        if tok_is(t, "uchr") && (yk == Y_F64 || yk == Y_F32 || yk == Y_BOOL || yk == Y_STRING || yk == Y_CSTR || yk == Y_UCHR) {   // as kelvinc says it (#478)
+            var m = $"'.uchr' converts an integer to a codepoint, and this is "
+            let w:String = kelvin_type_text(y)
+            m += &w
+            gen_error(n, m.cstr)
+            return -1
+        }
         if tok_is(t, "uchr") { return base_type(Y_UCHR) }
-        if tok_is(t, "utf32") { return base_type(Y_U32) }
+        if (tok_is(t, "utf32") || tok_is(t, "codepoint")) && is_number_kind(yk) {   // as kelvinc says it (#478)
+            var m = $"'."
+            m += tok_text(t)
+            m += "' is a uchr's codepoint, and this is a number, one already: '.uchr' makes a uchr of an integer (#297)"
+            gen_error(n, m.cstr)
+            return -1
+        }
+        if tok_is(t, "utf32") || (yk == Y_UCHR && tok_is(t, "codepoint")) { return base_type(Y_U32) }   // c.codepoint too (#478)
         if tok_is(t, "isNull") && (yk == Y_PTR || yk == Y_FN || yk == Y_CSTR) { return base_type(Y_BOOL) }   // p == nowhere (#460), as kelvinc's #50
         if tok_is(t, "isNull") && yk == Y_FIXED {
             gen_error(n, "'.isNull' of an array: an array is never null; '&a[0]' is a pointer")
@@ -1738,6 +1757,13 @@ let type_of(n:int64):int64 {
             return wrap_type(ly)
         }
         if is_string_plus(n) { return base_type(Y_STRING) }            // s + t, a new String (#284)
+        if uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b) {          // as kelvinc says it (#478)
+            var m = $"a uchr has no operator '"
+            m += tok_text(t)
+            m += "': its codepoint is 'c.utf32', a u32"
+            gen_error(n, m.cstr)
+            return -1
+        }
         if tok_is(t, "**") { return power_type(nodes[n].a, nodes[n].b) }   // b ** e (#380)
         return arith_type(n)
     }
@@ -5147,6 +5173,40 @@ let converter_of(n:int64):int64 {
     return 0 - 1
 }
 
+// whether the call n is uchr(x), a codepoint of a number or of text, as
+// kelvinc's #56: no function's or variable's (#478)
+let uchr_call(n:int64):bool {
+    let f:int64 = nodes[n].a
+    if nodes[f].kind != N_ID || !tok_is(nodes[f].t, "uchr") { return false }
+    return var_type(nodes[f].t) < 0 && fn_named(nodes[f].t) < 0
+}
+
+// whether n is a uchr (#478)
+let uchr_typed(n:int64):bool {
+    let y:int64 = type_of(n)
+    return y >= 0 && types[y].kind == Y_UCHR
+}
+
+// a comparison of a uchr, with a uchr or a number, by its codepoint, as
+// kelvinc's #56; it has no arithmetic (#478)
+let gen_uchr_compare(n:int64) {
+    let t:int64 = nodes[n].t
+    if !is_comparison(t) {
+        var m = $"a uchr has no operator '"
+        m += tok_text(t)
+        m += "': its codepoint is 'c.utf32', a u32"
+        gen_error(n, m.cstr)
+        return
+    }
+    put("((bool)((")
+    gen_expr(nodes[n].a)
+    put(uchr_typed(nodes[n].a) ? ").cp " : ") ")
+    put_tok(t)
+    put(" (")
+    gen_expr(nodes[n].b)
+    put(uchr_typed(nodes[n].b) ? ").cp))" : ")))")
+}
+
 // whether a converter reads v as text (#429): a cstr, a String, a u8^,
 // an array of u8, or a ?: of them
 let converter_text(v:int64):bool {
@@ -5181,6 +5241,37 @@ let put_text_arg(v:int64) {
     put("(")
     gen_expr(v)
     put(")")
+}
+
+// uchr(x) (#478), as kelvinc writes it: KV_UCHR_OF, C's _Generic of an
+// integer or of text; a uchr as it is; what kelvinc leaves to C's error,
+// in words
+let gen_uchr(n:int64) {
+    let v:int64 = nodes[n].b
+    if v < 0 || nodes[v].next >= 0 {
+        gen_error(n, "uchr(x) takes one value: a number, or text")
+        return
+    }
+    let vy:int64 = type_of(v)
+    if failed || vy < 0 { return }
+    let k = types[vy].kind
+    if k == Y_UCHR {                                     // uchr(c) is c
+        gen_expr(v)
+        return
+    }
+    let unseen:bool = k == Y_C || (k == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0)
+    let text:bool = converter_text(v)
+    if k == Y_STRING || !(text || unseen || is_int_kind(k)) {
+        var m = $"uchr(x) takes an integer, a uchr or a cstr, and this is "
+        let w:String = kelvin_type_text(vy)
+        m += &w
+        if k == Y_STRING { m += ": of its text, 'uchr(s.cstr)'" }
+        gen_error(v, m.cstr)
+        return
+    }
+    put("(KV_UCHR_OF(")
+    if text { put_text_arg(v) } else { gen_expr(v) }
+    put("))")
 }
 
 // the reader of the converter of type y, and what follows its text, as
@@ -5243,7 +5334,7 @@ let gen_converter(n:int64) {
     }
     let vy:int64 = type_of(v)
     if failed { return }
-    let text = converter_text(v)
+    let text:bool = converter_text(v)
     if base >= 0 && (k == Y_F64 || k == Y_F32) {
         var m = $"a base is for reading an integer from text; "
         m += &name
@@ -5305,7 +5396,7 @@ let gen_converter(n:int64) {
     } else {
         put("(")
         gen_expr(v)
-        put(")")
+        put(types[vy].kind == Y_UCHR ? ").cp" : ")")   // i64(c) is i64(c.utf32), as kelvinc's (#478)
     }
     put(")")
     close_holds(&opened)
@@ -5350,6 +5441,10 @@ let gen_call(n:int64) {
     }
     if converter_of(n) >= 0 {                       // int64(v), int64(text, base) (#429)
         gen_converter(n)
+        return
+    }
+    if uchr_call(n) {                               // uchr(x) (#478)
+        gen_uchr(n)
         return
     }
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
@@ -5840,7 +5935,7 @@ let gen_member(n:int64) {
         put("kv_uchr_of(")
         gen_expr(a)
         put(")")
-    } else if tok_is(t, "utf32") {
+    } else if tok_is(t, "utf32") || (yk == Y_UCHR && tok_is(t, "codepoint")) {
         put("(")
         gen_expr(a)
         put(").cp")
@@ -6629,7 +6724,7 @@ let gen_cond(n:int64) {
     if nodes[n].kind == N_BIN && is_comparison(nodes[n].t) {
         let y:int64 = type_of(nodes[n].a)
         let owners = tagged_side(n) >= 0 || builtin_kind(y) != Y_VOID || builtin_kind(type_of(nodes[n].b)) != Y_VOID   // an Optional's == (#343), String ==, xs == ys (#288), refusals (#287)
-        if !owners {
+        if !owners && !uchr_typed(nodes[n].a) && !uchr_typed(nodes[n].b) {   // a uchr's by its codepoint (#478)
             gen_expr(nodes[n].a)
             put(" ")
             put_tok(nodes[n].t)
@@ -9577,6 +9672,8 @@ let gen_expr_of(n:int64) {
         gen_bytes_bin(n)                                 // b == c, b < c, and kelvinc's errors (#439)
     } else if k == N_BIN && is_string_plus(n) {
         gen_string_plus(n)                               // s + t (#284)
+    } else if k == N_BIN && (uchr_typed(nodes[n].a) || uchr_typed(nodes[n].b)) {
+        gen_uchr_compare(n)                              // c == ' ', c < d, by the codepoint (#478)
     } else if k == N_BIN && !widen_ints && widened.get(n, false) {
         widen_ints = true                                // arithmetic of integer literals, inferred an i64 (#385)
         gen_expr(n)
@@ -9707,6 +9804,7 @@ let inferred(n:int64):int64 {
         gen_variant_eq(v, tagged_side(v))
         return -1
     }
+    if k == N_BIN && !is_comparison(nodes[v].t) && !is_string_plus(v) && (uchr_typed(nodes[v].a) || uchr_typed(nodes[v].b)) { return type_of(v) }   // a uchr's arithmetic, in kelvinc's words (#478)
     if k == N_BIN && !is_comparison(nodes[v].t) && !tok_is(nodes[v].t, "??") && !tok_is(nodes[v].t, "!!") && !tok_is(nodes[v].t, "**") && !set_op && !is_string_plus(v) {   // x ?? d is x's T (#217); s + t a String (#284); b ** e kelvinc's (#380); d0 !! d1 (#460)
         gen_error(n, "this variable needs a type: write name:T, since a type is not inferred from arithmetic")
         return -1

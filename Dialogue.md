@@ -9163,3 +9163,17 @@ tag set without its value. kelvinc is unchanged. kc builds 189 of the 355
 programs, 2 more. Details are provisional P489.
 
 There are 1207 tests, and all pass with clang and with gcc 15.
+
+### 525. A codepoint of text
+
+> push. then go on with #478
+
+**Claude** pushed #477, and all nine jobs passed. Asked what to take next,
+the user chose `uchr("é")`. kc now reads `uchr(x)` of an integer or of
+text, compares a uchr by its codepoint, `c == ' '`, and reads
+`c.codepoint` and `i64(c)`, with kelvinc's words for a uchr's arithmetic.
+Where kelvinc's C fails, `uchr` of a String or a float, kc says it in
+words. kelvinc is unchanged. kc builds 193 of the 355 programs, 4 more.
+Details are provisional P490.
+
+There are 1207 tests, and all pass with clang and with gcc 15.

@@ -1276,6 +1276,11 @@ on a new line`
     println(ec_s, " ", ec_s.case, " ", ec_s.case.typename, " ", ec_o.case, " ", ec_mk(7).case, " ", ec_mk(8))
     ec_s.tag = {$"t", 9}
     println(ec_s, " ", ec_s.case, " ", ec_s.tag.s, " ", ec_s.is(tag))
+    let uc_e = uchr("é")                                  // uchr(x), compared by its codepoint (#478)
+    let uc_s = $"日本"
+    var uc_n = 0
+    for uc_c in uc_s { if uc_c >= 0x65E5 && uc_c != uc_e { uc_n += 1 } }
+    println(uc_e, uchr(0x41), uchr(uc_s.cstr), " ", uc_e > 'a', " ", uc_e == uchr(233), " ", uc_e.codepoint, " ", int64(uc_e) + 1, " ", uc_n)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

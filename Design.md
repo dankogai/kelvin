@@ -520,6 +520,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 475 | kc reads subscripts, as kelvinc's #136: `let T[](i:I):R { }` and `var [](i:I):R { get { } set(v) { } }`, alone or in `extend`, read as `v[i]` and `v[r, c]`, set as `v[i] = y` and `v[i] += y`, overloaded by the indices' count and types; `var a:[T](2) = []` is its count's zeros | selfhost/parse.k's parse_subscript, parse_params, head_subscript, parse_postfix's indices; selfhost/gen.k's resolve_subscript, choose_subscript, index_fits, name_subscripts, sub_assign, gen_method_of's flag 3, gen_signature; selfhost/sample.k; selfhost/README.md | `g[1, 2] = 7`, `n[k]` | 2026-11-07 |
 | 476 | kc reads types with no tag, as kelvinc's #59, #60 and #61: `{x:f64, y:f64}`, `struct{...}`, `union{i:i32, f:f32}` and `enum{none, n:i64}` wherever a type goes, one type of each spelling, `_kv_anonN`, named by its spelling in text and errors; `({x:f64, y:f64}){1.0, 2.0}`; an OS struct is one written alike | selfhost/parse.k's parse_anon_record, type_suffixes, anon_keys, anon_decls, literal_ahead, kelvin_name, parse_bare_type's _kv_ name; selfhost/gen.k's anon_spelling, put_spelling, kc_made, os_struct, a union's text, a case's mismatch; selfhost/sample.k; selfhost/README.md | `norm(v:{x:f64, y:f64})` | 2026-11-07 |
 | 477 | kc reads an enum with values' tag and a struct case's `{a, b}`, as kelvinc's #61: `v.case`, a u8, of an enum with values, an Optional or a Result, and of a call's value that owns, held and freed; `T.c({1, 2})` and `v.c = {1, 2}` of a case whose value is a struct; `v.case = x` refused | selfhost/gen.k's type_of and gen_field for `.case`, T.c(v) and v.c = x for `{a, b}`, gen_assign's refusal, bare_init's prototype; selfhost/sample.k; selfhost/README.md | `s.case`, `shape.pair({1, 2})` | 2026-11-07 |
+| 478 | kc reads `uchr(x)`, as kelvinc's #56: a codepoint of an integer or of text, `KV_UCHR_OF`; a uchr compares by its codepoint with a uchr or a number, `c == ' '`, `c < d`; `c.codepoint`; `i64(c)` is `i64(c.utf32)`; kelvinc's errors for a uchr's arithmetic and `.uchr` of no integer; what kelvinc leaves to C's error, in words | selfhost/gen.k's uchr_call, gen_uchr, uchr_typed, gen_uchr_compare, type_of's `.uchr`, `.utf32` and `.codepoint` and arithmetic, gen_converter of a uchr, gen_condition's comparison, infer's arithmetic; selfhost/sample.k; selfhost/README.md | `uchr("é")`, `c >= 'a'` | 2026-11-08 |
 
 Notes:
 
@@ -1105,6 +1106,20 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (478) Agreed details: "push. then go on with #478". Asked what to take;
+  the user chose `uchr("é")`, the first stop of 5 programs. kc alone, so
+  no test of kelvinc's changes.
+  - `uchr(x)` writes kelvinc's `KV_UCHR_OF(x)`, C's _Generic: an integer's
+    codepoint, or text's first; `uchr(c)` of a uchr is c.
+  - Of a String, a float, a bool or an Optional, kelvinc's C fails; kc
+    says it in words, and of a String names `uchr(s.cstr)`.
+  - The programs it unlocks needed more of the uchr: a comparison by the
+    codepoint, with a uchr or a number, in a condition too; `c.codepoint`;
+    `i64(c)` of the codepoint; kelvinc's words for `c + 1`, `.uchr` of a
+    float, and `.utf32` of a number.
+  - `array_sort` stops next on a Bytes' `.escape()`, and
+    `unicode_normalization` on a variable whose type kc does not see.
+  - Not in #478: kelvinc refuses `let uchr = 5`, which kc takes.
 - (477) Agreed details: "push. then go on with #477", the two small gaps
   the report of #476 proposed, `v.case` and `{a, b}` of a struct case,
   which unlock `enum_values` and `switch_bind`. kc alone, so no test of
@@ -7130,6 +7145,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P487 | Details of #475 | selfhost/parse.k: subscripts, sub_getters, sub_setters, parse_params out of parse_function, parse_subscript, head_subscript, parse_extend's and parse_program's branches, N_INDEX's list; selfhost/gen.k: sub_targets in method_of, count_args, count_params, index_fits, choose_subscript, resolve_subscript through resolve_attr, name_subscripts in count_overloads, sub_assign at gen_assign's head, flag 3 in gen_method_of, gen_signature and gen_function, may_change's getter error, gen_fixed_var's `[]` | provisional |
 | P488 | Details of #476 | selfhost/parse.k: anon_keys, anon_decls, parse_anon_record after parse_enum, type_suffixes out of parse_bare_type, parse_bare_type's branch and its `_kv_` name, literal_ahead's `({...}){`, kelvin_name's spelling; selfhost/gen.k: kc_made leaves them out, anon_spelling, put_spelling in write_type and the enum's writer, os_struct's key, the union's `<union{...}>`, a case's mismatch words | provisional |
 | P489 | Details of #477 | selfhost/gen.k: type_of's `.case` a u8 before a case's value, gen_field's `((v).tag)` or, of a call's owner, `({ T _kv_t = v; uint8_t _kv_c = _kv_t.tag; free(&_kv_t); _kv_c; })`; T.c(v) and v.c = x put `(T)` before `{a, b}` of a struct case; gen_assign refuses `v.case = x`, `+=` and `++` | provisional |
+| P490 | Details of #478 | selfhost/gen.k: uchr_call beside converter_of, gen_uchr after put_text_arg (`(KV_UCHR_OF(...))`, text through put_text_arg); uchr_typed and gen_uchr_compare (`((bool)((a).cp op (b)))`), before gen_expr's N_BIN default and gen_condition's bare comparison; gen_converter's `.cp`; type_of's errors for `.uchr`, `.utf32` and arithmetic; infer lets a uchr's arithmetic reach its error | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
