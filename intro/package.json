@@ -1,0 +1,13 @@
+{
+  "name": "kelvin-intro",
+  "private": true,
+  "description": "Slides introducing Kelvin, rendered from kelvin-intro.md",
+  "scripts": {
+    "check": "node check.js",
+    "pptx": "node build.js",
+    "render": "node check.js && node build.js && osascript keynote.applescript \"$PWD/kelvin-intro.pptx\""
+  },
+  "dependencies": {
+    "pptxgenjs": "4.0.1"
+  }
+}
