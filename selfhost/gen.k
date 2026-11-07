@@ -1542,6 +1542,7 @@ let type_of(n:int64):int64 {
             return -1
         }
         let d = tagged_of(y)
+        if d >= 0 && tok_is(t, "case") { return base_type(Y_U8) }        // v.case, its tag, a u8 as kelvinc's (#477)
         if d >= 0 {                                                      // v.c, the case's value
             if let some(m) = case_named(d, t) {
                 if nodes[m].ty >= 0 { return nodes[m].ty }
@@ -1845,6 +1846,7 @@ let declaration_shaped(e:int64):bool    // a prototype: a statement asks it (#40
 
 let gen_value(n:int64, y:int64)
 let case_value_fits(v:int64, m:int64, whole:int64):bool    // a prototype: T.c(v) and == ask it (#413)
+let bare_init(n:int64):bool    // a prototype: T.c({a, b}) asks it (#477)
 
 let gen_args(first:int64) {
     var a:int64 = first
@@ -5718,6 +5720,22 @@ let gen_member(n:int64) {
         return
     }
     let lent = is_place(a) || held.get(a, 0 - 1) >= 0    // a place, or one held in a temporary (#227)
+    if tagged_of(y) >= 0 && tok_is(t, "case") {        // v.case, its tag (#477)
+        if lent || !is_owner(y) {
+            put("((")
+            gen_expr(a)
+            put(").tag)")
+        } else {                                       // of a call's enum that owns: held, read and freed, as kelvinc's
+            put("({ ")
+            put_ctype(y)
+            put(" _kv_t = ")
+            gen_expr(a)
+            put("; uint8_t _kv_c = _kv_t.tag; ")
+            put_free(y)
+            put("(&_kv_t); _kv_c; })")
+        }
+        return
+    }
     if tagged_of(y) >= 0 && !lent && is_owner(y) {      // of a call's enum that owns, which would go unfreed (#360)
         gen_error(n, "kc reads a case's value of an enum that owns where a variable holds it: bind it first, 'let v = f()'")
         return
@@ -6308,6 +6326,11 @@ let gen_method_of(n:int64) {
             put_tok(nodes[v].t)
             put(")")
         } else if v >= 0 && cm >= 0 && fixed_case(cm) {   // a fixed array's elements, by their type (#360)
+            gen_value(v, nodes[cm].ty)
+        } else if v >= 0 && cm >= 0 && bare_init(v) && struct_of(nodes[cm].ty) >= 0 {   // {a, b} of a struct case, C's compound literal (#477)
+            put("(")
+            put_ctype(nodes[cm].ty)
+            put(")")
             gen_value(v, nodes[cm].ty)
         } else {
             gen_args(v)
@@ -10897,6 +10920,10 @@ let gen_assign(n:int64) {
         gen_int_bit_set(n)                              // x.bit(n) = b and its kin (#457)
         return
     }
+    if nodes[lhs].kind == N_FIELD && tok_is(nodes[lhs].t, "case") && tagged_of(type_of(nodes[lhs].a)) >= 0 {   // a tag alone would leave the value unset (#477)
+        gen_error(n, "'.case' is read only: a case is set with its value, 'v.c = x', or 'v = T.c' of a case with none")
+        return
+    }
     if !may_change(lhs) { return }                      // (#271)
     if compound_by_operator(n) || failed { return }     // z += w, z = z + w of a struct's operator (#42)
     t = nodes[n].t
@@ -10976,6 +11003,11 @@ let gen_assign(n:int64) {
         gen_place(nodes[lhs].a)
         put(", ")
         if types[y].kind == Y_FIXED {                    // [a, b], its elements by their type (#360)
+            gen_value(nodes[n].b, y)
+        } else if bare_init(nodes[n].b) && struct_of(y) >= 0 {   // {a, b} of a struct case, C's compound literal (#477)
+            put("(")
+            put_ctype(y)
+            put(")")
             gen_value(nodes[n].b, y)
         } else {
             gen_expr(nodes[n].b)

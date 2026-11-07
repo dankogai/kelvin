@@ -472,6 +472,8 @@ let sb_made():sb_names { return {$[$"m"]} }
 let an_norm(v:{x:f64, y:f64}):f64 { v.x * v.x + v.y * v.y }   // types with no tag (#476)
 let an_pair(n:i64):{n:i64, s:String} { return {n, String(n)} }
 struct an_hold { at: {x:f64, y:f64}; tags: Array<{n:i64, s:String}> }
+enum ec_shape { none; dot: i64; pair: {x:i64, y:i64}; tag: {s:String, n:i64} }   // a case's tag, {a, b} of a struct case (#477)
+let ec_mk(n:i64):ec_shape { ec_shape.tag({String(n), n}) }
 let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest of the integers (#472)
 let num_wide(x:u64):i64 { return (x / 2) as i64 }
 let num_wide(x:i128):i64 { return (x >> 100) as i64 }
@@ -1269,6 +1271,11 @@ on a new line`
     an_e.n = 5
     let an_c = ({x:f64, y:f64}){1.0, 2.0}
     println(an_e, " ", an_e.typename, " ", an_c, " ", an_norm(an_c), " ", an_pair(3).s.count)
+    var ec_s = ec_shape.pair({1, 2})                      // a case's tag, {a, b} of a struct case (#477)
+    let ec_o:i64? = 4
+    println(ec_s, " ", ec_s.case, " ", ec_s.case.typename, " ", ec_o.case, " ", ec_mk(7).case, " ", ec_mk(8))
+    ec_s.tag = {$"t", 9}
+    println(ec_s, " ", ec_s.case, " ", ec_s.tag.s, " ", ec_s.is(tag))
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

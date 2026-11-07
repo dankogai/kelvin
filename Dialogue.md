@@ -9150,3 +9150,16 @@ unchanged. kc builds 187 of the 355 programs, 2 more. Details are
 provisional P488.
 
 There are 1207 tests, and all pass with clang and with gcc 15.
+
+### 524. A case's tag
+
+> push. then go on with #477
+
+**Claude** pushed #476, and all nine jobs passed. kc now reads `v.case`,
+the tag of an enum with values, an Optional or a Result, and takes
+`{1, 2}` where a case's value is a struct, `shape.pair({1, 2})` and
+`s.pair = {1, 2}`. It refuses `v.case = x`, which kelvinc writes as a
+tag set without its value. kelvinc is unchanged. kc builds 189 of the 355
+programs, 2 more. Details are provisional P489.
+
+There are 1207 tests, and all pass with clang and with gcc 15.

@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A case's tag** (#477), as kelvinc's #61.
+  - `v.case` is the tag, a u8, of an enum with values, an Optional or a
+    Result; of a call's value that owns, the value is freed after.
+  - `T.c({1, 2})` and `v.c = {1, 2}` take a brace list where the case's
+    value is a struct.
+  - `v.case = x` is refused: a case is set with its value.
 - **Types with no tag** (#476), as kelvinc's #59, #60 and #61.
   - `{x:f64, y:f64}`, `struct{...}`, `union{i:i32, f:f32}` and
     `enum{none, n:i64}` go wherever a type goes: a parameter, a result,
