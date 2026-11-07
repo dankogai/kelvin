@@ -598,6 +598,14 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **Types with no tag** (#476), as kelvinc's #59, #60 and #61.
+  - `{x:f64, y:f64}`, `struct{...}`, `union{i:i32, f:f32}` and
+    `enum{none, n:i64}` go wherever a type goes: a parameter, a result,
+    a member, an element, a case's value, `Array<...>`, `${K: ...}`.
+  - One spelling is one type, `_kv_anonN`, declared before what first
+    writes it; its text and errors spell it, `{x: f64, y: f64}`.
+  - `({x:f64, y:f64}){1.0, 2.0}` is its compound literal.
+  - A struct an OS member gives is the one written alike, as kelvinc's.
 - **Subscripts** (#475), as kelvinc's #136.
   - `let T[](i:I):R { }`, and `let [](i:I):R { }` in `extend`: `v[i]` is
     the call of its getter, found once the type is known, as an attribute

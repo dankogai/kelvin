@@ -40,7 +40,38 @@ let put_tok(t:int64) {
 // whether token t names a type kc makes, an Optional's or a Result's, and
 // not one nested in a struct, whose name kc makes too (#389)
 let kc_made(t:int64):bool {
-    return t > eof_pos && !is_nested(t)
+    return t > eof_pos && !is_nested(t) && !anon_decls.has(tok_text(t))   // a type with no tag is the program's (#476)
+}
+
+// the spelling of the type with no tag d, as kelvinc's: {x: f64, y: f64},
+// union{i: i32, f: f32}, enum{none, i: i32} (#476)
+let kelvin_type_text(y:int64):String    // a prototype: its members' types are named so
+let anon_spelling(d:int64):String {
+    var s = nodes[d].kind == D_ENUM ? $"enum{" : nodes[d].flag == 1 ? $"union{" : $"{"
+    var m:int64 = nodes[d].a
+    while m >= 0 {
+        if m != nodes[d].a { s += ", " }
+        s += tok_text(nodes[m].t)
+        if nodes[m].ty >= 0 {
+            s += ": "
+            let w:String = kelvin_type_text(nodes[m].ty)
+            s += &w
+        }
+        m = nodes[m].next
+    }
+    s += "}"
+    return s
+}
+
+// /* {x: f64, y: f64} */ before the C of a type with no tag named by token
+// t, as kelvinc writes it (#476)
+let put_spelling(t:int64) {
+    let d:int64 = anon_decls.get(tok_text(t), -1)
+    if d < 0 { return }
+    put("/* ")
+    let w:String = anon_spelling(d)
+    put(w.cstr)
+    put(" */\n")
 }
 
 // whether token t starts with _kv_, a name of kelvinc's own (#388)
@@ -3415,7 +3446,8 @@ let gen_show(y:int64) {
     put(" *self = _kv_v;\n")
     let d = tagged_of(y)
     if d < 0 && nodes[struct_of(y)].flag == 1 {         // <union bits>, as kelvinc shows one (#453)
-        put("    (void)self;\n    (void)level;\n    kv_out_put(o, \"<union ")
+        put("    (void)self;\n    (void)level;\n    kv_out_put(o, \"<")
+        if !anon_decls.has(tok_text(types[y].name)) { put("union ") }   // <union{i: i32, f: f32}>, of one with no tag (#476)
         let w:String = kelvin_name(types[y].name)
         put(w.cstr)
         put(">\");\n}\n\n")
@@ -4152,6 +4184,7 @@ let os_struct(g:const String^):int64 {
     var last:int64 = 0 - 1
     var word = $""
     var name = $""
+    var key = $"{"                                       // as parse_anon_record keys one (#476)
     var spaced = $""
     spaced += &spec
     spaced += ","
@@ -4163,12 +4196,21 @@ let os_struct(g:const String^):int64 {
             let m = make_node(S_VAR, made_token(&name))
             let y:int64 = word == $"i64" ? base_type(Y_I64) : word == $"i32" ? base_type(Y_I32) : word == $"f64" ? base_type(Y_F64) : word == $"bool" ? base_type(Y_BOOL) : word == $"IO" ? base_type(Y_IO) : base_type(Y_STRING)
             set_ty(m, y)
+            key += &name
+            key += ":"
+            key += String(y)
+            key += ","
             if last < 0 { nodes[d].a = m } else { nodes[last].next = m }
             last = m
             word = $""
         } else if c.utf32 != ' ' {
             word += c
         }
+    }
+    let written:int64 = anon_keys.get(key, -1)          // the program's own, written alike, as kelvinc's one of each spelling (#476)
+    if written >= 0 {
+        os_structs[g^.copy()] = written
+        return written
     }
     decls += d
     let sy:int64 = type_of_kind(Y_STRUCT, -1, nodes[d].t)
@@ -7334,6 +7376,9 @@ let case_value_fits(v:int64, m:int64, whole:int64):bool {
         let cw:String = kelvin_type_text(c)
         e += &cw
         e += ": a struct takes a value of its own type"
+        if anon_decls.has(tok_text(types[vy].name)) || anon_decls.has(tok_text(types[c].name)) {   // as kelvinc says it (#476)
+            e += ", and two structs with no tag are one type only when their members are written alike"
+        }
         gen_error(v, e.cstr)
         return false
     }
@@ -16419,6 +16464,7 @@ let gen_tagged(d:int64) {
         }
         m = nodes[m].next
     }
+    put_spelling(nodes[d].t)
     put_struct(name)
     put("\n{\n    uint8_t tag;\n    union\n    {\n")
     m = nodes[d].a
@@ -16851,6 +16897,7 @@ let write_type(y:int64) {
                 write_type(nodes[f].ty)
                 f = nodes[f].next
             }
+            put_spelling(nodes[d].t)
             put_record_word(y)
             put_tok(nodes[d].t)
             put("\n{\n")

@@ -9136,3 +9136,17 @@ kelvinc's does. kelvinc is unchanged. kc builds 185 of the 355 programs, 3
 more, `setter_moves.k` of #474 among them. Details are provisional P487.
 
 There are 1207 tests, and all pass with clang and with gcc 15.
+
+### 523. Types with no tag
+
+> push. then go on with #476
+
+**Claude** pushed #475, and all nine jobs passed. Checking the `"""`
+strings it had proposed, it found that every program stopping on them also
+needs a module, and asked; the user chose types with no tag. kc now reads
+`{x:f64, y:f64}`, `union{...}` and `enum{...}` where a type goes, one type
+of each spelling, named by its spelling as kelvinc names it. kelvinc is
+unchanged. kc builds 187 of the 355 programs, 2 more. Details are
+provisional P488.
+
+There are 1207 tests, and all pass with clang and with gcc 15.

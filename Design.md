@@ -518,6 +518,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 473 | kc reads attributes, as kelvinc's #131, #132, #133 and #137: `let T.x:R { }`, `var T.x:R { get { } set(v) { } }` and `static let T.x:R = v`, alone or in `extend`, read as `v.x` and `T.x`, set as `v.x = y`, `v.x += y` and `T.x = y`; `Self.f()` and `Self.x` in an expression | selfhost/parse.k's parse_attribute, attribute_fn, parse_type_attribute, head_attribute, begin_function; selfhost/gen.k's resolve_attr, resolve_chain, attr_assign; selfhost/sample.k; selfhost/README.md | `r.area`, `t.celsius = 100.0`, `rect.made += 1` | 2026-11-07 |
 | 474 | A variable that owns moves into a setter or a subscript's index as into any function: `p.title = a` and `n[1] = b` take it, where they wrote it as it was and both the setter and its block freed it | src/codegen.c's subscript_get, subscript_set and attr_set; tests/run/setter_moves.k, tests/error/setter_moved.k | `let a = $"x"; p.title = a` | 2026-11-07 |
 | 475 | kc reads subscripts, as kelvinc's #136: `let T[](i:I):R { }` and `var [](i:I):R { get { } set(v) { } }`, alone or in `extend`, read as `v[i]` and `v[r, c]`, set as `v[i] = y` and `v[i] += y`, overloaded by the indices' count and types; `var a:[T](2) = []` is its count's zeros | selfhost/parse.k's parse_subscript, parse_params, head_subscript, parse_postfix's indices; selfhost/gen.k's resolve_subscript, choose_subscript, index_fits, name_subscripts, sub_assign, gen_method_of's flag 3, gen_signature; selfhost/sample.k; selfhost/README.md | `g[1, 2] = 7`, `n[k]` | 2026-11-07 |
+| 476 | kc reads types with no tag, as kelvinc's #59, #60 and #61: `{x:f64, y:f64}`, `struct{...}`, `union{i:i32, f:f32}` and `enum{none, n:i64}` wherever a type goes, one type of each spelling, `_kv_anonN`, named by its spelling in text and errors; `({x:f64, y:f64}){1.0, 2.0}`; an OS struct is one written alike | selfhost/parse.k's parse_anon_record, type_suffixes, anon_keys, anon_decls, literal_ahead, kelvin_name, parse_bare_type's _kv_ name; selfhost/gen.k's anon_spelling, put_spelling, kc_made, os_struct, a union's text, a case's mismatch; selfhost/sample.k; selfhost/README.md | `norm(v:{x:f64, y:f64})` | 2026-11-07 |
 
 Notes:
 
@@ -1103,6 +1104,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (476) Agreed details: "push. then go on with #476". The report of #475
+  proposed `"""` strings; checked first, all six programs that stop on
+  them also need `<JSON>`, `<SION>` or `<RegExp>`, so they would build none.
+  The user chose types with no tag instead. kc alone, so no test of kelvinc's
+  changes.
+  - `{...}`, `struct{...}`, `union{...}` and `enum{...}` where a type goes,
+    as kelvinc's parse_anon_record: one declaration of each spelling,
+    `_kv_anonN` in order of first use, pushed before the declaration that
+    first writes it.
+  - Two are one type when their members' names and types are the same.
+    kc keys them by its type indices, which are one per type, and spells
+    them only where a name is shown, `{x: f64, y: f64}`, so the spelling
+    is kelvinc's without a Kelvin type text in the parser.
+  - kelvinc's errors: one with no members, `_kv_anon1` written as a type,
+    a union holding an owner.
+  - A struct an OS member gives is the program's own where one is written
+    alike, as kelvinc's anon_struct shares its spellings.
+  - Not in #476, each failing with a named type too: `v.case`,
+    `T.c({1, 2})` of a struct case, `{.c = v}` while a variable `c` is in
+    scope, a struct of another type by `=` (C's error), and a switch's
+    words on an enum with values.
 - (475) Agreed details: "push. then go on with #475", subscripts in kc, the
   report of #473 having proposed them and #474 having taken its number. kc
   alone, so no test of kelvinc's changes.
@@ -7091,6 +7113,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P485 | Details of #473 | selfhost/parse.k: attributes (what each function is), attribute_names, type_attrs, begin_function out of parse_function, parse_attribute, parse_type_attribute, head_attribute, parse_extend's and parse_program's branches, `Self.` in parse_primary; selfhost/gen.k: method_of hides a setter, resolve_attr in type_of, gen_expr, gen_cond, is_place and compound_by_operator, resolve_chain in may_change and changes_var, attr_assign at gen_assign's head, gen_method_of's and gen_function's errors, may_change's getter error | provisional |
 | P486 | Details of #474 | src/codegen.c: subscript_get's and subscript_set's items and attr_set's value by owner_take where local_owner, a subscript's parameters past the receiver | provisional |
 | P487 | Details of #475 | selfhost/parse.k: subscripts, sub_getters, sub_setters, parse_params out of parse_function, parse_subscript, head_subscript, parse_extend's and parse_program's branches, N_INDEX's list; selfhost/gen.k: sub_targets in method_of, count_args, count_params, index_fits, choose_subscript, resolve_subscript through resolve_attr, name_subscripts in count_overloads, sub_assign at gen_assign's head, flag 3 in gen_method_of, gen_signature and gen_function, may_change's getter error, gen_fixed_var's `[]` | provisional |
+| P488 | Details of #476 | selfhost/parse.k: anon_keys, anon_decls, parse_anon_record after parse_enum, type_suffixes out of parse_bare_type, parse_bare_type's branch and its `_kv_` name, literal_ahead's `({...}){`, kelvin_name's spelling; selfhost/gen.k: kc_made leaves them out, anon_spelling, put_spelling in write_type and the enum's writer, os_struct's key, the union's `<union{...}>`, a case's mismatch words | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

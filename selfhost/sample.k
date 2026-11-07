@@ -469,6 +469,9 @@ extend sb_names {
     let [](k:String):i64 { k.count as i64 }
 }
 let sb_made():sb_names { return {$[$"m"]} }
+let an_norm(v:{x:f64, y:f64}):f64 { v.x * v.x + v.y * v.y }   // types with no tag (#476)
+let an_pair(n:i64):{n:i64, s:String} { return {n, String(n)} }
+struct an_hold { at: {x:f64, y:f64}; tags: Array<{n:i64, s:String}> }
 let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest of the integers (#472)
 let num_wide(x:u64):i64 { return (x / 2) as i64 }
 let num_wide(x:i128):i64 { return (x >> 100) as i64 }
@@ -1257,6 +1260,15 @@ on a new line`
     sb_n[0] = "ay"
     let sb_k = $"four"
     println(sb_n[1], " ", sb_n[0], " ", sb_n[sb_k], " ", sb_n.xs, " ", sb_made()[0], " ", sb_n[1].count)
+    var an_v:{x:float64; y:float64} = {3.0, 4.0}          // types with no tag (#476)
+    var an_h:an_hold = {an_v, $[an_pair(1)]}
+    an_h.tags += an_pair(22)
+    let an_u:union{i:i32, f:f32} = {.f = 1.0}
+    var an_e:enum{none, n:i64, txt:String} = {.txt = $"es"}
+    println(an_norm(an_v), " ", an_v.typename, " ", an_h, " ", an_h.tags.typename, " ", an_u.i, " ", an_u, " ", an_e)
+    an_e.n = 5
+    let an_c = ({x:f64, y:f64}){1.0, 2.0}
+    println(an_e, " ", an_e.typename, " ", an_c, " ", an_norm(an_c), " ", an_pair(3).s.count)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

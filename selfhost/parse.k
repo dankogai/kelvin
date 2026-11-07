@@ -206,6 +206,8 @@ var aligned:$[int64]           // the variables and members so declared, and the
 var aligned_exprs:$[int64]
 var aligned_types:$[int64]
 var made_enums:Dictionary<String, int64>   // the enums kc makes of T? and Result<T, E>, by name (#217)
+var anon_keys:Dictionary<String, int64>    // the types with no tag (#476), {x:f64, y:f64}, by their members' names and types
+var anon_decls:Dictionary<String, int64>   // and each one's declaration by its C name, _kv_anonN
 var range_values = 0       // the ranges that are values, not a for's (#373): then each Range<T>'s struct is written
 
 // whether token t names a C header: <x.h> or "x.h"
@@ -569,6 +571,19 @@ let value_type_end():int64    // a prototype: (x.type){...} is a compound litera
 // whether (T){ starts here, its { on the line of the (T) (#418), or
 // (x.type){ of a variable's type (#422)
 let literal_ahead():bool {
+    if at_word("(") && (tok_is(pos + 1, "{") || ((tok_is(pos + 1, "struct") || tok_is(pos + 1, "union") || tok_is(pos + 1, "enum")) && tok_is(pos + 2, "{"))) {
+        var k:int64 = tok_is(pos + 1, "{") ? pos + 1 : pos + 2   // ({x:f64, y:f64}){...}, of a type with no tag (#476)
+        var depth = 0
+        while k < toks.count as int64 {
+            if tok_is(k, "{") || tok_is(k, "${") || tok_is(k, "(") || tok_is(k, "[") || tok_is(k, "$[") { depth += 1 }
+            if tok_is(k, "}") || tok_is(k, ")") || tok_is(k, "]") {
+                depth -= 1
+                if depth == 0 { return tok_is(k, "}") && tok_is(k + 1, ")") && tok_is(k + 2, "{") }
+            }
+            k += 1
+        }
+        return false
+    }
     if at_word("(") && toks[pos + 1].kind == T_ID && tok_is(pos + 2, ")") && tok_is(pos + 3, "{") && literal_type(pos + 1) { return true }
     if at_word("(") && tagged_word(pos + 1) && tok_is(pos + 3, ")") && tok_is(pos + 4, "{") { return true }   // (struct T){...} (#453)
     let e:int64 = value_type_end()
@@ -630,9 +645,13 @@ let sizeof_type_at(t:int64):bool {
     return false
 }
 
+let anon_spelling(d:int64):String    // a prototype: a type with no tag is named by its spelling (#476)
+
 // the path Kelvin writes of the type named by token t: point.kind of
 // point__kind (#389), else its name
 let kelvin_name(t:int64):String {
+    let anon:int64 = anon_decls.get(tok_text(t), -1)
+    if anon >= 0 { return anon_spelling(anon) }          // {x: f64, y: f64}, as kelvinc spells it (#476)
     let block_own:int64 = local_own_of.get(tok_text(t), -1)
     if block_own >= 0 && !is_nested(t) { return tok_text(block_own) }   // a block's (#391)
     if !is_nested(t) { return tok_text(t) }
@@ -1134,6 +1153,29 @@ let array_type(elem:int64):int64 {
     return type_of_kind(Y_ARRAY, grown(elem), -1)
 }
 
+let parse_anon_record():int64    // a prototype: {x:f64, y:f64} where a type goes (#476)
+let kelvin_word(t:int64):bool    // and _kv_anon1 is kelvinc's
+
+// the suffixes after a type: T^, T?, T?? (#217, #229), T^ restrict (#393)
+let type_suffixes(y0:int64):int64 {
+    var y:int64 = y0
+    while at_word("^") || at_word("?") || at_word("??") {
+        if at_word("??") {                       // T??, which lexes as ?? (#229)
+            y = optional_of(optional_of(y))
+            advance()
+        } else if at_word("?") {
+            y = optional_of(y)                   // T?, an Optional (#217)
+            advance()
+        } else {
+            y = type_of_kind(Y_PTR, y, -1)
+            advance()
+            y = restrict_of(y)                   // T^ restrict (#393)
+        }
+    }
+    refuse_restrict()
+    return y
+}
+
 let parse_bare_type():int64 {
     if at_word("$[") || at_word("${") {
         let brace:bool = at_word("${")
@@ -1227,6 +1269,9 @@ let parse_bare_type():int64 {
         }
         return fn_type_of(&ps, r)
     }
+    if at_word("{") || ((at_word("struct") || at_word("union") || at_word("enum")) && tok_is(pos + 1, "{")) {
+        return type_suffixes(parse_anon_record())   // {x:f64, y:f64}, union{...}, enum{...}, with no tag (#476)
+    }
     var tag:int64 = 0 - 1                        // struct T, union T, enum T, as C spells them (#453)
     if (at_word("struct") || at_word("union") || at_word("enum")) && toks[pos + 1].kind == T_ID {
         tag = at_word("union") ? 0 - 3 : at_word("enum") ? 0 - 4 : 0 - 2
@@ -1237,6 +1282,13 @@ let parse_bare_type():int64 {
         return base_type(Y_VOID)
     }
     refuse_restrict()                            // restrict T^ (#393)
+    if kelvin_word(pos) {                        // _kv_anon1, as kelvinc says it (#476)
+        var m = $"names starting with _kv_ are kelvinc's own, in the C it writes: rename '"
+        m += tok_text(pos)
+        m += "'"
+        parse_error(m.cstr)
+        return base_type(Y_VOID)
+    }
     let t:int64 = advance()
     var y = -1
     if tag != 0 - 1 && !record_tagged(scoped_type(t), tag) {
@@ -1391,21 +1443,7 @@ let parse_bare_type():int64 {
         parse_error(m.cstr)
         return base_type(Y_VOID)
     }
-    while at_word("^") || at_word("?") || at_word("??") {
-        if at_word("??") {                       // T??, which lexes as ?? (#229)
-            y = optional_of(optional_of(y))
-            advance()
-        } else if at_word("?") {
-            y = optional_of(y)                   // T?, an Optional (#217)
-            advance()
-        } else {
-            y = type_of_kind(Y_PTR, y, -1)
-            advance()
-            y = restrict_of(y)                   // T^ restrict (#393)
-        }
-    }
-    refuse_restrict()
-    return y
+    return type_suffixes(y)
 }
 
 // ---------- expressions ----------
@@ -3278,6 +3316,71 @@ let parse_enum():int64 {
         }
     }
     return n
+}
+
+// {x:f64, y:f64}, a struct with no tag (#59); union{i:i32, f:f32} (#60);
+// enum{i:i32, f:f32}, an enum with values (#61), where a type goes (#476):
+// as kelvinc's parse_anon_record, one type of each spelling, so that two
+// written alike are one, a declaration of its own named _kv_anonN in
+// order of first use, before the declaration that first writes it
+let parse_anon_record():int64 {
+    let is_union = at_word("union")
+    let is_enum = at_word("enum")
+    if !at_word("{") { advance() }
+    let open:int64 = pos
+    expect("{")
+    let saved_ends = brace_ends
+    brace_ends = false
+    var key = is_enum ? $"enum{" : is_union ? $"union{" : $"{"
+    var first:int64 = 0 - 1
+    var last:int64 = 0 - 1
+    skip_newlines()
+    while !at_word("}") && !failed {
+        var m:int64 = 0 - 1
+        if is_enum {                                     // a case, its value's type after a colon
+            if !at_kind(T_ID) {
+                parse_error("a case of an enum is a name")
+                break
+            }
+            m = make_node(N_ID, advance())
+            if at_word(":") {
+                advance()
+                set_ty(m, parse_type())
+            }
+        } else {
+            m = parse_typed(0)
+        }
+        key += tok_text(nodes[m].t)
+        key += ":"
+        key += String(nodes[m].ty)
+        key += ","
+        if last < 0 { first = m } else { nodes[last].next = m }
+        last = m
+        if at_word(";") || at_word(",") { advance() }
+        skip_newlines()
+    }
+    brace_ends = saved_ends
+    if failed { return base_type(Y_VOID) }
+    if first < 0 {                                       // as kelvinc says it
+        pos = open
+        parse_error(is_enum ? "an enum with no tag names its cases: enum{i:i32, f:f32}" : is_union ? "a union with no tag names its members: union{i:i32, f:f32}" : "a struct with no tag names its members: {x:f64, y:f64}")
+        return base_type(Y_VOID)
+    }
+    expect("}")
+    let seen:int64 = anon_keys.get(key, -1)
+    if seen >= 0 { return seen }
+    var name = $"_kv_anon"
+    name += String(anon_keys.count as int64 + 1)
+    let d = make_node(is_enum ? D_ENUM : D_STRUCT, made_token(&name))
+    toks[nodes[d].t].line = toks[open].line
+    toks[nodes[d].t].file = toks[open].file
+    nodes[d].a = first
+    if is_union || is_enum { nodes[d].flag = 1 }         // a union's (#453), an enum with values (#215)
+    decls += d
+    let y:int64 = type_of_kind(Y_STRUCT, -1, nodes[d].t)
+    anon_keys[key] = y
+    anon_decls[name] = d
+    return y
 }
 
 // an inline before a declaration (#392), as kelvinc reads it: whether one
