@@ -1,13 +1,20 @@
-// Renders kelvin-intro.md to kelvin-intro.pptx, with editable text.
+// Renders a deck's Markdown to a .pptx beside it, with editable text:
+// node build.js [kelvin-intro.ja.md], kelvin-intro.md if none is named.
 // keynote.applescript makes the .key and the .pdf from it.
 const fs = require("fs"), path = require("path");
 const pptxgen = require("pptxgenjs");
 const { parseDeck } = require("./parse.js");
 
+const SOURCE = process.argv[2] || "kelvin-intro.md";
+const JA = /\.ja\.md$/.test(SOURCE);
+const ITALIC = !JA;   // Japanese has no italics: slanting it only blurs it
+// a character's width in columns: a Japanese one takes two
+const columns = (s) => [...s].reduce((n, c) => n + (c.codePointAt(0) >= 0x2e80 ? 2 : 1), 0);
+
 const THEME = {
     name: "Kelvin",
-    headFontFace: "Georgia",
-    bodyFontFace: "Arial",
+    headFontFace: JA ? "Hiragino Mincho ProN" : "Georgia",
+    bodyFontFace: JA ? "Hiragino Sans" : "Arial",
     colors: {
         dk1: "1B1730", lt1: "FFFFFF", dk2: "5B5675", lt2: "F1EFF7",
         accent1: "D9481F", accent2: "1F8FA3", accent3: "F2B84B",
@@ -22,7 +29,7 @@ const W = 13.333, H = 7.5, MX = 0.6, TOP = 1.5, BOTTOM = 6.95;
 
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE";
-pres.title = "Kelvin: C, changed bit by bit";
+pres.title = JA ? "Kelvin: C を、少しずつ変えていく" : "Kelvin: C, changed bit by bit";
 pres.author = "Dan Kogai";
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 const C = pres.SchemeColor;
@@ -95,7 +102,7 @@ const CHAR = 0.602, LINE = 1.25;   // Menlo's advance and line height, of its si
 // the largest size at which code fits w by h inches, from 18 down to 12
 function fitSize(code, w, h) {
     const lines = code.split("\n");
-    const longest = Math.max(...lines.map((l) => l.length));
+    const longest = Math.max(...lines.map(columns));
     for (let s = 18; s > 12; s -= 0.5) {
         if ((longest * s * CHAR) / 72 <= w - 0.4 && (lines.length * s * LINE) / 72 <= h - 0.3) return s;
     }
@@ -111,7 +118,7 @@ function panel(slide, fence, x, y, w, h, opts = {}) {
     if (titled) {
         slide.addText(fence.info.title, { x: x + 0.2, y: y + 0.06, w: w - 0.4, h: head, margin: 0, fontFace: CODE_FONT, fontSize: 11, color: SYNTAX.comment, isTextBox: true, objectName: `name ${fence.info.title}` });
     }
-    slide.addText(codeRuns(body, size, opts.colored !== false), { x: x + 0.2, y: y + head + 0.08, w: w - 0.3, h: h - head - 0.16, margin: 0, valign: titled ? "top" : "middle", wrap: false, lineSpacingMultiple: 1.04, isTextBox: true, objectName: `code ${fence.info.title || fence.lang}` });
+    slide.addText(codeRuns(body, size, opts.colored !== false), { x: x + 0.2, y: y + head + 0.08, w: w - 0.3, h: h - head - 0.16, margin: 0, valign: titled ? "top" : "middle", wrap: false, ...(JA ? { lineSpacing: size * LINE } : { lineSpacingMultiple: 1.04 }), isTextBox: true, objectName: `code ${fence.info.title || fence.lang}` });
     return size;
 }
 const codeHeight = (code, size, titled) => (code.split("\n").length * size * LINE) / 72 + 0.34 + (titled ? 0.36 : 0);
@@ -134,7 +141,7 @@ function errorRows(slide, pairs, top) {
 const layouts = {
     title(slide, s) {
         slide.addText(s.title, { placeholder: "title" });
-        slide.addText(s.paragraphs[0], { x: 0.9, y: 3.75, w: W - 1.8, h: 0.8, margin: 0, fontFace: THEME.headFontFace, italic: true, fontSize: 30, color: C.accent3, isTextBox: true, objectName: "tagline" });
+        slide.addText(s.paragraphs[0], { x: 0.9, y: 3.75, w: W - 1.8, h: 0.8, margin: 0, fontFace: THEME.headFontFace, italic: ITALIC, fontSize: 30, color: C.accent3, isTextBox: true, objectName: "tagline" });
         slide.addText(s.paragraphs[1], { x: 0.9, y: 4.65, w: W - 1.8, h: 0.5, margin: 0, fontSize: 20, color: C.accent6, isTextBox: true, objectName: "subtitle" });
     },
     closing(slide, s) {
@@ -161,7 +168,7 @@ const layouts = {
         slide.addText(s.title, { placeholder: "title" });
         // the dialogue, a bubble a turn, each as tall as its words need
         const dx = MX, dw = 6.3, dtop = TOP, dbottom = 6.2, dgap = 0.18;
-        const weight = (q) => q.lines.reduce((a, l) => a + Math.ceil(l.length / 46), 0) + q.lines.length * 0.3 + 1;
+        const weight = (q) => q.lines.reduce((a, l) => a + Math.ceil(columns(l) / 46), 0) + q.lines.length * 0.3 + 1;
         const total = s.quotes.reduce((a, q) => a + weight(q), 0), unit = (dbottom - dtop - dgap * (s.quotes.length - 1)) / total;
         let dy = dtop;
         s.quotes.forEach((q) => {
@@ -170,11 +177,11 @@ const layouts = {
             slide.addText(q.who, { x: dx + 0.25, y: dy + 0.1, w: dw - 0.5, h: 0.3, margin: 0, bold: true, fontSize: 14, color: claude ? C.accent3 : C.accent1, isTextBox: true, objectName: `speaker ${q.who}` });
             const runs = [];
             q.lines.forEach((l, i) => {
-                const rs = para(l, null, { color: ink, paraSpaceAfter: 6 }, { color: claude ? C.accent3 : C.accent1, fontSize: 18 });
+                const rs = para(l, null, { color: ink, paraSpaceAfter: 6 }, { color: claude ? C.accent3 : C.accent1, fontSize: JA ? 16 : 18 });
                 rs[rs.length - 1].options.breakLine = i < q.lines.length - 1;
                 runs.push(...rs);
             });
-            slide.addText(runs, { x: dx + 0.25, y: dy + 0.42, w: dw - 0.5, h: h - 0.5, margin: 0, valign: "top", fontFace: THEME.headFontFace, fontSize: 20, isTextBox: true, objectName: `words ${q.who}` });
+            slide.addText(runs, { x: dx + 0.25, y: dy + 0.42, w: dw - 0.5, h: h - 0.5, margin: 0, valign: "top", fontFace: THEME.headFontFace, fontSize: JA ? 18 : 20, isTextBox: true, objectName: `words ${q.who}` });
             dy += h + dgap;
         });
         slide.addText(s.paragraphs[0], { x: dx, y: 6.33, w: dw, h: 0.4, margin: 0, fontSize: 14, color: C.text2, isTextBox: true, objectName: "source" });
@@ -234,8 +241,8 @@ const layouts = {
         const parts = s.bullets.map((b) => b.match(/^\*\*(.+?)\*\*:\s*(.*)$/));
         const against = parts.filter((m) => !/^\d$/.test(m[1])), answers = parts.filter((m) => /^\d$/.test(m[1]));
         slide.addShape(pres.ShapeType.roundRect, { x: MX, y, w: leftW, h, rectRadius: 0.1, fill: { color: C.text1 }, line: { color: C.text1 }, objectName: "the case against" });
-        slide.addText(s.paragraphs[1], { x: MX + 0.3, y: y + 0.22, w: leftW - 0.6, h: 0.45, margin: 0, fontFace: THEME.headFontFace, italic: true, fontSize: 20, color: C.accent6, isTextBox: true, objectName: "against heading" });
-        const lines = (w) => Math.ceil(w.length / 34) + 1.6, unit = (h - 1.0) / against.reduce((a, m) => a + lines(m[2]), 0);
+        slide.addText(s.paragraphs[1], { x: MX + 0.3, y: y + 0.22, w: leftW - 0.6, h: 0.45, margin: 0, fontFace: THEME.headFontFace, italic: ITALIC, fontSize: 20, color: C.accent6, isTextBox: true, objectName: "against heading" });
+        const lines = (w) => Math.ceil(columns(w) / 34) + 1.6, unit = (h - 1.0) / against.reduce((a, m) => a + lines(m[2]), 0);
         let ry = y + 0.85;
         against.forEach(([, when, what]) => {
             const rowH = lines(what) * unit;
@@ -243,7 +250,7 @@ const layouts = {
             slide.addText(what, { x: MX + 0.3, y: ry + 0.32, w: leftW - 0.6, h: rowH - 0.4, margin: 0, valign: "top", fontSize: 18, color: C.background1, isTextBox: true, objectName: `against ${when}` });
             ry += rowH;
         });
-        slide.addText(s.paragraphs[2], { x: rightX, y: y + 0.02, w: rightW, h: 0.45, margin: 0, fontFace: THEME.headFontFace, italic: true, fontSize: 20, color: C.text1, isTextBox: true, objectName: "answer heading" });
+        slide.addText(s.paragraphs[2], { x: rightX, y: y + 0.02, w: rightW, h: 0.45, margin: 0, fontFace: THEME.headFontFace, italic: ITALIC, fontSize: 20, color: C.text1, isTextBox: true, objectName: "answer heading" });
         const cardGap = 0.14, top = y + 0.55, ch = (h - 0.55 - cardGap * (answers.length - 1)) / answers.length;
         answers.forEach(([, num, what], i) => {
             const cy = top + i * (ch + cardGap);
@@ -301,7 +308,7 @@ const layouts = {
         });
         const by = top + rows.length * (h + rowGap) + 0.02;
         slide.addText(para(s.paragraphs[1], null, {}, { fontSize: 15, color: C.accent1 }), { x: MX, y: by, w: W - 2 * MX, h: 0.36, margin: 0, fontSize: 16, color: C.text1, isTextBox: true, objectName: "the limit" });
-        slide.addText([{ text: s.quote, options: { italic: true, fontFace: THEME.headFontFace, fontSize: 18, color: C.text1 } }, { text: "   Dan, on the day $ arrived", options: { fontSize: 13, color: C.text2 } }], { x: MX, y: by + 0.36, w: W - 2 * MX - 0.8, h: 0.4, margin: 0, valign: "middle", isTextBox: true, objectName: "quote" });
+        slide.addText([{ text: s.quote, options: { italic: ITALIC, fontFace: THEME.headFontFace, fontSize: 18, color: C.text1 } }, { text: `   ${s.paragraphs[2]}`, options: { fontSize: 13, color: C.text2 } }], { x: MX, y: by + 0.36, w: W - 2 * MX - 0.8, h: 0.4, margin: 0, valign: "middle", isTextBox: true, objectName: "quote" });
     },
     pointers(slide, s) {
         slide.addText(s.title, { placeholder: "title" });
@@ -327,7 +334,7 @@ const layouts = {
         s.bullets.forEach((b, i) => {
             const [, name, what] = b.match(/^\*\*(.+?)\*\*:\s*(.*)$/);
             const x = MX + (i % cols) * (w + gap), y = y0 + Math.floor(i / cols) * (h + gap);
-            const own = name === "Your own";
+            const own = i === s.bullets.length - 1;
             slide.addShape(pres.ShapeType.roundRect, { x, y, w, h, rectRadius: 0.08, fill: { color: own ? C.accent1 : C.background2 }, line: { color: own ? C.accent1 : C.background2 }, objectName: `module ${name}` });
             slide.addText(name, { x: x + 0.2, y: y + 0.12, w: w - 0.4, h: 0.42, margin: 0, fontFace: CODE_FONT, bold: true, fontSize: 17, color: own ? C.background1 : C.text1, isTextBox: true, objectName: `module name ${name}` });
             slide.addText(para(what, null, {}, { fontSize: 13 }), { x: x + 0.2, y: y + 0.55, w: w - 0.4, h: 0.7, margin: 0, valign: "top", fontSize: 15, color: own ? C.background1 : C.text2, isTextBox: true, objectName: `module text ${name}` });
@@ -346,7 +353,7 @@ const layouts = {
             slide.addText(what, { x: x + 0.2, y: y + 1.12, w: w - 0.4, h: 0.68, margin: 0, valign: "top", fontSize: 15, color: C.text2, isTextBox: true, objectName: `label ${num}` });
         });
         const qy = y + h + 0.35, leftW = 7.3;
-        slide.addText(s.quote, { x: MX, y: qy, w: leftW, h: 0.7, margin: 0, fontFace: THEME.headFontFace, italic: true, fontSize: 28, color: C.text1, isTextBox: true, objectName: "quote" });
+        slide.addText(s.quote, { x: MX, y: qy, w: leftW, h: 0.7, margin: 0, fontFace: THEME.headFontFace, italic: ITALIC, fontSize: 28, color: C.text1, isTextBox: true, objectName: "quote" });
         slide.addText(para(s.paragraphs[0], null, {}, { fontSize: 16, color: C.accent1 }), { x: MX, y: qy + 0.75, w: leftW, h: 1.5, margin: 0, valign: "top", fontSize: 18, color: C.text2, isTextBox: true, objectName: "story" });
         const dx = MX + leftW + 0.4, dw = W - MX - dx, dh = 1.0;
         docs.forEach((b, i) => {
@@ -405,7 +412,9 @@ async function applyTheme(file, theme) {
     for (const name of Object.keys(zip.files)) {
         if (zip.files[name].dir) { delete zip.files[name]; continue; }
         if (!name.endsWith(".xml")) continue;
-        const text = await zip.file(name).async("string");
+        let text = await zip.file(name).async("string");
+        // what the text is in, for PowerPoint's spelling and for screen readers
+        if (JA && /^ppt\/(slides|notesSlides)\//.test(name)) zip.file(name, (text = text.replace(/lang="en-US"/g, 'lang="ja-JP"')));
         const bad = text.match(/<a:srgbClr val="((?![0-9A-Fa-f]{6}")[^"]*)"/);
         if (bad) throw new Error(`${name}: '${bad[1]}' is no hex color`);
     }
@@ -413,7 +422,7 @@ async function applyTheme(file, theme) {
 }
 
 async function main() {
-    const deck = parseDeck(fs.readFileSync(path.join(__dirname, "kelvin-intro.md"), "utf8"));
+    const deck = parseDeck(fs.readFileSync(path.join(__dirname, SOURCE), "utf8"));
     for (const s of deck) {
         const dark = s.layout === "title" || s.layout === "closing";
         const slide = pres.addSlide({ masterName: dark ? "DARK" : "CONTENT" });
@@ -421,7 +430,7 @@ async function main() {
         layouts[s.layout](slide, s);
         if (s.notes) slide.addNotes(s.notes);
     }
-    const file = path.join(__dirname, "kelvin-intro.pptx");
+    const file = path.join(__dirname, SOURCE.replace(/\.md$/, ".pptx"));
     await pres.writeFile({ fileName: file });
     await applyTheme(file, THEME);
     console.log(`${deck.length} slides: ${path.basename(file)}`);

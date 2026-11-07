@@ -3,9 +3,9 @@
   "private": true,
   "description": "Slides introducing Kelvin, rendered from kelvin-intro.md",
   "scripts": {
-    "check": "node check.js",
-    "pptx": "node build.js",
-    "render": "node check.js && node build.js && osascript keynote.applescript \"$PWD/kelvin-intro.pptx\""
+    "check": "node check.js && node check.js kelvin-intro.ja.md",
+    "pptx": "node build.js && node build.js kelvin-intro.ja.md",
+    "render": "npm run check && npm run pptx && osascript keynote.applescript \"$PWD/kelvin-intro.pptx\" && osascript keynote.applescript \"$PWD/kelvin-intro.ja.pptx\""
   },
   "dependencies": {
     "pptxgenjs": "4.0.1"

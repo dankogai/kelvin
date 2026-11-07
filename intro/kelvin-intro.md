@@ -270,6 +270,8 @@ Short of a pointer taken into one, with `:=`, the `$` side cannot be misused as 
 
 > "as a human I feel the need for the shortcut."
 
+Dan, on the day $ arrived
+
 ```kelvin title="check: the slide's table compiles, and prints this"
 #import <RegExp>
 struct pair { a: i64; b: i64 }

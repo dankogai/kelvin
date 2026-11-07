@@ -20,7 +20,7 @@ const paths = `modules:${path.resolve(__dirname, "../modules")}`;   // the modul
 const libs = { DYLD_LIBRARY_PATH: paths, LD_LIBRARY_PATH: paths };
 const write = (name, text) => fs.writeFileSync(path.join(tmp, name), text + "\n");
 
-parseDeck(fs.readFileSync(path.join(__dirname, "kelvin-intro.md"), "utf8")).forEach((slide, i) => {
+parseDeck(fs.readFileSync(path.join(__dirname, process.argv[2] || "kelvin-intro.md"), "utf8")).forEach((slide, i) => {
     const n = i + 1, f = slide.fences;
     let emitted = "";
     f.forEach((b, k) => {
