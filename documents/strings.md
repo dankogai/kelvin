@@ -337,6 +337,7 @@ to come.
 | | `==`, `!=` | by the bytes |
 | `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |
+| | inside a value | `uchr("x")`, quoted, so that it pastes back; U+0000 `uchr(0)` (#479) |
 | | `<`, `==` and the rest | with a `uchr` or a number |
 | all | `.size`, `.typename` | as any value's |
 

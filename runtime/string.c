@@ -234,6 +234,19 @@ uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p) {
     return quoted_into((const uint8_t *)s, strlen(s), KV_CSTR_STR, false, p);
 }
 
+/* a uchr inside a value (#479): uchr("x"), its character quoted as text
+   is, so that it pastes back; U+0000 uchr(0), as text ends at it; 14
+   bytes at most and a NUL */
+uint8_t *kv_cstr_quoted_uchr(kv_uchr c, uint8_t *p) {
+    if (!c.cp)
+        return kv_cstr_put(p, "uchr(0)");
+    uint8_t u[5];
+    kv_cstr_uchr(c, u);
+    p = kv_cstr_put(p, "uchr(");
+    p = quoted_into(u, strlen((const char *)u), 16, false, p);
+    return kv_cstr_put(p, ")");
+}
+
 /* text of a type only C sees inside a value (#259), as xmlChar^: quoted,
    as a cstr's, so that it pastes back */
 uint8_t *kv_cstr_quoted_text(uint8_t *p, const void *s) { return kv_cstr_quoted_str((const char *)s, p); }

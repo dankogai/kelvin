@@ -9177,3 +9177,16 @@ words. kelvinc is unchanged. kc builds 193 of the 355 programs, 4 more.
 Details are provisional P490.
 
 There are 1207 tests, and all pass with clang and with gcc 15.
+
+### 526. A codepoint inside a value
+
+> push. then go on with #479
+
+**Claude** pushed #478, and all nine jobs passed. It took up the question
+it had asked: kelvinc printed a uchr inside a value as `{...}`. Now it is
+`uchr("x")`, quoted as text is, and `uchr(0)` for U+0000, so it pastes
+back: `[uchr("é"), uchr("\n")]`. kc prints the same, and takes a fixed
+array of uchr. kc builds 194 of the 356 programs, 1 more, the new test.
+Details are provisional P491.
+
+There are 1208 tests, and all pass with clang and with gcc 15.

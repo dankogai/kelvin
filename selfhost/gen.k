@@ -2163,7 +2163,7 @@ let is_case_word(n:int64):bool {
     if nodes[n].kind == N_ID { return var_type(nodes[n].t) < 0 }
     if nodes[n].kind == N_CALL && nodes[nodes[n].a].kind == N_ID {
         let f = nodes[n].a
-        return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0
+        return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0 && converter_of(n) < 0 && !uchr_call(n)   // int64(x), uchr(x) are no case (#479)
     }
     return false
 }
@@ -2823,6 +2823,12 @@ let plain_shown(v:int64):bool {
     return is_int_kind(k) || k == Y_F64 || k == Y_F32 || k == Y_BOOL || k == Y_STRING || k == Y_BYTES || k == Y_CSTR || k == Y_BITS
 }
 
+// whether print shows v inside a value as it is: plain_shown's, and a
+// uchr, as uchr("x") (#479)
+let elem_shown(v:int64):bool {
+    return plain_shown(v) || types[v].kind == Y_UCHR
+}
+
 // whether print shows y by a _kv_show_T of its own: an enum with values
 // (an Optional, a Result), a struct, an Array or a Dictionary (#268)
 let shown_by_type(y:int64):bool {
@@ -2841,11 +2847,11 @@ let need_show(y:int64, n:int64):bool {
     }
     if types[y].kind == Y_ARRAY || types[y].kind == Y_DICT || types[y].kind == Y_SET {   // its elements (#230, #274), its values (#268)
         let v = types[y].elem
-        if !plain_shown(v) && !shown_by_type(v) {
+        if !elem_shown(v) && !shown_by_type(v) {
             gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
             return false
         }
-        if !plain_shown(v) && !need_show(v, n) { return false }
+        if !elem_shown(v) && !need_show(v, n) { return false }
         shown += y
         return true
     }
@@ -2858,7 +2864,7 @@ let need_show(y:int64, n:int64):bool {
     while m >= 0 {
         var v = nodes[m].ty
         while v >= 0 && types[v].kind == Y_FIXED { v = types[v].elem }   // a member's fixed array, by its elements (#356)
-        if v >= 0 && !plain_shown(v) {
+        if v >= 0 && !elem_shown(v) {
             if !shown_by_type(v) {
                 gen_error(n, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
                 return false
@@ -2946,6 +2952,10 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put("kv_out_quoted_text(o, (const void *)(")
         put_self(path, t)
         put("));\n")
+    } else if k == Y_UCHR {                             // uchr("x"), which pastes back (#479)
+        put("{ uint8_t _kv_b[256]; kv_cstr_quoted_uchr(")
+        put_self(path, t)
+        put(", _kv_b); kv_out_put(o, _kv_b); }\n")
     } else if !plain_shown(v) {
         put_show_name(v)
         put("(o, &(")
@@ -10085,12 +10095,13 @@ let fixed_refused(n:int64) {
 }
 
 // whether y may be a fixed array's element, as kc takes it: a number, a
-// bool, a cstr, a struct that owns nothing, or a fixed array in turn
+// bool, a cstr, a uchr (#479), a struct that owns nothing, or a fixed
+// array in turn
 let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
     if is_owner(y) || fixed_inside(y) { return false }
-    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_STRUCT
+    return is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_UCHR || k == Y_STRUCT
 }
 
 // a fixed array's C declarator: its element type, name, and [N] for each

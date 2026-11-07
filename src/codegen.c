@@ -3536,7 +3536,7 @@ static char *text_bound(Type *t, const char *lv) {
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
         {"u32", "10"},  {"i64", "20"},  {"u64", "20"},  {"i128", "40"}, {"u128", "39"},
-        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "4"},  {"Bits", "(KV_CSTR_SCALAR - 1)"},
+        {"f32", "15"},  {"f64", "24"},  {"bool", "5"},  {"uchr", "14"}, {"Bits", "(KV_CSTR_SCALAR - 1)"},
     };
     for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; i++)
         if (!strcmp(t->name, scalars[i].type))
@@ -3624,6 +3624,8 @@ static char *text_writer(Type *t, const char *lv) {
         return "kv_cstr_put(_kv_p, \"[...]\")";
     if (t->kind == T_BASE && t->cname && (!strncmp(t->cname, "_kv_dict_", 9) || !strncmp(t->cname, "_kv_set_", 8)))
         return "kv_cstr_put(_kv_p, \"{...}\")";
+    if (t->kind == T_BASE && !strcmp(t->name, "uchr")) /* uchr("x"), which pastes back (#479) */
+        return strfmt("kv_cstr_quoted_uchr(%s, _kv_p)", lv);
     if (t->kind == T_BASE && !strcmp(t->name, "IO")) /* an IO member (#82): no text of its own */
         return "kv_cstr_put(_kv_p, \"<IO>\")";
     /* a function's address: ISO C converts it to an integer, not to a

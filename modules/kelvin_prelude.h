@@ -655,6 +655,7 @@ uint8_t *kv_cstr_put_str(uint8_t *p, const char *s);
 uint8_t *kv_cstr_quoted_string(kv_string s, uint8_t *p);
 uint8_t *kv_cstr_quoted_bytes(kv_bytes b, uint8_t *p);
 uint8_t *kv_cstr_quoted_str(const char *s, uint8_t *p);
+uint8_t *kv_cstr_quoted_uchr(kv_uchr c, uint8_t *p); /* uchr("x") inside a value (#479) */
 uint8_t *kv_cstr_quoted_text(uint8_t *p, const void *s);
 uint8_t *kv_cstr_put_text(uint8_t *p, const void *s);
 uint8_t *kv_cstr_put_address(uint8_t *p, const volatile void *v);

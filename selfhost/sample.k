@@ -1281,6 +1281,11 @@ on a new line`
     var uc_n = 0
     for uc_c in uc_s { if uc_c >= 0x65E5 && uc_c != uc_e { uc_n += 1 } }
     println(uc_e, uchr(0x41), uchr(uc_s.cstr), " ", uc_e > 'a', " ", uc_e == uchr(233), " ", uc_e.codepoint, " ", int64(uc_e) + 1, " ", uc_n)
+    let uc_a = $[uc_e, uchr(0), uchr("\"")]               // a uchr inside a value, uchr("x") (#479)
+    let uc_f:[uchr](2) = [uchr("p"), uchr(0x41)]
+    let uc_i:[i64](2) = [int64(2.5), 3]
+    let uc_o:uchr? = uc_e
+    println(uc_a, " ", uc_f[1], " ", uc_i[0], " ", uc_o)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

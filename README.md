@@ -260,6 +260,8 @@ So far the changes from C are these, by topic.
 - `print` and `println` show any value whole: `println(xs, " ", ages)`
   prints `[1, 2] {"ann": 31}`, with Strings inside quoted, and
   `println(cfg.pretty)` the same indented, a line for each item
+  - a `uchr` inside a value is `uchr("é")`, so that it pastes back
+    (#479)
 - quoting text
   - template literals: `` `Hello, ${name}!` `` may span lines, and
     `${x}` is `x`'s text as `print` shows it, kept on the stack (a string

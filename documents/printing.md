@@ -104,6 +104,9 @@ var text = ages.pretty                   // a String, where print does not show 
   and other control characters as `\u00XX`.
   - A `Bytes` shows each byte past ASCII as `\xNN`, so the text stays
     UTF-8.
+  - A `uchr` there is `uchr("x")`, its character quoted the same way,
+    so that it pastes back (#479): `[uchr("é"), uchr("\n")]`.
+    - U+0000 is `uchr(0)`, as text ends at it.
   - A value on its own is not quoted: `println(s)` of a String is its
     text.
   - The same quoting is in `.cstr` and in a template's `${v}`.
