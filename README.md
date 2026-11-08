@@ -181,6 +181,8 @@ So far the changes from C are these, by topic.
   `for i in 1...n { ... }`, where `i` is a `let`
 - `for c in s { ... }` walks a string up to its NUL, and
   `for n in head { ... }` a list along `next`
+  - a `[uchr](N)` stops at `uchr(0)`, and `for n:u32 in s` gives each
+    codepoint's number (#480)
 
 ### Types
 

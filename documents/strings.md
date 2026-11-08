@@ -280,6 +280,8 @@ var line = $`${s} has ${s.count} codepoints`   // a String built from a template
     an argument is the same error (#437).
 - **Walking:** `for c in s` gives each codepoint as a `uchr`, which
   prints as its character; `for x in s.bytes^` each byte.
+  - `for n:u32 in s` gives each codepoint's number (#480).
+  - A `[uchr](N)` or a `uchr^` is walked up to `uchr(0)` (#480).
 - **Slices** (#68): `s[lo..<hi]`, `s[lo...hi]`, `s[lo...]`, `s[..<hi]`
   and `s[...hi]` are new Strings of those codepoints; a range past the
   count ends the program.
@@ -339,6 +341,7 @@ to come.
 | | `.cstr` | the character as UTF-8 text |
 | | inside a value | `uchr("x")`, quoted, so that it pastes back; U+0000 `uchr(0)` (#479) |
 | | `<`, `==` and the rest | with a `uchr` or a number |
+| | `for c in a` | of a `[uchr](N)` or a `uchr^`, each up to `uchr(0)` (#480) |
 | all | `.size`, `.typename` | as any value's |
 
 The ownership rules are in [ownership.md](ownership.md), the general

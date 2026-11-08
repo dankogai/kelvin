@@ -1286,6 +1286,12 @@ on a new line`
     let uc_i:[i64](2) = [int64(2.5), 3]
     let uc_o:uchr? = uc_e
     println(uc_a, " ", uc_f[1], " ", uc_i[0], " ", uc_o)
+    var uc_w = [uchr](4)                                   // a walk of uchrs stops at uchr(0) (#480)
+    uc_w[0] = uc_e
+    uc_w[2] = uchr("z")
+    for uc_x in uc_f { print(uc_x) }
+    for uc_x in uc_w { print(" ", uc_x.codepoint) }
+    println()
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

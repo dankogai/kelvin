@@ -13350,6 +13350,13 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
         x = plain;
     }
     s->type = x;
+    if (written && written->kind == T_BASE && !strcmp(written->name, "uchr") && elem && elem->kind == T_BASE) {
+        Decl *r;
+        if (type_class(elem, &r) == 'f' || !strcmp(elem->name, "bool")) /* as uchr(x) takes (#480) */
+            error_at(written->pos, "for %s:uchr in s converts each element as uchr(x) does, which takes an integer, "
+                                   "a uchr or text, and these are %s",
+                     s->name, kelvin_type(elem));
+    }
     open_scope();
     if (strcmp(s->name, "_"))
         declare_binding(s->name, x, LET_EACH);

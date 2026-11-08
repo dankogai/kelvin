@@ -214,6 +214,8 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
   pointer is read before the body runs, so the body may `free(x)`.
 - **An array of known length** gives its elements, stopping early at a 0
   or `nowhere`; an array of structs gives all of them.
+  - An array of `uchr`, and a `uchr^`, stop at `uchr(0)`, as text stops
+    at its NUL (#480).
 - **An array parameter** is a pointer in C. A let one, `xs:[i32](4)`, is
   walked up to its declared length; a `var` one may have moved, so it is
   walked like a pointer.
@@ -222,6 +224,8 @@ for x in xs { ... }         // xs:[i32](8): up to 8 elements, or the first 0
 - `x` is a `let`, `s` is evaluated once and does not move, and
   `for _ in s` names no variable.
   - `for b:u8 in xs` converts each element for `b`.
+    - As `T(v)` does: `for n:u32 in s` gives each `uchr`'s codepoint,
+      and `for c:uchr in xs` `uchr(x)` of each integer (#480).
   - These are an error *(provisional P42)*:
     - a number, `any^`, or an array of arrays;
     - a C struct whose fields kelvinc cannot see;

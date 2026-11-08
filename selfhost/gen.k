@@ -15383,8 +15383,8 @@ let gen_each(n:int64, depth:int64) {
         gen_error(nodes[n].a, "a parameter's array is a pointer, of no count: walk 0..<n, and index it, a[i]")
         return
     }
-    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR {
-        var m = $"kc walks a fixed array of numbers, bools or text, to its count or a zero; not yet of "
+    if types[y].kind == Y_FIXED && !is_number_kind(types[types[y].elem].kind) && types[types[y].elem].kind != Y_BOOL && types[types[y].elem].kind != Y_CSTR && types[types[y].elem].kind != Y_UCHR {
+        var m = $"kc walks a fixed array of numbers, bools, uchrs or text, to its count or a zero; not yet of "
         let ew:String = type_text(types[y].elem)
         m += &ew
         m += ": index it, a[i]"
@@ -15470,7 +15470,7 @@ let gen_each(n:int64, depth:int64) {
         gen_expr(nodes[n].a)
         put(")[_kv_i")
         put_int(serial)
-        put("] != 0; _kv_i")
+        put(types[types[y].elem].kind == Y_UCHR ? "].cp != 0; _kv_i" : "] != 0; _kv_i")   // a uchr's zero, U+0000 (#480)
         put_int(serial)
         put("++)\n")
         indent(depth + 1)

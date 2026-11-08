@@ -2762,6 +2762,19 @@ static bool element_first(Stmt *s) {
     return false;
 }
 
+static bool is_uchr_type(Type *t) { return t && t->kind == T_BASE && !strcmp(t->name, "uchr"); }
+
+/* for x:T in s: x of the element v, converted as T(v) is; a uchr to a
+   number is its codepoint, and a number to a uchr is uchr(v) (#480) */
+static char *each_value(Stmt *s, char *v) {
+    bool to = is_uchr_type(s->type), from = is_uchr_type(s->elem);
+    if (to && !from)
+        return strfmt("KV_UCHR_OF(%s)", v);
+    if (from && !to)
+        return strfmt("(%s).cp", v);
+    return v;
+}
+
 static void stmt(Stmt *s) {
     if (s->kind != S_BLOCK)
         sync(s->pos);
@@ -3105,6 +3118,9 @@ static void stmt(Stmt *s) {
         if (s->from_argv) /* char ** in C, u8^^ in Kelvin */
             seq = strfmt("(%s)(%s)", decl(reader, ""), seq);
         bool wrap = s->each == EACH_ARRAY || s->each == EACH_RECORDS;
+        /* a walk stops at a 0 element; a uchr's is its codepoint, U+0000 (#480) */
+        bool cp = is_uchr_type(s->elem);
+        char *at = strfmt(cp ? "(*%s).cp" : "*%s", p);
         if (s->each == EACH_IO_READ || s->each == EACH_IO_LINES) {
             /* f.read(n), f.lines (#82): the loop owns one Bytes or String,
                filled again each time round, which x borrows; a line is a
@@ -3197,9 +3213,9 @@ static void stmt(Stmt *s) {
             node->is_const = false;
             line("for (%s = %s; %s != 0; )", decl(node, p), seq, p);
         } else if (!reader) {
-            line("for (__auto_type %s = %s; %s != 0 && *%s != 0; %s++)", p, seq, p, p, p);
+            line("for (__auto_type %s = %s; %s != 0 && %s != 0; %s++)", p, seq, p, at, p);
         } else if (s->each == EACH_POINTER) {
-            line("for (%s = %s; %s != 0 && *%s != 0; %s++)", decl(reader, p), seq, p, p, p);
+            line("for (%s = %s; %s != 0 && %s != 0; %s++)", decl(reader, p), seq, p, at, p);
         } else {
             /* an array: its length is known; elements up to it */
             end = hidden(v, "end");
@@ -3223,21 +3239,23 @@ static void stmt(Stmt *s) {
                 line("%s = %s + sizeof(*%s) / sizeof((*%s)[0]);", decl(const_type(reader), end), p, arr, arr);
             }
             sync(s->pos);
-            line("for (; %s < %s%s; %s++)", p, end, s->each == EACH_ARRAY ? strfmt(" && *%s != 0", p) : "", p);
+            line("for (; %s < %s%s; %s++)", p, end, s->each == EACH_ARRAY ? strfmt(" && %s != 0", at) : "", p);
         }
         sync(s->pos);
         line("{");
         indent++;
         sync(s->pos);
         if (s->each == EACH_STRING) /* the codepoint, decoded, moves p (#55, #56) */
-            line(strcmp(s->name, "_") ? "%s = (kv_uchr){kv_utf8_next(&%s)};" : "kv_utf8_next(&%s);",
+            line(!strcmp(s->name, "_")      ? "kv_utf8_next(&%s);"
+                 : is_uchr_type(s->type) ? "%s = (kv_uchr){kv_utf8_next(&%s)};"
+                                         : "%s = kv_utf8_next(&%s);", /* for b:u32 in s (#480) */
                  strcmp(s->name, "_") ? decl(const_type(s->type), s->name) : p, p);
         else if (!strcmp(s->name, "_"))
             ; /* for _ in s names no variable */
         else if (s->each == EACH_LIST)
             line("%s = %s;", decl(const_type(s->type), s->name), p);
         else if (s->type)
-            line("%s = *%s;", decl(const_type(s->type), s->name), p);
+            line("%s = %s;", decl(const_type(s->type), s->name), each_value(s, strfmt("*%s", p)));
         else
             line("const __typeof__(*%s) %s = *%s;", p, s->name, p);
         if (s->each == EACH_LIST) {

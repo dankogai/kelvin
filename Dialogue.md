@@ -9190,3 +9190,17 @@ array of uchr. kc builds 194 of the 356 programs, 1 more, the new test.
 Details are provisional P491.
 
 There are 1208 tests, and all pass with clang and with gcc 15.
+
+### 527. A walk of codepoints
+
+> push. then go on with #480
+
+**Claude** pushed #479, and all nine jobs passed. It took up the gap
+#479 found: kelvinc's `for c in f` of a `[uchr](N)`, and of a `uchr^`,
+wrote C that compared a struct with 0. Asked where such a walk stops, the
+user chose `uchr(0)`, as an array of numbers stops at 0. A written type
+now converts each element as `T(v)` does, `for n:u32 in s`, and
+`for c:uchr in` floats is an error in words. kc walks a `[uchr](N)`
+alike. kc builds 194 of the 357 programs. Details are provisional P492.
+
+There are 1210 tests, and all pass with clang and with gcc 15.

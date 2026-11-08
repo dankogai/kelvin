@@ -598,6 +598,9 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A walk of codepoints** (#480), as kelvinc's.
+  - `for c in f` of a `[uchr](N)` stops at `uchr(0)`, as an array of
+    numbers stops at 0.
 - **A codepoint inside a value** (#479), as kelvinc's.
   - A uchr inside a value prints as `uchr("x")`, U+0000 as `uchr(0)`.
   - `[uchr](N)` is a fixed array's type; `int64(x)` and `uchr(x)` go in

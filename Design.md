@@ -522,6 +522,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 477 | kc reads an enum with values' tag and a struct case's `{a, b}`, as kelvinc's #61: `v.case`, a u8, of an enum with values, an Optional or a Result, and of a call's value that owns, held and freed; `T.c({1, 2})` and `v.c = {1, 2}` of a case whose value is a struct; `v.case = x` refused | selfhost/gen.k's type_of and gen_field for `.case`, T.c(v) and v.c = x for `{a, b}`, gen_assign's refusal, bare_init's prototype; selfhost/sample.k; selfhost/README.md | `s.case`, `shape.pair({1, 2})` | 2026-11-07 |
 | 478 | kc reads `uchr(x)`, as kelvinc's #56: a codepoint of an integer or of text, `KV_UCHR_OF`; a uchr compares by its codepoint with a uchr or a number, `c == ' '`, `c < d`; `c.codepoint`; `i64(c)` is `i64(c.utf32)`; kelvinc's errors for a uchr's arithmetic and `.uchr` of no integer; what kelvinc leaves to C's error, in words | selfhost/gen.k's uchr_call, gen_uchr, uchr_typed, gen_uchr_compare, type_of's `.uchr`, `.utf32` and `.codepoint` and arithmetic, gen_converter of a uchr, gen_condition's comparison, infer's arithmetic; selfhost/sample.k; selfhost/README.md | `uchr("é")`, `c >= 'a'` | 2026-11-08 |
 | 479 | A uchr inside a value prints as `uchr("x")`, its character quoted as text is, so that it pastes back: `[uchr("é"), uchr("\n")]`, U+0000 `uchr(0)`; it was `{...}`, C's text of a struct. kc prints the same, takes `[uchr](N)`, and reads `int64(x)` and `uchr(x)` as no case word in a fixed array's list | runtime/string.c's kv_cstr_quoted_uchr, modules/kelvin_prelude.h, src/codegen.c's text_writer and text_bound; selfhost/gen.k's elem_shown, show_value, fixed_elem_ok, is_case_word; tests/run/uchr_shown.k; selfhost/sample.k; documents/printing.md, documents/strings.md, README.md, selfhost/README.md | `[uchr("é")]` | 2026-11-08 |
+| 480 | A walk of uchrs stops at `uchr(0)`, as the user chose: `for c in f` of a `[uchr](N)` and `for c in p` of a `uchr^`, where kelvinc's C compared a struct with 0. A written type converts each element as `T(v)` does: `for n:u32 in s` a uchr's codepoint, `for c:uchr in xs` `uchr(x)` of an integer; of a float or a bool it is an error. kc walks a `[uchr](N)` alike | src/codegen.c's for-each stop, each_value and a String's walk; src/parser.c's for-each; selfhost/gen.k's fixed walk; tests/run/uchr_walk.k, tests/error/uchr_each_of_float.k; selfhost/sample.k; documents/flow-controls.md, documents/strings.md, selfhost/README.md, README.md | `for c in f` of `[uchr](4)` | 2026-11-08 |
 
 Notes:
 
@@ -1107,6 +1108,23 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (480) Agreed details: "push. then go on with #480", the gap #479
+  found: kelvinc's `for c in f` of a `[uchr](N)` wrote `*p != 0`, a struct
+  compared with 0, and failed in C; so did a `uchr^`'s walk.
+  - Asked whether a walk of uchrs stops at `uchr(0)`, as an array of
+    numbers stops at 0, or gives every element, as an array of structs
+    does, the user chose `uchr(0)`: a `uchr^` must stop at something.
+  - The stop reads `(*p).cp`; other walks' C is as it was.
+  - `for b:u32 in f`, `for b:i64 in s` and `for c:uchr in xs` failed in C
+    too: a written type now converts as `T(v)` does, `.cp` of a uchr and
+    `KV_UCHR_OF` of an integer, and a String's codepoint is its number.
+  - `for c:uchr in` floats or bools is an error in words, as `uchr(x)`
+    takes an integer, a uchr or text.
+  - kc refused a walk of a `[uchr](N)`; it now walks it alike. kc reads
+    no `for x:T in` and walks no pointer, as before.
+  - Found, not in #480: kelvinc's `uchr(2.5)` and `uchr(true)` are C's
+    errors, where kc says it in words; `println(f)` of a fixed array
+    prints its address, which kc refuses.
 - (479) Agreed details: "push. then go on with #479", the question the
   report of #478 asked: kelvinc printed a uchr inside a value as `{...}`,
   which does not paste back.
@@ -7164,6 +7182,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P489 | Details of #477 | selfhost/gen.k: type_of's `.case` a u8 before a case's value, gen_field's `((v).tag)` or, of a call's owner, `({ T _kv_t = v; uint8_t _kv_c = _kv_t.tag; free(&_kv_t); _kv_c; })`; T.c(v) and v.c = x put `(T)` before `{a, b}` of a struct case; gen_assign refuses `v.case = x`, `+=` and `++` | provisional |
 | P490 | Details of #478 | selfhost/gen.k: uchr_call beside converter_of, gen_uchr after put_text_arg (`(KV_UCHR_OF(...))`, text through put_text_arg); uchr_typed and gen_uchr_compare (`((bool)((a).cp op (b)))`), before gen_expr's N_BIN default and gen_condition's bare comparison; gen_converter's `.cp`; type_of's errors for `.uchr`, `.utf32` and arithmetic; infer lets a uchr's arithmetic reach its error | provisional |
 | P491 | Details of #479 | runtime/string.c: kv_cstr_quoted_uchr after kv_cstr_quoted_str, `uchr(0)` or `uchr(` quoted_into `)`; src/codegen.c: text_writer's uchr, text_bound's 14; selfhost/gen.k: elem_shown for need_show, show_value's uchr, fixed_elem_ok's Y_UCHR, is_case_word without converter_of and uchr_call | provisional |
+| P492 | Details of #480 | src/codegen.c: is_uchr_type, each_value before stmt; S_FOR_EACH's `at`, `(*p).cp` for a uchr element, in the array, pointer and unseen stops; a String's walk `kv_utf8_next` alone for a written number; src/parser.c: parse_for_each's error for a written uchr over f32, f64 or bool; selfhost/gen.k: the fixed walk takes Y_UCHR, `].cp != 0` | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
