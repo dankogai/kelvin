@@ -129,8 +129,13 @@ let u = String(&b)               // a Bytes, checked; b.string() is a Result (#4
 - **`uchr`** is a codepoint on the stack (#56), a value type of four
   bytes.
   - `for c in s` gives one; `uchr("é")` is the first codepoint of text.
+    - Of a String or a Bytes too, `uchr(s)` or `uchr(&s)` (#494).
+    - Of empty text it is U+FFFD.
   - `n.uchr` and `uchr(n)` make one of a number, U+FFFD, the
     replacement character, where it is none.
+  - `uchr(x)` of anything else is an error that says so (#494).
+    - A float is one, as for `x.uchr`: `uchr(i64(x))` converts it.
+    - So are a bool and a pointer to no text, `uchr(&n)`.
   - `x as uchr` and `x:uchr` make none, as a uchr is a struct to C:
     they are errors that name `uchr("k")` and `n.uchr` (#468).
   - `print(c)`, `${c}` and `c.cstr` show it as its UTF-8.

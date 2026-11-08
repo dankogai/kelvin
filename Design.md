@@ -536,6 +536,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 491 | `#import <localStorage>`, JS's, as the user chose: the global `localStorage`, getItem a `String?`, setItem, removeItem, clear, length, key(i), and path, kept in a JSON file of the program's, KELVIN_LOCALSTORAGE's, else under $XDG_DATA_HOME or ~/.local/share, kelvin/localStorage/<program>.json, read at first use and written at each change by a file renamed over it. kelvinc: an extern global that owns is declared without `= {0}`, which defined it twice, and a `--lib` module registers its global owners' freeing as it is loaded | modules/localStorage.k; src/codegen.c's var_decl and _kv_register_globals; GNUmakefile's localStorage.kh; .gitignore; tests/run/local_storage.k; documents/localstorage.md, documents/modules.md, documents/README.md, README.md | `localStorage.setItem("k", "v")` | 2026-11-08 |
 | 492 | An overload declared after a call is not seen there, as the user chose, C's rule kept: where the one seen does not take the arguments, a function's or a method's, and one of the name is declared after, it is an error that says so and names a prototype, where kelvinc called the one seen and C took the arguments with a warning alone | src/parser.c's reject_unfit_only, reject_unseen_overloads, unfit_calls; tests/error/overload_declared_after.k, tests/error/method_overload_declared_after.k; documents/functions.md, README.md | `let f(s:cstr)` before the call | 2026-11-08 |
 | 493 | A global C cannot initialize, one that owns or of a value that is not a constant, is given its value at its first use, once, on any thread, as the user chose, Swift's: `var names = $["a"]`, `let start = OS.time`; a constant stays C's initializer. In C, its storage, an initializer run by pthread_once, and an accessor each use reads it by; a module's header says `extern lazy var`. A local may not hide one. A global owner assigned anew frees what it held, as a local does. localStorage is such a global | src/parser.c's const_init, first_use_globals, lazy_next, the marks of a global and of one given its value at first use, the local's error; src/kelvin.h's Var.first_use, Expr.first_use and Expr.global; src/codegen.c's ref_name, emit_first_use_globals, global_owner_type, the D_VAR storage and accessor; src/parser.c's .kh writer; modules/localStorage.k; tests/run/global_first_use.k, tests/error/global_first_use_hidden.k, tests/error/extern_lazy_outside.k, tests/error/global_owner_call.k removed; documents/ownership.md, documents/c-contract.md, README.md | `var names = $["a"]` at the top level | 2026-11-08 |
+| 494 | `uchr(x)` of a String or a Bytes, or one by reference, is the first codepoint of its text, as of text, as the user chose: `uchr(s)`, `uchr(&s)`, where `uchr(s)` was C's error and `uchr(&s)` read the struct's bytes as text; U+FFFD of empty text. Of a float, a sum of one too, a bool, an Optional, a struct or a pointer to no text, it is an error in words, as `.uchr` refuses them (#297), where C failed or read an integer's bytes; a C typedef's value and sizeof stay C's to judge. kc says and writes the same | src/parser.c's convert (the uchr branch), float_operand, text_in_buffer of a uchr(...), int_expr's prototype; selfhost/gen.k's gen_uchr; tests/run/uchr_of_text.k, tests/error/uchr_call_float.k, tests/error/uchr_call_bool.k, tests/error/uchr_call_pointer.k; documents/strings.md, documents/ownership.md, README.md | `uchr(s)` | 2026-11-09 |
 
 Notes:
 
@@ -1120,6 +1121,25 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (494) Agreed details: "go on with the uchr gap", the gap #480 found:
+  `uchr(2.5)` and `uchr(true)` were C's errors, not Kelvin's.
+  - It was wider: `uchr(s)` of a String, a Bytes, an Optional or a
+    struct was C's error too; `uchr(&s)` and `uchr(&b)` read the
+    struct's bytes as text and gave U+FFFD; `uchr(&n)` of an i32 read
+    the integer's bytes as text.
+  - Asked, the user chose the first codepoint of a String's or a
+    Bytes' text, by value or by reference, over an error that names
+    `uchr(s.cstr)`. It is written as `.cstr` is, a String an expression
+    gives held while it is read (#187).
+  - The rest follows `.uchr` (#297), with no question: an integer, an
+    enum's value, a character, a uchr or text; a float, a sum with one
+    too, `uchr(x + 1)`, names `uchr(i64(x))`. A C typedef, size_t, and
+    sizeof are C's to judge, as a name kelvinc does not know is.
+  - `return uchr(sr)` was taken for returning `.cstr` text of the
+    function's buffer: a uchr is a value, as `i64(x.hex)` is.
+  - kc, which said `uchr(s)` was an error naming `uchr(s.cstr)`, now
+    writes kelvinc's C for each, and says kelvinc's words.
 
 - (493) Agreed details: "push. then go on with the global owner gap", the
   gap #491 found: a global that owns could not be given a value, kelvinc
@@ -7586,6 +7606,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P503 | Details of #491 | modules/localStorage.k: Storage {items, file, read}, var localStorage, storageRead's prototype and body, Storage.defaultPath, Storage.opened, save by JSON.stringify(&j, "  ") to file.PID.tmp and OS.rename, the methods, the overloads of &s last; src/codegen.c: var_decl's extern without = {0}, _kv_register_globals by __attribute__((constructor)) where lib_mode; GNUmakefile: modules/localStorage.kh by kelvinc --lib after JSON.kh and the IO and OS libraries | provisional |
 | P504 | Details of #492 | src/parser.c: unfit_t and unfit_calls; reject_unfit_only at a call of one candidate, a function's in its call and a method's in parse_postfix_steps, by choose of that one, of the right count of arguments; reject_unseen_overloads at the end of parse, before name_functions, counting functions of the name, and of the receiver's name for a method, of another signature | provisional |
 | P505 | Details of #493 | src/parser.c: first_use_globals, is_first_use_global, the local's error in declare_binding, lazy_next and extern lazy in parse()'s globals, const_init after enumerator_named, Expr.global and Expr.first_use set where an identifier is read; the .kh writer's `extern lazy`; src/codegen.c: first_use_vars, c_name and ref_name, the D_VAR storage `_kv_lazy_x` and the accessor's prototype, emit_first_use_globals by initializer and memcpy, pthread_once and `#include <pthread.h>`, _kv_free_globals of `_kv_lazy_x`, global_owner_type for an owner global's _assign | provisional |
+| P506 | Details of #494 | src/parser.c: convert's uchr branch, a String or Bytes by reference dereferenced (`&s` its operand, else `x^`), then `.cstr` of a place or a temporary; the class of the rest by expr_class, int_expr, sizeof, float_operand (+, -, *, /, a sign, ?:), a bool by seen_bool, bool_shape or is_bool, nowhere and text passed; text_in_buffer passes op "uchr"; selfhost/gen.k: gen_uchr writes `KV_UCHR_OF(kv_bytes_cstr(&(s).b))`, `&((*r)).b`, `&b` and `&(*r)` of a Bytes, holding a temporary by hold_args | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

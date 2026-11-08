@@ -9416,3 +9416,17 @@ what it held, which it never did, and localStorage is such a global.
 Details are provisional P505.
 
 There are 1217 tests, and all pass with clang and with gcc 15.
+
+### 541. uchr(x) of a String, and the rest in words
+
+> go on with the uchr gap
+
+**Claude** found the gap wider than `uchr(2.5)` and `uchr(true)`: a
+String, a Bytes, an Optional or a struct was C's error too, and
+`uchr(&s)` or `uchr(&n)` read the bytes behind the pointer as text.
+Asked, the user chose the first codepoint of a String's or a Bytes'
+text, by value or by reference. The rest is an error in words, as
+`.uchr` gives (#297), a float's naming `uchr(i64(x))`; kc says and
+writes the same. Details are provisional P506.
+
+There are 1221 tests, and all pass with clang and with gcc 15.

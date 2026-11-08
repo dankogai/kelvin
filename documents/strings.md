@@ -337,7 +337,8 @@ to come.
 | | `.normalize(nfc)`, `.graphemes`, `.upper()`, `.lower()`, `.fold()` | with `#import <UnicodeData>` (#156): [unicodedata.md](unicodedata.md) |
 | | `.test(&re)`, `.search(&re)`, `.match(&re)`, `.replace(&re, with)`, `.split(&re)` | with `#import <RegExp>` (#157), `re` a `$/.../`: [regexp.md](regexp.md) |
 | | `==`, `!=` | by the bytes |
-| `uchr` | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
+| `uchr` | `uchr(x)` | of an integer, or the first codepoint of text, a String or a Bytes, `uchr(s)` or `uchr(&s)`; U+FFFD where none (#56, #494) |
+| | `.utf32`, `.codepoint` | the number, a `u32` (#56) |
 | | `.cstr` | the character as UTF-8 text |
 | | inside a value | `uchr("x")`, quoted, so that it pastes back; U+0000 `uchr(0)` (#479) |
 | | `<`, `==` and the rest | with a `uchr` or a number |

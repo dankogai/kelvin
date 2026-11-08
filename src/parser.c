@@ -780,6 +780,7 @@ static Expr *parse_await(Token *kw);
 static Type *task_ctx; /* the Task wanted where async f(x) at task_at is, where kelvinc sees one (#312) */
 static int task_at = -1;
 static bool number_expr(Expr *e);
+static bool int_expr(Expr *e);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
@@ -6773,6 +6774,29 @@ static void check_base(Expr *base) {
         error_at(base->pos, "a base is 2 to 36, not %s%s", lit != base ? "-" : "", t);
 }
 
+/* Does arithmetic e have a float operand kelvinc sees, x + 1 of an f64 x,
+   which makes it a float in C? (#494) */
+static bool float_operand(Expr *e) {
+    Decl *record;
+    if (expr_class(e, &record) == 'f')
+        return true;
+    switch (e->kind) {
+    case E_BINARY: {
+        static const char *ops[] = {"+", "-", "*", "/", NULL};
+        for (int i = 0; ops[i]; i++)
+            if (!strcmp(e->op, ops[i]))
+                return float_operand(e->a) || float_operand(e->b);
+        return false;
+    }
+    case E_PREFIX:
+        return (!strcmp(e->op, "-") || !strcmp(e->op, "+")) && float_operand(e->a);
+    case E_TERNARY:
+        return float_operand(e->b) || float_operand(e->c);
+    default:
+        return false;
+    }
+}
+
 /* T(v), T(text, base) and v.T (#36): v converted as C's cast converts
    it, or where v is text, the number read from it as C's strtol and
    strtod read it (op "text"); where kelvinc cannot see whether v is text,
@@ -6786,8 +6810,49 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     if (!strcmp(name, "uchr")) { /* uchr(n) of a number, uchr(text) its first codepoint (#56) */
         if (base)
             error_at(base->pos, "uchr(x) takes one value: a number, or text");
-        if (is_uchr(value_type(v)))
+        Type *vt = value_type(v);
+        if (is_uchr(vt))
             return v;
+        /* of a String or a Bytes, or one by reference, the first
+           codepoint of its text, as of text (#494) */
+        bool ref = vt && vt->kind == T_PTR && (is_string(vt->elem) || is_bytes(vt->elem));
+        if (ref) {
+            if (v->kind == E_PREFIX && !strcmp(v->op, "&"))
+                v = v->a;
+            else {
+                Expr *d = new_expr(E_DEREF, v->pos);
+                d->a = v;
+                v = d;
+            }
+            vt = value_type(v);
+        }
+        if (is_string(vt) || is_bytes(vt)) {
+            if (!owner_place(v)) /* held while it is read (#187) */
+                v = make_temp(v, strfmt("uchr(...) of a %s that an expression gives: bind it to a variable first",
+                                        is_string(vt) ? "String" : "Bytes"));
+            e->a = v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
+        } else {
+            /* else an integer, an enum's value or a character, or text
+               (#494): '.uchr' takes no more (#297), and C took the rest
+               as text or failed */
+            Decl *record;
+            char c = expr_class(v, &record);
+            if (c == 'u' && (int_expr(v) || v->kind == E_SIZEOF_TYPE || v->kind == E_SIZEOF_EXPR))
+                c = 'i';
+            else if (c == 'u' && float_operand(v)) /* x + 1: a number, no integer */
+                c = 'f';
+            bool nowhere = v->kind == E_LITERAL && !strcmp(v->text, "nowhere");
+            bool known = c != 'u' || seen_bool(v) || bool_shape(v) || v->is_bool; /* else C's, a typedef's */
+            if (known && c != 'i' && !is_text_expr(v) && !nowhere) {
+                Type *at = arg_type(v);
+                error_at(v->pos, "uchr(x) takes an integer, a uchr or text, and this is %s%s",
+                         v->is_bool || seen_bool(v) || bool_shape(v) ? "a bool"
+                         : at                                     ? kelvin_type(at)
+                         : c == 'f'                               ? "a float"
+                                                                  : "neither",
+                         c == 'f' ? ": convert it to an integer first, uchr(i64(x))" : "");
+            }
+        }
         e->op = "uchr";
         return e;
     }
@@ -12122,8 +12187,8 @@ static Expr *text_in_buffer(Expr *e) {
     switch (e->kind) {
     case E_TEMPLATE: /* (#39); $`...` is a String on the heap (#67) */
         return e->op && !strcmp(e->op, "string") ? NULL : e;
-    case E_CAST: /* i64(x.hex) is a number (#36) */
-        return e->op && !strncmp(e->op, "text", 4) ? NULL : text_in_buffer(e->a);
+    case E_CAST: /* i64(x.hex) is a number (#36), uchr(s.cstr) a codepoint (#494) */
+        return e->op && (!strncmp(e->op, "text", 4) || !strcmp(e->op, "uchr")) ? NULL : text_in_buffer(e->a);
     case E_TERNARY: {
         Expr *b = text_in_buffer(e->b);
         return b ? b : text_in_buffer(e->c);

@@ -271,6 +271,9 @@ So far the changes from C are these, by topic.
   `println(cfg.pretty)` the same indented, a line for each item
   - a `uchr` inside a value is `uchr("é")`, so that it pastes back
     (#479)
+  - `uchr(s)` is the first codepoint of a String or a Bytes, as of
+    text; of a float, a bool or a pointer to no text it is an error,
+    where C failed or read the bytes (#494)
   - a fixed array is `[a, b]`, as inside a struct, where it was its
     address (#481)
 - quoting text

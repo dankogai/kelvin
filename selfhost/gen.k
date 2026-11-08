@@ -5278,8 +5278,8 @@ let put_text_arg(v:int64) {
 }
 
 // uchr(x) (#478), as kelvinc writes it: KV_UCHR_OF, C's _Generic of an
-// integer or of text; a uchr as it is; what kelvinc leaves to C's error,
-// in words
+// integer or of text; a uchr as it is; the rest an error in words, as
+// kelvinc's (#494)
 let gen_uchr(n:int64) {
     let v:int64 = nodes[n].b
     if v < 0 || nodes[v].next >= 0 {
@@ -5293,13 +5293,34 @@ let gen_uchr(n:int64) {
         gen_expr(v)
         return
     }
+    // of a String or a Bytes, or one by reference, the first codepoint
+    // of its text, as kelvinc's #494
+    let pe:int64 = k == Y_PTR ? types[vy].elem : 0 - 1
+    let ref:bool = pe >= 0 && (types[pe].kind == Y_STRING || types[pe].kind == Y_BYTES)
+    if ref || k == Y_BYTES || k == Y_STRING {
+        let w:int64 = ref && nodes[v].kind == N_ADDR ? nodes[v].a : v
+        let bytes:bool = (ref ? types[pe].kind : k) == Y_BYTES
+        var opened = hold_args(w, 0 - 1)
+        put("(KV_UCHR_OF(kv_bytes_cstr(&")                 // as kelvinc writes .cstr: &s.b's, a Bytes itself
+        if !bytes { put("(") }
+        if ref && nodes[v].kind != N_ADDR {
+            put("(*")
+            gen_expr(v)
+            put(")")
+        } else {
+            gen_expr(w)
+        }
+        put(bytes ? ")))" : ").b)))")
+        close_holds(&opened)
+        return
+    }
     let unseen:bool = k == Y_C || (k == Y_STRUCT && struct_of(vy) < 0 && tagged_of(vy) < 0)
     let text:bool = converter_text(v)
-    if k == Y_STRING || !(text || unseen || is_int_kind(k)) {
-        var m = $"uchr(x) takes an integer, a uchr or a cstr, and this is "
-        let w:String = kelvin_type_text(vy)
+    if !(text || unseen || is_int_kind(k)) {
+        var m = $"uchr(x) takes an integer, a uchr or text, and this is "
+        let w:String = k == Y_BOOL ? $"a bool" : kelvin_type_text(vy)
         m += &w
-        if k == Y_STRING { m += ": of its text, 'uchr(s.cstr)'" }
+        if k == Y_F64 || k == Y_F32 { m += ": convert it to an integer first, uchr(i64(x))" }
         gen_error(v, m.cstr)
         return
     }
