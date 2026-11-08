@@ -59,7 +59,8 @@ let main():int32 {
   - a null pointer of any type as `nowhere`, as Kelvin writes it (#260):
     `0x0` would read back as `0`, an `i64`
   - a struct, a union, an enum with values, an Optional, a Result, an
-    `Array`, a `Dictionary` and a `Set` whole, on one line (#122, #123):
+    `Array`, a `Dictionary`, a `Set` and a fixed array whole, on one line
+    (#122, #123, #481):
     see [Values whole](#values-whole-print-and-pretty) below
 - Comparisons, `&&`, `||` and `!` produce a `bool` (#23), so
   `println(a == b)` prints `true` or `false`, as do `true` and `false`
@@ -98,6 +99,11 @@ var text = ages.pretty                   // a String, where print does not show 
     `none`; a Result `ok(v)` or `err(e)`.
   - An `Array` is `[a, b]`, a `Dictionary` `{"k": v}` and a `Set`
     `{a, b}`, in the order added; an empty one `[]` or `{}`.
+  - A fixed array is `[a, b]`, its every element, as inside a struct, so
+    that it pastes back (#481): `[[i32](3)](2)` is `[[0, 0, 0], [0, 0, 9]]`.
+    - A `[u8](N)` is a C buffer, shown as its text.
+    - A let array parameter, `xs:[i64](3)`, shows its declared length; a
+      var one, a pointer that may have moved, is an error.
   - A union is `<union name>`, an IO `<IO>`.
 - **Text inside a value is quoted** (#123): a `String`, a `Bytes` or a
   `cstr` there is `"text"`, escaped as `\"`, `\\`, `\n`, `\r`, `\t`,
@@ -131,12 +137,12 @@ var text = ages.pretty                   // a String, where print does not show 
   - Elsewhere it is a `String`, bound as any owner is:
     `var text = cfg.pretty`.
   - It is of a struct, an enum with values, an Optional, a Result, an
-    Array, a Dictionary or a Set; a number's or a String's text is
-    `.cstr`.
+    Array, a Dictionary, a Set or a fixed array (#481); a number's or a
+    String's text is `.cstr`.
 - **An owner an expression gives** is printed and then freed (#187):
   `println(make())`, `println($"a" + "b")`.
-- **A template** shows an Array, a Dictionary or a Set by the same
-  printer (#125): `${xs}` is `[1, 2, 3]`.
+- **A template** shows an Array, a Dictionary, a Set or a fixed array by
+  the same printer (#125, #481): `${xs}` is `[1, 2, 3]`.
   - In `` `...` ``, whose room is bounded, its text is cut as a string
     value's is, past 256 bytes, with `...`.
   - In `` $`...` ``, a String, it is whole.

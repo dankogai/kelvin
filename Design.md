@@ -523,6 +523,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 478 | kc reads `uchr(x)`, as kelvinc's #56: a codepoint of an integer or of text, `KV_UCHR_OF`; a uchr compares by its codepoint with a uchr or a number, `c == ' '`, `c < d`; `c.codepoint`; `i64(c)` is `i64(c.utf32)`; kelvinc's errors for a uchr's arithmetic and `.uchr` of no integer; what kelvinc leaves to C's error, in words | selfhost/gen.k's uchr_call, gen_uchr, uchr_typed, gen_uchr_compare, type_of's `.uchr`, `.utf32` and `.codepoint` and arithmetic, gen_converter of a uchr, gen_condition's comparison, infer's arithmetic; selfhost/sample.k; selfhost/README.md | `uchr("é")`, `c >= 'a'` | 2026-11-08 |
 | 479 | A uchr inside a value prints as `uchr("x")`, its character quoted as text is, so that it pastes back: `[uchr("é"), uchr("\n")]`, U+0000 `uchr(0)`; it was `{...}`, C's text of a struct. kc prints the same, takes `[uchr](N)`, and reads `int64(x)` and `uchr(x)` as no case word in a fixed array's list | runtime/string.c's kv_cstr_quoted_uchr, modules/kelvin_prelude.h, src/codegen.c's text_writer and text_bound; selfhost/gen.k's elem_shown, show_value, fixed_elem_ok, is_case_word; tests/run/uchr_shown.k; selfhost/sample.k; documents/printing.md, documents/strings.md, README.md, selfhost/README.md | `[uchr("é")]` | 2026-11-08 |
 | 480 | A walk of uchrs stops at `uchr(0)`, as the user chose: `for c in f` of a `[uchr](N)` and `for c in p` of a `uchr^`, where kelvinc's C compared a struct with 0. A written type converts each element as `T(v)` does: `for n:u32 in s` a uchr's codepoint, `for c:uchr in xs` `uchr(x)` of an integer; of a float or a bool it is an error. kc walks a `[uchr](N)` alike | src/codegen.c's for-each stop, each_value and a String's walk; src/parser.c's for-each; selfhost/gen.k's fixed walk; tests/run/uchr_walk.k, tests/error/uchr_each_of_float.k; selfhost/sample.k; documents/flow-controls.md, documents/strings.md, selfhost/README.md, README.md | `for c in f` of `[uchr](4)` | 2026-11-08 |
+| 481 | A fixed array prints as `[a, b]`, as the user chose, as inside a struct, so that it pastes back; it was its address. By print, a template, `$`...`` and `.pretty`; a let array parameter by its declared length, a var one an error; a `[u8](N)` is still its text. kc prints it alike by print, and refuses it in a template and `.pretty` in words | src/codegen.c's shown_array, shown_elem, show_key, need_show, emit_show, show_call; src/parser.c's showable, shown_array, shown_count, shown_value_type; selfhost/gen.k's gen_print_args_to, its template and `.pretty` errors; tests/run/print_fixed.k, tests/error/print_fixed_var_param.k, tests/run/template_bounds.k, tests/error/pretty_scalar.k; selfhost/sample.k; documents/printing.md, documents/arrays.md, selfhost/README.md, README.md | `println(f)` of `[i32](2)` | 2026-11-08 |
 
 Notes:
 
@@ -1108,6 +1109,23 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (481) Agreed details: "push. then go on with #481", a gap #480 found:
+  kelvinc's `println(f)` of a fixed array printed its address, which
+  does not paste back.
+  - Asked whether it prints as `[a, b]` or is an error, as in kc, the
+    user chose `[a, b]`, the text a struct already gives its fixed array.
+  - A printer is written for each element type, `_kv_show_fixed_T`,
+    which takes the count: `sizeof`'s, or a let array parameter's
+    declared length, which C's sizeof of its pointer is not.
+  - A var array parameter may have moved, and a let one whose length a
+    call or a var makes may not be what it was, so either is an error.
+  - A `[u8](N)` or `[i8](N)` is a C buffer and stays its text.
+  - A template `${f}` and `$`${f}`` and `f.pretty` show it the same;
+    tests/run/template_bounds.k checked that `${xs}` was the address,
+    and now checks `[1, 2, 3]`.
+  - kc refused print of a fixed array; it prints it alike, viewing it as
+    a struct's one member. In a template and in `.pretty` it still
+    refuses, in words that no longer speak of an address.
 - (480) Agreed details: "push. then go on with #480", the gap #479
   found: kelvinc's `for c in f` of a `[uchr](N)` wrote `*p != 0`, a struct
   compared with 0, and failed in C; so did a `uchr^`'s walk.
@@ -7183,6 +7201,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P490 | Details of #478 | selfhost/gen.k: uchr_call beside converter_of, gen_uchr after put_text_arg (`(KV_UCHR_OF(...))`, text through put_text_arg); uchr_typed and gen_uchr_compare (`((bool)((a).cp op (b)))`), before gen_expr's N_BIN default and gen_condition's bare comparison; gen_converter's `.cp`; type_of's errors for `.uchr`, `.utf32` and arithmetic; infer lets a uchr's arithmetic reach its error | provisional |
 | P491 | Details of #479 | runtime/string.c: kv_cstr_quoted_uchr after kv_cstr_quoted_str, `uchr(0)` or `uchr(` quoted_into `)`; src/codegen.c: text_writer's uchr, text_bound's 14; selfhost/gen.k: elem_shown for need_show, show_value's uchr, fixed_elem_ok's Y_UCHR, is_case_word without converter_of and uchr_call | provisional |
 | P492 | Details of #480 | src/codegen.c: is_uchr_type, each_value before stmt; S_FOR_EACH's `at`, `(*p).cp` for a uchr element, in the array, pointer and unseen stops; a String's walk `kv_utf8_next` alone for a written number; src/parser.c: parse_for_each's error for a written uchr over f32, f64 or bool; selfhost/gen.k: the fixed walk takes Y_UCHR, `].cp != 0` | provisional |
+| P493 | Details of #481 | src/codegen.c: shown_array (a count, not pointer_kind 's') in has_show; show_key's fixed_ and the element's C type as a name; need_show's elements; emit_show's `(kv_out *, const void *, size_t, int)` printer; show_call for print's, `.pretty`'s and templates' calls; src/parser.c: showable takes shown_array, recv_type by own_unqualified, `c` the count by shown_count; selfhost/gen.k: gen_print_args_to's `const struct { __typeof__(a) a; } *self`, not of u8 or i8 | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

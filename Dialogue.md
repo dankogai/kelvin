@@ -9204,3 +9204,18 @@ now converts each element as `T(v)` does, `for n:u32 in s`, and
 alike. kc builds 194 of the 357 programs. Details are provisional P492.
 
 There are 1210 tests, and all pass with clang and with gcc 15.
+
+### 528. A fixed array printed
+
+> push. then go on with #481
+
+**Claude** pushed #480, and all nine jobs passed. It took up a gap #480
+found: kelvinc's `println(f)` of a fixed array printed its address, which
+does not paste back. Asked whether it prints as `[a, b]` or is an error,
+the user chose `[a, b]`, as a struct already shows its fixed array. print,
+a template and `.pretty` show it so; a let array parameter by its
+declared length, a var one an error; a `[u8](N)` is still its text. kc
+prints it alike. kc builds 196 of the 358 programs, 2 more. Details are
+provisional P493.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

@@ -147,6 +147,9 @@ Kelvin prefers arrays to pointers where it can, but an array is C's:
   list for a function.
 - **`.cstr`**: arrays have none, since C arrays are not values; index
   them, or put them in a struct, whose text shows them as `[a, b]`.
+- **Printed**, a fixed array is `[a, b]`, as inside a struct, so that it
+  pastes back: by `print`, a template and `.pretty` (#481).
+  - A `[u8](N)` is a C buffer, shown as its text.
 - **`.isNull`**, `.addr` and `.hex` are not for arrays, which are never
   null: write `(&a[0]).addr`.
 - **An array of functions** is `[(i64):i64](4)`, an `Array<(i64):i64>`
@@ -344,6 +347,8 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 | | `.typename` | `[i32](4)` |
 | | `a[i]` | an element, unchecked, as C has it |
 | | `for x in a` | each element |
+| | `.pretty` | its text indented, a line for each element (#481) |
+| | printed | `[a, b]`, as inside a struct; a `[u8](N)` its text (#481) |
 | | `var p := a` | the pointer C makes of it |
 | `Array<T>`, `$[T]` | `.count`, `.capacity` | the elements held, and the room |
 | | `.isEmpty` | whether it holds no element, `.count == 0`, a `bool` (#434) |

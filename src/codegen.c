@@ -86,6 +86,7 @@ static bool element_first(Stmt *s);
 static List *template_vars;
 static const char *template_bound(Expr *x);
 static bool byte_array(Expr *x);
+static char *show_call(Expr *e, Type *t, const char *x, const char *out, const char *level);
 static char *template_room(Expr *e);
 static Decl *text_method_of(const char *tag);
 
@@ -601,11 +602,13 @@ static char *expr_bare(Expr *e) {
                    as a string value is, cut to the room, and freed */
                 char *v = hidden(NULL, "value");
                 need_show(x->recv_type);
-                buf_printf(&b,
-                           "kv_string %s = kv_string_new(); { __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s, "
-                           ".width = %s}, &_kv_sv, %s); } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); kv_string_free(&%s); ",
-                           v, expr(x->a), show_key(x->recv_type), v, pretty_width(x),
-                           x->text && !strcmp(x->text, "pretty") ? "0" : "-1" /* ${v.pretty} (#126) */, build, v, v);
+                buf_printf(&b, "kv_string %s = kv_string_new(); { %s } KV_TEMPLATE_VALUE(%s, KV_TEMPLATE_STR, %s); "
+                               "kv_string_free(&%s); ",
+                           v,
+                           show_call(x, x->recv_type, expr(x->a),
+                                     strfmt("&(kv_out){.s = &%s, .width = %s}", v, pretty_width(x)),
+                                     x->text && !strcmp(x->text, "pretty") ? "0" : "-1" /* ${v.pretty} (#126) */),
+                           build, v, v);
                 buf_puts(&bounds, " + KV_TEMPLATE_STR");
             } else {
                 /* (void)0, v: a bit-field cannot initialize __auto_type */
@@ -1096,12 +1099,12 @@ static char *expr_bare(Expr *e) {
             need_show(e->recv_type);
             const char *level = strcmp(e->text, "pretty") ? "-1" : "0";
             if (!strcmp(e->op, "show"))
-                return strfmt("({ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.fp = %s, .width = %s}, &_kv_sv, %s); "
-                              "(const uint8_t *)\"\"; })",
-                              expr(e->a), show_key(e->recv_type), show_sink, pretty_width(e), level);
-            return strfmt("({ kv_string _kv_ps = kv_string_new(); __auto_type _kv_sv = (%s); "
-                          "_kv_show_%s(&(kv_out){.s = &_kv_ps, .width = %s}, &_kv_sv, 0); _kv_ps; })",
-                          expr(e->a), show_key(e->recv_type), pretty_width(e));
+                return strfmt("({ %s (const uint8_t *)\"\"; })",
+                              show_call(e, e->recv_type, expr(e->a),
+                                        strfmt("&(kv_out){.fp = %s, .width = %s}", show_sink, pretty_width(e)), level));
+            return strfmt("({ kv_string _kv_ps = kv_string_new(); %s _kv_ps; })",
+                          show_call(e, e->recv_type, expr(e->a),
+                                    strfmt("&(kv_out){.s = &_kv_ps, .width = %s}", pretty_width(e)), "0"));
         }
         /* x.size is sizeof(x). x.cstr, x.hex and friends write into a
            buffer on the caller's stack and return it as u8^. The buffer
@@ -2500,9 +2503,9 @@ static void string_part(Buf *b, Expr *x, const char *s) {
         buf_printf(b, "kv_string_append_uchr(&%s, %s); ", s, expr(x->a));
     } else if (!strcmp(x->op, "tplstr_show")) { /* ${xs} (#125): its text, whole */
         need_show(x->recv_type);
-        buf_printf(b, "{ __auto_type _kv_sv = (%s); _kv_show_%s(&(kv_out){.s = &%s, .width = %s}, &_kv_sv, %s); } ",
-                   expr(x->a), show_key(x->recv_type), s, pretty_width(x),
-                   x->text && !strcmp(x->text, "pretty") ? "0" : "-1"); /* ${v.pretty} (#126) */
+        buf_printf(b, "{ %s } ",
+                   show_call(x, x->recv_type, expr(x->a), strfmt("&(kv_out){.s = &%s, .width = %s}", s, pretty_width(x)),
+                             x->text && !strcmp(x->text, "pretty") ? "0" : "-1")); /* ${v.pretty} (#126) */
     } else {
         buf_printf(b, "kv_string_append_text(&%s, %s); ", s, expr(x->a));
     }
@@ -4762,8 +4765,17 @@ static bool is_container(Type *t, const char *prefix) {
     return t && t->kind == T_BASE && t->cname && !strncmp(t->cname, prefix, strlen(prefix));
 }
 
-/* a type that has a printer: a Kelvin record, an Array, a Dictionary, a Set */
+/* a fixed array that print shows as [a, b] (#481): of a known count, and
+   not of bytes, whose text is a string's */
+static bool shown_array(Type *t) {
+    return t && t->kind == T_ARRAY && t->size && pointer_kind(t) != 's';
+}
+
+/* a type that has a printer: a Kelvin record, an Array, a Dictionary, a
+   Set, a fixed array */
 static bool has_show(Type *t) {
+    if (shown_array(t))
+        return true;
     if (!t || t->kind != T_BASE)
         return false;
     return is_container(t, "_kv_array_") || is_container(t, "_kv_dict_") || is_container(t, "_kv_set_") ||
@@ -4781,8 +4793,33 @@ static char *pretty_width(Expr *e) {
     return strfmt("kv_out_width(%s)", expr(e->b));
 }
 
-/* the printer's name: a record's, or a container's C type */
+/* the element type of a fixed array's printer, unqualified */
+static Type *shown_elem(Type *t) {
+    Type *e = xcalloc(1, sizeof *e);
+    *e = *t->elem;
+    e->is_const = e->is_volatile = false;
+    return e;
+}
+
+/* the printer's name: a record's, a container's C type, or fixed_ and a
+   fixed array's element C type, spelled as a name (#481) */
 static char *show_key(Type *t) {
+    if (t->kind == T_ARRAY) {
+        Buf b = {0};
+        buf_puts(&b, "fixed_");
+        for (const char *c = decl(shown_elem(t), ""); *c; c++)
+            if (isalnum((unsigned char)*c) || *c == '_')
+                buf_putn(&b, c, 1);
+            else if (*c == ' ')
+                buf_puts(&b, "_");
+            else if (*c == '*')
+                buf_puts(&b, "p");
+            else if (*c == '[')
+                buf_puts(&b, "a");
+            else if (*c != ']')
+                buf_puts(&b, "x");
+        return b.buf;
+    }
     if (t->cname)
         return t->cname;
     Decl *r = kelvin_record(t->name);
@@ -4805,6 +4842,10 @@ static void need_show(Type *t) {
         if (!strcmp(show_key(show_types.data[i]), key))
             return;
     list_push(&show_types, t);
+    if (t->kind == T_ARRAY) {
+        need_show_inside(t->elem);
+        return;
+    }
     if (t->cname) {
         need_show_inside(t->key);
         need_show_inside(t->elem);
@@ -4846,6 +4887,17 @@ static void find_shows_stmt(Stmt *s) {
     find_shows_stmt(s->init);
     find_shows_stmt(s->body);
     find_shows_stmt(s->els);
+}
+
+/* the statements that print x, of type t, to out at level: by its address,
+   or a fixed array by its elements and count, sizeof's or a let
+   parameter's declared length, e->c (#481) */
+static char *show_call(Expr *e, Type *t, const char *x, const char *out, const char *level) {
+    if (t->kind == T_ARRAY)
+        return strfmt("_kv_show_%s(%s, (%s), %s, %s);", show_key(t), out, x,
+                      e->c ? strfmt("(size_t)(%s)", expr(e->c)) : strfmt("sizeof (%s) / sizeof (%s)[0]", x, x),
+                      level);
+    return strfmt("__auto_type _kv_sv = (%s); _kv_show_%s(%s, &_kv_sv, %s);", x, show_key(t), out, level);
 }
 
 /* the lines that print the value at lv, of type t, inside a printer whose
@@ -4900,6 +4952,30 @@ static void show_value(Type *t, const char *lv, int depth) {
 /* the printer of t: on one line when level is negative, else indented,
    each item of a [] or {} on a line of its own at level + 1 */
 static void emit_show(Type *t) {
+    if (t->kind == T_ARRAY) { /* a fixed array (#481): its count elements, [a, b] */
+        line("static void _kv_show_%s(kv_out *o, const void *_kv_v, size_t _kv_n, int level)", show_key(t));
+        line("{");
+        indent++;
+        line("__attribute__((unused)) int _kv_nl = level < 0 ? -1 : level + 1;");
+        Type *self = xcalloc(1, sizeof *self); /* a pointer to the const elements */
+        self->kind = T_PTR;
+        self->pos = t->pos;
+        self->elem = const_type(shown_elem(t));
+        line("%s = _kv_v;", decl(self, "self"));
+        line("kv_out_put(o, \"[\");");
+        line("for (size_t _kv_i = 0; _kv_i < _kv_n; _kv_i++)");
+        line("{");
+        indent++;
+        line("kv_out_sep(o, level, _kv_i == 0);");
+        show_value(t->elem, "self[_kv_i]", 0);
+        indent--;
+        line("}");
+        line("kv_out_end(o, level);");
+        line("kv_out_put(o, \"]\");");
+        indent--;
+        line("}");
+        return;
+    }
     line("static void _kv_show_%s(kv_out *o, const void *_kv_v, int level)", show_key(t));
     line("{");
     indent++;
@@ -5047,7 +5123,8 @@ char *gen_program(Program *prog, bool with_lines) {
     /* the printers take a const void *, so that they are declared before
        any type, and written after all of them (#123) */
     for (int i = 0; i < show_types.len; i++)
-        buf_printf(&out, "static void _kv_show_%s(kv_out *, const void *, int);\n", show_key(show_types.data[i]));
+        buf_printf(&out, "static void _kv_show_%s(kv_out *, const void *, %sint);\n", show_key(show_types.data[i]),
+                   ((Type *)show_types.data[i])->kind == T_ARRAY ? "size_t, " : "");
     /* the global owners (#178): declared empty, filled by a function, freed
        at exit by a function main registers, written after the globals */
     global_owners = (List){0};

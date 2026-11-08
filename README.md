@@ -264,6 +264,8 @@ So far the changes from C are these, by topic.
   `println(cfg.pretty)` the same indented, a line for each item
   - a `uchr` inside a value is `uchr("é")`, so that it pastes back
     (#479)
+  - a fixed array is `[a, b]`, as inside a struct, where it was its
+    address (#481)
 - quoting text
   - template literals: `` `Hello, ${name}!` `` may span lines, and
     `${x}` is `x`'s text as `print` shows it, kept on the stack (a string

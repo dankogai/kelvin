@@ -1292,6 +1292,7 @@ on a new line`
     for uc_x in uc_f { print(uc_x) }
     for uc_x in uc_w { print(" ", uc_x.codepoint) }
     println()
+    println(uc_f, " ", uc_i, " ", uc_w)                    // a fixed array is [a, b] (#481)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

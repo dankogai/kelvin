@@ -1103,6 +1103,10 @@ static Expr *variant_constructor(Token *t, Type *vt);
 static bool starts_operand(Token *t);
 static bool is_set_owner(Type *t);
 static bool showable(Type *t);
+static bool shown_array(Type *t);
+static Expr *shown_count(Expr *x);
+static Type *shown_value_type(Expr *x);
+static bool length_holds(Expr *e);
 static Type *parse_set_type(Token *kw);
 static Expr *set_of_list(Token *t, Type *st, Token *open, Expr *first);
 static Type *parse_dict_types(Token *kw);
@@ -1127,6 +1131,7 @@ static Decl *tagged_record(Type *t);
 static char *case_list(Decl *r);
 static char *record_spelling(Decl *r);
 static Type *unqualified(Type *t);
+static Type *own_unqualified(Type *t);
 static Expr *parse_case_initializer(Type *t, Decl *r);
 static void move_argument(Expr *arg, Type *param, const char *what);
 /* the enum with values a switch is on, while its body is parsed (#61) */
@@ -2538,13 +2543,13 @@ static Expr *parse_postfix_steps(Expr *e) {
                    item of a [] or {}, as a String; where print shows it, it
                    is printed where it stands. A field of that name wins */
                 Decl *record;
-                Type *vt = value_type(e);
+                Type *vt = shown_array(shown_value_type(e)) ? shown_value_type(e) : value_type(e); /* (#481) */
                 bool field = type_class(vt, &record) == 's' && record_has_field(record, member);
                 if (!field) {
                     if (!showable(vt))
                         error_at(name->pos, "'.pretty' is the text, indented, of a struct, an enum with values, an "
-                                            "Optional, a Result, an Array, a Dictionary or a Set; this is %s, whose text "
-                                            "is '.cstr'",
+                                            "Optional, a Result, an Array, a Dictionary, a Set or a fixed array; this is "
+                                            "%s, whose text is '.cstr'",
                                  vt ? kelvin_type(vt) : "a value kelvinc cannot see");
                     if (is_owner(vt) && !owner_place(e)) /* held (#187) */
                         e = make_temp(e, "'.pretty' of an owner that an expression gives: bind it to a variable first");
@@ -2552,8 +2557,9 @@ static Expr *parse_postfix_steps(Expr *e) {
                     x->a = e;
                     x->text = "pretty";
                     x->op = "pretty";
-                    x->recv_type = unqualified(vt);
+                    x->recv_type = shown_array(vt) ? own_unqualified(vt) : unqualified(vt);
                     x->type = base_type("String", name->pos);
+                    x->c = shown_array(vt) ? shown_count(e) : NULL; /* (#481) */
                     if (call) {
                         /* x.pretty(n) (#127): n spaces a level, 0 to 10, as JS
                            clamps JSON.stringify's space; a literal is checked */
@@ -3799,7 +3805,7 @@ static Expr *template_value(Expr *v) {
     Decl *record;
     if (type_class(value_type(v), &record) == 's')
         v = property(v, &(Token){.kind = TK_IDENT, .pos = v->pos, .text = "cstr"}, "cstr");
-    Type *ct = value_type(v);
+    Type *ct = shown_array(shown_value_type(v)) ? shown_value_type(v) : value_type(v); /* (#481) */
     if ((is_string(ct) || is_bytes(ct)) && !owner_place(v) &&
         !(v->kind == E_PROPERTY && v->op && !strcmp(v->op, "pretty"))) /* ${$"x"} (#175): nothing would free it */
         error_at(v->pos, "a %s that an expression gives in a template, which nothing would free: bind it to a "
@@ -3809,11 +3815,11 @@ static Expr *template_value(Expr *v) {
         /* ${v.pretty} (#126): the text indented, by the printer, not a
            String the template would have to free */
         v->op = "tpl_show";
-    } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct) || is_range(ct)) {
+    } else if (is_array_owner(ct) || is_dict_owner(ct) || is_set_owner(ct) || is_range(ct) || shown_array(ct)) {
         /* ${xs} (#125): an Array's, a Dictionary's or a Set's text, by
            kelvinc's printer of it (#123), cut as a string value is in a
            template's room, and whole in $`...` */
-        if (!owner_place(v) && !is_range(ct)) /* a Range owns nothing (#373) */
+        if (!owner_place(v) && !is_range(ct) && !shown_array(ct)) /* a Range owns nothing (#373), nor a fixed array */
             error_at(v->pos, "%s that an expression gives in a template, which nothing would free: bind it to a "
                              "variable first",
                      is_dict_owner(ct) ? "a Dictionary" : is_set_owner(ct) ? "a Set" : "an Array");
@@ -3821,8 +3827,9 @@ static Expr *template_value(Expr *v) {
         s->a = v;
         s->text = "text";
         s->op = "tpl_show";
-        s->recv_type = unqualified(ct);
+        s->recv_type = shown_array(ct) ? own_unqualified(ct) : unqualified(ct);
         s->type = base_type("String", v->pos);
+        s->c = shown_array(ct) ? shown_count(v) : NULL; /* (#481) */
         v = s;
     }
     v->shown = shown_type(v);
@@ -3898,6 +3905,7 @@ static Expr *string_piece(Expr *v) {
         w->op = "tplstr_show";
         w->text = v->text; /* "pretty" for ${v.pretty} (#126) */
         w->b = v->b;       /* the width of ${v.pretty(n)} (#127) */
+        w->c = v->c;       /* a fixed array's count (#481) */
         w->recv_type = v->recv_type;
     } else if (is_string(vt) || is_bytes(vt)) {
         if (!owner_place(v))
@@ -11512,8 +11520,44 @@ static Type *method_param_type(List *cands, Decl *m, int k) {
    Dictionary or a Set? */
 static bool showable(Type *t) {
     Decl *record;
-    return t && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_range(t) ||
+    return t && (is_array_owner(t) || is_dict_owner(t) || is_set_owner(t) || is_range(t) || shown_array(t) ||
                  (type_class(t, &record) == 's' && record));
+}
+
+/* a fixed array that print shows as [a, b] (#481): of a known count, and
+   not of bytes, whose text is a string's */
+static bool shown_array(Type *t) {
+    if (!t || t->kind != T_ARRAY || !t->size)
+        return false;
+    Type *e = t->elem;
+    return !(e->kind == T_BASE && !e->is_volatile && (!strcmp(e->name, "u8") || !strcmp(e->name, "i8")));
+}
+
+/* x's type as print sees it: an array parameter's declared array, which
+   C makes a pointer, else value_type's (#481) */
+static Type *shown_value_type(Expr *x) {
+    Var *param = x->kind == E_IDENT ? param_named(x->text) : NULL;
+    if (param && param->type && param->type->kind == T_ARRAY && param->type->size)
+        return param->type;
+    return value_type(x);
+}
+
+/* the count of x, a shown array, where C's sizeof is not it: a let array
+   parameter's declared length, as for x in it walks (#30, #481); NULL
+   for sizeof's */
+static Expr *shown_count(Expr *x) {
+    Var *param = x->kind == E_IDENT ? param_named(x->text) : NULL;
+    if (!param || !param->type || param->type->kind != T_ARRAY || !param->type->size)
+        return NULL;
+    if (!param->is_let)
+        error_at(x->pos, "'%s' is a var array parameter, a pointer in C that may have moved: show its elements, as in "
+                         "'for i in 0..<n'",
+                 param->name);
+    if (!length_holds(param->type->size))
+        error_at(x->pos, "'%s' is an array parameter whose declared length uses a call, a var or a name that a local "
+                         "hides, so it may not be what it was at the call: show its elements, as in 'for i in 0..<n'",
+                 param->name);
+    return param->type->size;
 }
 
 /* print and println show a struct, an enum with values, an Optional, a
@@ -11528,7 +11572,7 @@ static void print_records_as_text(Expr *call) {
             x->type = cstr_type(x->pos);
             continue;
         }
-        Type *t = value_type(x);
+        Type *t = shown_value_type(x);
         if (!showable(t))
             continue;
         if (is_owner(t) && !owner_place(x)) /* held while it prints (#187) */
@@ -11537,8 +11581,9 @@ static void print_records_as_text(Expr *call) {
         s->a = x;
         s->text = "show";
         s->op = "show";
-        s->recv_type = unqualified(t);
+        s->recv_type = shown_array(t) ? own_unqualified(t) : unqualified(t); /* an array stays one (#481) */
         s->type = cstr_type(x->pos);
+        s->c = shown_count(x); /* a fixed array's count (#481) */
         call->items.data[i] = s;
     }
 }

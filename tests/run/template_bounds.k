@@ -28,7 +28,7 @@ let main():int32 {
     bx.four[0] = 'a'
     bx.four[1] = 0
     var xs:[int32](3) = [1, 2, 3]
-    println(`[${bx.four}] ${strcmp(`${xs}`, `${&xs[0]}`) == 0}`)
+    println(`[${bx.four}] ${strcmp(`${xs}`, "[1, 2, 3]") == 0}`)   // a fixed array is [a, b] (#481)
     let w:wide = {h, h, h, h, h, h, h}
     var text:[uint8](400)
     memset(&text[0], 'z', 399)

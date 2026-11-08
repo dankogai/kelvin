@@ -598,6 +598,9 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **A fixed array printed** (#481), as kelvinc's.
+  - `println(f)` of a fixed array is `[a, b]`, as inside a struct; a
+    `[u8](N)` is its text.
 - **A walk of codepoints** (#480), as kelvinc's.
   - `for c in f` of a `[uchr](N)` stops at `uchr(0)`, as an array of
     numbers stops at 0.

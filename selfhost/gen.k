@@ -1641,6 +1641,10 @@ let type_of(n:int64):int64 {
         }
         if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
         if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
+        if yk == Y_FIXED && tok_is(t, "pretty") {                   // kelvinc's #481
+            gen_error(n, "kc reads '.pretty' of a struct, an enum with values, an Array, a Dictionary, a Set or a Range; not yet of a fixed array: print it, println(a)")
+            return -1
+        }
         gen_error(n, "this member is not known")
         return -1
     }
@@ -3542,9 +3546,29 @@ let gen_print_args_to(first:int64, sink:cstr) {
     while a >= 0 {
         if a != first { put(", ") }
         let y = type_of(a)
-        if y >= 0 && types[y].kind == Y_FIXED && nodes[a].kind != N_LIST {   // kelvinc prints its address (#354)
-            gen_error(a, "a fixed array is printed by its elements, a[i]: kc does not print the array, whose address kelvinc prints")
-            return
+        if y >= 0 && types[y].kind == Y_FIXED && nodes[a].kind != N_LIST && types[types[y].elem].kind != Y_U8 && types[types[y].elem].kind != Y_I8 {   // [a, b], as kelvinc's (#481); bytes are text
+            if types[y].name < 0 {
+                gen_error(a, "kc prints a fixed array of its own count; not yet a parameter's: print its elements, a[i]")
+                return
+            }
+            var v = types[y].elem
+            while types[v].kind == Y_FIXED { v = types[v].elem }
+            if !elem_shown(v) && !shown_by_type(v) {
+                gen_error(a, "kc prints a number, a bool, text, an Array, a Dictionary, an enum with values or a struct of them; not yet what this holds")
+                return
+            }
+            if !elem_shown(v) && !need_show(v, a) { return }
+            put("({ const struct { __typeof__(")         // the array as a struct's one member, self->a, as a member's is printed
+            gen_expr(a)
+            put(") a; } *self = (const void *)&(")
+            gen_expr(a)
+            put("); kv_out *o = &(kv_out){.fp = ")
+            put(sink)
+            put(", .width = 2}; ")
+            show_value(y, "a", 0 - 1, "-1")
+            put(" (const uint8_t *)\"\"; })")
+            a = nodes[a].next
+            continue
         }
         if y >= 0 && types[y].kind == Y_TASK {                   // as kelvinc's (#313)
             var m = $"a Task has no text: print its value, 'await "
@@ -4746,7 +4770,7 @@ let tpl_value_ok(v:int64):bool {
         return false
     }
     if k == Y_FIXED && types[types[y].elem].kind != Y_U8 {
-        gen_error(v, "a fixed array is shown by its elements, a[i]: kc does not show the array, whose address kelvinc shows")
+        gen_error(v, "kc shows a fixed array by print, as kelvinc's [a, b]; not yet in a template: show its elements, a[i]")
         return false
     }
     if shown_by_type(y) && !need_show(y, v) { return false }
@@ -5007,7 +5031,7 @@ let gen_join(n:int64) {
     }
     let ek:ykind = types[ey].kind
     if ek == Y_FN || ek == Y_TASK || ek == Y_FIXED {     // as a template has them
-        gen_error(n, ek == Y_TASK ? "a Task has no text: show its value, as in ${await t}" : ek == Y_FN ? "a template cannot show a function: a function has no text" : "a fixed array is shown by its elements, a[i]: kc does not show the array, whose address kelvinc shows")
+        gen_error(n, ek == Y_TASK ? "a Task has no text: show its value, as in ${await t}" : ek == Y_FN ? "a template cannot show a function: a function has no text" : "kc shows a fixed array by print, as kelvinc's [a, b]; not yet in a template: show its elements, a[i]")
         return
     }
     if shown_by_type(ey) && !need_show(ey, n) { return }
