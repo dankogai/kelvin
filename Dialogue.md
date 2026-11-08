@@ -9401,3 +9401,18 @@ name is declared after it, which a prototype before the call cures.
 Details are provisional P504.
 
 There are 1215 tests, and all pass with clang and with gcc 15.
+
+### 540. A global given its value at first use
+
+> push. then go on with the global owner gap
+
+**Claude** pushed #492, and all nine jobs passed. Asked, the user chose a
+global's value at its first use, once, on any thread, as Swift's globals
+are, for every value C cannot initialize. `var names = $["a"]` and
+`let start = OS.time` are now globals: storage, an initializer run once
+by pthread_once, and an accessor each use reads them by, a module's
+header saying `extern lazy var`. A global owner assigned anew now frees
+what it held, which it never did, and localStorage is such a global.
+Details are provisional P505.
+
+There are 1217 tests, and all pass with clang and with gcc 15.

@@ -83,6 +83,8 @@ static void close_scope(void) {
         local_enums.len = --local_enum_at.len;
 }
 
+static bool is_first_use_global(const char *name);
+
 static void declare_binding(const char *name, Type *type, int let) {
     int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
     bool wide = false;
@@ -100,6 +102,12 @@ static void declare_binding(const char *name, Type *type, int let) {
                 }
             error_at(pos, "'%s' is declared already in this block", name);
         }
+    if (scope_marks.len && is_first_use_global(name)) {
+        Pos pos = toks[cur > 0 ? cur - 1 : 0].pos;
+        error_at(pos, "'%s' is a global given its value at its first use (#493), which a local of the name would hide "
+                      "in C: name this one otherwise",
+                 name);
+    }
     list_push(&scope_names, (void *)name);
     list_push(&scope_types, type);
     list_push(&scope_lets, (void *)(intptr_t)let);
@@ -107,6 +115,18 @@ static void declare_binding(const char *name, Type *type, int let) {
 }
 
 static void declare_typed(const char *name, Type *type) { declare_binding(name, type, LET_NONE); }
+
+/* the globals given their values at first use (#493), by name, which a
+   local may not hide: C reads each by its accessor, under its own name */
+static List first_use_globals;
+static bool lazy_next; /* extern lazy var x:T, in a module's header (#493) */
+
+static bool is_first_use_global(const char *name) {
+    for (int i = 0; i < first_use_globals.len; i++)
+        if (!strcmp(first_use_globals.data[i], name))
+            return true;
+    return false;
+}
 
 /* What kind of let `name` is here (#27), or LET_NONE */
 static int let_kind(const char *name) {
@@ -820,6 +840,46 @@ static bool enumerator_named(const char *name) {
                 return true;
     }
     return false;
+}
+
+/* Is e a value C initializes a global with (#493): a literal, text, an
+   enumerator, a function, an address, sizeof, and these joined by
+   operators, a cast or a list; a name kelvinc does not know, C's macro,
+   is C's to judge. A call, a String, an Array, another global's value
+   and the rest are not, and the global is given its value at first use */
+static bool const_init(Expr *e) {
+    if (!e)
+        return true;
+    switch (e->kind) {
+    case E_LITERAL:
+    case E_STRING:
+    case E_SIZEOF_TYPE:
+    case E_SIZEOF_EXPR:
+    case E_FUNC:
+        return true;
+    case E_IDENT:
+        if (enumerator_named(e->text) || function_named(e->text) || !strcmp(e->text, "nowhere") ||
+            !strcmp(e->text, "true") || !strcmp(e->text, "false"))
+            return true;
+        return binding_index(e->text) < 0; /* C's: a macro, a constant of a header */
+    case E_PREFIX:
+        if (e->op && !strcmp(e->op, "&")) /* an address, as of a global */
+            return e->a && (e->a->kind == E_IDENT || e->a->kind == E_FIELD || e->a->kind == E_INDEX);
+        return const_init(e->a);
+    case E_BINARY:
+        return const_init(e->a) && const_init(e->b);
+    case E_TERNARY:
+        return const_init(e->a) && const_init(e->b) && const_init(e->c);
+    case E_CAST:
+        return (!e->op || !strcmp(e->op, "as")) && const_init(e->a); /* v as T, not a try nor a converter */
+    case E_INIT:
+        for (int i = 0; i < e->items.len; i++)
+            if (!const_init(e->items.data[i]))
+                return false;
+        return true;
+    default:
+        return false;
+    }
 }
 
 /* the type kelvinc sees for the value that the tokens from i to end
@@ -4133,6 +4193,15 @@ static Expr *parse_primary(void) {
         /* an owner moved out is dead until assigned anew (#54) */
         if (t->kind == TK_IDENT && is_moved(t->text) && !is_p(peek(), "="))
             error_at(t->pos, "'%s' was moved out and holds nothing now: assign it anew before using it", t->text);
+        /* a global, which no local hides (#493): one given its value at first
+           use is read by its accessor, and one that owns is assigned as an
+           owner is, what it held freed */
+        if (t->kind == TK_IDENT) {
+            int b = binding_index(t->text);
+            int global_end = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+            e->global = b >= 0 && b < global_end;
+            e->first_use = e->global && is_first_use_global(t->text);
+        }
         /* a Kelvin function's name, which overloads may share (#41) */
         if (t->kind == TK_IDENT && !lookup_type(t->text) && function_named(t->text)) {
             List cands = overloads_of(t->text, NULL);
@@ -16293,10 +16362,21 @@ Program *parse(Token *tokens, int ntoks) {
             error_at(peek()->pos, "'%s' cannot be defined: an operator a struct defines is one of + - * / %% == != "
                                   "< <= > >=, or unary -, and 'x op= y' is 'x = x op y'",
                      peek()->text);
-        } else if (is_kw(peek(), "let") || is_kw(peek(), "var")) {
+        } else if (is_kw(peek(), "let") || is_kw(peek(), "var") ||
+                   (storage && !strcmp(storage, "extern") && peek()->kind == TK_IDENT && !strcmp(peek()->text, "lazy") &&
+                    (is_kw(peek2(), "let") || is_kw(peek2(), "var")))) {
             /* one declaration per global, each after the anonymous
                functions' prototypes in its initializer (#32), so that
-               those may use the globals before it */
+               those may use the globals before it; extern lazy, a module's
+               global given its value at first use (#493), in its header */
+            lazy_next = false;
+            if (peek()->kind == TK_IDENT) {
+                if (!in_kh(peek()->pos))
+                    error_at(peek()->pos, "'extern lazy' is a module's header's, which kelvinc --lib writes: a global "
+                                          "is given its value at its first use where C cannot initialize it (#493)");
+                advance();
+                lazy_next = true;
+            }
             bool is_let = is_kw(advance(), "let");
             Expr *ae = align_next; /* (#396): each name takes it */
             Type *at = align_type_next;
@@ -16308,12 +16388,18 @@ Program *parse(Token *tokens, int ntoks) {
                 Var *v = d->members.data[d->members.len - 1];
                 v->align = ae;
                 v->align_type = at;
-                if (v->init && is_owner(v->type)) /* a global owner (#178): C initializes a global with a constant alone */
-                    error_at(v->init->pos,
-                             "'%s' is a global %s, which C initializes with a constant alone, and an owner is made by a "
-                             "call: declare it with its type, 'var %s:%s', and give it its value in main or another "
-                             "function",
-                             v->name, kelvin_type(v->type), v->name, kelvin_type(v->type));
+                /* a global C cannot initialize, one that owns or of a value that
+                   is not a constant, is given its value at its first use, once
+                   (#493); in a module's header, extern lazy says so */
+                if ((v->init && (is_owner(v->type) || !const_init(v->init))) || lazy_next) {
+                    if (!v->type)
+                        error_at(v->init ? v->init->pos : v->pos,
+                                 "'%s' is given its value at its first use, and kelvinc cannot see the type of "
+                                 "this one: write it, 'var %s:T = ...'",
+                                 v->name, v->name);
+                    v->first_use = true;
+                    list_push(&first_use_globals, v->name);
+                }
                 add_top_decl(prog, d);
             } while (accept_p(","));
             end_statement();
@@ -16847,8 +16933,8 @@ char *gen_header(Program *prog) {
                         continue;
                     for (int m = 0; m < d->members.len; m++) {
                         Var *v = d->members.data[m];
-                        buf_printf(&b, "extern %s %s:%s\n", is_kw(&toks[k], "let") ? "let" : "var", v->name,
-                                   kelvin_type(v->type));
+                        buf_printf(&b, "extern %s%s %s:%s\n", v->first_use ? "lazy " : "", /* (#493) */
+                                   is_kw(&toks[k], "let") ? "let" : "var", v->name, kelvin_type(v->type));
                     }
                 }
             }

@@ -217,7 +217,18 @@ functions, by one rule.
 - **A borrow,** `&s`, is a `T *`.
 - **A global owner** is `T g = {0};`, filled by the program, and freed
   at exit by `_kv_free_globals`, which `main` registers with `atexit`
-  (#178).
+  (#178), and a library's constructor in a module (#491).
+- **A global given its value at its first use** (#493), one that owns or
+  of a value that is not C's constant, is three things:
+  - `static T _kv_lazy_g;`, its storage, zero;
+  - `static void _kv_init_g(void)`, which makes the value and moves it
+    into the storage, run once by `pthread_once(&_kv_once_g, ...)`;
+  - `T *_kv_get_g(void)`, its accessor, static in a program and a
+    module's own in a library, which runs that and gives the storage.
+  - Each read or change of `g` is `(*_kv_get_g())`; a module's header
+    says `extern lazy var g:T`, and a program that imports it declares
+    the accessor alone.
+  - `_kv_free_globals` frees the storage, never making the value at exit.
 - **An owner an expression gives,** where it is used and not bound,
   lives in a hidden local of a statement expression, freed with it
   (#187).

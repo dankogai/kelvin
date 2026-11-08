@@ -161,6 +161,10 @@ So far the changes from C are these, by topic.
   functions are lets too, `let add(a:i64, b:i64):i64`, whose parameters
   are lets unless written `var`, and `_` leaves one unnamed,
   `let on_signal(_:i32)` (#388)
+  - a global C cannot initialize, one that owns or of a value that is not
+    a constant, is given its value at its first use, once, on any thread,
+    as Swift's globals are: `var names = $["a"]`, `let start = OS.time`
+    (#493)
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
 - XOR is `~`

@@ -147,6 +147,8 @@ struct Expr {
     ExprKind kind;
     Pos pos;
     bool paren;       /* written inside parentheses */
+    bool first_use;   /* E_IDENT: names a global given its value at its first use (#493), read by its accessor */
+    bool global;      /* E_IDENT: names a global, no local or parameter in sight (#493) */
     bool is_bool;     /* kelvinc saw that it is a bool (#23) */
     const char *op;
     Expr *a, *b, *c;  /* operands; E_TERNARY a ? b : c */
@@ -189,6 +191,8 @@ typedef struct {
     Type *align_type;   /* or alignas(T) */
     char *cname;      /* an enumerator of an enum defined inside a function (#391): its name
                          in C, _kv_main_red, the program's of the top level; name the block's */
+    bool first_use;   /* a global given its value at its first use, once (#493): one that owns, or of a
+                         value that is not C's constant, read in C by its accessor, _kv_get_x() */
 } Var;   /* also a parameter, struct member or enumerator */
 
 typedef enum {

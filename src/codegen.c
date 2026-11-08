@@ -86,6 +86,7 @@ static bool element_first(Stmt *s);
 static List *template_vars;
 static const char *template_bound(Expr *x);
 static bool byte_array(Expr *x);
+static Type *global_owner_type(const char *name);
 static char *show_call(Expr *e, Type *t, const char *x, const char *out, const char *level);
 static char *template_room(Expr *e);
 static Decl *text_method_of(const char *tag);
@@ -239,7 +240,18 @@ static char *declarator(Type *t, const char *inner, bool inner_is_ptr) {
 static char *decl(Type *t, const char *name) { return declarator(t, name, false); }
 
 /* the C name of a Kelvin name: an anonymous function's $0 is kv_arg0 (#32) */
+/* the globals given their values at their first use (#493), Var *, the
+   program's and those its modules' headers declare extern lazy */
+static List first_use_vars;
+
 static const char *c_name(const char *name) { return name[0] == '$' ? strfmt("_kv_arg%s", name + 1) : name; }
+
+/* a name where it is read or changed: a global given its value at first use
+   is reached through its accessor, as the parser marked it, where no local
+   or parameter of the name was in sight (#493) */
+static const char *ref_name(const Expr *e) {
+    return e->first_use ? strfmt("(*_kv_get_%s())", e->text) : c_name(e->text);
+}
 
 /* the codepoint of the UTF-8 at p, and its bytes in *n */
 static uint32_t utf8_codepoint(const unsigned char *p, int *n) {
@@ -536,7 +548,7 @@ static char *expr_bare(Expr *e) {
         if (e->cands.len)
             error_at(e->pos, "'%s' names %d functions: say which by its type, as in 'let f:(T):R := %s'", e->text,
                      e->cands.len, e->text);
-        return (char *)c_name(e->text);
+        return (char *)ref_name(e);
     case E_FUNC: /* the static function it became (#32) */
         return e->text;
     case E_TEMP: { /* (#187) the owner held in a hidden local, freed when the statement expression ends */
@@ -1086,7 +1098,7 @@ static char *expr_bare(Expr *e) {
            Any other parenthesized operand gets double parentheses, so that
            C cannot read e.g. `sizeof (T * (U8))` as a type name */
         if (e->a->kind == E_IDENT && e->a->paren)
-            return strfmt("sizeof(%s)", c_name(e->a->text));
+            return strfmt("sizeof(%s)", ref_name(e->a));
         if (e->a->paren)
             return strfmt("sizeof (%s)", expr(e->a));
         return strfmt("sizeof %s", expr(e->a));
@@ -2529,15 +2541,31 @@ static bool owner_assign(Expr *e) {
         return true;
     }
     Type *t = e->a->kind == E_IDENT ? local_owner_type(e->a->text) : NULL;
+    if (!t && e->a->kind == E_IDENT && e->a->global) /* a global that owns (#493): what it held is freed too */
+        t = global_owner_type(e->a->text);
     const char *f = t ? owner_free(t) : NULL;
-    if (!f) /* a field, a global, or no owner: C's assignment */
+    if (!f) /* a field, or no owner: C's assignment */
         return false;
     if (!strncmp(f, "kv_", 3) || !strncmp(f, "_kv_array_", 10) || !strncmp(f, "_kv_dict_", 9) ||
         !strncmp(f, "_kv_set_", 8)) /* kv_bytes_assign, kv_string_assign, an Array's, a Dictionary's, a Set's */
-        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
+        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, ref_name(e->a), expr(e->b));
     else /* a struct or an enum with values that owns: the value first, then the free, so that x = x + y reads x (#128) */
-        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, c_name(e->a->text), expr(e->b));
+        line("%.*s_assign(&%s, %s);", (int)strlen(f) - 5, f, ref_name(e->a), expr(e->b));
     return true;
+}
+
+/* the type of the global named so that owns, the program's or a module's
+   header's, or NULL (#493) */
+static Type *global_owner_type(const char *name) {
+    for (int i = 0; gen_prog && i < gen_prog->decls.len; i++) {
+        Decl *d = gen_prog->decls.data[i];
+        for (int j = 0; d->kind == D_VAR && j < d->members.len; j++) {
+            Var *v = d->members.data[j];
+            if (!strcmp(v->name, name))
+                return owner_free(v->type) ? v->type : NULL;
+        }
+    }
+    return NULL;
 }
 
 /* the _kv_ variable that keeps name's .count in this scope, or NULL */
@@ -4655,6 +4683,18 @@ static void emit_decl(Decl *d) {
         for (int i = 0; i < d->members.len; i++) {
             Var *v = d->members.data[i];
             sync(v->pos);
+            if (v->first_use) { /* (#493) its storage, and its accessor's prototype; both are written at the end */
+                Type *ptr = xcalloc(1, sizeof *ptr);
+                ptr->kind = T_PTR;
+                ptr->pos = v->pos;
+                ptr->elem = v->type;
+                bool shared = lib_mode || (d->storage && !strcmp(d->storage, "extern"));
+                if (!(d->storage && !strcmp(d->storage, "extern")))
+                    line("static %s%s;", decl(v->type, strfmt("_kv_lazy_%s", v->name)),
+                         owner_free(v->type) || tagged_type(v->type) ? " = {0}" : "");
+                line("%s%s;", shared ? "" : "static ", decl(ptr, strfmt("_kv_get_%s(void)", v->name)));
+                continue;
+            }
             line("%s;", var_decl(d->storage, v));
         }
         break;
@@ -4953,6 +4993,53 @@ static void show_value(Type *t, const char *lv, int depth) {
     line("}");
 }
 
+/* the globals given their values at their first use (#493), each the first
+   time its accessor is called, on any thread, once, by pthread_once: the
+   value made in a function of its own, its text's and templates' storage
+   declared before it, and moved into the global's storage; the accessor is
+   a module's own where it is a library's, else static */
+static void emit_first_use_globals(void) {
+    for (int i = 0; i < gen_prog->decls.len; i++) {
+        Decl *d = gen_prog->decls.data[i];
+        if (d->kind != D_VAR || (d->storage && !strcmp(d->storage, "extern")))
+            continue;
+        for (int j = 0; j < d->members.len; j++) {
+            Var *v = d->members.data[j];
+            if (!v->first_use || !v->init)
+                continue;
+            List bufs = {0}, tmpls = {0}, *outer_bufs = text_bufs, *outer_tmpls = template_vars;
+            text_bufs = &bufs;
+            template_vars = &tmpls;
+            char *value = initializer(v->init);
+            text_bufs = outer_bufs;
+            template_vars = outer_tmpls;
+            Type *ptr = xcalloc(1, sizeof *ptr);
+            ptr->kind = T_PTR;
+            ptr->pos = v->pos;
+            ptr->elem = v->type;
+            line("%s", "");
+            line("static pthread_once_t _kv_once_%s = PTHREAD_ONCE_INIT;", v->name);
+            line("static void _kv_init_%s(void)", v->name);
+            line("{");
+            indent++;
+            for (int k = 0; k < bufs.len; k++)
+                line("uint8_t %s;", (char *)bufs.data[k]);
+            for (int k = 0; k < tmpls.len; k++)
+                line("__attribute__((unused)) char %s;", (char *)tmpls.data[k]);
+            sync(v->pos);
+            line("%s = %s;", decl(v->type, "_kv_value"), value);
+            line("memcpy(&_kv_lazy_%s, &_kv_value, sizeof _kv_value); /* moved, never freed here */", v->name);
+            indent--;
+            line("}");
+            line("%s%s", lib_mode ? "" : "static ", decl(ptr, strfmt("_kv_get_%s(void)", v->name)));
+            line("{");
+            line("    pthread_once(&_kv_once_%s, _kv_init_%s);", v->name, v->name);
+            line("    return &_kv_lazy_%s;", v->name);
+            line("}");
+        }
+    }
+}
+
 /* the printer of t: on one line when level is negative, else indented,
    each item of a [] or {} on a line of its own at level + 1 */
 static void emit_show(Type *t) {
@@ -5115,6 +5202,15 @@ char *gen_program(Program *prog, bool with_lines) {
     methods = (List){0};
     cstr_used = (List){0};
     show_types = (List){0};
+    first_use_vars = (List){0};
+    for (int i = 0; i < prog->decls.len; i++) {
+        Decl *d = prog->decls.data[i];
+        for (int j = 0; d->kind == D_VAR && j < d->members.len; j++)
+            if (((Var *)d->members.data[j])->first_use)
+                list_push(&first_use_vars, d->members.data[j]);
+    }
+    if (first_use_vars.len) /* pthread_once (#493) */
+        buf_puts(&out, "#include <pthread.h>\n");
     for (int i = 0; i < prog->decls.len; i++) {
         Decl *d = prog->decls.data[i];
         find_cstr_stmt(d->body);
@@ -5157,13 +5253,15 @@ char *gen_program(Program *prog, bool with_lines) {
         line("%s", "");
         emit_show(show_types.data[i]);
     }
+    emit_first_use_globals();
     if (global_owners.len) {
         line("%s", "");
         line("static void _kv_free_globals(void)");
         line("{");
         for (int i = 0; i < global_owners.len; i++) {
             Var *v = global_owners.data[i];
-            line("    %s(&%s);", owner_free(v->type), c_name(v->name));
+            line("    %s(&%s);", owner_free(v->type),
+                 v->first_use ? strfmt("_kv_lazy_%s", v->name) : c_name(v->name)); /* never made at exit (#493) */
         }
         line("}");
         if (lib_mode) { /* a module has no main to register them: it does, as it is loaded (#491) */

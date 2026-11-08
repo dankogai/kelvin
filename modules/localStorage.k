@@ -17,19 +17,12 @@
 #import <OS>
 #import <IO>
 
-// JS's Storage: its items in the order set, its file, and whether it was
-// read; the type of localStorage, the one there is
+// JS's Storage: its items in the order set, and its file; the type of
+// localStorage, the one there is
 struct Storage {
     items: Dictionary<String, String>
     file: String
-    read: bool
 }
-
-// the program's own, empty until its first use reads its file, as a global
-// owner is made in a function, not by C's initializer
-var localStorage:Storage
-
-let storageRead():()        // a prototype: it reads by the methods below, defined after them
 
 
 extend Storage {
@@ -55,10 +48,10 @@ extend Storage {
     }
 
     // a Storage read from its file, what is not an object of Strings left out
-    static let opened(file:const String^):Storage {
+    static let opened(file:String):Storage {
         var items = Dictionary<String, String>()
-        if OS.isfile(file^.cstr) {
-            var f = IO(file^.cstr)
+        if OS.isfile(file.cstr) {
+            var f = IO(file.cstr)
             var text = f.string ?? $""
             var j = JSON.parse(&text)
             if j.is(object) {
@@ -67,7 +60,7 @@ extend Storage {
                 }
             }
         }
-        var st:Storage = {.items = items.copy(), .file = file^.copy()}
+        var st:Storage = {.items = items.copy(), .file = file.copy()}
         return st
     }
 
@@ -89,54 +82,43 @@ extend Storage {
 
     // the value of key, or none
     let getItem(key:cstr):String? {
-        storageRead()
-        return localStorage.items[key]          // the global: a let method's self is a copy, made before it was read
+        return self.items[key]
     }
     var setItem(key:cstr, value:cstr) {
-        storageRead()
         self.items[key] = String(value)
         self.save()
     }
     var removeItem(key:cstr) {
-        storageRead()
         if self.items.remove(key) { self.save() }
     }
     var clear() {
-        storageRead()
         self.items.clear()
         self.save()
     }
     // how many items
     let length:i64 {
-        storageRead()
-        return localStorage.items.count
+        return self.items.count
     }
     // the key of item i, in the order set, or none past the last
     let key(i:i64):String? {
-        storageRead()
-        var keys = localStorage.items.keys
+        var keys = self.items.keys
         if i < 0 || i >= keys.count { return none }
         return keys[i].copy()
     }
     // the file it is kept in
     let path:String {
-        storageRead()
-        return localStorage.file.copy()
+        return self.file.copy()
     }
 
     // the same of a String's text, by reference, after the cstr's, which
     // they call
-    let getItem(key:const String^):String? { localStorage.getItem(key^.cstr) }
+    let getItem(key:const String^):String? { self.getItem(key^.cstr) }
     var setItem(key:const String^, value:cstr) { self.setItem(key^.cstr, value) }
     var setItem(key:cstr, value:const String^) { self.setItem(key, value^.cstr) }
     var setItem(key:const String^, value:const String^) { self.setItem(key^.cstr, value^.cstr) }
     var removeItem(key:const String^) { self.removeItem(key^.cstr) }
 }
 
-// localStorage read from its file, once, at its first use
-let storageRead() {
-    if localStorage.read { return }
-    var path:String = Storage.defaultPath()
-    localStorage = Storage.opened(&path)
-    localStorage.read = true
-}
+// the program's own, read from its file at its first use, once, as a global
+// C cannot initialize is (#493)
+var localStorage:Storage = Storage.opened(Storage.defaultPath())
