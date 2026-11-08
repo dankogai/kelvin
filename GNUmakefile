@@ -26,7 +26,9 @@ MOD_LIBS := modules/libkIO.a modules/libkOS.a
 # UnicodeData (#156) is written in Kelvin over its C tables: kelvinc --lib builds
 # modules/UnicodeData.kh and libkUnicodeData from modules/UnicodeData.k and the
 # objects of runtime/unicode_*.c, which tools/gen_unicode.py makes from tools/ucd/
-KELVIN_LIBS := modules/UnicodeData.kh modules/RegExp.kh modules/fetch.kh
+# JSON (#113) is built the same from modules/JSON.k alone (#484), so that a
+# module such as fetch may import it, which a source included twice would not let
+KELVIN_LIBS := modules/UnicodeData.kh modules/RegExp.kh modules/JSON.kh modules/fetch.kh
 # fetch (#482) is written in Kelvin over runtime/fetch.c, an HTTP/1.1 client;
 # HTTPS is OpenSSL's where HAS_SSL=1, the default, which make HAS_SSL=0 or the
 # environment turns off. tools/ssl-flags.sh finds OpenSSL (SSL_CFLAGS and
@@ -126,7 +128,9 @@ build/runtime/fetch.o: runtime/fetch.c modules/kelvin_prelude.h modules/kfetch.h
 	@if [ "$(HAS_SSL)" = 1 ] && [ -z "$(SSL_LIBS_FOUND)" ]; then \
 	    echo "HAS_SSL=1, but no OpenSSL that $(CC) compiles and links was found: install it (libssl-dev, openssl), say where with SSL_CFLAGS and SSL_LIBS, or build with HAS_SSL=0, with no HTTPS" >&2; exit 1; fi
 	$(CC) $(RT_CFLAGS) $(FETCH_CFLAGS) -Imodules -c -o $@ $<
-modules/fetch.kh: modules/fetch.k build/runtime/fetch.o modules/libkfetch.link kelvinc modules/libkelvin.a modules/$(SHLIB)
+modules/JSON.kh: modules/JSON.k kelvinc modules/libkelvin.a modules/$(SHLIB)
+	./kelvinc --lib modules/JSON.k -o modules
+modules/fetch.kh: modules/fetch.k build/runtime/fetch.o modules/libkfetch.link modules/JSON.kh kelvinc modules/libkelvin.a modules/$(SHLIB)
 	./kelvinc --lib modules/fetch.k build/runtime/fetch.o -o modules
 
 build build/runtime:
@@ -155,10 +159,10 @@ vscode:
 install: all
 	install -d $(PREFIX)/bin $(PREFIX)/lib/kelvin/modules
 	install -m 755 kelvinc $(PREFIX)/bin/kelvinc
-	install -m 644 modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/kUnicodeData.h modules/kRegExp.h modules/kfetch.h modules/libkelvin.a $(MOD_LIBS) modules/libkUnicodeData.a modules/libkRegExp.a modules/libkfetch.a modules/libkfetch.link modules/*.k modules/*.kh $(PREFIX)/lib/kelvin/modules/
-	install -m 755 modules/$(SHLIB) $(MOD_SHLIBS) modules/libkUnicodeData.$(SO) modules/libkRegExp.$(SO) modules/libkfetch.$(SO) $(PREFIX)/lib/kelvin/modules/
+	install -m 644 modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/kUnicodeData.h modules/kRegExp.h modules/kfetch.h modules/libkelvin.a $(MOD_LIBS) modules/libkUnicodeData.a modules/libkRegExp.a modules/libkJSON.a modules/libkfetch.a modules/libkfetch.link modules/*.k modules/*.kh $(PREFIX)/lib/kelvin/modules/
+	install -m 755 modules/$(SHLIB) $(MOD_SHLIBS) modules/libkUnicodeData.$(SO) modules/libkRegExp.$(SO) modules/libkJSON.$(SO) modules/libkfetch.$(SO) $(PREFIX)/lib/kelvin/modules/
 
 clean:
-	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh modules/libkfetch.a modules/libkfetch.link modules/fetch.kh runtime/unicode_tables.c runtime/unicode_names.c
+	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh modules/libkJSON.a modules/JSON.kh modules/libkfetch.a modules/libkfetch.link modules/fetch.kh runtime/unicode_tables.c runtime/unicode_names.c
 
 .PHONY: all test asan vsix vscode install clean

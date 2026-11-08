@@ -37,7 +37,7 @@ serve() {
     python3 -I tests/fetch/server.py "$@" < /dev/null > "$1.log" 2>&1 &
     pids="$pids $!"
     i=0
-    while [ ! -s "$1" ] && [ $i -lt 100 ]; do
+    while [ ! -s "$1" ] && [ $i -lt 300 ]; do
         sleep 0.1
         i=$((i + 1))
     done

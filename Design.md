@@ -526,6 +526,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 481 | A fixed array prints as `[a, b]`, as the user chose, as inside a struct, so that it pastes back; it was its address. By print, a template, `$`...`` and `.pretty`; a let array parameter by its declared length, a var one an error; a `[u8](N)` is still its text. kc prints it alike by print, and refuses it in a template and `.pretty` in words | src/codegen.c's shown_array, shown_elem, show_key, need_show, emit_show, show_call; src/parser.c's showable, shown_array, shown_count, shown_value_type; selfhost/gen.k's gen_print_args_to, its template and `.pretty` errors; tests/run/print_fixed.k, tests/error/print_fixed_var_param.k, tests/run/template_bounds.k, tests/error/pretty_scalar.k; selfhost/sample.k; documents/printing.md, documents/arrays.md, selfhost/README.md, README.md | `println(f)` of `[i32](2)` | 2026-11-08 |
 | 482 | `#import <fetch>`, JS's `fetch(url)` as a GET, as the user asked: a `Result<Response, Error>`, Response's status, statusText, ok, url, redirected, headers (names lowercased, repeats joined) and body, `res.text()`; `Error` is `{message}`. An HTTP/1.1 client of its own, following up to 20 redirects; HTTPS is OpenSSL's where built with `HAS_SSL=1`, the default, `make HAS_SSL=0` or the environment turning it off; on in CI on macOS, Ubuntu and FreeBSD. A module's system libraries are `libkM.link` beside it, which kelvinc links after it | runtime/fetch.c, modules/kfetch.h, modules/fetch.k; src/main.c's link_flags; GNUmakefile's HAS_SSL, libkfetch.link and fetch rules, tests/fetch.sh in make test; tools/ssl-flags.sh; .github/workflows/ci.yml's HAS_SSL; .gitignore; tests/fetch.sh, tests/fetch/server.py, tests/fetch/get.k, redirect.k, errors.k, https.k, nossl.k; documents/fetch.md, documents/modules.md, documents/README.md, README.md | `fetch("https://example.com/")` | 2026-11-08 |
 | 483 | `fetch(url, init)`, JS's RequestInit, as the user chose: `struct RequestInit { method: String; headers: Dictionary<String, String>; body: Bytes; redirect: Redirect }`, moved in or by reference, a field left out empty; methods normalized as JS's, CONNECT, TRACE and TRACK refused; headers sent as written, fetch's framing headers refused; a Bytes body with its Content-Length and no Content-Type of fetch's; a GET or HEAD with a body an Error; 303, and 301 or 302 of a POST, ask again by GET; another origin loses the Authorization; `Redirect` is `redirectFollow`, `redirectManual` or `redirectError`. tests/fetch.sh makes its key apart, for macOS's OpenSSL 4 | runtime/fetch.c's kfetch_request, request_once, method_of, pairs, same_origin; modules/kfetch.h, modules/fetch.k; tests/fetch/init.k, tests/fetch/server.py, tests/fetch.sh; documents/fetch.md, README.md | `fetch(url, (RequestInit){.method = $"POST", .body = Bytes("x")})` | 2026-11-08 |
+| 484 | `res.json()`, JS's, as the user chose: the body as a `JSON`, a `Result<JSON, Error>`, an Error where it is not UTF-8 or not JSON, with JSON.parse's message. `make` builds JSON into `JSON.kh` and `libkJSON`, as the user chose, so that `<fetch>` may import it: a `--lib` module that imports a Kelvin source holds its code, and a program importing the source too defined it twice. tests/fetch/server.py names itself without a lookup of DNS, which kept macOS's runner past the wait | modules/fetch.k's json(); GNUmakefile's JSON.kh; .gitignore; tests/fetch/json.k, tests/fetch/server.py, tests/fetch.sh; documents/fetch.md, documents/json.md, documents/modules.md, README.md | `res.json()` | 2026-11-08 |
 
 Notes:
 
@@ -1111,6 +1112,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (484) Agreed details: "push. then go on with res.json()".
+  - `<fetch>` importing `<JSON>`, JSON.k, built a libkfetch that held
+    JSON's code, and a program importing `<JSON>` too failed to link,
+    each of its functions defined twice, as tried.
+  - Asked, the user chose to build JSON as a library, JSON.kh and
+    libkJSON by `make`, as UnicodeData is, over a JSON.parse of a
+    Response in JSON.k; and `res.json()` a `Result<JSON, Error>`, as JS's
+    rejects, over a JSON with its error case.
+  - `#import <JSON>` now finds JSON.kh first and links libkJSON; JSON
+    behaves as before. kc builds none of the 9 programs that import it,
+    and reads no `.kh`, so it loses nothing.
+  - `res.json()` is `res.text()` and then JSON.parse: an Error of a body
+    not UTF-8 is text()'s, one not JSON says
+    `fetch: the body is not JSON: ` and JSON.parse's message.
+  - #483's CI failed on macOS again, a TLS server not started in 10
+    seconds with nothing in its log: HTTPServer's server_bind asks
+    socket.getfqdn for its name, a lookup of DNS that the runner is slow
+    to answer. server.py binds without it, says each step of its start,
+    and dumps where it waits after 8 seconds; tests/fetch.sh waits 30.
+  - Under ASan with the counting allocator, json.k among the fetch
+    programs has no error and nothing live at exit.
 - (483) Agreed details: "push. then go on with fetch(url, init)". Asked,
   the user chose a `RequestInit` struct, JS's name, over separate
   arguments; a body of Bytes alone; `redirect` now, as an enum; and no
@@ -7294,6 +7316,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P493 | Details of #481 | src/codegen.c: shown_array (a count, not pointer_kind 's') in has_show; show_key's fixed_ and the element's C type as a name; need_show's elements; emit_show's `(kv_out *, const void *, size_t, int)` printer; show_call for print's, `.pretty`'s and templates' calls; src/parser.c: showable takes shown_array, recv_type by own_unqualified, `c` the count by shown_count; selfhost/gen.k: gen_print_args_to's `const struct { __typeof__(a) a; } *self`, not of u8 or i8 | provisional |
 | P494 | Details of #482 | runtime/fetch.c: parse_url, url_text, remove_dots, resolve; conn_open (getaddrinfo, 60 s timeouts, SO_NOSIGPIPE), tls_start (TLS_client_method, TLS 1.2, default verify paths, SNI and SSL_set1_host or the IP), conn_write (SIGPIPE held), conn_read; get_once reads to the Content-Length, the last chunk or the close, dechunk, headers as name\0value\0; kfetch_get follows 20 redirects; text_of reads non-UTF-8 as Latin-1; modules/fetch.k: Error, Response, text(), fetch(cstr) and fetch(const String^); src/main.c: link_flags in module_library and link_shared; GNUmakefile: HAS_SSL ?= 1, SSL_CFLAGS_FOUND and SSL_LIBS_FOUND, FETCH_LINK at parse time | provisional |
 | P495 | Details of #483 | runtime/fetch.c: kfetch_request in place of kfetch_get, pair_at, has_pair, drop_pairs, request_once building the request in a Bytes, token_char, is_token, method_of, same_origin, REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR, X509_VERIFY_PARAM_set1_host; modules/fetch.k: Redirect, RequestInit, fetch(cstr, const RequestInit^) and its three overloads, fetch(url) by an init of GET; tests/fetch/server.py: any method by __getattr__, /method, /301 to /308, /elsewhere; tests/fetch.sh: genpkey, no stdin, a log per server | provisional |
+| P496 | Details of #484 | modules/fetch.k: #import <JSON>, Response.json() by text() and JSON.parse(&t.ok); GNUmakefile: modules/JSON.kh by kelvinc --lib, before fetch.kh, which depends on it, libkJSON in install and clean; tests/fetch/server.py: /json, /badjson, Server.server_bind without getfqdn, step(), faulthandler.dump_traceback_later(8); tests/fetch.sh: 300 waits of 0.1 s | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

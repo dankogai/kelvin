@@ -15,6 +15,8 @@ let main():int32 {
         println(res.headers["content-type"])                      // some("text/html; charset=utf-8")
         var text = res.text() ?? $"(not UTF-8)"
         println(text.count, " ", res.body.count)
+        var j = res.json()                                        // a Result<JSON, Error>
+        println(j.is(ok))
     } else {
         println(r.err.message)          // fetch: cannot find the host ..., and the like
     }
@@ -95,6 +97,12 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     chunks, or all until the connection closes.
   - `res.text()` is the body as a String, or an `Error` where it is not
     UTF-8, as `b.string()` is for a Bytes.
+  - `res.json()` (#484) is the body as a `JSON`
+    ([json.md](json.md)), or an `Error` where it is not UTF-8, or not
+    JSON, with `JSON.parse`'s message:
+    `fetch: the body is not JSON: an array: unexpected end of text at 5`.
+    - `<fetch>` imports `<JSON>`, so a program has JSON with it;
+      importing it too is the same module.
 - **An `Error`** is `{message: "..."}`, a struct with a `message`, a
   String that names what went wrong and where:
   - a URL that is not `http://` or `https://`, has a user, a port out of
@@ -123,8 +131,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** `res.json()`, a body that streams, a timeout or an
-  abort of one's own, and cookies.
+- **Not here yet:** a body that streams, a timeout or an abort of one's
+  own, and cookies.
 
 ## Where it lives
 
@@ -154,4 +162,5 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.headers` | a `Dictionary<String, String>`, names lowercased, repeats joined by `", "` |
 | | `.body` | the body, a `Bytes` |
 | | `.text()` | the body as a String, or an `Error` where it is not UTF-8: a `Result<String, Error>` |
+| | `.json()` | the body as a `JSON`, or an `Error` where it is not UTF-8 or not JSON: a `Result<JSON, Error>` (#484) |
 | `Error` | `.message` | what went wrong, a String |

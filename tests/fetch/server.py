@@ -3,6 +3,7 @@ tests/fetch.sh fetches from, on 127.0.0.1 at a free port, which it writes to
 PORTFILE; HTTPS with CERT and KEY. Each path answers one way a server may;
 any method is taken (#483), and /method echoes the request.
 """
+import faulthandler
 import http.server
 import socketserver
 import ssl
@@ -94,6 +95,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 host = "host"
             text = "%s %s|%s|%s\n" % (self.command, self.path, host, self.headers.get("User-Agent"))
             self.send(200, text.encode())
+        elif p == "/json":
+            self.send(200, b'{"name": "kelvin", "tags": ["c", 11], "ok": true, "none": null}',
+                      [("Content-Type", "application/json")])
+        elif p == "/badjson":
+            self.send(200, b'[1, 2', [("Content-Type", "application/json")])
         elif p == "/latin1":
             self.send(200, b"", [("X-Name", "caf\xe9".encode("latin-1").decode("latin-1"))])
         else:
@@ -104,17 +110,36 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    # HTTPServer's asks socket.getfqdn for its name, a lookup of DNS that
+    # may take seconds where a CI runner's resolver is slow
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
+
+def step(what):
+    print("server.py:", what, file=sys.stderr, flush=True)
+
 
 def main():
+    # where a start that is slow waits, in the log tests/fetch.sh shows
+    faulthandler.dump_traceback_later(8, exit=False)
+    step("Python %s, %s" % (sys.version.split()[0], ssl.OPENSSL_VERSION))
     server = Server(("127.0.0.1", 0), Handler)
+    step("listening")
     if len(sys.argv) > 3:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        step("TLS context made")
         ctx.load_cert_chain(sys.argv[2], sys.argv[3], password=lambda: b"")  # never a prompt
+        step("certificate loaded")
         server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        step("TLS on")
     with open(sys.argv[1] + ".tmp", "w") as f:
         f.write(str(server.server_address[1]))
     import os
     os.rename(sys.argv[1] + ".tmp", sys.argv[1])
+    faulthandler.cancel_dump_traceback_later()
     server.serve_forever()
 
 

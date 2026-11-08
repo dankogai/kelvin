@@ -103,10 +103,13 @@ let main():int32 {
   - `RegExp` ([regexp.md](regexp.md), #157) is the same over its engine,
     runtime/regexp.c, on `UnicodeData`, which its header imports, so
     that `#import <RegExp>` links both; the `$/.../` literal needs it.
-  - `math.k` and `JSON.k` stay Kelvin sources, included where they
-    are imported: `JSON.k` is the example of how a module is written in
-    Kelvin. `kelvinc --lib` builds either into a `.kh` and a `libkM.a`
-    where a project wants that.
+  - `JSON` ([json.md](json.md)) is built the same from `JSON.k` alone
+    (#484), so that `fetch` ([fetch.md](fetch.md)) may import it: a
+    module built by `kelvinc --lib` that imports a Kelvin source holds
+    its code, and a program that imports the source too would define
+    it twice, which the linker refuses.
+  - `math.k` stays a Kelvin source, included where it is imported.
+    `JSON.k` is the example of how a module is written in Kelvin.
 
 ### Building a module: `kelvinc --lib M.k`
 

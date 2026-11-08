@@ -11,13 +11,14 @@
 //     var r = fetch("https://example.com/")
 //     if let res = r {
 //         println(res.status, " ", res.headers["content-type"])
-//         println(res.text() ?? $"(not UTF-8)")
+//         println(res.text() ?? $"(not UTF-8)")       // or res.json(), a Result<JSON, Error>
 //     } else {
 //         println(r.err.message)
 //     }
 //     var p = fetch("https://example.com/api", (RequestInit){.method = $"POST",
 //                   .headers = ${"content-type": $"application/json"}, .body = Bytes("{}")})
 #import <kfetch.h> as C
+#import <JSON>
 
 // the engine's functions, by their C names
 let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
@@ -68,6 +69,21 @@ extend Response {
             return err(e)
         }
         return s.ok.copy()
+    }
+
+    // the body as JSON, JS's res.json() (#484): or an Error where it is
+    // not UTF-8, or not JSON, with JSON.parse's message
+    let json():Result<JSON, Error> {
+        var t = self.text()
+        if let err(e) = t {
+            return err(e.copy())
+        }
+        var j = JSON.parse(&t.ok)
+        if j.is(error) {
+            var e:Error = {.message = $`fetch: the body is not JSON: ${j.error}`}
+            return err(e)
+        }
+        return j
     }
 }
 

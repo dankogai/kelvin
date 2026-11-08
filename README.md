@@ -339,6 +339,8 @@ So far the changes from C are these, by topic.
   - `fetch(url, (RequestInit){.method = $"POST", .headers = ..., .body = Bytes("x")})`
     sends a method, headers and a body, and `.redirect` follows, gives or
     refuses a redirect (#483)
+  - `res.json()` is the body as a `JSON`, a `Result<JSON, Error>`;
+    `JSON` is built into `libkJSON` for it (#484)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

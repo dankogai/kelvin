@@ -9255,3 +9255,18 @@ headers and a body, and follows a redirect as JS's does, or gives it, or
 makes it an Error. Details are provisional P495.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 531. res.json()
+
+> push. then go on with res.json()
+
+**Claude** pushed #483; its CI failed on macOS again, a TLS test server
+not started in time, which this number mends: HTTPServer looked up its
+own name in DNS, which the runner is slow to answer. `<fetch>` importing
+`<JSON>`, a source, failed to link beside a program's own JSON, so asked,
+the user chose to build JSON as a library, `JSON.kh` and `libkJSON`, and
+`res.json()` a `Result<JSON, Error>`. `res.json()` is the body as a JSON,
+or an Error where it is not UTF-8, or not JSON. Details are provisional
+P496.
+
+There are 1212 tests, and all pass with clang and with gcc 15.
