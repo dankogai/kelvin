@@ -336,6 +336,9 @@ So far the changes from C are these, by topic.
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is
   OpenSSL's, where `make` builds with `HAS_SSL=1`, the default (#482)
+  - `fetch(url, (RequestInit){.method = $"POST", .headers = ..., .body = Bytes("x")})`
+    sends a method, headers and a body, and `.redirect` follows, gives or
+    refuses a redirect (#483)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

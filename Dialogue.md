@@ -9239,3 +9239,19 @@ system libraries are `libkM.link` beside it. tests/fetch.sh serves
 HTTP and HTTPS on 127.0.0.1. Details are provisional P494.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 530. fetch(url, init)
+
+> push. then go on with fetch(url, init)
+
+**Claude** pushed #482; its CI failed on macOS alone, where the runner's
+OpenSSL 4 left the test's key encrypted and the TLS server waited at a
+prompt, which this number mends. Asked, the user chose a `RequestInit`
+struct, a body of Bytes, `redirect` as an enum, and no Content-Type of
+fetch's; asked again, the enum's cases `redirectFollow`,
+`redirectManual` and `redirectError`, since a C enum's cases are words
+of the program. `fetch(url, init)` sends a method, normalized as JS's,
+headers and a body, and follows a redirect as JS's does, or gives it, or
+makes it an Error. Details are provisional P495.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

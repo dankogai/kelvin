@@ -31,22 +31,30 @@ bad() {
     [ -s "$tmp/log" ] && sed 's/^/    /' "$tmp/log" | head -20
 }
 
-# a server writing its port to $1, with a certificate and key after it for HTTPS
+# a server writing its port to $1, with a certificate and key after it for
+# HTTPS; nothing to read, so that no prompt waits
 serve() {
-    python3 -I tests/fetch/server.py "$@" > "$tmp/server.log" 2>&1 &
+    python3 -I tests/fetch/server.py "$@" < /dev/null > "$1.log" 2>&1 &
     pids="$pids $!"
     i=0
     while [ ! -s "$1" ] && [ $i -lt 100 ]; do
         sleep 0.1
         i=$((i + 1))
     done
-    [ -s "$1" ] || { cat "$tmp/server.log" >&2; echo "tests/fetch.sh: the server did not start" >&2; exit 1; }
+    if [ ! -s "$1" ]; then
+        cat "$1.log" >&2
+        echo "tests/fetch.sh: the server of $* did not start; $(python3 --version 2>&1), $(openssl version 2>&1)" >&2
+        exit 1
+    fi
 }
 
-# a certificate for 127.0.0.1 and localhost, good for a day
+# a certificate for 127.0.0.1 and localhost, good for a day, and its key,
+# made apart, by genpkey, which writes it unencrypted however openssl's req
+# takes -nodes
 certify() {
-    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$tmp/$1.key" -out "$tmp/$1.pem" -days 1 \
-        -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" > "$tmp/log" 2>&1
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tmp/$1.key" > "$tmp/log" 2>&1 &&
+        openssl req -x509 -new -key "$tmp/$1.key" -out "$tmp/$1.pem" -days 1 \
+            -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >> "$tmp/log" 2>&1
 }
 
 serve "$tmp/port"

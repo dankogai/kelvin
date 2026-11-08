@@ -1,7 +1,8 @@
-/* fetch.c - the engine of #import <fetch> (#482): JS's fetch(url), a GET
-   over HTTP/1.1, of our own over sockets, following redirects as JS's does,
-   up to 20. HTTPS is OpenSSL's where libkfetch is built with HAS_SSL=1,
-   which defines KV_HAS_SSL; else an https URL is an error that says so.
+/* fetch.c - the engine of #import <fetch> (#482, #483): JS's fetch(url,
+   init) over HTTP/1.1, of our own over sockets: a method, headers and a
+   body, following redirects as JS's does, up to 20, or not. HTTPS is
+   OpenSSL's where libkfetch is built with HAS_SSL=1, which defines
+   KV_HAS_SSL; else an https URL is an error that says so.
    Each request says Connection: close and Accept-Encoding: identity, so a
    response ends where its Content-Length, its last chunk or the connection
    does, and its body is as sent. */
@@ -331,7 +332,7 @@ static bool tls_start(conn_t *c, const url_t *u, kv_string *error) {
         X509_VERIFY_PARAM_set1_ip_asc(SSL_get0_param(c->ssl), u->host);
     } else {
         SSL_set_tlsext_host_name(c->ssl, u->host); /* SNI */
-        SSL_set1_host(c->ssl, u->host);
+        X509_VERIFY_PARAM_set1_host(SSL_get0_param(c->ssl), u->host, 0); /* SSL_set1_host, deprecated in OpenSSL 4 */
     }
     if (SSL_connect(c->ssl) != 1) {
         long v = SSL_get_verify_result(c->ssl);
@@ -567,28 +568,100 @@ typedef struct {
     char *location;   /* of a redirect, malloc'd */
 } response_t;
 
-/* one GET of u: the response, or false with error */
-static bool get_once(const url_t *u, response_t *r, kv_string *error) {
+/* header pair i of h, name\0value\0 ..., or false past the last */
+static bool pair_at(const kv_bytes *h, size_t *at, const char **name, const char **value) {
+    if (*at >= h->count)
+        return false;
+    *name = (const char *)h->at + *at;
+    *at += strlen(*name) + 1;
+    if (*at >= h->count)
+        return false;
+    *value = (const char *)h->at + *at;
+    *at += strlen(*value) + 1;
+    return true;
+}
+
+static bool has_pair(const kv_bytes *h, const char *name) {
+    size_t at = 0;
+    const char *k, *v;
+    while (pair_at(h, &at, &k, &v))
+        if (!strcasecmp(k, name))
+            return true;
+    return false;
+}
+
+/* h without the pairs named in names, a NULL-ended list */
+static void drop_pairs(kv_bytes *h, const char *const *names) {
+    kv_bytes kept = kv_bytes_new();
+    size_t at = 0;
+    const char *k, *v;
+    while (pair_at(h, &at, &k, &v)) {
+        bool drop = false;
+        for (int i = 0; names[i]; i++)
+            drop = drop || !strcasecmp(k, names[i]);
+        if (!drop) {
+            kv_bytes_append(&kept, k, strlen(k) + 1);
+            kv_bytes_append(&kept, v, strlen(v) + 1);
+        }
+    }
+    kv_bytes_assign(h, kept);
+}
+
+static void put(kv_bytes *b, const char *s) { kv_bytes_append(b, s, strlen(s)); }
+
+/* one request of u: method, the caller's header pairs, then fetch's own
+   where the caller gave none, and the body; the response, or false with
+   error */
+static bool request_once(const url_t *u, const char *method, const kv_bytes *headers, const kv_bytes *body,
+                         response_t *r, kv_string *error) {
     conn_t c;
     if (!conn_open(&c, u, error)) {
         conn_close(&c);
         return false;
     }
     bool v6 = strchr(u->host, ':') != NULL;
-    size_t n = strlen(u->target) + strlen(u->host) + 256;
-    char *req = malloc(n);
-    if (!req)
-        abort();
-    snprintf(req, n,
-             "GET %s HTTP/1.1\r\nHost: %s%s%s%s%s\r\nUser-Agent: Kelvin-fetch\r\nAccept: */*\r\n"
-             "Accept-Encoding: identity\r\nConnection: close\r\n\r\n",
-             u->target, v6 ? "[" : "", u->host, v6 ? "]" : "", u->port_given ? ":" : "", u->port_given ? u->port : "");
-    bool sent = conn_write(&c, req, strlen(req), error);
-    free(req);
+    kv_bytes q = kv_bytes_new();
+    put(&q, method);
+    put(&q, " ");
+    put(&q, u->target);
+    put(&q, " HTTP/1.1\r\nHost: ");
+    put(&q, v6 ? "[" : "");
+    put(&q, u->host);
+    put(&q, v6 ? "]" : "");
+    if (u->port_given) {
+        put(&q, ":");
+        put(&q, u->port);
+    }
+    put(&q, "\r\n");
+    size_t at = 0;
+    const char *k, *v;
+    while (pair_at(headers, &at, &k, &v)) {
+        put(&q, k);
+        put(&q, ": ");
+        put(&q, v);
+        put(&q, "\r\n");
+    }
+    if (!has_pair(headers, "user-agent"))
+        put(&q, "User-Agent: Kelvin-fetch\r\n");
+    if (!has_pair(headers, "accept"))
+        put(&q, "Accept: */*\r\n");
+    if (!has_pair(headers, "accept-encoding"))
+        put(&q, "Accept-Encoding: identity\r\n");
+    if (body->count || !strcmp(method, "POST") || !strcmp(method, "PUT")) { /* a POST or PUT of none says 0, as JS's */
+        char len[32];
+        snprintf(len, sizeof len, "Content-Length: %zu\r\n", body->count);
+        put(&q, len);
+    }
+    put(&q, "Connection: close\r\n\r\n");
+    if (body->count)
+        kv_bytes_append(&q, body->at, body->count);
+    bool sent = conn_write(&c, (const char *)q.at, q.count, error);
+    kv_bytes_free(&q);
     if (!sent) {
         conn_close(&c);
         return false;
     }
+    bool head = !strcmp(method, "HEAD");
     kv_bytes in = kv_bytes_new();
     char buf[16384];
     size_t start = 0, end = 0;  /* the final header block, past any 1xx */
@@ -648,7 +721,7 @@ static bool get_once(const url_t *u, response_t *r, kv_string *error) {
                 for (size_t i = 0; i < hl && cl[i] >= '0' && cl[i] <= '9' && length < (1ll << 50); i++)
                     length = length * 10 + (cl[i] - '0');
             }
-            bodyless = status == 204 || status == 304;
+            bodyless = head || status == 204 || status == 304; /* a HEAD's answer has none, whatever it says */
         }
         if (!ok)
             break;
@@ -728,25 +801,127 @@ static bool get_once(const url_t *u, response_t *r, kv_string *error) {
     return ok;
 }
 
-bool kfetch_get(const uint8_t *url, int64_t *status, kv_string *status_text, kv_string *final_url,
-                int64_t *redirects, kv_bytes *headers, kv_bytes *body, kv_string *error) {
+/* whether c may be in a token, HTTP's word for a method or a header name */
+static bool token_char(unsigned char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (c && strchr("!#$%&'*+-.^_`|~", c));
+}
+
+static bool is_token(const char *s) {
+    if (!*s)
+        return false;
+    for (; *s; s++)
+        if (!token_char((unsigned char)*s))
+            return false;
+    return true;
+}
+
+/* the method as it is sent: GET where none is given; DELETE, GET, HEAD,
+   OPTIONS, POST and PUT in capitals however they are written, as JS's
+   fetch normalizes them, the rest as written; NULL, with error, where it
+   is not a token, or is CONNECT, TRACE or TRACK, which JS's refuses */
+static char *method_of(const char *m, kv_string *error) {
+    if (!*m)
+        return copy_text("GET");
+    if (!is_token(m)) {
+        fail(error, "fetch: a method is a word of letters, digits and !#$%%&'*+-.^_`|~, and this is %s", m);
+        return NULL;
+    }
+    static const char *const forbidden[] = {"CONNECT", "TRACE", "TRACK", NULL};
+    for (int i = 0; forbidden[i]; i++)
+        if (!strcasecmp(m, forbidden[i])) {
+            fail(error, "fetch: the method %s is not fetch's to send", m);
+            return NULL;
+        }
+    static const char *const normal[] = {"DELETE", "GET", "HEAD", "OPTIONS", "POST", "PUT", NULL};
+    for (int i = 0; normal[i]; i++)
+        if (!strcasecmp(m, normal[i]))
+            return copy_text(normal[i]);
+    return copy_text(m);
+}
+
+/* the origin of u, scheme, host and port, as a redirect compares it */
+static bool same_origin(const url_t *a, const url_t *b) {
+    return a->https == b->https && !strcasecmp(a->host, b->host) && !strcmp(a->port, b->port);
+}
+
+enum { REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR }; /* RequestInit's redirect, its enum's values */
+
+bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_bytes *headers_given,
+                    const kv_bytes *body_given, int64_t redirect, int64_t *status, kv_string *status_text,
+                    kv_string *final_url, int64_t *redirects, kv_bytes *headers, kv_bytes *body, kv_string *error) {
+    /* the caller's headers: names tokens, values on one line, and none
+       that fetch sends itself, as the framing of the request is its own */
+    static const char *const own[] = {"host", "content-length", "connection", "transfer-encoding", "keep-alive",
+                                      "upgrade", "te", "trailer", NULL};
+    size_t at = 0;
+    const char *k, *v;
+    while (pair_at(headers_given, &at, &k, &v)) {
+        if (!is_token(k)) {
+            fail(error, "fetch: a header's name is a word of letters, digits and !#$%%&'*+-.^_`|~, and this is '%s'", k);
+            return false;
+        }
+        if (strpbrk(v, "\r\n")) {
+            fail(error, "fetch: the header '%s' has a line break in its value", k);
+            return false;
+        }
+        for (int i = 0; own[i]; i++)
+            if (!strcasecmp(k, own[i])) {
+                fail(error, "fetch: the header '%s' is fetch's own to send", k);
+                return false;
+            }
+    }
+    char *method = method_of((const char *)method_given, error);
+    if (!method)
+        return false;
+    if (body_given->count && (!strcmp(method, "GET") || !strcmp(method, "HEAD"))) {
+        fail(error, "fetch: a %s request has no body", method);
+        free(method);
+        return false;
+    }
+    kv_bytes hs = kv_bytes_copy(headers_given), bs = kv_bytes_copy(body_given);
     char *current = copy_text((const char *)url);
+    bool ok = false;
     for (int hops = 0;; hops++) {
         url_t u;
-        if (!parse_url(current, &u, error)) {
-            free(current);
-            return false;
-        }
+        if (!parse_url(current, &u, error))
+            break;
         response_t r = {0};
-        if (!get_once(&u, &r, error)) {
+        if (!request_once(&u, method, &hs, &bs, &r, error)) {
             free(u.target);
-            free(current);
-            return false;
+            break;
         }
-        bool redirect = (r.status == 301 || r.status == 302 || r.status == 303 || r.status == 307 || r.status == 308) &&
-                        r.location && r.location[0];
-        if (redirect && hops < MAX_REDIRECTS) {
+        bool moved = (r.status == 301 || r.status == 302 || r.status == 303 || r.status == 307 || r.status == 308) &&
+                     r.location && r.location[0] && redirect != REDIRECT_MANUAL;
+        if (moved && redirect == REDIRECT_ERROR) {
+            char *here = url_text(&u);
+            fail(error, "fetch: %s redirected to %s, and the redirect was to be an error", here, r.location);
+            free(here);
+        } else if (moved && hops >= MAX_REDIRECTS) {
+            fail(error, "fetch: more than %d redirects, the last to %s", MAX_REDIRECTS, r.location);
+        } else if (moved) {
+            /* JS's: a 303 asks again by GET, as a 301 or 302 does a POST,
+               without the body and the headers about it; another origin
+               is not sent the Authorization */
             char *next = resolve(&u, r.location);
+            if ((r.status == 303 && strcmp(method, "GET") && strcmp(method, "HEAD")) ||
+                ((r.status == 301 || r.status == 302) && !strcmp(method, "POST"))) {
+                free(method);
+                method = copy_text("GET");
+                kv_bytes_clear(&bs);
+                static const char *const about_body[] = {"content-type", "content-encoding", "content-language",
+                                                         "content-location", NULL};
+                drop_pairs(&hs, about_body);
+            }
+            url_t to;
+            kv_string ignored = kv_string_new();
+            if (parse_url(next, &to, &ignored)) {
+                if (!same_origin(&u, &to)) {
+                    static const char *const credentials[] = {"authorization", NULL};
+                    drop_pairs(&hs, credentials);
+                }
+                free(to.target);
+            }
+            kv_string_free(&ignored);
             kv_string_free(&r.status_text);
             kv_bytes_free(&r.headers);
             kv_bytes_free(&r.body);
@@ -755,30 +930,32 @@ bool kfetch_get(const uint8_t *url, int64_t *status, kv_string *status_text, kv_
             free(current);
             current = next;
             continue;
-        }
-        if (redirect) {
-            fail(error, "fetch: more than %d redirects, the last to %s", MAX_REDIRECTS, r.location);
-            kv_string_free(&r.status_text);
-            kv_bytes_free(&r.headers);
-            kv_bytes_free(&r.body);
+        } else {
+            char *final = url_text(&u);
+            *status = r.status;
+            kv_string_assign(status_text, r.status_text);
+            kv_string_assign(final_url, text_of(final, strlen(final)));
+            *redirects = hops;
+            kv_bytes_assign(headers, r.headers);
+            kv_bytes_assign(body, r.body);
+            free(final);
             free(r.location);
             free(u.target);
-            free(current);
-            return false;
+            ok = true;
+            break;
         }
-        char *final = url_text(&u);
-        *status = r.status;
-        kv_string_assign(status_text, r.status_text);
-        kv_string_assign(final_url, text_of(final, strlen(final)));
-        *redirects = hops;
-        kv_bytes_assign(headers, r.headers);
-        kv_bytes_assign(body, r.body);
-        free(final);
+        kv_string_free(&r.status_text);
+        kv_bytes_free(&r.headers);
+        kv_bytes_free(&r.body);
         free(r.location);
         free(u.target);
-        free(current);
-        return true;
+        break;
     }
+    free(current);
+    free(method);
+    kv_bytes_free(&hs);
+    kv_bytes_free(&bs);
+    return ok;
 }
 
 bool kfetch_header(const kv_bytes *headers, int64_t i, kv_string *name, kv_string *value) {

@@ -1,6 +1,6 @@
 # fetch: `#import <fetch>`
 
-JS's `fetch(url)` as a GET over HTTP and HTTPS, giving a `Result<Response, Error>`.
+JS's `fetch(url)` and `fetch(url, init)` over HTTP and HTTPS, giving a `Result<Response, Error>`.
 
 ## Synopsis
 
@@ -18,14 +18,18 @@ let main():int32 {
     } else {
         println(r.err.message)          // fetch: cannot find the host ..., and the like
     }
+    var p = fetch("https://example.com/api", (RequestInit){.method = $"POST",
+                  .headers = ${"content-type": $"application/json"}, .body = Bytes("{\"a\": 1}")})
+    println(p.is(ok))
     return 0
 }
 ```
 
 ## Description
 
-`#import <fetch>` (#482) brings in `fetch(url)`, JS's fetch as a GET:
-it asks for the URL, follows redirects, and gives what the server
+`#import <fetch>` (#482) brings in `fetch(url)`, JS's fetch as a GET,
+and `fetch(url, init)` (#483), a request as a `RequestInit` says: it
+asks for the URL, follows redirects, and gives what the server
 answered, a `Response`, or what went wrong, an `Error`, as a
 `Result<Response, Error>` that the caller faces before reading on.
 
@@ -45,7 +49,37 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     with `.` and `..` taken out.
   - The request says `Connection: close`, `Accept: */*`,
     `Accept-Encoding: identity`, so the body comes as it is, and
-    `User-Agent: Kelvin-fetch`.
+    `User-Agent: Kelvin-fetch`, the last three where `init` gives none.
+- **`fetch(url, init)`** (#483) takes a `RequestInit`, JS's: written in
+  the call and moved in, `(RequestInit){.method = $"POST", ...}`, or by
+  reference, `&init`; a field left out is empty.
+  - `method`, a String, `""` for GET. DELETE, GET, HEAD, OPTIONS, POST
+    and PUT are sent in capitals however they are written, as JS's
+    fetch does; any other, `patch` among them, as written. CONNECT,
+    TRACE and TRACK, and a method that is not a word, are an Error.
+  - `headers`, a `Dictionary<String, String>`, sent as written.
+    - A name that is not a word, or a value with a line break, is an
+      Error.
+    - Host, Content-Length, Connection, Transfer-Encoding, Keep-Alive,
+      Upgrade, TE and Trailer are fetch's own, and an Error.
+    - User-Agent, Accept and Accept-Encoding take the place of
+      fetch's.
+  - `body`, a `Bytes`, empty for none: `Bytes("text")`, `Bytes(&s)`.
+    - It goes with its `Content-Length`; a POST or PUT of none says 0,
+      as JS's does.
+    - No Content-Type is sent for it: write one in `headers`.
+    - A GET or HEAD with a body is an Error.
+  - `redirect`, a `Redirect`: `redirectFollow`, the default;
+    `redirectManual`, which gives the 3xx itself as the Response; or
+    `redirectError`, which makes a redirect an Error.
+    - C's enum, whose cases are words of the program, so each begins
+      with `redirect`.
+  - Following a redirect, as JS's fetch does: a 303 asks again by GET,
+    as a 301 or 302 does a POST, without the body and its Content-Type;
+    a 307 or 308 asks again as it asked.
+    - A redirect to another origin, another scheme, host or port, is
+      not sent the Authorization.
+  - A HEAD's Response has no body, whatever its Content-Length says.
 - **A `Response`** is a struct that owns its parts:
   - `status`, an `i64`, and `statusText`, the status line's text, as
     `404` and `Not Found`; `ok` is whether the status is 200 to 299.
@@ -68,7 +102,9 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - a host not found, a connection refused, no answer in 60 seconds;
   - a certificate not trusted, or TLS that fails;
   - an answer that is not HTTP/1.1, a body cut short;
-  - more than 20 redirects;
+  - a method or a header `init` may not have, a GET's body;
+  - more than 20 redirects, or one where `redirect` is
+    `redirectError`;
   - HTTPS where it is not built in.
   - A status of 404 or 500 is no Error: it is a Response, whose `ok` is
     false, as JS has it.
@@ -87,8 +123,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** a method other than GET, a request's headers or
-  body, and `res.json()`, which wait for `fetch(url, init)`.
+- **Not here yet:** `res.json()`, a body that streams, a timeout or an
+  abort of one's own, and cookies.
 
 ## Where it lives
 
@@ -105,6 +141,11 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | On | Property or method | Gives |
 |---|---|---|
 | — | `fetch(url)` | a `Result<Response, Error>`: a GET of `url`, a `cstr` or `&s` of a String, following redirects |
+| | `fetch(url, init)` | the same of a request as `init`, a `RequestInit` moved in or `&init`, says (#483) |
+| `RequestInit` | `.method` | the method, a String, `""` for GET |
+| | `.headers` | the request's headers, a `Dictionary<String, String>` |
+| | `.body` | the request's body, a `Bytes`, empty for none |
+| | `.redirect` | `redirectFollow`, `redirectManual` or `redirectError`, a `Redirect` |
 | `Response` | `.status` | the status, an `i64` |
 | | `.statusText` | the status line's text, a String |
 | | `.ok` | whether the status is 200 to 299 |
