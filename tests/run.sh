@@ -242,7 +242,9 @@ done
 
 for f in tests/error/*.k; do
     [ -e "$f" ] || continue
-    want=$(sed -n 's|^[[:space:]]*// error: ||p' "$f" | head -1)
+    # bytes, not characters: a test of invalid UTF-8 (#295) holds byte 0xFF,
+    # where a UTF-8 locale's sed (macOS) stops, and want would be empty
+    want=$(LC_ALL=C sed -n 's|^[[:space:]]*// error: ||p' "$f" | head -1)
     if "$KELVINC" -o "$tmp/prog" "$f" > "$tmp/log" 2>&1; then
         bad "$f" "built, but should have been rejected"
     elif ! grep -qF -- "$want" "$tmp/log"; then

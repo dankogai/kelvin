@@ -525,6 +525,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 480 | A walk of uchrs stops at `uchr(0)`, as the user chose: `for c in f` of a `[uchr](N)` and `for c in p` of a `uchr^`, where kelvinc's C compared a struct with 0. A written type converts each element as `T(v)` does: `for n:u32 in s` a uchr's codepoint, `for c:uchr in xs` `uchr(x)` of an integer; of a float or a bool it is an error. kc walks a `[uchr](N)` alike | src/codegen.c's for-each stop, each_value and a String's walk; src/parser.c's for-each; selfhost/gen.k's fixed walk; tests/run/uchr_walk.k, tests/error/uchr_each_of_float.k; selfhost/sample.k; documents/flow-controls.md, documents/strings.md, selfhost/README.md, README.md | `for c in f` of `[uchr](4)` | 2026-11-08 |
 | 481 | A fixed array prints as `[a, b]`, as the user chose, as inside a struct, so that it pastes back; it was its address. By print, a template, `$`...`` and `.pretty`; a let array parameter by its declared length, a var one an error; a `[u8](N)` is still its text. kc prints it alike by print, and refuses it in a template and `.pretty` in words | src/codegen.c's shown_array, shown_elem, show_key, need_show, emit_show, show_call; src/parser.c's showable, shown_array, shown_count, shown_value_type; selfhost/gen.k's gen_print_args_to, its template and `.pretty` errors; tests/run/print_fixed.k, tests/error/print_fixed_var_param.k, tests/run/template_bounds.k, tests/error/pretty_scalar.k; selfhost/sample.k; documents/printing.md, documents/arrays.md, selfhost/README.md, README.md | `println(f)` of `[i32](2)` | 2026-11-08 |
 | 482 | `#import <fetch>`, JS's `fetch(url)` as a GET, as the user asked: a `Result<Response, Error>`, Response's status, statusText, ok, url, redirected, headers (names lowercased, repeats joined) and body, `res.text()`; `Error` is `{message}`. An HTTP/1.1 client of its own, following up to 20 redirects; HTTPS is OpenSSL's where built with `HAS_SSL=1`, the default, `make HAS_SSL=0` or the environment turning it off; on in CI on macOS, Ubuntu and FreeBSD. A module's system libraries are `libkM.link` beside it, which kelvinc links after it | runtime/fetch.c, modules/kfetch.h, modules/fetch.k; src/main.c's link_flags; GNUmakefile's HAS_SSL, libkfetch.link and fetch rules, tests/fetch.sh in make test; tools/ssl-flags.sh; .github/workflows/ci.yml's HAS_SSL; .gitignore; tests/fetch.sh, tests/fetch/server.py, tests/fetch/get.k, redirect.k, errors.k, https.k, nossl.k; documents/fetch.md, documents/modules.md, documents/README.md, README.md | `fetch("https://example.com/")` | 2026-11-08 |
+| 483 | tests/run.sh reads an error test's `// error:` text byte by byte, with `LC_ALL=C`, as the user asked: under a UTF-8 locale macOS's sed stopped at tests/error/source_invalid_utf8.k's byte 0xFF with "illegal byte sequence", the text came out empty, and `grep -qF ""` passed whatever kelvinc said. What the check compares is unchanged | tests/run.sh | `want=$(LC_ALL=C sed ...)` | 2026-11-08 |
 
 Notes:
 
@@ -1110,6 +1111,17 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (483) Agreed details: macOS's clang job printed `sed: RE error:
+  illegal byte sequence` in tests/run.sh (runs 42447639814 and
+  42449616790), and all tests passed.
+  - The sed was the `// error:` one, over source_invalid_utf8.k (#295),
+    whose string holds byte 0xFF, the only test file not UTF-8.
+  - Its empty text made the check vacuous: with the old sed, a copy of
+    the test expecting `NOT a Kelvin source...` passed; now it fails.
+  - Only that sed runs with `LC_ALL=C`; the `// out:`, `// c:` and
+    `// exit:` seds read UTF-8 files alone, and are left as they are.
+  - Under en_US.UTF-8 the message went from 1 to 0, and 1212 tests
+    pass, as before.
 - (482) Agreed details: "push. Then let us implement `fetch()` a la JS":
   a module, `#import <fetch>`, giving `Result<Response,Error>`, with
   `HAS_SSL` a make option and an environment variable for HTTPS, on in

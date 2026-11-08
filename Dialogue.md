@@ -9239,3 +9239,26 @@ system libraries are `libkM.link` beside it. tests/fetch.sh serves
 HTTP and HTTPS on 127.0.0.1. Details are provisional P494.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 530. A byte the sed did not read
+
+> In the Kelvin repo, the GitHub Actions job "macos-latest / clang" prints
+> `sed: RE error: illegal byte sequence` during `./tests/run.sh` (seen in
+> runs 42447639814 and 42449616790). The tests still report all passed, so
+> some check may be silently skipped. Find which sed invocation ... hits a
+> test file with bytes that are not valid UTF-8 ... and make it byte-safe,
+> e.g. by running that sed with LC_ALL=C, without changing what the check
+> compares.
+
+**Claude** found it: the `// error:` sed in tests/run.sh, over
+tests/error/source_invalid_utf8.k, whose string holds byte 0xFF (#295).
+macOS's sed stopped there under a UTF-8 locale, the expected text came out
+empty, and `grep -qF ""` passed whatever kelvinc said. That sed now runs
+with `LC_ALL=C`; with the old sed a copy expecting the wrong text passed,
+and now it fails. Under en_US.UTF-8 the message went from 1 to 0.
+
+> Yes, make it #530
+
+It became #483, the next change; 530 is this entry's number.
+
+There are 1212 tests, and all pass with clang.
