@@ -382,6 +382,366 @@ static void aborted_error(int64_t id, kv_string *error) {
         fail(error, "fetch: aborted");
 }
 
+/* ---------- cookies (#489) ---------- */
+
+/* A CookieJar's cookies, by its id, 1 up, 0 for none, as RFC 6265 keeps
+   them: a Domain must match the host and hold a dot, not the Public Suffix
+   List's check; a Secure cookie comes only over https, as RFC 6265bis has
+   it. Kept for the program's life, freed at its exit, as aborts are. */
+typedef struct {
+    char *name, *value, *domain, *path; /* domain lowercased, without a leading dot */
+    bool host_only, secure;
+    double expires;                     /* seconds since the epoch, 0 for a session's */
+    uint64_t order;                     /* when it was first set, for the order sent */
+} cookie_t;
+typedef struct {
+    cookie_t *at;
+    size_t count, room;
+} jar_t;
+static pthread_mutex_t jars_lock = PTHREAD_MUTEX_INITIALIZER;
+static jar_t *jars;
+static size_t jars_count, jars_room;
+static uint64_t cookies_set;
+
+static void cookie_free(cookie_t *c) {
+    free(c->name);
+    free(c->value);
+    free(c->domain);
+    free(c->path);
+}
+
+static void jars_free(void) {
+    pthread_mutex_lock(&jars_lock);
+    for (size_t i = 0; i < jars_count; i++) {
+        for (size_t k = 0; k < jars[i].count; k++)
+            cookie_free(&jars[i].at[k]);
+        free(jars[i].at);
+    }
+    free(jars);
+    jars = NULL;
+    jars_count = jars_room = 0;
+    pthread_mutex_unlock(&jars_lock);
+}
+
+int64_t kfetch_jar_new(void) {
+    pthread_mutex_lock(&jars_lock);
+    if (!jars_room)
+        atexit(jars_free);
+    if (jars_count == jars_room) {
+        size_t room = jars_room ? jars_room * 2 : 8;
+        jar_t *grown = realloc(jars, room * sizeof *grown);
+        if (!grown)
+            abort();
+        jars = grown;
+        jars_room = room;
+    }
+    jars[jars_count] = (jar_t){NULL, 0, 0};
+    int64_t id = (int64_t)++jars_count;
+    pthread_mutex_unlock(&jars_lock);
+    return id;
+}
+
+static jar_t *jar_of(int64_t id) { return id >= 1 && (uint64_t)id <= jars_count ? &jars[id - 1] : NULL; }
+
+static char *text_copy(const char *p, size_t n) {
+    char *s = malloc(n + 1);
+    if (!s)
+        abort();
+    memcpy(s, p, n);
+    s[n] = 0;
+    return s;
+}
+
+/* p to e without the spaces and tabs at either end */
+static void trim(const char **p, const char **e) {
+    while (*p < *e && (**p == ' ' || **p == '\t'))
+        (*p)++;
+    while (*e > *p && ((*e)[-1] == ' ' || (*e)[-1] == '\t'))
+        (*e)--;
+}
+
+static bool is_address(const char *host) {
+    struct in6_addr a6;
+    struct in_addr a4;
+    return inet_pton(AF_INET, host, &a4) == 1 || inet_pton(AF_INET6, host, &a6) == 1;
+}
+
+/* RFC 6265's domain-match: host is domain, or ends with "." and domain,
+   and is a name, not an address */
+static bool domain_match(const char *host, const char *domain) {
+    if (!strcasecmp(host, domain))
+        return true;
+    size_t h = strlen(host), d = strlen(domain);
+    return h > d && host[h - d - 1] == '.' && !strcasecmp(host + h - d, domain) && !is_address(host);
+}
+
+/* RFC 6265's path-match of a request's path and a cookie's */
+static bool path_match(const char *path, const char *cookie) {
+    size_t n = strlen(cookie);
+    if (strncmp(path, cookie, n))
+        return false;
+    return path[n] == 0 || path[n] == '?' || cookie[n - 1] == '/' || path[n] == '/';
+}
+
+/* the directory of a request's path, RFC 6265's default-path */
+static char *default_path(const char *target) {
+    size_t n = strcspn(target, "?");
+    if (n == 0 || target[0] != '/')
+        return text_copy("/", 1);
+    size_t last = n;
+    while (last > 0 && target[last - 1] != '/')
+        last--;
+    return last <= 1 ? text_copy("/", 1) : text_copy(target, last - 1);
+}
+
+/* a cookie's Expires, by RFC 6265's algorithm, as seconds since the epoch,
+   or -1 where it is not a date */
+static double cookie_date(const char *p, const char *e) {
+    int hour = -1, minute = 0, second = 0, day = -1, month = -1, year = -1;
+    static const char *const months = "janfebmaraprmayjunjulaugsepoctnovdec";
+    while (p < e) {
+        while (p < e && !((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == ':'))
+            p++;
+        const char *t = p;
+        while (p < e && ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == ':'))
+            p++;
+        size_t n = (size_t)(p - t);
+        if (!n)
+            continue;
+        int h, m, s;
+        char tail;
+        char tok[32];
+        snprintf(tok, sizeof tok, "%.*s", (int)(n < 31 ? n : 31), t);
+        if (hour < 0 && strchr(tok, ':') && sscanf(tok, "%2d:%2d:%2d%c", &h, &m, &s, &tail) == 3) {
+            hour = h, minute = m, second = s;
+        } else if (day < 0 && n <= 2 && tok[0] >= '0' && tok[0] <= '9' && sscanf(tok, "%2d%c", &h, &tail) == 1) {
+            day = h;
+        } else if (month < 0 && n >= 3) {
+            for (int i = 0; i < 12; i++)
+                if (!strncasecmp(tok, months + 3 * i, 3))
+                    month = i;
+            if (month < 0 && year < 0 && n <= 4 && sscanf(tok, "%4d%c", &h, &tail) == 1)
+                year = h;
+        } else if (year < 0 && n >= 2 && n <= 4 && sscanf(tok, "%4d%c", &h, &tail) == 1) {
+            year = h;
+        }
+    }
+    if (year >= 70 && year <= 99)
+        year += 1900;
+    else if (year >= 0 && year <= 69)
+        year += 2000;
+    if (hour < 0 || day < 1 || day > 31 || month < 0 || year < 1601 || hour > 23 || minute > 59 || second > 59)
+        return -1;
+    /* days since 1970-01-01, by the civil calendar */
+    int y = year - (month < 2), mp = (month + 10) % 12;
+    long era = (y >= 0 ? y : y - 399) / 400;
+    long yoe = y - era * 400, doy = (153 * mp + 2) / 5 + day - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    long days = era * 146097 + doe - 719468;
+    return (double)days * 86400 + hour * 3600 + minute * 60 + second;
+}
+
+/* a Set-Cookie from u, kept in j or dropped as RFC 6265 says: false where
+   it was not taken */
+static bool jar_store(jar_t *j, const url_t *u, const char *text) {
+    const char *end = text + strlen(text), *semi = strchr(text, ';');
+    const char *pair_end = semi ? semi : end, *eq = memchr(text, '=', (size_t)(pair_end - text));
+    if (!eq)
+        return false;
+    const char *np = text, *ne = eq, *vp = eq + 1, *ve = pair_end;
+    trim(&np, &ne);
+    trim(&vp, &ve);
+    if (np == ne)
+        return false;
+    cookie_t c = {0};
+    double now = (double)time(NULL), expires = 0, max_age = 0;
+    bool has_max_age = false, has_expires = false;
+    char *domain = NULL, *path = NULL;
+    for (const char *a = semi; a && a < end;) {
+        a++;
+        const char *ae = strchr(a, ';');
+        if (!ae)
+            ae = end;
+        const char *ke = memchr(a, '=', (size_t)(ae - a)), *kp = a;
+        const char *kend = ke ? ke : ae, *av = ke ? ke + 1 : ae, *avend = ae;
+        trim(&kp, &kend);
+        trim(&av, &avend);
+        size_t kn = (size_t)(kend - kp);
+        if (kn == 7 && !strncasecmp(kp, "expires", 7)) {
+            double d = cookie_date(av, avend);
+            if (d >= 0)
+                expires = d, has_expires = true;
+        } else if (kn == 7 && !strncasecmp(kp, "max-age", 7)) {
+            char num[32];
+            snprintf(num, sizeof num, "%.*s", (int)((size_t)(avend - av) < 31 ? avend - av : 31), av);
+            char *stop;
+            long long s = strtoll(num, &stop, 10);
+            if (*num && !*stop)
+                max_age = (double)s, has_max_age = true;
+        } else if (kn == 6 && !strncasecmp(kp, "domain", 6) && avend > av) {
+            if (*av == '.')
+                av++;
+            free(domain);
+            domain = text_copy(av, (size_t)(avend - av));
+            for (char *d = domain; *d; d++)
+                *d = (char)(*d >= 'A' && *d <= 'Z' ? *d + 32 : *d);
+        } else if (kn == 4 && !strncasecmp(kp, "path", 4) && avend > av && *av == '/') {
+            free(path);
+            path = text_copy(av, (size_t)(avend - av));
+        } else if (kn == 6 && !strncasecmp(kp, "secure", 6)) {
+            c.secure = true;
+        }
+        a = ae;
+    }
+    bool taken = true;
+    if (c.secure && !u->https) { /* RFC 6265bis: only a secure origin sets one */
+        taken = false;
+    } else if (domain && strcasecmp(domain, u->host)) {
+        /* another domain than the host's: it must match the host, and hold a
+           dot, a suffix of one label, as com, refused */
+        taken = strchr(domain, '.') && domain_match(u->host, domain) && !is_address(u->host);
+    }
+    if (!taken) {
+        free(domain);
+        free(path);
+        return false;
+    }
+    c.host_only = !domain || !strcasecmp(domain, u->host);
+    c.domain = c.host_only ? text_copy(u->host, strlen(u->host)) : domain;
+    if (c.host_only) {
+        free(domain);
+        for (char *d = c.domain; *d; d++)
+            *d = (char)(*d >= 'A' && *d <= 'Z' ? *d + 32 : *d);
+    }
+    c.path = path ? path : default_path(u->target);
+    c.name = text_copy(np, (size_t)(ne - np));
+    c.value = text_copy(vp, (size_t)(ve - vp));
+    /* 0 is a session's: a date at or before the epoch is gone, as one past is */
+    c.expires = has_max_age ? (max_age <= 0 ? -1 : now + max_age) : has_expires ? (expires > 0 ? expires : -1) : 0;
+    bool gone = c.expires != 0 && c.expires <= now;
+    for (size_t i = 0; i < j->count; i++) { /* the same name, domain and path is replaced, or removed */
+        cookie_t *o = &j->at[i];
+        if (!strcmp(o->name, c.name) && !strcmp(o->domain, c.domain) && !strcmp(o->path, c.path)) {
+            c.order = o->order;
+            cookie_free(o);
+            j->at[i] = j->at[--j->count];
+            break;
+        }
+    }
+    if (gone) {
+        cookie_free(&c);
+        return true;
+    }
+    if (!c.order)
+        c.order = ++cookies_set;
+    if (j->count == j->room) {
+        size_t room = j->room ? j->room * 2 : 8;
+        cookie_t *grown = realloc(j->at, room * sizeof *grown);
+        if (!grown)
+            abort();
+        j->at = grown;
+        j->room = room;
+    }
+    j->at[j->count++] = c;
+    return true;
+}
+
+static int cookie_order(const void *a, const void *b) {
+    const cookie_t *x = *(cookie_t *const *)a, *y = *(cookie_t *const *)b;
+    size_t px = strlen(x->path), py = strlen(y->path);
+    if (px != py)
+        return px > py ? -1 : 1; /* the longer path first, as RFC 6265 asks */
+    return x->order < y->order ? -1 : x->order > y->order;
+}
+
+/* the cookies of j a request of u sends, "a=1; b=2", malloc'd, or NULL for none */
+static char *jar_header(jar_t *j, const url_t *u) {
+    double now = (double)time(NULL);
+    cookie_t **sent = malloc((j->count + 1) * sizeof *sent);
+    if (!sent)
+        abort();
+    size_t n = 0;
+    for (size_t i = 0; i < j->count; i++) {
+        cookie_t *c = &j->at[i];
+        if (c->expires != 0 && c->expires <= now)
+            continue;
+        if (c->host_only ? strcasecmp(c->domain, u->host) : !domain_match(u->host, c->domain))
+            continue;
+        if (!path_match(u->target, c->path) || (c->secure && !u->https))
+            continue;
+        sent[n++] = c;
+    }
+    char *out = NULL;
+    if (n) {
+        qsort(sent, n, sizeof *sent, cookie_order);
+        kv_bytes b = kv_bytes_new();
+        for (size_t i = 0; i < n; i++) {
+            if (i)
+                kv_bytes_append(&b, "; ", 2);
+            kv_bytes_append(&b, sent[i]->name, strlen(sent[i]->name));
+            kv_bytes_push(&b, '=');
+            kv_bytes_append(&b, sent[i]->value, strlen(sent[i]->value));
+        }
+        out = text_copy((const char *)b.at, b.count);
+        kv_bytes_free(&b);
+    }
+    free(sent);
+    return out;
+}
+
+bool kfetch_jar_set(int64_t id, const uint8_t *text, const uint8_t *url) {
+    url_t u;
+    kv_string ignored = kv_string_new();
+    bool parsed = parse_url((const char *)url, &u, &ignored);
+    kv_string_free(&ignored);
+    if (!parsed)
+        return false;
+    pthread_mutex_lock(&jars_lock);
+    jar_t *j = jar_of(id);
+    bool taken = j && jar_store(j, &u, (const char *)text);
+    pthread_mutex_unlock(&jars_lock);
+    free(u.target);
+    return taken;
+}
+
+void kfetch_jar_header(int64_t id, const uint8_t *url, kv_string *out) {
+    url_t u;
+    kv_string ignored = kv_string_new();
+    bool parsed = parse_url((const char *)url, &u, &ignored);
+    kv_string_free(&ignored);
+    char *h = NULL;
+    if (parsed) {
+        pthread_mutex_lock(&jars_lock);
+        jar_t *j = jar_of(id);
+        h = j ? jar_header(j, &u) : NULL;
+        pthread_mutex_unlock(&jars_lock);
+        free(u.target);
+    }
+    kv_string_assign(out, text_of(h ? h : "", h ? strlen(h) : 0));
+    free(h);
+}
+
+void kfetch_jar_clear(int64_t id) {
+    pthread_mutex_lock(&jars_lock);
+    jar_t *j = jar_of(id);
+    if (j) {
+        for (size_t k = 0; k < j->count; k++)
+            cookie_free(&j->at[k]);
+        j->count = 0;
+    }
+    pthread_mutex_unlock(&jars_lock);
+}
+
+int64_t kfetch_jar_count(int64_t id) {
+    double now = (double)time(NULL);
+    pthread_mutex_lock(&jars_lock);
+    jar_t *j = jar_of(id);
+    int64_t n = 0;
+    for (size_t k = 0; j && k < j->count; k++)
+        n += j->at[k].expires == 0 || j->at[k].expires > now;
+    pthread_mutex_unlock(&jars_lock);
+    return n;
+}
+
 /* ---------- connections ---------- */
 
 typedef struct {
@@ -1105,7 +1465,7 @@ static void put(kv_bytes *b, const char *s) { kv_bytes_append(b, s, strlen(s)); 
    where the caller gave none, and the body; the response, or false with
    error */
 static bool request_once(const url_t *u, const char *method, const kv_bytes *headers, const kv_bytes *body,
-                         double deadline, double timeout, int64_t signal, bool stream, response_t *r,
+                         double deadline, double timeout, int64_t signal, bool stream, int64_t jar, response_t *r,
                          kv_string *error) {
     conn_t c;
     if (!conn_open(&c, u, deadline, timeout, signal, error)) {
@@ -1126,14 +1486,33 @@ static bool request_once(const url_t *u, const char *method, const kv_bytes *hea
         put(&q, u->port);
     }
     put(&q, "\r\n");
+    char *cookies = NULL; /* the jar's for u (#489), after any Cookie the caller wrote */
+    if (jar) {
+        pthread_mutex_lock(&jars_lock);
+        jar_t *j = jar_of(jar);
+        cookies = j ? jar_header(j, u) : NULL;
+        pthread_mutex_unlock(&jars_lock);
+    }
     size_t at = 0;
     const char *k, *v;
+    bool cookie_given = false;
     while (pair_at(headers, &at, &k, &v)) {
         put(&q, k);
         put(&q, ": ");
         put(&q, v);
+        if (cookies && !cookie_given && !strcasecmp(k, "cookie")) {
+            put(&q, "; ");
+            put(&q, cookies);
+            cookie_given = true;
+        }
         put(&q, "\r\n");
     }
+    if (cookies && !cookie_given) {
+        put(&q, "Cookie: ");
+        put(&q, cookies);
+        put(&q, "\r\n");
+    }
+    free(cookies);
     if (!has_pair(headers, "user-agent"))
         put(&q, "User-Agent: Kelvin-fetch\r\n");
     if (!has_pair(headers, "accept"))
@@ -1355,7 +1734,7 @@ static bool same_origin(const url_t *a, const url_t *b) {
 enum { REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR }; /* RequestInit's redirect, its enum's values */
 
 bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_bytes *headers_given,
-                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t signal, bool stream,
+                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t signal, bool stream, int64_t jar,
                     int64_t *status, kv_string *status_text, kv_string *final_url, int64_t *redirects,
                     kv_bytes *headers, kv_bytes *body, kv_io *streamed, kv_string *error) {
     if (kfetch_aborted(signal)) { /* a signal aborted already fails at once, as JS's (#487) */
@@ -1407,9 +1786,19 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
         if (!parse_url(current, &u, error))
             break;
         response_t r = {0};
-        if (!request_once(&u, method, &hs, &bs, deadline, timeout, signal, stream, &r, error)) {
+        if (!request_once(&u, method, &hs, &bs, deadline, timeout, signal, stream, jar, &r, error)) {
             free(u.target);
             break;
+        }
+        if (jar) { /* each answer's Set-Cookie, a redirect's too, into the jar (#489) */
+            pthread_mutex_lock(&jars_lock);
+            jar_t *j = jar_of(jar);
+            size_t hat = 0;
+            const char *hk, *hv;
+            while (j && pair_at(&r.headers, &hat, &hk, &hv))
+                if (!strcmp(hk, "set-cookie"))
+                    jar_store(j, &u, hv);
+            pthread_mutex_unlock(&jars_lock);
         }
         bool moved = (r.status == 301 || r.status == 302 || r.status == 303 || r.status == 307 || r.status == 308) &&
                      r.location && r.location[0] && redirect != REDIRECT_MANUAL;

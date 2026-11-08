@@ -40,6 +40,10 @@ let main(argc:int32, argv:u8^^):int32 {
         }
         println(" ", res.streamError)
     }
+    var jar = CookieJar()                                           // a Secure cookie, kept over https alone (#489)
+    var sc = fetch(`${tls}/setcookie`, (RequestInit){.cookies = jar})
+    let plain = jar.getCookieString(`http${&tls[5]}`)
+    println(sc.ok.status, " [", jar.getCookieString(tls), "] [", plain, "]")
     return 0
 }
 // out: /hello: 200 false TLSBASE/hello [hello, fetch]
@@ -49,3 +53,4 @@ let main(argc:int32, argv:u8^^):int32 {
 // out: fetch: the timeout of 0.25 seconds passed
 // out: fetch: aborted: over TLS
 // out: one|two|three| none
+// out: 200 [a=1; b=2; c=3; s=1] [a=1; b=2; c=3]

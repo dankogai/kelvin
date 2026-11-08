@@ -531,6 +531,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 486 | fetch's timeout, as the user chose: RequestInit's `timeout`, an `f64` of seconds, as Kelvin's time is, one deadline over the whole request, connecting, TLS, sending, receiving and each redirect; passed, an Error, its seconds as Kelvin prints an f64; 0, left out, or an infinity, none, where a wait of 60 seconds with nothing is the most, a connect too; below 0 or NaN an Error; the lookup of a name counts but is not cut short | runtime/fetch.c's now_seconds, wait_left, bound_waits, connect_within, timed_out; modules/kfetch.h, modules/fetch.k; tests/fetch/timeout.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.timeout = 2.5}` | 2026-11-08 |
 | 487 | An abort by hand, JS's AbortController, as the user chose: `AbortController()`, `c.signal`, an `AbortSignal`, a value that `async` copies into a task, as RequestInit's signal, `c.abort()` and `c.abort(reason)`, an Error, `fetch: aborted` or `fetch: aborted: reason`, at once: a read or a write woken by the socket's shutdown, a connect within 0.1 seconds; a signal aborted already fails before it starts, and stays aborted; `.aborted`. Its state is kept in libkfetch's table for the program's life, freed at its exit | runtime/fetch.c's abort table, kfetch_abort_new, kfetch_abort, kfetch_aborted, abort_watch, aborted_error, connect_within's slices; modules/kfetch.h, modules/fetch.k; tests/fetch/abort.k, tests/fetch/https.k, tests/fetch.sh; documents/fetch.md, README.md | `c.abort("user quit")` | 2026-11-08 |
 | 488 | A body that streams, as the user chose: RequestInit's `stream`, and fetch returns at the headers, `res.body` empty, the body read as it comes from `res.stream`, an `IO`, by its length, its chunks or the close, through fopencookie or funopen, closed with its connection when the Response's block ends; the timeout and an abort hold for each read; `res.streamError`, an `Error?`, says what ended it; `res.text()` and `res.json()` read the rest. fetch.md's Synopsis is the user's program | runtime/fetch.c's stream_t, stream_read, stream_fill, raw_line, stream_close, stream_file, stream_open, kfetch_stream_error, kfetch_stream_rest; modules/kfetch.h, modules/fetch.k; tests/fetch/stream.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `for chunk in res.stream.read(65536)` | 2026-11-08 |
+| 489 | Cookies, as the user chose: a `CookieJar`, `CookieJar()` and RequestInit's `cookies`, keeps each answer's Set-Cookie, a redirect's too, and each request sends those that match, by RFC 6265's domain, path, Secure, Max-Age and Expires; a Domain must match the host and hold a dot, a Secure one comes only over https; a handle, as AbortSignal is, in memory for the program's life. `jar.getCookieString(url)`, `jar.setCookie(text, url)`, `jar.clear()`, `jar.count`, tough-cookie's names; `res.setCookies`, each Set-Cookie apart | runtime/fetch.c's cookie_t, jar_t, jar_store, jar_header, cookie_date, domain_match, path_match, default_path, kfetch_jar_*; request_once's Cookie, kfetch_request's jar; modules/kfetch.h, modules/fetch.k; tests/fetch/cookies.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.cookies = jar}` | 2026-11-08 |
 
 Notes:
 
@@ -1116,6 +1117,43 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (489) Agreed details: "push. then go on with cookies". #488's CI failed
+  on FreeBSD alone, GitHub's 504 as the job fetched its VM's tool, before
+  any of Kelvin was built; run again, it passed, all nine jobs.
+  - fetch kept no cookie, and joined repeated headers by ", ", which an
+    Expires date's comma makes ambiguous for Set-Cookie.
+  - Asked, the user chose a CookieJar, over `res.setCookies` alone, as
+    Node's getSetCookie(), which it gives too; a Domain that must match
+    the host and hold a dot, over the Public Suffix List's ten thousand
+    entries or cookies of the host alone; and no file of it yet.
+  - The jar is a handle, as AbortSignal is: a table under a mutex, by id,
+    kept for the program's life, freed at its exit, so that tasks share
+    one and a struct needs no destructor.
+  - RFC 6265's algorithms: a Set-Cookie's name and value, Expires by its
+    date algorithm, Max-Age before it, Domain without its leading dot and
+    lowercased, Path or the request's default-path, Secure; the same
+    name, domain and path replaced, or removed by one already ended.
+    HttpOnly and SameSite are a browser's, and ignored.
+  - A Domain that is the host's own is a cookie of the host alone, so
+    `Domain=localhost` from localhost is taken; another must match the
+    host, which must be a name, and hold a dot. A Secure one over http
+    is refused, as RFC 6265bis has it.
+  - Each request, the first and each redirect's, sends the jar's matching
+    cookies, the longest path first, then the oldest, after a Cookie the
+    caller wrote, in the same header; each answer's Set-Cookie goes into
+    the jar before a redirect is followed, so a login that redirects
+    sends its session on.
+  - The methods take tough-cookie's names, getCookieString, setCookie,
+    as JS programmers know them; clear() and count are the jar's.
+  - An Expires at the epoch computed to 0, a session's mark, and was
+    kept: a date at or before it is now an ended one.
+  - `res.setCookies` compares each name with a String held, as a String
+    compares only with another.
+  - tests/fetch/cookies.k sets, sends, refuses and ends cookies by path,
+    domain, Max-Age and Expires, keeps one across a login's redirect,
+    adds to the caller's Cookie, sends none to another host, and none
+    without a jar; https.k keeps a Secure one over https alone. Under
+    ASan nothing is live at exit, and under ThreadSanitizer no race.
 - (488) Agreed details: "push. then go on with a body that streams", and
   the user's program for fetch.md, asked whether it would serve: it
   does, as the Synopsis, compiled and run as written, with the POST and
@@ -7426,6 +7464,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P498 | Details of #486 | runtime/fetch.c: SILENCE_SECONDS for TIMEOUT_SECONDS; conn_t's deadline and timeout; now_seconds, wait_left, passed, timed_out, seconds_text by kv_cstr_f64, bound_waits before each read, write and the handshake, connect_within by O_NONBLOCK and poll; conn_open and request_once take the deadline; kfetch_request takes timeout, checks it, and sets the deadline once; modules/fetch.k: RequestInit's timeout; tests/fetch/server.py: /slow, /trickle, /slowredirect | provisional |
 | P499 | Details of #487 | runtime/fetch.c: abort_t {aborted, reason, fd}, aborts_lock, aborts grown by realloc, aborts_free by atexit, kfetch_abort_new, abort_of, kfetch_abort (shutdown of the fd), kfetch_aborted, abort_watch, aborted_error; conn_t's signal; bound_waits, the handshake, writes and reads ask kfetch_aborted; connect_within polls in slices of 100 ms; kfetch_request fails at once of a signal aborted; modules/fetch.k: AbortSignal, AbortController, AbortController(), abort(), abort(reason) of a cstr and of &s, RequestInit's signal | provisional |
 | P500 | Details of #488 | runtime/fetch.c: _GNU_SOURCE off the BSDs and macOS; stream_t {c, raw, at, mode, chunk, left, done, failure, host, fp, next}, STREAM_NONE, LENGTH, CHUNKED, CLOSE and CHUNK_SIZE, DATA, END, TRAILER; stream_fail, stream_fill, raw_line, stream_read, stream_free, stream_close, stream_read_fn and stream_file by funopen or fopencookie, stream_open as an IO of kind 1, kfetch_stream_error, kfetch_stream_rest; response_t's stream; request_once's stream; kfetch_request's stream and streamed; modules/fetch.k: #import <IO>, RequestInit's stream, Response's stream, streamError, text() of the rest, fetch filling the Response in place | provisional |
+| P501 | Details of #489 | runtime/fetch.c: cookie_t, jar_t, jars_lock, jars_free by atexit, kfetch_jar_new, jar_of, text_copy, trim, is_address, domain_match, path_match, default_path, cookie_date (RFC 6265 5.1.1, days from the civil calendar), jar_store, cookie_order, jar_header, kfetch_jar_set, kfetch_jar_header, kfetch_jar_clear, kfetch_jar_count; request_once's jar and Cookie; kfetch_request's jar, storing each answer's set-cookie; modules/fetch.k: CookieJar, CookieJar(), getCookieString of a cstr and &s, setCookie of a cstr and &s, clear, count, RequestInit's cookies, Response's setCookies | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

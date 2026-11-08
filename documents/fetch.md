@@ -123,6 +123,36 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     ends the fetch when aborted, as JS's does.
   - `stream` (#488), a `bool`: fetch returns once the headers are read,
     and the body is read as it comes from `res.stream`; see below.
+  - `cookies` (#489), a `CookieJar`, whose cookies the request sends and
+    each answer's go into; see below.
+- **Cookies** (#489): a `CookieJar` keeps them across fetches, as RFC 6265
+  has them, where `init.cookies` names it; without one nothing is kept, as
+  in Node's fetch.
+  - `var jar = CookieJar()` makes one, and `(RequestInit){.cookies = jar}`
+    uses it: each answer's Set-Cookie is kept, a redirect's too, so that a
+    login that redirects stays logged in, and each request, a redirect's
+    too, sends those that match it in a Cookie header, after any Cookie
+    the caller wrote.
+  - A cookie matches by its domain, the host it came from alone, or a
+    Domain that the host is or ends with; by its path, the Path given or
+    the directory of the request's; and by Secure, https alone. Those of
+    the longest path come first.
+  - Max-Age, or else Expires, ends one; one already ended removes its
+    name's; a session's, with neither, lasts as long as the jar.
+  - Refused: a Domain that the host does not match, or of one label,
+    `com`, as a Public Suffix List would refuse more, `co.uk` among them,
+    which this does not; a Secure one over http, as RFC 6265bis has it;
+    one with no `=`.
+  - The jar is a handle, as an AbortSignal is, so tasks share one; kept
+    for the program's life and freed at its exit, in memory alone.
+  - Its methods are tough-cookie's names: `jar.getCookieString(url)` is
+    what a request of `url` sends, `"a=1; b=2"`;
+    `jar.setCookie("a=1; Path=/", url)` keeps one as from `url`, `true`
+    where it was taken; `jar.clear()` drops them all; `jar.count` is how
+    many are alive.
+  - `res.setCookies` is each Set-Cookie apart, an `Array<String>`, as
+    JS's `headers.getSetCookie()`: `res.headers["set-cookie"]` joins them
+    by `", "`, which an Expires date's comma makes ambiguous.
 - **A body that streams** (#488), where `init.stream` asks:
   - `res.stream` is an `IO` ([io.md](io.md)), the body as it comes,
     by its Content-Length, its chunks or the connection's end, and
@@ -214,7 +244,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** a body that streams, and cookies.
+- **Not here yet:** a jar saved to a file and read back, as curl's
+  cookies.txt.
 
 ## Where it lives
 
@@ -239,10 +270,16 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.timeout` | seconds over the whole request, an `f64`, `0` for none (#486) |
 | | `.signal` | an `AbortSignal`, whose abort ends the fetch (#487) |
 | | `.stream` | whether the body streams, a `bool` (#488) |
+| | `.cookies` | a `CookieJar`, whose cookies it sends and keeps (#489) |
 | `AbortController` | `AbortController()` | a new one (#487) |
 | | `.signal` | its `AbortSignal`, a value a task is given |
 | | `.abort()`, `.abort(reason)` | ends a fetch that watches its signal: `fetch: aborted`, or `fetch: aborted: reason`, a `cstr` or `&s` |
 | `AbortSignal` | `.aborted` | whether its controller aborted it |
+| `CookieJar` | `CookieJar()` | a new one, empty (#489) |
+| | `.getCookieString(url)` | what a request of `url` sends, `"a=1; b=2"`, a String; `url` a `cstr` or `&s` |
+| | `.setCookie(text, url)` | a Set-Cookie kept as from `url`: whether it was taken |
+| | `.clear()` | every cookie dropped |
+| | `.count` | the cookies alive, an `i64` |
 | `Response` | `.status` | the status, an `i64` |
 | | `.statusText` | the status line's text, a String |
 | | `.ok` | whether the status is 200 to 299 |
@@ -252,6 +289,7 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.body` | the body, a `Bytes` |
 | | `.stream` | the body as it comes, an `IO`, where `init.stream` asked; else a closed IO (#488) |
 | | `.streamError` | what ended the stream, an `Error?`, none where it ended as it should (#488) |
+| | `.setCookies` | each Set-Cookie apart, an `Array<String>` (#489) |
 | | `.text()` | the body as a String, or an `Error` where it is not UTF-8: a `Result<String, Error>`; of a stream, the rest |
 | | `.json()` | the body as a `JSON`, or an `Error` where it is not UTF-8 or not JSON: a `Result<JSON, Error>` (#484) |
 | `Error` | `.message` | what went wrong, a String |

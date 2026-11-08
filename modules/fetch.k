@@ -22,11 +22,16 @@
 #import <IO>
 
 // the engine's functions, by their C names
-let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, signal:i64, stream:bool, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, streamed:IO^, error:String^):bool
+let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, signal:i64, stream:bool, jar:i64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, streamed:IO^, error:String^):bool
 let kfetch_header(headers:const Bytes^, i:i64, name:String^, value:String^):bool
 let kfetch_has_ssl():bool
 let kfetch_stream_error(io:const IO^, message:String^):bool
 let kfetch_stream_rest(io:const IO^, out:Bytes^):()
+let kfetch_jar_new():i64
+let kfetch_jar_set(id:i64, text:cstr, url:cstr):bool
+let kfetch_jar_header(id:i64, url:cstr, out:String^):()
+let kfetch_jar_clear(id:i64):()
+let kfetch_jar_count(id:i64):i64
 let kfetch_abort_new():i64
 let kfetch_abort(id:i64, reason:cstr):()
 let kfetch_aborted(id:i64):bool
@@ -74,13 +79,43 @@ extend AbortController {
     let abort(reason:const String^) { kfetch_abort(self.signal.id, reason^.cstr) }
 }
 
+// cookies kept across fetches (#489), as RFC 6265 has them: each answer's
+// Set-Cookie is kept, and each request, a redirect's too, sends those whose
+// domain, path and Secure match; a Domain must match the host and hold a
+// dot. A handle, as AbortSignal is, so that tasks share one; kept for the
+// program's life, freed at its exit. Its methods are tough-cookie's names
+struct CookieJar {
+    id: i64
+}
+
+let CookieJar():CookieJar {
+    var j:CookieJar = {.id = kfetch_jar_new()}
+    return j
+}
+
+extend CookieJar {
+    // the cookies a request of url sends, "a=1; b=2", "" for none
+    let getCookieString(url:cstr):String {
+        var s = $""
+        kfetch_jar_header(self.id, url, &s)
+        return s
+    }
+    let getCookieString(url:const String^):String { self.getCookieString(url^.cstr) }
+    // a Set-Cookie as from url: whether it was taken
+    let setCookie(text:cstr, url:cstr):bool { kfetch_jar_set(self.id, text, url) }
+    let setCookie(text:const String^, url:cstr):bool { kfetch_jar_set(self.id, text^.cstr, url) }
+    let clear() { kfetch_jar_clear(self.id) }                  // every cookie dropped
+    let count:i64 { kfetch_jar_count(self.id) }                // the cookies alive
+}
+
 // a request's method, "" for GET, its headers, sent as written, its body,
 // empty for none, and what a redirect does, as JS's RequestInit; a field
 // left out of (RequestInit){...} is empty, and its redirect follows; its
 // timeout, seconds over the whole request, redirects and all, 0 for none,
 // where a wait of 60 seconds with nothing is the most (#486); its signal,
 // an AbortController's, which ends it at once when aborted (#487); stream,
-// to read the body as it comes, by the Response's stream (#488)
+// to read the body as it comes, by the Response's stream (#488); cookies,
+// a CookieJar, whose cookies it sends and keeps (#489)
 struct RequestInit {
     method: String
     headers: Dictionary<String, String>
@@ -89,13 +124,15 @@ struct RequestInit {
     timeout: f64
     signal: AbortSignal
     stream: bool
+    cookies: CookieJar
 }
 
 // what a server answered, after the redirects followed: its status and the
 // status's text, ok for 200 to 299, the URL it ended at, the headers, names
 // lowercased and repeated ones joined by ", ", and the body as sent; or,
 // where RequestInit's stream asked, the body as it comes, an IO, closed with
-// its connection when the Response's block ends, the body empty (#488)
+// its connection when the Response's block ends, the body empty (#488);
+// each Set-Cookie apart, as headers joins them (#489)
 struct Response {
     status: i64
     statusText: String
@@ -105,6 +142,7 @@ struct Response {
     headers: Dictionary<String, String>
     body: Bytes
     stream: IO
+    setCookies: Array<String>
 }
 
 extend Response {
@@ -161,7 +199,7 @@ let fetch(url:cstr, init:const RequestInit^):Result<Response, Error> {
     var redirects:i64 = 0
     var raw = Bytes()
     var why = $""
-    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, init^.signal.id, init^.stream, &res.status, &res.statusText, &res.url, &redirects, &raw, &res.body, &res.stream, &why) {
+    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, init^.signal.id, init^.stream, init^.cookies.id, &res.status, &res.statusText, &res.url, &redirects, &raw, &res.body, &res.stream, &why) {
         var e:Error = {.message = why.copy()}
         return err(e)
     }
@@ -170,7 +208,11 @@ let fetch(url:cstr, init:const RequestInit^):Result<Response, Error> {
     var name = $""
     var value = $""
     var i:i64 = 0
+    var setCookie = $"set-cookie"
     while kfetch_header(&raw, i, &name, &value) {
+        if name == setCookie {                     // each apart, as JS's getSetCookie() (#489)
+            res.setCookies += value.copy()
+        }
         if res.headers.has(name) {
             res.headers[name] += ", "
             res.headers[name] += &value

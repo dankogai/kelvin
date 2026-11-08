@@ -48,6 +48,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if p in ("/301", "/302", "/303", "/307", "/308"):
             self.send(int(p[1:]), b"", [("Location", "/method")])
             return
+        if p.endswith("/cookie"):  # the Cookie it was sent (#489)
+            self.send(200, ("cookie: %s\n" % self.headers.get("Cookie")).encode())
+            return
+        if p == "/setcookie":
+            self.send(200, b"", [
+                ("Set-Cookie", "a=1; Path=/"),
+                ("Set-Cookie", "b=2; Max-Age=3600"),
+                ("Set-Cookie", "c=3; Expires=Wed, 21 Oct 2099 07:28:00 GMT; HttpOnly"),
+                ("Set-Cookie", "old=x; Expires=Thu, 01 Jan 1970 00:00:00 GMT"),
+                ("Set-Cookie", "s=1; Secure"),
+                ("Set-Cookie", "d=1; Domain=com"),
+                ("Set-Cookie", "e=1; Domain=example.com"),
+                ("Set-Cookie", "noequals"),
+            ])
+            return
+        if p == "/deep/setcookie":  # its default path is /deep
+            self.send(200, b"", [("Set-Cookie", "p=deep")])
+            return
+        if p == "/login":  # a cookie on a redirect
+            self.send(302, b"", [("Location", "/cookie"), ("Set-Cookie", "session=abc; Path=/")])
+            return
+        if p == "/logout":
+            self.send(200, b"", [("Set-Cookie", "session=; Max-Age=0; Path=/")])
+            return
+        if p == "/hostdomain":  # Domain= the host itself: kept for it alone
+            self.send(200, b"", [("Set-Cookie", "h=1; Domain=localhost; Path=/")])
+            return
         if p == "/elsewhere":  # the same server by another name: another origin
             self.send(307, b"", [("Location", "http://localhost:%d/method" % port)])
             return

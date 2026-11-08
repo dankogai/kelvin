@@ -9342,3 +9342,18 @@ FILE * of fopencookie or funopen, and closes with its connection when the
 Response's block ends. Details are provisional P500.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 536. Cookies
+
+> push. then go on with cookies
+
+**Claude** pushed #488; its FreeBSD job failed on GitHub's 504 before
+Kelvin was built, and run again all nine jobs passed. Asked, the user
+chose a CookieJar, a Domain that must match the host and hold a dot, and
+no file of it yet. `(RequestInit){.cookies = jar}` keeps each answer's
+Set-Cookie, a redirect's too, and each request sends those that match, as
+RFC 6265 has them; `jar.getCookieString(url)`, `jar.setCookie(text, url)`,
+`jar.clear()` and `jar.count` take tough-cookie's names, and
+`res.setCookies` is each Set-Cookie apart. Details are provisional P501.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

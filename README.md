@@ -348,6 +348,9 @@ So far the changes from C are these, by topic.
   - `.stream = true` gives the body as it comes, `res.stream` an `IO`,
     `for chunk in res.stream.read(65536)`, and `res.streamError` what
     ended it (#488)
+  - `var jar = CookieJar()` and `.cookies = jar` keep and send cookies
+    across fetches and redirects, as RFC 6265 has them; `res.setCookies`
+    is each Set-Cookie apart (#489)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`
