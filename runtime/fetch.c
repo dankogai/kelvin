@@ -13,9 +13,11 @@
 #elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE 1
+#define _GNU_SOURCE 1 /* fopencookie, glibc's and musl's, for a body that streams (#488) */
 #endif
 #include "kelvin_prelude.h"
 #include "kfetch.h"
+#include "kIO.h" /* the IO a body that streams is read by (#488) */
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -822,12 +824,240 @@ static int dechunk(const uint8_t *p, size_t n, kv_bytes *out) {
     }
 }
 
+/* ---------- a body that streams (#488) ---------- */
+
+/* the body of a response, read as it comes through a FILE * of its own,
+   fopencookie's or funopen's, which an IO holds: the connection, the bytes
+   read past the headers and not yet given, and how the body ends */
+enum { STREAM_NONE, STREAM_LENGTH, STREAM_CHUNKED, STREAM_CLOSE };
+enum { CHUNK_SIZE, CHUNK_DATA, CHUNK_END, CHUNK_TRAILER };
+typedef struct stream_s {
+    conn_t c;
+    kv_bytes raw;            /* bytes from the connection, not yet given, from at */
+    size_t at;
+    int mode, chunk;         /* STREAM_*, and CHUNK_* where it is chunked */
+    unsigned long long left; /* of the body, by its length, or of the chunk */
+    bool done;
+    char *failure;           /* what went wrong, malloc'd, for res.streamError, NULL for none */
+    char host[256];
+    FILE *fp;
+    struct stream_s *next;   /* the streams open, for kfetch_stream_error */
+} stream_t;
+static pthread_mutex_t streams_lock = PTHREAD_MUTEX_INITIALIZER;
+static stream_t *streams;
+
+static void stream_fail(stream_t *s, const char *message) {
+    if (!s->failure) {
+        size_t n = strlen(message) + 1;
+        s->failure = malloc(n);
+        if (!s->failure)
+            abort();
+        memcpy(s->failure, message, n);
+    }
+    errno = EIO;
+}
+
+/* more bytes from the connection into raw: their count, 0 at its end, -1
+   where it failed, with the stream's failure */
+static long stream_fill(stream_t *s) {
+    if (s->at == s->raw.count) {
+        s->raw.count = 0;
+        s->at = 0;
+    }
+    char buf[16384];
+    kv_string error = kv_string_new();
+    long got = conn_read(&s->c, buf, sizeof buf, &error);
+    if (got < 0) {
+        char message[1024];
+        snprintf(message, sizeof message, "%.*s", (int)error.b.count, (const char *)error.b.at);
+        stream_fail(s, message);
+    } else if (got > 0) {
+        kv_bytes_append(&s->raw, buf, (size_t)got);
+    }
+    kv_string_free(&error);
+    return got;
+}
+
+/* the offset just past the next line in raw from at, its length in *len
+   without the line break; 0 where it has not all come yet */
+static size_t raw_line(const stream_t *s, size_t *len) {
+    const uint8_t *nl = s->at < s->raw.count ? memchr(s->raw.at + s->at, '\n', s->raw.count - s->at) : NULL;
+    if (!nl)
+        return 0;
+    size_t end = (size_t)(nl - s->raw.at);
+    *len = end - s->at - (end > s->at && s->raw.at[end - 1] == '\r');
+    return end + 1;
+}
+
+/* up to n bytes of the body into buf: their count, 0 at its end, -1 where
+   it failed, as a read of a FILE * is */
+static long stream_read(stream_t *s, char *buf, size_t n) {
+    if (s->failure) {
+        errno = EIO;
+        return -1;
+    }
+    while (!s->done) {
+        size_t have = s->raw.count - s->at;
+        if (s->mode == STREAM_NONE) {
+            s->done = true;
+        } else if (s->mode == STREAM_CLOSE || (s->mode == STREAM_CHUNKED && s->chunk == CHUNK_DATA) ||
+                   s->mode == STREAM_LENGTH) {
+            bool counted = s->mode != STREAM_CLOSE;
+            if (counted && !s->left) {
+                if (s->mode == STREAM_LENGTH)
+                    s->done = true;
+                else
+                    s->chunk = CHUNK_END;
+                continue;
+            }
+            if (have) {
+                size_t take = have < n ? have : n;
+                if (counted && take > s->left)
+                    take = (size_t)s->left;
+                memcpy(buf, s->raw.at + s->at, take);
+                s->at += take;
+                if (counted)
+                    s->left -= take;
+                return (long)take;
+            }
+            long got = stream_fill(s);
+            if (got < 0)
+                return -1;
+            if (!got) {
+                if (s->mode == STREAM_CLOSE) {
+                    s->done = true;
+                } else {
+                    char message[512];
+                    if (s->mode == STREAM_LENGTH)
+                        snprintf(message, sizeof message, "fetch: %s closed the connection before the body's end, %llu bytes short",
+                                 s->host, s->left);
+                    else
+                        snprintf(message, sizeof message, "fetch: %s's chunked body ended before its last chunk", s->host);
+                    stream_fail(s, message);
+                    return -1;
+                }
+            }
+        } else { /* a chunk's size, the line after its data, or a trailer */
+            size_t len = 0, next = raw_line(s, &len);
+            if (!next) {
+                long got = stream_fill(s);
+                if (got < 0)
+                    return -1;
+                if (!got) {
+                    char message[512];
+                    snprintf(message, sizeof message, "fetch: %s's chunked body ended before its last chunk", s->host);
+                    stream_fail(s, message);
+                    return -1;
+                }
+                continue;
+            }
+            const uint8_t *line = s->raw.at + s->at;
+            s->at = next;
+            if (s->chunk == CHUNK_SIZE) {
+                unsigned long long size = 0;
+                size_t digits = 0;
+                for (; digits < len; digits++) {
+                    uint8_t c = line[digits];
+                    int d = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+                    if (d < 0 || size > (1ull << 56))
+                        break;
+                    size = size * 16 + (unsigned)d;
+                }
+                if (!digits) {
+                    char message[512];
+                    snprintf(message, sizeof message, "fetch: %s's chunked body is not one", s->host);
+                    stream_fail(s, message);
+                    return -1;
+                }
+                s->left = size;
+                s->chunk = size ? CHUNK_DATA : CHUNK_TRAILER;
+            } else if (s->chunk == CHUNK_END) {
+                s->chunk = CHUNK_SIZE;
+            } else if (!len) { /* the blank line after the trailers */
+                s->done = true;
+            }
+        }
+    }
+    return 0;
+}
+
+static void stream_free(stream_t *s) {
+    conn_close(&s->c);
+    kv_bytes_free(&s->raw);
+    free(s->failure);
+    free(s);
+}
+
+/* the FILE *'s close: the stream no longer open, and its connection closed */
+static int stream_close(void *cookie) {
+    stream_t *s = cookie;
+    pthread_mutex_lock(&streams_lock);
+    for (stream_t **p = &streams; *p; p = &(*p)->next)
+        if (*p == s) {
+            *p = s->next;
+            break;
+        }
+    pthread_mutex_unlock(&streams_lock);
+    stream_free(s);
+    return 0;
+}
+
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+static int stream_read_fn(void *cookie, char *buf, int n) { return (int)stream_read(cookie, buf, n > 0 ? (size_t)n : 0); }
+static FILE *stream_file(stream_t *s) { return funopen(s, stream_read_fn, NULL, NULL, stream_close); }
+#else
+static ssize_t stream_read_fn(void *cookie, char *buf, size_t n) { return stream_read(cookie, buf, n); }
+static FILE *stream_file(stream_t *s) {
+    cookie_io_functions_t io = {.read = stream_read_fn, .write = NULL, .seek = NULL, .close = stream_close};
+    return fopencookie(s, "r", io);
+}
+#endif
+
+/* the IO of a stream, registered so that kfetch_stream_error finds it; an
+   IO of a file, kind 1, which fclose closes, and so the stream */
+static void stream_open(stream_t *s, kv_io *io) {
+    s->fp = stream_file(s);
+    if (!s->fp)
+        abort();
+    pthread_mutex_lock(&streams_lock);
+    s->next = streams;
+    streams = s;
+    pthread_mutex_unlock(&streams_lock);
+    kv_io f = {0};
+    f.status = f.signal = -1;
+    f.fp = s->fp;
+    f.kind = 1;
+    *io = f;
+}
+
+bool kfetch_stream_error(const kv_io *io, kv_string *message) {
+    bool failed = false;
+    pthread_mutex_lock(&streams_lock);
+    for (stream_t *s = streams; s; s = s->next)
+        if (io->fp && s->fp == io->fp && s->failure) {
+            kv_string_assign(message, text_of(s->failure, strlen(s->failure)));
+            failed = true;
+        }
+    pthread_mutex_unlock(&streams_lock);
+    return failed;
+}
+
+void kfetch_stream_rest(const kv_io *io, kv_bytes *out) {
+    if (!io->fp)
+        return;
+    uint8_t buf[16384];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof buf, (FILE *)io->fp)) > 0)
+        kv_bytes_append(out, buf, n);
+}
+
 typedef struct {
     int status;
     kv_string status_text;
     kv_bytes headers; /* name\0value\0 ... */
     kv_bytes body;
     char *location;   /* of a redirect, malloc'd */
+    stream_t *stream; /* where the body streams (#488), its connection still open; else NULL */
 } response_t;
 
 /* header pair i of h, name\0value\0 ..., or false past the last */
@@ -875,7 +1105,8 @@ static void put(kv_bytes *b, const char *s) { kv_bytes_append(b, s, strlen(s)); 
    where the caller gave none, and the body; the response, or false with
    error */
 static bool request_once(const url_t *u, const char *method, const kv_bytes *headers, const kv_bytes *body,
-                         double deadline, double timeout, int64_t signal, response_t *r, kv_string *error) {
+                         double deadline, double timeout, int64_t signal, bool stream, response_t *r,
+                         kv_string *error) {
     conn_t c;
     if (!conn_open(&c, u, deadline, timeout, signal, error)) {
         conn_close(&c);
@@ -930,6 +1161,8 @@ static bool request_once(const url_t *u, const char *method, const kv_bytes *hea
     long long length = -1;      /* its Content-Length */
     bool chunked = false, bodyless = false, ok = true, whole = false;
     for (;;) {
+        if (end && stream) /* the body is read as it is asked for (#488) */
+            break;
         if (end && !bodyless && !chunked && length >= 0 && in.count - end >= (unsigned long long)length) {
             whole = true;
             break;
@@ -988,7 +1221,8 @@ static bool request_once(const url_t *u, const char *method, const kv_bytes *hea
         if (!ok)
             break;
     }
-    conn_close(&c);
+    if (!ok || !end || !stream)
+        conn_close(&c);
     if (ok && !end) {
         fail(error, "fetch: %s closed the connection before its response's headers ended", u->host);
         ok = false;
@@ -1035,7 +1269,19 @@ static bool request_once(const url_t *u, const char *method, const kv_bytes *hea
             r->location[ll] = 0;
         }
         r->body = kv_bytes_new();
-        if (bodyless) {
+        if (stream) { /* the connection, and what came past the headers, go to the stream */
+            stream_t *s = calloc(1, sizeof *s);
+            if (!s)
+                abort();
+            s->c = c;
+            s->raw = kv_bytes_new();
+            kv_bytes_append(&s->raw, in.at + end, in.count - end);
+            s->mode = bodyless ? STREAM_NONE : chunked ? STREAM_CHUNKED : length >= 0 ? STREAM_LENGTH : STREAM_CLOSE;
+            s->chunk = CHUNK_SIZE;
+            s->left = length >= 0 ? (unsigned long long)length : 0;
+            snprintf(s->host, sizeof s->host, "%s", u->host);
+            r->stream = s;
+        } else if (bodyless) {
         } else if (chunked) {
             if (dechunk(in.at + end, in.count - end, &r->body) != 1) {
                 fail(error, "fetch: %s's chunked body %s", u->host, whole ? "is not one" : "ended before its last chunk");
@@ -1109,9 +1355,9 @@ static bool same_origin(const url_t *a, const url_t *b) {
 enum { REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR }; /* RequestInit's redirect, its enum's values */
 
 bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_bytes *headers_given,
-                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t signal,
+                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t signal, bool stream,
                     int64_t *status, kv_string *status_text, kv_string *final_url, int64_t *redirects,
-                    kv_bytes *headers, kv_bytes *body, kv_string *error) {
+                    kv_bytes *headers, kv_bytes *body, kv_io *streamed, kv_string *error) {
     if (kfetch_aborted(signal)) { /* a signal aborted already fails at once, as JS's (#487) */
         aborted_error(signal, error);
         return false;
@@ -1161,7 +1407,7 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
         if (!parse_url(current, &u, error))
             break;
         response_t r = {0};
-        if (!request_once(&u, method, &hs, &bs, deadline, timeout, signal, &r, error)) {
+        if (!request_once(&u, method, &hs, &bs, deadline, timeout, signal, stream, &r, error)) {
             free(u.target);
             break;
         }
@@ -1200,6 +1446,8 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
             kv_string_free(&r.status_text);
             kv_bytes_free(&r.headers);
             kv_bytes_free(&r.body);
+            if (r.stream) /* a redirect's body, never read */
+                stream_free(r.stream);
             free(r.location);
             free(u.target);
             free(current);
@@ -1213,6 +1461,8 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
             *redirects = hops;
             kv_bytes_assign(headers, r.headers);
             kv_bytes_assign(body, r.body);
+            if (r.stream) /* the body, as it comes, by an IO (#488) */
+                stream_open(r.stream, streamed);
             free(final);
             free(r.location);
             free(u.target);
@@ -1222,6 +1472,8 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
         kv_string_free(&r.status_text);
         kv_bytes_free(&r.headers);
         kv_bytes_free(&r.body);
+        if (r.stream) /* a redirect's, made an Error */
+            stream_free(r.stream);
         free(r.location);
         free(u.target);
         break;

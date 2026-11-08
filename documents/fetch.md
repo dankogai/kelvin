@@ -4,25 +4,49 @@ JS's `fetch(url)` and `fetch(url, init)` over HTTP and HTTPS, giving a `Result<R
 
 ## Synopsis
 
+A program that fetches the URL it is given, or example.com's, and
+shows what came back:
+
 ```swift
 #import <fetch>
 
-let main():int32 {
-    var r = fetch("https://example.com/")
+let main(argc:i32, argv:[cstr]): i32 {
+    var url:cstr := argc < 2 ? "https://www.example.com/" : argv[1]
+    var r = fetch(url)
     if let res = r {
-        println(res.status, " ", res.statusText, " ", res.ok)   // 200 OK true
-        println(res.url, " ", res.redirected)                     // https://example.com/ false
-        println(res.headers["content-type"])                      // some("text/html; charset=utf-8")
-        var text = res.text() ?? $"(not UTF-8)"
-        println(text.count, " ", res.body.count)
-        var j = res.json()                                        // a Result<JSON, Error>
-        println(j.is(ok))
+        println($`url: ${res.url} redirected: ${res.redirected}`)
+        println($`status: ${res.status} ${res.statusText} ok: ${res.ok}`)
+        println("Header: ", res.headers.pretty)
+        var text = res.text() ?? $"(not in UTF-8)"
+        println($`count: ${text.count} body.count: ${res.body.count}`)
+        println(text)
     } else {
         println(r.err.message)          // fetch: cannot find the host ..., and the like
     }
+    return 0
+}
+```
+
+A POST with headers and a body, the answer as JSON, and a body read as
+it comes:
+
+```swift
+#import <fetch>
+#import <IO>
+
+let main():int32 {
     var p = fetch("https://example.com/api", (RequestInit){.method = $"POST",
                   .headers = ${"content-type": $"application/json"}, .body = Bytes("{\"a\": 1}")})
-    println(p.is(ok))
+    if let res = p {
+        var j = res.json()                                        // a Result<JSON, Error>
+        println(j.is(ok))
+    }
+    var s = fetch("https://example.com/big", (RequestInit){.stream = true, .timeout = 30.0})
+    if let res = s {
+        var n = 0
+        for chunk in res.stream.read(65536) { n += chunk.count }  // as it comes
+        if let e = res.streamError { println(e.message) } else { println(n) }
+    }
     return 0
 }
 ```
@@ -97,6 +121,26 @@ answered, a `Response`, or what went wrong, an `Error`, as a
       waits as long as the system's resolver does.
   - `signal` (#487), an `AbortSignal`, an `AbortController`'s, which
     ends the fetch when aborted, as JS's does.
+  - `stream` (#488), a `bool`: fetch returns once the headers are read,
+    and the body is read as it comes from `res.stream`; see below.
+- **A body that streams** (#488), where `init.stream` asks:
+  - `res.stream` is an `IO` ([io.md](io.md)), the body as it comes,
+    by its Content-Length, its chunks or the connection's end, and
+    `res.body` is empty: `for chunk in res.stream.read(65536)`,
+    `for r in res.stream.lines`.
+    - It is closed, and its connection with it, when the Response's
+      block ends, read or not.
+    - The timeout bounds each read too, the request's whole, and an
+      abort ends a read at once.
+  - `res.streamError` is an `Error?`: none where the stream ended as it
+    should, else what ended it, an abort, the timeout, a body cut short
+    of its Content-Length or its last chunk. A read that fails ends the
+    stream as its end would, and `res.stream.eof` stays false.
+  - `res.text()` and `res.json()` read what is left of it, as JS's
+    consume a body; an Error of the stream is theirs.
+  - A redirect followed is never read: only the last answer streams.
+  - Without `init.stream`, `res.stream` is a closed IO, which a read
+    ends the program over, as any closed IO.
 - **An abort by hand** (#487), JS's `AbortController`: as fetch waits for
   its answer, the abort comes from another thread, the fetch on a task's:
   ```swift
@@ -133,7 +177,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `body` is a `Bytes`, the body as sent: its `Content-Length`, its
     chunks, or all until the connection closes.
   - `res.text()` is the body as a String, or an `Error` where it is not
-    UTF-8, as `b.string()` is for a Bytes.
+    UTF-8, as `b.string()` is for a Bytes; of a stream, what is left of
+    it (#488).
   - `res.json()` (#484) is the body as a `JSON`
     ([json.md](json.md)), or an `Error` where it is not UTF-8, or not
     JSON, with `JSON.parse`'s message:
@@ -193,6 +238,7 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.redirect` | `redirectFollow`, `redirectManual` or `redirectError`, a `Redirect` |
 | | `.timeout` | seconds over the whole request, an `f64`, `0` for none (#486) |
 | | `.signal` | an `AbortSignal`, whose abort ends the fetch (#487) |
+| | `.stream` | whether the body streams, a `bool` (#488) |
 | `AbortController` | `AbortController()` | a new one (#487) |
 | | `.signal` | its `AbortSignal`, a value a task is given |
 | | `.abort()`, `.abort(reason)` | ends a fetch that watches its signal: `fetch: aborted`, or `fetch: aborted: reason`, a `cstr` or `&s` |
@@ -204,6 +250,8 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.redirected` | whether a redirect was followed |
 | | `.headers` | a `Dictionary<String, String>`, names lowercased, repeats joined by `", "` |
 | | `.body` | the body, a `Bytes` |
-| | `.text()` | the body as a String, or an `Error` where it is not UTF-8: a `Result<String, Error>` |
+| | `.stream` | the body as it comes, an `IO`, where `init.stream` asked; else a closed IO (#488) |
+| | `.streamError` | what ended the stream, an `Error?`, none where it ended as it should (#488) |
+| | `.text()` | the body as a String, or an `Error` where it is not UTF-8: a `Result<String, Error>`; of a stream, the rest |
 | | `.json()` | the body as a `JSON`, or an `Error` where it is not UTF-8 or not JSON: a `Result<JSON, Error>` (#484) |
 | `Error` | `.message` | what went wrong, a String |

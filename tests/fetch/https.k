@@ -4,6 +4,7 @@
 // certificate not trusted is an Error
 // needs: ssl
 #import <fetch>
+#import <IO>
 #import <OS>
 let slowly(url:String, signal:AbortSignal):Result<Response, Error> { fetch(&url, (RequestInit){.signal = signal}) }
 let get(base:cstr, path:cstr) {
@@ -32,6 +33,13 @@ let main(argc:int32, argv:u8^^):int32 {
     c.abort("over TLS")
     var a = await t
     println(a.err.message)
+    var st = fetch(`${tls}/lines`, (RequestInit){.stream = true})   // a body that streams over TLS (#488)
+    if let res = st {
+        for r in res.stream.lines {
+            if let line = r { print(line, "|") }
+        }
+        println(" ", res.streamError)
+    }
     return 0
 }
 // out: /hello: 200 false TLSBASE/hello [hello, fetch]
@@ -40,3 +48,4 @@ let main(argc:int32, argv:u8^^):int32 {
 // out: /hello: not trusted
 // out: fetch: the timeout of 0.25 seconds passed
 // out: fetch: aborted: over TLS
+// out: one|two|three| none

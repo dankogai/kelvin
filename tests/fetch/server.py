@@ -112,6 +112,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 time.sleep(0.2)
                 self.wfile.write(b"x")
                 self.wfile.flush()
+        elif p == "/cut":  # a body cut short: 4 of the 10 bytes it says
+            self.send_response(200)
+            self.send_header("Content-Length", "10")
+            self.end_headers()
+            self.wfile.write(b"part")
+            self.close_connection = True
+        elif p == "/lines":  # three lines, chunked
+            self.send_response(200)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            for piece in (b"one\ntw", b"o\nthr", b"ee\n"):
+                self.wfile.write(b"%x\r\n%s\r\n" % (len(piece), piece))
+            self.wfile.write(b"0\r\n\r\n")
         elif p == "/slowredirect":  # a redirect after half a second, to /slow
             time.sleep(0.5)
             self.send(302, b"", [("Location", "/slow")])

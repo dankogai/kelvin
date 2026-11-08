@@ -345,6 +345,9 @@ So far the changes from C are these, by topic.
     redirects and all (#486)
   - `var c = AbortController()`, `.signal = c.signal` in a fetch on a
     task's thread, and `c.abort()` ends it at once (#487)
+  - `.stream = true` gives the body as it comes, `res.stream` an `IO`,
+    `for chunk in res.stream.read(65536)`, and `res.streamError` what
+    ended it (#488)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

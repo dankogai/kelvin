@@ -19,11 +19,14 @@
 //                   .headers = ${"content-type": $"application/json"}, .body = Bytes("{}")})
 #import <kfetch.h> as C
 #import <JSON>
+#import <IO>
 
 // the engine's functions, by their C names
-let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, signal:i64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
+let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, signal:i64, stream:bool, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, streamed:IO^, error:String^):bool
 let kfetch_header(headers:const Bytes^, i:i64, name:String^, value:String^):bool
 let kfetch_has_ssl():bool
+let kfetch_stream_error(io:const IO^, message:String^):bool
+let kfetch_stream_rest(io:const IO^, out:Bytes^):()
 let kfetch_abort_new():i64
 let kfetch_abort(id:i64, reason:cstr):()
 let kfetch_aborted(id:i64):bool
@@ -76,7 +79,8 @@ extend AbortController {
 // left out of (RequestInit){...} is empty, and its redirect follows; its
 // timeout, seconds over the whole request, redirects and all, 0 for none,
 // where a wait of 60 seconds with nothing is the most (#486); its signal,
-// an AbortController's, which ends it at once when aborted (#487)
+// an AbortController's, which ends it at once when aborted (#487); stream,
+// to read the body as it comes, by the Response's stream (#488)
 struct RequestInit {
     method: String
     headers: Dictionary<String, String>
@@ -84,11 +88,14 @@ struct RequestInit {
     redirect: Redirect
     timeout: f64
     signal: AbortSignal
+    stream: bool
 }
 
 // what a server answered, after the redirects followed: its status and the
 // status's text, ok for 200 to 299, the URL it ended at, the headers, names
-// lowercased and repeated ones joined by ", ", and the body as sent
+// lowercased and repeated ones joined by ", ", and the body as sent; or,
+// where RequestInit's stream asked, the body as it comes, an IO, closed with
+// its connection when the Response's block ends, the body empty (#488)
 struct Response {
     status: i64
     statusText: String
@@ -97,12 +104,26 @@ struct Response {
     redirected: bool
     headers: Dictionary<String, String>
     body: Bytes
+    stream: IO
 }
 
 extend Response {
-    // the body as text, or an Error where it is not UTF-8
+    // what went wrong reading the stream, an abort, the timeout, a body cut
+    // short, or none where it ended as it should (#488)
+    let streamError:Error? {
+        var m = $""
+        if !kfetch_stream_error(&self.stream, &m) { return none }
+        var e:Error = {.message = m.copy()}
+        return e
+    }
+
+    // the body as text, or an Error where it is not UTF-8; of a stream,
+    // what is left of it, read now, or its Error
     let text():Result<String, Error> {
-        var s = self.body.string()
+        var all = self.body.copy()
+        kfetch_stream_rest(&self.stream, &all)
+        if let e = self.streamError { return err(e.copy()) }
+        var s = all.string()
         if let err(at) = s {
             var e:Error = {.message = $`fetch: the body is not UTF-8 at byte ${at}`}
             return err(e)
@@ -136,32 +157,28 @@ let fetch(url:cstr, init:const RequestInit^):Result<Response, Error> {
         given += v.cstr
         given += 0
     }
-    var status:i64 = 0
-    var statusText = $""
-    var final = $""
+    var res:Response = {.status = 0}            // filled in place: an IO is moved, never copied
     var redirects:i64 = 0
     var raw = Bytes()
-    var body = Bytes()
     var why = $""
-    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, init^.signal.id, &status, &statusText, &final, &redirects, &raw, &body, &why) {
+    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, init^.signal.id, init^.stream, &res.status, &res.statusText, &res.url, &redirects, &raw, &res.body, &res.stream, &why) {
         var e:Error = {.message = why.copy()}
         return err(e)
     }
-    var headers = Dictionary<String, String>()
+    res.ok = res.status >= 200 && res.status <= 299
+    res.redirected = redirects > 0
     var name = $""
     var value = $""
     var i:i64 = 0
     while kfetch_header(&raw, i, &name, &value) {
-        if headers.has(name) {
-            headers[name] += ", "
-            headers[name] += &value
+        if res.headers.has(name) {
+            res.headers[name] += ", "
+            res.headers[name] += &value
         } else {
-            headers[name] = value.copy()
+            res.headers[name] = value.copy()
         }
         i += 1
     }
-    var res:Response = {.status = status, .statusText = statusText.copy(), .ok = status >= 200 && status <= 299,
-                        .url = final.copy(), .redirected = redirects > 0, .headers = headers.copy(), .body = body.copy()}
     return res
 }
 

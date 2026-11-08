@@ -9324,3 +9324,21 @@ second, and the fetch is an Error, `fetch: aborted: reason`. Details are
 provisional P499.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 535. A body that streams
+
+> push. then go on with a body that streams
+
+> I've come up with a little better code sample of fetch: ... Would you
+> use it in the document?
+
+**Claude** pushed #487, and all nine jobs passed. The user's program
+compiled and ran as written, and became fetch.md's Synopsis, its two
+notes being the space before `let main` and that `$` templates keep a
+long URL whole. Asked, the user chose RequestInit's `stream`, the body as
+an `IO`, `text()` and `json()` reading the rest, and `res.streamError` for
+what ended a stream. `res.stream` reads the body as it comes, through a
+FILE * of fopencookie or funopen, and closes with its connection when the
+Response's block ends. Details are provisional P500.
+
+There are 1212 tests, and all pass with clang and with gcc 15.
