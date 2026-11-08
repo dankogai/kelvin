@@ -13,6 +13,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# fetch's HTTPS (#482), through OpenSSL, on every platform: Ubuntu's
+# libssl-dev and macOS's Homebrew openssl@3 come with the runners, FreeBSD's
+# OpenSSL with its base; make stops where it finds none
+env:
+  HAS_SSL: 1
+
 jobs:
   test:
     name: ${{ matrix.os }} / ${{ matrix.cc }}
@@ -67,8 +73,8 @@ jobs:
             cc --version
             pw useradd kelvin -m
             chown -R kelvin .
-            su kelvin -c "gmake CFLAGS='-std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -pedantic -Werror'"
-            su kelvin -c "make test"
+            su kelvin -c "HAS_SSL=1 gmake CFLAGS='-std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -pedantic -Werror'"
+            su kelvin -c "HAS_SSL=1 make test"
             su kelvin -c "./kelvinc --run examples/hello.k"
 
   sanitizers:

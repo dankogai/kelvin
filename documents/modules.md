@@ -80,6 +80,10 @@ let main():int32 {
   order imported, so that a library a later one calls comes after it.
   - A `.kh` with no library beside it is a header alone, as a C
     header-only library is.
+  - **`libkM.link`** beside the library holds what it needs of the
+    system, flags split on whitespace, such as
+    `-L/opt/local/lib -lssl -lcrypto`, linked right after it (#482):
+    `make` writes `fetch`'s, OpenSSL's flags.
 - **`#import <M>`** takes, in `./modules` and then in Kelvin's
   `modules/`, the first of:
   1. `M.kh`, with `libkM.a`, `.so` or `.dylib` beside it: the header is

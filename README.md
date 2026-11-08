@@ -332,6 +332,10 @@ So far the changes from C are these, by topic.
   `$/pattern/flags` literal: `re.test(&s)`, `s.match(&re)`,
   `s.replace(&re, "$1")`, `s.split(&re)`, `\p{Script=Greek}` and `\X`
   for a grapheme cluster (#157)
+- `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
+  `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
+  `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is
+  OpenSSL's, where `make` builds with `HAS_SSL=1`, the default (#482)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

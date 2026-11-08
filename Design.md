@@ -524,6 +524,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 479 | A uchr inside a value prints as `uchr("x")`, its character quoted as text is, so that it pastes back: `[uchr("é"), uchr("\n")]`, U+0000 `uchr(0)`; it was `{...}`, C's text of a struct. kc prints the same, takes `[uchr](N)`, and reads `int64(x)` and `uchr(x)` as no case word in a fixed array's list | runtime/string.c's kv_cstr_quoted_uchr, modules/kelvin_prelude.h, src/codegen.c's text_writer and text_bound; selfhost/gen.k's elem_shown, show_value, fixed_elem_ok, is_case_word; tests/run/uchr_shown.k; selfhost/sample.k; documents/printing.md, documents/strings.md, README.md, selfhost/README.md | `[uchr("é")]` | 2026-11-08 |
 | 480 | A walk of uchrs stops at `uchr(0)`, as the user chose: `for c in f` of a `[uchr](N)` and `for c in p` of a `uchr^`, where kelvinc's C compared a struct with 0. A written type converts each element as `T(v)` does: `for n:u32 in s` a uchr's codepoint, `for c:uchr in xs` `uchr(x)` of an integer; of a float or a bool it is an error. kc walks a `[uchr](N)` alike | src/codegen.c's for-each stop, each_value and a String's walk; src/parser.c's for-each; selfhost/gen.k's fixed walk; tests/run/uchr_walk.k, tests/error/uchr_each_of_float.k; selfhost/sample.k; documents/flow-controls.md, documents/strings.md, selfhost/README.md, README.md | `for c in f` of `[uchr](4)` | 2026-11-08 |
 | 481 | A fixed array prints as `[a, b]`, as the user chose, as inside a struct, so that it pastes back; it was its address. By print, a template, `$`...`` and `.pretty`; a let array parameter by its declared length, a var one an error; a `[u8](N)` is still its text. kc prints it alike by print, and refuses it in a template and `.pretty` in words | src/codegen.c's shown_array, shown_elem, show_key, need_show, emit_show, show_call; src/parser.c's showable, shown_array, shown_count, shown_value_type; selfhost/gen.k's gen_print_args_to, its template and `.pretty` errors; tests/run/print_fixed.k, tests/error/print_fixed_var_param.k, tests/run/template_bounds.k, tests/error/pretty_scalar.k; selfhost/sample.k; documents/printing.md, documents/arrays.md, selfhost/README.md, README.md | `println(f)` of `[i32](2)` | 2026-11-08 |
+| 482 | `#import <fetch>`, JS's `fetch(url)` as a GET, as the user asked: a `Result<Response, Error>`, Response's status, statusText, ok, url, redirected, headers (names lowercased, repeats joined) and body, `res.text()`; `Error` is `{message}`. An HTTP/1.1 client of its own, following up to 20 redirects; HTTPS is OpenSSL's where built with `HAS_SSL=1`, the default, `make HAS_SSL=0` or the environment turning it off; on in CI on macOS, Ubuntu and FreeBSD. A module's system libraries are `libkM.link` beside it, which kelvinc links after it | runtime/fetch.c, modules/kfetch.h, modules/fetch.k; src/main.c's link_flags; GNUmakefile's HAS_SSL, libkfetch.link and fetch rules, tests/fetch.sh in make test; tools/ssl-flags.sh; .github/workflows/ci.yml's HAS_SSL; .gitignore; tests/fetch.sh, tests/fetch/server.py, tests/fetch/get.k, redirect.k, errors.k, https.k, nossl.k; documents/fetch.md, documents/modules.md, documents/README.md, README.md | `fetch("https://example.com/")` | 2026-11-08 |
 
 Notes:
 
@@ -1109,6 +1110,58 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (482) Agreed details: "push. Then let us implement `fetch()` a la JS":
+  a module, `#import <fetch>`, giving `Result<Response,Error>`, with
+  `HAS_SSL` a make option and an environment variable for HTTPS, on in
+  CI on macOS, Ubuntu and FreeBSD.
+  - Asked, the user chose an HTTP/1.1 client of our own, with OpenSSL
+    under it where `HAS_SSL=1`, over libcurl; `struct Error { message }`;
+    a GET first, `fetch(url, init)` with a method, headers and a body in
+    a later number; tests against local servers, with no network.
+  - fetch waits for the whole answer, as Kelvin has no Promise; two at
+    once are `async` of a function that takes the String moved in, as
+    `async fetch(url)` would share a cstr's text with the thread.
+  - A by-value `fetch(url:String)` overload made `fetch("...")` fit two
+    overloads equally, a literal being a cstr and a String, so it went.
+  - Each request says Connection: close and Accept-Encoding: identity,
+    so a body ends at its Content-Length, its last chunk or the close,
+    and comes as sent; 1xx answers are passed over; 204 and 304 have no
+    body.
+  - Redirects 301, 302, 303, 307 and 308 are followed up to 20, a
+    Location absolute, `//host`, from the root or relative, its `.` and
+    `..` removed by RFC 3986's steps.
+  - A status of 404 or 500 is a Response with `ok` false, not an Error,
+    as JS has it; an Error is a URL that is not one, no host, no
+    connection, TLS, an answer that is not HTTP/1.1, a cut body, too
+    many redirects, or HTTPS not built in.
+  - Header text that is not UTF-8 is read as Latin-1; `res.text()` is a
+    Result, as `b.string()` is, since a String must be UTF-8.
+  - HTTPS verifies the peer against OpenSSL's default paths, which
+    `SSL_CERT_FILE` and `SSL_CERT_DIR` change, for the URL's name or
+    address, TLS 1.2 or later; a close without close_notify ends the
+    body; SIGPIPE is held back while writing where there is no
+    SO_NOSIGPIPE.
+  - Names starting with `kv_` are kelvinc's runtime's, so the engine is
+    `kfetch_get`, `kfetch_header` and `kfetch_has_ssl`.
+  - kelvinc had no way for a module to link a system library; now
+    `libkM.link` beside `libkM.a` holds flags that it links after the
+    module's library, in a program and in `kelvinc --lib`'s shared one.
+  - tools/ssl-flags.sh finds OpenSSL by compiling and linking a TLS
+    client: SSL_CFLAGS and SSL_LIBS, pkg-config, Homebrew, MacPorts,
+    /usr/local, the system's. With `HAS_SSL=1` and none, make stops
+    and says what to do.
+  - The flags are written as make reads the GNUmakefile, and where they
+    change libkfetch's outputs are removed: macOS's make 3.81 counts
+    whole seconds, and took a new libkfetch.link and an old object as
+    made at once.
+  - tests/fetch.sh, in make test, serves tests/fetch/server.py on
+    127.0.0.1, and with HTTPS two more, one whose certificate, made by
+    openssl for the run, SSL_CERT_FILE trusts and one it does not; the
+    output shows the URLs as BASE, TLSBASE and BADBASE. A program with
+    `// needs: ssl` or `// needs: nossl` runs only so built.
+  - Under ASan with tests/asan's counting allocator, the fetch programs
+    have no error and nothing live at exit, checked by hand; tests/asan.sh
+    does not run them yet.
 - (481) Agreed details: "push. then go on with #481", a gap #480 found:
   kelvinc's `println(f)` of a fixed array printed its address, which
   does not paste back.
@@ -7202,6 +7255,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P491 | Details of #479 | runtime/string.c: kv_cstr_quoted_uchr after kv_cstr_quoted_str, `uchr(0)` or `uchr(` quoted_into `)`; src/codegen.c: text_writer's uchr, text_bound's 14; selfhost/gen.k: elem_shown for need_show, show_value's uchr, fixed_elem_ok's Y_UCHR, is_case_word without converter_of and uchr_call | provisional |
 | P492 | Details of #480 | src/codegen.c: is_uchr_type, each_value before stmt; S_FOR_EACH's `at`, `(*p).cp` for a uchr element, in the array, pointer and unseen stops; a String's walk `kv_utf8_next` alone for a written number; src/parser.c: parse_for_each's error for a written uchr over f32, f64 or bool; selfhost/gen.k: the fixed walk takes Y_UCHR, `].cp != 0` | provisional |
 | P493 | Details of #481 | src/codegen.c: shown_array (a count, not pointer_kind 's') in has_show; show_key's fixed_ and the element's C type as a name; need_show's elements; emit_show's `(kv_out *, const void *, size_t, int)` printer; show_call for print's, `.pretty`'s and templates' calls; src/parser.c: showable takes shown_array, recv_type by own_unqualified, `c` the count by shown_count; selfhost/gen.k: gen_print_args_to's `const struct { __typeof__(a) a; } *self`, not of u8 or i8 | provisional |
+| P494 | Details of #482 | runtime/fetch.c: parse_url, url_text, remove_dots, resolve; conn_open (getaddrinfo, 60 s timeouts, SO_NOSIGPIPE), tls_start (TLS_client_method, TLS 1.2, default verify paths, SNI and SSL_set1_host or the IP), conn_write (SIGPIPE held), conn_read; get_once reads to the Content-Length, the last chunk or the close, dechunk, headers as name\0value\0; kfetch_get follows 20 redirects; text_of reads non-UTF-8 as Latin-1; modules/fetch.k: Error, Response, text(), fetch(cstr) and fetch(const String^); src/main.c: link_flags in module_library and link_shared; GNUmakefile: HAS_SSL ?= 1, SSL_CFLAGS_FOUND and SSL_LIBS_FOUND, FETCH_LINK at parse time | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

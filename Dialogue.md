@@ -9219,3 +9219,23 @@ prints it alike. kc builds 196 of the 358 programs, 2 more. Details are
 provisional P493.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 529. fetch
+
+> push. Then let us implement `fetch()` a la JS.
+>
+> * definitely as a module: `#import <fetch>`.
+> * returns `Result<Response,Error>`
+> * HTTPS support varies by platforms so add `HAS_SSL` or something in the build make option (and/or environment variable).  Default YES for all platforms in CI -- macOS, Ubuntu and FreeBSD
+
+**Claude** pushed #481, and all nine jobs passed. Asked, the user chose
+an HTTP/1.1 client of our own, with OpenSSL under it for HTTPS, over
+libcurl; `struct Error { message }`; a GET first; and tests against local
+servers. `#import <fetch>` now gives `fetch(url)`, a
+`Result<Response, Error>`, following redirects, with the status, the
+headers, the body and `res.text()`. `make` builds HTTPS where
+`HAS_SSL=1`, the default, and CI says so on every platform; a module's
+system libraries are `libkM.link` beside it. tests/fetch.sh serves
+HTTP and HTTPS on 127.0.0.1. Details are provisional P494.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

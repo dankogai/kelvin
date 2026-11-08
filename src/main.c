@@ -191,6 +191,21 @@ static bool imported_already(const char *path) {
    that one a later one calls comes after it; linked before libkelvin */
 static List module_libs;
 
+/* the flags of libkM.link beside a module's library (#482), split on
+   whitespace, such as -L/opt/local/lib -lssl -lcrypto: what the library
+   needs of the system, linked after it */
+static void link_flags(const char *dir, const char *name, List *out) {
+    FILE *f = fopen(strfmt("%s/libk%s.link", dir, name), "r");
+    if (!f)
+        return;
+    char buf[4096];
+    size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    for (char *tok = strtok(buf, " \t\r\n"); tok; tok = strtok(NULL, " \t\r\n"))
+        list_push(out, xstrdup(tok));
+}
+
 static void module_library(const char *path) {
     size_t n = strlen(path);
     if (n < 4 || strcmp(path + n - 3, ".kh"))
@@ -201,10 +216,13 @@ static void module_library(const char *path) {
     char *a = strfmt("%s/libk%s.a", dir, name);
     if (file_exists(a)) {
         list_push(&module_libs, a);
+        link_flags(dir, name, &module_libs);
         return;
     }
-    if (file_exists(strfmt("%s/libk%s.dylib", dir, name)) || file_exists(strfmt("%s/libk%s.so", dir, name)))
+    if (file_exists(strfmt("%s/libk%s.dylib", dir, name)) || file_exists(strfmt("%s/libk%s.so", dir, name))) {
         list_push(&module_libs, strfmt("-lk%s", name));
+        link_flags(dir, name, &module_libs);
+    }
 }
 
 static char *import_path(Token *t, const char *argv0) {
@@ -413,6 +431,7 @@ static int link_shared(const char *cc, const char *lib_dir, const char *lib_name
     list_push(&args, strfmt("-L%s", rt_inc));
     for (int i = 0; i < module_libs.len; i++)
         list_push(&args, shared_of(module_libs.data[i]));
+    link_flags(lib_dir, lib_name, &args); /* its own system libraries (#482) */
     list_push(&args, shared_of(rt_lib));
     list_push(&args, "-lm");
     list_push(&args, "-lpthread"); /* a Task's thread (#312) */

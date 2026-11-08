@@ -102,3 +102,5 @@ the design decisions, numbered `#N` throughout, are in
   normalization, graphemes, the case mappings, a codepoint's data.
 - [regexp.md](regexp.md): `#import <RegExp>`, `$/pattern/flags`, JS's
   regular expressions over Strings and Bytes.
+- [fetch.md](fetch.md): `#import <fetch>`, JS's `fetch(url)` as a GET
+  over HTTP and HTTPS, a `Result<Response, Error>`.
