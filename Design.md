@@ -534,6 +534,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 489 | Cookies, as the user chose: a `CookieJar`, `CookieJar()` and RequestInit's `cookies`, keeps each answer's Set-Cookie, a redirect's too, and each request sends those that match, by RFC 6265's domain, path, Secure, Max-Age and Expires; a Domain must match the host and hold a dot, a Secure one comes only over https; a handle, as AbortSignal is, in memory for the program's life. `jar.getCookieString(url)`, `jar.setCookie(text, url)`, `jar.clear()`, `jar.count`, tough-cookie's names; `res.setCookies`, each Set-Cookie apart | runtime/fetch.c's cookie_t, jar_t, jar_store, jar_header, cookie_date, domain_match, path_match, default_path, kfetch_jar_*; request_once's Cookie, kfetch_request's jar; modules/kfetch.h, modules/fetch.k; tests/fetch/cookies.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.cookies = jar}` | 2026-11-08 |
 | 490 | A jar's file, as the user chose: Netscape's cookies.txt, curl's; `jar.save(path)` writes the live cookies, session's too, by a file renamed over path, and `jar.load(path)` adds a file's, the same name, domain and path replaced, those ended left out, `#HttpOnly_` lines read as any; each a `Result<i64, Error>`, how many | runtime/fetch.c's kfetch_jar_save, kfetch_jar_load; modules/kfetch.h, modules/fetch.k; tests/fetch/jarfile.k; documents/fetch.md, README.md | `jar.save("cookies.txt")` | 2026-11-08 |
 | 491 | `#import <localStorage>`, JS's, as the user chose: the global `localStorage`, getItem a `String?`, setItem, removeItem, clear, length, key(i), and path, kept in a JSON file of the program's, KELVIN_LOCALSTORAGE's, else under $XDG_DATA_HOME or ~/.local/share, kelvin/localStorage/<program>.json, read at first use and written at each change by a file renamed over it. kelvinc: an extern global that owns is declared without `= {0}`, which defined it twice, and a `--lib` module registers its global owners' freeing as it is loaded | modules/localStorage.k; src/codegen.c's var_decl and _kv_register_globals; GNUmakefile's localStorage.kh; .gitignore; tests/run/local_storage.k; documents/localstorage.md, documents/modules.md, documents/README.md, README.md | `localStorage.setItem("k", "v")` | 2026-11-08 |
+| 492 | An overload declared after a call is not seen there, as the user chose, C's rule kept: where the one seen does not take the arguments, a function's or a method's, and one of the name is declared after, it is an error that says so and names a prototype, where kelvinc called the one seen and C took the arguments with a warning alone | src/parser.c's reject_unfit_only, reject_unseen_overloads, unfit_calls; tests/error/overload_declared_after.k, tests/error/method_overload_declared_after.k; documents/functions.md, README.md | `let f(s:cstr)` before the call | 2026-11-08 |
 
 Notes:
 
@@ -1119,6 +1120,28 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (492) Agreed details: "push. then go on with the method overload gap",
+  the gap #491 found: in localStorage, `put(s:const String^)` calling
+  `put(s^.cstr)` called itself, its cstr overload declared after it.
+  - A free function has it too: a call sees the overloads declared so
+    far, and of one alone kelvinc took it without weighing the
+    arguments, C passing a cstr as a `const kv_string *` with a warning.
+  - Kelvin keeps C's rule, a function declared before its call: one
+    defined after it is C's undeclared function, a prototype curing it.
+  - Asked, the user chose an error in words, over every overload seen
+    from anywhere in the file, as Swift does, which would leave a single
+    function still needing its prototype.
+  - Weighing the one seen at the call, by the choice among overloads,
+    made 8 tests fail: C's own conversions, as a cstr to a `u8^`, and 6
+    errors that say more, as a struct given for its pointer. So a call
+    the one seen does not fit is kept, and once every declaration is
+    read, it is an error only where an overload of the name, a
+    function's, or a method's of the same type, has another signature:
+    one declared after the call. Else it is left as before.
+  - A method's receiver kelvinc cannot see named no type in the words,
+    and crashed it on tests/run/math_real.k; such a call says `'.m'`.
+  - A prototype in an `extend`, `var put(s:cstr)`, declares a method
+    before the one that calls it, as `let f(s:cstr)` a function.
 - (491) Agreed details: "push. then go on with localStorage", as #490's
   answers settled it: a module of its own, a file per program, written at
   each change.
@@ -7523,6 +7546,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P501 | Details of #489 | runtime/fetch.c: cookie_t, jar_t, jars_lock, jars_free by atexit, kfetch_jar_new, jar_of, text_copy, trim, is_address, domain_match, path_match, default_path, cookie_date (RFC 6265 5.1.1, days from the civil calendar), jar_store, cookie_order, jar_header, kfetch_jar_set, kfetch_jar_header, kfetch_jar_clear, kfetch_jar_count; request_once's jar and Cookie; kfetch_request's jar, storing each answer's set-cookie; modules/fetch.k: CookieJar, CookieJar(), getCookieString of a cstr and &s, setCookie of a cstr and &s, clear, count, RequestInit's cookies, Response's setCookies | provisional |
 | P502 | Details of #490 | runtime/fetch.c: kfetch_jar_save by fprintf to path.PID.tmp and rename, kfetch_jar_load by fgets of 8192 bytes, #HttpOnly_ and # lines, 7 fields or 6 with the value empty, strtod of the expiry; modules/fetch.k: CookieJar's save and load of a cstr and &s | provisional |
 | P503 | Details of #491 | modules/localStorage.k: Storage {items, file, read}, var localStorage, storageRead's prototype and body, Storage.defaultPath, Storage.opened, save by JSON.stringify(&j, "  ") to file.PID.tmp and OS.rename, the methods, the overloads of &s last; src/codegen.c: var_decl's extern without = {0}, _kv_register_globals by __attribute__((constructor)) where lib_mode; GNUmakefile: modules/localStorage.kh by kelvinc --lib after JSON.kh and the IO and OS libraries | provisional |
+| P504 | Details of #492 | src/parser.c: unfit_t and unfit_calls; reject_unfit_only at a call of one candidate, a function's in its call and a method's in parse_postfix_steps, by choose of that one, of the right count of arguments; reject_unseen_overloads at the end of parse, before name_functions, counting functions of the name, and of the receiver's name for a method, of another signature | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

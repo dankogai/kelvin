@@ -390,6 +390,16 @@ let main():int32 {
     C name, and is an overload like any other.
   - Arguments that fit no overload are an error, never a call of C's.
   - A call before the Kelvin function is declared is C's, as in C.
+- **An overload declared after a call** is not seen there, a function's
+  or a method's, as C sees no function before its declaration (#492).
+  - Where the ones seen take the arguments, one of them is called.
+  - Where none does, and one of the name is declared after, it is an
+    error that says so: kelvinc used to call the one seen, and C was
+    given the arguments with a warning alone, as a `cstr` for a
+    `const String^`, which called the String's overload from itself.
+  - Declare the one meant before the call, as a prototype: `let f(s:cstr)`
+    before `let f(s:const String^) { f(s^.cstr) }`, and in an `extend`,
+    `var put(s:cstr)` before the method that calls it.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.

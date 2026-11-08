@@ -1657,6 +1657,8 @@ static bool repeatable(Expr *e);
 static void drop_cstr_args(Expr *call, Decl *d);
 static void move_args(Expr *call, Decl *d);
 static void check_args(Expr *call, Decl *d);
+static void reject_unfit_only(Decl *only, Expr **args, int nargs, Pos pos, const char *what);
+static void reject_unseen_overloads(void);
 static void borrow_temps(Expr *call, Decl *d);
 static void reject_owners_to_c(Expr *call);
 static List overloads_of(const char *name, const char *op);
@@ -3594,6 +3596,10 @@ static Expr *parse_postfix_steps(Expr *e) {
                     block_after_call = cur;
                 }
                 Decl *chosen = mcands.len == 1 ? mcands.data[0] : NULL;
+                if (chosen) /* (#492) */
+                    reject_unfit_only(chosen, (Expr **)x->items.data, x->items.len, name->pos,
+                                      value_type(e) ? strfmt("'.%s' of %s", member, kelvin_type(value_type(e)))
+                                                    : strfmt("'.%s'", member));
                 if (mcands.len > 1) { /* the overload the arguments fit (#158), as a function's (#41) */
                     List maybe;
                     const char *what = strfmt("'.%s' of %s", member, kelvin_type(value_type(e)));
@@ -7457,6 +7463,7 @@ static void resolve_call(Expr *call) {
     List cands = overloads_of(callee->text, NULL);
     Decl *only = cands.len == 1 ? cands.data[0] : NULL;
     if (only) {
+        reject_unfit_only(only, (Expr **)call->items.data, call->items.len, call->pos, strfmt("'%s'", callee->text));
         typed_args(call, only);
         for (int k = 0; k < call->items.len && k < only->params.len; k++) {
             Expr *x = call->items.data[k];
@@ -7507,6 +7514,59 @@ static void resolve_call(Expr *call) {
     borrow_temps(call, call->target);
     check_args(call, call->target);
     move_args(call, call->target);
+}
+
+/* a call of a function or a method whose one overload declared so far does
+   not take its arguments (#492), kept to be weighed once every declaration
+   is read: an overload declared after the call is not seen there, as C sees
+   no function before its declaration, and kelvinc took the one it saw,
+   which C was given the arguments of with a warning alone. Of the right
+   count of arguments, which kelvinc says otherwise */
+typedef struct {
+    Decl *only;
+    const char *what, *given;
+    Pos pos;
+} unfit_t;
+static List unfit_calls;
+
+static void reject_unfit_only(Decl *only, Expr **args, int nargs, Pos pos, const char *what) {
+    if (!only || nargs < only->params.len || (nargs > only->params.len && !only->variadic))
+        return;
+    List one = {0}, maybe;
+    list_push(&one, only);
+    if (choose(&one, args, nargs, &maybe, pos, what) || maybe.len)
+        return;
+    Buf given = {0};
+    buf_puts(&given, "");
+    bare_tags = true;
+    for (int k = 0; k < nargs; k++)
+        buf_printf(&given, "%s%s", k ? ", " : "", arg_text(args[k]));
+    bare_tags = false;
+    unfit_t *u = xcalloc(1, sizeof *u);
+    *u = (unfit_t){only, what, given.buf, pos};
+    list_push(&unfit_calls, u);
+}
+
+/* the calls kept above whose function or method has an overload declared
+   after them: an error that says so, where C would have taken the one seen */
+static void reject_unseen_overloads(void) {
+    for (int i = 0; i < unfit_calls.len; i++) {
+        unfit_t *u = unfit_calls.data[i];
+        int same = 0;
+        for (int k = 0; k < functions.len; k++) {
+            Decl *d = functions.data[k];
+            bool alike = d->name && !strcmp(d->name, u->only->name) && !d->op && !d->nested_in &&
+                         (u->only->recv ? d->recv && d->recv_name && u->only->recv_name &&
+                                              !strcmp(d->recv_name, u->only->recv_name) && !d->attribute
+                                        : !d->recv);
+            same += alike && strcmp(signature(d), signature(u->only));
+        }
+        if (same)
+            error_at(u->pos,
+                     "%s declared before this call takes (%s), and these are (%s): an overload declared after it is "
+                     "not seen here, as C sees none; declare the one meant before the call, as a prototype",
+                     u->what, signature(u->only), u->given);
+    }
 }
 
 /* each argument of a Kelvin function or method, as the function takes it
@@ -16280,6 +16340,7 @@ Program *parse(Token *tokens, int ntoks) {
     if (inline_next) /* (#392) */
         error_at(inline_tok->pos, "'inline' is for a function, a method or an operator");
     end_alignas(); /* (#396) */
+    reject_unseen_overloads(); /* (#492) */
     name_functions();
     /* a Dictionary has == where its values compare (#235), known once every
        enum's no_eq is: an enum of the values may hold the Dictionary */

@@ -9386,3 +9386,18 @@ declares it alone, and the module frees it at exit. Details are
 provisional P503.
 
 There are 1213 tests, and all pass with clang and with gcc 15.
+
+### 539. An overload declared after a call
+
+> push. then go on with the method overload gap
+
+**Claude** pushed #491, and all nine jobs passed. A call sees the overloads
+declared before it, a function's as a method's, and where the one seen did
+not take the arguments, kelvinc called it anyway, C passing them with a
+warning alone. Asked, the user chose an error in words, C's rule kept.
+Weighed at the call, it caught C's own conversions too, so the call is kept
+and weighed once the file is read: an error only where an overload of the
+name is declared after it, which a prototype before the call cures.
+Details are provisional P504.
+
+There are 1215 tests, and all pass with clang and with gcc 15.
