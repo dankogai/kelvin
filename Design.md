@@ -532,6 +532,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 487 | An abort by hand, JS's AbortController, as the user chose: `AbortController()`, `c.signal`, an `AbortSignal`, a value that `async` copies into a task, as RequestInit's signal, `c.abort()` and `c.abort(reason)`, an Error, `fetch: aborted` or `fetch: aborted: reason`, at once: a read or a write woken by the socket's shutdown, a connect within 0.1 seconds; a signal aborted already fails before it starts, and stays aborted; `.aborted`. Its state is kept in libkfetch's table for the program's life, freed at its exit | runtime/fetch.c's abort table, kfetch_abort_new, kfetch_abort, kfetch_aborted, abort_watch, aborted_error, connect_within's slices; modules/kfetch.h, modules/fetch.k; tests/fetch/abort.k, tests/fetch/https.k, tests/fetch.sh; documents/fetch.md, README.md | `c.abort("user quit")` | 2026-11-08 |
 | 488 | A body that streams, as the user chose: RequestInit's `stream`, and fetch returns at the headers, `res.body` empty, the body read as it comes from `res.stream`, an `IO`, by its length, its chunks or the close, through fopencookie or funopen, closed with its connection when the Response's block ends; the timeout and an abort hold for each read; `res.streamError`, an `Error?`, says what ended it; `res.text()` and `res.json()` read the rest. fetch.md's Synopsis is the user's program | runtime/fetch.c's stream_t, stream_read, stream_fill, raw_line, stream_close, stream_file, stream_open, kfetch_stream_error, kfetch_stream_rest; modules/kfetch.h, modules/fetch.k; tests/fetch/stream.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `for chunk in res.stream.read(65536)` | 2026-11-08 |
 | 489 | Cookies, as the user chose: a `CookieJar`, `CookieJar()` and RequestInit's `cookies`, keeps each answer's Set-Cookie, a redirect's too, and each request sends those that match, by RFC 6265's domain, path, Secure, Max-Age and Expires; a Domain must match the host and hold a dot, a Secure one comes only over https; a handle, as AbortSignal is, in memory for the program's life. `jar.getCookieString(url)`, `jar.setCookie(text, url)`, `jar.clear()`, `jar.count`, tough-cookie's names; `res.setCookies`, each Set-Cookie apart | runtime/fetch.c's cookie_t, jar_t, jar_store, jar_header, cookie_date, domain_match, path_match, default_path, kfetch_jar_*; request_once's Cookie, kfetch_request's jar; modules/kfetch.h, modules/fetch.k; tests/fetch/cookies.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.cookies = jar}` | 2026-11-08 |
+| 490 | A jar's file, as the user chose: Netscape's cookies.txt, curl's; `jar.save(path)` writes the live cookies, session's too, by a file renamed over path, and `jar.load(path)` adds a file's, the same name, domain and path replaced, those ended left out, `#HttpOnly_` lines read as any; each a `Result<i64, Error>`, how many | runtime/fetch.c's kfetch_jar_save, kfetch_jar_load; modules/kfetch.h, modules/fetch.k; tests/fetch/jarfile.k; documents/fetch.md, README.md | `jar.save("cookies.txt")` | 2026-11-08 |
 
 Notes:
 
@@ -1117,6 +1118,27 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (490) Agreed details: "push. then go on with saving a jar to a file.
+  And if possible, consider implementing localStorage". Asked, the user
+  chose Netscape's cookies.txt, which curl and wget read and write, over
+  tough-cookie's JSON; `jar.save(path)` and `jar.load(path)` over a jar
+  bound to a file; and localStorage as a module of its own, a file per
+  program, written at each change, which is #491.
+  - A line a cookie, seven fields by tabs: the domain, with a dot before
+    it where subdomains match; TRUE where they do; the path; TRUE where
+    Secure; the expiry in seconds since the epoch, 0 for a session's;
+    the name; the value. Session cookies are saved, as curl saves them.
+  - save writes a file beside path, path.PID.tmp, and renames it over
+    path, so that a reader never sees half of one; load reads a line of
+    six fields as one of an empty value, as curl drops its last tab, and
+    curl's #HttpOnly_ prefix as nothing; an expiry that is not a number,
+    or a line of other fields, is an Error that names the line.
+  - Tried with curl both ways: `curl -b` sends the cookies of a file
+    Kelvin saved, and a jar loads what `curl -c` wrote.
+  - tests/fetch/jarfile.k saves a jar with a session's cookie, reads it
+    back, reads a file by hand with a leading dot, an #HttpOnly_ line, an
+    ended cookie and an empty value, and gives Errors of a bad line, a
+    missing file and a directory that is not there.
 - (489) Agreed details: "push. then go on with cookies". #488's CI failed
   on FreeBSD alone, GitHub's 504 as the job fetched its VM's tool, before
   any of Kelvin was built; run again, it passed, all nine jobs.
@@ -7465,6 +7487,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P499 | Details of #487 | runtime/fetch.c: abort_t {aborted, reason, fd}, aborts_lock, aborts grown by realloc, aborts_free by atexit, kfetch_abort_new, abort_of, kfetch_abort (shutdown of the fd), kfetch_aborted, abort_watch, aborted_error; conn_t's signal; bound_waits, the handshake, writes and reads ask kfetch_aborted; connect_within polls in slices of 100 ms; kfetch_request fails at once of a signal aborted; modules/fetch.k: AbortSignal, AbortController, AbortController(), abort(), abort(reason) of a cstr and of &s, RequestInit's signal | provisional |
 | P500 | Details of #488 | runtime/fetch.c: _GNU_SOURCE off the BSDs and macOS; stream_t {c, raw, at, mode, chunk, left, done, failure, host, fp, next}, STREAM_NONE, LENGTH, CHUNKED, CLOSE and CHUNK_SIZE, DATA, END, TRAILER; stream_fail, stream_fill, raw_line, stream_read, stream_free, stream_close, stream_read_fn and stream_file by funopen or fopencookie, stream_open as an IO of kind 1, kfetch_stream_error, kfetch_stream_rest; response_t's stream; request_once's stream; kfetch_request's stream and streamed; modules/fetch.k: #import <IO>, RequestInit's stream, Response's stream, streamError, text() of the rest, fetch filling the Response in place | provisional |
 | P501 | Details of #489 | runtime/fetch.c: cookie_t, jar_t, jars_lock, jars_free by atexit, kfetch_jar_new, jar_of, text_copy, trim, is_address, domain_match, path_match, default_path, cookie_date (RFC 6265 5.1.1, days from the civil calendar), jar_store, cookie_order, jar_header, kfetch_jar_set, kfetch_jar_header, kfetch_jar_clear, kfetch_jar_count; request_once's jar and Cookie; kfetch_request's jar, storing each answer's set-cookie; modules/fetch.k: CookieJar, CookieJar(), getCookieString of a cstr and &s, setCookie of a cstr and &s, clear, count, RequestInit's cookies, Response's setCookies | provisional |
+| P502 | Details of #490 | runtime/fetch.c: kfetch_jar_save by fprintf to path.PID.tmp and rename, kfetch_jar_load by fgets of 8192 bytes, #HttpOnly_ and # lines, 7 fields or 6 with the value empty, strtod of the expiry; modules/fetch.k: CookieJar's save and load of a cstr and &s | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

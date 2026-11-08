@@ -32,6 +32,8 @@ let kfetch_jar_set(id:i64, text:cstr, url:cstr):bool
 let kfetch_jar_header(id:i64, url:cstr, out:String^):()
 let kfetch_jar_clear(id:i64):()
 let kfetch_jar_count(id:i64):i64
+let kfetch_jar_save(id:i64, path:cstr, error:String^):i64
+let kfetch_jar_load(id:i64, path:cstr, error:String^):i64
 let kfetch_abort_new():i64
 let kfetch_abort(id:i64, reason:cstr):()
 let kfetch_aborted(id:i64):bool
@@ -106,6 +108,33 @@ extend CookieJar {
     let setCookie(text:const String^, url:cstr):bool { kfetch_jar_set(self.id, text^.cstr, url) }
     let clear() { kfetch_jar_clear(self.id) }                  // every cookie dropped
     let count:i64 { kfetch_jar_count(self.id) }                // the cookies alive
+
+    // its live cookies written to path, Netscape's cookies.txt, as curl's
+    // -c writes (#490): their count, or an Error
+    let save(path:cstr):Result<i64, Error> {
+        var why = $""
+        let n = kfetch_jar_save(self.id, path, &why)
+        if n < 0 {
+            var e:Error = {.message = why.copy()}
+            return err(e)
+        }
+        return n
+    }
+    let save(path:const String^):Result<i64, Error> { self.save(path^.cstr) }
+
+    // the cookies of a cookies.txt added, as curl's -b reads it, the same
+    // name, domain and path replaced, those ended left out: their count, or
+    // an Error (#490)
+    let load(path:cstr):Result<i64, Error> {
+        var why = $""
+        let n = kfetch_jar_load(self.id, path, &why)
+        if n < 0 {
+            var e:Error = {.message = why.copy()}
+            return err(e)
+        }
+        return n
+    }
+    let load(path:const String^):Result<i64, Error> { self.load(path^.cstr) }
 }
 
 // a request's method, "" for GET, its headers, sent as written, its body,

@@ -9357,3 +9357,17 @@ RFC 6265 has them; `jar.getCookieString(url)`, `jar.setCookie(text, url)`,
 `res.setCookies` is each Set-Cookie apart. Details are provisional P501.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 537. A jar's file
+
+> push. then go on with saving a jar to a file.  And if possible, consider implementing localStorage
+
+**Claude** pushed #489, and all nine jobs passed. Asked, the user chose
+Netscape's cookies.txt, curl's, `jar.save(path)` and `jar.load(path)`,
+and localStorage as a module of its own, a file per program, written at
+each change, for #491. save writes the live cookies by a file renamed over
+the path; load adds a file's, replacing the same name, domain and path.
+curl sends the cookies of a file Kelvin saved, and Kelvin reads curl's.
+Details are provisional P502.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

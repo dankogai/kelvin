@@ -351,6 +351,8 @@ So far the changes from C are these, by topic.
   - `var jar = CookieJar()` and `.cookies = jar` keep and send cookies
     across fetches and redirects, as RFC 6265 has them; `res.setCookies`
     is each Set-Cookie apart (#489)
+  - `jar.save(path)` and `jar.load(path)` write and read it as curl's
+    cookies.txt (#490)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

@@ -144,7 +144,19 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     which this does not; a Secure one over http, as RFC 6265bis has it;
     one with no `=`.
   - The jar is a handle, as an AbortSignal is, so tasks share one; kept
-    for the program's life and freed at its exit, in memory alone.
+    for the program's life and freed at its exit, in memory, or in a file
+    by `save` and `load`.
+  - **Its file** (#490) is Netscape's cookies.txt, which curl's `-c`
+    writes and `-b` reads, a line a cookie, seven fields by tabs: the
+    domain, a dot before it where subdomains match, `TRUE` where they
+    do, the path, `TRUE` where Secure, the expiry in seconds since the
+    epoch, 0 for a session's, the name and the value.
+    - `jar.save(path)` writes its live cookies, session's too, as curl
+      does, by a file beside `path` renamed over it, so that a reader
+      never sees half of one: a `Result<i64, Error>`, how many.
+    - `jar.load(path)` adds a file's cookies, the same name, domain and
+      path replaced, those ended left out, curl's `#HttpOnly_` lines read
+      as any: how many, or an Error that names the line not one.
   - Its methods are tough-cookie's names: `jar.getCookieString(url)` is
     what a request of `url` sends, `"a=1; b=2"`;
     `jar.setCookie("a=1; Path=/", url)` keeps one as from `url`, `true`
@@ -244,8 +256,7 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** a jar saved to a file and read back, as curl's
-  cookies.txt.
+- **Not here yet:** nothing of what was listed here.
 
 ## Where it lives
 
@@ -280,6 +291,8 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.setCookie(text, url)` | a Set-Cookie kept as from `url`: whether it was taken |
 | | `.clear()` | every cookie dropped |
 | | `.count` | the cookies alive, an `i64` |
+| | `.save(path)` | its live cookies written as cookies.txt, curl's: a `Result<i64, Error>`, how many (#490) |
+| | `.load(path)` | a cookies.txt's cookies added: a `Result<i64, Error>`, how many (#490) |
 | `Response` | `.status` | the status, an `i64` |
 | | `.statusText` | the status line's text, a String |
 | | `.ok` | whether the status is 200 to 299 |

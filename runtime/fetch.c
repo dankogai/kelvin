@@ -731,6 +731,138 @@ void kfetch_jar_clear(int64_t id) {
     pthread_mutex_unlock(&jars_lock);
 }
 
+/* ---------- a jar's file (#490), Netscape's cookies.txt, as curl writes ---------- */
+
+/* the jar's live cookies into path, by a file beside it renamed over it, so
+   that a reader never sees half of one: their count, or -1 with error */
+int64_t kfetch_jar_save(int64_t id, const uint8_t *path, kv_string *error) {
+    char tmp[4096];
+    if (snprintf(tmp, sizeof tmp, "%s.%ld.tmp", (const char *)path, (long)getpid()) >= (int)sizeof tmp) {
+        fail(error, "fetch: the path of the jar's file is too long: %s", (const char *)path);
+        return -1;
+    }
+    FILE *f = fopen(tmp, "w");
+    if (!f) {
+        fail(error, "fetch: cannot write the jar to %s: %s", (const char *)path, strerror(errno));
+        return -1;
+    }
+    fputs("# Netscape HTTP Cookie File\n# https://curl.se/docs/http-cookies.html\n"
+          "# This file was written by Kelvin's fetch (#490).\n\n", f);
+    double now = (double)time(NULL);
+    int64_t n = 0;
+    pthread_mutex_lock(&jars_lock);
+    jar_t *j = jar_of(id);
+    for (size_t k = 0; j && k < j->count; k++) {
+        cookie_t *c = &j->at[k];
+        if (c->expires != 0 && c->expires <= now)
+            continue;
+        fprintf(f, "%s%s\t%s\t%s\t%s\t%lld\t%s\t%s\n", c->host_only ? "" : ".", c->domain,
+                c->host_only ? "FALSE" : "TRUE", c->path, c->secure ? "TRUE" : "FALSE",
+                c->expires > 0 ? (long long)c->expires : 0LL, c->name, c->value);
+        n++;
+    }
+    pthread_mutex_unlock(&jars_lock);
+    bool written = !ferror(f);
+    if (fclose(f) != 0 || !written || rename(tmp, (const char *)path) != 0) {
+        fail(error, "fetch: cannot write the jar to %s: %s", (const char *)path, strerror(errno));
+        remove(tmp);
+        return -1;
+    }
+    return n;
+}
+
+/* the cookies of a cookies.txt at path added to the jar, the same name,
+   domain and path replaced, those ended left out: their count, or -1 with
+   error; curl's #HttpOnly_ lines are read as any */
+int64_t kfetch_jar_load(int64_t id, const uint8_t *path, kv_string *error) {
+    FILE *f = fopen((const char *)path, "r");
+    if (!f) {
+        fail(error, "fetch: cannot read a jar from %s: %s", (const char *)path, strerror(errno));
+        return -1;
+    }
+    double now = (double)time(NULL);
+    int64_t n = 0;
+    long line_no = 0;
+    char line[8192];
+    bool ok = true;
+    pthread_mutex_lock(&jars_lock);
+    jar_t *j = jar_of(id);
+    while (j && fgets(line, sizeof line, f)) {
+        line_no++;
+        line[strcspn(line, "\r\n")] = 0;
+        char *p = line;
+        if (!strncmp(p, "#HttpOnly_", 10))
+            p += 10;
+        else if (*p == '#' || !*p)
+            continue;
+        char *field[7];
+        int count = 0;
+        for (char *t = p; count < 7; count++) {
+            field[count] = t;
+            char *tab = strchr(t, '\t');
+            if (!tab) {
+                count++;
+                break;
+            }
+            *tab = 0;
+            t = tab + 1;
+        }
+        if (count == 6) /* an empty value, its tab dropped */
+            field[count++] = "";
+        if (count != 7 || !*field[0] || !*field[5]) {
+            fail(error, "fetch: %s, line %ld, is not a cookie of cookies.txt: 7 fields by tabs", (const char *)path, line_no);
+            ok = false;
+            break;
+        }
+        char *stop;
+        double expires = strtod(field[4], &stop);
+        if (*stop || expires < 0) {
+            fail(error, "fetch: %s, line %ld, has an expiry that is not a number", (const char *)path, line_no);
+            ok = false;
+            break;
+        }
+        if (expires != 0 && expires <= now)
+            continue;
+        cookie_t c = {0};
+        const char *domain = field[0];
+        c.host_only = strcmp(field[1], "TRUE") != 0 && *domain != '.';
+        if (*domain == '.')
+            domain++;
+        c.domain = text_copy(domain, strlen(domain));
+        for (char *d = c.domain; *d; d++)
+            *d = (char)(*d >= 'A' && *d <= 'Z' ? *d + 32 : *d);
+        c.path = text_copy(*field[2] ? field[2] : "/", strlen(*field[2] ? field[2] : "/"));
+        c.secure = !strcmp(field[3], "TRUE");
+        c.expires = expires;
+        c.name = text_copy(field[5], strlen(field[5]));
+        c.value = text_copy(field[6], strlen(field[6]));
+        for (size_t i = 0; i < j->count; i++) {
+            cookie_t *o = &j->at[i];
+            if (!strcmp(o->name, c.name) && !strcmp(o->domain, c.domain) && !strcmp(o->path, c.path)) {
+                c.order = o->order;
+                cookie_free(o);
+                j->at[i] = j->at[--j->count];
+                break;
+            }
+        }
+        if (!c.order)
+            c.order = ++cookies_set;
+        if (j->count == j->room) {
+            size_t room = j->room ? j->room * 2 : 8;
+            cookie_t *grown = realloc(j->at, room * sizeof *grown);
+            if (!grown)
+                abort();
+            j->at = grown;
+            j->room = room;
+        }
+        j->at[j->count++] = c;
+        n++;
+    }
+    pthread_mutex_unlock(&jars_lock);
+    fclose(f);
+    return ok ? n : -1;
+}
+
 int64_t kfetch_jar_count(int64_t id) {
     double now = (double)time(NULL);
     pthread_mutex_lock(&jars_lock);

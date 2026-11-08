@@ -36,6 +36,11 @@ bool kfetch_jar_set(int64_t id, const uint8_t *text, const uint8_t *url);
 void kfetch_jar_header(int64_t id, const uint8_t *url, kv_string *out);
 void kfetch_jar_clear(int64_t id);
 int64_t kfetch_jar_count(int64_t id);
+/* a jar's file (#490), Netscape's cookies.txt, as curl's -c writes and -b
+   reads: the live cookies written, by a file renamed over path; or added
+   from it; the count, or -1 with error */
+int64_t kfetch_jar_save(int64_t id, const uint8_t *path, kv_string *error);
+int64_t kfetch_jar_load(int64_t id, const uint8_t *path, kv_string *error);
 void kfetch_stream_rest(const kv_io *io, kv_bytes *out);
 /* an AbortController's state (#487), kept for the program's life: a new
    one's id, 1 up; abort it, with a reason or "" for none, which shuts
