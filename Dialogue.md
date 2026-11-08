@@ -9293,3 +9293,19 @@ It became #483 there, the next change then; merged after #483 and #484
 had taken those numbers, it is #485, and this entry 532.
 
 There are 1212 tests, and all pass with clang.
+
+### 533. fetch's timeout
+
+> merge claude/happy-haslett-9f1cf5 to main then push. then go on with fetch's timeout
+
+**Claude** merged the branch, its change numbered #485 and its entry 532,
+since #483 and #484 had taken the numbers it had, and pushed; all nine
+jobs passed, macOS's fetch tests with HTTPS among them. Asked, the user
+chose a timeout in seconds as an `f64`, "kelvin uses f64 to represent time
+throughout while JS's ms is in integer", over the whole request, with 60
+seconds of silence where none is given, and the lookup of a name counted
+but not cut short. RequestInit's `timeout` bounds connecting, TLS, sending,
+receiving and each redirect, and passed it is an Error. Details are
+provisional P498.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

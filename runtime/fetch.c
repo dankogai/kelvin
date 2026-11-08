@@ -18,8 +18,11 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -39,7 +42,9 @@
 #include <openssl/x509v3.h>
 #endif
 
-enum { MAX_REDIRECTS = 20, TIMEOUT_SECONDS = 60 };
+/* SILENCE_SECONDS: how long a wait may be, to connect or for a byte, where
+   the caller gives no timeout (#486) */
+enum { MAX_REDIRECTS = 20, SILENCE_SECONDS = 60 };
 
 bool kfetch_has_ssl(void) {
 #ifdef KV_HAS_SSL
@@ -274,6 +279,8 @@ static char *resolve(const url_t *base, const char *loc) {
 
 typedef struct {
     int fd;
+    double deadline; /* the caller's, by now_seconds, or 0 for none (#486) */
+    double timeout;  /* the seconds it was given as, for the Error */
 #ifdef KV_HAS_SSL
     SSL_CTX *ctx;
     SSL *ssl;
@@ -294,6 +301,79 @@ static void conn_close(conn_t *c) {
     if (c->fd >= 0)
         close(c->fd);
     c->fd = -1;
+}
+
+/* seconds by a clock that only goes forward */
+static double now_seconds(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
+}
+
+/* how long the next wait may be: up to the caller's deadline, or else
+   SILENCE_SECONDS; 0 or less once the deadline has passed */
+static double wait_left(const conn_t *c) {
+    return c->deadline > 0 ? c->deadline - now_seconds() : SILENCE_SECONDS;
+}
+
+static bool passed(const conn_t *c) { return c->deadline > 0 && now_seconds() >= c->deadline; }
+
+/* the seconds as Kelvin prints an f64, every digit, 0.29999999999999999 */
+static const char *seconds_text(double s, uint8_t *buf) { return (const char *)kv_cstr_f64(s, buf); }
+
+static void timed_out(const conn_t *c, kv_string *error) {
+    uint8_t buf[KV_CSTR_SCALAR];
+    fail(error, "fetch: the timeout of %s seconds passed", seconds_text(c->timeout, buf));
+}
+
+/* the next waits of the socket, a read and a write, bounded by what is left;
+   false, with error, where nothing is */
+static bool bound_waits(const conn_t *c, kv_string *error) {
+    double left = wait_left(c);
+    if (left <= 0) {
+        timed_out(c, error);
+        return false;
+    }
+    if (left < 0.001)
+        left = 0.001; /* a timeval of 0 is no bound at all */
+    struct timeval tv = {(time_t)left, (int)((left - (double)(time_t)left) * 1e6)};
+    setsockopt(c->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    setsockopt(c->fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+    return true;
+}
+
+/* connect within left seconds: without blocking, and then poll for it;
+   0, or -1 with errno, ETIMEDOUT where the time ran out */
+static int connect_within(int fd, const struct sockaddr *a, socklen_t n, double left) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    int r = connect(fd, a, n);
+    if (r < 0 && errno == EINPROGRESS) {
+        double end = now_seconds() + left;
+        for (;;) {
+            double ms = (end - now_seconds()) * 1000;
+            struct pollfd p = {fd, POLLOUT, 0};
+            r = ms > 0 ? poll(&p, 1, (int)ms + 1) : 0;
+            if (r < 0 && errno == EINTR)
+                continue;
+            break;
+        }
+        if (r == 0) {
+            errno = ETIMEDOUT;
+            r = -1;
+        } else if (r > 0) {
+            int e = 0;
+            socklen_t len = sizeof e;
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &len);
+            r = e ? -1 : 0;
+            if (e)
+                errno = e;
+        }
+    }
+    int saved = errno;
+    fcntl(fd, F_SETFL, flags);
+    errno = saved;
+    return r;
 }
 
 #ifdef KV_HAS_SSL
@@ -334,9 +414,13 @@ static bool tls_start(conn_t *c, const url_t *u, kv_string *error) {
         SSL_set_tlsext_host_name(c->ssl, u->host); /* SNI */
         X509_VERIFY_PARAM_set1_host(SSL_get0_param(c->ssl), u->host, 0); /* SSL_set1_host, deprecated in OpenSSL 4 */
     }
+    if (!bound_waits(c, error))
+        return false;
     if (SSL_connect(c->ssl) != 1) {
         long v = SSL_get_verify_result(c->ssl);
-        if (v != X509_V_OK)
+        if (passed(c))
+            timed_out(c, error);
+        else if (v != X509_V_OK)
             fail(error, "fetch: the certificate of %s is not trusted: %s", u->host, X509_verify_cert_error_string(v));
         else
             fail(error, "fetch: TLS with %s failed: %s", u->host, ssl_reason("the handshake did not finish"));
@@ -346,8 +430,10 @@ static bool tls_start(conn_t *c, const url_t *u, kv_string *error) {
 }
 #endif
 
-static bool conn_open(conn_t *c, const url_t *u, kv_string *error) {
+static bool conn_open(conn_t *c, const url_t *u, double deadline, double timeout, kv_string *error) {
     c->fd = -1;
+    c->deadline = deadline;
+    c->timeout = timeout;
 #ifdef KV_HAS_SSL
     c->ctx = NULL;
     c->ssl = NULL;
@@ -365,6 +451,11 @@ static bool conn_open(conn_t *c, const url_t *u, kv_string *error) {
         fail(error, "fetch: cannot find the host %s: %s", u->host, gai_strerror(g));
         return false;
     }
+    if (passed(c)) { /* the lookup counts, though nothing cuts it short */
+        freeaddrinfo(res);
+        timed_out(c, error);
+        return false;
+    }
     int err = 0;
     for (struct addrinfo *a = res; a; a = a->ai_next) {
         int fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
@@ -372,21 +463,25 @@ static bool conn_open(conn_t *c, const url_t *u, kv_string *error) {
             err = errno;
             continue;
         }
-        struct timeval tv = {TIMEOUT_SECONDS, 0};
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
 #ifdef SO_NOSIGPIPE
         int one = 1;
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
 #endif
-        if (connect(fd, a->ai_addr, a->ai_addrlen) == 0) {
+        double left = wait_left(c);
+        if (left > 0 && connect_within(fd, a->ai_addr, a->ai_addrlen, left) == 0) {
             c->fd = fd;
             break;
         }
-        err = errno;
+        err = left > 0 ? errno : ETIMEDOUT;
         close(fd);
+        if (passed(c))
+            break;
     }
     freeaddrinfo(res);
+    if (c->fd < 0 && passed(c)) {
+        timed_out(c, error);
+        return false;
+    }
     if (c->fd < 0) {
         fail(error, "fetch: cannot connect to %s port %s: %s", u->host, u->port, strerror(err));
         return false;
@@ -410,6 +505,10 @@ static bool conn_write(conn_t *c, const char *p, size_t n, kv_string *error) {
 #endif
     bool ok = true;
     while (n > 0) {
+        if (!bound_waits(c, error)) {
+            ok = false;
+            break;
+        }
         long w;
 #ifdef KV_HAS_SSL
         if (c->ssl)
@@ -420,7 +519,11 @@ static bool conn_write(conn_t *c, const char *p, size_t n, kv_string *error) {
         if (w <= 0) {
             if (w < 0 && errno == EINTR)
                 continue;
-            fail(error, "fetch: the request could not be sent: %s", strerror(errno));
+            if (passed(c))
+                timed_out(c, error);
+            else
+                fail(error, "fetch: the request could not be sent: %s",
+                     errno == EAGAIN || errno == EWOULDBLOCK ? "no room in 60 seconds" : strerror(errno));
             ok = false;
             break;
         }
@@ -439,6 +542,8 @@ static bool conn_write(conn_t *c, const char *p, size_t n, kv_string *error) {
 /* bytes read into buf: 0 at the end, -1 where it failed, with error */
 static long conn_read(conn_t *c, char *buf, size_t n, kv_string *error) {
     for (;;) {
+        if (!bound_waits(c, error))
+            return -1;
 #ifdef KV_HAS_SSL
         if (c->ssl) {
             int r = SSL_read(c->ssl, buf, (int)n);
@@ -449,7 +554,12 @@ static long conn_read(conn_t *c, char *buf, size_t n, kv_string *error) {
                 return 0;
             if (e == SSL_ERROR_SYSCALL && !ERR_peek_error() && (r == 0 || errno == 0))
                 return 0; /* closed without close_notify */
-            fail(error, "fetch: reading over TLS failed: %s", ssl_reason(strerror(errno)));
+            if (passed(c))
+                timed_out(c, error);
+            else if (e == SSL_ERROR_SYSCALL && (errno == EAGAIN || errno == EWOULDBLOCK))
+                fail(error, "fetch: reading the response failed: no answer in 60 seconds");
+            else
+                fail(error, "fetch: reading over TLS failed: %s", ssl_reason(strerror(errno)));
             return -1;
         }
 #endif
@@ -458,6 +568,10 @@ static long conn_read(conn_t *c, char *buf, size_t n, kv_string *error) {
             return r;
         if (errno == EINTR)
             continue;
+        if (passed(c)) {
+            timed_out(c, error);
+            return -1;
+        }
         fail(error, "fetch: reading the response failed: %s",
              errno == EAGAIN || errno == EWOULDBLOCK ? "no answer in 60 seconds" : strerror(errno));
         return -1;
@@ -613,9 +727,9 @@ static void put(kv_bytes *b, const char *s) { kv_bytes_append(b, s, strlen(s)); 
    where the caller gave none, and the body; the response, or false with
    error */
 static bool request_once(const url_t *u, const char *method, const kv_bytes *headers, const kv_bytes *body,
-                         response_t *r, kv_string *error) {
+                         double deadline, double timeout, response_t *r, kv_string *error) {
     conn_t c;
-    if (!conn_open(&c, u, error)) {
+    if (!conn_open(&c, u, deadline, timeout, error)) {
         conn_close(&c);
         return false;
     }
@@ -847,8 +961,17 @@ static bool same_origin(const url_t *a, const url_t *b) {
 enum { REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR }; /* RequestInit's redirect, its enum's values */
 
 bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_bytes *headers_given,
-                    const kv_bytes *body_given, int64_t redirect, int64_t *status, kv_string *status_text,
-                    kv_string *final_url, int64_t *redirects, kv_bytes *headers, kv_bytes *body, kv_string *error) {
+                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t *status,
+                    kv_string *status_text, kv_string *final_url, int64_t *redirects, kv_bytes *headers,
+                    kv_bytes *body, kv_string *error) {
+    /* the caller's timeout, in seconds over the whole request, redirects
+       and all (#486): 0, or an infinity, for none */
+    if (isnan(timeout) || timeout < 0) {
+        uint8_t buf[KV_CSTR_SCALAR];
+        fail(error, "fetch: a timeout is a number of seconds, 0 for none, and this is %s", seconds_text(timeout, buf));
+        return false;
+    }
+    double deadline = timeout > 0 && isfinite(timeout) ? now_seconds() + timeout : 0;
     /* the caller's headers: names tokens, values on one line, and none
        that fetch sends itself, as the framing of the request is its own */
     static const char *const own[] = {"host", "content-length", "connection", "transfer-encoding", "keep-alive",
@@ -886,7 +1009,7 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
         if (!parse_url(current, &u, error))
             break;
         response_t r = {0};
-        if (!request_once(&u, method, &hs, &bs, &r, error)) {
+        if (!request_once(&u, method, &hs, &bs, deadline, timeout, &r, error)) {
             free(u.target);
             break;
         }

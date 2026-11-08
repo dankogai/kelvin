@@ -21,7 +21,7 @@
 #import <JSON>
 
 // the engine's functions, by their C names
-let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
+let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
 let kfetch_header(headers:const Bytes^, i:i64, name:String^, value:String^):bool
 let kfetch_has_ssl():bool
 
@@ -39,12 +39,15 @@ enum Redirect { redirectFollow, redirectManual, redirectError }
 
 // a request's method, "" for GET, its headers, sent as written, its body,
 // empty for none, and what a redirect does, as JS's RequestInit; a field
-// left out of (RequestInit){...} is empty, and its redirect follows
+// left out of (RequestInit){...} is empty, and its redirect follows; its
+// timeout, seconds over the whole request, redirects and all, 0 for none,
+// where a wait of 60 seconds with nothing is the most (#486)
 struct RequestInit {
     method: String
     headers: Dictionary<String, String>
     body: Bytes
     redirect: Redirect
+    timeout: f64
 }
 
 // what a server answered, after the redirects followed: its status and the
@@ -104,7 +107,7 @@ let fetch(url:cstr, init:const RequestInit^):Result<Response, Error> {
     var raw = Bytes()
     var body = Bytes()
     var why = $""
-    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, &status, &statusText, &final, &redirects, &raw, &body, &why) {
+    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, &status, &statusText, &final, &redirects, &raw, &body, &why) {
         var e:Error = {.message = why.copy()}
         return err(e)
     }

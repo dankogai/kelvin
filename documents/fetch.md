@@ -82,6 +82,19 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     - A redirect to another origin, another scheme, host or port, is
       not sent the Authorization.
   - A HEAD's Response has no body, whatever its Content-Length says.
+  - `timeout` (#486), an `f64` of seconds, as Kelvin's time is,
+    bounds the whole request: connecting, TLS, sending, receiving, and
+    each redirect followed, so a body that trickles in cannot outlast
+    it: `(RequestInit){.timeout = 2.5}`.
+    - Passed, it is an Error, `fetch: the timeout of 2.5 seconds passed`,
+      the seconds printed as Kelvin prints an `f64`.
+    - `0`, a field left out, or an infinity, is no deadline of the
+      caller's: then a wait of 60 seconds with nothing, to connect or for
+      a byte, is the most, and an Error. With a timeout, only it bounds.
+    - Below 0, or NaN, it is an Error.
+    - Looking up the host's name counts, and the deadline is checked
+      after it, but C cannot cut a lookup short, so one that hangs
+      waits as long as the system's resolver does.
 - **A `Response`** is a struct that owns its parts:
   - `status`, an `i64`, and `statusText`, the status line's text, as
     `404` and `Not Found`; `ok` is whether the status is 200 to 299.
@@ -107,7 +120,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   String that names what went wrong and where:
   - a URL that is not `http://` or `https://`, has a user, a port out of
     1 to 65535, no host, or a space;
-  - a host not found, a connection refused, no answer in 60 seconds;
+  - a host not found, a connection refused, no answer in 60 seconds,
+    the caller's timeout passed;
   - a certificate not trusted, or TLS that fails;
   - an answer that is not HTTP/1.1, a body cut short;
   - a method or a header `init` may not have, a GET's body;
@@ -131,8 +145,8 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** a body that streams, a timeout or an abort of one's
-  own, and cookies.
+- **Not here yet:** a body that streams, an abort by hand, as JS's
+  AbortController gives, and cookies.
 
 ## Where it lives
 
@@ -154,6 +168,7 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.headers` | the request's headers, a `Dictionary<String, String>` |
 | | `.body` | the request's body, a `Bytes`, empty for none |
 | | `.redirect` | `redirectFollow`, `redirectManual` or `redirectError`, a `Redirect` |
+| | `.timeout` | seconds over the whole request, an `f64`, `0` for none (#486) |
 | `Response` | `.status` | the status, an `i64` |
 | | `.statusText` | the status line's text, a String |
 | | `.ok` | whether the status is 200 to 299 |

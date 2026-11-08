@@ -528,6 +528,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 483 | `fetch(url, init)`, JS's RequestInit, as the user chose: `struct RequestInit { method: String; headers: Dictionary<String, String>; body: Bytes; redirect: Redirect }`, moved in or by reference, a field left out empty; methods normalized as JS's, CONNECT, TRACE and TRACK refused; headers sent as written, fetch's framing headers refused; a Bytes body with its Content-Length and no Content-Type of fetch's; a GET or HEAD with a body an Error; 303, and 301 or 302 of a POST, ask again by GET; another origin loses the Authorization; `Redirect` is `redirectFollow`, `redirectManual` or `redirectError`. tests/fetch.sh makes its key apart, for macOS's OpenSSL 4 | runtime/fetch.c's kfetch_request, request_once, method_of, pairs, same_origin; modules/kfetch.h, modules/fetch.k; tests/fetch/init.k, tests/fetch/server.py, tests/fetch.sh; documents/fetch.md, README.md | `fetch(url, (RequestInit){.method = $"POST", .body = Bytes("x")})` | 2026-11-08 |
 | 484 | `res.json()`, JS's, as the user chose: the body as a `JSON`, a `Result<JSON, Error>`, an Error where it is not UTF-8 or not JSON, with JSON.parse's message. `make` builds JSON into `JSON.kh` and `libkJSON`, as the user chose, so that `<fetch>` may import it: a `--lib` module that imports a Kelvin source holds its code, and a program importing the source too defined it twice. tests/fetch/server.py names itself without a lookup of DNS, which kept macOS's runner past the wait | modules/fetch.k's json(); GNUmakefile's JSON.kh; .gitignore; tests/fetch/json.k, tests/fetch/server.py, tests/fetch.sh; documents/fetch.md, documents/json.md, documents/modules.md, README.md | `res.json()` | 2026-11-08 |
 | 485 | tests/run.sh reads an error test's `// error:` text byte by byte, with `LC_ALL=C`, as the user asked: under a UTF-8 locale macOS's sed stopped at tests/error/source_invalid_utf8.k's byte 0xFF with "illegal byte sequence", the text came out empty, and `grep -qF ""` passed whatever kelvinc said. What the check compares is unchanged | tests/run.sh | `want=$(LC_ALL=C sed ...)` | 2026-11-08 |
+| 486 | fetch's timeout, as the user chose: RequestInit's `timeout`, an `f64` of seconds, as Kelvin's time is, one deadline over the whole request, connecting, TLS, sending, receiving and each redirect; passed, an Error, its seconds as Kelvin prints an f64; 0, left out, or an infinity, none, where a wait of 60 seconds with nothing is the most, a connect too; below 0 or NaN an Error; the lookup of a name counts but is not cut short | runtime/fetch.c's now_seconds, wait_left, bound_waits, connect_within, timed_out; modules/kfetch.h, modules/fetch.k; tests/fetch/timeout.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.timeout = 2.5}` | 2026-11-08 |
 
 Notes:
 
@@ -1113,6 +1114,30 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (486) Agreed details: "merge claude/happy-haslett-9f1cf5 to main then
+  push. then go on with fetch's timeout". The branch, numbered #483 in its
+  own session, merged as #485.
+  - Asked, the user chose a timeout in `RequestInit`, in seconds as an
+    `f64`, "kelvin uses f64 to represent time throughout while JS's ms is
+    in integer", over JS's milliseconds or an AbortSignal; one deadline
+    over the whole request, as JS's AbortSignal.timeout, over each wait;
+    with none given, 60 seconds of silence as before, and a connect
+    bounded too, over waiting for ever; the name's lookup counted but
+    not bounded, over a thread of its own.
+  - A deadline by CLOCK_MONOTONIC bounds each wait: a connect, made
+    without blocking and polled; the TLS handshake, each write and each
+    read, by SO_RCVTIMEO and SO_SNDTIMEO set to what is left. With a
+    timeout of the caller's, only it bounds, so one of 300 seconds is
+    not cut at 60.
+  - The Error says `fetch: the timeout of 0.25 seconds passed`, the
+    seconds as kv_cstr_f64 writes them, as print shows the value: `%g`
+    gave 0.3 where Kelvin prints 0.29999999999999999.
+  - The connect had no bound of its own before, waiting as long as the
+    system did; now it has 60 seconds, or what the deadline leaves.
+  - tests/fetch/timeout.k tries an answer a second late, a body of a byte
+    every 0.2 seconds, and a late redirect to the late answer, each with
+    a timeout too short and one long enough, and https.k one over TLS;
+    timeouts exact in binary, 0.25, 0.75, 1.25, print as written.
 - (485) Agreed details, merged from the branch of a session of its own,
   claude/happy-haslett-9f1cf5, where it was numbered #483 before #483 and
   #484 were taken: macOS's clang job printed `sed: RE error:
@@ -7332,6 +7357,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P495 | Details of #483 | runtime/fetch.c: kfetch_request in place of kfetch_get, pair_at, has_pair, drop_pairs, request_once building the request in a Bytes, token_char, is_token, method_of, same_origin, REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR, X509_VERIFY_PARAM_set1_host; modules/fetch.k: Redirect, RequestInit, fetch(cstr, const RequestInit^) and its three overloads, fetch(url) by an init of GET; tests/fetch/server.py: any method by __getattr__, /method, /301 to /308, /elsewhere; tests/fetch.sh: genpkey, no stdin, a log per server | provisional |
 | P496 | Details of #484 | modules/fetch.k: #import <JSON>, Response.json() by text() and JSON.parse(&t.ok); GNUmakefile: modules/JSON.kh by kelvinc --lib, before fetch.kh, which depends on it, libkJSON in install and clean; tests/fetch/server.py: /json, /badjson, Server.server_bind without getfqdn, step(), faulthandler.dump_traceback_later(8); tests/fetch.sh: 300 waits of 0.1 s | provisional |
 | P497 | Details of #485 | tests/run.sh: the `// error:` sed with LC_ALL=C, reading tests/error/source_invalid_utf8.k's byte 0xFF | provisional |
+| P498 | Details of #486 | runtime/fetch.c: SILENCE_SECONDS for TIMEOUT_SECONDS; conn_t's deadline and timeout; now_seconds, wait_left, passed, timed_out, seconds_text by kv_cstr_f64, bound_waits before each read, write and the handshake, connect_within by O_NONBLOCK and poll; conn_open and request_once take the deadline; kfetch_request takes timeout, checks it, and sets the deadline once; modules/fetch.k: RequestInit's timeout; tests/fetch/server.py: /slow, /trickle, /slowredirect | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

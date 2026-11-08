@@ -8,6 +8,7 @@ import http.server
 import socketserver
 import ssl
 import sys
+import time
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -100,6 +101,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                       [("Content-Type", "application/json")])
         elif p == "/badjson":
             self.send(200, b'[1, 2', [("Content-Type", "application/json")])
+        elif p == "/slow":  # an answer a second late
+            time.sleep(1.0)
+            self.send(200, b"late\n")
+        elif p == "/trickle":  # a byte every 0.2 seconds, 10 in all
+            self.send_response(200)
+            self.send_header("Content-Length", "10")
+            self.end_headers()
+            for _ in range(10):
+                time.sleep(0.2)
+                self.wfile.write(b"x")
+                self.wfile.flush()
+        elif p == "/slowredirect":  # a redirect after half a second, to /slow
+            time.sleep(0.5)
+            self.send(302, b"", [("Location", "/slow")])
         elif p == "/latin1":
             self.send(200, b"", [("X-Name", "caf\xe9".encode("latin-1").decode("latin-1"))])
         else:

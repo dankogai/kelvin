@@ -22,9 +22,12 @@ let main(argc:int32, argv:u8^^):int32 {
     get(tls, "/chunked")
     get(tls, "/redirect")
     get(bad, "/hello")
+    var slow = fetch(`${tls}/slow`, (RequestInit){.timeout = 0.25})   // a timeout over TLS (#486)
+    println(slow.err.message)
     return 0
 }
 // out: /hello: 200 false TLSBASE/hello [hello, fetch]
 // out: /chunked: 200 false TLSBASE/chunked [chunk one, chunk two]
 // out: /redirect: 200 true TLSBASE/hello [hello, fetch]
 // out: /hello: not trusted
+// out: fetch: the timeout of 0.25 seconds passed
