@@ -537,6 +537,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 492 | An overload declared after a call is not seen there, as the user chose, C's rule kept: where the one seen does not take the arguments, a function's or a method's, and one of the name is declared after, it is an error that says so and names a prototype, where kelvinc called the one seen and C took the arguments with a warning alone | src/parser.c's reject_unfit_only, reject_unseen_overloads, unfit_calls; tests/error/overload_declared_after.k, tests/error/method_overload_declared_after.k; documents/functions.md, README.md | `let f(s:cstr)` before the call | 2026-11-08 |
 | 493 | A global C cannot initialize, one that owns or of a value that is not a constant, is given its value at its first use, once, on any thread, as the user chose, Swift's: `var names = $["a"]`, `let start = OS.time`; a constant stays C's initializer. In C, its storage, an initializer run by pthread_once, and an accessor each use reads it by; a module's header says `extern lazy var`. A local may not hide one. A global owner assigned anew frees what it held, as a local does. localStorage is such a global | src/parser.c's const_init, first_use_globals, lazy_next, the marks of a global and of one given its value at first use, the local's error; src/kelvin.h's Var.first_use, Expr.first_use and Expr.global; src/codegen.c's ref_name, emit_first_use_globals, global_owner_type, the D_VAR storage and accessor; src/parser.c's .kh writer; modules/localStorage.k; tests/run/global_first_use.k, tests/error/global_first_use_hidden.k, tests/error/extern_lazy_outside.k, tests/error/global_owner_call.k removed; documents/ownership.md, documents/c-contract.md, README.md | `var names = $["a"]` at the top level | 2026-11-08 |
 | 494 | `uchr(x)` of a String or a Bytes, or one by reference, is the first codepoint of its text, as of text, as the user chose: `uchr(s)`, `uchr(&s)`, where `uchr(s)` was C's error and `uchr(&s)` read the struct's bytes as text; U+FFFD of empty text. Of a float, a sum of one too, a bool, an Optional, a struct or a pointer to no text, it is an error in words, as `.uchr` refuses them (#297), where C failed or read an integer's bytes; a C typedef's value and sizeof stay C's to judge. kc says and writes the same | src/parser.c's convert (the uchr branch), float_operand, text_in_buffer of a uchr(...), int_expr's prototype; selfhost/gen.k's gen_uchr; tests/run/uchr_of_text.k, tests/error/uchr_call_float.k, tests/error/uchr_call_bool.k, tests/error/uchr_call_pointer.k; documents/strings.md, documents/ownership.md, README.md | `uchr(s)` | 2026-11-09 |
+| 495 | `i64(&s)`, `f64(&s)` and every number converter of a String or a Bytes by reference, `&s` or a `String^` parameter, read the text it refers to, as the user chose, as `i64(s)` does (#88), where kelvinc converted the pointer, an address, and f64 of one was C's error; a base works as of text, `i64(&s, 16)`; `bool(&s)` stays the pointer's. kc, which refused a reference and a Bytes alike, reads both | src/parser.c's owner_text_of_ref, used by convert for uchr (#494) and for the number converters; selfhost/gen.k's owner_text_ref, converter_text and put_text_arg; tests/run/convert_text_ref.k; documents/integers.md, documents/strings.md, README.md | `i64(&s)` | 2026-11-09 |
 
 Notes:
 
@@ -1121,6 +1122,20 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (495) Agreed details: "push. then go on with the i64(&s) gap", which
+  #494 found: `i64(&s)` of a String gave the pointer's address.
+  - It was wider: `u8(&s)`, `i64(&b)`, and `i64(r)` of a `String^`
+    parameter converted the pointer too, and `f64(&s)` was C's error.
+  - Asked, the user chose reading the text, as `i64(s)` does, over an
+    error that names `i64(s)`.
+  - owner_text_of_ref, #494's code made a function, turns `&s` into `s`
+    and `r` into `r^`; convert reads the String or Bytes as before, a
+    temporary held, `i64(&$"7")`.
+  - `bool(&s)` is left the pointer's, true, as bool reads no text.
+  - kc refused a reference, and a Bytes by value too, `i64(b)`: its
+    converter_text takes both now, and put_text_arg writes kelvinc's
+    `kv_bytes_cstr(&((*r)).b)`, `&(*r)` and `&b`.
 
 - (494) Agreed details: "go on with the uchr gap", the gap #480 found:
   `uchr(2.5)` and `uchr(true)` were C's errors, not Kelvin's.
@@ -7607,6 +7622,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P504 | Details of #492 | src/parser.c: unfit_t and unfit_calls; reject_unfit_only at a call of one candidate, a function's in its call and a method's in parse_postfix_steps, by choose of that one, of the right count of arguments; reject_unseen_overloads at the end of parse, before name_functions, counting functions of the name, and of the receiver's name for a method, of another signature | provisional |
 | P505 | Details of #493 | src/parser.c: first_use_globals, is_first_use_global, the local's error in declare_binding, lazy_next and extern lazy in parse()'s globals, const_init after enumerator_named, Expr.global and Expr.first_use set where an identifier is read; the .kh writer's `extern lazy`; src/codegen.c: first_use_vars, c_name and ref_name, the D_VAR storage `_kv_lazy_x` and the accessor's prototype, emit_first_use_globals by initializer and memcpy, pthread_once and `#include <pthread.h>`, _kv_free_globals of `_kv_lazy_x`, global_owner_type for an owner global's _assign | provisional |
 | P506 | Details of #494 | src/parser.c: convert's uchr branch, a String or Bytes by reference dereferenced (`&s` its operand, else `x^`), then `.cstr` of a place or a temporary; the class of the rest by expr_class, int_expr, sizeof, float_operand (+, -, *, /, a sign, ?:), a bool by seen_bool, bool_shape or is_bool, nowhere and text passed; text_in_buffer passes op "uchr"; selfhost/gen.k: gen_uchr writes `KV_UCHR_OF(kv_bytes_cstr(&(s).b))`, `&((*r)).b`, `&b` and `&(*r)` of a Bytes, holding a temporary by hold_args | provisional |
+| P507 | Details of #495 | src/parser.c: owner_text_of_ref before float_operand, `&s` its operand, else an E_DEREF; convert calls it unless the type is bool, before the String/Bytes branch; selfhost/gen.k: owner_text_ref before converter_text, which takes Y_BYTES and a reference; put_text_arg of a reference, N_ADDR by its operand, of a Bytes `kv_bytes_cstr(&b)` | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

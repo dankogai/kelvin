@@ -5241,6 +5241,13 @@ let gen_uchr_compare(n:int64) {
     put(uchr_typed(nodes[n].b) ? ").cp))" : ")))")
 }
 
+// whether y is a String or a Bytes by reference, String^ or Bytes^, whose
+// text a converter reads (#495)
+let owner_text_ref(y:int64):bool {
+    let e:int64 = types[y].elem
+    return types[y].kind == Y_PTR && e >= 0 && (types[e].kind == Y_STRING || types[e].kind == Y_BYTES)
+}
+
 // whether a converter reads v as text (#429): a cstr, a String, a u8^,
 // an array of u8, or a ?: of them
 let converter_text(v:int64):bool {
@@ -5248,7 +5255,8 @@ let converter_text(v:int64):bool {
     let y:int64 = type_of(v)
     if y < 0 { return false }
     let k = types[y].kind
-    if k == Y_CSTR || k == Y_STRING { return true }
+    if k == Y_CSTR || k == Y_STRING || k == Y_BYTES { return true }   // a Bytes too, as kelvinc's #88
+    if k == Y_PTR && owner_text_ref(y) { return true }   // a String or a Bytes by reference, as kelvinc's #495
     return (k == Y_PTR || k == Y_FIXED) && types[y].elem >= 0 && types[types[y].elem].kind == Y_U8
 }
 
@@ -5266,10 +5274,27 @@ let put_text_arg(v:int64) {
         return
     }
     let y:int64 = type_of(v)
+    if y >= 0 && owner_text_ref(y) {                     // &s is s, r is r^, as kelvinc's #495
+        let string:bool = types[types[y].elem].kind == Y_STRING
+        if nodes[v].kind == N_ADDR {
+            put_text_arg(nodes[v].a)
+            return
+        }
+        put(string ? "kv_bytes_cstr(&((*" : "kv_bytes_cstr(&(*")
+        gen_expr(v)
+        put(string ? ")).b)" : "))")
+        return
+    }
     if y >= 0 && types[y].kind == Y_STRING {
         put("kv_bytes_cstr(&(")
         gen_expr(v)
         put(").b)")
+        return
+    }
+    if y >= 0 && types[y].kind == Y_BYTES {              // as kelvinc writes a Bytes' .cstr
+        put("kv_bytes_cstr(&")
+        gen_expr(v)
+        put(")")
         return
     }
     put("(")

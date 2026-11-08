@@ -161,6 +161,8 @@ A converter reads a number from text (#36): `i64("42")`, `f64("1.5")`,
   array, the text of a property, or C's `char *`.
   - A `String` or a `Bytes` in a variable too, read through its text
     (#88): `i64(line)` of a line an IO gives.
+  - One by reference too, `i64(&s)` or `i64(r)` of a `String^`, as
+    `i64(s)` (#495).
 - **They read** as `strtol` and `strtod` do: leading spaces and a sign,
   the longest number, 0 for none, and the type's limits with `errno`
   set.
@@ -316,6 +318,7 @@ to come.
 | `"""text"""` | | a literal over lines, as written, no escapes (#115); the spellings of text are in [grammar.md](grammar.md#quoting-text) |
 | | `.cstr` | the text itself |
 | | `.i64`, `.f64`, ... | a number read from the text; `i64(s, 16)` in a base |
+| | `i64(s)`, `i64(&s)`, `f64(s)`, ... | the same, of a String by value or by reference (#88, #495) |
 | | `.size`, `.typename`, `.addr`, `.hex`, `.isNull` | as a pointer's |
 | | `for c in s`, `s[i]` | each byte; a byte, unchecked, as C has it |
 | `String` | `.count` | the codepoints, kept with the text |

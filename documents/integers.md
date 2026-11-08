@@ -102,6 +102,10 @@ and with a base from 2 to 36 for an integer type, `i32("755", 8)`.
   text of a property such as `n.hex`, C's `char *`, or a `String` or a
   `Bytes` in a variable, read through its text (#88), as `i64(line)` of
   a line an IO gives.
+  - One by reference too, `i64(&s)` or a `String^` parameter `i64(r)`,
+    read through the text it refers to (#495), where the pointer was
+    converted, an address.
+  - `bool(&s)` is the pointer's, as it was.
 - Every other value converts as before.
 - Where kelvinc cannot see the type, C's `_Generic` makes the choice.
 
@@ -307,6 +311,7 @@ The core. Integers are kelvinc's own, written as C's types, with nothing linked.
 | | `.uchr` | the codepoint of the number, a `uchr` (#56) |
 | any number | `.i8` ... `.u64`, `.f32`, `.f64`, `.bool` | a conversion, `i64(v)` written after the value |
 | text | `.i64` and the others | read a number from text, `i64("42")`; `i64(text, 16)` in a base |
+| | `i64(s)`, `i64(&s)` | of a String or a Bytes, by value or by reference, read from its text (#88, #495) |
 
 The details are in [properties.md](properties.md); conversions are
 above, under [Conversions](#conversions-no-c-casts). A float's

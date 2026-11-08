@@ -9430,3 +9430,16 @@ text, by value or by reference. The rest is an error in words, as
 writes the same. Details are provisional P506.
 
 There are 1221 tests, and all pass with clang and with gcc 15.
+
+### 542. A converter of a String by reference
+
+> push. then go on with the i64(&s) gap
+
+**Claude** pushed #494 after a clean battery. `i64(&s)` gave the
+pointer's address, and so did every number converter of a String or a
+Bytes by reference, `f64(&s)` being C's error. Asked, the user chose
+reading the text, as `i64(s)` does: `i64(&s)`, `i64(r)` of a `String^`
+and `i64(&s, 16)` now read it, and `bool(&s)` stays the pointer's. kc
+reads a reference and a Bytes as well. Details are provisional P507.
+
+There are 1222 tests, and all pass with clang and with gcc 15.

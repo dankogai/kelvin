@@ -6774,6 +6774,20 @@ static void check_base(Expr *base) {
         error_at(base->pos, "a base is 2 to 36, not %s%s", lit != base ? "-" : "", t);
 }
 
+/* v, a String or a Bytes by reference, &s or a String^, as the one it
+   refers to, s or r^, whose text a converter reads (#494, #495); any
+   other v as it is */
+static Expr *owner_text_of_ref(Expr *v) {
+    Type *vt = value_type(v);
+    if (!vt || vt->kind != T_PTR || !(is_string(vt->elem) || is_bytes(vt->elem)))
+        return v;
+    if (v->kind == E_PREFIX && !strcmp(v->op, "&"))
+        return v->a;
+    Expr *d = new_expr(E_DEREF, v->pos);
+    d->a = v;
+    return d;
+}
+
 /* Does arithmetic e have a float operand kelvinc sees, x + 1 of an f64 x,
    which makes it a float in C? (#494) */
 static bool float_operand(Expr *e) {
@@ -6810,22 +6824,12 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     if (!strcmp(name, "uchr")) { /* uchr(n) of a number, uchr(text) its first codepoint (#56) */
         if (base)
             error_at(base->pos, "uchr(x) takes one value: a number, or text");
-        Type *vt = value_type(v);
-        if (is_uchr(vt))
+        if (is_uchr(value_type(v)))
             return v;
         /* of a String or a Bytes, or one by reference, the first
            codepoint of its text, as of text (#494) */
-        bool ref = vt && vt->kind == T_PTR && (is_string(vt->elem) || is_bytes(vt->elem));
-        if (ref) {
-            if (v->kind == E_PREFIX && !strcmp(v->op, "&"))
-                v = v->a;
-            else {
-                Expr *d = new_expr(E_DEREF, v->pos);
-                d->a = v;
-                v = d;
-            }
-            vt = value_type(v);
-        }
+        v = owner_text_of_ref(v);
+        Type *vt = value_type(v);
         if (is_string(vt) || is_bytes(vt)) {
             if (!owner_place(v)) /* held while it is read (#187) */
                 v = make_temp(v, strfmt("uchr(...) of a %s that an expression gives: bind it to a variable first",
@@ -6858,6 +6862,8 @@ static Expr *convert(Token *t, const char *name, Expr *v, Expr *base) {
     }
     if (is_uchr(value_type(v))) /* i64(c) is i64(c.utf32) */
         e->a = v = utf32_of(v);
+    if (strcmp(name, "bool")) /* i64(&s) reads s's text, as i64(s) does; bool(&s) is the pointer's (#495) */
+        e->a = v = owner_text_of_ref(v);
     if (is_string(value_type(v)) || is_bytes(value_type(v))) {
         /* i64(line) of a String or a Bytes reads its text (#88), of one
            in a variable, as the text of one an expression gives would
