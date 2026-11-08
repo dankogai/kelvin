@@ -529,6 +529,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 484 | `res.json()`, JS's, as the user chose: the body as a `JSON`, a `Result<JSON, Error>`, an Error where it is not UTF-8 or not JSON, with JSON.parse's message. `make` builds JSON into `JSON.kh` and `libkJSON`, as the user chose, so that `<fetch>` may import it: a `--lib` module that imports a Kelvin source holds its code, and a program importing the source too defined it twice. tests/fetch/server.py names itself without a lookup of DNS, which kept macOS's runner past the wait | modules/fetch.k's json(); GNUmakefile's JSON.kh; .gitignore; tests/fetch/json.k, tests/fetch/server.py, tests/fetch.sh; documents/fetch.md, documents/json.md, documents/modules.md, README.md | `res.json()` | 2026-11-08 |
 | 485 | tests/run.sh reads an error test's `// error:` text byte by byte, with `LC_ALL=C`, as the user asked: under a UTF-8 locale macOS's sed stopped at tests/error/source_invalid_utf8.k's byte 0xFF with "illegal byte sequence", the text came out empty, and `grep -qF ""` passed whatever kelvinc said. What the check compares is unchanged | tests/run.sh | `want=$(LC_ALL=C sed ...)` | 2026-11-08 |
 | 486 | fetch's timeout, as the user chose: RequestInit's `timeout`, an `f64` of seconds, as Kelvin's time is, one deadline over the whole request, connecting, TLS, sending, receiving and each redirect; passed, an Error, its seconds as Kelvin prints an f64; 0, left out, or an infinity, none, where a wait of 60 seconds with nothing is the most, a connect too; below 0 or NaN an Error; the lookup of a name counts but is not cut short | runtime/fetch.c's now_seconds, wait_left, bound_waits, connect_within, timed_out; modules/kfetch.h, modules/fetch.k; tests/fetch/timeout.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.timeout = 2.5}` | 2026-11-08 |
+| 487 | An abort by hand, JS's AbortController, as the user chose: `AbortController()`, `c.signal`, an `AbortSignal`, a value that `async` copies into a task, as RequestInit's signal, `c.abort()` and `c.abort(reason)`, an Error, `fetch: aborted` or `fetch: aborted: reason`, at once: a read or a write woken by the socket's shutdown, a connect within 0.1 seconds; a signal aborted already fails before it starts, and stays aborted; `.aborted`. Its state is kept in libkfetch's table for the program's life, freed at its exit | runtime/fetch.c's abort table, kfetch_abort_new, kfetch_abort, kfetch_aborted, abort_watch, aborted_error, connect_within's slices; modules/kfetch.h, modules/fetch.k; tests/fetch/abort.k, tests/fetch/https.k, tests/fetch.sh; documents/fetch.md, README.md | `c.abort("user quit")` | 2026-11-08 |
 
 Notes:
 
@@ -1114,6 +1115,34 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (487) Agreed details: "push. then go on with an abort by hand".
+  - fetch waits, so an abort comes from another thread, and `async`
+    shares nothing, a pointer an error, a value copied, an owner moved.
+  - Asked, the user chose JS's AbortController, whose signal is a value
+    copied into the task, a handle to state that libkfetch keeps, over
+    one AbortSignal alone; `abort()` and `abort(reason)`, the reason in
+    the Error; and an abort at once, over one between steps.
+  - The state is a table under a mutex, an entry by the signal's id, 1
+    up, 0 for none: aborted, the first reason, and the socket of the
+    fetch that watches it. It is kept for the program's life, as a struct
+    has no destructor and a task may still hold a copy of the signal, and
+    freed at exit, so that a leak checker counts nothing then.
+  - abort() shuts the watched socket down, which wakes a read or a write
+    blocked on it; a connect, without blocking, polls in slices of 0.1
+    seconds and looks at the flag between them. A socket is no longer
+    watched before it is closed, so a number the system gives again is
+    never shut down.
+  - A read that ends because of an abort is the Error, never the end of
+    a body, which a body without a Content-Length would have taken.
+  - `AbortController()` is a function of the struct's name, as a
+    constructor; `abort` takes a cstr or `&s` of a String.
+  - tests/fetch/abort.k aborts before a fetch, while one waits for its
+    answer, while one reads a body that trickles in, during a connect to
+    10.255.255.1, which answers no one, and after one is done; each abort
+    ends its fetch within a tenth of a second. https.k aborts one over
+    TLS. Under ASan with the counting allocator nothing is live at exit,
+    and under ThreadSanitizer, the runtime and libkfetch built with it,
+    there is no race.
 - (486) Agreed details: "merge claude/happy-haslett-9f1cf5 to main then
   push. then go on with fetch's timeout". The branch, numbered #483 in its
   own session, merged as #485.
@@ -7358,6 +7387,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P496 | Details of #484 | modules/fetch.k: #import <JSON>, Response.json() by text() and JSON.parse(&t.ok); GNUmakefile: modules/JSON.kh by kelvinc --lib, before fetch.kh, which depends on it, libkJSON in install and clean; tests/fetch/server.py: /json, /badjson, Server.server_bind without getfqdn, step(), faulthandler.dump_traceback_later(8); tests/fetch.sh: 300 waits of 0.1 s | provisional |
 | P497 | Details of #485 | tests/run.sh: the `// error:` sed with LC_ALL=C, reading tests/error/source_invalid_utf8.k's byte 0xFF | provisional |
 | P498 | Details of #486 | runtime/fetch.c: SILENCE_SECONDS for TIMEOUT_SECONDS; conn_t's deadline and timeout; now_seconds, wait_left, passed, timed_out, seconds_text by kv_cstr_f64, bound_waits before each read, write and the handshake, connect_within by O_NONBLOCK and poll; conn_open and request_once take the deadline; kfetch_request takes timeout, checks it, and sets the deadline once; modules/fetch.k: RequestInit's timeout; tests/fetch/server.py: /slow, /trickle, /slowredirect | provisional |
+| P499 | Details of #487 | runtime/fetch.c: abort_t {aborted, reason, fd}, aborts_lock, aborts grown by realloc, aborts_free by atexit, kfetch_abort_new, abort_of, kfetch_abort (shutdown of the fd), kfetch_aborted, abort_watch, aborted_error; conn_t's signal; bound_waits, the handshake, writes and reads ask kfetch_aborted; connect_within polls in slices of 100 ms; kfetch_request fails at once of a signal aborted; modules/fetch.k: AbortSignal, AbortController, AbortController(), abort(), abort(reason) of a cstr and of &s, RequestInit's signal | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

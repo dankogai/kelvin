@@ -1,6 +1,7 @@
 #!/bin/sh
 # tests/fetch.sh (#482): the programs of tests/fetch, which fetch from
-# tests/fetch/server.py on 127.0.0.1, with no network beyond: HTTP always,
+# tests/fetch/server.py on 127.0.0.1, with no network beyond but abort.k's
+# connect to 10.255.255.1, which answers no one (#487): HTTP always,
 # and HTTPS where libkfetch was built with HAS_SSL=1, from a server whose
 # certificate is made here and trusted through SSL_CERT_FILE, and from one
 # whose certificate is not. A program takes the base URLs, http://, https://

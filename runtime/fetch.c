@@ -1,6 +1,7 @@
-/* fetch.c - the engine of #import <fetch> (#482, #483): JS's fetch(url,
-   init) over HTTP/1.1, of our own over sockets: a method, headers and a
-   body, following redirects as JS's does, up to 20, or not. HTTPS is
+/* fetch.c - the engine of #import <fetch> (#482, #483, #486, #487): JS's
+   fetch(url, init) over HTTP/1.1, of our own over sockets: a method,
+   headers and a body, following redirects as JS's does, up to 20, or not,
+   within a timeout, and ended at once by an abort. HTTPS is
    OpenSSL's where libkfetch is built with HAS_SSL=1, which defines
    KV_HAS_SSL; else an https URL is an error that says so.
    Each request says Connection: close and Accept-Encoding: identity, so a
@@ -275,11 +276,116 @@ static char *resolve(const url_t *base, const char *loc) {
     return s;
 }
 
+/* ---------- aborts (#487) ---------- */
+
+/* An AbortController's state, by its signal's id, 1 up, 0 for none: whether
+   it was aborted, why, and the socket of the fetch it watches, which abort()
+   shuts down to wake a read or a write blocked on it. Kept for the
+   program's life, as a Kelvin struct has no destructor, and reached by
+   index under the lock alone, as the table moves when it grows. */
+typedef struct {
+    bool aborted;
+    char *reason; /* malloc'd, or NULL for none */
+    int fd;       /* the watched fetch's socket, or -1 */
+} abort_t;
+static pthread_mutex_t aborts_lock = PTHREAD_MUTEX_INITIALIZER;
+static abort_t *aborts;
+static size_t aborts_count, aborts_room;
+
+/* the table, freed as the program exits, so that a leak checker counts
+   nothing live then */
+static void aborts_free(void) {
+    pthread_mutex_lock(&aborts_lock);
+    for (size_t i = 0; i < aborts_count; i++)
+        free(aborts[i].reason);
+    free(aborts);
+    aborts = NULL;
+    aborts_count = aborts_room = 0;
+    pthread_mutex_unlock(&aborts_lock);
+}
+
+int64_t kfetch_abort_new(void) {
+    pthread_mutex_lock(&aborts_lock);
+    if (!aborts_room)
+        atexit(aborts_free);
+    if (aborts_count == aborts_room) {
+        size_t room = aborts_room ? aborts_room * 2 : 16;
+        abort_t *grown = realloc(aborts, room * sizeof *grown);
+        if (!grown)
+            abort();
+        aborts = grown;
+        aborts_room = room;
+    }
+    aborts[aborts_count] = (abort_t){false, NULL, -1};
+    int64_t id = (int64_t)++aborts_count;
+    pthread_mutex_unlock(&aborts_lock);
+    return id;
+}
+
+/* the entry of id, under the lock, or NULL for none */
+static abort_t *abort_of(int64_t id) {
+    return id >= 1 && (uint64_t)id <= aborts_count ? &aborts[id - 1] : NULL;
+}
+
+void kfetch_abort(int64_t id, const uint8_t *reason) {
+    pthread_mutex_lock(&aborts_lock);
+    abort_t *a = abort_of(id);
+    if (a && !a->aborted) { /* the first reason stays, as JS's */
+        a->aborted = true;
+        if (reason && *reason) {
+            size_t n = strlen((const char *)reason) + 1;
+            a->reason = malloc(n);
+            if (!a->reason)
+                abort();
+            memcpy(a->reason, reason, n);
+        }
+        if (a->fd >= 0)
+            shutdown(a->fd, SHUT_RDWR);
+    }
+    pthread_mutex_unlock(&aborts_lock);
+}
+
+bool kfetch_aborted(int64_t id) {
+    pthread_mutex_lock(&aborts_lock);
+    abort_t *a = abort_of(id);
+    bool aborted = a && a->aborted;
+    pthread_mutex_unlock(&aborts_lock);
+    return aborted;
+}
+
+/* the socket that id's abort shuts down, -1 for none, before it is closed,
+   so that a number the system gives again is never shut down; whether it
+   was aborted already */
+static bool abort_watch(int64_t id, int fd) {
+    pthread_mutex_lock(&aborts_lock);
+    abort_t *a = abort_of(id);
+    bool aborted = false;
+    if (a) {
+        a->fd = a->aborted ? -1 : fd;
+        aborted = a->aborted;
+    }
+    pthread_mutex_unlock(&aborts_lock);
+    return aborted;
+}
+
+static void aborted_error(int64_t id, kv_string *error) {
+    pthread_mutex_lock(&aborts_lock);
+    abort_t *a = abort_of(id);
+    char reason[512];
+    snprintf(reason, sizeof reason, "%s", a && a->reason ? a->reason : "");
+    pthread_mutex_unlock(&aborts_lock);
+    if (reason[0])
+        fail(error, "fetch: aborted: %s", reason);
+    else
+        fail(error, "fetch: aborted");
+}
+
 /* ---------- connections ---------- */
 
 typedef struct {
     int fd;
     double deadline; /* the caller's, by now_seconds, or 0 for none (#486) */
+    int64_t signal;  /* its AbortSignal's id, 0 for none (#487) */
     double timeout;  /* the seconds it was given as, for the Error */
 #ifdef KV_HAS_SSL
     SSL_CTX *ctx;
@@ -288,6 +394,7 @@ typedef struct {
 } conn_t;
 
 static void conn_close(conn_t *c) {
+    abort_watch(c->signal, -1); /* before the number is free again */
 #ifdef KV_HAS_SSL
     if (c->ssl) {
         SSL_shutdown(c->ssl);
@@ -329,6 +436,10 @@ static void timed_out(const conn_t *c, kv_string *error) {
 /* the next waits of the socket, a read and a write, bounded by what is left;
    false, with error, where nothing is */
 static bool bound_waits(const conn_t *c, kv_string *error) {
+    if (kfetch_aborted(c->signal)) {
+        aborted_error(c->signal, error);
+        return false;
+    }
     double left = wait_left(c);
     if (left <= 0) {
         timed_out(c, error);
@@ -344,7 +455,7 @@ static bool bound_waits(const conn_t *c, kv_string *error) {
 
 /* connect within left seconds: without blocking, and then poll for it;
    0, or -1 with errno, ETIMEDOUT where the time ran out */
-static int connect_within(int fd, const struct sockaddr *a, socklen_t n, double left) {
+static int connect_within(int fd, const struct sockaddr *a, socklen_t n, double left, int64_t signal) {
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     int r = connect(fd, a, n);
@@ -353,8 +464,13 @@ static int connect_within(int fd, const struct sockaddr *a, socklen_t n, double 
         for (;;) {
             double ms = (end - now_seconds()) * 1000;
             struct pollfd p = {fd, POLLOUT, 0};
-            r = ms > 0 ? poll(&p, 1, (int)ms + 1) : 0;
-            if (r < 0 && errno == EINTR)
+            if (kfetch_aborted(signal)) { /* seen within a slice of 0.1 s (#487) */
+                errno = ECANCELED;
+                r = -1;
+                break;
+            }
+            r = ms > 0 ? poll(&p, 1, ms > 100 ? 100 : (int)ms + 1) : 0;
+            if ((r < 0 && errno == EINTR) || (r == 0 && ms > 100))
                 continue;
             break;
         }
@@ -418,7 +534,9 @@ static bool tls_start(conn_t *c, const url_t *u, kv_string *error) {
         return false;
     if (SSL_connect(c->ssl) != 1) {
         long v = SSL_get_verify_result(c->ssl);
-        if (passed(c))
+        if (kfetch_aborted(c->signal))
+            aborted_error(c->signal, error);
+        else if (passed(c))
             timed_out(c, error);
         else if (v != X509_V_OK)
             fail(error, "fetch: the certificate of %s is not trusted: %s", u->host, X509_verify_cert_error_string(v));
@@ -430,10 +548,12 @@ static bool tls_start(conn_t *c, const url_t *u, kv_string *error) {
 }
 #endif
 
-static bool conn_open(conn_t *c, const url_t *u, double deadline, double timeout, kv_string *error) {
+static bool conn_open(conn_t *c, const url_t *u, double deadline, double timeout, int64_t signal,
+                      kv_string *error) {
     c->fd = -1;
     c->deadline = deadline;
     c->timeout = timeout;
+    c->signal = signal;
 #ifdef KV_HAS_SSL
     c->ctx = NULL;
     c->ssl = NULL;
@@ -456,6 +576,11 @@ static bool conn_open(conn_t *c, const url_t *u, double deadline, double timeout
         timed_out(c, error);
         return false;
     }
+    if (kfetch_aborted(signal)) {
+        freeaddrinfo(res);
+        aborted_error(signal, error);
+        return false;
+    }
     int err = 0;
     for (struct addrinfo *a = res; a; a = a->ai_next) {
         int fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
@@ -467,17 +592,30 @@ static bool conn_open(conn_t *c, const url_t *u, double deadline, double timeout
         int one = 1;
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
 #endif
+        if (abort_watch(signal, fd)) {
+            close(fd);
+            break;
+        }
         double left = wait_left(c);
-        if (left > 0 && connect_within(fd, a->ai_addr, a->ai_addrlen, left) == 0) {
+        if (left > 0 && connect_within(fd, a->ai_addr, a->ai_addrlen, left, signal) == 0) {
             c->fd = fd;
             break;
         }
         err = left > 0 ? errno : ETIMEDOUT;
+        abort_watch(signal, -1);
         close(fd);
-        if (passed(c))
+        if (passed(c) || kfetch_aborted(signal))
             break;
     }
     freeaddrinfo(res);
+    if (c->fd >= 0 && kfetch_aborted(signal)) {
+        aborted_error(signal, error);
+        return false;
+    }
+    if (c->fd < 0 && kfetch_aborted(signal)) {
+        aborted_error(signal, error);
+        return false;
+    }
     if (c->fd < 0 && passed(c)) {
         timed_out(c, error);
         return false;
@@ -519,7 +657,9 @@ static bool conn_write(conn_t *c, const char *p, size_t n, kv_string *error) {
         if (w <= 0) {
             if (w < 0 && errno == EINTR)
                 continue;
-            if (passed(c))
+            if (kfetch_aborted(c->signal))
+                aborted_error(c->signal, error);
+            else if (passed(c))
                 timed_out(c, error);
             else
                 fail(error, "fetch: the request could not be sent: %s",
@@ -549,6 +689,10 @@ static long conn_read(conn_t *c, char *buf, size_t n, kv_string *error) {
             int r = SSL_read(c->ssl, buf, (int)n);
             if (r > 0)
                 return r;
+            if (kfetch_aborted(c->signal)) { /* a shutdown by abort() ends no body (#487) */
+                aborted_error(c->signal, error);
+                return -1;
+            }
             int e = SSL_get_error(c->ssl, r);
             if (e == SSL_ERROR_ZERO_RETURN)
                 return 0;
@@ -564,6 +708,10 @@ static long conn_read(conn_t *c, char *buf, size_t n, kv_string *error) {
         }
 #endif
         long r = (long)recv(c->fd, buf, n, 0);
+        if (r <= 0 && kfetch_aborted(c->signal)) { /* a shutdown by abort() ends no body (#487) */
+            aborted_error(c->signal, error);
+            return -1;
+        }
         if (r >= 0)
             return r;
         if (errno == EINTR)
@@ -727,9 +875,9 @@ static void put(kv_bytes *b, const char *s) { kv_bytes_append(b, s, strlen(s)); 
    where the caller gave none, and the body; the response, or false with
    error */
 static bool request_once(const url_t *u, const char *method, const kv_bytes *headers, const kv_bytes *body,
-                         double deadline, double timeout, response_t *r, kv_string *error) {
+                         double deadline, double timeout, int64_t signal, response_t *r, kv_string *error) {
     conn_t c;
-    if (!conn_open(&c, u, deadline, timeout, error)) {
+    if (!conn_open(&c, u, deadline, timeout, signal, error)) {
         conn_close(&c);
         return false;
     }
@@ -961,9 +1109,13 @@ static bool same_origin(const url_t *a, const url_t *b) {
 enum { REDIRECT_FOLLOW, REDIRECT_MANUAL, REDIRECT_ERROR }; /* RequestInit's redirect, its enum's values */
 
 bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_bytes *headers_given,
-                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t *status,
-                    kv_string *status_text, kv_string *final_url, int64_t *redirects, kv_bytes *headers,
-                    kv_bytes *body, kv_string *error) {
+                    const kv_bytes *body_given, int64_t redirect, double timeout, int64_t signal,
+                    int64_t *status, kv_string *status_text, kv_string *final_url, int64_t *redirects,
+                    kv_bytes *headers, kv_bytes *body, kv_string *error) {
+    if (kfetch_aborted(signal)) { /* a signal aborted already fails at once, as JS's (#487) */
+        aborted_error(signal, error);
+        return false;
+    }
     /* the caller's timeout, in seconds over the whole request, redirects
        and all (#486): 0, or an infinity, for none */
     if (isnan(timeout) || timeout < 0) {
@@ -1009,7 +1161,7 @@ bool kfetch_request(const uint8_t *url, const uint8_t *method_given, const kv_by
         if (!parse_url(current, &u, error))
             break;
         response_t r = {0};
-        if (!request_once(&u, method, &hs, &bs, deadline, timeout, &r, error)) {
+        if (!request_once(&u, method, &hs, &bs, deadline, timeout, signal, &r, error)) {
             free(u.target);
             break;
         }

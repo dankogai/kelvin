@@ -9309,3 +9309,18 @@ receiving and each redirect, and passed it is an Error. Details are
 provisional P498.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 534. An abort by hand
+
+> push. then go on with an abort by hand
+
+**Claude** pushed #486, and all nine jobs passed. fetch waits, so an abort
+comes from another thread, and `async` shares nothing. Asked, the user
+chose JS's AbortController, whose signal is a value a task is given,
+`abort(reason)` with the reason in the Error, and an abort at once.
+`c.abort()` shuts down the socket of the fetch that watches `c.signal`,
+which wakes its read or write at once, or its connect within a tenth of a
+second, and the fetch is an Error, `fetch: aborted: reason`. Details are
+provisional P499.
+
+There are 1212 tests, and all pass with clang and with gcc 15.

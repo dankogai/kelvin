@@ -343,6 +343,8 @@ So far the changes from C are these, by topic.
     `JSON` is built into `libkJSON` for it (#484)
   - `.timeout = 2.5`, seconds as an `f64`, bounds the whole request,
     redirects and all (#486)
+  - `var c = AbortController()`, `.signal = c.signal` in a fetch on a
+    task's thread, and `c.abort()` ends it at once (#487)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

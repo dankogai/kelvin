@@ -21,9 +21,12 @@
 #import <JSON>
 
 // the engine's functions, by their C names
-let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
+let kfetch_request(url:cstr, method:cstr, given:const Bytes^, sent:const Bytes^, redirect:i64, timeout:f64, signal:i64, status:i64^, text:String^, final:String^, redirects:i64^, headers:Bytes^, body:Bytes^, error:String^):bool
 let kfetch_header(headers:const Bytes^, i:i64, name:String^, value:String^):bool
 let kfetch_has_ssl():bool
+let kfetch_abort_new():i64
+let kfetch_abort(id:i64, reason:cstr):()
+let kfetch_aborted(id:i64):bool
 
 // what went wrong: a URL, a method or a header that is not one, the host not
 // found, no connection, TLS, an answer that is no HTTP, a redirect where it
@@ -37,17 +40,50 @@ struct Error {
 // words of the program, so each says redirect
 enum Redirect { redirectFollow, redirectManual, redirectError }
 
+// a handle to an abort, JS's AbortSignal (#487): a value, so that it is
+// copied into a task, as RequestInit's signal, where a fetch watches it;
+// id 0, a field left out, is none
+struct AbortSignal {
+    id: i64
+}
+
+extend AbortSignal {
+    let aborted:bool { kfetch_aborted(self.id) }   // whether its controller aborted it
+}
+
+// JS's AbortController (#487): AbortController() makes one, whose signal a
+// fetch on another thread watches, and c.abort() ends that fetch at once, an
+// Error, `fetch: aborted` or `fetch: aborted: reason`; a signal aborted
+// already fails a fetch before it starts, and stays aborted. Its state is
+// kept for the program's life, a few bytes, as a struct has no destructor
+struct AbortController {
+    signal: AbortSignal
+}
+
+let AbortController():AbortController {
+    var c:AbortController = {.signal = {.id = kfetch_abort_new()}}
+    return c
+}
+
+extend AbortController {
+    let abort() { kfetch_abort(self.signal.id, "") }
+    let abort(reason:cstr) { kfetch_abort(self.signal.id, reason) }
+    let abort(reason:const String^) { kfetch_abort(self.signal.id, reason^.cstr) }
+}
+
 // a request's method, "" for GET, its headers, sent as written, its body,
 // empty for none, and what a redirect does, as JS's RequestInit; a field
 // left out of (RequestInit){...} is empty, and its redirect follows; its
 // timeout, seconds over the whole request, redirects and all, 0 for none,
-// where a wait of 60 seconds with nothing is the most (#486)
+// where a wait of 60 seconds with nothing is the most (#486); its signal,
+// an AbortController's, which ends it at once when aborted (#487)
 struct RequestInit {
     method: String
     headers: Dictionary<String, String>
     body: Bytes
     redirect: Redirect
     timeout: f64
+    signal: AbortSignal
 }
 
 // what a server answered, after the redirects followed: its status and the
@@ -107,7 +143,7 @@ let fetch(url:cstr, init:const RequestInit^):Result<Response, Error> {
     var raw = Bytes()
     var body = Bytes()
     var why = $""
-    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, &status, &statusText, &final, &redirects, &raw, &body, &why) {
+    if !kfetch_request(url, init^.method.cstr, &given, &init^.body, init^.redirect as i64, init^.timeout, init^.signal.id, &status, &statusText, &final, &redirects, &raw, &body, &why) {
         var e:Error = {.message = why.copy()}
         return err(e)
     }

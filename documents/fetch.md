@@ -95,6 +95,30 @@ answered, a `Response`, or what went wrong, an `Error`, as a
     - Looking up the host's name counts, and the deadline is checked
       after it, but C cannot cut a lookup short, so one that hangs
       waits as long as the system's resolver does.
+  - `signal` (#487), an `AbortSignal`, an `AbortController`'s, which
+    ends the fetch when aborted, as JS's does.
+- **An abort by hand** (#487), JS's `AbortController`: as fetch waits for
+  its answer, the abort comes from another thread, the fetch on a task's:
+  ```swift
+  let get(url:String, signal:AbortSignal):Result<Response, Error> {
+      fetch(&url, (RequestInit){.signal = signal})
+  }
+  ```
+  then `var c = AbortController()`, `var t = async get($"...", c.signal)`,
+  `c.abort()` and `var r = await t`.
+  - `AbortController()` makes one; `c.signal` is its `AbortSignal`, a
+    value, so that `async` copies it into the task, as it shares nothing
+    else; `c.signal.aborted` says whether it was aborted.
+  - `c.abort()` ends the fetch at once, an Error, `fetch: aborted`;
+    `c.abort("user quit")`, or of a String, `&s`, says why,
+    `fetch: aborted: user quit`, the first reason staying, as JS's.
+    - A read or a write waiting on the socket wakes at once, the socket
+      shut down; a connect in progress sees it within 0.1 seconds.
+    - A body cut by an abort is the Error, never a Response.
+  - A signal aborted already fails a fetch before it starts, and stays
+    aborted; an abort after a fetch is done changes nothing.
+  - Its state is a few bytes kept for the program's life, as a struct
+    has no destructor, and freed as the program exits.
 - **A `Response`** is a struct that owns its parts:
   - `status`, an `i64`, and `statusText`, the status line's text, as
     `404` and `Not Found`; `ok` is whether the status is 200 to 299.
@@ -121,7 +145,7 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - a URL that is not `http://` or `https://`, has a user, a port out of
     1 to 65535, no host, or a space;
   - a host not found, a connection refused, no answer in 60 seconds,
-    the caller's timeout passed;
+    the caller's timeout passed, an abort;
   - a certificate not trusted, or TLS that fails;
   - an answer that is not HTTP/1.1, a body cut short;
   - a method or a header `init` may not have, a GET's body;
@@ -145,8 +169,7 @@ answered, a `Response`, or what went wrong, an `Error`, as a
   - `make HAS_SSL=0`, or `HAS_SSL=0` in the environment, builds without
     HTTPS; `SSL_CFLAGS` and `SSL_LIBS` say where OpenSSL is.
   - Changing it builds `libkfetch` again.
-- **Not here yet:** a body that streams, an abort by hand, as JS's
-  AbortController gives, and cookies.
+- **Not here yet:** a body that streams, and cookies.
 
 ## Where it lives
 
@@ -169,6 +192,11 @@ tests/fetch/server.py, HTTPS with a certificate made for the test.
 | | `.body` | the request's body, a `Bytes`, empty for none |
 | | `.redirect` | `redirectFollow`, `redirectManual` or `redirectError`, a `Redirect` |
 | | `.timeout` | seconds over the whole request, an `f64`, `0` for none (#486) |
+| | `.signal` | an `AbortSignal`, whose abort ends the fetch (#487) |
+| `AbortController` | `AbortController()` | a new one (#487) |
+| | `.signal` | its `AbortSignal`, a value a task is given |
+| | `.abort()`, `.abort(reason)` | ends a fetch that watches its signal: `fetch: aborted`, or `fetch: aborted: reason`, a `cstr` or `&s` |
+| `AbortSignal` | `.aborted` | whether its controller aborted it |
 | `Response` | `.status` | the status, an `i64` |
 | | `.statusText` | the status line's text, a String |
 | | `.ok` | whether the status is 200 to 299 |
