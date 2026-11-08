@@ -353,6 +353,9 @@ So far the changes from C are these, by topic.
     is each Set-Cookie apart (#489)
   - `jar.save(path)` and `jar.load(path)` write and read it as curl's
     cookies.txt (#490)
+- `#import <localStorage>` is JS's `localStorage`:
+  `localStorage.setItem("k", "v")`, `localStorage.getItem("k")` a
+  `String?`, kept in a JSON file of the program's between runs (#491)
 - `OS` and `SYS` are the system and the program, as Python has them, one
   module, `#import <OS>`: `OS.cwd`, `OS.env("HOME")`, `OS.listdir(dir)`,
   `OS.isdir(p)`, `OS.system(cmd)`, `SYS.argv`, `SYS.platform`, `SYS.exit(1)`

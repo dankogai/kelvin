@@ -2633,8 +2633,12 @@ static char *var_decl(const char *storage, Var *v) {
         d = strfmt("_Alignas(%s) %s", v->align ? expr(v->align) : decl(v->align_type, ""), d);
     if (frees)
         d = strfmt("__attribute__((cleanup(%s))) %s", frees, d);
-    if ((owner_free(v->type) || tagged_type(v->type)) && !v->init) /* an enum with values starts at its first case (#61) */
-        return strfmt("%s%s%s = {0}", storage ? storage : "", storage ? " " : "", d);
+    /* an enum with values starts at its first case (#61); an extern one, a
+       module's global of its header (#491), is declared alone, as an
+       initializer would define it a second time */
+    if ((owner_free(v->type) || tagged_type(v->type)) && !v->init)
+        return strfmt("%s%s%s%s", storage ? storage : "", storage ? " " : "", d,
+                      storage && !strcmp(storage, "extern") ? "" : " = {0}");
     /* a reference declared without a value is nowhere (#20) */
     /* a v.type that C writes as __typeof__ is the type kelvinc saw (#34) */
     Type *seen = v->type->kind == T_TYPEOF && v->type->elem ? v->type->elem : v->type;
@@ -5162,6 +5166,13 @@ char *gen_program(Program *prog, bool with_lines) {
             line("    %s(&%s);", owner_free(v->type), c_name(v->name));
         }
         line("}");
+        if (lib_mode) { /* a module has no main to register them: it does, as it is loaded (#491) */
+            line("%s", "");
+            line("__attribute__((constructor)) static void _kv_register_globals(void)");
+            line("{");
+            line("    atexit(_kv_free_globals);");
+            line("}");
+        }
     }
     return ascii_names(out.buf ? out.buf : "");
 }

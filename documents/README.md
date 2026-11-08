@@ -104,3 +104,5 @@ the design decisions, numbered `#N` throughout, are in
   regular expressions over Strings and Bytes.
 - [fetch.md](fetch.md): `#import <fetch>`, JS's `fetch(url)` as a GET
   over HTTP and HTTPS, a `Result<Response, Error>`.
+- [localstorage.md](localstorage.md): `#import <localStorage>`, JS's
+  `localStorage`, text kept in a file of the program's between runs.

@@ -9371,3 +9371,18 @@ curl sends the cookies of a file Kelvin saved, and Kelvin reads curl's.
 Details are provisional P502.
 
 There are 1212 tests, and all pass with clang and with gcc 15.
+
+### 538. localStorage
+
+> push. then go on with localStorage
+
+**Claude** pushed #490, and all nine jobs passed. As #490's answers had it,
+`#import <localStorage>` is a module of its own: the global `localStorage`,
+JS's getItem, setItem, removeItem, clear, length and key, kept in a JSON
+file of the program's, read at first use and written at each change by a
+file renamed over it. kelvinc wrote a module's global that owns as
+`extern ... = {0}`, which defined it twice, and never freed it; it now
+declares it alone, and the module frees it at exit. Details are
+provisional P503.
+
+There are 1213 tests, and all pass with clang and with gcc 15.

@@ -72,3 +72,4 @@ modules/RegExp.kh
 modules/fetch.kh
 modules/libkfetch.link
 modules/JSON.kh
+modules/localStorage.kh

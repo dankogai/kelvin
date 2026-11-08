@@ -533,6 +533,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 488 | A body that streams, as the user chose: RequestInit's `stream`, and fetch returns at the headers, `res.body` empty, the body read as it comes from `res.stream`, an `IO`, by its length, its chunks or the close, through fopencookie or funopen, closed with its connection when the Response's block ends; the timeout and an abort hold for each read; `res.streamError`, an `Error?`, says what ended it; `res.text()` and `res.json()` read the rest. fetch.md's Synopsis is the user's program | runtime/fetch.c's stream_t, stream_read, stream_fill, raw_line, stream_close, stream_file, stream_open, kfetch_stream_error, kfetch_stream_rest; modules/kfetch.h, modules/fetch.k; tests/fetch/stream.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `for chunk in res.stream.read(65536)` | 2026-11-08 |
 | 489 | Cookies, as the user chose: a `CookieJar`, `CookieJar()` and RequestInit's `cookies`, keeps each answer's Set-Cookie, a redirect's too, and each request sends those that match, by RFC 6265's domain, path, Secure, Max-Age and Expires; a Domain must match the host and hold a dot, a Secure one comes only over https; a handle, as AbortSignal is, in memory for the program's life. `jar.getCookieString(url)`, `jar.setCookie(text, url)`, `jar.clear()`, `jar.count`, tough-cookie's names; `res.setCookies`, each Set-Cookie apart | runtime/fetch.c's cookie_t, jar_t, jar_store, jar_header, cookie_date, domain_match, path_match, default_path, kfetch_jar_*; request_once's Cookie, kfetch_request's jar; modules/kfetch.h, modules/fetch.k; tests/fetch/cookies.k, tests/fetch/https.k, tests/fetch/server.py; documents/fetch.md, README.md | `(RequestInit){.cookies = jar}` | 2026-11-08 |
 | 490 | A jar's file, as the user chose: Netscape's cookies.txt, curl's; `jar.save(path)` writes the live cookies, session's too, by a file renamed over path, and `jar.load(path)` adds a file's, the same name, domain and path replaced, those ended left out, `#HttpOnly_` lines read as any; each a `Result<i64, Error>`, how many | runtime/fetch.c's kfetch_jar_save, kfetch_jar_load; modules/kfetch.h, modules/fetch.k; tests/fetch/jarfile.k; documents/fetch.md, README.md | `jar.save("cookies.txt")` | 2026-11-08 |
+| 491 | `#import <localStorage>`, JS's, as the user chose: the global `localStorage`, getItem a `String?`, setItem, removeItem, clear, length, key(i), and path, kept in a JSON file of the program's, KELVIN_LOCALSTORAGE's, else under $XDG_DATA_HOME or ~/.local/share, kelvin/localStorage/<program>.json, read at first use and written at each change by a file renamed over it. kelvinc: an extern global that owns is declared without `= {0}`, which defined it twice, and a `--lib` module registers its global owners' freeing as it is loaded | modules/localStorage.k; src/codegen.c's var_decl and _kv_register_globals; GNUmakefile's localStorage.kh; .gitignore; tests/run/local_storage.k; documents/localstorage.md, documents/modules.md, documents/README.md, README.md | `localStorage.setItem("k", "v")` | 2026-11-08 |
 
 Notes:
 
@@ -1118,6 +1119,39 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (491) Agreed details: "push. then go on with localStorage", as #490's
+  answers settled it: a module of its own, a file per program, written at
+  each change.
+  - JS's Storage's methods on a global, `localStorage`: getItem gives a
+    `String?`, key(i) one in the order set; length and path are let
+    attributes; a key or a value is a cstr or `&s` of a String.
+  - The file: KELVIN_LOCALSTORAGE, else
+    $XDG_DATA_HOME/kelvin/localStorage/<program>.json, else
+    ~/.local/share/kelvin/localStorage/<program>.json, the program by the
+    name it was run by; JSON, an object of Strings, what is not a String
+    left out as it is read; written whole, two spaces a level, to a file
+    beside it renamed over it, its directories made.
+  - A global owner is declared empty and filled in a function, as C
+    initializes a global with a constant alone, so it is read at its
+    first use, by storageRead, which each method calls; a let method's
+    self is a copy made before that, so the methods read the global.
+  - In the module's header, `extern var localStorage:Storage` was written
+    `extern struct Storage localStorage = {0}`, which defined it in the
+    program a second time, and the link failed: an extern global that owns,
+    or an enum with values, is now declared alone.
+  - A module's global owners were never freed, a program's main alone
+    registering `_kv_free_globals`: under tests/asan.sh, 3 blocks were live
+    at exit. A `--lib` module now registers its own by a constructor, as it
+    is loaded.
+  - A method overload of `&s` that calls the cstr one, declared after it,
+    called itself, kelvinc giving C a const kv_string * for a cstr with a
+    warning alone: the overloads of `&s` come after the cstr ones.
+  - Not a browser's: no lock between programs or threads, no quota, no
+    storage event; a file that cannot be written leaves the items in
+    memory.
+  - tests/run/local_storage.k reads a file written first, a member that is
+    no String left out, sets, removes and clears, by cstr and by `&s`, and
+    reads the file after each; under tests/asan.sh nothing is live at exit.
 - (490) Agreed details: "push. then go on with saving a jar to a file.
   And if possible, consider implementing localStorage". Asked, the user
   chose Netscape's cookies.txt, which curl and wget read and write, over
@@ -7488,6 +7522,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P500 | Details of #488 | runtime/fetch.c: _GNU_SOURCE off the BSDs and macOS; stream_t {c, raw, at, mode, chunk, left, done, failure, host, fp, next}, STREAM_NONE, LENGTH, CHUNKED, CLOSE and CHUNK_SIZE, DATA, END, TRAILER; stream_fail, stream_fill, raw_line, stream_read, stream_free, stream_close, stream_read_fn and stream_file by funopen or fopencookie, stream_open as an IO of kind 1, kfetch_stream_error, kfetch_stream_rest; response_t's stream; request_once's stream; kfetch_request's stream and streamed; modules/fetch.k: #import <IO>, RequestInit's stream, Response's stream, streamError, text() of the rest, fetch filling the Response in place | provisional |
 | P501 | Details of #489 | runtime/fetch.c: cookie_t, jar_t, jars_lock, jars_free by atexit, kfetch_jar_new, jar_of, text_copy, trim, is_address, domain_match, path_match, default_path, cookie_date (RFC 6265 5.1.1, days from the civil calendar), jar_store, cookie_order, jar_header, kfetch_jar_set, kfetch_jar_header, kfetch_jar_clear, kfetch_jar_count; request_once's jar and Cookie; kfetch_request's jar, storing each answer's set-cookie; modules/fetch.k: CookieJar, CookieJar(), getCookieString of a cstr and &s, setCookie of a cstr and &s, clear, count, RequestInit's cookies, Response's setCookies | provisional |
 | P502 | Details of #490 | runtime/fetch.c: kfetch_jar_save by fprintf to path.PID.tmp and rename, kfetch_jar_load by fgets of 8192 bytes, #HttpOnly_ and # lines, 7 fields or 6 with the value empty, strtod of the expiry; modules/fetch.k: CookieJar's save and load of a cstr and &s | provisional |
+| P503 | Details of #491 | modules/localStorage.k: Storage {items, file, read}, var localStorage, storageRead's prototype and body, Storage.defaultPath, Storage.opened, save by JSON.stringify(&j, "  ") to file.PID.tmp and OS.rename, the methods, the overloads of &s last; src/codegen.c: var_decl's extern without = {0}, _kv_register_globals by __attribute__((constructor)) where lib_mode; GNUmakefile: modules/localStorage.kh by kelvinc --lib after JSON.kh and the IO and OS libraries | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -129,6 +129,10 @@ kelvinc --lib modules/JSON.k -o lib  # lib/JSON.kh, lib/libkJSON.a and lib/libkJ
   and subscript, in their `extend` blocks.
   - A global is `extern let x:T` or `extern var x:T`, with the type
     kelvinc inferred.
+    - One that owns is declared there alone, with no `= {0}`, which would
+      define it in the program a second time; the library frees it as
+      the program exits, registered as it is loaded, as a program's main
+      registers its own (#491).
   - A C function's prototype, `let exp(x:f64):f64` with no body, is
     `extern let exp(x:f64):f64` there: in a `.kh`, a prototype without
     `extern` is the library's own function.
