@@ -9443,3 +9443,14 @@ and `i64(&s, 16)` now read it, and `bool(&s)` stays the pointer's. kc
 reads a reference and a Bytes as well. Details are provisional P507.
 
 There are 1222 tests, and all pass with clang and with gcc 15.
+
+### 543. 0.1.1
+
+> push. then bump version to 0.1.1. `fetch()` support should be worth it.
+
+**Claude** pushed #495 after a clean battery. The version is now 0.1.1:
+kelvinc's, the VS Code package's, Design.md's status, and CHANGELOG.md's
+notes of #468 to #495, `fetch()` and `localStorage` first. There is no
+tag yet. Details are provisional P508.
+
+There are 1222 tests, and all pass with clang and with gcc 15.

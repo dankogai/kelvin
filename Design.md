@@ -21,8 +21,10 @@ C is also the symbol for Celsius, and Kelvin is its natural successor. The
 step size is the same, so everything you know about C carries over one to
 one, but it sits on an absolute scale. The source extension is `.k`.
 
-## Status: v0.1.0 (#467)
+## Status: v0.1.1 (#496)
 
+- 0.1.1 adds `#import <fetch>` and `#import <localStorage>`, JS's, to
+  0.1.0 (#467), with the fixes found on the way, #468 to #495.
 - `kelvinc` translates Kelvin into C and hands the result to the C
   compiler (`$CC`, which defaults to `cc`).
   - Semantics and ABI are C's by construction; `#line` directives make
@@ -538,6 +540,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 493 | A global C cannot initialize, one that owns or of a value that is not a constant, is given its value at its first use, once, on any thread, as the user chose, Swift's: `var names = $["a"]`, `let start = OS.time`; a constant stays C's initializer. In C, its storage, an initializer run by pthread_once, and an accessor each use reads it by; a module's header says `extern lazy var`. A local may not hide one. A global owner assigned anew frees what it held, as a local does. localStorage is such a global | src/parser.c's const_init, first_use_globals, lazy_next, the marks of a global and of one given its value at first use, the local's error; src/kelvin.h's Var.first_use, Expr.first_use and Expr.global; src/codegen.c's ref_name, emit_first_use_globals, global_owner_type, the D_VAR storage and accessor; src/parser.c's .kh writer; modules/localStorage.k; tests/run/global_first_use.k, tests/error/global_first_use_hidden.k, tests/error/extern_lazy_outside.k, tests/error/global_owner_call.k removed; documents/ownership.md, documents/c-contract.md, README.md | `var names = $["a"]` at the top level | 2026-11-08 |
 | 494 | `uchr(x)` of a String or a Bytes, or one by reference, is the first codepoint of its text, as of text, as the user chose: `uchr(s)`, `uchr(&s)`, where `uchr(s)` was C's error and `uchr(&s)` read the struct's bytes as text; U+FFFD of empty text. Of a float, a sum of one too, a bool, an Optional, a struct or a pointer to no text, it is an error in words, as `.uchr` refuses them (#297), where C failed or read an integer's bytes; a C typedef's value and sizeof stay C's to judge. kc says and writes the same | src/parser.c's convert (the uchr branch), float_operand, text_in_buffer of a uchr(...), int_expr's prototype; selfhost/gen.k's gen_uchr; tests/run/uchr_of_text.k, tests/error/uchr_call_float.k, tests/error/uchr_call_bool.k, tests/error/uchr_call_pointer.k; documents/strings.md, documents/ownership.md, README.md | `uchr(s)` | 2026-11-09 |
 | 495 | `i64(&s)`, `f64(&s)` and every number converter of a String or a Bytes by reference, `&s` or a `String^` parameter, read the text it refers to, as the user chose, as `i64(s)` does (#88), where kelvinc converted the pointer, an address, and f64 of one was C's error; a base works as of text, `i64(&s, 16)`; `bool(&s)` stays the pointer's. kc, which refused a reference and a Bytes alike, reads both | src/parser.c's owner_text_of_ref, used by convert for uchr (#494) and for the number converters; selfhost/gen.k's owner_text_ref, converter_text and put_text_arg; tests/run/convert_text_ref.k; documents/integers.md, documents/strings.md, README.md | `i64(&s)` | 2026-11-09 |
+| 496 | The version bumped to 0.1.1, as the user asked, `fetch()` being worth it: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.1.1 notes, #468 to #495, the library, the language, the fixes and kc; README.md's line of the release notes. No tag, the user not having asked for one | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.1.1` | 2026-11-09 |
 
 Notes:
 
@@ -1122,6 +1125,22 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (496) Agreed details: "push. then bump version to 0.1.1. `fetch()`
+  support should be worth it."
+  - 0.1.1, a patch's number as the user chose, though `fetch()` and
+    `localStorage` are new: in 0.x, semantic versioning leaves the
+    numbers to the project.
+  - The places #467 set: kelvinc's KELVIN_VERSION, the VS Code
+    package's version and the .vsix's name in its README, which
+    tests/run.sh checks agree; Design.md's status; CHANGELOG.md; the
+    README's line of the release notes.
+  - CHANGELOG.md's 0.1.1 comes before 0.1.0's: the library, `fetch`,
+    `localStorage` and JSON as a library; the language; the fixes, C's
+    errors now Kelvin's, the double free and the leak; and kc.
+  - The intro decks, intro/*.md and their .key files, say 0.1.0, as of
+    the talk; they are left as they are.
+  - No tag or release: the user asks for those.
 
 - (495) Agreed details: "push. then go on with the i64(&s) gap", which
   #494 found: `i64(&s)` of a String gave the pointer's address.
@@ -7623,6 +7642,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P505 | Details of #493 | src/parser.c: first_use_globals, is_first_use_global, the local's error in declare_binding, lazy_next and extern lazy in parse()'s globals, const_init after enumerator_named, Expr.global and Expr.first_use set where an identifier is read; the .kh writer's `extern lazy`; src/codegen.c: first_use_vars, c_name and ref_name, the D_VAR storage `_kv_lazy_x` and the accessor's prototype, emit_first_use_globals by initializer and memcpy, pthread_once and `#include <pthread.h>`, _kv_free_globals of `_kv_lazy_x`, global_owner_type for an owner global's _assign | provisional |
 | P506 | Details of #494 | src/parser.c: convert's uchr branch, a String or Bytes by reference dereferenced (`&s` its operand, else `x^`), then `.cstr` of a place or a temporary; the class of the rest by expr_class, int_expr, sizeof, float_operand (+, -, *, /, a sign, ?:), a bool by seen_bool, bool_shape or is_bool, nowhere and text passed; text_in_buffer passes op "uchr"; selfhost/gen.k: gen_uchr writes `KV_UCHR_OF(kv_bytes_cstr(&(s).b))`, `&((*r)).b`, `&b` and `&(*r)` of a Bytes, holding a temporary by hold_args | provisional |
 | P507 | Details of #495 | src/parser.c: owner_text_of_ref before float_operand, `&s` its operand, else an E_DEREF; convert calls it unless the type is bool, before the String/Bytes branch; selfhost/gen.k: owner_text_ref before converter_text, which takes Y_BYTES and a reference; put_text_arg of a reference, N_ADDR by its operand, of a Bytes `kv_bytes_cstr(&b)` | provisional |
+| P508 | Details of #496 | src/main.c: KELVIN_VERSION 0.1.1; editors/vscode/package.json and README.md: 0.1.1 and kelvin-lang-0.1.1.vsix; Design.md: the status's heading and its line of 0.1.1; CHANGELOG.md: 0.1.1 before 0.1.0; README.md: the release notes' line | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -2,7 +2,7 @@
   "name": "kelvin-lang",
   "displayName": "Kelvin",
   "description": "Syntax coloring for Kelvin, C with Swift's spelling",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "dankogai",
   "license": "MIT",
   "repository": {
