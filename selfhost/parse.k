@@ -2943,7 +2943,7 @@ let parse_block():int64 {
 
 // whether token t is an operator a struct may define (#42), ** too (#380)
 let overloadable_tok(t:int64):bool {
-    return tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "**")
+    return tok_is(t, "+") || tok_is(t, "-") || tok_is(t, "*") || tok_is(t, "/") || tok_is(t, "%") || tok_is(t, "==") || tok_is(t, "!=") || tok_is(t, "<") || tok_is(t, "<=") || tok_is(t, ">") || tok_is(t, ">=") || tok_is(t, "**") || tok_is(t, "&") || tok_is(t, "|") || tok_is(t, "~") || tok_is(t, "<<") || tok_is(t, ">>")   // bitwise (#502)
 }
 
 // whether a method's head is at token i, T.m( or point.kind.m( (#389)
@@ -3453,7 +3453,7 @@ let parse_extend() {
             if !overloadable_tok(pos) || !tok_is(pos + 1, "(") {
                 var m = $"'"
                 m += tok_text(pos)
-                m += "' cannot be defined: an operator is one of + - * / % == != < <= > >=, or unary -"
+                m += "' cannot be defined: an operator is one of + - * / % ** == != < <= > >= & | ~ << >>, or unary - and ~"
                 parse_error(m.cstr)
                 return
             }
@@ -3624,7 +3624,7 @@ let parse_program() {
             advance()
             var m = $"'"
             m += tok_text(pos)
-            m += "' cannot be defined: an operator a struct defines is one of + - * / % == != < <= > >=, or unary -"
+            m += "' cannot be defined: an operator a struct defines is one of + - * / % ** == != < <= > >= & | ~ << >>, or unary - and ~"
             parse_error(m.cstr)
         } else if at_word("let") && toks[pos + 2].kind == T_PUNCT && tok_is(pos + 2, "(") {
             advance()

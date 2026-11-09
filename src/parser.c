@@ -5211,7 +5211,7 @@ static Expr *parse_unary(void) {
             e->a = make_temp(e->a, strfmt("a borrow of a %s that an expression gives, which nothing would free: bind it "
                                           "to a variable first",
                                           kelvin_type(value_type(e->a))));
-        return !strcmp(e->op, "-") ? resolve_operator(e, "-", e->a, NULL) : e; /* -z (#42) */
+        return !strcmp(e->op, "-") || !strcmp(e->op, "~") ? resolve_operator(e, e->op, e->a, NULL) : e; /* -z (#42), ~z (#502) */
     }
     if (is_p(t, "*") || is_p(t, "**"))
         error_at(t->pos, "dereference is a postfix '^' in Kelvin: write 'p^' instead of '*p'");
@@ -8513,7 +8513,8 @@ static char *mangled_type(Type *t) {
 static void name_functions(void) {
     static const struct { const char *op, *word; } words[] = {
         {"+", "add"}, {"-", "sub"}, {"*", "mul"}, {"/", "div"}, {"%", "mod"}, {"==", "eq"}, {"!=", "ne"}, {"**", "pow"},
-        {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}};
+        {"<", "lt"}, {"<=", "le"}, {">", "gt"}, {">=", "ge"}, {"&", "and"}, {"|", "or"}, {"~", "xor"}, {"<<", "shl"},
+        {">>", "shr"}}; /* (#502) */
     for (int i = 0; i < functions.len; i++) {
         Decl *d = functions.data[i];
         Buf types = {0};
@@ -8554,9 +8555,11 @@ static void name_functions(void) {
         if (!types.len)
             buf_puts(&types, "__void");
         if (d->op) {
-            const char *w = d->params.len == 1 && !strcmp(d->op, "-") ? "neg" : "op";
+            const char *w = d->params.len == 1 && !strcmp(d->op, "-")   ? "neg"
+                            : d->params.len == 1 && !strcmp(d->op, "~") ? "compl" /* ~a (#502) */
+                                                                        : "op";
             for (size_t k = 0; k < sizeof words / sizeof words[0]; k++)
-                if (!strcmp(words[k].op, d->op) && strcmp(w, "neg"))
+                if (!strcmp(words[k].op, d->op) && strcmp(w, "neg") && strcmp(w, "compl"))
                     w = words[k].word;
             d->cname = strfmt("_kv_%s_op%s", w, types.buf);
             continue;
@@ -9815,10 +9818,11 @@ static Expr *assign_to(Expr *lhs, bool ok) {
                 e->op = "=";
                 e->b = power_of(lhs, e->b, t->pos);
             }
-            /* z += w with an operator a struct defines is z = z + w (#42) */
-            if (strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%", e->op[0])) {
+            /* z += w with an operator a struct defines is z = z + w (#42); z <<= n too (#502) */
+            if ((strlen(e->op) == 2 && e->op[1] == '=' && strchr("+-*/%&|~", e->op[0])) || !strcmp(e->op, "<<=") ||
+                !strcmp(e->op, ">>=")) {
                 Expr *bin = new_expr(E_BINARY, t->pos);
-                bin->op = strfmt("%c", e->op[0]);
+                bin->op = strfmt("%.*s", (int)strlen(e->op) - 1, e->op);
                 bin->a = lhs;
                 bin->b = e->b;
                 Expr *call = resolve_operator(bin, bin->op, lhs, e->b);
@@ -14615,7 +14619,8 @@ static Decl *new_decl(DeclKind kind, Pos pos, const char *storage) {
 
 /* the operators a Kelvin struct may define (#42) */
 static bool overloadable_op(Token *t) {
-    static const char *ops[] = {"+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "**", NULL}; /* ** (#380) */
+    static const char *ops[] = {"+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "**", /* ** (#380) */
+                                "&", "|", "~", "<<", ">>", NULL}; /* bitwise (#502) */
     for (int i = 0; ops[i]; i++)
         if (is_p(t, ops[i]))
             return true;
@@ -14800,8 +14805,9 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
 static void check_overload(Decl *d, Token *name) {
     if (d->op) {
         int n = d->params.len;
-        if ((n != 2 && !(n == 1 && !strcmp(d->op, "-"))) || d->variadic)
-            error_at(name->pos, "operator %s takes %s", d->op, !strcmp(d->op, "-") ? "one or two values" : "two values");
+        bool unary = !strcmp(d->op, "-") || !strcmp(d->op, "~"); /* -a, ~a (#502) */
+        if ((n != 2 && !(n == 1 && unary)) || d->variadic)
+            error_at(name->pos, "operator %s takes %s", d->op, unary ? "one or two values" : "two values");
         bool record = false;
         for (int k = 0; k < n; k++)
             record = record || kelvin_record(((Var *)d->params.data[k])->type);
@@ -15579,7 +15585,8 @@ static void parse_extend(Program *prog) {
             /* static let +(a:T, b:T):T { } (#135): an operator, as Swift's
                static func +, which is the top level's let + */
             if (!overloadable_op(nm) || !is_p(after, "("))
-                error_at(nm->pos, "'%s' cannot be defined: an operator is one of + - * / %% == != < <= > >=, or unary -",
+                error_at(nm->pos, "'%s' cannot be defined: an operator is one of + - * / %% ** == != < <= > >= & | ~ << >>, "
+                                  "or unary - and ~",
                          nm->text);
             if (!storage || !is_let)
                 error_at(m->pos, "an operator in extend is a function of the type, as Swift's static func: write 'static "
@@ -16681,8 +16688,8 @@ Program *parse(Token *tokens, int ntoks) {
         } else if (overloadable_op(peek()) && is_p(peek2(), "(")) {
             add_top_decl(prog, parse_fn(t->pos, storage)); /* +(a:T, b:U):R { ... } (#42) */
         } else if (peek()->kind == TK_PUNCT && is_p(peek2(), "(") && !is_p(peek(), "(") && !is_p(peek(), ";")) {
-            error_at(peek()->pos, "'%s' cannot be defined: an operator a struct defines is one of + - * / %% == != "
-                                  "< <= > >=, or unary -, and 'x op= y' is 'x = x op y'",
+            error_at(peek()->pos, "'%s' cannot be defined: an operator a struct defines is one of + - * / %% ** == != "
+                                  "< <= > >= & | ~ << >>, or unary - and ~, and 'x op= y' is 'x = x op y'",
                      peek()->text);
         } else if (is_kw(peek(), "let") || is_kw(peek(), "var") ||
                    (storage && !strcmp(storage, "extern") && peek()->kind == TK_IDENT && !strcmp(peek()->text, "lazy") &&

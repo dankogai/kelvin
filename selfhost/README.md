@@ -604,6 +604,15 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Bitwise operators** (#502), as kelvinc's: a struct, a union or an
+  enum with values defines `& | ~ << >>` and unary `~`, named
+  `_kv_and_op`, `_kv_or_op`, `_kv_xor_op`, `_kv_shl_op`, `_kv_shr_op`
+  and `_kv_compl_op`; `x &= y` to `x >>= n` are `x = x op y`.
+  - kc's compound_op gives Kelvin's `~`, `<<` and `>>`, where it gave
+    C's `^`, and `**` of `<<=` and `>>=`, to a setter's `x.y op= v`.
+  - Found: kelvinc writes `W.of(...)` in an operator of `extend W` as C,
+    which does not know W, where `of` is defined after it; kc's build is
+    right.
 - **An operand lent** (#501), as kelvinc's: an operator's owner
   parameter, unless var, is its caller's, read, never freed nor moved;
   `a * a + b` and `c + c` leave `a`, `b` and `c`.

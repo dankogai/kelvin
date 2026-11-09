@@ -301,7 +301,8 @@ let main():int32 {
 ### Operators: `let +(a:T, b:T):T`
 
 A struct, a union or an enum with values (#121) may define
-`+ - * / % == != < <= > >=`, `**` (#380) and unary `-`, as functions
+`+ - * / % == != < <= > >=`, `**` (#380), `& | ~ << >>` (#502), and
+unary `-` and `~`, as functions
 named by the operator, overloaded by their types as other functions are
 (#42):
 
@@ -324,9 +325,13 @@ let main():int32 {
 }
 ```
 
-- An operator takes two values, or one for `-`, of which at least one
-  is a Kelvin struct or union, and has a result.
-  - Other operators (`<<`, `!`, `+=`) cannot be defined.
+- An operator takes two values, or one for `-` and `~`, of which at
+  least one is a Kelvin struct or union, and has a result.
+  - `~` of two values is xor, as Kelvin's `~` between numbers is; of one
+    it is the complement (#502).
+  - `<<` and `>>` take what their parameters say: `let <<(a:T,
+    n:int64):T` shifts by an integer.
+  - Other operators (`!`, `&&`, `+=`) cannot be defined.
   - Precedence is C's, and `**`'s Python's, as Kelvin's `**` is
     ([operators.md](operators.md)); `x **= y` is `x = x ** y`.
   - A definition is a `let` at the top level, `let +(a:T, b:U):R`, or a
@@ -376,8 +381,10 @@ The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a
 | | `for x in v` of a Sequence | each value of the fresh iterator its `let T.makeIterator():I` gives (#321) |
 | | `a + b` and the rest | an operator declared `let +(a:T, b:T):T` |
 | | `a ** b` | an operator declared `let **(a:T, b:U):T` (#380) |
+| | `a & b`, `a \| b`, `a ~ b`, `a << n`, `a >> n`, `~a` | an operator declared `let &(a:T, b:T):T`, and the rest (#502) |
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
-| | passing, `return`, an operator's operand | a move; `=` is an error |
+| | passing, `return` | a move; `=` is an error |
+| | an operator's operand | lent, its caller's (#501) |
 | with a `[u8]` member | its `.cstr` | up to 60 bytes of it |
 
 A `.hex`, `.dec`, `.addr` or `.isNull` on a struct is an error. A field

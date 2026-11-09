@@ -9530,3 +9530,17 @@ build and went. kc does the same; two older kc gaps were found and left
 for later. Details are provisional P513.
 
 There are 1236 tests, and all pass with clang and with gcc 15.
+
+### 549. Bitwise operators
+
+> push. then go on with bitwise operators on structs
+
+**Claude** pushed #501 after a clean battery; CI passed all 9 jobs. A
+struct could define `+` to `>=`, `**` and unary `-`, not `<<`, which a
+BigInt needs. Asked, the user chose `& | ~ << >>` and unary `~`: `~` of
+two values is Kelvin's xor, of one the complement, and `x <<= n` is `x =
+x << n`. kc the same, where its `~=` of a setter had been C's `^`. Found:
+kelvinc writes an operator calling a function of its type defined after
+it as C that does not know the type. Details are provisional P514.
+
+There are 1238 tests, and all pass with clang and with gcc 15.

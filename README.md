@@ -260,6 +260,8 @@ So far the changes from C are these, by topic.
   alone, `let T.area:f64 { ... }`
 - structs and unions may define operators:
   `let +(a:money, b:money):money { ... }`, then `a + b`
+  - the bitwise `& | ~ << >>` and unary `~` too, `~` of two values its
+    xor (#502)
 
 ### Text and printing
 

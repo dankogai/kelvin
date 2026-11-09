@@ -2546,7 +2546,7 @@ let op_record(y:int64):bool {
 // union's, and gives a value, else kelvinc's error (#42)
 let operator_fits(d:int64):bool {
     let t:int64 = nodes[d].t
-    let minus = tok_is(t, "-")
+    let minus = tok_is(t, "-") || tok_is(t, "~")            // -a, ~a (#502)
     var count = 0
     var record = false
     var p:int64 = nodes[d].a
@@ -2647,6 +2647,11 @@ let operator_word(d:int64):cstr {
     if tok_is(t, "<") { return "_kv_lt_op" }
     if tok_is(t, "<=") { return "_kv_le_op" }
     if tok_is(t, ">") { return "_kv_gt_op" }
+    if tok_is(t, "&") { return "_kv_and_op" }           // bitwise (#502)
+    if tok_is(t, "|") { return "_kv_or_op" }
+    if tok_is(t, "~") { return nodes[d].a >= 0 && nodes[nodes[d].a].next < 0 ? "_kv_compl_op" : "_kv_xor_op" }
+    if tok_is(t, "<<") { return "_kv_shl_op" }
+    if tok_is(t, ">>") { return "_kv_shr_op" }
     return "_kv_ge_op"
 }
 
@@ -2890,7 +2895,7 @@ let resolve_op(n:int64) {
     if op_settled.has(n) { return }
     let t:int64 = nodes[n].t
     let unary = k == N_UNARY
-    if unary ? !tok_is(t, "-") : !overloadable_tok(t) { return }
+    if unary ? !tok_is(t, "-") && !tok_is(t, "~") : !overloadable_tok(t) { return }   // ~a (#502)
     let a:int64 = nodes[n].a
     let b:int64 = unary ? 0 - 1 : nodes[n].b
     let ya:int64 = is_word_value(a) ? 0 - 1 : type_of(a)
@@ -2959,7 +2964,7 @@ let compound_by_operator(n:int64):bool {
     resolve_attr(nodes[n].a)
     if attr_reads.has(nodes[n].a) || sub_targets.has(nodes[n].a) { return false }   // its setter's, gen_assign's (#132, #136)
     let t:int64 = nodes[n].t
-    if !(tok_is(t, "+=") || tok_is(t, "-=") || tok_is(t, "*=") || tok_is(t, "/=") || tok_is(t, "%=") || tok_is(t, "**=")) { return false }
+    if !(tok_is(t, "+=") || tok_is(t, "-=") || tok_is(t, "*=") || tok_is(t, "/=") || tok_is(t, "%=") || tok_is(t, "**=") || tok_is(t, "&=") || tok_is(t, "|=") || tok_is(t, "~=") || tok_is(t, "<<=") || tok_is(t, ">>=")) { return false }
     let lhs:int64 = nodes[n].a
     let ya:int64 = type_of(lhs)
     let yb:int64 = is_word_value(nodes[n].b) ? 0 - 1 : type_of(nodes[n].b)
@@ -11063,7 +11068,9 @@ let compound_op(t:int64):cstr {
     if tok_is(t, "%=") { return "%" }
     if tok_is(t, "|=") { return "|" }
     if tok_is(t, "&=") { return "&" }
-    if tok_is(t, "~=") { return "^" }
+    if tok_is(t, "~=") { return "~" }                   // Kelvin's xor, C's ^ (#502)
+    if tok_is(t, "<<=") { return "<<" }
+    if tok_is(t, ">>=") { return ">>" }
     return "**"
 }
 
@@ -11181,7 +11188,7 @@ let gen_float_set(n:int64) {
     } else if compound {
         gen_expr(lhs)
         put(" ")
-        put(compound_op(t))
+        if tok_is(t, "~=") { put("^") } else { put(compound_op(t)) }   // Kelvin's xor is C's ^ (#502)
         put(" (")
         gen_expr(v)
         put(")")

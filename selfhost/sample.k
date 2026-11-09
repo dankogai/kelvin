@@ -388,6 +388,10 @@ extend op_money {
     static let **(a:Self, k:int64):Self { (Self){a.cents * a.cents * k / k} }
 }
 let >(a:op_money, b:op_money):bool { b < a }
+let |(a:op_money, b:op_money):op_money { (op_money){a.cents | b.cents} }   // bitwise (#502)
+let ~(a:op_money, b:op_money):op_money { (op_money){a.cents ~ b.cents} }
+let ~(a:op_money):op_money { (op_money){~a.cents} }
+let <<(a:op_money, n:int64):op_money { (op_money){a.cents << n} }
 enum op_case { nil; val: int64 }
 let +(a:op_case, b:op_case):op_case {
     if a.is(val) && b.is(val) { return {.val = a.val + b.val} }
@@ -1308,6 +1312,10 @@ on a new line`
     let lo_a:op_owner = {$"a", 1}                          // an operand lent, its caller's (#501)
     let lo_b = lo_a + lo_a + (op_owner){$"b", 2}
     println(lo_a, " ", lo_b)
+    var bw_m:op_money = {5}                                // a struct's bitwise operators (#502)
+    bw_m <<= 2
+    bw_m |= (op_money){1}
+    println(bw_m.cents, " ", (~bw_m).cents, " ", (bw_m ~ (op_money){3}).cents)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

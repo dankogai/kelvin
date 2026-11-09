@@ -106,9 +106,9 @@ to left too, as Python's: `2 ** 3 ** 2` is `2 ** 9`.
 
 ### Operators on structs
 
-A struct or union may define `+ - * / % == != < <= > >=`, `**` (#380)
-and unary `-` (#42), as functions named by the operator and chosen by
-their types:
+A struct or union may define `+ - * / % == != < <= > >=`, `**` (#380),
+the bitwise `& | ~ << >>` (#502), and unary `-` and `~` (#42), as
+functions named by the operator and chosen by their types:
 
 ```swift
 struct money { cents: int64 }
@@ -118,8 +118,9 @@ extend money {
 }
 ```
 
-Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
-`!` and `+=` cannot be defined, and `x op= y` is `x = x op y`. An
+Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `!`,
+`&&` and `+=` cannot be defined, and `x op= y` is `x = x op y`, `x <<= n`
+too. An
 operator is lent an owner operand, which its caller keeps (#501): `a * a
 + b` and `c + c` leave `a`, `b` and `c` as they were. See
 [structs.md](structs.md).
