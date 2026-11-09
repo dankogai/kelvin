@@ -23,10 +23,13 @@ RT_K_OBJS := $(RT_K_SRCS:runtime/%.k=build/runtime/%_k.o)
 # modules/IO.kh and OS.kh, whose C headers are kIO.h and kOS.h, and link
 # libkIO and libkOS, the .kh + libkM form of a module (#143)
 MOD_LIBS := modules/libkIO.a modules/libkOS.a
-# UnicodeData (#156) is written in Kelvin over its C tables: kelvinc --lib builds
-# modules/UnicodeData.kh and libkUnicodeData from modules/UnicodeData.k and the
-# objects of runtime/unicode_*.c, which tools/gen_unicode.py makes from tools/ucd/
-# JSON (#113) is built the same from modules/JSON.k alone (#484), so that a
+# UnicodeData (#156) is written in Kelvin over its C tables, the objects of
+# runtime/unicode_*.c, which tools/gen_unicode.py makes from tools/ucd/; RegExp
+# (#157) over its engine, runtime/regexp*.c, on UnicodeData. Both are modules of
+# the prelude (#504): kelvinc --prelude makes each one's M.kh and object, which
+# libkelvin holds with their C, so a program links them only where it uses them
+PRELUDE_OBJS := build/prelude/UnicodeData.o build/prelude/RegExp.o
+# JSON (#113) is built by kelvinc --lib from modules/JSON.k alone (#484), so that a
 # module such as fetch may import it, which a source included twice would not let
 KELVIN_LIBS := modules/UnicodeData.kh modules/RegExp.kh modules/JSON.kh modules/fetch.kh modules/localStorage.kh
 # fetch (#482) is written in Kelvin over runtime/fetch.c, an HTTP/1.1 client;
@@ -80,12 +83,14 @@ build/runtime/%.o: runtime/%.c modules/kelvin_prelude.h modules/kIO.h modules/kO
 build/runtime/%_k.o: runtime/%.k kelvinc modules/kelvin_prelude.h | build/runtime
 	CC="$(CC)" ./kelvinc --runtime -O -g $< -o $@
 
-modules/libkelvin.a: $(RT_OBJS) $(RT_K_OBJS)
-	rm -f $@
-	ar rcs $@ $(RT_OBJS) $(RT_K_OBJS)
+# the runtime and the modules of the prelude (#504); the libraries they were
+# before, libkUnicodeData and libkRegExp, removed where an older build left them
+modules/libkelvin.a: $(RT_OBJS) $(RT_K_OBJS) $(UD_OBJS) $(RX_OBJS) $(PRELUDE_OBJS)
+	rm -f $@ modules/libkUnicodeData.* modules/libkRegExp.*
+	ar rcs $@ $(RT_OBJS) $(RT_K_OBJS) $(UD_OBJS) $(RX_OBJS) $(PRELUDE_OBJS)
 
-modules/$(SHLIB): $(RT_OBJS) $(RT_K_OBJS)
-	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) $(RT_K_OBJS) -lm -lpthread
+modules/$(SHLIB): $(RT_OBJS) $(RT_K_OBJS) $(UD_OBJS) $(RX_OBJS) $(PRELUDE_OBJS)
+	$(CC) $(SHLIB_FLAGS) -o $@ $(RT_OBJS) $(RT_K_OBJS) $(UD_OBJS) $(RX_OBJS) $(PRELUDE_OBJS) -lm -lpthread
 
 modules/libkIO.a: build/runtime/io.o
 	rm -f $@
@@ -114,15 +119,19 @@ runtime/unicode_tables.c runtime/unicode_names.c: tools/gen_unicode.py $(wildcar
 src/ident.c selfhost/ident.k: tools/gen_ident.py tools/ucd/DerivedCoreProperties.txt tools/ucd/emoji-data.txt
 	python3 -I tools/gen_ident.py
 
-modules/UnicodeData.kh: modules/UnicodeData.k $(UD_OBJS) kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/UnicodeData.k $(UD_OBJS) -o modules
+# a module of the prelude (#504): its M.kh into modules/, its object for libkelvin
+build/prelude/UnicodeData.o: modules/UnicodeData.k modules/kUnicodeData.h modules/kelvin_prelude.h kelvinc
+	./kelvinc --prelude modules/UnicodeData.k -o build/prelude
+	cp build/prelude/UnicodeData.kh modules/UnicodeData.kh
+modules/UnicodeData.kh: build/prelude/UnicodeData.o
 
-# RegExp (#157) is written in Kelvin over its C engine, runtime/regexp.c, on UnicodeData
 RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
 build/runtime/regexp%.o: runtime/regexp%.c runtime/regexp_internal.h modules/kelvin_prelude.h modules/kUnicodeData.h modules/kRegExp.h | build/runtime
 	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
-modules/RegExp.kh: modules/RegExp.k $(RX_OBJS) modules/UnicodeData.kh kelvinc modules/libkelvin.a modules/$(SHLIB)
-	./kelvinc --lib modules/RegExp.k $(RX_OBJS) -o modules
+build/prelude/RegExp.o: modules/RegExp.k modules/kRegExp.h modules/UnicodeData.kh modules/kelvin_prelude.h kelvinc
+	./kelvinc --prelude modules/RegExp.k -o build/prelude
+	cp build/prelude/RegExp.kh modules/RegExp.kh
+modules/RegExp.kh: build/prelude/RegExp.o
 
 build/runtime/fetch.o: runtime/fetch.c modules/kelvin_prelude.h modules/kfetch.h modules/libkfetch.link | build/runtime
 	@if [ "$(HAS_SSL)" = 1 ] && [ -z "$(SSL_LIBS_FOUND)" ]; then \
@@ -162,8 +171,8 @@ vscode:
 install: all
 	install -d $(PREFIX)/bin $(PREFIX)/lib/kelvin/modules
 	install -m 755 kelvinc $(PREFIX)/bin/kelvinc
-	install -m 644 modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/kUnicodeData.h modules/kRegExp.h modules/kfetch.h modules/libkelvin.a $(MOD_LIBS) modules/libkUnicodeData.a modules/libkRegExp.a modules/libkJSON.a modules/libklocalStorage.a modules/libkfetch.a modules/libkfetch.link modules/*.k modules/*.kh $(PREFIX)/lib/kelvin/modules/
-	install -m 755 modules/$(SHLIB) $(MOD_SHLIBS) modules/libkUnicodeData.$(SO) modules/libkRegExp.$(SO) modules/libkJSON.$(SO) modules/libklocalStorage.$(SO) modules/libkfetch.$(SO) $(PREFIX)/lib/kelvin/modules/
+	install -m 644 modules/kelvin_prelude.h modules/kIO.h modules/kOS.h modules/kUnicodeData.h modules/kRegExp.h modules/kfetch.h modules/libkelvin.a $(MOD_LIBS) modules/libkJSON.a modules/libklocalStorage.a modules/libkfetch.a modules/libkfetch.link modules/*.k modules/*.kh $(PREFIX)/lib/kelvin/modules/
+	install -m 755 modules/$(SHLIB) $(MOD_SHLIBS) modules/libkJSON.$(SO) modules/libklocalStorage.$(SO) modules/libkfetch.$(SO) $(PREFIX)/lib/kelvin/modules/
 
 clean:
 	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh modules/libkJSON.a modules/JSON.kh modules/libklocalStorage.a modules/localStorage.kh modules/libkfetch.a modules/libkfetch.link modules/fetch.kh runtime/unicode_tables.c runtime/unicode_names.c

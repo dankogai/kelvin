@@ -212,7 +212,7 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 | `"""..."""` | a `cstr`, C's literal, as written | yes | none | no |
 | `$"..."`, `` $`...` ``, `$"""..."""` | a `String`, on the heap, owned | as the one inside | as the one inside | as the one inside |
 | `Bytes("...")`, `String("...")` | a `Bytes`, a `String` of any of the above | as the one inside | as the one inside | as the one inside |
-| `$/pattern/flags` | a `RegExp`, with `#import <RegExp>` (#157): [regexp.md](regexp.md) | no | the pattern's own | no |
+| `$/pattern/flags` | a `RegExp`, the prelude's (#157, #504): [regexp.md](regexp.md) | no | the pattern's own | no |
 
 - **`"..."`** is C's string literal (#52).
   - It has no prefix: C's `L"..."`, `u8"..."`, `u"..."` and `U"..."`,
@@ -279,7 +279,7 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
     see [ownership.md](ownership.md).
 - **`$/pattern/flags`** (#157) is a regular expression, JS's, a
   `RegExp` owned by its variable: `RegExp.compile("pattern", "flags")`,
-  of `#import <RegExp>`, which a file writes before one.
+  of the prelude's `RegExp`, which needs no import (#504).
   - The pattern ends at the first `/` not escaped, `\/`, and not in a
     class, `[/]`, on the same line, and is kept as written, so `\d`
     is `\d`; the flags are the letters after it: see

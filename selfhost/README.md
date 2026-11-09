@@ -604,6 +604,12 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **RegExp, the prelude's** (#504): kelvinc brings it in where a
+  program names it, and libkelvin holds it; kc still reads no `$/.../`
+  and links no module built of Kelvin, as before, so a program of kc's
+  names no `RegExp`.
+  - kc links libkelvin.a, which now holds RegExp and UnicodeData; a
+    program of kc's links none of them, as it uses none.
 - **An owner moved into a literal** (#503), as kelvinc's: a local owner
   named in `{...}` or `(T){...}` of a struct is taken, `kv_string_take`,
   and dead after, where it was kelvinc's error; its move is made when

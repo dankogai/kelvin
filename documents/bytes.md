@@ -110,7 +110,7 @@ by codepoint, text always.
 
 ### With a RegExp
 
-With `#import <RegExp>` ([regexp.md](regexp.md)) a Bytes has
+With the prelude's `RegExp` ([regexp.md](regexp.md), #504) a Bytes has
 `b.test(&re)`, `b.search(&re)`, `b.match(&re)`, `b.split(&re)`,
 `b.replace(&re, &with)`, `b.escape(&re)` and `Bytes.unescape(text,
 &re)` (#168, #169, #170), each as a String's; a `BytesMatch` holds
@@ -121,7 +121,7 @@ far as they are.
 ## Where it lives
 
 The prelude's, `libkelvin`, linked without an
-import; what a RegExp does with a Bytes is `#import <RegExp>`
+import; what a RegExp does with a Bytes is the prelude's `RegExp`
 ([regexp.md](regexp.md)).
 
 ## Properties and methods
@@ -147,7 +147,7 @@ import; what a RegExp does with a Bytes is `#import <RegExp>`
 | `Bytes(&s)` | a copy of a String's bytes (#291) |
 | `Bytes.fromBase64(text)`, `Bytes.fromBase64(&s)` | the bytes of base64 text, either alphabet, padded or not (#155) |
 | `Bytes.unescape(text)`, `Bytes.unescape(&s)` | the bytes the escapes stand for (#167); with `<RegExp>`, `Bytes.unescape(text, &re)` where `re` matches alone (#168) |
-| `.test(&re)`, `.search(&re)`, `.match(&re)`, `.split(&re)`, `.replace(&re, &with)` | with `#import <RegExp>` (#169, #170): [regexp.md](regexp.md) |
+| `.test(&re)`, `.search(&re)`, `.match(&re)`, `.split(&re)`, `.replace(&re, &with)` | with the prelude's `RegExp` (#169, #170, #504): [regexp.md](regexp.md) |
 | `b + c` | a new Bytes of the two, a Bytes, text or a byte on the right (#188) |
 | `==`, `!=`, `<`, `<=`, `>`, `>=` | by the bytes (#185) |
 | `.size`, `.typename` | as any value's |

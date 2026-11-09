@@ -23,9 +23,9 @@ let main():int32 {
 
 `#import <UnicodeData>` (#156) brings in the Unicode Character Database
 for Strings and codepoints, after Python's `unicodedata`: what the
-prelude's `String`, which walks codepoints, leaves out. It is a header
-and a library, `UnicodeData.kh` and `libkUnicodeData` in `modules/`,
-which the import links by itself.
+prelude's `String`, which walks codepoints, leaves out. It is a header,
+`UnicodeData.kh` in `modules/`, whose code libkelvin holds (#504), as
+the prelude's `RegExp` uses it.
 
 ### A String: `normalize`, `graphemes`, the case
 
@@ -87,8 +87,12 @@ which the import links by itself.
 
 ## Where it lives
 
-`modules/UnicodeData.k`, written in Kelvin over
-`libkUnicodeData`: runtime/unicode_data.c on the tables that
-tools/gen_unicode.py makes from the database's files in tools/ucd/,
-Unicode 18.0.0; `make` builds the tables, and `kelvinc --lib` the
-header and the library.
+`modules/UnicodeData.k`, written in Kelvin over runtime/unicode_data.c,
+on the tables that tools/gen_unicode.py makes from the database's files
+in tools/ucd/, Unicode 18.0.0.
+
+- `make` builds the tables, and `kelvinc --prelude` (#504) the header
+  and the object, which libkelvin holds with the tables' and
+  runtime/unicode_data.c's; libkUnicodeData is no more.
+- A program links the tables only where it uses them, from the static
+  libkelvin.a.

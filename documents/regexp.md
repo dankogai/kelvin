@@ -1,12 +1,10 @@
-# RegExp: `#import <RegExp>` and `$/.../`
+# RegExp: `$/.../`, of the prelude
 
 Regular expressions, JS's with the `u` flag, over Strings and Bytes, written `$/pattern/flags`.
 
 ## Synopsis
 
 ```swift
-#import <RegExp>
-
 let main():int32 {
     let re = $/(\d{4})-(?<month>\d\d)/g
     var s = $"2026-10-17 and 2027-01-02"
@@ -26,12 +24,20 @@ let main():int32 {
 
 ## Description
 
-`#import <RegExp>` (#157) brings in regular expressions, JS's with the
-`u` flag, over Kelvin's Strings, codepoint by codepoint, with `\X` for
-a grapheme cluster. `$/pattern/flags` is a literal, read where the
-module is imported, and `RegExp.compile(pattern, flags)` the same from
-text. It is a header and a library, `RegExp.kh` and `libkRegExp` in
-`modules/`, on `UnicodeData`, which the import links by itself.
+`RegExp` (#157) is regular expressions, JS's with the `u` flag, over
+Kelvin's Strings, codepoint by codepoint, with `\X` for a grapheme
+cluster. `$/pattern/flags` is a literal, and `RegExp.compile(pattern,
+flags)` the same from text.
+
+- **It is the prelude's (#504),** as in JS and Swift: a program that
+  names `RegExp`, or writes a `$/.../` literal, has it, with `Match` and
+  `BytesMatch`, and no import.
+  - `#import <RegExp>`, which it once needed, still builds, and does
+    nothing more.
+  - A program with a type of its own named `RegExp` keeps it, and has
+    none of these; a `$/.../` literal there is an error.
+  - A program that names none of them compiles as before, and links
+    none of it.
 
 ### The literal and the flags
 
@@ -170,7 +176,6 @@ name: `s.match(&re)` is `re.match(&s)`.
   the prelude the whole.
 
 ```swift
-#import <RegExp>
 let temp = $/(-?\d+(?:\.\d+)?)F\b/g
 var s = $"water boils at 212F and freezes at 32F"
 s.match(&temp) { println($0.text[1], " at ", $0.start) }     // 212 at 15, 32 at 35
@@ -206,9 +211,16 @@ String it came from may change or go.
 
 ## Where it lives
 
-`modules/RegExp.k`, written in Kelvin over
-`libkRegExp`, runtime/regexp.c, the engine, with `libkUnicodeData`
-under it for `\p{...}`, the case folding of the `i` flag and `\X`;
-`make` builds the header and the library with `kelvinc --lib`. The
-`$/.../` literal is kelvinc's: it becomes `RegExp.compile("...", "...")`,
-so a file that has not imported `<RegExp>` cannot write one.
+`modules/RegExp.k`, written in Kelvin over runtime/regexp.c, the
+engine, with UnicodeData under it for `\p{...}`, the case folding of
+the `i` flag and `\X`.
+
+- `make` builds its header, `modules/RegExp.kh`, and its object with
+  `kelvinc --prelude` (#504); libkelvin holds the object and the
+  engine's.
+- A program links what of them it uses, as the static libkelvin.a
+  gives: one that uses no `RegExp` is as small as before.
+- kelvinc brings `RegExp.kh` in where a program names `RegExp`, a
+  `$/.../` literal's own name too.
+- The `$/.../` literal is kelvinc's: it becomes `RegExp.compile("...",
+  "...")`, its pattern checked as it compiles.

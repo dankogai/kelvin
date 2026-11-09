@@ -1,5 +1,5 @@
 #!/usr/bin/env python3 -I
-"""gen_unicode.py: the C tables of libkUnicodeData from the Unicode
+"""gen_unicode.py: the C tables of UnicodeData, which libkelvin holds, from the Unicode
 Character Database in tools/ucd/ (#156). Writes runtime/unicode_tables.c,
 the properties, decompositions, compositions and case mappings, and
 runtime/unicode_names.c, the names. Rerun after replacing the UCD files.

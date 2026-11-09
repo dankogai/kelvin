@@ -9559,3 +9559,25 @@ member, `(P){p.name}`, into a program that freed it twice. Details are
 provisional P515.
 
 There are 1243 tests, and all pass with clang and with gcc 15.
+
+### 551. RegExp, the prelude's
+
+> I am considering a big change. ... move <RegExp> and <BigInt> into
+> prelude. ... I'll bump the version to 0.2.0 after all is done.
+
+> push. then go on with RegExp into the prelude
+
+**Claude** pushed #503 after a clean battery; CI passed all 9 jobs. The
+user decided that RegExp and BigInt join the prelude, RegExp as JS and
+Swift have it and as its `$/.../` literal implies, BigInt for a `123n`
+literal to come, and that the version becomes 0.2.0 when all is done.
+RegExp was a library of its own, libkRegExp, on UnicodeData's 2 MB of
+tables. Asked, the user chose a module of the prelude brought in where a
+program names it, UnicodeData into libkelvin and still a module,
+`#import <RegExp>` accepted, and RegExp first. `kelvinc --prelude`
+builds the two into libkelvin; a program that uses neither links
+neither, as libkelvin.a is static. Their helpers are `kv_rx_` and
+`kv_ucd_`. kc, which reads no `$/.../`, is as it was. Details are
+provisional P516.
+
+There are 1245 tests, and all pass with clang and with gcc 15.

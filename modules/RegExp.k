@@ -1,11 +1,11 @@
 // modules/RegExp.k - regular expressions (#157), JS's with the u flag, over
-// Kelvin's Strings: `$/pattern/flags` is a literal, read where this module is
-// imported, and RegExp.compile(pattern, flags) the same from text. Written in
-// Kelvin over libkRegExp, runtime/regexp.c, with libkUnicodeData under it for
-// \p{...}, the case folding of the i flag and \X, a grapheme cluster; built by
-// kelvinc --lib into RegExp.kh and the library that #import <RegExp> links.
+// Kelvin's Strings: `$/pattern/flags` is a literal, and RegExp.compile(pattern,
+// flags) the same from text. Written in Kelvin over runtime/regexp.c, with
+// UnicodeData under it for \p{...}, the case folding of the i flag and \X, a
+// grapheme cluster; built by kelvinc --prelude into RegExp.kh and an object that
+// libkelvin holds: the prelude's (#504), which a program that names RegExp, or
+// writes a $/.../ literal, has with no import.
 //
-//     #import <RegExp>
 //     let re = $/(\d{4})-(?<month>\d\d)/g        // or RegExp("(\\d{4})-(?<month>\\d\\d)", "g")
 //     var s = $"2026-10-17 and 2027-01-02"
 //     println(re.test(&s))                              // true
@@ -18,24 +18,24 @@
 #import <UnicodeData>
 
 // the engine's functions, by their C names
-let rx_compile(pattern:cstr, flags:cstr):Bytes
-let rx_groups(prog:const Bytes^):i64
-let rx_group_name(prog:const Bytes^, i:i64):cstr
-let rx_group_named(prog:const Bytes^, name:cstr):i64
-let rx_flag(prog:const Bytes^, flag:u8):bool
-let rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i64^):bool
-let rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
-let rx_escape(prog:const Bytes^, s:const String^):String
-let rx_unescape(prog:const Bytes^, s:const String^):String
-let rx_search_bytes(prog:const Bytes^, b:const Bytes^, from:i64, sticky:bool, caps:i64^):bool
-let rx_bytes_slice(b:const Bytes^, lo:i64, hi:i64):Bytes
-let rx_expand_bytes(prog:const Bytes^, b:const Bytes^, caps:const i64^, with:const u8^, len:size_t, out:Bytes^):()
-let rx_escape_bytes(prog:const Bytes^, b:const Bytes^):String
-let rx_unescape_bytes(prog:const Bytes^, text:const u8^, len:size_t):Bytes
-let rx_slice(s:const String^, lo:i64, hi:i64):String
-let rx_cp_index(s:const String^, byte:i64):i64
-let rx_byte_index(s:const String^, cp:i64):i64
-let rx_next(s:const String^, byte:i64):i64
+let kv_rx_compile(pattern:cstr, flags:cstr):Bytes
+let kv_rx_groups(prog:const Bytes^):i64
+let kv_rx_group_name(prog:const Bytes^, i:i64):cstr
+let kv_rx_group_named(prog:const Bytes^, name:cstr):i64
+let kv_rx_flag(prog:const Bytes^, flag:u8):bool
+let kv_rx_search(prog:const Bytes^, s:const String^, from:i64, sticky:bool, caps:i64^):bool
+let kv_rx_expand(prog:const Bytes^, s:const String^, caps:const i64^, with:cstr, out:String^):()
+let kv_rx_escape(prog:const Bytes^, s:const String^):String
+let kv_rx_unescape(prog:const Bytes^, s:const String^):String
+let kv_rx_search_bytes(prog:const Bytes^, b:const Bytes^, from:i64, sticky:bool, caps:i64^):bool
+let kv_rx_bytes_slice(b:const Bytes^, lo:i64, hi:i64):Bytes
+let kv_rx_expand_bytes(prog:const Bytes^, b:const Bytes^, caps:const i64^, with:const u8^, len:size_t, out:Bytes^):()
+let kv_rx_escape_bytes(prog:const Bytes^, b:const Bytes^):String
+let kv_rx_unescape_bytes(prog:const Bytes^, text:const u8^, len:size_t):Bytes
+let kv_rx_slice(s:const String^, lo:i64, hi:i64):String
+let kv_rx_cp_index(s:const String^, byte:i64):i64
+let kv_rx_byte_index(s:const String^, cp:i64):i64
+let kv_rx_next(s:const String^, byte:i64):i64
 
 // a compiled pattern: its program, an owner, with the text it came from
 struct RegExp {
@@ -65,26 +65,26 @@ extend RegExp {
     // RegExp.compile("a+", "gi"), what $/a+/gi is; a pattern that is not
     // one ends the program, saying what is wrong and where
     static let compile(pattern:cstr, flags:cstr):Self {
-        var re:Self = {.program = rx_compile(pattern, flags), .source = String(pattern), .flags = String(flags)}
+        var re:Self = {.program = kv_rx_compile(pattern, flags), .source = String(pattern), .flags = String(flags)}
         return re
     }
     static let compile(pattern:const String^, flags:cstr):Self { Self.compile(pattern^.cstr, flags) }
     static let compile(pattern:cstr, flags:const String^):Self { Self.compile(pattern, flags^.cstr) }
     static let compile(pattern:const String^, flags:const String^):Self { Self.compile(pattern^.cstr, flags^.cstr) }
 
-    let groups:i64 { rx_groups(&self.program) }               // the capturing groups
-    let global:bool { rx_flag(&self.program, 'g') }
-    let sticky:bool { rx_flag(&self.program, 'y') }
-    let ignoreCase:bool { rx_flag(&self.program, 'i') }
-    let multiline:bool { rx_flag(&self.program, 'm') }
-    let dotAll:bool { rx_flag(&self.program, 's') }
-    let binary:bool { rx_flag(&self.program, 'b') }            // the b flag (#171): a character is a byte
-    let unicode:bool { !rx_flag(&self.program, 'b') }          // else a codepoint, the u flag saying so
+    let groups:i64 { kv_rx_groups(&self.program) }               // the capturing groups
+    let global:bool { kv_rx_flag(&self.program, 'g') }
+    let sticky:bool { kv_rx_flag(&self.program, 'y') }
+    let ignoreCase:bool { kv_rx_flag(&self.program, 'i') }
+    let multiline:bool { kv_rx_flag(&self.program, 'm') }
+    let dotAll:bool { kv_rx_flag(&self.program, 's') }
+    let binary:bool { kv_rx_flag(&self.program, 'b') }            // the b flag (#171): a character is a byte
+    let unicode:bool { !kv_rx_flag(&self.program, 'b') }          // else a codepoint, the u flag saying so
 
     // the match found from byte offset from, as a Match
     static let matchAt(re:const RegExp^, s:const String^, caps:const i64^):Match {
         var m:Match = {.text = Array<String>(), .at = Array<i64>(), .names = Array<String>()}
-        let n:i64 = rx_groups(&re^.program) + 1
+        let n:i64 = kv_rx_groups(&re^.program) + 1
         for g in 0..<n {
             let lo = caps[2 * g]
             let hi = caps[2 * g + 1]
@@ -93,11 +93,11 @@ extend RegExp {
                 m.at += -1
                 m.at += -1
             } else {
-                m.text += rx_slice(s, lo, hi)
-                m.at += rx_cp_index(s, lo)
-                m.at += rx_cp_index(s, hi)
+                m.text += kv_rx_slice(s, lo, hi)
+                m.at += kv_rx_cp_index(s, lo)
+                m.at += kv_rx_cp_index(s, hi)
             }
-            m.names += String(rx_group_name(&re^.program, g))
+            m.names += String(kv_rx_group_name(&re^.program, g))
         }
         return m
     }
@@ -105,7 +105,7 @@ extend RegExp {
     // the match found in a Bytes, as a BytesMatch (#169)
     static let bytesMatchAt(re:const RegExp^, b:const Bytes^, caps:const i64^):BytesMatch {
         var m:BytesMatch = {.data = Array<Bytes>(), .at = Array<i64>(), .names = Array<String>()}
-        let n:i64 = rx_groups(&re^.program) + 1
+        let n:i64 = kv_rx_groups(&re^.program) + 1
         for g in 0..<n {
             let lo = caps[2 * g]
             let hi = caps[2 * g + 1]
@@ -114,11 +114,11 @@ extend RegExp {
                 m.at += -1
                 m.at += -1
             } else {
-                m.data += rx_bytes_slice(b, lo, hi)
+                m.data += kv_rx_bytes_slice(b, lo, hi)
                 m.at += lo
                 m.at += hi
             }
-            m.names += String(rx_group_name(&re^.program, g))
+            m.names += String(kv_rx_group_name(&re^.program, g))
         }
         return m
     }
@@ -128,18 +128,18 @@ extend RegExp {
     // a character, else the bytes are read as UTF-8 as far as they are
     let test(b:const Bytes^):bool {
         var caps:[i64](256)
-        return rx_search_bytes(&self.program, b, 0, self.sticky, caps)
+        return kv_rx_search_bytes(&self.program, b, 0, self.sticky, caps)
     }
     let search(b:const Bytes^):i64 {
         var caps:[i64](256)
-        if !rx_search_bytes(&self.program, b, 0, self.sticky, caps) { return -1 }
+        if !kv_rx_search_bytes(&self.program, b, 0, self.sticky, caps) { return -1 }
         return caps[0]
     }
     let match(b:const Bytes^):Array<BytesMatch> {
         var out:Array<BytesMatch> = Array<BytesMatch>()
         var caps:[i64](256)
         var from:i64 = 0
-        while rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+        while kv_rx_search_bytes(&self.program, b, from, self.sticky, caps) {
             out += Self.bytesMatchAt(&self, b, caps)
             if !self.global { break }
             from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
@@ -150,7 +150,7 @@ extend RegExp {
     let match(b:const Bytes^, f:(BytesMatch):()):() {
         var caps:[i64](256)
         var from:i64 = 0
-        while rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+        while kv_rx_search_bytes(&self.program, b, from, self.sticky, caps) {
             f(Self.bytesMatchAt(&self, b, caps))
             if !self.global { break }
             from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
@@ -162,21 +162,21 @@ extend RegExp {
         var caps:[i64](256)
         let n = b^.count as i64
         if n == 0 {
-            if !rx_search_bytes(&self.program, b, 0, true, caps) { out += Bytes() }
+            if !kv_rx_search_bytes(&self.program, b, 0, true, caps) { out += Bytes() }
         } else {
             var piece:i64 = 0
             var from:i64 = 0
             while from < n {
-                if !rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                if !kv_rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
                     from += 1
                     continue
                 }
                 if caps[1] == caps[0] && caps[0] >= n { break }
-                out += rx_bytes_slice(b, piece, caps[0])
+                out += kv_rx_bytes_slice(b, piece, caps[0])
                 piece = caps[1]
                 from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
             }
-            out += rx_bytes_slice(b, piece, n)
+            out += kv_rx_bytes_slice(b, piece, n)
         }
         return out
     }
@@ -189,9 +189,9 @@ extend RegExp {
         var from:i64 = 0
         var copied:i64 = 0
         let n = b^.count as i64
-        while from <= n && rx_search_bytes(&self.program, b, from, self.sticky, caps) {
-            out += rx_bytes_slice(b, copied, caps[0])
-            rx_expand_bytes(&self.program, b, caps, with, len, &out)
+        while from <= n && kv_rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            out += kv_rx_bytes_slice(b, copied, caps[0])
+            kv_rx_expand_bytes(&self.program, b, caps, with, len, &out)
             copied = caps[1]
             if !self.global { break }
             if caps[1] > caps[0] {
@@ -199,11 +199,11 @@ extend RegExp {
             } else {
                 if caps[1] >= n { break }
                 from = caps[1] + 1
-                out += rx_bytes_slice(b, caps[1], from)
+                out += kv_rx_bytes_slice(b, caps[1], from)
                 copied = from
             }
         }
-        out += rx_bytes_slice(b, copied, n)
+        out += kv_rx_bytes_slice(b, copied, n)
         return out
     }
     let replace(b:const Bytes^, with:const Bytes^):Bytes { self.replace(b, with^.at, with^.count) }
@@ -214,8 +214,8 @@ extend RegExp {
         var from:i64 = 0
         var copied:i64 = 0
         let n = b^.count as i64
-        while from <= n && rx_search_bytes(&self.program, b, from, self.sticky, caps) {
-            out += rx_bytes_slice(b, copied, caps[0])
+        while from <= n && kv_rx_search_bytes(&self.program, b, from, self.sticky, caps) {
+            out += kv_rx_bytes_slice(b, copied, caps[0])
             out += f(Self.bytesMatchAt(&self, b, caps))
             copied = caps[1]
             if !self.global { break }
@@ -224,45 +224,45 @@ extend RegExp {
             } else {
                 if caps[1] >= n { break }
                 from = caps[1] + 1
-                out += rx_bytes_slice(b, caps[1], from)
+                out += kv_rx_bytes_slice(b, caps[1], from)
                 copied = from
             }
         }
-        out += rx_bytes_slice(b, copied, n)
+        out += kv_rx_bytes_slice(b, copied, n)
         return out
     }
     let split(b:const Bytes^, f:(Bytes):()):() {
         var caps:[i64](256)
         let n = b^.count as i64
         if n == 0 {
-            if !rx_search_bytes(&self.program, b, 0, true, caps) { f(Bytes()) }
+            if !kv_rx_search_bytes(&self.program, b, 0, true, caps) { f(Bytes()) }
         } else {
             var piece:i64 = 0
             var from:i64 = 0
             while from < n {
-                if !rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                if !kv_rx_search_bytes(&self.program, b, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
                     from += 1
                     continue
                 }
                 if caps[1] == caps[0] && caps[0] >= n { break }
-                f(rx_bytes_slice(b, piece, caps[0]))
+                f(kv_rx_bytes_slice(b, piece, caps[0]))
                 piece = caps[1]
                 from = caps[1] > caps[0] ? caps[1] : caps[1] + 1
             }
-            f(rx_bytes_slice(b, piece, n))
+            f(kv_rx_bytes_slice(b, piece, n))
         }
     }
 
     // does s have a match? at its start alone with the y flag
     let test(s:const String^):bool {
         var caps:[i64](256)
-        return rx_search(&self.program, s, 0, self.sticky, caps)
+        return kv_rx_search(&self.program, s, 0, self.sticky, caps)
     }
 
     // the first match at or after codepoint from, or none
     let execFrom(s:const String^, from:i64):Match? {
         var caps:[i64](256)
-        if !rx_search(&self.program, s, rx_byte_index(s, from), self.sticky, caps) { return none }
+        if !kv_rx_search(&self.program, s, kv_rx_byte_index(s, from), self.sticky, caps) { return none }
         return Self.matchAt(&self, s, caps)
     }
 
@@ -272,8 +272,8 @@ extend RegExp {
     // the codepoint offset of the first match, or -1
     let search(s:const String^):i64 {
         var caps:[i64](256)
-        if !rx_search(&self.program, s, 0, self.sticky, caps) { return -1 }
-        return rx_cp_index(s, caps[0])
+        if !kv_rx_search(&self.program, s, 0, self.sticky, caps) { return -1 }
+        return kv_rx_cp_index(s, caps[0])
     }
 
     // every match with the g flag, else the first alone: an Array of them
@@ -281,10 +281,10 @@ extend RegExp {
         var out:Array<Match> = Array<Match>()
         var caps:[i64](256)
         var from:i64 = 0
-        while rx_search(&self.program, s, from, self.sticky, caps) {
+        while kv_rx_search(&self.program, s, from, self.sticky, caps) {
             out += Self.matchAt(&self, s, caps)
             if !self.global { break }
-            from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])   // an empty match moves on by one
+            from = caps[1] > caps[0] ? caps[1] : kv_rx_next(s, caps[1])   // an empty match moves on by one
             if caps[1] >= s^.bytes^.count as i64 && caps[1] == caps[0] { break }
         }
         return out
@@ -295,10 +295,10 @@ extend RegExp {
     let match(s:const String^, f:(Match):()):() {
         var caps:[i64](256)
         var from:i64 = 0
-        while rx_search(&self.program, s, from, self.sticky, caps) {
+        while kv_rx_search(&self.program, s, from, self.sticky, caps) {
             f(Self.matchAt(&self, s, caps))
             if !self.global { break }
-            from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])   // an empty match moves on by one
+            from = caps[1] > caps[0] ? caps[1] : kv_rx_next(s, caps[1])   // an empty match moves on by one
             if caps[1] >= s^.bytes^.count as i64 && caps[1] == caps[0] { break }
         }
     }
@@ -310,21 +310,21 @@ extend RegExp {
         var caps:[i64](256)
         var from:i64 = 0
         var copied:i64 = 0
-        while from <= s^.bytes^.count as i64 && rx_search(&self.program, s, from, self.sticky, caps) {
-            out += rx_slice(s, copied, caps[0])
-            rx_expand(&self.program, s, caps, with, &out)
+        while from <= s^.bytes^.count as i64 && kv_rx_search(&self.program, s, from, self.sticky, caps) {
+            out += kv_rx_slice(s, copied, caps[0])
+            kv_rx_expand(&self.program, s, caps, with, &out)
             copied = caps[1]
             if !self.global { break }
             if caps[1] > caps[0] {
                 from = caps[1]
             } else {
                 if caps[1] >= s^.bytes^.count as i64 { break }   // an empty match at the end: done
-                from = rx_next(s, caps[1])
-                out += rx_slice(s, caps[1], from)                // the codepoint it moves over
+                from = kv_rx_next(s, caps[1])
+                out += kv_rx_slice(s, caps[1], from)                // the codepoint it moves over
                 copied = from
             }
         }
-        out += rx_slice(s, copied, s^.bytes^.count as i64)
+        out += kv_rx_slice(s, copied, s^.bytes^.count as i64)
         return out
     }
 
@@ -339,8 +339,8 @@ extend RegExp {
         var caps:[i64](256)
         var from:i64 = 0
         var copied:i64 = 0
-        while from <= s^.bytes^.count as i64 && rx_search(&self.program, s, from, self.sticky, caps) {
-            out += rx_slice(s, copied, caps[0])
+        while from <= s^.bytes^.count as i64 && kv_rx_search(&self.program, s, from, self.sticky, caps) {
+            out += kv_rx_slice(s, copied, caps[0])
             out += f(Self.matchAt(&self, s, caps))
             copied = caps[1]
             if !self.global { break }
@@ -348,12 +348,12 @@ extend RegExp {
                 from = caps[1]
             } else {
                 if caps[1] >= s^.bytes^.count as i64 { break }
-                from = rx_next(s, caps[1])
-                out += rx_slice(s, caps[1], from)
+                from = kv_rx_next(s, caps[1])
+                out += kv_rx_slice(s, caps[1], from)
                 copied = from
             }
         }
-        out += rx_slice(s, copied, s^.bytes^.count as i64)
+        out += kv_rx_slice(s, copied, s^.bytes^.count as i64)
         return out
     }
 
@@ -364,21 +364,21 @@ extend RegExp {
         var caps:[i64](256)
         let n = s^.bytes^.count as i64
         if n == 0 {
-            if !rx_search(&self.program, s, 0, true, caps) { out += String("") }
+            if !kv_rx_search(&self.program, s, 0, true, caps) { out += String("") }
         } else {
             var piece:i64 = 0
             var from:i64 = 0
             while from < n {
-                if !rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
-                    from = rx_next(s, from)
+                if !kv_rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from = kv_rx_next(s, from)
                     continue
                 }
                 if caps[1] == caps[0] && caps[0] >= n { break }
-                out += rx_slice(s, piece, caps[0])
+                out += kv_rx_slice(s, piece, caps[0])
                 piece = caps[1]
-                from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])
+                from = caps[1] > caps[0] ? caps[1] : kv_rx_next(s, caps[1])
             }
-            out += rx_slice(s, piece, n)
+            out += kv_rx_slice(s, piece, n)
         }
         return out
     }
@@ -389,21 +389,21 @@ extend RegExp {
         var caps:[i64](256)
         let n = s^.bytes^.count as i64
         if n == 0 {
-            if !rx_search(&self.program, s, 0, true, caps) { f(String("")) }
+            if !kv_rx_search(&self.program, s, 0, true, caps) { f(String("")) }
         } else {
             var piece:i64 = 0
             var from:i64 = 0
             while from < n {
-                if !rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
-                    from = rx_next(s, from)
+                if !kv_rx_search(&self.program, s, from, true, caps) || (caps[1] == piece && caps[1] == caps[0]) {
+                    from = kv_rx_next(s, from)
                     continue
                 }
                 if caps[1] == caps[0] && caps[0] >= n { break }
-                f(rx_slice(s, piece, caps[0]))
+                f(kv_rx_slice(s, piece, caps[0]))
                 piece = caps[1]
-                from = caps[1] > caps[0] ? caps[1] : rx_next(s, caps[1])
+                from = caps[1] > caps[0] ? caps[1] : kv_rx_next(s, caps[1])
             }
-            f(rx_slice(s, piece, n))
+            f(kv_rx_slice(s, piece, n))
         }
     }
 }
@@ -437,12 +437,12 @@ extend String {
     // the text with what re matches escaped, each codepoint as \u{...}, and a
     // backslash as \\ (#164): s.escape(&re), or s.escape($/[\p{Emoji}]/) with
     // the literal moved in; s.escape() of the prelude escapes what is not ASCII
-    let escape(re:const RegExp^):String { rx_escape(&re^.program, &self) }
-    let escape(re:RegExp):String { rx_escape(&re.program, &self) }
+    let escape(re:const RegExp^):String { kv_rx_escape(&re^.program, &self) }
+    let escape(re:RegExp):String { kv_rx_escape(&re.program, &self) }
     // the escapes read back where re matches alone (#165), each match as
     // s.unescape() reads the whole: s.unescape($/\\u\{1F[0-9A-F]+\}/g)
-    let unescape(re:const RegExp^):String { rx_unescape(&re^.program, &self) }
-    let unescape(re:RegExp):String { rx_unescape(&re.program, &self) }
+    let unescape(re:const RegExp^):String { kv_rx_unescape(&re^.program, &self) }
+    let unescape(re:RegExp):String { kv_rx_unescape(&re.program, &self) }
 }
 
 extend BytesMatch {
@@ -478,15 +478,15 @@ extend Bytes {
     // that is not printable ASCII, since a String holds text (#168); with the
     // b flag (#171) each byte is a character, so that \xHH and [\x80-\xFF]
     // mean bytes: b.escape($/[\x80-\xFF]/gb)
-    let escape(re:const RegExp^):String { rx_escape_bytes(&re^.program, &self) }
-    let escape(re:RegExp):String { rx_escape_bytes(&re.program, &self) }
+    let escape(re:const RegExp^):String { kv_rx_escape_bytes(&re^.program, &self) }
+    let escape(re:RegExp):String { kv_rx_escape_bytes(&re.program, &self) }
 
     // the bytes of the text, with the escapes read back where re matches the
     // text alone, as Bytes.unescape(text) reads the whole: Bytes.unescape(&s, &re)
-    static let unescape(text:cstr, re:const RegExp^):Bytes { rx_unescape_bytes(&re^.program, text, text.count) }
-    static let unescape(text:const String^, re:const RegExp^):Bytes { rx_unescape_bytes(&re^.program, text^.cstr, text^.bytes^.count) }
-    static let unescape(text:cstr, re:RegExp):Bytes { rx_unescape_bytes(&re.program, text, text.count) }
-    static let unescape(text:const String^, re:RegExp):Bytes { rx_unescape_bytes(&re.program, text^.cstr, text^.bytes^.count) }
+    static let unescape(text:cstr, re:const RegExp^):Bytes { kv_rx_unescape_bytes(&re^.program, text, text.count) }
+    static let unescape(text:const String^, re:const RegExp^):Bytes { kv_rx_unescape_bytes(&re^.program, text^.cstr, text^.bytes^.count) }
+    static let unescape(text:cstr, re:RegExp):Bytes { kv_rx_unescape_bytes(&re.program, text, text.count) }
+    static let unescape(text:const String^, re:RegExp):Bytes { kv_rx_unescape_bytes(&re.program, text^.cstr, text^.bytes^.count) }
 }
 
 // RegExp(pattern, flags), the pattern and the flags a cstr or a String

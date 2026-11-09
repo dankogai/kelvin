@@ -39,6 +39,8 @@ static void usage(FILE *f) {
             "              libkM.a, with libkM.dylib or .so for C (#147), in ./modules or\n"
             "              the directory given by -o; .o and .a files after the source go\n"
             "              into the library too (#156)\n"
+            "  --prelude   build a module of the prelude (#504): M.kh and its object, M.o, in\n"
+            "              the directory given by -o, for libkelvin to hold; no libkM\n"
             "  --version   print the version\n"
             "\n"
             "environment:\n"
@@ -183,6 +185,18 @@ static bool imported_already(const char *path) {
     return false;
 }
 
+/* whether path is among the files brought in already, without adding it */
+static bool imported_has(const char *path) {
+    struct stat st;
+    if (stat(path, &st) != 0)
+        return false;
+    char *id = strfmt("%lld:%lld", (long long)st.st_dev, (long long)st.st_ino);
+    for (int j = 0; j < imported.len; j++)
+        if (!strcmp(imported.data[j], id))
+            return true;
+    return false;
+}
+
 /* The file that #import <name> or "name" means: "name" next to the
    importing file, <name> in ./modules or else in Kelvin's modules/ (#46),
    as <math.k> is the source tree's modules/math.k */
@@ -302,6 +316,46 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
         all[i] = *(Token *)out.data[i];
     *out_n = out.len;
     return all;
+}
+
+/* The modules of the prelude (#504), which libkelvin holds: a program
+   that names one, RegExp, a $/.../ literal's too, imports it as if it
+   began with #import <RegExp>, unless it defines a type of that name or
+   imports it already; one that does not name it compiles as before */
+static const char *prelude_names[] = {"RegExp", NULL};
+
+static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
+    const char **names = prelude_names;
+    *out_n = n;
+    for (int k = 0; names[k]; k++) {
+        bool named = false, own = false;
+        for (int i = 0; i < n && !named; i++)
+            named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]);
+        Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false};
+        if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
+            continue;
+        for (int i = 0; i < n; i++) {
+            if (i + 1 < n && toks[i].kind == TK_KEYWORD &&
+                (!strcmp(toks[i].text, "struct") || !strcmp(toks[i].text, "union") || !strcmp(toks[i].text, "enum")) &&
+                toks[i + 1].kind == TK_IDENT && !strcmp(toks[i + 1].text, names[k]))
+                own = true;
+        }
+        for (int i = 0; own && i < n; i++) /* $/.../ is the prelude's, which the program's own type hides */
+            if (toks[i].regexp && !strcmp(names[k], "RegExp"))
+                error_at(toks[i].pos, "a $/.../ literal is the prelude's RegExp, which a type of this program named "
+                                      "RegExp hides: rename that type (#504)");
+        if (own)
+            continue;
+        int m;
+        Token *more = with_imports(&imp, 1, &m, argv0); /* the import, then the module's tokens */
+        Token *all = xmalloc(sizeof(Token) * (size_t)(m + n + 1));
+        memcpy(all, more, sizeof(Token) * (size_t)m);
+        memcpy(all + m, toks, sizeof(Token) * (size_t)n);
+        toks = all;
+        n += m;
+        *out_n = n;
+    }
+    return toks;
 }
 
 static List lib_objects; /* --lib: the .o and .a files given after the source, into libkM too (#156) */
@@ -516,7 +570,7 @@ static int link_only(const char *argv0, const char *out_path, bool run_after, bo
 int main(int argc, char **argv) {
     const char *src_path = NULL, *out_path = NULL;
     bool emit_c = false, run_after = false, optimize = false, debug = false, verbose = false, compile_only = false;
-    bool line_directives = true, lib = false;
+    bool line_directives = true, lib = false, prelude_lib = false; /* --prelude (#504) */
     int prog_argc = 0;
     char **prog_argv = NULL;
 
@@ -550,6 +604,11 @@ int main(int argc, char **argv) {
         } else if (!strcmp(a, "--lib")) {
             lib = true;
             lib_mode = true;
+        } else if (!strcmp(a, "--prelude")) { /* a module libkelvin holds, RegExp and UnicodeData (#504) */
+            lib = true;
+            lib_mode = true;
+            prelude_lib = true;
+            prelude_mode = true;
         } else if (!strcmp(a, "--version")) {
             printf("kelvinc %s\n", KELVIN_VERSION);
             return 0;
@@ -595,6 +654,8 @@ int main(int argc, char **argv) {
             toks[i].imported = true;
     imported_already(src_path); /* the main file is brought in already */
     toks = with_imports(toks, ntoks, &ntoks, argv[0]);
+    if (!runtime_mode)
+        toks = with_prelude(toks, ntoks, &ntoks, argv[0]); /* RegExp, if named (#504) */
     Program *prog = parse(toks, ntoks);
     char *c_code = gen_program(prog, line_directives);
     if (link_objects.len) /* the objects may call modules the source does not import (#281) */
@@ -609,9 +670,20 @@ int main(int argc, char **argv) {
         const char *base = strrchr(lib_name, '/');
         if (base)
             lib_name = xstrdup(base + 1);
-        char *kh = strfmt("// %s.kh - the module %s (#146), made by kelvinc --lib from %s: its declarations,\n"
-                          "// the bodies dropped, which libk%s.a beside it defines; #import <%s> brings it in\n%s",
-                          lib_name, lib_name, src_path, lib_name, lib_name, gen_header(prog));
+        bool named = false; /* RegExp, brought in where a program names it */
+        for (int i = 0; prelude_names[i]; i++)
+            named = named || !strcmp(prelude_names[i], lib_name);
+        char *kh = prelude_lib
+                       ? strfmt("// %s.kh - the module %s of the prelude (#504), made by kelvinc --prelude from %s: its\n"
+                                "// declarations, the bodies dropped, which libkelvin defines; %s\n%s",
+                                lib_name, lib_name, src_path,
+                                named ? strfmt("a program that names %s brings it in, as #import <%s> does", lib_name,
+                                               lib_name)
+                                      : strfmt("#import <%s> brings it in", lib_name),
+                                gen_header(prog))
+                       : strfmt("// %s.kh - the module %s (#146), made by kelvinc --lib from %s: its declarations,\n"
+                                "// the bodies dropped, which libk%s.a beside it defines; #import <%s> brings it in\n%s",
+                                lib_name, lib_name, src_path, lib_name, lib_name, gen_header(prog));
         write_file(strfmt("%s/%s.kh", lib_dir, lib_name), kh);
     }
 
@@ -674,7 +746,8 @@ int main(int argc, char **argv) {
     list_push(&cc_args, "-isystem");
     list_push(&cc_args, rt_inc);
     list_push(&cc_args, strfmt("-L%s", rt_inc));
-    char *obj_path = strfmt("%s/libk%s.o", dir, lib_name ? lib_name : "");
+    char *obj_path = prelude_lib ? strfmt("%s/%s.o", lib_dir, lib_name) /* for libkelvin (#504) */
+                                 : strfmt("%s/libk%s.o", dir, lib_name ? lib_name : "");
     if (lib) { /* an object, then libkM.a from it (#146) */
         list_push(&cc_args, "-c");
         list_push(&cc_args, "-fPIC");
@@ -723,6 +796,10 @@ int main(int argc, char **argv) {
     int rc = run(cc_argv, verbose);
     unlink(c_path);
     if (rc != 0) {
+        rmdir(dir);
+        return rc;
+    }
+    if (prelude_lib) { /* the object stays, for libkelvin; no libkM (#504) */
         rmdir(dir);
         return rc;
     }

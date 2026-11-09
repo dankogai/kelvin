@@ -1,4 +1,5 @@
-/* kUnicodeData.h - the declarations of libkUnicodeData (#156): the Unicode
+/* kUnicodeData.h - the declarations of UnicodeData (#156), which libkelvin
+   holds (#504), its functions kv_ucd_: the Unicode
    Character Database as tables, runtime/unicode_tables.c and
    unicode_names.c, made by tools/gen_unicode.py, and what is done with
    them, runtime/unicode_data.c: normalization, grapheme clusters, case
@@ -56,34 +57,34 @@ const char *kv_ud_name(uint32_t cp, char *buf, size_t max);
 
 /* ---------- what a program calls, on a String and a uchr ---------- */
 enum { KV_UD_NFC, KV_UD_NFD, KV_UD_NFKC, KV_UD_NFKD };
-kv_string ucd_normalize(const kv_string *s, int form);
-/* the grapheme clusters of s (UAX #29), as Strings in a malloc'd array, freed by ucd_free_strings */
-void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count);
-void ucd_free_strings(kv_string *at, size_t n);
+kv_string kv_ucd_normalize(const kv_string *s, int form);
+/* the grapheme clusters of s (UAX #29), as Strings in a malloc'd array, freed by kv_ucd_free_strings */
+void kv_ucd_graphemes(const kv_string *s, kv_string **out, size_t *count);
+void kv_ucd_free_strings(kv_string *at, size_t n);
 /* the bytes of the first grapheme cluster of the n bytes at p; 0 where n is 0 */
-size_t ucd_grapheme_len(const uint8_t *p, size_t n);
+size_t kv_ucd_grapheme_len(const uint8_t *p, size_t n);
 /* simple case mappings, one codepoint to one; fold is the C + S case folding */
-kv_string ucd_upper(const kv_string *s);
-kv_string ucd_lower(const kv_string *s);
-kv_string ucd_fold(const kv_string *s);
-uint32_t ucd_to_upper(uint32_t cp);
-uint32_t ucd_to_lower(uint32_t cp);
-uint32_t ucd_to_fold(uint32_t cp);
+kv_string kv_ucd_upper(const kv_string *s);
+kv_string kv_ucd_lower(const kv_string *s);
+kv_string kv_ucd_fold(const kv_string *s);
+uint32_t kv_ucd_to_upper(uint32_t cp);
+uint32_t kv_ucd_to_lower(uint32_t cp);
+uint32_t kv_ucd_to_fold(uint32_t cp);
 /* of a codepoint: its category as text, "Lu"; its name as a String; its combining class */
-const uint8_t *ucd_category(uint32_t cp);
-uint8_t ucd_category_index(uint32_t cp); /* kv_ud_cat, by a name a Kelvin file may declare */
+const uint8_t *kv_ucd_category(uint32_t cp);
+uint8_t kv_ucd_category_index(uint32_t cp); /* kv_ud_cat, by a name a Kelvin file may declare */
 /* the script, the script extensions and the binary properties (#157): ids
    by name, -1 where there is none, long or short names as Unicode spells them */
-int ucd_script(uint32_t cp);
+int kv_ucd_script(uint32_t cp);
 int ucd_script_id(const uint8_t *name);
-const uint8_t *ucd_script_name(int id);
+const uint8_t *kv_ucd_script_name(int id);
 bool ucd_scx_has(uint32_t cp, int id);
-int ucd_property_id(const uint8_t *name);
-bool ucd_has_property(uint32_t cp, int id);
+int kv_ucd_property_id(const uint8_t *name);
+bool kv_ucd_has_property(uint32_t cp, int id);
 uint32_t ucd_category_mask(const uint8_t *name); /* the categories a name covers, 0 where there is none */
-kv_string ucd_name_of(uint32_t cp);
-int ucd_combining(uint32_t cp);
+kv_string kv_ucd_name_of(uint32_t cp);
+int kv_ucd_combining(uint32_t cp);
 /* the decomposition of a codepoint, canonical or with compatibility ones, as a String; "" where none */
-kv_string ucd_decomposition(uint32_t cp, bool compat);
+kv_string kv_ucd_decomposition(uint32_t cp, bool compat);
 
 #endif

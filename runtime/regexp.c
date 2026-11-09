@@ -1,4 +1,4 @@
-/* regexp.c - the engine of #import <RegExp> (#157): JS's regular expressions,
+/* regexp.c - the engine of the prelude's RegExp (#157, #504): JS's regular expressions,
    as its u flag reads them, over Kelvin's Strings, codepoint by codepoint,
    with \X for a grapheme cluster. A pattern is parsed to a tree, the tree
    compiled to a program of words held in a Bytes, and the program run by a
@@ -11,7 +11,7 @@
    The syntax: | ( ) (?: ) (?<name> ) (?= ) (?! ) (?<= ) (?<! ) * + ? {n} {n,}
    {n,m} and their lazy forms; . ^ $ \b \B; [ ] with ranges and ^; \d \w \s
    and their negations; \p{...} and \P{...} by General_Category, Script,
-   Script_Extensions and the binary properties, from libkUnicodeData; \1 \k<n>
+   Script_Extensions and the binary properties, from UnicodeData's tables; \1 \k<n>
    backreferences; \n \r \t \v \f \0 \cX \xHH \uHHHH \u{...}; \X; (?ims-ims:...)
    modifiers. The flags: i (by simple case folding), m, s, g, y, u and d, as
    JS has them. The parser is runtime/regexp_parse.c, shared with kelvinc (#163). */
@@ -144,7 +144,7 @@ static void emit_node(Emitter *e, Node *n) {
         break;
     case N_CHAR:
         emit(e, OP_CHAR);
-        emit(e, (n->flags & RX_I) ? ucd_to_fold(n->c) : n->c);
+        emit(e, (n->flags & RX_I) ? kv_ucd_to_fold(n->c) : n->c);
         emit(e, n->flags & RX_I);
         break;
     case N_ANY:
@@ -273,7 +273,7 @@ static void emit_node(Emitter *e, Node *n) {
     }
 }
 
-kv_bytes rx_compile(const uint8_t *pattern, const uint8_t *flags) {
+kv_bytes kv_rx_compile(const uint8_t *pattern, const uint8_t *flags) {
     Parser p;
     Node *tree = rx_parse_pattern(&p, pattern, flags);
 
@@ -326,9 +326,9 @@ static const uint32_t *prog_words(const kv_bytes *prog) {
     return (const uint32_t *)(const void *)prog->at;
 }
 
-int64_t rx_groups(const kv_bytes *prog) { return prog_words(prog)[H_GROUPS]; }
+int64_t kv_rx_groups(const kv_bytes *prog) { return prog_words(prog)[H_GROUPS]; }
 
-const uint8_t *rx_group_name(const kv_bytes *prog, int64_t i) {
+const uint8_t *kv_rx_group_name(const kv_bytes *prog, int64_t i) {
     const uint32_t *w = prog_words(prog);
     const uint8_t *names = prog->at + (size_t)w[H_NAMES] * sizeof(uint32_t);
     if (i < 1 || i > (int64_t)w[H_GROUPS])
@@ -338,7 +338,7 @@ const uint8_t *rx_group_name(const kv_bytes *prog, int64_t i) {
     return names;
 }
 
-int64_t rx_group_named(const kv_bytes *prog, const uint8_t *name) {
+int64_t kv_rx_group_named(const kv_bytes *prog, const uint8_t *name) {
     const uint32_t *w = prog_words(prog);
     const uint8_t *names = prog->at + (size_t)w[H_NAMES] * sizeof(uint32_t);
     for (int64_t g = 1; g <= (int64_t)w[H_GROUPS]; g++) {
@@ -349,7 +349,7 @@ int64_t rx_group_named(const kv_bytes *prog, const uint8_t *name) {
     return -1;
 }
 
-bool rx_flag(const kv_bytes *prog, uint8_t flag) {
+bool kv_rx_flag(const kv_bytes *prog, uint8_t flag) {
     uint32_t f = prog_words(prog)[H_FLAGS];
     switch (flag) {
     case 'i': return f & RX_I;
@@ -425,7 +425,7 @@ static bool item_matches(const uint32_t *it, uint32_t x) {
         return m != (bool)(it[2] & 1);
     }
     case CI_PROP:
-        return ucd_has_property(x, (int)it[1]) != (bool)it[2];
+        return kv_ucd_has_property(x, (int)it[1]) != (bool)it[2];
     }
     return false;
 }
@@ -441,7 +441,7 @@ static bool class_has(const uint32_t *cls, uint32_t x) {
 static bool class_matches(const uint32_t *cls, uint32_t x, bool ci) {
     bool m = class_has(cls, x);
     if (!m && ci) {
-        uint32_t f = ucd_to_fold(x), u = ucd_to_upper(x), l = ucd_to_lower(x);
+        uint32_t f = kv_ucd_to_fold(x), u = kv_ucd_to_upper(x), l = kv_ucd_to_lower(x);
         m = (f != x && class_has(cls, f)) || (u != x && class_has(cls, u)) || (l != x && class_has(cls, l));
     }
     return m != (bool)cls[0];
@@ -499,7 +499,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
         switch (code[pc]) {
         case OP_CHAR:
             x = cp_here(c, pos, &len);
-            if (x == NO_CP || (code[pc + 2] ? ucd_to_fold(x) : x) != code[pc + 1])
+            if (x == NO_CP || (code[pc + 2] ? kv_ucd_to_fold(x) : x) != code[pc + 1])
                 goto fail;
             pos += len;
             pc += 3;
@@ -568,7 +568,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
                 while (k < hi) {
                     int l2;
                     uint32_t a = cp_here(c, k, &len), b = cp_here(c, pos, &l2);
-                    if (b == NO_CP || ucd_to_fold(a) != ucd_to_fold(b))
+                    if (b == NO_CP || kv_ucd_to_fold(a) != kv_ucd_to_fold(b))
                         goto fail;
                     k += len;
                     pos += l2;
@@ -597,7 +597,7 @@ static bool run(Ctx *c, uint32_t pc, int64_t pos, int64_t must_end, int64_t *end
         case OP_GRAPHEME:
             if (pos >= c->n)
                 goto fail;
-            pos += c->bytewise ? 1 : (int64_t)ucd_grapheme_len(c->s + pos, (size_t)(c->n - pos));
+            pos += c->bytewise ? 1 : (int64_t)kv_ucd_grapheme_len(c->s + pos, (size_t)(c->n - pos));
             pc++;
             continue;
         case OP_RESET:
@@ -704,13 +704,13 @@ static bool search_in(const kv_bytes *prog, const uint8_t *s, int64_t n, bool by
 /* the b flag (#171) matches byte by byte, each byte a codepoint of its value,
    a String's UTF-8 as a Bytes; without it, codepoints, a Bytes decoded as
    UTF-8 as far as it is */
-bool rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool sticky, int64_t *caps) {
+bool kv_rx_search(const kv_bytes *prog, const kv_string *s, int64_t from, bool sticky, int64_t *caps) {
     return search_in(prog, s->b.at, (int64_t)s->b.count, prog_words(prog)[H_FLAGS] & RX_B, from, sticky, caps);
 }
 
 /* a Bytes (#168): matched byte by byte, each byte the codepoint of its
    value, so that \xHH and [\x80-\xFF] mean bytes; \X is one byte */
-bool rx_search_bytes(const kv_bytes *prog, const kv_bytes *b, int64_t from, bool sticky, int64_t *caps) {
+bool kv_rx_search_bytes(const kv_bytes *prog, const kv_bytes *b, int64_t from, bool sticky, int64_t *caps) {
     return search_in(prog, b->at, (int64_t)b->count, prog_words(prog)[H_FLAGS] & RX_B, from, sticky, caps);
 }
 
@@ -725,8 +725,8 @@ static void append_bytes(kv_string *out, const uint8_t *p, int64_t lo, int64_t h
     }
 }
 
-void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, const uint8_t *with, kv_string *out) {
-    int64_t ngroups = rx_groups(prog);
+void kv_rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, const uint8_t *with, kv_string *out) {
+    int64_t ngroups = kv_rx_groups(prog);
     const uint8_t *p = s->b.at ? s->b.at : (const uint8_t *)"";
     int64_t n = (int64_t)s->b.count;
     for (const uint8_t *t = with; *t; t++) {
@@ -774,7 +774,7 @@ void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, co
                 len = sizeof name - 1;
             memcpy(name, t + 2, len);
             name[len] = 0;
-            int64_t g = rx_group_named(prog, (const uint8_t *)name);
+            int64_t g = kv_rx_group_named(prog, (const uint8_t *)name);
             if (g > 0 && caps[2 * g] >= 0)
                 append_bytes(out, p, caps[2 * g], caps[2 * g + 1]);
             t = close;
@@ -784,7 +784,7 @@ void rx_expand(const kv_bytes *prog, const kv_string *s, const int64_t *caps, co
     }
 }
 
-kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi) {
+kv_string kv_rx_slice(const kv_string *s, int64_t lo, int64_t hi) {
     kv_string out = kv_string_new();
     if (lo < 0)
         lo = 0;
@@ -802,7 +802,7 @@ kv_string rx_slice(const kv_string *s, int64_t lo, int64_t hi) {
     return out;
 }
 
-int64_t rx_cp_index(const kv_string *s, int64_t byte) {
+int64_t kv_rx_cp_index(const kv_string *s, int64_t byte) {
     int64_t k = 0;
     if (byte > (int64_t)s->b.count)
         byte = (int64_t)s->b.count;
@@ -812,7 +812,7 @@ int64_t rx_cp_index(const kv_string *s, int64_t byte) {
     return k;
 }
 
-int64_t rx_byte_index(const kv_string *s, int64_t cp) {
+int64_t kv_rx_byte_index(const kv_string *s, int64_t cp) {
     int64_t n = (int64_t)s->b.count, i = 0;
     while (cp > 0 && i < n) {
         int len;
@@ -823,7 +823,7 @@ int64_t rx_byte_index(const kv_string *s, int64_t cp) {
     return i;
 }
 
-int64_t rx_next(const kv_string *s, int64_t byte) {
+int64_t kv_rx_next(const kv_string *s, int64_t byte) {
     int len;
     if (byte >= (int64_t)s->b.count)
         return (int64_t)s->b.count;
@@ -833,13 +833,13 @@ int64_t rx_next(const kv_string *s, int64_t byte) {
 
 /* s.escape(&re) (#164): the text with each codepoint of each match as
    \u{...}, and a backslash as \\ anywhere, so that unescape reads it back */
-kv_string rx_escape(const kv_bytes *prog, const kv_string *s) {
+kv_string kv_rx_escape(const kv_bytes *prog, const kv_string *s) {
     kv_string out = kv_string_new();
     const uint8_t *p = s->b.at ? s->b.at : (const uint8_t *)"";
     int64_t n = (int64_t)s->b.count, from = 0, copied = 0;
-    int64_t ngroups = rx_groups(prog);
+    int64_t ngroups = kv_rx_groups(prog);
     int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
-    while (from <= n && rx_search(prog, s, from, false, caps)) {
+    while (from <= n && kv_rx_search(prog, s, from, false, caps)) {
         for (int64_t k = copied; k < caps[0];) {
             int len;
             uint32_t cp = rx_cp_at(p, n, k, &len);
@@ -863,7 +863,7 @@ kv_string rx_escape(const kv_bytes *prog, const kv_string *s) {
         } else {
             if (caps[1] >= n)
                 break;
-            from = rx_next(s, caps[1]);
+            from = kv_rx_next(s, caps[1]);
         }
     }
     free(caps);
@@ -881,14 +881,14 @@ kv_string rx_escape(const kv_bytes *prog, const kv_string *s) {
 
 /* s.unescape(&re) (#165): the escapes read back where the pattern matches,
    each match unescaped as s.unescape() does the whole, the rest as it is */
-kv_string rx_unescape(const kv_bytes *prog, const kv_string *s) {
+kv_string kv_rx_unescape(const kv_bytes *prog, const kv_string *s) {
     kv_string out = kv_string_new();
     int64_t n = (int64_t)s->b.count, from = 0, copied = 0;
-    int64_t ngroups = rx_groups(prog);
+    int64_t ngroups = kv_rx_groups(prog);
     int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
-    while (from <= n && rx_search(prog, s, from, false, caps)) {
-        kv_string_append_owned(&out, rx_slice(s, copied, caps[0]));
-        kv_string piece = rx_slice(s, caps[0], caps[1]);
+    while (from <= n && kv_rx_search(prog, s, from, false, caps)) {
+        kv_string_append_owned(&out, kv_rx_slice(s, copied, caps[0]));
+        kv_string piece = kv_rx_slice(s, caps[0], caps[1]);
         kv_string_append_owned(&out, kv_string_unescape(&piece));
         kv_string_free(&piece);
         copied = caps[1];
@@ -897,11 +897,11 @@ kv_string rx_unescape(const kv_bytes *prog, const kv_string *s) {
         } else {
             if (caps[1] >= n)
                 break;
-            from = rx_next(s, caps[1]);
+            from = kv_rx_next(s, caps[1]);
         }
     }
     free(caps);
-    kv_string_append_owned(&out, rx_slice(s, copied, n));
+    kv_string_append_owned(&out, kv_rx_slice(s, copied, n));
     return out;
 }
 
@@ -914,12 +914,12 @@ static void escape_byte(kv_string *out, uint8_t c) {
     kv_string_append_text(out, buf);
 }
 
-kv_string rx_escape_bytes(const kv_bytes *prog, const kv_bytes *b) {
+kv_string kv_rx_escape_bytes(const kv_bytes *prog, const kv_bytes *b) {
     kv_string out = kv_string_new();
     int64_t n = (int64_t)b->count, from = 0, copied = 0;
-    int64_t ngroups = rx_groups(prog);
+    int64_t ngroups = kv_rx_groups(prog);
     int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
-    while (from <= n && rx_search_bytes(prog, b, from, false, caps)) {
+    while (from <= n && kv_rx_search_bytes(prog, b, from, false, caps)) {
         for (int64_t k = copied; k < caps[0]; k++) {
             uint8_t c = b->at[k];
             if (c == '\\')
@@ -955,14 +955,14 @@ kv_string rx_escape_bytes(const kv_bytes *prog, const kv_bytes *b) {
 
 /* Bytes.unescape(text, &re) (#168): the bytes of the text, with the escapes
    read back where the pattern matches the text alone */
-kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len) {
+kv_bytes kv_rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len) {
     kv_bytes out = kv_bytes_new();
     kv_string s = {kv_bytes_from(text, len), 0};
-    s.count = (size_t)rx_cp_index(&s, (int64_t)len);
+    s.count = (size_t)kv_rx_cp_index(&s, (int64_t)len);
     int64_t n = (int64_t)len, from = 0, copied = 0;
-    int64_t ngroups = rx_groups(prog);
+    int64_t ngroups = kv_rx_groups(prog);
     int64_t *caps = rx_alloc((size_t)(2 * (ngroups + 1)) * sizeof *caps);
-    while (from <= n && rx_search(prog, &s, from, false, caps)) {
+    while (from <= n && kv_rx_search(prog, &s, from, false, caps)) {
         kv_bytes_append(&out, text + copied, (size_t)(caps[0] - copied));
         kv_bytes_append_owned(&out, kv_bytes_unescape(text + caps[0], (size_t)(caps[1] - caps[0])));
         copied = caps[1];
@@ -971,7 +971,7 @@ kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len
         } else {
             if (caps[1] >= n)
                 break;
-            from = rx_next(&s, caps[1]);
+            from = kv_rx_next(&s, caps[1]);
         }
     }
     free(caps);
@@ -981,7 +981,7 @@ kv_bytes rx_unescape_bytes(const kv_bytes *prog, const uint8_t *text, size_t len
 }
 
 /* bytes lo..<hi of a Bytes, a new Bytes (#169) */
-kv_bytes rx_bytes_slice(const kv_bytes *b, int64_t lo, int64_t hi) {
+kv_bytes kv_rx_bytes_slice(const kv_bytes *b, int64_t lo, int64_t hi) {
     if (lo < 0)
         lo = 0;
     if (hi > (int64_t)b->count)
@@ -991,9 +991,9 @@ kv_bytes rx_bytes_slice(const kv_bytes *b, int64_t lo, int64_t hi) {
 
 /* the replacement of one match in a Bytes (#170), JS's patterns over bytes:
    $$, $&, $1..$99, $<name>, $` and $', appended to out */
-void rx_expand_bytes(const kv_bytes *prog, const kv_bytes *b, const int64_t *caps, const uint8_t *with, size_t len,
+void kv_rx_expand_bytes(const kv_bytes *prog, const kv_bytes *b, const int64_t *caps, const uint8_t *with, size_t len,
                      kv_bytes *out) {
-    int64_t ngroups = rx_groups(prog);
+    int64_t ngroups = kv_rx_groups(prog);
     const uint8_t *p = b->at ? b->at : (const uint8_t *)"";
     int64_t n = (int64_t)b->count;
     for (size_t i = 0; i < len; i++) {
@@ -1039,7 +1039,7 @@ void rx_expand_bytes(const kv_bytes *prog, const kv_bytes *b, const int64_t *cap
                 nl = sizeof name - 1;
             memcpy(name, t + 2, nl);
             name[nl] = 0;
-            int64_t g = rx_group_named(prog, (const uint8_t *)name);
+            int64_t g = kv_rx_group_named(prog, (const uint8_t *)name);
             if (g > 0 && caps[2 * g] >= 0)
                 kv_bytes_append(out, p + caps[2 * g], (size_t)(caps[2 * g + 1] - caps[2 * g]));
             i = (size_t)(close - with);

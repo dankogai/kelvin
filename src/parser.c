@@ -237,6 +237,7 @@ static bool bound_here(const char *name) {
 static Decl *parsing_fn;
 bool lib_mode;
 bool runtime_mode;
+bool prelude_mode; /* kelvinc --prelude: a module of the prelude, which libkelvin holds (#504) */
 
 /* Is the token from a module's header, M.kh (#146), where a prototype is
    the library's own function? */
@@ -4041,7 +4042,8 @@ static Expr *parse_primary(void) {
         error_at(t->pos, "'_Generic' is C11's, left out on purpose: a function of one name takes several types by "
                          "overloads, 'let f(x:i64)' and 'let f(x:f64)', and kelvinc chooses, or has C choose (#41)");
     if (t->regexp && !record_named("RegExp")) /* $/.../ (#157) is RegExp.compile(...), of the module */
-        error_at(t->pos, "a $/.../ literal is a RegExp, which needs #import <RegExp>");
+        error_at(t->pos, "a $/.../ literal is the prelude's RegExp, which a type of this program named RegExp hides: "
+                         "rename that type (#504)");
     self_word(t); /* Self.f(), Self.x, Self(v) (#140) */
     if (self_member_ahead(cur)) {
         /* .x is self.x where self is (#139): self, and the postfix reads .x */
@@ -11352,10 +11354,24 @@ static Type *inferred_type(Expr *e, Pos pos) {
    inferred from init */
 /* names starting with _kv_ are kelvinc's, in the C it writes (#32, #38),
    and kv_ ones its runtime's */
+/* a token of a module of the prelude (#504), built by --prelude, or of its
+   header, M.kh: their helpers are the runtime's, kv_rx_compile */
+static bool prelude_token(Token *t) {
+    static const char *files[] = {"RegExp.k", "RegExp.kh", "UnicodeData.k", "UnicodeData.kh", NULL};
+    if (prelude_mode)
+        return true;
+    const char *slash = t->pos.file ? strrchr(t->pos.file, '/') : NULL;
+    const char *base = slash ? slash + 1 : t->pos.file;
+    for (int i = 0; base && files[i]; i++)
+        if (!strcmp(base, files[i]))
+            return true;
+    return false;
+}
+
 static void reject_kv_name(Token *t) {
     if (t->kind == TK_IDENT && !strncmp(t->text, "_kv_", 4))
         error_at(t->pos, "names starting with _kv_ are kelvinc's own, in the C it writes: rename '%s'", t->text);
-    if (t->kind == TK_IDENT && !runtime_mode && /* the runtime's own file names them (#289) */
+    if (t->kind == TK_IDENT && !runtime_mode && !prelude_token(t) && /* the runtime's own file names them (#289, #504) */
         (!strncmp(t->text, "kv_", 3) || !strncmp(t->text, "KV_", 3) || !strcmp(t->text, "KELVIN_PRELUDE_H")))
         error_at(t->pos, "names starting with kv_ or KV_ are kelvinc's runtime's: rename '%s'", t->text);
 }

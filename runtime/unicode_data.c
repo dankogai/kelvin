@@ -1,4 +1,4 @@
-/* unicode_data.c - libkUnicodeData (#156): normalization (UAX #15), grapheme
+/* unicode_data.c - UnicodeData (#156), which libkelvin holds (#504): normalization (UAX #15), grapheme
    clusters (UAX #29), case mappings, categories and names, on the tables of
    unicode_tables.c and unicode_names.c */
 #include "kelvin_prelude.h"
@@ -62,9 +62,9 @@ static uint32_t mapped(const kv_ud_map *m, size_t n, uint32_t cp) {
     return lo < n && m[lo].from == cp ? m[lo].to : cp;
 }
 
-uint32_t ucd_to_upper(uint32_t cp) { return mapped(kv_ud_upper, kv_ud_upper_count, cp); }
-uint32_t ucd_to_lower(uint32_t cp) { return mapped(kv_ud_lower, kv_ud_lower_count, cp); }
-uint32_t ucd_to_fold(uint32_t cp) { return mapped(kv_ud_fold, kv_ud_fold_count, cp); }
+uint32_t kv_ucd_to_upper(uint32_t cp) { return mapped(kv_ud_upper, kv_ud_upper_count, cp); }
+uint32_t kv_ucd_to_lower(uint32_t cp) { return mapped(kv_ud_lower, kv_ud_lower_count, cp); }
+uint32_t kv_ucd_to_fold(uint32_t cp) { return mapped(kv_ud_fold, kv_ud_fold_count, cp); }
 
 /* ---------- normalization (UAX #15) ---------- */
 
@@ -150,7 +150,7 @@ static void compose(cps *v) {
     v->n = out;
 }
 
-kv_string ucd_normalize(const kv_string *s, int form) {
+kv_string kv_ucd_normalize(const kv_string *s, int form) {
     cps in = {0}, out = {0};
     decode(s, &in);
     bool compat = form == KV_UD_NFKC || form == KV_UD_NFKD;
@@ -165,7 +165,7 @@ kv_string ucd_normalize(const kv_string *s, int form) {
     return r;
 }
 
-kv_string ucd_decomposition(uint32_t cp, bool compat) {
+kv_string kv_ucd_decomposition(uint32_t cp, bool compat) {
     cps out = {0};
     decompose(cp, compat, &out);
     kv_string r = kv_string_new();
@@ -180,7 +180,7 @@ kv_string ucd_decomposition(uint32_t cp, bool compat) {
 /* the bytes of the first cluster at p: the rules GB3 to GB13 and GB999, with
    the emoji sequences of GB11, the regional indicator pairs of GB12 and GB13
    and the Indic conjuncts of GB9c */
-size_t ucd_grapheme_len(const uint8_t *p, size_t n) {
+size_t kv_ucd_grapheme_len(const uint8_t *p, size_t n) {
     if (n == 0)
         return 0;
     const uint8_t *q = p, *end = p + n;
@@ -249,7 +249,7 @@ size_t ucd_grapheme_len(const uint8_t *p, size_t n) {
     return n;
 }
 
-void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
+void kv_ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
     const uint8_t *p = kv_bytes_cstr(&s->b);
     size_t n = s->b.count, cap = 16, k = 0;
     kv_string *at = malloc(cap * sizeof *at);
@@ -258,7 +258,7 @@ void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
         kv_exit_failure();
     }
     while (n > 0) {
-        size_t len = ucd_grapheme_len(p, n);
+        size_t len = kv_ucd_grapheme_len(p, n);
         if (k == cap) {
             cap *= 2;
             at = realloc(at, cap * sizeof *at);
@@ -277,7 +277,7 @@ void ucd_graphemes(const kv_string *s, kv_string **out, size_t *count) {
     *count = k;
 }
 
-void ucd_free_strings(kv_string *at, size_t n) {
+void kv_ucd_free_strings(kv_string *at, size_t n) {
     for (size_t i = 0; i < n; i++)
         kv_string_free(&at[i]);
     free(at);
@@ -293,22 +293,22 @@ static kv_string map_string(const kv_string *s, uint32_t (*f)(uint32_t)) {
     return r;
 }
 
-kv_string ucd_upper(const kv_string *s) { return map_string(s, ucd_to_upper); }
-kv_string ucd_lower(const kv_string *s) { return map_string(s, ucd_to_lower); }
-kv_string ucd_fold(const kv_string *s) { return map_string(s, ucd_to_fold); }
+kv_string kv_ucd_upper(const kv_string *s) { return map_string(s, kv_ucd_to_upper); }
+kv_string kv_ucd_lower(const kv_string *s) { return map_string(s, kv_ucd_to_lower); }
+kv_string kv_ucd_fold(const kv_string *s) { return map_string(s, kv_ucd_to_fold); }
 
-const uint8_t *ucd_category(uint32_t cp) { return (const uint8_t *)kv_ud_categories[kv_ud_cat(cp)]; }
-uint8_t ucd_category_index(uint32_t cp) { return kv_ud_cat(cp); }
-int ucd_combining(uint32_t cp) { return kv_ud_ccc(cp); }
+const uint8_t *kv_ucd_category(uint32_t cp) { return (const uint8_t *)kv_ud_categories[kv_ud_cat(cp)]; }
+uint8_t kv_ucd_category_index(uint32_t cp) { return kv_ud_cat(cp); }
+int kv_ucd_combining(uint32_t cp) { return kv_ud_ccc(cp); }
 
-kv_string ucd_name_of(uint32_t cp) {
+kv_string kv_ucd_name_of(uint32_t cp) {
     char buf[64];
     return kv_string_text(kv_ud_name(cp, buf, sizeof buf));
 }
 
 /* ---------- scripts and properties (#157) ---------- */
 
-int ucd_script(uint32_t cp) { return kv_ud_script(cp); }
+int kv_ucd_script(uint32_t cp) { return kv_ud_script(cp); }
 
 int ucd_script_id(const uint8_t *name) {
     for (size_t i = 0; i < kv_ud_script_count; i++)
@@ -317,7 +317,7 @@ int ucd_script_id(const uint8_t *name) {
     return -1;
 }
 
-const uint8_t *ucd_script_name(int id) {
+const uint8_t *kv_ucd_script_name(int id) {
     return (const uint8_t *)(id >= 0 && (size_t)id < kv_ud_script_count ? kv_ud_script_names[id][0] : "Unknown");
 }
 
@@ -337,14 +337,14 @@ bool ucd_scx_has(uint32_t cp, int id) {
     return kv_ud_script(cp) == id;
 }
 
-int ucd_property_id(const uint8_t *name) {
+int kv_ucd_property_id(const uint8_t *name) {
     for (size_t i = 0; i < kv_ud_prop_count; i++)
         if (!strcmp((const char *)name, kv_ud_props[i].name) || (*kv_ud_props[i].alias && !strcmp((const char *)name, kv_ud_props[i].alias)))
             return (int)i;
     return -1;
 }
 
-bool ucd_has_property(uint32_t cp, int id) {
+bool kv_ucd_has_property(uint32_t cp, int id) {
     if (id < 0 || (size_t)id >= kv_ud_prop_count) return false;
     const kv_ud_span *rs = kv_ud_prop_ranges + kv_ud_props[id].offset;
     size_t lo = 0, hi = kv_ud_props[id].count;

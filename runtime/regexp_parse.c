@@ -1,4 +1,4 @@
-/* regexp_parse.c - the parser of a pattern of #import <RegExp> (#157): JS's
+/* regexp_parse.c - the parser of a pattern of the prelude's RegExp (#157, #504): JS's
    syntax with the u flag, read into a tree that runtime/regexp.c compiles
    and runs. On its own, with the Unicode tables, it checks a pattern:
    kelvinc links it to read a $/.../ literal at compile time (#163), where
@@ -156,7 +156,7 @@ static void add_item(Node *n, uint32_t kind, uint32_t a, uint32_t b) {
 
 /* ---------- the parser ---------- */
 
-/* the names of \p{...}, looked up in the tables of libkUnicodeData, which
+/* the names of \p{...}, looked up in the tables of UnicodeData, which
    are data alone, so that kelvinc links them to check a literal (#163) */
 static uint32_t category_mask(const char *name) {
     for (size_t i = 0; i < kv_ud_gc_name_count; i++)

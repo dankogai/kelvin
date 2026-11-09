@@ -1,7 +1,7 @@
 // Word frequencies: RegExp splits the text, a Set<String> leaves out the
 // common words, a Dictionary<String, i64> counts the rest in the order
 // they come, and an Array of structs that own their words sorts by count.
-#import <RegExp>
+// RegExp is the prelude's (#504), with no import.
 
 struct tally {
     word:  String

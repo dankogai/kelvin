@@ -97,12 +97,15 @@ let main():int32 {
   a program without them links the core alone, which is why they are
   modules: one day a program may run where there is no IO.
   - `UnicodeData` ([unicodedata.md](unicodedata.md), #156) is written in
-    Kelvin, modules/UnicodeData.k over its C tables, and `make` builds
-    it with `kelvinc --lib` into `UnicodeData.kh` and `libkUnicodeData`:
-    the example of a large module built that way.
+    Kelvin, modules/UnicodeData.k over its C tables; `make` builds it
+    with `kelvinc --prelude` (#504) into `UnicodeData.kh` and an object
+    that libkelvin holds, so `#import <UnicodeData>` links nothing more.
   - `RegExp` ([regexp.md](regexp.md), #157) is the same over its engine,
-    runtime/regexp.c, on `UnicodeData`, which its header imports, so
-    that `#import <RegExp>` links both; the `$/.../` literal needs it.
+    runtime/regexp.c, on `UnicodeData`; it is the prelude's (#504): a
+    program that names `RegExp`, or writes a `$/.../` literal, has it
+    with no import.
+  - A module of the prelude is linked from the static libkelvin.a, as
+    the rest of it: a program that uses none of it links none of it.
   - `JSON` ([json.md](json.md)) is built the same from `JSON.k` alone
     (#484), so that `fetch` ([fetch.md](fetch.md)) may import it: a
     module built by `kelvinc --lib` that imports a Kelvin source holds
@@ -206,9 +209,9 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     OS.kh, kOS.h          #import <OS> (#145, os.md); SYS is the prelude's (sys.md)
     libkOS.a|.dylib|.so   its library
     UnicodeData.kh        #import <UnicodeData> (#156, unicodedata.md), built by make from UnicodeData.k
-    kUnicodeData.h, libkUnicodeData.a|.dylib|.so   its C header and its library, the Unicode tables
-    RegExp.kh             #import <RegExp> (#157, regexp.md), built by make from RegExp.k; $/.../ literals
-    kRegExp.h, libkRegExp.a|.dylib|.so   its C header and its library, the engine
+    kUnicodeData.h        its C header; the Unicode tables are libkelvin's (#504)
+    RegExp.kh             the prelude's RegExp (#157, #504, regexp.md), built by make from RegExp.k; $/.../ literals
+    kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     JSON.k                #import <JSON> (#113, json.md)
     SION.k                #import <SION> (#152, sion.md): SION values, text in and out
@@ -250,8 +253,8 @@ grapheme clusters as an `Array<String>`, bound before it is walked, the case map
 
 ### RegExp: `modules/RegExp.k`
 
-`#import <RegExp>` (#157) brings in regular expressions, JS's over
-Strings, and the `$/pattern/flags` literal: `re.test(&s)`,
+`RegExp` (#157) is regular expressions, JS's over Strings, and the
+`$/pattern/flags` literal, the prelude's since #504, with no import: `re.test(&s)`,
 `re.exec(&s)`, `s.match(&re)`, `s.replace(&re, "$1")`, `s.split(&re)`,
 with `\p{...}` by category, script and property, and `\X` for a
 grapheme cluster: see [regexp.md](regexp.md).

@@ -68,7 +68,7 @@ Each one ends with the output it prints, as `// out:` lines, which
 | [examples/linkedlist.k](examples/linkedlist.k) | references (`^`, `:=`), `malloc`/`free`, an `extend list` block whose var methods change the list they are called on, `l.push(v)`, and whose methods read it, `for n in head` |
 | [examples/sort.k](examples/sort.k) | `$[T]`'s `sort` and `sorted`, by `<`, by an anonymous function with `$0` and `$1` or by a named one; `map`, `filter`, `reduce`, `prefix` and `reversed` chained; an Array of structs; C's `qsort` with a written comparator |
 | [examples/sequences.k](examples/sequences.k) | iterators, structs with a `var` method `next()`: `for`, `map` and `reduce` of one that ends, `prefix` of one that never does; `(2...).lazy.filter(prime)`, a Range with no end, filtered lazily |
-| [examples/wordfreq.k](examples/wordfreq.k) | word frequencies: `#import <RegExp>` and `.split`, a `Set<String>` of words to leave out, a `Dictionary<String, i64>` counting the rest, an Array of structs that own their words, sorted by count |
+| [examples/wordfreq.k](examples/wordfreq.k) | word frequencies: the prelude's `RegExp` and `.split`, a `Set<String>` of words to leave out, a `Dictionary<String, i64>` counting the rest, an Array of structs that own their words, sorted by count |
 | [examples/calc.k](examples/calc.k) | a calculator: an enum with values for tokens, `switch` binding a case's value, the shunting-yard algorithm with Arrays as stacks, each step a `Result` and `try` passing an `err` up, `if let` |
 | [examples/results.k](examples/results.k) | `Result<T, U>` and `T?` wrapping C's `timespec_get`, `fopen` and `getenv`, a `String` error from text, an `err` passed up by hand, `if let`, `??`, `switch` |
 | [examples/tasks.k](examples/tasks.k) | `async f(x)` and `await`: four `Task<i64>`s in an Array count primes at once, and a `Task<String>` moves its owner out to the caller |
@@ -102,7 +102,7 @@ On FreeBSD (#193):
 - Variables go to `gmake` itself: `gmake install PREFIX=~/.local`.
 
 ```sh
-make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib}, libkIO and libkOS
+make                        # builds ./kelvinc, modules/libkelvin.{a,so|dylib} with RegExp, libkIO and libkOS
 make test                   # runs tests/run.sh, and tests/docs.sh: the documents' examples compile; tests/grammar.js
 make asan                   # runs tests/asan.sh: every test program under ASan, nothing live at exit
 make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
@@ -111,6 +111,7 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 ./kelvinc --emit-c hello.k  # prints the generated C
 ./kelvinc --lib geo.k       # builds the module geo: modules/geo.kh, libkgeo.a and libkgeo.dylib|.so
 ./kelvinc --runtime runtime/string.k  # an object of the runtime, for libkelvin (#289)
+./kelvinc --prelude modules/RegExp.k -o build/prelude  # a module of the prelude: RegExp.kh and RegExp.o, for libkelvin (#504)
 ./kelvinc -c util.k         # builds the object util.o (#281)
 ./kelvinc -o app main.o util.o  # links objects, or main.k util.o, into ./app
 ```
@@ -125,7 +126,9 @@ make install PREFIX=~/.local # bin/kelvinc and lib/kelvin/modules/
 - **The runtime in Kelvin** (#289): `runtime/*.k`, which
   `kelvinc --runtime` builds into `libkelvin` beside its C.
   - Its `kv_` functions keep the names `kelvin_prelude.h` declares,
-    which the C kelvinc writes calls; only `--runtime` may name one so.
+    which the C kelvinc writes calls; only `--runtime` may name one so,
+    and the modules of the prelude, RegExp and UnicodeData, their
+    helpers `kv_rx_` and `kv_ucd_` (#504).
   - `runtime/string.k`: a String's `find`, `has`, `starts`, `ends`
     and `trim` (#289), and `escape` and `unescape` (#290).
   - `runtime/bytes.k`: a Bytes's `toBase64` and `Bytes.fromBase64`
@@ -356,10 +359,13 @@ So far the changes from C are these, by topic.
   `s.normalize(nfc)`, `s.graphemes`, the clusters a reader sees as
   characters, `s.upper()`, `s.fold()`, `uchr("é").name` and
   `.category` (#156)
-- `#import <RegExp>` is regular expressions, JS's over Strings, with the
+- `RegExp` is regular expressions, JS's over Strings, with the
   `$/pattern/flags` literal: `re.test(&s)`, `s.match(&re)`,
   `s.replace(&re, "$1")`, `s.split(&re)`, `\p{Script=Greek}` and `\X`
   for a grapheme cluster (#157)
+  - the prelude's, as JS's and Swift's are, with no import: a program
+    that names it has it, and one that does not links none of it;
+    `#import <RegExp>` still builds (#504)
 - `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is

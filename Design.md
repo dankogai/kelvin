@@ -548,6 +548,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 501 | An operator is lent an owner operand, which its caller keeps, as the user chose, where #471 moved it in: `a * a + b`, `c + c`, `z += z`, `a == b`, a member's `h.b + c`, a global's and an element's leave them; one an expression gives is held for the call and freed after; inside, the operand is a let parameter, which changes, moves and is returned only as a copy, errors in words; a `var` parameter is given a copy of its own. kc the same | src/parser.c's LET_LENT, parse_fn_tail's lent operator parameters, resolve_operator's held operands and var copies, move_argument's and return_owner's errors; src/codegen.c's call without a take of a lent parameter; selfhost/gen.k's how 5, lent_param, gen_arg_to, hold_args, gen_signature, takes_owner; tests; documents/operators.md, structs.md, ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `a * a + b` | 2026-11-09 |
 | 502 | A struct, a union or an enum with values may define the bitwise `& | ~ << >>` and unary `~`, as the user chose, `~` of two values the xor, of one the complement, with C's precedence; `x &= y`, `x |= y`, `x ~= y`, `x <<= n` and `x >>= n` are `x = x op y`; C names `_kv_and_op`, `_kv_or_op`, `_kv_xor_op`, `_kv_shl_op`, `_kv_shr_op`, `_kv_compl_op`; `&&` and `!` stay undefinable, in words that list the operators. kc the same | src/parser.c's overloadable_op, name_functions' words and compl, check_overload's unary, parse_unary's `~`, the compound assignment, the messages; selfhost/parse.k's overloadable_tok and messages; selfhost/gen.k's operator_word, operator_fits, resolve_op, compound_by_operator, compound_op; tests; documents/operators.md, structs.md, README.md, selfhost/README.md, selfhost/sample.k | `a << 2` | 2026-11-09 |
 | 503 | A local owner named in a struct's literal moves into it, as into a call, as the user chose, where it was O3's error: `(Big){r, false}`, `let b:Big = {r}`, `return {.limbs = r}` and a nested literal take `r`, dead until assigned anew; the moves are made when the literal ends, so `(P){s, s.count}` is #500's error; a global, a lent operand and a `for`'s element say "copy it"; a member stays O3's error, which kc lacked, copying it into a program that freed it twice. kc the same | src/parser.c's parse_initializer_for moving_in and move_argument's literal hint; src/codegen.c's initializer, a local owner taken; selfhost/gen.k's gen_init and move_out; tests; documents/ownership.md, structs.md, README.md, selfhost/README.md, selfhost/sample.k | `(Big){r, false}` | 2026-11-10 |
+| 504 | RegExp is the prelude's, as the user chose, as JS's and Swift's are: a program that names `RegExp`, a `$/.../` literal's own name too, has it, `Match` and `BytesMatch`, with no import; `#import <RegExp>` still builds, doing nothing more; a program with a type of its own named RegExp keeps it, and a `$/.../` there is an error in words. libkelvin holds RegExp, its engine, UnicodeData and the Unicode tables, linked from the static libkelvin.a only where used; libkRegExp and libkUnicodeData are no more; `#import <UnicodeData>` stays. Their helpers are `kv_rx_` and `kv_ucd_`. kelvinc's `--prelude` builds such a module's M.kh and object | src/main.c's with_prelude, imported_has, prelude_names and --prelude; src/parser.c's prelude_token and the literal's error; GNUmakefile's PRELUDE_OBJS and libkelvin; runtime/regexp.c, unicode_data.c, modules/RegExp.k, UnicodeData.k, kRegExp.h, kUnicodeData.h renamed; tests; documents/regexp.md, unicodedata.md, modules.md and others, README.md, selfhost/README.md, examples/wordfreq.k | `$/a+/` | 2026-11-10 |
 
 Notes:
 
@@ -1132,6 +1133,38 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (504) Agreed details: "go on with RegExp into the prelude", the first
+  number of the plan for 0.2.0: RegExp and BigInt into the prelude, as
+  the user decided, since JS and Swift have RegExp with no import and
+  the `$/.../` literal implies it.
+  - Asked, the user chose a module of the prelude brought in lazily,
+    over every program importing it or a type built into the compilers.
+  - A program that names `RegExp`, which a `$/.../` literal's tokens do,
+    is compiled as if it began with `#import <RegExp>`; `Match` and
+    `BytesMatch` come with it. One that names none compiles as before.
+  - A program with a struct, union or enum of its own named RegExp keeps
+    it, with no prelude RegExp; a `$/.../` there says the prelude's
+    RegExp is hidden, where it had been C's error.
+  - Asked, the user chose that `#import <RegExp>` stays accepted and does
+    nothing more, over an error; the tests that write it keep it.
+  - Asked, the user chose UnicodeData into libkelvin, still a module,
+    `#import <UnicodeData>`, over the prelude or apart.
+  - `kelvinc --prelude M.k -o dir` writes M.kh and M.o, with no libkM;
+    GNUmakefile puts RegExp's and UnicodeData's objects, their C and the
+    Unicode tables into libkelvin.a and libkelvin's shared library, and
+    removes libkRegExp and libkUnicodeData an older build left.
+  - libkelvin.a grows to 2.5 MB, its shared library to 2.1 MB; a program
+    links what it uses of the static archive, so `println(1)` is 77 KB
+    as before, and a RegExp program 2.1 MB as before.
+  - The helpers RegExp.kh and UnicodeData.kh declare, `rx_compile` and
+    the rest, 37 of them, are `kv_rx_` and `kv_ucd_`, the runtime's
+    names, which a program may not write; their files may.
+  - tests/error/regexp_needs_import.k now builds, and went;
+    tests/run/regexp_prelude.k, regexp_own_type.k and
+    tests/error/regexp_hidden.k are new.
+  - kc reads no `$/.../` and links no module built of Kelvin, as before;
+    its programs name no RegExp.
 
 - (503) Agreed details: "go on with compound literals taking owners",
   the BigInt plan's next step, so a result is `(Big){r, false}`, not
@@ -7815,6 +7848,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P513 | Details of #501 | src/parser.c: LET_LENT after LET_EACH; parse_fn_tail sets p->lent of an operator's owner let parameter, declared LET_LENT; reject_let_change and the let-param address check take LET_LENT as LET_PARAM; move_argument's and return_owner's LET_LENT errors; resolve_operator holds a lent operand that is no owner place by hold_operand and wrap_temps, and gives a var parameter eq_copy of a place; src/codegen.c: E_CALL takes no local owner into a lent parameter; the sort's "op" less passes a lent parameter its element, a var one a copy; selfhost/gen.k: how 5, lent_param before gen_arg_to; gen_arg_to's lent operand by gen_expr and a var operand's copy of a place; hold_args holds for a lent parameter; put_sort_less lends the elements to a struct's own <; gen_signature, takes_owner and the body's cleanups skip it; move_out and move_back errors; tests/run/operator_lent.k, tests/error/operator_lent_return.k, operator_lent_move.k, operator_lent_change.k; tests/run/enum_compound.k's `// c:`; removed tests/error/operator_moved.k, operator_moved_member.k, move_twice_operator.k, move_twice_compound.k | provisional |
 | P514 | Details of #502 | src/parser.c: overloadable_op's list with & | ~ << >>; name_functions' words and, or, xor, shl, shr, and compl of a one-value ~; check_overload's unary - and ~; parse_unary resolves ~ as -; the compound assignment of &= |= ~= <<= >>= by the operator, its op the token less '='; the two cannot-be-defined messages; selfhost/parse.k: overloadable_tok and its two messages; selfhost/gen.k: operator_word's five words and compl; operator_fits' unary ~; resolve_op's unary ~; compound_by_operator's tokens; compound_op's ~ << >>, the float field's ^; tests/run/operator_bitwise.k, tests/error/operator_bitwise_unary.k, tests/error/operator_cannot.k of && | provisional |
 | P515 | Details of #503 | src/parser.c: parse_initializer_for's moving_in, each E_IDENT owner of a record's owner member with its type, moved by move_argument after the closing brace, "a literal of T"; move_argument's fix, "copy it" of a literal, else a borrow or a copy, in its three errors; src/codegen.c: initializer takes a local owner item by owner_take of local_owner_type; selfhost/gen.k: gen_init moves an N_ID owner by move_out and _take, refuses owner_part by owner_assign_error; move_out's literal fix; tests/run/literal_owner_move.k, tests/error/literal_owner_moved.k, literal_owner_global.k, literal_owner_twice.k, literal_owner_member.k | provisional |
+| P516 | Details of #504 | src/main.c: imported_has; prelude_names {"RegExp"}; with_prelude after with_imports, unless --runtime: a TK_IDENT of the name, no import of it already, no struct, union or enum of the name (else a $/.../ token is the error), then the import and the module's tokens before the program's; --prelude sets lib, lib_mode, prelude_lib and prelude_mode, its object dir/M.o kept, no ar and no shared library, its M.kh's comment; src/parser.c: prelude_mode, prelude_token by --prelude or the file RegExp.k, RegExp.kh, UnicodeData.k or UnicodeData.kh, which reject_kv_name lets name kv_; the literal's error worded for a hidden RegExp; src/kelvin.h: prelude_mode; GNUmakefile: PRELUDE_OBJS, build/prelude/UnicodeData.o and RegExp.o by --prelude, their .kh copied to modules/, libkelvin.a and its shared library with UD_OBJS, RX_OBJS and PRELUDE_OBJS, the old libraries removed, install without them; the 37 helpers renamed kv_ in runtime/regexp.c, runtime/unicode_data.c, modules/kRegExp.h, kUnicodeData.h, RegExp.k, UnicodeData.k; comments in runtime/regexp_parse.c and tools/gen_unicode.py; tests/run/regexp_prelude.k, regexp_own_type.k, tests/error/regexp_hidden.k; removed tests/error/regexp_needs_import.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
