@@ -1316,6 +1316,9 @@ on a new line`
     bw_m <<= 2
     bw_m |= (op_money){1}
     println(bw_m.cents, " ", (~bw_m).cents, " ", (bw_m ~ (op_money){3}).cents)
+    var lm_s = $"lm"                                       // a local owner moves into a literal (#503)
+    let lm_p = (op_owner){lm_s, 5}
+    println(lm_p)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

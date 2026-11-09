@@ -9925,6 +9925,7 @@ static Expr *parse_initializer_for(Type *t) {
     Expr *e = new_expr(E_INIT, open->pos);
     int next = 0;      /* the member of the next item without a designator */
     bool lost = false; /* C's current object is inside a member, which kelvinc does not follow */
+    List moving_in = {0}; /* the local owners its members take, and their types (#503) */
     while (!is_p(peek(), bracket ? "]" : "}")) {
         Expr *d = NULL;
         Type *dt = t; /* the type that the designators reach */
@@ -9973,7 +9974,12 @@ static Expr *parse_initializer_for(Type *t) {
         bool braced = is_p(peek(), "{") || is_p(peek(), "[");
         Expr *value = string_of_literal(drop_cstr(parse_initializer_for(item), item), item); /* a cstr into a u8^ member (#52) */
         value = optional_of(value, item, value->pos); /* a T into a T? member (#72) */
-        reject_owner_copy(value, item, value->pos);
+        if (value->kind == E_IDENT && record && is_owner(item) && is_owner(value_type(value))) {
+            list_push(&moving_in, value); /* moves in when the literal ends, as a call's arguments do (#503) */
+            list_push(&moving_in, item);
+        } else {
+            reject_owner_copy(value, item, value->pos);
+        }
         /* After `.a.f = ...`, or a struct or array member given a value
            that does not fill it, C goes on inside that member (brace
            elision), which kelvinc does not follow. A string fills an
@@ -9997,6 +10003,13 @@ static Expr *parse_initializer_for(Type *t) {
     brace_in_for = saved_for;
     expect_p(bracket ? "]" : "}");
     e->bracket = bracket;
+    if (moving_in.len) { /* a local owner moves into a struct's literal, as into a call (#503) */
+        bare_tags = true;
+        char *lit = strfmt("a literal of %s", kelvin_type(unqualified(t)));
+        bare_tags = false;
+        for (int i = 0; i + 1 < moving_in.len; i += 2)
+            move_argument(moving_in.data[i], moving_in.data[i + 1], lit);
+    }
     return e;
 }
 
@@ -11060,19 +11073,19 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
     if (arg->kind == E_IDENT) {
         int i = binding_index(arg->text);
         int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
+        /* a literal's member holds an owner, never a borrow (#503) */
+        char *fix = !strncmp(what, "a literal", 9) ? strfmt("copy it, '%s.copy()'", arg->text)
+                                                   : strfmt("pass a borrow, '&%s', or a copy", arg->text);
         if (let_kind(arg->text) == LET_EACH)
-            error_at(arg->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&%s', or a copy",
-                     arg->text, arg->text);
+            error_at(arg->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: %s", arg->text, fix);
         if (let_kind(arg->text) == LET_LENT) /* (#501) */
-            error_at(arg->pos, "'%s' is an operand its caller keeps, lent to the operator: pass a borrow, '&%s', or a copy",
-                     arg->text, arg->text);
+            error_at(arg->pos, "'%s' is an operand its caller keeps, lent to the operator: %s", arg->text, fix);
         if (i >= globals) {
             set_moved(arg->text, true);
             list_push(&moves_pending, arg);
             return;
         }
-        error_at(arg->pos, "'%s' is a global owner, which cannot move into %s: pass a borrow, '&%s', or a copy",
-                 arg->text, what, arg->text);
+        error_at(arg->pos, "'%s' is a global owner, which cannot move into %s: %s", arg->text, what, fix);
     }
     if (owner_place(arg))
         error_at(arg->pos, "an owner moves into %s only as a whole variable: pass a borrow, '&...', or a copy", what);

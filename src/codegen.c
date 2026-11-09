@@ -2636,8 +2636,11 @@ static char *initializer(Expr *e) {
     buf_puts(&b, "{");
     for (int i = 0; i < e->items.len; i++) {
         Expr *d = e->designators.data[i];
+        Expr *x = e->items.data[i];
+        /* a local owner moves into a struct's literal, as into a call (#503) */
+        const char *take = local_owner(x) ? owner_take(local_owner_type(x->text)) : NULL;
         buf_printf(&b, "%s%s%s%s", i ? ", " : "", d ? expr(d) : "", d ? " = " : "",
-                   initializer(e->items.data[i]));
+                   take ? strfmt("%s(&%s)", take, c_name(x->text)) : initializer(x));
     }
     buf_puts(&b, "}");
     return b.buf;

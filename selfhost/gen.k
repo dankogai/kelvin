@@ -579,20 +579,27 @@ let move_out(v:int64, what:const String^):bool {
     var m = $"'"
     m += tok_text(nodes[v].t)
     if i >= 0 && locals[i].how == 3 {
-        m += "' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&"
+        m += "' is a value its Array, Dictionary, Optional or Result still owns: "
     } else if i >= 0 && locals[i].how == 5 {
-        m += "' is an operand its caller keeps, lent to the operator: pass a borrow, '&"
+        m += "' is an operand its caller keeps, lent to the operator: "
     } else if i < 0 {
         m += "' is a global owner, which cannot move into "
         m += what
-        m += ": pass a borrow, '&"
+        m += ": "
     } else {
         moving += i
         moved_ids += v
         return true
     }
-    m += tok_text(nodes[v].t)
-    m += "', or a copy"
+    if what^.starts("a literal") {                       // a literal's member holds an owner, never a borrow (#503)
+        m += "copy it, '"
+        m += tok_text(nodes[v].t)
+        m += ".copy()'"
+    } else {
+        m += "pass a borrow, '&"
+        m += tok_text(nodes[v].t)
+        m += "', or a copy"
+    }
     gen_error(v, m.cstr)
     return false
 }
@@ -7422,7 +7429,19 @@ let gen_init(n:int64, s:int64) {
             gen_error(a, "this struct has fewer members")
             return
         }
-        if nodes[v].kind == N_ID && var_type(nodes[v].t) >= 0 && is_owner(type_of(v)) {
+        if is_owner(nodes[f].ty) && nodes[v].kind == N_ID && var_type(nodes[v].t) >= 0 && is_owner(type_of(v)) {
+            var what = $"a literal of "                  // a local owner moves in, as into a call (#503)
+            what += tok_text(nodes[s].t)
+            if !move_out(v, &what) { return }
+            put_owner_prefix(nodes[f].ty)
+            put("_take(&")
+            put_tok(nodes[v].t)
+            put(")")
+            a = nodes[a].next
+            f = nodes[f].next
+            continue
+        }
+        if is_owner(nodes[f].ty) && owner_part(v) {      // a member or an element, its struct's or its Array's, as kelvinc's (#503)
             owner_assign_error(v)
             return
         }

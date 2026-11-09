@@ -604,6 +604,13 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An owner moved into a literal** (#503), as kelvinc's: a local owner
+  named in `{...}` or `(T){...}` of a struct is taken, `kv_string_take`,
+  and dead after, where it was kelvinc's error; its move is made when
+  the statement ends, so `(P){s, s.count}` is #500's error.
+  - A member or an element, `(P){p.name, 2}`, is kelvinc's error, where
+    kc had copied it, and the program freed it twice (found in #501).
+  - A global, an element of a `for` and a lent operand say to copy.
 - **Bitwise operators** (#502), as kelvinc's: a struct, a union or an
   enum with values defines `& | ~ << >>` and unary `~`, named
   `_kv_and_op`, `_kv_or_op`, `_kv_xor_op`, `_kv_shl_op`, `_kv_shr_op`

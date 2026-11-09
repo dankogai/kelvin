@@ -385,6 +385,7 @@ The core. A struct is C's, with nothing linked; its derived text, `.cstr`, and a
 | a struct that owns | `.copy()` | a new struct, each owner member copied (#61) |
 | | passing, `return` | a move; `=` is an error |
 | | an operator's operand | lent, its caller's (#501) |
+| | a local owner in a literal, `(T){r, 1}` | a move, as passing (#503); a member, `(T){p.name}`, is an error |
 | with a `[u8]` member | its `.cstr` | up to 60 bytes of it |
 
 A `.hex`, `.dec`, `.addr` or `.isNull` on a struct is an error. A field

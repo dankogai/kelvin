@@ -309,6 +309,8 @@ So far the changes from C are these, by topic.
     are errors, but `s = f(s)` (#500)
   - an operator is lent an owner operand, which its caller keeps:
     `a * a + b` leaves `a` and `b` (#501)
+  - a local owner named in a struct's literal moves into it, as into a
+    call: `return (Big){r, false}` takes `r` (#503)
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
   - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
     codepoint, each a `uchr`, which prints as its character;

@@ -9544,3 +9544,18 @@ kelvinc writes an operator calling a function of its type defined after
 it as C that does not know the type. Details are provisional P514.
 
 There are 1238 tests, and all pass with clang and with gcc 15.
+
+### 550. An owner moved into a literal
+
+> push. then go on with compound literals taking owners
+
+**Claude** pushed #502 after a clean battery; CI passed all 9 jobs. A
+local owner named in a struct's literal was O3's error, so a BigInt
+would return `(Big){r.copy(), false}`. Asked, the user chose that it
+moves in, as passing does: `(Big){r, false}` takes `r`, dead until
+assigned anew. The moves come when the literal ends, so `(P){s,
+s.count}` is #500's error. kc the same, which also stops copying a
+member, `(P){p.name}`, into a program that freed it twice. Details are
+provisional P515.
+
+There are 1243 tests, and all pass with clang and with gcc 15.
