@@ -1034,7 +1034,8 @@ static char *expr_bare(Expr *e) {
         for (int i = 0; i < e->items.len; i++) {
             Expr *x = e->items.data[i];
             /* a local owner given by value moves into the callee (#54), also through a function value (#158) */
-            const char *take = e->target && i < e->target->params.len && local_owner(x)
+            const char *take = e->target && i < e->target->params.len && local_owner(x) &&
+                                       !((Var *)e->target->params.data[i])->lent /* an operator's, its caller's (#501) */
                                    ? owner_take(((Var *)e->target->params.data[i])->type)
                                : e->fn_type && i < e->fn_type->params.len && local_owner(x)
                                    ? owner_take(e->fn_type->params.data[i])
@@ -1377,9 +1378,12 @@ static char *expr_bare(Expr *e) {
                 less = strfmt("(%s.cp < %s.cp)", x, y);
             else if (!strcmp(e->text, "cstr"))
                 less = strfmt("(strcmp((const char *)%s, (const char *)%s) < 0)", x, y);
-            else if (!strcmp(e->text, "op")) { /* a struct's own <, which owns its parameters: copies where they own (#242) */
+            else if (!strcmp(e->text, "op")) { /* a struct's own <, lent the elements (#501), a var parameter a copy (#242) */
                 const char *op = e->target->cname ? e->target->cname : e->target->name;
-                less = copy ? strfmt("%s(%s(&%s), %s(&%s))", op, copy, x, copy, y) : strfmt("%s(%s, %s)", op, x, y);
+                bool lx = e->target->params.len > 0 && ((Var *)e->target->params.data[0])->lent;
+                bool ly = e->target->params.len > 1 && ((Var *)e->target->params.data[1])->lent;
+                less = strfmt("%s(%s, %s)", op, lx || !copy ? x : strfmt("%s(&%s)", copy, x),
+                              ly || !copy ? y : strfmt("%s(&%s)", copy, y));
             }
             else
                 less = strfmt("(%s < %s)", x, y);

@@ -545,6 +545,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 498 | kc zeroes a variable of a struct or a union with no members, an array of them, or a struct whose first member is one, by `{}`, as the user chose, where its `{0}` was C's warning of elements in excess, and C's error of `struct Outer { e:Emp; n:i64 }`; kc still zeroes every variable written with no value, where kelvinc leaves it unset | selfhost/gen.k's empty_record and put_zero_of, used by gen_var, a fixed array's declaration and a global's; selfhost/sample.k's ne_none, ne_after and their line; selfhost/README.md | `var e:Emp` | 2026-11-09 |
 | 499 | An array of elements of no size, structs or unions with no fields or only such fields, counts by its declared length, as the user chose, where `sizeof(a) / sizeof(a[0])` was 0 / 0 (clang printed 1 of a `[none](4)`): `.count`, `for`, `print`, a template, `.pretty`, `==` and `Array(a)`; such an array's length that names a local is an error in words; kc the same, but for `for`, which it does not have for a fixed array of structs | src/parser.c's zero_size, the VLA error, `.count`'s and `Array(a)`'s c and for's step; src/codegen.c's zero_size and fixed_count, a counter for `for`; selfhost/gen.k's zero_size, put_zero_count and count_names_local; tests; documents/arrays.md, README.md, selfhost/README.md, selfhost/sample.k | `[none](4).count` | 2026-11-09 |
 | 500 | An owner that moves out in an expression is named nowhere else in it, as the user chose, an error in words: `both(s, s)` gave 5 of "hello", the second argument empty; `c + c` of an operator stopped at run time; `both(s, s.count)` read an emptied `s`, and `s.count + one(s)` hung on C's order. The target of `=` is given anew, so `s = f(s)` and `z += w` stay. `==` wraps a copy of an owner it compares with a `T?` or a `Result`, as the user chose, so `o == w` keeps `w`. kc the same | src/parser.c's expr_begin, expr_end, other_naming and moves_pending, by parse_assign, parse_conditional and parse_binary, a block's statements apart; eq_copy; selfhost/gen.k's moved_ids, other_naming, named_again and moves_named_once by gen_stmt; tests; documents/ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `both(s, s)` | 2026-11-09 |
+| 501 | An operator is lent an owner operand, which its caller keeps, as the user chose, where #471 moved it in: `a * a + b`, `c + c`, `z += z`, `a == b`, a member's `h.b + c`, a global's and an element's leave them; one an expression gives is held for the call and freed after; inside, the operand is a let parameter, which changes, moves and is returned only as a copy, errors in words; a `var` parameter is given a copy of its own. kc the same | src/parser.c's LET_LENT, parse_fn_tail's lent operator parameters, resolve_operator's held operands and var copies, move_argument's and return_owner's errors; src/codegen.c's call without a take of a lent parameter; selfhost/gen.k's how 5, lent_param, gen_arg_to, hold_args, gen_signature, takes_owner; tests; documents/operators.md, structs.md, ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `a * a + b` | 2026-11-09 |
 
 Notes:
 
@@ -1129,6 +1130,32 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (501) Agreed details: "go on with borrowed operator operands", the
+  BigInt plan's next step, so that `a * a + b` keeps `a` and `b`.
+  - Asked, the user chose that every operator lends, as `.sort { }`
+    elements are (#242), over lending only a written `const Self^`, or
+    every function lending.
+  - An operator's owner parameter, unless var, is lent: its caller keeps
+    it and passes it without a take; the operator neither frees it nor
+    binds it to `_kv_a_in`.
+  - An operand an expression gives, `f() + b` or the `a * a` of `a * a +
+    b`, is held by its caller (#187) and freed after the call.
+  - A `var` parameter is given a copy of a place, and takes what an
+    expression gives.
+  - Inside, a lent operand is a let parameter, LET_LENT: changing it is
+    the let parameter's error; moving it into a function or returning
+    it says "'a' is an operand its caller keeps, lent to the operator",
+    with a borrow or a copy to pass, and a copy to return.
+  - A sort by a struct's own `<` lends it the elements too, where it
+    gave copies, which ASan found left unfreed (tests/run/sort_lent.k).
+  - #471's error tests operator_moved.k and operator_moved_member.k,
+    and #500's move_twice_operator.k and move_twice_compound.k, now
+    build, and go; tests/run/operator_lent.k has their cases.
+  - Found, kc's, not fixed here: `(T){a.name}` of an owner member is
+    copied, which kelvinc refuses (O3), and the program frees it twice;
+    and a global given a function's value, `let g = mk(1)` (#493), is
+    written before the function's prototype, C's error.
 
 - (500) Agreed details: "go on with the double-move bug", which the
   BigInt probes found.
@@ -7740,6 +7767,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P510 | Details of #498 | selfhost/gen.k: empty_record and put_zero_of before fixed_elem_ok, a fixed array to its element, a D_STRUCT with no member or whose first member's type is one; put_zero_of of an empty record `{}`, of an owner, a struct or a fixed array `{0}`, else `0`; gen_var's, the fixed declaration's and a global's value; selfhost/sample.k: ne_none, ne_after, ne_a, ne_b, ne_c; selfhost/README.md | provisional |
 | P511 | Details of #499 | src/parser.c: zero_size beside shown_array, by type_class's record, not tagged, every member of size 0; the array type's error of a size_local length; `.count`'s x->c and Array(a)'s e->c the length; parse_for_each's step; src/codegen.c: zero_size by kelvin_record and fixed_count after kelvin_record; `.count` of c; text_bound, write_text, show_value, show_call and eq_code by fixed_count; Array_from of c; for's counted loop, `for (size_t end = 0; end < (size_t)(step); end++)`, p kept; selfhost/gen.k: zero_size and put_zero_count after put_zero_of, prototyped; show_value, the fixed ==, `.count` and gen_from_fixed; count_names_local and computed_ok's error; tests/run/empty_struct_count.k, tests/error/empty_struct_local_count.k | provisional |
 | P512 | Details of #500 | src/parser.c: expr_depth and moves_pending beside scope_moved; parse_binary, parse_conditional and parse_assign wrap parse_binary_ops, parse_choice and parse_assigning in expr_begin and expr_end; move_argument pushes a local it moves; other_naming walks items, a, b, c and d, not the target of `=` that is an E_IDENT; moved_by_argument; the later of two moves is the one named; parse_block_rest saves and zeroes expr_depth; eq_copy before parse_postfix_ops, an element_copy of `&v`, ok(w) and err(w) inside; selfhost/gen.k: moved_ids beside moving, move_out pushes v; other_naming by kind, N_ANON not walked; moved_name, named_again, moves_named_once of S_ASSIGN (its target apart under `=`), S_FOR, S_CFOR's condition and the rest's a; gen_stmt's mark; tests/run/move_once.k, tests/error/move_twice_call.k, move_twice_operator.k, move_twice_compound.k, move_and_read.k, move_read_before.k, move_read_and.k | provisional |
+| P513 | Details of #501 | src/parser.c: LET_LENT after LET_EACH; parse_fn_tail sets p->lent of an operator's owner let parameter, declared LET_LENT; reject_let_change and the let-param address check take LET_LENT as LET_PARAM; move_argument's and return_owner's LET_LENT errors; resolve_operator holds a lent operand that is no owner place by hold_operand and wrap_temps, and gives a var parameter eq_copy of a place; src/codegen.c: E_CALL takes no local owner into a lent parameter; the sort's "op" less passes a lent parameter its element, a var one a copy; selfhost/gen.k: how 5, lent_param before gen_arg_to; gen_arg_to's lent operand by gen_expr and a var operand's copy of a place; hold_args holds for a lent parameter; put_sort_less lends the elements to a struct's own <; gen_signature, takes_owner and the body's cleanups skip it; move_out and move_back errors; tests/run/operator_lent.k, tests/error/operator_lent_return.k, operator_lent_move.k, operator_lent_change.k; tests/run/enum_compound.k's `// c:`; removed tests/error/operator_moved.k, operator_moved_member.k, move_twice_operator.k, move_twice_compound.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

@@ -1,7 +1,7 @@
 // xs.sort { ... } of owners (#242): an anonymous comparator is lent the
 // elements, lets the Array keeps, so nothing is copied for a comparison; a
-// named one owns its parameters, so it is given copies, and so is a
-// struct's own <, which freed what it was given before; the sort is stable
+// named one owns its parameters, so it is given copies; a struct's own <
+// is lent them, as any operator is (#501); the sort is stable
 // out: ["al", "di", "bob", "christine"]
 // out: ["di", "christine", "bob", "al"] ["christine", "bob", "al", "di"] ["al", "bob", "christine", "di"]
 // out: tom rex

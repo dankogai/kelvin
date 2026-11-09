@@ -1305,6 +1305,9 @@ on a new line`
     mo_s = handed_back(mo_s)
     let mo_o:String? = $"mo"
     println(mo_o == mo_s, " ", mo_s)                       // == wraps a copy, and mo_s stays (#500)
+    let lo_a:op_owner = {$"a", 1}                          // an operand lent, its caller's (#501)
+    let lo_b = lo_a + lo_a + (op_owner){$"b", 2}
+    println(lo_a, " ", lo_b)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

@@ -9514,3 +9514,19 @@ Asked, the user chose that `==` wraps a copy, as kc did. Details are
 provisional P512.
 
 There are 1236 tests, and all pass with clang and with gcc 15.
+
+### 548. Operands lent
+
+> push. then go on with borrowed operator operands
+
+**Claude** pushed #500 after a clean battery; CI passed all 9 jobs. An
+operator took an owner by value, so `a * a + b` moved `a` and `b` in
+(#471), and #500 made `c + c` an error. Asked, the user chose that every
+operator lends its owner operands, as `.sort { }` elements are: the
+caller keeps them, holds one an expression gives and frees it after,
+and the operator reads it as a let parameter, returning a copy. A `var`
+parameter gets a copy of its own. Four error tests of the old rule now
+build and went. kc does the same; two older kc gaps were found and left
+for later. Details are provisional P513.
+
+There are 1236 tests, and all pass with clang and with gcc 15.

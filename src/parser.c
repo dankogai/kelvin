@@ -59,7 +59,7 @@ static bool is_method_name(const char *name) {
 
 static List scope_types; /* Type * (or NULL) for each name in scope_names */
 /* for each name: 0 for a var, else what kind of let (#27) */
-enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH };
+enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH, LET_LENT }; /* LET_LENT: an operator's owner operand, its caller's (#501) */
 static List scope_lets;
 static List scope_moved; /* per binding: moved out, so dead until assigned anew (#54) */
 /* the expression being parsed (#500): how deep, and per owner an argument
@@ -1968,8 +1968,9 @@ static Expr *hold_operand(Expr *x, List *held) {
     return r;
 }
 
-/* a copy of v where == wraps it, as some(v) or ok(v), to compare (#500):
-   an owner variable, or a part of one, stays, as == only reads it */
+/* a copy of v where == wraps it, as some(v) or ok(v), to compare (#500),
+   and where an operator's var parameter takes it (#501): an owner
+   variable, or a part of one, stays */
 static Expr *eq_copy(Expr *v) {
     if (v->kind == E_CALL && v->op && !strcmp(v->op, "word") && v->items.len == 1) {
         v->items.data[0] = eq_copy(v->items.data[0]); /* ok(w), err(w) */
@@ -7242,7 +7243,7 @@ static bool const_target(Expr *e) {
         return false;
     int let = let_kind(x->text);
     Type *t = value_type(x);
-    if (!t || !(let == LET_VALUE || (let == LET_PARAM && t->kind != T_ARRAY && t->kind != T_PTR)))
+    if (!t || !(let == LET_VALUE || ((let == LET_PARAM || let == LET_LENT) && t->kind != T_ARRAY && t->kind != T_PTR)))
         return false;
     return addr || (e == x && t->kind == T_ARRAY);
 }
@@ -7987,10 +7988,21 @@ static Expr *resolve_operator(Expr *e, const char *op, Expr *a, Expr *b) {
         call->unseen = unseen_args(&maybe, args, b ? 2 : 1);
         typed_literals(call);
     }
-    /* an operator is a function: an owner given by value moves into it (O5, #471) */
-    for (int k = 0; d && k < call->items.len && k < d->params.len; k++)
-        move_argument(call->items.data[k], param_type(((Var *)d->params.data[k])->type), strfmt("'%s'", op));
-    return call;
+    /* an operator is lent an owner operand, which its caller keeps: one an
+       expression gives is held, and freed after; a var parameter is given
+       a copy of a place, and takes what an expression gives (#471, #501) */
+    List held = {0};
+    for (int k = 0; d && k < call->items.len && k < d->params.len; k++) {
+        Var *p = d->params.data[k];
+        Expr *x = call->items.data[k];
+        if (!is_owner(param_type(p->type)) || !is_owner(value_type(x)))
+            continue;
+        if (p->lent && !owner_place(x))
+            call->items.data[k] = hold_operand(x, &held);
+        else if (!p->lent && owner_place(x))
+            call->items.data[k] = eq_copy(x);
+    }
+    return wrap_temps(call, &held);
 }
 
 /* ---------- b ** e and b.pow(e, m) (#380) ---------- */
@@ -9268,7 +9280,7 @@ static void reject_let_change(Expr *lhs, Token *t) {
         error_at(t->pos, "a method reads self and never changes it, as a let method: a var method, 'var %s.%s(...)', "
                          "changes the caller's var (#318)",
                  parsing_fn->recv_name, parsing_fn->name);
-    if (let && let_kind(let) == LET_PARAM)
+    if (let && (let_kind(let) == LET_PARAM || let_kind(let) == LET_LENT))
         error_at(t->pos, "'%s' is a let parameter and cannot change; write 'var %s' in the parameter list",
                  let, let);
     if (let)
@@ -11047,6 +11059,9 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
         if (let_kind(arg->text) == LET_EACH)
             error_at(arg->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&%s', or a copy",
                      arg->text, arg->text);
+        if (let_kind(arg->text) == LET_LENT) /* (#501) */
+            error_at(arg->pos, "'%s' is an operand its caller keeps, lent to the operator: pass a borrow, '&%s', or a copy",
+                     arg->text, arg->text);
         if (i >= globals) {
             set_moved(arg->text, true);
             list_push(&moves_pending, arg);
@@ -12134,6 +12149,9 @@ static void return_owner(Expr *e) {
     if (e->kind == E_IDENT && is_owner(value_type(e))) {
         if (let_kind(e->text) == LET_EACH)
             error_at(e->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '%s.copy()'", e->text,
+                     e->text);
+        if (let_kind(e->text) == LET_LENT) /* (#501) */
+            error_at(e->pos, "'%s' is an operand its caller keeps, lent to the operator: return a copy, '%s.copy()'", e->text,
                      e->text);
         int i = binding_index(e->text);
         int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
@@ -14735,7 +14753,10 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
         Var *p = parse_param(d->params.len);
         p->is_let = !mutable;
         p->number = numeric_type(param_type(p->type));
-        declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
+        /* an operator is lent an owner its caller keeps, read, never moved;
+           a var asks for a copy of its own (#501) */
+        p->lent = d->op && !mutable && is_owner(param_type(p->type));
+        declare_binding(p->name, param_type(p->type), p->lent ? LET_LENT : p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
             break;

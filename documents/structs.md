@@ -337,15 +337,17 @@ let main():int32 {
   - Numbers keep C's operators.
   - C warns where a statement drops an operator's value, as in
     `m == a` (gcc not where C chooses the operator).
-- An operator is a function, so an owner given by value moves into it
-  (#471).
-  - For a struct that owns, `a == b` leaves `a` and `b` dead until they
-    are assigned anew, and reading one is an error.
-    - To keep them, write `a.copy() == b.copy()`.
-    - One moved twice, `a + a`, is an error (#500): copy it in a
-      statement before, `let a2 = a.copy()`, and write `a + a2`.
-  - A member that owns does not move: `h.b + c` is an error, as `f(h.b)`
-    is.
+- An operator is lent an owner operand, which its caller keeps (#501),
+  where #471 moved it in.
+  - For a struct that owns, `a == b`, `a * a + b` and `c + c` leave `a`,
+    `b` and `c` as they were; so do a member, `h.b + c`, a global and an
+    element.
+  - One an expression gives, `f() + b`, is held for the call and freed
+    after it.
+  - Inside, the operand is a let parameter: it does not change, moves
+    into no function, and is returned as a copy, `return a.copy()`.
+  - A `var` parameter, `static let -(var a:Self, b:Self):Self`, is given
+    a copy of its own, which it may change and return.
   - A struct that owns nothing is only read.
 - `x op= y` is `x = x op y`, so `x` is evaluated twice and may not hold
   a call *(provisional P53)*.

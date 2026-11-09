@@ -604,10 +604,20 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An operand lent** (#501), as kelvinc's: an operator's owner
+  parameter, unless var, is its caller's, read, never freed nor moved;
+  `a * a + b` and `c + c` leave `a`, `b` and `c`.
+  - One an expression gives is held for the call, by hold_args; a var
+    parameter is given a copy of a place.
+  - Returning, moving or changing one is kelvinc's error, in its words.
+  - Found: kc copies an owner member into `(T){a.name}`, which kelvinc
+    refuses (O3), and the program frees it twice; and kc writes a global
+    given a function's value, `let g = mk(1)` (#493), before the
+    function's prototype, C's error.
 - **An owner named once** (#500), as kelvinc's: an owner that moves
   out in a statement's expression is named nowhere else in it, but as
   the target of `=`; `f(s, s)`, `c + c` and `s.count + f(s)` are
-  kelvinc's errors, in its words.
+  kelvinc's errors, in its words; `c + c` is not since #501.
   - kc checks when the statement is written; kelvinc as it parses.
   - kc's `==` already wrapped a copy of an owner, as kelvinc's now does.
 - **An empty struct's count** (#499): an array of elements of no size
@@ -689,7 +699,7 @@ kc reads what it is written in, and little more.
     values is an operand: from there on the call of the operator chosen.
   - `x += y` is `x = x + y`; `xs.sort()` by the elements' own `<`.
   - An owner moves into an operator, as into a function; kelvinc now
-    says the same of one read after.
+    says the same of one read after. Since #501 an operator is lent it.
   - Where only C sees an argument's type and overloads tie, `_Generic`
     chooses, of functions too, as kelvinc's #41.
   - Under them: `struct T;` before its body, an operator starting the

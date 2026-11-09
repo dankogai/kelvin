@@ -5,7 +5,7 @@
 struct sym {
     t: int64           // the token of its name
     ty: int64
-    how: int64         // 0 a var; 1 a let; 2 a parameter; 3 each element in turn; 4 a range's count (#271)
+    how: int64         // 0 a var; 1 a let; 2 a parameter; 3 each element in turn; 4 a range's count (#271); 5 an operand lent (#501)
     moved: bool        // an owner moved out, dead until assigned anew (#441)
 }
 
@@ -580,6 +580,8 @@ let move_out(v:int64, what:const String^):bool {
     m += tok_text(nodes[v].t)
     if i >= 0 && locals[i].how == 3 {
         m += "' is a value its Array, Dictionary, Optional or Result still owns: pass a borrow, '&"
+    } else if i >= 0 && locals[i].how == 5 {
+        m += "' is an operand its caller keeps, lent to the operator: pass a borrow, '&"
     } else if i < 0 {
         m += "' is a global owner, which cannot move into "
         m += what
@@ -601,10 +603,10 @@ let move_out(v:int64, what:const String^):bool {
 let move_back(v:int64, returned:bool):bool {
     if moved_error(v) { return false }
     let i:int64 = local_at(nodes[v].t)
-    if i >= 0 && locals[i].how == 3 && returned {
+    if i >= 0 && (locals[i].how == 3 || locals[i].how == 5) && returned {
         var m = $"'"
         m += tok_text(nodes[v].t)
-        m += "' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '"
+        m += locals[i].how == 5 ? "' is an operand its caller keeps, lent to the operator: return a copy, '" : "' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '"
         m += tok_text(nodes[v].t)
         m += ".copy()'"
         gen_error(v, m.cstr)
@@ -2095,8 +2097,25 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
     return true
 }
 
+// whether the parameter p of d is an owner lent, an operator's let, as
+// kelvinc's: its caller keeps it, frees it, and holds one an expression gives (#501)
+let lent_param(d:int64, p:int64):bool {
+    return d >= 0 && p >= 0 && is_operator(d) && is_owner(nodes[p].ty) && nodes[p].flag == 1
+}
+
 // the argument a of the parameter p of d; false where it is an error
 let gen_arg_to(a:int64, p:int64, d:int64):bool {
+    if lent_param(d, p) && is_owner(type_of(a)) {       // an operand its caller keeps, read where it is (#501)
+        gen_expr(a)
+        return true
+    }
+    if d >= 0 && is_operator(d) && is_owner(nodes[p].ty) && is_place(a) {   // a var operand's copy of its own (#501)
+        put_owner_prefix(nodes[p].ty)
+        put("_copy(&(")
+        gen_expr(a)
+        put("))")
+        return true
+    }
     if is_owner(nodes[p].ty) && nodes[a].kind == N_ID && var_type(nodes[a].t) >= 0 {
         let what = into_words("", nodes[d].c >= 0 && nodes[d].flag != 1 ? "." : "", nodes[d].t)
         if !move_out(a, &what) { return false }          // dead after the call, as kelvinc's (#441)
@@ -2396,7 +2415,7 @@ let hold_args(first:int64, d:int64):$[int64] {
     var a:int64 = first
     var p:int64 = d >= 0 ? nodes[d].a : -1
     while a >= 0 {
-        let by_value = p >= 0 && is_owner(nodes[p].ty)           // which the function frees (#226)
+        let by_value = p >= 0 && is_owner(nodes[p].ty) && !lent_param(d, p)   // which the function frees (#226), not an operand lent (#501)
         if !by_value && needs_hold(a) {
             hold_open(a)
             opened += a
@@ -10984,7 +11003,7 @@ let may_change(n:int64):bool {
     if how == 0 { return true }
     var s = $"'"
     s += tok_text(nodes[r].t)
-    if how == 2 {
+    if how == 2 || how == 5 {
         s += "' is a let parameter and cannot change; write 'var "
         s += tok_text(nodes[r].t)
         s += "' in the parameter list"
@@ -14034,9 +14053,11 @@ let put_sort_less(f:int64, fn:int64, ey:int64) {
             gen_expr(f)
         }
         put("(")
-        put_sort_side(ey, "_kv_sa[_kv_sj]")
+        let p:int64 = fn >= 0 ? nodes[fn].a : 0 - 1   // a struct's own <, lent the elements (#501)
+        if lent_param(fn, p) { put("_kv_sa[_kv_sj]") } else { put_sort_side(ey, "_kv_sa[_kv_sj]") }
         put(", ")
-        put_sort_side(ey, "_kv_sa[_kv_si]")
+        let q:int64 = p >= 0 ? nodes[p].next : 0 - 1
+        if lent_param(fn, q) { put("_kv_sa[_kv_si]") } else { put_sort_side(ey, "_kv_sa[_kv_si]") }
         put(")")
         return
     }
@@ -16511,9 +16532,10 @@ let gen_signature(d:int64) {
             put("_ref")
         } else {
             put(" ")
-            if is_owner(nodes[p].ty) { put("_kv_") }    // an owner taken by value: _kv_x_in, bound to x (#226)
+            let taken = is_owner(nodes[p].ty) && !lent_param(d, p)   // an operand lent is its caller's (#501)
+            if taken { put("_kv_") }                    // an owner taken by value: _kv_x_in, bound to x (#226)
             put_tok(nodes[p].t)
-            if is_owner(nodes[p].ty) { put("_in") }
+            if taken { put("_in") }
         }
         p = nodes[p].next
     }
@@ -16525,7 +16547,7 @@ let gen_signature(d:int64) {
 let takes_owner(d:int64):bool {
     var p:int64 = nodes[d].a
     while p >= 0 {
-        if is_owner(nodes[p].ty) && nodes[p].flag != 3 { return true }
+        if is_owner(nodes[p].ty) && nodes[p].flag != 3 && !lent_param(d, p) { return true }
         p = nodes[p].next
     }
     return false
@@ -16762,7 +16784,7 @@ let gen_function(d:int64) {
             refuse_fixed(p, pty)
             return
         }
-        declare_as(nodes[p].t, nodes[p].ty, nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271)
+        declare_as(nodes[p].t, nodes[p].ty, lent_param(d, p) ? 5 : nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271); lent (#501)
         p = nodes[p].next
     }
     implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)
@@ -16807,7 +16829,7 @@ let gen_function(d:int64) {
         put("{\n")
         p = nodes[d].a
         while p >= 0 {
-            if is_owner(nodes[p].ty) && nodes[p].flag != 3 {
+            if is_owner(nodes[p].ty) && nodes[p].flag != 3 && !lent_param(d, p) {
                 put("    __attribute__((cleanup(")
                 put_free(nodes[p].ty)
                 put("))) ")

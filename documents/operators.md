@@ -119,9 +119,9 @@ extend money {
 ```
 
 Then `a + b`, `a < b` and `b += a` call them, with C's precedence; `<<`,
-`!` and `+=` cannot be defined, and `x op= y` is `x = x op y`. An owner
-moves into an operator as into any function (#471), once in an
-expression: `c + c` is an error (#500). See
+`!` and `+=` cannot be defined, and `x op= y` is `x = x op y`. An
+operator is lent an owner operand, which its caller keeps (#501): `a * a
++ b` and `c + c` leave `a`, `b` and `c` as they were. See
 [structs.md](structs.md).
 
 ### Not operators

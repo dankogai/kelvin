@@ -57,4 +57,4 @@ let main():int32 {
 // out: s("abcd")
 // out: s("abcdef!")
 // out: {name: "xy", n: 3}
-// c: _kv_txt_assign(&t, _kv_add_op__txt__txt(_kv_txt_take(&t),
+// c: _kv_add_op__txt__txt(t, _kv_tmp
