@@ -545,6 +545,7 @@ let declare_each(t:int64, y:int64, how:int64) {
 // arguments: f(t, t) gives t twice, as kelvinc's does (#441)
 var moving:$[int64]
 var anew:int64 = -1            // the name t of t = v, which may be moved out (#441)
+var moved_ids:$[int64]         // the names moved out in the statement being written, each named there once (#500)
 
 // the innermost local named t, its index in locals, or -1
 let local_at(t:int64):int64 {
@@ -585,6 +586,7 @@ let move_out(v:int64, what:const String^):bool {
         m += ": pass a borrow, '&"
     } else {
         moving += i
+        moved_ids += v
         return true
     }
     m += tok_text(nodes[v].t)
@@ -618,6 +620,92 @@ let moves_done() {
         if moving[k] < locals.count as int64 { locals[moving[k]].moved = true }
     }
     moving.clear()
+}
+
+// a name other than v that names what v names in the expression x, or
+// -1, as kelvinc's other_naming: a function's body is its own (#500)
+let other_naming(x:int64, v:int64):int64 {
+    if x < 0 { return -1 }
+    let k:nkind = nodes[x].kind
+    if k == N_ID {
+        if x != v && same_text(nodes[x].t, nodes[v].t) { return x }
+        return -1
+    }
+    if k == N_ANON || k == N_NUM || k == N_CHAR || k == N_STR || k == N_DSTR || k == N_BOOL || k == N_EMPTY || k == N_NULL || k == N_SELF || k == N_TYPE || k == N_ALIGN {
+        return -1
+    }
+    var o:int64 = other_naming(nodes[x].a, v)
+    if o >= 0 || k == N_ITER || k == N_CAST || k == N_SIZEOF || k == N_RITER || k == N_TRY || k == N_AWAIT || k == N_ASYNC || k == N_DESIG {
+        return o
+    }
+    if k == N_COND {
+        o = other_naming(nodes[x].b, v)
+        if o >= 0 { return o }
+        return other_naming(nodes[x].c, v)
+    }
+    if k == N_BIN || k == N_INDEX || k == N_RANGE || k == N_CHAIN { return other_naming(nodes[x].b, v) }
+    var e:int64 = nodes[x].b                       // arguments and elements, a list
+    while k != N_FIELD && k != N_UNARY && k != N_ADDR && k != N_DEREF && k != N_MAKE && e >= 0 {
+        o = other_naming(e, v)
+        if o >= 0 { return o }
+        e = nodes[e].next
+    }
+    return -1
+}
+
+// whether the name x is one the statement moved out, from mark on (#500)
+let moved_name(x:int64, mark:int64):bool {
+    for i in mark..<moved_ids.count as int64 {
+        if moved_ids[i] == x { return true }
+    }
+    return false
+}
+
+// kelvinc's error of an owner moved out of in the expression x and named
+// in it again, whose read C may make after the move; whether it is one (#500)
+let named_again(x:int64, mark:int64):bool {
+    for i in mark..<moved_ids.count as int64 {
+        let v:int64 = moved_ids[i]
+        let o:int64 = other_naming(x, v)
+        if o >= 0 {
+            var m = $"'"
+            m += tok_text(nodes[v].t)
+            if moved_name(o, mark) {
+                m += "' moves out twice in this expression, and the second takes what the first left, nothing: give one a copy made in a statement before, as 'let "
+                m += tok_text(nodes[v].t)
+                m += "2 = "
+                m += tok_text(nodes[v].t)
+                m += ".copy()'"
+                let ot:tok = toks[nodes[o].t]
+                let vt:tok = toks[nodes[v].t]
+                gen_error(ot.at > vt.at ? o : v, m.cstr)
+                return true
+            }
+            m += "' moves out in this expression, which names it again, and C may read it after the move, when it holds nothing: read it, or copy it, in a statement before"
+            gen_error(o, m.cstr)
+            return true
+        }
+    }
+    return false
+}
+
+// the expressions of the statement n, each an owner moved out of names
+// once, as kelvinc's: the target of t = v is given anew (#500)
+let moves_named_once(n:int64, mark:int64) {
+    let k:nkind = nodes[n].kind
+    if k == S_ASSIGN {
+        if !tok_is(nodes[n].t, "=") || nodes[nodes[n].a].kind != N_ID {
+            if named_again(nodes[n].a, mark) { return }
+        }
+        named_again(nodes[n].b, mark)
+    } else if k == S_FOR {
+        if named_again(nodes[n].a, mark) { return }
+        named_again(nodes[n].b, mark)
+    } else if k == S_VAR || k == S_EXPR || k == S_RETURN || k == S_IF || k == S_WHILE || k == S_EACH || k == S_SWITCH || k == S_IFLET || k == S_DO {
+        named_again(nodes[n].a, mark)
+    } else if k == S_CFOR {
+        named_again(nodes[n].b, mark)
+    }
 }
 
 // what an owner moves into, in kelvinc's words: 'f', '.m', case 'c' (#441)
@@ -16197,8 +16285,11 @@ let gen_stmt_of(n:int64, depth:int64)    // a prototype: gen_stmt writes n by it
 let gen_stmt(n:int64, depth:int64) {
     let at:int64 = out.count as int64
     let made:int64 = block_store.count as int64
+    let mark:int64 = moved_ids.count as int64
     gen_stmt_of(n, depth)
     moves_done()
+    if !failed { moves_named_once(n, mark) }        // (#500)
+    while moved_ids.count as int64 > mark { moved_ids.pop() }
     if block_store.count as int64 > made && !failed { place_storage(at, made, depth) }   // (#445, #447)
 }
 

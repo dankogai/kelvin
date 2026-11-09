@@ -1301,6 +1301,10 @@ on a new line`
     ne_b.n = 3
     println(ne_a.size, " ", ne_b.n, " ", ne_c.size)
     println(ne_c.count, " ", ne_c, " ", Array(ne_c).count)   // its declared count, where sizeof's is 0 / 0 (#499)
+    var mo_s = $"mo"                                       // moved out once in an expression, given anew (#500)
+    mo_s = handed_back(mo_s)
+    let mo_o:String? = $"mo"
+    println(mo_o == mo_s, " ", mo_s)                       // == wraps a copy, and mo_s stays (#500)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

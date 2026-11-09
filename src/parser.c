@@ -62,6 +62,10 @@ static List scope_types; /* Type * (or NULL) for each name in scope_names */
 enum { LET_NONE, LET_VALUE, LET_PARAM, LET_RANGE, LET_EACH };
 static List scope_lets;
 static List scope_moved; /* per binding: moved out, so dead until assigned anew (#54) */
+/* the expression being parsed (#500): how deep, and per owner an argument
+   moved out in it, its E_IDENT, which the whole expression names only once */
+static int expr_depth;
+static List moves_pending;
 static List mixed_choices; /* c ? s : make() of an owner, not yet returned, and its place's name, in turn (#203) */
 
 static void open_scope(void) { list_push(&scope_marks, (void *)(intptr_t)scope_names.len); }
@@ -1962,6 +1966,26 @@ static Expr *hold_operand(Expr *x, List *held) {
     Expr *r = make_temp(x, "an operand that an expression gives: bind it to a variable first");
     chain_temps = saved;
     return r;
+}
+
+/* a copy of v where == wraps it, as some(v) or ok(v), to compare (#500):
+   an owner variable, or a part of one, stays, as == only reads it */
+static Expr *eq_copy(Expr *v) {
+    if (v->kind == E_CALL && v->op && !strcmp(v->op, "word") && v->items.len == 1) {
+        v->items.data[0] = eq_copy(v->items.data[0]); /* ok(w), err(w) */
+        return v;
+    }
+    Type *t = value_type(v);
+    if (!is_owner(t) || (v->kind != E_IDENT && !owner_place(v)))
+        return v;
+    Expr *at = new_expr(E_PREFIX, v->pos);
+    at->op = "&";
+    at->a = v;
+    Expr *c = new_expr(E_CALL, v->pos);
+    c->op = "element_copy";
+    list_push(&c->items, at);
+    c->type = unqualified(t);
+    return c;
 }
 
 /* the postfix steps after e, with the temporaries they hold (#187) */
@@ -5353,7 +5377,16 @@ static bool range_ends(Token *t) {
     return (!starts_operand(t) && !member) || line_break(t - 1, t);
 }
 
+static int expr_begin(void);
+static Expr *expr_end(Expr *e, int mark);
+static Expr *parse_binary_ops(int min_prec);
+
 static Expr *parse_binary(int min_prec) {
+    int mark = expr_begin();
+    return expr_end(parse_binary_ops(min_prec), mark);
+}
+
+static Expr *parse_binary_ops(int min_prec) {
     Expr *lhs;
     if (min_prec <= RANGE_PREC && (is_p(peek(), "..<") || is_p(peek(), "..."))) { /* ..<hi, ...hi from 0 (#373) */
         Token *op = advance();
@@ -5504,9 +5537,9 @@ static Expr *parse_binary(int min_prec) {
                          variant_record(rt) ? ""
                                             : strfmt(", or define one, as in 'let %s(a:T, b:T):T { ... }' (#121)", e->op));
             if (!ra)
-                e->a = optional_of(e->a, rt, e->a->pos);
+                e->a = optional_of(eq_copy(e->a), rt, e->a->pos);
             if (!rb)
-                e->b = optional_of(e->b, rt, e->b->pos);
+                e->b = optional_of(eq_copy(e->b), rt, e->b->pos);
             if (r->no_eq) {
                 Var *c = case_named(r, r->no_eq, NULL);
                 bare_tags = true;
@@ -5907,7 +5940,14 @@ static Expr *parse_coalescing(void) {
     return c;
 }
 
+static Expr *parse_choice(void);
+
 static Expr *parse_conditional(void) {
+    int mark = expr_begin();
+    return expr_end(parse_choice(), mark);
+}
+
+static Expr *parse_choice(void) {
     Expr *c = parse_coalescing();
     Token *t = peek();
     if (!accept_p("?"))
@@ -9238,7 +9278,14 @@ static void reject_let_change(Expr *lhs, Token *t) {
 
 static Expr *assign_to(Expr *lhs, bool ok);
 
+static Expr *parse_assigning(void);
+
 static Expr *parse_assign(void) {
+    int mark = expr_begin();
+    return expr_end(parse_assigning(), mark);
+}
+
+static Expr *parse_assigning(void) {
     bool ok = assign_ok;
     assign_ok = false; /* nothing inside may assign */
     Expr *lhs = parse_conditional();
@@ -11002,6 +11049,7 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
                      arg->text, arg->text);
         if (i >= globals) {
             set_moved(arg->text, true);
+            list_push(&moves_pending, arg);
             return;
         }
         error_at(arg->pos, "'%s' is a global owner, which cannot move into %s: pass a borrow, '&%s', or a copy",
@@ -11009,6 +11057,60 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
     }
     if (owner_place(arg))
         error_at(arg->pos, "an owner moves into %s only as a whole variable: pass a borrow, '&...', or a copy", what);
+}
+
+/* the start and the end of an expression (#500): at the end of the
+   outermost, an owner an argument moved out of is named nowhere else in
+   it, as C may evaluate the other after the move, which empties it */
+static int expr_begin(void) {
+    expr_depth++;
+    return moves_pending.len;
+}
+
+static Expr *other_naming(Expr *e, Expr *moved) {
+    if (!e)
+        return NULL;
+    if (e->kind == E_IDENT)
+        return e != moved && !strcmp(e->text, moved->text) ? e : NULL;
+    Expr *o;
+    for (int i = 0; i < e->items.len; i++)
+        if (e->kind != E_STRING && (o = other_naming(e->items.data[i], moved)))
+            return o;
+    /* the target of =, s = f(s), is given anew after the move */
+    bool target = e->kind == E_BINARY && e->op && !strcmp(e->op, "=") && e->a && e->a->kind == E_IDENT;
+    if (!target && (o = other_naming(e->a, moved)))
+        return o;
+    if ((o = other_naming(e->b, moved)) || (o = other_naming(e->c, moved)) || (o = other_naming(e->d, moved)))
+        return o;
+    return NULL;
+}
+
+static bool moved_by_argument(Expr *x, int mark) {
+    for (int i = mark; i < moves_pending.len; i++)
+        if (moves_pending.data[i] == x)
+            return true;
+    return false;
+}
+
+static Expr *expr_end(Expr *e, int mark) {
+    if (--expr_depth > 0)
+        return e;
+    for (int i = mark; i < moves_pending.len; i++) {
+        Expr *m = moves_pending.data[i], *o = other_naming(e, m);
+        if (!o)
+            continue;
+        if (moved_by_argument(o, mark)) {
+            Expr *later = o->pos.line > m->pos.line || (o->pos.line == m->pos.line && o->pos.col > m->pos.col) ? o : m;
+            error_at(later->pos, "'%s' moves out twice in this expression, and the second takes what the first left, "
+                                 "nothing: give one a copy made in a statement before, as 'let %s2 = %s.copy()'",
+                     m->text, m->text, m->text);
+        }
+        error_at(o->pos, "'%s' moves out in this expression, which names it again, and C may read it after the move, "
+                         "when it holds nothing: read it, or copy it, in a statement before",
+                 m->text);
+    }
+    moves_pending.len = mark;
+    return e;
 }
 
 /* An implicit drop of a cstr's immutability (#52): where a u8^ (to u8
@@ -11609,6 +11711,8 @@ static Stmt *parse_block_rest(Token *t) {
     Stmt *s = new_stmt(S_BLOCK, t->pos);
     open_scope();
     block_depth++;
+    int depth = expr_depth, pending = moves_pending.len;
+    expr_depth = 0; /* its statements are expressions of their own (#500) */
     while (!is_p(peek(), "}")) {
         if (peek()->kind == TK_EOF || peek()->kind == TK_FILE_END)
             error_at(t->pos, "unterminated block");
@@ -11616,6 +11720,8 @@ static Stmt *parse_block_rest(Token *t) {
             reject_inner_import();
         list_push(&s->stmts, parse_stmt());
     }
+    expr_depth = depth;
+    moves_pending.len = pending;
     block_depth--;
     close_scope();
     advance();
@@ -16366,6 +16472,8 @@ Program *parse(Token *tokens, int ntoks) {
     scope_types = (List){0};
     scope_lets = (List){0};
     scope_moved = (List){0};
+    moves_pending = (List){0};
+    expr_depth = 0;
     scope_marks = (List){0};
     records = (List){0};
     local_types = local_type_depths = local_enums = local_enum_at = hidden_names = ended_types = (List){0};

@@ -302,6 +302,9 @@ So far the changes from C are these, by topic.
     not UTF-8, a pattern that is not one, prints its reason and exits
     with status 1; `KELVIN_ABORT=1` in the environment makes it abort
     instead, for a debugger or a core (#174)
+  - an owner that moves out in an expression is named nowhere else in
+    it, as C may read it after the move: `f(s, s)`, `c + c` and
+    `s.count + f(s)` are errors, but `s = f(s)` (#500)
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked
   - `String` is a `Bytes` of well-formed UTF-8, counted and walked by
     codepoint, each a `uchr`, which prints as its character;

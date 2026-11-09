@@ -342,6 +342,8 @@ let main():int32 {
   - For a struct that owns, `a == b` leaves `a` and `b` dead until they
     are assigned anew, and reading one is an error.
     - To keep them, write `a.copy() == b.copy()`.
+    - One moved twice, `a + a`, is an error (#500): copy it in a
+      statement before, `let a2 = a.copy()`, and write `a + a2`.
   - A member that owns does not move: `h.b + c` is an error, as `f(h.b)`
     is.
   - A struct that owns nothing is only read.

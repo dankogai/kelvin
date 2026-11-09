@@ -134,6 +134,8 @@ its cases named `none` and `some` (#72); it has its own document,
     an Array's or a Dictionary's compares its elements (#247).
   - One that owns, made on the spot (`err($"x")`), is held for the
     comparison and freed after (#187).
+  - One in a variable, `r == w` or `r == ok(w)`, is wrapped as a copy,
+    and `w` stays (#500).
   - The other operators are not for Results.
 - **`r.map(f)`** (#80) is a `Result<U, E>`: `ok(f(v))` when `r` is
   `ok(v)`, else the `err` carried over.

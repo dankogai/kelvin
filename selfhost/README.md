@@ -604,6 +604,12 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An owner named once** (#500), as kelvinc's: an owner that moves
+  out in a statement's expression is named nowhere else in it, but as
+  the target of `=`; `f(s, s)`, `c + c` and `s.count + f(s)` are
+  kelvinc's errors, in its words.
+  - kc checks when the statement is written; kelvinc as it parses.
+  - kc's `==` already wrapped a copy of an owner, as kelvinc's now does.
 - **An empty struct's count** (#499): an array of elements of no size
   counts by its declared length, as kelvinc's: `.count`, `==`, `print`
   and `Array(a)`, where `sizeof(a) / sizeof(a[0])` was 0 / 0.
@@ -836,9 +842,9 @@ kc reads what it is written in, and little more.
   value, to a function, a method, a case, a `T?`, a Result,
   `Iterator(...)`, `.reduce` or `.merge`, returned or awaited, is dead
   until `t = v` gives it anew; a use is kelvinc's error.
-  - The moves of a call are made where it ends: `f(t, t)` builds, as
-    kelvinc's; a move in a branch counts after it, in the order
-    written.
+  - The moves of a call are made where it ends: `f(t, t)` built, as
+    kelvinc's, until #500; a move in a branch counts after it, in the
+    order written.
   - A global moved in, and each element of a for or an `if let`'s
     value moved or returned, are kelvinc's errors, in its words.
   - Found: `{ $0 }` of `.map`, returning what the closure borrows, is

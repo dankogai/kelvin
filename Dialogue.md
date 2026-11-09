@@ -9496,3 +9496,21 @@ does the same, but has no `for` over a fixed array of structs. Details
 are provisional P511.
 
 There are 1229 tests, and all pass with clang and with gcc 15.
+
+### 547. An owner moved twice
+
+> go on with the double-move bug
+
+**Claude** pushed #499 after a clean battery; CI passed all 9 jobs. The
+BigInt probes found that `both(s, s)` of a String gave 5 of "hello":
+kelvinc marked the move after the call's arguments, so the second took
+nothing. `c + c` of an operator stopped at run time; `both(s, s.count)`
+read an emptied `s`; `s.count + one(s)` hung on C's order. kc did the
+same. Asked, the user chose the whole expression: an owner that moves
+out in one is named nowhere else in it, but as the target of `=`, so
+`s = f(s)` stays. The check refused an existing test,
+`Bytes(&u).string() == u`, rightly, as `==` moved `u` into `ok(u)`.
+Asked, the user chose that `==` wraps a copy, as kc did. Details are
+provisional P512.
+
+There are 1236 tests, and all pass with clang and with gcc 15.

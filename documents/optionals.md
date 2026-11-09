@@ -126,6 +126,8 @@ examples.
     an Array's or a Dictionary's compares its elements (#247).
   - An owner made on the spot (`x == $"hi"`) is held for the
     comparison and freed after (#187). See [results.md](results.md).
+  - An owner in a variable, `x == w`, is wrapped as a copy, and `w`
+    stays (#500); a field or an element too.
 - **`x.map(f)`** (#80) is a `U?`: `some(f(v))` when `x` is `some(v)`;
   an Array has one too, `xs.map(f)` (#182), and both infer the result
   of `{ $0 * 2 }` from arithmetic of one number type,
