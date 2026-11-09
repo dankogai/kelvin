@@ -28,6 +28,7 @@ MOD_LIBS := modules/libkIO.a modules/libkOS.a
 # (#157) over its engine, runtime/regexp*.c, on UnicodeData. Both are modules of
 # the prelude (#504): kelvinc --prelude makes each one's M.kh and object, which
 # libkelvin holds with their C, so a program links them only where it uses them
+RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
 PRELUDE_OBJS := build/prelude/UnicodeData.o build/prelude/RegExp.o
 # JSON (#113) is built by kelvinc --lib from modules/JSON.k alone (#484), so that a
 # module such as fetch may import it, which a source included twice would not let
@@ -125,7 +126,6 @@ build/prelude/UnicodeData.o: modules/UnicodeData.k modules/kUnicodeData.h module
 	cp build/prelude/UnicodeData.kh modules/UnicodeData.kh
 modules/UnicodeData.kh: build/prelude/UnicodeData.o
 
-RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
 build/runtime/regexp%.o: runtime/regexp%.c runtime/regexp_internal.h modules/kelvin_prelude.h modules/kUnicodeData.h modules/kRegExp.h | build/runtime
 	$(CC) $(RT_CFLAGS) -Imodules -c -o $@ $<
 build/prelude/RegExp.o: modules/RegExp.k modules/kRegExp.h modules/UnicodeData.kh modules/kelvin_prelude.h kelvinc

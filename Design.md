@@ -1165,6 +1165,11 @@ Notes:
     tests/error/regexp_hidden.k are new.
   - kc reads no `$/.../` and links no module built of Kelvin, as before;
     its programs name no RegExp.
+  - CI failed all 9 jobs: GNUmakefile defined RX_OBJS after the
+    libkelvin.a rule, whose prerequisites make expands as it reads them,
+    so a clean build listed regexp.o to ar unbuilt; the battery's tree
+    had it. RX_OBJS is defined first now; `make clean` and `make`, and
+    `make -j8`, build.
 
 - (503) Agreed details: "go on with compound literals taking owners",
   the BigInt plan's next step, so a result is `(Big){r, false}`, not
