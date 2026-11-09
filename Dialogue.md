@@ -9581,3 +9581,19 @@ neither, as libkelvin.a is static. Their helpers are `kv_rx_` and
 provisional P516.
 
 There are 1245 tests, and all pass with clang and with gcc 15.
+
+### 552. Called before written
+
+> push then go on
+
+**Claude** pushed #504; CI failed all 9 jobs, as GNUmakefile listed
+regexp.o to ar before a clean build made it, which the battery's built
+tree hid. The fix, RX_OBJS defined first, passed all 9. Then the gap #502
+found: in kelvinc, a function, a method or an operator called before it
+was written was C's error, C's rule, where kc built it. Asked, the user
+chose order-free, as kc: kelvinc writes each one's prototype where a
+declaration before it names it, and lifts C's declaration of the name
+with it. #492's errors of an overload declared after a call are gone.
+Details are provisional P517.
+
+There are 1243 tests, and all pass with clang and with gcc 15.

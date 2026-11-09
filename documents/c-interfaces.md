@@ -112,8 +112,8 @@ let main():int32 {
     compiler checks it.
   - Its typedef names are types after a colon, as
     [C typedef names](#c-typedef-names) says: `let p:cpoint = corigin()`.
-  - A Kelvin function calls it once it is written above the call, as a C
-    function must be declared before its use.
+  - A Kelvin function calls it wherever it is written: kelvinc writes the
+    prototype of one written after the call where it is needed (#505).
 - **C's side:** it calls a Kelvin function written above it, by its C
   name, as [The ABI](#the-abi) says: `twice`, or `twice__i64` where it
   is overloaded or imported.

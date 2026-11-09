@@ -88,13 +88,15 @@ static void close_scope(void) {
 }
 
 static bool is_first_use_global(const char *name);
+static Decl *function_named(const char *name);
+static bool declaring_fn; /* a function's name is being declared: its prototype's, an overload's, is one (#505) */
 
 static void declare_binding(const char *name, Type *type, int let) {
     int here = scope_marks.len ? (int)(intptr_t)scope_marks.data[scope_marks.len - 1] : 0;
     bool wide = false;
     for (const char *q = name; *q; q++)
         wide = wide || (unsigned char)*q >= 0x80;
-    for (int i = scope_names.len - 1; wide && i >= here; i--)
+    for (int i = scope_names.len - 1; wide && !(declaring_fn && function_named(name)) && i >= here; i--)
         if (!strcmp(scope_names.data[i], name)) {
             /* a name past ASCII declared twice in a block (#385), which C
                would say in the name it gives it */
@@ -14769,8 +14771,10 @@ static void take_inline(Decl *d) {
 
 static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
     take_inline(d);
+    declaring_fn = true;
     if (!d->op)
         declare_name(d->name);
+    declaring_fn = false;
     d->bind_index = scope_names.len - 1; /* a nested function is found by its binding (#180) */
     open_scope();
     params_start = scope_names.len;
@@ -16467,6 +16471,222 @@ static bool listed(List *names, const char *name) {
    the receiver, a path of nested types at the head of a top-level
    declaration, where no variable's path can stand, folded into one name,
    point__kind, the type's C name, as a type of the top level is named */
+/* ---------- the prototypes kelvinc writes (#505) ---------- */
+
+/* A function, a method, an operator or a function of a type may be called
+   before it is written, as in Swift and kc (#505): where a declaration
+   before its definition names it, kelvinc writes its header as its
+   prototype there, after the types and the imports its header needs, as if
+   the program had written it; a member of extend T { } goes into an extend
+   T { } of prototypes. A prototype and its definition are one overload. */
+typedef struct {
+    int start, name, body; /* the first token, the name's, where its header ends */
+    int item;              /* the top-level declaration it is in */
+    const char *recv;      /* extend T's T, or NULL */
+} AheadFn;
+
+static bool storage_kw(Token *t) { return is_kw(t, "static") || is_kw(t, "extern") || is_kw(t, "inline"); }
+
+/* where the header of the function whose name is at name ends: its
+   body's {, or, of a prototype or C's declaration, the token after it;
+   -1 where it is no function */
+static int ahead_body(int name) {
+    int i = name + 1;
+    if (toks[name].kind == TK_IDENT && is_p(&toks[i], ".") && toks[i + 1].kind == TK_IDENT)
+        i += 2; /* let T.m( */
+    if (!is_p(&toks[i], "("))
+        return -1;
+    int j = skip_nested(i);
+    if (is_p(&toks[j], ":")) {
+        j++;
+        if (is_p(&toks[j], "{"))
+            j = skip_nested(j); /* a result written in braces, {x:f64, y:f64} */
+        while (toks[j].kind != TK_EOF && !is_p(&toks[j], "{") && !is_p(&toks[j], ";") &&
+               !line_break(&toks[j - 1], &toks[j]))
+            j = is_p(&toks[j], "(") || is_p(&toks[j], "[") ? skip_nested(j)
+                : (is_kw(&toks[j], "enum") || is_kw(&toks[j], "struct") || is_kw(&toks[j], "union")) &&
+                        is_p(&toks[j + 1], "{")
+                    ? skip_nested(j + 1) /* enum{nothing, just: i64} */
+                    : j + 1;
+    }
+    return j;
+}
+
+/* whether the token at i names the function name where it is called or
+   given as a value: f(, x.f(, g(f), = f; not a case of an enum, { f; } */
+static bool ahead_use(int i, const char *name) {
+    if (toks[i].kind != TK_IDENT || strcmp(toks[i].text, name) || i == 0)
+        return false;
+    Token *prev = &toks[i - 1], *next = &toks[i + 1];
+    if (is_kw(prev, "let") || is_kw(prev, "var") ||
+        (is_p(prev, ".") && i >= 3 && (is_kw(&toks[i - 3], "let") || is_kw(&toks[i - 3], "var"))))
+        return false; /* an overload's own name, let f( and let T.f(, defines it */
+    if (is_p(next, "("))
+        return true;
+    return (is_p(prev, "(") || is_p(prev, ",") || is_p(prev, "=") || is_p(prev, ":=") || is_kw(prev, "return")) &&
+           !is_p(next, ":") && !is_p(next, "=");
+}
+
+static void forward_prototypes(void) {
+    int n = 0;
+    while (toks[n].kind != TK_EOF)
+        n++;
+    List starts = {0}, types = {0}, imports = {0}, fns = {0};
+    for (int i = 0, depth = 0; i < n; i++) {
+        Token *t = &toks[i], *prev = i ? &toks[i - 1] : NULL;
+        if (is_p(t, "{") || is_p(t, "(") || is_p(t, "["))
+            depth++;
+        else if (is_p(t, "}") || is_p(t, ")") || is_p(t, "]"))
+            depth--;
+        if (depth != 0 || is_p(t, "}"))
+            continue;
+        if (t->kind == TK_IMPORT || t->kind == TK_FILE_END || t->kind == TK_IMPORT_K)
+            list_push(&imports, (void *)(intptr_t)(i + 1));
+        bool new_line = !prev || line_break(prev, t) || is_p(prev, ";");
+        bool head = is_kw(t, "let") || is_kw(t, "var") || is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum") ||
+                    storage_kw(t) || is_kw(t, "static_assert") || is_kw(t, "_Static_assert") || is_kw(t, "alignas") ||
+                    (t->kind == TK_IDENT && (!strcmp(t->text, "extend") || !strcmp(t->text, "typealias"))) ||
+                    t->kind == TK_IMPORT || t->kind == TK_IMPORT_K || t->kind == TK_FILE_END || t->kind == TK_INLINE_C;
+        if (!head || !new_line)
+            continue;
+        list_push(&starts, (void *)(intptr_t)i);
+        if ((is_kw(t, "struct") || is_kw(t, "union") || is_kw(t, "enum")) && t[1].kind == TK_IDENT) {
+            int k = i + 2;
+            while (toks[k].kind != TK_EOF && !is_p(&toks[k], "{") && !line_break(&toks[k - 1], &toks[k]))
+                k++;
+            list_push(&types, t[1].text);
+            list_push(&types, (void *)(intptr_t)(is_p(&toks[k], "{") ? skip_nested(k) : k));
+        }
+        if (t->kind == TK_IDENT && !strcmp(t->text, "typealias") && t[1].kind == TK_IDENT) {
+            int k = i + 2;
+            while (toks[k].kind != TK_EOF && !line_break(&toks[k - 1], &toks[k]))
+                k++;
+            list_push(&types, t[1].text);
+            list_push(&types, (void *)(intptr_t)k);
+        }
+        if (t->imported)
+            continue;
+        int k = i;
+        while (storage_kw(&toks[k]))
+            k++;
+        if ((is_kw(&toks[k], "let") || is_kw(&toks[k], "var")) &&
+            (toks[k + 1].kind == TK_IDENT || overloadable_op(&toks[k + 1])) &&
+            !(toks[k + 1].kind == TK_IDENT && !strcmp(toks[k + 1].text, "main"))) {
+            int body = ahead_body(k + 1);
+            if (body >= 0) {
+                AheadFn *f = xcalloc(1, sizeof *f);
+                *f = (AheadFn){i, k + 1, body, i, NULL};
+                list_push(&fns, f);
+            }
+        }
+        if (t->kind == TK_IDENT && !strcmp(t->text, "extend") && t[1].kind == TK_IDENT && is_p(&t[2], "{")) {
+            int end = skip_nested(i + 2);
+            for (int j = i + 3, d = 0; j < end - 1; j++) { /* its members */
+                if (d == 0 && (j == i + 3 || line_break(&toks[j - 1], &toks[j]) || is_p(&toks[j - 1], ";"))) {
+                    int m = j;
+                    while (storage_kw(&toks[m]))
+                        m++;
+                    if ((is_kw(&toks[m], "let") || is_kw(&toks[m], "var")) &&
+                        (toks[m + 1].kind == TK_IDENT || overloadable_op(&toks[m + 1])) && is_p(&toks[m + 2], "(")) {
+                        int body = ahead_body(m + 1);
+                        if (body >= 0) {
+                            AheadFn *f = xcalloc(1, sizeof *f);
+                            *f = (AheadFn){j, m + 1, body, i, t[1].text};
+                            list_push(&fns, f);
+                        }
+                    }
+                }
+                if (is_p(&toks[j], "{") || is_p(&toks[j], "(") || is_p(&toks[j], "["))
+                    d++;
+                else if (is_p(&toks[j], "}") || is_p(&toks[j], ")") || is_p(&toks[j], "]"))
+                    d--;
+            }
+        }
+    }
+    /* where each one's prototype goes, if a declaration before it names it */
+    List at = {0}; /* per prototype: its place, then its AheadFn */
+    for (int f = 0; f < fns.len; f++) {
+        AheadFn *a = fns.data[f];
+        int base = 0;
+        for (int k = 0; k < imports.len; k++)
+            if ((int)(intptr_t)imports.data[k] <= a->item)
+                base = base > (int)(intptr_t)imports.data[k] ? base : (int)(intptr_t)imports.data[k];
+        bool known = true;
+        for (int i = a->start; i < a->body && known; i++) /* the types its header names, and its extend's */
+            for (int k = 0; k < types.len; k += 2) {
+                bool named = (toks[i].kind == TK_IDENT && !strcmp(toks[i].text, types.data[k])) ||
+                             (i == a->start && a->recv && !strcmp(a->recv, types.data[k]));
+                if (!named)
+                    continue;
+                int end = (int)(intptr_t)types.data[k + 1];
+                if (end > a->item)
+                    known = false; /* written after it: no prototype goes before it */
+                else if (end > base)
+                    base = end;
+            }
+        int place = -1;
+        for (int k = 0; k < starts.len && place < 0; k++)
+            if ((int)(intptr_t)starts.data[k] >= base)
+                place = (int)(intptr_t)starts.data[k];
+        if (!known || place < 0 || place >= a->start || (!a->recv && place >= a->item))
+            continue;
+        bool used = overloadable_op(&toks[a->name]);
+        const char *name = toks[a->name].kind == TK_IDENT && is_p(&toks[a->name + 1], ".") ? toks[a->name + 2].text
+                                                                                              : toks[a->name].text;
+        for (int i = place; i < a->start && !used; i++)
+            used = ahead_use(i, name);
+        if (!used)
+            continue;
+        list_push(&at, (void *)(intptr_t)place);
+        list_push(&at, a);
+    }
+    if (!at.len)
+        return;
+    List out = {0};
+    for (int i = 0; i <= n; i++) {
+        for (int k = 0; k < at.len; k += 2) { /* each prototype of this place, those of one extend together */
+            AheadFn *a = at.data[k + 1];
+            if ((int)(intptr_t)at.data[k] != i || !a)
+                continue;
+            Token *first = &toks[a->start];
+            if (a->recv) {
+                Token *ext = xmalloc(sizeof *ext * 3);
+                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, false, false};
+                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, false, false};
+                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, false, false};
+                for (int e = 0; e < 3; e++)
+                    list_push(&out, &ext[e]);
+            }
+            for (int m = k; m < at.len; m += 2) {
+                AheadFn *b = at.data[m + 1];
+                if (!b || (int)(intptr_t)at.data[m] != i || (b->recv == NULL) != (a->recv == NULL) ||
+                    (a->recv && strcmp(a->recv, b->recv)) || (!a->recv && m != k))
+                    continue;
+                for (int h = b->start; h < b->body; h++) {
+                    Token *c = xmalloc(sizeof *c);
+                    *c = toks[h];
+                    c->imported = false;
+                    list_push(&out, c);
+                }
+                Token *semi = xmalloc(sizeof *semi);
+                *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false, false, false};
+                list_push(&out, semi);
+                at.data[m + 1] = NULL;
+            }
+            if (a->recv) {
+                Token *close = xmalloc(sizeof *close);
+                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, false, false};
+                list_push(&out, close);
+            }
+        }
+        list_push(&out, &toks[i]);
+    }
+    Token *all = xmalloc(sizeof(Token) * (size_t)out.len);
+    for (int i = 0; i < out.len; i++)
+        all[i] = *(Token *)out.data[i];
+    toks = all;
+}
+
 static void fold_nested_heads(void) {
     List names = {0};
     for (int i = 0, depth = 0; toks[i].kind != TK_EOF; i++) {
@@ -16509,6 +16729,7 @@ Program *parse(Token *tokens, int ntoks) {
     toks = tokens;
     cur = 0;
     fold_nested_heads();
+    forward_prototypes(); /* a call before the definition (#505) */
     anon_fns = (List){0};
     proto_copies = (List){0};
     lazy_records = (List){0};

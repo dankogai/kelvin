@@ -288,8 +288,9 @@ let main():int32 {
     `toString` or `fmt`, as in `let printf(fmt:const u8^, ...):i32`.
 - **Dispatch** is chosen by the C compiler (`_Generic`), which brings these
   rules *(provisional P26)*:
-  - As in C, declare a method before calling it. A prototype is
-    `let point.area():f64`. A method may call itself.
+  - A method may be called before it is written (#505): kelvinc writes
+    its prototype, `let point.area():f64`, where it is needed. A method
+    may call itself.
   - A method call cannot appear in a global initializer.
   - C's enums cannot have methods; an enum with values can (#61). A
     function of the type, `static let T.name()`, with no self, goes on

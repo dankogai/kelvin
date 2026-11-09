@@ -489,6 +489,15 @@ let trail_above(n:int64):bool { return n > 0 }
 let trail_shorter(a:String, b:String):bool { return a.count < b.count }
 let trail_says():int64 { return trail_apply(2) { $0 * 3 } }
 
+struct fw_w { n: u64 }                                  // called before they are written (#505)
+extend fw_w {
+    static let +(a:Self, b:Self):Self { fw_w.of(a.n + b.n) }
+    let twice():Self { self.half().scaled(4) }
+    static let of(n:u64):Self { (Self){n} }
+    let half():Self { (Self){self.n / 2} }
+    let scaled(k:u64):Self { (Self){self.n * k} }
+}
+let fw_first(n:i64):i64 { fw_later(n) + 1 }
 let main(argc:int32, argv:[cstr]):int32 {
     for i in 0..<limit {
         if i % 3 == 0 {
@@ -1319,6 +1328,8 @@ on a new line`
     var lm_s = $"lm"                                       // a local owner moves into a literal (#503)
     let lm_p = (op_owner){lm_s, 5}
     println(lm_p)
+    println(fw_first(3), " ", (fw_w.of(1) + fw_w.of(2)).n, " ", fw_w.of(8).twice().n)   // (#505)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
+let fw_later(n:i64):i64 { n * 2 }

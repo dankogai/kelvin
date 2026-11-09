@@ -248,9 +248,9 @@ So far the changes from C are these, by topic.
   is called only where no Kelvin function has it (#223): beside
   `let sin(z:c64):c64`, C's is declared, `let sin(x:f64):f64`, as
   `#import <math>` declares it, so that `sin(0.5)` is C's
-  - an overload declared after a call is not seen there, as in C; where
-    the ones seen do not take the arguments, that is an error, and a
-    prototype before the call fixes it (#492)
+  - a function, a method, an operator or a function of a type may be
+    called before it is written, as in Swift: kelvinc writes its
+    prototype where it is needed, every overload seen (#505)
 - a function with no result is `let f() { }`, or `let f():() { }` with
   the result written out; the two mean the same
 - `extend T { }`, as Swift's `extension`, holds a type's methods

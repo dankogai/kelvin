@@ -604,6 +604,13 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **Called before written** (#505): kc reads every declaration first, so
+  a function, a method or a function of a type called before it is
+  written was kc's already; kelvinc is now the same, by the prototypes
+  it writes.
+  - Found: kc's overloads take no borrow of a String an expression
+    gives, `say(&$"said")` of `say(s:const String^)` beside `say(s:cstr)`,
+    in order or not; with a variable, `say(&t)`, they do.
 - **RegExp, the prelude's** (#504): kelvinc brings it in where a
   program names it, and libkelvin holds it; kc still reads no `$/.../`
   and links no module built of Kelvin, as before, so a program of kc's

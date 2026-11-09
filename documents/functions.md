@@ -384,22 +384,24 @@ let main():int32 {
 ```
 
 - **C's function of the name** is called only where no Kelvin function
-  of the name is declared before the call (#223).
+  has the name, wherever it is written (#223, #505).
   - Beside a Kelvin one, declare C's, `let sqrt(x:f64):f64`: a
     function the program declares but never defines is C's, keeps its
     C name, and is an overload like any other.
   - Arguments that fit no overload are an error, never a call of C's.
-  - A call before the Kelvin function is declared is C's, as in C.
-- **An overload declared after a call** is not seen there, a function's
-  or a method's, as C sees no function before its declaration (#492).
-  - Where the ones seen take the arguments, one of them is called.
-  - Where none does, and one of the name is declared after, it is an
-    error that says so: kelvinc used to call the one seen, and C was
-    given the arguments with a warning alone, as a `cstr` for a
-    `const String^`, which called the String's overload from itself.
-  - Declare the one meant before the call, as a prototype: `let f(s:cstr)`
-    before `let f(s:const String^) { f(s^.cstr) }`, and in an `extend`,
-    `var put(s:cstr)` before the method that calls it.
+  - C's declaration may come after the call, as a Kelvin function may.
+- **A call may come before the definition** (#505), as in Swift: of a
+  function, a method, an operator or a function of a type, its overloads
+  all seen.
+  - kelvinc writes the function's prototype where a declaration before
+    its definition names it, after the types and imports its header
+    names, as if the program had written it there; a member of `extend
+    T { }` goes into an `extend T { }` of prototypes.
+  - `let f(s:const String^) { f(s^.cstr) }` before `let f(s:cstr)`
+    calls the second, where it was an error (#492); so does a method
+    calling one of its type written after it.
+  - A prototype written by hand is still one, and harmless.
+  - A variable is still declared before it is used, as in C.
 - **The choice** is the overload that every argument fits exactly, or
   else the one that fits at least as well as every other on each
   argument and better on one.
@@ -465,7 +467,7 @@ let main():int32 {
     calls as C's nor declares keeps its name, which conflicts with the
     C header's, as in C.
   - Two functions that would have one C name are an error.
-- **As in C**, a call sees only the overloads declared before it.
+- **A call sees every overload**, before or after it (#505).
 - **Methods overload too** (#158): `let box.add(n:int64)` and `let
   box.add(t:cstr)` are two methods, and `b.add(1)` and `b.add("x")`
   each call theirs, chosen as a function's overloads are.
