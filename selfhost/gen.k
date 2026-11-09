@@ -10253,6 +10253,31 @@ let fixed_refused(n:int64) {
 // whether y may be a fixed array's element, as kc takes it: a number, a
 // bool, a cstr, a uchr (#479), a struct that owns nothing, or a fixed
 // array in turn
+// whether y is a struct or a union with no members, or an array of them,
+// or a struct whose first member is one, which C zeroes by {}, where {0}
+// has elements in excess, or none to take it (#498)
+let empty_record(y:int64):bool {
+    var e:int64 = y
+    while e >= 0 && types[e].kind == Y_FIXED { e = types[e].elem }
+    if e < 0 || types[e].kind != Y_STRUCT || enum_int(e) { return false }
+    let d:int64 = decl_named(types[e].name, D_STRUCT)
+    if d < 0 { return false }
+    let f:int64 = nodes[d].a
+    return f < 0 || (nodes[f].ty >= 0 && nodes[f].ty != e && empty_record(nodes[f].ty))
+}
+
+// the zero of a variable declared with no value: {} of an empty record,
+// else {0} of a struct, an owner or an array, else 0 (#498)
+let put_zero_of(y:int64) {
+    if empty_record(y) {
+        put("{}")
+    } else if is_owner(y) || types[y].kind == Y_STRUCT || types[y].kind == Y_FIXED {
+        put("{0}")
+    } else {
+        put("0")
+    }
+}
+
 let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
@@ -10597,7 +10622,7 @@ let gen_fixed_var(n:int64) {
     if v >= 0 && nodes[v].kind == N_LIST && nodes[v].flag == 0 && nodes[v].b >= 0 {
         gen_fixed_list(v, y)
     } else {
-        put("{0}")
+        put_zero_of(y)                                   // {} of an empty record's (#498)
     }
     put(";\n")
 }
@@ -10654,11 +10679,7 @@ let gen_var(n:int64) {
     put_tok(nodes[n].t)
     put(" = ")
     if nodes[n].a < 0 {
-        if is_owner(y) || types[y].kind == Y_STRUCT {
-            put("{0}")
-        } else {
-            put("0")
-        }
+        put_zero_of(y)                                   // {} of an empty record (#498)
     } else {
         gen_written(nodes[n].a, y)                       // (#217); ${:} (#348)
     }
@@ -17469,10 +17490,8 @@ let gen_program() {
                 put("")
             } else if nodes[d].a >= 0 {
                 gen_written(nodes[d].a, nodes[d].ty)    // ${:} (#348)
-            } else if is_owner(nodes[d].ty) || types[nodes[d].ty].kind == Y_STRUCT {
-                put("{0}")
             } else {
-                put("0")
+                put_zero_of(nodes[d].ty)                 // {} of an empty record (#498)
             }
             put(";\n")
             current = around

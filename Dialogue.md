@@ -9468,3 +9468,16 @@ fields refused, naming `.capacity`, `.utf32` or `.bytes`. kc says the
 same. Details are provisional P509.
 
 There are 1227 tests, and all pass with clang and with gcc 15.
+
+### 545. kc's empty struct
+
+> push. then go on with the empty struct warning in kc
+
+**Claude** pushed #497 after a clean battery. kc zeroes a variable
+written with no value by `{0}`, where kelvinc writes none; of a struct
+with no members `{0}` was C's warning, and of a struct whose first member
+is such, C's error. Asked, the user chose `{}` of such records, kc
+zeroing as before. `.count` of an array of empty structs divides by zero
+in both compilers, a gap of its own. Details are provisional P510.
+
+There are 1227 tests, and all pass with clang and with gcc 15.

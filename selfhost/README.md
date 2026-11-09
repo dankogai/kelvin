@@ -598,6 +598,12 @@ kc reads what it is written in, and little more.
     (#431), with #433 its `main` of #432 too, `printf(...,
     fizzbuzz(i).cstr)`, and with #435 its `r.isEmpty` of #436; it prints
     what kelvinc's build prints.
+- **An empty struct** (#498): a variable of a struct or a union with no
+  members, an array of them, or a struct whose first member is one, is
+  zeroed by `{}`, where kc's `{0}` was C's warning of elements in
+  excess, or C's error where no element took it.
+  - kc zeroes a variable written with no value, where kelvinc leaves it
+    C's, unset.
 - **A fixed array printed** (#481), as kelvinc's.
   - `println(f)` of a fixed array is `[a, b]`, as inside a struct; a
     `[u8](N)` is its text.

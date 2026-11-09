@@ -478,6 +478,8 @@ let num_wide(x:i8):i64 { return x as i64 + 1 }         // overloads of the rest 
 let num_wide(x:u64):i64 { return (x / 2) as i64 }
 let num_wide(x:i128):i64 { return (x >> 100) as i64 }
 struct num_pack { a: i8; b: u16; c: uint64; d: int128 }
+struct ne_none { }                                       // an empty struct, zeroed by {} (#498)
+struct ne_after { e: ne_none; n: i64 }
 let trail_apply(n:int64, f:(int64):int64):int64 { return f(n) }      // a function trailing a plain call, sort and reverse (#470)
 let trail_above(n:int64):bool { return n > 0 }
 let trail_shorter(a:String, b:String):bool { return a.count < b.count }
@@ -1293,6 +1295,11 @@ on a new line`
     for uc_x in uc_w { print(" ", uc_x.codepoint) }
     println()
     println(uc_f, " ", uc_i, " ", uc_w)                    // a fixed array is [a, b] (#481)
+    var ne_a:ne_none                                       // an empty struct, and one after it, {} (#498)
+    var ne_b:ne_after
+    var ne_c:[ne_none](2)
+    ne_b.n = 3
+    println(ne_a.size, " ", ne_b.n, " ", ne_c.size)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

@@ -542,6 +542,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 495 | `i64(&s)`, `f64(&s)` and every number converter of a String or a Bytes by reference, `&s` or a `String^` parameter, read the text it refers to, as the user chose, as `i64(s)` does (#88), where kelvinc converted the pointer, an address, and f64 of one was C's error; a base works as of text, `i64(&s, 16)`; `bool(&s)` stays the pointer's. kc, which refused a reference and a Bytes alike, reads both | src/parser.c's owner_text_of_ref, used by convert for uchr (#494) and for the number converters; selfhost/gen.k's owner_text_ref, converter_text and put_text_arg; tests/run/convert_text_ref.k; documents/integers.md, documents/strings.md, README.md | `i64(&s)` | 2026-11-09 |
 | 496 | The version bumped to 0.1.1, as the user asked, `fetch()` being worth it: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.1.1 notes, #468 to #495, the library, the language, the fixes and kc; README.md's line of the release notes. No tag, the user not having asked for one | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.1.1` | 2026-11-09 |
 | 497 | A member a type kelvinc sees does not have is an error in Kelvin's words, as the user chose, where it went to C as a field, C's error: a struct's names its fields, `Pt has no member 'z': its fields are x and y`; a pointer's names `q^.x`; a String's, a Bytes's, an Array's, a Dictionary's, a Set's, a uchr's or an IO's names its document, `s.first`; a number, a bool, an enum's value, a cstr and a fixed array have none. The runtime's own C fields, which compiled, are refused, as the user chose: `b.cap` names `.capacity`, `c.cp` `.utf32`, `s.b` `.bytes`, `d.len` none; `.at` of a Bytes or an Array stays, documented, and an IO's error, status, signal, pid and path. A C struct's and an unseen type's stay C's. kc says the same | src/parser.c's reject_unknown_member, at the field fallback of a postfix `.`; selfhost/gen.k's member_unknown, at type_of's struct, enum and last branches, io_field_type and bytes_field_type; tests/error/member_unknown_string.k, member_through_pointer.k, member_unknown_struct.k, member_runtime_field.k, member_of_number.k; documents/properties.md, documents/pointers.md, README.md | `s.first` | 2026-11-09 |
+| 498 | kc zeroes a variable of a struct or a union with no members, an array of them, or a struct whose first member is one, by `{}`, as the user chose, where its `{0}` was C's warning of elements in excess, and C's error of `struct Outer { e:Emp; n:i64 }`; kc still zeroes every variable written with no value, where kelvinc leaves it unset | selfhost/gen.k's empty_record and put_zero_of, used by gen_var, a fixed array's declaration and a global's; selfhost/sample.k's ne_none, ne_after and their line; selfhost/README.md | `var e:Emp` | 2026-11-09 |
 
 Notes:
 
@@ -1126,6 +1127,27 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (498) Agreed details: "push. then go on with the empty struct warning
+  in kc", which #497 found: `var e:Emp` of `struct Emp { }` was C's
+  "excess elements in struct initializer" in kc's C.
+  - kc writes `= {0}` of a variable written with no value, where kelvinc
+    writes none and C leaves it unset; `{0}` of a record with no members
+    has an element in excess.
+  - Asked, the user chose `{}` of such a record, kc zeroing as before,
+    over kelvinc's way, no initializer.
+  - It was wider: an array of them, a union, a global, and a struct
+    whose first member is an empty one, `struct Outer { e:Emp; n:i64 }`,
+    whose `{0}` is C's error, "initializer for aggregate with no
+    elements requires explicit braces".
+  - empty_record follows a fixed array to its element and a struct to
+    its first member; put_zero_of writes `{}`, `{0}` or `0`, for a
+    local, a fixed array and a global.
+  - selfhost/sample.k has an empty struct, one after it and an array of
+    them, which kc's C failed on before.
+  - Found on the way: `.count` of an array of empty structs divides by
+    zero, its size by an element's 0, in kelvinc and kc alike: a gap of
+    its own.
 
 - (497) Agreed details: "go on with the s.first gap", which #494 found:
   `s.first` of a String was C's error, of its struct.
@@ -7666,6 +7688,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P507 | Details of #495 | src/parser.c: owner_text_of_ref before float_operand, `&s` its operand, else an E_DEREF; convert calls it unless the type is bool, before the String/Bytes branch; selfhost/gen.k: owner_text_ref before converter_text, which takes Y_BYTES and a reference; put_text_arg of a reference, N_ADDR by its operand, of a Bytes `kv_bytes_cstr(&b)` | provisional |
 | P508 | Details of #496 | src/main.c: KELVIN_VERSION 0.1.1; editors/vscode/package.json and README.md: 0.1.1 and kelvin-lang-0.1.1.vsix; Design.md: the status's heading and its line of 0.1.1; CHANGELOG.md: 0.1.1 before 0.1.0; README.md: the release notes' line | provisional |
 | P509 | Details of #497 | src/parser.c: reject_unknown_member and its prototype, before is_text_type; a pointer's and an array's, a function's, the built-in types' by is_string to is_iter, runtime_fields with their spellings, a Kelvin struct's by record_has_field, unless a member is unnamed, a number's, a bool's and an enum's; called before the E_FIELD of a member; selfhost/gen.k: member_unknown and its prototype, before kelvin_type_text; type_of's struct branch by field_type, an enum_int's, the last branch; io_field_type's and bytes_field_type's | provisional |
+| P510 | Details of #498 | selfhost/gen.k: empty_record and put_zero_of before fixed_elem_ok, a fixed array to its element, a D_STRUCT with no member or whose first member's type is one; put_zero_of of an empty record `{}`, of an owner, a struct or a fixed array `{0}`, else `0`; gen_var's, the fixed declaration's and a global's value; selfhost/sample.k: ne_none, ne_after, ne_a, ne_b, ne_c; selfhost/README.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
