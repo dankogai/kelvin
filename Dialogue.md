@@ -9454,3 +9454,17 @@ notes of #468 to #495, `fetch()` and `localStorage` first. There is no
 tag yet. Details are provisional P508.
 
 There are 1222 tests, and all pass with clang and with gcc 15.
+
+### 544. A member a type does not have
+
+> go on with the s.first gap
+
+**Claude** found it wider than a String: any member kelvinc did not
+know went to C as a field, a struct's, a pointer's and a number's alike,
+and the built-in types' own C fields, `s.b` and `b.cap`, compiled.
+Asked, the user chose an error in words for every type kelvinc sees, a
+struct's naming its fields and a pointer's `p^.x`, and the runtime's
+fields refused, naming `.capacity`, `.utf32` or `.bytes`. kc says the
+same. Details are provisional P509.
+
+There are 1227 tests, and all pass with clang and with gcc 15.

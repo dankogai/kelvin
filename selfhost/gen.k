@@ -847,6 +847,7 @@ let lazy_type_of(n:int64):int64
 let is_lazy_type(y:int64):bool
 let empty_kind(n:int64):int64    // prototypes: x.isEmpty (#435)
 let gen_is_empty(n:int64)
+let member_unknown(n:int64, y:int64)    // a prototype: kelvinc's error of a member not known (#497)
 let bytes_field_type(n:int64):int64    // prototypes: a Bytes's (#439)
 let bytes_method_type(n:int64, y:int64):int64
 let gen_bytes_make(n:int64)
@@ -1639,13 +1640,21 @@ let type_of(n:int64):int64 {
             gen_error(n, m.cstr)
             return -1
         }
-        if yk == Y_STRUCT && decl_named(types[y].name, D_STRUCT) >= 0 { return field_type(y, t) }
+        if yk == Y_STRUCT && !enum_int(y) && decl_named(types[y].name, D_STRUCT) >= 0 {
+            let fy:int64 = field_type(y, t)
+            if fy < 0 { member_unknown(n, y) }               // kelvinc's words, where C's error came (#497)
+            return fy
+        }
+        if enum_int(y) {                                     // a plain enum's value has no members (#497)
+            member_unknown(n, y)
+            return -1
+        }
         if yk == Y_STRUCT || yk == Y_C { return base_type(Y_C) }      // of what only C sees (#207)
         if yk == Y_FIXED && tok_is(t, "pretty") {                   // kelvinc's #481
             gen_error(n, "kc reads '.pretty' of a struct, an enum with values, an Array, a Dictionary, a Set or a Range; not yet of a fixed array: print it, println(a)")
             return -1
         }
-        gen_error(n, "this member is not known")
+        member_unknown(n, y)
         return -1
     }
     if k == N_METHOD && iter_lazy_of(n) >= 0 { return iter_lazy_type_of(n) }   // it.lazy.map(f) of an Iterator (#328)
@@ -2056,6 +2065,83 @@ let gen_place(n:int64) {
 }
 
 // a type as kelvinc's messages name it: an Array an Array<T> (#284, #286)
+// n, an N_FIELD of the type y whose member kc does not know: kelvinc's
+// error (#497), a built-in type's documents named, its runtime field's
+// spelling, a pointer's 'p^.x', a struct's fields; else kc's own words
+let member_unknown(n:int64, y:int64) {
+    let t:int64 = nodes[n].t
+    let k = types[y].kind
+    var m = $"'."
+    if k == Y_PTR && types[y].elem >= 0 {
+        let ek = types[types[y].elem].kind
+        if ek == Y_STRUCT || ek == Y_C || ek == Y_STRING || ek == Y_BYTES || ek == Y_ARRAY || ek == Y_DICT || ek == Y_SET || ek == Y_IO || ek == Y_UCHR || ek == Y_BITS {
+            let w:String = kelvin_type_text(y)
+            m += tok_text(t)
+            m += "' of "
+            m += &w
+            m += ", a pointer: its member is '"
+            let a:int64 = nodes[n].a
+            if nodes[a].kind == N_ID { m += tok_text(nodes[a].t) } else { m += "p" }
+            m += "^."
+            m += tok_text(t)
+            m += "'"
+            gen_error(n, m.cstr)
+            return
+        }
+    }
+    let kind = k == Y_STRING ? $"a String" : k == Y_BYTES ? $"a Bytes" : k == Y_ARRAY ? $"an Array" : k == Y_DICT ? $"a Dictionary" : k == Y_SET ? $"a Set" : k == Y_UCHR ? $"a uchr" : k == Y_IO ? $"an IO" : $""
+    if kind.count > 0 {
+        let runtime:bool = tok_is(t, "cap") || tok_is(t, "cp") || tok_is(t, "b") || tok_is(t, "len") || tok_is(t, "head") || tok_is(t, "hcap") || tok_is(t, "fp") || tok_is(t, "kind") || tok_is(t, "named")
+        if runtime {
+            m += tok_text(t)
+            m += "' is the runtime's C field of "
+            m += &kind
+            m += ", no member of Kelvin's"
+            if tok_is(t, "cap") && (k == Y_BYTES || k == Y_ARRAY) { m += ": its spelling is '.capacity'" }
+            if tok_is(t, "cp") && k == Y_UCHR { m += ": its spelling is '.utf32'" }
+            if tok_is(t, "b") && k == Y_STRING { m += ": its spelling is '.bytes'" }
+            gen_error(n, m.cstr)
+            return
+        }
+        var e = kind.copy()
+        e += " has no member '"
+        e += tok_text(t)
+        e += "': see its properties and methods in documents/"
+        e += k == Y_STRING || k == Y_UCHR ? "strings.md" : k == Y_BYTES ? "bytes.md" : k == Y_ARRAY ? "arrays.md" : k == Y_IO ? "io.md" : k == Y_SET ? "sets.md" : "dictionaries.md"
+        gen_error(n, e.cstr)
+        return
+    }
+    let sd:int64 = k == Y_STRUCT && !enum_int(y) ? decl_named(types[y].name, D_STRUCT) : 0 - 1
+    if sd >= 0 {
+        var e = tok_text(types[y].name)
+        e += " has no member '"
+        e += tok_text(t)
+        var f:int64 = nodes[sd].a
+        if f < 0 {
+            e += "': it has no fields"
+        } else {
+            e += nodes[f].next >= 0 ? "': its fields are " : "': its field is "
+        }
+        while f >= 0 {
+            e += tok_text(nodes[f].t)
+            let g:int64 = nodes[f].next
+            if g >= 0 { e += nodes[g].next >= 0 ? ", " : " and " }
+            f = g
+        }
+        gen_error(n, e.cstr)
+        return
+    }
+    if is_number_kind(k) || k == Y_BOOL || k == Y_CSTR || k == Y_FIXED || k == Y_PTR || enum_int(y) {
+        var e = kelvin_type_text(y)
+        e += " has no member '"
+        e += tok_text(t)
+        e += "'"
+        gen_error(n, e.cstr)
+        return
+    }
+    gen_error(n, "this member is not known")
+}
+
 let kelvin_type_text(y:int64):String {
     let k = types[y].kind
     if k == Y_ARRAY || k == Y_SET {
@@ -3814,7 +3900,7 @@ let io_field_type(n:int64):int64 {
         let g = $"stat"
         return os_struct(&g)
     }
-    gen_error(n, "this member is not known")
+    member_unknown(n, type_of(nodes[n].a))               // kelvinc's words (#497)
     return 0 - 1
 }
 
@@ -6223,7 +6309,7 @@ let bytes_field_type(n:int64):int64 {
         gen_error(n, m.cstr)
         return -1
     }
-    gen_error(n, "this member is not known")
+    member_unknown(n, type_of(nodes[n].a))               // kelvinc's words (#497)
     return -1
 }
 

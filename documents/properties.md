@@ -262,6 +262,20 @@ println(3.141592653589793.hex)              // +0x1.921fb54442d18p+1
   - Where kelvinc cannot see the type, as in `getenv("HOME").oct` or
     `div(7, 2).hex`, the C compiler reports it, naming
     `kv_no_such_property`.
+- **A member a type does not have** is an error in Kelvin's words
+  (#497), where it was C's.
+  - A struct's names its fields: `Pt has no member 'z': its fields are x
+    and y`.
+  - A pointer's names `p^.x`: `q.x` of a `Pt^`.
+  - A String's, a Bytes's, an Array's, a Dictionary's, a Set's, a
+    uchr's or an IO's names its document.
+  - A number, a bool, an enum's value, a cstr and a fixed array have
+    none.
+  - The runtime's own C fields, as `b.cap`, `c.cp` and `s.b`, are no
+    members: the error names `.capacity`, `.utf32` or `.bytes`.
+    `.at` of a Bytes or an Array stays, a borrow.
+  - A C struct's, or a value whose type kelvinc cannot see, the C
+    compiler judges.
 - **Enums** follow C's types. An enumerator such as `BLUE` is an `int`,
   so `BLUE.dec` is `+2`.
   - A variable of an enum type has the integer type the C compiler

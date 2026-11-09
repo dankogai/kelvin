@@ -781,6 +781,7 @@ static Type *task_ctx; /* the Task wanted where async f(x) at task_at is, where 
 static int task_at = -1;
 static bool number_expr(Expr *e);
 static bool int_expr(Expr *e);
+static void reject_unknown_member(Expr *e, Token *name, const char *member);
 static bool is_array_owner(Type *t);
 static Program *program; /* the program being parsed: its Array<T> types (#57) */
 static Type *parse_array_elem(void);
@@ -3746,6 +3747,7 @@ static Expr *parse_postfix_steps(Expr *e) {
             if (e->kind == E_LITERAL && !e->paren && isdigit((unsigned char)e->text[0]))
                 error_at(e->pos, "'%s.%s': literals have no suffixes in Kelvin, and '%s' is not a method", e->text,
                          member, member);
+            reject_unknown_member(e, name, member); /* (#497) */
             if (is_owner(value_type(e)) && !owner_place(e)) /* make().name: the struct held, the field copied out (#187) */
                 e = make_temp(e, "a member of an owner that an expression gives: bind it to a variable first");
             Expr *x = new_expr(E_FIELD, t->pos);
@@ -6705,6 +6707,94 @@ static bool record_has_field(Decl *r, const char *name) {
         if (!strcmp(((Var *)r->members.data[i])->name, name))
             return true;
     return false;
+}
+
+/* r.name of a member kelvinc does not know went to C as a field, C's
+   error, and a built-in type's own C fields compiled (#497): of a type
+   kelvinc sees, it is an error in words; a C struct's, a C typedef's or
+   a value of no type kelvinc sees stays C's to judge */
+static void reject_unknown_member(Expr *e, Token *name, const char *member) {
+    Type *t = value_type(e);
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (!t)
+        return;
+    const char *what = kelvin_type(t);
+    if (t->kind == T_PTR || t->kind == T_ARRAY) {
+        Type *el = t->elem && t->elem->kind == T_TYPEOF ? t->elem->elem : t->elem;
+        Decl *r;
+        bool record = t->kind == T_PTR && !t->cstr && el && el->kind == T_BASE && !is_text_type(t) &&
+                      (strchr("sc", type_class(el, &r)) || is_string(el) || is_bytes(el) || is_array_owner(el) ||
+                       is_dict_owner(el) || is_set_owner(el) || is_io(el) || is_uchr(el) || is_bits(el));
+        if (record)
+            error_at(name->pos, "'.%s' of %s, a pointer: its member is '%s^.%s'", member, what,
+                     e->kind == E_IDENT ? e->text : "p", member);
+        error_at(name->pos, "%s has no member '%s'", what, member);
+    }
+    if (t->kind == T_FUNC)
+        error_at(name->pos, "%s, a function, has no member '%s'", what, member);
+    /* a built-in type's members are its properties and methods; its own C
+       fields are the runtime's, and those it documents are its spelling */
+    static const struct { const char *field, *spelling; } runtime_fields[] = {
+        {"cap", ".capacity"}, {"cp", ".utf32"}, {"b", ".bytes"}, {"len", NULL}, {"head", NULL}, {"hcap", NULL},
+        {"job", NULL},        {"state", NULL},  {"drop", NULL},  {"fp", NULL},  {"kind", NULL}, {"named", NULL},
+    };
+    const char *kind = is_string(t)         ? "a String"
+                       : is_bytes(t)        ? "a Bytes"
+                       : is_array_owner(t)  ? "an Array"
+                       : is_dict_owner(t)   ? "a Dictionary"
+                       : is_set_owner(t)    ? "a Set"
+                       : is_uchr(t)         ? "a uchr"
+                       : is_io(t)           ? "an IO"
+                       : is_task(t)         ? "a Task"
+                       : is_iter(t)         ? "an Iterator"
+                                            : NULL;
+    if (kind) {
+        bool at = (is_bytes(t) || is_array_owner(t)) && !strcmp(member, "at");          /* documented, a borrow */
+        bool io = is_io(t) && (!strcmp(member, "error") || !strcmp(member, "status") || /* documented (#87, #89, #109) */
+                               !strcmp(member, "signal") || !strcmp(member, "pid") || !strcmp(member, "path"));
+        bool count = !strcmp(member, "count") && !is_uchr(t) && !is_io(t) && !is_task(t) && !is_iter(t);
+        if (at || io || count)
+            return;
+        for (size_t i = 0; i < sizeof runtime_fields / sizeof runtime_fields[0]; i++)
+            if (!strcmp(member, runtime_fields[i].field)) {
+                const char *sp = runtime_fields[i].spelling;
+                bool has = sp && (!strcmp(sp, ".bytes")   ? is_string(t)
+                                  : !strcmp(sp, ".utf32") ? is_uchr(t)
+                                                          : is_bytes(t) || is_array_owner(t)); /* .capacity */
+                error_at(name->pos, "'.%s' is the runtime's C field of %s, no member of Kelvin's%s%s%s", member,
+                         kind, has ? ": its spelling is '" : "", has ? sp : "", has ? "'" : "");
+            }
+        error_at(name->pos, "%s has no member '%s': see its properties and methods in %s", kind, member,
+                 is_string(t) || is_uchr(t) ? "documents/strings.md"
+                 : is_bytes(t)              ? "documents/bytes.md"
+                 : is_array_owner(t)        ? "documents/arrays.md"
+                 : is_io(t)                 ? "documents/io.md"
+                 : is_task(t)               ? "documents/tasks.md"
+                 : is_iter(t)               ? "documents/iterators.md"
+                 : is_set_owner(t)          ? "documents/sets.md"
+                                            : "documents/dictionaries.md");
+    }
+    Decl *r;
+    char c = type_class(t, &r);
+    if (c == 's') {
+        if (record_has_field(r, member))
+            return;
+        for (int i = 0; i < r->members.len; i++) {
+            Var *m = r->members.data[i];
+            if (!m->name || !*m->name)
+                return; /* an anonymous member's are C's to see */
+        }
+        Buf names = {0};
+        for (int i = 0; i < r->members.len; i++)
+            buf_printf(&names, "%s%s", i ? (i == r->members.len - 1 ? " and " : ", ") : "",
+                       ((Var *)r->members.data[i])->name);
+        error_at(name->pos, "%s has no member '%s'%s%s", record_spelling(r), member,
+                 r->members.len ? (r->members.len == 1 ? ": its field is " : ": its fields are ") : ": it has no fields",
+                 r->members.len ? names.buf : "");
+    }
+    if (c == 'i' || c == 'f' || (t->kind == T_BASE && !strcmp(t->name, "bool")))
+        error_at(name->pos, "%s has no member '%s'", what, member);
 }
 
 /* Is t text: u8^ or i8^ (cstr), or an array of u8 or i8? A volatile

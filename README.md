@@ -167,6 +167,9 @@ So far the changes from C are these, by topic.
     (#493)
 - pointers are a postfix `^` (`i32^`, `p^`, `p^.m`), and are assigned
   with `:=` (`buffer := malloc(n):i64^`), while `=` assigns values
+  - a member a type does not have is an error in words, `p.m` of a
+    pointer naming `p^.m`, where it was C's; the runtime's own C fields,
+    as `s.b`, are no members (#497)
 - XOR is `~`
 - there are no C casts: convert with `i32(x)`, `malloc(n) as u8^` or
   `0xdead:u16`

@@ -39,6 +39,8 @@ and `.isNull` are in [properties.md](properties.md).
 
 - `p^` is C's `*p`, and `p^.m` is `p->m`: postfix, so it chains left to
   right, and `p^[i]` is `(*p)[i]`. `->` is an error with a hint.
+  - `p.m` of a pointer to a struct is an error that names `p^.m`
+    (#497), where it was C's.
 - **`restrict`** (#393) follows a pointer's `^`, as its own `const`
   does: `let copy(dst:u8^ restrict, src:const u8^ restrict, n:i64)` is
   C's `uint8_t *restrict dst`.
