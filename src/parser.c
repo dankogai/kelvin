@@ -1167,6 +1167,7 @@ static bool is_set_owner(Type *t);
 static bool showable(Type *t);
 static bool shown_array(Type *t);
 static Expr *shown_count(Expr *x);
+static bool zero_size(Type *t);
 static Type *shown_value_type(Expr *x);
 static bool length_holds(Expr *e);
 static Type *parse_set_type(Token *kw);
@@ -1506,6 +1507,11 @@ static Type *parse_type_in(TypeContext ctx) {
             advance();
             a->size = parse_assign();
             a->size_local = names_local(a->size);
+            if (a->size_local && zero_size(elem)) /* (#499) */
+                error_at(a->size->pos,
+                         "an array of %s, whose elements have no size, takes a constant length: its count is the "
+                         "length, which C's sizeof cannot give, and this one names a local",
+                         kelvin_type(elem));
             expect_p(")");
         }
         type_start = cur;
@@ -4364,6 +4370,8 @@ static Expr *parse_primary(void) {
             e->text = xt && xt->kind == T_ARRAY ? "fixed" : xt && xt->kind == T_PTR ? "copy" : "zeros";
             if (xt && xt->kind == T_ARRAY && !xt->size)
                 error_at(x->pos, "the fixed array's count is not known here");
+            if (xt && xt->kind == T_ARRAY && zero_size(xt->elem)) /* its declared length (#499) */
+                e->c = xt->size;
         }
         return e;
     }
@@ -8914,6 +8922,8 @@ static Expr *property(Expr *e, Token *name, char *member) {
         Expr *x = new_expr(E_PROPERTY, name->pos);
         x->a = e;
         x->text = member;
+        if (t->size && zero_size(t->elem)) /* its declared length (#499) */
+            x->c = t->size;
         return x;
     }
     if (!strcmp(member, "type") || !strcmp(member, "typename")) {
@@ -11814,6 +11824,26 @@ static bool showable(Type *t) {
                  (type_class(t, &record) == 's' && record));
 }
 
+/* Has a value of t no size (#499)? A struct or union of no fields, or of
+   fields of no size only, and an array of such; C's sizeof of an array of
+   them is 0, so its count is its declared length, not sizeof(a) / sizeof
+   a[0], which is 0 / 0 */
+static bool zero_size(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (t && t->kind == T_ARRAY)
+        return zero_size(t->elem);
+    Decl *r;
+    if (type_class(t, &r) != 's' || r->tagged)
+        return false;
+    for (int i = 0; i < r->members.len; i++) {
+        Var *m = r->members.data[i];
+        if (!m->type || !zero_size(m->type))
+            return false;
+    }
+    return true;
+}
+
 /* a fixed array that print shows as [a, b] (#481): of a known count, and
    not of bytes, whose text is a string's */
 static bool shown_array(Type *t) {
@@ -13535,6 +13565,8 @@ static Stmt *parse_for_each(Stmt *s, Type *written) {
                      param->name);
         t = param->type;
         s->step = t->size;
+    } else if (t && t->kind == T_ARRAY && t->size && zero_size(t->elem)) {
+        s->step = t->size; /* elements of no size: their declared count (#499) */
     }
     if ((!t || t->kind == T_ARRAY) && in_temporary(seq))
         error_at(seq->pos, "for over an array in a value that a call or '?:' returns: C discards the value before "

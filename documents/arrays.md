@@ -116,6 +116,13 @@ never changed; `a.size` is the bytes, `a.count * sizeof(T)`. Both hold
 for a variable length array, since `sizeof` is computed at run time
 there. A `var` array's elements may change; a `let` array's may not.
 
+- An array of empty structs, `[none](4)` of `struct none { }`, has size
+  0, so `sizeof(a) / sizeof(a[0])` would be 0 / 0 (#499).
+  - Its count is its declared length: `.count` is 4, and `for`, `print`,
+    a template, `.pretty` and `Array(a)` take 4 elements.
+  - So that length is a constant: `[none](n)` of a local `n` is an
+    error.
+
 <!-- fragment -->
 ```swift
 for i in 0..<a.count { a[i] = a[i] * 2 }
@@ -340,7 +347,7 @@ A fixed array is the core, C's own, with nothing linked. `Array<T>` is the prelu
 
 | On | Property or method | Gives |
 |---|---|---|
-| a fixed array `[T](N)` | `.count` | the elements, `sizeof(a) / sizeof(a[0])`, a VLA's too (#49) |
+| a fixed array `[T](N)` | `.count` | the elements, `sizeof(a) / sizeof(a[0])`, a VLA's too (#49); of elements of no size, the declared length (#499) |
 | | `.isEmpty` | whether it has no element, `.count == 0`, a `bool` (#434) |
 | | `.size` | the bytes |
 | | `.align` | its elements' alignment, `alignof` (#395) |

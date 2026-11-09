@@ -425,6 +425,7 @@ let put_free_copy(y:int64) {
 
 let put_fixed_base(y:int64)    // prototypes: put_ctype, a case's [a, b] and a [T](N)^ ask these (#360, #362)
 let put_fixed_counts(y:int64)
+let put_zero_count(y:int64):bool    // a fixed array's count where its elements have no size (#499)
 let put_record_word(y:int64)    // and C's word of a struct, union of a union (#453)
 let bit_of_bits(n:int64):bool    // and whether n is a Bits's bit, whose .flip() is the Bits's (#456)
 let gen_bit_method(n:int64):bool    // and a bool's flip, an integer's bit and flip (#457)
@@ -3002,11 +3003,15 @@ let show_value(v:int64, path:cstr, t:int64, level:cstr) {
         put_int(d)
         put(" = 0; _kv_i")
         put_int(d)
-        put(" < sizeof ")
-        put_self(path, t)
-        put(" / sizeof ")
-        put_self(path, t)
-        put("[0]; _kv_i")
+        put(" < ")
+        if !put_zero_count(v) {                          // (#499)
+            put("sizeof ")
+            put_self(path, t)
+            put(" / sizeof ")
+            put_self(path, t)
+            put("[0]")
+        }
+        put("; _kv_i")
         put_int(d)
         put("++)\n    {\n    kv_out_sep(o, ")
         put(level)
@@ -3179,11 +3184,15 @@ let put_eq_code(y:int64, x:cstr, z:cstr) {
         put(z)
         put(")")
     } else if k == Y_FIXED {                         // element by element, as == compares each (#360)
-        put("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < sizeof(")
-        put(x)
-        put(") / sizeof((")
-        put(x)
-        put(")[0]); _kv_q++) if (!((")
+        put("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < ")
+        if !put_zero_count(y) {                          // (#499)
+            put("sizeof(")
+            put(x)
+            put(") / sizeof((")
+            put(x)
+            put(")[0])")
+        }
+        put("; _kv_q++) if (!((")
         put(x)
         put(")[_kv_q] == (")
         put(z)
@@ -6044,11 +6053,15 @@ let gen_member(n:int64) {
         m += ", a pointer: an array passed to a function is one, so its count is passed beside it"
         gen_error(n, m.cstr)
     } else if yk == Y_FIXED && tok_is(t, "count") {      // a fixed array's, as kelvinc's (#354)
-        put("((int64_t)(sizeof(")
-        gen_expr(a)
-        put(") / sizeof((")
-        gen_expr(a)
-        put(")[0])))")
+        put("((int64_t)(")
+        if !put_zero_count(y) {                          // its declared count, of elements of no size (#499)
+            put("sizeof(")
+            gen_expr(a)
+            put(") / sizeof((")
+            gen_expr(a)
+            put(")[0])")
+        }
+        put("))")
     } else if yk == Y_FIXED && tok_is(t, "size") {
         put("((int64_t)sizeof(")
         gen_expr(a)
@@ -7044,11 +7057,15 @@ let gen_from_fixed(x:int64, y:int64) {
     put_array_name(ay)
     put("_from(")
     gen_expr(x)
-    put(", sizeof(")
-    gen_expr(x)
-    put(") / sizeof((")
-    gen_expr(x)
-    put(")[0]))")
+    put(", ")
+    if !put_zero_count(fy) {                             // (#499)
+        put("sizeof(")
+        gen_expr(x)
+        put(") / sizeof((")
+        gen_expr(x)
+        put(")[0])")
+    }
+    put(")")
 }
 
 // Array([a, b]), T the elements' one type, as kelvinc's #58 and as
@@ -10278,6 +10295,42 @@ let put_zero_of(y:int64) {
     }
 }
 
+// whether a value of y has no size: a struct or a union of no fields, or
+// of fields of no size only, or an array of such, as kelvinc's (#499)
+let zero_size(y:int64):bool {
+    var e:int64 = y
+    while e >= 0 && types[e].kind == Y_FIXED { e = types[e].elem }
+    if e < 0 || types[e].kind != Y_STRUCT || enum_int(e) { return false }
+    let d:int64 = decl_named(types[e].name, D_STRUCT)
+    if d < 0 { return false }
+    var f:int64 = nodes[d].a
+    while f >= 0 {
+        if nodes[f].ty < 0 || nodes[f].ty == e || !zero_size(nodes[f].ty) { return false }
+        f = nodes[f].next
+    }
+    return true
+}
+
+// the count of the fixed array y whose elements have no size, where C's
+// sizeof(a) / sizeof a[0] is 0 / 0: its declared count, as kelvinc's;
+// false of any other, whose count is sizeof's (#499)
+let put_zero_count(y:int64):bool {
+    if y < 0 || types[y].kind != Y_FIXED || !zero_size(types[y].elem) { return false }
+    if types[y].name >= 0 {
+        put("((size_t)")
+        put_int(types[y].name)
+        put(")")
+        return true
+    }
+    if types[y].name <= 0 - 10 {
+        put("((size_t)(")
+        gen_expr(0 - 10 - types[y].name)
+        put("))")
+        return true
+    }
+    return false
+}
+
 let fixed_elem_ok(y:int64):bool {
     let k:ykind = types[y].kind
     if k == Y_FIXED { return fixed_elem_ok(types[y].elem) }
@@ -10485,6 +10538,16 @@ let constant_count(e:int64):bool {
     return false
 }
 
+// whether the count e names a local or a parameter, by a name, a sign or
+// + - * / %, as kelvinc's names_local (#499)
+let count_names_local(e:int64):bool {
+    let k = nodes[e].kind
+    if k == N_ID { return local_at(nodes[e].t) >= 0 }
+    if k == N_UNARY { return count_names_local(nodes[e].a) }
+    if k == N_BIN { return count_names_local(nodes[e].a) || count_names_local(nodes[e].b) }
+    return false
+}
+
 let fixed_computed(y:int64):bool {
     var f:int64 = y
     while types[f].kind == Y_FIXED {
@@ -10526,6 +10589,14 @@ let computed_ok(n:int64, y:int64, v:int64):bool {
     }
     var f:int64 = y                                      // each count C computes, the outer and the inner (#367)
     while types[f].kind == Y_FIXED {
+        if types[f].name <= 0 - 10 && count_names_local(0 - 10 - types[f].name) && zero_size(types[f].elem) {   // as kelvinc says it (#499)
+            var m = $"an array of "
+            let w:String = kelvin_type_text(types[f].elem)
+            m += &w
+            m += ", whose elements have no size, takes a constant length: its count is the length, which C's sizeof cannot give, and this one names a local"
+            gen_error(0 - 10 - types[f].name, m.cstr)
+            return false
+        }
         if types[f].name <= 0 - 10 {
             let c:int64 = 0 - 10 - types[f].name
             let cy:int64 = type_of(c)

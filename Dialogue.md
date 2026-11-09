@@ -9481,3 +9481,18 @@ zeroing as before. `.count` of an array of empty structs divides by zero
 in both compilers, a gap of its own. Details are provisional P510.
 
 There are 1227 tests, and all pass with clang and with gcc 15.
+
+### 546. An empty struct's count
+
+> push. then go on with the empty struct count gap
+
+**Claude** pushed #498 after a clean battery; CI passed all 9 jobs. An
+array of empty structs has size 0, so `.count`, `sizeof(a) /
+sizeof(a[0])`, is 0 / 0, and clang printed 1 of a `[none](4)`; `for`,
+`print`, a template, `.pretty`, `==` and `Array(a)` divide the same.
+Asked, the user chose the declared length. `for` walks such elements by
+a counter, and a length that names a local is an error in words. kc
+does the same, but has no `for` over a fixed array of structs. Details
+are provisional P511.
+
+There are 1229 tests, and all pass with clang and with gcc 15.

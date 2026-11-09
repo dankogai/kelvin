@@ -1300,6 +1300,7 @@ on a new line`
     var ne_c:[ne_none](2)
     ne_b.n = 3
     println(ne_a.size, " ", ne_b.n, " ", ne_c.size)
+    println(ne_c.count, " ", ne_c, " ", Array(ne_c).count)   // its declared count, where sizeof's is 0 / 0 (#499)
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }

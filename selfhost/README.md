@@ -604,6 +604,11 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **An empty struct's count** (#499): an array of elements of no size
+  counts by its declared length, as kelvinc's: `.count`, `==`, `print`
+  and `Array(a)`, where `sizeof(a) / sizeof(a[0])` was 0 / 0.
+  - A length that names a local is kelvinc's error.
+  - kc walks no fixed array of structs with `for` yet, as before.
 - **A fixed array printed** (#481), as kelvinc's.
   - `println(f)` of a fixed array is `[a, b]`, as inside a struct; a
     `[u8](N)` is its text.

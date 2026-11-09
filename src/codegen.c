@@ -394,6 +394,8 @@ static char *c_op(const char *op) {
 
 static char *initializer(Expr *e);
 static Decl *kelvin_record(const char *name);
+static char *fixed_count(Type *t, const char *lv);
+static bool zero_size(Type *t);
 /* kelvinc's printers of a value (#123): the types that need one, and where
    a print being written sends its text */
 static List show_types;
@@ -1012,7 +1014,8 @@ static char *expr_bare(Expr *e) {
                 return strfmt("(%s){0}", e->type->cname);
             char *x = expr(e->items.data[0]);
             if (!strcmp(e->text, "fixed"))
-                return strfmt("%s_from(%s, sizeof (%s) / sizeof (%s)[0])", e->type->cname, x, x, x);
+                return e->c ? strfmt("%s_from(%s, (size_t)(%s))", e->type->cname, x, expr(e->c))
+                            : strfmt("%s_from(%s, sizeof (%s) / sizeof (%s)[0])", e->type->cname, x, x, x);
             if (!strcmp(e->text, "list")) /* Array([a, b, c]): a compound literal of the elements (#58) */
                 return strfmt("%s_from(%s, %s)", e->type->cname, x, ((Expr *)e->items.data[0])->type->size->text);
             if (!strcmp(e->text, "copy"))
@@ -1208,6 +1211,8 @@ static char *expr_bare(Expr *e) {
                 return strfmt("(%s == (size_t)-1 ? (%s = strlen((const char *)%s)) : %s)", cache, cache, recv, cache);
             return strfmt("strlen((const char *)%s)", recv);
         }
+        if (!strcmp(e->text, "count") && e->c) /* elements of no size: the declared length (#499) */
+            return strfmt("((size_t)(%s))", expr(e->c));
         if (!strcmp(e->text, "count")) /* an array's elements (#49), a VLA's too */
             return strfmt("(sizeof(%s) / sizeof((%s)[0]))", recv, recv);
         if (!strcmp(e->text, "typename")) /* a type kelvinc cannot see (#34) */
@@ -3256,7 +3261,16 @@ static void stmt(Stmt *s) {
             end = hidden(v, "end");
             line("{");
             indent++;
-            if (s->step) { /* a let array parameter: a pointer in C */
+            bool counted = s->step && zero_size(reader->elem);
+            if (counted) {
+                /* elements of no size (#499): p stays, and a counter
+                   walks the declared count */
+                sync(s->pos);
+                line("%s = %s;", decl(reader, p), seq);
+                sync(s->pos);
+                line("for (size_t %s = 0; %s < (size_t)(%s)%s; %s++)", end, end, expr(s->step),
+                     s->each == EACH_ARRAY ? strfmt(" && %s != 0", at) : "", end);
+            } else if (s->step) { /* a let array parameter: a pointer in C */
                 sync(s->pos);
                 line("%s = %s;", decl(reader, p), seq);
                 sync(s->pos);
@@ -3274,7 +3288,8 @@ static void stmt(Stmt *s) {
                 line("%s = %s + sizeof(*%s) / sizeof((*%s)[0]);", decl(const_type(reader), end), p, arr, arr);
             }
             sync(s->pos);
-            line("for (; %s < %s%s; %s++)", p, end, s->each == EACH_ARRAY ? strfmt(" && %s != 0", at) : "", p);
+            if (!counted)
+                line("for (; %s < %s%s; %s++)", p, end, s->each == EACH_ARRAY ? strfmt(" && %s != 0", at) : "", p);
         }
         sync(s->pos);
         line("{");
@@ -3553,6 +3568,33 @@ static Decl *kelvin_record(const char *name) {
     return NULL;
 }
 
+/* Has a value of t no size (#499)? A struct or union of no fields, or of
+   fields of no size only, and an array of such */
+static bool zero_size(Type *t) {
+    if (t && t->kind == T_TYPEOF)
+        t = t->elem;
+    if (t && t->kind == T_ARRAY)
+        return zero_size(t->elem);
+    Decl *r = t && t->kind == T_BASE && !t->cname ? kelvin_record(t->name) : NULL;
+    if (!r || r->tagged)
+        return false;
+    for (int i = 0; i < r->members.len; i++) {
+        Var *m = r->members.data[i];
+        if (!m->type || !zero_size(m->type))
+            return false;
+    }
+    return true;
+}
+
+/* the count of lv, a fixed array of type t: sizeof(lv) / sizeof lv[0],
+   or, of elements of no size, where that is 0 / 0, its declared length
+   (#499) */
+static char *fixed_count(Type *t, const char *lv) {
+    if (t && t->kind == T_ARRAY && t->size && zero_size(t->elem))
+        return strfmt("((size_t)(%s))", expr(t->size));
+    return strfmt("(sizeof(%s) / sizeof((%s)[0]))", lv, lv);
+}
+
 /* ---------- the derived text of structs: x.cstr (#22) ---------- */
 
 /* How a pointer member is written: 's' u8^ and i8^ are text; 'a' other
@@ -3583,8 +3625,7 @@ static char *text_bound(Type *t, const char *lv) {
         if (!t->size)
             return "5"; /* [...]: a flexible array member */
         /* [a, b]: brackets, and each element with ", " */
-        return strfmt("(sizeof(%s) / sizeof((%s)[0]) * (%s + 2) + 2)", lv, lv,
-                      text_bound(t->elem, strfmt("(%s)[0]", lv)));
+        return strfmt("(%s * (%s + 2) + 2)", fixed_count(t, lv), text_bound(t->elem, strfmt("(%s)[0]", lv)));
     }
     static const struct { const char *type, *bound; } scalars[] = {
         {"i8", "4"},    {"u8", "3"},    {"i16", "6"},   {"u16", "5"},   {"i32", "11"},
@@ -3720,7 +3761,7 @@ static void write_text(Type *t, const char *lv, int depth) {
     }
     char *i = strfmt("_kv_i%d", depth);
     line("_kv_p = kv_cstr_put(_kv_p, \"[\");");
-    line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
+    line("for (size_t %s = 0; %s < %s; %s++)", i, i, fixed_count(t, lv), i);
     line("{");
     indent++;
     line("if (%s)", i);
@@ -4102,9 +4143,9 @@ static void emit_arrays_after(Decl *d) {
    by C's == */
 static char *eq_code(Type *t, const char *x, const char *y) {
     if (t->kind == T_ARRAY) /* an enum case's array, element by element (#361) */
-        return strfmt("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < sizeof(%s) / sizeof((%s)[0]); _kv_q++) if "
+        return strfmt("({ bool _kv_r = true; for (size_t _kv_q = 0; _kv_q < %s; _kv_q++) if "
                       "(!((%s)[_kv_q] == (%s)[_kv_q])) { _kv_r = false; break; } _kv_r; })",
-                      x, x, x, y);
+                      fixed_count(t, x), x, y);
     const char *f = owner_free(t);
     if (f && !strcmp(f, "kv_string_free"))
         return strfmt("kv_string_eq(&%s, &%s)", x, y);
@@ -4939,7 +4980,7 @@ static void find_shows_stmt(Stmt *s) {
 static char *show_call(Expr *e, Type *t, const char *x, const char *out, const char *level) {
     if (t->kind == T_ARRAY)
         return strfmt("_kv_show_%s(%s, (%s), %s, %s);", show_key(t), out, x,
-                      e->c ? strfmt("(size_t)(%s)", expr(e->c)) : strfmt("sizeof (%s) / sizeof (%s)[0]", x, x),
+                      e->c ? strfmt("(size_t)(%s)", expr(e->c)) : fixed_count(t, x),
                       level);
     return strfmt("__auto_type _kv_sv = (%s); _kv_show_%s(%s, &_kv_sv, %s);", x, show_key(t), out, level);
 }
@@ -4954,7 +4995,7 @@ static void show_value(Type *t, const char *lv, int depth) {
         }
         char *i = strfmt("_kv_i%d", depth);
         line("kv_out_put(o, \"[\");");
-        line("for (size_t %s = 0; %s < sizeof %s / sizeof %s[0]; %s++)", i, i, lv, lv, i);
+        line("for (size_t %s = 0; %s < %s; %s++)", i, i, fixed_count(t, lv), i);
         line("{");
         indent++;
         line("kv_out_sep(o, _kv_nl, %s == 0);", i);
