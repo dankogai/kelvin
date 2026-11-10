@@ -164,6 +164,101 @@ let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
     return true
 }
 
+// """text""" from i, at its first quote (#115, #118, #516), as kelvinc's
+// lex_triple: the text between runs of three or more quotes as it is, no
+// escapes, no ${...}; a closing run as long as the opening one ends it,
+// and its extra quotes are text. Written on its own lines, the line break
+// after the opening run and the one before the closing run are not text,
+// and the closing run's indentation comes off each line that has it. A
+// T_STR of C's literal, appended to codes, or a T_DSTR after a $. Where
+// it ends, after the closing run
+let lex_triple(i:int64, to:int64, line:int64, file:int64, dollar:bool):int64 {
+    var k:int64 = i
+    var n:int64 = 0
+    while k < to && codes[k] == '"' {
+        k += 1
+        n += 1
+    }
+    var raw:$[uint32] = $[]
+    while true {
+        if k >= to {
+            var m = $"unterminated \"\"\" string: it ends with "
+            m += String(n)
+            m += " quotes, as it began"
+            lex_error(file, line, m.cstr)
+            return k
+        }
+        if codes[k] == '"' {
+            var run:int64 = 0
+            while k < to && codes[k] == '"' {
+                k += 1
+                run += 1
+            }
+            let text_run:int64 = run >= n ? run - n : run
+            for q in 0..<text_run { raw += '"' }
+            if run >= n { break }
+            continue
+        }
+        if codes[k] == '\r' && k + 1 < to && codes[k + 1] == '\n' { k += 1 }   // a CRLF line end is a new line
+        raw += codes[k]
+        k += 1
+    }
+    var from:int64 = 0
+    var len:int64 = raw.count as int64
+    var ind:int64 = 0                    // where the indentation is, in raw, and how long
+    var ind_len:int64 = 0
+    if len > 0 && raw[0] == '\n' {
+        from = 1
+        var last:int64 = len
+        while last > from && (raw[last - 1] == ' ' || raw[last - 1] == '\t') { last -= 1 }
+        if last > from && raw[last - 1] == '\n' {
+            ind = last
+            ind_len = len - last
+            len = last - 1
+        } else if last == from {
+            ind = from
+            ind_len = len - from
+            len = from
+        }
+    }
+    let at:int64 = codes.count as int64
+    if dollar { codes += '$' }
+    codes += '"'
+    var line_start = true
+    var q:int64 = from
+    while q < len {
+        if line_start && ind_len > 0 && len - q >= ind_len {
+            var same = true
+            for r in 0..<ind_len {
+                if raw[q + r] != raw[ind + r] { same = false }
+            }
+            if same {
+                q += ind_len
+                line_start = false
+                continue
+            }
+        }
+        let c:uint32 = raw[q]
+        line_start = c == '\n'
+        if c == '\\' || c == '"' || c == '?' {
+            codes += '\\'
+            codes += c
+        } else if c == '\n' {
+            codes += '\\'
+            codes += 'n'
+        } else if c == '\r' {
+            codes += '\\'
+            codes += 'r'
+        } else {
+            codes += c
+        }
+        q += 1
+    }
+    codes += '"'
+    add_tok(dollar ? T_DSTR : T_STR, at, codes.count as int64 - at, line, file)
+    return k
+}
+
 // $/pattern/flags from i, at its $ (#157), as kelvinc's lex_regexp:
 // RegExp.compile("pattern", "flags"), the prelude's; the pattern ends at
 // the first / not escaped and not in [...], on its line, and goes into C's
@@ -406,6 +501,12 @@ let lex_range(from:int64, to:int64, file:int64) {
                 tpls += outer.count as int64
                 outer += depth
                 depth = 1
+            }
+        } else if (c == '"' && code_at(i + 1) == '"' && code_at(i + 2) == '"') || (c == '$' && code_at(i + 1) == '"' && code_at(i + 2) == '"' && code_at(i + 3) == '"') {
+            let s:int64 = i                      // """text""", $"""text""" (#115, #516)
+            i = lex_triple(c == '$' ? i + 1 : i, to, line, file, c == '$')
+            for k in s..<i {
+                if codes[k] == '\n' { line += 1 }
             }
         } else if c == '"' || (c == '$' && code_at(i + 1) == '"') {
             let s:int64 = i

@@ -636,6 +636,25 @@ kc reads what it is written in, and little more.
     - `b.escape()` and `Bytes.unescape(text)` of a Bytes.
   - A `$/.../` pattern is checked as the program runs, where kelvinc
     checks it as it builds.
+- **The modules a program imports** (#516), as kelvinc's #46 and #143.
+  - `#import <M>` is `M.kh`, a module's header, else `M.k`, in
+    ./modules, else in the modules directory, `-m`.
+    - `#import <x.k>` is that file, looked for the same way.
+    - Each is read once; one not found is kelvinc's error.
+    - `<IO>` and `<OS>` stay kc's own.
+  - A header's library is linked, before libkelvin:
+    - `libkM.a` beside it, else `-lkM` of a shared one;
+    - with the flags of `libkM.link`, as fetch's.
+  - ./modules is where C looks for headers too.
+  - What came with it, for any program:
+    - `"""text"""` and `$"""text"""`, as kelvinc's #115 and #118;
+    - `j["key"]` and `j[i]` of an enum with values, through its
+      Dictionary or Array case, as kelvinc's #117;
+    - a function's name given to an overloaded function,
+      `JSON.stringify(&j, f)`;
+    - `&d[k]`, the entry's place.
+  - Not yet: math's `typealias`, SION's subscripts and localStorage's
+    `extern lazy var`.
 - **A converter clamps** (#513), as kelvinc's: `T(v)` of a number is
   KV_CLAMP's nearest value, or C's conversion where T holds every value
   (kind_widens); KV_TEXT_CLAMP where kc cannot see text; a pointer's is

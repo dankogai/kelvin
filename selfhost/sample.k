@@ -6,6 +6,7 @@
 #import <stdio.h> as C
 #import <time.h> as C
 #import <IO>                                          // f.lines, f.write (#450)
+#import <JSON>                                        // modules/JSON.kh, and libkJSON.a beside it (#516)
 
 struct point {
     x: int64
@@ -1358,7 +1359,20 @@ on a new line`
     println(rx_ms.count, " ", rx_ms[1]["m"], " ", rx_s.replace(&rx_e, "$2:$1"), " ", rx_s.split($/\s+/))
     var rx_t = rx_s.replace(&rx_e) { $`<${$0.text[1]}>` }  // a function of each Match, which it owns
     println(rx_t, " ", rx_e.global, " ", rx_s.test(&rx_e))
+    var js_j = JSON.parse("""
+        {"name": "kelvin", "tags": ["c", 11], "n": 3}
+        """)                                               // a module of modules/ (#516)
+    js_j["n"] = JSON.number(4.0)
+    js_j["tags"][0] = JSON.string($"C")
+    println(js_j["name"].string, " ", js_j["tags"][1].number, " ", JSON.stringify(&js_j), " ", JSON.stringify(&js_j, js_doubled))
+    println(JSON.stringify(&js_j.object["tags"], 1))
     return 0
+}
+// a JSON.stringify replacer: numbers doubled, the name left out (#516)
+let js_doubled(key:cstr, v:const JSON^):JSON? {
+    if strcmp(key, "name") == 0 { return none }
+    if v^.is(number) { return JSON.number(v^.number * 2.0) }
+    return v^.copy()
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
 let fw_later(n:i64):i64 { n * 2 }

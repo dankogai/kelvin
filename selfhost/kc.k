@@ -11,7 +11,10 @@
 // else cc. The files it imports, `#import "x.k"`, are read too, and C's
 // headers, `#import <x.h> as C`, are C's, as libc is (#207). A module of
 // the prelude that a program names, BigInt or RegExp, is read from its
-// M.kh in the modules, and libkelvin defines it (#515).
+// M.kh in the modules, and libkelvin defines it (#515). A module it
+// imports, `#import <M>`, is M.kh, else M.k, in ./modules, else in the
+// modules, as kelvinc finds it; a header's libkM.a beside it is linked,
+// with its libkM.link's flags, and <x.k> is that file (#516).
 #import <IO>
 #import <stdio.h> as C            // remove
 #import <stdlib.h> as C           // getenv, strtod
@@ -179,7 +182,7 @@ let load_imports():bool {
     return true
 }
 
-// ---------- the modules of the prelude (#504, #515) ----------
+// ---------- the modules, of the prelude too (#504, #515, #516) ----------
 
 // whether a token of the files is the name w
 let names_word(w:cstr):bool {
@@ -197,23 +200,125 @@ let own_type(w:cstr):bool {
     return false
 }
 
-// whether module m is a module of the prelude, the <M> of an #import
-let prelude_import(t:int64):bool {
-    return tok_is(t, "<BigInt>") || tok_is(t, "<RegExp>") || tok_is(t, "<UnicodeData>")
+// the libraries of the modules imported as M.kh, libkM.a beside it, or
+// -lkM where only a shared libkM is, with the flags of libkM.link, in the
+// order imported, linked before libkelvin, as kelvinc's (#516)
+var module_libs:$[String] = $[]
+
+// whether a file is there
+let exists(path:String^):bool {
+    return access(path^.cstr, 0) == 0
 }
 
-// M.kh in mods, its declarations, read once: libkelvin defines them
-let load_module(mods:String^, t:int64):bool {
-    var path:String = mods^.copy()
-    path += "/"
-    for j in 1..<toks[t].len - 1 {
-        path += codes[toks[t].at + j].uchr
-    }
-    path += ".kh"
+// the files already read, by path
+let read_already(path:String^):bool {
     for k in 0..<fnames.count as int64 {
-        if fnames[k] == path { return true }
+        if fnames[k] == path^ { return true }
     }
-    return loads(&path)
+    return false
+}
+
+// the flags of dir/libkM.link (#482), split on whitespace, as kelvinc's
+let link_flags(path:String^) {
+    if !exists(path) { return }
+    var f:IO = IO(path^.cstr, "r")
+    if f.error != 0 { return }
+    let text:String = f.string ?? $""
+    f.close()
+    var w = $""
+    for c in text {
+        let u = c.utf32
+        if u == ' ' || u == '\t' || u == '\r' || u == '\n' {
+            if w.count > 0 { module_libs += w.copy() }
+            w = $""
+        } else {
+            w += c
+        }
+    }
+    if w.count > 0 { module_libs += w.copy() }
+}
+
+// the library of a module's header, dir/M.kh, as kelvinc's module_library
+let module_library(dir:String^, name:String^) {
+    var base:String = dir^.copy()
+    base += "/libk"
+    base += name
+    var a:String = base.copy()
+    a += ".a"
+    var link:String = base.copy()
+    link += ".link"
+    if exists(&a) {
+        module_libs += a.copy()
+        link_flags(&link)
+        return
+    }
+    var so:String = base.copy()
+    so += ".dylib"
+    var so2:String = base.copy()
+    so2 += ".so"
+    if exists(&so) || exists(&so2) {
+        var l = $"-L"
+        l += dir
+        module_libs += l.copy()
+        var k = $"-lk"
+        k += name
+        module_libs += k.copy()
+        link_flags(&link)
+    }
+}
+
+// the module #import <M> or <x.k> names, as kelvinc's import_path: <M> is
+// M.kh, a module's header, else M.k, in ./modules, else in Kelvin's
+// modules; it is read once, and a header's library is linked (#516)
+let load_module(mods:String^, t:int64):bool {
+    var name = $""
+    var bare = true
+    for j in 1..<toks[t].len - 1 {
+        let c:uint32 = codes[toks[t].at + j]
+        if c == '.' { bare = false }
+        name += c.uchr
+    }
+    for k in 0..<2 {
+        var dir:String = k == 0 ? $"./modules" : mods^.copy()
+        var path:String = dir.copy()
+        path += "/"
+        path += &name
+        if bare {
+            var kh:String = path.copy()
+            kh += ".kh"
+            if exists(&kh) {
+                if read_already(&kh) { return true }
+                module_library(&dir, &name)
+                return loads(&kh)
+            }
+            path += ".k"
+        }
+        if exists(&path) {
+            if read_already(&path) { return true }
+            return loads(&path)
+        }
+    }
+    var why = $"cannot find "
+    let at:int64 = toks[t].at
+    for j in 0..<toks[t].len {
+        why += codes[at + j].uchr
+    }
+    why += " ("
+    if bare {
+        why += &name
+        why += ".kh or "
+    }
+    why += &name
+    if bare { why += ".k" }
+    why += ") in ./modules or in Kelvin's modules/ (KELVIN_HOME, or -m)"
+    lex_error(toks[t].file, toks[t].line, why.cstr)
+    return false
+}
+
+// whether token t is #import <M> of a module, not C's <x.h> nor IO or OS,
+// which kc knows
+let module_import(t:int64):bool {
+    return toks[t].kind == T_IMPORT && codes[toks[t].at] == '<' && !is_header(t) && !tok_is(t, "<IO>") && !tok_is(t, "<OS>")
 }
 
 // a module of the prelude that the files name, as kelvinc's with_prelude:
@@ -257,7 +362,7 @@ let load_prelude(mods:String^):bool {
     }
     var i = 0
     while i < toks.count as int64 {
-        if toks[i].kind == T_IMPORT && prelude_import(i) && !load_module(mods, i) { return false }
+        if module_import(i) && !load_module(mods, i) { return false }
         i += 1
     }
     return !failed
@@ -322,7 +427,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     if !loads(&input) { return 1 }
     if !load_imports() { return 1 }
-    if !load_prelude(&mods) { return 1 }          // BigInt, RegExp (#515)
+    if !load_prelude(&mods) { return 1 }          // BigInt, RegExp (#515), and each #import <M> (#516)
     let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
     toks += end
     eof_pos = toks.count as int64 - 1
@@ -369,6 +474,12 @@ let main(argc:int32, argv:[cstr]):int32 {
     cc_arg(&args, "-Wno-incompatible-library-redeclaration")
     cc_arg(&args, "-Wno-builtin-declaration-mismatch")
     cc_arg(&args, "-Wno-tautological-constant-out-of-range-compare")   // a converter's clamp (#513)
+    var here = $"./modules"
+    if exists(&here) {                          // C's headers of a module of ./modules, as kelvinc's (#516)
+        var pre = $"./modules/kelvin_prelude.h"
+        cc_arg(&args, exists(&pre) ? "-idirafter" : "-I")
+        args += here.copy()
+    }
     cc_arg(&args, "-isystem")
     args += mods.copy()
     if compile_only { cc_arg(&args, "-c") }        // an object, and nothing linked (#281)
@@ -384,6 +495,9 @@ let main(argc:int32, argv:[cstr]):int32 {
             return 1
         }
         return 0
+    }
+    for l in module_libs {                      // the modules' libraries, before libkelvin's (#516)
+        args += l.copy()
     }
     var lib:String = mods.copy()
     lib += "/libkIO.a"

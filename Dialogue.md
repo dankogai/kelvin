@@ -9741,3 +9741,17 @@ borrow is taken. kc's build passes 236 of the tests, where it passed
 204. Details are provisional P527.
 
 There are 1269 tests, and all pass with clang and with gcc 15.
+
+### 563. kc reads the modules a program imports
+
+> go on with kc #import of other modules
+
+**Claude** asked: the user chose that the change be the loader and what
+JSON's tests need, the other modules each a number of its own. kc now
+finds `#import <M>` as kelvinc does, `M.kh` or `M.k` in ./modules or in
+the modules, and links a header's library with its flags. For JSON it
+gained `"""` strings, `j["key"]` and `j[i]` through an enum's cases, a
+function's name given to an overload, and `&d[k]`. kc's build passes 243
+of the tests, where it passed 236. Details are provisional P528.
+
+There are 1269 tests, and all pass with clang and with gcc 15.

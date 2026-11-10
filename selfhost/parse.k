@@ -2292,6 +2292,7 @@ let parse_unary():int64 {
         let t:int64 = advance()
         let n:int64 = make_node(N_ADDR, t)
         set_a(n, parse_unary())
+        if nodes[nodes[n].a].kind == N_INDEX { nodes[nodes[n].a].flag = 0 }   // &d[k], the entry's place, as kelvinc's (#516)
         return n
     }
     if at_word("async") {                        // async f(x), a call on a thread of its own (#313)

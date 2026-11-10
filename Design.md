@@ -564,6 +564,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 513 | `T(v)` is always a converter, never C's cast, as the user said: of a number, the nearest value T holds, as text's is, `u8(300)` 255, `i64(1e30)` i64's largest, `i32(3.9)` 3, NaN 0, `f32(1e300)` an infinity; a global's value stays C's constant; of a pointer that is no text, an error in words; BigInt's `b.i64` and `b.u64` the nearest too, so `i64(1n << 1024)` is i64's largest; `v as T` stays C's conversion, which wraps, as the user chose. kc the same | modules/kelvin_prelude.h's KV_CLAMP and the rest; src/parser.c's convert, widens, int_kind; src/codegen.c's converted, clamp_limits, clamp_text; src/main.c's -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k's gen_converter, kind_bits, kind_widens, put_clamp_limits; selfhost/kc.k; modules/BigInt.k; tests; documents/integers.md, floatingpoint.md, bigint.md, README.md, selfhost/README.md, selfhost/sample.k | `u8(300)` is 255 | 2026-11-10 |
 | 514 | The version bumped to 0.2.0, as the user asked once RegExp and BigInt were in the prelude: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.2.0 notes, #497 to #513, the prelude, the language, the fixes and kc; README.md's line of the release notes; then, as the user asked, the tag v0.2.0 and the release Kelvin 0.2.0 | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.2.0` | 2026-11-10 |
 | 515 | kc reads the prelude's modules, as the user asked, BigInt and RegExp both, as the user chose: a program that names BigInt or RegExp, or writes `123n` or `$/.../`, reads its `M.kh` from the modules, as kelvinc's #504, UnicodeData's too; kc writes the declarations' prototypes and links libkelvin, which defines them, by kelvinc's C names. With it, for any program: methods overloaded by their parameters, methods of String, Bytes and uchr, a `T^` where a `const T^` goes, an owner an expression gives lent where a `T^` is taken, `$0` functions to overloads, function values of owners given to a module, `b.escape()` and `Bytes.unescape(text)` | selfhost/kc.k's load_prelude; selfhost/lex.k's big_literal, lex_regexp, add_made; selfhost/parse.k's in_kh, bodiless attributes and subscripts, `:()`; selfhost/gen.k's name_methods, method_chosen, choose_among, recv_tok, recv_type, lend_temps, pointer_text, mangled_text, kh_fns, arg_fit, gen_fn_value, Bytes's escape and unescape; selfhost/README.md, selfhost/sample.k | `kc` builds `2n ** 100` and `s.split($/\s+/)` | 2026-11-10 |
+| 516 | kc reads `#import <M>` of any module, as the user asked, with JSON's tests in it, as the user chose: `M.kh`, else `M.k`, in ./modules, else in the modules, as kelvinc's import_path; a header's `libkM.a` beside it linked, or `-lkM` of a shared one, with `libkM.link`'s flags, as kelvinc's module_library; `<x.k>` that file; ./modules's C headers seen. With it, for any program: `"""text"""` and `$"""text"""`, `j["key"]` and `j[i]` of an enum with values through its Dictionary or Array case (#117), a function's name given to an overload, `&d[k]` the entry's place | selfhost/kc.k's load_module, module_import, module_library, link_flags, module_libs, exists; selfhost/lex.k's lex_triple; selfhost/parse.k's `&d[k]`; selfhost/gen.k's is_case_word, indexes_enums, index_case, resolve_subscript; selfhost/README.md, selfhost/sample.k | `kc` builds `JSON.stringify(&j, f)` and `j["tags"][0]` | 2026-11-11 |
 
 Notes:
 
@@ -1149,6 +1150,33 @@ Notes:
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
 
+- (516) Agreed details: "go on with kc #import of other modules"
+  - Asked, the user chose that #516 be the loader and what JSON's tests
+    need; math, SION and MsgPack, localStorage and fetch follow, each a
+    number of its own.
+  - kc's load_module, as kelvinc's import_path: `<M>` is `M.kh`, else
+    `M.k`, in ./modules, else in the modules (-m, KELVIN_HOME or
+    modules/); `<x.k>` is that file; each read once; not found is
+    kelvinc's error. `<IO>` and `<OS>` stay kc's own.
+  - A header's library, as kelvinc's module_library: `libkM.a` beside
+    it, else `-L` and `-lkM` of a shared one, with `libkM.link`'s flags,
+    linked before libkIO, libkOS and libkelvin. ./modules is `-I`, or
+    `-idirafter` where it has a prelude header, as kelvinc's.
+  - `"""text"""` and `$"""text"""`, as kelvinc's lex_triple: a closing
+    run as long as the opening one, the line breaks and the closing
+    run's indentation of the form on its own lines dropped.
+  - `v[k]` of an enum with values (#117), as kelvinc's: through its first
+    Dictionary case for text, its first Array case for an integer, after
+    a subscript of the type, which wins; else kelvinc's error.
+  - A function's name is no case word, so it fits a function type of an
+    overload, `JSON.stringify(&j, f)`; `&d[k]` is the entry's place, not
+    its Optional.
+  - kc's build of every test: 243 pass where 236 did, none fewer; JSON's
+    6 pass, and wordfreq.
+  - Not yet: math's `typealias`, SION's subscripts, localStorage's
+    `extern lazy var`; json_eq imports SION; print_values's `.cstr` of a
+    struct and print_pretty's template as a cstr's body are kc's gaps
+    apart from JSON.
 - (515) Agreed details: "go on with kc BigInt support"
   - Asked, the user chose that kc reads `M.kh`, the declarations
     `kelvinc --prelude` writes, and links libkelvin's objects, as
@@ -8154,6 +8182,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P525 | Details of #513 | modules/kelvin_prelude.h: float.h; KV_CLAMP_S, KV_CLAMP_U, KV_CLAMP_F, KV_I128_MAX, KV_I128_MIN, KV_U128_MAX, KV_CLAMP_U128, KV_CLAMP, KV_NARROW_F, KV_TO_F32, KV_TO_F64, KV_TEXT_CLAMP; src/parser.c: int_kind, widens, convert's pointer error and op widen; src/codegen.c: E_CAST of widen as C's, of converter by converted; clamp_limits, converted (a hidden temporary inside a function), clamp_text in text_number; src/main.c and selfhost/kc.k: -Wno-tautological-constant-out-of-range-compare; selfhost/gen.k: kind_bits, kind_widens, put_clamp_limits, gen_converter's pointer error, KV_TEXT_CLAMP and KV_CLAMP; modules/BigInt.k: i64 and u64 clamped; tests/run/converter_clamp.k, tests/error/converter_address.k | provisional |
 | P526 | Details of #514 | src/main.c: KELVIN_VERSION 0.2.0; editors/vscode/package.json and README.md: 0.2.0 and kelvin-lang-0.2.0.vsix; Design.md: the status's heading and its lines of 0.2.0 and 0.1.1; CHANGELOG.md: 0.2.0 before 0.1.1; README.md: the release notes' line | provisional |
 | P527 | Details of #515 | selfhost/kc.k: names_word, own_type, prelude_import, load_module, load_prelude; selfhost/lex.k: add_made, big_lits, rx_lits, big_literal, lex_regexp; selfhost/parse.k: in_kh, parse_attribute and parse_subscript without a body in a .kh, parse_function's `:()`; selfhost/gen.k: choose_among, method_chosen, method_names_of, method_targets, name_methods, kh_fns, put_fn_name, recv_tok, builtin_recv, recv_type, resolve_attr and method_of by recv_tok, gen_signature's self, pointer_text, mangled_text, mangled of Y_PTR and Y_FN, arg_fit, lend_temps, gen_call and gen_method_of holding arguments, gen_fn_value, bytes_method_type and gen_bytes_method's escape, Bytes.unescape(text); selfhost/sample.k; selfhost/README.md | provisional |
+| P528 | Details of #516 | selfhost/kc.k: module_libs, exists, read_already, link_flags, module_library, load_module, module_import, load_prelude by module_import, ./modules as -I, the modules' libraries linked; selfhost/lex.k: lex_triple, `"""` and `$"""`; selfhost/parse.k: `&d[k]` a place; selfhost/gen.k: is_case_word of a function's name, enum_index_known, indexes_enums, index_case, resolve_subscript; selfhost/sample.k; selfhost/README.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

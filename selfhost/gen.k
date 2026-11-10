@@ -1257,10 +1257,67 @@ let choose_subscript(n:int64, recv:int64):int64 {
     return found
 }
 
+var enum_index_known = 0                   // whether an enum with values has a Dictionary or an Array case: 1 no, 2 yes
+
+// whether an enum with values of the files has a case that is a
+// Dictionary or an Array, which v[k] indexes through (#117, #516)
+let indexes_enums():bool {
+    if enum_index_known == 0 {
+        enum_index_known = 1
+        for d in decls {
+            if nodes[d].kind != D_ENUM || nodes[d].flag != 1 { continue }
+            var m:int64 = nodes[d].a
+            while m >= 0 {
+                let my:int64 = nodes[m].ty
+                if my >= 0 && (types[my].kind == Y_DICT || types[my].kind == Y_ARRAY) { enum_index_known = 2 }
+                m = nodes[m].next
+            }
+        }
+    }
+    return enum_index_known == 2
+}
+
+// v[k] of an enum with values (#117), as kelvinc's: through its first case
+// that is a Dictionary for text, or an Array for an integer, as j["key"]
+// and j[i] of a JSON, v.object["key"] and v.array[i]; checked as the case
+// and the index are (#516)
+let index_case(n:int64, y:int64) {
+    let d:int64 = tagged_of(y)
+    if d < 0 { return }
+    var dc:int64 = 0 - 1
+    var ac:int64 = 0 - 1
+    var m:int64 = nodes[d].a
+    while m >= 0 {
+        let my:int64 = nodes[m].ty
+        if my >= 0 && types[my].kind == Y_DICT && dc < 0 { dc = m }
+        if my >= 0 && types[my].kind == Y_ARRAY && ac < 0 { ac = m }
+        m = nodes[m].next
+    }
+    let key:int64 = nodes[n].b
+    var text = false
+    if key >= 0 && nodes[key].kind != N_RANGE {
+        let ky:int64 = type_of(key)
+        let kk = nodes[key].kind
+        text = kk == N_STR || kk == N_DSTR || (ky >= 0 && (types[ky].kind == Y_CSTR || types[ky].kind == Y_STRING || types[ky].kind == Y_BYTES))
+    }
+    let c:int64 = text ? dc : ac
+    if c < 0 {
+        var w = tok_text(nodes[d].t)
+        w += " is not indexed with "
+        w += text ? "text: " : "an integer: "
+        w += dc >= 0 && !text ? "its Dictionary case takes text" : ac >= 0 && text ? "its Array case takes an integer" : "no case of it is a Dictionary or an Array"
+        gen_error(n, w.cstr)
+        return
+    }
+    let f:int64 = make_node(N_FIELD, nodes[c].t)
+    nodes[f].a = nodes[n].a
+    nodes[n].a = f
+}
+
 // v[i] of a type with a subscript (#136) is the call of its getter, which
 // wins over #117's indexing of an enum with values; else as it was
 let resolve_subscript(n:int64) {
-    if sub_getters.count == 0 || attr_settled.has(n) { return }
+    if (sub_getters.count == 0 && !indexes_enums()) || attr_settled.has(n) { return }
     let y:int64 = type_of(nodes[n].a)
     if y < 0 { return }                                 // asked again where more is known
     attr_settled[n] = true
@@ -1269,7 +1326,10 @@ let resolve_subscript(n:int64) {
     for d in sub_getters {
         if same_text(nodes[d].c, types[y].name) { has = true }
     }
-    if !has { return }
+    if !has {
+        index_case(n, y)
+        return
+    }
     let first:int64 = nodes[n].b
     if first >= 0 && (nodes[first].kind == N_RANGE || (type_of(first) >= 0 && types[type_of(first)].kind == Y_RANGE)) {
         var m = $"a slice is no subscript of "
@@ -2460,7 +2520,7 @@ let gen_key_of(key:int64, k:int64) {
 // whether n is none, ok(v) or err(e), which only the type that takes them
 // reads: no name of the program (#221)
 let is_case_word(n:int64):bool {
-    if nodes[n].kind == N_ID { return var_type(nodes[n].t) < 0 }
+    if nodes[n].kind == N_ID { return var_type(nodes[n].t) < 0 && fn_named(nodes[n].t) < 0 }   // a function's name is a value (#516)
     if nodes[n].kind == N_CALL && nodes[nodes[n].a].kind == N_ID {
         let f = nodes[n].a
         return var_type(nodes[f].t) < 0 && decl_named(nodes[f].t, D_FN) < 0 && converter_of(n) < 0 && !uchr_call(n)   // int64(x), uchr(x) are no case (#479)
