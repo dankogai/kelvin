@@ -214,6 +214,9 @@ var b = Bytes("raw bytes")                // a Bytes; Bytes("""...""") too
 | `Bytes("...")`, `String("...")` | a `Bytes`, a `String` of any of the above | as the one inside | as the one inside | as the one inside |
 | `$/pattern/flags` | a `RegExp`, the prelude's (#157, #504): [regexp.md](regexp.md) | no | the pattern's own | no |
 
+An integer's digits and an `n`, `123n`, `0xffn` or `0b101n`, is a
+`BigInt`, the prelude's (#508): see [bigint.md](bigint.md).
+
 - **`"..."`** is C's string literal (#52).
   - It has no prefix: C's `L"..."`, `u8"..."`, `u"..."` and `U"..."`,
     and `L'x'` and the rest of a character, are errors (#295); its text

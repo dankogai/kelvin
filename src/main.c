@@ -308,7 +308,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
             list_push(&out, u);
         }
         Token *end = xmalloc(sizeof *end);
-        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false};
+        *end = (Token){TK_FILE_END, eof, path, eof.line, false, true, false, false};
         list_push(&out, end);
     }
     Token *all = xmalloc(sizeof(Token) * (size_t)(out.len + 1));
@@ -331,7 +331,7 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
         bool named = false, own = false;
         for (int i = 0; i < n && !named; i++)
             named = toks[i].kind == TK_IDENT && !strcmp(toks[i].text, names[k]);
-        Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false};
+        Token imp = {TK_IMPORT_K, toks[0].pos, strfmt("<%s>", names[k]), toks[0].pos.line, false, false, false, false};
         if (!named || imported_has(import_path(&imp, argv0))) /* none, or #import <RegExp> written */
             continue;
         for (int i = 0; i < n; i++) {
@@ -340,10 +340,14 @@ static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
                 toks[i + 1].kind == TK_IDENT && !strcmp(toks[i + 1].text, names[k]))
                 own = true;
         }
-        for (int i = 0; own && i < n; i++) /* $/.../ is the prelude's, which the program's own type hides */
+        for (int i = 0; own && i < n; i++) { /* $/.../ and 123n are the prelude's, which the program's own type hides */
             if (toks[i].regexp && !strcmp(names[k], "RegExp"))
                 error_at(toks[i].pos, "a $/.../ literal is the prelude's RegExp, which a type of this program named "
                                       "RegExp hides: rename that type (#504)");
+            if (toks[i].bigint && !strcmp(names[k], "BigInt"))
+                error_at(toks[i].pos, "a 123n literal is the prelude's BigInt, which a type of this program named "
+                                      "BigInt hides: rename that type (#508)");
+        }
         if (own)
             continue;
         int m;

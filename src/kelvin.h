@@ -75,6 +75,7 @@ typedef struct {
     bool tpl;      /* a template literal without ${...}, lexed as a TK_STRING */
     bool imported; /* from a Kelvin file that #import brought in (#40) */
     bool regexp;   /* the RegExp of a $/.../ literal (#157), which needs #import <RegExp> */
+    bool bigint;   /* the BigInt of a 123n literal (#508) */
 } Token;
 
 Token *lex(const char *file, const char *src, int *ntoks);

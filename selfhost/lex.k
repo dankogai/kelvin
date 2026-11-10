@@ -271,6 +271,9 @@ let lex_range(from:int64, to:int64, file:int64) {
                     more = true
                 }
             }
+            if codes[i - 1] == 'n' && (!hex || i - s > 3) {        // 123n, kelvinc's BigInt, which kc links not (#508)
+                lex_error(file, line, "a 123n literal is the prelude's BigInt, a module written in Kelvin, which kc does not link yet")
+            }
             add_tok(T_NUM, s, i - s, line, file)
         } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
             let head = c != '}'                  // a template, `a${x}b`, or the } that ends its ${...} (#445)

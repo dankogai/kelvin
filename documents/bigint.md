@@ -14,7 +14,7 @@ let factorial(n:i64):BigInt {
 let main():int32 {
     let f = factorial(30)
     println(f, " ", f.text(16))                    // 265252859812191058636308480000000 d13f6370f96865df5dd54000000
-    let big = BigInt(1) << 100
+    let big = 1n << 100                            // 123n, a literal (#508)
     var n = BigInt("123456789012345678901234567890")
     println(big, " ", n % 97, " ", -n / 7, " ", n > big)   // 1267650600228229401496703205376 52 -17636684144620811271604938270 false
     println(BigInt(-7) / 2, " ", BigInt(-7) % 2, " ", BigInt(-6) & 0xff, " ", ~BigInt(0))   // -3 -1 250 -1
@@ -34,6 +34,12 @@ names it has it, with no import.
   - An operator is lent its operands (#501), so `a * a + b` leaves `a`
     and `b`.
 - **Making one:**
+  - **`123n`** is a literal (#508), as JS writes one: an integer's digits
+    and an `n`, decimal, `0x` hex or `0b` binary, `0xffn`, `0b101n`.
+    - It is `BigInt("123", 10)`, so a literal of any length is whole:
+      `123456789012345678901234567890n`.
+    - A leading `0`, C's octal, is an error, as in JS: `017n`.
+    - `-5n` is `-` of `5n`.
   - `BigInt(n)` of any integer, an `i64` or a `u64`.
   - `BigInt(text)` of a `cstr` or a `String` by reference, `BigInt(&s)`,
     and `BigInt(text, base)` with a base from 2 to 36.
@@ -64,8 +70,8 @@ names it has it, with no import.
 - **Numbers out:** `b.i64` and `b.u64` are the low 64 bits, as C's
   casts wrap them; `b.f64` is the nearest double, about.
 - **Not yet:** `**`, `gcd`, the square root, Karatsuba's multiplication,
-  a checked `i64`, the `123n` literal, and kc, which reads no module
-  written in Kelvin.
+  a checked `i64`, and kc, which reads no module written in Kelvin and
+  refuses a `123n` literal in words.
 
 ## Where it lives
 
@@ -87,6 +93,7 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 
 | On | Property or method | Gives |
 |---|---|---|
+| a literal | `123n`, `0xffn`, `0b101n` | a `BigInt` (#508) |
 | the type | `BigInt(n)` | of an integer, an `i64` or a `u64` |
 | | `BigInt(text)`, `BigInt(text, base)` | of a `cstr` or a `String` by reference, read as `i64(s)` reads it |
 | a `BigInt` | `.string` | its decimal text, a String, which print shows (#506) |

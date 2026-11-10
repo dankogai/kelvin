@@ -67,6 +67,8 @@ Everything else about literals is C's:
 
 - hex `0xff`, octal `017`, binary `0b101`, character constants `'a'`,
   and adjacent strings.
+- An `n` after an integer's digits makes a `BigInt` (#508), as in JS:
+  `123n`, `0xffn`, `0b101n`; see [bigint.md](bigint.md).
 - A literal inside an expression still has C's type, so a bare `1` is
   C's `int` (an `i32`).
 - Where C would write `1UL << 40`, Kelvin writes `1:u64 << 40`.

@@ -9626,3 +9626,16 @@ reads the tokens as written. Checked against Python's int, 600 random
 cases. Details are provisional P519.
 
 There are 1250 tests, and all pass with clang and with gcc 15.
+
+### 555. The 123n literal
+
+> push. then go on with the 123n literal
+
+**Claude** pushed #506 and #507; CI passed all 9 jobs. Asked, the user
+chose that a BigInt shows as `123n` so it pastes back, which the user
+made every text of one in #509; and that `017n` is an error, as in JS. The
+lexer reads `123n`, `0xffn` and `0b101n` as calls of BigInt with the
+digits as text, so a literal of any length is whole and brings in the
+prelude's BigInt. kc refuses one in words. Details are provisional P520.
+
+There are 1253 tests, and all pass with clang and with gcc 15.

@@ -126,7 +126,7 @@ static void push(Lexer *lx, TokKind kind, Pos pos, const char *start, const char
         lx->cap = lx->cap ? lx->cap * 2 : 256;
         lx->toks = xrealloc(lx->toks, (size_t)lx->cap * sizeof(Token));
     }
-    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false};
+    lx->toks[lx->len++] = (Token){kind, pos, xstrndup(start, (size_t)(end - start)), lx->line, false, false, false, false};
 }
 
 /* s[0..n) with a backslash before each '?' that follows a '?': Kelvin has
@@ -303,6 +303,37 @@ static bool method_after_number(const char *start, const char *dot) {
     return true;
 }
 
+/* 123n, 0xffn, 0b101n (#508), as JS writes a BigInt: an integer's digits
+   and an n, which become BigInt("123", 10), the prelude's; false where
+   the text before the n is no integer, which check_number refuses */
+static bool big_literal(Lexer *lx, Pos pos, const char *s, const char *end) {
+    int base = 10;
+    const char *d = s;
+    if (end - s > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'b' || s[1] == 'B')) {
+        base = s[1] == 'x' || s[1] == 'X' ? 16 : 2;
+        d = s + 2;
+    }
+    for (const char *q = d; q < end; q++)
+        if (base == 16 ? !isxdigit((unsigned char)*q) : base == 2 ? (*q != '0' && *q != '1') : !isdigit((unsigned char)*q))
+            return false;
+    if (d == end)
+        return false;
+    if (base == 10 && end - s > 1 && s[0] == '0')
+        error_at(pos, "'%.*sn': a BigInt literal is decimal, 0x hex or 0b binary, with no leading 0: C's octal is "
+                      "none of them",
+                 (int)(end - s), s);
+    push_text(lx, TK_IDENT, pos, "BigInt");
+    lx->toks[lx->len - 1].bigint = true;
+    push_text(lx, TK_PUNCT, pos, "(");
+    char *digits = strfmt("\"%.*s\"", (int)(end - d), d);
+    push_text(lx, TK_STRING, pos, digits);
+    push_text(lx, TK_PUNCT, pos, ",");
+    push_text(lx, TK_NUMBER, pos, base == 16 ? "16" : base == 2 ? "2" : "10");
+    push_text(lx, TK_PUNCT, pos, ")");
+    free(digits);
+    return true;
+}
+
 /* A C "preprocessing number": digits, letters, underscores and dots, plus
    a sign directly after an exponent letter. */
 static void lex_number(Lexer *lx) {
@@ -320,6 +351,8 @@ static void lex_number(Lexer *lx) {
             break;
         }
     }
+    if (lx->p - start >= 2 && lx->p[-1] == 'n' && big_literal(lx, pos, start, lx->p - 1))
+        return; /* 123n (#508) */
     check_number(pos, start, lx->p);
     push(lx, TK_NUMBER, pos, start, lx->p);
 }

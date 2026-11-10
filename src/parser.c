@@ -16697,9 +16697,9 @@ static void forward_prototypes(void) {
             Token *first = &toks[a->start];
             if (a->recv) {
                 Token *ext = xmalloc(sizeof *ext * 3);
-                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false};
-                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false};
-                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false};
+                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false, false};
+                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false, false};
+                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false, false};
                 for (int e = 0; e < 3; e++)
                     list_push(&out, &ext[e]);
             }
@@ -16715,13 +16715,13 @@ static void forward_prototypes(void) {
                 }
                 Token *semi = xmalloc(sizeof *semi);
                 *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false,
-                                toks[b->body - 1].imported, false};
+                                toks[b->body - 1].imported, false, false};
                 list_push(&out, semi);
                 at.data[m + 1] = NULL;
             }
             if (a->recv) {
                 Token *close = xmalloc(sizeof *close);
-                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false};
+                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false, false};
                 list_push(&out, close);
             }
         }

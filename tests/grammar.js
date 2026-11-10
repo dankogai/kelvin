@@ -154,6 +154,7 @@ const samples = [
     ['let re = $/(\\d+)F\\b/g', [['$', 'keyword.operator.string-maker'], ['\\d', 'constant.character.escape'], ['g', 'keyword.other.regexp-flags']]],
     ['println(`n = ${n * 2}`, " ", $"héllo\\n")', [['println', 'support.function'], ['`', 'string.template'], ['n * 2', 'meta.embedded.line'], ['\\n', 'constant.character.escape'], ['$', 'keyword.operator.string-maker']]],
     ['#import <RegExp>', [['#import', 'keyword.control.import'], ['<RegExp>', 'string.quoted.other.module']]],
+    ['let b = 123n * 0xffn + 0b101n', [['123n', 'constant.numeric.bigint'], ['0xffn', 'constant.numeric.bigint'], ['0b101n', 'constant.numeric.bigint']]],
     ['#import <math.h> as C', [['as', 'keyword.control.import'], ['C', 'support.constant.language']]],
     ['struct point { x: int64; y: int64 }', [['struct', 'storage.type'], ['point', 'entity.name.type']]],
     ['extend point { let norm:float64 { .x * .x } }', [['extend', 'storage.type'], ['point', 'entity.name.type'], ['float64', 'support.type.primitive']]],
