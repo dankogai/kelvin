@@ -1086,12 +1086,83 @@ let method_of(n:int64):int64 {
     let chosen:int64 = sub_targets.get(n, 0 - 1)        // v[i], its subscript (#136)
     if chosen >= 0 { return chosen }
     let a:int64 = nodes[n].a
-    if names_type(a) { return method_named(nodes[a].t, nodes[n].t) }
+    if nodes[a].kind == N_TYPE && builtin_recv(nodes[a].t) {   // Bytes.unescape(s, re), a module's function of the type (#515)
+        let g:int64 = method_named(nodes[a].t, nodes[n].t)
+        return g >= 0 && nodes[g].flag == 1 ? method_chosen(n, g) : 0 - 1
+    }
+    if names_type(a) { return method_chosen(n, method_named(nodes[a].t, nodes[n].t)) }
     let y:int64 = type_of(a)
-    if y < 0 || types[y].kind != Y_STRUCT { return -1 }
-    let f:int64 = method_named(types[y].name, nodes[n].t)
+    let r:int64 = recv_tok(y)                           // a struct's, or a String's a module extends (#515)
+    if r < 0 { return -1 }
+    let f:int64 = method_named(r, nodes[n].t)
     if f >= 0 && (attributes.get(f, 0) == 3 || subscripts.get(f, 0) != 0) { return -1 }   // called by assigning, or by v[i] (#132, #136)
-    return f
+    return method_chosen(n, f)
+}
+
+var tied_cands:$[int64]                  // the overloads a call fits alike (#471)
+var builtin_recvs:Dictionary<String, int64>   // String, Bytes and uchr as a receiver's name, a token of each (#515)
+
+// the token that names y's type as the receiver of its methods: a
+// struct's name, and String, Bytes or uchr, which a module extends (#515);
+// else -1
+let recv_tok(y:int64):int64 {
+    if y < 0 { return -1 }
+    let k = types[y].kind
+    if k == Y_STRUCT { return types[y].name }
+    if k != Y_STRING && k != Y_BYTES && k != Y_UCHR { return -1 }
+    var w:String = k == Y_STRING ? $"String" : k == Y_BYTES ? $"Bytes" : $"uchr"
+    let had:int64 = builtin_recvs.get(w, 0 - 1)
+    if had >= 0 { return had }
+    let t:int64 = made_token(&w)
+    builtin_recvs[w] = t
+    return t
+}
+
+// whether the token recv names String, Bytes or uchr, of kc's own methods
+// too, which serve where none of a module's fits (#515)
+let builtin_recv(recv:int64):bool {
+    return tok_is(recv, "String") || tok_is(recv, "Bytes") || tok_is(recv, "uchr")
+}
+
+// the type of self in a method of the type named as token recv (#515)
+let recv_type(recv:int64):int64 {
+    if tok_is(recv, "String") { return base_type(Y_STRING) }
+    if tok_is(recv, "Bytes") { return base_type(Y_BYTES) }
+    if tok_is(recv, "uchr") { return base_type(Y_UCHR) }
+    return type_of_kind(Y_STRUCT, -1, recv)
+}
+var method_names_of:Dictionary<int64, int64>   // a method of several by its parameters' types: the token of its name as written (#515)
+var method_targets:Dictionary<int64, int64>    // the method each call of such a name chose
+
+// of the methods named as f is, of f's type, the one call n's arguments
+// fit best, as kelvinc's #158; f where it is the one; -1 where none fits,
+// kelvinc's error then (#515)
+let method_chosen(n:int64, f:int64):int64 {
+    if f < 0 { return f }
+    let builtin = builtin_recv(nodes[f].c) && attributes.get(f, 0) == 0
+    if !method_names_of.has(f) && !builtin { return f }
+    let done:int64 = method_targets.get(n, 0 - 2)
+    if done != 0 - 2 { return done }
+    let w:int64 = method_names_of.get(f, nodes[f].t)
+    var some:$[int64] = $[]
+    if !method_names_of.has(f) { some += f }
+    for d in decls {
+        if nodes[d].kind == D_FN && nodes[d].c >= 0 && method_names_of.has(d) && same_text(method_names_of.get(d, 0 - 1), w) && same_text(nodes[d].c, nodes[f].c) { some += d }
+    }
+    var best:int64 = choose_among(n, &some, false)
+    if best == 0 - 1 { best = choose_among(n, &some, true) }   // a T fits a T?, the second look (#222)
+    if best == 0 - 2 { best = tied_cands[0] }
+    method_targets[n] = best
+    if best < 0 && builtin { return best }              // kc's own method of a String, a Bytes, a uchr
+    if best < 0 {
+        var m = $"no method '"
+        m += tok_text(w)
+        m += "' of "
+        m += tok_text(nodes[f].c)
+        m += " takes these arguments"
+        gen_error(n, m.cstr)
+    }
+    return best
 }
 
 var attr_settled:Dictionary<int64, bool>   // the x.y and v[i] asked once whether they read an attribute or a subscript
@@ -1247,8 +1318,9 @@ let resolve_attr(n:int64) {
     let y:int64 = type_of(a)
     if y < 0 { return }                                 // asked again where more is known
     attr_settled[n] = true
-    if types[y].kind != Y_STRUCT { return }
-    let f:int64 = method_named(types[y].name, nodes[n].t)
+    let r:int64 = recv_tok(y)                           // a struct's, or a uchr's a module extends (#515)
+    if r < 0 { return }
+    let f:int64 = method_named(r, nodes[n].t)
     if f < 0 || attributes.get(f, 0) == 0 { return }
     nodes[n].kind = N_METHOD
     nodes[n].b = 0 - 1
@@ -1788,6 +1860,8 @@ let type_of(n:int64):int64 {
         return -1
     }
     if k == N_METHOD {
+        if nodes[nodes[n].a].kind == N_TYPE && method_of(n) >= 0 { return nodes[method_of(n)].ty }   // Bytes.unescape(s, re), a module's (#515)
+        if nodes[nodes[n].a].kind == N_TYPE && tok_is(nodes[nodes[n].a].t, "Bytes") && tok_is(t, "unescape") { return base_type(Y_BYTES) }   // Bytes.unescape(text) (#166, #515)
         if nodes[nodes[n].a].kind == N_TYPE && tok_is(t, "pipe") {           // IO.pipe(), {reader: IO, writer: IO} straight (#464)
             let g = $"pipe"
             return os_struct(&g)
@@ -2466,6 +2540,7 @@ let close_holds(opened:$[int64]^) {
 var fn_sigs:Dictionary<String, int64>       // each function's name and signature: its first declaration
 var fn_bodies:Dictionary<String, int64>     // those of them a declaration defines
 var fn_overloads:Dictionary<String, int64>  // how many signatures a name has
+var kh_fns:Dictionary<String, int64>        // the names a module's header declares, each named by its types, as kelvinc's imported ones (#515)
 var targets:Dictionary<int64, int64>        // the overload each call of an overloaded name chose
 
 // a type in a C name, as kelvinc's mangled_type: i64, String, vecp,
@@ -2492,10 +2567,12 @@ let mangled(y:int64):String {
     case Y_UCHR: return $"uchr"
     case Y_BITS: return $"Bits"
     case Y_ARGV: return $"acstr"
-    case Y_PTR:
-        var s = mangled(types[y].elem)
-        s += "p"
-        return s
+    case Y_PTR:                                        // as kelvinc's, of its Kelvin text: const String^ is const_Stringp (#515)
+        let text:String = pointer_text(y)
+        return mangled_text(&text)
+    case Y_FN:                                         // (Match):String is FMatchEString (#515)
+        let text:String = type_text(y)
+        return mangled_text(&text)
     case Y_ARRAY:
         var s = $"Array_"
         s += mangled(types[y].elem)
@@ -2543,6 +2620,62 @@ let mangled(y:int64):String {
         return tok_text(types[y].name)
     default: return $"C"
     }
+}
+
+// a type's Kelvin text in a C name, as kelvinc's mangled_type makes it:
+// ^ p, [ a, ( F, ) E, a comma or a space _ (#515)
+let mangled_text(text:const String^):String {
+    var s = $""
+    var last:uint32 = 0
+    for c in text^ {
+        let u:uint32 = c.utf32
+        if is_alpha(u) || is_digit(u) {
+            s += c
+        } else if u == '^' {
+            s += "p"
+        } else if u == '[' {
+            s += "a"
+        } else if u == '(' {
+            s += "F"
+        } else if u == ')' {
+            s += "E"
+        } else if u == ',' || (u == ' ' && last != ',') {
+            s += "_"
+        }
+        last = u
+    }
+    return s
+}
+
+// a pointer's type as kelvinc's kelvin_type writes it, whose C name is
+// made of it: const Array<u64>^ (#515)
+let pointer_text(y:int64):String {
+    let k = types[y].kind
+    if k == Y_PTR {
+        var s = ptr_const(y) ? $"const " : $""
+        let e:String = pointer_text(types[y].elem)
+        s += &e
+        s += "^"
+        return s
+    }
+    if k == Y_ARRAY || k == Y_SET {
+        var s = k == Y_SET ? $"Set<" : $"Array<"
+        let e:String = pointer_text(types[y].elem)
+        s += &e
+        s += ">"
+        return s
+    }
+    if k == Y_DICT {
+        var s = $"Dictionary<"
+        let key:String = pointer_text(types[y].name)
+        s += &key
+        s += ", "
+        let v:String = pointer_text(types[y].elem)
+        s += &v
+        s += ">"
+        return s
+    }
+    return type_text(y)
 }
 
 // a function's parameters in its C name: __i64__String, or __void
@@ -2632,9 +2765,42 @@ let name_subscripts(list:const $[int64]^) {
     }
 }
 
+// the methods of a name on a type that differ in their parameters, each
+// named by their types, T__pow__i64, as kelvinc's #158; and a function
+// of a type, static, that a module's header declares, by its types too,
+// RegExp__compile__cstr__cstr, as kelvinc names an imported one (#515)
+let name_methods() {
+    var sigs:Dictionary<String, int64> = ${:}
+    var counts:Dictionary<String, int64> = ${:}
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 || attributes.get(d, 0) != 0 || subscripts.get(d, 0) != 0 { continue }
+        let key:String = method_key(nodes[d].c, nodes[d].t)
+        var full:String = key.copy()
+        full += params_key(d)
+        if !sigs.has(full) {
+            sigs[full] = d
+            counts[key] = counts.get(key, 0) + 1
+        }
+    }
+    for d in decls {
+        if nodes[d].kind != D_FN || nodes[d].c < 0 || attributes.get(d, 0) != 0 || subscripts.get(d, 0) != 0 { continue }
+        let key:String = method_key(nodes[d].c, nodes[d].t)
+        let typed = nodes[d].flag == 1 && in_kh(nodes[d].t)
+        if counts.get(key, 0) < 2 && !typed { continue }
+        var word:String = tok_text(nodes[d].t)
+        if nodes[d].flag == 1 || nodes[d].a >= 0 { word += params_key(d) }   // a method with none: T__m, as kelvinc's
+        let t:int64 = made_token(&word)
+        toks[t].line = toks[nodes[d].t].line
+        toks[t].file = toks[nodes[d].t].file
+        method_names_of[d] = nodes[d].t
+        nodes[d].t = t
+    }
+}
+
 let count_overloads() {
     name_subscripts(&sub_getters)
     name_subscripts(&sub_setters)
+    name_methods()
     for i in 0..<decls.count as int64 {
         let d:int64 = decls[i]
         if nodes[d].kind != D_FN || nodes[d].c >= 0 { continue }
@@ -2645,7 +2811,9 @@ let count_overloads() {
             var name = tok_text(nodes[d].t)
             fn_overloads[name] = fn_overloads.get(name, 0) + 1
         }
-        if nodes[d].b >= 0 { fn_bodies[key] = 1 }
+        let kh = in_kh(nodes[d].t) && !extern_decls.contains(d)   // a module's, which libkelvin defines (#515)
+        if nodes[d].b >= 0 || kh { fn_bodies[key] = 1 }
+        if kh { kh_fns[tok_text(nodes[d].t)] = 1 }
     }
     for d in variadic_fns {                              // kc's error: kelvinc tells them apart by _Generic (#453)
         if nodes[d].c < 0 && fn_overloads.get(tok_text(nodes[d].t), 0) > 1 {
@@ -2702,7 +2870,7 @@ let put_fn_name(d:int64) {
     put_tok(nodes[d].t)
     var name = tok_text(nodes[d].t)
     var key = sig_key(d)
-    if fn_overloads.get(name, 0) > 1 && fn_bodies.has(key) && !tok_is(nodes[d].t, "main") {
+    if (fn_overloads.get(name, 0) > 1 || kh_fns.has(name)) && fn_bodies.has(key) && !tok_is(nodes[d].t, "main") {
         var types_of = params_key(d)
         out += &types_of
     }
@@ -2735,22 +2903,38 @@ let arg_fit(a:int64, t:int64, wraps:bool):int64 {
         let w = k == N_CALL ? nodes[nodes[a].a].t : nodes[a].t
         return case_named(d, w).is(some) ? 1 : 0
     }
+    if k == N_ANON && nodes[a].flag != 0 { return tk == Y_FN ? 1 : 0 }   // { ... $0 ... }, of the function type it is given to (#515)
     let literal = k == N_NUM || k == N_CHAR || (k == N_UNARY && tok_is(nodes[a].t, "-") && nodes[nodes[a].a].kind == N_NUM)
     let at = type_of(a)
     if at == t { return 2 }
     if literal && is_number_kind(tk) { return 1 }
     if k == N_STR && tk == Y_STRING { return 1 }          // a String of it (#223)
     if at >= 0 && types[at].kind == Y_C { return 1 }      // what only C sees, which C converts
+    if at >= 0 && tk == Y_PTR && types[at].kind == Y_PTR && types[at].elem == types[t].elem && ptr_const(t) { return 1 }   // T^ lent as const T^ (#515)
+    if at >= 0 && tk == Y_PTR && is_owner(at) && types[t].elem == at && !is_place(a) { return 1 }   // an owner an expression gives, lent (#187, #515)
     if at >= 0 && is_number_kind(types[at].kind) && is_number_kind(tk) { return 1 }
     if wraps && some_type(t) >= 0 && arg_fit(a, some_type(t), wraps) > 0 { return 1 }
     return 0
 }
 
-var tied_cands:$[int64]                  // the overloads a call fits alike (#471)
 
 // the overload of name that call n's arguments fit best: exactly, or as
 // well on each argument as any other and better on one; -2 a tie, -1 none
 let choose_overload(n:int64, name:String^, wraps:bool):int64 {
+    var some:$[int64] = $[]
+    for i in 0..<decls.count as int64 {
+        let d:int64 = decls[i]
+        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != name^ { continue }
+        var key = sig_key(d)
+        if fn_sigs.get(key, -1) != d { continue }         // a signature once
+        some += d
+    }
+    return choose_among(n, &some, wraps)
+}
+
+// the one of some that call n's arguments fit best, as choose_overload
+// says it: of a function's overloads, or of a method's (#515)
+let choose_among(n:int64, some:const $[int64]^, wraps:bool):int64 {
     while tied_cands.count > 0 { tied_cands.pop() }
     var cands:$[int64] = $[]
     var fits:$[int64] = $[]
@@ -2760,11 +2944,7 @@ let choose_overload(n:int64, name:String^, wraps:bool):int64 {
         nargs += 1
         a = nodes[a].next
     }
-    for i in 0..<decls.count as int64 {
-        let d:int64 = decls[i]
-        if nodes[d].kind != D_FN || nodes[d].c >= 0 || tok_text(nodes[d].t) != name^ { continue }
-        var key = sig_key(d)
-        if fn_sigs.get(key, -1) != d { continue }         // a signature once
+    for d in some^ {
         var np = 0
         var p:int64 = nodes[d].a
         var ok = true
@@ -5937,16 +6117,42 @@ let gen_call(n:int64) {
         gen_generic_call(n)
         return
     }
-    var opened = hold_args(args, d)                 // as kelvinc holds them (#227)
+    if d >= 0 { lend_temps(n, d) }                  // f($/\s+/) to a const RegExp^ (#187, #515)
+    let given:int64 = nodes[n].b
+    var opened = hold_args(given, d)                // as kelvinc holds them (#227)
     if d >= 0 { put_fn_name(d) } else { put_tok(nodes[f].t) }
     put("(")
     if tok_is(nodes[f].t, "println") || tok_is(nodes[f].t, "print") {
-        gen_print_args(args)
+        gen_print_args(given)
     } else {
-        gen_args_to(args, d)
+        gen_args_to(given, d)
     }
     put(")")
     close_holds(&opened)
+}
+
+// an owner an expression gives, given where a borrow of its type is
+// taken, held and lent, as kelvinc's borrow_temps (#187): s.split($/\s+/)
+// to a const RegExp^, &$/\s+/ (#515)
+let lend_temps(n:int64, d:int64) {
+    var prev:int64 = 0 - 1
+    var a:int64 = nodes[n].b
+    var p:int64 = nodes[d].a
+    while a >= 0 && p >= 0 {
+        let pt:int64 = nodes[p].ty
+        let at:int64 = nodes[a].kind == N_ADDR ? 0 - 1 : type_of(a)
+        if pt >= 0 && types[pt].kind == Y_PTR && at >= 0 && is_owner(at) && types[pt].elem == at && !is_place(a) {
+            let x:int64 = make_node(N_ADDR, nodes[a].t)
+            nodes[x].a = a
+            nodes[x].next = nodes[a].next
+            nodes[a].next = 0 - 1
+            if prev < 0 { nodes[n].b = x } else { nodes[prev].next = x }
+            a = x
+        }
+        prev = a
+        a = nodes[a].next
+        p = nodes[p].next
+    }
 }
 
 // the type of parameter k of d
@@ -6604,7 +6810,8 @@ let bytes_method_type(n:int64, y:int64):int64 {
     if tok_is(t, "copy") { return y }
     if tok_is(t, "string") { return result_of(base_type(Y_STRING), base_type(Y_I64)) }
     if tok_is(t, "append") || tok_is(t, "insert") || tok_is(t, "remove") || tok_is(t, "clear") || tok_is(t, "reserve") || tok_is(t, "compact") || tok_is(t, "isEmpty") { return base_type(Y_VOID) }
-    if tok_is(t, "escape") || tok_is(t, "toBase64") {
+    if tok_is(t, "escape") { return base_type(Y_STRING) }   // its bytes not printable ASCII as \xHH (#166, #515)
+    if tok_is(t, "toBase64") {
         var m = $"kc reads no '."
         m += tok_text(t)
         m += "()' of a Bytes yet"
@@ -6729,6 +6936,12 @@ let gen_bytes_method(n:int64, a:int64, y:int64) {
         put("_make_ok(_kv_s); })")
         return
     }
+    if tok_is(t, "escape") {                            // a new String, b unchanged (#515)
+        put("kv_bytes_escape(")
+        gen_place(a)
+        put(")")
+        return
+    }
     if !may_change(a) { return }
     if tok_is(t, "append") {
         put("KV_BYTES_APPEND(")
@@ -6826,6 +7039,8 @@ let gen_method_of(n:int64) {
                 return
             }
         }
+        lend_temps(n, f)                                              // (#187, #515)
+        var opened = hold_args(nodes[n].b, f)                         // as a function's (#227, #515)
         put_tok(nodes[f].c)
         put("__")
         put_tok(nodes[f].t)
@@ -6850,6 +7065,7 @@ let gen_method_of(n:int64) {
         }
         gen_args_to(nodes[n].b, f)                                    // by the parameters' types (#226)
         put(")")
+        close_holds(&opened)
         return
     }
     let e = tagged_named(a)
@@ -6904,6 +7120,22 @@ let gen_method_of(n:int64) {
         put("({ ")
         put_ctype(type_of(n))
         put(" _kv_p = {0}; kv_io_pipe(&_kv_p.reader, &_kv_p.writer); _kv_p; })")
+        return
+    }
+    if nodes[a].kind == N_TYPE && tok_is(nodes[a].t, "Bytes") && tok_is(t, "unescape") && nodes[n].b >= 0 && nodes[nodes[n].b].next < 0 {
+        let x:int64 = nodes[n].b                                      // Bytes.unescape(text), as kelvinc's (#166, #515): of a cstr, or of a String's bytes
+        let xy:int64 = type_of(x)
+        if xy >= 0 && types[xy].kind == Y_PTR && types[types[xy].elem].kind == Y_STRING {
+            put("({ const kv_string *_kv_s = ")
+            gen_expr(x)
+            put("; kv_bytes_unescape(kv_bytes_cstr(&_kv_s->b), _kv_s->b.count); })")
+        } else if xy >= 0 && types[xy].kind == Y_CSTR {
+            put("kv_bytes_unescape_text(")
+            gen_expr(x)
+            put(")")
+        } else {
+            gen_error(x, "Bytes.unescape takes text, a cstr or a borrow of a String, '&s'")
+        }
         return
     }
     if nodes[a].kind == N_TYPE && tok_is(t, "exec") {                 // IO.exec(args, mode)
@@ -12305,8 +12537,7 @@ var anon_made:Dictionary<int64, int64>    // the function kc made of each anonym
 // anonymous function, made a function of the program, of y's types where
 // it writes none; a function's name, of y's type; any other value of it
 let gen_fn_value(n:int64, y:int64) {
-    if fn_owner_refused(y, n) { return }
-    let k = nodes[n].kind
+    let k = nodes[n].kind                                // one of owners too, which a function kc makes owns, as kelvinc's: a call through it is refused (#515)
     var given:int64 = 0 - 1
     if k == N_ANON && nodes[n].flag != 0 {
         given = y                                        // $0 and names, of y's parameters
@@ -16696,7 +16927,7 @@ let gen_signature(d:int64) {
     let takes_self:bool = recv >= 0 && nodes[d].flag != 1
     if takes_self {                                    // a method's self, a T, first
         if nodes[d].flag == 3 { put("const ") }        // a subscript's getter, by a const pointer (#136)
-        put_ctype(type_of_kind(Y_STRUCT, -1, recv))
+        put_ctype(recv_type(recv))                     // a String's, a Bytes's, a uchr's too (#515)
         put(nodes[d].flag == 3 ? " *const _kv_selfp" : nodes[d].flag == 2 ? " *_kv_selfp" : " self")   // a var method's, the caller's var, as kelvinc's (#320)
     }
     if p < 0 && !takes_self { put(is_main(d) && nodes[d].b >= 0 ? "int _kv_argc, char **_kv_argv" : "void") }   // main's, as kelvinc writes it (#463)
@@ -17901,7 +18132,7 @@ let gen_program() {
     }
     for i in 0..<decls.count as int64 {                  // the prototypes
         let d:int64 = decls[i]
-        if nodes[d].kind == D_FN && !is_main(d) && (nodes[d].b >= 0 || nodes[d].c < 0) {   // one with no body too, as kelvinc declares it (#453)
+        if nodes[d].kind == D_FN && !is_main(d) && (nodes[d].b >= 0 || nodes[d].c < 0 || in_kh(nodes[d].t)) {   // one with no body too, as kelvinc declares it (#453), a module's method (#515)
             gen_signature(d)
             put(";\n")
         }

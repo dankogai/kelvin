@@ -110,6 +110,116 @@ let add_tok(kind:tkind, at:int64, len:int64, line:int64, file:int64) {
     toks += t
 }
 
+// a token kc writes itself, its text s put after the files' codes, for
+// a literal that becomes a call, as kelvinc's push_text (#515)
+let add_made(kind:tkind, s:cstr, line:int64, file:int64) {
+    let at:int64 = codes.count as int64
+    var k = 0
+    while s[k] != 0 {
+        codes += s[k] as uint32
+        k += 1
+    }
+    add_tok(kind, at, codes.count as int64 - at, line, file)
+}
+
+var big_lits:$[int64]     // the BigInt token of each 123n, which names the prelude's BigInt (#508, #515)
+var rx_lits:$[int64]      // the RegExp token of each $/.../, the prelude's RegExp (#157, #515)
+
+// 123n, 0xffn, 0b101n from s up to the n at e (#508), as kelvinc's
+// big_literal: BigInt("123", 10), the prelude's; false where the text
+// before the n is no integer, which is then a number's error
+let big_literal(s:int64, e:int64, line:int64, file:int64):bool {
+    var base = 10
+    var d:int64 = s
+    if e - s > 2 && codes[s] == '0' && (codes[s + 1] == 'x' || codes[s + 1] == 'X' || codes[s + 1] == 'b' || codes[s + 1] == 'B') {
+        base = codes[s + 1] == 'x' || codes[s + 1] == 'X' ? 16 : 2
+        d = s + 2
+    }
+    if d == e { return false }
+    for q in d..<e {
+        let c:uint32 = codes[q]
+        let hexd = is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+        if base == 16 && !hexd { return false }
+        if base == 2 && c != '0' && c != '1' { return false }
+        if base == 10 && !is_digit(c) { return false }
+    }
+    if base == 10 && e - s > 1 && codes[s] == '0' {
+        var m = $"'"
+        for q in s..<e { m += codes[q].uchr }
+        m += "n': a BigInt literal is decimal, 0x hex or 0b binary, with no leading 0: C's octal is none of them"
+        lex_error(file, line, m.cstr)
+        return true
+    }
+    add_made(T_ID, "BigInt", line, file)
+    big_lits += toks.count as int64 - 1
+    add_made(T_PUNCT, "(", line, file)
+    let at:int64 = codes.count as int64
+    codes += '"'
+    for q in d..<e { codes += codes[q] }
+    codes += '"'
+    add_tok(T_STR, at, codes.count as int64 - at, line, file)
+    add_made(T_PUNCT, ",", line, file)
+    add_made(T_NUM, base == 16 ? "16" : base == 2 ? "2" : "10", line, file)
+    add_made(T_PUNCT, ")", line, file)
+    return true
+}
+
+// $/pattern/flags from i, at its $ (#157), as kelvinc's lex_regexp:
+// RegExp.compile("pattern", "flags"), the prelude's; the pattern ends at
+// the first / not escaped and not in [...], on its line, and goes into C's
+// literal as written, with \, " and ? escaped (?? would start a trigraph);
+// the flags are the letters after it. Where it ends, after the flags
+let lex_regexp(i:int64, to:int64, line:int64, file:int64):int64 {
+    let s:int64 = i + 2
+    var k:int64 = s
+    var in_class = false
+    while true {
+        if k >= to || codes[k] == '\n' {
+            lex_error(file, line, "unterminated $/.../: a regular expression ends with '/' on its line")
+            return k
+        }
+        let c:uint32 = codes[k]
+        if c == '\\' && k + 1 < to && codes[k + 1] != '\n' {
+            k += 2
+            continue
+        }
+        if c == '[' {
+            in_class = true
+        } else if c == ']' {
+            in_class = false
+        } else if c == '/' && !in_class {
+            break
+        }
+        k += 1
+    }
+    let e:int64 = k
+    k += 1
+    let fs:int64 = k
+    while k < to && is_alpha(codes[k]) && codes[k] != '_' { k += 1 }
+    add_made(T_ID, "RegExp", line, file)
+    rx_lits += toks.count as int64 - 1
+    add_made(T_PUNCT, ".", line, file)
+    add_made(T_ID, "compile", line, file)
+    add_made(T_PUNCT, "(", line, file)
+    var at:int64 = codes.count as int64
+    codes += '"'
+    for q in s..<e {
+        let c:uint32 = codes[q]
+        if c == '\\' || c == '"' || c == '?' { codes += '\\' }
+        codes += c
+    }
+    codes += '"'
+    add_tok(T_STR, at, codes.count as int64 - at, line, file)
+    add_made(T_PUNCT, ",", line, file)
+    at = codes.count as int64
+    codes += '"'
+    for q in fs..<k { codes += codes[q] }
+    codes += '"'
+    add_tok(T_STR, at, codes.count as int64 - at, line, file)
+    add_made(T_PUNCT, ")", line, file)
+    return k
+}
+
 let lex_error(file:int64, line:int64, what:cstr) {
     println(fnames[file], ":", line, ": error: ", what)
     failed = true
@@ -231,6 +341,8 @@ let lex_range(from:int64, to:int64, file:int64) {
                 i += 1
             }
             i += 2
+        } else if c == '$' && code_at(i + 1) == '/' {        // $/pattern/flags, the prelude's RegExp (#157, #515)
+            i = lex_regexp(i, to, line, file)
         } else if c == '$' && is_digit(code_at(i + 1)) {     // $0, an anonymous function's parameter (#324)
             let s:int64 = i
             i += 1
@@ -271,10 +383,9 @@ let lex_range(from:int64, to:int64, file:int64) {
                     more = true
                 }
             }
-            if codes[i - 1] == 'n' && (!hex || i - s > 3) {        // 123n, kelvinc's BigInt, which kc links not (#508)
-                lex_error(file, line, "a 123n literal is the prelude's BigInt, a module written in Kelvin, which kc does not link yet")
+            if !(i - s >= 2 && codes[i - 1] == 'n' && big_literal(s, i - 1, line, file)) {   // 123n, the prelude's BigInt (#508, #515)
+                add_tok(T_NUM, s, i - s, line, file)
             }
-            add_tok(T_NUM, s, i - s, line, file)
         } else if c == '`' || (c == '$' && code_at(i + 1) == '`') || (c == '}' && tpls.count > 0 && tpls[tpls.count as int64 - 1] == outer.count as int64 - 1) {
             let head = c != '}'                  // a template, `a${x}b`, or the } that ends its ${...} (#445)
             if c == '}' {

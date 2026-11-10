@@ -9726,3 +9726,18 @@ tag v0.2.0 and the release Kelvin 0.2.0, of CHANGELOG.md's notes.
 Details are provisional P526.
 
 There are 1269 tests, and all pass with clang and with gcc 15.
+
+### 562. kc reads the prelude's modules
+
+> go on with kc BigInt support
+
+**Claude** asked: the user chose that kc read the declarations of
+`M.kh`, as kelvinc does, and link libkelvin's objects, and that the
+change take RegExp too. kc now builds programs that name BigInt or
+RegExp, or write `123n` or `$/.../`, with kelvinc's C names, so their
+objects mix. On the way kc gained methods overloaded by their
+parameters, methods of String, Bytes and uchr, and owners lent where a
+borrow is taken. kc's build passes 236 of the tests, where it passed
+204. Details are provisional P527.
+
+There are 1269 tests, and all pass with clang and with gcc 15.

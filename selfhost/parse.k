@@ -3005,7 +3005,11 @@ let parse_function():int64 {
     begin_function(n)
     parse_params(n)
     nodes[n].ty = base_type(Y_VOID)
-    if at_word(":") {
+    if at_word(":") && tok_is(pos + 1, "(") && tok_is(pos + 2, ")") && !tok_is(pos + 3, ":") {
+        advance()                                        // :(), none, as a module's header writes it (#515)
+        advance()
+        advance()
+    } else if at_word(":") {
         advance()
         set_ty(n, parse_type())
     }
@@ -3017,6 +3021,16 @@ let parse_function():int64 {
 // attribute's getter, 2 a var attribute's, 3 its setter
 var attributes:Dictionary<int64, int64>
 var attribute_names:Dictionary<String, bool>   // the names any attribute has
+
+// whether token t is of a module's header, M.kh, whose declarations have
+// no bodies: libkelvin defines them (#515)
+let in_kh(t:int64):bool {
+    let name:String = fnames[toks[t].file].copy()
+    var cs:$[uint32] = $[]
+    for c in name { cs += c.utf32 }
+    let n = cs.count as int64
+    return n > 3 && cs[n - 3] == '.' && cs[n - 2] == 'k' && cs[n - 1] == 'h'
+}
 
 // the function of an attribute of the type at token recv, its body next
 let attribute_fn(t:int64, recv:int64, ty:int64, what:int64, inl:bool):int64 {
@@ -3040,7 +3054,7 @@ let parse_attribute(recv:int64, is_var:bool, inl:bool) {
     let ty:int64 = parse_type()
     if !is_var {
         let g:int64 = attribute_fn(t, recv, ty, 1, inl)
-        set_b(g, parse_block())
+        if !in_kh(t) || at_word("{") { set_b(g, parse_block()) }   // a module's header has none (#515)
         decls += g
         return
     }
@@ -3119,7 +3133,7 @@ let parse_subscript(recv:int64, is_var:bool, inl:bool) {
     advance()
     set_ty(g, parse_type())
     if !is_var {
-        set_b(g, parse_block())
+        if !in_kh(at) || at_word("{") { set_b(g, parse_block()) }  // a module's header has none (#515)
         decls += g
         return
     }

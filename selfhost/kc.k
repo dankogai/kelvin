@@ -9,7 +9,9 @@
 // names the directory of kelvin_prelude.h and the libraries, else
 // $KELVIN_HOME/modules, else modules/; -cc the C compiler, else $CC,
 // else cc. The files it imports, `#import "x.k"`, are read too, and C's
-// headers, `#import <x.h> as C`, are C's, as libc is (#207).
+// headers, `#import <x.h> as C`, are C's, as libc is (#207). A module of
+// the prelude that a program names, BigInt or RegExp, is read from its
+// M.kh in the modules, and libkelvin defines it (#515).
 #import <IO>
 #import <stdio.h> as C            // remove
 #import <stdlib.h> as C           // getenv, strtod
@@ -177,6 +179,90 @@ let load_imports():bool {
     return true
 }
 
+// ---------- the modules of the prelude (#504, #515) ----------
+
+// whether a token of the files is the name w
+let names_word(w:cstr):bool {
+    for i in 0..<toks.count as int64 {
+        if toks[i].kind == T_ID && tok_is(i, w) { return true }
+    }
+    return false
+}
+
+// whether the files define a type named w: struct, union or enum w
+let own_type(w:cstr):bool {
+    for i in 0..<toks.count as int64 - 1 {
+        if toks[i].kind == T_ID && (tok_is(i, "struct") || tok_is(i, "union") || tok_is(i, "enum")) && tok_is(i + 1, w) { return true }
+    }
+    return false
+}
+
+// whether module m is a module of the prelude, the <M> of an #import
+let prelude_import(t:int64):bool {
+    return tok_is(t, "<BigInt>") || tok_is(t, "<RegExp>") || tok_is(t, "<UnicodeData>")
+}
+
+// M.kh in mods, its declarations, read once: libkelvin defines them
+let load_module(mods:String^, t:int64):bool {
+    var path:String = mods^.copy()
+    path += "/"
+    for j in 1..<toks[t].len - 1 {
+        path += codes[toks[t].at + j].uchr
+    }
+    path += ".kh"
+    for k in 0..<fnames.count as int64 {
+        if fnames[k] == path { return true }
+    }
+    return loads(&path)
+}
+
+// a module of the prelude that the files name, as kelvinc's with_prelude:
+// RegExp, or a $/.../ literal, and BigInt, or a 123n, as if the program
+// began with #import <M>, unless a type of its own has that name, which a
+// literal's is then an error; and each #import <M> of one, UnicodeData's
+// too, which RegExp.kh imports (#515)
+let load_prelude(mods:String^):bool {
+    let first:int64 = toks.count as int64
+    for k in 0..<2 {
+        let w:cstr := k == 0 ? "RegExp" : "BigInt"
+        if !names_word(w) { continue }
+        var imported = false
+        for i in 0..<first {
+            if toks[i].kind == T_IMPORT && codes[toks[i].at] == '<' && toks[i].len == strlen(w) as int64 + 2 {
+                var same = true
+                for j in 0..<strlen(w) as int64 {
+                    if codes[toks[i].at + 1 + j] != w[j] as uint32 { same = false }
+                }
+                if same { imported = true }
+            }
+        }
+        if imported { continue }
+        if own_type(w) {
+            if k == 0 {
+                for t in rx_lits {
+                    lex_error(toks[t].file, toks[t].line, "a $/.../ literal is the prelude's RegExp, which a type of this program named RegExp hides: rename that type (#504)")
+                }
+            } else {
+                for t in big_lits {
+                    lex_error(toks[t].file, toks[t].line, "a 123n literal is the prelude's BigInt, which a type of this program named BigInt hides: rename that type (#508)")
+                }
+            }
+            continue
+        }
+        var path:String = mods^.copy()
+        path += "/"
+        path += w
+        path += ".kh"
+        if !loads(&path) { return false }
+    }
+    var i = 0
+    while i < toks.count as int64 {
+        if toks[i].kind == T_IMPORT && prelude_import(i) && !load_module(mods, i) { return false }
+        i += 1
+    }
+    return !failed
+}
+
 // the environment's value of name, else otherwise
 let env_or(name:cstr, otherwise:cstr):String {
     let v:cstr := getenv(name)
@@ -236,6 +322,7 @@ let main(argc:int32, argv:[cstr]):int32 {
     }
     if !loads(&input) { return 1 }
     if !load_imports() { return 1 }
+    if !load_prelude(&mods) { return 1 }          // BigInt, RegExp (#515)
     let end:tok = {T_EOF, codes.count as int64, 0, 0, 0}
     toks += end
     eof_pos = toks.count as int64 - 1

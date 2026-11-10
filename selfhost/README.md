@@ -604,6 +604,38 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **The modules of the prelude** (#515), as kelvinc's #504: BigInt,
+  RegExp and UnicodeData.
+  - A program that names BigInt or RegExp, or writes `123n` or
+    `$/.../`, reads `M.kh` from the modules directory, `-m`, as if it
+    began with `#import <M>`.
+    - So does `#import <M>` of one, and RegExp.kh's of UnicodeData.
+    - A type of the program's own of that name hides it, and the
+      module's literal is then kelvinc's error.
+  - kc reads a `.kh`'s declarations, which have no bodies, and writes
+    their prototypes; libkelvin, which kc links already, defines them.
+  - The C names are kelvinc's, so objects of both mix:
+    - a module's functions by their types, `BigInt__i128`;
+    - a pointer by its Kelvin text, `const_Stringp`, and a function
+      type too, `FMatchEString`.
+  - What came with it, for any program:
+    - methods of a name that differ in their parameters, each named by
+      its types, `T__pow__i64`, and chosen by the arguments, as
+      kelvinc's #158;
+    - methods of String, Bytes and uchr, which a module extends; kc's
+      own serve where none of the module's fits;
+    - `:()` as no result, as a header writes it;
+    - a `T^` given where a `const T^` is taken;
+    - an owner an expression gives, held and lent where a `T^` is
+      taken, as kelvinc's #187: `s.split($/\s+/)`;
+    - `{ ... $0 ... }` given to an overloaded function, its parameters'
+      types those of the overload its other arguments choose;
+    - a function value that takes or gives an owner, given to a
+      module's function, which calls it as kelvinc's code does; a call
+      through one in kc's own code is still refused;
+    - `b.escape()` and `Bytes.unescape(text)` of a Bytes.
+  - A `$/.../` pattern is checked as the program runs, where kelvinc
+    checks it as it builds.
 - **A converter clamps** (#513), as kelvinc's: `T(v)` of a number is
   KV_CLAMP's nearest value, or C's conversion where T holds every value
   (kind_widens); KV_TEXT_CLAMP where kc cannot see text; a pointer's is
@@ -617,9 +649,10 @@ kc reads what it is written in, and little more.
   lent_params, which parse_type steps the `lent` of; errors in
   kelvinc's words.
 - **A 123n literal** (#508), kelvinc's BigInt: kc's lexer refuses it in
-  words, as kc links no module written in Kelvin.
+  words, as kc links no module written in Kelvin; #515 reads it.
 - **BigInt, the prelude's** (#507): kelvinc's, a module written in Kelvin;
-  kc links no module built of Kelvin, so its programs name no `BigInt`.
+  kc links no module built of Kelvin, so its programs name no `BigInt`;
+  #515 reads it.
 - **A type's own text as a String** (#506), as kelvinc's: where a
   struct or an enum with values has `let T.string:String`, its printer
   shows that String, whole, by `T__string`; `$`...``, `` `...` `` and
@@ -635,7 +668,7 @@ kc reads what it is written in, and little more.
 - **RegExp, the prelude's** (#504): kelvinc brings it in where a
   program names it, and libkelvin holds it; kc still reads no `$/.../`
   and links no module built of Kelvin, as before, so a program of kc's
-  names no `RegExp`.
+  names no `RegExp`; #515 reads it.
   - kc links libkelvin.a, which now holds RegExp and UnicodeData; a
     program of kc's links none of them, as it uses none.
 - **An owner moved into a literal** (#503), as kelvinc's: a local owner

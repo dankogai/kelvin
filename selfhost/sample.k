@@ -1349,6 +1349,15 @@ on a new line`
     println(i64(cv_m), " ", cv_m.i64)                    // (#512)
     let cl_n:i64 = 300
     println(u8(cl_n), " ", i8(0 - cl_n), " ", u64(0 - 1), " ", i32(0.0 - 3.9), " ", cl_n as u8)   // clamped, as #513; as wraps
+    let bg_a = 2n ** 100 + 1                               // the prelude's BigInt, of BigInt.kh (#515)
+    let bg_b = BigInt(0 - 12345)
+    println(bg_a, " ", bg_a.hex, " ", bg_b * bg_b, " ", pow(bg_a, 3, 1000003n), " ", bg_a.gcd(6), " ", i64(bg_a), " ", bg_b < bg_a)
+    let rx_e = $/(\d+)-(?<m>\d+)/g                         // and its RegExp, of RegExp.kh (#515)
+    var rx_s = $"10-20 and 3-4"
+    var rx_ms = rx_s.match(&rx_e)
+    println(rx_ms.count, " ", rx_ms[1]["m"], " ", rx_s.replace(&rx_e, "$2:$1"), " ", rx_s.split($/\s+/))
+    var rx_t = rx_s.replace(&rx_e) { $`<${$0.text[1]}>` }  // a function of each Match, which it owns
+    println(rx_t, " ", rx_e.global, " ", rx_s.test(&rx_e))
     return 0
 }
 let thrice_va(n:int64, ...):int64 { n * 3 }
