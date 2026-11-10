@@ -1093,7 +1093,14 @@ let late_refused(t:int64):bool {
 }
 
 // const T^ and the rest (#272)
+var lent_at:int64 = 0 - 1             // the lent of a parameter b:lent T, which parse_type steps over (#510)
+var lent_params:Dictionary<int64, bool>  // the parameters written b:lent T, an owner their caller keeps (#510)
+
 let parse_type():int64 {
+    if pos == lent_at {
+        advance()
+        lent_at = 0 - 1
+    }
     if at_word("const") {
         advance()
         let typed = value_type_at(pos)
@@ -2976,7 +2983,10 @@ let parse_params(n:int64) {
             advance()
             is_let = 0
         }
+        let lent = tok_is(pos + 1, ":") && tok_is(pos + 2, "lent") && (toks[pos + 3].kind == T_ID || tok_is(pos + 3, "$"))   // b:lent T (#510)
+        if lent { lent_at = pos + 2 }
         let p:int64 = parse_typed(is_let)
+        if lent { lent_params[p] = true }
         unnamed_param(p, k, false)
         k += 1
         if last < 0 {

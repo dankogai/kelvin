@@ -76,6 +76,17 @@ let main(argc:int32, argv:[cstr]):int32 { return 0 }
     `let f(var p:u8^):() { p := p.next }` may move `p`.
   - A method's `self` is a let too (#138): a copy, `var p = self`,
     changes; see [structs.md](structs.md#methods).
+  - **`b:lent T`** (#510) lends an owner its caller keeps, as an
+    operator's operands are (#501): `let total(a:lent bag, b:lent
+    bag):i64`.
+    - `total(a, b)` and `total(a, a)` leave `a` and `b`; where one is
+      given by value, it moves in instead (O5).
+    - An owner an expression gives, `total(make(), b)`, is held for the
+      call and freed after it.
+    - Inside, it is a let: it does not change, moves into no function,
+      and is returned as a copy, `return s.copy()`.
+    - It is for an owner, a function's or a method's; `var` with it, a
+      number, and an anonymous function's are errors.
   - A parameter written `_` is unnamed (#388), as C's `f(int)`: the
     function takes the argument and never reads it.
     - `let on_signal(_:i32) { ... }` fits a callback's signature;

@@ -9656,3 +9656,18 @@ with their base, the reader skipping `0o` and `0b` as it did `0x`.
 `.text(base)` stays the bare digits. Details are provisional P521.
 
 There are 1253 tests, and all pass with clang and with gcc 15.
+
+### 557. A lent parameter
+
+> Finish all BigInt arithmetics. Make sure `pow(b, e, m)` supports
+> `BigInt`.
+
+**Claude** asked the shape of BigInt's rest: the user chose
+`b.pow(e, m)` and a free `pow(b, e, m)`, `a.gcd(b)`, `a.lcm(b)`,
+`a.isqrt()`, `.sign` and `b.exactI64`. But `pow(a, 4, m)` moved `a` and
+`m` into the function. Asked, the user chose a lent parameter first,
+`b:lent T`, as an operator's operands are (#501): the caller keeps it,
+and one an expression gives is held and freed. kc the same. BigInt's
+arithmetic follows. Details are provisional P522.
+
+There are 1259 tests, and all pass with clang and with gcc 15.

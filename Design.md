@@ -554,6 +554,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 507 | BigInt, integers of any size, the prelude's, as the user chose: a module written in Kelvin, modules/BigInt.k, after swift-bignum, two's complement in u64 limbs; a program that names it has it. `BigInt(n)`, `BigInt(text)` and `BigInt(text, base)` read as `i64(s)` reads; `+ - * / %` truncated, comparisons, `& \| ~ << >>`, unary `-` and `~`, an i64 on either side; division by zero ends the program in words; `.string` (#506), `.text(base)`, `.i64`, `.u64` wrapping, `.f64`, `.abs`, `.signum`, `.isZero`, `.isNegative`. An attribute may be named as a converter, `b.i64`; the prototypes of #505 are written in a module too, and its header copies the tokens as written | modules/BigInt.k; GNUmakefile's BigInt.o and BigInt.kh; src/main.c's prelude_names; src/parser.c's prelude_token, the attribute's name, forward_prototypes in imported files, written_toks and gen_header; tests; documents/bigint.md, modules.md, README.md, documents/README.md, selfhost/README.md | `BigInt(1) << 100` | 2026-11-10 |
 | 508 | `123n`, `0xffn` and `0b101n` are BigInt literals, as JS's: an integer's digits and an n, which the lexer makes `BigInt("123", 10)`, so a program that writes one has the prelude's BigInt; a leading 0, `017n`, is an error, as the user chose; a type of the program named BigInt hides it, an error in words; kc refuses one in words, as it links no module written in Kelvin | src/lexer.c's big_literal; src/kelvin.h's Token bigint; src/main.c's with_prelude error; the Token initializers; selfhost/lex.k; editors/vscode's grammar and tests/grammar.js; tests; documents/bigint.md, integers.md, grammar.md, README.md, selfhost/README.md | `123n` | 2026-11-10 |
 | 509 | A BigInt's text is its literal, as the user said: `123n`, `-5n`, `0n`, in print, a template, `.cstr` and inside a value, so that `BigInt($`${b}`)` reads it back; `b.hex`, `b.oct` and `b.bin` are the literal in base 16, 8 and 2, signed and prefixed as Kelvin's signed integers' are, `+0xffn`, `-0o17n`, `+0b101n`, which `BigInt(t, 16)`, `(t, 8)` and `(t, 2)` read back; `b.text(base)` stays the bare digits | modules/BigInt.k's string, hex, oct, bin, kv_bi_prefixed and kv_bi_parse's 0o and 0b; tests; documents/bigint.md | `123n` printed | 2026-11-10 |
+| 510 | A parameter written `b:lent T`, of a function or a method, is lent its caller's owner, as the user chose, as an operator's operands are (#501): the caller keeps it, one an expression gives is held and freed after, and inside it is a let that moves into no function and is returned as a copy; `var` with it, a number and an anonymous function's are errors in words. kc the same | src/parser.c's parse_var, lent_param, lent_words, borrow_temps, move_args and the method call; src/codegen.c's method call; src/kelvin.h's lent_written; selfhost/parse.k's lent_at and lent_params; selfhost/gen.k's lent_param, lent_words and the errors; tests; documents/functions.md, ownership.md, README.md, selfhost/README.md, selfhost/sample.k | `b:lent T` | 2026-11-10 |
 
 Notes:
 
@@ -1138,6 +1139,31 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (510) Agreed details: "Finish all BigInt arithmetics. Make sure
+  `pow(b, e, m)` supports `BigInt`"; that number, #511, waits on this.
+  - For it, the user chose `b.pow(e, m)` and a free `pow(b, e, m)`, a
+    BigInt or an i64 in each place; `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()`;
+    `.sign` for `.signum`, as integers have; `b.exactI64` and
+    `b.exactU64`, an i64? and a u64?.
+  - `pow(a, 4, m)` moved a and m into the function, so they were dead
+    after it, as `a.gcd(b)` would b. Asked, the user chose a lent
+    parameter, `b:lent T`, a number of its own, over a borrow written
+    `&` or a move.
+  - `lent` comes between `:` and the type of a function's or a method's
+    parameter; it is no keyword elsewhere.
+  - As #501's operands: the call neither moves nor takes it; an owner an
+    expression gives is held, by make_temp, and freed after the call; the
+    callee neither frees it nor binds it to `_kv_b_in`.
+  - Inside, it is LET_LENT: changing it is the let parameter's error;
+    moving it or returning it says "'s' is a value its caller keeps,
+    lent to this function", an operator's still "an operand ... lent to
+    the operator".
+  - `var` with `lent`, `lent` of a number, and an anonymous function's
+    `lent` are errors.
+  - kc: parse_type steps over the `lent` that parse_params marks, the
+    parameter in lent_params, which gen.k's lent_param reads; its
+    errors kelvinc's words.
 
 - (509) Agreed details: the user's "Stringification of BigInt is WRONG!
   append `n` for all cases. BigInt($`${b}`) needs to round-trip;
@@ -7992,6 +8018,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P519 | Details of #507 | modules/BigInt.k: struct BigInt { limbs: $[u64] }; kv_bi_ones, kv_bi_negative, kv_bi_limb, kv_bi_norm, kv_bi_strip, kv_bi_add, kv_bi_neg, kv_bi_sub, kv_bi_cmp, kv_bi_mag, kv_bi_signed, kv_bi_umul, kv_bi_udiv1, kv_bi_clz, kv_bi_udivmod (Knuth D), kv_bi_cmp_mag, kv_bi_zero_division, kv_bi_divmod, kv_bi_bits, kv_bi_not, kv_bi_shl, kv_bi_shr, kv_bi_digits, kv_bi_bad_base, kv_bi_text, kv_bi_digit, kv_bi_mul_add, kv_bi_parse; BigInt(n:i128), BigInt of cstr and const String^, with a base; extend BigInt's attributes, text(base), and the operators, 28 of them with an i64; GNUmakefile: build/prelude/BigInt.o by --prelude, BigInt.kh copied; src/main.c: prelude_names RegExp and BigInt; src/parser.c: prelude_token of BigInt.k and BigInt.kh; parse_method takes a converter word followed by : as an attribute's name; forward_prototypes of imported files' definitions with bodies, the copies' imported flags their tokens'; written_toks, which gen_header reads; tests/run/bigint_basics.k, bigint_random.k, bigint_zero_division.k, bigint_bad_base.k, bigint_own_type.k | provisional |
 | P520 | Details of #508 | src/kelvin.h: Token's bigint after regexp; src/lexer.c: big_literal before lex_number, the digits before an n of base 10, 16 by 0x, or 2 by 0b, pushed as BigInt ( "digits" , base ), a leading 0 of base 10 its error; lex_number asks it before check_number; src/main.c: with_prelude's error of a bigint token beside the program's own BigInt; each positional Token initializer with bigint false; selfhost/lex.k: a number ending in n is lex_error's; editors/vscode/syntaxes/kelvin.tmLanguage.json: constant.numeric.bigint; tests/grammar.js: a sample of it; tests/run/bigint_literal.k, tests/error/bigint_literal_octal.k, bigint_literal_hidden.k | provisional |
 | P521 | Details of #509 | modules/BigInt.k: string appends n to kv_bi_text; kv_bi_prefixed(a, base, prefix), "+" or "-", the prefix, the magnitude's text and n; hex, oct and bin by it; kv_bi_parse's mark, x of 16, o of 8, b of 2, either case, skipped before a digit of the base; tests/run/bigint_basics.k, bigint_literal.k and bigint_random.k with n | provisional |
+| P522 | Details of #510 | src/kelvin.h: Var's lent_written; src/parser.c: parse_var takes a lent after : of a parameter before a type; lent_param, its two errors; lent_words, an operand and the operator in an operator, a value and this function elsewhere; parse_fn_tail and the method parse set p->lent of it, LET_LENT; the anonymous function's error; borrow_temps holds an owner an expression gives for a lent parameter; move_args and the method call move none into one; move_argument's and return_owner's errors by lent_words; src/codegen.c: the method call takes no local owner into a lent parameter; selfhost/parse.k: lent_at, lent_params, parse_type and parse_params; selfhost/gen.k: lent_param of lent_params, lent_words, move_out's and move_back's words, the parameter errors; tests/run/lent_param.k, tests/error/lent_var.k, lent_number.k, lent_return.k, lent_move.k, lent_anonymous.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

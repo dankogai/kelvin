@@ -313,7 +313,8 @@ So far the changes from C are these, by topic.
     it, as C may read it after the move: `f(s, s)` and `s.count + f(s)`
     are errors, but `s = f(s)` (#500)
   - an operator is lent an owner operand, which its caller keeps:
-    `a * a + b` leaves `a` and `b` (#501)
+    `a * a + b` leaves `a` and `b` (#501); so is a parameter written
+    `b:lent T`, `let total(a:lent bag, b:lent bag)` (#510)
   - a local owner named in a struct's literal moves into it, as into a
     call: `return (Big){r, false}` takes `r` (#503)
   - `Bytes` is a growable array of bytes: `b += "more"`, `b[i]` checked

@@ -184,7 +184,9 @@ typedef struct {
     Type *type;
     Expr *init;
     bool is_let;      /* a let (#27): C's const */
-    bool lent;        /* a parameter of an anonymous function lent an owner its caller keeps (#242, #244) */
+    bool lent;        /* a parameter of an anonymous function lent an owner its caller keeps (#242, #244),
+                         an operator's (#501), or one written `b:lent T` (#510) */
+    bool lent_written; /* a parameter written `b:lent T` (#510) */
     bool ref;         /* $0 of an Iterator's function (#325): the state itself, by its address, which it changes */
     bool number;      /* a function's parameter that takes a number, to
                          which _Generic converts others (#41) */

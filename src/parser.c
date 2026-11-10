@@ -89,6 +89,7 @@ static void close_scope(void) {
 
 static bool is_first_use_global(const char *name);
 static Decl *function_named(const char *name);
+static const char *lent_words(bool what);
 static bool declaring_fn; /* a function's name is being declared: its prototype's, an overload's, is one (#505) */
 
 static void declare_binding(const char *name, Type *type, int let) {
@@ -3714,8 +3715,9 @@ static Expr *parse_postfix_steps(Expr *e) {
                     borrow_temps(x, chosen); /* an owner an expression gives, lent where a borrow is taken (#187) */
                     check_args(x, chosen); /* (#257) */
                     for (int k = 0; k < x->items.len && k < chosen->params.len; k++)
-                        move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
-                                      strfmt("'.%s'", member));
+                        if (!((Var *)chosen->params.data[k])->lent) /* one lent is its caller's (#510) */
+                            move_argument(x->items.data[k], param_type(((Var *)chosen->params.data[k])->type),
+                                          strfmt("'.%s'", member));
                 }
                 e = x;
                 continue;
@@ -7900,6 +7902,11 @@ static void borrow_temps(Expr *call, Decl *d) {
         Type *p = unqualified(((Var *)d->params.data[k])->type);
         Expr *a = call->items.data[k];
         Type *at = value_type(a);
+        if (((Var *)d->params.data[k])->lent && is_owner(at) && !owner_place(a)) { /* lent (#510): held, freed after */
+            call->items.data[k] = make_temp(a, "an owner that an expression gives, lent to a function: bind it to a "
+                                               "variable first");
+            continue;
+        }
         if (!p || p->kind != T_PTR || !p->elem || !is_owner(p->elem) || !at || at->kind != T_BASE || owner_place(a) ||
             strcmp(kelvin_type(unqualified(at)), kelvin_type(unqualified(p->elem))))
             continue;
@@ -7913,7 +7920,8 @@ static void borrow_temps(Expr *call, Decl *d) {
 /* an owner given by value to a Kelvin function moves into it (O5) */
 static void move_args(Expr *call, Decl *d) {
     for (int k = 0; k < call->items.len && k < d->params.len; k++)
-        move_argument(call->items.data[k], param_type(((Var *)d->params.data[k])->type), strfmt("'%s'", d->name));
+        if (!((Var *)d->params.data[k])->lent) /* one lent is its caller's (#510) */
+            move_argument(call->items.data[k], param_type(((Var *)d->params.data[k])->type), strfmt("'%s'", d->name));
 }
 
 /* C sees pointers, not owners (O8); print and println show one in a
@@ -11106,8 +11114,9 @@ static void move_argument(Expr *arg, Type *param, const char *what) {
                                                    : strfmt("pass a borrow, '&%s', or a copy", arg->text);
         if (let_kind(arg->text) == LET_EACH)
             error_at(arg->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: %s", arg->text, fix);
-        if (let_kind(arg->text) == LET_LENT) /* (#501) */
-            error_at(arg->pos, "'%s' is an operand its caller keeps, lent to the operator: %s", arg->text, fix);
+        if (let_kind(arg->text) == LET_LENT) /* (#501, #510) */
+            error_at(arg->pos, "'%s' is %s its caller keeps, lent to %s: %s", arg->text, lent_words(true), lent_words(false),
+                     fix);
         if (i >= globals) {
             set_moved(arg->text, true);
             list_push(&moves_pending, arg);
@@ -11454,6 +11463,11 @@ static Var *parse_var(bool with_init, int let) {
         return v;
     }
     expect_p(":");
+    if (!with_init && peek()->kind == TK_IDENT && !strcmp(peek()->text, "lent") &&
+        (peek2()->kind == TK_IDENT || peek2()->kind == TK_KEYWORD || is_p(peek2(), "{") || is_p(peek2(), "$"))) {
+        advance(); /* b:lent T (#510): an owner its caller keeps, as an operator's (#501) */
+        v->lent_written = true;
+    }
     v->type = parse_type();
     if (with_init) /* a declaration: in scope before its initializer */
         declare_binding(v->name, v->type, let);
@@ -11480,6 +11494,29 @@ static Var *parse_var(bool with_init, int let) {
 /* parameter k of a function: `_:T` is unnamed (#388), as C's `f(int)`,
    a name of kelvinc's own that the body cannot spell, so that `_` may
    stand for several parameters and none is read */
+/* the words of a lent parameter's errors: an operator's operand (#501), or
+   a function's or a method's parameter written b:lent T (#510) */
+static const char *lent_words(bool what) {
+    bool op = parsing_fn && parsing_fn->op;
+    return what ? (op ? "an operand" : "a value") : (op ? "the operator" : "this function");
+}
+
+/* b:lent T (#510): lent its caller's owner, as an operator's are (#501);
+   for an owner alone, and a let */
+static bool lent_param(Var *p, bool mutable) {
+    if (!p->lent_written)
+        return false;
+    if (mutable)
+        error_at(p->pos, "'%s' is lent, its caller's, and cannot change: 'var' asks for one of its own, a copy, "
+                         "which 'lent' is not",
+                 p->name);
+    if (!is_owner(param_type(p->type)))
+        error_at(p->pos, "'lent' is for an owner, a String, a Bytes, an Array, a Dictionary, a Set or a struct that "
+                         "owns: %s is given as it is",
+                 kelvin_type(param_type(p->type)));
+    return true;
+}
+
 static Var *parse_param(int k) {
     Var *p = parse_var(false, LET_NONE);
     if (!strcmp(p->name, "_"))
@@ -12209,9 +12246,9 @@ static void return_owner(Expr *e) {
         if (let_kind(e->text) == LET_EACH)
             error_at(e->pos, "'%s' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '%s.copy()'", e->text,
                      e->text);
-        if (let_kind(e->text) == LET_LENT) /* (#501) */
-            error_at(e->pos, "'%s' is an operand its caller keeps, lent to the operator: return a copy, '%s.copy()'", e->text,
-                     e->text);
+        if (let_kind(e->text) == LET_LENT) /* (#501, #510) */
+            error_at(e->pos, "'%s' is %s its caller keeps, lent to %s: return a copy, '%s.copy()'", e->text,
+                     lent_words(true), lent_words(false), e->text);
         int i = binding_index(e->text);
         int globals = scope_marks.len ? (int)(intptr_t)scope_marks.data[0] : scope_names.len;
         if (i >= globals)
@@ -12705,6 +12742,9 @@ static Expr *parse_anon_fn(Type *ctx) {
             bool mutable = accept_kw("var");
             reject_c_fn_pointer(cur, "");
             Var *p = parse_param(d->params.len);
+            if (p->lent_written) /* (#510) */
+                error_at(p->pos, "'lent' is for a function's or a method's parameter: an anonymous function is lent "
+                                 "the elements .map and .sort give it (#244), and owns what else it takes");
             p->is_let = !mutable;
             /* lent (#242, #244): an element its caller keeps, read, never moved;
                a var asks for one of its own, a copy */
@@ -14817,7 +14857,7 @@ static Decl *parse_fn_tail(Decl *d, Token *name, Pos pos) {
         p->number = numeric_type(param_type(p->type));
         /* an operator is lent an owner its caller keeps, read, never moved;
            a var asks for a copy of its own (#501) */
-        p->lent = d->op && !mutable && is_owner(param_type(p->type));
+        p->lent = lent_param(p, mutable) || (d->op && !mutable && is_owner(param_type(p->type)));
         declare_binding(p->name, param_type(p->type), p->lent ? LET_LENT : p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
@@ -15024,7 +15064,8 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
         Var *p = parse_param(d->params.len);
         p->is_let = !mutable;
         p->number = numeric_type(param_type(p->type));
-        declare_binding(p->name, param_type(p->type), p->is_let ? LET_PARAM : LET_NONE);
+        p->lent = lent_param(p, mutable); /* b:lent T (#510) */
+        declare_binding(p->name, param_type(p->type), p->lent ? LET_LENT : p->is_let ? LET_PARAM : LET_NONE);
         list_push(&d->params, p);
         if (!accept_p(","))
             break;

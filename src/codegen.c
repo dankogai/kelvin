@@ -2027,7 +2027,8 @@ static char *expr_bare(Expr *e) {
         for (int i = 0; i < e->items.len; i++) {
             Expr *x = e->items.data[i];
             /* a local owner given by value moves into the method (#158), as into a function (#54) */
-            const char *take = e->method && i < e->method->params.len && local_owner(x)
+            const char *take = e->method && i < e->method->params.len && local_owner(x) &&
+                                       !((Var *)e->method->params.data[i])->lent /* its caller's (#510) */
                                    ? owner_take(((Var *)e->method->params.data[i])->type)
                                    : NULL;
             buf_printf(&args, ", %s", take ? strfmt("%s(&%s)", take, c_name(x->text)) : expr(x));

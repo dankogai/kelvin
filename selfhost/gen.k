@@ -581,7 +581,11 @@ let move_out(v:int64, what:const String^):bool {
     if i >= 0 && locals[i].how == 3 {
         m += "' is a value its Array, Dictionary, Optional or Result still owns: "
     } else if i >= 0 && locals[i].how == 5 {
-        m += "' is an operand its caller keeps, lent to the operator: "
+        m += "' is "
+        m += lent_words(true)
+        m += " its caller keeps, lent to "
+        m += lent_words(false)
+        m += ": "
     } else if i < 0 {
         m += "' is a global owner, which cannot move into "
         m += what
@@ -613,7 +617,15 @@ let move_back(v:int64, returned:bool):bool {
     if i >= 0 && (locals[i].how == 3 || locals[i].how == 5) && returned {
         var m = $"'"
         m += tok_text(nodes[v].t)
-        m += locals[i].how == 5 ? "' is an operand its caller keeps, lent to the operator: return a copy, '" : "' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '"
+        if locals[i].how == 5 {
+            m += "' is "
+            m += lent_words(true)
+            m += " its caller keeps, lent to "
+            m += lent_words(false)
+            m += ": return a copy, '"
+        } else {
+            m += "' is a value its Array, Dictionary, Optional or Result still owns: return a copy, '"
+        }
         m += tok_text(nodes[v].t)
         m += ".copy()'"
         gen_error(v, m.cstr)
@@ -2107,7 +2119,16 @@ let fixed_ptr_ok(a:int64, py:int64, who:const String^):bool {
 // whether the parameter p of d is an owner lent, an operator's let, as
 // kelvinc's: its caller keeps it, frees it, and holds one an expression gives (#501)
 let lent_param(d:int64, p:int64):bool {
+    if d >= 0 && p >= 0 && lent_params.has(p) { return true }   // b:lent T (#510)
     return d >= 0 && p >= 0 && is_operator(d) && is_owner(nodes[p].ty) && nodes[p].flag == 1
+}
+
+// the words of a lent parameter's errors, as kelvinc's: an operator's operand
+// (#501), or a function's parameter written b:lent T (#510)
+let lent_words(what:bool):cstr {
+    let op = current >= 0 && is_operator(current)
+    if what { return op ? "an operand" : "a value" }
+    return op ? "the operator" : "this function"
 }
 
 // the argument a of the parameter p of d; false where it is an error
@@ -16837,7 +16858,22 @@ let gen_function(d:int64) {
             refuse_fixed(p, pty)
             return
         }
-        declare_as(nodes[p].t, nodes[p].ty, lent_param(d, p) ? 5 : nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271); lent (#501)
+        if lent_params.has(p) && nodes[p].flag != 1 {    // as kelvinc says it (#510)
+            var m = $"'"
+            m += tok_text(nodes[p].t)
+            m += "' is lent, its caller's, and cannot change: 'var' asks for one of its own, a copy, which 'lent' is not"
+            gen_error(p, m.cstr)
+            return
+        }
+        if lent_params.has(p) && !is_owner(nodes[p].ty) {
+            var m = $"'lent' is for an owner, a String, a Bytes, an Array, a Dictionary, a Set or a struct that owns: "
+            let w:String = kelvin_type_text(nodes[p].ty)
+            m += &w
+            m += " is given as it is"
+            gen_error(p, m.cstr)
+            return
+        }
+        declare_as(nodes[p].t, nodes[p].ty, lent_param(d, p) ? 5 : nodes[p].flag == 1 ? 2 : 0)   // a parameter, a let unless var (#271); lent (#501, #510)
         p = nodes[p].next
     }
     implicit_return(d)                                   // which sees the parameters, as await t asks t's type (#313)

@@ -604,6 +604,10 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **A lent parameter** (#510), as kelvinc's: `b:lent T` of a function or
+  a method is its caller's, as an operator's operand (#501), by
+  lent_params, which parse_type steps the `lent` of; errors in
+  kelvinc's words.
 - **A 123n literal** (#508), kelvinc's BigInt: kc's lexer refuses it in
   words, as kc links no module written in Kelvin.
 - **BigInt, the prelude's** (#507): kelvinc's, a module written in Kelvin;
