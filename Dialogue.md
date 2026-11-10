@@ -9755,3 +9755,24 @@ function's name given to an overload, and `&d[k]`. kc's build passes 243
 of the tests, where it passed 236. Details are provisional P528.
 
 There are 1269 tests, and all pass with clang and with gcc 15.
+
+### 564. A benchmark of BigInt
+
+> benchmark bigint
+>
+> * dig the `benchmarks/bigint`folder
+> * benchmark against ruby, python, node and gmp
+> * gmp is preinstalled here via macports cf. https://github.com/dankogai/swift-bigint-gmp
+> * do not include benchmarks to CI for every push.  make `.github/workflow/enchmark.yml` and run it manually upon my order.  This time just create the yaml file and do not run it.
+> * this time, local only
+
+**Claude** asked: the user chose swift-bigint-gmp's 11 cases and inputs,
+and each language's own gcd, isqrt and modular power where it has one.
+`benchmarks/bigint/run.sh` builds Kelvin's and GMP's, runs them with
+Ruby's, Python's and Node's, checks the five agree, and prints a table;
+`.github/workflows/benchmark.yml` runs it by hand only, and was not run.
+On the user's Apple M1, Kelvin is last in every row, 28× to 50× behind
+GMP on most and far more on isqrt, gcd and decimal text, which division
+and copies dominate. Details are provisional P529.
+
+There are 1269 tests, and all pass with clang and with gcc 15.

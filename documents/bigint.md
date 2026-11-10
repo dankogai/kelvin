@@ -120,6 +120,12 @@ repeated to the left, kept as short as it can be; zero is no limbs.
   program with a type of its own named `BigInt` keeps it.
 - Its helpers are `kv_bi_`, the runtime's names, which a program may not
   write.
+- **How fast:** `benchmarks/bigint` (#517) races it against GMP, Ruby,
+  Python and Node, `sh benchmarks/bigint/run.sh`.
+  - It is last in every case, 28× to 50× behind GMP in most.
+  - isqrt, gcd and decimal text are far behind, as division and copies
+    dominate them; [its README](../benchmarks/bigint/README.md) has the
+    table.
 
 ## Properties and methods
 

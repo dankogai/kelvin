@@ -1,0 +1,62 @@
+name: Benchmark
+
+# benchmarks/bigint/run.sh: Kelvin's BigInt against GMP, Ruby, Python and
+# Node.  Only by hand (Actions, Benchmark, Run workflow), never on a push:
+# it takes minutes and its numbers are for reading, not for passing.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bigint:
+    name: bigint / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: GMP (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev
+
+      - name: GMP (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gmp
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Build kelvinc
+        run: make
+
+      - name: Run benchmarks/bigint
+        run: |
+          PYTHON=python sh benchmarks/bigint/run.sh
+          {
+            echo "## BigInt on ${{ matrix.os }}"
+            echo
+            cat benchmarks/bigint/out/results.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bigint-${{ matrix.os }}
+          path: |
+            benchmarks/bigint/out/*.tsv
+            benchmarks/bigint/out/results.md

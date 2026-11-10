@@ -74,3 +74,6 @@ modules/fetch.kh
 modules/libkfetch.link
 modules/JSON.kh
 modules/localStorage.kh
+
+# benchmarks/*/run.sh builds and writes here
+/benchmarks/*/out/

@@ -565,6 +565,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 514 | The version bumped to 0.2.0, as the user asked once RegExp and BigInt were in the prelude: kelvinc's KELVIN_VERSION and the VS Code package's, which tests/run.sh checks agree; Design.md's status; CHANGELOG.md's 0.2.0 notes, #497 to #513, the prelude, the language, the fixes and kc; README.md's line of the release notes; then, as the user asked, the tag v0.2.0 and the release Kelvin 0.2.0 | src/main.c's KELVIN_VERSION; editors/vscode/package.json and README.md; Design.md; CHANGELOG.md; README.md | `kelvinc --version` gives `kelvinc 0.2.0` | 2026-11-10 |
 | 515 | kc reads the prelude's modules, as the user asked, BigInt and RegExp both, as the user chose: a program that names BigInt or RegExp, or writes `123n` or `$/.../`, reads its `M.kh` from the modules, as kelvinc's #504, UnicodeData's too; kc writes the declarations' prototypes and links libkelvin, which defines them, by kelvinc's C names. With it, for any program: methods overloaded by their parameters, methods of String, Bytes and uchr, a `T^` where a `const T^` goes, an owner an expression gives lent where a `T^` is taken, `$0` functions to overloads, function values of owners given to a module, `b.escape()` and `Bytes.unescape(text)` | selfhost/kc.k's load_prelude; selfhost/lex.k's big_literal, lex_regexp, add_made; selfhost/parse.k's in_kh, bodiless attributes and subscripts, `:()`; selfhost/gen.k's name_methods, method_chosen, choose_among, recv_tok, recv_type, lend_temps, pointer_text, mangled_text, kh_fns, arg_fit, gen_fn_value, Bytes's escape and unescape; selfhost/README.md, selfhost/sample.k | `kc` builds `2n ** 100` and `s.split($/\s+/)` | 2026-11-10 |
 | 516 | kc reads `#import <M>` of any module, as the user asked, with JSON's tests in it, as the user chose: `M.kh`, else `M.k`, in ./modules, else in the modules, as kelvinc's import_path; a header's `libkM.a` beside it linked, or `-lkM` of a shared one, with `libkM.link`'s flags, as kelvinc's module_library; `<x.k>` that file; ./modules's C headers seen. With it, for any program: `"""text"""` and `$"""text"""`, `j["key"]` and `j[i]` of an enum with values through its Dictionary or Array case (#117), a function's name given to an overload, `&d[k]` the entry's place | selfhost/kc.k's load_module, module_import, module_library, link_flags, module_libs, exists; selfhost/lex.k's lex_triple; selfhost/parse.k's `&d[k]`; selfhost/gen.k's is_case_word, indexes_enums, index_case, resolve_subscript; selfhost/README.md, selfhost/sample.k | `kc` builds `JSON.stringify(&j, f)` and `j["tags"][0]` | 2026-11-11 |
+| 517 | benchmarks/bigint, as the user asked: Kelvin's `BigInt` against GMP, Ruby, Python and Node, swift-bigint-gmp's 11 cases and inputs, as the user chose, best of 3, each language's own gcd, isqrt and modular power where it has one, as the user chose; run.sh builds and runs them, checks they agree, and prints a Markdown table; `.github/workflows/benchmark.yml` runs it by hand only, made and not run, as the user asked | benchmarks/bigint/bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh, README.md; .github/workflows/benchmark.yml; .gitignore's `/benchmarks/*/out/`; documents/bigint.md | `sh benchmarks/bigint/run.sh` | 2026-11-11 |
 
 Notes:
 
@@ -1149,6 +1150,25 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (517) Agreed details: "benchmark bigint"
+  - The user asked for `benchmarks/bigint`, against Ruby, Python, Node
+    and GMP (MacPorts'), local only; a workflow,
+    `.github/workflows/benchmark.yml`, run by hand on the user's word,
+    never on a push, made and not run this time.
+  - Asked, the user chose swift-bigint-gmp's 11 cases and inputs, best
+    of 3, and each language's own gcd, isqrt and modular power where it
+    has one; JS's are Euclid's, Newton's and square and multiply, as
+    Kelvin's.
+  - fib is `a += b; b += a` 5,000 times in each, the same 10,000
+    additions, as Kelvin's `=` does not move an owner (O3).
+  - Each program prints a case's id, its best time and its result mod
+    1000000007; run.sh stops with status 1 where two disagree.
+  - Kelvin and C time by `CLOCK_MONOTONIC_RAW`, nanoseconds, as macOS's
+    `CLOCK_MONOTONIC` counts microseconds and GMP's `2 ** 100000` takes
+    less than one.
+  - A Kelvin function named `div` meets libc's `div` in the C, so the
+    cases are `case_` names.
 
 - (516) Agreed details: "go on with kc #import of other modules"
   - Asked, the user chose that #516 be the loader and what JSON's tests
@@ -8183,6 +8203,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P526 | Details of #514 | src/main.c: KELVIN_VERSION 0.2.0; editors/vscode/package.json and README.md: 0.2.0 and kelvin-lang-0.2.0.vsix; Design.md: the status's heading and its lines of 0.2.0 and 0.1.1; CHANGELOG.md: 0.2.0 before 0.1.1; README.md: the release notes' line | provisional |
 | P527 | Details of #515 | selfhost/kc.k: names_word, own_type, prelude_import, load_module, load_prelude; selfhost/lex.k: add_made, big_lits, rx_lits, big_literal, lex_regexp; selfhost/parse.k: in_kh, parse_attribute and parse_subscript without a body in a .kh, parse_function's `:()`; selfhost/gen.k: choose_among, method_chosen, method_names_of, method_targets, name_methods, kh_fns, put_fn_name, recv_tok, builtin_recv, recv_type, resolve_attr and method_of by recv_tok, gen_signature's self, pointer_text, mangled_text, mangled of Y_PTR and Y_FN, arg_fit, lend_temps, gen_call and gen_method_of holding arguments, gen_fn_value, bytes_method_type and gen_bytes_method's escape, Bytes.unescape(text); selfhost/sample.k; selfhost/README.md | provisional |
 | P528 | Details of #516 | selfhost/kc.k: module_libs, exists, read_already, link_flags, module_library, load_module, module_import, load_prelude by module_import, ./modules as -I, the modules' libraries linked; selfhost/lex.k: lex_triple, `"""` and `$"""`; selfhost/parse.k: `&d[k]` a place; selfhost/gen.k: is_case_word of a function's name, enum_index_known, indexes_enums, index_case, resolve_subscript; selfhost/sample.k; selfhost/README.md | provisional |
+| P529 | Details of #517 | benchmarks/bigint: bench.k, bench.c, bench.rb, bench.py, bench.mjs, run.sh (KELVINC, CC, RUBY, PYTHON, NODE, GMP_CFLAGS, GMP_LIBS; out/<name>.tsv and out/results.md; the results checked mod 1000000007), README.md with the Apple M1 table; .github/workflows/benchmark.yml (workflow_dispatch; ubuntu-latest and macos-latest; GMP, Ruby 4.0, Python 3.14, Node 24; the table to the summary, out/ an artifact); .gitignore; documents/bigint.md | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |
