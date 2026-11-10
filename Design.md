@@ -551,6 +551,7 @@ one, but it sits on an absolute scale. The source extension is `.k`.
 | 504 | RegExp is the prelude's, as the user chose, as JS's and Swift's are: a program that names `RegExp`, a `$/.../` literal's own name too, has it, `Match` and `BytesMatch`, with no import; `#import <RegExp>` still builds, doing nothing more; a program with a type of its own named RegExp keeps it, and a `$/.../` there is an error in words. libkelvin holds RegExp, its engine, UnicodeData and the Unicode tables, linked from the static libkelvin.a only where used; libkRegExp and libkUnicodeData are no more; `#import <UnicodeData>` stays. Their helpers are `kv_rx_` and `kv_ucd_`. kelvinc's `--prelude` builds such a module's M.kh and object | src/main.c's with_prelude, imported_has, prelude_names and --prelude; src/parser.c's prelude_token and the literal's error; GNUmakefile's PRELUDE_OBJS and libkelvin; runtime/regexp.c, unicode_data.c, modules/RegExp.k, UnicodeData.k, kRegExp.h, kUnicodeData.h renamed; tests; documents/regexp.md, unicodedata.md, modules.md and others, README.md, selfhost/README.md, examples/wordfreq.k | `$/a+/` | 2026-11-10 |
 | 505 | A function, a method, an operator or a function of a type may be called before it is written, as the user chose, as in Swift and kc: kelvinc writes its prototype where a declaration before its definition names it, after the types and imports its header names; a member of `extend T` goes into an `extend T { }` of prototypes; C's declaration written later is lifted too, so `sin(x)` stays C's beside a Kelvin `sin`; every overload is seen, where #492 said one declared after was not. A name past ASCII may have a prototype and a definition, where it was "declared already" | src/parser.c's forward_prototypes, ahead_body, ahead_use, declaring_fn; tests; documents/functions.md, structs.md, c-interfaces.md, README.md, selfhost/README.md, selfhost/sample.k | `f` before `let f` | 2026-11-10 |
 | 506 | A type's own text may be a String of any length, as the user chose: `let T.string:String { ... }`, or `let string:String` in `extend`, of a struct, a union or an enum with values; print, println, `$`...``, `.pretty` and a value that holds one show it whole; `` `...` `` and `.cstr` cut it at 256 bytes, as a String value's; `.string` and `.cstr()` together are an error. kc the same, but for that error, as kc has no `.cstr()` | src/parser.c's string_text and string_text_of, template_value's tpl_show; src/codegen.c's string_method_of, the printer, `_kv_T_cstr` of the String, its size; src/kelvin.h's string_text; selfhost/gen.k's string_text_fn, need_show and the printer; tests; documents/structs.md, properties.md, printing.md, README.md, selfhost/README.md, selfhost/sample.k | `let T.string:String { }` | 2026-11-10 |
+| 507 | BigInt, integers of any size, the prelude's, as the user chose: a module written in Kelvin, modules/BigInt.k, after swift-bignum, two's complement in u64 limbs; a program that names it has it. `BigInt(n)`, `BigInt(text)` and `BigInt(text, base)` read as `i64(s)` reads; `+ - * / %` truncated, comparisons, `& \| ~ << >>`, unary `-` and `~`, an i64 on either side; division by zero ends the program in words; `.string` (#506), `.text(base)`, `.i64`, `.u64` wrapping, `.f64`, `.abs`, `.signum`, `.isZero`, `.isNegative`. An attribute may be named as a converter, `b.i64`; the prototypes of #505 are written in a module too, and its header copies the tokens as written | modules/BigInt.k; GNUmakefile's BigInt.o and BigInt.kh; src/main.c's prelude_names; src/parser.c's prelude_token, the attribute's name, forward_prototypes in imported files, written_toks and gen_header; tests; documents/bigint.md, modules.md, README.md, documents/README.md, selfhost/README.md | `BigInt(1) << 100` | 2026-11-10 |
 
 Notes:
 
@@ -1135,6 +1136,43 @@ Notes:
     `shape.circle(2)` is `circle(2.0)`.
   - kc still gives C's errors of these; kelvinc's words in kc would
     be a number of their own.
+
+- (507) Agreed details: "go on with BigInt", the plan's BigInt, after
+  #500 to #506 laid its ground.
+  - As the user chose before: a module of the prelude, an owner as a
+    String, two's complement as swift-bignum, truncated division; text
+    read as `i64(s)` reads it, division by zero ending the program in
+    words, and the bitwise operators in this number.
+  - Asked, the user chose `b.text(16)` for a base's text, as Kelvin
+    shelves `toString`; `b.i64` and `b.u64` wrapping, as C's casts,
+    with `b.f64`; and an i64 on either side of an operator.
+  - modules/BigInt.k is Kelvin alone: little-endian u64 limbs, the top
+    bit repeated, normalized; zero is no limbs. Addition, negation, the
+    bits and the shifts read the limbs as they are; multiplication,
+    schoolbook, and division, Knuth's algorithm D with u128 and i128,
+    go by the magnitudes.
+  - Text out in chunks of the largest power of the base in a limb; text
+    in the same way, by a multiply-add.
+  - One `BigInt(n:i128)` takes an i64 and a u64 alike: overloads of i64
+    and u64 would be named BigInt__i64 and BigInt__u64 in C, as the
+    attributes `b.i64` and `b.u64` are.
+  - An attribute may be named as a converter, `let i64:i64 { }`, where
+    `:` follows; it was "expected a method name".
+  - The prototypes of #505 were written for a program's own functions
+    alone; a module compiled by --lib or --prelude is imported tokens
+    throughout, so BigInt.k's calls of its later functions were C's
+    errors. They are written for an imported file's definitions too,
+    their tokens imported as the file's, which names them in C; a
+    header's prototypes are not lifted.
+  - A module's header, gen_header, copies the source between tokens; the
+    prototypes' tokens, copies from later in the file, made a negative
+    length and "out of memory". It reads the tokens as written now.
+  - Checked against Python's int: 600 random cases of five seeds, up to
+    500 bits, of every operator; tests/run/bigint_random.k holds 25.
+  - `r = $[]` and `return $[]` in a function that gives an Array<u64>
+    still need `Array<u64>()`, as #503 found; and a return inside an if
+    kills an owner for the rest of its block, as O5 says, so BigInt.k
+    returns once.
 
 - (506) Agreed details: "go on with BigInt", whose text a 1000-digit
   value would outgrow: a type's own text, `T.cstr()` (#53), is one
@@ -7912,6 +7950,7 @@ says "as agreed". They are deferred past 0.1.0, and may change before 1.0
 | P516 | Details of #504 | src/main.c: imported_has; prelude_names {"RegExp"}; with_prelude after with_imports, unless --runtime: a TK_IDENT of the name, no import of it already, no struct, union or enum of the name (else a $/.../ token is the error), then the import and the module's tokens before the program's; --prelude sets lib, lib_mode, prelude_lib and prelude_mode, its object dir/M.o kept, no ar and no shared library, its M.kh's comment; src/parser.c: prelude_mode, prelude_token by --prelude or the file RegExp.k, RegExp.kh, UnicodeData.k or UnicodeData.kh, which reject_kv_name lets name kv_; the literal's error worded for a hidden RegExp; src/kelvin.h: prelude_mode; GNUmakefile: PRELUDE_OBJS, build/prelude/UnicodeData.o and RegExp.o by --prelude, their .kh copied to modules/, libkelvin.a and its shared library with UD_OBJS, RX_OBJS and PRELUDE_OBJS, the old libraries removed, install without them; the 37 helpers renamed kv_ in runtime/regexp.c, runtime/unicode_data.c, modules/kRegExp.h, kUnicodeData.h, RegExp.k, UnicodeData.k; comments in runtime/regexp_parse.c and tools/gen_unicode.py; tests/run/regexp_prelude.k, regexp_own_type.k, tests/error/regexp_hidden.k; removed tests/error/regexp_needs_import.k | provisional |
 | P517 | Details of #505 | src/parser.c: AheadFn {start, name, body, item, recv}; storage_kw; ahead_body, where a header ends, its body's { or its line's end, past a result of braces or enum{...}; ahead_use, a call, a value after ( , = := return, not let f( nor let T.f(; forward_prototypes after fold_nested_heads: top-level starts on a new line, types (struct, union, enum, typealias) with their ends, imports' ends, top-level functions and extend T's members not imported and not main; the place, the first start at or after the needed ends; the use between the place and the definition; the new tokens, each header and ;, members in extend T { }; declaring_fn lets declare_binding take a function's name past ASCII again; tests/run/order_free.k, tests/error/unicode_undeclared.k; removed tests/error/overload_declared_after.k, method_overload_declared_after.k, method_before_definition.k, unicode_unknown_name.k | provisional |
 | P518 | Details of #506 | src/kelvin.h: Decl's string_text; src/parser.c: the method parse marks an attribute named string of a String on a Kelvin record, not static, and refuses it beside a text_method, and a text_method beside it; string_text_of; template_value makes a tpl_show of such a value; src/codegen.c: string_method_of; the type's enum _kv_T_cstr_size of KV_TEMPLATE_STR + 1 and _kv_T_cstr's prototype, its definition after the printers by kv_template_string; the printer's own_string branch by method_cname; need_show_inside stops at it; selfhost/gen.k: string_text_fn, a getter named string of a String on y's tag; need_show takes it alone; the printer by T__string; tests/run/own_string_text.k, tests/error/own_text_twice.k | provisional |
+| P519 | Details of #507 | modules/BigInt.k: struct BigInt { limbs: $[u64] }; kv_bi_ones, kv_bi_negative, kv_bi_limb, kv_bi_norm, kv_bi_strip, kv_bi_add, kv_bi_neg, kv_bi_sub, kv_bi_cmp, kv_bi_mag, kv_bi_signed, kv_bi_umul, kv_bi_udiv1, kv_bi_clz, kv_bi_udivmod (Knuth D), kv_bi_cmp_mag, kv_bi_zero_division, kv_bi_divmod, kv_bi_bits, kv_bi_not, kv_bi_shl, kv_bi_shr, kv_bi_digits, kv_bi_bad_base, kv_bi_text, kv_bi_digit, kv_bi_mul_add, kv_bi_parse; BigInt(n:i128), BigInt of cstr and const String^, with a base; extend BigInt's attributes, text(base), and the operators, 28 of them with an i64; GNUmakefile: build/prelude/BigInt.o by --prelude, BigInt.kh copied; src/main.c: prelude_names RegExp and BigInt; src/parser.c: prelude_token of BigInt.k and BigInt.kh; parse_method takes a converter word followed by : as an attribute's name; forward_prototypes of imported files' definitions with bodies, the copies' imported flags their tokens'; written_toks, which gen_header reads; tests/run/bigint_basics.k, bigint_random.k, bigint_zero_division.k, bigint_bad_base.k, bigint_own_type.k | provisional |
 | P16 | `#import` details | `#import "x.h" as C` | Top level only, at the start of a line. A quoted header is searched next to the `.k` file (kelvinc passes `-I<dir of .k>`), since the generated C lives in a temp directory |
 | P17 | `as` binds tighter than every binary operator and looser than prefix operators, and chains left to right | `-x as u8` is `(-x) as u8`; `a * b as i64` is `a * (b as i64)`; `x as i64 as i32` | This is where C's cast sits (and Rust's `as`). To index or dereference the result, parenthesize: `(p as u8^)[0]`, because a `[`…`]` or `^` after the type is read as part of the type |
 | P18 | `T(v)` only for built-in types (`i8`…`u128`, `f32`, `f64`, `bool`) | `u8(c)`, but `n as size_t` and `p as u8^` | For a typedef name, `size_t(n)` would look exactly like a function call, and suffixes such as `u8^(p)` read poorly. `as` covers every type |

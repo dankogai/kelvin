@@ -11383,7 +11383,7 @@ static Type *inferred_type(Expr *e, Pos pos) {
 /* a token of a module of the prelude (#504), built by --prelude, or of its
    header, M.kh: their helpers are the runtime's, kv_rx_compile */
 static bool prelude_token(Token *t) {
-    static const char *files[] = {"RegExp.k", "RegExp.kh", "UnicodeData.k", "UnicodeData.kh", NULL};
+    static const char *files[] = {"RegExp.k", "RegExp.kh", "UnicodeData.k", "UnicodeData.kh", "BigInt.k", "BigInt.kh", NULL};
     if (prelude_mode)
         return true;
     const char *slash = t->pos.file ? strrchr(t->pos.file, '/') : NULL;
@@ -14966,7 +14966,9 @@ static Decl *parse_method_of(Pos pos, const char *storage) {
     var_method_next = false;
     /* T.cstr() defines a struct's or union's text (#53) */
     d->text_method = is_kw(name, "cstr");
-    d->name = d->text_method ? advance()->text : expect_ident("a method name");
+    d->name = d->text_method || (is_converter(peek()) && is_p(peek2(), ":")) /* an attribute b.i64 (#507) */
+                  ? advance()->text
+                  : expect_ident("a method name");
     d->recv_name = recv->text;
     if (spelled) {
         Decl *r = anon_record_of(spelled);
@@ -16570,7 +16572,10 @@ static bool ahead_use(int i, const char *name) {
            !is_p(next, ":") && !is_p(next, "=");
 }
 
+static Token *written_toks; /* the tokens as written, before the prototypes, which a module's header copies (#507) */
+
 static void forward_prototypes(void) {
+    written_toks = NULL;
     int n = 0;
     while (toks[n].kind != TK_EOF)
         n++;
@@ -16607,8 +16612,6 @@ static void forward_prototypes(void) {
             list_push(&types, t[1].text);
             list_push(&types, (void *)(intptr_t)k);
         }
-        if (t->imported)
-            continue;
         int k = i;
         while (storage_kw(&toks[k]))
             k++;
@@ -16616,7 +16619,7 @@ static void forward_prototypes(void) {
             (toks[k + 1].kind == TK_IDENT || overloadable_op(&toks[k + 1])) &&
             !(toks[k + 1].kind == TK_IDENT && !strcmp(toks[k + 1].text, "main"))) {
             int body = ahead_body(k + 1);
-            if (body >= 0) {
+            if (body >= 0 && !(t->imported && !is_p(&toks[body], "{"))) { /* not a module header's prototype */
                 AheadFn *f = xcalloc(1, sizeof *f);
                 *f = (AheadFn){i, k + 1, body, i, NULL};
                 list_push(&fns, f);
@@ -16632,7 +16635,7 @@ static void forward_prototypes(void) {
                     if ((is_kw(&toks[m], "let") || is_kw(&toks[m], "var")) &&
                         (toks[m + 1].kind == TK_IDENT || overloadable_op(&toks[m + 1])) && is_p(&toks[m + 2], "(")) {
                         int body = ahead_body(m + 1);
-                        if (body >= 0) {
+                        if (body >= 0 && !(toks[j].imported && !is_p(&toks[body], "{"))) {
                             AheadFn *f = xcalloc(1, sizeof *f);
                             *f = (AheadFn){j, m + 1, body, i, t[1].text};
                             list_push(&fns, f);
@@ -16694,9 +16697,9 @@ static void forward_prototypes(void) {
             Token *first = &toks[a->start];
             if (a->recv) {
                 Token *ext = xmalloc(sizeof *ext * 3);
-                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, false, false};
-                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, false, false};
-                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, false, false};
+                ext[0] = (Token){TK_IDENT, first->pos, "extend", first->pos.line, false, first->imported, false};
+                ext[1] = (Token){TK_IDENT, first->pos, (char *)a->recv, first->pos.line, false, first->imported, false};
+                ext[2] = (Token){TK_PUNCT, first->pos, "{", first->pos.line, false, first->imported, false};
                 for (int e = 0; e < 3; e++)
                     list_push(&out, &ext[e]);
             }
@@ -16707,18 +16710,18 @@ static void forward_prototypes(void) {
                     continue;
                 for (int h = b->start; h < b->body; h++) {
                     Token *c = xmalloc(sizeof *c);
-                    *c = toks[h];
-                    c->imported = false;
+                    *c = toks[h]; /* imported where its file is, which names it in C (#146) */
                     list_push(&out, c);
                 }
                 Token *semi = xmalloc(sizeof *semi);
-                *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false, false, false};
+                *semi = (Token){TK_PUNCT, toks[b->body - 1].pos, ";", toks[b->body - 1].pos.line, false,
+                                toks[b->body - 1].imported, false};
                 list_push(&out, semi);
                 at.data[m + 1] = NULL;
             }
             if (a->recv) {
                 Token *close = xmalloc(sizeof *close);
-                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, false, false};
+                *close = (Token){TK_PUNCT, first->pos, "}", first->pos.line, false, first->imported, false};
                 list_push(&out, close);
             }
         }
@@ -16727,6 +16730,7 @@ static void forward_prototypes(void) {
     Token *all = xmalloc(sizeof(Token) * (size_t)out.len);
     for (int i = 0; i < out.len; i++)
         all[i] = *(Token *)out.data[i];
+    written_toks = toks;
     toks = all;
 }
 
@@ -17434,7 +17438,20 @@ static char *c_declarations(const char *text) {
     return out.buf ? out.buf : xstrdup("");
 }
 
+static char *gen_header_of(Program *prog);
+
+/* M.kh of the module (#146), from its tokens as written, without the
+   prototypes kelvinc wrote (#505, #507) */
 char *gen_header(Program *prog) {
+    Token *saved = toks;
+    if (written_toks)
+        toks = written_toks;
+    char *h = gen_header_of(prog);
+    toks = saved;
+    return h;
+}
+
+static char *gen_header_of(Program *prog) {
     const char *file = toks[0].pos.file;
     Buf b = {0};
     buf_puts(&b, "");

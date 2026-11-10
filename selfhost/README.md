@@ -604,6 +604,8 @@ kc reads what it is written in, and little more.
   excess, or C's error where no element took it.
   - kc zeroes a variable written with no value, where kelvinc leaves it
     C's, unset.
+- **BigInt, the prelude's** (#507): kelvinc's, a module written in Kelvin;
+  kc links no module built of Kelvin, so its programs name no `BigInt`.
 - **A type's own text as a String** (#506), as kelvinc's: where a
   struct or an enum with values has `let T.string:String`, its printer
   shows that String, whole, by `T__string`; `$`...``, `` `...` `` and

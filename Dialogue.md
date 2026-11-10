@@ -9612,3 +9612,17 @@ ending the program, and the bitwise operators with the core. kc the
 same. Details are provisional P518.
 
 There are 1245 tests, and all pass with clang and with gcc 15.
+
+### 554. BigInt
+
+> push. then go on with BigInt
+
+**Claude** wrote BigInt as the prelude's, a module in Kelvin alone after
+swift-bignum: two's complement in u64 limbs, Knuth's division. Asked, the
+user chose `b.text(16)` for a base's text, `b.i64` wrapping, and an i64
+on either side of an operator. On the way: an attribute may be named
+`i64`; #505's prototypes are written in a module too, and its header
+reads the tokens as written. Checked against Python's int, 600 random
+cases. Details are provisional P519.
+
+There are 1250 tests, and all pass with clang and with gcc 15.

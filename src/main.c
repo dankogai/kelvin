@@ -322,7 +322,7 @@ static Token *with_imports(Token *toks, int n, int *out_n, const char *argv0) {
    that names one, RegExp, a $/.../ literal's too, imports it as if it
    began with #import <RegExp>, unless it defines a type of that name or
    imports it already; one that does not name it compiles as before */
-static const char *prelude_names[] = {"RegExp", NULL};
+static const char *prelude_names[] = {"RegExp", "BigInt", NULL};
 
 static Token *with_prelude(Token *toks, int n, int *out_n, const char *argv0) {
     const char **names = prelude_names;

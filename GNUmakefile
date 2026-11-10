@@ -29,10 +29,10 @@ MOD_LIBS := modules/libkIO.a modules/libkOS.a
 # the prelude (#504): kelvinc --prelude makes each one's M.kh and object, which
 # libkelvin holds with their C, so a program links them only where it uses them
 RX_OBJS := build/runtime/regexp.o build/runtime/regexp_parse.o
-PRELUDE_OBJS := build/prelude/UnicodeData.o build/prelude/RegExp.o
+PRELUDE_OBJS := build/prelude/UnicodeData.o build/prelude/RegExp.o build/prelude/BigInt.o
 # JSON (#113) is built by kelvinc --lib from modules/JSON.k alone (#484), so that a
 # module such as fetch may import it, which a source included twice would not let
-KELVIN_LIBS := modules/UnicodeData.kh modules/RegExp.kh modules/JSON.kh modules/fetch.kh modules/localStorage.kh
+KELVIN_LIBS := modules/UnicodeData.kh modules/RegExp.kh modules/BigInt.kh modules/JSON.kh modules/fetch.kh modules/localStorage.kh
 # fetch (#482) is written in Kelvin over runtime/fetch.c, an HTTP/1.1 client;
 # HTTPS is OpenSSL's where HAS_SSL=1, the default, which make HAS_SSL=0 or the
 # environment turns off. tools/ssl-flags.sh finds OpenSSL (SSL_CFLAGS and
@@ -133,6 +133,12 @@ build/prelude/RegExp.o: modules/RegExp.k modules/kRegExp.h modules/UnicodeData.k
 	cp build/prelude/RegExp.kh modules/RegExp.kh
 modules/RegExp.kh: build/prelude/RegExp.o
 
+# BigInt (#507), integers of any size, written in Kelvin alone
+build/prelude/BigInt.o: modules/BigInt.k modules/kelvin_prelude.h kelvinc
+	./kelvinc --prelude modules/BigInt.k -o build/prelude
+	cp build/prelude/BigInt.kh modules/BigInt.kh
+modules/BigInt.kh: build/prelude/BigInt.o
+
 build/runtime/fetch.o: runtime/fetch.c modules/kelvin_prelude.h modules/kfetch.h modules/libkfetch.link | build/runtime
 	@if [ "$(HAS_SSL)" = 1 ] && [ -z "$(SSL_LIBS_FOUND)" ]; then \
 	    echo "HAS_SSL=1, but no OpenSSL that $(CC) compiles and links was found: install it (libssl-dev, openssl), say where with SSL_CFLAGS and SSL_LIBS, or build with HAS_SSL=0, with no HTTPS" >&2; exit 1; fi
@@ -175,6 +181,6 @@ install: all
 	install -m 755 modules/$(SHLIB) $(MOD_SHLIBS) modules/libkJSON.$(SO) modules/libklocalStorage.$(SO) modules/libkfetch.$(SO) $(PREFIX)/lib/kelvin/modules/
 
 clean:
-	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh modules/libkJSON.a modules/JSON.kh modules/libklocalStorage.a modules/localStorage.kh modules/libkfetch.a modules/libkfetch.link modules/fetch.kh runtime/unicode_tables.c runtime/unicode_names.c
+	rm -rf build kelvinc modules/libkelvin.a modules/libk*.so modules/libk*.dylib modules/libkIO.a modules/libkOS.a modules/libkUnicodeData.a modules/UnicodeData.kh modules/libkRegExp.a modules/RegExp.kh modules/BigInt.kh modules/libkJSON.a modules/JSON.kh modules/libklocalStorage.a modules/localStorage.kh modules/libkfetch.a modules/libkfetch.link modules/fetch.kh runtime/unicode_tables.c runtime/unicode_names.c
 
 .PHONY: all test asan vsix vscode install clean

@@ -104,6 +104,9 @@ let main():int32 {
     runtime/regexp.c, on `UnicodeData`; it is the prelude's (#504): a
     program that names `RegExp`, or writes a `$/.../` literal, has it
     with no import.
+  - `BigInt` ([bigint.md](bigint.md), #507), integers of any size, is a
+    module of the prelude too, written in Kelvin alone: a program that
+    names `BigInt` has it.
   - A module of the prelude is linked from the static libkelvin.a, as
     the rest of it: a program that uses none of it links none of it.
   - `JSON` ([json.md](json.md)) is built the same from `JSON.k` alone
@@ -211,6 +214,7 @@ modules/                  in the source tree, or $PREFIX/lib/kelvin/modules
     UnicodeData.kh        #import <UnicodeData> (#156, unicodedata.md), built by make from UnicodeData.k
     kUnicodeData.h        its C header; the Unicode tables are libkelvin's (#504)
     RegExp.kh             the prelude's RegExp (#157, #504, regexp.md), built by make from RegExp.k; $/.../ literals
+    BigInt.kh             the prelude's BigInt (#507, bigint.md), built by make from BigInt.k
     kRegExp.h             its C header; the engine is libkelvin's (#504)
     math.k                #import <math> (#148): math.h for f64 and f32, c64 and c32
     JSON.k                #import <JSON> (#113, json.md)
@@ -258,6 +262,12 @@ grapheme clusters as an `Array<String>`, bound before it is walked, the case map
 `re.exec(&s)`, `s.match(&re)`, `s.replace(&re, "$1")`, `s.split(&re)`,
 with `\p{...}` by category, script and property, and `\X` for a
 grapheme cluster: see [regexp.md](regexp.md).
+
+### BigInt: `modules/BigInt.k`
+
+`BigInt` (#507) is integers of any size, the prelude's, with no import:
+`BigInt(1) << 100`, `BigInt("12345678901234567890") * 3`, `b / 7` and
+`b % 7` truncated, `b.text(16)`, `b & 0xff`: see [bigint.md](bigint.md).
 
 ### SION and MessagePack: `modules/SION.k` and `modules/MsgPack.k`
 

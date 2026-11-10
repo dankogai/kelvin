@@ -368,6 +368,10 @@ So far the changes from C are these, by topic.
   - the prelude's, as JS's and Swift's are, with no import: a program
     that names it has it, and one that does not links none of it;
     `#import <RegExp>` still builds (#504)
+- `BigInt` is integers of any size, the prelude's, as Python's `int` and
+  JS's `BigInt`: `BigInt(1) << 100`, `BigInt("123456789012345678901") *
+  n`, `+ - * / %` truncated, comparisons, `& | ~ << >>`, an `i64` on
+  either side, `b.text(16)` (#507)
 - `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is
