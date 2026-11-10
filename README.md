@@ -373,7 +373,8 @@ So far the changes from C are these, by topic.
   JS's `BigInt`: `BigInt(1) << 100`, `BigInt("123456789012345678901") *
   n`, `+ - * / %` truncated, comparisons, `& | ~ << >>`, an `i64` on
   either side, `b.text(16)` (#507); `123n`, `0xffn` and `0b101n` are
-  BigInt literals, as JS's (#508)
+  BigInt literals, as JS's (#508); `b ** e`, Python's `pow(b, e, m)`,
+  `a.gcd(b)`, `a.lcm(b)`, `a.isqrt()` (#511)
 - `#import <fetch>` is JS's `fetch(url)`, a GET over HTTP and HTTPS:
   `var r = fetch("https://example.com/")`, a `Result<Response, Error>`,
   `res.status`, `res.headers["content-type"]`, `res.text()`; HTTPS is

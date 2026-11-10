@@ -31,7 +31,7 @@ let main():int32 {
     let u = BigInt(&s)
     println(u, " ", u.i64, " ", u.u64, " ", (u - 1).u64, " ", (u + 5).i64, " ", BigInt(-1).u64, " ", u.f64)
     println(BigInt(9223372036854775807) + 1, " ", BigInt(18446744073709551615 as u64), " ", BigInt(-9223372036854775807 - 1) - 1)
-    println(u.isZero, " ", BigInt(0).isZero, " ", BigInt(-3).isNegative, " ", BigInt(-3).signum, " ", BigInt(0).signum, " ", BigInt(-3).abs, " ", (-u).abs)
+    println(u.isZero, " ", BigInt(0).isZero, " ", BigInt(-3).isNegative, " ", BigInt(-3).sign, " ", BigInt(0).sign, " ", BigInt(-3).abs, " ", (-u).abs)
     println(u > 1, " ", 1 < u, " ", u == u, " ", u != u + 0, " ", BigInt(3) <= 3, " ", 4 >= BigInt(5))
     var x = BigInt(10)
     x += 5

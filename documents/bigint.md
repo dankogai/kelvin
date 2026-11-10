@@ -74,11 +74,27 @@ names it has it, with no import.
   - `b.text(base)` is the bare digits in a base from 2 to 36, as JS's
     `b.toString(16)`, its letters lowercase, a `-` before a negative
     one, no prefix and no `n`; another base ends the program.
+- **Powers** (#511):
+  - `b ** e` of an `i64` or a `BigInt` exponent, 0 or more, as of
+    integers; `b.pow(e)` is the same. A negative one ends the program.
+  - `pow(b, e, m)` and `b.pow(e, m)` are Python's `pow(b, e, m)`: `b` to
+    the `e`, mod `m`, the result of `m`'s sign; a negative `e` raises
+    the inverse of `b` mod `m`.
+    - Each of `b`, `e` and `m` is a `BigInt` or an `i64`, one at least a
+      `BigInt`; they are lent (#510), so `pow(a, 5, m)` leaves `a` and
+      `m`.
+    - `m` of 0, and an inverse where `b` and `m` share a factor, end the
+      program, as of integers.
+    - C's `pow(x, y)` of doubles stays beside it, declared (#223).
+- **Divisors and roots** (#511): `a.gcd(b)`, 0 or more, and `a.lcm(b)`,
+  of a `BigInt` or an `i64`; `a.isqrt()`, the floor of the square root,
+  which a negative `a` ends the program of.
 - **Numbers out:** `b.i64` and `b.u64` are the low 64 bits, as C's
   casts wrap them; `b.f64` is the nearest double, about.
-- **Not yet:** `**`, `gcd`, the square root, Karatsuba's multiplication,
-  a checked `i64`, and kc, which reads no module written in Kelvin and
-  refuses a `123n` literal in words.
+  - `b.exactI64` and `b.exactU64` (#511) are an `i64?` and a `u64?`:
+    `some` where `b` fits, else `none`, as Swift's `Int(exactly:)`.
+- **Not yet:** kc, which reads no module written in Kelvin and refuses
+  a `123n` literal in words.
 
 ## Where it lives
 
@@ -86,8 +102,12 @@ names it has it, with no import.
 swift-bignum: two's complement in little-endian `u64` limbs, the top bit
 repeated to the left, kept as short as it can be; zero is no limbs.
 
-- Multiplication is the schoolbook one, division Knuth's algorithm D,
-  both on the magnitudes, with `u128` for two limbs.
+- Multiplication is the schoolbook one, and Karatsuba's three halves
+  where both have 40 limbs or more (#511), as swift-bignum's; division
+  is Knuth's algorithm D; both on the magnitudes, with `u128` for two
+  limbs.
+- A power is squared and multiplied, a modular one reduced at each
+  step; gcd is Euclid's, isqrt Newton's.
 - `make` builds its header, `modules/BigInt.kh`, and its object with
   `kelvinc --prelude` (#504); libkelvin holds the object, and a program
   links it only where it uses it.
@@ -107,7 +127,13 @@ repeated to the left, kept as short as it can be; zero is no limbs.
 | | `.hex`, `.oct`, `.bin` | its literal in base 16, 8 or 2, `+0xffn`, `-0o17n`, `+0b101n` (#509) |
 | | `.text(base)` | its bare digits in a base from 2 to 36, a String |
 | | `.isZero`, `.isNegative` | bools |
-| | `.signum` | -1, 0 or 1, an `i64` |
+| | `.sign` | -1, 0 or 1, an `i64`, as integers' `.sign` (#511) |
+| | `.exactI64`, `.exactU64` | an `i64?`, a `u64?`: `none` where it does not fit (#511) |
+| | `b ** e`, `.pow(e)` | `b` to the `e`, an `i64` or a `BigInt`, 0 or more (#511) |
+| | `.pow(e, m)` | `b` to the `e`, mod `m`, Python's; a `BigInt` or an `i64` each (#511) |
+| | `.gcd(b)`, `.lcm(b)` | the greatest common divisor and the least common multiple, of a `BigInt` or an `i64` (#511) |
+| | `.isqrt()` | the floor of the square root (#511) |
+| a function | `pow(b, e, m)` | Python's, one of the three at least a `BigInt`; lent (#510, #511) |
 | | `.abs` | its magnitude, a `BigInt` |
 | | `.i64`, `.u64` | its low 64 bits |
 | | `.f64` | the nearest double, about |

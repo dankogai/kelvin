@@ -9671,3 +9671,14 @@ and one an expression gives is held and freed. kc the same. BigInt's
 arithmetic follows. Details are provisional P522.
 
 There are 1259 tests, and all pass with clang and with gcc 15.
+
+### 558. BigInt's arithmetic, finished
+
+**Claude**, with #510's lent parameters, finished BigInt as the user
+chose: `b ** e`, `b.pow(e)`, Python's `pow(b, e, m)` as a function and a
+method, any of the three a BigInt or an i64, and lent; `a.gcd(b)`,
+`a.lcm(b)`, `a.isqrt()`; `.sign`; `b.exactI64` and `b.exactU64`; and
+Karatsuba's multiplication past 40 limbs. C's `pow` of doubles stays
+beside it. Checked against Python. Details are provisional P523.
+
+There are 1265 tests, and all pass with clang and with gcc 15.
